@@ -102,6 +102,12 @@ export async function runStravaSyncRequest(request: Request) {
       runs?: number;
       /** Routes recovered onto runs already stored without one. */
       routesAdded?: number;
+      /**
+       * GPS-less Strava recordings passed over (distance 0). Reported because
+       * the alternative is a silent drop: if this number is ever large for an
+       * athlete whose runs are genuinely missing, this is where to look.
+       */
+      skippedDistanceless?: number;
       planMatches?: number;
       error?: string;
     }> = [];
@@ -226,6 +232,7 @@ export async function runStravaSyncRequest(request: Request) {
         let routesAdded = 0;
 
         let synced = 0;
+        let skippedDistanceless = 0;
         const insertErrors: string[] = [];
         // Post-workout feedback nudge (same purpose as Garmin sync's) needs
         // the newest genuinely-new activity's details after the loop below.
@@ -278,6 +285,31 @@ export async function runStravaSyncRequest(request: Request) {
 
           const durationSec = a.moving_time || a.elapsed_time;
           const distanceM = a.distance;
+
+          // A recording with no distance is not a run this app can hold. Strava
+          // reports `distance: 0` for a GPS-less capture — heart rate and
+          // calories and nothing else — and such a row arrives with no distance,
+          // no pace (average_pace is null by the formula below), no route, and a
+          // start time that isn't even local: with no GPS Strava has no timezone
+          // to localize with, so start_date_local comes back as UTC.
+          //
+          // Which makes it worse than merely empty. It is a PHANTOM COPY. One
+          // athlete's account held ten of these (measured 2026-09-08), every one
+          // of them a second record of a run already imported from Garmin — and
+          // undetectable as such, because hasCrossSourceDuplicate below bails on
+          // a zero distance (activity-dedup.ts:61) and the UTC timestamp lands
+          // ~2.5h from the Garmin row regardless. They were announced to the
+          // whole club as "0.0 ק"מ" apiece.
+          //
+          // What this costs: an HR-only record is discarded rather than kept
+          // pace-less. Accepted, because nothing in the app reads such a row —
+          // volume, pace, badges, challenges, shoe mileage and the map all need
+          // a distance. A treadmill run with a distance typed into Strava by
+          // hand is unaffected; it has one.
+          if (!distanceM || distanceM <= 0) {
+            skippedDistanceless++;
+            continue;
+          }
 
           // Garmin can auto-export this same run to Strava — garmin/sync-activities
           // already inserted it under a positive garmin_activity_id, which
@@ -378,6 +410,11 @@ export async function runStravaSyncRequest(request: Request) {
               activityKey: inserted.id,
               activityId: inserted.id,
               distanceMeters: row.distance,
+              // A first Strava connection backfills history as new rows here, so
+              // "new" alone is not grounds for a push — notifyTeammatesOfActivity
+              // drops anything that finished over a day ago.
+              startTime: row.start_time,
+              durationSeconds: row.duration,
             });
           } catch (notifyErr) {
             console.warn(`Teammate notify for Strava activity ${a.id} failed:`, notifyErr);
@@ -455,6 +492,7 @@ export async function runStravaSyncRequest(request: Request) {
           runs: runActivities.length,
           routesAdded,
           planMatches,
+          ...(skippedDistanceless ? { skippedDistanceless } : {}),
           ...(insertErrors.length
             ? { error: `${insertErrors.length} insert failures: ${insertErrors[0]}` }
             : {}),

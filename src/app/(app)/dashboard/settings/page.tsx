@@ -368,7 +368,11 @@ type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders'
 
 const settingsTabs = [
   // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
-  { key: 'registrations' as SettingsTab, label: 'Registrations', icon: UserPlus, iconBg: 'bg-accent-600' },
+  // NOTE: 'registrations' is deliberately absent. Its row now opens the entry
+  // queue, which holds the same people with their actual state; the old screen
+  // stays reachable at ?tab=registrations for the two things it still owns
+  // (re-sending a join link, rejecting a signup) and is listed by hand in
+  // ALL_TAB_KEYS below rather than here.
   { key: 'users' as SettingsTab, label: 'User Manager', icon: Users, iconBg: 'bg-indigo-500' },
   // Directly under User Manager, because that is where somebody looking to tag a
   // person goes first — and the גרעין is no longer something the role dropdown there
@@ -409,7 +413,7 @@ export default function SettingsPage() {
   // 'reminders' is listed by hand because it has a detail screen (ReminderConfig)
   // but no entry in `settingsTabs` — so Coach Tools' ?tab=reminders link was
   // being rejected here and silently dropped the reader on the landing list.
-  const ALL_TAB_KEYS: SettingsTab[] = [...settingsTabs.map(st => st.key), 'personalInfo', 'notifprefs', 'reminders'];
+  const ALL_TAB_KEYS: SettingsTab[] = [...settingsTabs.map(st => st.key), 'personalInfo', 'notifprefs', 'reminders', 'registrations'];
   const [activeTab, setActiveTabState] = useState<SettingsTab | null>(() => {
     const tab = searchParams.get('tab');
     return ALL_TAB_KEYS.includes(tab as SettingsTab) ? (tab as SettingsTab) : null;
@@ -1059,7 +1063,11 @@ export default function SettingsPage() {
                       ? t('registrationsNoneWaiting')
                       : t('registrationsWaiting', { count: pendingRegistrations })
                 }
-                onClick={() => setActiveTab('registrations')}
+                // Straight to the entry queue, which now holds these people too:
+                // 23 of the 24 pending "requests" are existing members who already
+                // had a card there, so two screens were listing the same club and
+                // the settings one couldn't see anybody's actual state.
+                onClick={() => router.push('/dashboard/entry-queue?bucket=waiting')}
                 trailing={
                   <span className="flex items-center gap-2 shrink-0">
                     {!!pendingRegistrations && (

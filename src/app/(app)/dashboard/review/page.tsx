@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import {
   Send, CheckCircle2, Bug, Lightbulb, Dumbbell, MessageCircle, Camera, Images, X,
-  ChevronDown, ChevronLeft, Info, MapPin, RotateCcw, Inbox,
+  ChevronDown, ChevronLeft, ChevronRight, Info, MapPin, RotateCcw, Inbox,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -81,11 +82,14 @@ export default function ReviewPage() {
   const t = useTranslations('review');
   const tn = useTranslations('nav');
   const locale = useLocale();
+  const router = useRouter();
 
   const [category, setCategory] = useState<FeedbackCategory>('bug_report');
   const [message, setMessage] = useState('');
   const [page, setPage] = useState<string | null>(null);
   const [pageAuto, setPageAuto] = useState(false);
+  /** The screen they left to come here — the way out. See the mount effect. */
+  const [originPath, setOriginPath] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
 
@@ -119,6 +123,14 @@ export default function ReviewPage() {
     () => screenOptions.find(o => o.href === page)?.label || null,
     [screenOptions, page],
   );
+  // The way back, named after the screen when the nav happens to know it. It
+  // often does not — the report that asked for this button came from
+  // /dashboard/activities/<uuid>, which is nobody's nav entry — so the label is
+  // optional and the button says "back" on its own when there is none.
+  const originLabel = useMemo(
+    () => screenOptions.find(o => o.href === originPath)?.label || null,
+    [screenOptions, originPath],
+  );
 
   const { data: mineData, mutate: refreshMine } = useApi<{ feedback?: MyReport[] }>('/api/feedback?mine=1');
   const myReports = mineData?.feedback || [];
@@ -149,15 +161,25 @@ export default function ReviewPage() {
       }
     } catch { /* corrupt draft — ignore it rather than block the screen */ }
 
+    // Where they physically came from. Read into its OWN state rather than
+    // reusing `page`, because `page` is an answer the reporter can change ("it
+    // happened on the calendar, actually") and the way out must still lead back
+    // to the screen they were looking at. Reported as a bug on 2.40.12: this
+    // screen had no exit at all — you filed a report from a run's detail page
+    // and the only way back was the nav, which does not know about a run.
+    let last: string | null = null;
+    try {
+      last = sessionStorage.getItem(REVIEW_LAST_PATH_KEY);
+    } catch { /* private mode */ }
+    if (last) setOriginPath(last);
+
     // The draft's own screen wins if it had one; otherwise fall back to wherever
     // they were standing when they opened this page.
     if (draftPage) {
       setPage(draftPage);
-    } else {
-      try {
-        const last = sessionStorage.getItem(REVIEW_LAST_PATH_KEY);
-        if (last) { setPage(last); setPageAuto(true); }
-      } catch { /* private mode */ }
+    } else if (last) {
+      setPage(last);
+      setPageAuto(true);
     }
   }, []);
 
@@ -259,6 +281,19 @@ export default function ReviewPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4" dir="rtl">
+      {/* The way back, above the title where a back affordance belongs. A push
+          rather than router.back(): they may well have arrived from the More
+          sheet or a fresh tab, where "back" is either a sheet reopening or
+          nothing at all, and this button has to mean one predictable thing. */}
+      {originPath && (
+        <button
+          onClick={() => router.push(originPath)}
+          className="-mb-1 inline-flex items-center gap-1 text-xs font-bold text-brand-600"
+        >
+          <ChevronRight className="h-4 w-4" />
+          {originLabel ? t('backTo', { screen: originLabel }) : t('back')}
+        </button>
+      )}
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight text-ink-700">{t('title')}</h1>
         <p className="mt-1 text-sm leading-relaxed text-ink-400">{t('subtitle')}</p>
@@ -278,9 +313,19 @@ export default function ReviewPage() {
             <Button variant="secondary" onClick={() => { setSent(false); setCategory('bug_report'); }}>
               {t('sendAnother')}
             </Button>
-            <Link href="/feed">
-              <Button variant="ghost">{tn('feed')}</Button>
-            </Link>
+            {/* "Back to what I was doing" beats the feed as the second way out
+                of a confirmation: they came here from somewhere on purpose. The
+                feed stays as the fallback for a report filed from a cold start,
+                where there is no screen to go back to. */}
+            {originPath ? (
+              <Button variant="ghost" onClick={() => router.push(originPath)}>
+                {originLabel ? t('backTo', { screen: originLabel }) : t('back')}
+              </Button>
+            ) : (
+              <Link href="/feed">
+                <Button variant="ghost">{tn('feed')}</Button>
+              </Link>
+            )}
           </div>
         </div>
       ) : (

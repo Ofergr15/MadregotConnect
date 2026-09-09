@@ -403,9 +403,12 @@ export default function WeeklyPlannerPage() {
     const fetchData = async () => {
       setLoadingAthletes(true);
       try {
+        // Both routes require a session now, so these two — alone among this
+        // file's ~20 fetches — had to stop being header-less.
+        const headers = await bearerHeaders(false);
         const [athRes, grpRes] = await Promise.all([
-          fetch(`/api/athletes?coach_id=${HARDCODED_COACH_ID}`),
-          fetch(`/api/groups?coach_id=${HARDCODED_COACH_ID}`),
+          fetch(`/api/athletes?coach_id=${HARDCODED_COACH_ID}`, { headers }),
+          fetch(`/api/groups?coach_id=${HARDCODED_COACH_ID}`, { headers }),
         ]);
         if (athRes.ok) {
           const data = await athRes.json();

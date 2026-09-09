@@ -60,11 +60,19 @@ function token(seed: string): string {
   return `header.${payload}.sig-${seed}`;
 }
 
-function request(seed: string): Request {
-  return new Request('https://madregot.app/api/feed', {
+function request(seed: string, path = '/api/feed'): Request {
+  return new Request(`https://madregot.app${path}`, {
     headers: { authorization: `Bearer ${token(seed)}` },
   });
 }
+
+/**
+ * An exempt path (see lib/auth/approval-gate.ts), for the cases that are about
+ * WHICH ROW resolves rather than about whether that row may see club content. A
+ * non-active row now 403s on a gated route, which is the point of the gate — but
+ * it would make the row-picking tests below untestable through requireSession.
+ */
+const OPEN = '/api/auth/me';
 
 function athlete(over: Record<string, unknown> = {}) {
   return { id: 'a1', name: 'Runner', role: 'runner', group_id: 'g1', status: 'active', ...over };
@@ -95,6 +103,9 @@ describe('requireSession — duplicate emails must not lock anyone out', () => {
       role: 'runner',
       groupId: 'g1',
       athleteStatus: 'active',
+      // The server's own copy of "may this account be inside the app". An active
+      // row is in, whatever `approved` says — see lib/auth/membership.ts.
+      membership: 'active',
       isStaff: false,
       // Migration 084: privilege now comes off the row, not only off the address.
       // A plain runner is neither, and this stays an exact-shape assertion so a
@@ -131,6 +142,38 @@ describe('requireSession — duplicate emails must not lock anyone out', () => {
     if (!result.ok) return;
     expect(result.user.athleteId).toBe('newest');
     expect(result.user.athleteStatus).toBe('invited');
+    // The row carries no `approved`, and membershipFor reads an absent flag as
+    // 'inactive' rather than 'pending': the answer that promises nothing. It is
+    // still NOT turned away — an 'invited' row that was never refused approval is
+    // somebody mid-onboarding, and 2 of the club's rows look exactly like this.
+    expect(result.user.membership).toBe('inactive');
+  });
+
+  it('403s a resolved-but-unapproved session on a gated route, and not on the waiting screen', async () => {
+    // The gate the app never had: approval was a client `useEffect` that redirected
+    // to /pending-approval and admitted in its own comment that it fails open, so a
+    // stranger's Strava sign-in could read the feed with a plain fetch.
+    athleteRows = [athlete({ id: 'newcomer', status: 'invited', approved: false })];
+    const gated = await requireSession(request('newcomer', '/api/feed'));
+    expect(gated.ok).toBe(false);
+    if (gated.ok) return;
+    expect(gated.status).toBe(403);
+    expect(gated.error).toBe('pending-approval');
+
+    // Same token, same cached resolution, exempt path — the decision is per-request
+    // because the cache is keyed on the token, not the path.
+    const open = await requireSession(request('newcomer', OPEN));
+    expect(open.ok).toBe(true);
+    expect(reads.filter(r => r.table === 'athletes')).toHaveLength(1);
+  });
+
+  it('says account-inactive, not pending-approval, for revoked access', async () => {
+    // Different sentence on the waiting screen: nothing is coming for this one.
+    athleteRows = [athlete({ status: 'inactive', approved: true })];
+    const result = await requireSession(request('revoked'));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe('account-inactive');
   });
 
   it('reads athletes newest-first so "the newest row" is well defined', async () => {

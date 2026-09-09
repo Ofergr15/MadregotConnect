@@ -54,8 +54,16 @@ export function SplitsTable({ splits }: { splits: Split[] }) {
               </div>
               <span className="col-span-3 text-ink-500 tabular-nums">{formatDuration(split.duration)}</span>
               <span className="col-span-2 text-ink-400 tabular-nums">{split.averageHR || '—'}</span>
+              {/*
+                Climb red, descent green — deliberately the opposite of the
+                usual up-is-good reading, so that green means one thing on this
+                row and not two: the pace above already uses accent-600 for the
+                fastest split and accent-red for the slowest. Both colours now
+                say "easier / harder", never "more / less". Same flip lives in
+                ElevationChart; change one and change the other.
+              */}
               <span className="col-span-2 text-ink-400 tabular-nums">
-                {split.elevationGain != null ? <><span className="text-accent-600">+{Math.round(split.elevationGain)}</span>{split.elevationLoss ? <span className="text-accent-red ms-1">-{Math.round(split.elevationLoss)}</span> : null}</> : '—'}
+                {split.elevationGain != null ? <><span className="text-accent-red">+{Math.round(split.elevationGain)}</span>{split.elevationLoss ? <span className="text-accent-600 ms-1">-{Math.round(split.elevationLoss)}</span> : null}</> : '—'}
               </span>
             </div>
           );

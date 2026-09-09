@@ -33,9 +33,9 @@ function clearGroupsMemo(): void {
 }
 
 /**
- * Staff gate for the write handlers. GET stays open — half the app reads the
- * group list (Header, tab bar, profile, onboarding, leaderboards) and it holds
- * nothing sensitive; the auth blobs are deliberately mapped to booleans below.
+ * Staff gate for the write handlers. GET needs a session but not staff — half the
+ * app reads the group list (Header, tab bar, profile, leaderboards) and every one
+ * of those callers is signed in.
  */
 async function requireStaff(request: Request) {
   const auth = await requireSession(request);
@@ -49,6 +49,12 @@ async function requireStaff(request: Request) {
 // GET - List all groups for the coach with athlete details
 export async function GET(request: Request) {
   try {
+    // Was fully open, and the response embeds every athlete's name, email and
+    // status — so the whole club roster was readable by anybody who knew the URL.
+    // The one session-less caller (/join/onboard) reads /api/public/groups now.
+    const auth = await requireSession(request);
+    if (!auth.ok) return authError(auth);
+
     const { searchParams } = new URL(request.url);
     const coachId = searchParams.get('coach_id') || DEMO_COACH_ID;
 
@@ -126,7 +132,10 @@ export async function GET(request: Request) {
       const athletes = (Array.isArray(group.athletes) ? group.athletes : []).map((a: any) => ({
         id: a.id,
         name: a.name,
-        email: a.email,
+        // Staff only. The screens that show an address (settings, the athletes
+        // list) are staff screens; a runner's Header and tab bar want the group
+        // names, and were being handed the club's whole address book to get them.
+        email: auth.user.isStaff ? a.email : null,
         status: a.status,
         hasGarmin: garminIds.has(a.id),
         hasStrava: stravaIds.has(a.id),

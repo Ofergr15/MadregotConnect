@@ -9,8 +9,7 @@ import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 import { checkShoeAlert } from '@/lib/shoes';
 import { notifyMainWorkoutFeedback } from '@/lib/post-workout';
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
-import { findCrossSourceDuplicate } from '@/lib/activity-dedup';
-import type { GarminActivity } from '@/lib/garmin/types';
+import { findCrossSourceDuplicate, twinVerdict, upgradePatch } from '@/lib/activity-dedup';
 import { mapActivityDetail } from '@/lib/garmin/activity-detail';
 import { isMissingColumn, withoutColumns } from '@/lib/supabase/schema-drift';
 import { backfillGarminWorkoutIds } from '@/lib/garmin/workout-id-backfill';
@@ -40,6 +39,14 @@ import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-
 export const maxDuration = 300;
 
 /**
+ * How many Strava rows one sync may upgrade for one athlete. Sized against the
+ * ceiling above: each upgrade is the same 2-4 serial Garmin calls a new run costs,
+ * and the crons run hourly, so a Strava-only history of ~100 runs is repaired
+ * within a day without any single request going near 300 s.
+ */
+const UPGRADES_PER_SYNC = 5;
+
+/**
  * HTTP entry point. Anyone could previously trigger a full-club Garmin sync —
  * one unauthenticated POST per second was a free way to burn the club's Garmin
  * rate limit and push a feedback nudge at every athlete.
@@ -55,103 +62,6 @@ export async function POST(request: Request) {
   const { denied } = await requireCallerForAthlete(request, athleteId);
   if (denied) return denied;
   return runSyncRequest(request);
-}
-
-/**
- * Everything Garmin knows about one activity, shaped for `athlete_activities`
- * plus the trace to store beside it.
- *
- * Extracted from the insert loop so the Strava-upgrade pass below cannot drift
- * from it. An upgraded row has to carry the SAME evidence a freshly synced one
- * does — laps with their `wktStepIndex`, the executed step list, the 1 Hz trace
- * — because those three are the entire reason the upgrade is worth its Garmin
- * requests. Two copies of this code is how one of them would quietly stop
- * fetching the step list.
- */
-async function buildActivityRow(
-  client: GarminClient,
-  a: GarminActivity,
-  opts: { athleteId: string; shoeId: string | null },
-): Promise<{
-  row: Record<string, any>;
-  trace: {
-    garminActivityId: number;
-    stream: Awaited<ReturnType<GarminClient['getActivityTrace']>>['stream'];
-    laps: unknown[] | null;
-  };
-}> {
-  // Detail and GPS are fetched INDEPENDENTLY, and the polyline is
-  // requested unconditionally. Both matter:
-  //  - the old code only fetched GPS when `detail.hasPolyline` was
-  //    true, but that field reads null on every real response (see
-  //    lib/garmin/activity-detail.ts), so no run ever got a route —
-  //    hence no map anywhere in the app.
-  //  - the old code fetched both inside one try, so a detail failure
-  //    also cost the polyline.
-  // getActivityGpsPoints already returns [] for a genuinely GPS-less
-  // activity (treadmill) or any error, so it's safe to always ask.
-  let detail: any = null;
-  try {
-    detail = await client.getActivityFull(a.activityId);
-  } catch { /* the list row + polyline still carry most of it */ }
-  // One details call, both answers. This endpoint's response carries the
-  // per-sample trace as well as the polyline, and until now the sync read
-  // the polyline out of it and dropped the rest — the trace is what makes
-  // "did they run the 20 km block at 4:25" answerable at all, since a
-  // whole-run average includes the warm-up and the strides.
-  const { gpsPoints, stream } = await client.getActivityTrace(a.activityId, a.distance);
-  const enriched = mapActivityDetail(detail, a, gpsPoints);
-
-  // Laps at SYNC time, not when a human happens to open the run. They were
-  // on-demand only, so 49 of the last 659 runs had any — meaning no rep
-  // verdict was computable for the rest, on the screen every athlete sees.
-  // `lapCount` comes free on the list row: 1 lap is the run itself and
-  // tells the engine nothing, so only ask Garmin when there are markers.
-  let lapDTOs: unknown[] = [];
-  if ((a.lapCount || 0) > 1) {
-    lapDTOs = await client.getActivitySplits(a.activityId);
-  }
-  const laps = lapsWorthStoring(lapDTOs) ? narrowLaps(lapDTOs) : [];
-
-  // The workout the device ran, but only when a lap says it ran one. Every
-  // stamped lap carries `wktStepIndex`, an index into a step list this row
-  // does not have — and the number is worse than useless without it, since a
-  // "3" read against our own parsed plan names a different step than the
-  // watch meant (repeat markers occupy indices; athletes run workouts we
-  // didn't write). Gating on the stamp rather than asking for every activity
-  // keeps this at zero extra requests for the ~85% of runs that are plain,
-  // and it's the exact condition under which the answer is usable:
-  // `garmin_workout_id` comes off a list field that doesn't always populate.
-  let executedWorkout = null;
-  if (laps.some(l => l.wktStepIndex != null) || a.workoutId) {
-    executedWorkout = narrowExecutedWorkout(await client.getActivityWorkout(a.activityId));
-  }
-
-  return {
-    trace: {
-      garminActivityId: a.activityId,
-      stream,
-      laps: lapsWorthStoring(lapDTOs) ? lapDTOs : null,
-    },
-    row: {
-      athlete_id: opts.athleteId,
-      garmin_activity_id: a.activityId,
-      activity_name: a.activityName,
-      activity_type: a.activityType,
-      start_time: a.startTimeLocal,
-      distance: Math.round(a.distance),
-      duration: Math.round(a.duration),
-      average_pace: a.distance > 0 ? Math.round(a.duration / (a.distance / 1000)) : null,
-      average_hr: a.averageHR,
-      max_hr: a.maxHR,
-      calories: a.calories || null,
-      elevation_gain: a.elevationGain,
-      shoe_id: opts.shoeId,
-      ...(laps.length ? { laps } : {}),
-      ...(executedWorkout ? { executed_workout: executedWorkout } : {}),
-      ...enriched,
-    },
-  };
 }
 
 export async function runSyncRequest(request: Request) {
@@ -183,7 +93,7 @@ export async function runSyncRequest(request: Request) {
     }
 
     let totalSynced = 0;
-    const results: Array<{ athleteId: string; name: string; synced: number; upgraded?: number; error?: string }> = [];
+    const results: Array<{ athleteId: string; name: string; synced: number; upgradedFromStrava?: number; error?: string }> = [];
 
     for (const athlete of athletes) {
       if (!athlete.garmin_auth) continue;
@@ -223,42 +133,51 @@ export async function runSyncRequest(request: Request) {
 
         // Strava can independently import this same run (Garmin auto-export) —
         // strava/sync-activities' own existingByStrava check can never catch that,
-        // since it's keyed by strava_activity_id. Inserting anyway counts the run
-        // twice everywhere rows are summed (badges, challenges, shoe mileage,
-        // teammate pushes). See findCrossSourceDuplicate's own comment.
+        // since it's keyed by strava_activity_id. Without this, every such run gets
+        // counted twice (badges, challenges, shoe mileage, teammate pushes). See
+        // hasCrossSourceDuplicate's own comment.
         //
-        // But skipping was the wrong answer, and it cost real verdicts. The dedup is
-        // source-blind and symmetric, so whichever provider's sync happened to run
-        // first won permanently — and when Strava won, the run kept the copy with no
-        // `wktStepIndex` on its laps, no `executed_workout` and no 1 Hz trace, i.e.
-        // the copy none of the watch-step engine, the block search or the rep finder
-        // can read properly. That is not a hypothetical: one athlete's Tuesday double
-        // scored 74 with all six 2 km blocks marked `slower` (248 s/km, 247, 248, 242,
-        // 246, 268) while his own laps put those blocks at 3:34, 3:35, 3:30, 3:30,
-        // 3:25, 3:37 — five of six exactly on target — because a 45-point lap trace
-        // makes `bestWindow` land on lap boundaries and swallow a 522 m recovery jog.
-        // The teammate who ran the same session off Garmin scored 100. Nor does the
-        // segments route's self-repair heal it: `wantsStamps` requires
-        // `garmin_workout_id != null`, which a Strava row never has.
+        // A Strava twin is UPGRADED rather than skipped. Both rows describe the
+        // same run, but the watch knows where each lap ended and Strava's export
+        // of it does not — so whichever cron happened to run first decided
+        // whether the athlete sees the intervals they ran or a row of even
+        // kilometres. Reported 2026-09-08 by an athlete looking at exactly that.
         //
-        // So the Garmin copy UPGRADES the Strava row in place instead. Not a
-        // delete-and-reinsert: the row id is referenced by kudos, comments, feedback,
-        // plan matches and activity_streams, and it stays the same row.
+        // Upgraded in place, never delete-and-reinsert: the row id is what the
+        // feed item, its kudos and its comments point at, and a fresh insert
+        // would also announce the run to the club a second time.
         const newActivities: typeof candidateActivities = [];
-        const stravaUpgrades: Array<{ activity: (typeof candidateActivities)[number]; rowId: string }> = [];
+        const allUpgrades: Array<{ rowId: string; activity: (typeof candidateActivities)[number] }> = [];
         for (const a of candidateActivities) {
-          const dup = await findCrossSourceDuplicate(supabase, athlete.id, a.startTimeLocal, a.distance);
-          if (!dup) {
-            newActivities.push(a);
-            continue;
-          }
-          // Only a Strava row is worth upgrading. Any other source is either
-          // another Garmin row (already the richer copy) or a manual entry an
-          // athlete typed, which is theirs and not ours to overwrite.
-          if (dup.source === 'strava') stravaUpgrades.push({ activity: a, rowId: dup.id });
+          const twin = await findCrossSourceDuplicate(supabase, athlete.id, a.startTimeLocal, a.distance);
+          const verdict = twinVerdict(twin);
+          if (verdict === 'insert') newActivities.push(a);
+          else if (verdict === 'upgrade' && twin) allUpgrades.push({ rowId: twin.id, activity: a });
+          // 'skip' is left alone — see twinVerdict.
         }
+        // Capped, because the first sync after this shipped is the expensive one: a
+        // dual-connected athlete whose whole history arrived through Strava has every
+        // run in this 100-activity list window eligible at once, at 2-4 SERIAL Garmin
+        // requests each against a 300 s function ceiling — and the build loop below
+        // runs before any write, so blowing the ceiling would cost the batch its new
+        // runs too. Each row is upgraded at most once, so the backlog drains over the
+        // hourly crons; the cap only decides how fast.
+        //
+        // Sorted newest-first EXPLICITLY rather than leaning on the list order, so
+        // today's session is the one repaired first: `getActivities` happens to return
+        // newest first, but a cap that silently depends on a provider's ordering is a
+        // cap that spends a day draining the oldest end of the backlog if that ever
+        // changes — and the athlete asking why their splits are wrong is asking about
+        // this morning.
+        const upgrades = allUpgrades
+          .slice()
+          .sort((a, b) => (a.activity.startTimeLocal < b.activity.startTimeLocal ? 1 : -1))
+          .slice(0, UPGRADES_PER_SYNC);
 
-        if (newActivities.length > 0) {
+        // Declared out here so the per-athlete result below can report it.
+        let upgradedFromStrava = 0;
+
+        if (newActivities.length + upgrades.length > 0) {
           const rows: Record<string, any>[] = [];
           // Traces are collected here and written after the upsert: activity_streams
           // is keyed by athlete_activities.id, which only exists once the row does.
@@ -267,13 +186,81 @@ export async function runSyncRequest(request: Request) {
             stream: Awaited<ReturnType<typeof client.getActivityTrace>>['stream'];
             laps: unknown[] | null;
           }> = [];
-          for (const a of newActivities) {
-            const built = await buildActivityRow(client, a, {
-              athleteId: athlete.id,
-              shoeId: athlete.active_shoe_id || null,
+          // New runs first, then the ones replacing a Strava row: the two halves
+          // of `rows` are sliced apart again below, and the notify loop pairs
+          // `rows[i]` with `newActivities[i]`.
+          const toBuild = [...newActivities, ...upgrades.map(u => u.activity)];
+          for (const a of toBuild) {
+            // Detail and GPS are fetched INDEPENDENTLY, and the polyline is
+            // requested unconditionally. Both matter:
+            //  - the old code only fetched GPS when `detail.hasPolyline` was
+            //    true, but that field reads null on every real response (see
+            //    lib/garmin/activity-detail.ts), so no run ever got a route —
+            //    hence no map anywhere in the app.
+            //  - the old code fetched both inside one try, so a detail failure
+            //    also cost the polyline.
+            // getActivityGpsPoints already returns [] for a genuinely GPS-less
+            // activity (treadmill) or any error, so it's safe to always ask.
+            let detail: any = null;
+            try {
+              detail = await client.getActivityFull(a.activityId);
+            } catch { /* the list row + polyline still carry most of it */ }
+            // One details call, both answers. This endpoint's response carries the
+            // per-sample trace as well as the polyline, and until now the sync read
+            // the polyline out of it and dropped the rest — the trace is what makes
+            // "did they run the 20 km block at 4:25" answerable at all, since a
+            // whole-run average includes the warm-up and the strides.
+            const { gpsPoints, stream } = await client.getActivityTrace(a.activityId, a.distance);
+            const enriched = mapActivityDetail(detail, a, gpsPoints);
+
+            // Laps at SYNC time, not when a human happens to open the run. They were
+            // on-demand only, so 49 of the last 659 runs had any — meaning no rep
+            // verdict was computable for the rest, on the screen every athlete sees.
+            // `lapCount` comes free on the list row: 1 lap is the run itself and
+            // tells the engine nothing, so only ask Garmin when there are markers.
+            let lapDTOs: unknown[] = [];
+            if ((a.lapCount || 0) > 1) {
+              lapDTOs = await client.getActivitySplits(a.activityId);
+            }
+            traces.push({
+              garminActivityId: a.activityId,
+              stream,
+              laps: lapsWorthStoring(lapDTOs) ? lapDTOs : null,
             });
-            traces.push(built.trace);
-            rows.push(built.row);
+            const laps = lapsWorthStoring(lapDTOs) ? narrowLaps(lapDTOs) : [];
+
+            // The workout the device ran, but only when a lap says it ran one. Every
+            // stamped lap carries `wktStepIndex`, an index into a step list this row
+            // does not have — and the number is worse than useless without it, since a
+            // "3" read against our own parsed plan names a different step than the
+            // watch meant (repeat markers occupy indices; athletes run workouts we
+            // didn't write). Gating on the stamp rather than asking for every activity
+            // keeps this at zero extra requests for the ~85% of runs that are plain,
+            // and it's the exact condition under which the answer is usable:
+            // `garmin_workout_id` comes off a list field that doesn't always populate.
+            let executedWorkout = null;
+            if (laps.some(l => l.wktStepIndex != null) || a.workoutId) {
+              executedWorkout = narrowExecutedWorkout(await client.getActivityWorkout(a.activityId));
+            }
+
+            rows.push({
+              athlete_id: athlete.id,
+              garmin_activity_id: a.activityId,
+              activity_name: a.activityName,
+              activity_type: a.activityType,
+              start_time: a.startTimeLocal,
+              distance: Math.round(a.distance),
+              duration: Math.round(a.duration),
+              average_pace: a.distance > 0 ? Math.round(a.duration / (a.distance / 1000)) : null,
+              average_hr: a.averageHR,
+              max_hr: a.maxHR,
+              calories: a.calories || null,
+              elevation_gain: a.elevationGain,
+              shoe_id: athlete.active_shoe_id || null,
+              ...(laps.length ? { laps } : {}),
+              ...(executedWorkout ? { executed_workout: executedWorkout } : {}),
+              ...enriched,
+            });
           }
 
           // upsert + ignoreDuplicates (not a plain insert) — two overlapping
@@ -290,8 +277,13 @@ export async function runSyncRequest(request: Request) {
               .upsert(payload, { onConflict: 'athlete_id,garmin_activity_id', ignoreDuplicates: true })
               .select('id, garmin_activity_id');
 
-          let payload: Record<string, any>[] = rows;
-          let { data: insertedRows, error: insertError } = await upsertActivities(payload);
+          const upgradeRows = rows.slice(newActivities.length);
+          let payload: Record<string, any>[] = rows.slice(0, newActivities.length);
+          // An empty upsert is a wasted round trip at best, so a batch of nothing
+          // but upgrades skips straight past it.
+          let { data: insertedRows, error: insertError } = payload.length
+            ? await upsertActivities(payload)
+            : { data: [] as { id: string; garmin_activity_id: number }[], error: null as null | { code?: string } };
 
           // Columns an unapplied migration can leave missing, newest first. Each
           // retry drops only the column the error actually NAMES, one at a time:
@@ -320,6 +312,40 @@ export async function runSyncRequest(request: Request) {
           if (insertError) throw insertError;
           totalSynced += newActivities.length;
 
+          // Write the watch's own record of the run onto each Strava twin. Same row,
+          // same id, so the feed item and its kudos survive.
+          //
+          // ADD, don't replace: `upgradePatch` strips the fields where Garmin's
+          // answer is worse than the one already on the row — a null Garmin doesn't
+          // report, the athlete's own name, and today's shoe on a month-old run. An
+          // upgrade that erases data isn't one.
+          //
+          // Best-effort per row, and deliberately after the insert: a database
+          // missing one of the optional columns must not cost the batch its new
+          // runs just because an upgrade couldn't be written.
+          const upgradedIds: Array<{ garminActivityId: number; rowId: string }> = [];
+          for (let i = 0; i < upgrades.length; i++) {
+            const { rowId, activity } = upgrades[i];
+            let update: Record<string, any> = upgradePatch(upgradeRows[i]);
+            const droppedHere: string[] = [];
+            let { error: upgradeError } = await supabase.from('athlete_activities').update(update).eq('id', rowId);
+            while (upgradeError && droppedHere.length < optionalColumns.length) {
+              const drop =
+                optionalColumns.find(c => !droppedHere.includes(c) && isMissingColumn(upgradeError, c)) ||
+                (upgradeError.code === '23503' && !droppedHere.includes('shoe_id') ? 'shoe_id' : null);
+              if (!drop) break;
+              droppedHere.push(drop);
+              update = withoutColumns([update], [drop])[0] as Record<string, any>;
+              ({ error: upgradeError } = await supabase.from('athlete_activities').update(update).eq('id', rowId));
+            }
+            if (upgradeError) {
+              console.warn(`Upgrading Strava row ${rowId} to Garmin activity ${activity.activityId} failed:`, upgradeError);
+              continue;
+            }
+            upgradedFromStrava++;
+            upgradedIds.push({ garminActivityId: activity.activityId, rowId });
+          }
+
           // One check per batch (not per activity) — checkShoeAlert already
           // sums every activity on the shoe, so re-checking per-row here would
           // just re-derive the same total repeatedly.
@@ -328,9 +354,12 @@ export async function runSyncRequest(request: Request) {
           // Map back to the real row id per Garmin activity, so kudos (which
           // targets athlete_activities.id, not the legacy garmin_activity_id)
           // has something real to reference.
-          const idByGarminActivityId = new Map(
+          const idByGarminActivityId = new Map<number, string>(
             (insertedRows || []).map((r: { id: string; garmin_activity_id: number }) => [r.garmin_activity_id, r.id]),
           );
+          // The upgraded rows already had ids; the trace loop below needs them
+          // too, since the stream is what makes the laps readable.
+          for (const u of upgradedIds) idByGarminActivityId.set(u.garminActivityId, u.rowId);
 
           // Store the evidence for each run just inserted. Best-effort by design:
           // a trace that fails to save costs that run its rep verdict, and nothing
@@ -364,6 +393,12 @@ export async function runSyncRequest(request: Request) {
                     activityKey: `${athlete.id}-${a.activityId}`,
                     activityId,
                     distanceMeters: row.distance,
+                    // Not every new row deserves an announcement: a first-ever
+                    // connection backfills months of history as "new" here.
+                    // notifyTeammatesOfActivity drops anything that finished
+                    // over a day ago — same rule as the nudge below.
+                    startTime: row.start_time,
+                    durationSeconds: row.duration,
                   });
                 } catch (notifyErr) {
                   console.warn(`Teammate notify for Garmin activity ${a.activityId} failed:`, notifyErr);
@@ -384,7 +419,10 @@ export async function runSyncRequest(request: Request) {
           // cooldown), and syncing more than once in a day (mid-run, then
           // again after finishing) used to fire this prompt once per call,
           // each only considering that call's own batch.
-          if (!suppressPush) {
+          // `newActivities` can now be empty — a batch of nothing but upgrades of
+          // runs the club has already been told about, which is not news and not
+          // a reason to ask anyone how their session went.
+          if (!suppressPush && newActivities.length > 0) {
             const newest = newActivities.reduce((a, b) => (new Date(a.startTimeLocal) > new Date(b.startTimeLocal) ? a : b));
             await notifyMainWorkoutFeedback({ athleteId: athlete.id, dateStr: newest.startTimeLocal.split('T')[0] });
           }
@@ -441,129 +479,11 @@ export async function runSyncRequest(request: Request) {
           } catch { /* challenge check is best-effort */ }
         }
 
-        // Fill in Garmin's evidence on the runs Strava got to first. Deliberately
-        // AFTER the insert block: an upgrade is a repair to something the athlete
-        // can already see, and it must never cost a genuinely new run its row,
-        // badges or pushes.
-        //
-        // Nothing here notifies. The athlete was already told about this run when
-        // Strava synced it — a teammate push, a feedback nudge or the "customize
-        // your post" sheet firing again now would be the app announcing a run from
-        // last Tuesday. It also doesn't touch `totalSynced`: no row was added, so
-        // upgrades are reported on their own.
-        let upgraded = 0;
-        if (stravaUpgrades.length > 0) {
-          // Newest first, and capped. A dual-connected athlete whose history all
-          // came through Strava has every run inside Garmin's list window eligible
-          // on the first sync after this ships (measured: 23 rows across the 3
-          // dual-connected athletes), and each one is 2-4 serial Garmin requests
-          // against a 300 s ceiling shared with the rest of the sync. Each row is
-          // upgraded at most once — afterwards it holds a real positive
-          // `garmin_activity_id` and `existingIds` skips it forever — so the
-          // backlog drains over a few hourly crons, and the cap decides only how
-          // fast. Newest first so the session a coach is looking at today is the
-          // one that gets fixed first.
-          const UPGRADE_LIMIT = 5;
-          const queue = [...stravaUpgrades]
-            .sort((x, y) => new Date(y.activity.startTimeLocal).getTime() - new Date(x.activity.startTimeLocal).getTime())
-            .slice(0, UPGRADE_LIMIT);
-
-          for (const { activity: a, rowId } of queue) {
-            try {
-              const built = await buildActivityRow(client, a, { athleteId: athlete.id, shoeId: null });
-
-              // An upgrade is upgrade-ONLY: anything Garmin didn't report has to
-              // leave the Strava value standing. Garmin's row shape uses null for
-              // "not reported" in every column here, so dropping nulls is the whole
-              // rule — without it a list row with no `calories` erases the value
-              // Strava's enrichment fetched from its detail endpoint, and a run
-              // Garmin has no cadence for loses the cadence Strava had. Same
-              // reasoning as the geometry note in lib/strava/enrich.ts, from the
-              // other direction.
-              const patch: Record<string, any> = { source: 'garmin' };
-              for (const [k, v] of Object.entries(built.row)) {
-                if (v !== null) patch[k] = v;
-              }
-              // Not `shoe_id`: the Strava sync already attributed this row to the
-              // shoe that was active when the run landed, and `active_shoe_id` read
-              // at the top of this request is the athlete's shoe NOW. Rewriting it
-              // moves a week-old run's mileage onto a pair they weren't wearing.
-              delete patch.shoe_id;
-              // Not `activity_name`: it's the one user-editable column on this row
-              // (PATCH /api/feed/items/[id] lets an athlete rename their own run),
-              // so overwriting it would silently revert a caption they typed. Costs
-              // us Garmin's better default — "Morning Run" stays instead of the
-              // workout's name — which is not worth reverting someone's own words.
-              delete patch.activity_name;
-              // Geometry is upgrade-only for the reason enrich.ts spells out: an
-              // empty `gpsPoints` here means the detail fetch failed, not that the
-              // run had no route, and writing it would erase a map the feed card is
-              // drawing and re-fire migration 047's trigger to null `route_preview`
-              // with it. `has_polyline: false` is the same claim as `[]`, so the two
-              // travel together.
-              if (!(Array.isArray(patch.gps_points) && patch.gps_points.length > 1)) {
-                delete patch.gps_points;
-                delete patch.has_polyline;
-              }
-              // `strava_activity_id` is untouched on purpose, and it is what keeps
-              // this from becoming a duplicate: strava/sync-activities keys its own
-              // existence check on that column, so it still recognises this row as
-              // the run it imported and won't insert a second copy.
-
-              // Same schema-drift retry as the insert above, and for the same
-              // reason: a database missing migration 095 must not cost the whole
-              // upgrade, just the column it hasn't got.
-              const optional = ['executed_workout', 'garmin_workout_id', 'laps'];
-              const gone: string[] = [];
-              let body = patch;
-              let { error: updateError } = await supabase
-                .from('athlete_activities').update(body).eq('id', rowId);
-              while (updateError && gone.length < optional.length) {
-                const drop = optional.find(c => !gone.includes(c) && isMissingColumn(updateError!, c));
-                if (!drop) break;
-                gone.push(drop);
-                body = withoutColumns([body], [drop])[0] as Record<string, any>;
-                ({ error: updateError } = await supabase
-                  .from('athlete_activities').update(body).eq('id', rowId));
-              }
-              if (updateError) throw updateError;
-
-              // The row id is unchanged, so this attaches to the same activity the
-              // Strava copy created — kudos, comments, feedback and plan matches all
-              // still point at it, and the trace lands where the segments route
-              // looks for it.
-              await saveActivityStream(supabase, {
-                activityId: rowId,
-                garminActivityId: a.activityId,
-                source: 'garmin',
-                stream: built.trace.stream,
-                laps: built.trace.laps,
-              });
-              upgraded++;
-            } catch (upgradeErr) {
-              // One run's repair failing is not this athlete's sync failing.
-              console.warn(`Strava-row upgrade for Garmin activity ${a.activityId} failed:`, upgradeErr);
-            }
-          }
-
-          if (upgraded > 0) {
-            // The plan attribution the Strava row never had: `garmin_workout_id` is
-            // set now, which is what lets a run be tied to the workout it was run
-            // for. Cheap and idempotent, and skipped entirely above when nothing
-            // new was inserted.
-            try {
-              await matchAthleteActivities(supabase, athlete.id);
-            } catch (matchError) {
-              console.warn(`Plan matching after upgrade for ${athlete.id} skipped:`, matchError);
-            }
-          }
-        }
-
         results.push({
           athleteId: athlete.id,
           name: athlete.name,
           synced: newActivities.length,
-          ...(upgraded > 0 ? { upgraded } : {}),
+          ...(upgradedFromStrava ? { upgradedFromStrava } : {}),
         });
       } catch (e: any) {
         results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: e.message });

@@ -3,8 +3,11 @@ import {
   entryHandles,
   entryStage,
   isWaitingOnUs,
+  matchesFilter,
+  matchesFilters,
   realEmail,
   sortEntryQueue,
+  stageCounts,
   type EntryQueueMember,
 } from '@/lib/admin/entry-queue';
 
@@ -113,5 +116,53 @@ describe('sortEntryQueue', () => {
       member({ id: 'dated', stage: 'pending', createdAt: '2026-09-01T00:00:00Z' }),
     ]);
     expect(sorted.map((m) => m.id)).toEqual(['dated', 'undated']);
+  });
+});
+
+describe('stageCounts', () => {
+  it('counts every stage, including the ones nobody is in', () => {
+    expect(
+      stageCounts([
+        member({ stage: 'pending' }),
+        member({ stage: 'pending' }),
+        member({ stage: 'ready' }),
+      ]),
+    ).toEqual({ pending: 2, blocked: 0, never: 0, setup: 0, ready: 1 });
+  });
+
+  it('is all zeros for an empty club rather than an empty object', () => {
+    // The bar at the top divides by the total; a missing key would render NaN%.
+    expect(stageCounts([])).toEqual({ pending: 0, blocked: 0, never: 0, setup: 0, ready: 0 });
+  });
+});
+
+describe('matchesFilter', () => {
+  it('reads "no watch" off credentials, not off data_source', () => {
+    // All 28 members have a declared source and only 17 have anything behind it,
+    // which is the whole reason this filter exists.
+    expect(matchesFilter(member({ hasGarmin: false, hasStrava: false }), 'noWatch')).toBe(true);
+    expect(matchesFilter(member({ hasStrava: true }), 'noWatch')).toBe(false);
+  });
+
+  it('flags no notifications, never entered and no דבוקה', () => {
+    expect(matchesFilter(member({ hasPush: false }), 'noPush')).toBe(true);
+    expect(matchesFilter(member({ hasPush: true }), 'noPush')).toBe(false);
+    expect(matchesFilter(member({ lastSeenAt: null }), 'neverEntered')).toBe(true);
+    expect(matchesFilter(member({ lastSeenAt: '2026-09-01T00:00:00Z' }), 'neverEntered')).toBe(false);
+    expect(matchesFilter(member({ groupName: null }), 'noGroup')).toBe(true);
+    expect(matchesFilter(member({ groupName: 'SUB 2:30' }), 'noGroup')).toBe(false);
+  });
+});
+
+describe('matchesFilters', () => {
+  it('ANDs them — the person with two problems is the one to chase', () => {
+    const both = member({ hasPush: false, hasGarmin: false, hasStrava: false });
+    const onlyPush = member({ hasPush: false, hasStrava: true });
+    expect(matchesFilters(both, ['noPush', 'noWatch'])).toBe(true);
+    expect(matchesFilters(onlyPush, ['noPush', 'noWatch'])).toBe(false);
+  });
+
+  it('lets everybody through when nothing is filtered', () => {
+    expect(matchesFilters(member({ hasPush: true, hasStrava: true }), [])).toBe(true);
   });
 });

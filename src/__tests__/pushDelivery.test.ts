@@ -63,8 +63,10 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }));
 
-const { sendPushDetailed, sendPushToSubscriptions, persistNotifications, notifyTeammatesOfActivity } =
-  await import('@/lib/push');
+const {
+  sendPushDetailed, sendPushToSubscriptions, persistNotifications, notifyTeammatesOfActivity,
+  isFreshEnoughToAnnounce, ANNOUNCE_WINDOW_MS,
+} = await import('@/lib/push');
 
 const sub = (id: string, athleteId: string) => ({
   id,
@@ -306,7 +308,13 @@ describe('teammate-activity copy — the same event read two different ways', ()
     ];
     tables.athlete_follows = [{ follower_id: 'f1' }];
     tables.push_subscriptions = [sub('s1', 'f1')];
-    return notifyTeammatesOfActivity({ athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters });
+    // Finished a minute ago: every assertion in this block is about the CONTENT of
+    // an announcement, so the run has to be recent enough to be announced at all
+    // (isFreshEnoughToAnnounce). Staleness is covered in its own block below.
+    return notifyTeammatesOfActivity({
+      athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters,
+      startTime: new Date(Date.now() - 60_000).toISOString(), durationSeconds: 1800,
+    });
   };
 
   it('puts a fixed header in the push title and who-did-what in the body', async () => {
@@ -358,7 +366,7 @@ describe('teammate-activity copy — the same event read two different ways', ()
     ];
     tables.athlete_follows = [{ follower_id: 'f1' }];
     tables.push_subscriptions = [sub('s1', 'f1')];
-    await notifyTeammatesOfActivity({ athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters: 8300 });
+    await notifyTeammatesOfActivity({ athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters: 8300, startTime: new Date(Date.now() - 60_000).toISOString(), durationSeconds: 1800 });
     expect(historyRow().title_he).toBe('🏃 Itai Spiegel completed a run');
     expect(historyRow().body_he).toBe('8.3 km');
   });
@@ -376,7 +384,7 @@ describe('teammate-activity copy — the same event read two different ways', ()
     tables.athlete_follows = [{ follower_id: 'f_en' }, { follower_id: 'f_he' }];
     tables.push_subscriptions = [sub('s_en', 'f_en'), sub('s_he', 'f_he')];
 
-    const sent = await notifyTeammatesOfActivity({ athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters: 8300 });
+    const sent = await notifyTeammatesOfActivity({ athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters: 8300, startTime: new Date(Date.now() - 60_000).toISOString(), durationSeconds: 1800 });
 
     // Both devices were reached, and the returned count is the merged total —
     // callers must not be able to tell that two sends happened underneath.
@@ -410,7 +418,7 @@ describe('teammate-activity copy — the same event read two different ways', ()
     ];
     tables.athlete_follows = [{ follower_id: 'f1' }, { follower_id: 'f2' }];
     tables.push_subscriptions = [sub('s1', 'f1'), sub('s2', 'f2')];
-    await notifyTeammatesOfActivity({ athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters: 8300 });
+    await notifyTeammatesOfActivity({ athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters: 8300, startTime: new Date(Date.now() - 60_000).toISOString(), durationSeconds: 1800 });
     // Two devices, two webpush calls — but one payload, so both titles match.
     const titles = new Set((sendNotification.mock.calls as unknown[][]).map((c) => JSON.parse(String(c[1])).title));
     expect(titles).toEqual(new Set(['🏃 פעילות חדשה']));
@@ -423,5 +431,103 @@ describe('teammate-activity copy — the same event read two different ways', ()
     // Chrome/Android does honour it, which is why it is still sent.
     await run({ avatar_url: 'https://lh3.googleusercontent.com/a/photo' });
     expect(pushed().icon).toBe('https://lh3.googleusercontent.com/a/photo');
+  });
+});
+
+describe('teammate-activity freshness — a backfill is not news', () => {
+  // The incident, 2026-09-08: a member connected, the first sync pulled 109
+  // historical activities in ten minutes, and because every one of them was a
+  // genuinely NEW athlete_activities row, every one of them announced itself.
+  // Their followers got 109 pushes about runs from months ago. "New to us" and
+  // "just happened" are different claims and this fan-out conflated them.
+  //
+  // The deliberate `mode=history` backfill was already silent (see
+  // garminHistoryBackfill.test.ts) — which is exactly why this went unnoticed:
+  // the path that actually floods is the ORDINARY sync on a first connection.
+
+  const HOUR = 60 * 60 * 1000;
+
+  /** One runner, one follower with one device, and a run that ended `agoMs` ago. */
+  const announce = (agoMs: number, durationSeconds = 1800, distanceMeters = 8300) => {
+    tables.athletes = [
+      { id: 'runner', email: 'r@x.test', name: 'Itai Spiegel', gender: 'male', status: 'active', avatar_url: null, notification_prefs: null, group_id: null, last_seen_at: null },
+      { id: 'f1', email: 'f1@x.test', status: 'active', notification_prefs: null, group_id: null, last_seen_at: null },
+    ];
+    tables.athlete_follows = [{ follower_id: 'f1' }];
+    tables.push_subscriptions = [sub('s1', 'f1')];
+    return notifyTeammatesOfActivity({
+      athleteId: 'runner', activityKey: 1, activityId: 'act-1', distanceMeters,
+      startTime: new Date(Date.now() - agoMs - durationSeconds * 1000).toISOString(),
+      durationSeconds,
+    });
+  };
+
+  it('announces a run that just finished', async () => {
+    await expect(announce(5 * 60 * 1000)).resolves.toBe(1);
+    expect(sendNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it('says nothing about a run from months ago', async () => {
+    await expect(announce(90 * 24 * HOUR)).resolves.toBe(0);
+    expect(sendNotification).not.toHaveBeenCalled();
+  });
+
+  it('writes no history row either — the inbox is not a dumping ground', async () => {
+    // Suppressing only the push would still leave 109 rows in every follower's
+    // notification list, which is the same flood one screen further in.
+    await announce(90 * 24 * HOUR);
+    expect(writes.inserted.filter((w) => w.table === 'scheduled_notifications')).toEqual([]);
+  });
+
+  it('costs no queries at all when it is going to say nothing', async () => {
+    // A backfill calls this hundreds of times in a loop; the guard runs before
+    // the athlete lookup so a stale burst is not also a burst of round-trips.
+    await announce(90 * 24 * HOUR);
+    expect(writes.inserted).toEqual([]);
+    expect(writes.updated).toEqual([]);
+  });
+
+  it('measures from when the run ENDED, not when it started', async () => {
+    // A four-hour long run that started 26 hours ago and finished 22 hours ago
+    // is still news. Judged by start_time alone it would be dropped.
+    await expect(announce(22 * HOUR, 4 * 60 * 60)).resolves.toBe(1);
+  });
+
+  it('still announces when the start time is missing or unparseable', async () => {
+    // Fails OPEN on purpose: that was the behaviour before the guard, and
+    // silently losing a real run's announcement is the worse failure.
+    expect(isFreshEnoughToAnnounce(null)).toBe(true);
+    expect(isFreshEnoughToAnnounce(undefined)).toBe(true);
+    expect(isFreshEnoughToAnnounce('not a date')).toBe(true);
+  });
+
+  it('is not fooled by a local wall-clock time that reads as the future', async () => {
+    // start_time holds LOCAL wall-clock with no offset, so a run finished an
+    // hour ago in Israel (UTC+3) parses as three hours from now on a UTC server.
+    // This is the reason the cutoff is a window on the run and not a comparison
+    // against the athlete's connection timestamp — see isFreshEnoughToAnnounce.
+    expect(isFreshEnoughToAnnounce(new Date(Date.now() + 3 * HOUR).toISOString(), 1800)).toBe(true);
+  });
+
+  it('says nothing about a run with no distance', async () => {
+    // Measured 2026-09-08: one athlete's Strava held ten GPS-less recordings
+    // (has_latlng false, HR only), which Strava reports with distance exactly 0,
+    // and the club was told about all ten as "0.0 ק\"מ". The sentence this
+    // notification is made of has nowhere to put a zero.
+    await expect(announce(5 * 60 * 1000, 1800, 0)).resolves.toBe(0);
+    expect(sendNotification).not.toHaveBeenCalled();
+    expect(writes.inserted).toEqual([]);
+  });
+
+  it('still announces a very short run', async () => {
+    // Zero exactly, not a floor: a 300m run is real, and the club has been told
+    // about those before.
+    await expect(announce(5 * 60 * 1000, 1800, 300)).resolves.toBe(1);
+  });
+
+  it('draws the line at a day, and states it in one place', async () => {
+    expect(ANNOUNCE_WINDOW_MS).toBe(24 * HOUR);
+    const startTime = new Date(Date.now() - ANNOUNCE_WINDOW_MS - 1000).toISOString();
+    expect(isFreshEnoughToAnnounce(startTime, 0)).toBe(false);
   });
 });

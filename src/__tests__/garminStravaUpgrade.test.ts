@@ -105,7 +105,10 @@ vi.mock('@/lib/garmin/client', () => ({
  * each ANSWER, so cases set the answer directly, keyed by Garmin activity id.
  */
 let duplicates: Map<number, { id: string; source: string | null }>;
-vi.mock('@/lib/activity-dedup', () => ({
+vi.mock('@/lib/activity-dedup', async (importOriginal) => ({
+  // Only the LOOKUP is faked. `twinVerdict` and `upgradePatch` are the rules under
+  // test here, so they run for real.
+  ...(await importOriginal<typeof import('@/lib/activity-dedup')>()),
   findCrossSourceDuplicate: (
     _s: unknown,
     _a: string,
@@ -265,7 +268,7 @@ describe('garmin sync — upgrading a Strava row', () => {
     const body = await sync();
 
     expect(body.synced).toBe(0);
-    expect(body.results[0]).toMatchObject({ synced: 0, upgraded: 1 });
+    expect(body.results[0]).toMatchObject({ synced: 0, upgradedFromStrava: 1 });
     // The athlete already heard about this run when Strava synced it. A teammate
     // push, a feedback nudge or the "customize your post" sheet firing now would be
     // the app announcing a run from days ago.
@@ -331,7 +334,7 @@ describe('garmin sync — upgrading a Strava row', () => {
     expect(updates).toHaveLength(1);
     expect(updates[0].patch).not.toHaveProperty('executed_workout');
     expect(updates[0].patch.laps).toHaveLength(3);
-    expect(body.results[0].upgraded).toBe(1);
+    expect(body.results[0].upgradedFromStrava).toBe(1);
   });
 
   it('leaves a row from any other source untouched', async () => {
@@ -344,7 +347,7 @@ describe('garmin sync — upgrading a Strava row', () => {
       const body = await sync();
       expect(updates).toEqual([]);
       expect(upserts).toEqual([]);
-      expect(body.results[0].upgraded).toBeUndefined();
+      expect(body.results[0].upgradedFromStrava).toBeUndefined();
     }
   });
 
@@ -360,7 +363,7 @@ describe('garmin sync — upgrading a Strava row', () => {
 
     const body = await sync();
 
-    expect(body.results[0].upgraded).toBe(5);
+    expect(body.results[0].upgradedFromStrava).toBe(5);
     expect(updates.map(u => u.id)).toEqual(['row-606', 'row-605', 'row-604', 'row-603', 'row-602']);
     // The two it left are untouched, not half-written — and cost no Garmin calls.
     expect(fetched.filter(f => f.startsWith('full:'))).toHaveLength(5);
@@ -374,7 +377,7 @@ describe('garmin sync — upgrading a Strava row', () => {
     expect(upserts[0]).toHaveLength(1);
     expect(upserts[0][0]).toMatchObject({ garmin_activity_id: 555, activity_name: 'Garmin name 555', shoe_id: 'shoe-now' });
     expect(body.synced).toBe(1);
-    expect(body.results[0].upgraded).toBeUndefined();
+    expect(body.results[0].upgradedFromStrava).toBeUndefined();
     expect(notifyTeammates).toHaveBeenCalledTimes(1);
     expect(notifyFeedback).toHaveBeenCalledTimes(1);
     expect(savedStreams).toHaveLength(1);

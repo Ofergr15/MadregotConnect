@@ -243,7 +243,9 @@ ran the same session off Garmin scored 100. The segments route's self-repair can
 it either: `wantsStamps` needs `garmin_workout_id != null`, which a Strava row never has.
 
 So `garmin/sync-activities` **upgrades the Strava row in place** (`findCrossSourceDuplicate`
-returns the row, not a boolean). Four rules there are load-bearing, and
+returns the row, not a boolean; `twinVerdict` decides insert/upgrade/skip and
+`upgradePatch` narrows what an upgrade may write — all three in `lib/activity-dedup.ts`,
+so neither rule can drift into the route). Four rules are load-bearing, and
 `garminStravaUpgrade.test.ts` pins them:
 
 - **It is an UPDATE, never delete-and-reinsert.** The row id is referenced by kudos,
@@ -262,9 +264,12 @@ returns the row, not a boolean). Four rules there are load-bearing, and
   enrichment writes `laps: <Strava laps>` and would undo the upgrade silently.
 
 Nothing about an upgrade notifies (the athlete already heard about this run) and it
-doesn't count in `synced`; it's reported as `upgraded` and capped at 5 per athlete per
-sync, since each is 2-4 serial Garmin calls under the 300 s ceiling. Strava-only runs
-still exist and are still kept — this only ever fires when Garmin has the same run.
+doesn't count in `synced`; it's reported as `upgradedFromStrava` and capped at
+`UPGRADES_PER_SYNC` (5) per athlete per sync, newest first, since each is 2-4 serial
+Garmin calls under the 300 s ceiling and the build loop runs before any write — an
+uncapped first sync over a Strava-only history would cost the batch its new runs too.
+Strava-only runs still exist and are still kept — this only ever fires when Garmin has
+the same run.
 
 ### Weekly km comes from the activities, not from `weekly_km_snapshots`
 
