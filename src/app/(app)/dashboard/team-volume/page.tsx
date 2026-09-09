@@ -20,9 +20,11 @@ interface Row {
   peakKm: number;
 }
 
-// Coach team-volume overview: every active athlete's recent weekly km, from the
-// durable weekly_km_snapshots table, with a per-athlete sparkline + this-week vs
-// last-week trend so a coach can spot who's ramping up or dropping off.
+// Coach team-volume overview: every active athlete's recent weekly km, with a
+// per-athlete sparkline + this-week vs last-week trend so a coach can spot who's
+// ramping up or dropping off. Bucketed server-side from the activities, not from
+// weekly_km_snapshots — its mixed week anchors gave this chart phantom columns and
+// a fake rest week (see lib/athletes/weekly-volume.ts).
 // Staff-only (server-enforced); this page assumes the coach nav gate.
 export default function TeamVolumePage() {
   const t = useTranslations('teamVolume');

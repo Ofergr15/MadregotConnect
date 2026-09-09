@@ -3,20 +3,60 @@ import { createServerClient } from '@/lib/supabase/server';
 const WINDOW_MS = 15 * 60 * 1000;
 const DISTANCE_TOLERANCE = 0.1; // 10%
 
+/** The matched row, for a caller that needs to do something with it. */
+export interface CrossSourceMatch {
+  id: string;
+  source: string | null;
+}
+
 /**
- * True when this athlete already has a DIFFERENT-source row for what's
- * clearly the same physical run — same start time (within WINDOW_MS) and
- * matching distance (within DISTANCE_TOLERANCE). Needed because Garmin can
- * auto-export a run to Strava, and both garmin/sync-activities and
- * strava/sync-activities import independently, each only deduping within its
- * own id space (garmin_activity_id / strava_activity_id) — neither one alone
- * ever sees the other source's row for the same run. Left unchecked, every
- * such run gets counted twice everywhere athlete_activities rows are summed:
- * cumulative_distance badges, challenges, shoe mileage, and teammate-notify.
+ * The athlete's existing DIFFERENT-source row for what's clearly the same
+ * physical run — same start time (within WINDOW_MS) and matching distance
+ * (within DISTANCE_TOLERANCE) — or null.
  *
- * Callers should only invoke this AFTER their own same-source existence
- * check already ruled out a same-source duplicate — any row this finds is,
- * by construction, from the other source.
+ * Needed because Garmin can auto-export a run to Strava, and both
+ * garmin/sync-activities and strava/sync-activities import independently, each
+ * only deduping within its own id space (garmin_activity_id /
+ * strava_activity_id) — neither one alone ever sees the other source's row for
+ * the same run. Left unchecked, every such run gets counted twice everywhere
+ * athlete_activities rows are summed: cumulative_distance badges, challenges,
+ * shoe mileage, and teammate-notify.
+ *
+ * Returns the ROW rather than a boolean because "a duplicate exists" is not
+ * enough to decide what to do about it. The two copies of one run are not
+ * equivalent: Garmin's carries per-lap `wktStepIndex`, the executed step list
+ * and a 1 Hz trace, and Strava's carries none of the three. A caller holding
+ * the richer copy needs to know which row to upgrade — see the Strava-upgrade
+ * pass in garmin/sync-activities.
+ *
+ * Callers should only invoke this AFTER their own same-source existence check
+ * already ruled out a same-source duplicate — any row this finds is, by
+ * construction, from the other source.
+ */
+export async function findCrossSourceDuplicate(
+  supabase: ReturnType<typeof createServerClient>,
+  athleteId: string,
+  startTimeLocal: string,
+  distanceMeters: number,
+): Promise<CrossSourceMatch | null> {
+  const start = new Date(startTimeLocal).getTime();
+  if (Number.isNaN(start)) return null;
+  const { data } = await supabase
+    .from('athlete_activities')
+    .select('id, source, start_time, distance')
+    .eq('athlete_id', athleteId)
+    .gte('start_time', new Date(start - WINDOW_MS).toISOString())
+    .lte('start_time', new Date(start + WINDOW_MS).toISOString());
+
+  const hit = (data || []).find(r =>
+    matchesStoredActivity([r as StoredActivity], startTimeLocal, distanceMeters));
+  return hit ? { id: (hit as any).id, source: (hit as any).source ?? null } : null;
+}
+
+/**
+ * `findCrossSourceDuplicate` as the yes/no the Strava sync wants: it has nothing
+ * richer to offer a row that already exists, so for it the answer really is a
+ * boolean and skipping is right.
  */
 export async function hasCrossSourceDuplicate(
   supabase: ReturnType<typeof createServerClient>,
@@ -24,15 +64,7 @@ export async function hasCrossSourceDuplicate(
   startTimeLocal: string,
   distanceMeters: number,
 ): Promise<boolean> {
-  const start = new Date(startTimeLocal).getTime();
-  const { data } = await supabase
-    .from('athlete_activities')
-    .select('start_time, distance')
-    .eq('athlete_id', athleteId)
-    .gte('start_time', new Date(start - WINDOW_MS).toISOString())
-    .lte('start_time', new Date(start + WINDOW_MS).toISOString());
-
-  return matchesStoredActivity((data || []) as StoredActivity[], startTimeLocal, distanceMeters);
+  return (await findCrossSourceDuplicate(supabase, athleteId, startTimeLocal, distanceMeters)) !== null;
 }
 
 /** The `(start_time, distance)` pair this comparison needs, and nothing else. */

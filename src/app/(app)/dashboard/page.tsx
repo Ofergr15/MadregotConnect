@@ -104,11 +104,12 @@ interface RecentActivity {
 }
 
 /**
- * How many of these activities fall in the current activity week.
+ * How many of these activities fall in the current activity week (Mon–Sun — the
+ * watch's week, not the Sun–Sat plan week the hero above is showing).
  *
  * `activityWeekStart`, not `new Date(a.start_time) >= weekStart`: `start_time`
  * holds the athlete's own wall clock in a TIMESTAMPTZ, so local getters shift it
- * +3h in an Israel browser and a 21:30 Saturday run lands in NEXT week — dropped
+ * +3h in an Israel browser and a 22:30 Sunday run lands in NEXT week — dropped
  * from the count it belongs to. See the convention note in src/lib/utils.ts.
  */
 function countThisWeek(activities: Array<{ start_time: string }>): number {

@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import {
+  activityWeekOfPlanWeek,
   addDaysToDateStr,
   getActivityWeekStart,
   getPlanWeekStart,
@@ -17,11 +18,12 @@ describe('getPlanWeekStart / getActivityWeekStart (Asia/Jerusalem)', () => {
   beforeAll(() => { process.env.TZ = 'Asia/Jerusalem'; });
   afterAll(() => { process.env.TZ = originalTZ; });
 
-  it('returns the correct Sunday just after local midnight, not the previous day', () => {
-    // 2026-08-23 is a Sunday; 00:30 IDT local time.
-    const justAfterMidnight = new Date('2026-08-23T00:30:00+03:00');
-    expect(getPlanWeekStart(justAfterMidnight)).toBe('2026-08-23');
-    expect(getActivityWeekStart(justAfterMidnight)).toBe('2026-08-23');
+  it('returns the correct week start just after local midnight, not the previous day', () => {
+    // Each helper tested on its OWN first day, at 00:30 IDT — the window where
+    // serializing through UTC used to roll the date back to the day before.
+    // 2026-08-23 is a Sunday, 2026-08-24 the Monday after it.
+    expect(getPlanWeekStart(new Date('2026-08-23T00:30:00+03:00'))).toBe('2026-08-23');
+    expect(getActivityWeekStart(new Date('2026-08-24T00:30:00+03:00'))).toBe('2026-08-24');
   });
 
   it('returns the same Sunday later the same day', () => {
@@ -32,6 +34,50 @@ describe('getPlanWeekStart / getActivityWeekStart (Asia/Jerusalem)', () => {
   it('returns the prior Sunday for a mid-week date', () => {
     const wednesday = new Date('2026-08-26T10:00:00+03:00');
     expect(getPlanWeekStart(wednesday)).toBe('2026-08-23');
+  });
+});
+
+// ── The two anchors are DIFFERENT, and that is load-bearing ───────────────────
+// The club plans Sunday–Saturday; watches report Monday–Sunday. They were merged
+// onto Sunday on 2026-08-21 and re-split on 2026-09-09, because an athlete whose
+// watch said 180 km read 174.5 in the app for the same runs and reported it as a
+// bug. Both numbers were right, which is why nobody could reconcile them.
+//
+// These assertions exist so a future "why are there two of these?" tidy-up fails
+// here instead of in production, where the symptom is a weekly km that silently
+// reads 0 (an activity-week key compared against a plan-week key never matches).
+describe('getActivityWeekStart vs getPlanWeekStart', () => {
+  const originalTZ = process.env.TZ;
+  beforeAll(() => { process.env.TZ = 'Asia/Jerusalem'; });
+  afterAll(() => { process.env.TZ = originalTZ; });
+
+  it('anchors the activity week on Monday and the plan week on Sunday', () => {
+    for (let i = 0; i < 28; i++) {
+      const day = new Date(`${addDaysToDateStr('2026-08-01', i)}T12:00:00`);
+      expect(new Date(`${getActivityWeekStart(day)}T12:00:00`).getDay()).toBe(1);
+      expect(new Date(`${getPlanWeekStart(day)}T12:00:00`).getDay()).toBe(0);
+    }
+  });
+
+  it('agrees for six days a week and splits on the Sunday', () => {
+    // Mon–Sat: the activity week is the Monday inside the plan week, so the pair
+    // straddles the same days. Sunday is the day they name different weeks — the
+    // plan week starts, the activity week is still the one that closes tonight.
+    expect(getActivityWeekStart(new Date('2026-08-26T12:00:00'))).toBe('2026-08-24'); // Wed
+    expect(getPlanWeekStart(new Date('2026-08-26T12:00:00'))).toBe('2026-08-23');
+    expect(getActivityWeekStart(new Date('2026-08-30T12:00:00'))).toBe('2026-08-24'); // Sun
+    expect(getPlanWeekStart(new Date('2026-08-30T12:00:00'))).toBe('2026-08-30');
+  });
+
+  it('maps a plan week to the activity week that overlaps it by six days', () => {
+    // Not the Monday BEFORE the plan week's Sunday, which would share one day.
+    expect(activityWeekOfPlanWeek('2026-08-23')).toBe('2026-08-24');
+    expect(activityWeekOfPlanWeek('2026-08-30')).toBe('2026-08-31');
+    // Whatever it is handed, the answer is a Monday.
+    for (let i = 0; i < 8; i++) {
+      const planWeek = planWeekStartOf(addDaysToDateStr('2026-09-01', i * 7));
+      expect(new Date(`${activityWeekOfPlanWeek(planWeek)}T12:00:00`).getDay()).toBe(1);
+    }
   });
 });
 

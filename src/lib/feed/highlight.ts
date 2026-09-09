@@ -18,7 +18,7 @@
  * naturally in Hebrew and English and a server-built string can't.
  */
 
-/** The one week the card talks about, Sunday–Saturday. */
+/** The one week the card talks about — the activity week, Monday–Sunday. */
 export const WEEK_DAYS = 7;
 
 export type ChallengeMetricKind = 'distance_km' | 'workout_count' | 'elevation_m';
@@ -51,11 +51,12 @@ export interface HighlightChallenge {
 
 export interface HighlightWeek {
   /**
-   * The Sunday this week starts on, `YYYY-MM-DD`.
+   * The Monday this activity week starts on, `YYYY-MM-DD`. Not the plan week the
+   * target came from — see the "Which week" note in api/feed/highlight.
    *
    * Shipped to the client for one reason: it is what the dismiss X keys its
    * "hidden" flag on, so hiding the card hides *this* week's card and next
-   * Sunday's comes back on its own. A dismissal with no way back is a trap.
+   * Monday's comes back on its own. A dismissal with no way back is a trap.
    */
   weekStart: string;
   /** Kilometres run so far in the current plan week. */

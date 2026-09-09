@@ -14,23 +14,36 @@ export function toISODate(d: Date): string {
 }
 
 /**
- * Start of the ACTIVITY week (Sunday) — matches the club's PLAN week
- * (`getPlanWeekStart`/`weekly_plans.week_start_date`) so every week-boundary
- * concept in the app agrees. Use this for anything that sums real activity
- * distance (leaderboard, runner weekly km, streaks).
+ * Start of the ACTIVITY week — **Monday**, matching Garmin's and Strava's own
+ * weekly-mileage boundary. Use this for anything that sums real activity
+ * distance (leaderboard, runner weekly km, volume charts, streaks).
  *
- * Changed from Monday to Sunday on 2026-08-21 (explicit product decision, no
- * longer trying to mirror Garmin/Strava's own weekly-mileage boundary).
- * Pre-existing `weekly_km_snapshots` rows computed before this change keep
- * their old Monday-keyed `week_start` values — only the current/previous week
- * gets re-snapshotted on each sync, so historical rows are not rewritten. A
- * one-time backfill would be needed to re-key old rows onto the new boundary.
+ * ── Why this is NOT `getPlanWeekStart` ───────────────────────────────────────
+ * It was, briefly: the two were merged onto Sunday on 2026-08-21 so every
+ * week-boundary concept agreed. That re-split on 2026-09-09, because the number
+ * an athlete reads off the app is the same number they read off their watch and
+ * the two have to match. A runner reported a 180 km week their watch had already
+ * told them about; the app said 174.5 for the same rows, because it was showing
+ * them a Sunday-anchored week. Both figures were arithmetically right and that is
+ * exactly the problem — a weekly total nobody can reconcile against their own
+ * device gets treated as broken.
  *
- * Returns a YYYY-MM-DD string for the Sunday on/before `date`.
+ * The plan week stays Sunday (`weekly_plans.week_start_date` is Sunday–Saturday
+ * and the coach publishes against it), so the two windows now overlap by six of
+ * seven days. Anywhere a screen puts activity km next to plan content, BOTH
+ * helpers are needed — one for the km, one for the plan lookup. The places that
+ * do: `api/academy/me`, `api/academy/members`, `api/feed/highlight`. Feeding one
+ * variable to both is silent breakage, not a type error: `activityWeekStart(...)
+ * === planWeekStart` simply never matches and the km read zero.
+ *
+ * `weekly_km_snapshots` is unaffected because nothing reads it — see
+ * lib/weekly-snapshots.ts.
+ *
+ * Returns a YYYY-MM-DD string for the Monday on/before `date`.
  */
 export function getActivityWeekStart(date: Date): string {
   const d = new Date(date);
-  d.setDate(d.getDate() - d.getDay()); // getDay() 0=Sun → subtract to land on Sunday
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // getDay() 0=Sun → Sun is 6 days into the week
   return toISODate(d);
 }
 
@@ -39,11 +52,11 @@ export function getActivityWeekStart(date: Date): string {
  * `weekly_plans.week_start_date` (Sunday–Saturday). Use it for anything keyed to
  * a scheduled workout (e.g. pre-workout attendance RSVP).
  *
- * Identical to `getActivityWeekStart` since the 2026-08-21 Monday→Sunday change,
- * and deliberately still two names: they answer different questions and could
- * diverge again if the club ever re-splits them. This doc used to say "not
- * getActivityWeekStart (Monday)", which stopped being true on that date — the two
- * agree now, so picking the wrong one is a readability problem, not a bug.
+ * NOT `getActivityWeekStart`, which is Monday-anchored: the club plans Sunday to
+ * Saturday while watches report Monday to Sunday, and since 2026-09-09 the app
+ * says both instead of picking one. The two agreed for three weeks (2026-08-21 to
+ * 2026-09-09) and picking the wrong one was only a readability problem in that
+ * window; it is a bug again now.
  *
  * For "which week is it now?" don't call this with a bare `new Date()` on a
  * server — use `planWeekStartOf`, which anchors on Israel's calendar day.
@@ -55,12 +68,31 @@ export function getPlanWeekStart(date: Date): string {
 }
 
 /**
+ * The ACTIVITY week (Monday) that belongs to a given PLAN week (Sunday).
+ *
+ * For screens that show "what the coach asked for this week" next to "how far you
+ * actually ran this week". Those are two different windows now (see
+ * `getActivityWeekStart`), and the caller navigates plan weeks — the ← → arrows on
+ * the academy screens step `weekly_plans.week_start_date` — so the plan week is
+ * the input and the activity week has to be derived from it.
+ *
+ * Of the two Monday weeks that touch a Sunday–Saturday plan week, this returns the
+ * one that overlaps it by six days rather than by one: the Monday INSIDE the plan
+ * week, not the Monday before it. So the km column covers Mon–Sun where the plan
+ * covered Sun–Sat — the same seven-day count, shifted by a day, and identical to
+ * what the athlete's watch reports for that week.
+ */
+export function activityWeekOfPlanWeek(planWeekStart: string): string {
+  return getActivityWeekStart(new Date(`${addDaysToDateStr(planWeekStart, 1)}T12:00:00`));
+}
+
+/**
  * Consecutive-week run streak: counts back week-by-week (7-day steps, keyed by
  * `getActivityWeekStart`) from the current activity-week — or the previous one
  * if the current week has no qualifying run yet, so the streak doesn't read 0
  * early in a new week before you've run — stopping at the first gap.
  *
- * `weekKeys` is the set of activity-week keys (YYYY-MM-DD Sundays) that have
+ * `weekKeys` is the set of activity-week keys (YYYY-MM-DD Mondays) that have
  * ≥1 qualifying run. Shared by the personal momentum card (one athlete) and
  * the streak leaderboard (many athletes) so streak math is defined ONCE — see
  * /api/athletes/summary and /api/groups/leaderboard.
@@ -70,7 +102,7 @@ export function computeWeekStreak(weekKeys: Set<string>, now: Date = new Date())
   // Anchored to Israel's calendar date at local noon, not the raw instant: the
   // week helpers below read local date parts, so on Vercel's UTC clock a bare
   // `new Date()` answers for the UTC date — which is still YESTERDAY between
-  // 00:00 and 03:00 Israel, and on a Sunday that's a whole week off.
+  // 00:00 and 03:00 Israel, and on a Monday that's a whole week off.
   let cursor = israelDateAnchor(now);
   const thisWeekKey = getActivityWeekStart(cursor);
   if (!weekKeys.has(thisWeekKey)) cursor = new Date(now.getTime() - 7 * 86400_000);
@@ -242,17 +274,22 @@ export function activityLocalDateStr(startTime: string): string {
 }
 
 /**
- * Activity-week (Sunday) key for an activity's start_time — the Convention-A
+ * Activity-week (Monday) key for an activity's start_time — the Convention-A
  * counterpart to `getActivityWeekStart`, which must only ever be handed a real
  * calendar Date. Using that one here would double-shift: the athlete's local
- * time is already the timestamp's UTC wall-clock, so a 21:30 Saturday run read
- * through local getters in an Israel browser becomes 00:30 Sunday and lands in
+ * time is already the timestamp's UTC wall-clock, so a 22:30 Sunday run read
+ * through local getters in an Israel browser becomes 01:30 Monday and lands in
  * the WRONG WEEK. All arithmetic here stays in UTC parts, which makes it give
  * the same answer on the server and in any viewer's timezone.
+ *
+ * Monday because this is the watch's week — see `getActivityWeekStart`. Never
+ * compare the result against a PLAN week (`getPlanWeekStart`, `planWeekStartOf`,
+ * `weekly_plans.week_start_date`): they are different Mondays/Sundays and the
+ * equality just never holds.
  */
 export function activityWeekStart(startTime: string): string {
   const d = parseActivityInstant(startTime);
-  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
   return d.toISOString().split('T')[0];
 }
 

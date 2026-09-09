@@ -53,7 +53,7 @@ export interface KmTableRow {
  *
  * Activities are the source of truth those snapshots are derived from, this
  * route already loads all of them for the all-time totals, and bucketing them
- * with `activityWeekStart` gives one Sunday-anchored week per column by
+ * with `activityWeekStart` gives one Monday-anchored week per column by
  * construction — and the same week boundary the trend badge and the leaderboards
  * use, so the three can't disagree. It also costs one fewer DB round trip.
  *
@@ -195,14 +195,17 @@ export function pickWeek(table: KmTableRow[], weekStart: string): { km: number; 
  * instants: `start_time` is wall clock stored as UTC, so `new Date(...)` shifts
  * it +3h in Israel and drops a late-evening run on the wrong side of the cutoff.
  * `activityWeekStart` is used for the same reason — the local-getter version
- * jumps a 21:30 Saturday run into the next week.
+ * jumps a 22:30 Sunday run into the next week.
  */
 export function computeLikeForLikeTrend<T extends RunActivityRow>(
   acts: T[],
   anchor: Date,
 ): number | null {
   const runs = filterQualifyingRuns(acts);
-  const daysElapsed = anchor.getDay() + 1; // Sun → 1 … Sat → 7
+  // How far into the ACTIVITY week (Monday-anchored) the athlete is. Off-by-one
+  // here is not cosmetic: it truncates last week at the wrong weekday, which is
+  // the whole mechanism the badge exists to get right.
+  const daysElapsed = ((anchor.getDay() + 6) % 7) + 1; // Mon → 1 … Sun → 7
   const thisKey = getActivityWeekStart(anchor);
 
   const prevStart = new Date(`${thisKey}T00:00:00`);

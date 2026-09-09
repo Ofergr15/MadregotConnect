@@ -2,24 +2,32 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { fetchWeekTargets } from '@/lib/plans/week-target-history';
+import { fetchWeeklyVolume } from '@/lib/athletes/weekly-volume';
+import { getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
 import { COACH_ID } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/athletes/volume-history?athleteId=…&weeks=12
 // GET /api/athletes/volume-history?athleteId=…&granularity=month|year&periods=12
-// Durable training-volume history for an athlete, read from weekly_km_snapshots
-// (written nightly by the sync cron — a complete per-week record incl. zero
-// weeks, unaffected by later activity edits). Default `granularity=week`
-// returns the most recent `weeks` weeks, each with `target` — that week's own
-// plan band, recomputed from that week's `weekly_plans` row, so the chart can
-// mark the weeks that landed on the plan they actually had rather than against
-// today's band. `month`/
-// `year` aggregate the underlying weekly rows into calendar buckets (a week is
-// bucketed by its own week_start's month/year — the same approximation the
+// Training-volume history for an athlete. Default `granularity=week` returns the
+// most recent `weeks` weeks, each with `target` — that week's own plan band,
+// recomputed from that week's `weekly_plans` row, so the chart can mark the weeks
+// that landed on the plan they actually had rather than against today's band.
+// `month`/`year` aggregate the underlying weekly rows into calendar buckets (a
+// week is bucketed by its own week_start's month/year — the same approximation the
 // rest of the app's week-bucketing already uses, not a precise pro-rata split
-// across a month boundary). Scoped like /prs and /summary: own athlete, staff,
-// or super-user.
+// across a month boundary). Scoped like /prs and /summary: own athlete, staff, or
+// super-user.
+//
+// This used to read weekly_km_snapshots and called it the durable record. It is
+// durable and it is also wrong: its `week_start` anchor changed mid-history and
+// the old rows were never re-keyed, so the chart drew overlapping columns and rest
+// weeks that never happened — one athlete's steady 175-185 km came out as
+// `179.3 72.3 52.2 177.8 0 182.7 174.5 93.3`. Bucketed from the activities now;
+// see lib/athletes/weekly-volume.ts. The cost is that editing or deleting an old
+// run moves history, which the snapshot table was immune to — worth it to stop
+// showing numbers nobody ran.
 export async function GET(request: Request) {
   try {
     const supabase = createServerClient();
@@ -37,27 +45,22 @@ export async function GET(request: Request) {
     if (denied) return denied;
     if (!mayActFor(caller, athleteId)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
-    // Enough raw weekly rows to fill `periods` buckets at the requested
-    // granularity (~4.3 weeks/month, 52 weeks/year), plus a small buffer.
-    const fetchLimit = granularity === 'week' ? weeks : granularity === 'month' ? periods * 5 + 8 : periods * 53 + 8;
-    const { data, error } = await supabase
-      .from('weekly_km_snapshots')
-      .select('week_start, distance_m, runs, duration_s')
-      .eq('athlete_id', athleteId)
-      .order('week_start', { ascending: false })
-      .limit(fetchLimit);
-    if (error) throw error;
+    // Enough weeks to fill `periods` buckets at the requested granularity
+    // (~4.3 weeks/month, 52 weeks/year), plus a small buffer.
+    const fetchWeeks = granularity === 'week' ? weeks : granularity === 'month' ? periods * 5 + 8 : periods * 53 + 8;
+    const { byAthlete } = await fetchWeeklyVolume(supabase, {
+      athleteIds: [athleteId],
+      weeks: fetchWeeks,
+      currentWeekStart: getActivityWeekStart(israelDateAnchor()),
+    });
 
     const round1 = (n: number) => Math.round(n * 10) / 10;
-    const weekRows = (data || [])
-      .slice()
-      .reverse()
-      .map((r: any) => ({
-        weekStart: r.week_start as string,
-        km: round1((Number(r.distance_m) || 0) / 1000),
-        runs: Number(r.runs) || 0,
-        durationSec: Number(r.duration_s) || 0,
-      }));
+    const weekRows = (byAthlete.get(athleteId) || []).map((b) => ({
+      weekStart: b.weekStart,
+      km: round1(b.meters / 1000),
+      runs: b.runs,
+      durationSec: b.seconds,
+    }));
 
     let series: Array<(typeof weekRows)[number] & { target?: { min: number; max: number } }> = weekRows;
     if (granularity === 'week') {
