@@ -336,7 +336,8 @@
     "maintenanceRelease": "שחרר ממצב תחזוקה",
     "maintenanceBlock": "החזר לחסימת תחזוקה",
     "maintenanceSaving": "מעדכן…",
-    "maintenanceOpenQueue": "מחכים להיכנס"
+    "maintenanceOpenQueue": "מחכים להיכנס",
+    "removed": "הוסר מהמועדון"
   },
   "planner": {
     "title": "מתכנן שבועי",
@@ -2558,6 +2559,21 @@
     "orphanApprove": "אשר ושלח קישור",
     "orphanApproved": "אושר — הקישור נשלח במייל",
     "orphanReject": "דחה",
-    "orphanRejected": "הבקשה נדחתה"
+    "orphanRejected": "הבקשה נדחתה",
+    "group_removed": "הוסרו",
+    "empty_removed": "אף אחד לא הוסר מהמועדון",
+    "removedIntro": "הוסרו מהמועדון. הריצות, השיאים וכל ההיסטוריה נשמרו — החזרה היא לחיצה אחת.",
+    "removeFromClub": "הסרה מהמועדון",
+    "removeConfirmTitle": "להסיר את {name} מהמועדון?",
+    "removeConfirmBody": "הגישה לאפליקציה תיחסם והשם ייעלם מהרשימות, מהליגה ומהדבוקה. הריצות, השיאים וכל ההיסטוריה נשמרים — ואפשר להחזיר בלחיצה אחת מהלשונית “הוסרו”.",
+    "removeConfirmYes": "כן, להסיר",
+    "removeConfirmNo": "ביטול",
+    "removeDone": "הוסר מהמועדון · אפשר להחזיר מהלשונית “הוסרו”",
+    "restoreDone": "חזר למועדון ✓",
+    "restoreToClub": "החזרה למועדון",
+    "missing_login": "כניסה לאפליקציה",
+    "reminderWillSay": "התזכורת תגיד שחסר: {items}",
+    "reminderWillSayGeneral": "התזכורת תזמין להיכנס ולסיים את ההגדרה",
+    "reminderInboxOnly": "יגיע רק לתיבה באפליקציה"
   }
 }

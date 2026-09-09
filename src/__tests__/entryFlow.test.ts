@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   FLOW_STEPS,
+  REMOVED_STATUS,
   flowFunnel,
   flowGroup,
+  isRemoved,
   memberFlow,
+  memberGaps,
   sortByFlow,
   type EntryQueueMember,
 } from '@/lib/admin/entry-queue';
+import { entryGapsCopy } from '@/lib/notifications/copy';
 
 /**
  * The entry flow — the six steps between signing up and being a working member.
@@ -167,6 +171,67 @@ describe('flowGroup', () => {
 
   it("calls somebody with nothing left 'ready'", () => {
     expect(flowGroup(member({ ...complete }))).toBe('ready');
+  });
+});
+
+/**
+ * The gaps a reminder is allowed to name.
+ *
+ * The rule worth protecting: a member who cannot get INTO the app is told about
+ * that and nothing else. Listing "a photo, your sizes and getting in" buries the
+ * only item they can act on, and every other item is unreachable until they do.
+ */
+describe('memberGaps', () => {
+  it('names only the login when that is what is broken', () => {
+    const gaps = memberGaps(
+      member({ ...complete, lastSeenAt: null, setupMissing: ['photo', 'sizes'] }),
+    );
+    expect(gaps).toEqual(['login']);
+  });
+
+  it('says nothing for somebody waiting on US — no reminder can move an approval', () => {
+    expect(memberGaps(member({ ...complete, approved: false, setupMissing: ['photo'] }))).toEqual([]);
+    expect(memberGaps(member({ ...complete, blocked: true, setupMissing: ['photo'] }))).toEqual([]);
+  });
+
+  it('names the open setup tasks for somebody who is in', () => {
+    expect(memberGaps(member({ ...complete, setupDone: 3, setupMissing: ['photo', 'sizes'] })))
+      .toEqual(['photo', 'sizes']);
+  });
+});
+
+describe('entryGapsCopy', () => {
+  it('names the gaps in the body, in both languages', () => {
+    const he = entryGapsCopy('he', { name: 'דנה', gaps: ['photo', 'sizes'] });
+    expect(he.body).toContain('תמונת פרופיל');
+    expect(he.body).toContain('ומידות');
+    const en = entryGapsCopy('en', { name: 'Dana', gaps: ['photo', 'sizes'] });
+    expect(en.body).toContain('a profile photo and your sizes');
+  });
+
+  it('sends the login message on its own, with no checklist in it', () => {
+    const he = entryGapsCopy('he', { name: 'דנה', gaps: ['login'] });
+    expect(he.body).not.toContain('תמונת');
+    expect(he.title).toContain('דנה');
+  });
+
+  it('falls back to the general nudge rather than an empty sentence', () => {
+    // A gapless member should never be sent "still missing: " with nothing after it.
+    const en = entryGapsCopy('en', { name: null, gaps: [] });
+    expect(en.body.length).toBeGreaterThan(10);
+    expect(en.title).not.toContain('still to sort');
+  });
+});
+
+describe('isRemoved', () => {
+  it('is true only for the one terminal status', () => {
+    // resolve-role reactivates any OTHER non-active status on sign-in, so this
+    // value has to be matched exactly or a removal undoes itself.
+    expect(isRemoved({ status: REMOVED_STATUS })).toBe(true);
+    expect(isRemoved({ status: 'invited' })).toBe(false);
+    expect(isRemoved({ status: 'paused' })).toBe(false);
+    expect(isRemoved({ status: null })).toBe(false);
+    expect(isRemoved({})).toBe(false);
   });
 });
 

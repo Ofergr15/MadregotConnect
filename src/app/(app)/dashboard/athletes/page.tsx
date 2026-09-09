@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {
   UserPlus, Copy, CheckCircle2, Wifi, WifiOff, Clock,
   Users as UsersIcon, Check, Mail, Trash2, ChevronDown,
-  PauseCircle, PlayCircle, ArrowRightLeft, MessageCircle,
+  PauseCircle, PlayCircle, ArrowRightLeft, MessageCircle, UserMinus,
   Wrench, Search, Lock, Unlock, DoorOpen
 } from 'lucide-react';
 import { cn, getGroupChip } from '@/lib/utils';
@@ -22,7 +22,8 @@ interface Athlete {
   email: string;
   groupName: string | null;
   groupId: string | null;
-  status: 'active' | 'invited' | 'paused' | 'disconnected';
+  /** 'removed' = taken out of the club from the entry queue; history kept. */
+  status: 'active' | 'invited' | 'paused' | 'disconnected' | 'removed';
   lastSynced: string | null;
   createdAt: string;
   dataSource?: 'garmin' | 'strava';
@@ -314,6 +315,14 @@ ${inviteLink}`;
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-band-3/20 text-band-3-ink border border-band-3/30">
             <Clock className="h-3 w-3" /> {t('invited')}
+          </span>
+        );
+      // Its own badge rather than falling through to "disconnected", which would
+      // read as a sync problem — the opposite of a deliberate removal.
+      case 'removed':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-page text-ink-400 border border-page">
+            <UserMinus className="h-3 w-3" /> {t('removed')}
           </span>
         );
       case 'paused':
