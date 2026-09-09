@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { matchesStoredActivity, type StoredActivity } from '@/lib/activity-dedup';
+import {
+  findStoredMatch,
+  matchesStoredActivity,
+  twinVerdict,
+  type StoredActivity,
+  type StoredTwin,
+} from '@/lib/activity-dedup';
 
 /**
  * The cross-source duplicate verdict, as a pure function.
@@ -108,5 +114,84 @@ describe('matchesStoredActivity', () => {
     ];
     expect(matchesStoredActivity(many, '2026-03-01T06:00:00', 10000)).toBe(true);
     expect(matchesStoredActivity(many, '2026-03-02T06:00:00', 10000)).toBe(false);
+  });
+});
+
+/**
+ * WHICH row matched, and what to do about it.
+ *
+ * Both sources describe the same physical run, and until now the dedupe only
+ * answered "is it already here" — so whichever cron ran first decided which
+ * version the athlete would see forever. Reported 2026-09-08: a session run as
+ * intervals showed even kilometre splits, because the Strava copy landed first
+ * and Strava's export doesn't carry the watch's laps.
+ */
+describe('findStoredMatch', () => {
+  const twin = (over: Partial<StoredTwin> = {}): StoredTwin => ({
+    id: 'row-1',
+    source: 'strava',
+    start_time: '2026-03-01T06:00:00',
+    distance: 10000,
+    ...over,
+  });
+
+  it('hands back the row that matched, not just a yes', () => {
+    expect(findStoredMatch([twin()], '2026-03-01T06:00:00', 10000)?.id).toBe('row-1');
+  });
+
+  it('is null, not undefined, when nothing matched', () => {
+    expect(findStoredMatch([twin()], '2026-03-05T06:00:00', 10000)).toBeNull();
+  });
+
+  // The boolean and the row answer are one implementation, so they cannot come
+  // to disagree about what counts as the same run.
+  it('agrees with matchesStoredActivity on every verdict', () => {
+    const rows = [twin({ start_time: '2026-03-01T06:00:00', distance: 10000 })];
+    for (const [when, dist] of [
+      ['2026-03-01T06:00:00', 10000],
+      ['2026-03-01T06:14:00', 10900],
+      ['2026-03-01T06:16:00', 10000],
+      ['2026-03-01T06:00:00', 0],
+      ['not a date', 10000],
+    ] as Array<[string, number]>) {
+      expect(findStoredMatch(rows, when, dist) !== null)
+        .toBe(matchesStoredActivity(rows as StoredActivity[], when, dist));
+    }
+  });
+
+  it('picks the twin out of a crowd of unrelated runs', () => {
+    const rows = [
+      twin({ id: 'a', start_time: '2026-02-28T06:00:00', distance: 10000 }),
+      twin({ id: 'b', start_time: '2026-03-01T06:05:00', distance: 10300 }),
+      twin({ id: 'c', start_time: '2026-03-02T06:00:00', distance: 10000 }),
+    ];
+    expect(findStoredMatch(rows, '2026-03-01T06:00:00', 10000)?.id).toBe('b');
+  });
+});
+
+describe('twinVerdict', () => {
+  const twin = (source: string | null): StoredTwin =>
+    ({ id: 'row-1', source, start_time: '2026-03-01T06:00:00', distance: 10000 });
+
+  it('inserts when the run is not here yet', () => {
+    expect(twinVerdict(null)).toBe('insert');
+  });
+
+  // The point of the whole change: the watch's version replaces Strava's.
+  it('upgrades a Strava copy', () => {
+    expect(twinVerdict(twin('strava'))).toBe('upgrade');
+  });
+
+  // Already here from the watch under another activity id. Rewriting it with an
+  // identical payload would churn the row and everything watching it for nothing.
+  it('leaves a Garmin row alone', () => {
+    expect(twinVerdict(twin('garmin'))).toBe('skip');
+  });
+
+  // A row from before the column had a default, or from an importer that isn't
+  // one of these two. Overwriting somebody else's data is the worse mistake.
+  it('leaves an unknown or missing source alone', () => {
+    expect(twinVerdict(twin(null))).toBe('skip');
+    expect(twinVerdict(twin('manual'))).toBe('skip');
   });
 });

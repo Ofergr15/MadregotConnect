@@ -4,6 +4,7 @@ import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist';
 import { ExpirationPlugin, NetworkFirst, NetworkOnly, Serwist } from 'serwist';
 import { BASEMAP_HOSTNAME } from '@/lib/basemap';
 import { PAGE_CACHE_MAX_AGE_S, pageCacheName, staleCacheKeys } from '@/lib/sw-caches';
+import { withNetworkRetry } from '@/lib/sw-page-retry';
 import { APP_VERSION } from '@/lib/version';
 
 declare global {
@@ -28,9 +29,17 @@ declare const __SW_BUILD_ID__: string;
 // failure mode is "falls back to APP_VERSION", not "app has no service worker".
 const BUILD_ID = (typeof __SW_BUILD_ID__ === 'string' && __SW_BUILD_ID__) || APP_VERSION;
 
-/** A NetworkFirst page cache for this build: fresh when online, bounded when not. */
-const pageCache = (base: string) =>
-  new NetworkFirst({
+/**
+ * A NetworkFirst page cache for this build: fresh when online, bounded when not.
+ *
+ * Wrapped in withNetworkRetry, because the timeout below is a preference for a
+ * STORED page and not a verdict about the network: with nothing stored, Workbox
+ * turns it into a rejected request, and a rejected document request is the
+ * offline screen. See lib/sw-page-retry.ts — that is a real bug report, from a
+ * phone with a working connection.
+ */
+const pageCache = (base: string) => {
+  const strategy = new NetworkFirst({
     cacheName: pageCacheName(base, BUILD_ID),
     // Without a timeout, Workbox's NetworkFirst waits indefinitely for the
     // network before falling back to cache, so a repeat visit on a flaky
@@ -43,6 +52,15 @@ const pageCache = (base: string) =>
       }),
     ],
   });
+  // Handed to the wrapper as a fresh object rather than as the strategy itself:
+  // `handle` accepts `FetchEvent | HandlerCallbackOptions`, and a function that
+  // accepts only those two is not a function that accepts any `{ request }` —
+  // so passing the strategy directly fails on parameter contravariance. Naming
+  // its own parameter type keeps the real signature and adds the one property
+  // the retry needs.
+  type Params = Parameters<typeof strategy.handle>[0] & { request: Request };
+  return withNetworkRetry<Params>({ handle: (options) => strategy.handle(options) });
+};
 
 const serwist = new Serwist({
   // Precache the build's app shell + hashed static assets. `/offline.html`

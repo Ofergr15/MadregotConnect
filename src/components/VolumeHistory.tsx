@@ -31,9 +31,11 @@ const UNIT_LABEL: Record<Granularity, string> = { week: 'שבועי', month: 'ח
 const PER_PERIOD_LABEL: Record<Granularity, string> = { week: 'לשבוע', month: 'לחודש', year: 'לשנה' };
 const RECENT_PERIODS_LABEL: Record<Granularity, string> = { week: 'שבועות אחרונים', month: 'חודשים אחרונים', year: 'שנים אחרונות' };
 
-// Training-volume history — the athlete's km over the last N periods, from the
-// durable weekly_km_snapshots table (nightly cron; complete incl. zero weeks),
-// aggregated server-side by week/month/year. A hand-rolled SVG bar chart
+// Training-volume history — the athlete's km over the last N periods, bucketed
+// server-side from their activities by week/month/year (NOT from
+// weekly_km_snapshots, whose two week anchors drew this chart overlapping columns
+// and rest weeks that never happened — see lib/athletes/weekly-volume.ts).
+// Zero periods are real columns, so a rest week is visible. A hand-rolled SVG bar chart
 // matching the app's chart style. Hidden until there's at least one period with
 // a run, so it never shows an empty shell. Athlete-scoped via the same auth as
 // /prs and /summary.
@@ -219,7 +221,7 @@ export function VolumeHistory({ athleteId }: { athleteId: string }) {
       </div>
 
       <p className="mt-2 text-2xs text-ink-400">
-        ק״מ {PER_PERIOD_LABEL[granularity]}{granularity === 'week' ? ' (ראשון–שבת)' : ''}, {data.weeksReturned} {RECENT_PERIODS_LABEL[granularity]}
+        ק״מ {PER_PERIOD_LABEL[granularity]}{granularity === 'week' ? ' (שני–ראשון)' : ''}, {data.weeksReturned} {RECENT_PERIODS_LABEL[granularity]}
       </p>
       {/* Only when something is actually painted green — on a stretch of weeks
           with no parsed plan the sentence would point at nothing. */}

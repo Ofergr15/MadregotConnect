@@ -19,6 +19,7 @@ import {
   enrichStravaActivity,
   getValidStravaToken,
   isMissingColumnError,
+  needsStravaEnrich,
 } from '@/lib/strava/enrich';
 import { routeFromSummaryPolyline } from '@/lib/strava/polyline';
 import { backfillStravaLaps } from '@/lib/strava/backfill-laps';
@@ -174,11 +175,11 @@ export async function runStravaSyncRequest(request: Request) {
         const activities = await client.getAllActivities({ after, maxPages: 5, perPage: 100 });
         const runActivities = activities.filter(isRun);
 
-        type ExistingRow = { id: string; strava_activity_id: number | null; laps: unknown; strava_gpx_url?: string | null };
+        type ExistingRow = { id: string; strava_activity_id: number | null; source: string | null; laps: unknown; strava_gpx_url?: string | null };
         let hasGpxColumn = true;
         let { data: existing, error: existingError } = await supabase
           .from('athlete_activities')
-          .select('id, strava_activity_id, start_time, laps, strava_gpx_url')
+          .select('id, strava_activity_id, source, start_time, laps, strava_gpx_url')
           .eq('athlete_id', athlete.id)
           .returns<ExistingRow[]>();
         if (existingError && isMissingColumnError(existingError)) {
@@ -187,7 +188,7 @@ export async function runStravaSyncRequest(request: Request) {
           hasGpxColumn = false;
           ({ data: existing, error: existingError } = await supabase
             .from('athlete_activities')
-            .select('id, strava_activity_id, start_time, laps')
+            .select('id, strava_activity_id, source, start_time, laps')
             .eq('athlete_id', athlete.id)
             .returns<ExistingRow[]>());
         }
@@ -198,8 +199,7 @@ export async function runStravaSyncRequest(request: Request) {
           if (e.strava_activity_id) {
             existingByStrava.set(e.strava_activity_id, {
               id: e.id,
-              // null laps = never enriched (enrich stores [] when Strava has none)
-              needsEnrich: e.laps == null || (hasGpxColumn && !e.strava_gpx_url),
+              needsEnrich: needsStravaEnrich(e, hasGpxColumn),
             });
           }
         }

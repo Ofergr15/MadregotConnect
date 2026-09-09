@@ -65,7 +65,7 @@ export async function GET(request: Request) {
       if (activityLocalDateStr(r.start_time) >= monthStartKey) thisMonthRuns += 1;
     }
 
-    // Bucket runs by activity-week (Sunday-based ISO date).
+    // Bucket runs by activity-week (Monday-based ISO date).
     const byWeek = new Map<string, { km: number; runs: number }>();
     for (const r of runs) {
       const wk = activityWeekStart(r.start_time);

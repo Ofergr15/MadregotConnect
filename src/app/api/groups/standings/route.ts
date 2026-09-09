@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     const supabase = createServerClient({ revalidateSeconds: 300 });
     const now = israelDateAnchor(); // Israel's calendar day, not the server's UTC one
     const monthStart = iso(new Date(now.getFullYear(), now.getMonth(), 1));
-    const weekStart = getActivityWeekStart(now); // Sunday, for the consistency metric
+    const weekStart = getActivityWeekStart(now); // Monday (activity week), for the consistency metric
 
     // 1) Active athletes with a squad.
     const { data: athletes, error: aErr } = await supabase
