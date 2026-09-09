@@ -1,7 +1,7 @@
 {
   "id": "/dashboard",
   "name": "Madregot After 2KM",
-  "short_name": "​",
+  "short_name": "Madregot",
   "description": "Running club training platform",
   "start_url": "/feed",
   "scope": "/",
