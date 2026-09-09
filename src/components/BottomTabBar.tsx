@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut, Bug } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
+import { resolveNavItems, splitNavForBar, useNavIdentity } from '@/lib/nav-items';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
 import { Sheet } from '@/components/ui';
 
@@ -23,22 +23,11 @@ import { Sheet } from '@/components/ui';
 // still get them; sighted users rely on icon + position, same as the
 // reference). Active state is a plain color change — no weight/scale jump.
 
-// The list itself, the role rules and the force-adds all live in
-// @/lib/nav-items now — this file used to keep its own copy of every one of
-// them, which is how the desktop nav and this bar drifted apart. Only the
-// bar-specific part (which of those items are PRIMARY) is still here.
-
-// Preferred order of PRIMARY tabs, role-explicit (not one shared list) — an
-// athlete's and a coach's four daily-use destinations are genuinely different,
-// and sharing one generic priority list was producing an arbitrary 4th tab for
-// staff. `practice-attendance` is deliberately absent from the staff order: it's
-// the FAB's own target (see primaryActionHref below), so it must never also be
-// eligible as a flat primary tab — the same destination reachable twice.
-// Feed leads both lists — it's the app's landing page now. Only the first 4
-// entries fit as flat tabs, so the staff list's 5th (coach-tools) rides in
-// "More" whenever the first four are all enabled.
-const ATHLETE_PRIMARY_ORDER = ['feed', 'dashboard', 'program', 'profile'];
-const STAFF_PRIMARY_ORDER = ['feed', 'dashboard', 'athletes', 'workout-feedback', 'coach-tools'];
+// The list itself, the role rules, the force-adds AND the primary/overflow split
+// all live in @/lib/nav-items now — this file used to keep its own copy of every
+// one of them, which is how the desktop nav and this bar drifted apart. The
+// split moved out last, when Settings → User Manager needed to state where a
+// newly granted page would appear; two answers to that would be one too many.
 
 export function BottomTabBar() {
   const pathname = usePathname();
@@ -58,31 +47,10 @@ export function BottomTabBar() {
 
   // Split into up-to-4 primary tabs + overflow, using the role-appropriate
   // preferred order. "More" is added as a 5th slot whenever there are leftovers.
-  const primaryOrder = isStaffView ? STAFF_PRIMARY_ORDER : ATHLETE_PRIMARY_ORDER;
-  const byTab = new Map(navItems.map(i => [i.tab, i]));
-  const primary: NavItem[] = [];
-  for (const tab of primaryOrder) {
-    if (primary.length >= 4) break;
-    const item = byTab.get(tab);
-    if (item) { primary.push(item); byTab.delete(tab); }
-  }
-  // Fill remaining primary slots from whatever's left, in nav order — but never
-  // with the staff FAB's own target (a role missing some of its preferred tabs
-  // must not fall back onto the one destination the FAB already covers).
-  for (const item of navItems) {
-    if (primary.length >= 4) break;
-    if (isStaffView && item.tab === 'practice-attendance') continue;
-    // Review has two permanent homes of its own now — the button beside the logo
-    // in the Header and the static card in the sheet below — so it must never be
-    // promoted into a flat tab, which would spend one of four daily-use slots on
-    // a screen you visit when something breaks.
-    if (item.tab === 'review') continue;
-    if (byTab.has(item.tab)) { primary.push(item); byTab.delete(item.tab); }
-  }
-  // Same reason review is skipped above: it's a static card in the sheet for
-  // every role, so leaving it in the permission-gated overflow would print it
-  // twice for anyone whose `review` tab is enabled.
-  const overflow = navItems.filter(i => byTab.has(i.tab) && i.tab !== 'review');
+  // The rule itself lives in nav-items beside resolveNavItems, because Settings →
+  // User Manager now has to answer "where will the page I just granted appear",
+  // and that answer is only true if it comes from this exact function.
+  const { primary, overflow } = splitNavForBar({ navItems, isStaffView });
   const isActive = (href: string) => pathname === href;
   const overflowActive = overflow.some(i => isActive(i.href));
   // The static quick-action pages are reachable from the "More" sheet only, so

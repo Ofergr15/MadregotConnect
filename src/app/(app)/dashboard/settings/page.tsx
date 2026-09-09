@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift, UserPlus, Sprout, Wrench, Lock, Unlock, DoorOpen, History } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift, UserPlus, Sprout, Wrench, Lock, Unlock, DoorOpen, History, Plus } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
@@ -27,7 +27,10 @@ import { CORE_RUNNER_LABEL, CORE_RUNNER_MARK } from '@/lib/core-runner';
 // what a member will actually see when they open the app, and a lookalike
 // computation here would be a fourth copy of the rules — the exact drift that
 // put resolveNavItems in one file in the first place.
-import { resolveNavItems } from '@/lib/nav-items';
+// splitNavForBar rides along for the same reason: granting somebody a page is
+// only half an answer if the screen can't say where it will show up.
+import { ALL_NAV_ITEMS, resolveNavItems, splitNavForBar, type NavItem } from '@/lib/nav-items';
+import { STAFF_ROLES } from '@/lib/impersonation';
 import { apiHeaders, useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useTranslations } from 'next-intl';
@@ -463,6 +466,23 @@ export default function SettingsPage() {
   const [savedPermissions, setSavedPermissions] = useState<TabPermission[]>([]);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [savingPermissions, setSavingPermissions] = useState(false);
+  /**
+   * Pages granted to ONE member on top of their role — `athlete_tab_grants`
+   * (migration 099), keyed by athlete id.
+   *
+   * A Set per member rather than a flat row list: every question this screen asks
+   * is "does this person have this tab", 25 rows × 17 tabs at a time.
+   */
+  const [grants, setGrants] = useState<Record<string, Set<string>>>({});
+  // False until GET /api/admin/tab-grants says the table is there. The migration
+  // is pasted in by hand, so the honest thing to do until then is not offer a
+  // control whose save can only fail.
+  const [grantsReady, setGrantsReady] = useState(false);
+  // Which member's "add a page" picker is open. One at a time: the picker is 17
+  // chips, and two of them open at once is the accordion pile the role tabs
+  // replaced.
+  const [grantPickerFor, setGrantPickerFor] = useState<string | null>(null);
+  const [grantSaving, setGrantSaving] = useState<Set<string>>(new Set());
   const [mobilePermissions, setMobilePermissions] = useState<TabPermission[]>([]);
   const [savedMobilePermissions, setSavedMobilePermissions] = useState<TabPermission[]>([]);
   const [mobilePermissionsLoading, setMobilePermissionsLoading] = useState(true);
@@ -554,6 +574,10 @@ export default function SettingsPage() {
       // there, come back here, and the page lists already agree. A separate
       // read-only copy could disagree with what you just saved.
       loadOnce('permissions', fetchPermissions);
+      // And the per-member grants, for the same reason: a row that states what
+      // someone can open has to include the page granted to them personally, or
+      // it is wrong about the one member it was added for.
+      loadOnce('grants', fetchGrants);
     } else if (activeTab === 'tabs') {
       loadOnce('permissions', fetchPermissions);
       loadOnce('mobilePermissions', fetchMobilePermissions);
@@ -587,16 +611,53 @@ export default function SettingsPage() {
    * table, so every member on it has an athlete row and therefore a profile.
    */
   const reachablePages = (user: User) => {
-    const forRole = (extra: { isAcademyMember?: boolean; isCoreRunner?: boolean }) =>
+    const granted = [...(grants[user.id] || [])];
+    const forRole = (extra: { isAcademyMember?: boolean; isCoreRunner?: boolean; grantedTabs?: string[] }) =>
       resolveNavItems({ permissions, effectiveRole: user.role, isAthlete: true, ...extra });
     const base = new Set(forRole({}).map(i => i.tab));
     const withCore = new Set(forRole({ isCoreRunner: user.isCoreRunner }).map(i => i.tab));
-    return forRole({ isCoreRunner: user.isCoreRunner, isAcademyMember: user.isAcademy }).map(item => ({
+    const withFlags = new Set(
+      forRole({ isCoreRunner: user.isCoreRunner, isAcademyMember: user.isAcademy }).map(i => i.tab),
+    );
+    return forRole({
+      isCoreRunner: user.isCoreRunner,
+      isAcademyMember: user.isAcademy,
+      grantedTabs: granted,
+    }).map(item => ({
       tab: item.tab,
       label: tnav(item.labelKey as any),
-      // null = the role granted it. Otherwise the flag that did.
-      via: base.has(item.tab) ? null : withCore.has(item.tab) ? 'core' : 'academy',
+      item,
+      // null = the role granted it. Otherwise what did — and 'grant' is checked
+      // LAST, so a page this member would have had anyway doesn't read as a
+      // personal grant just because someone also granted it. That is the
+      // difference between "why does Tamar have this" and "what would she lose".
+      via: base.has(item.tab)
+        ? null
+        : withCore.has(item.tab)
+          ? 'core'
+          : withFlags.has(item.tab)
+            ? 'academy'
+            : 'grant',
     }));
+  };
+
+  /**
+   * Where a page appears on this member's phone: one of the four flat tabs, or
+   * behind "More".
+   *
+   * Asked of splitNavForBar, the same function the bar itself calls — the whole
+   * value of saying "it will land in More" is that it's true, and a second copy
+   * of the four-slot rule here would be true only until one of them changed.
+   *
+   * Staff read as staff, so a coach granted a page gets the coach's bar order.
+   */
+  const barPlacement = (user: User, pages: Array<{ item: NavItem }>) => {
+    const { primary } = splitNavForBar({
+      navItems: pages.map(p => p.item),
+      isStaffView: STAFF_ROLES.includes(user.role),
+    });
+    const inBar = new Set(primary.map(i => i.tab));
+    return (tab: string) => (inBar.has(tab) ? 'bar' : 'more');
   };
 
   // One member row (used inside the role/group sections of User Manager).
@@ -733,9 +794,13 @@ export default function SettingsPage() {
           them — you had to hold the Tab Manager's matrix in your head and join it
           to this row yourself, and the two membership flags weren't in the matrix
           at all.
-          Read-only on purpose. To change this list you change the role, the
-          flag, or the matrix; there is no per-person override, so the matrix
-          stays the single answer to "what does a runner see". */}
+          Editable in ONE direction, as of 2.40.11: the "+ עמוד" control below adds
+          a page to this member alone. It cannot take one away — for that you
+          change the role, the flag, or the matrix. That asymmetry is the whole
+          design: a denial here would be a second source of truth free to disagree
+          with the matrix, and "why does Ron alone not have the program" is
+          invisible on every screen but this one. An addition can only ever be
+          explained by the ➕ printed next to it. */}
       {/* Hidden, not empty, until the matrix has landed. The roster and the matrix
           are two requests: rendering this line early prints "0 pages" in red for
           every member for one paint, which reads as a permissions outage. */}
@@ -752,14 +817,94 @@ export default function SettingsPage() {
             : pages.map((p, i) => (
                 <span key={p.tab} className="text-3xs">
                   {i > 0 && <span className="text-ink-300 me-1.5">·</span>}
-                  <span className={p.via ? 'font-bold text-accent-900' : 'text-ink-500'}>{p.label}</span>
+                  <span className={cn(
+                    p.via === 'grant' ? 'font-bold text-brand' : p.via ? 'font-bold text-accent-900' : 'text-ink-500',
+                  )}>{p.label}</span>
                   {/* Which flag paid for it — the fact the matrix cannot state. */}
                   {p.via === 'core' && <span className="ms-0.5" title={CORE_RUNNER_LABEL}>{CORE_RUNNER_MARK}</span>}
                   {p.via === 'academy' && <span className="ms-0.5" title={t('academyMember')}>🎓</span>}
+                  {/* Blue, not green: a personal grant is a different kind of fact
+                      from a flag. A flag is a group this member belongs to and it
+                      explains itself; this one exists because somebody decided it
+                      for them alone, so it is the one entry on the row that no
+                      other screen can account for. */}
+                  {p.via === 'grant' && <span className="ms-0.5" title={t('grantedPersonally')}>➕</span>}
                 </span>
               ))
         )}
       </div>
+
+      {/* GIVING THIS MEMBER ONE MORE PAGE.
+          The read-only version of this screen was right that per-person overrides
+          are a second source of truth — but only for DENIALS. This adds, never
+          subtracts: the table it writes has no `enabled` column, so the matrix
+          stays the whole answer to "what does a runner see" and this can only say
+          "and also this one page, for this one person".
+          Hidden for admins (rule 1 already gives them everything, so a grant would
+          be a no-op that looks like it did something) and until migration 099 is
+          in, when the only thing a save could do is fail. */}
+      {!isAdmin && grantsReady && !permissionsLoading && (
+        <div className="mt-2">
+          {grantPickerFor === user.id ? (
+            <div className="p-2.5 rounded-xl bg-page/60 border border-page">
+              <p className="text-3xs text-ink-400 mb-2">{t('addPageHint')}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {ALL_NAV_ITEMS.filter(item => !pages.some(p => p.tab === item.tab)).map(item => {
+                  const key = `${user.id}:${item.tab}`;
+                  // Where it WOULD go, asked before it exists: the bar takes four
+                  // tabs in a fixed order, so most additions land in "More" and
+                  // saying so up front is the difference between this control and
+                  // a guess.
+                  const where = barPlacement(user, [...pages, { item }])(item.tab);
+                  return (
+                    <button
+                      key={item.tab}
+                      onClick={() => toggleGrant(user, item.tab, true)}
+                      disabled={grantSaving.has(key)}
+                      className="flex items-center gap-1 ps-1.5 pe-2 min-h-[32px] rounded-lg border border-page bg-card text-3xs font-medium text-ink-600 transition-colors hover:border-brand/40 hover:text-brand disabled:opacity-50"
+                    >
+                      <Plus className="w-3 h-3 text-brand" />
+                      {tnav(item.labelKey as any)}
+                      <span className="text-ink-300">{where === 'bar' ? t('landsInBar') : t('landsInMore')}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => setGrantPickerFor(null)}
+                className="mt-2 min-h-[32px] text-3xs font-semibold text-ink-400"
+              >
+                {t('done')}
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => setGrantPickerFor(user.id)}
+                className="flex items-center gap-1 ps-1.5 pe-2 min-h-[32px] rounded-lg border border-dashed border-ink-300/60 text-3xs font-semibold text-ink-400 transition-colors hover:border-brand/50 hover:text-brand"
+              >
+                <Plus className="w-3 h-3" />
+                {t('addPage')}
+              </button>
+              {/* Revoking is offered only on the pages a grant actually added, so
+                  the control can never be pointed at something the role gives
+                  everyone — which is the state this table refuses to represent. */}
+              {pages.filter(p => p.via === 'grant').map(p => (
+                <button
+                  key={p.tab}
+                  onClick={() => toggleGrant(user, p.tab, false)}
+                  disabled={grantSaving.has(`${user.id}:${p.tab}`)}
+                  className="flex items-center gap-1 ps-2 pe-1.5 min-h-[32px] rounded-lg border border-brand/30 bg-brand/10 text-3xs font-semibold text-brand transition-colors hover:bg-brand/15 disabled:opacity-50"
+                  title={t('revokePage')}
+                >
+                  {p.label}
+                  <X className="w-3 h-3" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <ApprovalOutcome outcome={approveOutcome[user.id]} t={t} />
       </div>
     );
@@ -777,6 +922,60 @@ export default function SettingsPage() {
       setError(err instanceof Error ? err.message : 'Failed to load permissions');
     } finally {
       setPermissionsLoading(false);
+    }
+  };
+
+  const fetchGrants = async () => {
+    try {
+      const response = await fetch('/api/admin/tab-grants', { headers: await bearerHeaders() });
+      if (!response.ok) { setGrantsReady(false); return; }
+      const data = await response.json();
+      const next: Record<string, Set<string>> = {};
+      for (const g of data.grants || []) {
+        (next[g.athleteId] ||= new Set()).add(g.tab);
+      }
+      setGrants(next);
+      // `ready: false` means the table isn't there yet, which is not an error —
+      // it's "099 hasn't been pasted in". Same empty list either way, but the
+      // picker stays hidden rather than offering a save that 503s.
+      setGrantsReady(data.ready !== false);
+    } catch {
+      setGrantsReady(false);
+    }
+  };
+
+  /**
+   * Give this member one more page, or take a granted one back.
+   *
+   * Optimistic, and safe to be: the only two outcomes are "they have this page"
+   * and "they have what their role gives everyone", so a failed write leaves the
+   * row briefly optimistic and the reload below corrects it. Nothing a mistake
+   * here can do is destructive — the schema has no deny to write.
+   */
+  const toggleGrant = async (user: User, tab: string, granted: boolean) => {
+    const key = `${user.id}:${tab}`;
+    setGrantSaving(prev => new Set(prev).add(key));
+    setGrants(prev => {
+      const next = { ...prev };
+      const tabs = new Set(next[user.id] || []);
+      granted ? tabs.add(tab) : tabs.delete(tab);
+      next[user.id] = tabs;
+      return next;
+    });
+    try {
+      const response = await fetch('/api/admin/tab-grants', {
+        method: 'PUT',
+        headers: await bearerHeaders(),
+        body: JSON.stringify({ athleteId: user.id, tab, granted }),
+      });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'Failed');
+      setSavedUsers(prev => new Set(prev).add(user.id));
+      setTimeout(() => setSavedUsers(prev => { const n = new Set(prev); n.delete(user.id); return n; }), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update page grant');
+      await fetchGrants();
+    } finally {
+      setGrantSaving(prev => { const n = new Set(prev); n.delete(key); return n; });
     }
   };
 

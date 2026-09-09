@@ -56,9 +56,9 @@ export function Header() {
   const permissions = permsData?.permissions || [];
   const permissionsLoaded = !permsLoading;
 
-  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean; isSuper?: boolean; isCoreRunner?: boolean }>(
-    userEmail ? '/api/auth/me' : null,
-  );
+  const { data: meData } = useApi<{
+    role?: string; isAcademy?: boolean; isSuper?: boolean; isCoreRunner?: boolean; grantedTabs?: string[];
+  }>(userEmail ? '/api/auth/me' : null);
   const userRole = meData?.role || null;
   const isSuper = localSuper || !!meData?.isSuper;
   // Academy membership is the `is_academy` flag, not a role, so it decides a nav
@@ -66,6 +66,12 @@ export function Header() {
   // header didn't, which is the drift the shared resolver closes.
   const isAcademyMember = !!meData?.isAcademy;
   const isCoreRunner = !!meData?.isCoreRunner;
+  // Pages granted to this account personally (migration 099). The desktop nav
+  // reads them for the same reason it reads the academy flag: this is the half
+  // of the answer that no role row can express, and the last time the header
+  // resolved it independently an academy runner had the tab on their phone and
+  // not on their laptop.
+  const grantedTabs = meData?.grantedTabs || [];
 
   // Also shared — NotificationCenter and the profile page ask for it too.
   const { data: groupsData } = useApi<{ groups?: Array<{ id: string; name: string }> } | Array<{ id: string; name: string }>>(
@@ -158,6 +164,7 @@ export function Header() {
         isAthlete,
         isAcademyMember,
         isCoreRunner,
+        grantedTabs,
         // An empty header nav would leave a signed-in user with nowhere to go.
         fallback: true,
       })

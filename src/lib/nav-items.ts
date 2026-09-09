@@ -109,6 +109,20 @@ export interface NavResolutionInput {
    */
   isCoreRunner?: boolean;
   /**
+   * Pages granted to THIS ACCOUNT rather than to its role — `athlete_tab_grants`
+   * (migration 099), delivered by /api/auth/me.
+   *
+   * ADDITIVE, like the two flags above and enforced by the schema rather than by
+   * this function: the table has no `enabled` column, so a grant is the presence
+   * of a row and "deny" is unrepresentable. That keeps the matrix the single
+   * answer to "what does a runner see" — a grant can only ever say "and also
+   * this one page, for this one person".
+   *
+   * A tab id here that is not in ALL_NAV_ITEMS resolves to nothing, so a grant
+   * left behind by a deleted page is inert rather than a broken nav entry.
+   */
+  grantedTabs?: string[];
+  /**
    * When true, a role that resolves to nothing gets [dashboard, profile] rather
    * than an empty list. The two nav CHROMES want that (an empty bar or header
    * would strand the user with no way out); Search does not — it just has no
@@ -150,6 +164,7 @@ export function resolveNavItems({
   isAthlete = false,
   isAcademyMember = false,
   isCoreRunner = false,
+  grantedTabs = [],
   fallback = false,
 }: NavResolutionInput): NavItem[] {
   if (!effectiveRole) return [];
@@ -163,6 +178,12 @@ export function resolveNavItems({
     for (const p of permissions) {
       if (p.role === 'core_runner' && p.enabled && !enabled.includes(p.tab)) enabled.push(p.tab);
     }
+  }
+  // This account's own grants, unioned in the same way and skipped for the same
+  // reason: "view as runner" has to show what a runner sees, and a page granted
+  // personally to the previewer is not part of that.
+  if (!previewRole) {
+    for (const tab of grantedTabs) if (!enabled.includes(tab)) enabled.push(tab);
   }
   // Rule 1: the admin's list is the whole list, and the matrix is not consulted for
   // it at all. Not even `settings` needs its row any more — that force-add existed
@@ -206,6 +227,54 @@ export function resolveNavItems({
   return items;
 }
 
+// Which tabs get one of the four flat slots in the mobile bar, in preference
+// order. Feed leads both — it's the app's landing page. The staff list's 5th
+// entry (coach-tools) therefore rides in "More" whenever the first four are all
+// enabled.
+//
+// Exported, and the split below with them, because a SECOND screen needs this
+// answer now: Settings → User Manager tells you where a page you just granted
+// someone will actually appear, and the only honest way to say "it goes into the
+// More sheet" is to ask the same function the bar asks. A lookalike copy here is
+// the exact drift that put resolveNavItems in one file.
+export const ATHLETE_PRIMARY_ORDER = ['feed', 'dashboard', 'program', 'profile'];
+export const STAFF_PRIMARY_ORDER = ['feed', 'dashboard', 'athletes', 'workout-feedback', 'coach-tools'];
+
+/**
+ * How the mobile bar divides a resolved nav list: up to 4 flat tabs, everything
+ * else behind "More". Pure, for the same reason resolveNavItems is.
+ */
+export function splitNavForBar(
+  { navItems, isStaffView }: { navItems: NavItem[]; isStaffView: boolean },
+): { primary: NavItem[]; overflow: NavItem[] } {
+  const primaryOrder = isStaffView ? STAFF_PRIMARY_ORDER : ATHLETE_PRIMARY_ORDER;
+  const byTab = new Map(navItems.map(i => [i.tab, i]));
+  const primary: NavItem[] = [];
+  for (const tab of primaryOrder) {
+    if (primary.length >= 4) break;
+    const item = byTab.get(tab);
+    if (item) { primary.push(item); byTab.delete(tab); }
+  }
+  // Fill remaining primary slots from whatever's left, in nav order — but never
+  // with the staff FAB's own target (a role missing some of its preferred tabs
+  // must not fall back onto the one destination the FAB already covers).
+  for (const item of navItems) {
+    if (primary.length >= 4) break;
+    if (isStaffView && item.tab === 'practice-attendance') continue;
+    // Review has two permanent homes of its own — the button beside the logo in
+    // the Header and the static card in the sheet — so it must never be promoted
+    // into a flat tab, which would spend one of four daily-use slots on a screen
+    // you visit when something breaks.
+    if (item.tab === 'review') continue;
+    if (byTab.has(item.tab)) { primary.push(item); byTab.delete(item.tab); }
+  }
+  // Same reason review is skipped above: it's a static card in the sheet for
+  // every role, so leaving it in the permission-gated overflow would print it
+  // twice for anyone whose `review` tab is enabled.
+  const overflow = navItems.filter(i => byTab.has(i.tab) && i.tab !== 'review');
+  return { primary, overflow };
+}
+
 /**
  * The signed-in user's identity as the nav needs it: which role to render as,
  * whether they're staff, and the two localStorage-derived flags. Shared by the
@@ -229,9 +298,9 @@ export function useNavIdentity() {
   );
   const permissions = permsData?.permissions || [];
 
-  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean; isSuper?: boolean; isCoreRunner?: boolean }>(
-    hasEmail ? '/api/auth/me' : null,
-  );
+  const { data: meData } = useApi<{
+    role?: string; isAcademy?: boolean; isSuper?: boolean; isCoreRunner?: boolean; grantedTabs?: string[];
+  }>(hasEmail ? '/api/auth/me' : null);
   const isSuper = localSuper || !!meData?.isSuper;
 
   useEffect(() => {
@@ -270,6 +339,10 @@ export function useNavIdentity() {
     isAthlete,
     isAcademyMember: !!meData?.isAcademy,
     isCoreRunner: !!meData?.isCoreRunner,
+    // Empty until /api/auth/me lands, which is also the answer when migration
+    // 099 hasn't been applied — understating the nav for one paint, never
+    // inventing an entry point.
+    grantedTabs: meData?.grantedTabs || [],
     ready: !permsLoading && !!effectiveRole,
     isStaffView: effectiveRole ? STAFF_ROLES.includes(effectiveRole) : false,
   };

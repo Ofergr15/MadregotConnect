@@ -217,7 +217,7 @@ describe('GET /api/auth/me', () => {
     requireSession.mockResolvedValue(session({ role: 'coach', isStaff: true }));
     selected = { is_academy: true };
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'coach', membership: 'active', isAcademy: true, isSuper: false, canApprove: false, isCoreRunner: false });
+    expect(await res.json()).toEqual({ role: 'coach', membership: 'active', isAcademy: true, isSuper: false, canApprove: false, isCoreRunner: false, grantedTabs: [] });
 
     const update = ops.find((o) => o.op === 'update');
     expect(update?.table).toBe('athletes');
@@ -234,12 +234,23 @@ describe('GET /api/auth/me', () => {
     expect(ops).toHaveLength(0);
   });
 
+  // Pages granted to this person specifically (athlete_tab_grants, migration
+  // 099) ride out on this call, because it is the only thing the nav asks before
+  // it renders — resolveNavItems unions them onto the role's own tabs.
+  it('carries the pages granted to this member personally', async () => {
+    requireSession.mockResolvedValue(session());
+    selected = { is_academy: false };
+    rows = [{ tab: 'calendar' }, { tab: 'team-volume' }];
+    const body = await me(new Request('https://example.test/api/auth/me')).then(r => r.json());
+    expect(body.grantedTabs).toEqual(['calendar', 'team-volume']);
+  });
+
   // A missing is_academy column must not cost someone their nav.
   it('reports isAcademy false when the flag can not be read', async () => {
     requireSession.mockResolvedValue(session());
     selected = null;
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'runner', membership: 'active', isAcademy: false, isSuper: false, canApprove: false, isCoreRunner: false });
+    expect(await res.json()).toEqual({ role: 'runner', membership: 'active', isAcademy: false, isSuper: false, canApprove: false, isCoreRunner: false, grantedTabs: [] });
   });
 
   // The view-as control was deciding "is this the super user" client-side, off

@@ -80,6 +80,17 @@ export async function GET(request: Request) {
       .eq('id', auth.user.athleteId)
       .maybeSingle();
 
+    // Pages granted to this member personally (migration 099). A third read for
+    // the same reason `is_academy` is a second one: it must not be able to fail
+    // the call that gates the whole app. Migrations here are applied by hand, so
+    // "099 isn't pasted in yet" is a state a reader can hit — a missing table
+    // reads as no grants, which understates the nav rather than inventing an
+    // entry point. Additive by construction: the table has no deny to read.
+    const { data: grantRows } = await supabase
+      .from('athlete_tab_grants')
+      .select('tab')
+      .eq('athlete_id', auth.user.athleteId);
+
     const membership = membershipFor({ status: auth.user.athleteStatus, approved: row?.approved });
 
     await supabase
@@ -87,7 +98,15 @@ export async function GET(request: Request) {
       .update({ last_seen_at: new Date().toISOString() })
       .eq('id', auth.user.athleteId);
 
-    return NextResponse.json({ role: auth.user.role || 'runner', membership, isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
+    return NextResponse.json({
+      role: auth.user.role || 'runner',
+      membership,
+      isAcademy: !!row?.is_academy,
+      isSuper,
+      canApprove: canApproveHere,
+      isCoreRunner: isCore,
+      grantedTabs: (grantRows || []).map(g => g.tab),
+    });
   } catch (error) {
     console.error('Failed to resolve user role:', error);
     return NextResponse.json({ error: 'Failed to resolve role' }, { status: 500 });

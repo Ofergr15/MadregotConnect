@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { resolveNavItems, ALL_NAV_ITEMS, type TabPermission } from '@/lib/nav-items';
+import { resolveNavItems, splitNavForBar, ALL_NAV_ITEMS, type TabPermission } from '@/lib/nav-items';
+import { NAV_TAB_IDS } from '@/lib/nav-tabs';
 
 /**
  * Which pages a role can reach. Three places used to answer this independently —
@@ -350,5 +351,153 @@ describe('the empty cases', () => {
       expect(tabs).not.toContain('races');
       expect(tabs).not.toContain('photos');
     }
+  });
+});
+
+/**
+ * Per-member grants — `athlete_tab_grants` (migration 099).
+ *
+ * The interesting property isn't that a grant adds a page; it's everything a
+ * grant CANNOT do. It can't reorder the nav, can't take a page away, can't
+ * survive into a role preview, and can't invent a destination. Each of those is
+ * a way this feature could have become a second source of truth alongside the
+ * matrix, so each one is pinned here.
+ */
+describe('pages granted to one member', () => {
+  const runner = (grantedTabs: string[], extra = {}) =>
+    tabsFor({ permissions, effectiveRole: 'runner', isAthlete: true, grantedTabs, ...extra });
+
+  const plainRunner = tabsFor({ permissions, effectiveRole: 'runner', isAthlete: true });
+
+  it('adds the granted page and nothing else', () => {
+    expect(plainRunner).not.toContain('athletes');
+    expect(runner(['athletes'])).toContain('athletes');
+    expect(runner(['athletes'])).toHaveLength(plainRunner.length + 1);
+  });
+
+  it('keeps the page in NAV order, not in the order it was granted', () => {
+    // The list is filtered out of ALL_NAV_ITEMS, so a grant can never push a page
+    // to the end and change which four the bar promotes.
+    expect(runner(['athletes', 'history'])).toEqual([
+      'dashboard', 'feed', 'review', 'athletes', 'activities', 'program', 'calendar', 'history', 'profile',
+    ]);
+  });
+
+  it('is a no-op when the role already grants the page', () => {
+    expect(runner(['program'])).toEqual(plainRunner);
+  });
+
+  it('cannot take anything away', () => {
+    // The signature has no way to express a denial, which is the point — but pin
+    // it, because the obvious "fix" if someone ever wants one is to reuse this
+    // field with a flag, and that is the change this test should stop.
+    for (const tab of plainRunner) {
+      expect(runner(['athletes'])).toContain(tab);
+    }
+  });
+
+  it('is ignored while previewing another role', () => {
+    // "View as runner" has to show what a runner sees. A page granted personally
+    // to the admin doing the previewing is not part of that.
+    expect(runner(['athletes'], { previewRole: 'runner' })).not.toContain('athletes');
+  });
+
+  it('cannot invent a destination', () => {
+    // A grant left behind by a deleted page, or a hand-written row, resolves to
+    // nothing rather than to a nav entry with no page behind it.
+    expect(runner(['races', 'not_a_tab'])).toEqual(plainRunner);
+  });
+
+  it('unions with the flags rather than replacing them', () => {
+    const both = runner(['athletes'], { isAcademyMember: true, isCoreRunner: true });
+    expect(both).toContain('athletes');   // the grant
+    expect(both).toContain('academy');    // the academy flag
+    expect(both).toContain('plan/new');   // הגרעין
+  });
+
+  it('changes nothing for an admin, who already has everything', () => {
+    const admin = { permissions, effectiveRole: 'admin', isAthlete: true };
+    expect(tabsFor({ ...admin, grantedTabs: ['athletes'] })).toEqual(tabsFor(admin));
+  });
+});
+
+/**
+ * The four flat slots, and what falls behind "More".
+ *
+ * This rule lived inside BottomTabBar until Settings → User Manager needed to
+ * tell an admin where a page they just granted would appear. Moving it here made
+ * it testable for the first time, and it is worth testing: it decides what a
+ * member sees without scrolling, and the answer this screen prints is only
+ * trustworthy while both callers ask the same function.
+ */
+describe('how the bar splits a nav list', () => {
+  const items = (tabs: string[]) => ALL_NAV_ITEMS.filter((i) => tabs.includes(i.tab));
+  const split = (tabs: string[], isStaffView = false) => {
+    const { primary, overflow } = splitNavForBar({ navItems: items(tabs), isStaffView });
+    return { primary: primary.map((i) => i.tab), overflow: overflow.map((i) => i.tab) };
+  };
+
+  it('gives an athlete their four daily destinations, in the preferred order', () => {
+    const { primary } = split(['dashboard', 'feed', 'program', 'activities', 'history', 'review']);
+    // Note the order: it is ATHLETE_PRIMARY_ORDER's, not nav order — feed leads
+    // because it is the app's landing page.
+    expect(primary).toEqual(['feed', 'dashboard', 'program', 'activities']);
+  });
+
+  it('never promotes review into a slot, even when nothing else wants one', () => {
+    // Review has two homes of its own (the Header button and a static sheet card),
+    // so spending one of four daily-use slots on it would print it twice.
+    const { primary, overflow } = split(['dashboard', 'review']);
+    expect(primary).toEqual(['dashboard']);
+    // …and it isn't in the overflow either, for the same reason.
+    expect(overflow).toEqual([]);
+  });
+
+  it('keeps the staff FAB target out of the flat tabs', () => {
+    // practice-attendance is the FAB's own destination; promoting it would make
+    // one page reachable twice from one bar.
+    const { primary } = split(['dashboard', 'feed', 'practice-attendance', 'groups'], true);
+    expect(primary).not.toContain('practice-attendance');
+    expect(primary).toEqual(['feed', 'dashboard', 'groups']);
+  });
+
+  it('never puts more than four in the bar', () => {
+    const { primary, overflow } = split(ALL_NAV_ITEMS.map((i) => i.tab), true);
+    expect(primary).toHaveLength(4);
+    expect(overflow.length).toBeGreaterThan(0);
+    expect(primary.some((t) => overflow.includes(t))).toBe(false);
+  });
+
+  it('is what the User Manager relies on: a fifth page lands in More', () => {
+    // The exact claim that screen prints when you grant somebody a page. Resolved
+    // rather than hand-listed, so the fixture is a real runner's nav (which is
+    // where `profile` comes from — it is PROFILE_ITEM, not an ALL_NAV_ITEMS row,
+    // and a hand-written list quietly leaves it out and frees up a slot).
+    const runnerNav = resolveNavItems({ permissions, effectiveRole: 'runner', isAthlete: true });
+    const before = splitNavForBar({ navItems: runnerNav, isStaffView: false });
+    // profile takes the fourth slot, which is the reason activities is already in
+    // "More" for every runner in the club before anyone grants anything.
+    expect(before.primary.map((i) => i.tab)).toEqual(['feed', 'dashboard', 'program', 'profile']);
+
+    const granted = resolveNavItems({
+      permissions, effectiveRole: 'runner', isAthlete: true, grantedTabs: ['history'],
+    });
+    const after = splitNavForBar({ navItems: granted, isStaffView: false });
+    // The bar is unchanged and the new page is behind "More" — which is exactly
+    // what the picker tells the admin before they tap.
+    expect(after.primary).toEqual(before.primary);
+    expect(after.overflow.map((i) => i.tab)).toContain('history');
+  });
+});
+
+// The server-safe mirror of the list. A route handler cannot import
+// ALL_NAV_ITEMS (nav-items is a client module — the build fails collecting page
+// data with "ALL_NAV_ITEMS.map is not a function"), so /api/admin/tab-grants
+// validates against NAV_TAB_IDS instead. This is what stops the two from
+// drifting: add a page and forget this list, and the page is silently
+// ungrantable forever.
+describe('the tab-id list the API validates against', () => {
+  it('is exactly ALL_NAV_ITEMS, in the same order', () => {
+    expect([...NAV_TAB_IDS]).toEqual(ALL_NAV_ITEMS.map((i) => i.tab));
   });
 });
