@@ -12,6 +12,7 @@ import {
   type EntryQueueMember,
   type PendingSignupRequest,
 } from '@/lib/admin/entry-queue';
+import { KIT_SIZE_COLUMNS_099, kitSizeSetupInput } from '@/lib/kit-sizes';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -37,7 +38,11 @@ export const revalidate = 0;
 const SETUP_COLUMNS =
   'garmin_auth, strava_auth, data_source, avatar_url, phone, birth_date, gender, shirt_size, shoe_size, group_id';
 const BASE_COLUMNS = `id, name, email, status, created_at, ${SETUP_COLUMNS}`;
-const FULL_COLUMNS = `${BASE_COLUMNS}, approved, approved_at, last_seen_at, active_shoe_id`;
+const PRE_099_COLUMNS = `${BASE_COLUMNS}, approved, approved_at, last_seen_at, active_shoe_id`;
+// Stepped separately from PRE_099 for the same reason as /api/onboarding: falling
+// straight to BASE would also drop `approved`, and this route reads a missing
+// `approved` as "everyone is approved" — a wrong answer on the approval screen.
+const FULL_COLUMNS = `${PRE_099_COLUMNS}, ${KIT_SIZE_COLUMNS_099}`;
 
 /** '42703' = Postgres undefined_column; 'PGRST204' = PostgREST's schema cache. */
 function isMissingColumn(code?: string) {
@@ -143,7 +148,10 @@ export async function GET(request: Request) {
 
     let { data: rows, error } = await supabase.from('athletes').select(FULL_COLUMNS);
     if (isMissingColumn(error?.code)) {
-      ({ data: rows, error } = await supabase.from('athletes').select(BASE_COLUMNS));
+      ({ data: rows, error } = await supabase.from('athletes').select(PRE_099_COLUMNS));
+      if (isMissingColumn(error?.code)) {
+        ({ data: rows, error } = await supabase.from('athletes').select(BASE_COLUMNS));
+      }
     }
     if (error) throw error;
 
@@ -172,6 +180,7 @@ export async function GET(request: Request) {
         birthDate: (a.birth_date as string) || null,
         gender: (a.gender as string) || null,
         shirtSize: (a.shirt_size as string) || null,
+        ...kitSizeSetupInput(a),
         shoeSize: (a.shoe_size as string) || null,
         pushSubscriptions: pushed.has(id) ? 1 : 0,
         groupName: group,

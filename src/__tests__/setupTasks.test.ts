@@ -22,6 +22,9 @@ const EMPTY: SetupInput = {
   birthDate: null,
   gender: null,
   shirtSize: null,
+  pantsSize: null,
+  tightsSize: null,
+  socksSize: null,
   shoeSize: null,
   pushSubscriptions: 0,
   groupName: null,
@@ -37,6 +40,9 @@ const FULL: SetupInput = {
   birthDate: '1985-04-01',
   gender: 'male',
   shirtSize: 'L',
+  pantsSize: 'L',
+  tightsSize: 'M',
+  socksSize: '43-46',
   shoeSize: '43',
   pushSubscriptions: 1,
   groupName: 'דבוקה 1',
@@ -89,7 +95,8 @@ describe('computeSetupState', () => {
     expect(personal.done).toBe(false);
     expect(personal.meta).toEqual({ filled: 1, total: 3 });
     expect(sizes.done).toBe(false);
-    expect(sizes.meta).toEqual({ filled: 1, total: 2 });
+    // Five since 099: shirt, pants, tights, socks and the shoe.
+    expect(sizes.meta).toEqual({ filled: 1, total: 5 });
     expect(partial.pct).toBe(0);
   });
 

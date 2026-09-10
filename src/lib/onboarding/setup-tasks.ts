@@ -42,6 +42,10 @@ export interface SetupInput {
   birthDate: string | null;
   gender: string | null;
   shirtSize: string | null;
+  /** Migration 099. Null on every row until members answer — see the Sizes task. */
+  pantsSize: string | null;
+  tightsSize: string | null;
+  socksSize: string | null;
   shoeSize: string | null;
   /** Rows in push_subscriptions for this athlete. */
   pushSubscriptions: number;
@@ -96,7 +100,14 @@ function filled(...values: Array<string | null | undefined>): number {
 export function computeSetupState(input: SetupInput): SetupState {
   const connected = hasWorkingSource(input);
   const personalFilled = filled(input.phone, input.birthDate, input.gender);
-  const sizesFilled = filled(input.shirtSize, input.shoeSize);
+  // Five, not two. The club orders shirts, pants, tights and socks, and until 099
+  // only the shirt was ever asked for — so this task deliberately reopens for
+  // members who had already "finished" it. That reopening IS the mechanism: the
+  // checklist row is how an existing member gets asked for the other three, since
+  // nobody is going to fill in a registration form they already submitted.
+  const sizesFilled = filled(
+    input.shirtSize, input.pantsSize, input.tightsSize, input.socksSize, input.shoeSize,
+  );
 
   const tasks: SetupTask[] = [
     {
@@ -108,7 +119,7 @@ export function computeSetupState(input: SetupInput): SetupState {
     },
     { key: 'photo', done: !!input.avatarUrl },
     { key: 'personalInfo', done: personalFilled === 3, meta: { filled: personalFilled, total: 3 } },
-    { key: 'sizes', done: sizesFilled === 2, meta: { filled: sizesFilled, total: 2 } },
+    { key: 'sizes', done: sizesFilled === 5, meta: { filled: sizesFilled, total: 5 } },
     // A live subscription row, not the notification_prefs toggles: prefs default
     // to on for everyone, so they say nothing about whether the browser ever
     // granted permission. Worth knowing that a row still isn't proof of

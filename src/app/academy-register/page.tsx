@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { GraduationCap, CheckCircle2 } from 'lucide-react';
 import { Card, Button, LoadingBlock } from '@/components/ui';
+import { CLOTHING_SIZES, SOCK_SIZES } from '@/lib/kit-sizes';
 
 // Mirrors the current Google Form "שאלון אישי להצטרפות אל Madregot Academy".
 // Structured name/email/phone are lifted into columns; everything else is stored
@@ -18,11 +19,6 @@ type Field =
   // mutually-exclusive options only — a sentence does not fit in a pill.
   | { key: string; label: string; type: 'chips'; required?: boolean; options: string[] }
   | { key: string; label: string; type: 'checkboxes'; required?: boolean; options: string[] };
-
-/** Clothing sizes, one list so the four kit questions cannot drift apart. */
-const CLOTHING_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-/** Socks are sized off the shoe, not the body — EU ranges, as the supplier lists them. */
-const SOCK_SIZES = ['35-38', '39-42', '43-46', '47+'];
 
 const FIELDS: Field[] = [
   { key: 'firstName', label: 'שם פרטי', type: 'text', required: true },
@@ -68,10 +64,10 @@ const FIELDS: Field[] = [
   // Shirt size was the only one collected, so ordering anything else meant asking
   // twenty people one at a time in WhatsApp. Grouped and rendered as pills so the
   // four of them cost about as much of the form as the one did.
-  { key: 'shirtSize', label: 'מה מידת החולצה שלך', type: 'chips', required: true, options: CLOTHING_SIZES },
-  { key: 'pantsSize', label: 'מה מידת המכנסיים שלך', type: 'chips', required: true, options: CLOTHING_SIZES },
-  { key: 'tightsSize', label: 'מה מידת הטייץ שלך', type: 'chips', required: true, options: CLOTHING_SIZES },
-  { key: 'socksSize', label: 'מה מידת הגרביים שלך', type: 'chips', required: true, options: SOCK_SIZES },
+  { key: 'shirtSize', label: 'מה מידת החולצה שלך', type: 'chips', required: true, options: [...CLOTHING_SIZES] },
+  { key: 'pantsSize', label: 'מה מידת המכנסיים שלך', type: 'chips', required: true, options: [...CLOTHING_SIZES] },
+  { key: 'tightsSize', label: 'מה מידת הטייץ שלך', type: 'chips', required: true, options: [...CLOTHING_SIZES] },
+  { key: 'socksSize', label: 'מה מידת הגרביים שלך', type: 'chips', required: true, options: [...SOCK_SIZES] },
 ];
 
 // The public form works via direct link; the landing-page "Join the Academy"

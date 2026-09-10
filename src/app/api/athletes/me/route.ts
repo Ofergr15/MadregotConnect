@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
+import { KIT_SIZE_FIELDS } from '@/lib/kit-sizes';
 
 const GENDERS = ['male', 'female'] as const;
 type Gender = (typeof GENDERS)[number];
-const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
-type ShirtSize = (typeof SHIRT_SIZES)[number];
 
 // shirt_size/phone (migration 061) may not be applied yet in every environment
 // — degrade to the pre-061 column set instead of 404ing the whole route on a
@@ -18,7 +17,21 @@ type ShirtSize = (typeof SHIRT_SIZES)[number];
 // which returns EVERY athlete's row — a whole-roster download to read four fields
 // about yourself, on a screen an athlete opens constantly.
 const CORE_COLUMNS = 'id, name, email, garmin_auth, strava_auth, strava_enabled, data_source, onboarding_status, avatar_url, created_at, birth_date, gender, shoe_size';
-const FULL_COLUMNS = `${CORE_COLUMNS}, shirt_size, phone, discoverable`;
+// The three non-shirt kit sizes (migration 099) ride the SAME degrade path: they
+// are the newest columns here, so until 099 is pasted in they trip the 42703 /
+// PGRST204 retry below and the route serves the pre-099 set instead of 404ing.
+const PRE_099_COLUMNS = `${CORE_COLUMNS}, shirt_size, phone, discoverable`;
+const FULL_COLUMNS = `${PRE_099_COLUMNS}, pants_size, tights_size, socks_size`;
+
+/** camelCase kit field ⇄ its athletes column, as the API's own body names them. */
+const KIT_COLUMN = Object.fromEntries(KIT_SIZE_FIELDS.map(k => [k.field, k.column])) as Record<string, string>;
+
+/** `{ shirtSize: 'L', pantsSize: null, … }` from whichever columns the row carries. */
+function kitSizesOf(row: Record<string, unknown>) {
+  return Object.fromEntries(
+    KIT_SIZE_FIELDS.map(k => [k.field, (row[k.column] as string) || null]),
+  ) as Record<string, string | null>;
+}
 
 // GET /api/athletes/me?id=…
 // Self-or-staff: this projection carries the athlete's email, phone and
@@ -40,7 +53,13 @@ export async function GET(req: NextRequest) {
   // schema-cache check rejecting an unknown column before SQL is generated
   // — observed for real (not just theoretical) on the discoverable rollout.
   if (error?.code === '42703' || error?.code === 'PGRST204') {
-    ({ data, error } = await supabase.from('athletes').select(CORE_COLUMNS).eq('id', id).single());
+    // Step down one migration at a time — otherwise, in the window before 099 is
+    // applied, the profile screen would also stop showing the shirt size and phone
+    // it has been showing since 061.
+    ({ data, error } = await supabase.from('athletes').select(PRE_099_COLUMNS).eq('id', id).single());
+    if (error?.code === '42703' || error?.code === 'PGRST204') {
+      ({ data, error } = await supabase.from('athletes').select(CORE_COLUMNS).eq('id', id).single());
+    }
   }
 
   if (error || !data) {
@@ -64,7 +83,7 @@ export async function GET(req: NextRequest) {
       birthDate: (data as any).birth_date || null,
       gender: (data as any).gender || null,
       shoeSize: (data as any).shoe_size || null,
-      shirtSize: (data as any).shirt_size || null,
+      ...kitSizesOf(data as unknown as Record<string, unknown>),
       phone: (data as any).phone || null,
       discoverable: (data as any).discoverable ?? true,
     },
@@ -82,7 +101,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, birthDate, gender, shoeSize, shirtSize, phone, discoverable } = body;
+    const { id, name, birthDate, gender, shoeSize, phone, discoverable } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
@@ -94,31 +113,48 @@ export async function PUT(req: NextRequest) {
     if (gender !== undefined && gender !== null && !GENDERS.includes(gender)) {
       return NextResponse.json({ error: "gender must be 'male' or 'female'" }, { status: 400 });
     }
-    if (shirtSize !== undefined && shirtSize !== null && !SHIRT_SIZES.includes(shirtSize)) {
-      return NextResponse.json({ error: `shirtSize must be one of ${SHIRT_SIZES.join(', ')}` }, { status: 400 });
+    // Validated off KIT_SIZE_FIELDS rather than four hand-written checks: these
+    // lists are also a CHECK constraint, so an unvalidated value is not a 400 but a
+    // 500 from the database. Socks use a different list from the garments, which is
+    // exactly the mistake a copy-pasted check makes.
+    for (const { field, options } of KIT_SIZE_FIELDS) {
+      const v = body[field];
+      if (v !== undefined && v !== null && v !== '' && !(options as readonly string[]).includes(v)) {
+        return NextResponse.json({ error: `${field} must be one of ${options.join(', ')}` }, { status: 400 });
+      }
     }
     if (name !== undefined && !String(name).trim()) {
       return NextResponse.json({ error: 'name cannot be empty' }, { status: 400 });
     }
 
-    const updates: Record<string, string | boolean | Gender | ShirtSize | null> = {};
+    const updates: Record<string, string | boolean | Gender | null> = {};
     if (name !== undefined) updates.name = String(name).trim();
     if (birthDate !== undefined) updates.birth_date = birthDate || null;
     if (gender !== undefined) updates.gender = gender || null;
     if (shoeSize !== undefined) updates.shoe_size = (shoeSize && String(shoeSize).trim()) || null;
-    if (shirtSize !== undefined) updates.shirt_size = shirtSize || null;
+    for (const { field, column } of KIT_SIZE_FIELDS) {
+      if (body[field] !== undefined) updates[column] = body[field] || null;
+    }
     if (phone !== undefined) updates.phone = (phone && String(phone).trim()) || null;
     if (discoverable !== undefined) updates.discoverable = !!discoverable;
 
+    const missingColumn = (e: { code?: string } | null) => e?.code === '42703' || e?.code === 'PGRST204';
     const supabase = createServerClient();
     let { data, error } = await supabase.from('athletes').update(updates).eq('id', id).select(FULL_COLUMNS).single();
-    if (error?.code === '42703' || error?.code === 'PGRST204') {
-      // shirt_size/phone/discoverable not migrated yet — drop them from both
-      // the write and the re-select rather than losing the whole update
-      // (name/birthDate/etc still need to save even if the newest columns
-      // aren't there yet).
-      const { shirt_size, phone: _phone, discoverable: _discoverable, ...coreUpdates } = updates as Record<string, unknown>;
-      ({ data, error } = await supabase.from('athletes').update(coreUpdates).eq('id', id).select(CORE_COLUMNS).single());
+    if (missingColumn(error)) {
+      // ── Two steps down, not one ───────────────────────────────────────────────
+      // The newest columns are 099's three kit sizes, and there is a window between
+      // this deploy and 099 being pasted into the SQL editor. Dropping straight to
+      // CORE (as this did when 061 was the newest) would silently throw away a
+      // shirt_size save for the whole of that window — the sheet would close, say
+      // nothing, and the size would be gone. So: try without 099 first, and only
+      // fall all the way back to pre-061 if THAT still fails.
+      const { pants_size, tights_size, socks_size, ...pre099 } = updates as Record<string, unknown>;
+      ({ data, error } = await supabase.from('athletes').update(pre099).eq('id', id).select(PRE_099_COLUMNS).single());
+      if (missingColumn(error)) {
+        const { shirt_size, phone: _phone, discoverable: _discoverable, ...coreUpdates } = pre099;
+        ({ data, error } = await supabase.from('athletes').update(coreUpdates).eq('id', id).select(CORE_COLUMNS).single());
+      }
     }
 
     if (error || !data) throw error || new Error('Update returned no row');
@@ -130,7 +166,7 @@ export async function PUT(req: NextRequest) {
         birthDate: (data as any).birth_date || null,
         gender: (data as any).gender || null,
         shoeSize: (data as any).shoe_size || null,
-        shirtSize: (data as any).shirt_size || null,
+        ...kitSizesOf(data as unknown as Record<string, unknown>),
         phone: (data as any).phone || null,
         discoverable: (data as any).discoverable ?? true,
       },

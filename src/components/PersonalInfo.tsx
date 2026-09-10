@@ -7,9 +7,7 @@ import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Sheet, Button, SegmentedControl, Skeleton, Switch } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
 import { EU_SHOE_SIZES } from '@/lib/shoe-catalog';
-
-const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
-type ShirtSize = (typeof SHIRT_SIZES)[number];
+import { CLOTHING_SIZES, SOCK_SIZES, type ClothingSize, type SockSize } from '@/lib/kit-sizes';
 
 // EU running-shoe sizing, half-size steps — a free-text field let people type
 // anything (US/UK/cm mixed in), so this is a fixed picklist instead. The range
@@ -22,15 +20,21 @@ interface PersonalInfoData {
   birthDate: string | null;
   gender: 'male' | 'female' | null;
   shoeSize: string | null;
-  shirtSize: ShirtSize | null;
+  shirtSize: ClothingSize | null;
+  pantsSize: ClothingSize | null;
+  tightsSize: ClothingSize | null;
+  socksSize: SockSize | null;
   phone: string | null;
   discoverable: boolean;
 }
 
-type EditField = 'name' | 'birthDate' | 'gender' | 'shoeSize' | 'shirtSize' | 'phone' | null;
+type EditField =
+  | 'name' | 'birthDate' | 'gender' | 'shoeSize'
+  | 'shirtSize' | 'pantsSize' | 'tightsSize' | 'socksSize'
+  | 'phone' | null;
 
 // Athlete self-service personal info (name / birth date / gender / shoe size /
-// shirt size / phone) — Settings detail screen. shirtSize/phone were already
+// the four kit sizes / phone) — Settings detail screen. shirtSize/phone were already
 // collected for Academy registrants (academy_intake JSON + a promoted phone
 // column) but had no self-service path for regular club members — same
 // fields, same InsetSection + drill-in-Sheet pattern as everything else here.
@@ -44,7 +48,10 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
   const [birthDate, setBirthDate] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | null>(null);
   const [shoeSize, setShoeSize] = useState('');
-  const [shirtSize, setShirtSize] = useState<ShirtSize | null>(null);
+  const [shirtSize, setShirtSize] = useState<ClothingSize | null>(null);
+  const [pantsSize, setPantsSize] = useState<ClothingSize | null>(null);
+  const [tightsSize, setTightsSize] = useState<ClothingSize | null>(null);
+  const [socksSize, setSocksSize] = useState<SockSize | null>(null);
   const [phone, setPhone] = useState('');
   const [discoverable, setDiscoverable] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -66,6 +73,9 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           gender: a?.gender || null,
           shoeSize: a?.shoeSize || null,
           shirtSize: a?.shirtSize || null,
+          pantsSize: a?.pantsSize || null,
+          tightsSize: a?.tightsSize || null,
+          socksSize: a?.socksSize || null,
           phone: a?.phone || null,
           discoverable: a?.discoverable ?? true,
         };
@@ -75,6 +85,9 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
         setGender(info.gender);
         setShoeSize(info.shoeSize || '');
         setShirtSize(info.shirtSize);
+        setPantsSize(info.pantsSize);
+        setTightsSize(info.tightsSize);
+        setSocksSize(info.socksSize);
         setPhone(info.phone || '');
         setDiscoverable(info.discoverable);
       })
@@ -103,6 +116,9 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
         setGender(data.gender);
         setShoeSize(data.shoeSize || '');
         setShirtSize(data.shirtSize);
+        setPantsSize(data.pantsSize);
+        setTightsSize(data.tightsSize);
+        setSocksSize(data.socksSize);
         setPhone(data.phone || '');
         setDiscoverable(data.discoverable);
         try { localStorage.setItem('athlete_name', data.name); } catch { /* ignore */ }
@@ -121,14 +137,33 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
   // what it's actually changing.
   const snapshot = (override: Partial<PersonalInfoData>): PersonalInfoData => ({
     name, birthDate: birthDate || null, gender, shoeSize: shoeSize.trim() || null,
-    shirtSize, phone: phone.trim() || null, discoverable,
+    shirtSize, pantsSize, tightsSize, socksSize,
+    phone: phone.trim() || null, discoverable,
     ...override,
   });
+
+  // field ⇄ current value ⇄ its option list ⇄ the snapshot override to save.
+  // `apply` casts at the one point where a picked string becomes a typed size: the
+  // options come from the same constants as the API's validation and the column
+  // CHECK (see lib/kit-sizes.ts), so the cast cannot widen what reaches the DB.
+  const KIT_ROWS: Array<{
+    field: 'shirtSize' | 'pantsSize' | 'tightsSize' | 'socksSize';
+    value: string | null;
+    options: readonly string[];
+    apply: (v: string) => Partial<PersonalInfoData>;
+  }> = [
+    { field: 'shirtSize', value: shirtSize, options: CLOTHING_SIZES, apply: v => ({ shirtSize: v as ClothingSize }) },
+    { field: 'pantsSize', value: pantsSize, options: CLOTHING_SIZES, apply: v => ({ pantsSize: v as ClothingSize }) },
+    { field: 'tightsSize', value: tightsSize, options: CLOTHING_SIZES, apply: v => ({ tightsSize: v as ClothingSize }) },
+    { field: 'socksSize', value: socksSize, options: SOCK_SIZES, apply: v => ({ socksSize: v as SockSize }) },
+  ];
 
   if (loading) {
     return (
       <InsetSection header={t('personalInfo')}>
-        {[0, 1, 2, 3, 4, 5].map(i => (
+        {/* One skeleton per row below: name, birth date, gender, shoe size, four
+            kit sizes, phone. */}
+        {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => (
           <div key={i} className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
             <Skeleton className="h-7 w-7 rounded-md shrink-0" />
             <Skeleton className="h-4 flex-1" />
@@ -171,13 +206,19 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           valueSuccess={!!shoeSize}
           onClick={() => setEditField('shoeSize')}
         />
-        <InsetRow
-          label={t('shirtSize')}
-          value={shirtSize || notSet}
-          valueMuted={!shirtSize}
-          valueSuccess={!!shirtSize}
-          onClick={() => setEditField('shirtSize')}
-        />
+        {/* The four kit sizes, one row each. Rendered from KIT_ROWS rather than
+            written out four times: they are the same row with a different list, and
+            the club orders all four together. */}
+        {KIT_ROWS.map(({ field, value }) => (
+          <InsetRow
+            key={field}
+            label={t(field)}
+            value={value || notSet}
+            valueMuted={!value}
+            valueSuccess={!!value}
+            onClick={() => setEditField(field)}
+          />
+        ))}
         <InsetRow
           label={t('phone')}
           value={phone || notSet}
@@ -284,14 +325,18 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
         </div>
       </Sheet>
 
-      {/* Shirt size edit sheet — fixed set, same instant-save pattern as gender. */}
-      <Sheet open={editField === 'shirtSize'} onOpenChange={o => !o && setEditField(null)} title={t('shirtSize')}>
-        <SegmentedControl<ShirtSize>
-          value={shirtSize}
-          onChange={(s) => { persist(snapshot({ shirtSize: s })); setEditField(null); }}
-          options={SHIRT_SIZES.map(s => ({ value: s, label: s }))}
-        />
-      </Sheet>
+      {/* Kit size edit sheets — fixed sets, same instant-save-on-tap pattern as
+          gender. Socks carry four EU shoe spans, not XS–XXL, which is why each row
+          brings its own option list. */}
+      {KIT_ROWS.map(({ field, value, options, apply }) => (
+        <Sheet key={field} open={editField === field} onOpenChange={o => !o && setEditField(null)} title={t(field)}>
+          <SegmentedControl<string>
+            value={value}
+            onChange={(s) => { persist(snapshot(apply(s))); setEditField(null); }}
+            options={options.map(o => ({ value: o as string, label: o }))}
+          />
+        </Sheet>
+      ))}
 
       {/* Phone edit sheet */}
       <Sheet open={editField === 'phone'} onOpenChange={o => !o && setEditField(null)} title={t('phone')}>

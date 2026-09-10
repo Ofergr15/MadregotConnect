@@ -4,6 +4,7 @@ import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { notifyAthlete } from '@/lib/push';
 import { entryGapsCopy } from '@/lib/notifications/copy';
 import { computeSetupState } from '@/lib/onboarding/setup-tasks';
+import { KIT_SIZE_COLUMNS_099, kitSizeSetupInput } from '@/lib/kit-sizes';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,11 +34,21 @@ async function nudgeOne(
   caller: { athleteId?: string | null },
   athleteId: string,
 ): Promise<{ found: boolean; reachable: boolean; gaps: string[] }> {
-  const { data: athlete } = await supabase
+  // 099's kit sizes are asked for separately, because this is the one read here
+  // with no not-yet-migrated fallback of its own: a missing column would fail the
+  // whole nudge, and a nudge is the thing that TELLS a member to fill these in.
+  let { data: athlete } = await supabase
     .from('athletes')
-    .select(`id, name, last_seen_at, ${SETUP_COLUMNS}`)
+    .select(`id, name, last_seen_at, ${SETUP_COLUMNS}, ${KIT_SIZE_COLUMNS_099}`)
     .eq('id', athleteId)
     .maybeSingle();
+  if (!athlete) {
+    ({ data: athlete } = await supabase
+      .from('athletes')
+      .select(`id, name, last_seen_at, ${SETUP_COLUMNS}`)
+      .eq('id', athleteId)
+      .maybeSingle());
+  }
   if (!athlete) return { found: false, reachable: false, gaps: [] };
 
   // Do they have a subscription to push to at all? Without one this is an
@@ -62,6 +73,7 @@ async function nudgeOne(
     birthDate: (athlete.birth_date as string) || null,
     gender: (athlete.gender as string) || null,
     shirtSize: (athlete.shirt_size as string) || null,
+    ...kitSizeSetupInput(athlete as unknown as Record<string, unknown>),
     shoeSize: (athlete.shoe_size as string) || null,
     pushSubscriptions: reachable ? 1 : 0,
     groupName: athlete.group_id ? 'set' : null,
