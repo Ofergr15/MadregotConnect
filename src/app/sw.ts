@@ -5,6 +5,7 @@ import { ExpirationPlugin, NetworkFirst, NetworkOnly, Serwist } from 'serwist';
 import { BASEMAP_HOSTNAME } from '@/lib/basemap';
 import { PAGE_CACHE_MAX_AGE_S, pageCacheName, staleCacheKeys } from '@/lib/sw-caches';
 import { withNetworkRetry } from '@/lib/sw-page-retry';
+import { hasStoredPage, preferStored } from '@/lib/sw-page-strategy';
 import { APP_VERSION } from '@/lib/version';
 
 declare global {
@@ -32,34 +33,54 @@ const BUILD_ID = (typeof __SW_BUILD_ID__ === 'string' && __SW_BUILD_ID__) || APP
 /**
  * A NetworkFirst page cache for this build: fresh when online, bounded when not.
  *
- * Wrapped in withNetworkRetry, because the timeout below is a preference for a
- * STORED page and not a verdict about the network: with nothing stored, Workbox
- * turns it into a rejected request, and a rejected document request is the
- * offline screen. See lib/sw-page-retry.ts — that is a real bug report, from a
- * phone with a working connection.
+ * TWO strategies over one bucket, chosen per request by whether that bucket
+ * actually holds a usable page (lib/sw-page-strategy.ts explains why at length).
+ * Short version: the 4-second timeout means "prefer a stored page over a slow
+ * one", and on a cold open there is no stored page to prefer — so it used to cost
+ * four seconds of nothing followed by the whole request again. These buckets are
+ * build-scoped, so "cold" is the normal case after every deploy.
+ *
+ * Still wrapped in withNetworkRetry: an entry can be found by `cache.match` and
+ * then refused as expired by the ExpirationPlugin, which lands on the same
+ * rejection the retry exists to absorb. See lib/sw-page-retry.ts — that one is a
+ * real bug report, from a phone with a working connection.
  */
 const pageCache = (base: string) => {
-  const strategy = new NetworkFirst({
-    cacheName: pageCacheName(base, BUILD_ID),
-    // Without a timeout, Workbox's NetworkFirst waits indefinitely for the
-    // network before falling back to cache, so a repeat visit on a flaky
-    // connection stalls exactly like a cold load instead of feeling instant.
-    networkTimeoutSeconds: 4,
-    plugins: [
-      new ExpirationPlugin({
-        maxEntries: 32,
-        maxAgeSeconds: PAGE_CACHE_MAX_AGE_S,
-      }),
-    ],
-  });
-  // Handed to the wrapper as a fresh object rather than as the strategy itself:
-  // `handle` accepts `FetchEvent | HandlerCallbackOptions`, and a function that
-  // accepts only those two is not a function that accepts any `{ request }` —
-  // so passing the strategy directly fails on parameter contravariance. Naming
-  // its own parameter type keeps the real signature and adds the one property
-  // the retry needs.
-  type Params = Parameters<typeof strategy.handle>[0] & { request: Request };
-  return withNetworkRetry<Params>({ handle: (options) => strategy.handle(options) });
+  const cacheName = pageCacheName(base, BUILD_ID);
+  // ONE plugin instance shared by both strategies. Workbox keys its expiration
+  // bookkeeping by cache name, so two instances over one bucket would be two
+  // writers keeping separate IndexedDB timestamps for the same entries.
+  const plugins = [
+    new ExpirationPlugin({
+      maxEntries: 32,
+      maxAgeSeconds: PAGE_CACHE_MAX_AGE_S,
+    }),
+  ];
+  // Without a timeout, Workbox's NetworkFirst waits indefinitely for the network
+  // before falling back to cache, so a repeat visit on a flaky connection stalls
+  // exactly like a cold load instead of feeling instant. That is what this is for
+  // — and it is only reached when there is a stored page to fall back TO.
+  const timed = new NetworkFirst({ cacheName, networkTimeoutSeconds: 4, plugins });
+  // The cold-open path. No ceiling, deliberately: with an empty bucket the only
+  // possible answers are "the network" and "the offline screen", and a measured
+  // cold start of 26.5s means any ceiling we picked would mostly convert a slow
+  // success into a false outage. A genuinely offline phone rejects immediately, so
+  // it still gets the offline screen at once.
+  const patient = new NetworkFirst({ cacheName, plugins });
+  // Handed to the wrapper as fresh objects rather than as the strategies
+  // themselves: `handle` accepts `FetchEvent | HandlerCallbackOptions`, and a
+  // function that accepts only those two is not a function that accepts any
+  // `{ request }` — so passing a strategy directly fails on parameter
+  // contravariance. Naming its own parameter type keeps the real signature and
+  // adds the one property the wrappers need.
+  type Params = Parameters<typeof timed.handle>[0] & { request: Request };
+  return withNetworkRetry<Params>(
+    preferStored<Params>({
+      stored: { handle: (options) => timed.handle(options) },
+      unstored: { handle: (options) => patient.handle(options) },
+      isStored: (request) => hasStoredPage(cacheName, request, PAGE_CACHE_MAX_AGE_S),
+    }),
+  );
 };
 
 const serwist = new Serwist({
@@ -194,6 +215,21 @@ const serwist = new Serwist({
   fallbacks: {
     entries: [
       {
+        // Documents only, and an RSC fetch is NOT one — its `destination` is ''.
+        // That looks like a gap (a client-side navigation while offline matches
+        // nothing here) and it isn't, so before "fixing" it: Next already handles
+        // that case, and handles it better than a matcher could.
+        //
+        // A rejected RSC fetch lands in fetchServerResponse's catch, which logs
+        // "Failed to fetch RSC payload … Falling back to browser navigation" and
+        // returns the plain URL — an MPA navigation
+        // (next/dist/client/components/router-reducer/fetch-server-response.js:236-242).
+        // The browser then issues a real document request, which matches the rule
+        // below and gets this page. Widening the matcher to include RSC would send
+        // an HTML body to the router, which checks the content-type and treats a
+        // non-flight response as an MPA navigation anyway (same file, :143-148):
+        // identical outcome, one wasted request, and a dependency on Next's
+        // internals to keep being forgiving.
         url: '/offline.html',
         matcher: ({ request }) => request.destination === 'document',
       },

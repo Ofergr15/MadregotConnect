@@ -9,10 +9,14 @@ import { AppSplash } from '@/components/AppSplash';
 import { LEGACY_POLYFILLS } from './legacy-polyfills';
 import { MaintenanceGate } from '@/components/MaintenanceGate';
 import { ImpersonationBar } from '@/components/ImpersonationBar';
-// UpdatePrompt intentionally unmounted for now — the "new version available"
-// bubble was popping too often. Re-enable by restoring this import and the
-// <UpdatePrompt /> line below; until then, users refresh manually after deploys.
-// import { UpdatePrompt } from '@/components/UpdatePrompt';
+// Back, and it has to be: the reason it was unmounted has been fixed at the source.
+// It "popped too often" because sw.ts was `skipWaiting: true`, which made every new
+// worker seize the live page and fire `controllerchange` — so the banner was an
+// announcement of a takeover that had ALREADY happened, on every deploy, with the
+// stale-chunk damage already done. With `skipWaiting: false` the worker waits, and
+// this is now the only way to accept an update: without it mounted, a new build
+// would sit in `waiting` until every tab closed. See src/app/sw.ts:80.
+import { UpdatePrompt } from '@/components/UpdatePrompt';
 import { DevIdentitySwitcher } from '@/components/DevIdentitySwitcher';
 import { DevServiceWorkerCleanup } from '@/components/DevServiceWorkerCleanup';
 import { SpeedInsights } from '@vercel/speed-insights/next';
@@ -107,7 +111,7 @@ export default async function RootLayout({
         <AppSplash />
         <MaintenanceGate />
         <ImpersonationBar />
-        {/* <UpdatePrompt /> — disabled, see note on the import above */}
+        <UpdatePrompt />
         <DevIdentitySwitcher />
         <SpeedInsights />
       </body>

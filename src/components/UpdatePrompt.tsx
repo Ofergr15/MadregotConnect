@@ -6,15 +6,25 @@ import { RefreshCw } from 'lucide-react';
 // "New version available — tap to refresh" banner.
 //
 // The installed PWA and web tabs cache the app shell via the service worker, so
-// after a deploy people keep running the OLD bundle until a full reload. Serwist
-// registers the SW with skipWaiting + clientsClaim, so a new SW activates on its
-// own — but the already-loaded page JS is still stale until the page reloads.
+// after a deploy people keep running the OLD bundle until a full reload. sw.ts is
+// `skipWaiting: false`, so the new worker INSTALLS AND WAITS rather than seizing a
+// page that is still executing the previous build's JS. That makes this component
+// the only way an update is ever accepted: no tap, no new version, until every tab
+// for the app closes.
 //
-// This watches the existing registration (no re-register — serwist already did
-// that) for a newly-installed worker and prompts a one-tap reload. We also poll
-// for updates on mount and whenever the tab regains focus, so the banner shows
-// promptly instead of only on the next cold start. Mounted globally in the root
-// layout; z above the maintenance gate (200) so even a blocked user sees it.
+// It watches the existing registration (no re-register — serwist already did that)
+// for a worker that reaches `waiting`/`installed`, and polls on mount and whenever
+// the tab regains focus so the banner shows promptly rather than only on the next
+// cold start. Mounted globally in the root layout; z above the maintenance gate
+// (200) so even a blocked user sees it.
+//
+// Note on `controllerchange` below, which used to be the main reason this banner
+// appeared: under the old `skipWaiting: true` it fired on every deploy the instant
+// the new worker took over, so the banner announced a takeover that had already
+// happened — which is why it was unmounted for a while as too noisy. It now only
+// fires when an update is accepted, here or in another tab. In another tab's case
+// this page is suddenly being served by a worker whose build it is not running, so
+// offering the reload is exactly right.
 export function UpdatePrompt() {
   const [ready, setReady] = useState(false);
 
