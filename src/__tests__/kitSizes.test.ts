@@ -11,7 +11,7 @@ import { CLOTHING_SIZES, KIT_SIZE_FIELDS, SOCK_SIZES, kitSizeSetupInput } from '
  */
 
 const root = join(__dirname, '..', '..');
-const sql = readFileSync(join(root, 'supabase/migrations/099_athlete_kit_sizes.sql'), 'utf8');
+const sql = readFileSync(join(root, 'supabase/migrations/100_athlete_kit_sizes.sql'), 'utf8');
 const sql061 = readFileSync(join(root, 'supabase/migrations/061_athlete_shirt_size.sql'), 'utf8');
 
 /** The values inside `CHECK (<column> IN (…))` for one column. */
@@ -33,7 +33,7 @@ describe('kit sizes', () => {
     }
   });
 
-  it('matches the CHECK constraints in migration 099', () => {
+  it('matches the CHECK constraints in migration 100', () => {
     for (const column of ['pants_size', 'tights_size']) {
       expect(checkValues(sql, column)).toEqual([...CLOTHING_SIZES]);
     }
@@ -41,7 +41,7 @@ describe('kit sizes', () => {
   });
 
   it('matches the shirt CHECK from migration 061, which predates this file', () => {
-    // shirt_size is not in 099 — it landed in 061 and its constraint is what the
+    // shirt_size is not in 100 — it landed in 061 and its constraint is what the
     // shared CLOTHING_SIZES list has to keep agreeing with.
     expect(checkValues(sql061, 'shirt_size')).toEqual([...CLOTHING_SIZES]);
   });
@@ -56,7 +56,7 @@ describe('kit sizes', () => {
   });
 
   it('reads a row that has no kit columns at all as unanswered', () => {
-    // The window between deploying this and migration 099 being pasted in: the
+    // The window between deploying this and migration 100 being pasted in: the
     // columns are absent, so every read is undefined and must degrade to null
     // rather than to the string "undefined" or a throw.
     expect(kitSizeSetupInput({})).toEqual({ pantsSize: null, tightsSize: null, socksSize: null });

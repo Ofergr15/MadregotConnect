@@ -95,7 +95,7 @@ describe('computeSetupState', () => {
     expect(personal.done).toBe(false);
     expect(personal.meta).toEqual({ filled: 1, total: 3 });
     expect(sizes.done).toBe(false);
-    // Five since 099: shirt, pants, tights, socks and the shoe.
+    // Five since 100: shirt, pants, tights, socks and the shoe.
     expect(sizes.meta).toEqual({ filled: 1, total: 5 });
     expect(partial.pct).toBe(0);
   });

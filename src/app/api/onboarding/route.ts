@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { computeSetupState } from '@/lib/onboarding/setup-tasks';
-import { KIT_SIZE_COLUMNS_099, kitSizeSetupInput } from '@/lib/kit-sizes';
+import { KIT_SIZE_COLUMNS_100, kitSizeSetupInput } from '@/lib/kit-sizes';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -25,11 +25,11 @@ export const revalidate = 0;
 // tolerance as /api/athletes/me and /api/athletes/notification-prefs.
 const BASE_COLUMNS =
   'id, garmin_auth, strava_auth, data_source, avatar_url, phone, birth_date, gender, shirt_size, shoe_size, group_id, active_shoe_id';
-const PRE_099_COLUMNS = `${BASE_COLUMNS}, onboarding_tour_seen_at, onboarding_completed_at`;
-// 099's kit sizes sit outside PRE_099 so the retry below can drop THEM without also
+const PRE_100_COLUMNS = `${BASE_COLUMNS}, onboarding_tour_seen_at, onboarding_completed_at`;
+// 100's kit sizes sit outside PRE_100 so the retry below can drop THEM without also
 // dropping 078's tour flags — losing those makes the tour replay, and this route
 // already treats that as the outcome worth avoiding (see the comment near tourSeen).
-const FULL_COLUMNS = `${PRE_099_COLUMNS}, ${KIT_SIZE_COLUMNS_099}`;
+const FULL_COLUMNS = `${PRE_100_COLUMNS}, ${KIT_SIZE_COLUMNS_100}`;
 
 /** '42703' = Postgres undefined_column; 'PGRST204' = PostgREST's schema cache. */
 function isMissingColumn(code?: string) {
@@ -59,11 +59,11 @@ export async function GET(request: Request) {
     if (isMissingColumn(error?.code)) {
       ({ data: row, error } = await supabase
         .from('athletes')
-        .select(PRE_099_COLUMNS)
+        .select(PRE_100_COLUMNS)
         .eq('id', auth.user.athleteId)
         .single());
       // `migrated` tracks 078 specifically (it gates the tour flags below), so only
-      // the second step down clears it — missing 099 columns say nothing about 078.
+      // the second step down clears it — missing 100 columns say nothing about 078.
       if (isMissingColumn(error?.code)) {
         migrated = false;
         ({ data: row, error } = await supabase

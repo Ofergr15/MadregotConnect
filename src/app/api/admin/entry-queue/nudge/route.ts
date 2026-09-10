@@ -4,7 +4,7 @@ import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { notifyAthlete } from '@/lib/push';
 import { entryGapsCopy } from '@/lib/notifications/copy';
 import { computeSetupState } from '@/lib/onboarding/setup-tasks';
-import { KIT_SIZE_COLUMNS_099, kitSizeSetupInput } from '@/lib/kit-sizes';
+import { KIT_SIZE_COLUMNS_100, kitSizeSetupInput } from '@/lib/kit-sizes';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,12 +34,12 @@ async function nudgeOne(
   caller: { athleteId?: string | null },
   athleteId: string,
 ): Promise<{ found: boolean; reachable: boolean; gaps: string[] }> {
-  // 099's kit sizes are asked for separately, because this is the one read here
+  // 100's kit sizes are asked for separately, because this is the one read here
   // with no not-yet-migrated fallback of its own: a missing column would fail the
   // whole nudge, and a nudge is the thing that TELLS a member to fill these in.
   let { data: athlete } = await supabase
     .from('athletes')
-    .select(`id, name, last_seen_at, ${SETUP_COLUMNS}, ${KIT_SIZE_COLUMNS_099}`)
+    .select(`id, name, last_seen_at, ${SETUP_COLUMNS}, ${KIT_SIZE_COLUMNS_100}`)
     .eq('id', athleteId)
     .maybeSingle();
   if (!athlete) {

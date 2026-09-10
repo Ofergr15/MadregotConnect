@@ -17,14 +17,11 @@ type Gender = (typeof GENDERS)[number];
 // which returns EVERY athlete's row — a whole-roster download to read four fields
 // about yourself, on a screen an athlete opens constantly.
 const CORE_COLUMNS = 'id, name, email, garmin_auth, strava_auth, strava_enabled, data_source, onboarding_status, avatar_url, created_at, birth_date, gender, shoe_size';
-// The three non-shirt kit sizes (migration 099) ride the SAME degrade path: they
-// are the newest columns here, so until 099 is pasted in they trip the 42703 /
-// PGRST204 retry below and the route serves the pre-099 set instead of 404ing.
-const PRE_099_COLUMNS = `${CORE_COLUMNS}, shirt_size, phone, discoverable`;
-const FULL_COLUMNS = `${PRE_099_COLUMNS}, pants_size, tights_size, socks_size`;
-
-/** camelCase kit field ⇄ its athletes column, as the API's own body names them. */
-const KIT_COLUMN = Object.fromEntries(KIT_SIZE_FIELDS.map(k => [k.field, k.column])) as Record<string, string>;
+// The three non-shirt kit sizes (migration 100) ride the SAME degrade path: they
+// are the newest columns here, so until 100 is pasted in they trip the 42703 /
+// PGRST204 retry below and the route serves the pre-100 set instead of 404ing.
+const PRE_100_COLUMNS = `${CORE_COLUMNS}, shirt_size, phone, discoverable`;
+const FULL_COLUMNS = `${PRE_100_COLUMNS}, pants_size, tights_size, socks_size`;
 
 /** `{ shirtSize: 'L', pantsSize: null, … }` from whichever columns the row carries. */
 function kitSizesOf(row: Record<string, unknown>) {
@@ -53,10 +50,10 @@ export async function GET(req: NextRequest) {
   // schema-cache check rejecting an unknown column before SQL is generated
   // — observed for real (not just theoretical) on the discoverable rollout.
   if (error?.code === '42703' || error?.code === 'PGRST204') {
-    // Step down one migration at a time — otherwise, in the window before 099 is
+    // Step down one migration at a time — otherwise, in the window before 100 is
     // applied, the profile screen would also stop showing the shirt size and phone
     // it has been showing since 061.
-    ({ data, error } = await supabase.from('athletes').select(PRE_099_COLUMNS).eq('id', id).single());
+    ({ data, error } = await supabase.from('athletes').select(PRE_100_COLUMNS).eq('id', id).single());
     if (error?.code === '42703' || error?.code === 'PGRST204') {
       ({ data, error } = await supabase.from('athletes').select(CORE_COLUMNS).eq('id', id).single());
     }
@@ -90,7 +87,8 @@ export async function GET(req: NextRequest) {
   });
 }
 
-// PUT /api/athletes/me { id, name, birthDate, gender, shoeSize, shirtSize, phone }
+// PUT /api/athletes/me { id, name, birthDate, gender, shoeSize, shirtSize,
+//                        pantsSize, tightsSize, socksSize, phone, discoverable }
 // Self-or-staff on `id` — the athlete themself from their profile screen, or
 // staff editing a member from Settings > Personal Info. `id` used to be taken
 // on trust from localStorage, which let anyone rewrite any athlete's name.
@@ -143,16 +141,16 @@ export async function PUT(req: NextRequest) {
     let { data, error } = await supabase.from('athletes').update(updates).eq('id', id).select(FULL_COLUMNS).single();
     if (missingColumn(error)) {
       // ── Two steps down, not one ───────────────────────────────────────────────
-      // The newest columns are 099's three kit sizes, and there is a window between
-      // this deploy and 099 being pasted into the SQL editor. Dropping straight to
+      // The newest columns are 100's three kit sizes, and there is a window between
+      // this deploy and 100 being pasted into the SQL editor. Dropping straight to
       // CORE (as this did when 061 was the newest) would silently throw away a
       // shirt_size save for the whole of that window — the sheet would close, say
-      // nothing, and the size would be gone. So: try without 099 first, and only
+      // nothing, and the size would be gone. So: try without 100 first, and only
       // fall all the way back to pre-061 if THAT still fails.
-      const { pants_size, tights_size, socks_size, ...pre099 } = updates as Record<string, unknown>;
-      ({ data, error } = await supabase.from('athletes').update(pre099).eq('id', id).select(PRE_099_COLUMNS).single());
+      const { pants_size, tights_size, socks_size, ...pre100 } = updates as Record<string, unknown>;
+      ({ data, error } = await supabase.from('athletes').update(pre100).eq('id', id).select(PRE_100_COLUMNS).single());
       if (missingColumn(error)) {
-        const { shirt_size, phone: _phone, discoverable: _discoverable, ...coreUpdates } = pre099;
+        const { shirt_size, phone: _phone, discoverable: _discoverable, ...coreUpdates } = pre100;
         ({ data, error } = await supabase.from('athletes').update(coreUpdates).eq('id', id).select(CORE_COLUMNS).single());
       }
     }

@@ -42,7 +42,7 @@ export interface SetupInput {
   birthDate: string | null;
   gender: string | null;
   shirtSize: string | null;
-  /** Migration 099. Null on every row until members answer — see the Sizes task. */
+  /** Migration 100. Null on every row until members answer — see the Sizes task. */
   pantsSize: string | null;
   tightsSize: string | null;
   socksSize: string | null;
@@ -100,7 +100,7 @@ function filled(...values: Array<string | null | undefined>): number {
 export function computeSetupState(input: SetupInput): SetupState {
   const connected = hasWorkingSource(input);
   const personalFilled = filled(input.phone, input.birthDate, input.gender);
-  // Five, not two. The club orders shirts, pants, tights and socks, and until 099
+  // Five, not two. The club orders shirts, pants, tights and socks, and until 100
   // only the shirt was ever asked for — so this task deliberately reopens for
   // members who had already "finished" it. That reopening IS the mechanism: the
   // checklist row is how an existing member gets asked for the other three, since

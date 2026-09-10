@@ -4,7 +4,7 @@
  * These strings are duplicated in four places by nature: the academy intake form's
  * option pills, the Personal info picker, the PUT /api/athletes/me validation, and
  * a CHECK constraint in the database. Three of those are TypeScript and can import
- * from here; the fourth is SQL and cannot, so migration 099 spells them out and
+ * from here; the fourth is SQL and cannot, so migration 100 spells them out and
  * `kitSizes.test.ts` reads that file back and compares. Adding a size therefore
  * means editing here AND writing a migration — which is correct, since a value the
  * form offers but the CHECK rejects is a save that fails with a 500.
@@ -45,20 +45,20 @@ export const KIT_SIZE_FIELDS = [
 export type KitSizeField = (typeof KIT_SIZE_FIELDS)[number]['field'];
 
 /**
- * The columns migration 099 adds, as a PostgREST select fragment.
+ * The columns migration 100 adds, as a PostgREST select fragment.
  *
  * shirt_size is NOT in here on purpose: it landed with 061 and every route that
  * reads it already lists it. These three are the ones a route has to be able to
  * step BACK from, because migrations here are applied by hand and there is a window
  * where the code is deployed and the columns do not exist yet.
  */
-export const KIT_SIZE_COLUMNS_099 = 'pants_size, tights_size, socks_size';
+export const KIT_SIZE_COLUMNS_100 = 'pants_size, tights_size, socks_size';
 
 /**
- * The three 099 fields for computeSetupState, read off a row that may not have the
+ * The three 100 fields for computeSetupState, read off a row that may not have the
  * columns at all — undefined reads as null, i.e. "not answered", which is the same
  * thing the score would say the day after the migration lands. So a route in the
- * pre-099 window under-reports the Sizes task instead of throwing.
+ * pre-100 window under-reports the Sizes task instead of throwing.
  */
 export function kitSizeSetupInput(row: Record<string, unknown>) {
   return {
