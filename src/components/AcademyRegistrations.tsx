@@ -21,6 +21,10 @@ interface Registration {
 
 // Human labels for the intake keys (match the public form).
 const LABELS: Record<string, string> = {
+  // The intake blob keeps first/last separately as well as the joined `name`
+  // column, so these two do get rendered here — unlabelled until now.
+  firstName: 'שם פרטי',
+  lastName: 'שם משפחה',
   focus: 'מה מדבר אליך יותר',
   age: 'גיל',
   weight: 'משקל',
@@ -37,6 +41,9 @@ const LABELS: Record<string, string> = {
   hearAbout: 'איך שמע/ה עלינו',
   instagram: 'אינסטגרם',
   shirtSize: 'מידת חולצה',
+  pantsSize: 'מידת מכנסיים',
+  tightsSize: 'מידת טייץ',
+  socksSize: 'מידת גרביים',
 };
 
 function initialsOf(name: string) {

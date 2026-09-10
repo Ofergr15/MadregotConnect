@@ -12,7 +12,17 @@ type Field =
   | { key: string; label: string; type: 'text' | 'email' | 'tel' | 'number'; required?: boolean; placeholder?: string }
   | { key: string; label: string; type: 'textarea'; required?: boolean; placeholder?: string }
   | { key: string; label: string; type: 'radio' | 'select'; required?: boolean; options: string[] }
+  // Same data as a radio, laid out as a wrapping row of pills. Added for the kit
+  // sizes: four size questions as stacked radios is twenty-four rows of nearly
+  // identical text, which buries the medical and goal questions above them. Short
+  // mutually-exclusive options only — a sentence does not fit in a pill.
+  | { key: string; label: string; type: 'chips'; required?: boolean; options: string[] }
   | { key: string; label: string; type: 'checkboxes'; required?: boolean; options: string[] };
+
+/** Clothing sizes, one list so the four kit questions cannot drift apart. */
+const CLOTHING_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+/** Socks are sized off the shoe, not the body — EU ranges, as the supplier lists them. */
+const SOCK_SIZES = ['35-38', '39-42', '43-46', '47+'];
 
 const FIELDS: Field[] = [
   { key: 'firstName', label: 'שם פרטי', type: 'text', required: true },
@@ -54,7 +64,14 @@ const FIELDS: Field[] = [
   { key: 'medicalDetails', label: 'במידה ולא ענית בריא לחלוטין בשאלה הקודמת אנא פרט', type: 'textarea' },
   { key: 'hearAbout', label: 'איך שמעת על קבוצת הריצה', type: 'text' },
   { key: 'instagram', label: 'תוכל לשתף את עמוד האינסטגרם שלך במידה ויש', type: 'text', required: true },
-  { key: 'shirtSize', label: 'מה מידת החולצה שלך', type: 'radio', required: true, options: ['XS', 'S', 'M', 'L', 'XL', 'XXL'] },
+  // ── Kit sizes, together and last ────────────────────────────────────────────
+  // Shirt size was the only one collected, so ordering anything else meant asking
+  // twenty people one at a time in WhatsApp. Grouped and rendered as pills so the
+  // four of them cost about as much of the form as the one did.
+  { key: 'shirtSize', label: 'מה מידת החולצה שלך', type: 'chips', required: true, options: CLOTHING_SIZES },
+  { key: 'pantsSize', label: 'מה מידת המכנסיים שלך', type: 'chips', required: true, options: CLOTHING_SIZES },
+  { key: 'tightsSize', label: 'מה מידת הטייץ שלך', type: 'chips', required: true, options: CLOTHING_SIZES },
+  { key: 'socksSize', label: 'מה מידת הגרביים שלך', type: 'chips', required: true, options: SOCK_SIZES },
 ];
 
 // The public form works via direct link; the landing-page "Join the Academy"
@@ -177,6 +194,30 @@ export default function AcademyRegisterPage() {
                       <span className="text-sm text-ink-500">{opt}</span>
                     </label>
                   ))}
+                </div>
+              )}
+
+              {f.type === 'chips' && (
+                <div className="flex flex-wrap gap-1.5">
+                  {f.options.map(opt => {
+                    const isSelected = values[f.key] === opt;
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => set(f.key, opt)}
+                        aria-pressed={isSelected}
+                        className={
+                          'min-w-[52px] h-10 px-3 rounded-pill text-sm font-semibold border transition-colors ' +
+                          (isSelected
+                            ? 'bg-brand-600 text-white border-brand-600'
+                            : 'bg-card text-ink-500 border-page hover:bg-page/40')
+                        }
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
