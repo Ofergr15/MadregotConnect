@@ -37,9 +37,15 @@
  * `active` step, so the card headed it "שחרור" (positionally, via `isJogHome`)
  * while the grader called it work and stretched the medio's 4:00–4:40 band out to
  * 4:00–5:00 — the athlete's jog home deciding whether his tempo counted. So a
- * caller holding the WHOLE session asks `flattenWithRoles`, which applies the
- * same leading/trailing rule the card uses. It only ever demotes work to support;
- * a rest stays a rest wherever it sits.
+ * caller holding the WHOLE session asks `flattenWithRoles`, which finds the
+ * session's real boundaries first. It only ever demotes work to support; a rest
+ * stays a rest wherever it sits.
+ *
+ * Those boundaries are the coach's, and he draws them: a horizontal rule down the
+ * PDF column closes the warm-up, another closes the drills. The parser now keeps
+ * them as `WorkoutStep.phase`, so on a plan imported since then `sessionBounds`
+ * reads the boundary instead of guessing at it — and everything imported before
+ * still gets the reconstruction.
  */
 
 import type { WorkoutStep } from '@/lib/ai/types';
@@ -86,9 +92,30 @@ export function isPacedStep(step: RoledStep): boolean {
   return step.targetType === 'pace' && !!step.targetPaceMinPerKm;
 }
 
-/** 4:40/km or slower, over a short distance, at the end of a session — a jog home. */
-const COOLDOWN_PACE_FLOOR = 280;
-const COOLDOWN_MAX_METERS = 2000;
+/**
+ * A kilometre or two of easy running the plan never gave a role to: 4:40/km or
+ * slower, and short. The shape of the coach's connective tissue — the jog to the
+ * start line, the jog home, and the "1 ק״מ 5:00–5:30" he drops between two sets.
+ *
+ * The distance ceiling is what keeps it a SHAPE test rather than a judgement about
+ * the session. Friday's 20 ק״מ medio is bracketed by 5 ק״מ legs at 4:40–5:00 which
+ * are the approach and the way home — but that is a reading of the day, and the day
+ * says so with a phase now. Guessing it from two slow legs would mean guessing when
+ * five easy kilometres are the run-in and when they are a genuine progressive
+ * opening, and this heuristic has no way to know. So it stays where the guess is
+ * safe: two kilometres, the most this coach ever spends getting from one effort to
+ * the next. A longer leg is left in the session unless the plan says otherwise.
+ */
+const EASY_LINK_PACE_FLOOR = 280;
+const EASY_LINK_MAX_METERS = 2000;
+
+function isEasyLink(step: WorkoutStep): boolean {
+  return step.type === 'active'
+    && step.durationType === 'distance'
+    && !!step.durationValue
+    && step.durationValue <= EASY_LINK_MAX_METERS
+    && (step.targetPaceMinPerKm || 0) >= EASY_LINK_PACE_FLOOR;
+}
 
 /**
  * An easy short closing kilometre that the plan never labelled `cooldown`.
@@ -96,11 +123,7 @@ const COOLDOWN_MAX_METERS = 2000;
  */
 export function isJogHome(step: WorkoutStep): boolean {
   if (step.type === 'cooldown' || step.type === 'recovery') return true;
-  return step.type === 'active'
-    && step.durationType === 'distance'
-    && !!step.durationValue
-    && step.durationValue <= COOLDOWN_MAX_METERS
-    && (step.targetPaceMinPerKm || 0) >= COOLDOWN_PACE_FLOOR;
+  return isEasyLink(step);
 }
 
 /**
@@ -135,6 +158,77 @@ export interface RoledLeaf {
   role: StepRole;
 }
 
+export interface SessionBounds {
+  /** Index of the first top-level step of the session proper. */
+  start: number;
+  /** One past the last. */
+  end: number;
+  /** `plan` when the document marked the boundary; `shape` when it was reconstructed. */
+  source: 'plan' | 'shape';
+}
+
+/**
+ * The boundary as the PLAN states it — but only if the statement is coherent.
+ *
+ * A phase is a reading of the coach's separator rules made by the parser, so it is
+ * as fallible as any other parse. It is accepted only when every top-level step
+ * carries one and they spell `prep* main+ closing*`: one contiguous session, in
+ * order, with something in it. A session declared in any other shape isn't a
+ * reading of the rules, it's noise, and the shape scan below is a better answer
+ * than a garbled one.
+ */
+function declaredBounds(top: WorkoutStep[]): { start: number; end: number } | null {
+  if (!top.length || !top.every((step) => step.phase)) return null;
+  const start = top.findIndex((step) => step.phase === 'main');
+  if (start < 0) return null;
+  let end = start;
+  while (end < top.length && top[end].phase === 'main') end++;
+  if (top.slice(0, start).some((step) => step.phase !== 'prep')) return null;
+  if (top.slice(end).some((step) => step.phase !== 'closing')) return null;
+  return { start, end };
+}
+
+/**
+ * Where the session starts and ends, from the plan if it says and from the step
+ * shapes if it doesn't.
+ *
+ * The shape scan is the fallback, and it is only a fallback: every plan imported
+ * before the parser learned to read the coach's rules has no `phase` on it, and
+ * they are not going to be reparsed. It looks for a leading run of typed warm-ups
+ * and stride blocks and a trailing run of strides and the jog home — see
+ * `isPrepBlock` for why "timed and under a minute" is the test that works.
+ */
+export function sessionBounds(steps: WorkoutStep[]): SessionBounds {
+  const top = steps || [];
+  const declared = declaredBounds(top);
+  if (declared) {
+    // The plan says where the session is. It does not always say that the strides
+    // tacked onto the end of it are strides: Saturday's closing "x5 (20 שנ׳
+    // מתגברת + 40 שנ׳ הליכה)" and Sunday's "x8 (15 שנ׳ + 45 שנ׳)" have no rule
+    // drawn before them at all, so reading the rules faithfully puts them inside
+    // the session — and a 15-second rep is not the session on any day of the week.
+    // Trimming them is the one adjustment a reading still needs; it never takes the
+    // last step of the session with it.
+    let end = declared.end;
+    while (end > declared.start + 1 && isPrepBlock(top[end - 1])) end--;
+    return { start: declared.start, end, source: 'plan' };
+  }
+
+  // Leading: typed warm-ups and stride blocks, in any order — Tuesday alternates
+  // them. Trailing: strides and the jog home, likewise (Sunday finishes with
+  // 8 × 15 שנ׳ and no jog at all).
+  let start = 0;
+  while (start < top.length && (top[start].type === 'warmup' || isPrepBlock(top[start]))) start++;
+  let end = top.length;
+  while (end > start && (isJogHome(top[end - 1]) || isPrepBlock(top[end - 1]))) end--;
+  // Every step looked like bracketing, so the scan ate the day. A session with
+  // nothing in it is never the right reading: an easy day written as two easy
+  // kilometres, or a day that is only strides, is still the session it is. Hand
+  // back the whole thing rather than a verdict about nothing.
+  if (end <= start) return { start: 0, end: top.length, source: 'shape' };
+  return { start, end, source: 'shape' };
+}
+
 /**
  * Every leaf step of a session with the role it is graded under, repeats expanded
  * by repetition — and, crucially, with the session's real BOUNDARIES found first.
@@ -147,41 +241,64 @@ export interface RoledLeaf {
  * the ladder `interval`, so the grader counted a 45-second stride at 3:20 as the
  * session's fastest prescribed pace and built the day's pace band on it.
  *
- * The coach marks all of this himself: the source PDF separates the drills from
- * the session with an em-dash rule (`———————`) and closes the warm-up with a long
- * dash rule. That is better information than any rule inferred here, and the
- * parser currently discards it — until it doesn't, this reconstructs the same
- * boundaries from the step shapes.
+ * The coach marks all of this himself — the source PDF closes the drills with an
+ * em-dash rule (`———————`) — and since the parser learned to keep those rules
+ * (`WorkoutStep.phase`), a plan imported today states the boundary outright and
+ * `sessionBounds` simply reads it. The shape scan there is what answers for the
+ * plans imported before that, which is most of them.
  *
- * The scan only ever demotes work; a rest stays a rest wherever it sits.
+ * Inside the session there is one more demotion: an easy kilometre BETWEEN two
+ * sets. Tuesday runs its three 2 ק״מ sets, then "1 ק״מ 5:00–5:30", then the
+ * 5 × 300 מ׳ — and that kilometre was the only reason the day's prescribed band
+ * reached 5:30, i.e. the only reason an athlete who ran every set on pace could be
+ * told he ran the session slow at one end of it. It is the same shape as the jog
+ * home and it is there for the same reason: to get from one effort to the next.
+ * A session that is NOTHING but easy kilometres is still a session, though, so the
+ * demotion never takes the last work step with it.
+ *
+ * Only work is ever demoted; a rest stays a rest wherever it sits.
  *
  * This is what a grader should use whenever it has the whole session in hand;
  * `stepRole` on its own is for the callers that only ever see one step.
  */
 export function flattenWithRoles(steps: WorkoutStep[]): RoledLeaf[] {
   const top = steps || [];
-  // Leading: typed warm-ups and stride blocks, in any order — Tuesday alternates
-  // them. Trailing: strides and the jog home, likewise (Sunday finishes with
-  // 8 × 15 שנ׳ and no jog at all).
-  let start = 0;
-  while (start < top.length && (top[start].type === 'warmup' || isPrepBlock(top[start]))) start++;
-  let end = top.length;
-  while (end > start && (isJogHome(top[end - 1]) || isPrepBlock(top[end - 1]))) end--;
+  const { start, end } = sessionBounds(top);
 
   const out: RoledLeaf[] = [];
+  const links: number[] = [];
   top.forEach((step, i) => {
     const outside = i < start || i >= end;
     for (const leaf of flattenByRepetition([step])) {
       const role = stepRole(leaf);
-      if (!outside || role !== 'work') {
+      if (role !== 'work') {
         out.push({ step: leaf, role });
         continue;
       }
-      // Outside the session: a stride is a stride, everything else is the easy
-      // running that brackets the day.
-      out.push({ step: leaf, role: isDrillRep(leaf) ? 'drill' : 'support' });
+      if (outside) {
+        // Outside the session: a stride is a stride, everything else is the easy
+        // running that brackets the day.
+        out.push({ step: leaf, role: isDrillRep(leaf) ? 'drill' : 'support' });
+        continue;
+      }
+      if (isEasyLink(leaf)) links.push(out.length);
+      out.push({ step: leaf, role: 'work' });
     }
   });
+
+  // A link is only a link with real work on BOTH sides of it. That is the whole
+  // claim — "this kilometre is how he got from that set to this one" — and it is
+  // why an easy opening kilometre is left alone: a progressive run starts slow, and
+  // calling its first leg a warm-up drops the session's own opening out of the
+  // verdict. The closing case never reaches here; `sessionBounds` has it already.
+  const graded = out
+    .map((leaf, i) => (leaf.role === 'work' && !links.includes(i) ? i : -1))
+    .filter((i) => i >= 0);
+  if (graded.length) {
+    for (const i of links) {
+      if (i > graded[0] && i < graded[graded.length - 1]) out[i].role = 'support';
+    }
+  }
   return out;
 }
 

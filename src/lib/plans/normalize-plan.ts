@@ -1,4 +1,4 @@
-import type { ParsedWeeklyPlan, ParsedWorkout } from '@/lib/ai/types';
+import type { ParsedWeeklyPlan, ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { autoFixWorkout } from '@/lib/plans/auto-fix';
 import { planEstimateOptions, workoutDistanceEstimated } from '@/lib/workout-distance';
 import type { EstimateOptions } from '@/lib/workout-distance';
@@ -93,6 +93,41 @@ function expectedDuration(workout: ParsedWorkout, opts: EstimateOptions): number
   return workoutDurationSec(workout, opts) || undefined;
 }
 
+/**
+ * Tidy the phases the parser read off the coach's separator rules (see the phase
+ * section of `lib/ai/prompt.ts`): they belong on top-level steps only, and a step
+ * the model simply forgot to label takes the phase of its position.
+ *
+ * The gap-filling is what makes this worth doing at all. `sessionBounds` accepts a
+ * declared boundary only when the WHOLE session declares one and they read
+ * `prep* main+ closing*` — so a single unlabelled step, or one stray `prep` in the
+ * middle, throws the plan's own reading away in favour of a reconstruction from
+ * step shapes. Filling and straightening positionally costs nothing, because that
+ * arrangement is the only one the reading is ever allowed to have.
+ *
+ * A workout with no `main` step is left exactly as it is: there is nothing to
+ * anchor to, and every plan imported before the parser learned to read the rules
+ * is in that state. Which is also why this runs here rather than in the parser —
+ * on the read path it repairs the plans already stored, not just the next import.
+ */
+function tidyPhases(steps: WorkoutStep[]): WorkoutStep[] {
+  const stripped = steps.map((step) =>
+    step.repeatSteps
+      ? { ...step, repeatSteps: step.repeatSteps.map(({ phase: _leg, ...rest }) => rest) }
+      : step,
+  );
+  const first = stripped.findIndex((step) => step.phase === 'main');
+  if (first < 0) return stripped;
+  let last = first;
+  stripped.forEach((step, i) => {
+    if (step.phase === 'main') last = i;
+  });
+  return stripped.map((step, i) => ({
+    ...step,
+    phase: i < first ? ('prep' as const) : i > last ? ('closing' as const) : ('main' as const),
+  }));
+}
+
 export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan {
   // The import's own repairs first, so every figure below — the day's km, the
   // matcher hints, and the board built from them — is computed from the session
@@ -167,6 +202,7 @@ export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan 
 
       return {
         ...workout,
+        steps: tidyPhases(workout.steps),
         workoutKey: `day-${workout.dayOfWeek}-part-${partIndex}-${partKind}`,
         partIndex,
         partCount,

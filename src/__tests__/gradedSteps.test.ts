@@ -7,6 +7,7 @@ import {
   gradedSummary,
   flattenByRepetition,
   flattenWithRoles,
+  sessionBounds,
 } from '@/lib/plans/graded-steps';
 import type { WorkoutStep } from '@/lib/ai/types';
 
@@ -117,10 +118,33 @@ describe('flattenWithRoles', () => {
     expect(gradedSummary(friday).paceBand).toEqual({ min: 240, max: 300 });
   });
 
-  it('leaves an easy kilometre alone when the session continues after it', () => {
-    // Same step, in the middle: nothing about it says jog home except position.
+  it('drops an easy kilometre sitting between two sets', () => {
+    // Not a jog home — a jog BETWEEN, which is there for the same reason and is no
+    // more the session than the way home is. Tuesday's "1 ק״מ 5:00–5:30" between
+    // the 2 ק״מ sets and the 300 מ׳ set was the only thing putting 5:30 in a band
+    // whose slowest actual rep is 3:35.
     const mid = [friday[2], friday[4], friday[2]];
-    expect(flattenWithRoles(mid).map((l) => l.role)).toEqual(['work', 'work', 'work']);
+    expect(flattenWithRoles(mid).map((l) => l.role)).toEqual(['work', 'support', 'work']);
+  });
+
+  it('keeps an easy day that is nothing but easy kilometres', () => {
+    // The same shape, and here it IS the session: demoting every step would leave
+    // a day with no work in it and nothing to judge.
+    const easy = [friday[4], friday[4]];
+    expect(flattenWithRoles(easy).map((l) => l.role)).toEqual(['work', 'work']);
+  });
+
+  it('leaves a long easy leg in the session when only the shape is available', () => {
+    // 5 ק״מ at 4:40–5:00 is slow by the same test, and the shape has no way to tell
+    // a run-in from a genuine easy opening at that distance — so the ceiling holds
+    // it back and the leg stays work. On Friday itself that reading is too generous
+    // (the 20 ק״מ alone is the session), which is exactly what the plan's own phases
+    // settle; see 'when the plan states the boundary' below.
+    expect(flattenWithRoles([friday[2], friday[1], friday[2]]).map((l) => l.role)).toEqual([
+      'work',
+      'work',
+      'work',
+    ]);
   });
 
   it('demotes only a TYPED warm-up at the front, never an easy opening kilometre', () => {
@@ -231,6 +255,102 @@ describe('flattenWithRoles', () => {
     const roles = flattenWithRoles(saturday).map((l) => l.role);
     expect(roles[0]).toBe('work');
     expect(roles.filter((r) => r === 'drill')).toHaveLength(5);
+  });
+
+  describe('when the plan states the boundary', () => {
+    // The coach draws it himself: an em-dash rule down the PDF column closes the
+    // drills. Since the parser keeps those rules as `phase`, the grader reads the
+    // boundary instead of reconstructing it — and a reading beats an inference
+    // precisely where the inference is weakest.
+    const phased = (steps: WorkoutStep[], phases: WorkoutStep['phase'][]): WorkoutStep[] =>
+      steps.map((s, i) => ({ ...s, phase: phases[i] }));
+
+    it('reads the phases and says so', () => {
+      const declared = phased(tuesday, [
+        'prep', 'prep', 'prep', 'prep', 'prep', 'prep', 'prep', 'prep', 'prep',
+        'main', 'main', 'closing',
+      ]);
+      expect(sessionBounds(declared)).toEqual({ start: 9, end: 11, source: 'plan' });
+      expect(gradedSummary(declared).paceBand).toEqual({ min: 210, max: 215 });
+    });
+
+    it('reads Friday as the medio and nothing else', () => {
+      // The ruling the shape scan can't reach: the 20 ק״מ IS the session, and the
+      // two 5 ק״מ legs at 4:40–5:00 around it are the approach and the way home,
+      // however far they run. Read from the shapes the same day grades as 30 ק״מ at
+      // 4:00–5:00 (see 'demotes a jog home the plan never typed as one'), and a full
+      // minute per kilometre of run-in decides whether a 4:00 medio counted.
+      const declared = phased(friday, ['prep', 'prep', 'main', 'closing', 'closing']);
+      expect(sessionBounds(declared)).toEqual({ start: 2, end: 3, source: 'plan' });
+      const s = gradedSummary(declared);
+      expect(s.paceBand).toEqual({ min: 240, max: 240 });
+      expect(s.workKm).toEqual({ min: 20, max: 20 });
+      expect(s.supportKm).toEqual({ min: 14, max: 14 });
+    });
+
+    it('holds a boundary the shape scan cannot find', () => {
+      // A 5 ק״מ warm-up at 4:40 the parse typed `active` rather than `warmup`.
+      // The leading scan only ever demotes a TYPED warm-up — on purpose, because a
+      // slow opening 2 ק״מ is how a progressive run starts — and 5 ק״מ is far too
+      // long to read as an easy link. So the shape rule has no way to know, and the
+      // warm-up's 4:40 becomes the slow end of the band the session is judged by.
+      const steps = [
+        step({ durationValue: 5000, targetType: 'pace', targetPaceMinPerKm: 280 }),
+        step({ order: 2, type: 'interval', durationValue: 2000, targetType: 'pace', targetPaceMinPerKm: 215 }),
+        step({ order: 3, durationValue: 1000, targetType: 'pace', targetPaceMinPerKm: 300 }),
+      ];
+      expect(sessionBounds(steps)).toEqual({ start: 0, end: 2, source: 'shape' });
+      expect(gradedSummary(steps).paceBand).toEqual({ min: 215, max: 280 });
+
+      const declared = phased(steps, ['prep', 'main', 'closing']);
+      expect(sessionBounds(declared)).toEqual({ start: 1, end: 2, source: 'plan' });
+      expect(gradedSummary(declared).paceBand).toEqual({ min: 215, max: 215 });
+      expect(gradedSummary(declared).supportKm).toEqual({ min: 6, max: 6 });
+    });
+
+    it('still trims strides the plan drew no rule before', () => {
+      // Saturday, and Sunday, print the closing stride block with no separator
+      // above it, so reading the rules faithfully puts it inside the session. It
+      // isn't the session, and this is the one place a reading still gets adjusted.
+      const declared = phased(
+        [
+          step({ durationType: 'time', durationValue: 2700, targetType: 'pace', targetPaceMinPerKm: 290, targetPaceMaxPerKm: 330 }),
+          rep(5, [
+            { type: 'interval', durationType: 'time', durationValue: 20 },
+            { type: 'rest', durationType: 'time', durationValue: 40 },
+          ]),
+        ],
+        ['main', 'main'],
+      );
+      expect(sessionBounds(declared)).toEqual({ start: 0, end: 1, source: 'plan' });
+      expect(flattenWithRoles(declared).filter((l) => l.role === 'drill')).toHaveLength(5);
+    });
+
+    it('never trims the session down to nothing', () => {
+      // A day that is only a stride block is still that day's session.
+      const declared = phased(
+        [rep(5, [{ type: 'interval', durationType: 'time', durationValue: 20 }])],
+        ['main'],
+      );
+      expect(sessionBounds(declared)).toEqual({ start: 0, end: 1, source: 'plan' });
+    });
+
+    it('falls back to the shape scan rather than trust a garbled reading', () => {
+      // A phase is a parse, so it can be wrong. Accepted only as `prep* main+
+      // closing*`: one session, in order, non-empty. Anything else is noise, and
+      // reconstructing from the step shapes is the better answer.
+      const outOfOrder = phased(tuesday.slice(0, 3), ['main', 'prep', 'main']);
+      expect(sessionBounds(outOfOrder).source).toBe('shape');
+      expect(sessionBounds(phased(tuesday.slice(0, 3), ['prep', 'prep', 'prep'])).source).toBe('shape');
+    });
+
+    it('falls back when only some of the session is labelled', () => {
+      // Every plan imported before the parser learned to read the rules has no
+      // phase at all, and they are not being reparsed.
+      const partial = tuesday.map((s, i) => (i === 0 ? { ...s, phase: 'prep' as const } : s));
+      expect(sessionBounds(partial).source).toBe('shape');
+      expect(sessionBounds(tuesday).source).toBe('shape');
+    });
   });
 
   const sundayForRoles: WorkoutStep[] = [

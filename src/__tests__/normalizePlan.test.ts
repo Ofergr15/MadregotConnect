@@ -446,3 +446,54 @@ describe('normalizeParsedWorkouts — whichever shape the blob is', () => {
       .toEqual(normalizeParsedWorkouts(blob));
   });
 });
+
+describe('phases', () => {
+  // The parser reads the coach's separator rules into `phase`, and `sessionBounds`
+  // will only trust the reading if the whole session declares one, in order. So a
+  // near-miss has to be straightened here or the plan's own boundary is discarded
+  // and the grader falls back to guessing from step shapes.
+  const phases = (steps: WorkoutStep[]) => steps.map((s) => s.phase);
+  const normalize = (steps: WorkoutStep[]) =>
+    phases(normalizeWorkoutParts({ workouts: [workout({ steps })] }).workouts[0].steps);
+
+  it('fills in a step the parse forgot to label', () => {
+    expect(normalize([
+      step({ phase: 'prep' }),
+      step(),
+      step({ phase: 'main' }),
+      step({ phase: 'closing' }),
+    ])).toEqual(['prep', 'prep', 'main', 'closing']);
+  });
+
+  it('straightens a session declared in two pieces', () => {
+    // One contiguous run of `main` is the only shape a reading may have; the gap
+    // between two of them is part of the session by definition.
+    expect(normalize([
+      step({ phase: 'main' }),
+      step({ phase: 'prep' }),
+      step({ phase: 'main' }),
+    ])).toEqual(['main', 'main', 'main']);
+  });
+
+  it('leaves a plan with no session alone', () => {
+    // Every plan imported before the parser learned to read the rules is in this
+    // state, and there is nothing here to anchor a position to.
+    expect(normalize([step(), step({ phase: 'prep' })])).toEqual([undefined, 'prep']);
+  });
+
+  it('strips a phase off the legs of a repeat block', () => {
+    // Phases are a property of where a BLOCK sits; a leg goes where its parent goes,
+    // and a leg claiming its own phase would be read as a top-level step's.
+    const [parent] = normalizeWorkoutParts({
+      workouts: [workout({
+        steps: [step({
+          phase: 'main',
+          repeatCount: 2,
+          repeatSteps: [step({ phase: 'prep' }), step({ phase: 'closing' })],
+        })],
+      })],
+    }).workouts[0].steps;
+    expect(parent.phase).toBe('main');
+    expect(phases(parent.repeatSteps!)).toEqual([undefined, undefined]);
+  });
+});

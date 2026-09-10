@@ -126,6 +126,10 @@ function validatePlan(plan: ParsedWeeklyPlan): ParsedWeeklyPlan {
       steps: workout.steps.map(validateAndFixStep),
     })),
   };
+  // Phases are tidied by `normalizeWorkoutParts`, not here: it runs on the read
+  // path too, so a plan already stored with a half-labelled session gets repaired
+  // as well, and it can actually be unit-tested (this module builds an Anthropic
+  // client at load, which is why nothing can import it).
   return normalizeWorkoutParts(validated);
 }
 

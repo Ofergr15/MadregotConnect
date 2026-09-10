@@ -67,9 +67,29 @@ export interface GroupHeartRate {
   max: number; // percent of max HR
 }
 
+/**
+ * Which part of a session a step belongs to — the warm-up and drills, the session
+ * itself, or the way home.
+ *
+ * Read from the document rather than guessed: the coach draws the boundaries down
+ * each column of the PDF himself, an em-dash rule (`———————`) closing the drills
+ * and a hyphen rule (`---`) separating one set from the next. `lib/plans/graded-steps`
+ * had to reconstruct that from step shapes because the parse threw it away, and a
+ * reconstruction gets Tuesday's 45 שנ׳ stride ladder wrong in the one direction
+ * that matters: it reads as the fastest thing in the day, so it became the pace
+ * the whole day was graded against.
+ */
+export type SessionPhase = 'prep' | 'main' | 'closing';
+
 export interface WorkoutStep {
   order: number;
   type: 'warmup' | 'interval' | 'rest' | 'recovery' | 'cooldown' | 'active';
+  /**
+   * Set on TOP-LEVEL steps only; the legs of a repeat block take their parent's.
+   * Absent on every plan imported before the parser learned to read the coach's
+   * separator lines, which is why `sessionBounds` still infers when it has to.
+   */
+  phase?: SessionPhase;
   durationType: 'distance' | 'time' | 'open';
   durationValue?: number; // meters for distance, seconds for time
   /**

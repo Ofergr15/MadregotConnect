@@ -37,6 +37,7 @@ Return ONLY valid JSON matching this schema:
           "targetHrMaxPct": null,
           "group2HeartRate": { "min": null, "max": null },
           "group3HeartRate": { "min": null, "max": null },
+          "phase": "prep|main|closing",
           "notes": null,
           "repeatCount": null,
           "repeatSteps": null
@@ -171,6 +172,102 @@ Example — Tuesday says warmup, "מבחן 3000", then the rest of the workout:
 
 The three pace-group variants are NOT separate parts. Extract one canonical list,
 then use target/group2/group3 pace or heart-rate fields on each step.
+
+## Warm-up, session, way home — the coach's own separator lines ("phase")
+
+Every step gets a "phase": "prep", "main" or "closing". This is not a judgement
+about how hard the step is. It is a reading of the horizontal rules the coach
+draws down each column of the plan, and it decides what the athlete is graded on,
+so getting it wrong is worse than most parse errors:
+
+- **main** — the session. What the coach means when he asks whether the workout
+  was done, and the only steps an adherence verdict is built from.
+- **prep** — everything before the session begins: the easy kilometres, the walks
+  between them, and the drills — the ladder of "45 שנ׳" reps, "x2 (20 ש׳ מתגברת
+  + 40 ש׳ הליכה)". Drills are run hard, sometimes faster than anything in the
+  session that follows, and they are still not the session.
+- **closing** — everything after the session ends: the easy kilometre or two home,
+  strides tacked on at the end.
+
+### What the rules mean
+
+- An **em-dash rule** — "———————" — is a MAJOR boundary. Where the drills sit
+  between two of them, everything down to and including the SECOND rule is "prep".
+  The session starts on the step below the last major rule.
+- A **hyphen rule** — "---", "-----", "--------------" — is a MINOR boundary. It
+  separates one set from the next inside the session, or one warm-up segment from
+  the next inside the warm-up. It NEVER starts or ends the session: the steps on
+  both sides of it keep the phase they already had.
+- A day whose ONLY rules are hyphen rules has no drills block. Read it by content:
+  where the day is one continuous hard block with clearly easier running on both
+  sides of it, the session is the hard block. The easy kilometres before it are
+  "prep" and the ones after it are "closing" — they are the approach and the way
+  home, however far they run, and no rule needs to be drawn for that to be true.
+- If a day has no rules drawn at all, read the phases from the writing instead:
+  חימום and the drills are "prep", שחרור / a closing easy km is "closing", the
+  rest is "main". An easy run that IS the whole day is all "main".
+- A block of strides written at the END of a day — "x5 (20 שנ׳ מתגברת + 40 שנ׳
+  הליכה)" after an easy run — is "closing" even with no rule drawn before it.
+- Steps that MIRROR each other around the session are never one "main" and one
+  not. If the day runs "5 ק״מ 4:40-5:00 → 20 ק״מ 4:00 → 5 ק״מ 4:40-5:00", the two
+  5 ק״מ legs are the approach and the way home: "prep" and "closing".
+
+### Rules for the field itself
+
+- Set "phase" on TOP-LEVEL steps only. The legs of a repeat block take their
+  parent's phase — do not put "phase" inside repeatSteps.
+- Every top-level step of a workout must carry one, and they must come in order:
+  the "prep" steps, then the "main" steps, then the "closing" steps. There is
+  exactly one run of "main" steps per workout, and it is never empty.
+- Each part of a split day (בוקר / ערב) has its own full set of phases.
+
+### Worked example — Tuesday, as this coach prints it
+
+  2 ק״מ 5:00
+  --------------
+  2 ק״מ 4:40
+  2 דק׳ הליכה
+  45 שנ׳ 3:50 / 45 שנ׳ 3:40 / 45 שנ׳ 3:30 / 45 שנ׳ 3:20
+  2 דק׳ הליכה
+  ———————
+  x2: 20 ש׳ מתגברת + 40 ש׳ הליכה
+  ———————
+  2 ק״מ 3:35 + 3 דק׳ ג׳וג
+  ---
+  2 ק״מ 3:35 + 3 דק׳ ג׳וג
+  -----
+  x5: 300 מ׳ 3:30 + 1 דק׳ מנוחה
+  1 ק״מ 5:00-5:30
+
+→ "prep" on the two easy 2 ק״מ, both walks, all four 45 שנ׳ reps and the x2
+  מתגברת block: the hyphen rule after the first 2 ק״מ is minor, and the drills are
+  closed by the second em-dash rule.
+→ "main" on the 2 ק״מ sets and the x5 300 מ׳ block. The "---" and "-----" between
+  them are set separators, not boundaries.
+→ "closing" on the final 1 ק״מ 5:00-5:30.
+
+The 45 שנ׳ ladder finishes at 3:20, faster than any set in the session. That is
+exactly why the phase is read off the coach's rules and not off the paces.
+
+### Worked example — Friday, where the only rule is a minor one
+
+  2 ק״מ 5:00
+  --------------
+  5 ק״מ 4:40-5:00
+  20 ק״מ 4:00
+  5 ק״מ 4:40-5:00
+  2 ק״מ 5:00
+
+→ "main" on the 20 ק״מ 4:00 and NOTHING ELSE. That block is the workout; the day is
+  named after it. "prep" on the opening 2 ק״מ and the 5 ק״מ 4:40-5:00 that follows
+  it, "closing" on the 5 ק״מ 4:40-5:00 and the 2 ק״מ that close the day.
+
+  The hyphen rule after the first 2 ק״מ is minor, so it does not start the session,
+  and there is no em-dash rule on this day at all — so the boundary is read from the
+  content. Seven kilometres of approach is still approach: the two 5 ק״מ legs are
+  mirror images of each other at the same pace, a full 40 שנ׳/ק״מ slower than the
+  block between them, and marking one of them "main" would put 5:00 into the band a
+  4:00 medio is judged against.
 
 ## Hebrew Running Terminology
 
@@ -418,4 +515,5 @@ The warmup pace (e.g., 4:30-5:30) belongs ONLY to the warmup step — NEVER prop
 - Include nutrition instructions in notes (don't ignore them)
 - PRESERVE the coach's EXACT Hebrew wording in notes — do NOT paraphrase. "ג׳וג קלקל" stays "ג׳וג קלקל" (not "ג׳וג קל"). "מנוחה מוחלטת" stays "מנוחה מוחלטת" (not "עמידה"). Parenthetical instructions like "(השלמה ל5 דק׳ סה״כ)" MUST be included in notes.
 - NEVER drop warmup steps. If the coach specifies "2 ק"מ 5:00" followed by "3 ק"מ 4:40", output BOTH as separate warmup steps with distance.
+- Every top-level step needs a "phase" ("prep"/"main"/"closing"), read off the coach's separator rules — see the phase section above. The drills are never "main".
 - Be generous in interpretation — coaches write in many styles`;
