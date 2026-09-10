@@ -61,18 +61,55 @@ interface Registration {
    *  used to build a link the approver hands to that one person. */
   inviteToken: string | null;
   /**
-   * "Isn't this somebody we already have?" — the roster row this sign-in looks
-   * like, set only for a Strava sign-in the app could not place by itself.
+   * True when this row is a Strava sign-in the app could NOT place on the roster
+   * by itself — i.e. its athlete row is keyed on a synthetic address.
    *
-   * Approving one of these creates a SECOND row for a member who is already in the
-   * club: no group, no history, role 'runner'. It has happened six times. The
-   * callback now recognises and merges what it can be certain of, so anything
-   * carrying a suggestion here is a name it deliberately refused to act on alone —
-   * `exact` says how close it got, and the difference is worth showing (see the
-   * route). Either way the decision is a person's.
+   * Approving one of these creates a SECOND row for a member who may already be in
+   * the club: no group, no history, role 'runner'. It has happened six times. This
+   * is a separate field from `matchCandidates` on purpose, because the case that
+   * needs saying out loud is the one where the list is EMPTY: an unplaced sign-in
+   * with nothing resembling it looks exactly like an ordinary stranger, and the
+   * screen has to say which it is rather than going quiet.
    */
-  suggestedMatch: { id: string; name: string | null; exact: boolean } | null;
+  unplaced: boolean;
+  /**
+   * "Isn't this somebody we already have?" — the roster rows this sign-in resembles,
+   * likeliest first, at most three.
+   *
+   * DISPLAY ONLY, and the server means it: these are ranked without the
+   * four-consonant floor the automatic matchers apply, so a short name like "Roy
+   * Roth" appears here even though nothing in the app would ever merge on it. That
+   * name is exactly why this is a list: the old single-suggestion field was null for
+   * him, the queue showed nothing at all, and he was approved into a duplicate 35
+   * seconds later. `confidence` says how much each one is worth — 'exact' (same
+   * consonant skeleton), 'near' (one edit away) or 'weak' (a shared surname).
+   */
+  matchCandidates: Array<{ id: string; name: string | null; confidence: 'exact' | 'near' | 'weak' }>;
 }
+
+type MatchCandidate = Registration['matchCandidates'][number];
+
+/**
+ * How sure the server is, as a word rather than a score. An approver cannot act on
+ * "0.82"; they can act on the difference between "probably him" and "the surname
+ * matches, go and look".
+ */
+const CONFIDENCE_LABEL: Record<MatchCandidate['confidence'], string> = {
+  exact: 'כנראה',
+  near: 'אולי',
+  weak: 'שם דומה',
+};
+
+/**
+ * The sentence added to the confirm sheet, because the merge is one press and is
+ * not undoable from any screen. A weak match gets the strongest warning: it is a
+ * lead the queue produced so that nobody is shown a blank, NOT a finding.
+ */
+const CONFIDENCE_WARNING: Record<MatchCandidate['confidence'], string> = {
+  exact: '',
+  near: ' השם דומה אבל לא זהה — כדאי לוודא שזה אותו אדם.',
+  weak: ' רק חלק מהשם דומה — חובה לוודא שזה אותו אדם לפני החיבור.',
+};
 
 /** The three states an approved person passes through. Ordered, and that order is
  *  what the אושרו tab is sorted by. */
@@ -167,9 +204,11 @@ export default function RegistrationsQueue() {
   const [note, setNote] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [confirmReject, setConfirmReject] = useState<Registration | null>(null);
-  /** The row about to be folded into an existing member. Confirmed, because it
-   *  moves an account rather than creating one. */
-  const [confirmLink, setConfirmLink] = useState<Registration | null>(null);
+  /** The row about to be folded into an existing member, AND which member — the
+   *  queue now offers several, so the chosen one has to travel with it rather than
+   *  being re-derived. Confirmed, because it moves an account rather than creating
+   *  one. */
+  const [confirmLink, setConfirmLink] = useState<{ request: Registration; candidate: MatchCandidate } | null>(null);
   /** The row whose link was just copied, for a two-second "הועתק". */
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -462,8 +501,7 @@ export default function RegistrationsQueue() {
   // Behind a confirmation, unlike approve: approving the wrong row leaves an extra
   // member to clean up, and linking the wrong row moves one person's account onto
   // another's. The two are not symmetric, so they are not one tap each.
-  const linkToMember = async (r: Registration) => {
-    if (!r.suggestedMatch) return;
+  const linkToMember = async (r: Registration, candidate: MatchCandidate) => {
     setBusyId(r.id);
     setError(null);
     setNote(null);
@@ -471,11 +509,11 @@ export default function RegistrationsQueue() {
       const res = await fetch('/api/admin/registrations/link', {
         method: 'POST',
         headers: await apiHeaders(true),
-        body: JSON.stringify({ id: r.id, athleteId: r.suggestedMatch.id }),
+        body: JSON.stringify({ id: r.id, athleteId: candidate.id }),
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(errorText(out.error));
-      setNote(`חובר ל-${out.athleteName || r.suggestedMatch.name} — ההיסטוריה, הדבוקה והתפקיד שלו חזרו אליו.`);
+      setNote(`חובר ל-${out.athleteName || candidate.name} — ההיסטוריה, הדבוקה והתפקיד שלו חזרו אליו.`);
       setSelected(prev => { const n = new Set(prev); n.delete(r.id); return n; });
       await mutate();
     } catch (err) {
@@ -559,9 +597,7 @@ export default function RegistrationsQueue() {
         title="זה חבר שכבר יש לנו?"
         description={
           confirmLink
-            ? `${confirmLink.athleteName || 'ההתחברות הזאת'} יחובר לחשבון של ${confirmLink.suggestedMatch?.name} — האימונים, הדבוקה והתפקיד שלו יחזרו אליו, והרשומה הכפולה תימחק.${
-                confirmLink.suggestedMatch?.exact ? '' : ' השם דומה אבל לא זהה — כדאי לוודא שזה אותו אדם.'
-              }`
+            ? `${confirmLink.request.athleteName || 'ההתחברות הזאת'} יחובר לחשבון של ${confirmLink.candidate.name} — האימונים, הדבוקה והתפקיד שלו יחזרו אליו, והרשומה הכפולה תימחק.${CONFIDENCE_WARNING[confirmLink.candidate.confidence]}`
             : undefined
         }
         confirmLabel="חיבור"
@@ -569,7 +605,7 @@ export default function RegistrationsQueue() {
         onConfirm={() => {
           const target = confirmLink;
           setConfirmLink(null);
-          if (target) void linkToMember(target);
+          if (target) void linkToMember(target.request, target.candidate);
         }}
       />
 
@@ -749,7 +785,7 @@ export default function RegistrationsQueue() {
                     onPickGroup={(gid) => setOverride(prev => ({ ...prev, [r.id]: gid }))}
                     onApprove={() => act(r, 'approve')}
                     onReject={() => setConfirmReject(r)}
-                    onLink={() => setConfirmLink(r)}
+                    onLink={(candidate) => setConfirmLink({ request: r, candidate })}
                   />
                 ))}
               </div>
@@ -796,7 +832,7 @@ export default function RegistrationsQueue() {
                     onPickGroup={(gid) => setOverride(prev => ({ ...prev, [r.id]: gid }))}
                     onApprove={() => act(r, 'approve')}
                     onReject={() => setConfirmReject(r)}
-                    onLink={() => setConfirmLink(r)}
+                    onLink={(candidate) => setConfirmLink({ request: r, candidate })}
                     onCopy={() => copyLink(r)}
                     onShare={() => shareWhatsApp(r)}
                     onResend={() => resend(r)}
@@ -836,7 +872,7 @@ export default function RegistrationsQueue() {
                 onPickGroup={(gid) => setOverride(prev => ({ ...prev, [r.id]: gid }))}
                 onApprove={() => act(r, 'approve')}
                 onReject={() => setConfirmReject(r)}
-                onLink={() => setConfirmLink(r)}
+                onLink={(candidate) => setConfirmLink({ request: r, candidate })}
                 onCopy={() => copyLink(r)}
                 onShare={() => shareWhatsApp(r)}
                 onResend={() => resend(r)}
@@ -968,9 +1004,9 @@ function QueueRow({
   onPickGroup: (groupId: string) => void;
   onApprove: () => void;
   onReject: () => void;
-  /** Fold this sign-in into the member it looks like, instead of approving it as a
-   *  new one. Only ever offered when the server sent a suggestedMatch. */
-  onLink?: () => void;
+  /** Fold this sign-in into the member the approver picked, instead of approving it
+   *  as a new one. Takes the candidate because the row now offers up to three. */
+  onLink?: (candidate: MatchCandidate) => void;
   onCopy?: () => void;
   onShare?: () => void;
   onResend?: () => void;
@@ -981,10 +1017,13 @@ function QueueRow({
    *  has a token, and not in yet. On a 'done' row there is nobody to send it to. */
   const showLinkActions = !!(stage && stage !== 'done' && r.inviteToken && onCopy);
   const needsGroup = isPending && !groupId;
-  /** The row is a sign-in that looks like somebody already in the club. Pending
-   *  only: once it has been approved the second row exists and this is no longer
-   *  the fix. */
-  const showMatch = !!(isPending && r.suggestedMatch && onLink);
+  /** The row is a Strava sign-in the app could not place. Pending only: once it has
+   *  been approved the second row exists and this is no longer the fix.
+   *
+   *  Note what this no longer checks — that there IS a candidate. A sign-in with no
+   *  resemblance to anybody still gets the strip, saying so. Going quiet on exactly
+   *  the rows that are ambiguous is what this whole block is here to stop. */
+  const showMatch = !!(isPending && r.unplaced && onLink);
   /** True when the address on this row is one the app invented — see line one below. */
   const identifiedByName = isSyntheticAuthEmail(r.email);
   /** The row's דבוקה, resolved to its number and its brand colours. null when the
@@ -1221,23 +1260,50 @@ function QueueRow({
         RTL here, unlike the ltr identity lines above: this is a sentence, not a
         row of chips beside an email address, and it is Hebrew. */}
     {showMatch && (
-      <div dir="rtl" className="flex items-center gap-2 px-3.5 pb-2.5 -mt-1 flex-wrap">
-        <span className="flex items-center gap-1.5 text-3xs text-ink-500 min-w-0">
-          <Users className="h-3.5 w-3.5 shrink-0 text-ink-400" aria-hidden="true" />
-          {/* The name is the whole message, so it is the bold part. `exact` is not
-              spelled out as a score — "כנראה" versus "אולי" is the difference an
-              approver can actually act on, and the confirm sheet says the rest. */}
-          <span className="truncate">
-            {r.suggestedMatch?.exact ? 'כנראה' : 'אולי'} <b className="font-bold text-ink-900">{r.suggestedMatch?.name}</b> — כבר בקבוצה
+      <div dir="rtl" className="px-3.5 pb-2.5 -mt-1">
+        {r.matchCandidates.length > 0 ? (
+          <>
+            <span className="flex items-center gap-1.5 text-3xs text-ink-500">
+              <Users className="h-3.5 w-3.5 shrink-0 text-ink-400" aria-hidden="true" />
+              <span>{r.matchCandidates.length > 1 ? 'אחד מאלה כבר בקבוצה?' : 'זה מישהו שכבר בקבוצה?'}</span>
+            </span>
+            {/* One button PER candidate, each naming the person it would merge into.
+                The alternative — one button plus a picker — hides the name behind a
+                tap, and the name is the entire decision. Three at most, so the row
+                stays a row. */}
+            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+              {r.matchCandidates.map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => onLink?.(c)}
+                  disabled={busy}
+                  className={cn(
+                    'h-9 px-3 rounded-pill text-3xs font-semibold flex items-center gap-1.5 border active:bg-page disabled:opacity-40 shrink-0 max-w-full',
+                    // The strong bands read as the suggested action; a weak one is
+                    // greyed to match what it is worth, so a shared surname does not
+                    // look as confident as a matching skeleton.
+                    c.confidence === 'weak'
+                      ? 'bg-card text-ink-500 border-page'
+                      : 'bg-card text-ink-900 border-ink-900/25',
+                  )}
+                >
+                  <span className="text-ink-400 shrink-0">{CONFIDENCE_LABEL[c.confidence]}</span>
+                  <b className="font-bold truncate">{c.name}</b>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          /* NOTHING resembles this sign-in — the case that produced the last
+             duplicate is the case where this strip used to be blank. It is still
+             worth a line: the address on the row is one the app invented, so there
+             is no other clue on screen that approving here creates a brand-new
+             member rather than letting a known one in. */
+          <span className="flex items-start gap-1.5 text-3xs text-ink-400">
+            <Users className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />
+            <span>התחברות דרך Strava שאין לה שם דומה בקבוצה — אישור ייצור חבר חדש.</span>
           </span>
-        </span>
-        <button
-          onClick={onLink}
-          disabled={busy}
-          className="h-9 px-3 rounded-pill text-3xs font-semibold flex items-center gap-1.5 bg-card text-ink-900 border border-ink-900/25 active:bg-page disabled:opacity-40 shrink-0"
-        >
-          חיבור לחשבון הקיים
-        </button>
+        )}
       </div>
     )}
 

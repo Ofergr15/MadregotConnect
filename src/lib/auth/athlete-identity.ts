@@ -415,6 +415,154 @@ export function suggestAthleteByName<T extends IdentityRow>(
 }
 
 /**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CANDIDATES TO SHOW A HUMAN — never a match, and never acted on
+ *
+ * Everything above returns at most ONE row and refuses to answer unless it is
+ * sure, which is right for code that merges accounts by itself. It leaves a hole,
+ * and the hole cost a duplicate on 2026-09-08.
+ *
+ * `Roy Roth` reduces to the skeleton `rb rt` — three consonants — so `long()`
+ * rejects every key form and `athleteNameKeys('Roy Roth')` returns []. Both
+ * `matchAthleteByNameKey` AND `suggestAthleteByName` bail on an empty key list, so
+ * the roster row `רועי רוט` (skeleton `rb rbt`, one letter away) was never even
+ * OFFERED. The approval queue showed no hint at all, the row was approved 35
+ * seconds after it arrived, and he ran two accounts for a day — the club counting
+ * him twice, 211 of his runs stored on both.
+ *
+ * Lowering the floor is the wrong fix. It is what stops `Dan Levi` from matching
+ * `Din Lavi`, and a false positive here does not create a duplicate: it hands one
+ * member another member's account, history and possibly their staff role. So the
+ * floor stays exactly where it is for every automatic path, and this function
+ * exists beside it with the opposite contract:
+ *
+ *   · it ALWAYS ranks — no floor, no uniqueness requirement, no null
+ *   · it returns several rows, not one
+ *   · `confidence` is a label for a sentence on a screen, not a threshold
+ *   · nothing in the app may merge, adopt or sign anybody in from its output
+ *
+ * That asymmetry is the whole design. The queue's job is to make sure an approver
+ * is never shown a blank where a person should be; deciding is theirs.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+/** How much the two names look alike, in the only terms this module has. */
+export type CandidateConfidence =
+  /** The same consonant skeleton. Not automatic only because it wasn't unique, or the name is too short to act on. */
+  | 'exact'
+  /** One edit apart — a plausible transliteration, e.g. Roy Roth ↔ רועי רוט. */
+  | 'near'
+  /** Shares a word (usually the surname), or one name contains the other. A lead, nothing more. */
+  | 'weak';
+
+export type AthleteCandidate<T extends IdentityRow> = {
+  row: T;
+  confidence: CandidateConfidence;
+};
+
+/**
+ * Key forms with the length floor REMOVED — this module's only floor-free view of
+ * a name, and the reason it is private to the ranking below.
+ */
+function unfloored(name?: string | null): string[] {
+  const keys: string[] = [];
+  for (const vowelV of [false, true]) {
+    const words = nameWords(name, vowelV);
+    if (!words.length) continue;
+    keys.push([...words].sort().join(' '));
+    if (words.length > 1) {
+      keys.push(`~${words.join('')}`);
+      keys.push(`~${[...words].reverse().join('')}`);
+    }
+  }
+  return [...new Set(keys)];
+}
+
+/** Skeletons of the individual words, for the shared-surname case. */
+function unflooredWords(name?: string | null): Set<string> {
+  return new Set([...nameWords(name, false), ...nameWords(name, true)].filter(w => w.length >= 2));
+}
+
+const CONFIDENCE_ORDER: Record<CandidateConfidence, number> = { exact: 3, near: 2, weak: 1 };
+
+/** How alike two names are, or null when they are not alike at all. */
+function confidenceOf(a?: string | null, b?: string | null): CandidateConfidence | null {
+  const left = unfloored(a);
+  const right = unfloored(b);
+  if (!left.length || !right.length) return null;
+
+  const rightSet = new Set(right);
+  if (left.some(k => rightSet.has(k))) return 'exact';
+
+  // Compared with the spaces removed, so a name written as two words matches the
+  // same name written as one — the difference `~glued` exists to bridge above.
+  const bare = (keys: string[]) => keys.map(k => k.replace(/[ ~]/g, ''));
+  const leftBare = bare(left);
+  const rightBare = bare(right);
+  if (leftBare.some(l => rightBare.some(r => withinOneEdit(l, r)))) return 'near';
+
+  // A shared word. Almost always a surname, which is exactly the hint an approver
+  // needs to go and look — and far too little for anything else to touch.
+  const leftWords = unflooredWords(a);
+  const rightWords = unflooredWords(b);
+  for (const w of rightWords) {
+    if (leftWords.has(w)) return 'weak';
+  }
+  // One name inside the other: "Ro Roth" against "רועי רוט", where one side wrote a
+  // name the other hyphenated or ran together.
+  if (leftBare.some(l => rightBare.some(r => l.length >= 3 && r.length >= 3 && (l.includes(r) || r.includes(l))))) {
+    return 'weak';
+  }
+  // A roster row holding a FIRST NAME ALONE ("רועי") against a full Strava name —
+  // a real shape in this club's data, and the one case where a per-word near match
+  // is worth showing. Deliberately narrow: it needs one side to be a single word,
+  // because comparing every word of two full names within one edit would fire on
+  // half the roster at these lengths, and a list of six maybes is another way of
+  // showing nothing.
+  const single = (words: Set<string>, all: Set<string>) => words.size === 1 && all.size === 1;
+  const oneSided =
+    single(leftWords, new Set(nameWords(a, false))) || single(rightWords, new Set(nameWords(b, false)));
+  if (oneSided) {
+    for (const l of leftWords) {
+      for (const r of rightWords) {
+        if (withinOneEdit(l, r)) return 'weak';
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Every roster row that resembles `name`, most likely first — for DISPLAY ONLY.
+ *
+ * Restricted to `mergeTargets` for the same reason the strict matchers are: a row
+ * keyed on a synthetic address is a shell this module folds away, never a
+ * destination. Ordered by confidence, then by the tie-breakers `pickAthleteRow`
+ * uses (credentials, staff role, active) so the likeliest person to be somebody's
+ * real account comes first within a band.
+ *
+ * ⚠️ Callers must put the result in front of a human. See the block comment above.
+ */
+export function rankAthleteCandidates<T extends IdentityRow>(
+  rows: T[],
+  name?: string | null,
+  limit = 3,
+): AthleteCandidate<T>[] {
+  if (!normalizeAthleteName(name)) return [];
+  const scored: Array<{ candidate: AthleteCandidate<T>; tie: number[] }> = [];
+  for (const row of mergeTargets(rows)) {
+    const confidence = confidenceOf(name, row.name);
+    if (!confidence) continue;
+    scored.push({
+      candidate: { row, confidence },
+      tie: [CONFIDENCE_ORDER[confidence], ...rank(row)],
+    });
+  }
+  scored.sort((a, b) => compare(b.tie, a.tie));
+  return scored.slice(0, Math.max(limit, 0)).map(s => s.candidate);
+}
+
+/**
  * Every OTHER row that is the same person as `keep` and must be folded into it.
  *
  * Called on every Strava login, not only the first, because that is what makes

@@ -5,8 +5,8 @@ import { authError, requireSession } from '@/lib/auth-session';
 import { groupDisplayName } from '@/lib/utils';
 import {
   isSyntheticAuthEmail,
-  matchAthleteByNameKey,
-  suggestAthleteByName,
+  rankAthleteCandidates,
+  type CandidateConfidence,
   type IdentityRow,
 } from '@/lib/auth/athlete-identity';
 
@@ -157,18 +157,29 @@ export async function GET(request: Request) {
     // "Roey Roth" against "רועי רוט" carries three consonants and that is not
     // enough to act on alone.
     //
-    // It is enough to show a person, though. So the queue offers the roster row
-    // that looks like this sign-in and lets the approver decide — and `exact` says
-    // which kind of answer it is, because the two carry very different weight:
-    //   exact — the same consonant skeleton, but MORE than one roster row shares it
-    //           (a unique exact match would have been merged automatically and
-    //           never arrived here).
-    //   near  — one edit away. A plausible transliteration, and nothing more.
+    // It is enough to show a person, though. So the queue offers the roster rows
+    // that look like this sign-in and lets the approver decide.
+    //
+    // ⚠️ This used to ask the two STRICT matchers for a single suggestion, and that
+    // is how the fifth duplicate got through on 2026-09-08. `Roy Roth` carries only
+    // three consonants, so `athleteNameKeys` returns [] and BOTH strict matchers
+    // bail — the queue showed no hint whatsoever next to `רועי רוט`, who was sitting
+    // one row away with twelve years of history, and the row was approved 35 seconds
+    // after it arrived. The floor those matchers apply is correct for them (it is
+    // what stops "Dan Levi" being merged into "Din Lavi") and wrong here, where
+    // nothing is merged without a person pressing a button. `rankAthleteCandidates`
+    // is the floor-free, display-only counterpart — see its header.
+    //
+    // `confidence` carries which kind of answer each one is, because they carry very
+    // different weight: exact (same consonant skeleton), near (one edit away — a
+    // plausible transliteration), weak (a shared surname, or one name inside the
+    // other). The screen says so rather than presenting a lead as a fact.
     const unplaced = (rows || []).filter(r => {
       const a = (r.athlete_id ? byId.get(r.athlete_id) : null) || byEmail.get(String(r.email).toLowerCase());
       return !!a && isSyntheticAuthEmail(a.email);
     });
-    const suggestions = new Map<string, { id: string; name: string | null; exact: boolean }>();
+    type Candidate = { id: string; name: string | null; confidence: CandidateConfidence };
+    const candidates = new Map<string, Candidate[]>();
     if (unplaced.length) {
       const { data: rosterRows } = await supabase
         .from('athletes')
@@ -179,10 +190,14 @@ export async function GET(request: Request) {
         if (!a) continue;
         // Exclude the shell itself, or it suggests the person to themselves.
         const others = roster.filter(row => row.id !== a.id);
-        const exact = matchAthleteByNameKey(others, a.name);
-        const near = exact ? null : suggestAthleteByName(others, a.name);
-        const hit = exact || near;
-        if (hit) suggestions.set(r.id, { id: hit.id, name: hit.name ?? null, exact: !!exact });
+        candidates.set(
+          r.id,
+          rankAthleteCandidates(others, a.name).map(c => ({
+            id: c.row.id,
+            name: c.row.name ?? null,
+            confidence: c.confidence,
+          })),
+        );
       }
     }
 
@@ -212,8 +227,15 @@ export async function GET(request: Request) {
         // instead of from the SQL editor. It IS a credential (see /api/join/groups)
         // — this route is already canApprove-gated, and it must not travel further.
         inviteToken: r.invite_token || null,
-        // Set only for a sign-in the app could not place on the roster by itself.
-        suggestedMatch: suggestions.get(r.id) || null,
+        // ── Set only for a sign-in the app could not place on the roster itself ──
+        //
+        // `unplaced` is the fact, and it is deliberately separate from having a
+        // candidate: a synthetic sign-in with NOTHING resembling it on the roster is
+        // the case the screen most needs to be explicit about, because it looks
+        // identical to an ordinary stranger and approving it is irreversible-ish.
+        // An empty array used to be indistinguishable from "not a Strava sign-in".
+        unplaced: candidates.has(r.id),
+        matchCandidates: candidates.get(r.id) || [],
       };
     });
 
