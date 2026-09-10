@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, User as UserIcon, Award, Trophy, ShoppingBag, Gift, UserPlus, Sprout, Wrench, Lock, Unlock, DoorOpen, History } from 'lucide-react';
+import { Settings, Users, Loader2, CheckCircle2, ChevronDown, ChevronRight, AlertTriangle, X, Layout, Trash2, Shield, Watch, Mail, Clock, MessageSquare, Filter, Bug, Lightbulb, Dumbbell, MessageCircle, Smartphone, Bell, BellRing, ShieldCheck, User as UserIcon, Award, Trophy, ShoppingBag, Gift, UserPlus, Sprout, Wrench, Lock, Unlock, DoorOpen, History } from 'lucide-react';
 import { cn, resolveGroup } from '@/lib/utils';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
@@ -18,6 +18,7 @@ import { WatchAlertsCard } from '@/components/WatchAlertsCard';
 import { ReminderConfig } from '@/components/ReminderConfig';
 import { MapPrefsRow } from '@/components/MapPrefsRow';
 import { GarminHistoryImport } from '@/components/admin/GarminHistoryImport';
+import NotificationRouting from '@/components/admin/NotificationRouting';
 import RegistrationsQueue, { usePendingRegistrationsCount } from '@/components/RegistrationsQueue';
 import { canGrantAdmin } from '@/lib/constants';
 import { FeedbackAdmin } from '@/components/FeedbackAdmin';
@@ -364,7 +365,7 @@ const allMobileTabs = [
 
 const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
-type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges' | 'store' | 'perks' | 'registrations' | 'coreRunners' | 'garminHistory';
+type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'notifRouting' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges' | 'store' | 'perks' | 'registrations' | 'coreRunners' | 'garminHistory';
 
 const settingsTabs = [
   // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
@@ -381,6 +382,10 @@ const settingsTabs = [
   { key: 'tabs' as SettingsTab, label: 'Tab Manager', icon: Layout, iconBg: 'bg-band-3' },
   { key: 'feedback' as SettingsTab, label: 'Feedback', icon: MessageSquare, iconBg: 'bg-teal-500' },
   { key: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell, iconBg: 'bg-accent-red' },
+  // Directly under it: that row SENDS a notification, this one decides who
+  // receives the club's automatic ones (bug report, pain flag, sign-up, the
+  // health checks) and shows what every member gets. Migration 099.
+  { key: 'notifRouting' as SettingsTab, label: 'התראות ניהול', icon: ShieldCheck, iconBg: 'bg-ink-700' },
   { key: 'badges' as SettingsTab, label: 'Badge Manager', icon: Award, iconBg: 'bg-fuchsia-500' },
   { key: 'challenges' as SettingsTab, label: 'Challenge Manager', icon: Trophy, iconBg: 'bg-band-3' },
   { key: 'store' as SettingsTab, label: 'Store Manager', icon: ShoppingBag, iconBg: 'bg-band-2' },
@@ -1573,6 +1578,9 @@ export default function SettingsPage() {
 
       {/* הגרעין — the core squad list (migration 091) */}
       {activeTab === 'coreRunners' && <CoreRunnersManager />}
+
+      {/* Who receives each management alert, and what every member gets (migration 099) */}
+      {activeTab === 'notifRouting' && <NotificationRouting />}
     </div>
   );
 }

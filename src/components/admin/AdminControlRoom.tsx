@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeft, UserPlus, Bug, Sprout, CalendarClock, CheckCircle2, Wrench, RefreshCw } from 'lucide-react';
+import { ChevronLeft, UserPlus, Bug, Sprout, CalendarClock, CheckCircle2, Wrench, RefreshCw, BellRing } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -212,6 +212,17 @@ export function AdminControlRoom({
       )}
 
       <InsetSection header={t('systemStatus')}>
+        {/* Who hears the alerts this screen's top section is made of. It sits
+            here rather than under דורש טיפול because it is a setting, not a
+            chore — but it belongs on this screen: an admin who wonders why a bug
+            report reached two of their phones (or none) starts here. */}
+        <InsetRow
+          icon={BellRing}
+          iconBg="bg-ink-700"
+          label={t('notificationRouting')}
+          sublabel={t('notificationRoutingHint')}
+          href="/dashboard/settings?tab=notifRouting"
+        />
         <InsetRow
           icon={Wrench}
           iconBg={data?.system.maintenance ? 'bg-band-3' : 'bg-ink-400'}

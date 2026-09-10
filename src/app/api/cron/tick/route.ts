@@ -6,6 +6,7 @@ import {
   eventTomorrowCopy, eventClosingCopy, weeklyRecapCopy, surveyNudgeCopy, syncStalledCopy,
 } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
+import { recipientsForKind } from '@/lib/notifications/routing';
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { createAndSendSurvey, notifySurveyNonResponders } from '@/lib/surveys';
 import { israelNow, israelToday, getPlanWeekStart, getActivityWeekStart, israelDateAnchor, addDaysToDateStr } from '@/lib/utils';
@@ -308,9 +309,18 @@ async function run(request: Request) {
         // of a generic "new week" — upcomingWeek is already computed above.
         const [, upMM, upDD] = upcomingWeek.split('-');
         const upcomingDateLabel = `${upDD}.${upMM}`;
-        // Coaches = approver accounts.
-        const { data: coaches } = await supabase.from('athletes').select('id').in('email', APPROVER_EMAILS);
-        const coachIds = (coaches || []).map((c: { id: string }) => c.id);
+        // Who gets nagged is configured in Control Room → התראות (routing table,
+        // migration 099) — this was the last recipient list in the app resolved by
+        // EMAIL ADDRESS, which mails every account a person holds rather than the
+        // one they run the club from: the owner's personal address is on
+        // APPROVER_EMAILS, so the nag landed on his runner phone as well as the
+        // admin account. That list is still the fallback until 099 is applied.
+        const routed = await recipientsForKind('program_week_missing');
+        let coachIds = routed ?? [];
+        if (routed === null) {
+          const { data: coaches } = await supabase.from('athletes').select('id').in('email', APPROVER_EMAILS);
+          coachIds = (coaches || []).map((c: { id: string }) => c.id);
+        }
         const subs = await subscriptionsForAthletes(coachIds);
         const { sent } = await sendPushLocalized(subs, (locale) => ({
           ...newWeekProgramCopy(locale, { dateLabel: upcomingDateLabel, parts }),

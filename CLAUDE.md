@@ -473,6 +473,29 @@ a store: don't put anything in it the API doesn't already hand this session. If 
 a route whose response should never touch disk, it needs an explicit skip in `save()` —
 there is no allowlist today.
 
+Recorded exposure change, **2026-09-10**: `/api/admin/notifications` is the first route
+that reads **every member's notification preferences and registered-device count** in one
+response, and its PUT decides who receives a private pain report. So it is gated
+**admin-only** (`caller.isSuperUser || caller.role === 'admin'`), deliberately stricter
+than the `requireStaff` most admin routes use — the club has two coach accounts and one
+of them is a `Test Coach` fixture row, and staff-gating the write would let either
+silence a channel for everybody. The device *endpoints* are counted, never listed: the
+endpoint is itself a credential. If you add a field here, ask whether an admin needs it
+to answer "why didn't he get the alert" — that is the whole remit of the screen
+(Settings → התראות ניהול).
+
+Who receives each management alert is **data**, not code, since the same date:
+`notification_routing` (migration 099) holds one row per (kind, role), and
+`recipientsForKind()` in `src/lib/notifications/routing.ts` is the single read every
+management sender goes through. Two properties are load-bearing and pinned by
+`src/__tests__/notificationRouting.test.ts` — `null` (no rows / table missing / read
+threw) means "use the caller's hardcoded fallback", because migrations here are pasted in
+by hand and an unapplied one must never silence a bug report, while `[]` means "routed to
+nobody" and is honoured. Only staff-ish roles resolve: a `runner` row would fan a named
+pain report out to the whole club, so the screen won't offer it and the module won't
+resolve it. Routing is the club's decision; the recipient's own `management` category
+preference still applies on top.
+
 ## The AI parser — the accuracy-critical path
 
 `src/lib/ai/parser.ts` + `prompt.ts`. Two tiers:

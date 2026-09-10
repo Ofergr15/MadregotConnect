@@ -9,15 +9,22 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
  * and one of the nine was the `Test Coach` fixture row. Every bug report, store
  * order and pain alert went to all of them.
  *
- * Narrowed on 2026-09-08 to `role='admin'` OR `is_super_user`. These tests exist
- * because the narrowing is invisible from the outside: nothing in the app says
- * who a notification went to, so widening this function back — or "fixing" it by
- * re-adding a source that looks obviously missing — would go unnoticed until
- * somebody counted push receipts. The point of the assertions below is that a
- * COACH IS NOT A RECIPIENT, and that this is on purpose.
+ * Narrowed on 2026-09-08 to `role='admin'` OR `is_super_user`, and again on
+ * 2026-09-09 to `role='admin'` alone, with `is_super_user` demoted to a fallback
+ * for the case where no admin row exists. The second narrowing is the one the
+ * club owner reported: `is_super_user` is a permission flag, he carries it on his
+ * RUNNER account as well as the admin one, so every bug report notified him twice
+ * — once per account, with the two copies indistinguishable.
  *
- * The known cost is recorded in staff.ts: a plain coach no longer hears that one
- * of their athletes reported pain. If that gets fixed, it must be fixed by giving
+ * These tests exist because the rule is invisible from the outside: nothing in the
+ * app says who a notification went to, so widening this function back — or
+ * "fixing" it by re-adding a source that looks obviously missing — would go
+ * unnoticed until somebody counted push receipts. The assertions below say that a
+ * COACH IS NOT A RECIPIENT, that a super-user's other accounts are NOT
+ * RECIPIENTS, and that both are on purpose.
+ *
+ * The known cost is recorded in staff.ts: a plain coach does not hear that one of
+ * their athletes reported pain. If that gets fixed, it must be fixed by giving
  * workout-feedback its own recipient list, not by widening this one.
  */
 
@@ -55,18 +62,33 @@ vi.mock('@/lib/push', () => ({
 
 const { staffRecipientIds } = await import('@/lib/notifications/staff');
 
+/** The club's real shape: one admin account, plus the owner's runner account. */
+const CLUB = { admin: 'club-admin', ownerRunner: 'ofer-runner' };
+
 beforeEach(() => {
   calls.length = 0;
   answer = () => ({ data: [], error: null });
 });
 
 describe('staffRecipientIds', () => {
-  it('asks exactly two questions: role=admin, and is_super_user', async () => {
+  it('asks one question — role=admin — and stops there', async () => {
+    answer = () => ({ data: [{ id: CLUB.admin }], error: null });
     await staffRecipientIds();
-    expect(calls).toEqual([
-      { table: 'athletes', column: 'role', value: 'admin' },
-      { table: 'athletes', column: 'is_super_user', value: true },
-    ]);
+    expect(calls).toEqual([{ table: 'athletes', column: 'role', value: 'admin' }]);
+  });
+
+  it('does not notify a super-user on their other accounts', async () => {
+    // The reported bug, in one test. `is_super_user` grants admin ABILITIES; it is
+    // not a statement about which of a person's accounts should be mailed. The
+    // owner holds it on his runner account, so using it as the recipient list
+    // wrote two inbox rows per bug report — one to Madregot Admin, one to Ofer
+    // Grosfeld — and nothing on the row said which was which.
+    answer = (call) =>
+      call.column === 'is_super_user'
+        ? { data: [{ id: CLUB.admin }, { id: CLUB.ownerRunner }], error: null }
+        : { data: [{ id: CLUB.admin }], error: null };
+    await expect(staffRecipientIds()).resolves.toEqual([CLUB.admin]);
+    expect(calls.some((c) => c.column === 'is_super_user')).toBe(false);
   });
 
   it('never resolves a recipient by email address', async () => {
@@ -78,6 +100,7 @@ describe('staffRecipientIds', () => {
   });
 
   it('does not make a coach a recipient — the whole point of the narrowing', async () => {
+    answer = () => ({ data: [{ id: CLUB.admin }], error: null });
     await staffRecipientIds();
     const roleQueries = calls.filter((c) => c.column === 'role');
     expect(roleQueries).toHaveLength(1);
@@ -86,21 +109,32 @@ describe('staffRecipientIds', () => {
     expect(calls.some((c) => c.column === 'is_approver')).toBe(false);
   });
 
-  it('counts an account that is both admin and super-user once', async () => {
-    // The club's own admin row is both, and a duplicated id would mean a
-    // duplicated push and two inbox rows for the same event.
-    answer = () => ({ data: [{ id: 'club-admin' }], error: null });
-    await expect(staffRecipientIds()).resolves.toEqual(['club-admin']);
-  });
-
-  it('still returns the admins when is_super_user does not exist', async () => {
-    // Migration 084 is hand-applied, so a database without the column must fall
-    // back to the role answer rather than losing every recipient to a 42703.
+  it('falls back to is_super_user when there is no admin row at all', async () => {
+    // The fallback is not a second opinion — it is the guarantee that a bug report
+    // can never resolve to nobody. A club whose admin row was renamed or deleted
+    // must still reach whoever holds the keys.
     answer = (call) =>
       call.column === 'is_super_user'
+        ? { data: [{ id: CLUB.ownerRunner }], error: null }
+        : { data: [], error: null };
+    await expect(staffRecipientIds()).resolves.toEqual([CLUB.ownerRunner]);
+  });
+
+  it('falls back when the role answer itself is unreadable', async () => {
+    answer = (call) =>
+      call.column === 'role'
         ? { error: { code: '42703' } }
-        : { data: [{ id: 'club-admin' }], error: null };
-    await expect(staffRecipientIds()).resolves.toEqual(['club-admin']);
+        : { data: [{ id: CLUB.ownerRunner }, { id: CLUB.ownerRunner }], error: null };
+    // And dedupes: a duplicated id means a duplicated push and two inbox rows for
+    // the same event, which is the shape of the bug this whole change is about.
+    await expect(staffRecipientIds()).resolves.toEqual([CLUB.ownerRunner]);
+  });
+
+  it('returns an empty list when neither source can answer', async () => {
+    // Migration 084 (`is_super_user`) is hand-applied, so the fallback may hit a
+    // 42703 on a database that never ran it. Empty, not a throw.
+    answer = () => ({ error: { code: '42703' } });
+    await expect(staffRecipientIds()).resolves.toEqual([]);
   });
 
   it('returns an empty list rather than throwing when everything fails', async () => {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, UserPlus, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge } from 'lucide-react';
+import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, UserPlus, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { flowGroup, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
@@ -198,6 +198,11 @@ export default function CoachToolsPage() {
             tab inside Settings. */}
         <InsetRow icon={MessageSquare} iconBg="bg-teal-500" label={ts('feedback')} href="/dashboard/review/all" />
         <InsetRow icon={Bell} iconBg="bg-accent-red" label={ts('notificationCenter')} href="/dashboard/settings?tab=notifications" />
+        {/* Directly under it: that row SENDS one, this one decides who receives
+            the club's automatic alerts (bug report, pain flag, sign-up, the
+            health checks) and shows what every member gets. Admin-only behind the
+            API, so a coach who taps it is told so rather than shown an empty grid. */}
+        <InsetRow icon={ShieldCheck} iconBg="bg-ink-700" label={ts('notificationRouting')} href="/dashboard/settings?tab=notifRouting" />
         <InsetRow icon={Bell} iconBg="bg-band-2" label={ts('workoutReminders')} href="/dashboard/settings?tab=reminders" />
         <InsetRow icon={Award} iconBg="bg-fuchsia-500" label={ts('badgeManager')} href="/dashboard/settings?tab=badges" />
         <InsetRow icon={Trophy} iconBg="bg-band-3" label={ts('challengeManager')} href="/dashboard/settings?tab=challenges" />
