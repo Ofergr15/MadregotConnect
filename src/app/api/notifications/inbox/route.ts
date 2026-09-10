@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import {
   UUID_RE,
   shapeInboxItem,
+  clearMutedUnread,
   aggregate,
   rowActionTargets,
   applyRowActions,
@@ -11,7 +12,7 @@ import {
 } from '@/lib/notifications/inbox';
 import { likedActivityIds } from '@/lib/feed/likes';
 import { localeFromPrefs } from '@/lib/notifications/locale';
-import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { isStaffRole, mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,9 +61,18 @@ async function withRowActions(
 // GET /api/notifications/inbox?athleteId=… → { items[], unread }
 // The athlete's notification history: sent notifications targeting them (all /
 // their group / them), newest first, each flagged read/unread against
-// last_seen_at. Mirrors the audience-match logic in unreadCountForAthlete.
+// last_seen_at. Mirrors unreadCountForAthlete's rules — audience, ledger
+// exclusion, and (since 2026-09-09) the muted-category rule, so the dots here
+// and the number on the bell mean the same thing.
 // Internal ledger rows (idempotency sentinels stashed with a #ledger: url) are
 // excluded — they aren't member-facing messages.
+//
+// The `unread` total is over the AGGREGATED items, so a merged burst of five
+// kudos counts once here and five times in the badge. That is the one remaining
+// difference and it is intentional — the badge counts notifications, this counts
+// rows the athlete would see. Nothing renders this number today (the bells both
+// read /api/notifications/unread); it exists for callers that already have the
+// page in hand.
 export async function GET(request: Request) {
   try {
     const athleteId = new URL(request.url).searchParams.get('athleteId');
@@ -82,7 +92,8 @@ export async function GET(request: Request) {
 
     const { data: a, error: athleteError } = await supabase
       .from('athletes')
-      .select('group_id, last_seen_at, notification_prefs')
+      // `role` for the mute rule below — see countsTowardBadge in push.ts.
+      .select('group_id, role, last_seen_at, notification_prefs')
       .eq('id', athleteId)
       .maybeSingle();
     if (athleteError) throw athleteError;
@@ -123,10 +134,14 @@ export async function GET(request: Request) {
     if (error) throw error;
 
     const since = a.last_seen_at || '1970-01-01';
-    const rawItems = (data || [])
-      // Drop internal idempotency-ledger rows (not real member messages).
-      .filter((r: any) => !String(r.url || '').startsWith('#ledger:'))
-      .map((r: any) => shapeInboxItem(r, since));
+    const rawItems = clearMutedUnread(
+      (data || [])
+        // Drop internal idempotency-ledger rows (not real member messages).
+        .filter((r: any) => !String(r.url || '').startsWith('#ledger:'))
+        .map((r: any) => shapeInboxItem(r, since)),
+      a.notification_prefs as Record<string, boolean> | null,
+      isStaffRole(a.role),
+    );
     // Merged bursts are composed here rather than at send time, so they need
     // the athlete's notification language too.
     const aggregated = aggregate(rawItems, localeFromPrefs(a.notification_prefs));

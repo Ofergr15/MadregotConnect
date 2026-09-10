@@ -1,5 +1,6 @@
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { kudosActivityId, rsvpTarget } from '@/lib/notifications/history';
+import { isKindMuted } from '@/lib/notifications/prefs';
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -40,6 +41,33 @@ export function shapeInboxItem(row: InboxRow, sinceIso: string): RawItem {
     actorName: row.actor?.name || null,
     actorAvatarUrl: row.actor?.avatar_url || null,
   };
+}
+
+/**
+ * A muted category is not unread.
+ *
+ * The app-icon badge has applied this rule since `countsTowardBadge` (push.ts);
+ * the history did not, so the two numbers on screen disagreed — turning a channel
+ * off in Settings stopped the push and left the blue dots behind, on rows that
+ * were deliberately never delivered. An athlete who muted teammates saw a bell
+ * reading 0 above a page with six unread dots.
+ *
+ * The row STAYS in the list. Muting a channel means "don't ping me", not "hide
+ * the history"; it just stops claiming to be new.
+ *
+ * Same inputs as the badge — this athlete's saved prefs plus their staffness, for
+ * the staff defaults in `defaultsFor` — so the two agree even for someone who has
+ * never saved a preference, and it fails open the same way: unreadable prefs mute
+ * nothing.
+ */
+export function clearMutedUnread(
+  items: RawItem[],
+  prefs: Record<string, boolean> | null | undefined,
+  isStaff: boolean,
+): RawItem[] {
+  return items.map((it) =>
+    it.unread && isKindMuted(it.kind, prefs, isStaff) ? { ...it, unread: false } : it,
+  );
 }
 
 // Kinds worth collapsing into "X and N others…" when they burst — low-content

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   shapeInboxItem,
+  clearMutedUnread,
   aggregate,
   rowActionTargets,
   applyRowActions,
@@ -57,6 +58,55 @@ describe('shapeInboxItem', () => {
     const item = shapeInboxItem({ id: 'n1', kind: 'system', title_he: 't', body_he: 'b', url: '/x', last_sent_at: null }, since);
     expect(item.unread).toBe(false);
     expect(item.sentAt).toBe('');
+  });
+});
+
+describe('clearMutedUnread', () => {
+  // 'like' is category `teammates`; 'problem_report' is `management`.
+  const item = (over: Partial<RawItem> = {}): RawItem => ({
+    id: 'n1', kind: 'like', title: 't', body: 'b', url: '/dashboard',
+    sentAt: '2026-01-02T00:00:00.000Z', unread: true,
+    actorName: null, actorAvatarUrl: null, ...over,
+  });
+
+  it('a muted kind stops being unread', () => {
+    const [out] = clearMutedUnread([item()], { teammates: false }, false);
+    expect(out.unread).toBe(false);
+  });
+
+  it('keeps the row — muting is "do not ping me", not "hide the history"', () => {
+    const rows = [item({ id: 'a' }), item({ id: 'b', kind: 'problem_report' })];
+    const out = clearMutedUnread(rows, { teammates: false }, false);
+    expect(out.map((i) => i.id)).toEqual(['a', 'b']);
+    // And only the muted one changed.
+    expect(out[1]).toBe(rows[1]);
+  });
+
+  it('leaves an unmuted kind alone', () => {
+    const [out] = clearMutedUnread([item({ kind: 'problem_report' })], { teammates: false }, false);
+    expect(out.unread).toBe(true);
+  });
+
+  it('mutes nothing when prefs are unreadable — same fail-open as the badge', () => {
+    expect(clearMutedUnread([item()], null, false)[0].unread).toBe(true);
+    expect(clearMutedUnread([item()], undefined, false)[0].unread).toBe(true);
+  });
+
+  it('applies the staff defaults, so a coach who never saved a preference agrees with their badge', () => {
+    // STAFF_QUIET_CATEGORIES defaults `teammates` OFF for staff. The badge has
+    // always known that; the history didn't, which is the disagreement this fixes.
+    expect(clearMutedUnread([item()], null, true)[0].unread).toBe(false);
+    // An explicit opt-in still wins over the default.
+    expect(clearMutedUnread([item()], { teammates: true }, true)[0].unread).toBe(true);
+  });
+
+  it('never turns a read row unread', () => {
+    const [out] = clearMutedUnread([item({ unread: false })], { teammates: true }, false);
+    expect(out.unread).toBe(false);
+  });
+
+  it('leaves a kind with no category mapping alone', () => {
+    expect(clearMutedUnread([item({ kind: 'something_new' })], { teammates: false }, false)[0].unread).toBe(true);
   });
 });
 

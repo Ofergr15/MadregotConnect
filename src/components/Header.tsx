@@ -508,9 +508,19 @@ export function Header() {
                 )}
               >
                 <Bell className="h-5 w-5" />
-                {inbox.filter(i => i.unread).length > 0 && (
+                {/* The count comes from the counting endpoint, not from `inbox`.
+                    `inbox` is only fetched while the DESKTOP sheet is open
+                    (`showNotifications`), and this bell is a Link to the
+                    notifications page that never sets it — so on a phone, which is
+                    how the club actually uses this app, the list was always empty
+                    and this badge never appeared at all. `unreadInbox` is fetched
+                    unconditionally and is the same number the app icon shows.
+                    Deliberately WITHOUT pendingResults, unlike the desktop bell
+                    above: that badge opens a sheet containing the benchmark queue,
+                    this one opens /dashboard/notifications, which doesn't. */}
+                {unreadInbox > 0 && (
                   <span className="absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-accent-red text-white text-[10px] font-bold flex items-center justify-center">
-                    {inbox.filter(i => i.unread).length}
+                    {unreadInbox}
                   </span>
                 )}
               </Link>
