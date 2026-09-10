@@ -10,11 +10,15 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
  *     club signed in through Strava and has no real inbox), so a member with no
  *     push subscription is a silent no-op. The route reports `reachable` so the
  *     button can say "no way to reach them" instead of ticking.
- *  2. **The copy has to match what is actually missing.** Telling somebody who
- *     never opened the app to "connect your watch" is the wrong sentence, and
- *     the branch is decided by credentials — garmin_auth/strava_auth — not by
+ *  2. **The copy has to match what is actually missing, by NAME.** Somebody who
+ *     never landed inside the app is told about that and nothing else — a photo
+ *     they cannot upload is noise. Everybody else gets their open setup tasks
+ *     listed, decided by credentials — garmin_auth/strava_auth — not by
  *     `data_source`, which all 28 members have set and only 17 have anything
  *     behind.
+ *  3. **The gaps come from the ROW, never from the request.** The message names
+ *     things about a member, so a client must not be able to dictate what it
+ *     says about them.
  */
 
 let athlete: Record<string, unknown> | null;
@@ -66,20 +70,41 @@ beforeEach(() => {
 });
 
 describe('POST /api/admin/entry-queue/nudge', () => {
-  it('says "connect a watch" to somebody with no credentials on file', async () => {
+  it('tells somebody who never landed inside about that, and only that', async () => {
+    // No last_seen_at: they cannot act on a missing photo, so the message must not
+    // mention one — the ONE thing they can do has to be the whole sentence.
     const res = await nudge('dana-1');
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true, reachable: true, missing: 'watch' });
-    const copy = (notified!.copy as (l: string) => { title: string })('he');
-    expect(copy.title).toMatch(/שעון/);
+    expect(await res.json()).toMatchObject({ ok: true, reachable: true, gaps: ['login'] });
+    const copy = (notified!.copy as (l: string) => { title: string; body: string })('he');
+    expect(copy.body).not.toMatch(/שעון|תמונ/);
   });
 
-  it('says "come and finish" once a watch is actually connected', async () => {
-    athlete = { id: 'yossi-1', name: 'יוסי', garmin_auth: '<encrypted>', strava_auth: null };
+  it('names the open setup tasks for a member who is already in', async () => {
+    athlete = {
+      id: 'yossi-1',
+      name: 'יוסי',
+      last_seen_at: '2026-09-01T00:00:00Z',
+      garmin_auth: '<encrypted>',
+      strava_auth: null,
+      avatar_url: null,
+      phone: null,
+    };
     const res = await nudge('yossi-1');
-    expect(await res.json()).toMatchObject({ missing: 'setup' });
-    const copy = (notified!.copy as (l: string) => { title: string })('he');
-    expect(copy.title).not.toMatch(/שעון/);
+    // 'watch' is done (credentials on file); the rest are named, and
+    // 'notifications' is never listed BY a notification.
+    expect(await res.json()).toMatchObject({ gaps: ['photo', 'personalInfo', 'sizes'] });
+    const copy = (notified!.copy as (l: string) => { title: string; body: string })('he');
+    expect(copy.body).toContain('תמונת פרופיל');
+    expect(copy.body).not.toMatch(/התראות/);
+  });
+
+  it('ignores gaps sent by the caller — the row decides what the message says', async () => {
+    const res = await POST(new Request('https://madregot.app/api/admin/entry-queue/nudge', {
+      method: 'POST',
+      body: JSON.stringify({ athleteId: 'dana-1', gaps: ['sizes'] }),
+    }) as never);
+    expect(await res.json()).toMatchObject({ gaps: ['login'] });
   });
 
   it('reports unreachable when there is no phone to push to', async () => {

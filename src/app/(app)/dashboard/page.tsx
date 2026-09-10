@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { Calendar, ArrowRight, TrendingUp, TrendingDown, MapPin, Flame } from 'lucide-react';
@@ -15,19 +16,44 @@ import { AttendanceRSVP, type AttendanceStatus } from '@/components/AttendanceRS
 import { NextWorkoutCard } from '@/components/NextWorkoutCard';
 import { StatTiles } from '@/components/StatTiles';
 import { WeeklyLeaderboardCard } from '@/components/WeeklyLeaderboardCard';
-import { CoachPulse } from '@/components/CoachPulse';
-import { AttendanceRoster } from '@/components/AttendanceRoster';
-import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_TEXT_COLORS as typeTextColors, WORKOUT_TYPE_LABELS as typeLabels, planDayKey } from '@/lib/plans/workout-parsing';
 import { teamDayTarget } from '@/lib/plans/team-day';
 import { Spinner, Card, BigStat, EmptyState, Button } from '@/components/ui';
 import { useNavIdentity } from '@/lib/nav-items';
-import { ControlRoomScreen } from '@/components/admin/ControlRoomScreen';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 // The goal race lived here as three consts until the designer's Profile frame
 // put the same countdown on a second screen — see src/lib/goal-race.ts. The
 // h/m/s tick below stays local: only this strip counts down by the second.
 import { GOAL_RACE } from '@/lib/goal-race';
+
+// ── Loaded on demand, following components/ui/Sheet.tsx ──────────────────────
+// This is the heaviest route in the app and four of the components it imports are
+// rendered for almost nobody: three are `isCoach`-only (the club has one coach and
+// ~25 runners) and the fourth is a bottom sheet that appears only in the moment a
+// background sync finds a brand-new activity. They were on the initial download
+// of the dashboard for every runner regardless.
+//
+// Every one of them is already behind a condition in the JSX below, which is what
+// makes this safe: next/dynamic starts the fetch when the component first
+// *renders*, so a runner never asks for these chunks at all and the coach asks for
+// them on the same paint they would have had anyway.
+//
+// `ssr: false` on all four because each condition is decided from client state
+// (the role comes out of localStorage via useNavIdentity, the sheet out of a
+// fetch), so the server render never reached them in the first place.
+const CoachPulse = dynamic(() => import('@/components/CoachPulse').then(m => m.CoachPulse), { ssr: false });
+const AttendanceRoster = dynamic(() => import('@/components/AttendanceRoster').then(m => m.AttendanceRoster), { ssr: false });
+const ActivitySyncEditor = dynamic(() => import('@/components/ActivitySyncEditor').then(m => m.ActivitySyncEditor), { ssr: false });
+// The one exception to "no fallback needed": this replaces the WHOLE screen for an
+// admin, so without a spinner the control room opens on a blank page.
+const ControlRoomScreen = dynamic(() => import('@/components/admin/ControlRoomScreen').then(m => m.ControlRoomScreen), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center py-24">
+      <Spinner />
+    </div>
+  ),
+});
 
 interface DashboardStats {
   athleteCount: number;
@@ -78,11 +104,12 @@ interface RecentActivity {
 }
 
 /**
- * How many of these activities fall in the current activity week.
+ * How many of these activities fall in the current activity week (Mon–Sun — the
+ * watch's week, not the Sun–Sat plan week the hero above is showing).
  *
  * `activityWeekStart`, not `new Date(a.start_time) >= weekStart`: `start_time`
  * holds the athlete's own wall clock in a TIMESTAMPTZ, so local getters shift it
- * +3h in an Israel browser and a 21:30 Saturday run lands in NEXT week — dropped
+ * +3h in an Israel browser and a 22:30 Sunday run lands in NEXT week — dropped
  * from the count it belongs to. See the convention note in src/lib/utils.ts.
  */
 function countThisWeek(activities: Array<{ start_time: string }>): number {

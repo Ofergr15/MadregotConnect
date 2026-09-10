@@ -1,7 +1,7 @@
 'use client';
 
 import useSWR, { SWRConfiguration } from 'swr';
-import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { bearerHeaders, invalidateBearerToken } from '@/lib/auth/bearer-headers';
 import { trySilentReauth } from '@/lib/auth/silent-reauth';
 import { getSupabase } from '@/lib/supabase/client';
 
@@ -44,6 +44,10 @@ export async function apiHeaders(includeJson = false): Promise<Record<string, st
  * devices — the exact harm this whole change is undoing.
  */
 async function recoverFrom401(): Promise<string | null> {
+  // bearerHeaders caches the token for most of its lifetime, and the token that
+  // just 401'd is exactly the one it would hand out again — drop it first, so the
+  // recovery below is what the next request reads rather than the corpse.
+  invalidateBearerToken();
   const token = await trySilentReauth();
   if (token) return token;
   try {

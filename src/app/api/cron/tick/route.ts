@@ -8,7 +8,7 @@ import {
 import { notifyStaff } from '@/lib/notifications/staff';
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { createAndSendSurvey, notifySurveyNonResponders } from '@/lib/surveys';
-import { israelNow, israelToday, getPlanWeekStart, getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
+import { israelNow, israelToday, getPlanWeekStart, getActivityWeekStart, israelDateAnchor, addDaysToDateStr } from '@/lib/utils';
 import { APPROVER_EMAILS } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
@@ -408,21 +408,28 @@ async function run(request: Request) {
   }
 
   // Sunday 19:00 IL weekly recap: personalized "your week" push to each runner
-  // who ran LAST activity-week (Sun–Sat) — km + runs. Idempotent per activity
+  // who ran THIS activity-week (Mon–Sun) — km + runs. Idempotent per activity
   // week via one ledger tag; per-athlete content computed from one activities
   // query. Runs only, both Garmin + Strava (same table).
   //
-  // Activity weeks now start Sunday (changed 2026-08-21 from Monday), so firing
-  // on Sunday evening means `now` already sits in the NEW week that just
-  // started today — the week being recapped is the previous one. Bound the
-  // query on both ends (start of last week ≤ x < start of this week) so it
-  // can't bleed into today's activities, which belong to the new week.
+  // Activity weeks start MONDAY again (re-split from the plan week on 2026-09-09
+  // — see getActivityWeekStart), which puts Sunday evening on the LAST day of the
+  // week rather than the first day of the next one. So the week to recap is the
+  // one `anchor` is standing in: it closes in five hours. While the anchor was
+  // Sunday (2026-08-21 to 2026-09-09) this slot correctly recapped the PREVIOUS
+  // week; keeping that shape now would push everyone a recap of a week that ended
+  // eight days ago. Still bounded on both ends so it can't bleed into next week.
+  //
+  // A run started after 19:00 on the closing Sunday misses its own recap — the
+  // cost of not moving the send to Monday morning, where a "your week" push lands
+  // after people have stopped thinking about the week. Bounded to one evening the
+  // club almost never trains in.
   if (weekday === 0 && hour === 19) {
     // Anchored to Israel's calendar day so the boundaries don't depend on the
     // gate above happening to fire at an hour where UTC and Israel agree.
     const anchor = israelDateAnchor(now);
-    const thisWeekStart = getActivityWeekStart(anchor); // today — the new week that just started
-    const recapWeekStart = getActivityWeekStart(new Date(anchor.getTime() - 7 * 86400_000)); // last week, being recapped
+    const recapWeekStart = getActivityWeekStart(anchor); // the Monday of the week closing today
+    const nextWeekStart = addDaysToDateStr(recapWeekStart, 7); // exclusive upper bound
     const tag = `recap:${recapWeekStart}`;
     if (!(await already(tag))) {
       const RUN_TYPES = ['running', 'trail_running', 'treadmill_running', 'track_running', 'virtual_run'];
@@ -439,7 +446,7 @@ async function run(request: Request) {
           .select('athlete_id, activity_type, distance, duration')
           .in('athlete_id', ids)
           .gte('start_time', recapWeekStart)
-          .lt('start_time', thisWeekStart);
+          .lt('start_time', nextWeekStart);
         // Fold per athlete: km + runs + total seconds (runs only). Total seconds
         // (not per-activity average_pace) so the weekly pace is a true distance-
         // weighted average, not an average of averages.

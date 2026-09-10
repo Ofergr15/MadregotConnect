@@ -14,6 +14,7 @@ import {
 } from '@/lib/feed/highlight';
 import {
   activityLocalDateStr,
+  getActivityWeekStart,
   getPlanWeekStart,
   israelDateAnchor,
   israelToday,
@@ -43,9 +44,13 @@ export const dynamic = 'force-dynamic';
  * integration and the richer record (laps, HR, cadence).
  *
  * ── Which week ───────────────────────────────────────────────────────────────
- * The PLAN week (`getPlanWeekStart`, Sunday-based), because the target being
- * compared against is `weekly_plans.week_start_date` and comparing kilometres from
- * one window against a target from another is how this card would start lying.
+ * Two of them, and which is which matters. The kilometres, the day strip and the
+ * dismiss key are the ACTIVITY week (`getActivityWeekStart`, Monday) — this card's
+ * headline is a distance and it has to be the distance the athlete's watch shows,
+ * which is what every other km in the app now uses. The target it is measured
+ * against is read for the PLAN week (`getPlanWeekStart`, Sunday), because that is
+ * what `weekly_plans.week_start_date` is keyed on. They were one window between
+ * 2026-08-21 and 2026-09-09 and are six-of-seven days apart again.
  * Deliberately not `getDisplayWeekStart`, which rolls to next week after Saturday
  * 20:00: the dashboard does that so a runner can preview the coming plan, but this
  * card answers "how is my week going", and on Saturday evening that is still the
@@ -88,7 +93,16 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     const now = new Date();
     const todayKey = israelToday(now);
-    const weekStart = getPlanWeekStart(israelDateAnchor(now));
+    const anchor = israelDateAnchor(now);
+    // The card's week is the ACTIVITY week (Monday) — its headline is kilometres,
+    // and a runner reconciles that against their watch. The TARGET it is measured
+    // against comes from the PLAN week (Sunday), which is what the coach published
+    // and what `weekly_plans.week_start_date` is keyed on. The two overlap by six
+    // of seven days; a weekly volume target is a range, so measuring Mon–Sun km
+    // against the Sun–Sat plan's ceiling is a day's worth of slack, and worth it to
+    // stop this card disagreeing with every other km on the app.
+    const weekStart = getActivityWeekStart(anchor);
+    const planWeek = getPlanWeekStart(anchor);
     const daysElapsed = dayKeyDiff(weekStart, todayKey) + 1;
 
     const { data: acts, error } = await supabase
@@ -100,7 +114,7 @@ export async function GET(request: Request) {
 
     const runs = filterQualifyingRuns((acts || []) as ActivityRow[]);
 
-    // This week's kilometres, per day, Sunday first. Read as the athlete's local
+    // This week's kilometres, per day, Monday first. Read as the athlete's local
     // day — these timestamps are wall-clock-stored-as-UTC (see lib/utils.ts).
     const dailyKm = new Array<number>(WEEK_DAYS).fill(0);
     for (const r of runs) {
@@ -111,7 +125,7 @@ export async function GET(request: Request) {
     const weekKm = dailyKm.reduce((a, b) => a + b, 0);
 
     const [{ targetMin, targetMax }, challenge] = await Promise.all([
-      resolveWeekTarget(supabase, athleteId, weekStart),
+      resolveWeekTarget(supabase, athleteId, planWeek),
       resolveChallenge(supabase, athleteId, todayKey),
     ]);
 

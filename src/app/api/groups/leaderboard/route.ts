@@ -56,7 +56,8 @@ export async function GET(request: Request) {
     const supabase = createServerClient({ revalidateSeconds: 60 });
     // Israel's calendar day, not the server's UTC one — see israelDateAnchor.
     const now = israelDateAnchor();
-    // Sunday-based week (club standard since 2026-08-21), matching weekly_plans.
+    // Monday-based activity week (re-split from the plan week 2026-09-09), so the
+    // weekly km here is the same figure the athlete's watch reports.
     const weekStart = getActivityWeekStart(now);
 
     const { data: athletes, error: athError } = await supabase

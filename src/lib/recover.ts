@@ -73,7 +73,20 @@ export async function hardReload(): Promise<void> {
       // Per registration, so one rejecting can't skip the others. A failed
       // update just means the current worker stays — with empty caches it has
       // to go to the network anyway.
-      await Promise.all(regs.map((r) => Promise.resolve(r.update()).catch(() => {})));
+      await Promise.all(
+        regs.map((r) =>
+          Promise.resolve(r.update())
+            .then(() => {
+              // The worker no longer activates on its own (`skipWaiting: false` in
+              // sw.ts, so a deploy can't reload the app mid-run). That makes this
+              // handshake necessary here and nowhere else: "reset this device" is
+              // the one place where taking over immediately is the whole point,
+              // and we are about to reload anyway, so there is no session to lose.
+              r.waiting?.postMessage({ type: 'SKIP_WAITING' });
+            })
+            .catch(() => {}),
+        ),
+      );
     }
   } catch {
     // Ignore: the reload below still fetches fresh HTML from the network.

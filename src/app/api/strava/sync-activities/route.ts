@@ -19,6 +19,7 @@ import {
   enrichStravaActivity,
   getValidStravaToken,
   isMissingColumnError,
+  needsStravaEnrich,
 } from '@/lib/strava/enrich';
 import { routeFromSummaryPolyline } from '@/lib/strava/polyline';
 import { backfillStravaLaps } from '@/lib/strava/backfill-laps';
@@ -101,6 +102,12 @@ export async function runStravaSyncRequest(request: Request) {
       runs?: number;
       /** Routes recovered onto runs already stored without one. */
       routesAdded?: number;
+      /**
+       * GPS-less Strava recordings passed over (distance 0). Reported because
+       * the alternative is a silent drop: if this number is ever large for an
+       * athlete whose runs are genuinely missing, this is where to look.
+       */
+      skippedDistanceless?: number;
       planMatches?: number;
       error?: string;
     }> = [];
@@ -168,11 +175,11 @@ export async function runStravaSyncRequest(request: Request) {
         const activities = await client.getAllActivities({ after, maxPages: 5, perPage: 100 });
         const runActivities = activities.filter(isRun);
 
-        type ExistingRow = { id: string; strava_activity_id: number | null; laps: unknown; strava_gpx_url?: string | null };
+        type ExistingRow = { id: string; strava_activity_id: number | null; source: string | null; laps: unknown; strava_gpx_url?: string | null };
         let hasGpxColumn = true;
         let { data: existing, error: existingError } = await supabase
           .from('athlete_activities')
-          .select('id, strava_activity_id, start_time, laps, strava_gpx_url')
+          .select('id, strava_activity_id, source, start_time, laps, strava_gpx_url')
           .eq('athlete_id', athlete.id)
           .returns<ExistingRow[]>();
         if (existingError && isMissingColumnError(existingError)) {
@@ -181,7 +188,7 @@ export async function runStravaSyncRequest(request: Request) {
           hasGpxColumn = false;
           ({ data: existing, error: existingError } = await supabase
             .from('athlete_activities')
-            .select('id, strava_activity_id, start_time, laps')
+            .select('id, strava_activity_id, source, start_time, laps')
             .eq('athlete_id', athlete.id)
             .returns<ExistingRow[]>());
         }
@@ -192,8 +199,7 @@ export async function runStravaSyncRequest(request: Request) {
           if (e.strava_activity_id) {
             existingByStrava.set(e.strava_activity_id, {
               id: e.id,
-              // null laps = never enriched (enrich stores [] when Strava has none)
-              needsEnrich: e.laps == null || (hasGpxColumn && !e.strava_gpx_url),
+              needsEnrich: needsStravaEnrich(e, hasGpxColumn),
             });
           }
         }
@@ -226,6 +232,7 @@ export async function runStravaSyncRequest(request: Request) {
         let routesAdded = 0;
 
         let synced = 0;
+        let skippedDistanceless = 0;
         const insertErrors: string[] = [];
         // Post-workout feedback nudge (same purpose as Garmin sync's) needs
         // the newest genuinely-new activity's details after the loop below.
@@ -279,12 +286,40 @@ export async function runStravaSyncRequest(request: Request) {
           const durationSec = a.moving_time || a.elapsed_time;
           const distanceM = a.distance;
 
+          // A recording with no distance is not a run this app can hold. Strava
+          // reports `distance: 0` for a GPS-less capture — heart rate and
+          // calories and nothing else — and such a row arrives with no distance,
+          // no pace (average_pace is null by the formula below), no route, and a
+          // start time that isn't even local: with no GPS Strava has no timezone
+          // to localize with, so start_date_local comes back as UTC.
+          //
+          // Which makes it worse than merely empty. It is a PHANTOM COPY. One
+          // athlete's account held ten of these (measured 2026-09-08), every one
+          // of them a second record of a run already imported from Garmin — and
+          // undetectable as such, because hasCrossSourceDuplicate below bails on
+          // a zero distance (activity-dedup.ts:61) and the UTC timestamp lands
+          // ~2.5h from the Garmin row regardless. They were announced to the
+          // whole club as "0.0 ק"מ" apiece.
+          //
+          // What this costs: an HR-only record is discarded rather than kept
+          // pace-less. Accepted, because nothing in the app reads such a row —
+          // volume, pace, badges, challenges, shoe mileage and the map all need
+          // a distance. A treadmill run with a distance typed into Strava by
+          // hand is unaffected; it has one.
+          if (!distanceM || distanceM <= 0) {
+            skippedDistanceless++;
+            continue;
+          }
+
           // Garmin can auto-export this same run to Strava — garmin/sync-activities
           // already inserted it under a positive garmin_activity_id, which
           // existingByStrava (keyed by strava_activity_id) can never match. Without
           // this check every such run gets counted twice (badges, challenges, shoe
           // mileage, teammate pushes). See hasCrossSourceDuplicate's own comment.
-          if (await hasCrossSourceDuplicate(supabase, athlete.id, a.start_date_local, distanceM)) {
+          // `elapsed_time` (not moving_time): the overlap test compares wall clock
+          // against the other source's stored duration, and a run's moving time is
+          // shorter than the span it actually occupied.
+          if (await hasCrossSourceDuplicate(supabase, athlete.id, a.start_date_local, distanceM, a.elapsed_time)) {
             continue;
           }
 
@@ -378,6 +413,11 @@ export async function runStravaSyncRequest(request: Request) {
               activityKey: inserted.id,
               activityId: inserted.id,
               distanceMeters: row.distance,
+              // A first Strava connection backfills history as new rows here, so
+              // "new" alone is not grounds for a push — notifyTeammatesOfActivity
+              // drops anything that finished over a day ago.
+              startTime: row.start_time,
+              durationSeconds: row.duration,
             });
           } catch (notifyErr) {
             console.warn(`Teammate notify for Strava activity ${a.id} failed:`, notifyErr);
@@ -455,6 +495,7 @@ export async function runStravaSyncRequest(request: Request) {
           runs: runActivities.length,
           routesAdded,
           planMatches,
+          ...(skippedDistanceless ? { skippedDistanceless } : {}),
           ...(insertErrors.length
             ? { error: `${insertErrors.length} insert failures: ${insertErrors[0]}` }
             : {}),

@@ -1,11 +1,17 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Footprints, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Footprints, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Sheet, Switch, ConfirmSheet } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
+import {
+  SHOE_CATALOG,
+  catalogShoeName,
+  findCatalogShoe,
+  type ShoeCatalogEntry,
+} from '@/lib/shoe-catalog';
 
 interface Shoe {
   id: string;
@@ -39,6 +45,10 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [showCatalog, setShowCatalog] = useState(false);
+  // The km limit this component filled in itself, so picking a second model can
+  // replace it — but a number the athlete typed is never overwritten.
+  const [limitFromCatalog, setLimitFromCatalog] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!athleteId) { setLoading(false); return; }
@@ -61,6 +71,10 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
     setActive(shoes.length === 0);
     setRetired(false);
     setError(null);
+    // Open on the model list: picking a pair is the common case, and typing a
+    // name is the exception it falls back to.
+    setShowCatalog(true);
+    setLimitFromCatalog(null);
     setSheetOpen(true);
   };
 
@@ -73,8 +87,27 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
     setActive(s.isActive);
     setRetired(s.retired);
     setError(null);
+    // Collapsed when editing — the shoe already has a name, and the reason to be
+    // on this screen is usually the km limit or the retired switch.
+    setShowCatalog(false);
+    setLimitFromCatalog(null);
     setSheetOpen(true);
   };
+
+  // Prefills the name, and the limit only when there is nothing of the athlete's
+  // own to lose. See lib/shoe-catalog.ts on why the number is a suggestion.
+  const pickModel = (entry: ShoeCatalogEntry) => {
+    setName(catalogShoeName(entry));
+    const suggested = String(entry.suggestedLimitKm);
+    if (limit.trim() === '' || limit === limitFromCatalog) {
+      setLimit(suggested);
+      setLimitFromCatalog(suggested);
+    }
+    setShowCatalog(false);
+    setError(null);
+  };
+
+  const selectedModel = findCatalogShoe(name);
 
   const save = async () => {
     if (!name.trim()) { setError('שם הנעליים נדרש'); return; }
@@ -172,6 +205,49 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
         title={adding ? 'נעליים חדשות' : 'עריכת נעליים'}
       >
         <div dir="rtl" className="space-y-4">
+          {/* The model list and the text field are both always reachable: the
+              club runs in HOKA, but a member in something else must still be
+              able to log it — a picklist with no way out is exactly the bug
+              reported on the shoe-SIZE field. */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowCatalog(v => !v)}
+              className="w-full flex items-center justify-between gap-2 bg-page/50 border border-page rounded-lg px-3 py-2.5 text-start"
+            >
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold text-ink-400">דגם</span>
+                <span className={cn('block text-base truncate', selectedModel ? 'text-ink-700' : 'text-ink-400')}>
+                  {selectedModel ? catalogShoeName(selectedModel) : 'בחירה מתוך דגמי HOKA'}
+                </span>
+              </span>
+              <ChevronDown
+                className={cn('h-5 w-5 shrink-0 text-ink-400 transition-transform', showCatalog && 'rotate-180')}
+              />
+            </button>
+
+            {showCatalog && (
+              <div className="max-h-[46vh] overflow-y-auto mt-2 -mx-1 px-1">
+                {SHOE_CATALOG.map(group => (
+                  <InsetSection key={group.id} header={group.label}>
+                    {group.models.map(entry => {
+                      const isSelected = selectedModel?.model === entry.model;
+                      return (
+                        <InsetRow
+                          key={entry.model}
+                          label={entry.model}
+                          sublabel={entry.purpose}
+                          onClick={() => pickModel(entry)}
+                          trailing={isSelected ? <Check className="h-5 w-5 text-brand-600" /> : undefined}
+                        />
+                      );
+                    })}
+                  </InsetSection>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div>
             <p className="text-xs font-semibold text-ink-400 mb-1.5">שם</p>
             <input

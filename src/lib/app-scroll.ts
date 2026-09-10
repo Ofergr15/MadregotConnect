@@ -45,6 +45,110 @@ export function appScrollTop(): number {
   return window.scrollY || document.documentElement.scrollTop || 0;
 }
 
+// ── REMEMBERING WHERE YOU WERE ──────────────────────────────────────────────
+// Because <main> is the scroller, the browser's own back-scroll restoration is
+// dead too: it restores the WINDOW, which never moved. The app shell therefore
+// has to remember offsets itself. Reported by a member 2026-09-08: open somebody
+// from the feed, come back, and the feed has jumped to the top.
+//
+// Keyed by pathname, not by history entry: the router doesn't expose a stable
+// key per entry, and pathname is also the granularity the shell already chose
+// for its scroll reset (a ?tab= change keeps your place). Two history entries on
+// the same path share one offset, which is only ever wrong by the difference
+// between two visits to the same screen.
+
+/** Roughly a session's worth of screens; the oldest is dropped first. */
+const MEMORY_LIMIT = 24;
+const offsets = new Map<string, number>();
+
+/** Record how far `key` is scrolled. Call this while the user scrolls, not on the way out — by the time the pathname has changed, the element is already being reset. */
+export function rememberAppScroll(key: string, top: number): void {
+  offsets.delete(key); // re-insert so Map order is least-recently-used first
+  offsets.set(key, Math.max(0, top));
+  for (const oldest of offsets.keys()) {
+    if (offsets.size <= MEMORY_LIMIT) break;
+    offsets.delete(oldest);
+  }
+}
+
+/** Where `key` was left, or 0 for a screen never visited. */
+export function recallAppScroll(key: string): number {
+  return offsets.get(key) ?? 0;
+}
+
+/** Drop one screen's offset, or all of them. */
+export function forgetAppScroll(key?: string): void {
+  if (key === undefined) offsets.clear();
+  else offsets.delete(key);
+}
+
+/**
+ * One step of a restore, as a pure decision.
+ *
+ * A restore cannot be a single assignment. The screen being restored fetches its
+ * own content, so at the moment it mounts the container is often one card tall
+ * and `scrollTop = 4000` silently becomes `scrollTop = 0` — the browser clamps
+ * to what exists. So the restore retries as content arrives, and this is the
+ * per-frame verdict: how far to scroll now, and whether to look again.
+ *
+ * `at` is where the container currently sits. If it is somewhere neither we nor
+ * the clamp put it, the user has taken over — scrolling them back is worse than
+ * giving up, so the retry stops.
+ */
+export function nextRestoreStep(
+  want: number,
+  box: { at: number; scrollHeight: number; clientHeight: number },
+  elapsedMs: number,
+  deadlineMs: number,
+  lastSet: number | null,
+): { set: number; retry: boolean } {
+  const reachable = Math.max(0, Math.min(want, box.scrollHeight - box.clientHeight));
+  const userTookOver = lastSet !== null && Math.abs(box.at - lastSet) > 4;
+  if (userTookOver) return { set: box.at, retry: false };
+  // Keep looking only while the content is still too short to hold the offset.
+  const retry = reachable < want && elapsedMs < deadlineMs;
+  return { set: reachable, retry };
+}
+
+/** How long to keep waiting for content tall enough to hold the offset. */
+export const RESTORE_DEADLINE_MS = 1500;
+
+/**
+ * Scroll the app back to `top`, following the content as it loads.
+ * Returns a canceller — call it if the screen changes again mid-restore.
+ */
+export function restoreAppScroll(top: number, deadlineMs = RESTORE_DEADLINE_MS): () => void {
+  const el = getAppScroller();
+  if (!el) return () => {};
+  if (top <= 0) {
+    el.scrollTop = 0;
+    return () => {};
+  }
+  const startedAt = Date.now();
+  let frame = 0;
+  let lastSet: number | null = null;
+  let cancelled = false;
+  const attempt = () => {
+    frame = 0;
+    if (cancelled) return;
+    const step = nextRestoreStep(
+      top,
+      { at: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight },
+      Date.now() - startedAt,
+      deadlineMs,
+      lastSet,
+    );
+    el.scrollTop = step.set;
+    lastSet = step.set;
+    if (step.retry) frame = requestAnimationFrame(attempt);
+  };
+  attempt();
+  return () => {
+    cancelled = true;
+    if (frame) cancelAnimationFrame(frame);
+  };
+}
+
 /** Back to the top of the current screen. */
 export function scrollAppToTop(smooth = true): void {
   const behavior: ScrollBehavior = smooth ? 'smooth' : 'auto';

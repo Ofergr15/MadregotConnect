@@ -42,32 +42,43 @@ describe('israelDateAnchor', () => {
     expect(anchor.getHours()).toBe(12);
   });
 
-  // This is the bug the anchor exists to kill: at 00:30 Israel on a Sunday the
-  // raw instant is still Saturday in UTC, so on Vercel getActivityWeekStart
-  // returns the PREVIOUS week's Sunday and every weekly total reads a week
+  // This is the bug the anchor exists to kill: at 00:30 Israel on a Monday the
+  // raw instant is still Sunday in UTC, so on Vercel getActivityWeekStart
+  // returns the PREVIOUS week's Monday and every weekly total reads a week
   // stale. Asserted only on the anchored value — the unanchored one is
   // deliberately not tested, since its answer depends on the machine's TZ
   // (that dependence IS the bug).
-  it('keeps the week from slipping backwards just after Israeli midnight on a Sunday', () => {
-    const justAfterMidnightSunday = new Date('2026-08-29T21:30:00Z'); // Sun 2026-08-30, 00:30 IDT
-    expect(getActivityWeekStart(israelDateAnchor(justAfterMidnightSunday))).toBe('2026-08-30');
+  //
+  // The critical weekday moved with the anchor: while activity weeks started on
+  // Sunday (2026-08-21 to 2026-09-09) this was the Saturday→Sunday midnight.
+  it('keeps the week from slipping backwards just after Israeli midnight on a Monday', () => {
+    const justAfterMidnightMonday = new Date('2026-08-23T21:30:00Z'); // Mon 2026-08-24, 00:30 IDT
+    expect(getActivityWeekStart(israelDateAnchor(justAfterMidnightMonday))).toBe('2026-08-24');
   });
 
   it('is a no-op for a mid-day instant', () => {
-    expect(getActivityWeekStart(israelDateAnchor(new Date('2026-08-26T09:00:00Z')))).toBe('2026-08-23');
+    expect(getActivityWeekStart(israelDateAnchor(new Date('2026-08-26T09:00:00Z')))).toBe('2026-08-24');
   });
 });
 
 // Activity start_time is the athlete's wall-clock stored as if UTC, so week
-// bucketing must use UTC parts — otherwise a late Saturday run shifts into
-// Sunday and lands in the wrong week for anyone viewing from Israel.
+// bucketing must use UTC parts — otherwise a late Sunday run shifts into Monday
+// and lands in the wrong week for anyone viewing from Israel.
+//
+// Activity weeks are Monday–Sunday (the watch's week; re-split from the Sunday
+// plan week on 2026-09-09), so the run that decides whether this is right is the
+// one late on a Sunday night.
 describe('activityWeekStart', () => {
-  it('keeps a late Saturday run in the week that is ending', () => {
-    expect(activityWeekStart('2026-08-29T21:30:00')).toBe('2026-08-23');
+  it('keeps a late Sunday run in the week that is ending', () => {
+    expect(activityWeekStart('2026-08-30T21:30:00')).toBe('2026-08-24');
   });
 
-  it('puts an early Sunday run in the week that just started', () => {
-    expect(activityWeekStart('2026-08-30T06:15:00')).toBe('2026-08-30');
+  it('puts a Saturday run in the week that is still running', () => {
+    expect(activityWeekStart('2026-08-29T21:30:00')).toBe('2026-08-24');
+  });
+
+  it('puts an early Monday run in the week that just started', () => {
+    expect(activityWeekStart('2026-08-31T06:15:00')).toBe('2026-08-31');
   });
 
   // All four forms that actually flow through the app must agree, whatever the
@@ -75,12 +86,12 @@ describe('activityWeekStart', () => {
   // the space-separated one with no offset at all.
   it('reads every timestamp shape as the same instant', () => {
     for (const form of [
-      '2026-08-30T00:00:00',
-      '2026-08-30T00:00:00Z',
-      '2026-08-30 00:00:00',
-      '2026-08-30T00:00:00+00:00',
+      '2026-08-31T00:00:00',
+      '2026-08-31T00:00:00Z',
+      '2026-08-31 00:00:00',
+      '2026-08-31T00:00:00+00:00',
     ]) {
-      expect(activityWeekStart(form)).toBe('2026-08-30');
+      expect(activityWeekStart(form)).toBe('2026-08-31');
     }
   });
 });
@@ -176,29 +187,30 @@ describe('the relative-time trap on activity timestamps', () => {
 });
 
 describe('computeWeekStreak', () => {
-  const now = new Date('2026-08-26T09:00:00Z'); // Wed, week of 2026-08-23
+  // Keys are ACTIVITY weeks, i.e. Mondays.
+  const now = new Date('2026-08-26T09:00:00Z'); // Wed, week of 2026-08-24
 
   it('counts back consecutive weeks from the current one', () => {
-    expect(computeWeekStreak(new Set(['2026-08-23', '2026-08-16', '2026-08-09']), now)).toBe(3);
+    expect(computeWeekStreak(new Set(['2026-08-24', '2026-08-17', '2026-08-10']), now)).toBe(3);
   });
 
   it('stops at the first gap', () => {
-    expect(computeWeekStreak(new Set(['2026-08-23', '2026-08-09']), now)).toBe(1);
+    expect(computeWeekStreak(new Set(['2026-08-24', '2026-08-10']), now)).toBe(1);
   });
 
   it('does not reset to zero early in a week with no run yet', () => {
-    expect(computeWeekStreak(new Set(['2026-08-16', '2026-08-09']), now)).toBe(2);
+    expect(computeWeekStreak(new Set(['2026-08-17', '2026-08-10']), now)).toBe(2);
   });
 
   it('is zero with no history', () => {
     expect(computeWeekStreak(new Set(), now)).toBe(0);
   });
 
-  // Anchoring inside computeWeekStreak means this instant — Saturday in UTC,
-  // Sunday in Israel — counts the new week, not the old one.
+  // Anchoring inside computeWeekStreak means this instant — Sunday in UTC,
+  // Monday in Israel — counts the new week, not the old one.
   it('anchors to the Israeli day rather than the raw instant', () => {
-    const sundayInIsrael = new Date('2026-08-29T21:30:00Z');
-    expect(computeWeekStreak(new Set(['2026-08-30']), sundayInIsrael)).toBe(1);
+    const mondayInIsrael = new Date('2026-08-23T21:30:00Z');
+    expect(computeWeekStreak(new Set(['2026-08-24']), mondayInIsrael)).toBe(1);
   });
 });
 

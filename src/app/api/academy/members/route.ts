@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { activityWeekStart, getActivityWeekStart, groupDisplayName, israelDateAnchor } from '@/lib/utils';
+import {
+  activityWeekOfPlanWeek, activityWeekStart, groupDisplayName, israelDateAnchor, planWeekStartOf,
+} from '@/lib/utils';
 import { computeAcademyWeekAdherence, sundayOf } from '@/lib/academy/report';
 import {
   completionRateOf, deriveAttention, emptyTeamTotals, rollupBands, rollupCoaches, rollupGroups, rollupTeam,
@@ -67,11 +69,17 @@ export async function GET(request: Request) {
     const isManager = caller.isSuperUser || caller.role === 'admin';
 
     const { searchParams } = new URL(request.url);
-    // Default to the current activity week, but let the caller page back — the
+    // Default to the current PLAN week, but let the caller page back — the
     // overview and the compliance tab must be able to show the same week.
+    //
+    // `kmWeek` is the Monday activity week inside it: adherence is a plan-week
+    // question and kilometres are a watch-week question, and they stopped being
+    // the same seven days when activity weeks moved back to Monday. One variable
+    // for both would read every member's weekly km as 0 without erroring.
     const weekStart = searchParams.get('weekStart')
       ? sundayOf(searchParams.get('weekStart'))
-      : getActivityWeekStart(israelDateAnchor());
+      : planWeekStartOf();
+    const kmWeek = activityWeekOfPlanWeek(weekStart);
 
     const supabase = createServerClient();
 
@@ -180,9 +188,9 @@ export async function GET(request: Request) {
       all.set(r.athlete_id, a);
 
       // Bucket by the activity's OWN week key, not a string compare against
-      // `weekStart` — the caller can ask for a past week, where ">= weekStart"
+      // `kmWeek` — the caller can ask for a past week, where ">= kmWeek"
       // would sweep in everything since.
-      if (r.start_time && activityWeekStart(r.start_time) === weekStart) {
+      if (r.start_time && activityWeekStart(r.start_time) === kmWeek) {
         const w = week.get(r.athlete_id) || zero();
         w.km += dist; w.runs += 1; w.dur += dur;
         week.set(r.athlete_id, w);

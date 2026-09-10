@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { activityWeekStart, getActivityWeekStart, groupDisplayName, israelDateAnchor } from '@/lib/utils';
+import { activityWeekOfPlanWeek, activityWeekStart, groupDisplayName, planWeekStartOf } from '@/lib/utils';
 import { computeAcademyWeekAdherence, sundayOf } from '@/lib/academy/report';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 
@@ -75,9 +75,17 @@ export async function GET(request: Request) {
     const { denied } = await requireCallerForAthlete(request, athleteId);
     if (denied) return denied;
 
+    // TWO windows, on purpose. `weekStart` is the PLAN week (Sunday) — it is what
+    // the ← → arrows on this screen step through and what the coach published
+    // against, so adherence and the response key stay on it. `kmWeek` is the
+    // ACTIVITY week (Monday), because the leaderboard next to it is kilometres and
+    // an athlete compares those against their watch. Handing one variable to both
+    // would not fail loudly: `activityWeekStart(...) === weekStart` would simply
+    // never match and every km on the board would read 0.
     const weekStart = searchParams.get('weekStart')
       ? sundayOf(searchParams.get('weekStart'))
-      : getActivityWeekStart(israelDateAnchor());
+      : planWeekStartOf();
+    const kmWeek = activityWeekOfPlanWeek(weekStart);
 
     const supabase = createServerClient();
 
@@ -129,8 +137,8 @@ export async function GET(request: Request) {
         .from('athlete_activities')
         .select('athlete_id, distance, duration, start_time')
         .in('athlete_id', memberIds)
-        .gte('start_time', dayShift(weekStart, -1))
-        .lt('start_time', dayShift(weekStart, 8)),
+        .gte('start_time', dayShift(kmWeek, -1))
+        .lt('start_time', dayShift(kmWeek, 8)),
       loadLifetime(supabase, athleteId),
       // The athlete's own planned-vs-actual, from the same shared implementation
       // the coach's compliance table uses — so the two can't disagree about
@@ -160,7 +168,7 @@ export async function GET(request: Request) {
 
     const week = new Map<string, Acc>();
     for (const r of weekActs.data || []) {
-      if (!r.start_time || activityWeekStart(r.start_time) !== weekStart) continue;
+      if (!r.start_time || activityWeekStart(r.start_time) !== kmWeek) continue;
       const w = week.get(r.athlete_id) || zero();
       w.km += Number(r.distance) || 0;
       w.runs += 1;

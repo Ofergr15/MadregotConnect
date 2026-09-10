@@ -79,19 +79,38 @@ supabase/
   individual academy plan.
 - **`athlete_activities`** — synced actuals. `weekly_km_snapshots` is a durable rollup.
 
-### Week starts — both are Sunday now
+### Week starts — TWO anchors, on purpose
 
-This has caused real bugs. `src/lib/utils.ts` is the authority:
+This has caused real bugs in both directions. `src/lib/utils.ts` is the authority:
 
-- **Plan week = Sunday.** `getPlanWeekStart()` — `weekly_plans.week_start_date`,
-  workout dates (`week_start + dayOfWeek`, 0 = Sunday), adherence, academy reports.
-- **Activity week = Sunday too**, since **2026-08-21**. `getActivityWeekStart()` —
-  leaderboards and weekly km. It used to be Monday, to match how Garmin/Strava report
-  weekly mileage; that was changed by product decision so an athlete's week lines up
-  with the coach's plan week. Don't "restore" it from a stale doc — this one was the
-  stale doc.
+- **Plan week = Sunday.** `getPlanWeekStart()` / `planWeekStartOf()` —
+  `weekly_plans.week_start_date`, workout dates (`week_start + dayOfWeek`, 0 = Sunday),
+  adherence, academy reports, the feed card's weekly *target*.
+- **Activity week = Monday**, since **2026-09-09**. `getActivityWeekStart()` (for a real
+  calendar `Date`) and `activityWeekStart()` (for an `athlete_activities.start_time`
+  string) — leaderboards, weekly km, volume charts, streaks, the weekly recap push.
 
-The trap that remains: a plan day carries only a `dayOfWeek`, and the week
+They were merged onto Sunday on 2026-08-21 and **re-split on 2026-09-09**. Why the
+re-split: a runner's watch said 180 km for the week and the app said 174.5 for the same
+rows, and they reported it as a bug. Both figures were arithmetically correct — that is
+precisely the problem. A weekly total nobody can reconcile against the device that
+recorded it gets treated as broken, and the club plans in Sun–Sat while every watch
+counts Mon–Sun, so the app now says both instead of picking one.
+
+**The failure mode this creates is silent, not loud.** Comparing an activity-week key
+against a plan-week value type-checks fine and simply never matches — the km read `0`.
+Any screen that shows activity km next to plan content needs both, and there are three:
+`api/academy/me`, `api/academy/members` (`weekStart` = plan, `kmWeek` =
+`activityWeekOfPlanWeek(weekStart)`) and `api/feed/highlight` (`weekStart` = activity,
+`planWeek` = plan, only the target reads the latter). `activityWeekOfPlanWeek()` picks
+the Monday *inside* the plan week — six days of overlap, not one.
+
+Two more things the anchor moves that a grep for the helper won't show: any
+`getDay() + 1`-style "how far into the week are we" arithmetic (see `daysElapsed` in
+`computeLikeForLikeTrend`), and any cron gated on a weekday. The Sunday 19:00 weekly
+recap in `cron/tick` now recaps the week *closing that evening*, not the previous one.
+
+The other trap: a plan day carries only a `dayOfWeek`, and the week
 `/api/dashboard/weekly` returns is **not always the week the browser is standing in**
 (`getDisplayWeekStart` rolls forward after Saturday 20:00 Israel so athletes can
 preview). Turn it into a date with `planDayKey(weekStart, dayOfWeek)` from
@@ -208,6 +227,71 @@ same stretch, suspect the time axis first.
   the jsonb. Three writers have filled that column (`duration` / `movingDuration` /
   Strava's `moving_time`), and a reader that knows only Garmin's key returns
   zero-duration laps — indistinguishable from a run with no markers.
+
+### When both providers have the same run, Garmin's copy wins — by upgrade
+
+Garmin auto-exports to Strava, so one run arrives twice, and the two copies are not
+equivalent: Garmin's carries per-lap `wktStepIndex`, `executed_workout` and a 1 Hz
+trace, Strava's carries none of the three. `activity-dedup.ts` is source-blind and
+symmetric, so whichever sync ran first used to win permanently — and when Strava won,
+the run was stuck with the copy no engine above can read properly. Measured: one
+athlete's Tuesday double scored **74** with all six 2 km blocks marked `slower`
+(248 s/km, 247, 248, 242, 246, 268) while his own laps put them at 3:34, 3:35, 3:30,
+3:30, 3:25, 3:37 — five of six exactly on target — because a 45-point lap trace makes
+`bestWindow` land on lap boundaries and swallow a 522 m recovery jog. The teammate who
+ran the same session off Garmin scored 100. The segments route's self-repair can't heal
+it either: `wantsStamps` needs `garmin_workout_id != null`, which a Strava row never has.
+
+So `garmin/sync-activities` **upgrades the Strava row in place** (`findCrossSourceDuplicate`
+returns the row, not a boolean; `twinVerdict` decides insert/upgrade/skip and
+`upgradePatch` narrows what an upgrade may write — all three in `lib/activity-dedup.ts`,
+so neither rule can drift into the route). Four rules are load-bearing, and
+`garminStravaUpgrade.test.ts` pins them:
+
+- **It is an UPDATE, never delete-and-reinsert.** The row id is referenced by kudos,
+  comments, feedback, plan matches and `activity_streams`.
+- **Upgrade-only: nulls are dropped from the patch.** Garmin's row shape uses null for
+  "not reported", so writing it would erase what Strava had — `calories` is the live
+  case (Garmin's list row never has it, Strava's detail endpoint does). Empty
+  `gps_points` is the same claim and travels with `has_polyline`, or a failed detail
+  fetch blanks a map the feed is drawing.
+- **`activity_name` and `shoe_id` are never touched.** The name is user-editable
+  (`PATCH /api/feed/items/[id]`), and `active_shoe_id` is the shoe they're wearing
+  *now*, not for a run from last week.
+- **`strava_activity_id` stays.** It is what keeps the Strava sync recognising the run
+  so it doesn't insert a second copy — which is also why `needsStravaEnrich`
+  (`lib/strava/enrich.ts`) refuses a row whose `source` is no longer `strava`:
+  enrichment writes `laps: <Strava laps>` and would undo the upgrade silently.
+
+Nothing about an upgrade notifies (the athlete already heard about this run) and it
+doesn't count in `synced`; it's reported as `upgradedFromStrava` and capped at
+`UPGRADES_PER_SYNC` (5) per athlete per sync, newest first, since each is 2-4 serial
+Garmin calls under the 300 s ceiling and the build loop runs before any write — an
+uncapped first sync over a Strava-only history would cost the batch its new runs too.
+Strava-only runs still exist and are still kept — this only ever fires when Garmin has
+the same run.
+
+### Weekly km comes from the activities, not from `weekly_km_snapshots`
+
+**Nothing displays that table, and nothing should start.** Only the current and previous
+week are ever re-snapshotted, so every anchor change leaves the older rows behind. The
+Monday→Sunday move on 2026-08-21 left 255 of 359 production rows Monday-keyed and 95
+carrying `runs: 0`; the 2026-09-09 re-split back to Monday adds a **third** regime, so
+the table now holds a Monday history, three Sunday-keyed weeks in the middle, and
+Monday again after — with no column saying which. An axis built from the distinct
+`week_start` values present therefore mixes anchors — eight columns for six weeks, three
+overlapping their neighbour by six days — and one athlete's steady 175-185 km/week
+rendered as
+`179.3  72.3  52.2  177.8  0  182.7  174.5  93.3`, two collapses and a rest week they
+never took, on the screen a coach uses to judge who is overtrained.
+
+`lib/athletes/weekly-volume.ts` (`fetchWeeklyVolume`) is the one source now, used by
+`/api/coach/volume` and `/api/athletes/volume-history`; `profile-stats.ts`'s
+`buildKmTable` already did the same thing for the same reason. Two things there are not
+optional: the axis is **generated** from the current week backwards (a collected axis
+turns a rest week into a missing column), and it **pages** — Supabase caps a select at
+1000 rows and reports the truncation as success, while the 25-athlete roster is 2772
+activities over 26 weeks and 807 over the 8-week default.
 
 ## API conventions
 
@@ -364,6 +448,30 @@ Because the watch path now runs first, the feed badge's `paceStatus` may be the 
 on **a step shorter than a kilometre**. It is still a status and never a number, and
 still masked under the existing `pace` key, so nothing new leaves the server — but do
 not "improve" the badge by shipping the step's pace alongside it.
+
+Recorded exposure change, **2026-09-07** — the first one that is about the *device*
+rather than the API. `src/lib/swr-persist.ts` persists the SWR cache to
+**localStorage** (`mc_swr_cache_v1`), so club data now **rests on the phone between
+sessions**: whatever GETs the app made through `useApi` — this member's runs and paces,
+the feed they can see, teammate names. Nothing new is disclosed to anyone (it is the
+same data that session had already fetched and rendered), but "already on screen" and
+"still on disk tomorrow" are different risks, so three rules in that file are
+load-bearing rather than tidy, and are pinned by `src/__tests__/swrPersist.test.ts`:
+
+- **Scoped to one identity** (`athlete_id`/`coach_email`) and refused *and deleted* when
+  it doesn't match — the club shares phones and one iPad, and painting the previous
+  person's kilometres is the failure this prevents.
+- **Wiped on sign-out**, from `clearIdentityKeys()` rather than `signOutEverywhere()`,
+  because `clearLocalIdentity()` before a new Strava/Google sign-in is the path that
+  actually happens.
+- **Scoped to `APP_VERSION`**, so a changed response shape can't be restored into a
+  screen that no longer understands it — that failure has no failing request to explain
+  the blank card.
+
+Only `data` is restored, never a persisted `error` or `isValidating`. It is a cache, not
+a store: don't put anything in it the API doesn't already hand this session. If you add
+a route whose response should never touch disk, it needs an explicit skip in `save()` —
+there is no allowlist today.
 
 ## The AI parser — the accuracy-critical path
 

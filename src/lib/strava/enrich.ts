@@ -67,6 +67,39 @@ export interface EnrichTarget {
 }
 
 /**
+ * Whether an already-stored row still wants Strava's laps/streams written onto it.
+ *
+ * Lives here rather than inline in the sync route because what it protects is not
+ * obvious from the call site, and a route file can't export a helper for a test to
+ * reach (Next rejects any export that isn't an HTTP method).
+ *
+ * Two independent reasons to say no:
+ *
+ *  - **It was already enriched.** Non-null `laps` plus a `strava_gpx_url` means the
+ *    work is done; enrichment stores `[]` for a run Strava has no laps for, exactly
+ *    so "asked and got nothing" is distinguishable from "never asked".
+ *  - **It is no longer Strava's row.** garmin/sync-activities upgrades a Strava row
+ *    in place when Garmin turns out to have the same run, and it deliberately keeps
+ *    `strava_activity_id` so the sync's own existence check still recognises the run
+ *    and doesn't insert a second copy. But enrichment writes `laps: <Strava laps>`,
+ *    which on an upgraded row replaces laps carrying `wktStepIndex` with laps
+ *    carrying none — undoing the upgrade and taking the watch-step verdict with it,
+ *    silently, on the next sync.
+ *
+ * `hasGpxColumn` is false on a pre-migration-051 database, where `strava_gpx_url`
+ * can't be read at all and so can't be part of the answer.
+ */
+export function needsStravaEnrich(
+  row: { source?: string | null; laps?: unknown; strava_gpx_url?: string | null },
+  hasGpxColumn: boolean,
+): boolean {
+  // Only the Strava sync ever sets `strava_activity_id`, so a row that has one and
+  // no source is Strava's from before the column was populated — not an upgrade.
+  if ((row.source ?? 'strava') !== 'strava') return false;
+  return row.laps == null || (hasGpxColumn && !row.strava_gpx_url);
+}
+
+/**
  * Fetch laps/streams from Strava and store them on the activity row.
  * Resolves to the stored lap count, or null when enrichment failed.
  */

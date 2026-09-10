@@ -5,69 +5,110 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
-  Wrench, Search, Lock, Unlock, Clock, BellOff, Bell, Watch,
-  CheckCircle2, DoorOpen, UserCheck, ChevronLeft, Users as UsersIcon,
-  UserPlus, Mail,
+  Wrench, Search, Lock, Unlock, Bell, BellOff, Watch, Activity,
+  CheckCircle2, UserCheck, ChevronLeft, Users as UsersIcon,
+  UserPlus, Mail, Smartphone, AlertTriangle, HelpCircle,
+  UserMinus, RotateCcw,
 } from 'lucide-react';
 import { cn, getGroupChip, groupDisplayName } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
-import { Button, Card, EmptyState, SegmentedControl, Skeleton } from '@/components/ui';
+import { Button, Card, EmptyState, Skeleton } from '@/components/ui';
 import {
-  ENTRY_FILTERS,
-  isWaitingOnUs,
-  matchesFilters,
-  stageCounts,
-  STAGE_ORDER,
-  type EntryFilter,
+  FLOW_GROUPS,
+  FLOW_STEPS,
+  flowFunnel,
+  flowGroup,
+  GROUP_OF_STEP,
+  memberFlow,
+  memberGaps,
   type EntryQueueMember,
-  type EntryStage,
+  type FlowGroup,
+  type FlowStep,
   type PendingSignupRequest,
 } from '@/lib/admin/entry-queue';
 
 // ═════════════════════════════════════════════════════════════════════════════
-// "מחכים להיכנס" — the entry queue.
+// "מחכים להיכנס" — the entry queue, as the flow somebody actually walks.
 //
-// One card per person who isn't all the way in, with everything that decides it
-// (דבוקה, approval, last entry, watch, notifications) and ONE action. The state
-// was spread over three screens before this: approval in Settings → users, the
-// maintenance allowlist in Settings → maintenance, and the roster on
-// /dashboard/athletes — so "what is Dana's situation" was three lookups and
-// approving her during a window silently did nothing she could feel.
+// One card per person who isn't all the way in, showing the SIX steps between
+// signing up and being a working member, which of them they've passed, and the one
+// that is stopping them right now — plus the one action that moves it.
 //
-// The button here does both doors at once: POST /api/admin/approve approves AND
-// takes them off the maintenance block (see lib/maintenance-release.ts). What the
-// card claims about someone being blocked is the same predicate the API gate
-// enforces, resolved server-side — never a guess made in the browser.
+// WHAT THIS REPLACED, and why. The screen used to show a row of five or six
+// independent chips per person ("לא נכנס מעולם", "אין שעון", "הגדרה 0/5", …). Every
+// fact was there and the ORDER wasn't, so reading a card meant reconstructing the
+// sequence in your head, and two very different people looked identical: the member
+// who never once tried to log in, and the member who logged in successfully and
+// whose session was eaten by iOS's in-app browser sheet (migration 082). The first
+// needs a reminder; the second needs to be told to reopen the app from its icon. A
+// chip that says "לא נכנס מעולם" for both is worse than useless.
+//
+// So: `memberFlow()` in lib/admin/entry-queue orders the same facts, names the one
+// blocking step, and the funnel at the top counts how far the club as a whole gets.
+// The step evidence is all server-resolved — approval and the maintenance window
+// (both doors), `auth.users` for "did they ever start", `last_seen_at` for "did they
+// arrive", credentials for the watch, the scored setup tasks for the profile.
+//
+// The button still does both doors at once: POST /api/admin/approve approves AND
+// takes them off the maintenance block (see lib/maintenance-release.ts).
 // ═════════════════════════════════════════════════════════════════════════════
-
-type Bucket = 'waiting' | 'stuck' | 'ready' | 'all';
 
 interface QueueResponse {
   maintenance: boolean;
   canApprove: boolean;
+  /** Admin only, and separately from canApprove — see the remove route's header. */
+  canRemove?: boolean;
   members: EntryQueueMember[];
   /** /register applicants with no athlete row yet — see PendingSignupRequest. */
   orphanRequests?: PendingSignupRequest[];
   groups?: Array<{ id: string; name: string }>;
 }
 
-/** Which bucket holds a stage — so a tap on the bar's legend lands on those people. */
-const BUCKET_OF_STAGE: Record<EntryStage, Bucket> = {
-  pending: 'waiting',
-  blocked: 'waiting',
-  never: 'stuck',
-  setup: 'stuck',
+/**
+ * The list's filter: one group, everybody, or the people taken out of the club.
+ *
+ * 'removed' is deliberately a filter and not a group: those people are not on the
+ * flow at all — they aren't walking it — and mixing them into 'mine' would show a
+ * removed member as somebody stuck at signing up, which is the opposite of true.
+ * It exists so the soft removal is REVERSIBLE from the same screen that did it; a
+ * removal you can't find again is a delete with extra steps.
+ */
+type Filter = FlowGroup | 'all' | 'removed';
+
+/** Deep links from Coach Tools predate the flow; keep them landing sensibly. */
+const LEGACY_BUCKET: Record<string, Filter> = {
+  waiting: 'mine',
+  stuck: 'login',
   ready: 'ready',
+  all: 'all',
 };
 
-/** The bar's colours, one per stage. Ordered worst-first, like STAGE_ORDER. */
-const STAGE_FILL: Record<EntryStage, string> = {
-  pending: 'bg-accent-red',
-  blocked: 'bg-band-3',
-  never: 'bg-band-2',
-  setup: 'bg-brand-600',
-  ready: 'bg-accent-600',
+/**
+ * The funnel's colours: ONE hue for the journey, green only at the finish.
+ *
+ * Six different colours for six steps of a single journey is what the first cut
+ * did, and it read as six unrelated categories — the eye hunts for what "orange"
+ * means instead of comparing lengths, which is the only comparison on the card.
+ * The bars are one blue, the last is green because finishing is different in kind,
+ * and the alarm lives in the red drop-off number where it can be read as a number.
+ */
+const STEP_FILL: Record<FlowStep, string> = {
+  signedUp: 'bg-brand-600',
+  approved: 'bg-brand-600',
+  loginStarted: 'bg-brand-600',
+  loggedIn: 'bg-brand-600',
+  watch: 'bg-brand-600',
+  profile: 'bg-accent-600',
+};
+
+const STEP_ICON: Record<FlowStep, React.ComponentType<{ className?: string }>> = {
+  signedUp: UserPlus,
+  approved: Unlock,
+  loginStarted: Smartphone,
+  loggedIn: CheckCircle2,
+  watch: Watch,
+  profile: UserCheck,
 };
 
 export default function EntryQueuePage() {
@@ -81,21 +122,17 @@ export default function EntryQueuePage() {
   const allowlist = maintenanceData?.allowlist;
   const canEditAllowlist = Array.isArray(allowlist);
 
-  // Coach Tools links straight to a bucket ("3 waiting" → the three of them), so
-  // the count you tapped and the list you land on are the same set.
   const searchParams = useSearchParams();
-  const [bucket, setBucket] = useState<Bucket>(() => {
-    const asked = searchParams.get('bucket');
-    return (['waiting', 'stuck', 'ready', 'all'] as string[]).includes(asked || '')
-      ? (asked as Bucket)
-      : 'waiting';
+  // null = "haven't chosen", which resolves to 'mine' when somebody is waiting on
+  // the coach and to 'all' when nobody is. Landing on an empty list because the
+  // default filter happened to be empty is a dead end, and it was the first thing
+  // this screen did every time the queue was clear.
+  const [chosenFilter, setFilter] = useState<Filter | null>(() => {
+    const at = searchParams.get('at');
+    if (at && ([...FLOW_GROUPS, 'all', 'removed'] as string[]).includes(at)) return at as Filter;
+    return LEGACY_BUCKET[searchParams.get('bucket') || ''] || null;
   });
   const [query, setQuery] = useState('');
-  // Stack on top of the bucket rather than replacing it: "who in this bucket also
-  // has no notifications" is the question, and it has to survive switching bucket.
-  const [filters, setFilters] = useState<EntryFilter[]>([]);
-  const toggleFilter = (f: EntryFilter) =>
-    setFilters((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]));
   const [busyId, setBusyId] = useState<string | null>(null);
   const [turningOff, setTurningOff] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -109,59 +146,76 @@ export default function EntryQueuePage() {
   // What the last "let in" did: both doors, or only the approval because the club
   // was already open. Two different facts, and the admin has to be able to tell.
   const [letInResult, setLetInResult] = useState<Record<string, 'released' | 'approved' | 'failed' | null>>({});
+  // Ending a membership asks twice. Not a browser confirm(): this is a phone, the
+  // buttons are 44px apart, and the second tap has to be a different-looking button
+  // in a different place — not the same spot the first tap was in.
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [removeResult, setRemoveResult] = useState<Record<string, 'removed' | 'restored' | 'failed' | null>>({});
 
-  // Memoised so the counts below don't recompute on every render over a fresh []
-  const members = useMemo(() => data?.members || [], [data]);
+  const allMembers = useMemo(() => data?.members || [], [data]);
+  // Two lists, and everything below the split is about the first one. A removed
+  // member is not on the flow, so they are out of the funnel, the group counts, the
+  // bulk reminder and the search results — they have their own filter.
+  const members = useMemo(() => allMembers.filter((m) => !m.removed), [allMembers]);
+  const removedMembers = useMemo(() => allMembers.filter((m) => m.removed), [allMembers]);
   const maintenanceOn = !!data?.maintenance;
   const canApprove = !!data?.canApprove;
+  const canRemove = !!data?.canRemove;
 
   const orphans = useMemo(() => data?.orphanRequests || [], [data]);
   const groups = useMemo(() => data?.groups || [], [data]);
 
-  // An orphan request is a person waiting on a decision, so it counts as one — in
-  // the bar, in the buckets and in the headline. Anything less and the screen says
-  // "nobody is waiting" while somebody is.
-  const counts = useMemo(() => ({
-    all: members.length + orphans.length,
-    waiting: members.filter((m) => isWaitingOnUs(m.stage)).length + orphans.length,
-    stuck: members.filter((m) => m.stage === 'never' || m.stage === 'setup').length,
-    ready: members.filter((m) => m.stage === 'ready').length,
-  }), [members, orphans]);
+  /** Every member's flow, computed once — the card, the counts and the sort. */
+  const flows = useMemo(
+    () => new Map(members.map((m) => [m.id, memberFlow(m)] as const)),
+    [members],
+  );
+  const groupOf = useMemo(
+    () => new Map(members.map((m) => [m.id, flowGroup(m)] as const)),
+    [members],
+  );
 
-  const dist = useMemo(() => {
-    const byStage = stageCounts(members);
-    return { ...byStage, pending: byStage.pending + orphans.length };
+  // An orphan request is a person waiting on a decision, so it counts as one — in
+  // the funnel, in the groups and in the headline. Anything less and the screen
+  // says "nobody is waiting" while somebody is.
+  const counts = useMemo(() => {
+    const out = { mine: 0, login: 0, watch: 0, profile: 0, ready: 0, all: 0, removed: 0 } as Record<Filter, number>;
+    for (const m of members) out[groupOf.get(m.id)!] += 1;
+    out.mine += orphans.length;
+    out.all = members.length + orphans.length;
+    out.removed = removedMembers.length;
+    return out;
+  }, [members, orphans, groupOf, removedMembers]);
+
+  /** The funnel: "signed up 25 → approved 23 → …". Orphans stop at step one. */
+  const funnel = useMemo(() => {
+    const f = flowFunnel(members);
+    return { ...f, signedUp: f.signedUp + orphans.length };
   }, [members, orphans]);
 
-  /** How many people each filter would leave, so nobody taps into an empty list. */
-  const filterCounts = useMemo(() => {
-    const out = {} as Record<EntryFilter, number>;
-    for (const f of ENTRY_FILTERS) out[f] = members.filter((m) => matchesFilters(m, [f])).length;
-    return out;
-  }, [members]);
-
-  const inBucket = (m: EntryQueueMember) => {
-    if (bucket === 'all') return true;
-    if (bucket === 'waiting') return isWaitingOnUs(m.stage);
-    if (bucket === 'stuck') return m.stage === 'never' || m.stage === 'setup';
-    return m.stage === 'ready';
-  };
+  const filter: Filter = chosenFilter ?? (counts.mine > 0 ? 'mine' : 'all');
 
   const needle = query.trim().toLowerCase();
   const visible = members.filter((m) => {
     if (needle && !`${m.name} ${m.email || ''}`.toLowerCase().includes(needle)) return false;
-    if (!matchesFilters(m, filters)) return false;
-    return inBucket(m);
+    return filter === 'all' || groupOf.get(m.id) === filter;
   });
 
-  // Every filter here is trivially true of somebody who has no account yet, so an
-  // orphan is only ever hidden by the bucket or the search box.
   const visibleOrphans = orphans.filter(
-    (r) => (bucket === 'waiting' || bucket === 'all') && (!needle || r.email.toLowerCase().includes(needle)),
+    (r) => (filter === 'mine' || filter === 'all') && (!needle || r.email.toLowerCase().includes(needle)),
   );
 
+  /** Only under their own filter — never mixed into a list of people getting in. */
+  const visibleRemoved =
+    filter === 'removed'
+      ? removedMembers.filter((m) => !needle || `${m.name} ${m.email || ''}`.toLowerCase().includes(needle))
+      : [];
+
   /** The bulk target: everybody in view the app can still be nudged about. */
-  const nudgeable = visible.filter((m) => m.stage === 'never' || m.stage === 'setup');
+  const nudgeable = visible.filter((m) => {
+    const g = groupOf.get(m.id);
+    return g === 'login' || g === 'watch' || g === 'profile';
+  });
 
   /**
    * Approve + release, in one request. Both doors, one tap.
@@ -194,7 +248,7 @@ export default function EntryQueuePage() {
   };
 
   /**
-   * The nudge for somebody nothing is holding out who never came in. Push only —
+   * The nudge for somebody nothing is holding out who hasn't finished. Push only —
    * half the club has no real address — so the result says whether their phone
    * could actually be reached rather than just ticking.
    */
@@ -219,7 +273,7 @@ export default function EntryQueuePage() {
   /**
    * The same reminder, to everybody currently in view who hasn't finished.
    *
-   * The point of the club-members card: 23 of the 24 "requests" in production are
+   * The point of the club-members card: most of the "requests" in production are
    * existing members who just never finished connecting, and chasing them one card
    * at a time is why nobody did. The result is reported in three numbers because
    * push has three outcomes and "sent to 23" would be a lie about most of them.
@@ -275,6 +329,40 @@ export default function EntryQueuePage() {
     }
   };
 
+  /**
+   * Take somebody out of the club, or put them back.
+   *
+   * Soft both ways: this writes `athletes.status` and nothing else, so their runs,
+   * their PRs and their whole history survive and the restore is a single tap. The
+   * card says so before the second tap, because "delete" on a phone is assumed to
+   * mean gone and that assumption is what stops people using the button correctly —
+   * either they never touch it, or they touch it believing it's reversible when it
+   * isn't. Here it is, and it says which.
+   */
+  const setMembership = async (member: EntryQueueMember, action: 'remove' | 'restore') => {
+    setBusyId(member.id);
+    setRemoveResult((prev) => ({ ...prev, [member.id]: null }));
+    try {
+      const res = await fetch('/api/admin/entry-queue/remove', {
+        method: 'POST',
+        headers: await bearerHeaders(),
+        body: JSON.stringify({ athleteId: member.id, action }),
+      });
+      if (res.ok) {
+        setRemoveResult((prev) => ({ ...prev, [member.id]: action === 'remove' ? 'removed' : 'restored' }));
+        setConfirmRemove(null);
+        mutate();
+        mutateMaintenance();
+      } else {
+        setRemoveResult((prev) => ({ ...prev, [member.id]: 'failed' }));
+      }
+    } catch {
+      setRemoveResult((prev) => ({ ...prev, [member.id]: 'failed' }));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   /** Shut somebody back out of an open window — the undo for a mistaken release. */
   const blockAgain = async (member: EntryQueueMember) => {
     if (!canEditAllowlist) return;
@@ -314,41 +402,64 @@ export default function EntryQueuePage() {
     }
   };
 
-  const stageLabel: Record<EntryStage, string> = {
-    pending: t('stagePending'),
-    blocked: t('stageBlocked'),
-    never: t('stageNever'),
-    setup: t('stageSetup'),
-    ready: t('stageReady'),
-  };
-
-  const dateOnly = (iso: string | null) =>
+  const dateOnly = (iso: string | null | undefined) =>
     iso ? new Date(iso).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' }) : null;
 
-  /** The one line under the name: why this person is in this bucket. */
-  const summaryLine = (m: EntryQueueMember) => {
-    const signed = dateOnly(m.createdAt);
-    switch (m.stage) {
-      case 'pending':
-        return signed ? t('lineSignedUp', { date: signed }) : t('stagePending');
-      case 'blocked':
-        return m.approvedAt ? t('lineApprovedBlocked', { date: dateOnly(m.approvedAt)! }) : t('stageBlocked');
-      case 'never':
-        return m.approvedAt ? t('lineApprovedNever', { date: dateOnly(m.approvedAt)! }) : t('stageNever');
-      default:
-        return t('lineLastSeen', {
-          date: dateOnly(m.lastSeenAt) || '—',
-          done: m.setupDone,
-          total: m.setupTotal,
+  /** Whole days since a date — how long the club has been failing this person. */
+  const daysSince = (iso: string | null | undefined) => {
+    if (!iso) return null;
+    const ms = Date.now() - new Date(iso).getTime();
+    return ms > 0 ? Math.floor(ms / 86_400_000) : 0;
+  };
+
+  /**
+   * The one sentence that says what is wrong, per blocking step.
+   *
+   * The 'loggedIn' case is the one this screen exists for: a member with an auth
+   * account and no last_seen_at logged in and never landed inside the app, which is
+   * a specific, fixable iOS problem — not somebody ignoring the club.
+   */
+  const stuckLine = (m: EntryQueueMember, stuck: FlowStep) => {
+    switch (stuck) {
+      case 'approved':
+        return m.approved ? t('whyBlocked') : t('whyPending');
+      case 'loginStarted':
+        return t('whyNoLogin');
+      case 'loggedIn':
+        return t('whyLoginStuck');
+      case 'watch':
+        return t('whyNoWatch');
+      case 'profile':
+        return t('whyProfile', {
+          items: (m.setupMissing || []).map((k) => t(`missing_${k}` as never)).join(' · '),
         });
+      default:
+        return t('whySignedUp');
     }
+  };
+
+  /**
+   * The gaps the reminder will name, in words — the same list the push is built
+   * from (memberGaps), so the preview on the card cannot say one thing while the
+   * notification says another.
+   */
+  const gapList = (m: EntryQueueMember) =>
+    memberGaps(m).map((g) => (g === 'login' ? t('missing_login') : t(`missing_${g}` as never)));
+
+  /** The date the current wait started, so "how long" is honest per step. */
+  const waitingSince = (m: EntryQueueMember, stuck: FlowStep) => {
+    if (stuck === 'approved') return m.createdAt;
+    if (stuck === 'loginStarted') return m.approvedAt || m.createdAt;
+    if (stuck === 'loggedIn') return m.lastSignInAt || m.authAccountAt;
+    return m.lastSeenAt || m.approvedAt || m.createdAt;
   };
 
   if (isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
-        {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-40 w-full rounded-card" />)}
+        <Skeleton className="h-48 w-full rounded-card" />
+        {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-52 w-full rounded-card" />)}
       </div>
     );
   }
@@ -385,99 +496,84 @@ export default function EntryQueuePage() {
       <div>
         <h1 className="text-3xl font-extrabold text-ink-700 tracking-tight" dir="rtl">{t('title')}</h1>
         <p className="text-ink-400 mt-1 text-sm" dir="rtl">
-          {t('subtitle', { waiting: counts.waiting, total: counts.all })}
+          {t('subtitle', { waiting: counts.mine, total: counts.all })}
         </p>
       </div>
 
-      {/* Where the club actually stands, in one bar. Five stages left to right in
-          the order somebody moves through them, so the shape of the bar IS the
-          answer to "are we in trouble" — and each legend entry is the way into the
-          bucket it counts. */}
+      {/* THE FUNNEL. Six steps, one row each, longest bar first — so where the club
+          loses people is the shape of the card, and every row is the way into the
+          people who are stuck at it. Rows rather than a stacked bar because six
+          labels do not fit across a phone, and unlabelled segments are decoration. */}
       {counts.all > 0 && (
         <Card variant="solid">
-          <p className="text-xs font-semibold text-ink-500" dir="rtl">{t('distTitle', { total: counts.all })}</p>
-          <div className="mt-2.5 flex h-2.5 w-full overflow-hidden rounded-full bg-page">
-            {STAGE_ORDER.map((stage) =>
-              // Zero segments are dropped rather than drawn: a 0-wide sliver is
-              // invisible anyway, and a 1px one reads as a real group.
-              dist[stage] > 0 ? (
-                <span
-                  key={stage}
-                  className={cn('h-full', STAGE_FILL[stage])}
-                  style={{ width: `${(dist[stage] / counts.all) * 100}%` }}
-                />
-              ) : null,
-            )}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5" dir="rtl">
-            {STAGE_ORDER.map((stage) => (
-              <button
-                key={stage}
-                type="button"
-                onClick={() => setBucket(BUCKET_OF_STAGE[stage])}
-                className={cn(
-                  'flex items-center gap-1.5 text-2xs font-semibold',
-                  dist[stage] > 0 ? 'text-ink-700' : 'text-ink-300',
-                )}
-              >
-                <span className={cn('h-2 w-2 rounded-full', dist[stage] > 0 ? STAGE_FILL[stage] : 'bg-page')} />
-                {stageLabel[stage]}
-                <span className="tabular-nums">{dist[stage]}</span>
-              </button>
-            ))}
+          <p className="text-xs font-semibold text-ink-500" dir="rtl">{t('flowTitle', { total: counts.all })}</p>
+          <div className="mt-3 space-y-1.5" dir="rtl">
+            {FLOW_STEPS.map((step) => {
+              const Icon = STEP_ICON[step];
+              const n = funnel[step];
+              const lost = step === 'signedUp' ? 0 : funnel[FLOW_STEPS[FLOW_STEPS.indexOf(step) - 1]] - n;
+              return (
+                <button
+                  key={step}
+                  type="button"
+                  onClick={() => setFilter(GROUP_OF_STEP[step])}
+                  className="w-full flex items-center gap-2 text-start group"
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0 text-ink-400" />
+                  <span className="w-[86px] shrink-0 text-2xs font-semibold text-ink-500 truncate">
+                    {t(`step_${step}` as never)}
+                  </span>
+                  <span className="flex-1 h-2.5 rounded-full bg-page overflow-hidden">
+                    <span
+                      className={cn('block h-full rounded-full', STEP_FILL[step])}
+                      style={{ width: `${counts.all ? (n / counts.all) * 100 : 0}%` }}
+                    />
+                  </span>
+                  <span className="w-8 shrink-0 text-2xs font-bold tabular-nums text-ink-700 text-end">{n}</span>
+                  {/* The drop-off, which is the number that actually matters: 25
+                      signed up and 9 got in means 14 people the club lost here. */}
+                  <span className="w-11 shrink-0 text-2xs tabular-nums text-accent-red text-end">
+                    {lost > 0 ? `−${lost}` : ''}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </Card>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <SegmentedControl
-          value={bucket}
-          onChange={setBucket}
-          options={(['waiting', 'stuck', 'ready', 'all'] as const).map((b) => ({
-            value: b,
-            label: `${t(b)} (${counts[b]})`,
-          }))}
-          className="w-fit"
-        />
-        <label className="relative flex-1 min-w-[200px]">
-          <Search className="absolute top-1/2 -translate-y-1/2 start-3 h-4 w-4 text-ink-400 pointer-events-none" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('searchPlaceholder')}
-            className="w-full bg-card border border-page rounded-full ps-9 pe-4 py-2.5 min-h-[44px] text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-600"
-          />
-        </label>
-      </div>
-
-      {/* What's missing, as filters that stack — the follow-up questions after
-          "did they get in": no notifications, no watch, never opened it, no דבוקה. */}
+      {/* The groups, by what the next action is: yours, a reminder, or nothing. */}
       <div className="flex flex-wrap items-center gap-2" dir="rtl">
-        {ENTRY_FILTERS.map((f) => {
-          const on = filters.includes(f);
+        {/* 'removed' appears only once somebody is in it — an empty tab would
+            advertise the button rather than the people. */}
+        {([...FLOW_GROUPS, 'all', ...(removedMembers.length ? (['removed'] as const) : [])] as Filter[]).map((g) => {
+          const on = filter === g;
           return (
             <button
-              key={f}
+              key={g}
               type="button"
-              onClick={() => toggleFilter(f)}
+              onClick={() => setFilter(g)}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
-                on
-                  ? 'bg-brand-600 border-brand-600 text-white'
-                  : 'bg-card border-page text-ink-500',
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-2 min-h-[36px] text-xs font-semibold transition-colors',
+                on ? 'bg-brand-600 border-brand-600 text-white' : 'bg-card border-page text-ink-500',
               )}
             >
-              {t(`filter_${f}`)}
-              <span className={cn('tabular-nums', on ? 'text-white/70' : 'text-ink-300')}>{filterCounts[f]}</span>
+              {t(`group_${g}` as never)}
+              <span className={cn('tabular-nums', on ? 'text-white/70' : 'text-ink-300')}>{counts[g]}</span>
             </button>
           );
         })}
-        {filters.length > 0 && (
-          <button type="button" onClick={() => setFilters([])} className="text-xs font-semibold text-brand-600 px-1">
-            {t('clearFilters')}
-          </button>
-        )}
       </div>
+
+      <label className="relative block">
+        <Search className="absolute top-1/2 -translate-y-1/2 start-3 h-4 w-4 text-ink-400 pointer-events-none" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t('searchPlaceholder')}
+          className="w-full bg-card border border-page rounded-full ps-9 pe-4 py-2.5 min-h-[44px] text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-600"
+        />
+      </label>
 
       {/* One action for the whole group in view. This is the card the club needed:
           the people here are mostly existing members who never finished, and they
@@ -501,16 +597,6 @@ export default function EntryQueuePage() {
               {bulkBusy ? t('saving') : t('bulkRemind', { count: nudgeable.length })}
             </Button>
           </div>
-          {/* Progress bar of the same set: how many of them are all the way in. */}
-          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-page">
-            <span
-              className="block h-full bg-accent-600"
-              style={{ width: `${counts.all ? (counts.ready / counts.all) * 100 : 0}%` }}
-            />
-          </div>
-          <p className="mt-1.5 text-2xs text-ink-400" dir="rtl">
-            {t('bulkProgress', { ready: counts.ready, total: counts.all })}
-          </p>
           {bulkResult && (
             <p className="mt-2.5 text-xs font-semibold text-ink-500" dir="rtl">
               {t('bulkResult', bulkResult)}
@@ -538,10 +624,21 @@ export default function EntryQueuePage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5 mt-3">
-                  <Chip tone="bad" icon={Clock} label={t('stagePending')} />
+
+                {/* The same track as a member's, so an applicant reads on the same
+                    scale: they are at step one of six and everything is ahead. */}
+                <FlowTrack
+                  reached={1}
+                  stuckIndex={1}
+                  unknownAfter={1}
+                  label={(step) => t(`stepShort_${step}` as never)}
+                />
+                <p className="mt-2 text-xs font-semibold text-accent-red flex items-center gap-1.5" dir="rtl">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  {t('whyPending')}
                   <Chip tone="muted" icon={Mail} label={t('orphanNoAccount')} />
-                </div>
+                </p>
+
                 {/* The דבוקה picker, because approval without one is refused by the
                     API — and a disabled approve button with no way to fix it was the
                     whole complaint about the screen this replaces. */}
@@ -600,21 +697,61 @@ export default function EntryQueuePage() {
         </div>
       )}
 
+      {/* The people who were taken out of the club. No flow track and no chips:
+          there is exactly one thing to know about them (they're out) and one thing
+          to do (put them back), and drawing six steps for somebody who isn't
+          walking them would say they're stuck when they're simply not here. */}
+      {visibleRemoved.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs text-ink-400 leading-relaxed" dir="rtl">{t('removedIntro')}</p>
+          {visibleRemoved.map((m) => {
+            const busy = busyId === m.id;
+            return (
+              <Card key={m.id} variant="solid" className="opacity-90">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="shrink-0 w-9 h-9 rounded-full bg-page flex items-center justify-center">
+                      <UserMinus className="h-4 w-4 text-ink-400" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[15px] font-semibold text-ink-500 truncate" dir="auto">{m.name}</p>
+                      {m.email && <p className="text-xs text-ink-300 truncate">{m.email}</p>}
+                    </div>
+                  </div>
+                  {canRemove && (
+                    <Button variant="secondary" onClick={() => setMembership(m, 'restore')} disabled={busy}>
+                      <RotateCcw className="h-4 w-4" />
+                      {busy ? t('saving') : t('restoreToClub')}
+                    </Button>
+                  )}
+                </div>
+                {removeResult[m.id] === 'failed' && (
+                  <p className="mt-2.5 text-xs font-semibold text-accent-red" dir="rtl">{t('resultFailed')}</p>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
       {visible.length === 0 ? (
-        visibleOrphans.length === 0 && (
+        visibleOrphans.length === 0 && visibleRemoved.length === 0 && (
           <EmptyState
             icon={UsersIcon}
-            title={query.trim() || filters.length ? t('noMatches') : t('emptyTitle')}
-            description={query.trim() || filters.length ? undefined : t('emptyDescription')}
+            title={query.trim() ? t('noMatches') : t(`empty_${filter}` as never)}
+            description={query.trim() ? undefined : t('emptyDescription')}
           />
         )
       ) : (
         <div className="space-y-3">
           {visible.map((m) => {
+            const flow = flows.get(m.id)!;
+            const stuck = flow.stuckAt;
             const initials = m.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
             const groupStyle = getGroupChip(m.groupName);
             const busy = busyId === m.id;
-            const waiting = isWaitingOnUs(m.stage);
+            const mine = groupOf.get(m.id) === 'mine';
+            const days = stuck ? daysSince(waitingSince(m, stuck)) : null;
             return (
               <Card key={m.id} variant="solid">
                 <div className="flex items-start justify-between gap-3">
@@ -624,7 +761,6 @@ export default function EntryQueuePage() {
                     </span>
                     <div className="min-w-0">
                       <p className="text-[15px] font-semibold text-ink-700 truncate" dir="auto">{m.name}</p>
-                      <p className="text-xs text-ink-400 mt-0.5">{summaryLine(m)}</p>
                       {m.email && <p className="text-xs text-ink-300 truncate">{m.email}</p>}
                     </div>
                   </div>
@@ -641,45 +777,77 @@ export default function EntryQueuePage() {
                   </span>
                 </div>
 
-                {/* Every gate and connection, as chips: what is true about this
-                    person in one line rather than three screens. */}
+                {/* The track: where they got to, and the step that stopped them. */}
+                <FlowTrack
+                  reached={flow.reached}
+                  stuckIndex={stuck ? FLOW_STEPS.indexOf(stuck) : -1}
+                  passedLater={flow.steps.map((s) => s.done)}
+                  unknown={flow.steps.map((s) => s.unknown)}
+                  label={(step) => t(`stepShort_${step}` as never)}
+                />
+
+                {/* The one sentence: what is wrong, and for how long. */}
+                {stuck ? (
+                  <div className="mt-3" dir="rtl">
+                    <p className={cn(
+                      'text-[13px] font-semibold flex items-start gap-1.5',
+                      mine ? 'text-accent-red' : 'text-band-3-ink',
+                    )}>
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span>{stuckLine(m, stuck)}</span>
+                    </p>
+                    {days !== null && (
+                      <p className="text-2xs text-ink-400 mt-1 ps-5">
+                        {t('waitingDays', { days, date: dateOnly(waitingSince(m, stuck)) || '—' })}
+                      </p>
+                    )}
+                    {/* The fix for the iOS sheet, spelled out — the coach has to be
+                        able to tell them what to do, not just that it's broken. */}
+                    {stuck === 'loggedIn' && (
+                      <p className="text-2xs text-ink-500 mt-1.5 ps-5 leading-relaxed">{t('hintLoginStuck')}</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-[13px] font-semibold text-accent-900 flex items-center gap-1.5" dir="rtl">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    {t('whyReady', { date: dateOnly(m.lastSeenAt) || '—' })}
+                  </p>
+                )}
+
+                {/* The connections, each named and each answered — Garmin and Strava
+                    separately, because "אין שעון" hid which one they tried. */}
                 <div className="flex flex-wrap items-center gap-1.5 mt-3">
-                  <Chip
-                    tone={m.stage === 'ready' ? 'ok' : waiting ? 'bad' : 'warn'}
-                    icon={m.stage === 'pending' ? Clock : m.stage === 'blocked' ? Lock : m.stage === 'ready' ? CheckCircle2 : Unlock}
-                    label={stageLabel[m.stage]}
-                  />
-                  <Chip
-                    tone={m.lastSeenAt ? 'ok' : 'warn'}
-                    icon={DoorOpen}
-                    label={m.lastSeenAt ? t('entered', { date: dateOnly(m.lastSeenAt)! }) : t('neverEntered')}
-                  />
-                  {/* Credentials, not `data_source`: all 28 members have a declared
-                      source and only 17 have anything behind it. */}
-                  <Chip
-                    tone={m.hasGarmin || m.hasStrava ? 'ok' : 'muted'}
-                    icon={Watch}
-                    label={m.hasGarmin ? 'Garmin' : m.hasStrava ? 'Strava' : t('noWatch')}
-                  />
-                  <Chip
-                    tone={m.hasPush ? 'ok' : 'muted'}
-                    icon={m.hasPush ? Bell : BellOff}
-                    label={m.hasPush ? t('pushOn') : t('pushOff')}
-                  />
-                  <Chip tone="muted" icon={UserCheck} label={t('setupProgress', { done: m.setupDone, total: m.setupTotal })} />
+                  <Chip tone={m.hasGarmin ? 'ok' : 'muted'} icon={Watch} label={t(m.hasGarmin ? 'garminOn' : 'garminOff')} />
+                  <Chip tone={m.hasStrava ? 'ok' : 'muted'} icon={Activity} label={t(m.hasStrava ? 'stravaOn' : 'stravaOff')} />
+                  <Chip tone={m.hasPush ? 'ok' : 'muted'} icon={m.hasPush ? Bell : BellOff} label={t(m.hasPush ? 'pushOn' : 'pushOff')} />
+                  <Chip tone={m.setupDone >= m.setupTotal ? 'ok' : 'muted'} icon={UserCheck} label={t('setupProgress', { done: m.setupDone, total: m.setupTotal })} />
                 </div>
+
+                {/* What the reminder will actually say, before it is sent, and
+                    whether it will light up a phone or only land in the in-app
+                    inbox. Both were only discoverable by tapping and reading the
+                    result — which is a strange way to find out you just sent a
+                    stranger's phone a notification about their shirt size. */}
+                {stuck && !mine && canApprove && (
+                  <p className="mt-2.5 text-2xs text-ink-400 leading-relaxed" dir="rtl">
+                    {gapList(m).length > 0
+                      ? t('reminderWillSay', { items: gapList(m).join(' · ') })
+                      : t('reminderWillSayGeneral')}
+                    {!m.hasPush && <> · <span className="text-band-3-ink font-semibold">{t('reminderInboxOnly')}</span></>}
+                  </p>
+                )}
 
                 {/* One action per card. For anybody the club is holding out, it is
                     the same button whichever door is shut: approve and release. */}
                 <div className="flex items-center gap-2 mt-4">
-                  {waiting && canApprove ? (
+                  {mine && canApprove ? (
                     <Button variant="primary" className="flex-1" onClick={() => letIn(m)} disabled={busy}>
                       <Unlock className="h-4 w-4" />
-                      {busy ? t('saving') : m.stage === 'pending' ? t('approveEntry') : t('releaseEntry')}
+                      {busy ? t('saving') : m.approved ? t('releaseEntry') : t('approveEntry')}
                     </Button>
-                  ) : (m.stage === 'never' || m.stage === 'setup') && canApprove ? (
-                    // Nothing is holding them out — they just never arrived. This is
-                    // the only way the app had to reach them at all.
+                  ) : stuck && canApprove ? (
+                    // Nothing is holding them out — they just haven't finished. This
+                    // is the only way the app has to reach them at all.
                     <Button variant="secondary" className="flex-1" onClick={() => nudge(m)} disabled={busy}>
                       <Bell className="h-4 w-4" />
                       {busy
@@ -700,7 +868,7 @@ export default function EntryQueuePage() {
                       </Button>
                     </Link>
                   )}
-                  {(m.stage === 'never' || m.stage === 'setup') && canApprove && (
+                  {stuck && !mine && canApprove && (
                     <Link href={`/dashboard/teammate/${m.id}`}>
                       <Button variant="ghost" title={t('openProfile')}>
                         <ChevronLeft className="h-4 w-4" />
@@ -712,10 +880,57 @@ export default function EntryQueuePage() {
                   {maintenanceOn && !m.blocked && canEditAllowlist && (
                     <Button variant="ghost" onClick={() => blockAgain(m)} disabled={busy} title={t('blockAgain')}>
                       <Lock className="h-4 w-4" />
-                      {t('blockAgain')}
+                    </Button>
+                  )}
+                  {/* Admin only. Last in the row, and it opens a question rather
+                      than doing anything — see the confirm block below. */}
+                  {canRemove && confirmRemove !== m.id && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => setConfirmRemove(m.id)}
+                      disabled={busy}
+                      title={t('removeFromClub')}
+                    >
+                      <UserMinus className="h-4 w-4 text-accent-red" />
                     </Button>
                   )}
                 </div>
+
+                {/* The second tap. It states what survives, because that is the
+                    only fact that makes this button usable: everything the member
+                    ever ran stays, and putting them back is one tap from the
+                    'removed' filter. */}
+                {confirmRemove === m.id && (
+                  <div className="mt-3 rounded-card border border-accent-red/40 bg-accent-red/5 p-3" dir="rtl">
+                    <p className="text-[13px] font-semibold text-accent-red">{t('removeConfirmTitle', { name: m.name })}</p>
+                    <p className="text-2xs text-ink-500 mt-1 leading-relaxed">{t('removeConfirmBody')}</p>
+                    <div className="flex items-center gap-2 mt-3">
+                      <Button variant="danger" className="flex-1" onClick={() => setMembership(m, 'remove')} disabled={busy}>
+                        <UserMinus className="h-4 w-4" />
+                        {busy ? t('saving') : t('removeConfirmYes')}
+                      </Button>
+                      <Button variant="ghost" onClick={() => setConfirmRemove(null)} disabled={busy}>
+                        {t('removeConfirmNo')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {removeResult[m.id] && (
+                  <p
+                    className={cn(
+                      'mt-2.5 text-xs font-semibold',
+                      removeResult[m.id] === 'failed' ? 'text-accent-red' : 'text-ink-400',
+                    )}
+                    dir="rtl"
+                  >
+                    {removeResult[m.id] === 'removed'
+                      ? t('removeDone')
+                      : removeResult[m.id] === 'restored'
+                        ? t('restoreDone')
+                        : t('resultFailed')}
+                  </p>
+                )}
 
                 {/* What the tap did. 'released' is the half that makes an approval
                     felt during a window; while the club is open there is nothing
@@ -743,6 +958,85 @@ export default function EntryQueuePage() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * One person's six steps, right to left.
+ *
+ * Three states, and each differs in SHAPE as well as colour, because a track read
+ * on colour alone is a track half the readers can't read: passed is a filled dot on
+ * a filled rail, the blocking step is a ringed dot with the label in red, and a step
+ * not reached yet is a hollow dot on a grey rail. `unknown` is the fourth and rarest
+ * — a question mark, only when the auth listing couldn't be read.
+ *
+ * `passedLater` is what keeps the track honest about a non-monotone flow: the club
+ * backfill connected Garmin for members who have never logged in, so a later step
+ * can be done while an earlier one isn't. Those show as passed but the rail before
+ * them stays grey, which is exactly the truth — done, but out of order.
+ */
+function FlowTrack({
+  reached,
+  stuckIndex,
+  passedLater,
+  unknown,
+  unknownAfter,
+  label,
+}: {
+  reached: number;
+  stuckIndex: number;
+  passedLater?: boolean[];
+  unknown?: boolean[];
+  /** Everything from this index on is unknowable (an applicant with no account). */
+  unknownAfter?: number;
+  label: (step: FlowStep) => string;
+}) {
+  return (
+    <div className="mt-3.5 flex items-start" dir="rtl">
+      {FLOW_STEPS.map((step, i) => {
+        const passed = i < reached || !!passedLater?.[i];
+        const isStuck = i === stuckIndex;
+        const isUnknown = !!unknown?.[i] || (unknownAfter !== undefined && i >= unknownAfter && !passed);
+        return (
+          <div key={step} className="flex-1 flex flex-col items-center min-w-0">
+            <div className="flex items-center w-full">
+              {/* Rails, drawn as the halves either side of the dot so the ends of
+                  the track don't hang off it. */}
+              <span className={cn('h-0.5 flex-1', i === 0 ? 'bg-transparent' : passed ? 'bg-accent-600' : 'bg-page')} />
+              <span
+                className={cn(
+                  'shrink-0 rounded-full flex items-center justify-center transition-colors',
+                  isStuck
+                    ? 'h-4 w-4 border-2 border-accent-red bg-card'
+                    : passed
+                      ? 'h-3 w-3 bg-accent-600'
+                      : isUnknown
+                        ? 'h-3.5 w-3.5 border border-dashed border-ink-300 bg-card'
+                        : 'h-3 w-3 border border-page bg-card',
+                )}
+              >
+                {isStuck && <span className="h-1.5 w-1.5 rounded-full bg-accent-red" />}
+                {!isStuck && isUnknown && <HelpCircle className="h-2.5 w-2.5 text-ink-300" />}
+              </span>
+              <span
+                className={cn(
+                  'h-0.5 flex-1',
+                  i === FLOW_STEPS.length - 1 ? 'bg-transparent' : passed && (i + 1 < reached || !!passedLater?.[i + 1]) ? 'bg-accent-600' : 'bg-page',
+                )}
+              />
+            </div>
+            <span
+              className={cn(
+                'mt-1.5 text-[9px] leading-tight text-center w-full px-0.5',
+                isStuck ? 'font-bold text-accent-red' : passed ? 'font-semibold text-ink-500' : 'text-ink-300',
+              )}
+            >
+              {label(step)}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
