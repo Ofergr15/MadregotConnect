@@ -4,11 +4,13 @@ import {
   buildHighlight,
   dayKeyDiff,
   shiftDayKey,
+  weekDayKeys,
   weekRemainingKm,
   weekStatus,
   type HighlightChallenge,
   type HighlightWeek,
 } from '@/lib/feed/highlight';
+import { activityLocalDateStr, getActivityWeekStart } from '@/lib/utils';
 
 const WEEK_START = '2026-09-06'; // a Sunday
 
@@ -59,6 +61,108 @@ describe('day-key arithmetic', () => {
     // and round to the wrong number of days.
     expect(dayKeyDiff('2026-10-20', '2026-10-27')).toBe(7);
     expect(dayKeyDiff('2026-03-24', '2026-03-31')).toBe(7);
+  });
+});
+
+describe('weekDayKeys', () => {
+  it('starts on the day the week starts on, not on Sunday', () => {
+    // The activity week the route actually reports on.
+    expect(weekDayKeys('2026-09-07')).toEqual(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+    // A Sunday-anchored week still works — the point is that it is derived, not
+    // that Monday replaced Sunday as a new hard-coded assumption.
+    expect(weekDayKeys('2026-09-06')).toEqual(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']);
+    expect(weekDayKeys('2026-09-10')).toEqual(['thu', 'fri', 'sat', 'sun', 'mon', 'tue', 'wed']);
+  });
+
+  it('names all seven days exactly once, whatever the anchor', () => {
+    for (const start of ['2026-09-06', '2026-09-07', '2026-09-11', '2026-12-31']) {
+      expect(new Set(weekDayKeys(start)).size).toBe(WEEK_DAYS);
+    }
+  });
+
+  it('crosses a month and a year boundary without losing the sequence', () => {
+    expect(weekDayKeys('2026-08-31')).toEqual(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+    expect(weekDayKeys('2026-12-28')).toEqual(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+  });
+
+  it('falls back to a readable week instead of throwing on a junk weekStart', () => {
+    // `day_undefined` reaches next-intl and throws inside the render, which would
+    // take the whole feed page down over a label.
+    expect(weekDayKeys('not-a-date')).toEqual(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']);
+    expect(weekDayKeys('')).toHaveLength(WEEK_DAYS);
+  });
+});
+
+describe("the day strip lines up with the kilometres it labels", () => {
+  // The reported bug, with the athlete's real rows. On Thursday 2026-09-10 at
+  // 08:35 Israel time an athlete wrote that "today's run doesn't look like it
+  // synced" under "השבוע שלי", while seeing that same run in the club feed below.
+  // Nothing was missing: the route had moved `dailyKm` to the Monday activity
+  // week the day before and the strip's labels were still Sunday-first, so her
+  // 16 km sat under ד׳ (Wednesday) and ה׳ (Thursday) was an empty future track.
+  const RUNS = [
+    { start_time: '2026-09-06T04:40:06+00:00', distance: 24046 }, // last week — must not appear
+    { start_time: '2026-09-07T05:36:04+00:00', distance: 15053 },
+    { start_time: '2026-09-08T04:22:24+00:00', distance: 28022 },
+    { start_time: '2026-09-09T05:30:18+00:00', distance: 4045 },
+    { start_time: '2026-09-10T05:32:28+00:00', distance: 16014 }, // "today's run"
+  ];
+
+  /** Exactly what api/feed/highlight does to turn rows into the seven bars. */
+  function strip(todayKey: string) {
+    const weekStart = getActivityWeekStart(new Date(`${todayKey}T12:00:00`));
+    const weekDailyKm = new Array<number>(WEEK_DAYS).fill(0);
+    for (const r of RUNS) {
+      const offset = dayKeyDiff(weekStart, activityLocalDateStr(r.start_time));
+      if (offset < 0 || offset >= WEEK_DAYS) continue;
+      weekDailyKm[offset] += r.distance / 1000;
+    }
+    const highlight = buildHighlight({
+      weekStart,
+      weekKm: weekDailyKm.reduce((a, b) => a + b, 0),
+      weekTargetMin: 80,
+      weekTargetMax: 90,
+      weekDailyKm,
+      daysElapsed: dayKeyDiff(weekStart, todayKey) + 1,
+      challenge: null,
+    })!;
+    const keys = weekDayKeys(highlight.week.weekStart);
+    return {
+      week: highlight.week,
+      byDay: Object.fromEntries(highlight.week.dailyKm.map((km, i) => [keys[i], km])),
+      /** The bar the card draws as "today" — index `daysElapsed - 1`. */
+      todayLabel: keys[highlight.week.daysElapsed - 1],
+    };
+  }
+
+  it("puts today's kilometres under today's own name", () => {
+    const { byDay, todayLabel, week } = strip('2026-09-10');
+    expect(week.weekStart).toBe('2026-09-07'); // the Monday, not the Sunday
+    expect(todayLabel).toBe('thu');
+    expect(byDay.thu).toBe(16); // was 0 before the fix; the 16 km sat on `wed`
+    expect(byDay).toEqual({ mon: 15.1, tue: 28, wed: 4, thu: 16, fri: 0, sat: 0, sun: 0 });
+  });
+
+  it('leaves the days after today empty, and only those', () => {
+    const { byDay, week } = strip('2026-09-10');
+    expect(week.daysElapsed).toBe(4);
+    // Friday, Saturday and Sunday of a Monday-anchored week are still to come.
+    expect([byDay.fri, byDay.sat, byDay.sun]).toEqual([0, 0, 0]);
+  });
+
+  it("keeps last week's Sunday run out of this week, in both the total and the strip", () => {
+    const { byDay, week } = strip('2026-09-10');
+    // 2026-09-06 was a Sunday and closed the PREVIOUS activity week. Its 24 km
+    // must not reappear on this week's `sun` bar, which is 2026-09-13.
+    expect(byDay.sun).toBe(0);
+    expect(week.km).toBe(63.1);
+  });
+
+  it('still lines up on the closing Sunday, when the week is fully elapsed', () => {
+    const { todayLabel, week } = strip('2026-09-13');
+    expect(week.weekStart).toBe('2026-09-07');
+    expect(week.daysElapsed).toBe(WEEK_DAYS);
+    expect(todayLabel).toBe('sun');
   });
 });
 

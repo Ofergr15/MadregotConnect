@@ -7,6 +7,7 @@ import { Check, ChevronRight, X } from 'lucide-react';
 import { fetchFeedHighlight } from '@/lib/feed-client';
 import {
   WEEK_DAYS,
+  weekDayKeys,
   weekRemainingKm,
   weekStatus,
   type FeedHighlight,
@@ -68,10 +69,18 @@ const STATUS_LOOK: Record<WeekStatus, string> = {
   noTarget: 'bg-page text-ink-500',
 };
 
-const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
-
 /**
- * The week as seven bars, Sunday first, with today marked.
+ * The week as seven bars, starting on the week's own first day, with today marked.
+ *
+ * The names under the bars are NOT a constant in this file any more. They used to
+ * be a Sunday-first list, which silently became wrong the day the route switched
+ * the array to the activity week (Monday) so the headline total would match the
+ * athlete's watch — every bar then sat under the previous day's name, today's bar
+ * was labelled yesterday, and the label the reader looks for as "today" was one
+ * of the empty future tracks. An athlete filed it as "today's run didn't sync"
+ * while that same run was visible in the feed a few pixels below. `weekDayKeys`
+ * derives the names from `week.weekStart`, so the strip cannot disagree with the
+ * kilometres it is labelling no matter where the week is anchored.
  *
  * Scaled to the athlete's own biggest day rather than to the target, so a light
  * week still has shape. Days that haven't happened yet render as an empty track —
@@ -264,6 +273,9 @@ export function FeedHighlightCard() {
   const pct = bar > 0 ? Math.min(100, Math.max(0, (week.km / bar) * 100)) : 0;
   const remaining = weekRemainingKm(week);
   const daysLeft = WEEK_DAYS - week.daysElapsed;
+  // Taken from the week the server actually bucketed, never from a list in this
+  // file — see WeekBars.
+  const dayKeys = weekDayKeys(week.weekStart);
 
   // The sentence under the number. Built from keys rather than server-side so it
   // reads naturally in both languages.
@@ -309,7 +321,7 @@ export function FeedHighlightCard() {
 
         <p className="mt-2 text-2xs text-ink-500">{explain}</p>
 
-        <WeekBars week={week} label={(i) => t(`day_${DAY_KEYS[i]}` as 'day_sun')} />
+        <WeekBars week={week} label={(i) => t(`day_${dayKeys[i]}` as 'day_sun')} />
       </Link>
 
       {showChallenge && challenge && (
