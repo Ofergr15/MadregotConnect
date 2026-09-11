@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { KIT_SIZE_FIELDS } from '@/lib/kit-sizes';
 import { PROVIDER_HEALTH_COLUMNS_101, connectionState } from '@/lib/providers/health';
+import { nameProblem, normalizeDisplayName } from '@/lib/names/latin';
 
 const GENDERS = ['male', 'female'] as const;
 type Gender = (typeof GENDERS)[number];
@@ -117,8 +118,10 @@ export async function GET(req: NextRequest) {
 // on trust from localStorage, which let anyone rewrite any athlete's name.
 // Every field is optional so the form can save a partial edit.
 // `name` is the one field that isn't purely personal-info — it's shown
-// everywhere (headers, feed, leaderboards), so it's trimmed and required to
-// be non-empty when present (an athlete can't blank out their own name).
+// everywhere (headers, feed, leaderboards) and it is the key that matches a
+// Strava profile to a roster row, so it is normalised and must be non-empty and
+// Latin when present. See src/lib/names/latin.ts for why we ask rather than
+// transliterate.
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
@@ -144,12 +147,22 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: `${field} must be one of ${options.join(', ')}` }, { status: 400 });
       }
     }
-    if (name !== undefined && !String(name).trim()) {
-      return NextResponse.json({ error: 'name cannot be empty' }, { status: 400 });
+    // The roster is Latin-only and always has been in intent; this is where the
+    // rule is actually enforced. `code` is what the UI switches its message on —
+    // "can't be empty" and "English letters, please" are different asks.
+    const problem = name === undefined ? null : nameProblem(name);
+    if (problem === 'empty') {
+      return NextResponse.json({ error: 'name cannot be empty', code: problem }, { status: 400 });
+    }
+    if (problem === 'not-latin') {
+      return NextResponse.json(
+        { error: 'name must be written in English letters', code: problem },
+        { status: 400 },
+      );
     }
 
     const updates: Record<string, string | boolean | Gender | null> = {};
-    if (name !== undefined) updates.name = String(name).trim();
+    if (name !== undefined) updates.name = normalizeDisplayName(name);
     if (birthDate !== undefined) updates.birth_date = birthDate || null;
     if (gender !== undefined) updates.gender = gender || null;
     if (shoeSize !== undefined) updates.shoe_size = (shoeSize && String(shoeSize).trim()) || null;

@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { notifyAdminNewAcademyRegistration } from '@/lib/email';
+import { nameProblem, normalizeDisplayName } from '@/lib/names/latin';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,16 @@ export async function POST(request: Request) {
     if (!name?.trim() || !email?.trim()) {
       return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
     }
+    // The form asks for the name in English and checks it before submitting; this
+    // is the same rule on the server, because the form is a public endpoint and
+    // this row becomes a roster row. See src/lib/names/latin.ts.
+    if (nameProblem(name) === 'not-latin') {
+      return NextResponse.json(
+        { error: 'Please write your name in English letters', code: 'not-latin' },
+        { status: 400 },
+      );
+    }
+    const fullName = normalizeDisplayName(name);
 
     const supabase = createServerClient();
     const normEmail = email.toLowerCase().trim();
@@ -47,7 +58,7 @@ export async function POST(request: Request) {
 
     const row: Record<string, any> = {
       coach_id: COACH_ID,
-      name: name.trim(),
+      name: fullName,
       email: normEmail,
       phone: phone?.trim() || null,
       status: 'invited',
@@ -67,14 +78,14 @@ export async function POST(request: Request) {
     }
     // If some columns don't exist yet (unmigrated), retry with the minimal set.
     if (error) {
-      const minimal = { coach_id: COACH_ID, name: name.trim(), email: normEmail, status: 'invited', invite_token: token };
+      const minimal = { coach_id: COACH_ID, name: fullName, email: normEmail, status: 'invited', invite_token: token };
       if (existing) ({ error } = await supabase.from('athletes').update(minimal).eq('id', existing.id));
       else ({ error } = await supabase.from('athletes').insert(minimal));
       if (error) throw error;
     }
 
     try {
-      await notifyAdminNewAcademyRegistration({ name: name.trim(), email: normEmail, phone });
+      await notifyAdminNewAcademyRegistration({ name: fullName, email: normEmail, phone });
     } catch (e) {
       console.error('Academy registration email failed:', e);
     }

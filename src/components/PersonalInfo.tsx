@@ -8,6 +8,7 @@ import { Sheet, Button, SegmentedControl, Skeleton, Switch } from '@/components/
 import { apiHeaders } from '@/lib/api';
 import { EU_SHOE_SIZES } from '@/lib/shoe-catalog';
 import { CLOTHING_SIZES, SOCK_SIZES, type ClothingSize, type SockSize } from '@/lib/kit-sizes';
+import { type NameProblem, nameProblem, normalizeDisplayName } from '@/lib/names/latin';
 
 // EU running-shoe sizing, half-size steps — a free-text field let people type
 // anything (US/UK/cm mixed in), so this is a fixed picklist instead. The range
@@ -58,7 +59,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [editField, setEditField] = useState<EditField>(null);
-  const [nameError, setNameError] = useState(false);
+  const [nameError, setNameError] = useState<NameProblem | null>(null);
 
   useEffect(() => {
     if (!athleteId) return;
@@ -255,22 +256,31 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
       )}
 
       {/* Name edit sheet — shown everywhere else in the app (greeting, feed,
-          leaderboards), so it can't be saved empty. */}
+          leaderboards), so it can't be saved empty, and it is the key matching a
+          Strava profile to this row, so it can't be saved in Hebrew either. */}
       <Sheet open={editField === 'name'} onOpenChange={o => !o && setEditField(null)} title={t('fullName')}>
         <input
           type="text"
           value={name}
-          onChange={e => { setName(e.target.value); setNameError(false); }}
+          onChange={e => { setName(e.target.value); setNameError(null); }}
           placeholder={t('fullNamePlaceholder')}
           className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50 mb-2"
         />
-        {nameError && <p className="text-xs text-accent-red mb-2">{t('nameRequired')}</p>}
+        {nameError && (
+          <p className="text-xs text-accent-red mb-2">
+            {t(nameError === 'not-latin' ? 'nameEnglishOnly' : 'nameRequired')}
+          </p>
+        )}
         <Button
           className="w-full mt-2"
           disabled={saving}
           onClick={() => {
-            if (!name.trim()) { setNameError(true); return; }
-            persist(snapshot({ name: name.trim() }));
+            // Latin-only, and refused here rather than by the PUT: persist()
+            // ignores a non-ok response, so a server rejection would read as
+            // nothing having happened at all. See src/lib/names/latin.ts.
+            const problem = nameProblem(name);
+            if (problem) { setNameError(problem); return; }
+            persist(snapshot({ name: normalizeDisplayName(name) }));
             setEditField(null);
           }}
         >

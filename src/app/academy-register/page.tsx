@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { GraduationCap, CheckCircle2 } from 'lucide-react';
 import { Card, Button, LoadingBlock } from '@/components/ui';
 import { CLOTHING_SIZES, SOCK_SIZES } from '@/lib/kit-sizes';
+import { nameProblem, normalizeDisplayName } from '@/lib/names/latin';
 
 // Mirrors the current Google Form "שאלון אישי להצטרפות אל Madregot Academy".
 // Structured name/email/phone are lifted into columns; everything else is stored
@@ -21,8 +22,12 @@ type Field =
   | { key: string; label: string; type: 'checkboxes'; required?: boolean; options: string[] };
 
 const FIELDS: Field[] = [
-  { key: 'firstName', label: 'שם פרטי', type: 'text', required: true },
-  { key: 'lastName', label: 'שם משפחה', type: 'text', required: true },
+  // In English, and asked for that way. The roster is Latin-only: `athletes.name`
+  // is the key that matches a Strava profile to a roster row, and a mixed-script
+  // roster sorts into two blocks and shows one person under two spellings. The
+  // Latin placeholders carry the expectation even before the label is read.
+  { key: 'firstName', label: 'שם פרטי (באנגלית)', type: 'text', required: true, placeholder: 'Daniel' },
+  { key: 'lastName', label: 'שם משפחה (באנגלית)', type: 'text', required: true, placeholder: 'Levi' },
   { key: 'email', label: 'אימייל', type: 'email', required: true },
   { key: 'phone', label: 'מספר נייד', type: 'tel', required: true, placeholder: '050-0000000' },
   { key: 'focus', label: 'מה מדבר אליך יותר', type: 'radio', required: true, options: [
@@ -96,14 +101,22 @@ export default function AcademyRegisterPage() {
       const empty = f.type === 'checkboxes' ? !(v && v.length) : !(v && String(v).trim());
       if (empty) { setError(`אנא מלא/י: ${f.label}`); return; }
     }
+    // Same rule the server enforces, said here so it is a correction and not a
+    // rejection: nobody should fill in twenty fields and then be told no.
+    for (const key of ['firstName', 'lastName'] as const) {
+      if (nameProblem(values[key]) === 'not-latin') {
+        setError('אנא כתבו את השם באותיות אנגליות');
+        return;
+      }
+    }
     setSubmitting(true);
     setError(null);
     try {
       const { firstName, lastName, email, phone, ...rest } = values;
       // The DB `name` column (used across roster/leaderboard/emails) expects a full
       // name; keep first/last separately in the intake too.
-      const name = `${(firstName || '').trim()} ${(lastName || '').trim()}`.trim();
-      const intake = { firstName: firstName?.trim(), lastName: lastName?.trim(), ...rest };
+      const name = normalizeDisplayName(`${firstName || ''} ${lastName || ''}`);
+      const intake = { firstName: normalizeDisplayName(firstName), lastName: normalizeDisplayName(lastName), ...rest };
       const res = await fetch('/api/academy/register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, phone, intake }),

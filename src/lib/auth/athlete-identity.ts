@@ -593,6 +593,11 @@ export function duplicatesToFold<T extends IdentityRow>(rows: T[], keep: T): T[]
  * Returns null rather than a placeholder on purpose. The callback's own `name`
  * falls back to "Strava <id>" so that a brand-new row is never nameless, and
  * writing THAT over a name somebody chose would be a downgrade, not a sync.
+ *
+ * This function only reads what Strava holds. Whether the roster should TAKE it
+ * is rosterNameFromProvider() in src/lib/names/latin.ts, which refuses to replace
+ * a Latin name with a non-Latin one — otherwise a login silently reverts a name
+ * corrected on the roster.
  */
 export function stravaDisplayNameOf(
   athlete: { firstname?: string | null; lastname?: string | null } | null | undefined,

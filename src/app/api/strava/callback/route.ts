@@ -15,6 +15,7 @@ import {
   stravaDisplayNameOf,
   type IdentityRow,
 } from '@/lib/auth/athlete-identity';
+import { isPlaceholderRosterName, rosterNameFromProvider } from '@/lib/names/latin';
 import { mergeAthleteRows } from '@/lib/auth/merge-athletes';
 import { HANDOFF_TTL_MS, parseLoginState } from '@/lib/auth/login-handoff';
 import { queuePendingStravaSignup } from '@/lib/signup-queue';
@@ -230,15 +231,21 @@ export async function GET(request: Request) {
         }
       }
 
+      const invitedRosterName = rosterNameFromProvider(
+        stravaDisplayName,
+        invited.name,
+        isPlaceholderRosterName(invited.name, invited.email),
+      );
       const { error: linkErr } = await admin
         .from('athletes')
         .update({
-          // Same rule as login mode: Strava owns the name. It matters more here
-          // than anywhere, because the row this token names is still carrying
-          // placeholderNameFromEmail() — "grosfeldofer" out of an address — until
-          // the member types something. This is the first moment the app knows
-          // what they are actually called.
-          ...(stravaDisplayName ? { name: stravaDisplayName } : {}),
+          // Same rule as login mode: Strava owns the name, unless taking it would
+          // replace a Latin name with a non-Latin one (rosterNameFromProvider).
+          // It matters more here than anywhere, because the row this token names is
+          // still carrying placeholderNameFromEmail() — "grosfeldofer" out of an
+          // address — until the member types something. This is the first moment
+          // the app knows what they are actually called.
+          ...(invitedRosterName ? { name: invitedRosterName } : {}),
           strava_auth: encrypted,
           strava_athlete_id: stravaId,
           strava_enabled: true,
@@ -268,7 +275,7 @@ export async function GET(request: Request) {
         strava_athlete_id: stravaId,
         athlete_id: invited.id,
         // Strava's spelling first, for the same reason the row above just took it.
-        name: stravaDisplayName || invited.name || name,
+        name: invitedRosterName || invited.name || name,
       });
       if (joinAuth.error || !joinAuth.session) {
         console.error(`[auth-debug:${debugId}] callback:invite_session_failed`, joinAuth.error);
@@ -426,18 +433,28 @@ export async function GET(request: Request) {
       //   data_source — it decides which sync cron owns this athlete, so flipping
       //     it on every login cut a Garmin athlete off from Garmin sync. Only
       //     claim it when Strava really is the only source connected.
+      const rosterName = rosterNameFromProvider(
+        stravaDisplayName,
+        existing?.name,
+        isPlaceholderRosterName(existing?.name, existing?.email),
+      );
       const { error: updateErr } = await admin
         .from('athletes')
         .update({
           // The roster takes the name STRAVA holds, on every login. The roster
-          // name is whatever a human typed at registration months ago — Hebrew,
+          // name is whatever a human typed at registration months ago —
           // sometimes misspelled, sometimes a first name alone — and it is the
           // only thing this app has to recognise a member by when Strava hands it
           // a Latin display name and no email. Letting Strava own the field means
           // the two sides stop drifting apart, and the club sees one spelling of a
           // person instead of two. Never written from `name`: that variable falls
           // back to a "Strava <id>" placeholder, which would be a downgrade.
-          ...(stravaDisplayName ? { name: stravaDisplayName } : {}),
+          //
+          // Bounded by rosterNameFromProvider: a Strava profile written in Hebrew
+          // does NOT overwrite a Latin roster name. Six names were corrected on
+          // the roster by hand on 2026-09-11; unbounded, this line would have
+          // reverted each of them at its owner's next login.
+          ...(rosterName ? { name: rosterName } : {}),
           strava_auth: encrypted,
           strava_athlete_id: stravaId,
           strava_enabled: true,
