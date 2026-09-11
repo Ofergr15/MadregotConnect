@@ -5,6 +5,7 @@ import { Activity, Route, Clock, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { Card, SkeletonList, EmptyState, SegmentedControl } from '@/components/ui';
+import { AthleteLink } from '@/components/AthleteLink';
 
 interface AthleteStat {
   athleteId: string;
@@ -87,13 +88,18 @@ export function AcademyStats() {
               <Card key={a.athleteId} variant="solid">
                 <div className="flex items-center gap-3">
                   <div className="w-5 text-center text-xs font-bold text-ink-400 shrink-0">{i + 1}</div>
-                  <div className="bg-brand-600/20 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">
-                    {initialsOf(a.name)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-ink-700 text-sm truncate" dir="auto">{a.name}</div>
-                    <div className="text-xs text-ink-400">{runs} אימונים · {fmtDuration(mins)}</div>
-                  </div>
+                  {/* Rank stays outside the link (it is the row's position, not the
+                      person) and so does the km column on the far end; the face and
+                      the name are the person. */}
+                  <AthleteLink athleteId={a.athleteId} name={a.name} className="flex min-w-0 flex-1 items-center gap-3">
+                    <span className="bg-brand-600/20 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">
+                      {initialsOf(a.name)}
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block font-semibold text-ink-700 text-sm truncate" dir="auto">{a.name}</span>
+                      <span className="block text-xs text-ink-400">{runs} אימונים · {fmtDuration(mins)}</span>
+                    </span>
+                  </AthleteLink>
                   <div className="text-end shrink-0">
                     <div className="text-lg font-bold text-ink-700 tabular-nums">{km.toFixed(1)}</div>
                     <div className="text-[10px] text-ink-400 -mt-0.5">ק&quot;מ</div>

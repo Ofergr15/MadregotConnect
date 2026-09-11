@@ -5,6 +5,7 @@ import { Medal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { Card, SegmentedControl, EmptyState, SkeletonList } from '@/components/ui';
+import { AthleteLink } from '@/components/AthleteLink';
 import { cn } from '@/lib/utils';
 
 interface LeaderboardEntry {
@@ -153,12 +154,23 @@ export function LeaderboardsScreen({ athleteId, groupId }: { athleteId: string; 
                     )}>
                       {idx + 1}
                     </span>
-                    <div className="flex items-center gap-2">
+                    {/* `isMe ? null` is how the viewer's own row opts out, and the
+                        null is doing real work rather than being a shortcut: this
+                        screen is reached FROM your own profile, so a link on your
+                        own name would walk you to a peer-flavoured copy of the page
+                        you just left — with a Follow button for yourself on it. The
+                        row is already tinted brand for "this is you"; that is the
+                        affordance it needs. See AthleteLink for the null fallback. */}
+                    <AthleteLink
+                      athleteId={isMe ? null : entry.id}
+                      name={entry.name}
+                      className="flex items-center gap-2 min-h-[36px]"
+                    >
                       <span className={cn('w-2 h-2 rounded-full shrink-0', dotColor)} />
                       <span className={cn('font-medium text-sm', isMe ? 'text-brand-600' : 'text-ink-700')} dir="auto">
                         {entry.name}
                       </span>
-                    </div>
+                    </AthleteLink>
                   </div>
                   <span className="font-bold font-mono text-sm text-ink-700 tabular-nums">{valueFor(entry)}</span>
                 </div>

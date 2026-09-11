@@ -1,13 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { Search, Users } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { apiHeaders, useApi } from '@/lib/api';
 import { EmptyState, SkeletonList, Button } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { cn } from '@/lib/utils';
+import { AthleteLink } from '@/components/AthleteLink';
 
 interface DiscoverAthlete {
   id: string;
@@ -89,13 +89,16 @@ export function MemberDiscovery({ viewerId }: { viewerId: string }) {
               key={a.id}
               className="flex items-center gap-3 bg-card/50 rounded-card border border-page/30 px-3 py-2.5"
             >
-              <Link href={`/dashboard/teammate/${a.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+              {/* The follow button is a SIBLING of this link, not inside it, so
+                  there is nothing to stop propagating — tapping the person opens
+                  them, tapping Follow still follows. */}
+              <AthleteLink athleteId={a.id} name={a.name} className="flex items-center gap-3 flex-1 min-w-0">
                 <FeedAvatar name={a.name} url={a.avatarUrl} className="w-10 h-10 shrink-0" />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-ink-700 truncate" dir="auto">{a.name}</p>
                   {a.groupName && <p className="text-2xs text-ink-400 truncate">{a.groupName}</p>}
                 </div>
-              </Link>
+              </AthleteLink>
               <Button
                 size="sm"
                 variant={a.isFollowing ? 'secondary' : 'primary'}

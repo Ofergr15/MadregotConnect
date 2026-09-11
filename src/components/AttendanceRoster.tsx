@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Users, Loader2 } from 'lucide-react';
 import { getPlanWeekStart } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
+import { AthleteLink } from '@/components/AthleteLink';
 
 interface Row { athleteId: string; attending: boolean; groupLabel: string | null; name: string; avatarUrl: string | null; }
 
@@ -77,13 +78,22 @@ export function AttendanceRoster({ weekStart: weekStartProp, day: dayProp }: { w
             <div key={group}>
               <p className="text-2xs font-bold text-ink-400 mb-1.5" dir="rtl">{group} · {members.length}</p>
               <div className="flex flex-wrap gap-1.5">
+                {/* Same דבוקה chip as the attendance admin screen, and dead for
+                    the same reason — it just lived in a second file. The chip is
+                    5px-avatar small, so min-h-[36px] buys the WCAG 2.5.8 target
+                    out of the padding without changing how the row looks. */}
                 {members.map(m => (
-                  <span key={m.athleteId} className="inline-flex items-center gap-1.5 bg-page/50 rounded-full ps-1 pe-2.5 py-1">
+                  <AthleteLink
+                    key={m.athleteId}
+                    athleteId={m.athleteId}
+                    name={m.name}
+                    className="inline-flex items-center gap-1.5 bg-page/50 hover:bg-page rounded-full ps-1 pe-2.5 py-1 min-h-[36px] transition-colors"
+                  >
                     {m.avatarUrl
                       ? <img src={m.avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
                       : <span className="w-5 h-5 rounded-full bg-brand-600/30 flex items-center justify-center text-3xs font-bold text-white">{(m.name[0] || '?').toUpperCase()}</span>}
                     <span className="text-xs text-ink-700" dir="auto">{m.name.split(' ')[0]}</span>
-                  </span>
+                  </AthleteLink>
                 ))}
               </div>
             </div>

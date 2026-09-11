@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { TrendingUp, TrendingDown, Minus, BarChart3 } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { SkeletonList, SegmentedControl, EmptyState } from '@/components/ui';
+import { AthleteLink } from '@/components/AthleteLink';
 
 interface Row {
   athleteId: string;
@@ -81,19 +82,25 @@ function VolumeRow({ r, globalMax }: { r: Row; globalMax: number }) {
 
   return (
     <div className="rounded-xl border border-page bg-card/60 p-3 flex items-center gap-3">
-      {/* Athlete */}
-      <div className="flex items-center gap-2.5 w-[42%] min-w-0">
+      {/* Athlete. The link stops at the identity column: the sparkline and the
+          trend beside it are the data this screen exists to compare, and a coach
+          drags across them to scroll a long table. */}
+      <AthleteLink
+        athleteId={r.athleteId}
+        name={r.name}
+        className="flex items-center gap-2.5 w-[42%] min-w-0"
+      >
         {r.avatarUrl
           ? <img src={r.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
           : <span className="w-9 h-9 rounded-full bg-page flex items-center justify-center text-2xs font-bold text-ink-700 shrink-0">{initials}</span>}
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
+        <span className="min-w-0">
+          <span className="flex items-center gap-1.5">
             <span className="text-sm font-bold text-ink-700 truncate" dir="auto">{r.name}</span>
             {r.squad && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.squadColor || '#159AFF' }} />}
-          </div>
-          <div className="text-2xs text-ink-400">{t('avgPeak', { avg: r.avgKm, peak: r.peakKm })}</div>
-        </div>
-      </div>
+          </span>
+          <span className="block text-2xs text-ink-400">{t('avgPeak', { avg: r.avgKm, peak: r.peakKm })}</span>
+        </span>
+      </AthleteLink>
 
       {/* Sparkline */}
       <div className="flex-1 min-w-0" dir="ltr">

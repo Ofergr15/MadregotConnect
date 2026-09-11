@@ -18,6 +18,7 @@ import {
 import { useLocale, useTranslations } from 'next-intl';
 import type { ActivityEntry } from '@/components/activity/types';
 import { useActivityDetails } from '@/components/activity/useActivityDetails';
+import { AthleteLink } from '@/components/AthleteLink';
 
 // The map, charts, splits table, formatters and types all used to live in this
 // file. They're in `@/components/activity/*` now, shared with the standalone
@@ -121,7 +122,20 @@ function ActivityCard({
                     out under the buttons and the date breaks one word per line
                     ("יום א׳ / 6 / בספט׳ / 18:34" stacked vertically). Wrapping the
                     date whole onto its own line is the readable failure mode. */}
-                <span className="min-w-0 truncate text-sm font-bold text-ink-700">{activity.athlete_name || 'Unknown'}</span>
+                {/* stopPropagation is not optional here: the whole card is a
+                    role="button" div that expands on click AND on Enter/Space via
+                    onKeyDown, so without the guard tapping the name would both
+                    navigate and expand the card underneath you. `isMyActivity ? null`
+                    keeps your own runs plain — the profile behind the link is the
+                    peer view, which is not where you go to see yourself. */}
+                <AthleteLink
+                  athleteId={isMyActivity ? null : activity.athlete_id}
+                  name={activity.athlete_name}
+                  className="min-w-0 truncate text-sm font-bold text-ink-700"
+                  stopPropagation
+                >
+                  {activity.athlete_name || 'Unknown'}
+                </AthleteLink>
                 <span className="whitespace-nowrap text-xs text-ink-400">{dateStr} · {timeStr}</span>
               </div>
               <p className="truncate text-xs text-ink-400">{timeLabel}{activity.location_name ? ` · ${activity.location_name}` : ''}</p>

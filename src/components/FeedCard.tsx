@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Heart, MessageCircle, MessagesSquare, Trash2, Route, MapPin, Mountain, Share2, Award, Flame, Gauge, ChevronRight } from 'lucide-react';
 import { activityDayRelation, cn, formatActivityDate, formatActivityTime } from '@/lib/utils';
@@ -16,6 +15,7 @@ import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
 import { toAchievementPayload } from '@/lib/feed/project';
 import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
+import { AthleteLink } from '@/components/AthleteLink';
 
 export function formatPace(secPerKm: number): string {
   const min = Math.floor(secPerKm / 60);
@@ -96,9 +96,9 @@ export function AuthorRow({ item }: { item: FeedItem }) {
   }
 
   return (
-    <Link href={`/dashboard/teammate/${item.author.athleteId}`} className="flex items-center gap-3">
+    <AthleteLink athleteId={item.author.athleteId} name={item.author.name} className="flex items-center gap-3">
       {identity}
-    </Link>
+    </AthleteLink>
   );
 }
 
@@ -115,6 +115,13 @@ function likeSummary(likers: FeedLiker[], total: number, t: Translate): string {
   });
 }
 
+// The one person-list in the app that is deliberately NOT tappable per person.
+// These 20px faces live INSIDE the button that opens FeedLikesSheet, and that
+// sheet is a full row per liker with a real profile link on each — so the people
+// here are one tap away, and putting anchors in this button would be invalid
+// markup (an <a> inside a <button>) for targets a thumb cannot hit anyway. Same
+// reasoning for the hover tooltip below it: it is desktop-only and
+// pointer-events-none, i.e. a preview of the sheet, not a control.
 function LikerStack({ likers }: { likers: FeedLiker[] }) {
   if (likers.length === 0) return null;
   return (
@@ -176,12 +183,13 @@ function CommentPreview({
       )}
       {comments.map(c => (
         <p key={c.id} className="text-xs text-ink-500 leading-relaxed line-clamp-2">
-          <Link
-            href={`/dashboard/teammate/${c.author.athleteId}`}
+          <AthleteLink
+            athleteId={c.author.athleteId}
+            name={c.author.name}
             className="font-semibold text-ink-700 hover:underline"
           >
             {(c.author.name || '').split(' ')[0]}
-          </Link>
+          </AthleteLink>
           {' '}
           <FeedBodyText body={c.body} />
         </p>

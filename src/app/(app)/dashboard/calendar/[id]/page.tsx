@@ -22,6 +22,7 @@ import { useApi } from '@/lib/api';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 import { Card, Button, EmptyState, LoadingBlock, Spinner, InsetSection, InsetRow } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
+import { AthleteLink } from '@/components/AthleteLink';
 import { BenchmarkLeaderboard } from '@/components/BenchmarkLeaderboard';
 import { cn } from '@/lib/utils';
 import type { EventKind } from '@/lib/events';
@@ -315,9 +316,14 @@ export default function EventDetailPage() {
         ) : (
           <>
             <div className="flex items-center -space-x-2 rtl:space-x-reverse mb-2">
+              {/* "Who else is coming to this race" — eight faces, and the reason
+                  anybody looks at them is to find out who. The title attribute was
+                  the only answer, and a title never appears on a phone. */}
               {registeredParticipants.slice(0, 8).map((p) => (
                 <div key={p.athleteId} title={p.name} className="ring-2 ring-page rounded-full">
-                  <FeedAvatar name={p.name} url={p.avatarUrl} className="w-8 h-8" />
+                  <AthleteLink athleteId={p.athleteId} name={p.name} className="block rounded-full">
+                    <FeedAvatar name={p.name} url={p.avatarUrl} className="w-8 h-8" />
+                  </AthleteLink>
                 </div>
               ))}
             </div>

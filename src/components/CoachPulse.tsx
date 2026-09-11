@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { formatTime } from '@/lib/academy/benchmark';
 import { useApi } from '@/lib/api';
 import { Card, SkeletonCard } from '@/components/ui';
+import { AthleteLink } from '@/components/AthleteLink';
 
 interface Attn {
   athleteId: string; name: string; avatarUrl: string | null; squad: string | null; squadColor: string | null;
@@ -54,18 +55,40 @@ export function CoachPulse() {
         <div className="mb-4">
           <div className="flex items-center gap-1.5 mb-2"><AlertTriangle className="h-3.5 w-3.5 text-band-3" /><span className="text-xs font-bold text-band-3-ink">דורש תשומת לב</span></div>
           <div className="space-y-1.5">
+            {/* Two links per row, side by side, where there used to be one around
+                the whole thing. The row already went somewhere — the workout-feedback
+                inbox, which is what a coach wants after reading "כאב ×2" — and that
+                destination is worth keeping, but it meant that pressing a face here
+                took you to a list instead of to the runner. Nesting a profile link
+                inside the row link is not an option: an <a> inside an <a> is invalid
+                markup and browsers un-nest it, so one of the two taps silently stops
+                working. So the person (face + name) links to the person, and the
+                reason line beside it keeps the route to the feedback. */}
             {attention.slice(0, 5).map((a) => (
-              <Link key={a.athleteId} href="/dashboard/workout-feedback" className="flex items-center gap-3 bg-page/50 rounded-2xl p-2.5 active:bg-page/40 transition-colors">
-                <Avatar url={a.avatarUrl} name={a.name} />
+              <div key={a.athleteId} className="flex items-center gap-3 bg-page/50 rounded-2xl p-2.5">
+                <AthleteLink athleteId={a.athleteId} name={a.name} className="shrink-0">
+                  <Avatar url={a.avatarUrl} name={a.name} />
+                </AthleteLink>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-ink-700 truncate" dir="auto">{a.name}</span>
+                    <AthleteLink
+                      athleteId={a.athleteId}
+                      name={a.name}
+                      className="text-sm font-semibold text-ink-700 truncate hover:underline"
+                    >
+                      <span dir="auto">{a.name}</span>
+                    </AthleteLink>
                     {a.squad && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: a.squadColor || '#159AFF' }} />}
                   </div>
-                  <span className="block text-xs text-band-3-ink truncate">{reasonLabel(a)}</span>
+                  <Link
+                    href="/dashboard/workout-feedback"
+                    className="block text-xs text-band-3-ink truncate rounded hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
+                  >
+                    {reasonLabel(a)}
+                  </Link>
                 </div>
                 {a.reasons.includes('wants') && <Bell className="h-3.5 w-3.5 text-band-2 shrink-0" />}
-              </Link>
+              </div>
             ))}
           </div>
         </div>
@@ -77,11 +100,20 @@ export function CoachPulse() {
           <div className="space-y-1.5">
             {celebrate.slice(0, 5).map((c, i) => (
               <div key={`${c.athleteId}-${c.label}-${i}`} className="flex items-center gap-3 bg-page/50 rounded-2xl p-2.5">
-                <Avatar url={c.avatarUrl} name={c.name} />
-                <div className="flex-1 min-w-0">
-                  <span className="block text-sm font-semibold text-ink-700 truncate" dir="auto">{c.name}</span>
-                  <span className="block text-xs text-accent-900">שיא חדש · {c.label}</span>
-                </div>
+                {/* Nothing else in a celebrate row is interactive, so the face and
+                    the name (not the time on the far end, which is the datum being
+                    read) carry the link straight to whoever just set the PR. */}
+                <AthleteLink
+                  athleteId={c.athleteId}
+                  name={c.name}
+                  className="flex min-w-0 flex-1 items-center gap-3"
+                >
+                  <Avatar url={c.avatarUrl} name={c.name} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-ink-700 truncate" dir="auto">{c.name}</span>
+                    <span className="block text-xs text-accent-900">שיא חדש · {c.label}</span>
+                  </span>
+                </AthleteLink>
                 <span className="text-sm font-black text-ink-700 tabular-nums shrink-0">{formatTime(c.seconds)}</span>
               </div>
             ))}

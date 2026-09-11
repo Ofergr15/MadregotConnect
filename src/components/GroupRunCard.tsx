@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { formatActivityTime } from '@/lib/utils';
 import { FeedAvatar } from '@/components/FeedAvatar';
+import { AthleteLink } from '@/components/AthleteLink';
 import { RouteMinimap } from '@/components/RouteMinimap';
 import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
 import { FeedBodyText } from '@/components/FeedBodyText';
@@ -54,12 +55,26 @@ function AvatarStack({ items }: { items: FeedItem[] }) {
   return (
     <div className="flex items-center">
       {shown.map((item, i) => (
+        // The outer div keeps the overlap (negative inline-start margin) and the
+        // z-index that makes the stack read front-to-back; the link goes INSIDE it
+        // rather than replacing it, because a z-index only applies to a positioned
+        // element and moving it onto the anchor would flatten the stack.
+        //
+        // Each face is its own link. This is the picture of "four people ran
+        // together" — the one place in the app that draws four separate people at
+        // once — and not one of them could be opened.
         <div
           key={item.id}
           className={`rounded-full ring-2 ring-card ${i > 0 ? '-ms-2.5' : ''}`}
           style={{ zIndex: shown.length - i }}
         >
-          <FeedAvatar name={item.author.name} url={item.author.avatarUrl} />
+          <AthleteLink
+            athleteId={item.author.athleteId}
+            name={item.author.name}
+            className="block rounded-full"
+          >
+            <FeedAvatar name={item.author.name} url={item.author.avatarUrl} />
+          </AthleteLink>
         </div>
       ))}
     </div>
@@ -85,15 +100,27 @@ function CompactRunner({ item, onOpen }: { item: FeedItem; onOpen: () => void })
       }}
       className="flex items-center gap-2.5 py-2 rounded-xl cursor-pointer transition-colors hover:bg-page/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
     >
-      <FeedAvatar
+      {/* The row itself opens the run; the person inside it opens the person.
+          `stopPropagation` is what keeps those two apart — see AthleteLink. The
+          link is the face and the name only, so the distance/pace on the far end
+          stays part of the row's own tap target, which is what somebody scanning
+          a collapsed list is aiming at. */}
+      <AthleteLink
+        athleteId={item.author.athleteId}
         name={item.author.name}
-        url={item.author.avatarUrl}
-        className="w-7 h-7"
-        textClassName="text-[10px]"
-      />
-      <p className="flex-1 min-w-0 text-13 font-semibold text-ink-700 truncate">
-        {item.author.name}
-      </p>
+        stopPropagation
+        className="flex min-w-0 flex-1 items-center gap-2.5"
+      >
+        <FeedAvatar
+          name={item.author.name}
+          url={item.author.avatarUrl}
+          className="w-7 h-7"
+          textClassName="text-[10px]"
+        />
+        <span className="min-w-0 flex-1 text-13 font-semibold text-ink-700 truncate" dir="auto">
+          {item.author.name}
+        </span>
+      </AthleteLink>
       <p className="text-xs text-ink-500 tabular-nums shrink-0">
         {(act.distance / 1000).toFixed(1)} {t('km')}
         {pace ? ` · ${pace}` : ''}

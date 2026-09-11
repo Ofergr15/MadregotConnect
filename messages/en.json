@@ -42,7 +42,9 @@
       "Thu",
       "Fri",
       "Sat"
-    ]
+    ],
+    "viewProfile": "View profile",
+    "viewProfileOf": "View {name}'s profile"
   },
   "nav": {
     "dashboard": "Dashboard",

@@ -5,6 +5,7 @@ import { X, Heart } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { fetchLikers } from '@/lib/feed-client';
 import { FeedAvatar } from '@/components/FeedAvatar';
+import { AthleteLink } from '@/components/AthleteLink';
 import { Sheet } from '@/components/ui/Sheet';
 import type { FeedLiker } from '@/lib/feed/project';
 
@@ -64,11 +65,21 @@ export function FeedLikesSheet({ itemId, likeCount, seed = [], onClose }: Props)
       {!loading && likers.length === 0 && (
         <p className="text-center text-sm text-ink-400 py-8">{t('noLikesYet')}</p>
       )}
+      {/* "Who liked this" is a list of people and nothing else — there is no
+          second action on a row here — so the whole row is the tap target, at the
+          44px the rest of the app uses. It was the most confusing dead list in
+          the app: you open it by tapping a like count precisely BECAUSE you want
+          to know who these people are, and then the answer was untouchable. */}
       {likers.map(l => (
-        <div key={l.athleteId} className="flex items-center gap-3 py-2">
+        <AthleteLink
+          key={l.athleteId}
+          athleteId={l.athleteId}
+          name={l.name}
+          className="flex items-center gap-3 py-2 min-h-[44px] -mx-2 px-2 hover:bg-page/60 transition-colors"
+        >
           <FeedAvatar name={l.name} url={l.avatarUrl} />
-          <span className="text-sm text-ink-700 truncate">{l.name}</span>
-        </div>
+          <span className="text-sm text-ink-700 truncate" dir="auto">{l.name}</span>
+        </AthleteLink>
       ))}
       {!loading && hidden > 0 && (
         <p className="text-center text-xs text-ink-400 py-3">{t('andMore', { count: hidden })}</p>

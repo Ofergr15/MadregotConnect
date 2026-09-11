@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { formatPace } from '@/lib/garmin/pace';
 import { apiHeaders } from '@/lib/api';
 import { Sheet, InsetSection, InsetRow, ConfirmSheet, Spinner } from '@/components/ui';
+import { teammateHref } from '@/lib/athletes/profile-link';
 import { CoachPairing } from './CoachPairing';
 import {
   ATTENTION_ORDER, ATTENTION_STYLE, fmtRate, initialsOf, rateColor,
@@ -240,7 +241,7 @@ export function MemberSheet({
               icon={Activity}
               iconBg="bg-ink-300"
               label={t('openProfile')}
-              href={`/dashboard/teammate/${member.athleteId}`}
+              href={teammateHref(member.athleteId) ?? undefined}
             />
             {onRemove && (
               <InsetRow

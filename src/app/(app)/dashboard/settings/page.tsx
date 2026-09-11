@@ -27,6 +27,7 @@ import { apiHeaders, useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useTranslations } from 'next-intl';
 import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, BackNav } from '@/components/ui';
+import { AthleteLink } from '@/components/AthleteLink';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 
 type TFunc = ReturnType<typeof useTranslations>;
@@ -574,16 +575,24 @@ export default function SettingsPage() {
         )}
       >
       <div className="flex items-center gap-3">
-        <div className={cn('w-10 h-10 rounded-full flex items-center justify-center shrink-0', isAdmin ? 'bg-purple-500/20' : 'bg-page/50')}>
+        {/* `user.id` is athletes.id — /api/admin/users reads straight off that
+            table — so both halves of the identity link to the same profile. Two
+            SEPARATE links rather than one around the whole block, because the
+            second line carries chips and the block sits beside a delete button;
+            keeping the target on the face and the name leaves every control in
+            this row exactly as tappable as it was. */}
+        <AthleteLink athleteId={user.id} name={user.name} className={cn('w-10 h-10 rounded-full flex items-center justify-center shrink-0', isAdmin ? 'bg-purple-500/20' : 'bg-page/50')}>
           {isAdmin ? (
             <Shield className="w-4.5 h-4.5 text-purple-600" />
           ) : (
             <span className="text-xs font-bold text-ink-500">{user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}</span>
           )}
-        </div>
+        </AthleteLink>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-ink-700 truncate">{user.name}</p>
+            <AthleteLink athleteId={user.id} name={user.name} className="min-w-0">
+              <p className="text-sm font-semibold text-ink-700 truncate" dir="auto">{user.name}</p>
+            </AthleteLink>
             {/* No role badge here: the role control two lines below already says
                 "מנהל", and printing it twice on one card read as two different
                 facts. The purple shield avatar is the at-a-glance admin marker. */}

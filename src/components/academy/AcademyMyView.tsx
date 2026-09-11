@@ -11,6 +11,7 @@ import { formatPace } from '@/lib/garmin/pace';
 import { useApi } from '@/lib/api';
 import { Card, EmptyState, InsetRow, InsetSection, SkeletonList } from '@/components/ui';
 import { fmtRate, fmtWeekRange, initialsOf, rateColor, shiftWeek, sundayOf } from './types';
+import { AthleteLink } from '@/components/AthleteLink';
 
 // The academy as one of its athletes sees it.
 //
@@ -222,18 +223,27 @@ export function AcademyMyView({ athleteId }: {
                 )}
               >
                 <span className="w-4 text-center text-xs font-bold text-ink-400 shrink-0">{i + 1}</span>
-                {r.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={r.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
-                ) : (
-                  <div className="w-9 h-9 rounded-full bg-brand-600/20 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">
-                    {initialsOf(r.name)}
-                  </div>
-                )}
-                <span className={cn('flex-1 min-w-0 text-sm truncate', r.isMe ? 'font-bold text-ink-700' : 'font-medium text-ink-700')}>
-                  {r.name}
-                  {r.isMe && <span className="ms-1.5 text-2xs font-semibold text-brand-600">{t('you')}</span>}
-                </span>
+                {/* `r.isMe ? null` opts the viewer's own row out — it already says
+                    "you" in brand blue, and this board is on the viewer's own academy
+                    screen, so linking it would loop them to a peer copy of themselves. */}
+                <AthleteLink
+                  athleteId={r.isMe ? null : r.athleteId}
+                  name={r.name}
+                  className="flex min-w-0 flex-1 items-center gap-3"
+                >
+                  {r.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={r.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <span className="w-9 h-9 rounded-full bg-brand-600/20 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">
+                      {initialsOf(r.name)}
+                    </span>
+                  )}
+                  <span className={cn('flex-1 min-w-0 text-sm truncate', r.isMe ? 'font-bold text-ink-700' : 'font-medium text-ink-700')} dir="auto">
+                    {r.name}
+                    {r.isMe && <span className="ms-1.5 text-2xs font-semibold text-brand-600">{t('you')}</span>}
+                  </span>
+                </AthleteLink>
                 <span className="text-sm font-bold text-ink-700 tabular-nums shrink-0">
                   {r.weekKm.toFixed(1)} <span className="text-3xs text-ink-400 font-semibold">{t('kmUnit')}</span>
                 </span>

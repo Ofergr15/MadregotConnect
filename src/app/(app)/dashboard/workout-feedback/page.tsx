@@ -7,6 +7,7 @@ import { resolveGroup } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { SkeletonList, SegmentedControl, Card, EmptyState } from '@/components/ui';
 import { FeedbackThread, type ThreadMessage } from '@/components/FeedbackThread';
+import { AthleteLink } from '@/components/AthleteLink';
 
 interface FeedbackItem {
   id: string;
@@ -144,18 +145,27 @@ function MissingCard({ m }: { m: MissingEntry }) {
   return (
     <Card variant="solid">
       <div className="flex items-center gap-3">
-        {m.avatarUrl
-          ? <img src={m.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
-          : <span className="w-9 h-9 rounded-full bg-brand-600/25 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">{(m.name[0] || '?').toUpperCase()}</span>}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-ink-700 truncate" dir="auto">{m.name}</span>
-            {rg && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: rg.hex, backgroundColor: `${rg.hex}20` }}>{m.squad}</span>}
-          </div>
-          <div className="text-xs text-ink-400 truncate">
-            {m.activityName || 'אימון'}{km ? ` · ${km} ק״מ` : ''}{dateStr ? ` · ${dateStr}` : ''}
-          </div>
-        </div>
+        {/* "Ran and said nothing" is a card about a person the coach is about to
+            chase, so the face and the name go to that person. The squad tag and the
+            run line ride inside the link because they are labels, not controls. */}
+        <AthleteLink
+          athleteId={m.athleteId}
+          name={m.name}
+          className="flex min-w-0 flex-1 items-center gap-3"
+        >
+          {m.avatarUrl
+            ? <img src={m.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+            : <span className="w-9 h-9 rounded-full bg-brand-600/25 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">{(m.name[0] || '?').toUpperCase()}</span>}
+          <span className="flex-1 min-w-0">
+            <span className="flex items-center gap-2">
+              <span className="text-sm font-bold text-ink-700 truncate" dir="auto">{m.name}</span>
+              {rg && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: rg.hex, backgroundColor: `${rg.hex}20` }}>{m.squad}</span>}
+            </span>
+            <span className="block text-xs text-ink-400 truncate">
+              {m.activityName || 'אימון'}{km ? ` · ${km} ק״מ` : ''}{dateStr ? ` · ${dateStr}` : ''}
+            </span>
+          </span>
+        </AthleteLink>
         <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-1 rounded-lg bg-page/50 text-ink-400 shrink-0">
           <Bell className="h-3 w-3" /> ללא תגובה
         </span>
@@ -178,18 +188,27 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
   return (
     <Card variant="solid" className={it.pain ? 'border-band-3/40' : undefined}>
       <div className="flex items-center gap-3">
-        {it.avatarUrl
-          ? <img src={it.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
-          : <span className="w-9 h-9 rounded-full bg-brand-600/25 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">{(it.name[0] || '?').toUpperCase()}</span>}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-ink-700 truncate" dir="auto">{it.name}</span>
-            {rg && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: rg.hex, backgroundColor: `${rg.hex}20` }}>{it.squad}</span>}
-          </div>
-          <div className="text-xs text-ink-400 truncate">
-            {it.activityName || 'אימון'}{km ? ` · ${km} ק״מ` : ''}{dateStr ? ` · ${dateStr}` : ''}
-          </div>
-        </div>
+        {/* Same identity block as the MissingCard above, same link. The feel emoji
+            on the far end stays outside it — it is the summary the coach is
+            scanning for, and it carries its own title tooltip. */}
+        <AthleteLink
+          athleteId={it.athleteId}
+          name={it.name}
+          className="flex min-w-0 flex-1 items-center gap-3"
+        >
+          {it.avatarUrl
+            ? <img src={it.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+            : <span className="w-9 h-9 rounded-full bg-brand-600/25 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">{(it.name[0] || '?').toUpperCase()}</span>}
+          <span className="flex-1 min-w-0">
+            <span className="flex items-center gap-2">
+              <span className="text-sm font-bold text-ink-700 truncate" dir="auto">{it.name}</span>
+              {rg && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: rg.hex, backgroundColor: `${rg.hex}20` }}>{it.squad}</span>}
+            </span>
+            <span className="block text-xs text-ink-400 truncate">
+              {it.activityName || 'אימון'}{km ? ` · ${km} ק״מ` : ''}{dateStr ? ` · ${dateStr}` : ''}
+            </span>
+          </span>
+        </AthleteLink>
 
         {/* Feel emoji */}
         {feel && (
