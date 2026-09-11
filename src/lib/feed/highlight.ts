@@ -59,7 +59,7 @@ export interface HighlightWeek {
    * Monday's comes back on its own. A dismissal with no way back is a trap.
    */
   weekStart: string;
-  /** Kilometres run so far in the current plan week. */
+  /** Kilometres run so far in this activity week. */
   km: number;
   /**
    * The coach's planned range for this week. Both 0 when no plan covers it — a
@@ -71,9 +71,20 @@ export interface HighlightWeek {
    */
   targetMin: number;
   targetMax: number;
-  /** Per-day kilometres, Sunday first. Always seven values, zeros included. */
+  /**
+   * Per-day kilometres for this week. Always seven values, zeros included.
+   *
+   * Index 0 is `weekStart` — i.e. Monday, because this is the activity week — and
+   * NOT Sunday. It used to be Sunday and the note here used to say so; anything
+   * that puts a name on these seven bars must take the order from `weekStart`
+   * (see `weekDayKeys`) rather than assume it, because assuming it shipped a bug.
+   */
   dailyKm: number[];
-  /** Days of the week gone by, today included: 1 on Sunday, 7 on Saturday. */
+  /**
+   * Days of the week gone by, today included: 1 on `weekStart` itself, 7 on the
+   * last day of the week. So `dailyKm[daysElapsed - 1]` is today's bar, whichever
+   * weekday the week is anchored on.
+   */
   daysElapsed: number;
 }
 
@@ -100,6 +111,53 @@ export function dayKeyDiff(from: string, to: string): number {
   return Math.round(
     (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400_000,
   );
+}
+
+// ─── the day strip ─────────────────────────────────────────────────────────────
+
+/**
+ * Weekday name suffixes for the `feedHighlight.day_*` message keys, indexed the
+ * way `Date.getUTCDay()` is: Sunday 0 … Saturday 6.
+ *
+ * This is a lookup from a weekday NUMBER to a key. It is deliberately not
+ * exported and deliberately not the order the strip is drawn in — that is
+ * `weekDayKeys`, below, and the difference between the two is the whole bug this
+ * pair of functions exists to prevent.
+ */
+const DAY_KEY_BY_WEEKDAY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+
+export type HighlightDayKey = (typeof DAY_KEY_BY_WEEKDAY)[number];
+
+/**
+ * The seven weekday labels for a week's day strip, in the SAME order as that
+ * week's `dailyKm` — derived from `weekStart` instead of assumed.
+ *
+ * Assuming it was a live bug. `dailyKm` used to start on Sunday and the strip
+ * hard-coded Sunday-first labels to match. On 2026-09-09 the route moved to the
+ * ACTIVITY week so the headline total would agree with the athlete's watch
+ * (Monday–Sunday), and the labels stayed behind. From that day until this fix
+ * every bar was drawn under the PREVIOUS day's name: on Thursday 2026-09-10 a
+ * 16 km morning run sat under ד׳ (Wednesday) while ה׳ (Thursday) was an empty
+ * track — so today's run read as "didn't sync", and was reported that way by an
+ * athlete who could see the very same run in the club feed directly below the
+ * card. The kilometres were never wrong; only the names over them were.
+ *
+ * Deriving the names from `weekStart` means the strip follows the array. If the
+ * anchor moves a third time the labels move with it, with nothing left to keep in
+ * step by hand.
+ *
+ * `weekStart` is a bare `YYYY-MM-DD` and is read through UTC parts only, for the
+ * same reason the day-key arithmetic above is: resolving it in the viewer's zone
+ * would slide the whole strip by a day for anyone west of Greenwich.
+ */
+export function weekDayKeys(weekStart: string): HighlightDayKey[] {
+  const parsed = new Date(`${weekStart}T00:00:00Z`).getUTCDay();
+  // A malformed key gives NaN, and `DAY_KEY_BY_WEEKDAY[NaN]` is `undefined` —
+  // which reaches the translator as `day_undefined` and throws inside the render,
+  // taking the whole feed page down with it. Falling back to Sunday-first is
+  // wrong-but-legible; a blank feed is neither.
+  const first = Number.isNaN(parsed) ? 0 : parsed;
+  return Array.from({ length: WEEK_DAYS }, (_, i) => DAY_KEY_BY_WEEKDAY[(first + i) % 7]);
 }
 
 // ─── the week's verdict ────────────────────────────────────────────────────────
@@ -137,12 +195,12 @@ export function weekRemainingKm(week: HighlightWeek): number {
 // ─── assembly ──────────────────────────────────────────────────────────────────
 
 export interface HighlightInput {
-  /** Sunday of the plan week being reported on, `YYYY-MM-DD`. */
+  /** First day of the activity week being reported on — the Monday, `YYYY-MM-DD`. */
   weekStart: string;
   weekKm: number;
   weekTargetMin: number;
   weekTargetMax: number;
-  /** Sunday-first per-day kilometres for the current week. Padded to seven here. */
+  /** Per-day kilometres starting on `weekStart`, not on Sunday. Padded to seven here. */
   weekDailyKm: number[];
   daysElapsed: number;
   challenge: HighlightChallenge | null;
