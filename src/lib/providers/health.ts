@@ -22,11 +22,17 @@ export const PROVIDER_HEALTH_COLUMNS_101 =
 /**
  * How long a credential may go unsynced before the UI stops calling it healthy.
  *
- * The crons run hourly, so anything beyond a day or two is already suspicious —
- * but a member can be injured, travelling or simply not running, and telling
- * them their watch is broken because they took a week off would be worse than
- * saying nothing. Two weeks is past any normal gap and still well inside the
- * point where the athlete has noticed their runs are missing.
+ * Garmin is stamped by the 5-minute cron, so for that provider anything beyond a
+ * day or two is already suspicious. Strava is not: the cron only repairs Strava
+ * rows it already has, so a Strava stamp is written when the member's own phone
+ * opens the app (see open-sync.ts) — which means "stale" there can also mean "has
+ * not opened the app", and a threshold anywhere near the crons' cadence would
+ * accuse half the club of a broken watch.
+ *
+ * A member can also be injured, travelling or simply not running, and telling them
+ * their watch is broken because they took a week off would be worse than saying
+ * nothing. Two weeks is past any normal gap and still well inside the point where
+ * the athlete has noticed their runs are missing.
  */
 export const STALE_AFTER_DAYS = 14;
 

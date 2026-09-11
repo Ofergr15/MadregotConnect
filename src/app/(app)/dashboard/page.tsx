@@ -21,6 +21,7 @@ import { teamDayTarget } from '@/lib/plans/team-day';
 import { Spinner, Card, BigStat, EmptyState, Button } from '@/components/ui';
 import { useNavIdentity } from '@/lib/nav-items';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { shouldSyncOnOpen, stravaOpenSyncKey } from '@/lib/providers/open-sync';
 // The goal race lived here as three consts until the designer's Profile frame
 // put the same countdown on a second screen — see src/lib/goal-race.ts. The
 // h/m/s tick below stays local: only this strip counts down by the second.
@@ -311,7 +312,10 @@ export default function DashboardPage() {
       // until the hourly cron, on the screen built to show it.
       if (!homeKnown || controlRoomView) return;
       const myAthleteId = localStorage.getItem('athlete_id');
-      const syncKey = myAthleteId ? `dashboard_synced:${myAthleteId}` : 'dashboard_synced';
+      // Shared with the app shell's own open-sync (see (app)/layout.tsx), so the
+      // two cannot both fire on one app open — whichever screen the member landed
+      // on syncs, and the other sees a fresh stamp and skips.
+      const syncKey = myAthleteId ? stravaOpenSyncKey(myAthleteId) : null;
       // Super-user "view as" preview is read-only (sync POST is blocked).
       const isPreviewing = !!localStorage.getItem('view_as_role');
       // Not gated on isCoach (the component-level state, unrelated to this
@@ -355,14 +359,24 @@ export default function DashboardPage() {
         // resolve; in React Strict Mode two effects can still start together,
         // so the localStorage lock below still guards against a duplicate sync.
         let willSync = false;
-        if (canSync) {
-          willSync = !localStorage.getItem(syncKey) && hasStrava;
+        if (canSync && syncKey) {
+          // A COOLDOWN, not a one-shot flag. This used to be `!getItem(syncKey)`
+          // with '1' written on success and removed only on failure — so a sync
+          // that WORKED disarmed the only Strava trigger this member had for good,
+          // and their runs stopped arriving after the first one (measured on
+          // production 2026-09-11: one member's whole history imported the day he
+          // connected, and nothing since). See lib/providers/open-sync.ts for why
+          // there is no server-side schedule behind Strava to fall back on.
+          willSync = shouldSyncOnOpen(localStorage.getItem(syncKey), Date.now()) && hasStrava;
           if (willSync) {
-            // Mark before starting so Strict Mode cannot launch a duplicate sync.
+            // Stamp before starting so Strict Mode cannot launch a duplicate sync.
             // On a real sync error we re-arm below so it retries next visit.
-            localStorage.setItem(syncKey, '1');
+            localStorage.setItem(syncKey, String(Date.now()));
           } else if (!hasStrava) {
-            localStorage.setItem(syncKey, '1');
+            // Nothing to sync, but stamping still spends the cooldown — otherwise
+            // a Garmin-only member asks /api/athletes/me on every single visit to
+            // be told the same thing.
+            localStorage.setItem(syncKey, String(Date.now()));
           }
         }
 
@@ -399,8 +413,9 @@ export default function DashboardPage() {
             });
             if (!stravaSyncRes.ok) throw new Error('Strava sync failed');
           } catch {
-            // Re-arm so a failed sync retries on the next visit.
-            localStorage.removeItem(syncKey);
+            // Re-arm so a failed sync retries on the next visit rather than
+            // waiting out a cooldown it never earned.
+            if (syncKey) localStorage.removeItem(syncKey);
           }
 
           // Refresh activities after sync completes

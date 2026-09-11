@@ -3,6 +3,7 @@
 import { useEffect, useState, type ComponentType } from 'react';
 import { Shield, Megaphone, Footprints, Glasses, Construction } from 'lucide-react';
 import { isSuperUser } from '@/lib/constants';
+import { stravaOpenSyncKey } from '@/lib/providers/open-sync';
 import { useApi } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
 
@@ -37,11 +38,21 @@ export function isPreviewing(): boolean {
 // to decide whether a previewed role should also get the athlete profile tab.
 export const STAFF_ROLES = ['admin', 'coach', 'academy_coach'];
 
+// Both directions drop the open-sync cooldown stamp, so the first screen after a
+// view-as switch pulls in whatever arrived while the super user was looking at
+// somebody else's app. It used to remove 'dashboard_synced' — a name nothing has
+// written since the key gained an athlete-id suffix, so both of these lines were
+// doing nothing at all.
+function clearOpenSyncStamp() {
+  const athleteId = localStorage.getItem('athlete_id');
+  if (athleteId) localStorage.removeItem(stravaOpenSyncKey(athleteId));
+}
+
 // Enter (or switch) a view mode, then reload so the Header + gate re-read it.
 export function startViewAs(mode: string) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(KEY, mode);
-  localStorage.removeItem('dashboard_synced');
+  clearOpenSyncStamp();
   window.location.assign('/dashboard');
 }
 
@@ -49,7 +60,7 @@ export function startViewAs(mode: string) {
 export function stopViewAs() {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(KEY);
-  localStorage.removeItem('dashboard_synced');
+  clearOpenSyncStamp();
   window.location.assign('/dashboard');
 }
 

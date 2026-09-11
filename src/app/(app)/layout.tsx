@@ -17,6 +17,7 @@ import { Spinner } from '@/components/ui';
 import { AccessBlocked } from '@/components/AccessBlocked';
 import { apiHeaders, useApi } from '@/lib/api';
 import { BLOCKED_MEMBERSHIPS } from '@/lib/auth/membership';
+import { shouldSyncOnOpen, stravaOpenSyncKey } from '@/lib/providers/open-sync';
 import { getSupabase } from '@/lib/supabase/client';
 import { REVIEW_LAST_PATH_KEY } from '@/lib/review-context';
 import {
@@ -238,6 +239,68 @@ export default function AppLayout({
   useEffect(() => {
     if (blocked === 'pending') router.replace('/pending-approval');
   }, [blocked, router]);
+
+  // ── PULL IN NEW STRAVA RUNS WHEN THE APP OPENS ────────────────────────────
+  //
+  // Strava has no server-side schedule behind it — the 5-minute cron syncs Garmin
+  // and only REPAIRS existing Strava rows, and the webhook that was supposed to
+  // replace the dropped poll has never delivered an event (the numbers are in
+  // lib/providers/open-sync.ts). So this request is the whole mechanism by which
+  // a Strava member's runs reach the club, and until now it existed only inside
+  // /dashboard's own effect — a screen the installed app never opens, because the
+  // manifest's start_url is /feed. A member who lives in the feed got their
+  // history the day they connected and then nothing, with no error anywhere,
+  // which is exactly how it was reported: "my workouts aren't coming in".
+  //
+  // It belongs in the shell rather than on the feed page for the same reason the
+  // shell owns the app badge above: every signed-in surface is an app open, and a
+  // fix pinned to one more page would break again the next time the front door
+  // moves. /dashboard is the one exception — it runs the same sync itself, around
+  // a before/after snapshot it needs for the "customize your post" sheet, and both
+  // sides now share one cooldown stamp so only one of them spends it.
+  //
+  // Deliberately fire-and-forget: nothing on screen waits for it, the route is a
+  // no-op returning `{synced:0}` for a member with no Strava credential, and a new
+  // run appearing needs the next render pass anyway (the feed's own SWR read), not
+  // a response body. Failure re-arms rather than being surfaced — a member cannot
+  // act on "Strava didn't answer", and the profile screen's connection pill is
+  // where a genuinely refused credential gets said out loud (migration 101).
+  useEffect(() => {
+    if (!authorized || blocked || pathname === '/dashboard') return;
+    let cancelled = false;
+    (async () => {
+      let key: string | null = null;
+      try {
+        const athleteId = localStorage.getItem('athlete_id');
+        // No athlete row (a pure-admin account) records no runs anywhere, and the
+        // super user's "view as" preview is read-only — the sync POST is blocked
+        // for it, so asking would only ever collect a 403.
+        if (!athleteId || localStorage.getItem('view_as_role')) return;
+        key = stravaOpenSyncKey(athleteId);
+        if (!shouldSyncOnOpen(localStorage.getItem(key), Date.now())) return;
+        // Stamped BEFORE the request, so React Strict Mode's double effect and a
+        // fast feed↔profile hop cannot each launch their own sync.
+        localStorage.setItem(key, String(Date.now()));
+      } catch {
+        return; // private mode: no stamp to read and none to write, so don't ask
+      }
+      try {
+        const res = await fetch('/api/strava/sync-activities', {
+          method: 'POST',
+          headers: await apiHeaders(),
+          body: JSON.stringify({ athleteId: localStorage.getItem('athlete_id') }),
+        });
+        if (!res.ok) throw new Error(`Strava sync ${res.status}`);
+      } catch {
+        // Re-arm so the next app open tries again instead of waiting out a
+        // cooldown that bought nothing.
+        if (!cancelled && key) {
+          try { localStorage.removeItem(key); } catch { /* private mode */ }
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [authorized, blocked, pathname]);
 
   // Held behind the same spinner as the session check rather than swapped in
   // after the fact: a revoked member should never see a flash of the feed they
