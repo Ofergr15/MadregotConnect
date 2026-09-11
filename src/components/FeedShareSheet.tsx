@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Share2, ImagePlus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTranslations, useLocale } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { renderShareCard, shareCard, SHARE_TEMPLATE_KEYS } from '@/lib/feed/share-image';
 import { Sheet } from '@/components/ui/Sheet';
 import type { ShareTemplate } from '@/lib/feed/share-image';
@@ -24,7 +24,6 @@ interface Props {
 export function FeedShareSheet({ item, onClose }: Props) {
   const t = useTranslations('feed');
   const ts = useTranslations('feed.share');
-  const locale = useLocale();
   const [style, setStyle] = useState<Style>('photo');
   const [template, setTemplate] = useState<ShareTemplate>('classic');
   const [photo, setPhoto] = useState<File | null>(null);
@@ -45,7 +44,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
 
     renderShareCard(
       item,
-      { locale, km: t('km'), perKm: t('perKm'), pace: ts('cardPace'), time: ts('cardTime'), hr: ts('cardHr') },
+      { km: t('km'), perKm: t('perKm'), pace: ts('cardPace'), time: ts('cardTime'), hr: ts('cardHr') },
       { background: photo, transparent: style === 'transparent', template },
     )
       .then(blob => {
@@ -65,7 +64,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [item, photo, style, template, locale, t, ts]);
+  }, [item, photo, style, template, t, ts]);
 
   const handleShare = useCallback(async () => {
     const blob = blobRef.current;

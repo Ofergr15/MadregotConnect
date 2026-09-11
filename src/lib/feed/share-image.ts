@@ -36,8 +36,6 @@ export const SHARE_TEMPLATE_KEYS: ShareTemplate[] = ['classic', 'card', 'minimal
  * (which does) supplies them.
  */
 export interface ShareI18n {
-  /** BCP-47 tag for the date on the card, e.g. 'he' or 'en'. */
-  locale: string;
   km: string;
   perKm: string;
   pace: string;
@@ -237,18 +235,12 @@ function distanceKm(act: FeedActivity): string {
   return (act.distance / 1000).toFixed(2).replace(/\.?0+$/, '');
 }
 
-/**
- * The card carries the run, not the runner: the athlete's name and their group
- * are deliberately left off every template. Anyone posting this to a story is
- * already identified by the account they post from, and the group is nobody
- * else's business.
+/*
+ * The card carries the run, nothing else: the athlete's name, their group and the
+ * date of the run are all deliberately left off every template. Whoever posts this
+ * to a story is already identified by the account they post from, when they ran is
+ * implied by when they posted, and the group is nobody else's business.
  */
-function dateLine(act: FeedActivity, i18n: ShareI18n): string {
-  return new Date(act.startTime).toLocaleDateString(i18n.locale, {
-    day: 'numeric',
-    month: 'long',
-  });
-}
 
 interface LayoutCtx {
   ctx: CanvasRenderingContext2D;
@@ -277,7 +269,9 @@ function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n }: Layou
     ctx.globalAlpha = 0.95;
     ctx.drawImage(logo, (STORY_W - logoW) / 2, y - logoH, logoW, logoH);
     ctx.globalAlpha = 1;
-    y -= logoH + 64;
+    // The date used to sit between the logo and the divider; without it the gap
+    // is set here instead so the rule doesn't crowd the badge.
+    y -= logoH + 120;
   } else {
     y -= 24;
   }
@@ -285,15 +279,7 @@ function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n }: Layou
   ctx.textBaseline = 'alphabetic';
   ctx.direction = 'rtl';
   ctx.textAlign = 'right';
-  ctx.shadowColor = shadow;
-  ctx.shadowBlur = shadowBlur;
 
-  ctx.font = `500 40px ${font}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.72)';
-  ctx.fillText(dateLine(act, i18n), right, y);
-  y -= 62;
-
-  ctx.shadowBlur = 0;
   ctx.strokeStyle = 'rgba(255,255,255,0.25)';
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -409,15 +395,6 @@ function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n }: LayoutCt
     ctx.globalAlpha = 0.95;
     ctx.drawImage(logo, right - logoW, y, logoW, logoH);
     ctx.globalAlpha = 1;
-
-    // The date sits opposite the logo, centred on the logo's own band now that
-    // there is no name above it.
-    ctx.textBaseline = 'middle';
-    ctx.direction = 'rtl';
-    ctx.textAlign = 'left';
-    ctx.font = `500 36px ${font}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillText(dateLine(act, i18n), cardX + PAD, y + logoH / 2);
     y += logoH;
   }
 
@@ -512,10 +489,6 @@ function layoutMinimal({ ctx, font, act, logo, shadow, shadowBlur, i18n }: Layou
   ctx.font = `600 48px ${font}`;
   ctx.fillStyle = '#ffffff';
   ctx.fillText(line, cx, heroBaseline + 220);
-
-  ctx.font = `500 38px ${font}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText(dateLine(act, i18n), cx, heroBaseline + 286);
   ctx.shadowBlur = 0;
 
   if (logo) {
