@@ -24,6 +24,24 @@ describe('stravaDisplayNameOf', () => {
     expect(stravaDisplayNameOf({ firstname: 'רועי', lastname: 'רוט' })).toBe('רועי רוט');
   });
 
+  it('treats Strava’s own placeholder as nothing, because that is what it is', () => {
+    // Undocumented, and measured in production on 2026-09-11: an account whose real
+    // name Strava will not disclose comes back as firstname "Strava" / lastname
+    // "Athlete". Passed through, it was written over the roster name AND announced
+    // to the admin as the name of the person trying to get in.
+    expect(stravaDisplayNameOf({ firstname: 'Strava', lastname: 'Athlete' })).toBeNull();
+    expect(stravaDisplayNameOf({ firstname: 'strava', lastname: 'athlete' })).toBeNull();
+    expect(stravaDisplayNameOf({ firstname: 'Strava' })).toBeNull();
+    // And our own "Strava <id>" fallback, should it ever come back round.
+    expect(stravaDisplayNameOf({ firstname: 'Strava', lastname: '659081577' })).toBeNull();
+  });
+
+  it('does not mistake a real name that merely begins with those letters', () => {
+    expect(stravaDisplayNameOf({ firstname: 'Stravinsky' })).toBe('Stravinsky');
+    expect(stravaDisplayNameOf({ firstname: 'Strava', lastname: 'Fanclub Dana' }))
+      .toBe('Strava Fanclub Dana');
+  });
+
   it('answers null when Strava says nothing, so the row keeps the name it has', () => {
     expect(stravaDisplayNameOf({})).toBeNull();
     expect(stravaDisplayNameOf({ firstname: '', lastname: '' })).toBeNull();

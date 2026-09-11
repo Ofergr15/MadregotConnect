@@ -527,7 +527,11 @@ export async function GET(request: Request) {
       // nothing lists them, so nothing can approve them, and the waiting screen is
       // where they stay for good. Best-effort by design — the account exists either
       // way, and a failure here must not turn a sign-in into an error page.
-      await queuePendingStravaSignup({ athleteId: created.id, email, name });
+      //
+      // `stravaDisplayName` and not `name`: the row above needs a non-null name and
+      // takes the "Strava <id>" fallback, but an ALERT needs to know the difference
+      // between a name and a stand-in for one, and it can only know it here.
+      await queuePendingStravaSignup({ athleteId: created.id, email, stravaName: stravaDisplayName });
     }
 
     // ── Handoff mode ─────────────────────────────────────────────────────────

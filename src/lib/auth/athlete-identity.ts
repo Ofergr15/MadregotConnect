@@ -580,6 +580,9 @@ export function duplicatesToFold<T extends IdentityRow>(rows: T[], keep: T): T[]
   return rows.filter(r => r.id !== keep.id && isSyntheticAuthEmail(r.email));
 }
 
+/** Strava's own "we won't say", plus this app's "Strava <id>" coming back to us. */
+const PROVIDER_PLACEHOLDER_NAME = /^strava[\s_-]*(athlete|user|runner|\d+)?$/i;
+
 /**
  * The name STRAVA holds for this person, or null when it holds nothing usable.
  *
@@ -594,11 +597,24 @@ export function duplicatesToFold<T extends IdentityRow>(rows: T[], keep: T): T[]
  * falls back to "Strava <id>" so that a brand-new row is never nameless, and
  * writing THAT over a name somebody chose would be a downgrade, not a sync.
  *
+ * ⚠️ And STRAVA HAS A PLACEHOLDER OF ITS OWN, which is not documented anywhere in
+ * their API reference and which this function used to pass straight through: an
+ * account whose real name Strava will not disclose comes back as firstname
+ * "Strava", lastname "Athlete". Measured in production on 2026-09-11 — the club's
+ * newest member signed in, their roster row was created reading `Strava Athlete`,
+ * and the approval alert the admin got said "Strava Athlete · 26 בקשות ממתינות
+ * לאישור". "Nothing usable" has to include it: it is the same non-answer as an
+ * empty firstname, dressed as a name, so it must not be written over a roster name
+ * either. Treated as absent, the login keeps whatever name the club already had
+ * and the alert falls through to a source that knows something.
+ *
  * This function only reads what Strava holds. Whether the roster should TAKE it
  * is rosterNameFromProvider() in src/lib/names/latin.ts, which refuses to replace
  * a Latin name with a non-Latin one — otherwise a login silently reverts a name
- * corrected on the roster.
+ * corrected on the roster. The two guards answer different questions and both
+ * have to hold: this one rejects a non-answer, that one rejects a downgrade.
  */
+
 export function stravaDisplayNameOf(
   athlete: { firstname?: string | null; lastname?: string | null } | null | undefined,
 ): string | null {
@@ -607,5 +623,6 @@ export function stravaDisplayNameOf(
     .filter(Boolean)
     .join(' ')
     .trim();
-  return joined || null;
+  if (!joined || PROVIDER_PLACEHOLDER_NAME.test(joined)) return null;
+  return joined;
 }
