@@ -1,5 +1,6 @@
 import { PR_BUCKETS, type RunActivityRow } from './pr-buckets';
 import type { LapLike } from './best-segment';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 
 /**
  * Fills in `laps` on the runs that could contain a PR segment.
@@ -32,16 +33,25 @@ export async function attachLapsForPrs<T extends RunActivityRow & { id?: string 
   if (!eligible) return runs;
 
   try {
-    const { data, error } = await supabase
-      .from('athlete_activities')
-      .select('id, laps')
-      .eq('athlete_id', athleteId)
-      .gte('distance', smallestBucket)
-      .not('laps', 'is', null);
-    if (error) throw error;
+    // Paged, and ordered by `id` to make the pages a stable partition. Only 31 of
+    // the busiest athlete's runs carry laps today, well under PostgREST's
+    // 1000-row ceiling, so this is not yet load-bearing — but the laps backfill
+    // drains on a cron, which means the row count only grows, and the failure when
+    // it crosses the line would be a PR that quietly stops using segments rather
+    // than anything that looks like an error. See lib/supabase/paginate.ts.
+    const data = await fetchAllRows<{ id: string; laps: LapLike[] | null }>((from, to) =>
+      supabase
+        .from('athlete_activities')
+        .select('id, laps')
+        .eq('athlete_id', athleteId)
+        .gte('distance', smallestBucket)
+        .not('laps', 'is', null)
+        .order('id')
+        .range(from, to),
+    );
 
     const byId = new Map<string, LapLike[]>();
-    for (const row of (data || []) as Array<{ id: string; laps: LapLike[] | null }>) {
+    for (const row of data) {
       if (Array.isArray(row.laps) && row.laps.length > 0) byId.set(row.id, row.laps);
     }
     if (byId.size === 0) return runs;

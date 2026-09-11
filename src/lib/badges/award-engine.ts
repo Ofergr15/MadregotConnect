@@ -25,6 +25,7 @@ import { badgeEarnedCopy } from '@/lib/notifications/copy';
 import { getPlanWeekStart, computeWeekStreak, activityWeekStart, activityLocalDateStr } from '@/lib/utils';
 import { PR_BUCKETS, PR_RUN_TYPES, filterQualifyingRuns, computeDistanceBests, type RunActivityRow } from '@/lib/prs/pr-buckets';
 import { attachLapsForPrs } from '@/lib/prs/attach-laps';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 
 // Keep in sync with the CHECK constraint in 059_badges.sql. Only the types
 // this engine knows how to evaluate are listed here — a genuinely new
@@ -306,12 +307,21 @@ export async function checkAndAwardBadges(
   let qualifyingRuns: RunActivityRow[] | null = null;
   const getQualifyingRuns = async (): Promise<RunActivityRow[]> => {
     if (qualifyingRuns) return qualifyingRuns;
-    const { data, error } = await supabase
-      .from('athlete_activities')
-      .select('id, activity_name, activity_type, start_time, distance, duration')
-      .eq('athlete_id', athleteId)
-      .order('start_time', { ascending: false });
-    if (error) throw error;
+    // Paged for the same reason the two PR routes are: a plain select stops at
+    // PostgREST's 1000 rows and, ordered newest-first, drops the older years. A
+    // `first_10k` badge is by definition awarded on an OLD run, so the truncation
+    // hit this harder than it hit the card — and it would have kept the two
+    // disagreeing however carefully the bucket math was shared. See
+    // lib/supabase/paginate.ts.
+    const data = await fetchAllRows<RunActivityRow>((from, to) =>
+      supabase
+        .from('athlete_activities')
+        .select('id, activity_name, activity_type, start_time, distance, duration')
+        .eq('athlete_id', athleteId)
+        .order('start_time', { ascending: false })
+        .order('id')
+        .range(from, to),
+    );
     // With their laps — the same second query GET /api/athletes/prs and the
     // profile stats route both make. Without it `evalPrBucket` sees no laps at
     // all, so `computeDistanceBests` can only take whole runs scaled to the
@@ -326,39 +336,51 @@ export async function checkAndAwardBadges(
     qualifyingRuns = await attachLapsForPrs(
       supabase,
       athleteId,
-      filterQualifyingRuns((data || []) as RunActivityRow[]),
+      filterQualifyingRuns(data),
     );
     return qualifyingRuns;
   };
 
+  // The three lifetime aggregates below are all paged for one reason: a
+  // `cumulative_distance` badge at 1000 km is a claim about EVERY kilometre an
+  // athlete has ever run, and summing the 1000 rows PostgREST happens to return
+  // is not that. On the club's heaviest athlete the truncated sum came to 8,749 km
+  // against a real 33,062 — so the milestone badges were being withheld from
+  // precisely the people who had passed them by the widest margin.
   let totalKmCache: number | null = null;
   const getTotalKm = async (): Promise<number> => {
     if (totalKmCache != null) return totalKmCache;
-    const { data, error } = await supabase.from('athlete_activities').select('distance').eq('athlete_id', athleteId);
-    if (error) throw error;
-    totalKmCache = (data || []).reduce((sum: number, r: { distance: number | null }) => sum + (r.distance || 0), 0) / 1000;
+    const rows = await fetchAllRows<{ distance: number | null }>((from, to) =>
+      supabase.from('athlete_activities').select('distance').eq('athlete_id', athleteId).order('id').range(from, to),
+    );
+    totalKmCache = rows.reduce((sum: number, r) => sum + (r.distance || 0), 0) / 1000;
     return totalKmCache;
   };
 
   let totalDurationSecCache: number | null = null;
   const getTotalDurationSeconds = async (): Promise<number> => {
     if (totalDurationSecCache != null) return totalDurationSecCache;
-    const { data, error } = await supabase.from('athlete_activities').select('duration').eq('athlete_id', athleteId);
-    if (error) throw error;
-    totalDurationSecCache = (data || []).reduce((sum: number, r: { duration: number | null }) => sum + (r.duration || 0), 0);
+    const rows = await fetchAllRows<{ duration: number | null }>((from, to) =>
+      supabase.from('athlete_activities').select('duration').eq('athlete_id', athleteId).order('id').range(from, to),
+    );
+    totalDurationSecCache = rows.reduce((sum: number, r) => sum + (r.duration || 0), 0);
     return totalDurationSecCache;
   };
 
   let streakCache: number | null = null;
   const getStreak = async (): Promise<number> => {
     if (streakCache != null) return streakCache;
-    const { data, error } = await supabase
-      .from('athlete_activities')
-      .select('activity_type, distance, start_time')
-      .eq('athlete_id', athleteId);
-    if (error) throw error;
+    const data = await fetchAllRows<{ activity_type: string | null; distance: number | null; start_time: string }>(
+      (from, to) =>
+        supabase
+          .from('athlete_activities')
+          .select('activity_type, distance, start_time')
+          .eq('athlete_id', athleteId)
+          .order('id')
+          .range(from, to),
+    );
     const weekKeys = new Set<string>();
-    for (const a of (data || []) as Array<{ activity_type: string | null; distance: number | null; start_time: string }>) {
+    for (const a of data) {
       if (!(a.distance && a.distance > 0)) continue;
       if (a.activity_type && !PR_RUN_TYPES.includes(a.activity_type)) continue;
       weekKeys.add(activityWeekStart(a.start_time));

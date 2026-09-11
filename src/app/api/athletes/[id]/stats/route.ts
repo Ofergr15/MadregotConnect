@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireMember } from '@/lib/auth/self-or-staff';
 import { computeDistanceBests, filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
 import { attachLapsForPrs } from '@/lib/prs/attach-laps';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 import {
   buildAllTimeTotals,
   buildKmTable,
@@ -56,14 +57,25 @@ export async function GET(
     // the totals, the weekly table, the trend badge and the PR grid cannot
     // disagree with each other — and there is no second table whose week anchor
     // could drift from this one's (see buildKmTable for the snapshots that did).
-    const { data, error } = await supabase
-      .from('athlete_activities')
-      .select('id, activity_name, activity_type, start_time, distance, duration')
-      .eq('athlete_id', id)
-      .order('start_time', { ascending: false });
-
-    if (error) throw error;
-    const acts = (data || []) as RunActivityRow[];
+    //
+    // Paged, because "one read" used to mean one REQUEST and PostgREST caps a
+    // request at 1000 rows without complaining. That silently made this the
+    // athlete's most recent thousand activities: the PR grid missed older bests
+    // and `buildAllTimeTotals` was not all-time at all — on the club's heaviest
+    // athlete it reported 8,749 km of a real 33,062. See lib/supabase/paginate.ts.
+    //
+    // Newest-first is load-bearing here (`buildRecentRuns` slices the head of this
+    // array), so the sort stays and `id` is appended only as a unique tiebreak to
+    // make the page boundaries deterministic.
+    const acts = await fetchAllRows<RunActivityRow>((from, to) =>
+      supabase
+        .from('athlete_activities')
+        .select('id, activity_name, activity_type, start_time, distance, duration')
+        .eq('athlete_id', id)
+        .order('start_time', { ascending: false })
+        .order('id')
+        .range(from, to),
+    );
 
     // Israel's calendar day, not the server's UTC one: between midnight and
     // 03:00 Israel time a raw `new Date()` still reads as yesterday, which on a

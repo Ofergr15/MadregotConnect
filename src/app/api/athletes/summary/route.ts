@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { getActivityWeekStart, activityWeekStart, activityLocalDateStr, computeWeekStreak, israelDateAnchor, toISODate } from '@/lib/utils';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,13 @@ export const dynamic = 'force-dynamic';
 // Scoped auth identical to /prs: own athlete, staff, or super-user.
 const RUN_TYPES = ['running', 'trail_running', 'treadmill_running', 'track_running', 'virtual_run'];
 
+interface ActivityRow {
+  activity_type: string | null;
+  start_time: string;
+  distance: number;
+  duration: number | null;
+}
+
 export async function GET(request: Request) {
   try {
     const supabase = createServerClient();
@@ -32,15 +40,26 @@ export async function GET(request: Request) {
     if (denied) return denied;
     if (!mayActFor(caller, athleteId)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
-    const { data: acts, error } = await supabase
-      .from('athlete_activities')
-      .select('activity_type, start_time, distance, duration')
-      .eq('athlete_id', athleteId)
-      .order('start_time', { ascending: false });
-    if (error) throw error;
+    // Paged. Every number below is an ALL-TIME one — total km, total hours,
+    // biggest week ever, longest streak ever — and an unpaginated select quietly
+    // stops at PostgREST's 1000-row ceiling, so on a high-volume athlete all of
+    // them described only the last year or so. Measured on the club's heaviest
+    // athlete: 8,749 km instead of 33,062, and a longest streak of 75 weeks
+    // instead of 158. This card sits directly above the personal-records card on
+    // the Statistics screen, so both were wrong for the same reason. See
+    // lib/supabase/paginate.ts.
+    const acts = await fetchAllRows<ActivityRow>((from, to) =>
+      supabase
+        .from('athlete_activities')
+        .select('activity_type, start_time, distance, duration')
+        .eq('athlete_id', athleteId)
+        .order('start_time', { ascending: false })
+        .order('id')
+        .range(from, to),
+    );
 
-    const runs = (acts || []).filter(
-      (a: any) => a.distance > 0 && (!a.activity_type || RUN_TYPES.includes(a.activity_type))
+    const runs = acts.filter(
+      (a) => a.distance > 0 && (!a.activity_type || RUN_TYPES.includes(a.activity_type))
     );
 
     // All-time total km/hours + this-calendar-month run count (dashboard/stats).
