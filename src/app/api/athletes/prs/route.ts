@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { filterQualifyingRuns, computeDistanceBests } from '@/lib/prs/pr-buckets';
+import { filterQualifyingRuns, computeDistanceBests, type RunActivityRow } from '@/lib/prs/pr-buckets';
 import { attachLapsForPrs } from '@/lib/prs/attach-laps';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,15 +38,28 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
-    // Full run history for this athlete (no 200-row feed cap here).
-    const { data: acts, error } = await supabase
-      .from('athlete_activities')
-      .select('id, activity_name, activity_type, start_time, distance, duration')
-      .eq('athlete_id', athleteId)
-      .order('start_time', { ascending: false });
-    if (error) throw error;
+    // Full run history for this athlete — genuinely full, in pages. An
+    // unpaginated select stops at PostgREST's 1000-row ceiling without saying so,
+    // and since this one is ordered newest-first the thousand rows it kept were
+    // the RECENT ones: the truncation removed exactly the older years a personal
+    // best is most likely to sit in. See lib/supabase/paginate.ts for the
+    // measured damage — three of one athlete's four bests were wrong, including a
+    // run he had named "Massive 10k PB" that the card could not see.
+    //
+    // `start_time DESC` is kept because ties below resolve to the newest run, and
+    // `id` is appended as a tiebreak so the paged walk is a stable partition
+    // rather than two requests disagreeing about where the boundary was.
+    const acts = await fetchAllRows<RunActivityRow>((from, to) =>
+      supabase
+        .from('athlete_activities')
+        .select('id, activity_name, activity_type, start_time, distance, duration')
+        .eq('athlete_id', athleteId)
+        .order('start_time', { ascending: false })
+        .order('id')
+        .range(from, to),
+    );
 
-    const runs = await attachLapsForPrs(supabase, athleteId, filterQualifyingRuns((acts || []) as any[]));
+    const runs = await attachLapsForPrs(supabase, athleteId, filterQualifyingRuns(acts));
 
     // Distance-time bests: fastest qualifying run per bucket (shared w/ the
     // badge award engine's pr_bucket rule_type — see pr-buckets.ts).
