@@ -5,7 +5,7 @@ import { notifyAdminNewSignupRequest } from '@/lib/email';
 import { notifyStaff } from '@/lib/notifications/staff';
 import { signupRequestCopy } from '@/lib/notifications/copy';
 import { groupDisplayName } from '@/lib/utils';
-import { isLikelyEmail, normaliseEmail } from '@/lib/signup';
+import { isLikelyEmail, normaliseEmail, signupAlertName } from '@/lib/signup';
 
 export const dynamic = 'force-dynamic';
 
@@ -187,10 +187,17 @@ export async function POST(request: Request) {
     if (insertError && insertError.code !== '23505') throw insertError;
 
     if (!insertError) {
+      // This form asks for an address and a group and nothing else, so the local
+      // part is all there is to go on — "Dana Levi" out of dana.levi92@gmail.com.
+      // Both channels below used to be handed the raw address as the name, which
+      // is the same complaint the Strava alert drew: an approver reading a lock
+      // screen wants to know who, and an address makes them work it out.
+      const who = signupAlertName({ email });
+
       // The approvers cannot act on what they do not know arrived. Isolated: a
       // Resend outage must not fail a registration that is already committed.
       try {
-        await notifyAdminNewSignupRequest({ email, groupName });
+        await notifyAdminNewSignupRequest({ email, name: who, groupName });
       } catch (mailErr) {
         console.error('Failed to notify approvers of a new signup request:', mailErr);
       }
@@ -209,7 +216,7 @@ export async function POST(request: Request) {
         // but the same person pressing submit twice must not stack.
         tag: `signup-request-${email}`,
         category: 'management',
-        copy: (locale) => signupRequestCopy(locale, { name: email, pending: count ?? 1 }),
+        copy: (locale) => signupRequestCopy(locale, { name: who, pending: count ?? 1 }),
       });
     }
 

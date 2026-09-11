@@ -593,7 +593,22 @@ export function duplicatesToFold<T extends IdentityRow>(rows: T[], keep: T): T[]
  * Returns null rather than a placeholder on purpose. The callback's own `name`
  * falls back to "Strava <id>" so that a brand-new row is never nameless, and
  * writing THAT over a name somebody chose would be a downgrade, not a sync.
+ *
+ * ⚠️ And STRAVA HAS A PLACEHOLDER OF ITS OWN, which is not documented anywhere in
+ * their API reference and which this function used to pass straight through: an
+ * account whose real name Strava will not disclose comes back as firstname
+ * "Strava", lastname "Athlete". Measured in production on 2026-09-11 — the club's
+ * newest member signed in, their roster row was created reading `Strava Athlete`,
+ * and the approval alert the admin got said "Strava Athlete · 26 בקשות ממתינות
+ * לאישור". "Nothing usable" has to include it: it is the same non-answer as an
+ * empty firstname, dressed as a name, so it must not be written over a roster name
+ * either. Treated as absent, the login keeps whatever name the club already had
+ * and the alert falls through to a source that knows something.
  */
+
+/** Strava's own "we won't say", plus this app's "Strava <id>" coming back to us. */
+const PROVIDER_PLACEHOLDER_NAME = /^strava[\s_-]*(athlete|user|runner|\d+)?$/i;
+
 export function stravaDisplayNameOf(
   athlete: { firstname?: string | null; lastname?: string | null } | null | undefined,
 ): string | null {
@@ -602,5 +617,6 @@ export function stravaDisplayNameOf(
     .filter(Boolean)
     .join(' ')
     .trim();
-  return joined || null;
+  if (!joined || PROVIDER_PLACEHOLDER_NAME.test(joined)) return null;
+  return joined;
 }

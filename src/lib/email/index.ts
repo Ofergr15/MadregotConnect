@@ -99,15 +99,22 @@ export async function notifyAdminUserApproved(
 export async function notifyAdminNewSignupRequest(req: {
   email: string;
   /**
-   * Present when we know it. A Strava sign-in gives a real display name and a
-   * SYNTHETIC address (strava_1234@strava.madregot.local), so for that person the
-   * name is the only identifying thing in the mail — hence it leads the subject
-   * line, because "New registration waiting: strava_1234@…" identifies nobody.
+   * The best name the system knows, already resolved by signupAlertName() — null
+   * when it knows none. A Strava sign-in USUALLY gives a display name and always
+   * gives a SYNTHETIC address (strava_1234@strava.madregot.local), so for that
+   * person the name is the only identifying thing in the mail, which is why it
+   * leads the subject line: "New registration waiting: strava_1234@…" identifies
+   * nobody.
    */
   name?: string | null;
   groupName?: string | null;
 }): Promise<SendResult> {
-  const who = (req.name || '').trim() || req.email;
+  // The synthetic address must never stand in for the person, in either place it
+  // used to: the subject line fell back to it, and the Email row printed it as if
+  // an approver could reply to it. It is not an address — nothing delivers there
+  // and nobody has ever seen it. Say plainly that there isn't one instead.
+  const address = req.email.toLowerCase().trim().endsWith('.local') ? null : req.email;
+  const who = (req.name || '').trim() || address || 'a new Strava sign-in';
   return sendEmail({
     template: 'admin_new_signup_request',
     // The approver list, not just ADMIN_EMAIL: whoever is nearest their phone should
@@ -119,7 +126,7 @@ export async function notifyAdminNewSignupRequest(req: {
       title: 'New registration',
       rows: [
         ...(req.name ? ([['Name', req.name]] as Array<[string, string]>) : []),
-        ['Email', req.email],
+        ['Email', address || 'none — they signed in with Strava'],
         ['Group', req.groupName || '—'],
       ],
       cta: { label: 'Review & approve →', href: `${APP_URL}/dashboard/settings?tab=registrations` },

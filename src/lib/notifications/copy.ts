@@ -1,4 +1,5 @@
 import type { NotificationLocale } from './locale';
+import { isHumanName } from '@/lib/signup';
 
 /**
  * Notification wording, per language.
@@ -769,7 +770,12 @@ export function signupRequestCopy(
   locale: NotificationLocale,
   p: { name: string | null | undefined; pending: number },
 ): PushCopy {
-  const name = (p.name || '').trim();
+  // Callers resolve the name with signupAlertName(); this is the last gate, and it
+  // is here because both call sites once handed over something that was not a name
+  // and the failure was invisible from the copy's side. A caller with nothing to
+  // say must fall through to "מישהו" rather than put an email address — least of
+  // all the synthetic strava_<id>@strava.madregot.local — on a coach's lock screen.
+  const name = isHumanName(p.name) ? (p.name as string).trim() : '';
   // The pending total rides in the body rather than the title so a burst of
   // sign-ups reads as one growing queue instead of N interchangeable pings.
   return locale === 'he'
