@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { KIT_SIZE_FIELDS } from '@/lib/kit-sizes';
+import { PROVIDER_HEALTH_COLUMNS_101, connectionState } from '@/lib/providers/health';
 
 const GENDERS = ['male', 'female'] as const;
 type Gender = (typeof GENDERS)[number];
@@ -21,7 +22,10 @@ const CORE_COLUMNS = 'id, name, email, garmin_auth, strava_auth, strava_enabled,
 // are the newest columns here, so until 100 is pasted in they trip the 42703 /
 // PGRST204 retry below and the route serves the pre-100 set instead of 404ing.
 const PRE_100_COLUMNS = `${CORE_COLUMNS}, shirt_size, phone, discoverable`;
-const FULL_COLUMNS = `${PRE_100_COLUMNS}, pants_size, tights_size, socks_size`;
+const PRE_101_COLUMNS = `${PRE_100_COLUMNS}, pants_size, tights_size, socks_size`;
+// Migration 101's connection-health timestamps are now the newest columns here, so
+// they take the first step of the degrade path — see the retry in GET.
+const FULL_COLUMNS = `${PRE_101_COLUMNS}, ${PROVIDER_HEALTH_COLUMNS_101}`;
 
 /** `{ shirtSize: 'L', pantsSize: null, … }` from whichever columns the row carries. */
 function kitSizesOf(row: Record<string, unknown>) {
@@ -50,12 +54,15 @@ export async function GET(req: NextRequest) {
   // schema-cache check rejecting an unknown column before SQL is generated
   // — observed for real (not just theoretical) on the discoverable rollout.
   if (error?.code === '42703' || error?.code === 'PGRST204') {
-    // Step down one migration at a time — otherwise, in the window before 100 is
-    // applied, the profile screen would also stop showing the shirt size and phone
-    // it has been showing since 061.
-    ({ data, error } = await supabase.from('athletes').select(PRE_100_COLUMNS).eq('id', id).single());
+    // Step down one migration at a time — otherwise, in the window before 101 is
+    // applied, the profile screen would also stop showing the kit sizes, shirt size
+    // and phone it has been showing since 100 and 061.
+    ({ data, error } = await supabase.from('athletes').select(PRE_101_COLUMNS).eq('id', id).single());
     if (error?.code === '42703' || error?.code === 'PGRST204') {
-      ({ data, error } = await supabase.from('athletes').select(CORE_COLUMNS).eq('id', id).single());
+      ({ data, error } = await supabase.from('athletes').select(PRE_100_COLUMNS).eq('id', id).single());
+      if (error?.code === '42703' || error?.code === 'PGRST204') {
+        ({ data, error } = await supabase.from('athletes').select(CORE_COLUMNS).eq('id', id).single());
+      }
     }
   }
 
@@ -70,6 +77,22 @@ export async function GET(req: NextRequest) {
       email: data.email,
       hasGarmin: !!data.garmin_auth,
       hasStrava: !!data.strava_auth,
+      // hasGarmin/hasStrava only say a credential is STORED. These say whether it
+      // still works — 'ok' | 'stale' | 'failed' | 'unknown' | 'none'. Kept beside
+      // the booleans rather than replacing them because the connect buttons, the
+      // source switch and the setup checklist all key off "is one stored".
+      garminState: connectionState({
+        hasAuth: !!data.garmin_auth,
+        lastSyncAt: (data as any).garmin_last_sync_at,
+        authFailedAt: (data as any).garmin_auth_failed_at,
+      }),
+      garminLastSyncAt: (data as any).garmin_last_sync_at || null,
+      stravaState: connectionState({
+        hasAuth: !!data.strava_auth,
+        lastSyncAt: (data as any).strava_last_sync_at,
+        authFailedAt: (data as any).strava_auth_failed_at,
+      }),
+      stravaLastSyncAt: (data as any).strava_last_sync_at || null,
       // Same OR as /api/admin/athlete-source: a connected Strava account counts as
       // enabled even on a row that predates the flag.
       stravaEnabled: !!(data as any).strava_enabled || !!data.strava_auth,
@@ -138,7 +161,10 @@ export async function PUT(req: NextRequest) {
 
     const missingColumn = (e: { code?: string } | null) => e?.code === '42703' || e?.code === 'PGRST204';
     const supabase = createServerClient();
-    let { data, error } = await supabase.from('athletes').update(updates).eq('id', id).select(FULL_COLUMNS).single();
+    // PRE_101, not FULL: this handler neither writes nor returns the connection
+    // health timestamps, so naming them here would only add a fourth way for a
+    // personal-info save to fail on a column it doesn't care about.
+    let { data, error } = await supabase.from('athletes').update(updates).eq('id', id).select(PRE_101_COLUMNS).single();
     if (missingColumn(error)) {
       // ── Two steps down, not one ───────────────────────────────────────────────
       // The newest columns are 100's three kit sizes, and there is a window between

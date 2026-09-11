@@ -7,7 +7,8 @@ import { mutate as globalMutate } from 'swr';
 import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
+import type { ConnectionState } from '@/lib/providers/health';
 import { StatisticsScreen } from '@/components/StatisticsScreen';
 import { BadgesGrid } from '@/components/BadgesGrid';
 import { ChallengesGrid } from '@/components/ChallengesGrid';
@@ -120,6 +121,7 @@ function ProfileGate() {
 function ProfileContent() {
   const t = useTranslations('profile');
   const tCommon = useTranslations('common');
+  const format = useFormatter();
   const router = useRouter();
   const searchParams = useSearchParams();
   // null = landing (iOS-style list); a value = a detail screen open. Reads
@@ -148,6 +150,15 @@ function ProfileContent() {
   const [dataSource, setDataSource] = useState<'garmin' | 'strava' | null>(null);
   const [hasGarmin, setHasGarmin] = useState(false);
   const [hasStrava, setHasStrava] = useState(false);
+  // Whether each stored credential still WORKS, which is a different question from
+  // whether one exists — see lib/providers/health.ts. 'unknown' until the API
+  // answers, and 'unknown' is deliberately rendered as plain "Connected": that is
+  // what this screen said for two years, and a member whose sync is fine must not
+  // read an alarm just because migration 101 hasn't stamped them yet.
+  const [garminState, setGarminState] = useState<ConnectionState>('unknown');
+  const [stravaState, setStravaState] = useState<ConnectionState>('unknown');
+  const [garminSyncedAt, setGarminSyncedAt] = useState<string | null>(null);
+  const [stravaSyncedAt, setStravaSyncedAt] = useState<string | null>(null);
   const [stravaEnabled, setStravaEnabled] = useState(false);
   const [connectingStrava, setConnectingStrava] = useState(false);
   const [connectingGarmin, setConnectingGarmin] = useState(false);
@@ -271,7 +282,17 @@ function ProfileContent() {
   // seeds them and a revalidation refreshes them; the local writes still win
   // until then.
   const { data: meData, error: meError, mutate: mutateMe } = useApi<{
-    athlete?: { avatarUrl?: string | null; data_source?: 'garmin' | 'strava' | null; hasGarmin?: boolean; hasStrava?: boolean; stravaEnabled?: boolean };
+    athlete?: {
+      avatarUrl?: string | null;
+      data_source?: 'garmin' | 'strava' | null;
+      hasGarmin?: boolean;
+      hasStrava?: boolean;
+      stravaEnabled?: boolean;
+      garminState?: ConnectionState;
+      stravaState?: ConnectionState;
+      garminLastSyncAt?: string | null;
+      stravaLastSyncAt?: string | null;
+    };
   }>(athleteId ? `/api/athletes/me?id=${encodeURIComponent(athleteId)}` : null);
 
   useEffect(() => {
@@ -282,15 +303,17 @@ function ProfileContent() {
     setHasGarmin(!!me.hasGarmin);
     setHasStrava(!!me.hasStrava);
     setStravaEnabled(!!me.stravaEnabled);
+    setGarminState(me.garminState || 'unknown');
+    setStravaState(me.stravaState || 'unknown');
+    setGarminSyncedAt(me.garminLastSyncAt || null);
+    setStravaSyncedAt(me.stravaLastSyncAt || null);
   }, [meData]);
 
-  useEffect(() => {
-    // Assume the legacy default rather than rendering "no connection" over a
-    // network blip — same fallback this screen has always used.
-    if (!meError) return;
-    setHasGarmin(true);
-    setDataSource('garmin');
-  }, [meError]);
+  // A failed request used to run `setHasGarmin(true); setDataSource('garmin')`,
+  // which meant any 401, 404 or network blip painted a confident "Connected ·
+  // Garmin Connect" — the one thing this screen must never invent, and the reason
+  // it looked static. It now says it couldn't check, and asserts nothing.
+  const connectionUnknown = !!meError && !meData;
 
   // Following list — also state, because unfollowing edits it in place.
   const { data: connectionsData } = useApi<{ followingCount?: number; following?: FollowedAthlete[] }>(
@@ -439,11 +462,34 @@ function ProfileContent() {
 
   // Trailing value preview for the Data Source landing row (which source is
   // actually active right now, in one word).
-  const dataSourceLabel = !hasGarmin && !hasStrava
-    ? t('noConnection')
-    : hasGarmin && hasStrava
-      ? (dataSource === 'strava' ? t('strava') : t('garminConnect'))
-      : hasGarmin ? t('garminConnect') : t('strava');
+  const dataSourceLabel = connectionUnknown
+    ? tCommon('loading')
+    : !hasGarmin && !hasStrava
+      ? t('noConnection')
+      : hasGarmin && hasStrava
+        ? (dataSource === 'strava' ? t('strava') : t('garminConnect'))
+        : hasGarmin ? t('garminConnect') : t('strava');
+
+  // ── What the connection rows are allowed to claim ────────────────────────────
+  // The sub-label used to be `hasGarmin ? 'Connected' : 'Not connected'`, i.e. a
+  // statement about a database column that hadn't changed since the day the
+  // athlete connected. These read migration 101's sync stamps instead, so the row
+  // moves when the connection does.
+  const syncedAgo = (iso: string | null) =>
+    iso ? format.relativeTime(new Date(iso), new Date()) : null;
+
+  const statusLine = (state: ConnectionState, syncedAt: string | null) => {
+    if (connectionUnknown) return t('connectionUnknown');
+    if (state === 'none') return t('notConnected');
+    if (state === 'failed') return t('reconnectNeeded');
+    const ago = syncedAgo(syncedAt);
+    // 'unknown' — connected but never stamped — falls through to the plain word,
+    // since inventing a sync time would be the same lie in a new shape.
+    return ago ? t('lastSynced', { ago }) : t('connected');
+  };
+
+  /** A credential the provider has actually refused: the only state to act on. */
+  const needsReconnect = (state: ConnectionState) => !connectionUnknown && state === 'failed';
 
   return (
     <div className="max-w-lg mx-auto space-y-5 pb-8">
@@ -785,28 +831,35 @@ function ProfileContent() {
             {/* Garmin status */}
             <div className={cn(
               'rounded-xl border overflow-hidden',
-              hasGarmin ? 'border-accent-600/30 bg-accent-600/5' : 'border-page/50 bg-page/30'
+              needsReconnect(garminState) ? 'border-accent-red/30 bg-accent-red/5'
+                : hasGarmin ? 'border-accent-600/30 bg-accent-600/5' : 'border-page/50 bg-page/30'
             )}>
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <Watch className={cn('h-5 w-5', hasGarmin ? 'text-accent-600' : 'text-ink-400')} />
+                  <Watch className={cn('h-5 w-5',
+                    needsReconnect(garminState) ? 'text-accent-red' : hasGarmin ? 'text-accent-600' : 'text-ink-400')} />
                   <div>
                     <p className={cn('text-sm font-medium', hasGarmin ? 'text-ink-700' : 'text-ink-400')}>{t('garminConnect')}</p>
-                    <p className="text-2xs text-ink-400">{hasGarmin ? t('connected') : t('notConnected')}</p>
+                    <p className={cn('text-2xs', needsReconnect(garminState) ? 'text-accent-red-ink' : 'text-ink-400')}>
+                      {statusLine(garminState, garminSyncedAt)}
+                    </p>
                   </div>
                 </div>
-                {hasGarmin ? (
+                {/* A refused credential offers the connect form rather than a green
+                    badge — re-entering the password is the whole remedy, and the
+                    form below already exists two lines down. */}
+                {hasGarmin && !needsReconnect(garminState) ? (
                   <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-900">{t('connected')}</span>
                 ) : (
                   <button
                     onClick={() => setConnectingGarmin(!connectingGarmin)}
                     className="text-xs font-medium px-3 py-1.5 rounded-lg bg-brand-600/10 text-brand-600 hover:bg-brand-600/20 transition-colors"
                   >
-                    {t('connect')}
+                    {needsReconnect(garminState) ? t('reconnect') : t('connect')}
                   </button>
                 )}
               </div>
-              {connectingGarmin && !hasGarmin && (
+              {connectingGarmin && (!hasGarmin || needsReconnect(garminState)) && (
                 <div className="px-4 pb-4 space-y-3 border-t border-page/30 pt-3">
                   <input
                     type="email"
@@ -883,6 +936,12 @@ function ProfileContent() {
                         });
                         if (connectRes.ok) {
                           setHasGarmin(true);
+                          // Re-read rather than trusting the local flip: a reconnect
+                          // has to clear a `failed` state that only the server knows
+                          // about, and without this the row would keep asking to be
+                          // reconnected until the next revalidation.
+                          setGarminState('unknown');
+                          mutateMe();
                           setConnectingGarmin(false);
                           setMfaRequired(false);
                           setMfaCode('');
@@ -931,16 +990,22 @@ function ProfileContent() {
             {(stravaEnabled || hasStrava) && (
               <div className={cn(
                 'flex items-center justify-between px-4 py-3 rounded-xl border',
-                hasStrava ? 'border-band-3/30 bg-band-3/5' : 'border-page/50 bg-page/30'
+                needsReconnect(stravaState) ? 'border-accent-red/30 bg-accent-red/5'
+                  : hasStrava ? 'border-band-3/30 bg-band-3/5' : 'border-page/50 bg-page/30'
               )}>
                 <div className="flex items-center gap-3">
-                  <Activity className={cn('h-5 w-5', hasStrava ? 'text-band-3' : 'text-ink-400')} />
+                  <Activity className={cn('h-5 w-5',
+                    needsReconnect(stravaState) ? 'text-accent-red' : hasStrava ? 'text-band-3' : 'text-ink-400')} />
                   <div>
                     <p className={cn('text-sm font-medium', hasStrava ? 'text-ink-700' : 'text-ink-400')}>{t('strava')}</p>
-                    <p className="text-2xs text-ink-400">{hasStrava ? t('connected') : t('notConnected')}</p>
+                    <p className={cn('text-2xs', needsReconnect(stravaState) ? 'text-accent-red-ink' : 'text-ink-400')}>
+                      {statusLine(stravaState, stravaSyncedAt)}
+                    </p>
                   </div>
                 </div>
-                {hasStrava ? (
+                {/* Same as Garmin: a revoked authorization re-runs the OAuth button
+                    below, which is the only thing that can fix it. */}
+                {hasStrava && !needsReconnect(stravaState) ? (
                   <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-band-3/15 text-band-3-ink">{t('connected')}</span>
                 ) : (
                   <button
@@ -964,7 +1029,7 @@ function ProfileContent() {
                     disabled={connectingStrava}
                     className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#fc5200]/10 text-[#fc5200] hover:bg-[#fc5200]/20 transition-colors disabled:opacity-50"
                   >
-                    {connectingStrava ? t('connecting') : t('connect')}
+                    {connectingStrava ? t('connecting') : needsReconnect(stravaState) ? t('reconnect') : t('connect')}
                   </button>
                 )}
               </div>
@@ -983,6 +1048,10 @@ function ProfileContent() {
                   body: JSON.stringify({ athleteId, dataSource: newSource }),
                 });
                 setDataSource(newSource);
+                // The cached /api/athletes/me still says the old source, and it is
+                // what the landing row's preview reads — without this the two
+                // disagree until the next revalidation.
+                mutateMe();
               }}
               className="mt-4 w-full border border-ink-300 hover:border-ink-300 text-ink-500 hover:text-ink-900 font-medium px-4 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
             >

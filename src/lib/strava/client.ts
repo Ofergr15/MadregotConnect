@@ -22,6 +22,13 @@ export interface StravaAthlete {
   country?: string;
   profile?: string;
   profile_medium?: string;
+  /**
+   * 'M' | 'F' — needs the `profile:read_all` scope, which /api/strava already
+   * requests. Read by the profile auto-fill (lib/providers/profile.ts); Strava has
+   * no birth date and no phone number anywhere in its API, at any scope.
+   */
+  sex?: string | null;
+  weight?: number | null;
 }
 
 export interface StravaActivity {

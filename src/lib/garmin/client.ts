@@ -112,6 +112,20 @@ export class GarminClient {
     await this.gc.deleteWorkout({ workoutId });
   }
 
+  /**
+   * The athlete's Garmin Connect account settings — `userData.gender`,
+   * `userData.birthDate`, and the height/weight/activityLevel nobody asks for yet.
+   *
+   * Read by the profile auto-fill (lib/providers/profile.ts) so a member who has
+   * connected a watch isn't also asked to type their date of birth into a form.
+   * Returned untyped on purpose: the garmin-connect typings declare most of
+   * `userData` as `unknown`, and the fill normalises every value it uses anyway.
+   */
+  async getUserSettings(): Promise<unknown> {
+    await this.restoreSession();
+    return this.gc.getUserSettings();
+  }
+
   async getActivities(start = 0, limit = 20): Promise<GarminActivity[]> {
     await this.restoreSession();
     const raw = await this.gc.getActivities(start, limit) as any[];

@@ -32,6 +32,8 @@ import { checkShoeAlert } from '@/lib/shoes';
 import { notifyMainWorkoutFeedback } from '@/lib/post-workout';
 import { hasCrossSourceDuplicate } from '@/lib/activity-dedup';
 import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { looksLikeAuthFailure, markProviderAuthFailed, markProviderSynced } from '@/lib/providers/health';
+import { fillMissingProfileFields, stravaProfileFields } from '@/lib/providers/profile';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -82,11 +84,13 @@ export async function runStravaSyncRequest(request: Request) {
         : supabase.from('athletes').select(cols).eq('data_source', 'strava').not('strava_auth', 'is', null)
             .or(`coach_id.eq.${COACH_ID},coach_id.is.null`).returns<any[]>()
     );
-    let { data: athletes, error: athError } = await fetchAthletes('id, name, strava_auth, data_source, active_shoe_id');
+    // gender/birth_date ride along for the profile auto-fill below — Strava can
+    // answer the first of those two.
+    let { data: athletes, error: athError } = await fetchAthletes('id, name, strava_auth, data_source, active_shoe_id, gender, birth_date');
     if (athError?.code === '42703') {
       // active_shoe_id not migrated yet — degrade to the pre-shoes shape
       // rather than failing sync for every athlete over one missing column.
-      ({ data: athletes, error: athError } = await fetchAthletes('id, name, strava_auth, data_source'));
+      ({ data: athletes, error: athError } = await fetchAthletes('id, name, strava_auth, data_source, gender, birth_date'));
     }
     if (athError) throw athError;
     if (!athletes?.length) {
@@ -109,6 +113,8 @@ export async function runStravaSyncRequest(request: Request) {
        */
       skippedDistanceless?: number;
       planMatches?: number;
+      /** Columns the provider profile auto-fill wrote (gender / birth_date). */
+      profileFilled?: string[];
       error?: string;
     }> = [];
 
@@ -160,6 +166,11 @@ export async function runStravaSyncRequest(request: Request) {
         const auth = decrypt(athlete.strava_auth as string) as StravaTokens;
         const token = await getValidStravaToken(supabase, athlete.id, auth);
         if (!token) {
+          // A refresh token Strava won't exchange is dead for good — the athlete
+          // deauthorised the app, or revoked it from their Strava settings. This
+          // branch has always existed and has always been silent, so the profile
+          // screen kept saying "Connected" while nothing could ever sync again.
+          await markProviderAuthFailed(supabase, athlete.id, 'strava');
           results.push({
             athleteId: athlete.id,
             name: athlete.name,
@@ -173,6 +184,19 @@ export async function runStravaSyncRequest(request: Request) {
         // Rolling 180 days on login/cron; paginate within that window
         const after = Math.floor((Date.now() - 180 * 24 * 60 * 60 * 1000) / 1000);
         const activities = await client.getAllActivities({ after, maxPages: 5, perPage: 100 });
+
+        // Strava answered, so the credential works — stamped before the run filter
+        // below, because "no runs in 180 days" is a healthy connection.
+        await markProviderSynced(supabase, athlete.id, 'strava');
+
+        // Gender only: Strava's API carries `sex` but no birth date, so a
+        // Strava-only member is still asked for theirs.
+        const filledProfile = await fillMissingProfileFields(
+          supabase,
+          athlete.id,
+          athlete as { gender?: string | null; birth_date?: string | null },
+          () => stravaProfileFields(client),
+        );
         const runActivities = activities.filter(isRun);
 
         type ExistingRow = { id: string; strava_activity_id: number | null; source: string | null; laps: unknown; strava_gpx_url?: string | null };
@@ -499,9 +523,13 @@ export async function runStravaSyncRequest(request: Request) {
           ...(insertErrors.length
             ? { error: `${insertErrors.length} insert failures: ${insertErrors[0]}` }
             : {}),
+          ...(filledProfile.length ? { profileFilled: filledProfile } : {}),
         });
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
+        // StravaApiError carries `status`, so a 401 on the activity list — an
+        // access token revoked between refresh and use — is recognised here too.
+        if (looksLikeAuthFailure(e)) await markProviderAuthFailed(supabase, athlete.id, 'strava');
         results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: message });
       }
     }

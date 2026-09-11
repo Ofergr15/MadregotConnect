@@ -19,6 +19,8 @@ import { saveActivityStream } from '@/lib/garmin/stream-store';
 import { backfillActivityStreams } from '@/lib/garmin/stream-backfill';
 import { backfillGarminHistory } from '@/lib/garmin/history-backfill';
 import { requireCallerForAthlete, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { looksLikeAuthFailure, markProviderAuthFailed, markProviderSynced } from '@/lib/providers/health';
+import { fillMissingProfileFields, garminProfileFields } from '@/lib/providers/profile';
 
 /**
  * Both handlers here walk rows making SERIAL Garmin requests, so neither fits the
@@ -81,11 +83,13 @@ export async function runSyncRequest(request: Request) {
       return q.returns<any[]>();
     };
 
-    let { data: athletes, error: athError } = await buildAthleteQuery('id, name, garmin_auth, active_shoe_id');
+    // gender/birth_date ride along so the profile auto-fill below can tell whether
+    // this athlete still needs asking, without a second query per athlete.
+    let { data: athletes, error: athError } = await buildAthleteQuery('id, name, garmin_auth, active_shoe_id, gender, birth_date');
     if (athError?.code === '42703') {
       // active_shoe_id not migrated yet — degrade to the pre-shoes shape
       // rather than failing sync for every athlete over one missing column.
-      ({ data: athletes, error: athError } = await buildAthleteQuery('id, name, garmin_auth'));
+      ({ data: athletes, error: athError } = await buildAthleteQuery('id, name, garmin_auth, gender, birth_date'));
     }
     if (athError) throw athError;
     if (!athletes || athletes.length === 0) {
@@ -93,7 +97,7 @@ export async function runSyncRequest(request: Request) {
     }
 
     let totalSynced = 0;
-    const results: Array<{ athleteId: string; name: string; synced: number; upgradedFromStrava?: number; sameDeviceDupes?: number; error?: string }> = [];
+    const results: Array<{ athleteId: string; name: string; synced: number; upgradedFromStrava?: number; sameDeviceDupes?: number; profileFilled?: string[]; error?: string }> = [];
 
     for (const athlete of athletes) {
       if (!athlete.garmin_auth) continue;
@@ -104,9 +108,29 @@ export async function runSyncRequest(request: Request) {
         try {
           activities = await client.getActivities(0, 100);
         } catch (fetchErr: any) {
+          // A rejected credential is the one failure the athlete has to act on, and
+          // until now it was indistinguishable from a Garmin blip: both landed in
+          // `results` and the profile screen went on saying "Connected" either way.
+          if (looksLikeAuthFailure(fetchErr)) await markProviderAuthFailed(supabase, athlete.id, 'garmin');
           results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: `Fetch failed: ${fetchErr.message}` });
           continue;
         }
+
+        // Garmin answered, so the credential works — regardless of whether there
+        // was anything new in the list. Stamped here rather than at the end of the
+        // loop body because the three `continue`s below (no activities, no runs)
+        // are successful syncs too, and a member who hasn't run this fortnight must
+        // not be told their watch is disconnected.
+        await markProviderSynced(supabase, athlete.id, 'garmin');
+
+        // Gender and date of birth, from the watch account instead of from a form.
+        // One extra Garmin request, and only while something is actually missing.
+        const filledProfile = await fillMissingProfileFields(
+          supabase,
+          athlete.id,
+          athlete as { gender?: string | null; birth_date?: string | null },
+          () => garminProfileFields(client),
+        );
 
         if (!activities || activities.length === 0) {
           results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: 'No activities returned from Garmin' });
@@ -500,8 +524,12 @@ export async function runSyncRequest(request: Request) {
           // otherwise have seen, and "which of my devices won" is the first
           // question anybody asks about it.
           ...(sameDeviceDupes.length ? { sameDeviceDupes: sameDeviceDupes.length } : {}),
+          // Reported so a one-off "did the auto-fill actually work" question has an
+          // answer without querying the table.
+          ...(filledProfile.length ? { profileFilled: filledProfile } : {}),
         });
       } catch (e: any) {
+        if (looksLikeAuthFailure(e)) await markProviderAuthFailed(supabase, athlete.id, 'garmin');
         results.push({ athleteId: athlete.id, name: athlete.name, synced: 0, error: e.message });
       }
     }
