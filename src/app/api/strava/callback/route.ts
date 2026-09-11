@@ -533,7 +533,12 @@ export async function GET(request: Request) {
     const authResult = await createSyntheticSession(admin, email, {
       strava_athlete_id: stravaId,
       athlete_id: athleteId,
-      name,
+      // Same order of preference the roster row above just used, so the session
+      // metadata and the row agree. Plain `name` last: it is the "Strava <id>"
+      // placeholder, and stamping that onto a member who has a real name is how
+      // the auth user for a July member came to read "Strava Athlete" while his
+      // row read his own name.
+      name: stravaDisplayName || existing?.name || name,
     });
     console.info(`[auth-debug:${debugId}] callback:session_created`, {
       hasSession: !!authResult.session,

@@ -344,6 +344,7 @@ function compare(a: number[], b: number[]): number {
  * would be trying to avoid.
  */
 export function matchAthleteByName<T extends IdentityRow>(rows: T[], name?: string | null): T | null {
+  if (isStravaPlaceholderName(name)) return null;
   const target = normalizeAthleteName(name);
   if (!target) return null;
   const matches = rows.filter(
@@ -382,6 +383,7 @@ export function matchAthleteByNameKey<T extends IdentityRow>(
   rows: T[],
   name?: string | null,
 ): T | null {
+  if (isStravaPlaceholderName(name)) return null;
   if (!athleteNameKeys(name).length) return null;
   const matches = mergeTargets(rows).filter(r => nameKeysMatch(name, r.name));
   return matches.length === 1 ? matches[0] : null;
@@ -402,6 +404,7 @@ export function suggestAthleteByName<T extends IdentityRow>(
   rows: T[],
   name?: string | null,
 ): T | null {
+  if (isStravaPlaceholderName(name)) return null;
   const targets = athleteNameKeys(name).map(k => k.replace(/ /g, ''));
   if (!targets.length) return null;
   const candidates = mergeTargets(rows).filter(r => {
@@ -593,6 +596,17 @@ export function duplicatesToFold<T extends IdentityRow>(rows: T[], keep: T): T[]
  * Returns null rather than a placeholder on purpose. The callback's own `name`
  * falls back to "Strava <id>" so that a brand-new row is never nameless, and
  * writing THAT over a name somebody chose would be a downgrade, not a sync.
+ *
+ * STRAVA'S OWN PLACEHOLDERS COUNT AS NOTHING USABLE. Strava returns
+ * firstname "Strava", lastname "Athlete" for a profile whose real name it will
+ * not share, and it keeps returning it on every subsequent login. Treating that
+ * as a name did all the damage a wrong name can do, to one member on 2026-09-11:
+ * the roster match ran against "Strava Athlete", missed the row that had been
+ * his since July, and inserted the club's sixth duplicate — and because Strava
+ * owns the field, every later login would have overwritten the real name he
+ * typed in with the placeholder again. Nulling it here restores both halves at
+ * once: the match falls through to the synthetic address / name-key paths, and
+ * the name written by a human survives.
  */
 export function stravaDisplayNameOf(
   athlete: { firstname?: string | null; lastname?: string | null } | null | undefined,
@@ -602,5 +616,16 @@ export function stravaDisplayNameOf(
     .filter(Boolean)
     .join(' ')
     .trim();
-  return joined || null;
+  return joined && !isStravaPlaceholderName(joined) ? joined : null;
+}
+
+/**
+ * "Strava Athlete", or the "Strava <id>" this app itself falls back to — a label
+ * that names the source, not the person. Never matched against the roster and
+ * never written over a real name. Case- and whitespace-insensitive, because it
+ * is Strava's string and not ours to depend on.
+ */
+export function isStravaPlaceholderName(name: string | null | undefined): boolean {
+  const trimmed = (name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  return trimmed === 'strava athlete' || /^strava \d+$/.test(trimmed);
 }
