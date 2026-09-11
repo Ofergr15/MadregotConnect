@@ -15,7 +15,11 @@ import {
   stravaDisplayNameOf,
   type IdentityRow,
 } from '@/lib/auth/athlete-identity';
-import { isPlaceholderRosterName, rosterNameFromProvider } from '@/lib/names/latin';
+import {
+  isPlaceholderRosterName,
+  normalizeDisplayName,
+  rosterNameFromProvider,
+} from '@/lib/names/latin';
 import { mergeAthleteRows } from '@/lib/auth/merge-athletes';
 import { HANDOFF_TTL_MS, parseLoginState } from '@/lib/auth/login-handoff';
 import { queuePendingStravaSignup } from '@/lib/signup-queue';
@@ -155,7 +159,11 @@ export async function GET(request: Request) {
     // What Strava itself calls this person, or null when it says nothing usable —
     // see stravaDisplayNameOf for why null and not a placeholder.
     const stravaDisplayName = stravaDisplayNameOf(tokenData.athlete);
-    const name = stravaDisplayName || `Strava ${stravaId}`;
+    // Normalised here so the one path that cannot ask — a brand-new signup, who is
+    // not in the app yet — at least stores a tidy name. A Hebrew Strava profile
+    // still lands as Hebrew on that row: there is nobody to ask yet, and a real
+    // name beats "Strava 12345". The coach sees it in the approval queue.
+    const name = normalizeDisplayName(stravaDisplayName) || `Strava ${stravaId}`;
     const email = stravaAuthEmail(stravaId);
     const avatar = tokenData.athlete?.profile || tokenData.athlete?.profile_medium || null;
 
