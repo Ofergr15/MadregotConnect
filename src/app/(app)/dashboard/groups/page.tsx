@@ -11,6 +11,8 @@ import {
   Skeleton, SkeletonCard, SkeletonList, InsetSection, InsetRow,
 } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { AthleteLink } from '@/components/AthleteLink';
+import { teammateHref } from '@/lib/athletes/profile-link';
 
 interface Athlete {
   id: string;
@@ -247,12 +249,17 @@ export default function GroupsPage() {
                   {group.athletes.length > 0 ? (
                     <InsetSection className="mt-4 mb-0">
                       {group.athletes.map((athlete) => (
+                        // InsetRow already knows how to be a link, so the whole
+                        // 44px row navigates and nothing else here had to change.
+                        // `?? undefined` rather than `|| ''`: an empty href renders
+                        // an anchor that reloads the current page.
                         <InsetRow
                           key={athlete.id}
                           icon={User}
                           iconBg={colors.badge}
                           label={athlete.name}
                           sublabel={athlete.email}
+                          href={teammateHref(athlete.id) ?? undefined}
                           trailing={
                             <div className="flex items-center gap-2">
                               <span className={cn(
@@ -350,10 +357,14 @@ export default function GroupsPage() {
                             )}>
                               {idx + 1}
                             </span>
-                            <div className="flex items-center gap-2">
-                              <div className={cn("w-2 h-2 rounded-full", colors.dot)} />
-                              <span className="font-medium text-sm">{entry.name}</span>
-                            </div>
+                            <AthleteLink
+                              athleteId={entry.id}
+                              name={entry.name}
+                              className="flex items-center gap-2 min-h-[36px]"
+                            >
+                              <span className={cn("w-2 h-2 rounded-full", colors.dot)} />
+                              <span className="font-medium text-sm" dir="auto">{entry.name}</span>
+                            </AthleteLink>
                           </div>
                           <div className="flex items-center gap-4 text-sm">
                             {metric === 'streak' ? (
@@ -410,7 +421,9 @@ export default function GroupsPage() {
                         <div key={entry.id} className="flex items-center justify-between px-4 py-2.5 bg-card/60">
                           <div className="flex items-center gap-3">
                             <span className="text-xs text-ink-400 w-4">{entryIdx + 1}.</span>
-                            <span className="text-sm">{entry.name}</span>
+                            <AthleteLink athleteId={entry.id} name={entry.name} className="flex items-center min-h-[36px]">
+                              <span className="text-sm" dir="auto">{entry.name}</span>
+                            </AthleteLink>
                           </div>
                           <div className="flex items-center gap-3 text-sm">
                             <span className="text-ink-400">{entry.runs} {t('runs')}</span>

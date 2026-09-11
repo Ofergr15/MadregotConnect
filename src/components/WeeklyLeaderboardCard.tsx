@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Trophy } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { FeedAvatar } from '@/components/FeedAvatar';
+import { AthleteLink } from '@/components/AthleteLink';
 import { SegmentedControl } from '@/components/ui';
 import { apiHeaders, useApi } from '@/lib/api';
 
@@ -89,19 +89,24 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
   const row = (a: Entry, badge: React.ReactNode, isMe: boolean) => (
     <li key={a.id} className="flex items-center gap-2.5">
       <span className="w-6 shrink-0 text-center text-base leading-none">{badge}</span>
-      <FeedAvatar name={a.name} url={null} className="w-8 h-8" textClassName="text-2xs" />
+      {/* The name next to this was already a link and the face was not, which is the
+          inconsistency at its smallest: two halves of one person, one of them tappable.
+          `isMe ? null` keeps the viewer's own row plain — see AthleteLink. */}
+      <AthleteLink athleteId={isMe ? null : a.id} name={a.name} className="shrink-0 rounded-full">
+        <FeedAvatar name={a.name} url={null} className="w-8 h-8" textClassName="text-2xs" />
+      </AthleteLink>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
-          <Link
-            href={`/dashboard/teammate/${a.id}`}
-            dir="auto"
+          <AthleteLink
+            athleteId={a.id}
+            name={a.name}
             className={cn(
-              'text-sm truncate rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600',
+              'text-sm truncate',
               isMe ? 'font-black text-brand-600' : 'font-bold text-ink-700',
             )}
           >
-            {a.name}
-          </Link>
+            <span dir="auto">{a.name}</span>
+          </AthleteLink>
           {a.runs > 0 && (
             <span className="text-3xs text-ink-400 shrink-0">{t('runsCount', { count: a.runs })}</span>
           )}

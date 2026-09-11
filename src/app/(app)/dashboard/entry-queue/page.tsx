@@ -8,12 +8,14 @@ import {
   Wrench, Search, Lock, Unlock, Bell, BellOff, Watch, Activity,
   CheckCircle2, UserCheck, ChevronLeft, Users as UsersIcon,
   UserPlus, Mail, Smartphone, AlertTriangle, HelpCircle,
-  UserMinus, RotateCcw,
+  UserMinus, RotateCcw, Trash2,
 } from 'lucide-react';
 import { cn, getGroupChip, groupDisplayName } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Button, Card, EmptyState, Skeleton } from '@/components/ui';
+import { AthleteLink } from '@/components/AthleteLink';
+import { teammateHref } from '@/lib/athletes/profile-link';
 import {
   FLOW_GROUPS,
   FLOW_STEPS,
@@ -709,15 +711,18 @@ export default function EntryQueuePage() {
             return (
               <Card key={m.id} variant="solid" className="opacity-90">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
+                  {/* A removed member still has an athlete row, so their profile
+                      still opens — which is exactly what an admin wants before
+                      deciding whether to put them back. */}
+                  <AthleteLink athleteId={m.id} name={m.name} className="flex items-center gap-3 min-w-0">
                     <span className="shrink-0 w-9 h-9 rounded-full bg-page flex items-center justify-center">
                       <UserMinus className="h-4 w-4 text-ink-400" />
                     </span>
-                    <div className="min-w-0">
-                      <p className="text-[15px] font-semibold text-ink-500 truncate" dir="auto">{m.name}</p>
-                      {m.email && <p className="text-xs text-ink-300 truncate">{m.email}</p>}
-                    </div>
-                  </div>
+                    <span className="min-w-0">
+                      <span className="block text-[15px] font-semibold text-ink-500 truncate" dir="auto">{m.name}</span>
+                      {m.email && <span className="block text-xs text-ink-300 truncate">{m.email}</span>}
+                    </span>
+                  </AthleteLink>
                   {canRemove && (
                     <Button variant="secondary" onClick={() => setMembership(m, 'restore')} disabled={busy}>
                       <RotateCcw className="h-4 w-4" />
@@ -755,15 +760,20 @@ export default function EntryQueuePage() {
             return (
               <Card key={m.id} variant="solid">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 min-w-0">
+                  {/* `m.id` is athletes.id (the queue is built straight off that
+                      table), so the identity block links even for somebody who has
+                      not finished walking the flow — a half-onboarded member is
+                      still the person the coach is about to phone. The דבוקה chip
+                      beside it stays outside the link. */}
+                  <AthleteLink athleteId={m.id} name={m.name} className="flex items-start gap-3 min-w-0">
                     <span className="shrink-0 w-9 h-9 rounded-full bg-brand-600/20 flex items-center justify-center">
                       <span className="text-brand-600 font-semibold text-xs">{initials}</span>
                     </span>
-                    <div className="min-w-0">
-                      <p className="text-[15px] font-semibold text-ink-700 truncate" dir="auto">{m.name}</p>
-                      {m.email && <p className="text-xs text-ink-300 truncate">{m.email}</p>}
-                    </div>
-                  </div>
+                    <span className="min-w-0">
+                      <span className="block text-[15px] font-semibold text-ink-700 truncate" dir="auto">{m.name}</span>
+                      {m.email && <span className="block text-xs text-ink-300 truncate">{m.email}</span>}
+                    </span>
+                  </AthleteLink>
                   {/* דבוקה — the first thing asked about anybody in this queue, and
                       the coach's call rather than the member's, so its absence is
                       information too. */}
@@ -861,7 +871,7 @@ export default function EntryQueuePage() {
                               : t('sendReminder')}
                     </Button>
                   ) : (
-                    <Link href={`/dashboard/teammate/${m.id}`} className="flex-1">
+                    <Link href={teammateHref(m.id) ?? '/dashboard/athletes'} className="flex-1">
                       <Button variant="secondary" className="w-full">
                         <ChevronLeft className="h-4 w-4" />
                         {t('openProfile')}
@@ -869,7 +879,7 @@ export default function EntryQueuePage() {
                     </Link>
                   )}
                   {stuck && !mine && canApprove && (
-                    <Link href={`/dashboard/teammate/${m.id}`}>
+                    <Link href={teammateHref(m.id) ?? '/dashboard/athletes'}>
                       <Button variant="ghost" title={t('openProfile')}>
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
@@ -883,15 +893,28 @@ export default function EntryQueuePage() {
                     </Button>
                   )}
                   {/* Admin only. Last in the row, and it opens a question rather
-                      than doing anything — see the confirm block below. */}
+                      than doing anything — see the confirm block below.
+
+                      Trash2, not UserMinus. This button was a person-with-a-minus,
+                      which is the glyph this very screen uses as the *status
+                      badge* for somebody already out of the club (see the removed
+                      list above, and the 'removed' badge on dashboard/athletes) —
+                      so the destructive action and the after-state it produces
+                      were the same picture, sitting a few hundred pixels apart on
+                      one screen. It also read as "unfollow" or "move out of my
+                      group" rather than as a delete, which is why it was reported.
+                      Every other destructive action in the app is already a bin
+                      (athletes, settings, badges, perks, challenges, store, feed,
+                      comments); this was the last outlier. */}
                   {canRemove && confirmRemove !== m.id && (
                     <Button
                       variant="ghost"
                       onClick={() => setConfirmRemove(m.id)}
                       disabled={busy}
                       title={t('removeFromClub')}
+                      aria-label={t('removeFromClub')}
                     >
-                      <UserMinus className="h-4 w-4 text-accent-red" />
+                      <Trash2 className="h-4 w-4 text-accent-red" />
                     </Button>
                   )}
                 </div>
@@ -905,8 +928,10 @@ export default function EntryQueuePage() {
                     <p className="text-[13px] font-semibold text-accent-red">{t('removeConfirmTitle', { name: m.name })}</p>
                     <p className="text-2xs text-ink-500 mt-1 leading-relaxed">{t('removeConfirmBody')}</p>
                     <div className="flex items-center gap-2 mt-3">
+                      {/* Same glyph as the button that opened this question, so the
+                          confirm is visibly the same action and not a new one. */}
                       <Button variant="danger" className="flex-1" onClick={() => setMembership(m, 'remove')} disabled={busy}>
-                        <UserMinus className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" />
                         {busy ? t('saving') : t('removeConfirmYes')}
                       </Button>
                       <Button variant="ghost" onClick={() => setConfirmRemove(null)} disabled={busy}>

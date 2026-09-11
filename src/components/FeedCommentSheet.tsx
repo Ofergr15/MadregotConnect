@@ -7,6 +7,7 @@ import { useTranslations, useFormatter } from 'next-intl';
 import { fetchComments, addComment, deleteComment } from '@/lib/feed-client';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { FeedBodyText } from '@/components/FeedBodyText';
+import { AthleteLink } from '@/components/AthleteLink';
 import { MentionTextarea } from '@/components/MentionTextarea';
 import { Sheet } from '@/components/ui/Sheet';
 import { COMMENT_PREVIEW_COUNT } from '@/lib/feed/comments';
@@ -152,15 +153,31 @@ export function FeedCommentSheet({ item, myAthleteId, onClose }: Props) {
         )}
         {comments.map(c => (
           <div key={c.id} className="flex gap-3">
-            <FeedAvatar
-              name={c.author.name}
-              url={c.author.avatarUrl}
-              className="w-8 h-8 bg-page"
-              textClassName="text-ink-500"
-            />
+            {/* The avatar and the name are two separate links, and the bubble
+                between them is deliberately NOT one. The comment body renders
+                @mentions as real anchors (FeedBodyText), and an <a> inside an <a>
+                is invalid markup that browsers un-nest — the mention would stop
+                working and the tap would land on whichever link survived. Two
+                small targets on the author, none on the text. */}
+            <AthleteLink athleteId={c.author.athleteId} name={c.author.name} className="shrink-0 self-start">
+              <FeedAvatar
+                name={c.author.name}
+                url={c.author.avatarUrl}
+                className="w-8 h-8 bg-page"
+                textClassName="text-ink-500"
+              />
+            </AthleteLink>
             <div className="flex-1 min-w-0">
               <div className="bg-page rounded-2xl rounded-ss-sm px-3 py-2">
-                <p className="text-xs font-semibold text-brand-600 mb-0.5">{c.author.name}</p>
+                <p className="mb-0.5">
+                  <AthleteLink
+                    athleteId={c.author.athleteId}
+                    name={c.author.name}
+                    className="text-xs font-semibold text-brand-600 hover:underline"
+                  >
+                    {c.author.name}
+                  </AthleteLink>
+                </p>
                 <p className="text-sm text-ink-700 leading-snug whitespace-pre-line"><FeedBodyText body={c.body} /></p>
               </div>
               <p className="text-[10px] text-ink-400 mt-1 ms-1">{format.relativeTime(new Date(c.createdAt))}</p>

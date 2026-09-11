@@ -5,6 +5,7 @@ import { Users, Check, X, CalendarDays, ChevronRight, ChevronLeft, List, Calenda
 import { getPlanWeekStart, resolveGroup } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { SkeletonCard, SkeletonList, SegmentedControl, InsetSection, EmptyState, BigStat } from '@/components/ui';
+import { AthleteLink } from '@/components/AthleteLink';
 
 interface RosterRow {
   athleteId: string;
@@ -303,11 +304,22 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
             <InsetSection>
               {filteredList.map((m) => (
                 <div key={m.athleteId} className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
-                  <Avatar row={m} />
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-[15px] font-medium text-ink-700 truncate" dir="auto">{m.name}</span>
-                    {m.groupLabel && <span className="block text-xs text-ink-400 truncate">{m.groupLabel}</span>}
-                  </span>
+                  {/* The link is the face-and-name block only, not the row: the
+                      status on the far end ("מגיע" / "לא ענה") is information the
+                      coach reads while scanning, and swallowing it into a tap
+                      target would make the whole 52px band navigate — including
+                      the half of it somebody's thumb rests on while scrolling. */}
+                  <AthleteLink
+                    athleteId={m.athleteId}
+                    name={m.name}
+                    className="flex flex-1 min-w-0 items-center gap-3"
+                  >
+                    <Avatar row={m} />
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[15px] font-medium text-ink-700 truncate" dir="auto">{m.name}</span>
+                      {m.groupLabel && <span className="block text-xs text-ink-400 truncate">{m.groupLabel}</span>}
+                    </span>
+                  </AthleteLink>
                   <StatusPill row={m} />
                 </div>
               ))}
@@ -337,15 +349,26 @@ function Avatar({ row }: { row: RosterRow }) {
     : <span className="w-8 h-8 rounded-full bg-brand-600/25 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">{(row.name[0] || '?').toUpperCase()}</span>;
 }
 
+// The דבוקה chips — this is the screen and these are the chips the report came
+// with. A face and a first name in a pill is the most person-shaped thing the app
+// draws, and here it was inert: the coach's instinct on seeing "מי נמצא בדבוקה 2"
+// is to press a face to find out how that runner is doing, and nothing happened.
+// The whole chip is the target (a first name is only a few characters wide, and
+// the avatar next to it is the part a thumb actually lands on) and there is
+// nothing else interactive inside it, so there is no propagation to manage.
 function PersonChip({ row, muted }: { row: RosterRow; muted?: boolean }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full ps-1 pe-2.5 py-1 ${muted ? 'bg-page/40' : 'bg-page/60'}`}>
+    <AthleteLink
+      athleteId={row.athleteId}
+      name={row.name}
+      className={`inline-flex items-center gap-1.5 rounded-full ps-1 pe-2.5 py-1 min-h-[40px] transition-colors ${muted ? 'bg-page/40 hover:bg-page/70' : 'bg-page/60 hover:bg-page'}`}
+    >
       <Avatar row={row} />
       <span className={`text-xs ${muted ? 'text-ink-400' : 'text-ink-700'}`} dir="auto">{row.name.split(' ')[0]}</span>
       {row.confirmed && (
         <BadgeCheck className="h-3.5 w-3.5 text-accent-600 shrink-0" aria-label="אומת ע״י ריצה בפועל" />
       )}
-    </span>
+    </AthleteLink>
   );
 }
 

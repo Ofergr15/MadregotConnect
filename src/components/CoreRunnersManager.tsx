@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AlertTriangle, ChevronLeft, Search, X } from 'lucide-react';
 import { Card, LoadingBlock } from '@/components/ui';
 import CoreRunnerBadge from '@/components/CoreRunnerBadge';
+import { AthleteLink } from '@/components/AthleteLink';
 import { apiHeaders, useApi } from '@/lib/api';
 import { cn, resolveGroup } from '@/lib/utils';
 import { CORE_RUNNER_LABEL_PLURAL, CORE_RUNNER_MARK } from '@/lib/core-runner';
@@ -279,8 +280,15 @@ function AthleteRow({
   return (
     <div className={cn('flex min-h-[64px] items-center gap-2.5 px-3.5 py-2.5', !last && 'border-b border-page')}>
       <div className="min-w-0 flex-1">
+        {/* The name is a link and the switch beside it is untouched: the switch is a
+            real <button role="switch"> SIBLING, not an ancestor, so there is no
+            propagation to manage — pressing the name navigates, pressing the switch
+            still flips 🌰. `a.name || a.email` because a member who has not claimed
+            an account yet has only an address, and that is still a person to open. */}
         <span className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-semibold text-ink-900">{a.name || a.email}</span>
+          <AthleteLink athleteId={a.id} name={a.name || a.email} className="min-w-0">
+            <span className="block truncate text-sm font-semibold text-ink-900" dir="auto">{a.name || a.email}</span>
+          </AthleteLink>
           {a.isCoreRunner && <CoreRunnerBadge />}
         </span>
         <span className="mt-1 flex items-center gap-1.5">

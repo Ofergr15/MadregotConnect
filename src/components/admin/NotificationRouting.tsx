@@ -10,6 +10,7 @@ import { Card, LoadingBlock, Switch } from '@/components/ui';
 import { apiHeaders, useApi } from '@/lib/api';
 import { isStaffRole } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { AthleteLink } from '@/components/AthleteLink';
 
 /**
  * Settings → התראות ניהול. Who receives each management alert, and what every
@@ -445,7 +446,13 @@ function PersonRow({
         className="flex min-h-[60px] w-full cursor-pointer items-center gap-2.5 px-3.5 py-2.5 text-start active:bg-page/40"
       >
         <div className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-ink-900">{p.name}</span>
+          {/* stopPropagation: the row is a role="button" div that expands the
+              switches on click and on Enter/Space, so without it the name would
+              navigate AND leave an accordion open behind you. `p.id` is the
+              athlete id — it is what the toggle POSTs as `athleteId`. */}
+          <AthleteLink athleteId={p.id} name={p.name} className="block min-w-0" stopPropagation>
+            <span className="block truncate text-sm font-semibold text-ink-900" dir="auto">{p.name}</span>
+          </AthleteLink>
           <span className="mt-1 flex items-center gap-1.5">
             <span className="shrink-0 rounded border border-ink-300/50 bg-page px-1.5 py-0.5 text-3xs font-bold text-ink-700">
               {ROLE_LABEL[p.role] || p.role}

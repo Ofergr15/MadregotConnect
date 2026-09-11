@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/academy/benchmark';
 import { useApi } from '@/lib/api';
 import { useTranslations } from 'next-intl';
+import { AthleteLink } from '@/components/AthleteLink';
 
 interface Result {
   id: string;
@@ -68,16 +69,27 @@ export function BenchmarkLeaderboard() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {top3.map((r, i) => (
             <div key={r.id} className={cn('rounded-2xl p-4 ring-1 flex items-center gap-3', podium[i].ring, podium[i].bg)}>
-              <div className="relative shrink-0">
-                <div className="bg-card w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-ink-700">
-                  {initialsOf(r.athlete_name)}
-                </div>
-                <Medal className={cn('h-5 w-5 absolute -bottom-1 -end-1', podium[i].text)} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className={cn('text-[10px] font-bold uppercase tracking-wider', podium[i].text)}>#{r.rank}</div>
-                <div className="text-sm font-semibold text-ink-700 truncate" dir="auto">{r.athlete_name}</div>
-              </div>
+              {/* `athlete_id` is nullable here on purpose — a coach can log a
+                  benchmark result for a trainee who has no app account yet (the
+                  academy screens do exactly that), and those rows carry a name
+                  with nothing behind it. AthleteLink renders them as plain text
+                  rather than as a link to a profile that does not exist. */}
+              <AthleteLink
+                athleteId={r.athlete_id}
+                name={r.athlete_name}
+                className="flex min-w-0 flex-1 items-center gap-3"
+              >
+                <span className="relative shrink-0">
+                  <span className="bg-card w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-ink-700">
+                    {initialsOf(r.athlete_name)}
+                  </span>
+                  <Medal className={cn('h-5 w-5 absolute -bottom-1 -end-1', podium[i].text)} />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className={cn('block text-[10px] font-bold uppercase tracking-wider', podium[i].text)}>#{r.rank}</span>
+                  <span className="block text-sm font-semibold text-ink-700 truncate" dir="auto">{r.athlete_name}</span>
+                </span>
+              </AthleteLink>
               <div className="text-lg font-black text-ink-700 tabular-nums shrink-0">{formatTime(r.time_seconds)}</div>
             </div>
           ))}
@@ -98,7 +110,13 @@ export function BenchmarkLeaderboard() {
                 {rest.map(r => (
                   <div key={r.id} className="flex items-center gap-3 bg-card/40 rounded-lg px-3 py-2">
                     <span className="w-6 text-center text-xs font-bold text-ink-400 shrink-0">{r.rank}</span>
-                    <span className="flex-1 min-w-0 text-sm text-ink-700 truncate" dir="auto">{r.athlete_name}</span>
+                    <AthleteLink
+                      athleteId={r.athlete_id}
+                      name={r.athlete_name}
+                      className="flex-1 min-w-0 text-sm text-ink-700 truncate min-h-[36px] flex items-center"
+                    >
+                      <span dir="auto" className="truncate">{r.athlete_name}</span>
+                    </AthleteLink>
                     <span className="text-sm font-semibold text-ink-700 tabular-nums shrink-0">{formatTime(r.time_seconds)}</span>
                   </div>
                 ))}

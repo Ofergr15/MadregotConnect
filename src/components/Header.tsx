@@ -13,6 +13,7 @@ import { resolveNavItems, type TabPermission } from '@/lib/nav-items';
 import { getViewMode, stopViewAs, useIsSuperUser, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { InsetSection, InsetRow, Sheet, Spinner } from '@/components/ui';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
+import { AthleteLink } from '@/components/AthleteLink';
 
 // The nav list, the role rules and the force-adds live in @/lib/nav-items — this
 // file kept its own copy of all three, and the copy was missing the academy
@@ -101,7 +102,7 @@ export function Header() {
   // Staff (admin/coach/academy_coach) get the pending benchmark-approval queue
   // surfaced in the header bell.
   const isStaffRole = !!userRole && STAFF_ROLES.includes(userRole);
-  const { data: benchData } = useApi<{ results?: Array<{ id: string; athlete_name: string; test_name: string; time_seconds: number }> }>(
+  const { data: benchData } = useApi<{ results?: Array<{ id: string; athlete_name: string; athlete_id: string | null; test_name: string; time_seconds: number }> }>(
     isStaffRole ? '/api/academy/benchmarks?status=pending' : null,
   );
   const pendingResults = benchData?.results || [];
@@ -422,7 +423,18 @@ export function Header() {
                         <div className="max-h-40 overflow-y-auto py-1">
                           {pendingResults.map(r => (
                             <div key={r.id} className="px-1 py-2 flex items-center gap-2 text-xs">
-                              <span className="flex-1 min-w-0 truncate text-ink-700" dir="auto">{r.athlete_name}</span>
+                              {/* onNavigate closes the bell panel — it is an absolutely
+                                  positioned dropdown, so a route change leaves it hanging
+                                  open over the page you arrived at. `athlete_id` is null
+                                  for a result logged against an unclaimed trainee. */}
+                              <AthleteLink
+                                athleteId={r.athlete_id}
+                                name={r.athlete_name}
+                                className="flex-1 min-w-0 truncate text-ink-700"
+                                onNavigate={() => setShowNotifications(false)}
+                              >
+                                <span dir="auto">{r.athlete_name}</span>
+                              </AthleteLink>
                               <span className="text-ink-400">{r.test_name}</span>
                               <span className="font-bold text-ink-700 tabular-nums">
                                 {Math.floor(r.time_seconds / 60)}:{(r.time_seconds % 60).toFixed(r.time_seconds % 1 ? 2 : 0).padStart(r.time_seconds % 1 ? 5 : 2, '0')}

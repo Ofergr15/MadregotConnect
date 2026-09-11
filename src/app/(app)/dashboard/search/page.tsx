@@ -9,6 +9,7 @@ import { EmptyState, Spinner } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import type { EventKind } from '@/lib/events';
 import { useNavItems, STORE_ITEM, BENEFITS_ITEM, type NavItem } from '@/lib/nav-items';
+import { AthleteLink } from '@/components/AthleteLink';
 
 // English/Hebrew synonym aliases per section — a plain substring match against
 // the translated label or tab slug alone misses common everyday words (typing
@@ -183,14 +184,15 @@ export default function SearchPage() {
           <p className="text-2xs font-bold uppercase tracking-wider text-ink-400 px-1 mb-1.5">{t('members')}</p>
           <div className="space-y-2">
             {data.members.map((m) => (
-              <Link
+              <AthleteLink
                 key={m.id}
-                href={`/dashboard/teammate/${m.id}`}
+                athleteId={m.id}
+                name={m.name}
                 className="flex items-center gap-3 bg-card/50 rounded-card border border-page/30 px-3 py-2.5"
               >
                 <FeedAvatar name={m.name} url={m.avatarUrl} className="w-9 h-9 shrink-0" />
                 <span className="text-sm font-semibold text-ink-700 truncate" dir="auto">{m.name}</span>
-              </Link>
+              </AthleteLink>
             ))}
           </div>
         </div>

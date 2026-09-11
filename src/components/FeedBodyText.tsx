@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { renderMentionSegments } from '@/lib/feed/mentions';
+import { AthleteLink } from '@/components/AthleteLink';
 
 /**
  * Renders a post/comment body, turning any `@[Name](athleteId)` mention
@@ -14,14 +14,14 @@ export function FeedBodyText({ body }: { body: string }) {
     <>
       {segments.map((seg, i) =>
         seg.type === 'mention' ? (
-          <Link
+          <AthleteLink
             key={i}
-            href={`/dashboard/teammate/${seg.athleteId}`}
+            athleteId={seg.athleteId}
+            name={seg.name}
             className="font-semibold text-brand-600 hover:underline"
-            dir="auto"
           >
-            @{seg.name}
-          </Link>
+            <span dir="auto">@{seg.name}</span>
+          </AthleteLink>
         ) : (
           <span key={i}>{seg.content}</span>
         ),

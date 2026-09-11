@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import { mutate as globalMutate } from 'swr';
 import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -32,6 +31,7 @@ import { APP_VERSION } from '@/lib/version';
 import { useNavIdentity } from '@/lib/nav-items';
 import { AdminAccount } from '@/components/admin/AdminAccount';
 import type { GroupedWeeklyPlans } from '@/lib/ai/types';
+import { AthleteLink } from '@/components/AthleteLink';
 
 interface FollowedAthlete {
   id: string;
@@ -557,14 +557,18 @@ function ProfileContent() {
         ) : (
           followingList.map(a => (
             <div key={a.id} className="flex items-center gap-3 py-2">
-              <Link
-                href={`/dashboard/teammate/${a.id}`}
-                onClick={() => setShowFollowingSheet(false)}
+              {/* onNavigate closes the sheet: a route change does not unmount it,
+                  so without this you land on the profile with the following list
+                  still sitting over it. */}
+              <AthleteLink
+                athleteId={a.id}
+                name={a.name}
+                onNavigate={() => setShowFollowingSheet(false)}
                 className="flex items-center gap-3 flex-1 min-w-0"
               >
                 <FeedAvatar name={a.name} url={a.avatarUrl} />
                 <span className="text-sm text-ink-700 truncate" dir="auto">{a.name}</span>
-              </Link>
+              </AthleteLink>
               <button
                 onClick={() => handleUnfollow(a.id)}
                 disabled={unfollowingId === a.id}

@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { parseTime, formatTime } from '@/lib/academy/benchmark';
 import { apiHeaders } from '@/lib/api';
 import { Spinner, SkeletonList, EmptyState, Sheet, Button, ConfirmSheet } from '@/components/ui';
+import { AthleteLink } from '@/components/AthleteLink';
 
 interface Result {
   id: string;
@@ -123,7 +124,12 @@ export function AcademyResults() {
             {pending.map(p => (
               <div key={p.id} className="flex items-center gap-3 bg-page/40 rounded-lg px-3 py-2">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-ink-700 truncate" dir="auto">{p.athlete_name} <span className="text-ink-400">· {p.test_name}</span></div>
+                  {/* The approve/reject buttons are siblings, not ancestors, so the
+                      name can be a link without touching either of them. */}
+                  <div className="text-sm text-ink-700 truncate" dir="auto">
+                    <AthleteLink athleteId={p.athlete_id} name={p.athlete_name}>{p.athlete_name}</AthleteLink>
+                    <span className="text-ink-400"> · {p.test_name}</span>
+                  </div>
                   {p.notes && <div className="text-xs text-ink-400 truncate" dir="auto">{p.notes}</div>}
                 </div>
                 <span className="text-sm font-bold text-ink-700 tabular-nums">{formatTime(p.time_seconds)}</span>
@@ -173,8 +179,12 @@ export function AcademyResults() {
                   : <span className="text-sm font-bold text-ink-400">{r.rank ?? '–'}</span>}
               </div>
               <div className="flex-1 min-w-0">
+                {/* `athlete_id` is null for a trainee the coach logged a time for who
+                    has no app account yet — the "מקושר" chip beside the name is
+                    literally the presence of that id. AthleteLink renders those as
+                    plain text, so the chip and the tappability agree. */}
                 <div className="font-medium text-ink-700 text-sm truncate flex items-center gap-2" dir="auto">
-                  {r.athlete_name}
+                  <AthleteLink athleteId={r.athlete_id} name={r.athlete_name} className="truncate">{r.athlete_name}</AthleteLink>
                   {r.athlete_id && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-900">מקושר</span>}
                 </div>
                 {r.notes && <div className="text-xs text-ink-400 truncate" dir="auto">{r.notes}</div>}

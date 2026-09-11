@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Check, ChevronDown, Copy, MessageCircle, Send, X, Clock, Mail, RefreshCw, Search, ShieldAlert, Users } from 'lucide-react';
 import { Card, LoadingBlock, ConfirmSheet, SegmentedControl } from '@/components/ui';
+import { AthleteLink } from '@/components/AthleteLink';
 import EmailHealthBanner from '@/components/EmailHealthBanner';
 import { apiHeaders, useApi } from '@/lib/api';
 import { cn, resolveGroup } from '@/lib/utils';
@@ -1088,13 +1089,25 @@ function QueueRow({
             such. Their Strava display name is the only real thing on the row, so
             it takes line one instead. dir=auto because that name is usually
             Hebrew, and forcing LTR on it flips its punctuation to the wrong end. */}
-        <span
-          dir={identifiedByName ? 'auto' : 'ltr'}
-          title={r.email}
-          className="block text-sm font-semibold text-ink-900 truncate text-left select-all"
+        {/* Linked only on the name branch, and the asymmetry is deliberate: when
+            line one is an ADDRESS it is there to be read and copied (hence
+            select-all), and a link would swallow the click that selects it. When
+            line one is a person's Strava display name there is nothing to copy and
+            the name is the person. `r.athleteId` is null until a row has an athlete
+            row at all, which AthleteLink already renders as plain text. */}
+        <AthleteLink
+          athleteId={identifiedByName ? r.athleteId : null}
+          name={r.athleteName ?? undefined}
+          className="block min-w-0"
         >
-          {identifiedByName ? r.athleteName || 'התחברות דרך Strava' : r.email}
-        </span>
+          <span
+            dir={identifiedByName ? 'auto' : 'ltr'}
+            title={r.email}
+            className="block text-sm font-semibold text-ink-900 truncate text-left select-all"
+          >
+            {identifiedByName ? r.athleteName || 'התחברות דרך Strava' : r.email}
+          </span>
+        </AthleteLink>
 
         {/* dir=ltr on the SECOND line too, and it matters: the address above is an
             LTR block, so it sits hard against the left edge, while an RTL line
@@ -1287,6 +1300,10 @@ function QueueRow({
                       : 'bg-card text-ink-900 border-ink-900/25',
                   )}
                 >
+                  {/* NOT an AthleteLink, on purpose: this name is the LABEL of a
+                      merge action, not a person to go and look at, and it lives
+                      inside a <button> — an <a> in there is invalid markup that
+                      would cost the merge its click. */}
                   <span className="text-ink-400 shrink-0">{CONFIDENCE_LABEL[c.confidence]}</span>
                   <b className="font-bold truncate">{c.name}</b>
                 </button>

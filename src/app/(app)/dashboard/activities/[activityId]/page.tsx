@@ -20,6 +20,7 @@ import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 import { ActivityDetailBody } from '@/components/activity/ActivityDetailBody';
 import { getTimeLabel, resolveRunTypeBadge } from '@/components/activity/format';
 import { useActivityDetails } from '@/components/activity/useActivityDetails';
+import { AthleteLink } from '@/components/AthleteLink';
 import { activityLocalDay, cn, formatActivityDate, formatActivityTime } from '@/lib/utils';
 
 const HEBREW_DAYS = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
@@ -90,7 +91,16 @@ export default function ActivityDetailPage() {
               </span>
             </div>
             <p className="text-xs text-ink-400">
-              {act.athlete_name || 'Unknown'} · {formatActivityDate(act.start_time, locale)} · {formatActivityTime(act.start_time)}
+              {/* Only the name is the link, not the whole meta line — the date and
+                  the clock time next to it belong to the run, not to the person. */}
+              <AthleteLink
+                athleteId={isMyActivity ? null : act.athlete_id}
+                name={act.athlete_name}
+                className="font-semibold"
+              >
+                {act.athlete_name || 'Unknown'}
+              </AthleteLink>
+              {' · '}{formatActivityDate(act.start_time, locale)} · {formatActivityTime(act.start_time)}
             </p>
             <p className="text-xs text-ink-400">
               {getTimeLabel(act.start_time)}{act.location_name ? ` · ${act.location_name}` : ''}

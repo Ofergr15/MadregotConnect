@@ -6,7 +6,7 @@ import {
   UserPlus, Copy, CheckCircle2, Wifi, WifiOff, Clock,
   Users as UsersIcon, Check, Mail, Trash2, ChevronDown,
   PauseCircle, PlayCircle, ArrowRightLeft, MessageCircle, UserMinus,
-  Wrench, Search, Lock, Unlock, DoorOpen
+  Wrench, Search, Lock, Unlock, DoorOpen, User as UserIcon
 } from 'lucide-react';
 import { cn, getGroupChip } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -14,6 +14,7 @@ import { isProtectedEmail } from '@/lib/constants';
 import { Skeleton, SkeletonCard, Sheet, ConfirmSheet, SegmentedControl, InsetSection, InsetRow, Card, Button, EmptyState, BigStat } from '@/components/ui';
 import { useTranslations } from 'next-intl';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { teammateHref } from '@/lib/athletes/profile-link';
 import { maintenanceBlocks, type MaintenanceState } from '@/lib/maintenance-rule';
 
 interface Athlete {
@@ -646,6 +647,17 @@ ${inviteLink}`;
           if (!athlete) return null;
           return (
             <InsetSection>
+              {/* The roster row itself cannot be the link: it is a <button> that
+                  opens this sheet, and an <a> inside a <button> is invalid markup
+                  that browsers un-nest — one of the two targets dies silently. So
+                  the profile is the FIRST action in the sheet the row already
+                  opens, which is also where the academy's MemberSheet puts it. */}
+              <InsetRow
+                icon={UserIcon}
+                iconBg="bg-ink-300"
+                label={tc('viewProfile')}
+                href={teammateHref(athlete.id) ?? undefined}
+              />
               <InsetRow
                 icon={ArrowRightLeft}
                 iconBg="bg-brand-600"
