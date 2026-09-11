@@ -78,6 +78,20 @@ export async function createAndSendSurvey(opts: {
 }
 
 /**
+ * Does this `workout_attendance` row already answer the pace-group poll?
+ *
+ * The two ask the same question — which דבוקה tomorrow — so an RSVP that named a
+ * group has answered it, and so has a "not coming": there is no group to ask
+ * about. What does NOT count is a bare yes, which is what the RSVP button on a
+ * push notification sends (no page, no group picker, so `group_label` is null).
+ * That athlete is coming and hasn't said with whom, which is exactly who the
+ * evening nudge is for.
+ */
+export function rsvpSettlesPaceGroup(row: { attending: boolean; group_label?: string | null }): boolean {
+  return !row.attending || !!row.group_label;
+}
+
+/**
  * Nudge athletes in a survey's audience who haven't responded yet — the
  * survey equivalent of cron/tick's RSVP-non-responder nudge. Never re-asks
  * anyone who already answered.
@@ -89,10 +103,19 @@ export async function notifySurveyNonResponders(opts: {
   /** Nudge wording, resolved per recipient — see notifyAthlete's copy option. */
   copy: (locale: NotificationLocale) => PushCopy;
   tag: string;
+  /**
+   * Athletes to treat as having answered even with no `survey_responses` row —
+   * because they answered the same question somewhere else. The recurring
+   * pace-group poll asks what the home page's RSVP already asks (which group are
+   * you running with tomorrow), and an athlete who picked a group there was still
+   * being nudged in the evening to answer "again"; see cron/tick Stage 4.
+   */
+  answeredElsewhere?: Iterable<string>;
 }): Promise<number> {
   const supabase = createServerClient();
   const { data: responded } = await supabase.from('survey_responses').select('athlete_id').eq('survey_id', opts.surveyId);
   const respondedIds = new Set((responded || []).map((r: { athlete_id: string }) => r.athlete_id));
+  for (const id of opts.answeredElsewhere || []) respondedIds.add(id);
 
   let candidateIds: string[] = [];
   if (opts.audienceType === 'athlete' && opts.audienceId) {

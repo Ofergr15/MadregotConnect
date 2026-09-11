@@ -134,6 +134,17 @@ export async function fetchFeedItemByActivity(activityId: string) {
   return parse<{ item: FeedItem }>(res);
 }
 
+/**
+ * One feed item by its own id — what a like/comment/new-post push carries, since
+ * those are about the ITEM and a post has no activity behind it at all.
+ */
+export async function fetchFeedItem(itemId: string) {
+  const res = await fetch(`/api/feed/items/${encodeURIComponent(itemId)}`, {
+    headers: await authHeaders(),
+  });
+  return parse<{ item: FeedItem }>(res);
+}
+
 export type FeedHiddenField = 'calories' | 'heart_rate' | 'pace' | 'power';
 
 export interface UpdateFeedItemInput {
