@@ -237,18 +237,22 @@ function distanceKm(act: FeedActivity): string {
   return (act.distance / 1000).toFixed(2).replace(/\.?0+$/, '');
 }
 
-function metaLine(item: FeedItem, act: FeedActivity, i18n: ShareI18n): string {
-  const dateStr = new Date(act.startTime).toLocaleDateString(i18n.locale, {
+/**
+ * The card carries the run, not the runner: the athlete's name and their group
+ * are deliberately left off every template. Anyone posting this to a story is
+ * already identified by the account they post from, and the group is nobody
+ * else's business.
+ */
+function dateLine(act: FeedActivity, i18n: ShareI18n): string {
+  return new Date(act.startTime).toLocaleDateString(i18n.locale, {
     day: 'numeric',
     month: 'long',
   });
-  return [item.author.groupName, dateStr].filter(Boolean).join(' · ');
 }
 
 interface LayoutCtx {
   ctx: CanvasRenderingContext2D;
   font: string;
-  item: FeedItem;
   act: FeedActivity;
   logo: HTMLImageElement | null;
   shadow: string;
@@ -261,7 +265,7 @@ interface LayoutCtx {
  * The stack builds upward from the bottom margin so a run with no GPS simply
  * omits the route rather than leaving a hole.
  */
-function layoutClassic({ ctx, font, item, act, logo, shadow, shadowBlur, i18n }: LayoutCtx) {
+function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n }: LayoutCtx) {
   const right = STORY_W - MARGIN;
   let y = STORY_H - MARGIN;
 
@@ -286,13 +290,8 @@ function layoutClassic({ ctx, font, item, act, logo, shadow, shadowBlur, i18n }:
 
   ctx.font = `500 40px ${font}`;
   ctx.fillStyle = 'rgba(255,255,255,0.72)';
-  ctx.fillText(metaLine(item, act, i18n), right, y);
+  ctx.fillText(dateLine(act, i18n), right, y);
   y -= 62;
-
-  ctx.font = `700 56px ${font}`;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(item.author.name, right, y);
-  y -= 56;
 
   ctx.shadowBlur = 0;
   ctx.strokeStyle = 'rgba(255,255,255,0.25)';
@@ -358,7 +357,7 @@ function layoutClassic({ ctx, font, item, act, logo, shadow, shadowBlur, i18n }:
  * as a proper sticker over an arbitrary story background, so it's also the best
  * pairing with `transparent`.
  */
-function layoutCard({ ctx, font, item, act, logo, shadow, shadowBlur, i18n }: LayoutCtx) {
+function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n }: LayoutCtx) {
   const hasRoute = !!act.routePreview && act.routePreview.length > 2;
 
   const PAD = 56;
@@ -411,16 +410,14 @@ function layoutCard({ ctx, font, item, act, logo, shadow, shadowBlur, i18n }: La
     ctx.drawImage(logo, right - logoW, y, logoW, logoH);
     ctx.globalAlpha = 1;
 
-    // Athlete name sits opposite the logo, on the same baseline band.
-    ctx.textBaseline = 'alphabetic';
+    // The date sits opposite the logo, centred on the logo's own band now that
+    // there is no name above it.
+    ctx.textBaseline = 'middle';
     ctx.direction = 'rtl';
     ctx.textAlign = 'left';
-    ctx.font = `700 44px ${font}`;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(item.author.name, cardX + PAD, y + logoH / 2 - 4);
-    ctx.font = `500 32px ${font}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.fillText(metaLine(item, act, i18n), cardX + PAD, y + logoH / 2 + 40);
+    ctx.font = `500 36px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText(dateLine(act, i18n), cardX + PAD, y + logoH / 2);
     y += logoH;
   }
 
@@ -481,7 +478,7 @@ function layoutCard({ ctx, font, item, act, logo, shadow, shadowBlur, i18n }: La
 }
 
 /** Just the number. Centred, lots of air — the best pairing with a strong photo. */
-function layoutMinimal({ ctx, font, item, act, logo, shadow, shadowBlur, i18n }: LayoutCtx) {
+function layoutMinimal({ ctx, font, act, logo, shadow, shadowBlur, i18n }: LayoutCtx) {
   const cx = STORY_W / 2;
 
   ctx.textBaseline = 'alphabetic';
@@ -518,7 +515,7 @@ function layoutMinimal({ ctx, font, item, act, logo, shadow, shadowBlur, i18n }:
 
   ctx.font = `500 38px ${font}`;
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText(`${item.author.name} · ${metaLine(item, act, i18n)}`, cx, heroBaseline + 286);
+  ctx.fillText(dateLine(act, i18n), cx, heroBaseline + 286);
   ctx.shadowBlur = 0;
 
   if (logo) {
@@ -582,7 +579,6 @@ export async function renderShareCard(
   LAYOUTS[opts.template ?? 'classic']({
     ctx,
     font,
-    item,
     act,
     logo,
     shadow: opts.transparent ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.45)',
