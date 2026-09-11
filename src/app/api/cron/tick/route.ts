@@ -8,7 +8,7 @@ import {
 import { notifyStaff } from '@/lib/notifications/staff';
 import { recipientsForKind } from '@/lib/notifications/routing';
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
-import { createAndSendSurvey, notifySurveyNonResponders } from '@/lib/surveys';
+import { createAndSendSurvey, notifySurveyNonResponders, rsvpSettlesPaceGroup } from '@/lib/surveys';
 import { israelNow, israelToday, getPlanWeekStart, getActivityWeekStart, israelDateAnchor, addDaysToDateStr } from '@/lib/utils';
 import { APPROVER_EMAILS } from '@/lib/constants';
 
@@ -250,6 +250,13 @@ async function run(request: Request) {
 
     // Stage 4 — evening before, at eveningBefore.hour, nudge whoever hasn't
     // answered the pace-group poll created in Stage 3 yet.
+    //
+    // "Hasn't answered" is not the same as "has no survey_responses row". The
+    // poll asks which pace group you're running with tomorrow, and the home
+    // page's RSVP asks the same thing with the same options — so an athlete who
+    // tapped a group there at 05:31 was still getting an evening push asking
+    // them to answer, which reads as the app not having heard them. Their
+    // `workout_attendance` row for this team day counts as the answer.
     if (surveyTpl && eveningBefore.enabled && weekday === dayBeforeWeekday && hour === eveningBefore.hour) {
       const tag = `paceSurveyNudge:${weekStart}:${teamDay}`;
       if (!(await already(tag))) {
@@ -261,11 +268,25 @@ async function run(request: Request) {
           .maybeSingle();
         const surveyId = ledgerRow?.body_he;
         if (surveyId) {
+          // An RSVP answers the poll when it actually settled the question: a
+          // named group, or a "not coming" (there is no group to ask about).
+          // A bare yes from the notification's action button carries no group
+          // — `group_label` is null there — so that athlete is still asked.
+          const { data: rsvps } = await supabase
+            .from('workout_attendance')
+            .select('athlete_id, attending, group_label')
+            .eq('week_start_date', teamDayWeekStart)
+            .eq('day_of_week', teamDay);
+          const answeredByRsvp = (rsvps || [])
+            .filter(rsvpSettlesPaceGroup)
+            .map((r: { athlete_id: string }) => r.athlete_id);
+
           const sent = await notifySurveyNonResponders({
             surveyId,
             audienceType: 'all',
             copy: (locale) => surveyNudgeCopy(locale, { day: teamDay }),
             tag,
+            answeredElsewhere: answeredByRsvp,
           });
           await markFired(tag, sent);
           fired.push(`${tag} → ${sent}`);

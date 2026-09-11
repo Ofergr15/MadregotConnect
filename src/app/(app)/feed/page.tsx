@@ -7,7 +7,8 @@ import { PenSquare, MessageSquare, AlertCircle, LogIn, X } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useTranslations, useFormatter } from 'next-intl';
 import { cn, dayKeyRelation, dayKeyToDate, feedDayKey } from '@/lib/utils';
-import { fetchFeed, deletePost, fetchFeedItemByActivity } from '@/lib/feed-client';
+import { fetchFeed, deletePost, fetchFeedItem, fetchFeedItemByActivity } from '@/lib/feed-client';
+import { feedFocusFromParams } from '@/lib/feed/deep-link';
 import { FeedCard } from '@/components/FeedCard';
 import { FeedCommentSheet } from '@/components/FeedCommentSheet';
 import { FeedComposer } from '@/components/FeedComposer';
@@ -102,18 +103,24 @@ export default function FeedPage() {
   // instead of hunting for it in `items`.
   //
   // `kudos` is the legacy spelling of the same param, still sitting in every
-  // notification row written before this link existed.
+  // notification row written before this link existed. And a like, a comment and
+  // a new post are about the ITEM rather than a run — those pushes carry
+  // `?item=`, which this page used to ignore entirely. `feedFocusFromParams`
+  // holds both readings; see lib/feed/deep-link.
   const router = useRouter();
   const searchParams = useSearchParams();
-  const focusActivityId = searchParams.get('activity') || searchParams.get('kudos');
+  const focus = feedFocusFromParams(searchParams);
+  const focusBy = focus?.by ?? null;
+  const focusId = focus?.id ?? null;
   const [focusItem, setFocusItem] = useState<FeedItem | null>(null);
   const [focusError, setFocusError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!focusActivityId) { setFocusItem(null); setFocusError(null); return; }
+    if (!focusId) { setFocusItem(null); setFocusError(null); return; }
     let cancelled = false;
     setFocusError(null);
-    fetchFeedItemByActivity(focusActivityId)
+    const load = focusBy === 'activity' ? fetchFeedItemByActivity(focusId) : fetchFeedItem(focusId);
+    load
       .then(({ item }) => { if (!cancelled) setFocusItem(item); })
       // A deleted run, or one whose feed item was never created, must not break
       // the whole page — the feed below still renders normally.
@@ -121,7 +128,7 @@ export default function FeedPage() {
       .finally(() => { if (cancelled) setFocusItem(null); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusActivityId]);
+  }, [focusBy, focusId]);
 
   const clearFocus = () => {
     setFocusItem(null);
@@ -328,11 +335,11 @@ export default function FeedPage() {
         <Spinner size={22} />
       </div>
 
-      {/* ═══ The run a push notification was about ═══
+      {/* ═══ The post or run a push notification was about ═══
           Pinned at the very top, above everything else: the notification
-          promised this specific run, so it has to be the first thing on screen
+          promised this specific item, so it has to be the first thing on screen
           and not something to scroll for. */}
-      {focusActivityId && (focusItem || focusError) && (
+      {focusId && (focusItem || focusError) && (
         <div className="mb-4">
           <div className="flex items-center justify-between px-1 mb-2">
             <span className="text-xs font-medium text-ink-400">{t('focusedTitle')}</span>
