@@ -41,7 +41,7 @@ import { DayByDayReview } from '@/components/DayByDayReview';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
 import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
 import { undoAutoFixes } from '@/lib/plans/auto-fix';
-import { cn, activityLocalDay, formatActivityTime, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
+import { cn, activityLocalDay, formatActivityTime, formatWeekRange, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet, ConfirmSheet, SegmentedControl, Button, InsetSection, InsetRow } from '@/components/ui';
@@ -142,16 +142,6 @@ function getDefaultOffset(): number {
   return isSaturday() ? 1 : 0;
 }
 
-function getWeekLabel(dateStr: string, locale: string): string {
-  const date = new Date(dateStr + 'T00:00:00');
-  const endDate = new Date(date);
-  endDate.setDate(date.getDate() + 6);
-  const dateLocale = locale === 'he' ? 'he-IL' : 'en-US';
-  const startLabel = date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
-  const endLabel = endDate.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
-  return `${startLabel} – ${endLabel}`;
-}
-
 function ErrorBanner({ message, className }: { message: string; className?: string }) {
   return (
     <div className={cn('bg-accent-red/10 border border-accent-red/30 rounded-lg p-4 text-accent-red-ink text-sm', className)}>
@@ -190,7 +180,7 @@ export default function WeeklyPlannerPage() {
   };
 
   const weekStartDate = getCurrentWeekSunday(weekOffset);
-  const weekLabel = getWeekLabel(weekStartDate, locale);
+  const weekLabel = formatWeekRange(weekStartDate, locale);
 
   // --- Plans data ---
   // The displayed week only, not the season: `parsed_workouts` is ~22 KB a week,

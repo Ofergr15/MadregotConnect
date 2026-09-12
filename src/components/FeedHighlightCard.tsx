@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import { Check, ChevronRight, X } from 'lucide-react';
 import { fetchFeedHighlight } from '@/lib/feed-client';
+import { formatWeekRange } from '@/lib/utils';
 import {
   WEEK_DAYS,
   weekDayKeys,
@@ -231,6 +232,7 @@ function ChallengeRow({ challenge, onHide }: { challenge: HighlightChallenge; on
 
 export function FeedHighlightCard() {
   const t = useTranslations('feedHighlight');
+  const locale = useLocale();
   const [highlight, setHighlight] = useState<FeedHighlight | null>(null);
   const [dismissed, setDismissed] = useState<string | null>(null);
 
@@ -291,12 +293,26 @@ export function FeedHighlightCard() {
   return (
     <div className="bg-card rounded-card border border-page overflow-hidden">
       <Link href="/dashboard/profile?tab=statistics" className="block px-4 pt-3.5 pb-4">
-        <div className="flex items-center gap-2">
+        {/* flex-wrap, and the range last: at 341px (the viewport 66cd0d25 was
+            filed from) the eyebrow, a status pill and a date range may not fit on
+            one row, and the range is the part that can drop to a second line
+            without cost. No `ms-auto` — end-aligning it would leave it stranded at
+            the far edge of the second line when it does wrap. */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-2xs font-bold text-ink-400">{t('weekEyebrow')}</span>
           <span
             className={`rounded-pill px-2 py-[2px] text-4xs font-bold ${STATUS_LOOK[status]}`}
           >
             {t(`weekStatus_${status}` as 'weekStatus_met')}
+          </span>
+          {/* WHICH seven days this is. "This week" is not self-explanatory in an
+              app that keeps two week windows on purpose: this card counts the
+              activity week (Mon–Sun, what the athlete's watch reports) while the
+              plan target beside it comes from the Sunday plan week. Report
+              66cd0d25 was two correct totals 24 km apart with neither screen
+              naming its window. */}
+          <span className="text-4xs text-ink-400 tabular-nums whitespace-nowrap">
+            {formatWeekRange(week.weekStart, locale)}
           </span>
         </div>
 

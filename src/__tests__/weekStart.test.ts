@@ -2,6 +2,7 @@ import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import {
   activityWeekOfPlanWeek,
   addDaysToDateStr,
+  formatWeekRange,
   getActivityWeekStart,
   getPlanWeekStart,
   planWeekStartOf,
@@ -209,5 +210,37 @@ describe('shiftWeekStart / addDaysToDateStr', () => {
   it('is what the academy cron does to reach last week', () => {
     // `addDaysStr(sundayOf(null), -7)` in api/cron/academy-report.
     expect(addDaysToDateStr(planWeekStartOf('2026-08-30'), -7)).toBe('2026-08-23');
+  });
+});
+
+// ── The range printed on screen ────────────────────────────────────────────────
+// Report 66cd0d25: the feed said 99.2 km and the activities page said 123.3 km
+// for "this week" — two correct totals over two different seven-day windows, and
+// neither screen said which seven days it meant. Both now print the range, from
+// one formatter, so the two can be told apart at a glance.
+describe('formatWeekRange', () => {
+  it('covers seven days ending six days after the start', () => {
+    // A Monday-anchored activity week: Mon 7 Sep through Sun 13 Sep.
+    expect(formatWeekRange('2026-09-07', 'en')).toBe('Sep 7 – Sep 13');
+    // The Sunday plan week that overlaps it by six days is a DIFFERENT range,
+    // which is the whole point of printing it.
+    expect(formatWeekRange('2026-09-06', 'en')).toBe('Sep 6 – Sep 12');
+  });
+
+  it('crosses a month end', () => {
+    expect(formatWeekRange('2026-08-31', 'en')).toBe('Aug 31 – Sep 6');
+  });
+
+  it('accepts a week start with a time appended', () => {
+    expect(formatWeekRange('2026-09-07T00:00:00Z', 'en')).toBe('Sep 7 – Sep 13');
+  });
+
+  it('formats in Hebrew for the he locale', () => {
+    // Not asserting the exact month abbreviation (that's ICU's to change) — only
+    // that the locale reaches Intl at all and the two ends differ.
+    const range = formatWeekRange('2026-09-07', 'he');
+    expect(range).toContain('–');
+    expect(range).toMatch(/7/);
+    expect(range).toMatch(/13/);
   });
 });

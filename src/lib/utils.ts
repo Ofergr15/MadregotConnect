@@ -188,6 +188,28 @@ export function addDaysToDateStr(dateStr: string, days: number): string {
 }
 
 /**
+ * The seven days a week start covers, as a human date range ("8 בספט׳ – 14 בספט׳").
+ *
+ * Shared rather than local because the app now has TWO week windows on purpose —
+ * the activity week (Monday) and the plan week (Sunday) — and the whole point of
+ * printing the range is that a reader can tell which one they're looking at. Two
+ * screens formatting the range two different ways would defeat that: the reason
+ * report 66cd0d25 was filed is that the feed said 99.2 and the activities page
+ * said 123.3 for "this week" and neither screen said which seven days it meant.
+ *
+ * `weekStart` is a YYYY-MM-DD week start of either flavour — the range is derived
+ * from it, so this helper never needs to know which.
+ */
+export function formatWeekRange(weekStart: string, locale: string): string {
+  const start = new Date(`${weekStart.slice(0, 10)}T12:00:00`);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const dateLocale = locale === 'he' ? 'he-IL' : 'en-US';
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  return `${start.toLocaleDateString(dateLocale, opts)} – ${end.toLocaleDateString(dateLocale, opts)}`;
+}
+
+/**
  * Israel wall-clock parts (Asia/Jerusalem, DST-aware via Intl). weekday 0=Sun..6=Sat.
  * Used by the reminder scheduler so 'Mon 08:00' etc. resolve in Israel local time
  * regardless of the server's UTC clock or the IDT/IST switch.

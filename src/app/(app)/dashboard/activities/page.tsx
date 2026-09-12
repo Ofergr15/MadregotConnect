@@ -8,7 +8,7 @@ import { ActivityFeed } from '@/components/ActivityFeed';
 // One shared row shape (this page had its own near-identical copy) — the feed
 // card and the [activityId] detail page read the same fields off it.
 import type { ActivityEntry } from '@/components/activity/types';
-import { cn, israelToday, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
+import { cn, formatWeekRange, getActivityWeekStart, israelDateAnchor, israelToday, shiftWeekStart } from '@/lib/utils';
 import { fetchActivities as fetchActivitiesScoped } from '@/lib/activities-client';
 import { Spinner, BigStat } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -21,18 +21,40 @@ import { appScrollTop } from '@/lib/app-scroll';
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-function getCurrentWeekSunday(offset: number): string {
-  return shiftWeekStart(planWeekStartOf(), offset);
-}
+// Indexed by `Date.getDay()` (0=Sun), NOT by position in the strip. The bar
+// labels are looked up from each day's own date, so they cannot drift from
+// whichever weekday the week is anchored on. A positional Sunday-first list is
+// what this was, and moving the anchor to Monday would have put every bar under
+// the previous day's name and labelled today as yesterday — the exact bug
+// `weekDayKeys` documents on the feed card, filed there by an athlete as
+// "today's run didn't sync" while the run was visible a few pixels below.
+const DAY_KEY_BY_WEEKDAY = ['daySun', 'dayMon', 'dayTue', 'dayWed', 'dayThu', 'dayFri', 'daySat'] as const;
 
-function getWeekLabel(dateStr: string, locale: string): string {
-  const date = new Date(dateStr + 'T00:00:00');
-  const endDate = new Date(date);
-  endDate.setDate(date.getDate() + 6);
-  const dateLocale = locale === 'he' ? 'he-IL' : 'en-US';
-  const startLabel = date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
-  const endLabel = endDate.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
-  return `${startLabel} – ${endLabel}`;
+/**
+ * The ACTIVITY week (Monday) this screen shows, `offset` weeks back from now.
+ *
+ * It was the plan week (Sunday) until 2026-09-12, and that was the last screen
+ * still on it after the two windows re-split on 2026-09-09 — which made this page
+ * the only place in the app that counts kilometres over Sun–Sat. Every other km
+ * surface (the feed's week card, the home dashboard, the leaderboard, standings,
+ * volume history, profile stats, the weekly recap push) is Monday-anchored, so it
+ * is also the only one that disagrees with what the athlete's own watch reports.
+ *
+ * Report 66cd0d25: the feed said 99.2 km and this page said 123.3 km for the same
+ * week and the same rows, 24.1 km apart because one Sunday long run fell inside
+ * one window and outside the other. Both figures were right. The reporter trusted
+ * this screen, reasonably — it's the one that shows the day-by-day breakdown — so
+ * the disagreement read as the feed being broken.
+ *
+ * This is a personal training log with no plan content on it: nothing here is
+ * keyed to `weekly_plans.week_start_date`, so nothing here needs the Sunday week.
+ * It almost certainly inherited Sunday from the three weeks (2026-08-21 to
+ * 2026-09-09) when both helpers WERE Sunday, and simply never moved back.
+ *
+ * `israelDateAnchor` rather than a bare `new Date()` — see `planWeekStartOf`.
+ */
+function getCurrentActivityWeek(offset: number): string {
+  return shiftWeekStart(getActivityWeekStart(israelDateAnchor()), offset);
 }
 
 function formatPace(secPerKm: number): string {
@@ -79,8 +101,6 @@ export default function ActivitiesPage() {
   const PULL_THRESHOLD = 64;
   const PULL_MAX = 96;
 
-  const dayKeys = ['daySun', 'dayMon', 'dayTue', 'dayWed', 'dayThu', 'dayFri', 'daySat'] as const;
-
   const setWeekOffset = (val: number | ((prev: number) => number)) => {
     setWeekOffsetState(prev => {
       const next = typeof val === 'function' ? val(prev) : val;
@@ -95,7 +115,7 @@ export default function ActivitiesPage() {
 
   // Hoisted above the effects because the fetch is now scoped to this week, so
   // the week is an input to it rather than something only the render needs.
-  const weekStartDate = getCurrentWeekSunday(weekOffset);
+  const weekStartDate = getCurrentActivityWeek(weekOffset);
 
   useEffect(() => {
     const coachEmail = localStorage.getItem('coach_email');
@@ -152,7 +172,7 @@ export default function ActivitiesPage() {
   const fetchActivities = async (weekStart: string) => {
     setLoading(true);
     try {
-      // `until` is exclusive, so it's the Sunday AFTER the week being shown.
+      // `until` is exclusive, so it's the Monday AFTER the week being shown.
       const end = new Date(weekStart + 'T00:00:00');
       end.setDate(end.getDate() + 7);
       const res = await fetchActivitiesScoped({ since: weekStart, until: iso(end) });
@@ -228,7 +248,7 @@ export default function ActivitiesPage() {
 
   // Compute weekly data based on current weekOffset (weekStartDate is hoisted
   // above the effects, since the fetch is scoped to it now).
-  const weekLabel = getWeekLabel(weekStartDate, locale);
+  const weekLabel = formatWeekRange(weekStartDate, locale);
 
   const weekData = useMemo(() => {
     const start = new Date(weekStartDate + 'T00:00:00');
@@ -241,13 +261,13 @@ export default function ActivitiesPage() {
       return d >= start && d <= end;
     });
 
-    const daily = dayKeys.map((dayKey, i) => {
+    const daily = Array.from({ length: 7 }, (_, i) => {
       const date = new Date(start);
       date.setDate(start.getDate() + i);
       const dateStr = iso(date);
       const dayActs = weekActivities.filter(a => a.start_time.startsWith(dateStr));
       return {
-        dayKey,
+        dayKey: DAY_KEY_BY_WEEKDAY[date.getDay()],
         date: dateStr,
         distance: dayActs.reduce((s, a) => s + a.distance / 1000, 0),
         runs: dayActs.length,
