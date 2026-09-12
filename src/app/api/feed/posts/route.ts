@@ -58,6 +58,10 @@ export async function POST(request: Request) {
       .single();
     if (error) throw error;
 
+    // An empty context is CORRECT here and only here: the row was created a
+    // statement ago, so it has no likes, no comments and no plan verdict to miss.
+    // Anywhere that projects an EXISTING item wants `loadFeedContext` instead —
+    // see lib/feed/context.ts for what silently defaulting these away looked like.
     const item = projectFeedItem(created, {
       viewerAthleteId: auth.user.athleteId,
       viewerIsStaff: auth.user.isStaff,

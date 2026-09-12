@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem } from '@/lib/feed/project';
+import { loadFeedContext } from '@/lib/feed/context';
 import { sanitizeMediaList } from '@/lib/feed/media';
 
 export const dynamic = 'force-dynamic';
@@ -51,11 +52,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (error) throw error;
     if (!data) return NextResponse.json({ error: 'Feed item not found' }, { status: 404 });
 
-    const item = projectFeedItem(data, {
-      viewerAthleteId: auth.user.athleteId,
-      viewerIsStaff: auth.user.isStaff,
-      likedItemIds: new Set<string>(),
-    });
+    // The same likes/comments/plan-verdict context the club feed builds. This card
+    // is usually reached from a push notification, and passing a bare
+    // `likedItemIds: new Set()` here is what report 65b76956 was: a hollow heart on
+    // a run the viewer had already liked, and a naked like COUNT where the feed
+    // shows faces and names. See lib/feed/context.ts.
+    const item = projectFeedItem(
+      data,
+      await loadFeedContext(supabase, [data], {
+        athleteId: auth.user.athleteId,
+        isStaff: auth.user.isStaff,
+      }),
+    );
 
     return NextResponse.json({ item });
   } catch (err: unknown) {
@@ -186,11 +194,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         .eq('id', id)
         .single();
       if (refetchError) throw refetchError;
-      const item = projectFeedItem(refetched, {
-        viewerAthleteId: auth.user.athleteId,
-        viewerIsStaff: auth.user.isStaff,
-        likedItemIds: new Set<string>(),
-      });
+      const item = projectFeedItem(
+        refetched,
+        await loadFeedContext(supabase, [refetched], {
+          athleteId: auth.user.athleteId,
+          isStaff: auth.user.isStaff,
+        }),
+      );
       return NextResponse.json({ item });
     }
 
@@ -202,11 +212,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .single();
     if (error) throw error;
 
-    const item = projectFeedItem(updated, {
-      viewerAthleteId: auth.user.athleteId,
-      viewerIsStaff: auth.user.isStaff,
-      likedItemIds: new Set<string>(),
-    });
+    // Same context as the GET above: the sync editor re-renders the real card from
+    // this response, so an edit must not blank the likes it already had.
+    const item = projectFeedItem(
+      updated,
+      await loadFeedContext(supabase, [updated], {
+        athleteId: auth.user.athleteId,
+        isStaff: auth.user.isStaff,
+      }),
+    );
 
     return NextResponse.json({ item });
   } catch (err: unknown) {

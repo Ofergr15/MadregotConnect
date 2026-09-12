@@ -1,27 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
-import {
-  FEED_SELECT,
-  LIKER_SELECT,
-  LIKE_PREVIEW_COUNT,
-  projectFeedItem,
-  type FeedItem,
-  type FeedLiker,
-} from '@/lib/feed/project';
-import {
-  loadFeedPlanVerdicts,
-  type FeedPlanVerdict,
-  type VerdictActivityRow,
-} from '@/lib/feed/plan-verdicts';
+import { FEED_SELECT, projectFeedItem, type FeedItem } from '@/lib/feed/project';
 import { clampFeedLimit, parseFeedCursor } from '@/lib/feed/pagination';
-import { buildLikeIndex } from '@/lib/feed/likes';
-import {
-  COMMENT_SELECT,
-  COMMENT_PREVIEW_COUNT,
-  buildCommentPreviewIndex,
-  type FeedComment,
-} from '@/lib/feed/comments';
+import { loadFeedContext } from '@/lib/feed/context';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,80 +75,13 @@ export async function GET(request: Request) {
     const page = (rows || []).slice(0, limit);
     const hasMore = (rows || []).length > limit;
 
-    // One query resolves BOTH the caller's likes and the "תל ועוד 3" preview for
-    // every item on the page — no per-item round trip. Newest-first so the preview
-    // names match what the like sheet shows at the top.
-    let likedItemIds = new Set<string>();
-    let likersByItem = new Map<string, FeedLiker[]>();
-    let commentsByItem = new Map<string, FeedComment[]>();
-    let planVerdictsByActivity = new Map<string, FeedPlanVerdict>();
-    if (page.length > 0) {
-      const pageIds = page.map((r: { id: string }) => r.id);
-      // Through `unknown`: the generated select type calls the embedded
-      // `athlete_activities` an array, but it's a to-one FK join and arrives as a
-      // single object — the same reason `projectFeedItem` casts its own row.
-      const activityRows = (page as unknown as Array<{ athlete_activities?: VerdictActivityRow | null }>)
-        .map((r) => r.athlete_activities)
-        .filter((a): a is VerdictActivityRow => !!a);
-
-      // Likes, comment previews and plan verdicts are independent reads against
-      // different tables, so they go out together rather than one after the other
-      // — the feed is the app's landing page and this is on its critical path.
-      const [likesRes, commentsRes, verdicts] = await Promise.all([
-        supabase
-          .from('feed_likes')
-          .select(LIKER_SELECT)
-          .in('feed_item_id', pageIds)
-          .order('created_at', { ascending: false }),
-        // Newest-first, then trimmed per item in buildCommentPreviewIndex. The
-        // row cap is a safety valve against one runaway thread, not a per-item
-        // guarantee: Postgres has no cheap "last N per group" here, and at club
-        // scale a page's worth of comments is a couple of dozen rows. If a
-        // single item ever eats the whole budget the card just shows fewer
-        // comments than it could — the count and the full thread stay correct.
-        supabase
-          .from('feed_comments')
-          .select(COMMENT_SELECT)
-          .in('feed_item_id', pageIds)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false })
-          .limit(pageIds.length * COMMENT_PREVIEW_COUNT * 10),
-        // Never throws and never rejects — a page with no plans, or a plan read
-        // that fails, comes back as an empty map and the cards show no badge.
-        //
-        // The viewer is passed in because the ring is not public: an accuracy
-        // percentage is a score on a named person, so it is graded for the person
-        // looking and for staff, and simply not computed for anyone else's runs.
-        // Filtering at the source rather than at render time means a stranger's
-        // score never reaches the response to be dropped from later.
-        loadFeedPlanVerdicts(supabase, activityRows, {
-          athleteId: auth.user.athleteId,
-          isStaff: auth.user.isStaff,
-        }),
-      ]);
-      if (likesRes.error) throw likesRes.error;
-      if (commentsRes.error) throw commentsRes.error;
-      planVerdictsByActivity = verdicts;
-
-      const index = buildLikeIndex(likesRes.data || [], auth.user.athleteId, LIKE_PREVIEW_COUNT);
-      likedItemIds = index.likedItemIds;
-      likersByItem = index.likersByItem;
-      commentsByItem = buildCommentPreviewIndex(
-        commentsRes.data || [],
-        auth.user.athleteId,
-        auth.user.isStaff,
-        COMMENT_PREVIEW_COUNT,
-      );
-    }
-
-    const ctx = {
-      viewerAthleteId: auth.user.athleteId,
-      viewerIsStaff: auth.user.isStaff,
-      likedItemIds,
-      likersByItem,
-      commentsByItem,
-      planVerdictsByActivity,
-    };
+    // Likes, comment previews and plan verdicts for the whole page — see
+    // lib/feed/context.ts, which the single-item route uses too so a card opened
+    // from a notification carries the same state as the same card in the feed.
+    const ctx = await loadFeedContext(supabase, page, {
+      athleteId: auth.user.athleteId,
+      isStaff: auth.user.isStaff,
+    });
 
     const items: FeedItem[] = page.map((row) => projectFeedItem(row, ctx));
 
