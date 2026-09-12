@@ -1025,7 +1025,15 @@ function FlowTrack({
         const isUnknown = !!unknown?.[i] || (unknownAfter !== undefined && i >= unknownAfter && !passed);
         return (
           <div key={step} className="flex-1 flex flex-col items-center min-w-0">
-            <div className="flex items-center w-full">
+            {/* `h-4` — the height of the LARGEST dot, fixed rather than left to
+                the content. The dots differ in size on purpose (the blocking step
+                is h-4, a passed one h-3), and with an auto-height row each column
+                was as tall as its own dot: the outer `items-start` then top-aligned
+                them, so the rail either side of the ringed step was centred 2px
+                lower than the rest of the track and the labels under it sat 2px
+                low too. Reported (6bbca669) as "the line between the steps isn't
+                straight" — it was six straight rails on five different axes. */}
+            <div className="flex items-center w-full h-4">
               {/* Rails, drawn as the halves either side of the dot so the ends of
                   the track don't hang off it. */}
               <span className={cn('h-0.5 flex-1', i === 0 ? 'bg-transparent' : passed ? 'bg-accent-600' : 'bg-page')} />
