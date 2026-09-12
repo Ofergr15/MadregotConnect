@@ -164,6 +164,9 @@ export default function AppLayout({
     return cancel;
   }, [pathname]);
 
+  // getSession() can only ever CONFIRM or turn a browser away here — it can no
+  // longer be the thing the first pixel waits for. See `hasLocalIdentity` below
+  // for what that cost.
   useEffect(() => {
     const supabase = getSupabase();
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -183,22 +186,37 @@ export default function AppLayout({
 
   // Does this browser hold ANY claim to an identity? Read straight out of
   // localStorage, in the same effect flush as the mount, so it is known a full
-  // async hop before `authorized` above is — that one waits on getSession(),
-  // which takes auth-js's lock and can go to the network to refresh.
+  // async hop before getSession() answers — that one takes auth-js's lock and
+  // goes to the NETWORK whenever the access token has expired, which for an app
+  // opened once a day is every single cold open (tokens live an hour).
   //
-  // It exists so the membership request below can START then, instead of being
-  // gated on `authorized` and turning a cold open into a strict waterfall:
-  // getSession → /api/auth/me → the shell → the screen's own requests. It is
-  // deliberately the same pair of keys the fallback above trusts, so it can only
-  // fire for a browser that would have been let in anyway — a logged-out visitor
-  // still makes no request (and a 401 here is fail-open, see below, so a wrong
-  // guess costs a request rather than a screen).
+  // It does two things, and it used to do only the first:
+  //
+  //  1. It lets the membership request below START now, instead of being gated on
+  //     `authorized` and turning a cold open into a strict waterfall:
+  //     getSession → /api/auth/me → the shell → the screen's own requests.
+  //  2. It admits the shell. The gate below held a FULL-SCREEN SPINNER until
+  //     getSession() came back, so opening the installed app after a night put a
+  //     token refresh — one network round trip, on whatever cellular the member
+  //     happens to be on — in front of every screen in the app, with nothing on
+  //     screen to look at. Reported as part of 71806857 ("loading screens and
+  //     notifications is very slow"). Nothing about the ANSWER changes: these are
+  //     the same two keys the getSession fallback above already admits, so the
+  //     only browsers affected are ones that were going to be let in regardless,
+  //     and the ones that aren't (signed out — clearIdentityKeys() wipes both
+  //     keys) still hold no claim and are still redirected out. What changes is
+  //     WHEN the shell paints, not WHO gets it.
+  //
+  // This is not a security boundary and never was: it decides what this device
+  // draws, while every route the screens then call verifies the JWT for itself
+  // (lib/auth-session.ts). A stale key in localStorage buys a shell full of
+  // requests that all answer 401.
   const [hasLocalIdentity, setHasLocalIdentity] = useState(false);
   useEffect(() => {
     try {
-      setHasLocalIdentity(
-        !!(localStorage.getItem('athlete_id') || localStorage.getItem('coach_email')),
-      );
+      const local = !!(localStorage.getItem('athlete_id') || localStorage.getItem('coach_email'));
+      setHasLocalIdentity(local);
+      if (local) setAuthorized(true);
     } catch { /* private mode — `authorized` will answer a moment later */ }
   }, []);
 
