@@ -57,6 +57,38 @@ function getCurrentActivityWeek(offset: number): string {
   return shiftWeekStart(getActivityWeekStart(israelDateAnchor()), offset);
 }
 
+/**
+ * How long the two provider syncs get before the button gives up on them.
+ *
+ * Both routes declare `maxDuration = 300`, so the server side is allowed to take
+ * five minutes; but nothing was allowed to end the spinner except those two
+ * fetches settling, and a fetch is not guaranteed to settle at all. An iOS PWA
+ * resumed from the background is the case that bites: the request the suspended
+ * page had in flight is neither delivered nor rejected, so "מסנכרן..." stayed on
+ * screen until the app was force-quit (report 331bc0c7). A single athlete's sync
+ * is a handful of Garmin/Strava pages, so 90s is already generous — and the point
+ * is that the button's release is now unconditional rather than that the number
+ * is exactly right.
+ */
+const SYNC_TIMEOUT_MS = 90_000;
+
+/**
+ * What the last sync attempt did, so the button can report back.
+ *
+ * The other half of 331bc0c7 — "ולא משנה את הסטטוס" — was literal: the page's only
+ * sync feedback was a `lastSyncTime` string handed to <ActivityFeed>, which
+ * declared the prop and never destructured it. Nothing rendered it, so a
+ * successful sync looked exactly like a sync that did nothing, and a failed one
+ * looked the same again — the catch was a silent one. It also could not have
+ * worked where it was: ActivityFeed returns the empty-state card for a week with
+ * no activities, which is precisely the week you tap Sync on.
+ */
+type SyncStatus =
+  | { kind: 'new'; count: number; at: string }
+  | { kind: 'upToDate'; at: string }
+  | { kind: 'failed' }
+  | { kind: 'timeout' };
+
 function formatPace(secPerKm: number): string {
   const min = Math.floor(secPerKm / 60);
   const sec = Math.round(secPerKm % 60);
@@ -78,7 +110,7 @@ export default function ActivitiesPage() {
   const locale = useLocale();
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
   const [syncing, setSyncing] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffsetState] = useState(() => {
     const w = searchParams.get('week');
@@ -184,40 +216,83 @@ export default function ActivitiesPage() {
     finally { setLoading(false); }
   };
 
+  const syncNow = async (signal: AbortSignal): Promise<SyncStatus> => {
+    const id = athleteId || localStorage.getItem('athlete_id');
+    if (!id) throw new Error('No athlete');
+    // Fire both — each route no-ops gracefully ({synced:0}) if this athlete
+    // isn't connected to that source, so this works regardless of whether
+    // they're on Garmin, Strava, or both.
+    const syncHeaders = await bearerHeaders();
+    const settled = await Promise.allSettled(
+      ['/api/strava/sync-activities', '/api/garmin/sync-activities'].map(url =>
+        fetch(url, { method: 'POST', headers: syncHeaders, body: JSON.stringify({ athleteId: id }), signal }),
+      ),
+    );
+
+    // Only envelope-level trouble counts as a failure here. Each route also
+    // reports a per-athlete `results[].error`, but it uses that field for
+    // non-failures too ("No runs. Types found: cycling") — keying off it would
+    // tell someone who went for a bike ride that their sync broke.
+    let synced = 0;
+    let failed = false;
+    for (const outcome of settled) {
+      if (outcome.status === 'rejected' || !outcome.value.ok) { failed = true; continue; }
+      const body = await outcome.value.json().catch(() => null);
+      if (!body || body.error) { failed = true; continue; }
+      synced += typeof body.synced === 'number' ? body.synced : 0;
+    }
+
+    // Same window as the plain fetch — a sync that pulled in new runs still
+    // only needs to refresh the week on screen.
+    const end = new Date(weekStartDate + 'T00:00:00');
+    end.setDate(end.getDate() + 7);
+    const res = await fetchActivitiesScoped({ since: weekStartDate, until: iso(end) });
+    if (res.ok) {
+      const data = await res.json();
+      setActivities(data.activities || []);
+    }
+
+    // New rows win over a failure on the other provider: if Strava returned two
+    // runs and Garmin 500'd, something did arrive and saying "sync failed" would
+    // be the more misleading of the two.
+    const at = new Date().toLocaleTimeString(locale === 'he' ? 'he-IL' : 'en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    if (synced > 0) return { kind: 'new', count: synced, at };
+    if (failed) return { kind: 'failed' };
+    return { kind: 'upToDate', at };
+  };
+
   const syncAndFetch = async () => {
     setSyncing(true);
+    setSyncStatus(null);
+    const abort = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const id = athleteId || localStorage.getItem('athlete_id');
-      if (!id) throw new Error('No athlete');
-      // Fire both — each route no-ops gracefully ({synced:0}) if this athlete
-      // isn't connected to that source, so this works regardless of whether
-      // they're on Garmin, Strava, or both.
-      const syncHeaders = await bearerHeaders();
-      await Promise.allSettled([
-        fetch('/api/strava/sync-activities', {
-          method: 'POST',
-          headers: syncHeaders,
-          body: JSON.stringify({ athleteId: id }),
-        }),
-        fetch('/api/garmin/sync-activities', {
-          method: 'POST',
-          headers: syncHeaders,
-          body: JSON.stringify({ athleteId: id }),
+      // Raced rather than just passed as a `signal`, because aborting the fetches
+      // is not enough to guarantee the button comes back: `bearerHeaders()` is
+      // awaited BEFORE them and takes auth-js's session lock, which an iOS PWA
+      // returning from the background can leave held. Whatever stalls, the race
+      // settles and `finally` releases the spinner.
+      const status = await Promise.race([
+        syncNow(abort.signal),
+        new Promise<SyncStatus>(resolve => {
+          timer = setTimeout(() => {
+            abort.abort();
+            resolve({ kind: 'timeout' });
+          }, SYNC_TIMEOUT_MS);
         }),
       ]);
-      // Same window as the plain fetch — a sync that pulled in new runs still
-      // only needs to refresh the week on screen.
-      const end = new Date(weekStartDate + 'T00:00:00');
-      end.setDate(end.getDate() + 7);
-      const res = await fetchActivitiesScoped({ since: weekStartDate, until: iso(end) });
-      if (res.ok) {
-        const data = await res.json();
-        setActivities(data.activities || []);
-      }
-      const timeLocale = locale === 'he' ? 'he-IL' : 'en-US';
-      setLastSyncTime(new Date().toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' }));
-    } catch { /* silent */ }
-    finally { setSyncing(false); }
+      setSyncStatus(status);
+    } catch {
+      // An abort lands here too (via syncNow's rejected fetch) — same message
+      // either way, since both mean "we don't know that anything was pulled".
+      setSyncStatus({ kind: 'failed' });
+    } finally {
+      clearTimeout(timer);
+      setSyncing(false);
+    }
   };
 
   const handlePullStart = (e: React.TouchEvent) => {
@@ -385,6 +460,34 @@ export default function ActivitiesPage() {
               {syncing ? t('syncing') : t('sync')}
             </button>
           </div>
+
+          {/* What the last tap actually did. `w-full` inside the wrapping row puts
+              it on its own line under the actions, and `text-end` lands it under
+              the Sync button in both directions. Kept here rather than inside
+              <ActivityFeed> because the feed renders its empty-state card instead
+              of any of this for a week with no runs. */}
+          {!syncing && syncStatus && (
+            <p
+              className={cn(
+                'w-full text-2xs text-end',
+                syncStatus.kind === 'failed' || syncStatus.kind === 'timeout'
+                  ? 'text-accent-red'
+                  : 'text-ink-400',
+              )}
+              // Announced, because the whole complaint was that tapping the button
+              // told you nothing — and a screen-reader user gets even less from a
+              // spinner that stops.
+              role="status"
+            >
+              {syncStatus.kind === 'new'
+                ? t('syncedNew', { count: syncStatus.count, time: syncStatus.at })
+                : syncStatus.kind === 'upToDate'
+                  ? t('syncUpToDate', { time: syncStatus.at })
+                  : syncStatus.kind === 'timeout'
+                    ? t('syncTimedOut')
+                    : t('syncFailed')}
+            </p>
+          )}
         </div>
       </div>
 
@@ -542,8 +645,6 @@ export default function ActivitiesPage() {
         <ActivityFeed
           activities={weekData.weekActivities}
           syncing={syncing}
-          lastSyncTime={lastSyncTime}
-          onSync={syncAndFetch}
           myAthleteId={athleteId}
           isStaff={isCoach}
         />

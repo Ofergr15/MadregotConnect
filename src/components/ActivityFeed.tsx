@@ -248,11 +248,14 @@ function ActivityCard({
 
 // ─── Activity Feed (exported) ──────────────────────────────────────────────────
 
+// `lastSyncTime` and `onSync` used to be declared here and never destructured —
+// the page computed a sync time on every sync and handed it to a component that
+// dropped it, which is why the Sync button appeared to change nothing at all
+// (report 331bc0c7). The status line lives next to the button now; a prop that
+// nothing reads is worse than no prop, because the caller looks correct.
 interface ActivityFeedProps {
   activities: ActivityEntry[];
   syncing: boolean;
-  lastSyncTime: string | null;
-  onSync: () => void;
   myAthleteId?: string | null;
   isStaff?: boolean;
 }
