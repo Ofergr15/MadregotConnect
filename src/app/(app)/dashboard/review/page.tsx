@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { Button, Spinner, Sheet, InsetSection, InsetRow } from '@/components/ui';
 import { useNavItems } from '@/lib/nav-items';
+import { noteBackNavigation } from '@/lib/app-scroll';
 import {
   collectReviewContext, compressImage, dataUrlBytes, formatBytes,
   reviewContextRows, REVIEW_DRAFT_KEY, REVIEW_LAST_PATH_KEY, type ReviewContext,
@@ -131,6 +132,16 @@ export default function ReviewPage() {
     () => screenOptions.find(o => o.href === originPath)?.label || null,
     [screenOptions, originPath],
   );
+
+  // A push, for the reason on the button below — but announced as a way BACK, so
+  // the shell restores the origin screen where the reporter left it instead of
+  // resetting it to the top. Reporting a bug from halfway down the feed used to
+  // cost you your place in it (71806857).
+  const goBack = () => {
+    if (!originPath) return;
+    noteBackNavigation();
+    router.push(originPath);
+  };
 
   const { data: mineData, mutate: refreshMine } = useApi<{ feedback?: MyReport[] }>('/api/feedback?mine=1');
   const myReports = mineData?.feedback || [];
@@ -287,7 +298,7 @@ export default function ReviewPage() {
           nothing at all, and this button has to mean one predictable thing. */}
       {originPath && (
         <button
-          onClick={() => router.push(originPath)}
+          onClick={goBack}
           className="-mb-1 inline-flex items-center gap-1 text-xs font-bold text-brand-600"
         >
           <ChevronRight className="h-4 w-4" />
@@ -318,7 +329,7 @@ export default function ReviewPage() {
                 feed stays as the fallback for a report filed from a cold start,
                 where there is no screen to go back to. */}
             {originPath ? (
-              <Button variant="ghost" onClick={() => router.push(originPath)}>
+              <Button variant="ghost" onClick={goBack}>
                 {originLabel ? t('backTo', { screen: originLabel }) : t('back')}
               </Button>
             ) : (

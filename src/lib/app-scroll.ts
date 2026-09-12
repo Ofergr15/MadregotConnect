@@ -76,6 +76,35 @@ export function recallAppScroll(key: string): number {
   return offsets.get(key) ?? 0;
 }
 
+// ── A PUSH THAT MEANS "BACK" ────────────────────────────────────────────────
+// The shell decides "reset to the top" vs "restore where you were" from
+// `popstate`, which is right for every back affordance that pops. But not all of
+// them can: /dashboard/review is reached from the More sheet, from a fresh tab and
+// from a link, so `router.back()` there is a sheet reopening or nothing at all,
+// and its way out is a deliberate `router.push(originPath)`. The shell can't tell
+// that from a forward navigation, so filing a bug report from halfway down the
+// feed and coming back dumped you at the top of the feed — with a full reload of
+// it to sit through. Reported as part of 71806857: "coming back from the bug
+// report screen to a normal screen doesn't work well".
+//
+// So a caller can say what the navigation MEANS. Same one-second window as the
+// popstate flag, and consumed once, so a stale intent can't turn the next genuine
+// forward navigation into a restore.
+const BACK_INTENT_TTL_MS = 1000;
+let backIntentAt = 0;
+
+/** Declare that the navigation about to happen is a way BACK, not a way forward. */
+export function noteBackNavigation(now = Date.now()): void {
+  backIntentAt = now;
+}
+
+/** Whether a back-intent was declared just now. Answers true at most once. */
+export function consumeBackNavigation(now = Date.now()): boolean {
+  const fresh = backIntentAt > 0 && now - backIntentAt < BACK_INTENT_TTL_MS;
+  backIntentAt = 0;
+  return fresh;
+}
+
 /** Drop one screen's offset, or all of them. */
 export function forgetAppScroll(key?: string): void {
   if (key === undefined) offsets.clear();

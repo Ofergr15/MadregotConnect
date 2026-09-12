@@ -22,6 +22,7 @@ import { getSupabase } from '@/lib/supabase/client';
 import { REVIEW_LAST_PATH_KEY } from '@/lib/review-context';
 import {
   APP_SCROLL_ID,
+  consumeBackNavigation,
   recallAppScroll,
   rememberAppScroll,
   restoreAppScroll,
@@ -152,7 +153,11 @@ export default function AppLayout({
   }, [pathname]);
 
   useEffect(() => {
-    const wasPop = Date.now() - poppedAtRef.current < 1000;
+    // Consumed unconditionally rather than short-circuited behind the popstate
+    // test: an intent left standing would spend itself on the next forward
+    // navigation instead of on this one.
+    const wasBackIntent = consumeBackNavigation();
+    const wasPop = wasBackIntent || Date.now() - poppedAtRef.current < 1000;
     poppedAtRef.current = 0;
     // restoreAppScroll(0) is the plain reset, so both directions go through it.
     const cancel = restoreAppScroll(wasPop ? recallAppScroll(pathname) : 0);

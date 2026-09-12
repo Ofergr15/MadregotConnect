@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
+  consumeBackNavigation,
   forgetAppScroll,
+  noteBackNavigation,
   recallAppScroll,
   rememberAppScroll,
   nextRestoreStep,
@@ -74,6 +76,45 @@ describe('app scroll memory', () => {
     rememberAppScroll('/feed', 600); // visited again, back to the front
     for (let i = 20; i < 40; i++) rememberAppScroll(`/screen-${i}`, i + 1);
     expect(recallAppScroll('/feed')).toBe(600);
+  });
+});
+
+/**
+ * The escape hatch for a back affordance that has to push.
+ *
+ * /dashboard/review can't use `router.back()` — it is reached from the More sheet,
+ * a link and a cold tab — so it pushes its origin path, and the shell read that as
+ * a forward navigation and reset the destination to the top. Filing a bug report
+ * from halfway down the feed cost you your place in the feed (71806857).
+ */
+describe('back-intent', () => {
+  beforeEach(() => consumeBackNavigation());
+
+  it('is not set by default', () => {
+    expect(consumeBackNavigation()).toBe(false);
+  });
+
+  it('reports a declared intent', () => {
+    noteBackNavigation();
+    expect(consumeBackNavigation()).toBe(true);
+  });
+
+  // Once, or a single tap of "back to the feed" would also restore the scroll of
+  // whatever screen the user opened next.
+  it('answers only once', () => {
+    noteBackNavigation();
+    expect(consumeBackNavigation()).toBe(true);
+    expect(consumeBackNavigation()).toBe(false);
+  });
+
+  // The navigation it belongs to happens immediately. An intent still standing a
+  // second later belongs to nothing, and spending it on the next forward
+  // navigation would restore a screen the user meant to open fresh.
+  it('expires rather than waiting for a navigation that never came', () => {
+    noteBackNavigation(1_000);
+    expect(consumeBackNavigation(1_000 + 999)).toBe(true);
+    noteBackNavigation(1_000);
+    expect(consumeBackNavigation(1_000 + 1_001)).toBe(false);
   });
 });
 
