@@ -1,6 +1,6 @@
 /**
  * POST /api/strava/sync-activities
- * Body: { athleteId?: string }
+ * Body: { athleteId?: string, recentOnly?: boolean, suppressPush?: boolean }
  *
  * Syncs Strava runs into athlete_activities (laps + gps_points + GPX).
  * When athleteId is omitted, syncs every athlete with data_source=strava.
@@ -73,6 +73,13 @@ export async function runStravaSyncRequest(request: Request) {
     // suppressPush: skip the inline post-workout feedback nudge — mirrors
     // garmin/sync-activities' same param, for a future cron teaser to reuse.
     const suppressPush = !!body?.suppressPush;
+
+    // recentOnly: fetch this fortnight instead of the rolling 180 days. For the
+    // 5-minute poll, whose whole question is "is there a run we haven't seen?" —
+    // one page instead of two, every ten minutes, all day. Named for the intent
+    // rather than taking a page count, so a caller can't dial the club's shared
+    // Strava quota up from the outside.
+    const recentOnly = !!body?.recentOnly;
     const supabase = createServerClient();
 
     // .returns<any[]>() — cols is a runtime string (not a literal), so Supabase
@@ -181,9 +188,12 @@ export async function runStravaSyncRequest(request: Request) {
         }
 
         const client = new StravaClient(token);
-        // Rolling 180 days on login/cron; paginate within that window
-        const after = Math.floor((Date.now() - 180 * 24 * 60 * 60 * 1000) / 1000);
-        const activities = await client.getAllActivities({ after, maxPages: 5, perPage: 100 });
+        // Rolling 180 days on a login, so a first connection brings a history;
+        // 14 days and a single page on the poll, because 100 runs in a fortnight
+        // is not a thing and the second page would be a request spent proving it.
+        const windowDays = recentOnly ? 14 : 180;
+        const after = Math.floor((Date.now() - windowDays * 24 * 60 * 60 * 1000) / 1000);
+        const activities = await client.getAllActivities({ after, maxPages: recentOnly ? 1 : 5, perPage: 100 });
 
         // Strava answered, so the credential works — stamped before the run filter
         // below, because "no runs in 180 days" is a healthy connection.
