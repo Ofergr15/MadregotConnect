@@ -57,6 +57,15 @@ export interface ShareCardOptions {
   transparent?: boolean;
   /** Defaults to 'classic'. */
   template?: ShareTemplate;
+  /**
+   * Draw the run's own title ("Italian medio", "Long run") on the card.
+   *
+   * Defaults to true. Athletes name their runs for themselves — the name can be
+   * a private joke, a coach's shorthand or just noise — so the sheet lets them
+   * drop it without renaming the activity. The 'minimal' template has never had
+   * a title, so this is a no-op there.
+   */
+  showTitle?: boolean;
 }
 
 function formatPace(secPerKm: number): string {
@@ -250,6 +259,7 @@ interface LayoutCtx {
   shadow: string;
   shadowBlur: number;
   i18n: ShareI18n;
+  showTitle: boolean;
 }
 
 /**
@@ -257,7 +267,7 @@ interface LayoutCtx {
  * The stack builds upward from the bottom margin so a run with no GPS simply
  * omits the route rather than leaving a hole.
  */
-function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n }: LayoutCtx) {
+function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle }: LayoutCtx) {
   const right = STORY_W - MARGIN;
   let y = STORY_H - MARGIN;
 
@@ -314,7 +324,7 @@ function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n }: Layou
   ctx.fillText(distanceKm(act), right - unitW - 24, y);
   y -= 200;
 
-  if (act.activityName) {
+  if (act.activityName && showTitle) {
     ctx.font = `600 44px ${font}`;
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.fillText(act.activityName, right, y);
@@ -343,7 +353,7 @@ function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n }: Layou
  * as a proper sticker over an arbitrary story background, so it's also the best
  * pairing with `transparent`.
  */
-function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n }: LayoutCtx) {
+function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle }: LayoutCtx) {
   const hasRoute = !!act.routePreview && act.routePreview.length > 2;
 
   const PAD = 56;
@@ -351,7 +361,7 @@ function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n }: LayoutCt
   const cardW = STORY_W - cardX * 2;
   const logoH = logo ? 112 : 0;
   const routeH = hasRoute ? 380 : 0;
-  const titleH = act.activityName ? 62 : 0;
+  const titleH = act.activityName && showTitle ? 62 : 0;
 
   // Height is summed from the blocks that actually render, so a run with no GPS
   // yields a shorter panel instead of an empty gap.
@@ -410,7 +420,7 @@ function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n }: LayoutCt
 
   y += 36;
 
-  if (act.activityName) {
+  if (act.activityName && showTitle) {
     ctx.font = `600 40px ${font}`;
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.fillText(act.activityName, right, y + 40);
@@ -557,6 +567,7 @@ export async function renderShareCard(
     shadow: opts.transparent ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.45)',
     shadowBlur: opts.transparent ? 28 : 16,
     i18n,
+    showTitle: opts.showTitle ?? true,
   });
 
   // JPEG has no alpha channel — a transparent card exported as JPEG comes out with

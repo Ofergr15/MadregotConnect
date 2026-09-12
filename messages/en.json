@@ -2119,6 +2119,8 @@
       "addPhoto": "Add background photo",
       "changePhoto": "Change background photo",
       "stickerHint": "Save the image, then add it to your story in Instagram as a sticker from your photo library. Instagram doesn't allow pasting an image straight into the story editor.",
+      "titleShow": "Workout name",
+      "titleHide": "No name",
       "templateClassic": "Classic",
       "templateCard": "Card",
       "templateMinimal": "Minimal",

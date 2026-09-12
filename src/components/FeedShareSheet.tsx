@@ -26,6 +26,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
   const ts = useTranslations('feed.share');
   const [style, setStyle] = useState<Style>('photo');
   const [template, setTemplate] = useState<ShareTemplate>('classic');
+  const [showTitle, setShowTitle] = useState(true);
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [rendering, setRendering] = useState(true);
@@ -45,7 +46,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
     renderShareCard(
       item,
       { km: t('km'), perKm: t('perKm'), pace: ts('cardPace'), time: ts('cardTime'), hr: ts('cardHr') },
-      { background: photo, transparent: style === 'transparent', template },
+      { background: photo, transparent: style === 'transparent', template, showTitle },
     )
       .then(blob => {
         if (cancelled) return;
@@ -64,7 +65,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [item, photo, style, template, t, ts]);
+  }, [item, photo, style, template, showTitle, t, ts]);
 
   const handleShare = useCallback(async () => {
     const blob = blobRef.current;
@@ -163,6 +164,28 @@ export function FeedShareSheet({ item, onClose }: Props) {
               </button>
             ))}
           </div>
+
+          {item.activity?.activityName && template !== 'minimal' && (
+            <div className="flex gap-2 mb-4">
+              {([
+                { on: true, label: ts('titleShow') },
+                { on: false, label: ts('titleHide') },
+              ] as const).map(o => (
+                <button
+                  key={String(o.on)}
+                  onClick={() => setShowTitle(o.on)}
+                  className={cn(
+                    'flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors border',
+                    showTitle === o.on
+                      ? 'border-brand-600 text-brand-600 bg-brand-600/10'
+                      : 'border-page text-ink-400 hover:text-ink-500',
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* 9:16 preview. The checkerboard makes alpha visible for the sticker
               variant — on the sheet's dark panel it would look like a black card. */}
