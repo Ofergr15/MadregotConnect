@@ -1,5 +1,6 @@
 import { APP_URL, APPROVER_EMAILS } from '@/lib/constants';
 import { renderEmail, esc } from './template';
+import { gapNames } from '@/lib/notifications/copy';
 import { sendEmail, type SendResult } from './send';
 
 /**
@@ -209,6 +210,78 @@ export async function notifyAthleteClaim(claim: {
       ],
       cta: { label: 'כן, זה אני — לחיבור →', href: `${APP_URL}/claim/${claim.token}` },
       notes: ['הקישור חד-פעמי, אישי, ותקף לחצי שעה. אל תעבירו אותו לאף אחד.'],
+    }),
+  });
+}
+
+// ── The entry nudge, by email ────────────────────────────────────────────────────
+
+/**
+ * "You were let in and never finished" — the same reminder as the push in
+ * lib/notifications/copy.ts, for the members who have no subscription to push to.
+ *
+ * ⚠️ THIS MAIL EXISTS BECAUSE THE PUSH-ONLY VERSION REACHED THE WRONG HALF.
+ * The nudge route was push-only on the stated grounds that "half the club signed
+ * in through Strava and has no real address". Measured on 2026-09-13 that premise
+ * was false: of the 23 active members, 9 had no push subscription and **all 9 had
+ * a real address**, none had neither. So the one reminder the app has for somebody
+ * who never arrived was undeliverable to exactly the people it was written for —
+ * the worst case being a member 73 days past approval who had logged in once and
+ * never seen the app open.
+ *
+ * That is also who it is for, in Ofer's words: the academy runners and the people
+ * we sent an invitation to. Both gave us an address; a Strava-only sign-in never
+ * did, and `realEmail()` at the call site is what keeps this off those rows.
+ *
+ * The CTA for somebody who never got in points at `/login`, NOT `/dashboard`, and
+ * says to open it in the browser. This is the one channel that routes around the
+ * iOS in-app-browser trap (migration 082): a link tapped in Gmail opens Safari,
+ * whose storage the app can actually see, whereas the same person tapping "sign in
+ * with Strava" inside another app's browser sheet logs in somewhere the app cannot
+ * read. For that member the email is not a fallback — it is the only thing that
+ * works.
+ */
+export async function notifyEntryNudge(user: {
+  email: string;
+  name?: string | null;
+  /**
+   * Open setup-task keys, or `['login']` for somebody who never landed in the app.
+   * Resolved from the athlete row by the caller, never from a request body — this
+   * mail names things about a person.
+   */
+  gaps: string[];
+  athleteId?: string | null;
+}): Promise<SendResult> {
+  const who = (user.name || '').trim();
+  const hey = who ? `${who}, ` : '';
+  const neverGotIn = user.gaps.includes('login');
+  // Hebrew only, like every other member-facing mail here: the club reads Hebrew and
+  // the notification-language setting is a push setting, not an inbox one.
+  const missing = gapNames('he', user.gaps);
+
+  return sendEmail({
+    template: 'entry_nudge',
+    to: user.email,
+    athleteId: user.athleteId ?? null,
+    subject: neverGotIn ? '👋 האפליקציה של מדרגות מחכה לך' : '⏳ נשאר לסדר כמה דברים באפליקציה',
+    html: renderEmail({
+      title: neverGotIn ? `${hey}האפליקציה מחכה לך 👋` : `${hey}כמעט סיימת`,
+      paragraphs: neverGotIn
+        ? [
+            'החשבון שלך במדרגות מאושר וממתין — אבל עוד לא נכנסת לאפליקציה.',
+            'הסיבה הנפוצה: התחברות מתוך אפליקציה אחרת (אינסטגרם, ווטסאפ) נפתחת בדפדפן פנימי שהאפליקציה לא רואה, ואז ההתחברות מצליחה והאפליקציה נשארת סגורה. הקישור למטה נפתח בדפדפן הרגיל של הטלפון, וזה פותר את זה.',
+          ]
+        : [
+            `נכנסת לאפליקציה, ונשאר עוד ${missing.length > 1 ? 'כמה דברים קטנים' : 'דבר קטן אחד'} כדי שהיא תעבוד בשבילך במלואה.`,
+            missing.length ? `חסר: ${missing.join(', ')}.` : 'נשאר להשלים את ההגדרה בפרופיל.',
+            'דקה בפרופיל וסיימנו.',
+          ],
+      cta: neverGotIn
+        ? { label: 'להתחברות לאפליקציה →', href: `${APP_URL}/login` }
+        : { label: 'להשלמת הפרופיל →', href: `${APP_URL}/dashboard/profile` },
+      notes: neverGotIn
+        ? ['אם זה לא נפתח — פתחו את הקישור ישירות ב-Safari או ב-Chrome.']
+        : ['אם כבר סידרתם את זה — אין צורך לעשות כלום.'],
     }),
   });
 }

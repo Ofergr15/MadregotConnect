@@ -634,7 +634,7 @@ export function entryGapsCopy(
         };
   }
 
-  const names = p.gaps.map((g) => gapName(locale, g)).filter(Boolean);
+  const names = gapNames(locale, p.gaps);
   if (!names.length) return entryNudgeCopy(locale, { name: p.name, missing: 'setup' });
 
   const list = listWords(locale, names);
@@ -647,6 +647,18 @@ export function entryGapsCopy(
         title: `${hey}still to sort: ${names[0]}`,
         body: `For the app to work fully for you, ${list} ${names.length > 1 ? 'are' : 'is'} missing — a minute in your profile and you're done`,
       };
+}
+
+/**
+ * The open setup tasks as reader-facing names.
+ *
+ * Exported because the entry nudge now goes out on two channels — the push above
+ * and the email in lib/email (for the members who have no subscription to push
+ * to) — and the two naming the same missing thing differently is the seam this
+ * module exists to close.
+ */
+export function gapNames(locale: NotificationLocale, gaps: string[]): string[] {
+  return gaps.map((g) => gapName(locale, g)).filter(Boolean);
 }
 
 /** A scored setup task as a thing to do, not as a key. */

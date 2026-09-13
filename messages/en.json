@@ -363,6 +363,7 @@
     "removeFile": "Remove file",
     "parsingPlan": "Parsing your plan...",
     "readingWorkouts": "Reading workouts and building your week",
+    "parsingTakesAWhile": "This usually takes 1–3 minutes",
     "savingPlan": "Saving your plan...",
     "finalizingWeek": "Finalizing your week",
     "uploadedPlanAlt": "Uploaded plan",
@@ -2582,7 +2583,7 @@
     "saving": "Saving…",
     "sendReminder": "Send reminder",
     "reminderSent": "Reminder sent ✓",
-    "reminderUnreachable": "No active notifications",
+    "reminderUnreachable": "No notifications and no email address",
     "reminderFailed": "Sending failed",
     "resultReleased": "Approved and released from maintenance — they can get in",
     "resultApproved": "Approved. Maintenance is off, nothing to release",
@@ -2591,9 +2592,9 @@
     "maintenanceBlockedCount": "{count} club members are blocked right now",
     "maintenanceTurnOff": "Turn maintenance off",
     "bulkTitle": "{count} haven't finished the flow",
-    "bulkSubtitle": "{reachable} of them can be reached by notification right now",
+    "bulkSubtitle": "{reachable} of them can be reached right now — by notification or email",
     "bulkRemind": "Remind all {count}",
-    "bulkResult": "Sent {sent} · {unreachable} with no notifications · {failed} failed",
+    "bulkResult": "Sent {sent} by notification · {emailed} by email · {unreachable} with no way to reach · {failed} failed",
     "empty_mine": "Nobody is waiting on you",
     "empty_login": "Everybody got through login",
     "empty_watch": "Everybody has a watch connected",
@@ -2623,6 +2624,8 @@
     "missing_login": "getting into the app",
     "reminderWillSay": "The reminder will say what's missing: {items}",
     "reminderWillSayGeneral": "The reminder will invite them in to finish setting up",
-    "reminderInboxOnly": "in-app inbox only"
+    "reminderInboxOnly": "in-app inbox only",
+    "reminderEmailed": "Reminder emailed ✓",
+    "reminderByEmail": "will be sent by email"
   }
 }

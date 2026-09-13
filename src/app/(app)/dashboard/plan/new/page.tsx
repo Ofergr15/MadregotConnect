@@ -482,8 +482,16 @@ export default function WeeklyPlannerPage() {
   // Guards against the parse request hanging forever client-side (observed in
   // production: the Claude call stalled past Vercel's own function timeout and
   // the fetch() promise never settled, leaving the "parsing" screen up with no
-  // way out short of reloading). 150s comfortably exceeds normal parse time
-  // but still gives up well before an athlete assumes the app is broken.
+  // way out short of reloading).
+  //
+  // Must sit INSIDE the server's own 300s ceiling (maxDuration on both parse
+  // routes), not across it. At the old 150s a dense Hebrew plan that genuinely
+  // needed ~160s was killed here and reported as a timeout while the function
+  // ran to completion on the server — the club paid for the full Opus vision
+  // call, the parsed week was thrown away, and retrying spent it a second time.
+  // 280s leaves the server room to answer first, so a real timeout now means
+  // the server actually gave up.
+  const PARSE_TIMEOUT_MS = 280_000;
   const parseAbortRef = useRef<AbortController | null>(null);
   const manualCancelRef = useRef(false);
   // Distinguishes the two network calls behind the "Parsing your plan..."
@@ -492,6 +500,21 @@ export default function WeeklyPlannerPage() {
   // in production logs: 56s from parse-workout 200 to plans 201) looks
   // identical to a hung request.
   const [savingAfterParse, setSavingAfterParse] = useState(false);
+
+  // The parse is a 60–180s Opus vision run sitting behind a purely
+  // indeterminate spinner. With no moving number on screen there is nothing to
+  // distinguish a working parse from a wedged one, which is exactly how this
+  // screen gets reported: "it just loads, I'm not sure it's reading anything."
+  const [parseElapsed, setParseElapsed] = useState(0);
+  useEffect(() => {
+    if (!parsing) {
+      setParseElapsed(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const id = setInterval(() => setParseElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [parsing]);
 
   const cancelParsing = useCallback(() => {
     manualCancelRef.current = true;
@@ -508,7 +531,7 @@ export default function WeeklyPlannerPage() {
 
     const controller = new AbortController();
     parseAbortRef.current = controller;
-    const timeoutId = setTimeout(() => controller.abort(), 150_000);
+    const timeoutId = setTimeout(() => controller.abort(), PARSE_TIMEOUT_MS);
 
     try {
       const body: Record<string, string> = {};
@@ -624,11 +647,23 @@ export default function WeeklyPlannerPage() {
   const doSyncFromProgram = async () => {
     setError(null);
     setParsing(true);
+
+    // This path runs the same Opus vision parse as parsePlan and shows the same
+    // spinner, so it needs the same abort plumbing. Without registering
+    // parseAbortRef the Cancel button only *hid* the spinner: the request kept
+    // running and still wrote the plan, and manualCancelRef was left true —
+    // which then swallowed the error of the NEXT parse that failed, so the
+    // screen simply returned to the form saying nothing at all.
+    const controller = new AbortController();
+    parseAbortRef.current = controller;
+    const timeoutId = setTimeout(() => controller.abort(), PARSE_TIMEOUT_MS);
+
     try {
       const res = await fetch('/api/plans/sync-from-program', {
         method: 'POST',
         headers: await bearerHeaders(),
         body: JSON.stringify({ week_start_date: weekStartDate }),
+        signal: controller.signal,
       });
 
       const raw = await res.text();
@@ -661,6 +696,7 @@ export default function WeeklyPlannerPage() {
           method: 'PUT',
           headers: await bearerHeaders(),
           body: JSON.stringify({ plan_id: savedPlanId, parsed_workouts: grouped, status: 'draft' }),
+          signal: controller.signal,
         });
         if (putRes.ok) {
           setLastSavedAt(new Date());
@@ -679,6 +715,7 @@ export default function WeeklyPlannerPage() {
             parsed_workouts: grouped,
             status: 'draft',
           }),
+          signal: controller.signal,
         });
         if (saveRes.ok) {
           const saveData = await saveRes.json();
@@ -690,8 +727,23 @@ export default function WeeklyPlannerPage() {
 
       setShowCreate(false);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : t('errors.failedToSyncProgram'));
+      // Same contract as parsePlan: a deliberate Cancel is not an error to
+      // report, and the flag has to be cleared here too or it leaks into the
+      // next run's error handling.
+      const wasManualCancel = manualCancelRef.current;
+      manualCancelRef.current = false;
+      if (!wasManualCancel) {
+        const isAbort = err instanceof DOMException && err.name === 'AbortError';
+        setError(
+          isAbort
+            ? t('errors.parsingTimedOutProgram')
+            : err instanceof Error
+              ? err.message
+              : t('errors.failedToSyncProgram')
+        );
+      }
     } finally {
+      clearTimeout(timeoutId);
       setParsing(false);
     }
   };
@@ -1486,6 +1538,19 @@ export default function WeeklyPlannerPage() {
             <div className="space-y-2">
               <h2 className="text-xl font-semibold text-ink-700">{savingAfterParse ? t('savingPlan') : t('parsingPlan')}</h2>
               <p className="text-sm text-ink-400">{savingAfterParse ? t('finalizingWeek') : t('readingWorkouts')}</p>
+              {/* Says out loud how long this legitimately takes, and keeps a
+                  number moving so a working parse never looks like a dead one.
+                  bdi + dir="ltr" because m:ss is a Latin-ordered token inside an
+                  RTL paragraph — without it the digits swap around the colon. */}
+              {!savingAfterParse && (
+                <p className="text-xs text-ink-300">
+                  {t('parsingTakesAWhile')}
+                  {' · '}
+                  <bdi dir="ltr">
+                    {Math.floor(parseElapsed / 60)}:{String(parseElapsed % 60).padStart(2, '0')}
+                  </bdi>
+                </p>
+              )}
             </div>
             <div className="w-48 mx-auto h-1.5 bg-card rounded-full overflow-hidden">
               {/* Brand blue -> band 2 -> brand blue: a same-family shimmer. (The

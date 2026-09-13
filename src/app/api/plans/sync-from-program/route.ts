@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { parseWorkoutPlan } from '@/lib/ai/parser';
+import { EmptyParseError, parseWorkoutPlan } from '@/lib/ai/parser';
 import * as fs from 'fs';
 import * as path from 'path';
 import { authError, requireSession } from '@/lib/auth-session';
@@ -97,6 +97,20 @@ export async function POST(req: NextRequest) {
     console.error('Sync-from-program error:', error);
 
     const rawMessage: string = error?.message || '';
+
+    // Same as /api/parse-workout: a structurally valid but empty read is a
+    // 422 the coach can act on, not a 500.
+    if (error instanceof EmptyParseError) {
+      return NextResponse.json(
+        {
+          error:
+            'No workouts could be read from this week’s program PDF. Check the file on the Program page, or build the week from a pasted plan instead.',
+          code: 'empty_parse',
+        },
+        { status: 422 }
+      );
+    }
+
     if (/credit balance is too low/i.test(rawMessage)) {
       return NextResponse.json(
         {

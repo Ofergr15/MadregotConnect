@@ -6,10 +6,11 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
  *
  * Two things here are easy to get wrong and neither shows up in a screenshot:
  *
- *  1. **"Sent" must not mean "arrived somewhere".** This is push-only (half the
- *     club signed in through Strava and has no real inbox), so a member with no
- *     push subscription is a silent no-op. The route reports `reachable` so the
- *     button can say "no way to reach them" instead of ticking.
+ *  1. **"Sent" must not mean "arrived somewhere".** Push when there is a
+ *     subscription, EMAIL when there isn't, and a silent no-op only for the row
+ *     with neither — a Strava-only sign-in, whose `.local` address is not an
+ *     address. The route reports `reachable` and `emailed` separately so the
+ *     button can name the channel instead of ticking.
  *  2. **The copy has to match what is actually missing, by NAME.** Somebody who
  *     never landed inside the app is told about that and nothing else — a photo
  *     they cannot upload is noise. Everybody else gets their open setup tasks
@@ -53,6 +54,17 @@ vi.mock('@/lib/push', () => ({
   },
 }));
 
+/** What notifyEntryNudge was handed, or null when no mail was attempted. */
+let mailed: Record<string, unknown> | null;
+let mailOk: boolean;
+
+vi.mock('@/lib/email', () => ({
+  notifyEntryNudge: async (args: Record<string, unknown>) => {
+    mailed = args;
+    return mailOk ? { ok: true, status: 'sent' } : { ok: false, status: 'failed' };
+  },
+}));
+
 const { POST } = await import('@/app/api/admin/entry-queue/nudge/route');
 
 const nudge = (athleteId?: string) =>
@@ -67,6 +79,8 @@ beforeEach(() => {
   canApprove = true;
   isStaff = true;
   notified = null;
+  mailed = null;
+  mailOk = true;
 });
 
 describe('POST /api/admin/entry-queue/nudge', () => {
@@ -107,12 +121,48 @@ describe('POST /api/admin/entry-queue/nudge', () => {
     expect(await res.json()).toMatchObject({ gaps: ['login'] });
   });
 
-  it('reports unreachable when there is no phone to push to', async () => {
+  it('reports unreachable when there is neither a phone nor an address', async () => {
     // The whole point: the admin must not see a tick for a send that landed nowhere.
+    // A Strava-only member is the only row that can still reach this state — the
+    // synthetic `.local` address is not somewhere anybody can be written to.
     pushCount = 0;
+    athlete = { ...athlete!, email: 'strava_884@strava.madregot.local' };
     const res = await nudge('dana-1');
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true, reachable: false });
+    expect(await res.json()).toMatchObject({ ok: true, reachable: false, emailed: false });
+    expect(mailed).toBeNull();
+  });
+
+  it('emails a member with no push subscription but a real address', async () => {
+    // The regression this file now exists to hold: push-only meant the ONE reminder
+    // the app has for somebody who never arrived was undeliverable to exactly the
+    // members it was written for. Measured 2026-09-13 — 9 of 23 had no push, and
+    // every one of the 9 had a real inbox.
+    pushCount = 0;
+    athlete = { ...athlete!, email: 'eli@example.com' };
+    const res = await nudge('dana-1');
+    expect(await res.json()).toMatchObject({ ok: true, reachable: false, emailed: true });
+    // Same gaps as the push, resolved from the row — not a second opinion.
+    expect(mailed).toMatchObject({ email: 'eli@example.com', gaps: ['login'], athleteId: 'dana-1' });
+  });
+
+  it('does not also email somebody whose phone was pushed', async () => {
+    // A fallback, not a second copy. Two channels for one prod reads as spam.
+    athlete = { ...athlete!, email: 'eli@example.com' };
+    const res = await nudge('dana-1');
+    expect(await res.json()).toMatchObject({ reachable: true, emailed: false });
+    expect(mailed).toBeNull();
+  });
+
+  it('says emailed: false when Resend refuses, without failing the nudge', async () => {
+    // The push is already away and the approval-mail bug (2026-09-06) was exactly
+    // this: a refusal read as success. `ok` must never be inferred from "nothing threw".
+    pushCount = 0;
+    mailOk = false;
+    athlete = { ...athlete!, email: 'eli@example.com' };
+    const res = await nudge('dana-1');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, reachable: false, emailed: false });
   });
 
   it('refuses a staff member who is not an approver', async () => {

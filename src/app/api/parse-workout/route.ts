@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { parseWorkoutPlan } from '@/lib/ai/parser';
+import { EmptyParseError, parseWorkoutPlan } from '@/lib/ai/parser';
 import { authError, requireSession } from '@/lib/auth-session';
 
 // Image/PDF plans go through Opus 4.8 vision + adaptive thinking, which can take
@@ -43,6 +43,19 @@ export async function POST(req: NextRequest) {
 
     const status: number | undefined = error?.status;
     const rawMessage: string = error?.message || '';
+
+    // Read succeeded mechanically but found no workouts — not a server fault,
+    // and the one failure the coach can actually act on.
+    if (error instanceof EmptyParseError) {
+      return NextResponse.json(
+        {
+          error:
+            'No workouts could be read from this plan. Check that the file is the training plan itself (not a cover page or a blank scan), or paste the plan as text instead.',
+          code: 'empty_parse',
+        },
+        { status: 422 }
+      );
+    }
 
     // Out of Anthropic API credits — surfaces as a 400 invalid_request_error
     // whose message mentions the credit balance. Give the operator a clear,

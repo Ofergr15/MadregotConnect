@@ -11,6 +11,19 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+/**
+ * The model returned well-formed JSON with no workouts in it — the document was
+ * unreadable, blank, or not a training plan. Carries a `code` so the API routes
+ * can answer 422 with a real explanation rather than a generic 500.
+ */
+export class EmptyParseError extends Error {
+  readonly code = 'empty_parse';
+  constructor() {
+    super('No workouts could be read from this plan.');
+    this.name = 'EmptyParseError';
+  }
+}
+
 // --- Claude AI parser (for images/PDFs, or complex text fallback) ---
 
 // Time units the coach uses in notes (Hebrew + English). Presence of these is a
@@ -214,6 +227,14 @@ async function parseWithClaude(content: Anthropic.MessageCreateParams['messages'
     const parsed = JSON.parse(extractJson(text));
     if (!parsed.workouts || !Array.isArray(parsed.workouts)) {
       throw new Error('Invalid response structure');
+    }
+    // An empty array is structurally valid JSON and used to sail straight
+    // through: the route answered 200, the planner saved a plan with zero
+    // workouts, and nothing anywhere said the read had failed. Treat "read
+    // nothing" as the failure it is — the retry below gets one more attempt,
+    // and a second empty result surfaces to the coach instead of being saved.
+    if (parsed.workouts.length === 0) {
+      throw new EmptyParseError();
     }
     return validatePlan(parsed as ParsedWeeklyPlan);
   };
