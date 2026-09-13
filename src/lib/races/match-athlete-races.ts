@@ -1,5 +1,6 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import { activityLocalDateStr } from '@/lib/utils';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
@@ -34,15 +35,31 @@ export async function recomputeRaceMatches(
   athleteId: string,
 ): Promise<{ matched: number }> {
   const [
-    { data: activities, error: activityError },
+    activities,
     { data: raceEvents, error: eventError },
     { data: manualMatches, error: manualError },
   ] = await Promise.all([
-    supabase
-      .from('athlete_activities')
-      .select('id, start_time')
-      .eq('athlete_id', athleteId)
-      .order('start_time', { ascending: true }),
+    // Paged. Unpaged, PostgREST returns at most 1000 rows and says nothing about
+    // it, and this ordered `start_time` ASCENDING — so the rows kept were the
+    // athlete's EARLIEST thousand and every race run after that cutoff was
+    // unmatchable. Measured 2026-09-13: 14 of 23 athletes are past the cap, and for
+    // Itai Spiegel (3,878 rows) the cutoff falls at 2021-10-06 — five years of races
+    // that could never attach to their event row, so the profile's race count read
+    // far too low. Two columns, so paging is cheap.
+    //
+    // `.order('id')` as a tiebreak because `start_time` alone is not a total order:
+    // two runs sharing a timestamp can straddle a page boundary and be duplicated
+    // or dropped. See lib/supabase/paginate.ts.
+    fetchAllRows<{ id: string; start_time: string }>((from, to) =>
+      supabase
+        .from('athlete_activities')
+        .select('id, start_time')
+        .eq('athlete_id', athleteId)
+        .order('start_time', { ascending: true })
+        .order('id')
+        .range(from, to)
+        .returns<{ id: string; start_time: string }[]>(),
+    ),
     supabase.from('events').select('id, name, date').eq('kind', 'race'),
     supabase
       .from('race_matches')
@@ -50,7 +67,6 @@ export async function recomputeRaceMatches(
       .eq('athlete_id', athleteId)
       .eq('match_method', 'manual'),
   ]);
-  if (activityError) throw activityError;
   if (eventError) throw eventError;
   if (manualError) throw manualError;
 

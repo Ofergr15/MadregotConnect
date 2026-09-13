@@ -9,6 +9,7 @@ import {
   type GarminWorkoutMatch,
 } from './garmin-workout-matches';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
@@ -40,21 +41,43 @@ async function loadActivities(
   athleteId: string,
 ): Promise<ActivityRow[]> {
   const columns = 'id, start_time, distance, activity_name';
-  const withWorkoutId = await supabase
-    .from('athlete_activities')
-    .select(`${columns}, garmin_workout_id`)
-    .eq('athlete_id', athleteId)
-    .order('start_time', { ascending: true });
-  if (!withWorkoutId.error) return (withWorkoutId.data || []) as ActivityRow[];
-  if (!isMissingColumn(withWorkoutId.error, 'garmin_workout_id')) throw withWorkoutId.error;
 
-  const { data, error } = await supabase
-    .from('athlete_activities')
-    .select(columns)
-    .eq('athlete_id', athleteId)
-    .order('start_time', { ascending: true });
-  if (error) throw error;
-  return (data || []) as ActivityRow[];
+  // Paged, because this said "the athlete's activities" and meant "their oldest
+  // thousand". PostgREST caps a response at 1000 rows silently, and this query
+  // ordered `start_time` ASCENDING — so the thousand it kept were the EARLIEST
+  // rows the athlete ever recorded, and everything after that point was invisible
+  // to plan matching.
+  //
+  // Measured on prod 2026-09-13: 14 of 23 athletes are past the cap. For Itai
+  // Spiegel (3,878 rows) this query could not see a single activity after
+  // 2021-10-06; Roy Roth after 2021-12-31; Eyal Shlomi after 2021-02-20; Shalev
+  // Bahalul after 2023-07-18. So this week's published plan was being graded
+  // against a five-year-old row set and every workout in it read as not completed.
+  // Adherence sat at or near zero for exactly the club's heaviest runners while
+  // looking perfectly correct for everyone under a thousand rows — which is why
+  // this reads as "the plan feature is broken for the serious members only".
+  //
+  // `.order('id')` after `start_time` is not decoration: two runs sharing a
+  // timestamp leave their relative order free, and a page boundary falling between
+  // them duplicates one and drops the other. See lib/supabase/paginate.ts.
+  const page = (cols: string) => (from: number, to: number) =>
+    supabase
+      .from('athlete_activities')
+      .select(cols)
+      .eq('athlete_id', athleteId)
+      .order('start_time', { ascending: true })
+      .order('id')
+      .range(from, to)
+      .returns<ActivityRow[]>();
+
+  try {
+    return await fetchAllRows<ActivityRow>(page(`${columns}, garmin_workout_id`));
+  } catch (error) {
+    // Pre-092 database: no garmin_workout_id column. Fall back to the shape this
+    // code had before exact attribution existed rather than failing every match.
+    if (!isMissingColumn(error, 'garmin_workout_id')) throw error;
+    return await fetchAllRows<ActivityRow>(page(columns));
+  }
 }
 
 /**
