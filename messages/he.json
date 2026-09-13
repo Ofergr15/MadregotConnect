@@ -2564,7 +2564,7 @@
     "saving": "מעדכן…",
     "sendReminder": "שלח תזכורת",
     "reminderSent": "התזכורת נשלחה ✓",
-    "reminderUnreachable": "אין לו התראות פעילות",
+    "reminderUnreachable": "אין לו התראות ואין כתובת מייל",
     "reminderFailed": "השליחה נכשלה",
     "resultReleased": "אושר והוסר מחסימת התחזוקה — יכול להיכנס",
     "resultApproved": "אושר. התחזוקה כבויה, אין ממה לשחרר",
@@ -2573,9 +2573,9 @@
     "maintenanceBlockedCount": "{count} חברי מועדון חסומים כרגע",
     "maintenanceTurnOff": "כבה מצב תחזוקה",
     "bulkTitle": "{count} עוד לא סיימו את המסלול",
-    "bulkSubtitle": "אפשר להגיע ל-{reachable} מהם בהתראה עכשיו",
+    "bulkSubtitle": "אפשר להגיע ל-{reachable} מהם עכשיו — בהתראה או במייל",
     "bulkRemind": "שלח תזכורת ל-{count}",
-    "bulkResult": "נשלחו {sent} · {unreachable} בלי התראות · {failed} נכשלו",
+    "bulkResult": "נשלחו {sent} בהתראה · {emailed} במייל · {unreachable} בלי דרך להגיע · {failed} נכשלו",
     "empty_mine": "אף אחד לא מחכה לך",
     "empty_login": "כולם עברו את ההתחברות",
     "empty_watch": "לכולם יש שעון מחובר",
@@ -2605,6 +2605,8 @@
     "missing_login": "כניסה לאפליקציה",
     "reminderWillSay": "התזכורת תגיד שחסר: {items}",
     "reminderWillSayGeneral": "התזכורת תזמין להיכנס ולסיים את ההגדרה",
-    "reminderInboxOnly": "יגיע רק לתיבה באפליקציה"
+    "reminderInboxOnly": "יגיע רק לתיבה באפליקציה",
+    "reminderEmailed": "התזכורת נשלחה במייל ✓",
+    "reminderByEmail": "יישלח במייל"
   }
 }

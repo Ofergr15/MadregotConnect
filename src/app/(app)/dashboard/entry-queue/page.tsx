@@ -138,13 +138,18 @@ export default function EntryQueuePage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [turningOff, setTurningOff] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
-  const [bulkResult, setBulkResult] = useState<{ sent: number; unreachable: number; failed: number } | null>(null);
+  const [bulkResult, setBulkResult] = useState<{
+    sent: number;
+    emailed: number;
+    unreachable: number;
+    failed: number;
+  } | null>(null);
   // A /register applicant has no דבוקה until somebody picks one, and approving
   // without one is a 400 from the API — so the choice lives on their card.
   const [orphanGroup, setOrphanGroup] = useState<Record<string, string>>({});
   const [orphanResult, setOrphanResult] = useState<Record<string, 'approved' | 'rejected' | 'failed' | null>>({});
   // Per-person outcome of a reminder: sent, sent-but-nowhere-to-land, or failed.
-  const [nudged, setNudged] = useState<Record<string, 'sent' | 'unreachable' | 'failed' | null>>({});
+  const [nudged, setNudged] = useState<Record<string, 'sent' | 'emailed' | 'unreachable' | 'failed' | null>>({});
   // What the last "let in" did: both doors, or only the approval because the club
   // was already open. Two different facts, and the admin has to be able to tell.
   const [letInResult, setLetInResult] = useState<Record<string, 'released' | 'approved' | 'failed' | null>>({});
@@ -250,9 +255,10 @@ export default function EntryQueuePage() {
   };
 
   /**
-   * The nudge for somebody nothing is holding out who hasn't finished. Push only —
-   * half the club has no real address — so the result says whether their phone
-   * could actually be reached rather than just ticking.
+   * The nudge for somebody nothing is holding out who hasn't finished. Push when
+   * there is a subscription, email when there isn't — so the result names the
+   * channel rather than just ticking. A tick that means "we tried" is the thing
+   * this screen was built to stop.
    */
   const nudge = async (member: EntryQueueMember) => {
     setBusyId(member.id);
@@ -264,7 +270,16 @@ export default function EntryQueuePage() {
         body: JSON.stringify({ athleteId: member.id }),
       });
       const body = await res.json().catch(() => ({}));
-      setNudged((prev) => ({ ...prev, [member.id]: res.ok ? (body.reachable ? 'sent' : 'unreachable') : 'failed' }));
+      setNudged((prev) => ({
+        ...prev,
+        [member.id]: !res.ok
+          ? 'failed'
+          : body.reachable
+            ? 'sent'
+            : body.emailed
+              ? 'emailed'
+              : 'unreachable',
+      }));
     } catch {
       setNudged((prev) => ({ ...prev, [member.id]: 'failed' }));
     } finally {
@@ -277,8 +292,9 @@ export default function EntryQueuePage() {
    *
    * The point of the club-members card: most of the "requests" in production are
    * existing members who just never finished connecting, and chasing them one card
-   * at a time is why nobody did. The result is reported in three numbers because
-   * push has three outcomes and "sent to 23" would be a lie about most of them.
+   * at a time is why nobody did. The result is reported in four numbers because
+   * that is how many outcomes there are once mail is in play, and "sent to 23"
+   * would be a lie about most of them.
    */
   const remindEveryone = async () => {
     if (!nudgeable.length) return;
@@ -292,13 +308,18 @@ export default function EntryQueuePage() {
       });
       const body = await res.json().catch(() => ({}));
       if (res.ok) {
-        setBulkResult({ sent: body.sent || 0, unreachable: body.unreachable || 0, failed: body.failed || 0 });
+        setBulkResult({
+          sent: body.sent || 0,
+          emailed: body.emailed || 0,
+          unreachable: body.unreachable || 0,
+          failed: body.failed || 0,
+        });
         setNudged((prev) => ({ ...prev, ...(body.results || {}) }));
       } else {
-        setBulkResult({ sent: 0, unreachable: 0, failed: nudgeable.length });
+        setBulkResult({ sent: 0, emailed: 0, unreachable: 0, failed: nudgeable.length });
       }
     } catch {
-      setBulkResult({ sent: 0, unreachable: 0, failed: nudgeable.length });
+      setBulkResult({ sent: 0, emailed: 0, unreachable: 0, failed: nudgeable.length });
     } finally {
       setBulkBusy(false);
     }
@@ -590,7 +611,12 @@ export default function EntryQueuePage() {
               <div className="min-w-0">
                 <p className="text-[15px] font-semibold text-ink-700">{t('bulkTitle', { count: nudgeable.length })}</p>
                 <p className="text-xs text-ink-400 mt-0.5">
-                  {t('bulkSubtitle', { reachable: nudgeable.filter((m) => m.hasPush).length })}
+                  {/* An inbox counts: `m.email` is already the REAL address or null
+                      (the synthetic Strava one is stripped in entry-queue.ts), so
+                      this is exactly who the reminder can actually land on. */}
+                  {t('bulkSubtitle', {
+                    reachable: nudgeable.filter((m) => m.hasPush || !!m.email).length,
+                  })}
                 </p>
               </div>
             </div>
@@ -843,7 +869,15 @@ export default function EntryQueuePage() {
                     {gapList(m).length > 0
                       ? t('reminderWillSay', { items: gapList(m).join(' · ') })
                       : t('reminderWillSayGeneral')}
-                    {!m.hasPush && <> · <span className="text-band-3-ink font-semibold">{t('reminderInboxOnly')}</span></>}
+                    {!m.hasPush && (
+                      <>
+                        {' '}
+                        ·{' '}
+                        <span className="text-band-3-ink font-semibold">
+                          {m.email ? t('reminderByEmail') : t('reminderInboxOnly')}
+                        </span>
+                      </>
+                    )}
                   </p>
                 )}
 
@@ -864,11 +898,13 @@ export default function EntryQueuePage() {
                         ? t('saving')
                         : nudged[m.id] === 'sent'
                           ? t('reminderSent')
-                          : nudged[m.id] === 'unreachable'
-                            ? t('reminderUnreachable')
-                            : nudged[m.id] === 'failed'
-                              ? t('reminderFailed')
-                              : t('sendReminder')}
+                          : nudged[m.id] === 'emailed'
+                            ? t('reminderEmailed')
+                            : nudged[m.id] === 'unreachable'
+                              ? t('reminderUnreachable')
+                              : nudged[m.id] === 'failed'
+                                ? t('reminderFailed')
+                                : t('sendReminder')}
                     </Button>
                   ) : (
                     <Link href={teammateHref(m.id) ?? '/dashboard/athletes'} className="flex-1">
