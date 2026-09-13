@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { snapshotRowCopy } from '@/lib/notifications/copy';
 
 /**
  * POST /api/admin/entry-queue/nudge — the reminder for somebody nothing is
@@ -144,6 +145,33 @@ describe('POST /api/admin/entry-queue/nudge', () => {
     expect(await res.json()).toMatchObject({ ok: true, reachable: false, emailed: true });
     // Same gaps as the push, resolved from the row — not a second opinion.
     expect(mailed).toMatchObject({ email: 'eli@example.com', gaps: ['login'], athleteId: 'dana-1' });
+  });
+
+  it('hands the mail the whole scored checklist, not just the gap names', async () => {
+    // "חסר: חיבור שעון, מידות." in running text is the same information and reads as
+    // an aside. The mail draws the marked list instead — which needs the FULL state,
+    // done rows included, and a score.
+    pushCount = 0;
+    athlete = {
+      id: 'yossi-1',
+      name: 'יוסי',
+      email: 'yossi@example.com',
+      last_seen_at: '2026-09-01T00:00:00Z',
+      garmin_auth: '<encrypted>',
+      strava_auth: null,
+      avatar_url: null,
+      phone: null,
+    };
+    await nudge('yossi-1');
+    const setup = mailed!.setup as { doneCount: number; total: number; rows: Array<{ name: string; hint: string; done: boolean }> };
+    expect(setup.total).toBe(5);
+    expect(setup.rows).toHaveLength(5);
+    expect(setup.rows.filter((r) => r.done)).toHaveLength(setup.doneCount);
+    // Every row carries its own explanation, and the done ones are listed too.
+    expect(setup.rows.every((r) => r.name.length > 0 && r.hint.length > 0)).toBe(true);
+    // 'notifications' is dropped from `gaps` (a push cannot ask for push) but belongs
+    // in an inbox list — this member has no subscription, which is why they got mail.
+    expect(setup.rows.map((r) => r.name)).toContain(snapshotRowCopy('he', { key: 'notifications', done: false }).name);
   });
 
   it('does not also email somebody whose phone was pushed', async () => {

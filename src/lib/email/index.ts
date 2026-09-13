@@ -1,5 +1,5 @@
 import { APP_URL, APPROVER_EMAILS } from '@/lib/constants';
-import { renderEmail, esc } from './template';
+import { renderEmail, renderSetupProgress, esc, type SetupProgressRow } from './template';
 import { gapNames } from '@/lib/notifications/copy';
 import { sendEmail, type SendResult } from './send';
 
@@ -124,7 +124,9 @@ export async function notifyAdminNewSignupRequest(req: {
     subject: `🏃 New registration waiting: ${who}`,
     html: renderEmail({
       dir: 'ltr',
+      eyebrow: 'WAITING FOR APPROVAL',
       title: 'New registration',
+      preheader: `${who} is waiting to be let into the club.`,
       rows: [
         ...(req.name ? ([['Name', req.name]] as Array<[string, string]>) : []),
         ['Email', address || 'none — they signed in with Strava'],
@@ -159,7 +161,9 @@ export async function notifyRegistrationApproved(user: {
     athleteId: user.athleteId ?? null,
     signupRequestId: user.signupRequestId ?? null,
     html: renderEmail({
+      eyebrow: 'ההרשמה אושרה',
       title: 'אושרת! 🎉',
+      preheader: 'נשאר להשלים כמה פרטים ולחבר את Strava — דקה וזה נגמר.',
       paragraphs: [
         `ההרשמה שלך למדרגות אושרה${user.groupName ? ` — ${user.groupName}` : ''}. נשאר רק להשלים כמה פרטים ולהתחבר עם Strava, וזה הכל.`,
         'מי שהשעון שלו כבר מחובר אצלנו — נזהה את זה ונדלג על השלב.',
@@ -200,7 +204,11 @@ export async function notifyAthleteClaim(claim: {
     subject: '🔗 חיבור חשבון Strava למדרגות',
     athleteId: claim.athleteId ?? null,
     html: renderEmail({
+      eyebrow: 'אישור חיבור חשבון',
       title: 'זה אתה?',
+      // No name here either, for the same reason it stays out of the subject: the
+      // preview line is shown on a locked screen.
+      preheader: 'התחברות דרך Strava מבקשת להתחבר לחשבון שלך. אם זה לא אתה — אין מה לעשות.',
       paragraphs: [
         `התחברות חדשה דרך Strava${who ? ` בשם ${who}` : ''} מבקשת להתחבר לחשבון שלך במדרגות${
           claim.targetName ? ` (${claim.targetName})` : ''
@@ -251,6 +259,14 @@ export async function notifyEntryNudge(user: {
    */
   gaps: string[];
   athleteId?: string | null;
+  /**
+   * The whole scored checklist, when the caller has it — and the entry-queue route
+   * does, because it computes computeSetupState() to derive `gaps` in the first place.
+   * With it this mail shows the same marked list as the snapshot instead of naming
+   * the missing items in a sentence; without it (or for somebody who never got in,
+   * where there is nothing to score yet) it falls back to the sentence.
+   */
+  setup?: { doneCount: number; total: number; rows: SetupProgressRow[] };
 }): Promise<SendResult> {
   const who = (user.name || '').trim();
   const hey = who ? `${who}, ` : '';
@@ -265,7 +281,11 @@ export async function notifyEntryNudge(user: {
     athleteId: user.athleteId ?? null,
     subject: neverGotIn ? '👋 האפליקציה של מדרגות מחכה לך' : '⏳ נשאר לסדר כמה דברים באפליקציה',
     html: renderEmail({
+      eyebrow: neverGotIn ? 'החשבון שלך מחכה' : 'כמעט שם',
       title: neverGotIn ? `${hey}האפליקציה מחכה לך 👋` : `${hey}כמעט סיימת`,
+      preheader: neverGotIn
+        ? 'החשבון מאושר, אבל האפליקציה עוד לא נפתחה אצלך. הקישור כאן פותר את זה.'
+        : `נשאר ${missing.length > 1 ? 'כמה דברים קטנים' : 'דבר קטן אחד'} בפרופיל.`,
       paragraphs: neverGotIn
         ? [
             'החשבון שלך במדרגות מאושר וממתין — אבל עוד לא נכנסת לאפליקציה.',
@@ -273,9 +293,14 @@ export async function notifyEntryNudge(user: {
           ]
         : [
             `נכנסת לאפליקציה, ונשאר עוד ${missing.length > 1 ? 'כמה דברים קטנים' : 'דבר קטן אחד'} כדי שהיא תעבוד בשבילך במלואה.`,
-            missing.length ? `חסר: ${missing.join(', ')}.` : 'נשאר להשלים את ההגדרה בפרופיל.',
+            // The list itself is drawn below when the caller passed the state. Only
+            // when it didn't does it have to be said in a sentence.
+            ...(user.setup
+              ? []
+              : [missing.length ? `חסר: ${missing.join(', ')}.` : 'נשאר להשלים את ההגדרה בפרופיל.']),
             'דקה בפרופיל וסיימנו.',
           ],
+      bodyHtml: !neverGotIn && user.setup ? renderSetupProgress(user.setup) : undefined,
       cta: neverGotIn
         ? { label: 'להתחברות לאפליקציה →', href: `${APP_URL}/login` }
         : { label: 'להשלמת הפרופיל →', href: `${APP_URL}/dashboard/profile` },
@@ -314,25 +339,6 @@ export async function notifySetupSnapshot(user: {
   const who = (user.name || '').trim();
   const hey = who ? `${who}, ` : '';
   const left = user.total - user.doneCount;
-  const scoreColor = user.doneCount >= user.total - 1 ? '#16a34a' : '#FF5315';
-
-  const rows = user.rows
-    .map((row) => {
-      const mark = row.done
-        ? { bg: '#16a34a', glyph: '&#10003;' }
-        : { bg: '#D74E4E', glyph: '&#10007;' };
-      return `
-        <tr>
-          <td width="30" valign="top" style="padding: 10px 0 0 0;">
-            <span style="display: inline-block; width: 20px; height: 20px; border-radius: 999px; background: ${mark.bg}; color: #ffffff; font-size: 12px; font-weight: 700; text-align: center; line-height: 20px;">${mark.glyph}</span>
-          </td>
-          <td style="padding: 9px 10px 9px 0; border-bottom: 1px solid #DFDFDF;">
-            <div style="font-size: 15px; font-weight: 600; color: #1D1E26;">${esc(row.name)}</div>
-            <div style="font-size: 13px; color: #656565; margin-top: 2px;">${esc(row.hint)}</div>
-          </td>
-        </tr>`;
-    })
-    .join('');
 
   return sendEmail({
     template: 'setup_snapshot',
@@ -340,16 +346,13 @@ export async function notifySetupSnapshot(user: {
     athleteId: user.athleteId ?? null,
     subject: `⏳ ${user.doneCount} מתוך ${user.total} — מה נשאר לך באפליקציה`,
     html: renderEmail({
+      eyebrow: 'רבע שעה בפנים',
       title: `${hey}ככה זה נראה אצלך עכשיו`,
+      preheader: `${user.doneCount} מתוך ${user.total} מסודרים${left ? `, נשאר ${left}` : ''} — הכל מסומן כאן בפנים.`,
       paragraphs: [
         'נכנסת לאפליקציה לפני רבע שעה — הנה מה שכבר מסודר ומה שלא, כדי שלא תישאר עם חצי אפליקציה.',
       ],
-      bodyHtml: `
-        <div style="background: #f3f4f8; border-radius: 12px; padding: 12px 14px; margin: 16px 0 4px;">
-          <span style="font-size: 26px; font-weight: 800; color: ${scoreColor};">${user.doneCount}</span>
-          <span style="color: #2D2E38;"> מתוך ${user.total} הושלמו${left ? ` · נשאר ${left}` : ''}</span>
-        </div>
-        <table style="width: 100%; border-collapse: collapse; margin: 8px 0 0;"><tbody>${rows}</tbody></table>`,
+      bodyHtml: renderSetupProgress(user),
       cta: { label: 'להשלמת מה שנשאר →', href: `${APP_URL}/dashboard/profile` },
       notes: ['נשלח פעם אחת בלבד, ורק אם משהו חסר. אם כבר סידרתם הכל — לא יישלח כלום.'],
     }),

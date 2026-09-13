@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { notifyAthlete } from '@/lib/push';
-import { entryGapsCopy } from '@/lib/notifications/copy';
+import { entryGapsCopy, snapshotRowCopy } from '@/lib/notifications/copy';
 import { computeSetupState } from '@/lib/onboarding/setup-tasks';
+import { snapshotRows } from '@/lib/onboarding/setup-snapshot';
 import { KIT_SIZE_COLUMNS_100, kitSizeSetupInput } from '@/lib/kit-sizes';
 import { realEmail } from '@/lib/admin/entry-queue';
 import { notifyEntryNudge } from '@/lib/email';
@@ -128,6 +129,16 @@ async function nudgeOne(
       name: athlete.name as string,
       gaps,
       athleteId,
+      // The same marked checklist the snapshot mail draws, from the state that was
+      // computed above anyway. Note this list DOES include 'notifications', which
+      // `gaps` deliberately drops: a push cannot ask you to turn on push, but this
+      // is the inbox — and the only way this mail is being sent at all is that
+      // there was no subscription, which makes it the truest row in the list.
+      setup: {
+        doneCount: setup.doneCount,
+        total: setup.totalCount,
+        rows: snapshotRows(setup).map((row) => ({ ...snapshotRowCopy('he', row), done: row.done })),
+      },
     });
     emailed = result.ok;
   }
