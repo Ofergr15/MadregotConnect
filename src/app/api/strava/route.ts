@@ -60,12 +60,17 @@ export async function GET(request: Request) {
   }
 
   let state: string;
+  // Tracked as a flag rather than re-derived from `mode` below: the login branch is
+  // also reached implicitly, by a caller that named no athlete at all, and the
+  // approval-prompt decision underneath must cover that door too.
+  let isLoginMode = false;
   if (inviteTokenParam && !inviteToken) {
     return NextResponse.json({ error: 'invalid inviteToken' }, { status: 400 });
   } else if (inviteToken) {
     state = joinState(inviteToken);
   } else if (mode === 'login' || (!athleteId && mode !== 'link')) {
     state = loginState(challenge);
+    isLoginMode = true;
   } else if (athleteId) {
     // Self-or-staff: a runner may connect their own Strava (profile page), a
     // coach may connect anyone's (athletes page). Both are real callers, which
@@ -85,7 +90,29 @@ export async function GET(request: Request) {
   // is what makes Strava draw the page that says which athlete it is about to
   // connect — and offers to sign in as somebody else. Only ever set deliberately:
   // on a first connect the extra screen is friction for no reason.
-  const approvalPrompt = searchParams.get('switch') === '1' ? 'force' : 'auto';
+  //
+  // Login mode is ALSO always `force`, for a different reason: it is the only mode
+  // where the app does not know who the caller is. Everything else names an athlete
+  // (`athleteId`) or carries an invite token, so a silent reuse lands the tokens on
+  // a row we already chose. Login mode instead *derives* identity from whatever
+  // account Strava hands back — so `auto` means the browser's already-authorised
+  // account decides who you are logged in as, with no screen naming it and no way
+  // to catch it.
+  //
+  // That is not hypothetical. On 2026-09-13 a member reconnecting from a signed-out
+  // landing page was bounced through `auto` into an empty Strava account (id
+  // 659081577) that he had created moments earlier on Strava's own authorize page —
+  // which offers signup to anyone not signed in. None of the callback's three
+  // recognition paths could match it (no Strava id on his row, a synthetic email,
+  // and a `Strava 659081577` placeholder name), so it fell through to the
+  // stranger-insert and he was greeted by his own app as a brand-new pending member
+  // being asked for his measurements. Nothing was lost, but nothing about it was
+  // visible to him either.
+  //
+  // The cost is one extra tap on sign-in. Sign-in is rare — the session persists —
+  // and the screen it adds is the only moment anyone can see which athlete they are
+  // about to become.
+  const approvalPrompt = searchParams.get('switch') === '1' || isLoginMode ? 'force' : 'auto';
   const authUrl =
     `https://www.strava.com/oauth/authorize` +
     `?client_id=${clientId}` +
