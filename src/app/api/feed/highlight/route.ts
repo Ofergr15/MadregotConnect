@@ -14,6 +14,7 @@ import {
 } from '@/lib/feed/highlight';
 import {
   activityLocalDateStr,
+  addDaysToDateStr,
   getActivityWeekStart,
   getPlanWeekStart,
   israelDateAnchor,
@@ -105,10 +106,34 @@ export async function GET(request: Request) {
     const planWeek = getPlanWeekStart(anchor);
     const daysElapsed = dayKeyDiff(weekStart, todayKey) + 1;
 
+    // Only this week's rows, because this week is all the card uses.
+    //
+    // This read used to be the athlete's ENTIRE history, unbounded — and PostgREST
+    // caps a response at 1000 rows without telling you. Fourteen of the club's
+    // athletes are past that cap (Itai 3,878, Roy 2,895), so the read was silently
+    // truncated for most of them. It happened to still be *correct*, because
+    // `order desc` meant the surviving thousand was always the newest thousand and
+    // this week was always inside it — but that is an accident of two clauses, not a
+    // property of the code, and it was fetching ~1000 rows to use about five on the
+    // landing page's critical path.
+    //
+    // Two ways the accident could end: 26 rows in prod already carry a FUTURE
+    // start_time, and Postgres sorts NULLs first under DESC — so an athlete
+    // accumulating a thousand future-dated or null-dated rows would push this week
+    // out of the window entirely and the card would read 0.0 km after a full week of
+    // running. And any future all-time stat added to this card would silently read a
+    // last-1000 window.
+    //
+    // Bounded a day either side of the week: `activityLocalDateStr` below stays the
+    // authority on which day a run belongs to, and start_time holds local wall clock
+    // (Convention A), so the pad keeps this filter a strict superset of what the loop
+    // keeps rather than a second, competing definition of the week.
     const { data: acts, error } = await supabase
       .from('athlete_activities')
       .select('activity_type, start_time, distance, duration')
       .eq('athlete_id', athleteId)
+      .gte('start_time', addDaysToDateStr(weekStart, -1))
+      .lt('start_time', addDaysToDateStr(weekStart, WEEK_DAYS + 1))
       .order('start_time', { ascending: false });
     if (error) throw error;
 

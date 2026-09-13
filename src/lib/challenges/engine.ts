@@ -86,12 +86,50 @@ async function resolveParticipantIds(
   return (members || []).map((m: { id: string }) => m.id);
 }
 
-async function fetchActivities(supabase: SupabaseServer, athleteIds: string[]): Promise<ActivityForMetric[]> {
+/** `date` (YYYY-MM-DD) shifted by whole days, as YYYY-MM-DD. */
+function shiftDate(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * The participants' activities inside the challenge window.
+ *
+ * The window is pushed to the server, and that is a correctness fix rather than a
+ * tuning one. PostgREST caps a response at 1000 rows and says nothing when it
+ * truncates. This read had no date filter and no `.order()` at all, while its only
+ * caller immediately narrowed the result to `[start_date, end_date]` — so a
+ * few-week challenge was being computed from an arbitrary thousand rows drawn out
+ * of a decade of running. Measured 2026-09-13: `athlete_activities` holds 30,278
+ * rows across 23 athletes, and 14 athletes are individually past 1000. For a
+ * `group`-scope challenge the participant set is a whole pace group, so the
+ * shortfall was worst exactly where the feature matters.
+ *
+ * What that looked like: progress reading far too LOW, frequently 0, a challenge
+ * the group had genuinely completed never awarding its badge, and — because an
+ * unordered OFFSET-less read is not stable — the bar moving on refresh.
+ *
+ * Padded a day either side on purpose. `computeMetricValue` remains the authority
+ * on the window; it compares `start_time.slice(0, 10)` as text, whereas this is a
+ * timestamptz comparison, and `start_time` holds the watch's LOCAL wall clock
+ * (Convention A) rather than a true instant. The pad makes this filter a strict
+ * superset of what the caller keeps, so no arithmetic disagreement between the two
+ * layers can ever drop a run the athlete actually did.
+ */
+async function fetchActivities(
+  supabase: SupabaseServer,
+  athleteIds: string[],
+  startDate: string,
+  endDate: string,
+): Promise<ActivityForMetric[]> {
   if (athleteIds.length === 0) return [];
   const { data, error } = await supabase
     .from('athlete_activities')
     .select('activity_type, start_time, distance, duration, elevation_gain')
-    .in('athlete_id', athleteIds);
+    .in('athlete_id', athleteIds)
+    .gte('start_time', shiftDate(startDate, -1))
+    .lt('start_time', shiftDate(endDate, 2));
   if (error) throw error;
   return (data || []) as ActivityForMetric[];
 }
@@ -109,7 +147,7 @@ export async function computeChallengeProgress(
 ): Promise<number> {
   const participantIds = await resolveParticipantIds(supabase, athleteId, challenge.scope);
   if (participantIds.length === 0) return 0;
-  const activities = await fetchActivities(supabase, participantIds);
+  const activities = await fetchActivities(supabase, participantIds, challenge.start_date, challenge.end_date);
   return computeMetricValue(challenge.metric, activities, challenge.start_date, challenge.end_date);
 }
 
@@ -157,7 +195,7 @@ export async function checkAndAwardChallenges(athleteId: string): Promise<{ awar
     try {
       const participantIds = await resolveParticipantIds(supabase, athleteId, challenge.scope);
       if (participantIds.length === 0) continue;
-      const activities = await fetchActivities(supabase, participantIds);
+      const activities = await fetchActivities(supabase, participantIds, challenge.start_date, challenge.end_date);
       const value = computeMetricValue(challenge.metric, activities, challenge.start_date, challenge.end_date);
       if (value < challenge.target_value) continue;
 
