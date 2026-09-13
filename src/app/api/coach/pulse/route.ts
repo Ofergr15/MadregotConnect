@@ -3,6 +3,16 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { resolveGroup } from '@/lib/utils';
 import { requireStaff } from '@/lib/auth/self-or-staff';
+import { fetchAllRows } from '@/lib/supabase/paginate';
+
+/** The columns the PR + standout-week comparison needs. */
+interface PulseActivityRow {
+  athlete_id: string;
+  activity_type: string | null;
+  distance: number | null;
+  duration: number | null;
+  start_time: string;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -81,12 +91,25 @@ export async function GET(request: Request) {
     // best effort for a bucket falls within the window.
     const celebrate: any[] = [];
     if (athleteIds.length > 0) {
-      const { data: acts } = await supabase
-        .from('athlete_activities')
-        .select('athlete_id, activity_type, distance, duration, start_time')
-        .in('athlete_id', athleteIds);
+      // Paged. "Full run history" was 1000 rows of it: PostgREST truncates at
+      // 1000 silently, the club's table holds 30,278 rows, and with no `.order()`
+      // the surviving slice was arbitrary and unstable between calls. So every
+      // "PR just set" on this screen was decided against 3% of history — the coach
+      // was congratulated about efforts that were not bests, and real bests went
+      // unmentioned. Exactly the failure lib/supabase/paginate.ts was written for
+      // after the same defect made an athlete's own records page wrong.
+      const acts = await fetchAllRows<PulseActivityRow>((from, to) =>
+        supabase
+          .from('athlete_activities')
+          .select('athlete_id, activity_type, distance, duration, start_time')
+          .in('athlete_id', athleteIds)
+          .order('start_time', { ascending: true })
+          .order('id')
+          .range(from, to)
+          .returns<PulseActivityRow[]>(),
+      );
       const byAthlete = new Map<string, any[]>();
-      for (const r of (acts || []) as any[]) {
+      for (const r of acts as any[]) {
         if (!(r.distance > 0) || !(r.duration > 0) || (r.activity_type && !RUN_TYPES.includes(r.activity_type))) continue;
         const arr = byAthlete.get(r.athlete_id) || [];
         arr.push(r);
