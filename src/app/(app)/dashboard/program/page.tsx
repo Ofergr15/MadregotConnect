@@ -121,7 +121,13 @@ export default function ProgramPage() {
   // which left the uploaded file with no route to it at all once a week had been
   // parsed — and the parse is known to drop whole pages, so the original is the
   // only place some of the plan exists.
-  const [showTrainingPdf, setShowTrainingPdf] = useState(false);
+  //
+  // Open by default, to match the nutrition tab: there the PDF *is* the view and
+  // nobody has to know to ask for it. Behind a tap it was discoverable in theory
+  // and invisible in practice. So the button below hides rather than reveals, and
+  // the first thing a reader sees on the training tab is the same thing they see
+  // on the nutrition one — the sheet the coach actually sent.
+  const [showTrainingPdf, setShowTrainingPdf] = useState(true);
   // Which group's pace is highlighted in the workout-detail sheet — mirrors the
   // dashboard's own remembered pick (localStorage `view_group`) rather than
   // re-deriving it from the athlete's group assignment on this page too.
@@ -623,9 +629,12 @@ export default function ProgramPage() {
               api/plans/week/route.ts) — but when a training PDF also exists there
               was previously no way to open it, and the status row above says
               "training plan ✅" for either one, so nobody could tell the file was
-              even there. This is that missing route, kept as a disclosure rather
-              than a tab: the parsed week is what people want, and the PDF is the
-              fallback for the parts the parse dropped. */}
+              even there.
+
+              Shown expanded, like the nutrition tab. The climb stays on top because
+              it is the better read of a week that parsed cleanly, but the PDF is no
+              longer something you have to suspect exists — it is simply below it,
+              and the button collapses it for anyone who only wants the climb. */}
           {currentWeek?.training_pdf_url && (
             <div className="mt-3">
               <button
