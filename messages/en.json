@@ -363,6 +363,7 @@
     "removeFile": "Remove file",
     "parsingPlan": "Parsing your plan...",
     "readingWorkouts": "Reading workouts and building your week",
+    "parsingTakesAWhile": "This usually takes 1–3 minutes",
     "savingPlan": "Saving your plan...",
     "finalizingWeek": "Finalizing your week",
     "uploadedPlanAlt": "Uploaded plan",
