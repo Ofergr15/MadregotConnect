@@ -555,6 +555,14 @@ export default function JoinPage() {
             <p className="text-xs text-ink-400 leading-relaxed text-center">
               {garminReady ? t('stravaWhyGarmin') : t('stravaWhy')}
             </p>
+            {/* Strava's authorize page offers SIGNUP to anyone who isn't already
+                signed in on this device, and a member who takes that door gets an
+                empty new account the app cannot tell apart from a real one. Warned
+                here because this is registration — the one moment when the person is
+                most likely not to be signed in to Strava yet. */}
+            <p className="text-xs text-ink-400 leading-relaxed text-center">
+              {t('stravaUseExistingAccount')}
+            </p>
 
             {displayError && (
               <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">

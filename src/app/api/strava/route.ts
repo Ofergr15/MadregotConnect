@@ -78,13 +78,21 @@ export async function GET(request: Request) {
   }
 
   const scope = 'read,activity:read_all,profile:read_all';
+  // `switch=1` means "I am connected to the WRONG Strava account and want a
+  // different one". With approval_prompt=auto Strava skips its own screen entirely
+  // for an app it has already authorised, so the member is bounced straight back
+  // into the same wrong account and the retry looks like it did nothing. `force`
+  // is what makes Strava draw the page that says which athlete it is about to
+  // connect — and offers to sign in as somebody else. Only ever set deliberately:
+  // on a first connect the extra screen is friction for no reason.
+  const approvalPrompt = searchParams.get('switch') === '1' ? 'force' : 'auto';
   const authUrl =
     `https://www.strava.com/oauth/authorize` +
     `?client_id=${clientId}` +
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
     `&response_type=code` +
     `&scope=${encodeURIComponent(scope)}` +
-    `&approval_prompt=auto` +
+    `&approval_prompt=${approvalPrompt}` +
     `&state=${encodeURIComponent(state)}`;
 
   return NextResponse.json({ authUrl });

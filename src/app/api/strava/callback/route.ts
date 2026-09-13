@@ -312,13 +312,26 @@ export async function GET(request: Request) {
     // ── Coach link mode ──────────────────────────────────────────────────────
     if (!isLogin) {
       const supabase = createServerClient();
+      // Whether Garmin is already connected decides one field below, so it is read
+      // before the write rather than after.
+      const { data: linkTarget } = await supabase
+        .from('athletes')
+        .select('garmin_auth')
+        .eq('id', state)
+        .maybeSingle();
       const { error } = await supabase
         .from('athletes')
         .update({
           strava_auth: encrypted,
           strava_athlete_id: stravaId,
           strava_enabled: true,
-          data_source: 'strava',
+          // Same rule the login path has always applied (see the adopt branch
+          // below): data_source decides which sync cron owns this athlete, so
+          // claiming it for Strava on a Garmin athlete points them at the weaker
+          // copy of their own runs. Unconditional here, it mislabelled every
+          // Garmin member who ever pressed "connect Strava" — Yosi Sabag was
+          // data_source 'strava' with 1,247 Garmin runs and zero Strava ones.
+          ...(linkTarget?.garmin_auth ? {} : { data_source: 'strava' }),
           ...(avatar ? { avatar_url: avatar } : {}),
         })
         .eq('id', state);

@@ -6,6 +6,7 @@ import { Header } from '@/components/Header';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { PushOptIn } from '@/components/PushOptIn';
 import { ConnectDataSourcePopup } from '@/components/ConnectDataSourcePopup';
+import { StravaAccountConfirm } from '@/components/StravaAccountConfirm';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { BottomTabBar } from '@/components/BottomTabBar';
 import { PageTransition } from '@/components/PageTransition';
@@ -384,6 +385,11 @@ export default function AppLayout({
             after onboarding. */}
         {popupsAllowed && <NotificationsStep />}
         {popupsAllowed && <PushOptIn />}
+        {/* Ordered before the connect nudge, and it silences that nudge for the
+            session while it is up: "is this the right account?" has to be settled
+            before "connect something else", and a Strava-only member is eligible
+            for both. */}
+        {popupsAllowed && <StravaAccountConfirm />}
         {popupsAllowed && <ConnectDataSourcePopup />}
         {!isRunChat && <FirstRunTour onActiveChange={setTourActive} />}
         <main

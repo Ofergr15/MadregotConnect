@@ -161,6 +161,11 @@ function ProfileContent() {
   const [stravaSyncedAt, setStravaSyncedAt] = useState<string | null>(null);
   const [stravaEnabled, setStravaEnabled] = useState(false);
   const [connectingStrava, setConnectingStrava] = useState(false);
+  const [disconnectingStrava, setDisconnectingStrava] = useState(false);
+  // Two-step rather than window.confirm: a native dialog in an installed PWA looks
+  // like the browser breaking through the app, and this is reversible enough that a
+  // second tap is the right amount of friction.
+  const [confirmStravaDisconnect, setConfirmStravaDisconnect] = useState(false);
   const [connectingGarmin, setConnectingGarmin] = useState(false);
   const [garminLoading, setGarminLoading] = useState(false);
   const [garminEmail, setGarminEmail] = useState('');
@@ -315,6 +320,30 @@ function ProfileContent() {
   // it looked static. It now says it couldn't check, and asserts nothing.
   const connectionUnknown = !!meError && !meData;
 
+  // Is the linked Strava account plausibly this member's own? A green "connected"
+  // pill only ever proved that a token works, and a token from an account created
+  // at the connect prompt works perfectly — it just has nothing in it. See
+  // /api/strava/account-check for the case that motivated this.
+  //
+  // Costs one Strava API call, so it is asked once per mount and not on every
+  // window focus: the answer changes when the member reconnects, and that path
+  // mutates it explicitly.
+  const { data: stravaCheck, mutate: mutateStravaCheck } = useApi<{
+    linked?: boolean;
+    checkable?: boolean;
+    hasActivities?: boolean;
+    stravaAthleteId?: number | null;
+    stravaName?: string | null;
+    placeholderName?: boolean;
+  }>(
+    hasStrava && athleteId ? `/api/strava/account-check?athleteId=${encodeURIComponent(athleteId)}` : null,
+    { revalidateOnFocus: false, revalidateIfStale: false },
+  );
+  // Only ever shown on a definite answer. `checkable: false` means the token could
+  // not be refreshed or Strava errored — that is the reconnect pill's business, and
+  // rendering "this account is empty" over it would be a guess dressed as a finding.
+  const stravaLooksWrong = !!stravaCheck?.linked && stravaCheck.checkable === true && stravaCheck.hasActivities === false;
+
   // Following list — also state, because unfollowing edits it in place.
   const { data: connectionsData } = useApi<{ followingCount?: number; following?: FollowedAthlete[] }>(
     athleteId ? `/api/athletes/${encodeURIComponent(athleteId)}/connections` : null,
@@ -325,6 +354,35 @@ function ProfileContent() {
     setFollowingCount(connectionsData.followingCount || 0);
     setFollowingList(connectionsData.following || []);
   }, [connectionsData]);
+
+  // Unlink Strava. Shared by the two places that offer it — the row itself when the
+  // connection is healthy, and the "this account is empty" card — so there is one
+  // description of what disconnecting does to local state.
+  const disconnectStrava = useCallback(async () => {
+    setDisconnectingStrava(true);
+    try {
+      const res = await fetch('/api/strava/disconnect', {
+        method: 'POST',
+        headers: await bearerHeaders(),
+        body: JSON.stringify({ athleteId }),
+      });
+      if (res.ok) {
+        setHasStrava(false);
+        setStravaSyncedAt(null);
+        setStravaState('unknown');
+        // Mirrors what the route does server-side, so the switch-source button and
+        // the landing row don't keep naming a source that is gone.
+        if (dataSource === 'strava' && hasGarmin) setDataSource('garmin');
+        mutateStravaCheck();
+        mutateMe();
+      }
+    } catch {
+      /* leave the UI as it was — nothing changed, so there is nothing to report */
+    } finally {
+      setDisconnectingStrava(false);
+      setConfirmStravaDisconnect(false);
+    }
+  }, [athleteId, dataSource, hasGarmin, mutateStravaCheck, mutateMe]);
 
   const hasChanges = selectedGroupId !== currentGroupId;
 
@@ -1010,7 +1068,30 @@ function ProfileContent() {
                 {/* Same as Garmin: a revoked authorization re-runs the OAuth button
                     below, which is the only thing that can fix it. */}
                 {hasStrava && !needsReconnect(stravaState) ? (
-                  <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-band-3/15 text-band-3-ink">{t('connected')}</span>
+                  // Connected — plus the way out. Before this there was none at all:
+                  // a member who authorised the wrong Strava account could not undo
+                  // it from anywhere in the app, and it took a hand-written UPDATE.
+                  // Second tap required, and the label says the history survives.
+                  <div className="flex items-center gap-2">
+                    <span className="text-3xs font-bold px-2 py-0.5 rounded-full bg-band-3/15 text-band-3-ink">{t('connected')}</span>
+                    {confirmStravaDisconnect ? (
+                      <button
+                        onClick={disconnectStrava}
+                        disabled={disconnectingStrava}
+                        className="text-3xs font-bold px-2 py-1 rounded-lg bg-accent-red/15 text-accent-red-ink hover:bg-accent-red/25 transition-colors disabled:opacity-50 inline-flex items-center gap-1"
+                      >
+                        {disconnectingStrava && <Loader2 className="h-2.5 w-2.5 animate-spin" />}
+                        {t('stravaDisconnectConfirm')}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmStravaDisconnect(true)}
+                        className="text-3xs font-medium text-ink-400 hover:text-ink-700 transition-colors underline decoration-dotted underline-offset-2"
+                      >
+                        {t('stravaDisconnect')}
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   <button
                     onClick={async () => {
@@ -1036,6 +1117,71 @@ function ProfileContent() {
                     {connectingStrava ? t('connecting') : needsReconnect(stravaState) ? t('reconnect') : t('connect')}
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* The connect button above authorises whatever Strava account the
+                browser happens to be signed in to — and offers SIGNUP to anyone who
+                isn't signed in at all, which is how a member ends up linked to an
+                empty account they created at the prompt. One line of copy is the
+                cheapest place to stop it. */}
+            {(stravaEnabled || hasStrava) && !hasStrava && (
+              <p className="mt-2 text-2xs text-ink-400 leading-relaxed">{t('stravaConnectHint')}</p>
+            )}
+
+            {/* Linked, token works, and the account holds nothing. Named rather than
+                hinted at: the member cannot tell two Strava accounts apart from a
+                pill, but they recognise their own display name instantly. */}
+            {stravaLooksWrong && (
+              <div className="mt-3 rounded-xl border border-accent-red/30 bg-accent-red/5 px-4 py-3">
+                <p className="text-sm font-semibold text-accent-red-ink">{t('stravaEmptyTitle')}</p>
+                <p className="mt-1 text-2xs text-ink-500 leading-relaxed">
+                  {t('stravaEmptyBody', {
+                    account: stravaCheck?.stravaName || `Strava ${stravaCheck?.stravaAthleteId ?? ''}`.trim(),
+                  })}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    onClick={async () => {
+                      setConnectingStrava(true);
+                      try {
+                        // switch=1 → approval_prompt=force, so Strava actually shows
+                        // which athlete it is about to connect. Without it the retry
+                        // silently re-links the same wrong account.
+                        const res = await fetch(`/api/strava?athleteId=${athleteId}&switch=1`, {
+                          headers: await apiHeaders(),
+                        });
+                        const data = await res.json();
+                        if (data.authUrl) window.location.href = data.authUrl;
+                        else setConnectingStrava(false);
+                      } catch {
+                        setConnectingStrava(false);
+                      }
+                    }}
+                    disabled={connectingStrava}
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#fc5200]/10 text-[#fc5200] hover:bg-[#fc5200]/20 transition-colors disabled:opacity-50"
+                  >
+                    {connectingStrava ? t('connecting') : t('stravaSwitchAccount')}
+                  </button>
+                  {confirmStravaDisconnect ? (
+                    <button
+                      onClick={disconnectStrava}
+                      disabled={disconnectingStrava}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg bg-accent-red/15 text-accent-red-ink hover:bg-accent-red/25 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+                    >
+                      {disconnectingStrava && <Loader2 className="h-3 w-3 animate-spin" />}
+                      {t('stravaDisconnectConfirm')}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmStravaDisconnect(true)}
+                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-ink-300 text-ink-500 hover:text-ink-900 transition-colors"
+                    >
+                      {t('stravaDisconnect')}
+                    </button>
+                  )}
+                </div>
+                <p className="mt-2 text-3xs text-ink-400">{t('stravaDisconnectKeepsHistory')}</p>
               </div>
             )}
           </div>
