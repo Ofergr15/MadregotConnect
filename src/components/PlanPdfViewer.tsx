@@ -62,12 +62,28 @@ export function PlanPdfViewer({ url, title }: Props) {
   // Width of the scroller's content box, which is what "fit" is measured against.
   // Watched rather than read once: rotating the phone changes it, and a plan
   // rendered for the old width is either clipped or leaves half the screen empty.
+  //
+  // The content box specifically, not `clientWidth` — clientWidth *includes*
+  // padding, and this scroller has `p-2 sm:p-4`. The old code compensated with a
+  // hardcoded 8px subtraction downstream, which was short by 8px on mobile and
+  // 24px on desktop, so "fit to width" reliably overflowed and put a horizontal
+  // scrollbar on a page that was supposed to fit exactly. `contentRect` is that
+  // measurement rather than an approximation of it.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const measure = () => setContainerWidth(el.clientWidth);
+    const measure = () => {
+      const cs = getComputedStyle(el);
+      setContainerWidth(
+        el.clientWidth - parseFloat(cs.paddingLeft || '0') - parseFloat(cs.paddingRight || '0'),
+      );
+    };
     measure();
-    const ro = new ResizeObserver(measure);
+    const ro = new ResizeObserver((entries) => {
+      const box = entries[0]?.contentRect;
+      if (box) setContainerWidth(box.width);
+      else measure();
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, [state]);
@@ -253,9 +269,10 @@ function PdfPage({
   const [near, setNear] = useState(false);
 
   const base = page.getViewport({ scale: 1 });
-  // Fit the page's width to the container, then apply the user's zoom on top. The
-  // 8px allows for the scroller's padding without a second measurement.
-  const fit = containerWidth > 0 ? (containerWidth - 8) / base.width : 0;
+  // Fit the page's width to the container, then apply the user's zoom on top.
+  // `containerWidth` is already the padding-free content width (measured in the
+  // parent), so there is nothing left to subtract here.
+  const fit = containerWidth > 0 ? containerWidth / base.width : 0;
   const cssW = Math.max(1, Math.floor(base.width * fit * zoom));
   const cssH = Math.max(1, Math.floor(base.height * fit * zoom));
 
@@ -276,10 +293,17 @@ function PdfPage({
     const canvas = canvasRef.current;
     if (!canvas || !near || fit <= 0) return;
 
-    // Draw at device resolution so text is sharp, but cap it: a 3× landscape A4 at
-    // DPR 3 is past what iOS Safari will allocate, and an over-large canvas comes
-    // back blank rather than throwing something we could catch.
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Draw at the device's real resolution. This used to be capped at 2, which on a
+    // DPR-3 iPhone meant the bitmap was upscaled 1.5× by the compositor — an A4
+    // nutrition plan is already rendered at ~53% of paper size on a 320pt screen, so
+    // softening it on top of that is most of why it reads as illegible.
+    //
+    // The cap was there to keep an oversized canvas from coming back blank (iOS
+    // returns blank rather than throwing), but `ceiling` below is what actually
+    // enforces that, in pixels, against the real page dimensions. 3 is kept as a
+    // sanity bound because a DPR the ladder was never sized against should not be
+    // trusted blindly.
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
     const wanted = fit * zoom * dpr;
     const ceiling = Math.min(
       MAX_CANVAS_EDGE / base.width,

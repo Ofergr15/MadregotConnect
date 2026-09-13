@@ -116,6 +116,12 @@ export default function ProgramPage() {
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [selectedSession, setSelectedSession] = useState<WorkoutDetailSession | null>(null);
+  // Whether the original training PDF is shown *underneath* the structured week.
+  // Needed because the structured view deliberately preempts the PDF branch below,
+  // which left the uploaded file with no route to it at all once a week had been
+  // parsed — and the parse is known to drop whole pages, so the original is the
+  // only place some of the plan exists.
+  const [showTrainingPdf, setShowTrainingPdf] = useState(false);
   // Which group's pace is highlighted in the workout-detail sheet — mirrors the
   // dashboard's own remembered pick (localStorage `view_group`) rather than
   // re-deriving it from the athlete's group assignment on this page too.
@@ -611,7 +617,37 @@ export default function ProgramPage() {
           <Loader2 className="h-6 w-6 animate-spin text-brand-600" />
         </div>
       ) : activeView === 'training' && weekPlan?.hasPlan ? (
-        <WeekClimb weekPlan={weekPlan} onSelectSession={setSelectedSession} />
+        <>
+          <WeekClimb weekPlan={weekPlan} onSelectSession={setSelectedSession} />
+          {/* The structured week wins the branch on purpose (see
+              api/plans/week/route.ts) — but when a training PDF also exists there
+              was previously no way to open it, and the status row above says
+              "training plan ✅" for either one, so nobody could tell the file was
+              even there. This is that missing route, kept as a disclosure rather
+              than a tab: the parsed week is what people want, and the PDF is the
+              fallback for the parts the parse dropped. */}
+          {currentWeek?.training_pdf_url && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setShowTrainingPdf(v => !v)}
+                className="flex items-center gap-2 w-full justify-center h-11 rounded-xl text-xs font-bold text-ink-700 active:bg-page transition-colors"
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0" />
+                {t(showTrainingPdf ? 'hideOriginalPdf' : 'showOriginalPdf')}
+                <ChevronDown
+                  className={cn('h-3.5 w-3.5 shrink-0 transition-transform', showTrainingPdf && 'rotate-180')}
+                />
+              </button>
+              {showTrainingPdf && (
+                <PlanPdfViewer
+                  url={currentWeek.training_pdf_url}
+                  title={`${t('trainingProgram')} — ${currentWeek.date_range}`}
+                />
+              )}
+            </div>
+          )}
+        </>
       ) : currentWeek && getPdfUrl(currentWeek, activeView) ? (
         /* Was a bare <iframe src={pdf}> — the browser's own viewer, which offers no
            zoom, and which on iOS shows a single static first page. The plan is five

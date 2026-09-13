@@ -1834,6 +1834,8 @@
     "zoomOut": "הקטנה",
     "zoomFit": "התאמה לרוחב המסך",
     "pdfPageOf": "עמוד {page} מתוך {total}",
+    "showOriginalPdf": "הצגת קובץ התוכנית המקורי",
+    "hideOriginalPdf": "הסתרת קובץ התוכנית המקורי",
     "exercise": "תרגיל",
     "selectExercise": "בחר תרגיל",
     "nowPlaying": "מתנגן כעת",

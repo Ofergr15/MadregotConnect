@@ -49,6 +49,28 @@ export const maxDuration = 300;
 const UPGRADES_PER_SYNC = 5;
 
 /**
+ * How long the broadcast (all-athletes) pass may spend before it bows out and
+ * reports what it did not reach.
+ *
+ * Measured 2026-09-13: the pass costs ~19 s per athlete, so sixteen athletes is
+ * ~304 s against a 300 s ceiling. It was therefore being killed by the platform
+ * on every single tick — and a killed function returns no body at all, so the
+ * caller cannot tell a timeout from a crash, and *everything the cron does after
+ * this pass never happens*. That silently cost the club three things at once: the
+ * Strava fallback poll (three athletes whose runs then arrived only when they
+ * personally opened the app), the weekly km snapshot, and the last two athletes
+ * of this very loop — Roy and Sahar had not been synced by a cron since 05:25.
+ *
+ * 210 s leaves ~90 s of the ceiling for the rest of the tick. The cost is that a
+ * pass now covers roughly eleven of sixteen athletes, and the remainder waits for
+ * the next tick — which is fine, and is why the query below is ordered
+ * stalest-first: whoever this budget drops is first in line five minutes later.
+ * A per-athlete request is exempt: one athlete is never near the ceiling, and a
+ * human waiting on their own sync wants it finished, not rationed.
+ */
+const BROADCAST_BUDGET_MS = 210_000;
+
+/**
  * HTTP entry point. Anyone could previously trigger a full-club Garmin sync —
  * one unauthenticated POST per second was a free way to burn the club's Garmin
  * rate limit and push a feedback nudge at every athlete.
@@ -77,19 +99,33 @@ export async function runSyncRequest(request: Request) {
     // .returns<any[]>() — cols is a runtime string (not a literal), so Supabase
     // can't infer a field-shaped row type from it; that would otherwise fall
     // back to a useless generic error type instead of the athletes row shape.
-    const buildAthleteQuery = (cols: string) => {
-      let q = supabase.from('athletes').select(cols);
-      q = athleteId ? q.eq('id', athleteId) : q.eq('coach_id', COACH_ID).not('garmin_auth', 'is', null);
-      return q.returns<any[]>();
+    //
+    // Stalest first on the broadcast pass. PostgREST promises no row order, so
+    // before this the order was effectively arbitrary-but-stable — which, once the
+    // pass stopped fitting inside its ceiling, meant the *same* two athletes were
+    // truncated on every tick while the other fourteen were re-synced every five
+    // minutes. Ordering by last success makes truncation rotate: whoever a tick
+    // drops is at the front of the next one.
+    const buildAthleteQuery = (cols: string, stalestFirst = true) => {
+      const base = supabase.from('athletes').select(cols);
+      const filtered = athleteId
+        ? base.eq('id', athleteId)
+        : base.eq('coach_id', COACH_ID).not('garmin_auth', 'is', null);
+      const ordered =
+        !athleteId && stalestFirst
+          ? filtered.order('garmin_last_sync_at', { ascending: true, nullsFirst: true })
+          : filtered;
+      return ordered.returns<any[]>();
     };
 
     // gender/birth_date ride along so the profile auto-fill below can tell whether
     // this athlete still needs asking, without a second query per athlete.
     let { data: athletes, error: athError } = await buildAthleteQuery('id, name, garmin_auth, active_shoe_id, gender, birth_date');
     if (athError?.code === '42703') {
-      // active_shoe_id not migrated yet — degrade to the pre-shoes shape
-      // rather than failing sync for every athlete over one missing column.
-      ({ data: athletes, error: athError } = await buildAthleteQuery('id, name, garmin_auth, gender, birth_date'));
+      // active_shoe_id or garmin_last_sync_at not migrated yet — degrade to the
+      // pre-shoes shape, unordered, rather than failing sync for every athlete
+      // over one missing column.
+      ({ data: athletes, error: athError } = await buildAthleteQuery('id, name, garmin_auth, gender, birth_date', false));
     }
     if (athError) throw athError;
     if (!athletes || athletes.length === 0) {
@@ -98,9 +134,19 @@ export async function runSyncRequest(request: Request) {
 
     let totalSynced = 0;
     const results: Array<{ athleteId: string; name: string; synced: number; upgradedFromStrava?: number; sameDeviceDupes?: number; profileFilled?: string[]; error?: string }> = [];
+    const skipped: string[] = [];
+    const startedAt = Date.now();
 
     for (const athlete of athletes) {
       if (!athlete.garmin_auth) continue;
+
+      // Out of budget: bow out instead of being killed mid-athlete. See
+      // BROADCAST_BUDGET_MS — the point is that the caller gets a body saying
+      // who was missed, and the passes queued behind this one still get to run.
+      if (!athleteId && Date.now() - startedAt > BROADCAST_BUDGET_MS) {
+        skipped.push(athlete.name);
+        continue;
+      }
 
       try {
         const client = new GarminClient(athlete.garmin_auth as any);
@@ -534,7 +580,9 @@ export async function runSyncRequest(request: Request) {
       }
     }
 
-    return NextResponse.json({ synced: totalSynced, results });
+    // `skipped` only ever appears when the budget bit, so a non-empty value in the
+    // cron log is the signal that the club has outgrown one tick.
+    return NextResponse.json({ synced: totalSynced, results, ...(skipped.length ? { skipped } : {}) });
   } catch (error: any) {
     console.error('Activity sync error:', error);
     return NextResponse.json({ error: error.message || 'Sync failed' }, { status: 500 });

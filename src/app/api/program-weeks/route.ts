@@ -89,15 +89,30 @@ export async function POST(request: NextRequest) {
     nutritionUrl = urlData.publicUrl;
   }
 
+  // Only the columns this request actually has a value for.
+  //
+  // An upsert's DO UPDATE SET names every key in the payload, so sending
+  // `training_pdf_url: null` on a nutrition-only upload does not mean "leave it
+  // alone" — it means "set it to NULL", and the week's training plan is gone from
+  // the row while the PDF sits untouched in storage. That is not hypothetical: the
+  // 2026-07-05 row has a NULL training_pdf_url and
+  // program-plans/training-program/week-2026-07-05.pdf still exists, uploaded
+  // 5 Jul 13:51 with a nutrition-only upload following on 6 Jul 18:04.
+  //
+  // The two files are uploaded independently by design — the coach gets the
+  // training plan and the nutrition plan on different days — so a partial upload
+  // is the normal case, not the edge one.
+  const row: Record<string, unknown> = {
+    week_number: weekNumber,
+    date_range: dateRange,
+    week_start_date: weekStartDate,
+  };
+  if (trainingUrl) row.training_pdf_url = trainingUrl;
+  if (nutritionUrl) row.nutrition_pdf_url = nutritionUrl;
+
   const { data, error } = await supabase
     .from('program_weeks')
-    .upsert({
-      week_number: weekNumber,
-      date_range: dateRange,
-      week_start_date: weekStartDate,
-      training_pdf_url: trainingUrl,
-      nutrition_pdf_url: nutritionUrl,
-    }, { onConflict: 'week_start_date' })
+    .upsert(row, { onConflict: 'week_start_date' })
     .select()
     .single();
 

@@ -137,23 +137,34 @@ async function runSync(request: Request) {
       body: '{}',
     });
 
-  let garmin: any;
-  try {
-    garmin = await garminSync(emptyBody()).then((r) => r.json());
-  } catch (e: any) {
-    garmin = { error: String(e?.message || e) };
-  }
-
-  // The athletes the Garmin pass above cannot reach: Strava connected, no Garmin
-  // token, so its loop skips them and nothing scheduled ever asks Strava whether
-  // they ran. See lib/strava/poll-rotation for why this is a rationed rotation
-  // and not simply "sync everyone" — and for why the webhook, when healthy, makes
-  // every one of these polls find nothing, which is the outcome we want.
+  // The athletes the Garmin pass cannot reach: Strava connected, no Garmin token,
+  // so its loop skips them and nothing scheduled ever asks Strava whether they
+  // ran. See lib/strava/poll-rotation for why this is a rationed rotation and not
+  // simply "sync everyone" — and for why the webhook, when healthy, makes every
+  // one of these polls find nothing, which is the outcome we want.
+  //
+  // FIRST, and deliberately so. It used to sit after the Garmin pass, where it
+  // never executed even once: the Garmin pass had grown to ~304 s against this
+  // function's 300 s ceiling, so the platform killed the invocation before this
+  // line was reached, on every tick, for as long as the poll had existed. The
+  // symptom was the very report the poll was written to fix (528e04a8) staying
+  // open — measured 2026-09-13, two of the three Strava-only athletes had not been
+  // polled in nineteen hours. The Garmin pass now has its own budget
+  // (BROADCAST_BUDGET_MS) so it cannot exhaust the ceiling again, but ordering
+  // matters independently of that: this poll is two athletes and a few seconds,
+  // and nothing that cheap should be hostage to the longest pass in the tick.
   let stravaPoll: any = null;
   try {
     stravaPoll = await pollStravaOnlyAthletes();
   } catch (e: any) {
     stravaPoll = { error: String(e?.message || e) };
+  }
+
+  let garmin: any;
+  try {
+    garmin = await garminSync(emptyBody()).then((r) => r.json());
+  } catch (e: any) {
+    garmin = { error: String(e?.message || e) };
   }
 
   const totalSynced = (garmin?.synced || 0) + (stravaPoll?.synced || 0);

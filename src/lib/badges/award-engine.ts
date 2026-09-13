@@ -486,7 +486,12 @@ export async function awardBadge(
     // The badge's own name is already bilingual in the DB, so this is the one
     // notification whose nouns don't come from the copy module.
     copy: (locale) => badgeEarnedCopy(locale, { nameHe: badge.name_he, nameEn: badge.name_en }),
-    url: '/dashboard/profile',
+    // ?tab=badges, not the bare profile: the copy says "tap to view your
+    // achievement" and badges render only under that tab, so without it the push
+    // landed on the profile menu and the badge was nowhere on screen. Reported as
+    // "the achievement doesn't pop up" (04e04a73) — every one of the ten badge
+    // rows sent that day carried the shallow URL.
+    url: '/dashboard/profile?tab=badges',
     tag: `badge-${badge.code}-${athleteId}`,
     category: 'achievements',
   });

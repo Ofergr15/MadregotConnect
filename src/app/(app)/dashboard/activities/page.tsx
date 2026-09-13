@@ -8,7 +8,7 @@ import { ActivityFeed } from '@/components/ActivityFeed';
 // One shared row shape (this page had its own near-identical copy) — the feed
 // card and the [activityId] detail page read the same fields off it.
 import type { ActivityEntry } from '@/components/activity/types';
-import { cn, formatWeekRange, getActivityWeekStart, israelDateAnchor, israelToday, shiftWeekStart } from '@/lib/utils';
+import { activityWeekStart, cn, formatWeekRange, getActivityWeekStart, israelDateAnchor, israelToday, shiftWeekStart } from '@/lib/utils';
 import { fetchActivities as fetchActivitiesScoped } from '@/lib/activities-client';
 import { Spinner, BigStat } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -327,14 +327,16 @@ export default function ActivitiesPage() {
 
   const weekData = useMemo(() => {
     const start = new Date(weekStartDate + 'T00:00:00');
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
 
-    const weekActivities = filteredActivities.filter(a => {
-      const d = new Date(a.start_time);
-      return d >= start && d <= end;
-    });
+    // Membership by week key, not by comparing instants. `start_time` holds the
+    // watch's LOCAL wall clock in a timestamptz (Convention A — see lib/utils),
+    // so `new Date(a.start_time)` in an Israel browser reads it three hours later
+    // than it happened: a run starting at 21:30 fell out of the week's last day
+    // and off the header total, while the day strip below — which buckets on the
+    // string, correctly — still drew its bar. Same helper the summary API uses.
+    const weekActivities = filteredActivities.filter(
+      a => activityWeekStart(a.start_time) === weekStartDate,
+    );
 
     const daily = Array.from({ length: 7 }, (_, i) => {
       const date = new Date(start);

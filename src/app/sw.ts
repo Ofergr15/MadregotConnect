@@ -449,8 +449,18 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if ('focus' in client) {
-          (client as WindowClient).navigate(url);
-          return (client as WindowClient).focus();
+          const win = client as WindowClient;
+          // Awaited, with a fallback. The rejection used to be dropped on the
+          // floor: WebKit refuses navigate() for a client it considers out of
+          // scope, and the app then simply came to the foreground on whatever
+          // screen it was already on — which for an installed PWA is the
+          // manifest start_url, i.e. the feed. That reads exactly like "I tapped
+          // the notification and it just opened the feed", with nothing in the
+          // payload to blame. openWindow is the documented way in.
+          return win
+            .navigate(url)
+            .then(() => win.focus())
+            .catch(() => self.clients.openWindow(url));
         }
       }
       return self.clients.openWindow(url);
