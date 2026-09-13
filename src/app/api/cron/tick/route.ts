@@ -1,11 +1,20 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { sendPushLocalized, resolveAudience, subscriptionsForAthletes, allAthleteIds, persistNotifications, localesForAthletes } from '@/lib/push';
+import { sendPushLocalized, resolveAudience, subscriptionsForAthletes, allAthleteIds, persistNotifications, localesForAthletes, notifyAthlete } from '@/lib/push';
 import {
   trainingDayBeforeCopy, trainingEveningBeforeCopy, RSVP_ACTION_LABELS, newWeekProgramCopy,
   eventTomorrowCopy, eventClosingCopy, weeklyRecapCopy, surveyNudgeCopy, syncStalledCopy,
+  setupSnapshotCopy, snapshotRowCopy,
 } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
+import { computeSetupState } from '@/lib/onboarding/setup-tasks';
+import {
+  SNAPSHOT_DELAY_MINUTES, SNAPSHOT_LATEST_MINUTES, snapshotChannel, snapshotDue,
+  snapshotLedgerTag, snapshotRows, snapshotWorthSending, type SnapshotChannel,
+} from '@/lib/onboarding/setup-snapshot';
+import { KIT_SIZE_COLUMNS_100, kitSizeSetupInput } from '@/lib/kit-sizes';
+import { realEmail } from '@/lib/admin/entry-queue';
+import { notifySetupSnapshot } from '@/lib/email';
 import { recipientsForKind } from '@/lib/notifications/routing';
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { createAndSendSurvey, notifySurveyNonResponders, rsvpSettlesPaceGroup } from '@/lib/surveys';
@@ -576,6 +585,12 @@ async function run(request: Request) {
     }
   }
 
+  // ── The 15-minute setup snapshot ─────────────────────────────────────────
+  // Runs on every tick (the window is minutes wide, not hours), and is OFF until
+  // somebody turns it on — see runSetupSnapshots.
+  const setupSnapshot = await runSetupSnapshots(supabase, now);
+  if (setupSnapshot.sent) fired.push(`setupSnapshot → ${setupSnapshot.sent}`);
+
   // precision (delegate to the existing scanner route).
   let scanned: unknown = null;
   try {
@@ -624,7 +639,203 @@ async function run(request: Request) {
     .eq('tick_at', tickAt);
   if (timingError) console.warn('[cron/tick] could not record timing:', timingError.message);
 
-  return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, scanned, durationMs });
+  return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, setupSnapshot, scanned, durationMs });
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE 15-MINUTE SETUP SNAPSHOT
+//
+// A quarter of an hour after the app first opened for somebody, send them one
+// message listing what is set up and what is not, each item marked. It is how the
+// club SAMPLES whether a new member finished the process, without anybody having
+// to sit and watch the entry queue.
+//
+// ⚠️ OFF BY DEFAULT, AND IT HAS TO BE ASKED FOR:
+//   INSERT INTO app_settings (key, value) VALUES ('setup_snapshot', 'on');
+// Until that row says exactly 'on', this runs in DRY mode: it finds the same
+// candidates, computes the same channel and the same numbers, reports all of it
+// in the tick's JSON — and sends nothing, and writes no ledger row. That is
+// deliberate. This is the first thing in the app that messages a brand-new member
+// unprompted, and it should be read in a response body by a person before it is
+// read in an inbox by a runner. Flip the row to anything else to stop it again.
+//
+// Three guarantees, one each from setup-snapshot.ts:
+//   · silence for anybody who finished (snapshotWorthSending)
+//   · one channel, push or mail, never both (snapshotChannel)
+//   · once ever, on a per-athlete ledger row (snapshotLedgerTag)
+// ═════════════════════════════════════════════════════════════════════════════
+
+const SNAPSHOT_SETTING_KEY = 'setup_snapshot';
+
+/** Same list the nudge route reads, and for the same reason — see SETUP_COLUMNS there. */
+const SNAPSHOT_SETUP_COLUMNS =
+  'garmin_auth, strava_auth, data_source, avatar_url, phone, birth_date, gender, shirt_size, shoe_size, group_id, active_shoe_id';
+
+interface SnapshotOutcome {
+  athleteId: string;
+  name: string | null;
+  channel: SnapshotChannel;
+  doneCount: number;
+  total: number;
+  missing: string[];
+  /** What actually happened — 'dry' means it was only computed. */
+  result: 'sent' | 'emailed' | 'unreachable' | 'dry' | 'already' | 'complete' | 'failed';
+}
+
+async function runSetupSnapshots(
+  supabase: ReturnType<typeof createServerClient>,
+  now: Date,
+): Promise<{ mode: 'live' | 'dry' | 'unavailable'; candidates: number; sent: number; outcomes: SnapshotOutcome[] }> {
+  const { data: setting } = await supabase
+    .from('app_settings')
+    .select('value')
+    .eq('key', SNAPSHOT_SETTING_KEY)
+    .maybeSingle();
+  const live = (setting?.value || '').trim().toLowerCase() === 'on';
+  const mode: 'live' | 'dry' = live ? 'live' : 'dry';
+
+  // The window, not an instant: the tick is every 5 minutes, so 15–25 gives each
+  // arrival two chances without ever sending an hour late. See setup-snapshot.ts.
+  const openedAfter = new Date(now.getTime() - SNAPSHOT_LATEST_MINUTES * 60_000).toISOString();
+  const openedBefore = new Date(now.getTime() - SNAPSHOT_DELAY_MINUTES * 60_000).toISOString();
+
+  // Kit sizes asked for separately (migration 100), like the nudge route: a
+  // column that isn't migrated yet must not take the whole stage down with it.
+  const base = `id, name, email, approved, first_seen_at, ${SNAPSHOT_SETUP_COLUMNS}`;
+  const inWindow = (columns: string) =>
+    supabase
+      .from('athletes')
+      .select(columns)
+      .eq('status', 'active')
+      .gte('first_seen_at', openedAfter)
+      .lte('first_seen_at', openedBefore);
+
+  let { data: rows, error } = await inWindow(`${base}, ${KIT_SIZE_COLUMNS_100}`);
+  if (error) ({ data: rows, error } = await inWindow(base));
+  // `first_seen_at` itself may not be migrated yet (102). That is not a failure to
+  // report as empty — it is "we could not look", and it says so.
+  if (error) return { mode: 'unavailable', candidates: 0, sent: 0, outcomes: [] };
+
+  // The select list is built at runtime (the kit-size fallback above), so
+  // supabase-js can't type the rows — named here instead of asserted field by field.
+  type AthleteRow = Record<string, unknown> & {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    approved?: boolean | null;
+    first_seen_at?: string | null;
+  };
+  const candidates = ((rows || []) as unknown as AthleteRow[]).filter((r) => r.approved !== false);
+  const outcomes: SnapshotOutcome[] = [];
+  let sent = 0;
+
+  for (const athlete of candidates) {
+    const athleteId = athlete.id as string;
+    try {
+      if (!snapshotDue({ firstSeenAt: athlete.first_seen_at as string | null }, now.getTime())) continue;
+
+      const { count } = await supabase
+        .from('push_subscriptions')
+        .select('id', { count: 'exact', head: true })
+        .eq('athlete_id', athleteId);
+      const hasPush = (count ?? 0) > 0;
+
+      const setup = computeSetupState({
+        hasGarminAuth: !!athlete.garmin_auth,
+        hasStravaAuth: !!athlete.strava_auth,
+        dataSource: (athlete.data_source as string) || null,
+        avatarUrl: (athlete.avatar_url as string) || null,
+        phone: (athlete.phone as string) || null,
+        birthDate: (athlete.birth_date as string) || null,
+        gender: (athlete.gender as string) || null,
+        shirtSize: (athlete.shirt_size as string) || null,
+        ...kitSizeSetupInput(athlete as unknown as Record<string, unknown>),
+        shoeSize: (athlete.shoe_size as string) || null,
+        pushSubscriptions: hasPush ? 1 : 0,
+        groupName: athlete.group_id ? 'set' : null,
+        hasActiveShoe: !!athlete.active_shoe_id,
+      });
+
+      const rowsForMail = snapshotRows(setup);
+      const missing = setup.tasks.filter((t) => !t.done).map((t) => t.key as string);
+      const address = realEmail(athlete.email as string | null);
+      const channel = snapshotChannel({ hasPush, email: address });
+      const record = (result: SnapshotOutcome['result']) =>
+        outcomes.push({
+          athleteId,
+          name: (athlete.name as string) || null,
+          channel,
+          doneCount: setup.doneCount,
+          total: setup.totalCount,
+          missing,
+          result,
+        });
+
+      // Finished — say nothing. The one case where the right message is no message.
+      if (!snapshotWorthSending(setup)) { record('complete'); continue; }
+      if (channel === 'none') { record('unreachable'); continue; }
+
+      const tag = snapshotLedgerTag(athleteId);
+      const { count: already } = await supabase
+        .from('scheduled_notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('kind', 'setup_snapshot')
+        .eq('url', `#ledger:${tag}`);
+      if ((already || 0) > 0) { record('already'); continue; }
+
+      if (!live) { record('dry'); continue; }
+
+      if (channel === 'push') {
+        await notifyAthlete({
+          athleteId,
+          kind: 'setup_snapshot',
+          copy: (locale) => setupSnapshotCopy(locale, {
+            name: athlete.name as string,
+            doneCount: setup.doneCount,
+            total: setup.totalCount,
+            gaps: missing,
+          }),
+          // Straight to the checklist the message is about.
+          url: '/dashboard/profile',
+          tag: 'setup-snapshot',
+        });
+        record('sent');
+      } else {
+        // Hebrew, like every member-facing mail here: the notification-language
+        // setting is a push setting, not an inbox one.
+        const result = await notifySetupSnapshot({
+          email: address as string,
+          name: athlete.name as string,
+          athleteId,
+          doneCount: setup.doneCount,
+          total: setup.totalCount,
+          rows: rowsForMail.map((r) => ({ ...snapshotRowCopy('he', r), done: r.done })),
+        });
+        record(result.ok ? 'emailed' : 'failed');
+      }
+
+      // The ledger goes in even for a mail Resend refused. This is a "we already
+      // reached out about your first quarter of an hour" record, and retrying it
+      // on the next tick would be the one thing worse than not sending it: the
+      // same stranger's message twice.
+      await supabase.from('scheduled_notifications').insert({
+        kind: 'setup_snapshot',
+        title_he: 'setup snapshot', body_he: tag,
+        audience_type: 'athlete', audience_id: athleteId, schedule_type: 'now',
+        status: 'sent', last_sent_at: new Date().toISOString(), sent_count: 1,
+        url: `#ledger:${tag}`,
+      });
+      sent += 1;
+    } catch (err) {
+      console.error('[cron/tick] setup snapshot failed for', athleteId, err);
+      outcomes.push({
+        athleteId, name: (athlete.name as string) || null, channel: 'none',
+        doneCount: 0, total: 0, missing: [], result: 'failed',
+      });
+    }
+  }
+
+  return { mode, candidates: outcomes.length, sent, outcomes };
 }
 
 export async function GET(request: Request) { return run(request); }

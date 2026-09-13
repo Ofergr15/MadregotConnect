@@ -82,10 +82,38 @@ export async function GET(request: Request) {
 
     const membership = membershipFor({ status: auth.user.athleteStatus, approved: row?.approved });
 
+    const seenAt = new Date().toISOString();
     await supabase
       .from('athletes')
-      .update({ last_seen_at: new Date().toISOString() })
+      .update({ last_seen_at: seenAt })
       .eq('id', auth.user.athleteId);
+
+    // `first_seen_at` — the other end of the same story, and the one signal that
+    // means "the app actually opened for them" (migration 102). An auth account
+    // is minted the moment a Strava callback lands, which on iOS can happen
+    // inside another app's browser sheet while the app itself never opens, so
+    // auth.users.created_at cannot stand in for this.
+    //
+    // Its own read and write, isolated on purpose: this is the request that gates
+    // the whole app, and a column that isn't migrated yet must not be able to
+    // fail it or to take `is_academy`/`approved` down with it. A missing column
+    // here simply means no snapshot, which is the safe direction.
+    try {
+      const { data: seen } = await supabase
+        .from('athletes')
+        .select('first_seen_at')
+        .eq('id', auth.user.athleteId)
+        .maybeSingle();
+      if (seen && !seen.first_seen_at) {
+        // Guarded by `is null` as well as by the read, so two tabs opening at once
+        // can't move the timestamp forward and restart somebody's 15 minutes.
+        await supabase
+          .from('athletes')
+          .update({ first_seen_at: seenAt })
+          .eq('id', auth.user.athleteId)
+          .is('first_seen_at', null);
+      }
+    } catch { /* not migrated yet — the snapshot stage stays a no-op */ }
 
     return NextResponse.json({ role: auth.user.role || 'runner', membership, isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
   } catch (error) {
