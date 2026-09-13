@@ -650,6 +650,82 @@ export function entryGapsCopy(
 }
 
 /**
+ * The 15-minute snapshot, as a push — "you got in, here's where you are".
+ *
+ * Deliberately NOT entryGapsCopy. That one is a reminder sent days later to
+ * somebody who drifted off, and it opens by apologising for interrupting. This
+ * one arrives while they are still holding the phone, so it leads with the score:
+ * "2 of 5" is information, and the count is what makes the remaining three feel
+ * finite. Never sent when all five are done (snapshotWorthSending).
+ */
+export function setupSnapshotCopy(
+  locale: NotificationLocale,
+  p: { name: string | null | undefined; doneCount: number; total: number; gaps: string[] },
+): PushCopy {
+  const who = (p.name || '').trim();
+  const hey = who ? `${who}, ` : '';
+  const names = gapNames(locale, p.gaps);
+  const left = names.length;
+  const list = listWords(locale, names);
+
+  return locale === 'he'
+    ? {
+        title: `${hey}${p.doneCount} מתוך ${p.total} מוגדרים`,
+        body: left
+          ? `נשאר ${list} — דקה בפרופיל וזה נגמר`
+          : 'נשאר להשלים את ההגדרה בפרופיל',
+      }
+    : {
+        title: `${hey}${p.doneCount} of ${p.total} set up`,
+        body: left
+          ? `Still missing: ${list} — a minute in your profile and it's done`
+          : 'Finish setting up in your profile',
+      };
+}
+
+/**
+ * One snapshot row as the reader sees it: the task's name, and WHY it matters.
+ *
+ * The hints are the checklist's own hints (messages/*.json `setup.hint*`), said
+ * once here so the mail, the push and the screen cannot describe the same missing
+ * thing three ways. `source` carries the declared-but-not-connected case, which is
+ * the single most confusing state in the whole checklist: 28 members have a
+ * `data_source` and only 17 have credentials behind it, so "you chose Garmin and
+ * nothing is arriving" is the useful sentence, not "connect a watch".
+ */
+export function snapshotRowCopy(
+  locale: NotificationLocale,
+  row: { key: string; done: boolean; source?: string },
+): { name: string; hint: string } {
+  const he: Record<string, [string, string]> = {
+    watch: ['חיבור שעון', row.done ? 'מחובר — האימונים נכנסים לבד' : 'גרמין או סטראבה, כדי שהאימונים ייכנסו לבד'],
+    photo: ['תמונת פרופיל', row.done ? 'יש' : 'כדי שיזהו אותך בפיד ובטבלאות'],
+    personalInfo: ['פרטים אישיים', row.done ? 'מלאים' : 'טלפון, תאריך לידה ומין'],
+    sizes: ['מידות', row.done ? 'מלאות' : 'חולצה ונעליים, בשביל ערכות הקבוצה'],
+    notifications: ['התראות', row.done ? 'מופעלות' : 'תזכורות לאימון והודעות מהמאמן'],
+  };
+  const en: Record<string, [string, string]> = {
+    watch: ['Watch', row.done ? 'Connected — runs arrive on their own' : 'Garmin or Strava, so runs arrive on their own'],
+    photo: ['Profile photo', row.done ? 'Set' : 'So people recognise you in the feed'],
+    personalInfo: ['Personal details', row.done ? 'Filled in' : 'Phone, date of birth and gender'],
+    sizes: ['Sizes', row.done ? 'Filled in' : 'Shirt and shoes, for the club kit'],
+    notifications: ['Notifications', row.done ? 'On' : 'Workout reminders and messages from the coach'],
+  };
+  const [name, hint] = (locale === 'he' ? he : en)[row.key] || [row.key, ''];
+  // Declared a source, no credentials behind it: say THAT, not "connect a watch".
+  if (row.key === 'watch' && !row.done && row.source) {
+    const src = row.source.charAt(0).toUpperCase() + row.source.slice(1);
+    return {
+      name,
+      hint: locale === 'he'
+        ? `בחרת ${src}, אבל אין חיבור פעיל והאימונים לא נכנסים`
+        : `You chose ${src}, but there is no live connection and runs aren't arriving`,
+    };
+  }
+  return { name, hint };
+}
+
+/**
  * The open setup tasks as reader-facing names.
  *
  * Exported because the entry nudge now goes out on two channels — the push above

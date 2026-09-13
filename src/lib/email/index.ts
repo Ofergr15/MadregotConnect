@@ -286,6 +286,76 @@ export async function notifyEntryNudge(user: {
   });
 }
 
+// ── The 15-minute setup snapshot ─────────────────────────────────────────────────
+
+/**
+ * "A quarter of an hour in — here is what's set and what isn't."
+ *
+ * The same snapshot as the push in lib/notifications/copy.ts, for the members with
+ * no subscription to push to. One channel each, decided by snapshotChannel(), and
+ * neither is sent to somebody who finished.
+ *
+ * Every row is MARKED — a green tick or a red cross — because that is the whole
+ * request this mail answers: not "you have things left" but "these two are done,
+ * these three are not, and here is why each one matters". The marks are text
+ * glyphs on coloured discs rather than images: an inline `<img>` in a mail is a
+ * tracking pixel to most clients and gets stripped, which would leave a checklist
+ * with no checks in it.
+ */
+export async function notifySetupSnapshot(user: {
+  email: string;
+  name?: string | null;
+  athleteId?: string | null;
+  doneCount: number;
+  total: number;
+  /** Already ordered (done first) and already localised — see snapshotRowCopy. */
+  rows: Array<{ name: string; hint: string; done: boolean }>;
+}): Promise<SendResult> {
+  const who = (user.name || '').trim();
+  const hey = who ? `${who}, ` : '';
+  const left = user.total - user.doneCount;
+  const scoreColor = user.doneCount >= user.total - 1 ? '#16a34a' : '#FF5315';
+
+  const rows = user.rows
+    .map((row) => {
+      const mark = row.done
+        ? { bg: '#16a34a', glyph: '&#10003;' }
+        : { bg: '#D74E4E', glyph: '&#10007;' };
+      return `
+        <tr>
+          <td width="30" valign="top" style="padding: 10px 0 0 0;">
+            <span style="display: inline-block; width: 20px; height: 20px; border-radius: 999px; background: ${mark.bg}; color: #ffffff; font-size: 12px; font-weight: 700; text-align: center; line-height: 20px;">${mark.glyph}</span>
+          </td>
+          <td style="padding: 9px 10px 9px 0; border-bottom: 1px solid #DFDFDF;">
+            <div style="font-size: 15px; font-weight: 600; color: #1D1E26;">${esc(row.name)}</div>
+            <div style="font-size: 13px; color: #656565; margin-top: 2px;">${esc(row.hint)}</div>
+          </td>
+        </tr>`;
+    })
+    .join('');
+
+  return sendEmail({
+    template: 'setup_snapshot',
+    to: user.email,
+    athleteId: user.athleteId ?? null,
+    subject: `⏳ ${user.doneCount} מתוך ${user.total} — מה נשאר לך באפליקציה`,
+    html: renderEmail({
+      title: `${hey}ככה זה נראה אצלך עכשיו`,
+      paragraphs: [
+        'נכנסת לאפליקציה לפני רבע שעה — הנה מה שכבר מסודר ומה שלא, כדי שלא תישאר עם חצי אפליקציה.',
+      ],
+      bodyHtml: `
+        <div style="background: #f3f4f8; border-radius: 12px; padding: 12px 14px; margin: 16px 0 4px;">
+          <span style="font-size: 26px; font-weight: 800; color: ${scoreColor};">${user.doneCount}</span>
+          <span style="color: #2D2E38;"> מתוך ${user.total} הושלמו${left ? ` · נשאר ${left}` : ''}</span>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; margin: 8px 0 0;"><tbody>${rows}</tbody></table>`,
+      cta: { label: 'להשלמת מה שנשאר →', href: `${APP_URL}/dashboard/profile` },
+      notes: ['נשלח פעם אחת בלבד, ורק אם משהו חסר. אם כבר סידרתם הכל — לא יישלח כלום.'],
+    }),
+  });
+}
+
 // ── Academy ──────────────────────────────────────────────────────────────────────
 
 export async function notifyAdminNewAcademyRegistration(user: {

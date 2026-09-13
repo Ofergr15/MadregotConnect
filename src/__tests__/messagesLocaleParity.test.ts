@@ -30,10 +30,16 @@ function flatten(tree: Tree, prefix = ''): Record<string, string | string[]> {
 const HE = flatten(he as unknown as Tree);
 const EN = flatten(en as unknown as Tree);
 
-/** The ICU argument names in a message, e.g. 'Sent to {sent} of {total}' → sent, total. */
+/** The ICU argument names in a message, e.g. 'Sent to {sent} of {total}' → sent, total.
+ *
+ * An argument name is followed by `}` or by `,` (the start of a format), which is
+ * what keeps the *words inside* a plural branch out: `{runs, plural, =1 {one run}
+ * other {# runs}}` has one argument, `runs`. Matching a bare `\{(\w+)` also read
+ * 'one' as an argument, so an English plural whose Hebrew twin happens to use a
+ * non-ASCII word ('ריצה אחת') failed parity for no reason. */
 function placeholders(message: string | string[]): string[] {
   const text = Array.isArray(message) ? message.join(' ') : message;
-  return [...text.matchAll(/\{(\w+)/g)].map((m) => m[1]).sort();
+  return [...text.matchAll(/\{(\w+)\s*[,}]/g)].map((m) => m[1]).sort();
 }
 
 describe('messages/he.json ↔ messages/en.json', () => {
