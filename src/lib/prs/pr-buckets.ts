@@ -49,7 +49,24 @@ export const PR_BUCKETS: PrBucket[] = [
 ];
 
 // Runs only — exclude walks/other; matches the sync-time run-type filter.
-export const PR_RUN_TYPES = ['running', 'trail_running', 'treadmill_running', 'track_running', 'virtual_run'];
+//
+// `street_running` and `indoor_running` are here because the ingest side accepts
+// them (garmin/sync-activities and garmin/history-backfill both list them) and this
+// list did not. A run of either type was therefore stored, shown on the activities
+// screen and posted to the club feed, and then silently excluded from weekly km,
+// PRs, the leaderboards, the standings, coach pulse and challenges — the exact
+// "the number on the app doesn't match my watch" report that keeps coming in. Only
+// 18 rows in prod carry these types today, but the divergence would recur forever.
+// This list and the two ingest lists have to be read as one thing.
+export const PR_RUN_TYPES = [
+  'running',
+  'trail_running',
+  'treadmill_running',
+  'track_running',
+  'virtual_run',
+  'street_running',
+  'indoor_running',
+];
 
 export interface RunActivityRow {
   id?: string;

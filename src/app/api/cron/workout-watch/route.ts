@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { subscriptionsForAthletes, sendPushLocalized } from '@/lib/push';
 import { workoutDetectedCopy } from '@/lib/notifications/copy';
-import { israelNow, getPlanWeekStart } from '@/lib/utils';
+import { israelNow, israelToday, getPlanWeekStart } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -96,7 +96,13 @@ async function run(request: Request) {
   //    start_time is a TIMESTAMPTZ storing Garmin's local wall-clock; scope to a
   //    generous UTC window around today, then confirm the local date.
   const weekStart = getPlanWeekStart(now); // for context only
-  const todayStr = new Date(now.getTime()).toISOString().split('T')[0];
+  // `israelToday`, not `toISOString()`: the comment above promises the Israel local
+  // date and the filter below compares against `start_time`, which holds the watch's
+  // local wall clock. A UTC date is the same thing only between 00:00 UTC and
+  // midnight local — so any run in the first two or three hours of an Israeli day
+  // was tested against YESTERDAY's date, matched nothing, and never got its teaser,
+  // while the previous local day's runs were re-teased.
+  const todayStr = israelToday(now);
   const lowerUTC = new Date(now.getTime() - 18 * 3600_000).toISOString(); // ~today morning back-margin
   const { data: acts } = await supabase
     .from('athlete_activities')
