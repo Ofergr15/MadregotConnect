@@ -162,3 +162,49 @@ describe('GET /api/strava — login branch stays open', () => {
     expect(state).not.toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
   });
 });
+
+describe('GET /api/strava — approval_prompt', () => {
+  /**
+   * `approval_prompt=auto` lets Strava skip its own screen for an app it has
+   * already authorised. Which account that is belongs to the browser, not to us.
+   *
+   * In every mode but login that is harmless, because `state` already names the
+   * athlete the tokens will land on. Login mode is the opposite: it *derives* who
+   * you are from whichever account comes back. On 2026-09-13 a member reconnecting
+   * from a signed-out landing page was sent silently into an empty Strava account
+   * he had just created on Strava's own authorize page (which offers signup to
+   * anyone not signed in). None of the callback's three recognition paths matched
+   * it, so it took the stranger-insert branch and his app greeted him as a new
+   * pending member asking for his measurements.
+   *
+   * `force` is what makes Strava draw the page naming the athlete it is about to
+   * connect, and offering to sign in as somebody else — the only moment in the
+   * whole flow where a human can see this going wrong.
+   */
+  const promptOf = async (res: Response) => {
+    const { authUrl } = await res.json();
+    return new URL(authUrl).searchParams.get('approval_prompt');
+  };
+
+  it('forces the account screen on login, where identity is derived not given', async () => {
+    requireSession.mockResolvedValue({ ok: false, status: 401, error: 'Missing bearer token' });
+    expect(await promptOf(await get('?mode=login'))).toBe('force');
+  });
+
+  it('forces it on the implicit login door too, not just the named one', async () => {
+    requireSession.mockResolvedValue({ ok: false, status: 401, error: 'Missing bearer token' });
+    expect(await promptOf(await get(''))).toBe('force');
+  });
+
+  it('still forces it for an explicit account switch', async () => {
+    requireSession.mockResolvedValue(session());
+    expect(await promptOf(await get(`?athleteId=${ME}&switch=1`))).toBe('force');
+  });
+
+  // A first connect from inside the app already knows whose row it is writing, so
+  // the extra screen would be friction buying nothing.
+  it('leaves a plain link on auto', async () => {
+    requireSession.mockResolvedValue(session());
+    expect(await promptOf(await get(`?athleteId=${ME}`))).toBe('auto');
+  });
+});
