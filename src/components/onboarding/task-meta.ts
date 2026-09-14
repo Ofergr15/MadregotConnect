@@ -76,6 +76,43 @@ export const TASK_DESTINATION: Record<SetupTaskKey, SetupDestination> = {
   notifications: { kind: 'tab', tab: 'notifications' },
 };
 
+/**
+ * The same destinations as a URL, for the surfaces that are NOT on the profile
+ * screen — the in-feed nudge card and the header pill.
+ *
+ * SetupChecklist can hand a destination to a callback because it is rendered
+ * *inside* the profile page and that page owns the tab state. From the feed
+ * there is no callback to hand it to, so the tap has to be a real navigation.
+ * `?tab=` is already a supported deep link there (the first-run tour ends by
+ * pushing `?tab=setup`), which is why this adds no routes.
+ */
+export const SETUP_CHECKLIST_HREF = '/dashboard/profile?tab=setup';
+
+export function taskHref(key: SetupTaskKey): string {
+  const dest = TASK_DESTINATION[key];
+  if (dest.kind === 'tab') return `/dashboard/profile?tab=${dest.tab}`;
+  // The photo picker is a hidden file input on the profile LANDING, and a file
+  // dialog cannot be opened programmatically after a navigation — browsers only
+  // allow it from a user gesture. So the photo row lands on the landing screen,
+  // where the avatar with its camera badge is the first thing on it and one more
+  // tap opens the picker. Promising the dialog itself and delivering nothing
+  // would be worse than one extra tap.
+  return '/dashboard/profile';
+}
+
+/**
+ * What the row says about where it goes — drawn on the nudge card, because that
+ * card is somebody's first sight of these tasks and "חיבור שעון" alone doesn't
+ * say that tapping it leaves the feed.
+ */
+export const TASK_DEST_LABEL_KEY: Record<SetupTaskKey, string> = {
+  watch: 'destDatasource',
+  photo: 'destPhoto',
+  personalInfo: 'destPersonalInfo',
+  sizes: 'destPersonalInfo',
+  notifications: 'destNotifications',
+};
+
 export const INFO_LABEL_KEY: Record<SetupInfoKey, string> = {
   paceGroup: 'infoPaceGroup',
   activeShoe: 'infoActiveShoe',

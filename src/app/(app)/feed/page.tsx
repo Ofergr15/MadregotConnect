@@ -17,6 +17,7 @@ import { FeedHighlightCard } from '@/components/FeedHighlightCard';
 import { GroupRunCard } from '@/components/GroupRunCard';
 import { groupFeedItems } from '@/lib/feed/group-runs';
 import { SquadStandings } from '@/components/SquadStandings';
+import { SetupNudgeCard } from '@/components/onboarding/SetupNudgeCard';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
@@ -369,6 +370,17 @@ export default function FeedPage() {
           )}
         </div>
       )}
+
+      {/* ═══ FINISH SETTING UP ═══
+          Above everything about everyone else, and below the focused item only
+          (a push promised that one specifically). The score and the checklist
+          have existed for a while on /dashboard/profile — the one screen a member
+          who hasn't finished setting up never opens — so this is the same rows in
+          the place they will actually be seen. Self-hiding, skippable, and capped
+          at three appearances: see SetupNudgeCard and nudge-ledger.ts. */}
+      <div className="mb-4 empty:mb-0">
+        <SetupNudgeCard />
+      </div>
 
       {/* ═══ THE HIGHLIGHT CARD ═══
           One number about the reader, above everything about everyone else: the

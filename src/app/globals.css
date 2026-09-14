@@ -152,6 +152,31 @@
   }
 }
 
+/* The setup score in the header (SetupPill). A slow breathing halo rather than a
+   blink or a bounce: it has to be noticeable in peripheral vision from across a
+   screen the member is reading for something else, and it may sit there for
+   days — anything faster becomes something you cover with your thumb.
+
+   A box-shadow spread, not a transform: the pill is a flex item between the
+   bell and the avatar, and scaling it would nudge both of them every 1.8s.
+   Reduced motion keeps the halo at its resting size, so the emphasis survives
+   without the movement. */
+@keyframes setupPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(173, 56, 56, .22); }
+  50% { box-shadow: 0 0 0 6px rgba(173, 56, 56, .10); }
+}
+
+.animate-setup-pulse {
+  animation: setupPulse 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-setup-pulse {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(173, 56, 56, .22);
+  }
+}
+
 /* Maintenance screen — "rebuilding the Madregot stairs" (Madregot = stairs).
    Real logo hero with a breathing glow, a light-sweep polishing the stairs,
    drifting dust, an ascending step-loader, and a bobbing hard-hat.

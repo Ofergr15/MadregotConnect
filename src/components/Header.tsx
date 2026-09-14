@@ -14,6 +14,7 @@ import { getViewMode, stopViewAs, useIsSuperUser, MAINTENANCE_MODE, STAFF_ROLES 
 import { InsetSection, InsetRow, Sheet, Spinner } from '@/components/ui';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { AthleteLink } from '@/components/AthleteLink';
+import { SetupPill } from '@/components/onboarding/SetupPill';
 
 // The nav list, the role rules and the force-adds live in @/lib/nav-items — this
 // file kept its own copy of all three, and the copy was missing the academy
@@ -385,6 +386,11 @@ export function Header() {
               </button>
             )}
 
+            {/* The same pill on a laptop. The club lives on phones, but a member
+                who only ever opens the app on a desktop would otherwise be the
+                one person the reminder never reaches. */}
+            {isAthlete && <SetupPill />}
+
             {(() => {
               const badge = pendingResults.length + unreadInbox;
               // The history is fetched when the sheet opens, so distinguish
@@ -510,6 +516,10 @@ export function Header() {
               Navigation lives in the bottom tab bar; these are the only header
               actions on the phone. */}
           <div className="md:hidden flex items-center gap-2">
+            {/* Before the bell, not after: this is the loudest thing in the
+                header on purpose, and the eye lands on the start of the row.
+                Self-hiding — see SetupPill. */}
+            {isAthlete && <SetupPill />}
             {isAthlete && (
               <Link
                 href="/dashboard/notifications"
