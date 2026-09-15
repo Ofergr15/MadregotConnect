@@ -4,6 +4,7 @@ import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { filterQualifyingRuns, computeDistanceBests, type RunActivityRow } from '@/lib/prs/pr-buckets';
 import { attachLapsForPrs } from '@/lib/prs/attach-laps';
 import { fetchAllRows } from '@/lib/supabase/paginate';
+import { activityLocalDateStr } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,9 +81,15 @@ export async function GET(request: Request) {
     // per-run bests above. Calendar months (not rolling 30-day windows) since
     // that's how a runner naturally thinks of "my biggest month ever".
     const kmByMonth = new Map<string, number>(); // "YYYY-M" -> total meters
+    // Read the month off the stored string, not off local `Date` getters.
+    // `start_time` holds the watch's local wall clock as a timestamptz, so
+    // `new Date(...).getMonth()` shifts it a second time by the runtime's offset.
+    // Correct today only because Vercel runs at TZ=UTC — in an Israel-timezone
+    // runtime a run at 2026-07-31T23:30 would be credited to August, and if July
+    // was the record month the athlete's biggest-month PR would silently change.
     for (const r of runs) {
-      const d = new Date(r.start_time);
-      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      const [year, month] = activityLocalDateStr(r.start_time).split('-');
+      const key = `${Number(year)}-${Number(month) - 1}`;
       kmByMonth.set(key, (kmByMonth.get(key) || 0) + r.distance);
     }
     let bestMonth: { year: number; month: number; km: number } | null = null;

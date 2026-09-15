@@ -4,6 +4,15 @@ import { COACH_ID } from '@/lib/constants';
 import { requireMember } from '@/lib/auth/self-or-staff';
 import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
 import { getActivityWeekStart, activityWeekStart, computeWeekStreak, israelDateAnchor } from '@/lib/utils';
+import { fetchAllRows } from '@/lib/supabase/paginate';
+
+/** The columns the streak and monthly boards derive from. */
+interface HistoryRow {
+  athlete_id: string;
+  activity_type: string | null;
+  distance: number | null;
+  start_time: string;
+}
 
 // Weekly totals — a short staleness window is invisible to users, so this
 // route participates in Next's Data Cache instead of forcing dynamic
@@ -82,16 +91,34 @@ export async function GET(request: Request) {
     // Three independent queries: this week's totals (distance/runs/duration),
     // each athlete's full run history (streak + monthly totals both derive
     // from this one fetch), and all-time event registrations.
-    const [weeklyRes, historyRes, eventRegRes] = await Promise.all([
+    const [weeklyRes, history, eventRegRes] = await Promise.all([
       supabase
         .from('athlete_activities')
         .select('athlete_id, distance, duration, start_time')
         .in('athlete_id', athleteIds)
         .gte('start_time', weekStart),
-      supabase
-        .from('athlete_activities')
-        .select('athlete_id, activity_type, distance, start_time')
-        .in('athlete_id', athleteIds),
+      // Paged, and this one was doing real damage unpaged. PostgREST caps a
+      // response at 1000 rows and says nothing about it; `athlete_activities`
+      // holds 30,278 rows across the club, so this read was returning 3% of the
+      // history that both the streak board and the monthly board are computed
+      // from. With no `.order()` the thousand rows it kept were arbitrary and not
+      // even stable between two calls.
+      //
+      // Measured on prod 2026-09-13: the monthly board totalled 29.6 km for
+      // September against a real 3,733.0 km — every athlete reading ~0 for the
+      // month — and 4 of 19 athletes were missing from the slice entirely, so
+      // they ranked with streak 0 and 0 km no matter what they ran. Streaks for
+      // the rest broke wherever the arbitrary slice happened to leave a gap.
+      fetchAllRows<HistoryRow>((from, to) =>
+        supabase
+          .from('athlete_activities')
+          .select('athlete_id, activity_type, distance, start_time')
+          .in('athlete_id', athleteIds)
+          .order('start_time', { ascending: true })
+          .order('id')
+          .range(from, to)
+          .returns<HistoryRow[]>(),
+      ),
       supabase
         .from('event_registrations')
         .select('athlete_id')
@@ -100,7 +127,6 @@ export async function GET(request: Request) {
     ]);
 
     if (weeklyRes.error) throw weeklyRes.error;
-    if (historyRes.error) throw historyRes.error;
     // event_registrations (migration 055) may not be applied yet — event
     // participation just degrades to 0 for everyone rather than failing the
     // whole leaderboard.
@@ -128,8 +154,8 @@ export async function GET(request: Request) {
     // week bucketing already uses — not timezone-precise).
     const weeksByAthlete = new Map<string, Set<string>>();
     const monthlyByAthlete = new Map<string, { distance: number; runs: number }>();
-    for (const act of (historyRes.data || []) as any[]) {
-      if (!(act.distance > 0) || (act.activity_type && !RUN_TYPES.includes(act.activity_type))) continue;
+    for (const act of history) {
+      if (!((act.distance ?? 0) > 0) || (act.activity_type && !RUN_TYPES.includes(act.activity_type))) continue;
       const weeks = weeksByAthlete.get(act.athlete_id) || new Set<string>();
       weeks.add(activityWeekStart(act.start_time));
       weeksByAthlete.set(act.athlete_id, weeks);

@@ -50,8 +50,20 @@ export function PersonalRecords({ athleteId }: { athleteId: string }) {
   const achieved = bests.filter((b) => b.seconds != null);
   if (achieved.length === 0 && !longest && !bestMonth) return null;
 
+  // `timeZone: 'UTC'` because these are activity timestamps, which hold the watch's
+  // LOCAL wall clock stored as a timestamptz (Convention A, see lib/utils.ts).
+  // Formatting without it adds the browser's offset to a value that is already
+  // local, so a PR set on a 22:30 run displayed as the following day. The feed
+  // already passes it; this card and the profile did not.
   const fmtDate = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: '2-digit' }) : '';
+    iso
+      ? new Date(iso).toLocaleDateString('he-IL', {
+          day: 'numeric',
+          month: 'short',
+          year: '2-digit',
+          timeZone: 'UTC',
+        })
+      : '';
 
   /**
    * Where a bucket time actually came from, in the athlete's own numbers.

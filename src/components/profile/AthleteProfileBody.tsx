@@ -304,7 +304,12 @@ export function AthleteProfileBody({
                         "when, and out of what?". */}
                     {p.date && (
                       <p className="mt-0.5 text-3xs font-light text-ink-400">
-                        <bdi dir="ltr">{new Date(p.date).toLocaleDateString('he-IL')}</bdi>
+                        {/* UTC on purpose: an activity timestamp is local wall clock
+                            already (Convention A), so the browser's offset would push
+                            an evening PR onto the next day. */}
+                        <bdi dir="ltr">
+                          {new Date(p.date).toLocaleDateString('he-IL', { timeZone: 'UTC' })}
+                        </bdi>
                         {p.fromSegment && p.sourceMeters ? (
                           <>
                             {' · '}
