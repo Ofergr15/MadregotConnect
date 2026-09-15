@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
+import { askBuildId, isNewerBuild } from '@/lib/sw-build-id';
 
 // "New version available — tap to refresh" banner.
 //
@@ -25,8 +26,21 @@ import { RefreshCw } from 'lucide-react';
 // fires when an update is accepted, here or in another tab. In another tab's case
 // this page is suddenly being served by a worker whose build it is not running, so
 // offering the reload is exactly right.
+//
+// All three of those signals also fire for a RE-INSTALL of the build this page is
+// already running, which iOS does on its own schedule — that is the "the banner
+// doesn't go away after the version updates, it's back on every launch" report,
+// filed from a phone whose reported app version was the newest one. So no signal
+// is trusted on its own any more: each one only names a CANDIDATE worker, and the
+// banner appears once that candidate says it belongs to a different deploy than
+// the worker that served this page (askBuildId above, MC_BUILD_ID in sw.ts).
 export function UpdatePrompt() {
   const [ready, setReady] = useState(false);
+  // The build that was serving this page when it loaded — i.e. the version the
+  // JS currently executing came from. Every candidate is compared against it.
+  // null = it wouldn't say (a worker older than sw.ts's handler), which makes
+  // every comparison inconclusive and so falls through to showing the banner.
+  const loadedBuild = useRef<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
@@ -39,13 +53,29 @@ export function UpdatePrompt() {
     // Only a worker that installs LATER, while we already had a controller,
     // is a genuine new version.
     const hadControllerAtLoad = !!navigator.serviceWorker.controller;
+    // Asked once, immediately, and remembered: by the time a candidate appears
+    // the controller may already have been replaced by it.
+    const loadedBuildReady = hadControllerAtLoad
+      ? askBuildId(navigator.serviceWorker.controller).then((id) => { loadedBuild.current = id; })
+      : Promise.resolve();
 
-    const markReady = () => { if (!disposed && hadControllerAtLoad) setReady(true); };
+    // `candidate` is the worker claiming to be the new version. Everything below
+    // routes through here, because the signals it routes (a waiting worker, an
+    // install completing, a controller swap) all fire for a re-install of the
+    // build we are already running — see the note in sw.ts. Only a candidate
+    // from a DIFFERENT deploy is an update.
+    const markReady = async (candidate: ServiceWorker | null | undefined) => {
+      if (disposed || !hadControllerAtLoad) return;
+      await loadedBuildReady;
+      const theirs = await askBuildId(candidate);
+      if (disposed || !isNewerBuild(loadedBuild.current, theirs)) return;
+      setReady(true);
+    };
 
     const watchWorker = (w: ServiceWorker | null) => {
       if (!w) return;
       w.addEventListener('statechange', () => {
-        if (w.state === 'installed' && navigator.serviceWorker.controller) markReady();
+        if (w.state === 'installed' && navigator.serviceWorker.controller) markReady(w);
       });
     };
 
@@ -53,14 +83,17 @@ export function UpdatePrompt() {
       if (!r || disposed) return;
       reg = r;
       // A worker already waiting means a new version is ready right now.
-      if (r.waiting) markReady();
+      if (r.waiting) markReady(r.waiting);
       watchWorker(r.installing);
       r.addEventListener('updatefound', () => watchWorker(r!.installing));
       r.update().catch(() => {}); // check for a fresh build now
     });
 
-    // The most reliable "new version is now controlling" signal.
-    navigator.serviceWorker.addEventListener('controllerchange', markReady);
+    // The most reliable "new version is now controlling" signal — and the
+    // candidate to ask is the new controller itself, since by now it has taken
+    // the page over from whatever was serving it at load.
+    const onControllerChange = () => markReady(navigator.serviceWorker.controller);
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 
     // Re-check when the tab regains focus (cheap; catches deploys since last view).
     const onVisible = () => {
@@ -71,7 +104,7 @@ export function UpdatePrompt() {
     return () => {
       disposed = true;
       document.removeEventListener('visibilitychange', onVisible);
-      navigator.serviceWorker.removeEventListener('controllerchange', markReady);
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
     };
   }, []);
 

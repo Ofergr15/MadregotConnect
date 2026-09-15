@@ -3,6 +3,7 @@ import { defaultCache, PAGES_CACHE_NAME } from '@serwist/turbopack/worker';
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist';
 import { ExpirationPlugin, NetworkFirst, NetworkOnly, Serwist } from 'serwist';
 import { BASEMAP_HOSTNAME } from '@/lib/basemap';
+import { BUILD_ID_MESSAGE } from '@/lib/sw-build-id';
 import { PAGE_CACHE_MAX_AGE_S, pageCacheName, staleCacheKeys } from '@/lib/sw-caches';
 import { withNetworkRetry } from '@/lib/sw-page-retry';
 import { hasStoredPage, preferStored } from '@/lib/sw-page-strategy';
@@ -261,6 +262,32 @@ self.addEventListener('activate', (event) => {
       }
     })(),
   );
+});
+
+// Answer "which build are you?" for UpdatePrompt.
+//
+// Reported from a 2.40.54 phone that was already ON 2.40.54: the update banner
+// came back on every launch. iOS re-installs the SAME worker script on some
+// relaunches (storage eviction, or a cold start of an installed PWA), and a
+// re-install reaches `installed` with a controller present — which is exactly the
+// signal the banner uses for "a new version is ready". Nothing about the app was
+// new; only the registration was.
+//
+// So the page no longer trusts that signal on its own: it asks the worker that was
+// controlling it at load AND the newly pending one for this id, and shows the
+// banner only when they differ. A worker too old to answer leaves the id unknown,
+// and unknown means show — a missed update is worse than one extra banner.
+//
+// Its own listener rather than a branch inside Serwist's: `addEventListener`
+// stacks, and Serwist's message handler (SKIP_WAITING, plus its cache handlers)
+// must keep working untouched.
+self.addEventListener('message', (event: ExtendableMessageEvent) => {
+  const data = event.data as { type?: string } | null;
+  if (!data || data.type !== BUILD_ID_MESSAGE) return;
+  // Answered down the port the page opened, so the reply reaches the one asker
+  // rather than every client. No port = a page older than this handler, and
+  // nothing we can usefully say to it.
+  event.ports?.[0]?.postMessage({ type: BUILD_ID_MESSAGE, buildId: BUILD_ID });
 });
 
 // --- Web Push (Notification Center) ---
