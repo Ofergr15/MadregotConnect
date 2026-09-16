@@ -52,8 +52,10 @@ CREATE TABLE IF NOT EXISTS academy_workout_feedback (
   -- whatever the coach wrote the plan in. Stored because the same trainee's history
   -- mixes both, and a deviation in sec/km cannot be compared to one in bpm.
   metric TEXT,
-  -- NULL until the mentor sends it, so a half-written review is a draft rather than a
-  -- message the trainee already got.
+  -- When the trainee got it. Nullable because the column has to allow a draft, but the
+  -- form has no separate publish step: a mentor who filled it has finished the review,
+  -- and a draft the trainee never receives is the WhatsApp silence this replaces. So
+  -- today every row is written with sent_at set.
   sent_at TIMESTAMPTZ,
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
