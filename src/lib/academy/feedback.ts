@@ -248,6 +248,23 @@ export function renderFeedbackHebrew(fb: WorkoutFeedback, ctx: FeedbackContext):
 }
 
 /**
+ * Is this Postgres error "the feedback table isn't there yet"?
+ *
+ * Migration 103 is applied by hand, so every route that touches
+ * `academy_workout_feedback` has to tell a missing table apart from a real
+ * failure: the first means "nobody has written feedback yet", which every screen
+ * can render, and the second is a 500. Lives here rather than in one route
+ * because the queue needs the same distinction and a second copy of these three
+ * error codes would drift from this one.
+ */
+export function isMissingFeedbackTable(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === '42P01'
+    || error.code === 'PGRST205'
+    || /does not exist|could not find the table/i.test(error.message || '');
+}
+
+/**
  * How a lap is named in the feedback text.
  *
  * By the planned step it was, not by the watch's lap number: "חזרה 4" is what the

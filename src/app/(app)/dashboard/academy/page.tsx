@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { cn, getGroupChip } from '@/lib/utils';
 import { Sheet, Spinner, SkeletonList } from '@/components/ui';
-import { AcademyCompliance } from '@/components/AcademyCompliance';
+import { WeeklyReview } from '@/components/academy/WeeklyReview';
 import { AcademyPlanComposer } from '@/components/AcademyPlanComposer';
 import { AcademyStats } from '@/components/AcademyStats';
 import { AcademyResults } from '@/components/AcademyResults';
@@ -345,7 +345,7 @@ export default function AcademyPage() {
       ) : view === 'settings' ? (
         <AcademySettingsPanel />
       ) : view === 'compliance' ? (
-        <AcademyCompliance />
+        <WeeklyReview />
       ) : (
         <AcademyPlanComposer athletes={planComposerAthletes} />
       )}

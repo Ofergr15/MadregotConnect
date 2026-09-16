@@ -5,6 +5,7 @@ import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import {
   NOTE_MAX,
   LAP_COMMENT_MAX,
+  isMissingFeedbackTable,
   renderFeedbackHebrew,
   validateFeedback,
   type ActionTag,
@@ -59,7 +60,7 @@ export async function GET(request: Request) {
       // The table is a hand-applied migration (103). Until it is pasted, the screen
       // should render the workout with an empty form rather than an error banner —
       // reviewing is still possible, saving is what isn't.
-      if (isMissingTable(error)) return NextResponse.json({ feedback: date ? null : [], unmigrated: true });
+      if (isMissingFeedbackTable(error)) return NextResponse.json({ feedback: date ? null : [], unmigrated: true });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -138,7 +139,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (error) {
-      if (isMissingTable(error)) {
+      if (isMissingFeedbackTable(error)) {
         return NextResponse.json(
           { error: 'טבלת הפידבק עוד לא הוקמה במסד — הרץ את מיגרציה 103.', code: 'unmigrated' },
           { status: 503 }
@@ -155,12 +156,6 @@ export async function POST(request: Request) {
 }
 
 /** Postgres 42P01 = undefined_table; PostgREST also reports it in the message. */
-function isMissingTable(error: { code?: string; message?: string }): boolean {
-  return error.code === '42P01'
-    || error.code === 'PGRST205'
-    || /does not exist|could not find the table/i.test(error.message || '');
-}
-
 /** Only values the closed vocabulary defines — an unknown tag would render blank. */
 function sanitizeTags(raw: unknown, labels: Record<string, string>): string[] {
   if (!Array.isArray(raw)) return [];
