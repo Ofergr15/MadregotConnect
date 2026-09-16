@@ -263,6 +263,84 @@ interface LayoutCtx {
 }
 
 /**
+ * The hero distance: a big number with its unit beside it.
+ *
+ * The unit goes to the LEFT of the number and the number sits flush right, which
+ * is the opposite of what an LTR eye expects and the whole point of this helper.
+ * Reported on the story sticker: "יחידות הק״מ נמצאות בצד ימין כמו באנגלית וזה
+ * כתוב בעברית". Canvas doesn't reorder anything for us — `direction = 'rtl'` only
+ * shapes a single fillText — so drawing the unit first at `right` (as this used to)
+ * physically places it where the reader's eye lands first, and "15.05 ק״מ" is read
+ * as "ק״מ 15.05". Two fillTexts rather than one string because a number spliced
+ * into Hebrew text is a bidi coin flip (see the note on canvas units in the share
+ * card work); measuring the number and stepping left of it is deterministic.
+ *
+ * Caller must have set `textAlign = 'right'`; both draws use it.
+ */
+function drawHeroDistance(
+  ctx: CanvasRenderingContext2D,
+  act: FeedActivity,
+  i18n: ShareI18n,
+  opts: { font: string; right: number; baseline: number; numberPx: number; unitPx: number; gap?: number },
+) {
+  const { font, right, baseline, numberPx, unitPx, gap = 24 } = opts;
+
+  ctx.font = `800 ${numberPx}px ${font}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(distanceKm(act), right, baseline);
+  const numberW = ctx.measureText(distanceKm(act)).width;
+
+  ctx.font = `500 ${unitPx}px ${font}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.fillText(i18n.km, right - numberW - gap, baseline);
+}
+
+/**
+ * The row of secondary stats (pace / time / HR), spread across the full width.
+ *
+ * Each stat is CENTRED in its own column. It used to be right-aligned AT the
+ * column boundary, which pinned all three hard against the right of the frame and
+ * left a dead gutter on the left — reported as "הלוגו של המדרגות לא ממורכז
+ * בתמונה", though measuring the reporter's own screenshot showed the logo dead
+ * centre (360.0 of 720) and this row at 426.0: the logo was fine, the content
+ * above it was the thing off-centre.
+ *
+ * Columns are still allocated right-to-left so the reading order is unchanged.
+ * `textAlign` is set here and left as the caller had it.
+ */
+function drawSecondaryRow(
+  ctx: CanvasRenderingContext2D,
+  stats: Stat[],
+  opts: {
+    font: string;
+    left: number;
+    right: number;
+    baseline: number;
+    valuePx: number;
+    labelPx: number;
+    labelGap: number;
+    labelColor?: string;
+  },
+) {
+  const { font, left, right, baseline, valuePx, labelPx, labelGap } = opts;
+  const labelColor = opts.labelColor ?? 'rgba(255,255,255,0.65)';
+  const previousAlign = ctx.textAlign;
+  const colW = (right - left) / stats.length;
+
+  ctx.textAlign = 'center';
+  stats.forEach((s, i) => {
+    const cx = right - i * colW - colW / 2;
+    ctx.font = `700 ${valuePx}px ${font}`;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(s.value, cx, baseline);
+    ctx.font = `500 ${labelPx}px ${font}`;
+    ctx.fillStyle = labelColor;
+    ctx.fillText(s.label, cx, baseline + labelGap);
+  });
+  ctx.textAlign = previousAlign;
+}
+
+/**
  * Bottom-anchored stats with the logo centred beneath, over the full frame.
  * The stack builds upward from the bottom margin so a run with no GPS simply
  * omits the route rather than leaving a hole.
@@ -301,27 +379,18 @@ function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTit
   ctx.shadowColor = shadow;
   ctx.shadowBlur = shadowBlur;
   const secondary = secondaryStats(act, i18n);
-  const colW = (STORY_W - MARGIN * 2) / secondary.length;
-  secondary.forEach((s, i) => {
-    // Columns run right-to-left to match the Hebrew reading order.
-    const cx = right - i * colW;
-    ctx.font = `700 64px ${font}`;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(s.value, cx, y);
-    ctx.font = `500 32px ${font}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
-    ctx.fillText(s.label, cx, y + 44);
+  drawSecondaryRow(ctx, secondary, {
+    font,
+    left: MARGIN,
+    right,
+    baseline: y,
+    valuePx: 64,
+    labelPx: 32,
+    labelGap: 44,
   });
   y -= 96;
 
-  ctx.font = `500 48px ${font}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.fillText(i18n.km, right, y);
-  const unitW = ctx.measureText(i18n.km).width;
-
-  ctx.font = `800 180px ${font}`;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(distanceKm(act), right - unitW - 24, y);
+  drawHeroDistance(ctx, act, i18n, { font, right, baseline: y, numberPx: 180, unitPx: 48 });
   y -= 200;
 
   if (act.activityName && showTitle) {
@@ -429,13 +498,14 @@ function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle 
 
   // Hero distance
   const heroBaseline = y + 130;
-  ctx.font = `500 44px ${font}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.fillText(i18n.km, right, heroBaseline);
-  const unitW = ctx.measureText(i18n.km).width;
-  ctx.font = `800 150px ${font}`;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(distanceKm(act), right - unitW - 20, heroBaseline);
+  drawHeroDistance(ctx, act, i18n, {
+    font,
+    right,
+    baseline: heroBaseline,
+    numberPx: 150,
+    unitPx: 44,
+    gap: 20,
+  });
   y += 150 + 28;
 
   // Divider
@@ -451,15 +521,15 @@ function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle 
   ctx.shadowColor = shadow;
   ctx.shadowBlur = shadowBlur / 2;
   const secondary = secondaryStats(act, i18n);
-  const colW = (cardW - PAD * 2) / secondary.length;
-  secondary.forEach((s, i) => {
-    const cx = right - i * colW;
-    ctx.font = `700 58px ${font}`;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(s.value, cx, y + 58);
-    ctx.font = `500 30px ${font}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.fillText(s.label, cx, y + 100);
+  drawSecondaryRow(ctx, secondary, {
+    font,
+    left: cardX + PAD,
+    right,
+    baseline: y + 58,
+    valuePx: 58,
+    labelPx: 30,
+    labelGap: 42,
+    labelColor: 'rgba(255,255,255,0.6)',
   });
   ctx.shadowBlur = 0;
 }
