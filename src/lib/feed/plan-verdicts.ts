@@ -6,7 +6,7 @@ import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 import { buildVerdict, toExecutionSummary, type ExecutionSummary } from '@/lib/plan-execution/verdict';
 import { resolveDominantPace } from '@/lib/plan-execution/dominant-pace';
-import { segmentReportFor } from '@/lib/plan-execution/resolve';
+import { effortReportFor, segmentReportFor } from '@/lib/plan-execution/resolve';
 import { PLAN_STATUSES } from '@/lib/plans/plan-status';
 import { PR_RUN_TYPES } from '@/lib/prs/pr-buckets';
 import { flattenPlannedSteps } from '@/lib/academy/segments';
@@ -282,6 +282,10 @@ export async function loadFeedPlanVerdicts(
         // `ungraded` rather than score the one metric left, distance, which
         // anyone who finished the session covered.
         segments: segmentReportFor(planned, laps, tolerances.paceSec),
+        // And the order-free count beside it, for the ~85% of runs whose laps
+        // cannot be aligned step by step: without it the ring on the feed scored
+        // a session that was a set short on its distance and one block's pace.
+        efforts: effortReportFor(planned, laps, tolerances.paceSec),
         tolerances,
         workoutName: planned.name,
         paceScope,

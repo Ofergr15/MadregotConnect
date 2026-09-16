@@ -27,7 +27,7 @@ import { hasStoredLaps, normalizeStoredLaps, type StoredLap } from '@/lib/garmin
 import { gradeWatchSteps } from '@/lib/academy/watch-steps';
 import { narrowExecutedWorkout } from '@/lib/garmin/executed-workout';
 import { resolveDominantPace } from '@/lib/plan-execution/dominant-pace';
-import { segmentReportFor } from '@/lib/plan-execution/resolve';
+import { effortReportFor, segmentReportFor } from '@/lib/plan-execution/resolve';
 import { executionTakesPaceChart, workRepsOf } from '@/components/activity/ExecutionQuality';
 import type { Split } from '@/components/activity/types';
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
@@ -341,6 +341,92 @@ describe('buildVerdict — runs it refuses to grade on pace', () => {
     // cannot stand in for them.
     expect(verdict.basis).toBeNull();
     expect(verdict.score).toBeNull();
+  });
+
+  /**
+   * The 97% report: "Garmin gave me a 97% score on today's session / needs
+   * checking, I was a set short today".
+   *
+   * The real run was 54 laps against 50 planned steps, so `matchLapsToSteps`
+   * aligned nothing and the score fell back to the whole-run metrics — distance,
+   * inside a plan band 15 km wide, and one block's pace. Both were fine. Here the
+   * athlete simply skips the last of the four 2 km reps: the three he ran are on
+   * pace and the distance is still inside ±15%, which is exactly the shape that
+   * produced a near-perfect score for three quarters of a session.
+   */
+  it('marks down a session with a rep missing, and says which way it missed', () => {
+    const workout = fourByTwoK();
+    const planned = buildPlannedWorkout(workout, DATE);
+    // Three reps instead of four, and the laps deliberately DON'T line up with the
+    // planned steps — that is the case `efforts` exists for.
+    const laps: Lap[] = [{ distance: 2000, duration: 600, averagePace: 300 }];
+    for (let i = 0; i < 3; i++) {
+      laps.push({ distance: 2000, duration: 410, averagePace: 205 });
+      laps.push({ distance: 400, duration: 120, averagePace: 300 });
+    }
+    const efforts = effortReportFor(workout, laps, DEFAULT_TOLERANCES.paceSec);
+    expect(efforts?.neededTotal).toBe(4);
+    expect(efforts?.foundTotal).toBe(3);
+
+    const actual = run({ distance: 11800, duration: 2830 });
+    const segments = segmentReportFor(workout, laps, DEFAULT_TOLERANCES.paceSec);
+    expect(segments?.aligned).toBe(false);
+
+    const withoutEfforts = buildVerdict({
+      activityId: 'act-1', athleteId: 'ath-1',
+      adherence: assessWorkout(planned, actual, DEFAULT_TOLERANCES),
+      segments,
+    });
+    const verdict = buildVerdict({
+      activityId: 'act-1', athleteId: 'ath-1',
+      adherence: assessWorkout(planned, actual, DEFAULT_TOLERANCES),
+      segments,
+      efforts,
+    });
+
+    // Without the rep search this session has nothing left to grade but its
+    // distance, which is why it used to come out at or near the top of the scale.
+    expect(withoutEfforts.effortCounts).toBeNull();
+    expect(verdict.basis).toBe('efforts_and_metrics');
+    expect(verdict.effortCounts).toEqual({ needed: 4, attempted: 3, found: 3 });
+    // 3 of 4 reps at 0.7, distance in band at 0.3.
+    expect(verdict.score).toBe(Math.round((REPS_WEIGHT * 0.75 + (1 - REPS_WEIGHT) * 1) * 100));
+    // And the headline is the missing work, not the pace — every rep he did run
+    // was inside the band, so no pace verdict can explain the score.
+    expect(verdict.direction).toBe('incomplete');
+  });
+
+  it('leaves a run scored exactly as before when the laps cannot show the reps', () => {
+    const workout = fourByTwoK();
+    const planned = buildPlannedWorkout(workout, DATE);
+    // Plain 1 km auto-laps: no 2 km effort is visible in these at any pace, so the
+    // requirements are unverifiable and marking the athlete down would be inventing
+    // a miss. This is the majority of the club's runs.
+    const laps: Lap[] = Array.from({ length: 13 }, () => ({ distance: 1000, duration: 250, averagePace: 250 }));
+    const efforts = effortReportFor(workout, laps, DEFAULT_TOLERANCES.paceSec);
+    expect(efforts?.verdict).toBe('unverifiable');
+    const verdict = buildVerdict({
+      activityId: 'act-1', athleteId: 'ath-1',
+      adherence: assessWorkout(planned, run(), DEFAULT_TOLERANCES),
+      segments: segmentReportFor(workout, laps, DEFAULT_TOLERANCES.paceSec),
+      efforts,
+    });
+    expect(verdict.score).toBeNull();
+    expect(verdict.effortCounts).toBeNull();
+  });
+
+  it('prefers the aligned reps over the search when it has both', () => {
+    const workout = fourByTwoK();
+    const laps = lapsAt(205);
+    const verdict = buildVerdict({
+      activityId: 'act-1', athleteId: 'ath-1',
+      adherence: assessWorkout(buildPlannedWorkout(workout, DATE), run(), DEFAULT_TOLERANCES),
+      segments: segmentReportFor(workout, laps, DEFAULT_TOLERANCES.paceSec),
+      efforts: effortReportFor(workout, laps, DEFAULT_TOLERANCES.paceSec),
+    });
+    // Per-rep evidence beats a count of reps that look like the ones asked for.
+    expect(verdict.basis).toBe('reps_and_metrics');
+    expect(verdict.effortCounts).toBeNull();
   });
 
   it('treats a run with no planned workout as unplanned, not as a zero', () => {

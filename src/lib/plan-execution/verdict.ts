@@ -31,7 +31,7 @@ import type {
   WorkoutAdherence,
 } from '@/lib/academy/adherence';
 import { DEFAULT_TOLERANCES } from '@/lib/academy/adherence';
-import type { SegmentReport } from '@/lib/academy/segments';
+import type { EffortReport, SegmentReport } from '@/lib/academy/segments';
 
 /**
  * Which way the run missed — the headline.
@@ -42,6 +42,13 @@ import type { SegmentReport } from '@/lib/academy/segments';
  */
 export type ExecutionDirection =
   | 'on_target'
+  /**
+   * The work is missing, not mis-paced: reps the plan asked for that are not in
+   * the run. Its own direction because none of the others can say it — a session
+   * a set short, run at exactly the pace asked for and inside a wide distance
+   * band, has nothing wrong with any number except the count.
+   */
+  | 'incomplete'
   | 'too_fast'
   | 'too_slow'
   | 'mixed'
@@ -137,7 +144,26 @@ export interface ExecutionRepCounts {
 }
 
 /** Where the percentage came from, so the UI can show its own arithmetic. */
-export type ExecutionBasis = 'reps_and_metrics' | 'reps' | 'metrics';
+export type ExecutionBasis =
+  | 'reps_and_metrics'
+  | 'reps'
+  | 'metrics'
+  | 'efforts_and_metrics'
+  | 'efforts';
+
+/**
+ * The reps found in the run when the laps could not be aligned step by step.
+ *
+ * Over the VERIFIABLE requirements only, straight off `findPlannedEfforts`:
+ * `needed` reps asked for, `attempted` reps run at all, `found` reps run inside
+ * the pace band. See `effortPart` in `buildVerdict` for why the score reads
+ * `found`.
+ */
+export interface ExecutionEffortCounts {
+  needed: number;
+  attempted: number;
+  found: number;
+}
 
 export interface ExecutionVerdict {
   activityId: string;
@@ -167,6 +193,8 @@ export interface ExecutionVerdict {
   /** Why there are no per-rep verdicts (straight from matchLapsToSteps). */
   repsReason: string | null;
   repCounts: ExecutionRepCounts;
+  /** Set when the reps were counted by searching for them — see `ExecutionEffortCounts`. */
+  effortCounts: ExecutionEffortCounts | null;
   toleranceSec: number;
   basis: ExecutionBasis | null;
 }
@@ -417,6 +445,11 @@ export interface VerdictInput {
   adherence: WorkoutAdherence | null;
   /** Null when the run has no stored laps, or they didn't line up with the plan. */
   segments: SegmentReport | null;
+  /**
+   * `findPlannedEfforts(...)` on the same laps — the order-free rep count, used
+   * when `segments` could not be aligned. Null for a caller with no laps.
+   */
+  efforts?: EffortReport | null;
   tolerances?: AdherenceTolerances;
   workoutName?: string | null;
   /** See `ExecutionPaceScope`. Omit when `adherence.pace` is the whole-run average. */
@@ -451,6 +484,7 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
       repsAligned: false,
       repsReason: null,
       repCounts: { ...EMPTY_COUNTS },
+      effortCounts: null,
       basis: null,
     };
   }
@@ -482,10 +516,42 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
    * the average against, i.e. "this is an interval session, look at the reps".
    * With no reps to look at, the honest answer is no number.
    */
-  const paceWasPrescribedButUnchecked =
-    paceMetric?.reason === 'structured_session' && repCloseness.length === 0;
+  /**
+   * The reps, counted by searching for them, when they could not be aligned.
+   *
+   * This is what made a session with a set missing score 97%. `matchLapsToSteps`
+   * needs one lap per planned step, and a real run rarely has that — 54 laps
+   * against 50 planned steps was one athlete's Tuesday — so `repCloseness` was
+   * empty and the score fell back to the whole-run metrics: distance, inside a
+   * plan band 15 km wide, plus one dominant step's pace. Both were fine. The
+   * reps were not: 15 of 19 at target, five of eight on the 500s. The coach's
+   * compliance table said exactly that, off `findPlannedEfforts`, on the same
+   * laps, while the athlete's ring said 97% — the one thing this module exists
+   * to prevent.
+   *
+   * `found / needed` rather than a closeness: the search knows which reps landed
+   * in the band, not how far outside the rest were, and a fraction of the work
+   * done right is the honest reading of what it does know. It is only ever a
+   * FALLBACK — a positional match is per-rep evidence and stays preferred — and
+   * only over `verifiable` requirements, so an athlete whose watch recorded plain
+   * 1 km auto-laps is still scored exactly as before rather than marked down for
+   * reps his laps could never show.
+   */
+  const efforts = input.efforts ?? null;
+  const effortPart = repCloseness.length === 0
+    && efforts
+    && efforts.verdict !== 'unverifiable'
+    && efforts.neededTotal > 0
+    ? Math.min(1, efforts.foundTotal / efforts.neededTotal)
+    : null;
 
-  const repPart = mean(repCloseness);
+  const paceWasPrescribedButUnchecked =
+    paceMetric?.reason === 'structured_session'
+    && repCloseness.length === 0
+    && effortPart == null;
+
+  const repPart = mean(repCloseness) ?? effortPart;
+  const fromEfforts = repCloseness.length === 0 && effortPart != null;
   const metricPart = mean(metricCloseness);
   const score01 = paceWasPrescribedButUnchecked
     ? null
@@ -495,8 +561,8 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
   const basis: ExecutionBasis | null = score01 == null
     ? null
     : repPart != null && metricPart != null
-      ? 'reps_and_metrics'
-      : repPart != null ? 'reps' : metricPart != null ? 'metrics' : null;
+      ? fromEfforts ? 'efforts_and_metrics' : 'reps_and_metrics'
+      : repPart != null ? (fromEfforts ? 'efforts' : 'reps') : metricPart != null ? 'metrics' : null;
 
   // Direction reads the reps when there are any — that IS the session. Only a
   // run with no per-rep verdicts falls back to its whole-run average pace, and
@@ -504,9 +570,23 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
   const repDeviations = reps
     .filter((rep) => rep.graded && rep.deviation != null)
     .map((rep) => rep.deviation as number);
+  // Same order of preference for the direction as for the score: the aligned
+  // reps, else the reps the search found, else the whole-run average. Without the
+  // middle one a session scored off `efforts` came out "executed as planned" —
+  // green, on a run whose reps the score had just marked down — because the
+  // dominant step's pace was the only deviation left to read.
+  const effortDeviations = fromEfforts
+    ? (efforts?.requirements ?? [])
+      .filter((requirement) => requirement.verifiable)
+      .flatMap((requirement) => requirement.paces
+        .map((pace) => paceDeviation(pace, requirement.paceMin, requirement.paceMax, tolerances.paceSec))
+        .filter((deviation): deviation is number => deviation != null))
+    : [];
   const paceDeviations = repDeviations.length
     ? repDeviations
-    : paceMetric?.deviation != null ? [paceMetric.deviation] : [];
+    : effortDeviations.length
+      ? effortDeviations
+      : paceMetric?.deviation != null ? [paceMetric.deviation] : [];
 
   let direction = directionFromDeviations(paceDeviations);
   const distanceMetric = metrics.find((metric) => metric.key === 'distance');
@@ -522,6 +602,17 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
   if (direction === 'on_target'
     && distanceMetric?.deviation != null && distanceMetric.deviation !== 0) {
     direction = distanceMetric.deviation > 0 ? 'too_long' : 'too_short';
+  }
+
+  // Reps that are simply absent outrank every pace verdict, including "as
+  // planned". This is the report the whole `efforts` fold answers: "Garmin gave
+  // me 97% on today's session / needs checking, I was a set short today". The
+  // reps he DID run were on pace, so nothing else here can say what was wrong.
+  if (fromEfforts
+    && efforts != null
+    && efforts.foundTotal < efforts.neededTotal
+    && (!direction || direction === 'on_target')) {
+    direction = 'incomplete';
   }
 
   if (!direction) {
@@ -562,6 +653,9 @@ export function buildVerdict(input: VerdictInput): ExecutionVerdict {
     repsAligned: input.segments?.aligned ?? false,
     repsReason: input.segments?.reason ?? null,
     repCounts,
+    effortCounts: fromEfforts && efforts
+      ? { needed: efforts.neededTotal, attempted: efforts.attemptedTotal, found: efforts.foundTotal }
+      : null,
     basis,
   };
 }
@@ -600,6 +694,9 @@ export function toExecutionSummary(verdict: ExecutionVerdict): ExecutionSummary 
 // blue, under is the orange, matching too_fast/too_slow one line up.
 export const DIRECTION_COLOR: Record<ExecutionDirection, string> = {
   on_target: '#16a34a',
+  // The same orange as `too_short`: both are "less of the session than the plan
+  // asked for", one in kilometres and one in reps.
+  incomplete: '#FF5315',
   too_fast: '#1525FF',
   too_slow: '#FF5315',
   mixed: '#AD3838',

@@ -43,7 +43,14 @@ import type { createServerClient } from '@/lib/supabase/server';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import type { ActualActivity, AdherenceTolerances } from '@/lib/academy/adherence';
 import { assessWorkout, buildPlannedWorkout } from '@/lib/academy/adherence';
-import { flattenPlannedSteps, matchLapsToSteps, type Lap, type SegmentReport } from '@/lib/academy/segments';
+import {
+  findPlannedEfforts,
+  flattenPlannedSteps,
+  matchLapsToSteps,
+  type EffortReport,
+  type Lap,
+  type SegmentReport,
+} from '@/lib/academy/segments';
 import { GarminClient } from '@/lib/garmin/client';
 import { ensureMatchedWorkout } from '@/lib/plans/matched-workout';
 import { isMissingMatchesTable, workoutPlanForGroup } from '@/lib/plans/match-athlete-activities';
@@ -101,6 +108,21 @@ function toActual(row: ActivityRow): ActualActivity {
 export function segmentReportFor(workout: ParsedWorkout, laps: Lap[], paceSec: number): SegmentReport | null {
   if (laps.length === 0) return null;
   return matchLapsToSteps(flattenPlannedSteps(workout), laps, paceSec);
+}
+
+/**
+ * The order-free rep count for one run, or null when there are no laps to read.
+ *
+ * The companion to `segmentReportFor`, and it has to travel with it everywhere:
+ * the positional match needs one lap per planned step, which most real runs don't
+ * have, and until this reached `buildVerdict` a session that was a set short
+ * scored on its whole-run distance and one block's pace alone — 97% on a run the
+ * coach's own compliance table already called "partially done, 15 of 19 reps at
+ * target". Same laps, same tolerance, so the two surfaces cannot disagree.
+ */
+export function effortReportFor(workout: ParsedWorkout, laps: Lap[], paceSec: number): EffortReport | null {
+  if (laps.length === 0) return null;
+  return findPlannedEfforts(flattenPlannedSteps(workout), laps, paceSec);
 }
 
 /** Did the coach actually prescribe paces here? Only then are laps worth a call. */
@@ -189,6 +211,7 @@ function verdictFor(
     athleteId: row.athlete_id,
     adherence,
     segments,
+    efforts: effortReportFor(workout, laps, tolerances.paceSec),
     tolerances,
     workoutName: workout.name,
   });

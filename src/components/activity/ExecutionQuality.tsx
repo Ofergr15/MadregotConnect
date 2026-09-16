@@ -77,6 +77,14 @@ function verdictDetail(
   if (direction === 'mixed') {
     return t('detail_mixed', { faster: repCounts.faster, slower: repCounts.slower });
   }
+  // The count, not a pace: `incomplete` is only ever set from the rep search, and
+  // what it knows is how many of the reps the plan asked for are in the run.
+  if (direction === 'incomplete' && verdict.effortCounts) {
+    return t('detail_incomplete', {
+      found: verdict.effortCounts.found,
+      needed: verdict.effortCounts.needed,
+    });
+  }
   if (direction === 'too_fast' || direction === 'too_slow') {
     // `paceDeviationSec` is the MEAN of what the reps missed by, and one rep out
     // of four missing by 7s averages to under a second. "Faster by 0 seconds per
@@ -692,9 +700,10 @@ export function ExecutionQuality({
   // the middle of the green band contradicts its own position. Only the two
   // distance-led directions are overridden, and only when the pace really was in band:
   // every pace-led direction (`too_fast`, `too_slow`, `mixed`) is already the marker's
-  // own story.
+  // own story. `incomplete` belongs with the distance pair for the same reason — it
+  // counts reps that are absent, and says nothing about the ones that were run.
   const axisDirection: ExecutionDirection =
-    (verdict.direction === 'too_long' || verdict.direction === 'too_short')
+    (verdict.direction === 'too_long' || verdict.direction === 'too_short' || verdict.direction === 'incomplete')
       && (workReps.length ? workOnTarget === workReps.length : paceMetric?.status === 'on_target')
       ? 'on_target'
       : verdict.direction;
@@ -815,7 +824,15 @@ export function ExecutionQuality({
           )}
           {verdict.basis && (
             <p className="mt-3 rounded-xl bg-page/70 px-3 py-2 text-3xs leading-snug text-ink-500">
-              {t(`basis_${verdict.basis}` as 'basis_metrics')}
+              {/* The two `efforts` strings quote the count, because "the reps were
+                  found in the run" is a claim the athlete should be able to check.
+                  `effortCounts` is non-null exactly when the basis is one of them;
+                  the fallbacks keep this a sentence rather than a crash if that
+                  ever stops being true. */}
+              {t(`basis_${verdict.basis}` as 'basis_metrics', {
+                found: verdict.effortCounts?.found ?? 0,
+                needed: verdict.effortCounts?.needed ?? 0,
+              })}
             </p>
           )}
         </div>
