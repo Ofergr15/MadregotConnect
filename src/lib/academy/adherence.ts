@@ -16,7 +16,26 @@ export interface AdherenceTolerances {
   distance: number; // fraction, e.g. 0.15 = ±15%
   duration: number; // fraction
   paceSec: number;  // ± SECONDS per km, e.g. 10 → a 5:00 target is good from 4:50 to 5:10
+  /**
+   * ± BPM around a planned heart-rate band, for steps the coach wrote in HR rather
+   * than pace (see lib/academy/segments.ts, assessHr). 5 is a placeholder pending the
+   * coach's own number — the same status `paceSec` had before 2026-09-06 — and like
+   * paceSec it is deliberately not tighter than the measurement: a chest-strap-less
+   * wrist reading drifts several beats on its own, and HR lags the effort by 20-30
+   * seconds at the start of every interval.
+   *
+   * Optional because a dozen call sites build this object literally and predate heart
+   * rate entirely; every reader falls back to the default above, so an old caller
+   * grades HR exactly as a new one does.
+   */
+  hrBpm?: number;
 }
+
+/**
+ * ± BPM, as its own constant because `AdherenceTolerances.hrBpm` is optional (old
+ * call sites) and so cannot be read as a guaranteed number for a default parameter.
+ */
+export const DEFAULT_HR_TOLERANCE_BPM = 5;
 
 // paceSec was 5; widened to 10 by coach decision on 2026-09-06. ±5 s/km is inside the
 // noise of the evidence it is applied to — GPS distance error alone moves a 20 km block
@@ -27,6 +46,7 @@ export const DEFAULT_TOLERANCES: AdherenceTolerances = {
   distance: 0.15,
   duration: 0.15,
   paceSec: 10,
+  hrBpm: DEFAULT_HR_TOLERANCE_BPM,
 };
 
 // What the athlete was supposed to do on a given day (derived from a ParsedWorkout).

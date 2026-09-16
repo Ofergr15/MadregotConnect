@@ -1,5 +1,5 @@
 import { ParsedWorkout, WorkoutStep } from '../ai/types';
-import { assessPace, PaceStatus, DEFAULT_TOLERANCES } from './adherence';
+import { assessPace, PaceStatus, DEFAULT_TOLERANCES, DEFAULT_HR_TOLERANCE_BPM } from './adherence';
 
 // ── Per-segment planned-vs-actual verdicts ──────────────────────────────────
 // Flatten a planned workout into an ordered list of executable steps (expanding
@@ -17,12 +17,34 @@ export interface PlannedSegment {
   paceMin?: number;       // sec/km fastest planned pace
   paceMax?: number;       // sec/km slowest planned pace
   graded: boolean;        // false for rest/recovery/no-pace — shown but not scored
+  /**
+   * Which metric the COACH wrote this step in, and therefore the only metric it
+   * may be judged on. A step written "דופק 150" is not a pace step that happens
+   * to have a heart rate: an athlete who ran a lovely 4:10 at HR 168 did not do
+   * that workout, and grading it on pace would call it perfect.
+   *
+   * `graded` above stays pace-only on purpose — the shipped deviation engines
+   * (execution.ts, plan-execution/verdict.ts, effortRequirements, buildPlannedBands)
+   * all read it as "has a pace band" and compute sec/km from it. HR steps get
+   * their own flag instead of widening that one.
+   */
+  metric: 'pace' | 'hr' | 'none';
+  /** Planned HR band. `kind` says whether the coach wrote bpm or % — see hrTargetOf. */
+  hrTarget?: { kind: 'bpm' | 'pct'; min: number; max: number };
+  /** True when this step can be graded on heart rate (has an HR target, isn't rest). */
+  hrGraded: boolean;
 }
 
 export interface Lap {
   distance: number;         // meters
   duration: number;         // seconds
   averagePace?: number | null; // sec/km (may be derived if absent)
+  /**
+   * bpm, the lap's average. Spelled the way `garmin/laps.ts` spells it on
+   * `StoredLap` — every caller passes stored laps straight in as `Lap[]`, and a
+   * second spelling here would type-check happily and read `undefined` forever.
+   */
+  averageHR?: number | null;
 }
 
 export interface SegmentVerdict {
@@ -35,6 +57,23 @@ export interface SegmentVerdict {
   actualDistanceM: number | null;
   status: PaceStatus;          // on_target | faster | slower | unknown
   graded: boolean;
+  /**
+   * The metric this segment's `status` was decided on. 'hr' when the plan was
+   * written in heart rate — in which case `actualPace` is still filled in, but as
+   * information, not as the verdict.
+   */
+  metric: 'pace' | 'hr' | 'none';
+  /** Planned HR band in BPM, resolved through the athlete's anchor when the plan said %. */
+  plannedHrMin: number | null;
+  plannedHrMax: number | null;
+  actualHr: number | null;
+  /**
+   * Set when the step HAS an HR target that could not be graded, so the screen can
+   * say why instead of showing a blank verdict: 'no_anchor' (plan is in % and we
+   * hold no max/threshold HR for this athlete), 'no_hr_data' (the watch recorded
+   * no heart rate for the lap).
+   */
+  hrUngradedReason?: 'no_anchor' | 'no_hr_data';
 }
 
 export interface SegmentReport {
@@ -94,9 +133,31 @@ function segLabel(step: WorkoutStep): string {
  * derived `graded` or the label separately they would drift, and a step would then
  * be scored on one screen and not the other.
  */
+/**
+ * Read a step's heart-rate target, and decide whether the coach wrote BPM or a
+ * percentage.
+ *
+ * The parse has one pair of fields for both (`targetHrMinPct`), because the plans
+ * it reads are written both ways — "75-80%" and "דופק 150" — and it had nowhere
+ * else to put the second kind. So the number itself has to say which it is:
+ * **over 100 is bpm, 100 or under is a percentage.** A human heart rate target is
+ * never 85 bpm and a percentage is never 150; the one genuinely ambiguous value,
+ * "100%", reads as a percentage, which is the safer of the two (a percentage needs
+ * an anchor to grade, so it fails loudly instead of grading 100 bpm as easy).
+ */
+export function hrTargetOf(step: WorkoutStep): { kind: 'bpm' | 'pct'; min: number; max: number } | undefined {
+  const min = step.targetHrMinPct;
+  if (!min || min <= 0) return undefined;
+  const max = step.targetHrMaxPct || min;
+  return { kind: min > 100 ? 'bpm' : 'pct', min, max: Math.max(min, max) };
+}
+
 export function segmentFromStep(step: WorkoutStep, index: number): PlannedSegment {
   const isPace = step.targetType === 'pace' && !!step.targetPaceMinPerKm;
   const isRest = step.type === 'rest' || step.type === 'recovery';
+  const hrTarget = step.targetType === 'heart_rate' ? hrTargetOf(step) : undefined;
+  const graded = isPace && !isRest;
+  const hrGraded = !!hrTarget && !isRest;
   return {
     index,
     type: step.type,
@@ -105,7 +166,13 @@ export function segmentFromStep(step: WorkoutStep, index: number): PlannedSegmen
     durationSec: step.durationType === 'time' ? step.durationValue : undefined,
     paceMin: step.targetPaceMinPerKm,
     paceMax: step.targetPaceMaxPerKm || step.targetPaceMinPerKm,
-    graded: isPace && !isRest,
+    graded,
+    // Pace wins when a step somehow carries both, because that is what the rest of
+    // the engine already grades — the metric only flips to 'hr' when HR is the ONLY
+    // thing the coach gave.
+    metric: graded ? 'pace' : hrGraded ? 'hr' : 'none',
+    hrTarget,
+    hrGraded,
   };
 }
 
@@ -491,19 +558,82 @@ export function findPlannedEfforts(
  * to match the planned step count (Garmin auto-laps per step). If they don't line
  * up we return aligned:false with unknown verdicts — never a wrong color.
  */
+/**
+ * Grade a heart rate against a planned band, in the SAME vocabulary as pace so one
+ * set of colours and one set of words serve both tables.
+ *
+ * The mapping is by effort, not by number: a heart rate ABOVE the band is 'faster'
+ * (worked harder than asked) and below it is 'slower'. Read the status as "harder /
+ * easier than prescribed" and it is true of both metrics.
+ */
+export function assessHr(actual: number | null, min?: number, max?: number, hrBpm = DEFAULT_HR_TOLERANCE_BPM): PaceStatus {
+  if (actual == null || min == null || max == null) return 'unknown';
+  if (actual > max + hrBpm) return 'faster';
+  if (actual < min - hrBpm) return 'slower';
+  return 'on_target';
+}
+
+/**
+ * Turn a planned HR band into BPM. A band written in bpm is already there; a band
+ * written in % needs the athlete's anchor, and when we don't hold one the honest
+ * answer is null — see `SegmentVerdict.hrUngradedReason`.
+ */
+export function resolveHrBand(
+  target: { kind: 'bpm' | 'pct'; min: number; max: number } | undefined,
+  anchorBpm?: number | null
+): { min: number; max: number } | null {
+  if (!target) return null;
+  if (target.kind === 'bpm') return { min: target.min, max: target.max };
+  if (!anchorBpm || anchorBpm <= 0) return null;
+  return {
+    min: Math.round((target.min / 100) * anchorBpm),
+    max: Math.round((target.max / 100) * anchorBpm),
+  };
+}
+
+export interface MatchOptions {
+  paceSec?: number;
+  hrBpm?: number;
+  /**
+   * The athlete's HR anchor in bpm (max HR) — the only way a plan written in % can
+   * be turned into a number to compare. Absent for every athlete today: nothing in
+   * the schema holds one yet, so % plans come back ungraded with 'no_anchor'.
+   */
+  hrAnchorBpm?: number | null;
+}
+
 export function matchLapsToSteps(
   planned: PlannedSegment[],
   laps: Lap[],
-  paceSec = DEFAULT_TOLERANCES.paceSec
+  paceSecOrOptions: number | MatchOptions = DEFAULT_TOLERANCES.paceSec
 ): SegmentReport {
+  const opts: MatchOptions = typeof paceSecOrOptions === 'number'
+    ? { paceSec: paceSecOrOptions }
+    : paceSecOrOptions;
+  const paceSec = opts.paceSec ?? DEFAULT_TOLERANCES.paceSec;
+  const hrBpm = opts.hrBpm ?? DEFAULT_HR_TOLERANCE_BPM;
+
   const aligned = laps.length === planned.length && planned.length > 0;
 
   const segments: SegmentVerdict[] = planned.map((p, i) => {
     const lap = aligned ? laps[i] : undefined;
     const actualPace = lap ? lapPace(lap) : null;
-    const status: PaceStatus = aligned && p.graded
-      ? assessPace(actualPace, p.paceMin, p.paceMax, paceSec)
-      : 'unknown';
+    const actualHr = lap?.averageHR ?? null;
+    const hrBand = resolveHrBand(p.hrTarget, opts.hrAnchorBpm);
+
+    // The verdict is decided on the metric the plan was written in. For an HR step
+    // the pace is still reported — a mentor wants to see it — but it is not what
+    // makes the step right or wrong.
+    let status: PaceStatus = 'unknown';
+    let hrUngradedReason: SegmentVerdict['hrUngradedReason'];
+    if (aligned && p.metric === 'pace') {
+      status = assessPace(actualPace, p.paceMin, p.paceMax, paceSec);
+    } else if (aligned && p.metric === 'hr') {
+      if (!hrBand) hrUngradedReason = 'no_anchor';
+      else if (actualHr == null) hrUngradedReason = 'no_hr_data';
+      else status = assessHr(actualHr, hrBand.min, hrBand.max, hrBpm);
+    }
+
     return {
       index: p.index,
       type: p.type,
@@ -514,10 +644,19 @@ export function matchLapsToSteps(
       actualDistanceM: lap ? lap.distance : null,
       status,
       graded: p.graded,
+      metric: p.metric,
+      plannedHrMin: hrBand?.min ?? null,
+      plannedHrMax: hrBand?.max ?? null,
+      actualHr,
+      ...(hrUngradedReason ? { hrUngradedReason } : {}),
     };
   });
 
-  const graded = segments.filter(s => s.graded);
+  // "Measured" means a verdict was reachable on the metric the plan named — so an
+  // HR-written step counts here exactly as a pace-written one does. It is excluded
+  // only when the HR band or the HR data was missing, which is what
+  // `hrUngradedReason` records.
+  const graded = segments.filter(s => s.graded || (s.metric === 'hr' && !s.hrUngradedReason));
   return {
     aligned,
     segments,

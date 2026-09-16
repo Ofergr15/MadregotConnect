@@ -9,6 +9,8 @@ import { useApi, apiHeaders } from '@/lib/api';
 import { Spinner, LoadingBlock, EmptyState } from '@/components/ui';
 import { ExecutionRing } from '@/components/activity/ExecutionRing';
 import { DIRECTION_COLOR, type ExecutionSummary } from '@/lib/plan-execution/verdict';
+import type { SegmentReport, SegmentVerdict } from '@/lib/academy/segments';
+import { WorkoutFeedbackPanel } from '@/components/academy/WorkoutFeedback';
 
 // Mirror of the adherence API response (kept structural to avoid importing server types).
 type MetricStatus = 'on_target' | 'under' | 'over' | 'unknown';
@@ -497,7 +499,11 @@ export function AcademyCompliance() {
                                       }
                                     />
                                   </div>
-                                  <SegmentsPanel athleteId={a.athleteId} date={wk.date} />
+                                  <SegmentsPanel
+                                    athleteId={a.athleteId}
+                                    date={wk.date}
+                                    workoutName={wk.name}
+                                  />
                                 </>
                               ) : (
                                 <div className="mt-1 text-xs text-ink-400 flex items-center gap-1">
@@ -616,11 +622,10 @@ function Metric({ label, plan, actual, status, hint }: { label: string; plan: st
   );
 }
 
-interface SegmentVerdict {
-  index: number; type: string; label: string;
-  plannedPaceMin: number | null; plannedPaceMax: number | null;
-  actualPace: number | null; status: PaceStatus; graded: boolean;
-}
+// Imported rather than mirrored: the verdict now carries the metric it was graded on
+// (pace or heart rate) plus the HR band, and a hand-copied shape here would silently
+// drop those fields on the way into the feedback panel.
+
 
 // The order-free "did they do the work" verdict from lib/academy/segments.ts —
 // what's left when the run wasn't the pushed structured workout.
@@ -665,11 +670,13 @@ function effortReasonText(report: EffortReport): string {
 // Per-segment planned-vs-actual verdicts (lazy — fetched when opened). The
 // positional grading needs per-step laps, i.e. the pushed structured workout run
 // on-watch; for every other run the effort report below is the answer.
-function SegmentsPanel({ athleteId, date }: { athleteId: string; date: string }) {
+function SegmentsPanel({ athleteId, date, workoutName }: { athleteId: string; date: string; workoutName: string }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [segments, setSegments] = useState<SegmentVerdict[] | null>(null);
+  const [report, setReport] = useState<SegmentReport | null>(null);
   const [efforts, setEfforts] = useState<EffortReport | null>(null);
+  const [activityId, setActivityId] = useState<string | null>(null);
   const [reason, setReason] = useState<string | null>(null);
 
   const load = async () => {
@@ -681,7 +688,15 @@ function SegmentsPanel({ athleteId, date }: { athleteId: string; date: string })
       });
       const data = await res.json();
       setSegments(data.segments || []);
+      setReport({
+        aligned: !!data.aligned,
+        segments: data.segments || [],
+        gradedCount: data.gradedCount ?? 0,
+        onTargetCount: data.onTargetCount ?? 0,
+        reason: data.reason,
+      });
       setEfforts(data.efforts || null);
+      setActivityId(data.activityId ?? null);
       if (!data.aligned) setReason(data.reason || 'נתוני מקטעים לא זמינים');
     } catch {
       setReason('טעינת המקטעים נכשלה');
@@ -691,7 +706,10 @@ function SegmentsPanel({ athleteId, date }: { athleteId: string; date: string })
   };
 
   const toggle = () => { const next = !open; setOpen(next); if (next) load(); };
-  const graded = (segments || []).filter(s => s.graded);
+  // A step graded on heart rate counts as graded here too, otherwise an HR session
+  // falls through to the order-free effort check — which has no pace band to search
+  // for and would report the workout as unverifiable.
+  const graded = (segments || []).filter(s => s.graded || (s.metric === 'hr' && !s.hrUngradedReason));
   const effortRows = (efforts?.requirements || []).filter(r => r.verifiable);
 
   return (
@@ -748,27 +766,17 @@ function SegmentsPanel({ athleteId, date }: { athleteId: string; date: string })
               {efforts ? effortReasonText(efforts) : reason || 'אין מקטעים מדורגים.'}
             </p>
           ) : (
-            <div className="space-y-1">
-              {segments!.map((s, i) => (
-                <div key={i} className={cn('flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs',
-                  s.graded ? 'bg-page/50' : 'bg-page/20')}>
-                  <span className="text-ink-400 flex-1 min-w-0 truncate" dir="auto">{s.label}</span>
-                  {s.graded ? (
-                    <>
-                      <span className="text-ink-400">
-                        {s.plannedPaceMin != null
-                          ? `${formatPace(s.plannedPaceMin)}${s.plannedPaceMax && s.plannedPaceMax !== s.plannedPaceMin ? `–${formatPace(s.plannedPaceMax)}` : ''}`
-                          : '—'}
-                      </span>
-                      <span className="text-ink-500 tabular-nums">{s.actualPace != null ? formatPace(s.actualPace) : '—'}</span>
-                      <span className={cn('font-semibold w-16 text-end', metricStyle[s.status])}>{metricLabel[s.status]}</span>
-                    </>
-                  ) : (
-                    <span className="text-ink-400 w-16 text-end">—</span>
-                  )}
-                </div>
-              ))}
-            </div>
+            /* One table, not two: the per-segment breakdown the mentor came here to
+               read IS the surface they comment on and write the week's feedback from,
+               so the read-only version that used to live here was replaced rather
+               than stacked above it. */
+            <WorkoutFeedbackPanel
+              athleteId={athleteId}
+              date={date}
+              activityId={activityId}
+              workoutName={workoutName}
+              report={report!}
+            />
           )}
         </div>
       )}

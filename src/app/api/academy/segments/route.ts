@@ -282,7 +282,17 @@ export async function GET(request: Request) {
 
     // 4) Flatten + match + grade.
     const flat = flattenPlannedSteps(planned);
-    const report = matchLapsToSteps(flat, laps, paceSec);
+    // A session the coach wrote in HR is graded on HR — see segments.ts. Written in
+    // beats ("דופק 150") it needs nothing; written as a percentage it needs the
+    // athlete's anchor, and that read is made only when the plan actually contains
+    // one, so the ~all-pace plans the club writes today pay nothing for it.
+    let hrAnchorBpm: number | null = null;
+    if (flat.some(s => s.hrTarget?.kind === 'pct')) {
+      const { data: hrRow } = await supabase
+        .from('athletes').select('max_hr_bpm').eq('id', athleteId).maybeSingle();
+      hrAnchorBpm = (hrRow as { max_hr_bpm?: number | null } | null)?.max_hr_bpm ?? null;
+    }
+    const report = matchLapsToSteps(flat, laps, { paceSec, hrBpm: tolerances.hrBpm, hrAnchorBpm });
     // Block-aligned pace: each planned block graded over its own stretch of the run
     // rather than against the whole-run average. This is the fix for the verdict an
     // athlete who ran "2 km easy + 20 km at 4:25 + 8 strides" used to get — 4:33
@@ -368,7 +378,10 @@ export async function GET(request: Request) {
       });
     }
 
-    return NextResponse.json({ ...report, efforts, blocks });
+    // `activityId` rides along so the mentor's feedback can be keyed to the run it is
+    // about, not only to the date: a day with two runs is rare but real, and the
+    // feedback table's uniqueness is (athlete, date, activity).
+    return NextResponse.json({ ...report, activityId: activity.id, efforts, blocks });
   } catch (error: any) {
     console.error('Academy segments error:', error);
     return NextResponse.json({ error: error.message || 'Failed to compute segments' }, { status: 500 });

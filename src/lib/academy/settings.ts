@@ -1,4 +1,4 @@
-import { DEFAULT_TOLERANCES } from './adherence';
+import { DEFAULT_HR_TOLERANCE_BPM, DEFAULT_TOLERANCES } from './adherence';
 
 // Coach-level academy configuration, stored as one JSON blob in academy_settings.
 // Every field has a default so the app works before anything is saved.
@@ -7,7 +7,9 @@ export interface AcademySettings {
   tests: string[];
   // Adherence tolerances: distance/duration are fractions (0.15 = ±15%); pace is
   // ± SECONDS per km (5 → a 5:00 target is good from 4:55 to 5:05).
-  tolerances: { distance: number; duration: number; paceSec: number };
+  // hrBpm is ± BEATS around a planned heart-rate band, for the sessions the coach
+  // writes in HR rather than pace (see segments.ts, assessHr).
+  tolerances: { distance: number; duration: number; paceSec: number; hrBpm: number };
   // Push pace-zone alerting for academy athletes (the "old model"). When false,
   // even academy athletes get info-only pace (no beep).
   paceAlerts: boolean;
@@ -17,7 +19,7 @@ export interface AcademySettings {
 
 export const DEFAULT_ACADEMY_SETTINGS: AcademySettings = {
   tests: ['2000m'],
-  tolerances: { ...DEFAULT_TOLERANCES },
+  tolerances: { ...DEFAULT_TOLERANCES, hrBpm: DEFAULT_HR_TOLERANCE_BPM },
   paceAlerts: true,
   report: { recipients: [], day: 1 },
 };
@@ -34,6 +36,7 @@ export function normalizeSettings(raw: any): AcademySettings {
       distance: numOr(r.tolerances?.distance, d.tolerances.distance),
       duration: numOr(r.tolerances?.duration, d.tolerances.duration),
       paceSec: numOr(r.tolerances?.paceSec, d.tolerances.paceSec),
+      hrBpm: numOr(r.tolerances?.hrBpm, d.tolerances.hrBpm),
     },
     paceAlerts: typeof r.paceAlerts === 'boolean' ? r.paceAlerts : d.paceAlerts,
     report: {
