@@ -64,17 +64,30 @@ export async function GET(request: Request) {
 
     // Distance-time bests: fastest qualifying run per bucket (shared w/ the
     // badge award engine's pr_bucket rule_type — see pr-buckets.ts).
-    const distanceBests = computeDistanceBests(runs).map(({ activityId, ...rest }) => rest);
+    //
+    // `activityId` used to be stripped here as payload the card didn't render. The
+    // card now links each best to the run it was set on, which is the whole of a
+    // report ("I want to open the run from day x from the data screen and I
+    // can't") — a date and a run name are not something you can tap. Any club
+    // member may open any member's run, so this is safe on a teammate's profile
+    // too; see the note on /api/activities/details.
+    const distanceBests = computeDistanceBests(runs);
 
     // Longest run — max single-activity distance (a milestone, not a time bucket).
     let longest: any = null;
     for (const r of runs) {
       if (!longest || r.distance > longest.distanceM) {
-        longest = { distanceM: r.distance, date: r.start_time, name: r.activity_name };
+        longest = { id: r.id, distanceM: r.distance, date: r.start_time, name: r.activity_name };
       }
     }
     const longestRun = longest
-      ? { meters: longest.distanceM, km: Math.round((longest.distanceM / 1000) * 10) / 10, date: longest.date, activityName: longest.name }
+      ? {
+          meters: longest.distanceM,
+          km: Math.round((longest.distanceM / 1000) * 10) / 10,
+          date: longest.date,
+          activityName: longest.name,
+          activityId: longest.id,
+        }
       : null;
 
     // Best calendar month by total distance — a volume PR, distinct from the
