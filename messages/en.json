@@ -77,7 +77,8 @@
     "confirmAttendanceAria": "Confirm attendance for your next workout",
     "confirm": "Confirm",
     "attendanceRosterAria": "View attendance roster",
-    "account": "Account"
+    "account": "Account",
+    "records": "Club Records"
   },
   "coachTools": {
     "title": "Coach Tools",
@@ -1155,6 +1156,20 @@
     "benchmarkTitle": "Time trial · {test}",
     "benchmarkHideBoard": "Hide the full board",
     "benchmarkShowAll": "Show all {count}"
+  },
+"records": {
+    "title": "Club Records",
+    "subtitle": "The club's fastest time at each distance",
+    "empty": "No records yet",
+    "emptyBucket": "Nobody has run this distance yet",
+    "bucket_5k": "5K",
+    "bucket_10k": "10K",
+    "bucket_hm": "Half",
+    "bucket_fm": "Marathon",
+    "stated": "Stated by the athlete",
+    "fromRuns": "From the run history",
+    "derivedNote": "Records are taken from everyone's runs, plus times athletes entered themselves. The board is refreshed a few times a day, so a run from this morning may not be on it yet.",
+    "clubBoard": "See everyone's records"
   },
   "teamVolume": {
     "title": "Team Volume",

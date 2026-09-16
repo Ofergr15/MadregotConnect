@@ -350,6 +350,10 @@ const allTabs = [
   { key: 'review', label: 'Review' },
   { key: 'history', label: 'History' },
   { key: 'photos', label: 'Photos' },
+  // Member-facing, and listed here so it can be granted per role without a
+  // migration. Ungranted it is admin-only in the nav, but the page itself is
+  // linked from every member's profile — see the note in lib/nav-items.ts.
+  { key: 'records', label: 'Club Records' },
   { key: 'settings', label: 'Settings' },
 ];
 

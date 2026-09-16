@@ -163,11 +163,16 @@ describe('staff', () => {
     //
     // They diverged again when the admin stopped being read off the matrix: the
     // admin's list is now every tab, so it is a strict superset of the coach's —
-    // and these three are what it adds, with nothing a coach reaches that an admin
+    // and these are what it adds, with nothing a coach reaches that an admin
     // can't. Written as two set differences so the fact is stated rather than buried
     // in a pair of long literal lists.
+    //
+    // `records` is here because the club records board is a new ALL_NAV_ITEMS entry
+    // with no matrix rows yet — the same shape as `control-room`. Every member can
+    // still reach the page from the records section of their profile, which is the
+    // door that feature actually ships behind.
     expect(staff('admin').filter((t) => !staff('coach').includes(t)))
-      .toEqual(['control-room', 'practice', 'profile']);
+      .toEqual(['control-room', 'practice', 'records', 'profile']);
     expect(staff('coach').filter((t) => !staff('admin').includes(t))).toEqual([]);
   });
 

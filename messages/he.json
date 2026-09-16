@@ -77,7 +77,8 @@
     "confirmAttendanceAria": "אישור הגעה לאימון הקרוב",
     "confirm": "אישור",
     "attendanceRosterAria": "צפייה ברשימת נוכחות",
-    "account": "החשבון"
+    "account": "החשבון",
+    "records": "שיאי המועדון"
   },
   "coachTools": {
     "title": "כלי מאמן",
@@ -1155,6 +1156,20 @@
     "benchmarkTitle": "מבחן זמן · {test}",
     "benchmarkHideBoard": "הסתרת הטבלה המלאה",
     "benchmarkShowAll": "הצגת כל {count}"
+  },
+"records": {
+    "title": "שיאי המועדון",
+    "subtitle": "הזמן הטוב ביותר במועדון בכל מרחק",
+    "empty": "אין עוד שיאים",
+    "emptyBucket": "אף אחד עוד לא רץ את המרחק הזה",
+    "bucket_5k": "5 ק\"מ",
+    "bucket_10k": "10 ק\"מ",
+    "bucket_hm": "חצי מרתון",
+    "bucket_fm": "מרתון",
+    "stated": "הזמן שהספורטאי דיווח",
+    "fromRuns": "מתוך הריצות",
+    "derivedNote": "השיאים מחושבים מהריצות של כולם, יחד עם זמנים שספורטאים הזינו בעצמם. הטבלה מתרעננת כמה פעמים ביום, כך שריצה מהבוקר עשויה עוד לא להופיע בה.",
+    "clubBoard": "לראות את השיאים של כולם"
   },
   "teamVolume": {
     "title": "נפח הקבוצה",

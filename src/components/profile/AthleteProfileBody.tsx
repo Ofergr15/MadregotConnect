@@ -130,6 +130,9 @@ export function AthleteProfileBody({
   // reused rather than duplicated under `profile`, so the same two words can't
   // end up translated two ways.
   const tt = useTranslations('teammate');
+  // The club records board owns its own copy, and the link into it should read the
+  // same here as it does there.
+  const tRecords = useTranslations('records');
   const locale = useLocale();
   const owner = variant === 'owner';
 
@@ -354,6 +357,19 @@ export function AthleteProfileBody({
                   </div>
                 ))}
               </div>
+              {/* Into the club board. The records page has a nav entry, but that
+                  entry needs a role_tab_permissions row for every non-admin role,
+                  and this is the screen someone is already looking at records on —
+                  so the door that matters is here and works for every member on
+                  day one (the API is requireMember, same gate as this page's own
+                  stats). Reports a798197f and f6c7b8dc both asked for the table. */}
+              <Link
+                href="/dashboard/records"
+                className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-brand-600"
+              >
+                {tRecords('clubBoard')}
+                <ChevronLeft className="h-4 w-4" />
+              </Link>
             </section>
           )}
         </>
