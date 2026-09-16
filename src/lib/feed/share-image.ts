@@ -275,24 +275,46 @@ interface LayoutCtx {
  * into Hebrew text is a bidi coin flip (see the note on canvas units in the share
  * card work); measuring the number and stepping left of it is deterministic.
  *
- * Caller must have set `textAlign = 'right'`; both draws use it.
+ * `align: 'center'` centres the number-and-unit PAIR on `x` — not the number, which
+ * would leave the pair visually pushed right by the width of the unit. Both draws
+ * are right-aligned internally either way; `textAlign` is restored.
  */
 function drawHeroDistance(
   ctx: CanvasRenderingContext2D,
   act: FeedActivity,
   i18n: ShareI18n,
-  opts: { font: string; right: number; baseline: number; numberPx: number; unitPx: number; gap?: number },
+  opts: {
+    font: string;
+    /** Right edge of the pair, or its centre line when `align` is 'center'. */
+    x: number;
+    baseline: number;
+    numberPx: number;
+    unitPx: number;
+    gap?: number;
+    align?: 'right' | 'center';
+  },
 ) {
-  const { font, right, baseline, numberPx, unitPx, gap = 24 } = opts;
+  const { font, x, baseline, numberPx, unitPx, gap = 24, align = 'right' } = opts;
+  const value = distanceKm(act);
+
+  ctx.font = `800 ${numberPx}px ${font}`;
+  const numberW = ctx.measureText(value).width;
+  ctx.font = `500 ${unitPx}px ${font}`;
+  const unitW = ctx.measureText(i18n.km).width;
+
+  const right = align === 'center' ? x + (numberW + gap + unitW) / 2 : x;
+  const previousAlign = ctx.textAlign;
+  ctx.textAlign = 'right';
 
   ctx.font = `800 ${numberPx}px ${font}`;
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(distanceKm(act), right, baseline);
-  const numberW = ctx.measureText(distanceKm(act)).width;
+  ctx.fillText(value, right, baseline);
 
   ctx.font = `500 ${unitPx}px ${font}`;
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
   ctx.fillText(i18n.km, right - numberW - gap, baseline);
+
+  ctx.textAlign = previousAlign;
 }
 
 /**
@@ -347,6 +369,13 @@ function drawSecondaryRow(
  */
 function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle }: LayoutCtx) {
   const right = STORY_W - MARGIN;
+  // ONE centred column. The title and the distance used to be flush right while the
+  // stats row and the badge below them were centred, so the card leaned into its
+  // right edge with a dead third on the left — reported as "הסידור של הכותרת -
+  // ריצה - בצד ימין. שווה אולי לסדר את הסידור של הכותרות". Right-aligning Hebrew
+  // is correct for a paragraph; this is a stack of one-line headlines over a
+  // centred badge, and the mixed axis was the thing that read as wrong.
+  const cx = STORY_W / 2;
   let y = STORY_H - MARGIN;
 
   if (logo) {
@@ -390,13 +419,22 @@ function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTit
   });
   y -= 96;
 
-  drawHeroDistance(ctx, act, i18n, { font, right, baseline: y, numberPx: 180, unitPx: 48 });
+  drawHeroDistance(ctx, act, i18n, {
+    font,
+    x: cx,
+    align: 'center',
+    baseline: y,
+    numberPx: 180,
+    unitPx: 48,
+  });
   y -= 200;
 
   if (act.activityName && showTitle) {
     ctx.font = `600 44px ${font}`;
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fillText(act.activityName, right, y);
+    ctx.textAlign = 'center';
+    ctx.fillText(act.activityName, cx, y);
+    ctx.textAlign = 'right';
     y -= 72;
   }
   ctx.shadowBlur = 0;
@@ -489,10 +527,17 @@ function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle 
 
   y += 36;
 
+  // Centred on the panel, like the stats row along its bottom — see the note in
+  // layoutClassic. The badge stays in the top-right corner: a corner mark is not
+  // part of the column, and moving it would cost the panel its sticker look.
+  const panelCx = cardX + cardW / 2;
+
   if (act.activityName && showTitle) {
     ctx.font = `600 40px ${font}`;
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.fillText(act.activityName, right, y + 40);
+    ctx.textAlign = 'center';
+    ctx.fillText(act.activityName, panelCx, y + 40);
+    ctx.textAlign = 'right';
     y += titleH;
   }
 
@@ -500,7 +545,8 @@ function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle 
   const heroBaseline = y + 130;
   drawHeroDistance(ctx, act, i18n, {
     font,
-    right,
+    x: panelCx,
+    align: 'center',
     baseline: heroBaseline,
     numberPx: 150,
     unitPx: 44,
