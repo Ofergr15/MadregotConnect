@@ -17,8 +17,14 @@ interface Squad {
   rank: number;
 }
 
-// דבוקה squad rivalry — this-month standings, ranked by a blended per-member
-// score (volume + attendance + consistency). Team-wide, shown to all roles.
+// דבוקה squad rivalry — THIS WEEK's standings (Monday→now), ranked by a blended
+// per-member score (volume + attendance + consistency). Team-wide, all roles.
+//
+// The window used to be the calendar month, and the card said so in one small
+// corner label that nobody read — reported as "the kilometres in the contest
+// between the groups don't reset from week to week". The window moved to weekly
+// (see the route); this label moved with it and is the only thing on the card
+// that names it, so it must never be left describing the old one.
 // Hidden until there are ≥2 squads with data. Squad colors from resolveGroup.
 //
 // Same emoji as WeeklyLeaderboardCard, for the same reason — see the note there.
@@ -42,7 +48,7 @@ export function SquadStandings() {
       <div className="flex items-center gap-2 mb-4">
         <Swords className="h-4 w-4 text-brand-600" />
         <h2 className="text-sm font-semibold text-ink-700 uppercase tracking-wider">{t('title')}</h2>
-        <span className="ms-auto text-2xs text-ink-400">{t('thisMonth')}</span>
+        <span className="ms-auto text-2xs text-ink-400">{t('thisWeek')}</span>
       </div>
 
       <div className="space-y-2">
