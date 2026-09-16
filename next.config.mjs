@@ -14,7 +14,16 @@ const nextConfig = {
   // The LAN entry is a wildcard on purpose: the Mac's address is DHCP, so a hard-coded
   // one silently stops working after a lease change and the phone gets HTML with no
   // chunks again — which looks exactly like "the server is down".
-  allowedDevOrigins: ['unstout-lustily-noma.ngrok-free.dev', 'madregot.tal.bo', '192.168.*.*'],
+  // The `.local` name is the one to hand a phone: Bonjour resolves it to whatever
+  // address the Mac holds right now, so it survives a lease change that a hard-coded
+  // IP does not (this one moved three times in ten minutes on a corporate network).
+  allowedDevOrigins: [
+    'unstout-lustily-noma.ngrok-free.dev',
+    'madregot.tal.bo',
+    'ofer-grosfeld-H265YVFC9G.local',
+    '*.local',
+    '192.168.*.*',
+  ],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.supabase.co' },

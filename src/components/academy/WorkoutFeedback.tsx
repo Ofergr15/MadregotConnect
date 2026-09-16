@@ -39,10 +39,14 @@ import type { SegmentReport, SegmentVerdict } from '@/lib/academy/segments';
 //    and the recoveries take laps of their own, so "lap 8" and "rep 4" are different
 //    things and only one of them is what the mentor and the trainee mean.
 
+// The INK variants, not the fill colours: `text-accent-600` on a light row measures
+// 3.30:1 and `text-band-3` 3.23:1, both under AA — which the palette already knew,
+// which is why `accent-900` and `band-3-ink` exist. This column is the one a mentor
+// scans, so it is the last place to spend contrast on hue fidelity.
 const STATUS_STYLE: Record<string, string> = {
-  on_target: 'text-accent-600',
+  on_target: 'text-accent-900',
   faster: 'text-accent-red',
-  slower: 'text-band-3',
+  slower: 'text-band-3-ink',
   unknown: 'text-ink-400',
 };
 
@@ -185,9 +189,9 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
         <div className="flex items-center gap-1.5 px-2.5 text-[10px] font-semibold text-ink-400">
           <span className="flex-1">מקטע</span>
           <span className="w-[68px] text-center">{metric === 'hr' ? 'דופק יעד' : 'יעד'}</span>
-          <span className="w-[46px] text-center">בפועל</span>
-          <span className="w-[52px] text-end">פער</span>
-          <span className="w-7" />
+          <span className="w-[42px] text-center">בפועל</span>
+          <span className="w-[46px] text-end">פער</span>
+          <span className="w-9" />
         </div>
         {rows.map(s => {
           const isHr = s.metric === 'hr';
@@ -201,7 +205,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
                 <span className="w-[68px] text-center text-ink-400 tabular-nums" dir="ltr">
                   {isHr ? hrBandLabel(s) : paceBandLabel(s.plannedPaceMin, s.plannedPaceMax)}
                 </span>
-                <span className="w-[46px] text-center text-ink-500 tabular-nums" dir="ltr">
+                <span className="w-[42px] text-center text-ink-500 tabular-nums" dir="ltr">
                   {isHr
                     ? (s.actualHr != null ? `${s.actualHr}` : '—')
                     : (s.actualPace != null ? formatPace(s.actualPace) : '—')}
@@ -212,7 +216,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
                     mentor reads here and the number that ordered the queue are one thing.
                     Each metric keeps its own natural sign: pace negative = ran faster,
                     HR positive = beat higher. */}
-                <span className={cn('w-[52px] text-end font-semibold tabular-nums', STATUS_STYLE[s.status])} dir="ltr">
+                <span className={cn('w-[46px] text-end font-semibold tabular-nums', STATUS_STYLE[s.status])} dir="ltr">
                   {gradable ? gapLabel(s) : '—'}
                 </span>
                 {/* A comment on ONE step. The thing no tool they use today has. */}
@@ -220,11 +224,12 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
                   type="button"
                   onClick={() => setOpenLap(openLap === s.index ? null : s.index)}
                   aria-label={`הערה על ${s.label}`}
-                  // 28px is the right SIZE in a dense table and the wrong TAP TARGET on a
-                  // phone: this is the row's primary action and iOS wants 44. The pseudo
-                  // element grows the hit area past the icon without growing the row.
-                  className={cn('relative w-7 h-7 rounded-lg flex items-center justify-center shrink-0',
-                    'after:absolute after:-inset-2 after:content-[""]',
+                  // 36px box + a 4px pseudo-element halo = a 44px target, which is what iOS
+                  // wants for the row's primary action. A bigger halo on a smaller box was
+                  // the first attempt and it measured WORSE: the halos of adjacent rows
+                  // overlapped, so a tap near a row edge opened the neighbour's comment.
+                  className={cn('relative w-9 h-9 rounded-lg flex items-center justify-center shrink-0',
+                    'after:absolute after:-inset-1 after:content-[""]',
                     comment ? 'bg-brand-600/15 text-brand-600' : 'text-ink-400 hover:bg-page')}
                 >
                   {comment ? <MessageSquare className="h-3.5 w-3.5" /> : <MessageSquarePlus className="h-3.5 w-3.5" />}
@@ -238,6 +243,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
                     onChange={e => setComment(s.index, e.target.value.slice(0, LAP_COMMENT_MAX))}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setOpenLap(null); }}
                     placeholder="הערה על המקטע הזה"
+                    aria-label={`הערה על ${s.label}`}
                     dir="auto"
                     // 16px, not the table's 12px: Safari on iOS ZOOMS the whole page when a
                     // field under 16px takes focus, so a mentor typing a lap comment gets the
@@ -258,7 +264,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
           </p>
         )}
         {rows.some(s => s.hrUngradedReason === 'no_anchor') && (
-          <p className="px-2.5 text-[11px] text-band-3">
+          <p className="px-2.5 text-[11px] text-band-3-ink">
             יעד הדופק כתוב באחוזים ואין דופק מקסימלי שמור למתאמן, ולכן אי אפשר לדרג אותו.
           </p>
         )}
@@ -302,6 +308,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
               onChange={e => setFb(prev => ({ ...prev, note: e.target.value.slice(0, NOTE_MAX) }))}
               rows={2}
               dir="auto"
+              aria-label="הערה כללית על האימון"
               placeholder="מה שהצ׳יפים לא אומרים"
               className="mt-1 w-full rounded-lg bg-white px-2.5 py-2 text-base text-ink-900 placeholder:text-ink-400"
             />
@@ -371,7 +378,7 @@ function Chips({ title, hint, labels, selected, onToggle, suggested = [] }: {
               // reads as praise for the thing the mentor is flagging.
               // min-h keeps a thumb-sized chip on a phone; the form is a column of
               // these and 29px rows are a mis-tap machine.
-              className={cn('rounded-full px-3 min-h-[40px] text-[11px] font-medium',
+              className={cn('rounded-full px-3 min-h-[44px] min-w-[44px] text-[11px] font-medium',
                 on ? 'bg-brand-600 text-white'
                   : suggested.includes(tag) ? 'bg-white text-ink-500 ring-1 ring-brand-600/40'
                   : 'bg-white text-ink-500')}
