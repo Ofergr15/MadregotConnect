@@ -64,7 +64,24 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const rows = (data ?? []).map(toApi);
+    // Who wrote it, by name. The trainee's card is addressed — "המשוב שלך מיוסי" —
+    // because the club is 1:1 and the mentor is a person they know; a uniform form
+    // signed by nobody is the anonymity this feature exists to remove. Resolved in a
+    // second small query rather than an embedded select: this table has TWO foreign
+    // keys into `athletes` (the trainee and the mentor), so an embed has to be
+    // disambiguated by constraint name, which is a thing that breaks silently when
+    // the constraint is renamed.
+    const authorIds = [...new Set((data ?? []).map((r: any) => r.author_id).filter(Boolean))];
+    const names = new Map<string, string>();
+    if (authorIds.length) {
+      const { data: authors } = await supabase
+        .from('athletes')
+        .select('id, name')
+        .in('id', authorIds);
+      for (const a of authors ?? []) names.set(a.id, a.name);
+    }
+
+    const rows = (data ?? []).map((r: any) => ({ ...toApi(r), mentorName: names.get(r.author_id) ?? null }));
     return NextResponse.json(date ? { feedback: rows[0] ?? null } : { feedback: rows });
   } catch (error: any) {
     console.error('Academy feedback GET error:', error);

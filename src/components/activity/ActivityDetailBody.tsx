@@ -9,6 +9,7 @@ import { PlannedKmPoint } from '@/lib/academy/segments';
 import { displaySplits } from '@/lib/activities/km-splits';
 import type { ExecutionVerdict } from '@/lib/plan-execution/verdict';
 import { cn } from '@/lib/utils';
+import { RunFeedback } from '@/components/academy/RunFeedback';
 import { ElevationChart, HRChart, PaceChart } from './charts';
 import { ExecutionQuality, executionTakesPaceChart } from './ExecutionQuality';
 import { DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone } from './format';
@@ -129,6 +130,13 @@ export function ActivityDetailBody({
         plannedContinuous={plannedContinuous}
         loading={loadingVerdict}
       />
+
+      {/* And directly under the score: what a person said about it. The ring is the
+          machine's reading of the same run, so putting the mentor's words anywhere
+          else would let the two be read separately — which is exactly the split the
+          academy's WhatsApp loop suffers from today. Renders nothing when the run
+          was never reviewed, which is most runs. */}
+      <RunFeedback athleteId={act.athlete_id} startTime={act.start_time} />
 
       {loading && !details && (
         <div className="flex items-center justify-center py-8">
