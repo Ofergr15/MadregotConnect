@@ -1,7 +1,8 @@
 'use client';
 
 import { Quote } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { BidiText } from '@/components/BidiText';
+import { cn, israelToday } from '@/lib/utils';
 import {
   ACTION_LABELS,
   EFFORT_LABELS,
@@ -69,12 +70,30 @@ export function FeedbackCard({
   feedback,
   workoutName,
   segments,
+  heading,
+  showSentAt = true,
   className,
 }: {
   feedback: TraineeFeedback;
   workoutName?: string;
   /** Lets a lap comment be titled by the planned step ("חזרה 4") instead of its index. */
   segments?: SegmentVerdict[];
+  /**
+   * Who this card is being read BY, in one string.
+   *
+   * The default addresses the trainee, because that is the screen this card was
+   * written for. Inside the three-way thread it is also read by the coach and the
+   * academy manager, where "המשוב שלך מיוסי" addresses the wrong person entirely —
+   * the screenshot caught the manager being told it was his feedback. A component
+   * reused by three seats cannot hard-code a second person.
+   */
+  heading?: string;
+  /**
+   * The card's own date. Off inside a thread, where the day separator above it and
+   * the author line on the bubble already say when — two timestamps for one message,
+   * in two different formats, is what the screenshot showed.
+   */
+  showSentAt?: boolean;
   className?: string;
 }) {
   const { execution, effort, action, note, sentAt, mentorName } = feedback;
@@ -87,14 +106,14 @@ export function FeedbackCard({
     <div className={cn('rounded-card bg-card p-4 space-y-3.5', className)} dir="rtl">
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-sm font-bold text-ink-900">
-          המשוב שלך{mentorName ? ` מ${mentorName}` : ''}
+          {heading ?? `המשוב שלך${mentorName ? ` מ${mentorName}` : ''}`}
         </h3>
-        {sentAt && (
+        {showSentAt && sentAt && (
           <span className="shrink-0 text-[11px] text-ink-400">{fmtSentAt(sentAt)}</span>
         )}
       </div>
       {workoutName && (
-        <p className="-mt-2 text-xs text-ink-400" dir="auto">{workoutName}</p>
+        <p className="-mt-2 text-xs text-ink-400" dir="auto"><BidiText text={workoutName} /></p>
       )}
 
       {!hasBody && !action ? (
@@ -139,7 +158,7 @@ export function FeedbackCard({
                       {lapLabel(c.index, segments)}
                     </div>
                     <p className="mt-0.5 text-xs leading-relaxed text-ink-700" dir="auto">
-                      {c.text.trim()}
+                      <BidiText text={c.text.trim()} />
                     </p>
                   </div>
                 ))}
@@ -153,7 +172,7 @@ export function FeedbackCard({
                like another field. */
             <div className="flex gap-2 rounded-lg bg-page px-2.5 py-2">
               <Quote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-400" />
-              <p className="text-xs leading-relaxed text-ink-700" dir="auto">{note.trim()}</p>
+              <p className="text-xs leading-relaxed text-ink-700" dir="auto"><BidiText text={note.trim()} /></p>
             </div>
           )}
 
@@ -182,9 +201,13 @@ function Label({ children }: { children: React.ReactNode }) {
 function fmtSentAt(iso: string): string {
   const then = new Date(iso);
   if (Number.isNaN(then.getTime())) return '';
-  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((startOf(new Date()) - startOf(then)) / 86400000);
-  if (days <= 0) return 'היום';
-  if (days === 1) return 'אתמול';
-  return then.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' });
+  // Israel wall-clock, not the device's. Mounted under a run this only ever ran on
+  // the client, so it got away with local dates; inside the academy thread it is
+  // server-rendered, where an unpinned locale date is a hydration mismatch that
+  // throws out the whole tree.
+  const key = israelToday(then);
+  const today = israelToday();
+  if (key >= today) return 'היום';
+  if (key === israelToday(new Date(Date.now() - 86400000))) return 'אתמול';
+  return then.toLocaleDateString('he-IL', { day: 'numeric', month: 'short', timeZone: 'Asia/Jerusalem' });
 }
