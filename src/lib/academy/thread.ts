@@ -1,4 +1,5 @@
 import type { TraineeFeedback } from '@/components/academy/FeedbackCard';
+import type { ThreadMessage, ThreadSeat } from '@/components/academy/ThreadTranscript';
 
 // ── The academy thread, and the order of the inbox ──────────────────────────
 //
@@ -138,6 +139,71 @@ export function snapshotFromMessages(
   }
 
   return { athleteId, name, lastTraineeMessageAt, lastStaffMessageAt, unreadCount };
+}
+
+/** A Stream message, reduced to what the transcript renders. */
+export interface StreamMessageLike extends ThreadMessageRef {
+  id?: string | null;
+  text?: string | null;
+  user?: { id?: string | null; name?: string | null } | null;
+  /** The review, carried as a custom field on the message. */
+  academy_feedback?: AcademyFeedbackAttachment | null;
+}
+
+/**
+ * Which seat wrote a message.
+ *
+ * Note what is NOT consulted: the author's role. A coach who is also this trainee's
+ * mentor and an admin who is not are told apart by the PAIRING, not by their
+ * permissions — `academy_coach_id` is the mentor link, and every other staff seat in
+ * the thread is there as the manager. Reading `role` instead would label the club's
+ * head coach "manager" in a thread where he is personally the mentor, which is the
+ * one distinction the bubble exists to make.
+ */
+export function seatFor(
+  authorId: string | null,
+  athleteId: string,
+  mentorId: string | null,
+): ThreadSeat {
+  if (authorId && authorId === athleteId) return 'trainee';
+  if (mentorId && authorId === mentorId) return 'coach';
+  return 'manager';
+}
+
+/**
+ * Map a channel's messages into the transcript's shape, oldest first.
+ *
+ * Deleted messages are dropped rather than rendered as tombstones: this thread is a
+ * coaching record, and "this message was deleted" between a question and its answer
+ * invites the trainee to wonder what was taken back.
+ */
+export function toThreadMessages(
+  messages: StreamMessageLike[],
+  { athleteId, mentorId }: { athleteId: string; mentorId: string | null },
+): ThreadMessage[] {
+  const out: ThreadMessage[] = [];
+  for (const m of messages) {
+    if (!m.id || !m.created_at) continue;
+    const stamp = new Date(m.created_at);
+    if (Number.isNaN(stamp.getTime())) continue;
+    const authorId = m.user?.id ?? m.user_id ?? null;
+    const feedback = m.academy_feedback ?? null;
+    const text = (m.text ?? '').trim();
+    // A message with neither text nor a card has nothing to show. Skipped instead of
+    // rendering an empty bubble, which reads as a failed send.
+    if (!text && !feedback) continue;
+    out.push({
+      id: m.id,
+      // Stream carries "Name · role" as the display name; the seat already conveys the
+      // role here, and repeating it puts "יוסי · מאמן" next to a coach badge.
+      authorName: (m.user?.name ?? '').split(' · ')[0] || authorId || '',
+      seat: seatFor(authorId, athleteId, mentorId),
+      text,
+      at: stamp.toISOString(),
+      feedback,
+    });
+  }
+  return out.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 }
 
 export interface InboxRow extends ThreadSnapshot {

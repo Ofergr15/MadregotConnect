@@ -15,6 +15,8 @@ import {
   type WorkoutFeedback,
 } from '@/lib/academy/feedback';
 import { ACTION_LABELS, EFFORT_LABELS, EXECUTION_LABELS } from '@/lib/academy/feedback';
+import { getStreamServerClient } from '@/lib/stream/server';
+import { postAcademyFeedback } from '@/lib/academy/thread-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -165,7 +167,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ feedback: data ? toApi(data) : null, rendered });
+    // ── Deliver it ────────────────────────────────────────────────────────────
+    //
+    // AFTER the commit, and never blocking it. Up to here a saved review was a row
+    // the trainee had no way of learning about — the whole point of the thread is
+    // that a review arrives somewhere the trainee already looks. `postAcademyFeedback`
+    // swallows its own failures because the row above is the source of truth: a Stream
+    // outage must not turn a written review into a lost one.
+    //
+    // Reported back rather than hidden, so the mentor's form can say "saved, not yet
+    // delivered" instead of a green tick that means only half of what it looks like.
+    const delivery = auth.user.athleteId
+      ? await postAcademyFeedback(getStreamServerClient(), supabase, {
+        athleteId,
+        authorStreamId: auth.user.athleteId,
+        workoutDate: date,
+        activityId: row.activity_id,
+        workoutName: String(body.workoutName || '').slice(0, 200) || null,
+        feedback: {
+          ...feedback,
+          sentAt: row.sent_at,
+          mentorName: body.mentorName ? String(body.mentorName).slice(0, 60) : null,
+        },
+      })
+      // A staff account with no `athletes` row has no Stream identity to post as.
+      // The review still saves; it just cannot be attributed to a person in a thread.
+      : { posted: false, updated: false, error: 'no athlete identity for author' };
+
+    return NextResponse.json({ feedback: data ? toApi(data) : null, rendered, delivery });
   } catch (error: any) {
     console.error('Academy feedback POST error:', error);
     return NextResponse.json({ error: error.message || 'Failed to save feedback' }, { status: 500 });

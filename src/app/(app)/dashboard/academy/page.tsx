@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import {
   GraduationCap, Plus, Search, Users, ClipboardCheck, CalendarPlus,
   BarChart3, Trophy, Settings as SettingsIcon, UserPlus, LayoutDashboard,
+  MessagesSquare,
 } from 'lucide-react';
 import { cn, getGroupChip } from '@/lib/utils';
 import { Sheet, Spinner, SkeletonList } from '@/components/ui';
@@ -17,6 +18,7 @@ import { AcademyRegistrations } from '@/components/AcademyRegistrations';
 import { AcademyOverview } from '@/components/academy/AcademyOverview';
 import { AcademyMembers } from '@/components/academy/AcademyMembers';
 import { AcademyMyView } from '@/components/academy/AcademyMyView';
+import { AcademyThreads } from '@/components/academy/AcademyThreads';
 import { MemberSheet } from '@/components/academy/MemberSheet';
 import { sundayOf, type AcademyMember, type AcademyMembersResponse } from '@/components/academy/types';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -56,7 +58,7 @@ interface Athlete {
   hasGarmin?: boolean;
 }
 
-type Tab = 'overview' | 'members' | 'registrations' | 'plans' | 'compliance' | 'stats' | 'results' | 'settings';
+type Tab = 'overview' | 'threads' | 'members' | 'registrations' | 'plans' | 'compliance' | 'stats' | 'results' | 'settings';
 
 
 
@@ -168,7 +170,7 @@ export default function AcademyPage() {
     // `roster` is the old name for what is now the members directory — links
     // already out in notifications and shared URLs must keep working.
     const normalized = tab === 'roster' ? 'members' : tab;
-    const valid: Tab[] = ['overview', 'members', 'registrations', 'plans', 'compliance', 'stats', 'results', 'settings'];
+    const valid: Tab[] = ['overview', 'threads', 'members', 'registrations', 'plans', 'compliance', 'stats', 'results', 'settings'];
     if (valid.includes(normalized as Tab)) setView(normalized as Tab);
   }, []);
 
@@ -279,6 +281,7 @@ export default function AcademyPage() {
   // ── Manager / coach lens ──────────────────────────────────────────────────
   const tabs: Array<{ value: Tab; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number }> = [
     { value: 'overview', label: t('tabOverview'), icon: LayoutDashboard },
+    { value: 'threads', label: t('tabThreads'), icon: MessagesSquare },
     { value: 'members', label: t('tabMembers'), icon: Users },
     { value: 'registrations', label: t('tabRegistrations'), icon: UserPlus, badge: members?.pending.registrations },
     { value: 'plans', label: t('tabPlans'), icon: CalendarPlus },
@@ -329,6 +332,8 @@ export default function AcademyPage() {
           onGoTab={setView}
           onChanged={reloadMembers}
         />
+      ) : view === 'threads' ? (
+        <AcademyThreads />
       ) : view === 'members' ? (
         <AcademyMembers
           data={members}

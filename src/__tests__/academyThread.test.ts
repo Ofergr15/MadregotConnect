@@ -7,7 +7,9 @@ import {
   classify,
   lastActivityAt,
   rank,
+  seatFor,
   snapshotFromMessages,
+  toThreadMessages,
   type ThreadSnapshot,
 } from '@/lib/academy/thread';
 
@@ -268,5 +270,71 @@ describe('snapshotFromMessages', () => {
     const s = snapshotFromMessages(T, 'Noa', [msg(T, '2026-09-13T15:00:00.000Z')], 0);
     expect(s.lastStaffMessageAt).toBeNull();
     expect(awaitingReply(s)).toBe(true);
+  });
+});
+
+/** The trainee whose thread it is. Same id the block above uses, scoped for these. */
+const T = 'noa';
+
+describe('seatFor', () => {
+  it('separates the mentor from every other staff seat', () => {
+    expect(seatFor(T, T, 'mentor-1')).toBe('trainee');
+    expect(seatFor('mentor-1', T, 'mentor-1')).toBe('coach');
+    expect(seatFor('admin-9', T, 'mentor-1')).toBe('manager');
+  });
+
+  it('reads an unpaired trainee`s staff messages as the manager', () => {
+    // Nobody is assigned, so nobody can be the coach. The alternative — defaulting to
+    // 'coach' — would label an admin as this trainee's mentor on screen.
+    expect(seatFor('admin-9', T, null)).toBe('manager');
+  });
+
+  it('never calls an unknown author the trainee', () => {
+    // A deleted or system author must not be given the trainee's own bubble side,
+    // which is what "mine" is decided from.
+    expect(seatFor(null, T, 'mentor-1')).toBe('manager');
+  });
+});
+
+describe('toThreadMessages', () => {
+  const opts = { athleteId: T, mentorId: 'mentor-1' };
+  const m = (over: Record<string, unknown>) => ({
+    id: 'm1', text: 'שלום', created_at: '2026-09-14T10:00:00.000Z',
+    user: { id: T, name: 'נועה' }, ...over,
+  });
+
+  it('orders oldest first regardless of what Stream handed back', () => {
+    const out = toThreadMessages([
+      m({ id: 'b', created_at: '2026-09-15T10:00:00.000Z' }),
+      m({ id: 'a', created_at: '2026-09-14T10:00:00.000Z' }),
+    ], opts);
+    expect(out.map(x => x.id)).toEqual(['a', 'b']);
+  });
+
+  it('keeps a message that is only a feedback card', () => {
+    const fb = { type: 'academy_feedback', version: 1, workout_date: '2026-09-14', activity_id: null, workout_name: null, feedback: {} };
+    const out = toThreadMessages([m({ text: '', academy_feedback: fb })], opts);
+    expect(out).toHaveLength(1);
+    expect(out[0].feedback).toBe(fb);
+  });
+
+  it('drops a message with neither text nor a card', () => {
+    expect(toThreadMessages([m({ text: '   ' })], opts)).toEqual([]);
+  });
+
+  it('drops the role suffix Stream carries on the display name', () => {
+    // The token route sets "Name · role" so run-chat can show it. Here the seat badge
+    // already says it, and printing both gives "יוסי · מאמן" beside a coach label.
+    const out = toThreadMessages([m({ user: { id: 'mentor-1', name: 'יוסי · מאמן' } })], opts);
+    expect(out[0].authorName).toBe('יוסי');
+    expect(out[0].seat).toBe('coach');
+  });
+
+  it('skips anything unusable rather than rendering a broken bubble', () => {
+    expect(toThreadMessages([
+      m({ id: null }),
+      m({ created_at: null }),
+      m({ created_at: 'not a date' }),
+    ], opts)).toEqual([]);
   });
 });

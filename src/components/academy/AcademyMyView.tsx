@@ -12,6 +12,7 @@ import { useApi } from '@/lib/api';
 import { Card, EmptyState, InsetRow, InsetSection, SkeletonList } from '@/components/ui';
 import { fmtRate, fmtWeekRange, initialsOf, rateColor, shiftWeek, sundayOf } from './types';
 import { AthleteLink } from '@/components/AthleteLink';
+import { AcademyThreadPanel } from './AcademyThreadPanel';
 
 // The academy as one of its athletes sees it.
 //
@@ -194,6 +195,16 @@ export function AcademyMyView({ athleteId }: {
             ))
           )}
         </div>
+      </div>
+
+      {/* ── The conversation ───────────────────────────────────────────────────
+          Placed HERE on purpose: directly under the week it is about, and above the
+          group stats. The week's numbers are what happened; this is where somebody
+          says something about it. Below the leaderboard it would be a feature nobody
+          scrolled to, which is the WhatsApp silence this replaces. */}
+      <div>
+        <SectionTitle>{t('myThread')}</SectionTitle>
+        <AcademyThreadPanel />
       </div>
 
       {/* The academy's week, so an athlete sees the group they're part of. */}
