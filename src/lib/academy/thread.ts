@@ -82,6 +82,64 @@ export interface ThreadSnapshot {
   unreadCount: number;
 }
 
+/**
+ * The shape of a Stream message, reduced to what ranking needs.
+ *
+ * `created_at` takes a Date as well as a string because Stream's own channel state
+ * hands back Dates while its REST payloads hand back ISO strings, and the snapshot
+ * has to be ISO either way.
+ */
+export interface ThreadMessageRef {
+  created_at?: string | Date | null;
+  user?: { id?: string | null } | null;
+  user_id?: string | null;
+}
+
+/**
+ * Turn a channel's recent messages into a snapshot.
+ *
+ * Everyone who is not the trainee is staff. That is not a shortcut — there is no
+ * academy-manager role in this app (`STAFF_ROLES` is admin/coach/academy_coach and
+ * the mentor link is `athletes.academy_coach_id`), so "manager" is a seat in the UI
+ * and not a permission tier. For the one question this inbox asks — is somebody
+ * waiting on a human reply — the coach and the manager are the same side.
+ *
+ * SAFE ON A TRUNCATED WINDOW, which matters because the caller passes the last N
+ * messages and not the whole thread. If staff last spoke before the window,
+ * `lastStaffMessageAt` comes back null and `awaitingReply` reads the thread as
+ * awaiting — which is the right answer, because the trainee did speak last. The
+ * classification only ever depends on WHO the newest message is from and how old it
+ * is, and the newest message is always inside the window.
+ */
+export function snapshotFromMessages(
+  athleteId: string,
+  name: string,
+  messages: ThreadMessageRef[],
+  unreadCount: number,
+): ThreadSnapshot {
+  let lastTraineeMessageAt: string | null = null;
+  let lastStaffMessageAt: string | null = null;
+
+  for (const m of messages) {
+    if (!m.created_at) continue;
+    const stamp = new Date(m.created_at);
+    if (Number.isNaN(stamp.getTime())) continue;
+    const at = stamp.toISOString();
+    const author = m.user?.id ?? m.user_id ?? null;
+    const isTrainee = author === athleteId;
+    const slot = isTrainee ? lastTraineeMessageAt : lastStaffMessageAt;
+    // Not assuming the caller sorted them: Stream returns oldest-first here and
+    // newest-first elsewhere, and a wrong "who spoke last" is the one error this
+    // whole screen is built to avoid.
+    if (!slot || new Date(at).getTime() > new Date(slot).getTime()) {
+      if (isTrainee) lastTraineeMessageAt = at;
+      else lastStaffMessageAt = at;
+    }
+  }
+
+  return { athleteId, name, lastTraineeMessageAt, lastStaffMessageAt, unreadCount };
+}
+
 export interface InboxRow extends ThreadSnapshot {
   reason: InboxReason;
   /**

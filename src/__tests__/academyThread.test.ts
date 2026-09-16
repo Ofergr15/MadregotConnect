@@ -7,6 +7,7 @@ import {
   classify,
   lastActivityAt,
   rank,
+  snapshotFromMessages,
   type ThreadSnapshot,
 } from '@/lib/academy/thread';
 
@@ -204,5 +205,68 @@ describe('buildInbox', () => {
     const empty = buildInbox([], NOW);
     expect(empty.rows).toEqual([]);
     expect(empty.needsAttention).toBe(0);
+  });
+});
+
+describe('snapshotFromMessages', () => {
+  const T = 'noa';
+  const msg = (who: string, at: string) => ({ user: { id: who }, created_at: at });
+
+  it('separates the trainee from every staff seat', () => {
+    const s = snapshotFromMessages(T, 'Noa', [
+      msg('yossi', '2026-09-07T17:00:00.000Z'),
+      msg(T, '2026-09-08T18:00:00.000Z'),
+      msg('ofer', '2026-09-12T06:00:00.000Z'),
+      msg(T, '2026-09-13T15:00:00.000Z'),
+    ], 2);
+    expect(s.lastTraineeMessageAt).toBe('2026-09-13T15:00:00.000Z');
+    // The manager's message is the last STAFF word even though a coach also wrote:
+    // there is no manager role in this app, so both sides collapse into "not them".
+    expect(s.lastStaffMessageAt).toBe('2026-09-12T06:00:00.000Z');
+    expect(s.unreadCount).toBe(2);
+  });
+
+  it('does not assume the messages arrived in order', () => {
+    const s = snapshotFromMessages(T, 'Noa', [
+      msg(T, '2026-09-13T15:00:00.000Z'),
+      msg(T, '2026-09-01T15:00:00.000Z'),
+      msg('yossi', '2026-09-02T15:00:00.000Z'),
+      msg('yossi', '2026-09-12T15:00:00.000Z'),
+    ], 0);
+    expect(s.lastTraineeMessageAt).toBe('2026-09-13T15:00:00.000Z');
+    expect(s.lastStaffMessageAt).toBe('2026-09-12T15:00:00.000Z');
+  });
+
+  it('accepts the flat user_id shape as well as the nested one', () => {
+    const s = snapshotFromMessages(T, 'Noa', [
+      { user_id: T, created_at: '2026-09-13T15:00:00.000Z' },
+    ], 0);
+    expect(s.lastTraineeMessageAt).toBe('2026-09-13T15:00:00.000Z');
+  });
+
+  it('skips messages with no usable timestamp instead of poisoning the sort', () => {
+    const s = snapshotFromMessages(T, 'Noa', [
+      { user: { id: T }, created_at: null },
+      { user: { id: T }, created_at: 'not a date' },
+      msg(T, '2026-09-13T15:00:00.000Z'),
+    ], 0);
+    expect(s.lastTraineeMessageAt).toBe('2026-09-13T15:00:00.000Z');
+  });
+
+  it('reads an empty channel as a thread nobody has used', () => {
+    const s = snapshotFromMessages(T, 'Noa', [], 0);
+    expect(s.lastTraineeMessageAt).toBeNull();
+    expect(s.lastStaffMessageAt).toBeNull();
+    // Which classify() must call silent, not quiet — the strongest version of the
+    // problem, not the absence of one.
+    expect(classify(s, Date.parse('2026-09-16T12:00:00.000Z'))).toBe('silent');
+  });
+
+  it('is correct on a truncated window: staff older than the window still awaits', () => {
+    // The route asks Stream for the last N messages. If the coach's reply fell out
+    // of that window, the trainee still spoke last and is still owed an answer.
+    const s = snapshotFromMessages(T, 'Noa', [msg(T, '2026-09-13T15:00:00.000Z')], 0);
+    expect(s.lastStaffMessageAt).toBeNull();
+    expect(awaitingReply(s)).toBe(true);
   });
 });
