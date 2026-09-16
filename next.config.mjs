@@ -23,6 +23,10 @@ const nextConfig = {
     'ofer-grosfeld-H265YVFC9G.local',
     '*.local',
     '192.168.*.*',
+    // Not only 192.168: the corporate Wi-Fi hands out 10.x, and the same phone that
+    // worked at home then loaded HTML with no chunks at the office.
+    '10.*.*.*',
+    '172.*.*.*',
   ],
   images: {
     remotePatterns: [

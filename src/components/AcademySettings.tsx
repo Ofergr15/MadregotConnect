@@ -48,7 +48,13 @@ export function AcademySettingsPanel() {
           {s.tests.map(t => (
             <span key={t} className="flex items-center gap-1.5 bg-page/60 rounded-lg ps-3 pe-2 py-1.5 text-sm text-ink-700">
               {t}
-              <button onClick={() => setS({ ...s, tests: s.tests.filter(x => x !== t) })} className="text-ink-400 hover:text-accent-red active:text-accent-red" disabled={s.tests.length <= 1}>
+              {/* A bare 14px icon is a 12×12 tap target. The halo takes it to 44
+                  without moving the chip: these sit in a wrapping row, so growing
+                  the box itself would re-flow the whole list. */}
+              <button onClick={() => setS({ ...s, tests: s.tests.filter(x => x !== t) })}
+                aria-label={`הסרת ${t}`}
+                className="relative text-ink-400 hover:text-accent-red active:text-accent-red after:absolute after:-inset-[15px] after:content-['']"
+                disabled={s.tests.length <= 1}>
                 <X className="h-3.5 w-3.5" />
               </button>
             </span>
@@ -57,7 +63,8 @@ export function AcademySettingsPanel() {
         <div className="flex gap-2">
           <input value={newTest} onChange={e => setNewTest(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && newTest.trim()) { setS({ ...s, tests: [...new Set([...s.tests, newTest.trim()])] }); setNewTest(''); } }}
-            placeholder="לדוגמה: 5k" className="flex-1 bg-page border border-page rounded-lg px-3 h-11 text-sm text-ink-700" />
+            aria-label="שם מבחן חדש"
+            placeholder="לדוגמה: 5k" className="flex-1 bg-page border border-page rounded-lg px-3 h-11 text-base text-ink-700" />
           <button onClick={() => { if (newTest.trim()) { setS({ ...s, tests: [...new Set([...s.tests, newTest.trim()])] }); setNewTest(''); } }}
             className="flex items-center gap-1 px-3 min-h-[44px] rounded-lg bg-page hover:bg-ink-300/40 text-sm text-ink-700"><Plus className="h-4 w-4" /> הוספה</button>
         </div>
@@ -66,16 +73,23 @@ export function AcademySettingsPanel() {
       {/* Pace alerts */}
       <Section title="התראות קצב על השעון" desc="הדחיפה לאקדמיה כוללת יעד אזור קצב בגרמין שמצפצף כשיוצאים מהקצב.">
         <div className="flex items-center gap-3">
-          <Switch checked={s.paceAlerts} onChange={(v) => setS({ ...s, paceAlerts: v })} size="sm" />
+          <Switch checked={s.paceAlerts} onChange={(v) => setS({ ...s, paceAlerts: v })} size="sm"
+            ariaLabel="התראות קצב על השעון" />
           <span className="text-sm text-ink-500">{s.paceAlerts ? 'פעיל — התראה כשיוצאים מהקצב' : 'כבוי — הקצב מוצג למידע בלבד'}</span>
         </div>
       </Section>
 
       {/* Tolerances */}
       <Section title="סטייה מותרת מהתוכנית" desc="כמה סטייה מהתוכנית עדיין נחשבת בטווח היעד.">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <TolField label="קצב ± (שניות לק״מ)" value={s.tolerances.paceSec}
             onChange={v => setS({ ...s, tolerances: { ...s.tolerances, paceSec: v } })} step={1} />
+          {/* The HR tolerance was gradeable from the day HR grading shipped, and only
+              the code could set it — so every heart-rate session in the club was
+              judged against a default nobody had agreed to. It belongs next to the
+              pace tolerance because it is the same decision on the other metric. */}
+          <TolField label="דופק ± (פעימות)" value={s.tolerances.hrBpm}
+            onChange={v => setS({ ...s, tolerances: { ...s.tolerances, hrBpm: v } })} step={1} />
           <TolField label="מרחק ± (%)" value={Math.round(s.tolerances.distance * 100)}
             onChange={v => setS({ ...s, tolerances: { ...s.tolerances, distance: v / 100 } })} step={1} />
           <TolField label="זמן ± (%)" value={Math.round(s.tolerances.duration * 100)}
@@ -83,28 +97,33 @@ export function AcademySettingsPanel() {
         </div>
         <p className="text-xs text-ink-400 mt-2">
           לדוגמה: יעד של 5:00 לק״מ עם ±{s.tolerances.paceSec} שנ&apos; נחשב בטווח בין {fmtPace(300 - s.tolerances.paceSec)} ל-{fmtPace(300 + s.tolerances.paceSec)}.
+          {' '}אימון שנכתב בדופק 150 עם ±{s.tolerances.hrBpm} נחשב בטווח בין {150 - s.tolerances.hrBpm} ל-{150 + s.tolerances.hrBpm}.
         </p>
       </Section>
 
       {/* Weekly report */}
       <Section title="דוח שבועי" desc="למי נשלח דוח ההיענות ובאיזה יום.">
-        <label className="block text-xs text-ink-400 mb-1.5">נשלח ביום</label>
-        <select value={s.report.day} onChange={e => setS({ ...s, report: { ...s.report, day: Number(e.target.value) } })}
-          className="bg-page border border-page rounded-lg px-3 h-11 text-sm text-ink-700 mb-3">
+        <label className="block text-xs text-ink-400 mb-1.5" htmlFor="report-day">נשלח ביום</label>
+        {/* Safari zooms for a <select> under 16px exactly as it does for an input. */}
+        <select id="report-day" value={s.report.day} onChange={e => setS({ ...s, report: { ...s.report, day: Number(e.target.value) } })}
+          className="bg-page border border-page rounded-lg px-3 h-11 text-base text-ink-700 mb-3">
           {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
         </select>
         <div className="flex flex-wrap gap-2 mb-2">
           {s.report.recipients.map(r => (
             <span key={r} className="flex items-center gap-1.5 bg-page/60 rounded-lg ps-3 pe-2 py-1.5 text-sm text-ink-700" dir="ltr">
               {r}
-              <button onClick={() => setS({ ...s, report: { ...s.report, recipients: s.report.recipients.filter(x => x !== r) } })} className="text-ink-400 hover:text-accent-red active:text-accent-red"><X className="h-3.5 w-3.5" /></button>
+              <button onClick={() => setS({ ...s, report: { ...s.report, recipients: s.report.recipients.filter(x => x !== r) } })}
+              aria-label={`הסרת ${r}`}
+              className="relative text-ink-400 hover:text-accent-red active:text-accent-red after:absolute after:-inset-[15px] after:content-['']"><X className="h-3.5 w-3.5" /></button>
             </span>
           ))}
           {s.report.recipients.length === 0 && <span className="text-xs text-ink-400">כברירת מחדל נשלח למייל מנהל המועדון.</span>}
         </div>
         <div className="flex gap-2">
           <input value={newRecipient} onChange={e => setNewRecipient(e.target.value)} type="email" dir="ltr"
-            placeholder="coach@example.com" className="flex-1 bg-page border border-page rounded-lg px-3 h-11 text-sm text-ink-700" />
+            aria-label="מייל נוסף לדוח השבועי"
+            placeholder="coach@example.com" className="flex-1 bg-page border border-page rounded-lg px-3 h-11 text-base text-ink-700" />
           <button onClick={() => { const v = newRecipient.trim(); if (v) { setS({ ...s, report: { ...s.report, recipients: [...new Set([...s.report.recipients, v])] } }); setNewRecipient(''); } }}
             className="flex items-center gap-1 px-3 min-h-[44px] rounded-lg bg-page hover:bg-ink-300/40 text-sm text-ink-700"><Plus className="h-4 w-4" /> הוספה</button>
         </div>
@@ -132,12 +151,17 @@ function Section({ title, desc, children }: { title: string; desc: string; child
 
 function TolField({ label, value, onChange, step }: { label: string; value: number; onChange: (v: number) => void; step: number }) {
   return (
-    <div>
-      <label className="block text-xs text-ink-400 mb-1.5">{label}</label>
+    // The input lives INSIDE the label, which is what ties the two together: as
+    // siblings the caption was on screen but the field had no accessible name, so
+    // voice control and a screen reader both got "number field" four times over.
+    <label className="block">
+      <span className="block text-xs text-ink-400 mb-1.5">{label}</span>
+      {/* text-base and not text-sm: at 14px iOS Safari zooms the page the moment the
+          field takes focus, and this is a screen of nothing but number fields. */}
       <input type="number" min={0} step={step} value={value}
         onChange={e => onChange(Math.max(0, Number(e.target.value) || 0))}
-        className="w-full bg-page border border-page rounded-lg px-3 h-11 text-sm text-ink-700 tabular-nums" />
-    </div>
+        className="w-full bg-page border border-page rounded-lg px-3 h-11 text-base text-ink-700 tabular-nums" />
+    </label>
   );
 }
 

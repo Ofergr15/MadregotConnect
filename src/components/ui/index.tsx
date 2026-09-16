@@ -281,6 +281,14 @@ export function Switch({
       onClick={() => onChange(!checked)}
       className={cn(
         'relative rounded-full transition-colors shrink-0 disabled:opacity-50 transform-gpu',
+        // The track is 44 or 48 wide but only 24 or 28 TALL, so the thing every
+        // settings screen is made of has been a 24px-high tap target. A vertical
+        // pseudo-element halo takes it to 44 without changing a single pixel of the
+        // design. 10px and not more on purpose: switches live in 52px InsetRows,
+        // which leaves 14px of clearance, and a halo bigger than that would let one
+        // row's switch steal the tap meant for the row below — that exact overlap
+        // is how an earlier "just make the halo bigger" fix made things worse.
+        'after:absolute after:-inset-y-[10px] after:inset-x-0 after:content-[""]',
         track,
         checked ? activeColor : 'bg-ink-300',
         className,
