@@ -220,7 +220,11 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
                   type="button"
                   onClick={() => setOpenLap(openLap === s.index ? null : s.index)}
                   aria-label={`הערה על ${s.label}`}
-                  className={cn('w-7 h-7 rounded-lg flex items-center justify-center shrink-0',
+                  // 28px is the right SIZE in a dense table and the wrong TAP TARGET on a
+                  // phone: this is the row's primary action and iOS wants 44. The pseudo
+                  // element grows the hit area past the icon without growing the row.
+                  className={cn('relative w-7 h-7 rounded-lg flex items-center justify-center shrink-0',
+                    'after:absolute after:-inset-2 after:content-[""]',
                     comment ? 'bg-brand-600/15 text-brand-600' : 'text-ink-400 hover:bg-page')}
                 >
                   {comment ? <MessageSquare className="h-3.5 w-3.5" /> : <MessageSquarePlus className="h-3.5 w-3.5" />}
@@ -235,7 +239,10 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setOpenLap(null); }}
                     placeholder="הערה על המקטע הזה"
                     dir="auto"
-                    className="w-full rounded-lg bg-page px-2.5 py-2 text-xs text-ink-900 placeholder:text-ink-400"
+                    // 16px, not the table's 12px: Safari on iOS ZOOMS the whole page when a
+                    // field under 16px takes focus, so a mentor typing a lap comment gets the
+                    // layout yanked sideways mid-sentence. Applies to the note field too.
+                    className="w-full rounded-lg bg-page px-2.5 py-2 text-base text-ink-900 placeholder:text-ink-400"
                   />
                 </div>
               )}
@@ -296,7 +303,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
               rows={2}
               dir="auto"
               placeholder="מה שהצ׳יפים לא אומרים"
-              className="mt-1 w-full rounded-lg bg-white px-2.5 py-2 text-xs text-ink-900 placeholder:text-ink-400"
+              className="mt-1 w-full rounded-lg bg-white px-2.5 py-2 text-base text-ink-900 placeholder:text-ink-400"
             />
           </div>
 
@@ -362,7 +369,9 @@ function Chips({ title, hint, labels, selected, onToggle, suggested = [] }: {
               // Brand blue for "selected", never the success green: accent-600 means
               // "good" everywhere else in the app, and a filled green "דעיכה לקראת הסוף"
               // reads as praise for the thing the mentor is flagging.
-              className={cn('rounded-full px-2.5 py-1.5 text-[11px] font-medium',
+              // min-h keeps a thumb-sized chip on a phone; the form is a column of
+              // these and 29px rows are a mis-tap machine.
+              className={cn('rounded-full px-3 min-h-[40px] text-[11px] font-medium',
                 on ? 'bg-brand-600 text-white'
                   : suggested.includes(tag) ? 'bg-white text-ink-500 ring-1 ring-brand-600/40'
                   : 'bg-white text-ink-500')}

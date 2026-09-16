@@ -8,8 +8,13 @@ const nextConfig = {
   // resvg loads a platform-specific native binding at runtime.
   serverExternalPackages: ['@resvg/resvg-js'],
   // Next 16 blocks cross-origin dev chunks by default. Allow the stable ngrok
-  // tunnel used to exercise the local app from physical mobile devices.
-  allowedDevOrigins: ['unstout-lustily-noma.ngrok-free.dev', 'madregot.tal.bo'],
+  // tunnel used to exercise the local app from physical mobile devices, plus the
+  // Mac's own LAN address — a phone on the same network reaches the dev server
+  // directly, and without this entry it loads the HTML and none of the chunks.
+  // The LAN entry is a wildcard on purpose: the Mac's address is DHCP, so a hard-coded
+  // one silently stops working after a lease change and the phone gets HTML with no
+  // chunks again — which looks exactly like "the server is down".
+  allowedDevOrigins: ['unstout-lustily-noma.ngrok-free.dev', 'madregot.tal.bo', '192.168.*.*'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.supabase.co' },
