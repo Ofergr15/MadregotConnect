@@ -248,7 +248,10 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
                     // 16px, not the table's 12px: Safari on iOS ZOOMS the whole page when a
                     // field under 16px takes focus, so a mentor typing a lap comment gets the
                     // layout yanked sideways mid-sentence. Applies to the note field too.
-                    className="w-full rounded-lg bg-page px-2.5 py-2 text-base text-ink-900 placeholder:text-ink-400"
+                    // min-h and not just padding: at 16px text the field measured 38px
+                    // tall, which is under the touch floor for the one control the mentor
+                    // has to re-tap to correct a typo.
+                    className="w-full min-h-[44px] rounded-lg bg-page px-2.5 py-2 text-base text-ink-900 placeholder:text-ink-400"
                   />
                 </div>
               )}
