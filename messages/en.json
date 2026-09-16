@@ -1536,6 +1536,8 @@
     "reconnectNeeded": "Reconnect needed",
     "lastSynced": "Synced {ago}",
     "connectionUnknown": "Couldn't check",
+    "historyImporting": "Pulling your past runs in the background…",
+    "historyComplete": "All your history is in — back to {date}",
     "connect": "Connect",
     "garminEmail": "Garmin email",
     "garminPassword": "Garmin password",

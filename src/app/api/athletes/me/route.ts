@@ -4,6 +4,7 @@ import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { KIT_SIZE_FIELDS } from '@/lib/kit-sizes';
 import { PROVIDER_HEALTH_COLUMNS_101, connectionState } from '@/lib/providers/health';
 import { nameProblem, normalizeDisplayName } from '@/lib/names/latin';
+import { historyImportStatus, readHistoryCursors, type HistoryImportStatus } from '@/lib/garmin/history-schedule';
 
 const GENDERS = ['male', 'female'] as const;
 type Gender = (typeof GENDERS)[number];
@@ -71,6 +72,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
+  // How far the scheduled backwards walk has got through this athlete's Garmin
+  // past — the "we pulled everything" line on the connection card. Read here, on
+  // the one call the profile screen already makes about itself, rather than from a
+  // new endpoint: it is three fields about the caller's own row, and a route that
+  // takes an athlete id is a route that has to be gated all over again.
+  //
+  // Skipped entirely without a Garmin credential, so a Strava-only athlete's
+  // profile costs no extra read for a section they will never see.
+  let historyImport: HistoryImportStatus = { state: 'none', oldest: null, imported: 0 };
+  if (data.garmin_auth) {
+    try {
+      const cursors = await readHistoryCursors(supabase);
+      historyImport = historyImportStatus(cursors[data.id as string], true);
+    } catch { /* bookkeeping — never fail the profile over it */ }
+  }
+
   return NextResponse.json({
     athlete: {
       id: data.id,
@@ -94,6 +111,7 @@ export async function GET(req: NextRequest) {
         authFailedAt: (data as any).strava_auth_failed_at,
       }),
       stravaLastSyncAt: (data as any).strava_last_sync_at || null,
+      historyImport,
       // Same OR as /api/admin/athlete-source: a connected Strava account counts as
       // enabled even on a row that predates the flag.
       stravaEnabled: !!(data as any).strava_enabled || !!data.strava_auth,

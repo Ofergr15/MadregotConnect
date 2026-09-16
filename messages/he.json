@@ -1536,6 +1536,8 @@
     "reconnectNeeded": "נדרש חיבור מחדש",
     "lastSynced": "סונכרן {ago}",
     "connectionUnknown": "לא הצלחנו לבדוק",
+    "historyImporting": "מושכים את האימונים הקודמים שלך ברקע…",
+    "historyComplete": "כל ההיסטוריה שלך כבר כאן — אחורה עד {date}",
     "connect": "חבר",
     "garminEmail": "אימייל גרמין",
     "garminPassword": "סיסמת גרמין",

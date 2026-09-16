@@ -5,6 +5,7 @@ import { stravaPollSlice, stravaPollTick } from '@/lib/strava/poll-rotation';
 import { snapshotWeeklyKm } from '@/lib/weekly-snapshots';
 import { backfillStravaLaps } from '@/lib/strava/backfill-laps';
 import { backfillStravaRoutes } from '@/lib/strava/backfill-routes';
+import { runScheduledHistoryBackfill } from '@/lib/garmin/history-schedule';
 import { createServerClient } from '@/lib/supabase/server';
 import { israelNow } from '@/lib/utils';
 
@@ -199,6 +200,22 @@ async function runSync(request: Request) {
     stravaLaps = { error: String(e?.message || e) };
   }
 
+  // The one pass here that walks BACKWARDS: Garmin history from before the day
+  // each athlete connected. It was resumable but manual — a human had to read
+  // `nextPage` out of one response and hand it to the next — so it never got past
+  // the first few pages for anyone. One athlete, two pages a tick, cursor kept in
+  // app_settings; null once the club is drained. See lib/garmin/history-schedule.
+  //
+  // Last of the bonus passes, and isolated like them: it shares the club's single
+  // Garmin credential with the sync above, and repairing months-old history must
+  // never cost today's run its sync.
+  let garminHistory: any = null;
+  try {
+    garminHistory = await runScheduledHistoryBackfill(createServerClient());
+  } catch (e: any) {
+    garminHistory = { error: String(e?.message || e) };
+  }
+
   let snapshot: any = null;
   try {
     snapshot = await snapshotWeeklyKm(1);
@@ -206,9 +223,9 @@ async function runSync(request: Request) {
     snapshot = { error: String(e?.message || e) };
   }
 
-  console.log('[cron/sync] done', { totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, snapshot });
+  console.log('[cron/sync] done', { totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, snapshot });
 
-  return NextResponse.json({ ok: true, totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, snapshot });
+  return NextResponse.json({ ok: true, totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, snapshot });
 }
 
 export async function GET(request: Request) {
