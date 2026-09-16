@@ -182,11 +182,11 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
     <div className="mt-2 space-y-3">
       {/* ── plan vs execution, commentable in place ── */}
       <div className="space-y-1">
-        <div className="flex items-center gap-2 px-2.5 text-[10px] font-semibold text-ink-400">
+        <div className="flex items-center gap-1.5 px-2.5 text-[10px] font-semibold text-ink-400">
           <span className="flex-1">מקטע</span>
-          <span className="w-20 text-center">{metric === 'hr' ? 'דופק יעד' : 'יעד'}</span>
-          <span className="w-16 text-center">בפועל</span>
-          <span className="w-16 text-end">פער</span>
+          <span className="w-[68px] text-center">{metric === 'hr' ? 'דופק יעד' : 'יעד'}</span>
+          <span className="w-[46px] text-center">בפועל</span>
+          <span className="w-[52px] text-end">פער</span>
           <span className="w-7" />
         </div>
         {rows.map(s => {
@@ -195,22 +195,25 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
           const comment = commentFor(s.index);
           return (
             <div key={s.index}>
-              <div className={cn('flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs',
+              <div className={cn('flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs',
                 gradable ? 'bg-page/50' : 'bg-page/20')}>
                 <span className="text-ink-400 flex-1 min-w-0 truncate" dir="auto">{s.label}</span>
-                <span className="w-20 text-center text-ink-400 tabular-nums" dir="ltr">
+                <span className="w-[68px] text-center text-ink-400 tabular-nums" dir="ltr">
                   {isHr ? hrBandLabel(s) : paceBandLabel(s.plannedPaceMin, s.plannedPaceMax)}
                 </span>
-                <span className="w-16 text-center text-ink-500 tabular-nums" dir="ltr">
+                <span className="w-[46px] text-center text-ink-500 tabular-nums" dir="ltr">
                   {isHr
                     ? (s.actualHr != null ? `${s.actualHr}` : '—')
                     : (s.actualPace != null ? formatPace(s.actualPace) : '—')}
                 </span>
-                <span className={cn('w-16 text-end font-semibold', STATUS_STYLE[s.status])}>
-                  {gradable
-                    ? (s.hrUngradedReason ? hrReasonShort(s.hrUngradedReason)
-                      : (isHr ? HR_STATUS_LABEL : STATUS_LABEL)[s.status])
-                    : '—'}
+                {/* The magnitude, not just the direction. A mentor deciding whether to
+                    soften next week needs "12 seconds" rather than "faster" — and it is
+                    also what the weekly queue will sort trainees by, so the number the
+                    mentor reads here and the number that ordered the queue are one thing.
+                    Each metric keeps its own natural sign: pace negative = ran faster,
+                    HR positive = beat higher. */}
+                <span className={cn('w-[52px] text-end font-semibold tabular-nums', STATUS_STYLE[s.status])} dir="ltr">
+                  {gradable ? gapLabel(s) : '—'}
                 </span>
                 {/* A comment on ONE step. The thing no tool they use today has. */}
                 <button
@@ -218,7 +221,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
                   onClick={() => setOpenLap(openLap === s.index ? null : s.index)}
                   aria-label={`הערה על ${s.label}`}
                   className={cn('w-7 h-7 rounded-lg flex items-center justify-center shrink-0',
-                    comment ? 'bg-accent-600/15 text-accent-600' : 'text-ink-400 hover:bg-page')}
+                    comment ? 'bg-brand-600/15 text-brand-600' : 'text-ink-400 hover:bg-page')}
                 >
                   {comment ? <MessageSquare className="h-3.5 w-3.5" /> : <MessageSquarePlus className="h-3.5 w-3.5" />}
                 </button>
@@ -317,7 +320,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
               className={cn('flex items-center gap-1.5 rounded-xl px-3 min-h-[44px] text-xs font-semibold',
                 problems.length > 0 || saving
                   ? 'bg-page text-ink-400'
-                  : 'bg-accent-600 text-white')}
+                  : 'bg-brand-600 text-white')}
             >
               {saving ? <Spinner size={14} /> : <Send className="h-3.5 w-3.5" />}
               {saved ? 'עדכון הפידבק' : 'שליחת הפידבק'}
@@ -356,9 +359,12 @@ function Chips({ title, hint, labels, selected, onToggle, suggested = [] }: {
               key={tag}
               type="button"
               onClick={() => onToggle(tag)}
+              // Brand blue for "selected", never the success green: accent-600 means
+              // "good" everywhere else in the app, and a filled green "דעיכה לקראת הסוף"
+              // reads as praise for the thing the mentor is flagging.
               className={cn('rounded-full px-2.5 py-1.5 text-[11px] font-medium',
-                on ? 'bg-accent-600 text-white'
-                  : suggested.includes(tag) ? 'bg-white text-ink-500 ring-1 ring-accent-600/40'
+                on ? 'bg-brand-600 text-white'
+                  : suggested.includes(tag) ? 'bg-white text-ink-500 ring-1 ring-brand-600/40'
                   : 'bg-white text-ink-500')}
             >
               {label}
@@ -392,6 +398,39 @@ function hrBandLabel(s: SegmentVerdict): string {
     : `${s.plannedHrMin}`;
 }
 
+// Short enough to stay on ONE line in the deviation cell: the full explanation is
+// printed once under the table, so repeating "חסר דופק מקסימלי" on every row only
+// bought a two-line cell and a table that no longer scans as a column of numbers.
 function hrReasonShort(reason: 'no_anchor' | 'no_hr_data'): string {
-  return reason === 'no_anchor' ? 'חסר דופק מקס׳' : 'אין דופק';
+  return reason === 'no_anchor' ? 'ללא יעד' : 'אין דופק';
+}
+
+/**
+ * The deviation cell: how far outside the band the step actually was.
+ *
+ * A number rather than a word, in the metric's own unit — seconds per kilometre for a
+ * pace step, beats for an HR step. `0` prints as "בטווח" because a mentor scanning a
+ * column of numbers should not have to read "0" as "fine", and an ungradeable HR step
+ * prints why instead of a number.
+ */
+function gapLabel(s: SegmentVerdict): string {
+  if (s.hrUngradedReason) return hrReasonShort(s.hrUngradedReason);
+  const d = bandDelta(s);
+  if (d == null) return '—';
+  if (d === 0) return 'בטווח';
+  return `${d > 0 ? '+' : '−'}${Math.abs(Math.round(d))}`;
+}
+
+/** Signed distance from the nearest band edge, in the step's own metric. */
+function bandDelta(s: SegmentVerdict): number | null {
+  if (s.metric === 'hr') {
+    if (s.actualHr == null || s.plannedHrMin == null || s.plannedHrMax == null) return null;
+    if (s.actualHr > s.plannedHrMax) return s.actualHr - s.plannedHrMax;
+    if (s.actualHr < s.plannedHrMin) return s.actualHr - s.plannedHrMin;
+    return 0;
+  }
+  if (s.actualPace == null || s.plannedPaceMin == null || s.plannedPaceMax == null) return null;
+  if (s.actualPace < s.plannedPaceMin) return s.actualPace - s.plannedPaceMin;
+  if (s.actualPace > s.plannedPaceMax) return s.actualPace - s.plannedPaceMax;
+  return 0;
 }
