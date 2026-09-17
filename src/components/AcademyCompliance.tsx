@@ -5,12 +5,13 @@ import { useTranslations } from 'next-intl';
 import { ChartColumn, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Minus, ListChecks, ClipboardCheck, Info } from 'lucide-react';
 import { cn, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { formatPace } from '@/lib/garmin/pace';
-import { useApi, apiHeaders } from '@/lib/api';
+import { useApi } from '@/lib/api';
 import { Spinner, LoadingBlock, EmptyState } from '@/components/ui';
 import { ExecutionRing } from '@/components/activity/ExecutionRing';
 import { DIRECTION_COLOR, type ExecutionSummary } from '@/lib/plan-execution/verdict';
-import type { SegmentReport, SegmentVerdict } from '@/lib/academy/segments';
+import type { EffortReport } from '@/lib/academy/segments';
 import { WorkoutFeedbackPanel } from '@/components/academy/WorkoutFeedback';
+import { useSegmentReport } from '@/components/academy/useSegmentReport';
 
 // Mirror of the adherence API response (kept structural to avoid importing server types).
 type MetricStatus = 'on_target' | 'under' | 'over' | 'unknown';
@@ -627,19 +628,11 @@ function Metric({ label, plan, actual, status, hint }: { label: string; plan: st
 // drop those fields on the way into the feedback panel.
 
 
-// The order-free "did they do the work" verdict from lib/academy/segments.ts —
-// what's left when the run wasn't the pushed structured workout.
-interface EffortRequirement {
-  label: string; distanceM: number; paceMin: number; paceMax: number;
-  needed: number; attempted: number; found: number; paces: number[]; verifiable: boolean;
-}
-interface EffortReport {
-  verdict: 'confirmed' | 'partial' | 'missed' | 'unverifiable';
-  requirements: EffortRequirement[];
-  neededTotal: number; attemptedTotal: number; foundTotal: number;
-  lapCount: number; medianLapM: number | null;
-  reason?: 'no_paced_plan' | 'no_laps' | 'laps_too_coarse';
-}
+// The order-free "did they do the work" verdict — imported from
+// lib/academy/segments.ts rather than restated here, which is what it used to be.
+// A hand-copied shape of a graded verdict is the same drift risk as a hand-copied
+// fetch: the lib grows a field, this file keeps compiling, and the coach reads a
+// verdict that silently omits it.
 
 // The headline. `partial` is built from the numbers instead — it's the case that
 // needs both of them, and the split between them is the whole point.
@@ -672,40 +665,19 @@ function effortReasonText(report: EffortReport): string {
 // on-watch; for every other run the effort report below is the answer.
 function SegmentsPanel({ athleteId, date, workoutName }: { athleteId: string; date: string; workoutName: string }) {
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [segments, setSegments] = useState<SegmentVerdict[] | null>(null);
-  const [report, setReport] = useState<SegmentReport | null>(null);
-  const [efforts, setEfforts] = useState<EffortReport | null>(null);
-  const [activityId, setActivityId] = useState<string | null>(null);
-  const [reason, setReason] = useState<string | null>(null);
+  // The fetch and the flat-body→SegmentReport shaping live in `useSegmentReport`,
+  // shared with the weekly queue. They were duplicated here, and the copy that
+  // matters is the SHAPING: `/api/academy/segments` answers flat and this panel
+  // needs a `SegmentReport`, so two hand-written mappings drift the moment the
+  // route grows a field — and the drift shows up as a blank verdict, not an error.
+  //
+  // `open` is the hook's `enabled`, so nothing is fetched for a row nobody expanded.
+  // Reopening a collapsed row now refetches rather than reusing the first answer;
+  // that is a deliberate change, because a mentor who just saved feedback and
+  // reopened the row was being shown the state from before they wrote it.
+  const { loading, segments, report, efforts, activityId, reason } = useSegmentReport(athleteId, date, open);
 
-  const load = async () => {
-    if (segments || loading) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/academy/segments?athleteId=${athleteId}&date=${date}`, {
-        headers: await apiHeaders(),
-      });
-      const data = await res.json();
-      setSegments(data.segments || []);
-      setReport({
-        aligned: !!data.aligned,
-        segments: data.segments || [],
-        gradedCount: data.gradedCount ?? 0,
-        onTargetCount: data.onTargetCount ?? 0,
-        reason: data.reason,
-      });
-      setEfforts(data.efforts || null);
-      setActivityId(data.activityId ?? null);
-      if (!data.aligned) setReason(data.reason || 'נתוני מקטעים לא זמינים');
-    } catch {
-      setReason('טעינת המקטעים נכשלה');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggle = () => { const next = !open; setOpen(next); if (next) load(); };
+  const toggle = () => setOpen(o => !o);
   // A step graded on heart rate counts as graded here too, otherwise an HR session
   // falls through to the order-free effort check — which has no pace band to search
   // for and would report the workout as unverifiable.

@@ -595,7 +595,14 @@ export default function RegisterPage() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="flex-1 min-w-0 bg-transparent border-0 p-0 text-sm text-white placeholder-white/60 text-left focus:outline-none focus:ring-0"
+              // `text-base` and `h-full`, both for the same reason — the phone this
+              // page exists for. Under 16px iOS Safari zooms the page in the moment
+              // the field takes focus and does not zoom back out, on the ONE screen
+              // where a stranger is deciding whether this club looks like it works.
+              // And `p-0` inside a 60px row left the input's own box 20px tall, so
+              // the tappable area was a third of the field it looks like: the glass
+              // frame is the visual target, `h-full` makes it the real one.
+              className="flex-1 min-w-0 h-full bg-transparent border-0 p-0 text-base text-white placeholder-white/60 text-left focus:outline-none focus:ring-0"
             />
             {/* Last in the DOM, so in RTL it lands on the LEFT — the far end from
                 where Hebrew starts, and the end the LTR address runs toward.

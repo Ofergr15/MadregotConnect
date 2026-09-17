@@ -17,6 +17,8 @@ import {
 import { ACTION_LABELS, EFFORT_LABELS, EXECUTION_LABELS } from '@/lib/academy/feedback';
 import { getStreamServerClient } from '@/lib/stream/server';
 import { postAcademyFeedback } from '@/lib/academy/thread-server';
+import { notifyAthlete } from '@/lib/push';
+import { academyFeedbackCopy } from '@/lib/notifications/copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -193,6 +195,41 @@ export async function POST(request: Request) {
       // A staff account with no `athletes` row has no Stream identity to post as.
       // The review still saves; it just cannot be attributed to a person in a thread.
       : { posted: false, updated: false, error: 'no athlete identity for author' };
+
+    // ── Tell them it arrived ──────────────────────────────────────────────────
+    //
+    // A card sitting in a thread nobody is looking at is the same silence as before,
+    // just in a nicer place — WhatsApp at least buzzed. `notifyAthlete` sends the push
+    // AND writes the inbox row, so the review is still findable after the notification
+    // is dismissed or missed.
+    //
+    // ONLY ON A NEW REVIEW, never on a revision. Saving is an upsert and a mentor may
+    // fix a typo three times; `delivery.updated` is what tells the two apart, which is
+    // the second reason that flag exists. Re-buzzing a trainee for an edit they cannot
+    // even see is how people turn notifications off.
+    if (delivery.posted && !delivery.updated) {
+      try {
+        await notifyAthlete({
+          athleteId,
+          kind: 'academy_feedback',
+          actorAthleteId: auth.user.athleteId ?? null,
+          copy: (locale) => academyFeedbackCopy(locale, {
+            mentorName: body.mentorName ? String(body.mentorName).slice(0, 60) : null,
+          }),
+          // The academy tab, where the thread is mounted — not the run page. The tap
+          // should land on the conversation it is inviting a reply to.
+          url: '/dashboard/academy',
+          // Keyed to the review, so two reviews do not collapse into one banner while
+          // a re-send of the same one replaces it.
+          tag: `academy-feedback-${athleteId}-${date}`,
+          category: 'coach',
+        });
+      } catch (notifyError) {
+        // Best-effort, like every other notify call site: the review is saved and in
+        // the thread, and a failed push must not report the save as failed.
+        console.error('Academy feedback notification failed:', notifyError);
+      }
+    }
 
     return NextResponse.json({ feedback: data ? toApi(data) : null, rendered, delivery });
   } catch (error: any) {

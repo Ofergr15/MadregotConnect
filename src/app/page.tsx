@@ -83,6 +83,12 @@ function useStravaLogin() {
   return { signIn, loading, error };
 }
 
+// ⚠️ Every "התחברות עם Strava" button below is `text-ink-900` on Strava's orange,
+// not white. White on #FC4C02 measures 3.40:1 — under AA at the 14px and 16px bold
+// these buttons use, on the one screen a stranger judges the club by, outdoors. The
+// alternative was darkening the orange, but white needs it down around #C43C00,
+// which stops reading as Strava far more than the label colour does. `text-ink-900`
+// on the true brand orange is 4.87:1, and the mark inherits it via currentColor.
 function StravaMark({ className = 'h-5 w-5' }: { className?: string }) {
   return (
     <svg
@@ -328,11 +334,11 @@ export default function HomePage() {
               <button
                 onClick={signIn}
                 disabled={signingIn}
-                className="inline-flex min-h-10 items-center justify-center gap-2.5 whitespace-nowrap rounded-full bg-[#FC4C02] px-4 text-sm font-bold text-white shadow-lg shadow-band-3/20 transition hover:bg-[#e34402] active:scale-[0.98] disabled:opacity-50 sm:px-5"
+                className="inline-flex min-h-11 items-center justify-center gap-2.5 whitespace-nowrap rounded-full bg-[#FC4C02] px-4 text-sm font-bold text-ink-900 shadow-lg shadow-band-3/20 transition hover:bg-[#e34402] active:scale-[0.98] disabled:opacity-50 sm:px-5"
               >
                 {signingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : (
                   <>
-                    <StravaMark className="h-4 w-4 text-ink-700" />
+                    <StravaMark className="h-4 w-4" />
                     {t('signInWithStrava')}
                   </>
                 )}
@@ -404,11 +410,11 @@ export default function HomePage() {
                 <button
                   onClick={signIn}
                   disabled={signingIn}
-                  className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-full bg-[#FC4C02] px-6 text-base font-bold text-white shadow-xl shadow-band-3/20 transition hover:bg-[#e34402] active:scale-[0.99] disabled:opacity-50"
+                  className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-full bg-[#FC4C02] px-6 text-base font-bold text-ink-900 shadow-xl shadow-band-3/20 transition hover:bg-[#e34402] active:scale-[0.99] disabled:opacity-50"
                 >
                   {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                     <>
-                      <StravaMark className="h-5 w-5 text-ink-700" />
+                      <StravaMark className="h-5 w-5" />
                       {t('signInWithStrava')}
                     </>
                   )}
@@ -708,13 +714,13 @@ export default function HomePage() {
             <button
               onClick={signIn}
               disabled={signingIn}
-              className="mt-9 inline-flex min-h-14 w-full max-w-sm items-center justify-center gap-3 rounded-full bg-[#FC4C02] px-8 text-base font-bold text-white shadow-xl shadow-band-3/30 transition hover:bg-[#e34402] active:scale-[0.99] disabled:opacity-50 sm:text-lg"
+              className="mt-9 inline-flex min-h-14 w-full max-w-sm items-center justify-center gap-3 rounded-full bg-[#FC4C02] px-8 text-base font-bold text-ink-900 shadow-xl shadow-band-3/30 transition hover:bg-[#e34402] active:scale-[0.99] disabled:opacity-50 sm:text-lg"
             >
               {signingIn ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <>
-                  <StravaMark className="h-5 w-5 text-ink-700" />
+                  <StravaMark className="h-5 w-5" />
                   {t('signInWithStrava')}
                 </>
               )}
@@ -730,16 +736,16 @@ export default function HomePage() {
             <img src="/images/logo-white.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain" />
             <div className="flex flex-col leading-tight">
               <span className="text-base font-bold tracking-tight">{t('madregot')}</span>
-              <span className="text-xs font-medium tracking-wide text-ink-400">{t('after2km')}</span>
+              <span className="text-xs font-medium tracking-wide text-white/70">{t('after2km')}</span>
             </div>
           </div>
           <div className="flex flex-col items-center sm:items-end gap-2">
-            <p className="text-ink-400 text-sm" dir="ltr">
+            <p className="text-white/70 text-sm" dir="ltr">
               {t('copyright')}
             </p>
             <button
               onClick={() => setShowAdminLogin(!showAdminLogin)}
-              className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-2 text-ink-400 hover:text-ink-500 text-xs font-medium transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-2 text-white/70 hover:text-white text-xs font-medium transition-colors"
             >
               <Shield className="h-3.5 w-3.5" />
               {t('adminSignIn')}

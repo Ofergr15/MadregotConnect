@@ -55,7 +55,11 @@ export function LocaleSwitcher() {
     <button
       onClick={switchLocale}
       disabled={switching}
-      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-ink-300 text-ink-500 hover:text-ink-900 hover:border-ink-300 transition-colors disabled:opacity-50"
+      // `min-h-[44px]`, not `py-1.5`: the padding drew a 28px-tall pill, well under
+      // Apple's 44px floor, and this is the control a Hebrew-first app offers an
+      // English reader in the top corner of the landing page — a target they miss
+      // is a target they conclude does not work.
+      className="flex min-h-[44px] items-center gap-1.5 px-3 text-xs font-bold rounded-lg border border-ink-300 text-ink-500 hover:text-ink-900 hover:border-ink-300 transition-colors disabled:opacity-50"
       title={locale === 'he' ? 'Switch to English' : 'עבור לעברית'}
     >
       <Globe className="h-3.5 w-3.5" />

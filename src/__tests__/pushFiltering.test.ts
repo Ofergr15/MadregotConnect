@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeMutedAthleteIds, computeMaintenanceAllowedIds, matchesAudience, countsTowardBadge } from '@/lib/push';
+import { computeMutedAthleteIds, computeMaintenanceAllowedIds, matchesAudience, countsTowardBadge, STREAM_OWNED_KINDS } from '@/lib/push';
 
 describe('computeMutedAthleteIds', () => {
   it('an athlete with no notification_prefs object at all is NOT muted (default opted-in)', () => {
@@ -160,5 +160,38 @@ describe('countsTowardBadge', () => {
 
   it('treats a missing url as an ordinary row, not a ledger row', () => {
     expect(countsTowardBadge(row({ url: null }), athlete, 'a1', SINCE)).toBe(true);
+  });
+
+  // ── Rule 4: Stream owns the chat kinds ────────────────────────────────────
+  //
+  // An academy message and a weekly review are BOTH a Stream message and a
+  // notification row, so counting the row too would count them twice. Stream
+  // wins because it is the only thing that knows when the message was actually
+  // read — on another device, in a browser tab, five minutes later.
+  it('never counts a kind whose unread state Stream owns', () => {
+    expect(countsTowardBadge(row({ kind: 'academy_message', url: '/dashboard/academy' }), athlete, 'a1', SINCE)).toBe(false);
+    expect(countsTowardBadge(row({ kind: 'academy_feedback', url: '/dashboard/academy' }), athlete, 'a1', SINCE)).toBe(false);
+  });
+
+  it('excludes a Stream-owned kind even when everything else about the row is countable', () => {
+    // Guards the ORDER of the checks: the exclusion has to happen before the
+    // audience and pref rules, or a perfectly-addressed unmuted academy message
+    // would fall through and be counted alongside Stream's own count for it.
+    expect(countsTowardBadge(
+      { kind: 'academy_feedback', url: '/dashboard/academy', audience_type: 'athlete', audience_id: 'a1', last_sent_at: '2026-08-09T00:00:00Z' },
+      athlete, 'a1', SINCE, {},
+    )).toBe(false);
+  });
+
+  it('lists exactly the kinds that land in a Stream channel', () => {
+    // Pinned deliberately: adding a kind here silently REMOVES it from the badge,
+    // so a kind that never reaches Stream would stop badging at all.
+    expect([...STREAM_OWNED_KINDS].sort()).toEqual(['academy_feedback', 'academy_message']);
+  });
+
+  it('still counts other coach traffic — the exclusion is per kind, not per url', () => {
+    // The academy tab is also where non-chat notifications point, so keying the
+    // exclusion off the url instead of the kind would have silenced those too.
+    expect(countsTowardBadge(row({ kind: 'coach_note', url: '/dashboard/academy' }), athlete, 'a1', SINCE)).toBe(true);
   });
 });

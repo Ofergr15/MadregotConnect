@@ -975,3 +975,49 @@ export function surveyNudgeCopy(locale: NotificationLocale, p: { day: number }):
         body: `Choose a pace group for ${dayName('en', p.day)}'s session before time runs out`,
       };
 }
+
+// ── Academy thread ────────────────────────────────────────────────────────
+//
+// The point of these two: before them, a weekly review saved to the database and
+// the trainee had no way of learning it existed. WhatsApp at least buzzed.
+
+/**
+ * "Your review is here."
+ *
+ * Names the mentor, because that is what makes it a message from a person rather
+ * than an app event — and the club is 1:1, so the trainee knows the name.
+ */
+export function academyFeedbackCopy(
+  locale: NotificationLocale,
+  p: { mentorName?: string | null },
+): PushCopy {
+  const who = (p.mentorName || '').trim();
+  return locale === 'he'
+    ? {
+        title: who ? `${who} כתב/ה לך משוב על השבוע 📝` : 'יש לך משוב חדש על השבוע 📝',
+        body: 'לחצו לקרוא ולהגיב',
+      }
+    : {
+        title: who ? `${who} wrote your weekly review 📝` : 'Your weekly review is ready 📝',
+        body: 'Tap to read and reply',
+      };
+}
+
+/**
+ * A message in the academy thread.
+ *
+ * Carries a PREVIEW, unlike most copy here, because a chat notification with no
+ * text is a reason to open the app rather than a message — and the whole point of
+ * moving off WhatsApp was not to make the club's coaching quieter.
+ */
+export function academyThreadMessageCopy(
+  locale: NotificationLocale,
+  p: { name: string | null | undefined; text: string },
+): PushCopy {
+  const who = (p.name || '').trim() || SOMEONE[locale];
+  const preview = p.text.trim().replace(/\s+/g, ' ');
+  const clipped = preview.length > 90 ? `${preview.slice(0, 90)}…` : preview;
+  return locale === 'he'
+    ? { title: `${who} כתב/ה לך 💬`, body: clipped || 'לחצו לקריאה' }
+    : { title: `${who} sent you a message 💬`, body: clipped || 'Tap to read' };
+}

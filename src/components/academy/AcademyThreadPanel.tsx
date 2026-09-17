@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader2, MessageCircleOff } from 'lucide-react';
 import type { Channel as StreamChannel, StreamChat } from 'stream-chat';
 import { getSupabase } from '@/lib/supabase/client';
+import { apiHeaders } from '@/lib/api';
 import { useConnectedStreamClient, useStreamToken, type StreamTokenData } from '@/lib/stream/client';
 // From `stream/constants`, not `stream/server`: that module holds the service-role
 // client and pulling it into a client component drags the secret side of Stream into
@@ -164,11 +165,23 @@ function ConnectedAcademyThread({
   }, [client, thread.channelId, sync]);
 
   const onSend = async (text: string) => {
-    if (!channel) return;
     setSending(true);
     setError(null);
     try {
-      await channel.sendMessage({ text });
+      // Through OUR route, not `channel.sendMessage`. A message sent straight from the
+      // browser to Stream never reaches this app, so nothing can notify the person it
+      // is addressed to — see the route for why that made the thread quieter than the
+      // WhatsApp group it replaces. Stream still delivers it to every watcher in
+      // realtime, so the only cost is the round trip.
+      const res = await fetch('/api/academy/threads/messages', {
+        method: 'POST',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ athleteId: thread.athleteId, text }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error || 'ההודעה לא נשלחה');
+      }
     } catch (e: unknown) {
       // Surfaced, because `ThreadTranscript` clears the composer optimistically — a
       // silent failure here loses what the person just wrote.

@@ -128,14 +128,18 @@ export function FeedbackThread({ feedbackId, viewerEmail, seed }: { feedbackId: 
           onKeyDown={handleKeyDown}
           placeholder={t('placeholder')}
           rows={1}
-          className="flex-1 bg-page/60 border border-page rounded-xl px-3 py-2 text-sm text-ink-700 placeholder:text-ink-400 resize-none focus:outline-none focus:border-brand-600 min-h-[38px]"
+          // `text-base`, not `text-sm`: iOS Safari zooms the whole page in when a
+          // field under 16px takes focus, and it does not zoom back out — so a 14px
+          // composer leaves the coach typing into a page they then have to pinch to
+          // read. The 44px floor is the tap-target minimum the audit enforces.
+          className="flex-1 bg-page/60 border border-page rounded-xl px-3 py-2.5 text-base text-ink-700 placeholder:text-ink-400 resize-none focus:outline-none focus:border-brand-600 min-h-[44px]"
         />
         <button
           onClick={handleSend}
           disabled={!draft.trim() || sending}
           aria-label={t('send')}
           className={cn(
-            'shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all',
+            'shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all',
             draft.trim() && !sending ? 'bg-brand-600 text-white active:scale-90' : 'bg-page text-ink-400',
           )}
         >

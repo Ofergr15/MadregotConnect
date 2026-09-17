@@ -1,6 +1,7 @@
 import webpush from 'web-push';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID, isStaffRole } from '@/lib/constants';
+import { streamUnreadForAthlete, streamUnreadForAthletes } from './stream/unread';
 import { kudosScope, rsvpScope, signActionToken } from '@/lib/auth/action-token';
 import { defaultsFor, isKindMuted, isLedgerRow, type Category } from '@/lib/notifications/prefs';
 import {
@@ -208,7 +209,20 @@ export function matchesAudience(
 }
 
 /**
- * Does this row count toward the app-icon badge for this athlete? Three rules,
+ * Kinds whose unread state belongs to Stream, not to this table.
+ *
+ * A row is still written for these — the inbox is history, and a message must stay
+ * findable after its notification is dismissed — but it must NOT be counted, because
+ * the same message is already counted by `streamUnreadForAthlete`. Counting both
+ * would double every academy message on the badge.
+ *
+ * Stream wins the tie for a reason: it knows when the message was actually READ, on
+ * whichever device read it, and this table only knows when it was sent.
+ */
+export const STREAM_OWNED_KINDS: readonly string[] = ['academy_message', 'academy_feedback'];
+
+/**
+ * Does this row count toward the app-icon badge for this athlete? Four rules,
  * in one place because the badge and the inbox history must agree — they
  * didn't, and every way they disagreed made the badge too high:
  *
@@ -218,8 +232,10 @@ export function matchesAudience(
  *  3. A muted category doesn't count. Turning a toggle off stopped the push
  *     but not the badge, so the number climbed for notifications that were
  *     deliberately never delivered.
+ *  4. A message that lives in a Stream channel is counted by Stream instead —
+ *     see STREAM_OWNED_KINDS.
  *
- * Pure, so all three rules are testable without a DB.
+ * Pure, so all four rules are testable without a DB.
  */
 export function countsTowardBadge(
   notif: { kind: string; url?: string | null; audience_type: string; audience_id: string | null; last_sent_at: string },
@@ -229,6 +245,7 @@ export function countsTowardBadge(
   prefs?: Record<string, boolean> | null,
 ): boolean {
   if (isLedgerRow(notif.url)) return false;
+  if (STREAM_OWNED_KINDS.includes(notif.kind)) return false;
   if (!matchesAudience(notif, athlete, athleteId, since)) return false;
   // Staffness comes off the athlete row the caller already loaded for the
   // audience rule, so rule 3 agrees with filterByCategory on the send path even
@@ -355,6 +372,10 @@ async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string,
     .in('id', athleteIds);
   const athleteById = new Map((athletesData || []).map((a: { id: string; group_id: string | null; role: string | null; last_seen_at: string | null }) => [a.id, a]));
   const prefsById = await prefsByAthlete(athleteIds);
+  // Chat unread, in one batched call. The badge is one number to the person looking
+  // at their home screen, so it has to include the thread — otherwise a trainee with
+  // an unanswered question sees a clean icon.
+  const streamById = await streamUnreadForAthletes(athleteIds);
 
   const earliestSince = (athletesData || []).reduce(
     (min: string, a: { last_seen_at: string | null }) => {
@@ -381,7 +402,7 @@ async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string,
     // +1 for the notification being delivered right now (send path). Only
     // reached for subscriptions that survived filterByCategory, so this
     // notification is by definition one the athlete hasn't muted.
-    counts[id] = count + 1;
+    counts[id] = count + 1 + (streamById.get(id) ?? 0);
   }
   return counts;
 }
@@ -418,9 +439,13 @@ export async function unreadCountForAthlete(athleteId: string): Promise<number> 
     .gt('last_sent_at', since)
     .or(orClause);
   const prefs = (await prefsByAthlete([athleteId])).get(athleteId);
-  return ((rows || []) as Array<{ kind: string; url: string | null; audience_type: string; audience_id: string | null; last_sent_at: string }>)
+  const rowCount = ((rows || []) as Array<{ kind: string; url: string | null; audience_type: string; audience_id: string | null; last_sent_at: string }>)
     .filter((n) => countsTowardBadge(n, a, athleteId, since, prefs))
     .length;
+  // Plus the chat. This is the foreground self-heal path, so it is also the thing
+  // that CLEARS the badge after the athlete reads a thread: Stream's count drops the
+  // moment they open it, and the badge follows on the next heal.
+  return rowCount + await streamUnreadForAthlete(athleteId);
 }
 
 /**
