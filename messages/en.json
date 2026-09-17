@@ -1157,7 +1157,7 @@
     "benchmarkHideBoard": "Hide the full board",
     "benchmarkShowAll": "Show all {count}"
   },
-"records": {
+  "records": {
     "title": "Club Records",
     "subtitle": "The club's fastest time at each distance",
     "empty": "No records yet",
@@ -2199,7 +2199,10 @@
       "templateMinimal": "Minimal",
       "cardPace": "Avg pace",
       "cardTime": "Time",
-      "cardHr": "HR"
+      "cardHr": "HR",
+      "cardStart": "Started",
+      "startShow": "Start time",
+      "startHide": "No start time"
     },
     "focusedTitle": "From your notification",
     "focusedShowAll": "Show the whole feed",

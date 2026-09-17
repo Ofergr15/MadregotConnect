@@ -27,6 +27,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
   const [style, setStyle] = useState<Style>('photo');
   const [template, setTemplate] = useState<ShareTemplate>('classic');
   const [showTitle, setShowTitle] = useState(true);
+  const [showStartTime, setShowStartTime] = useState(true);
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [rendering, setRendering] = useState(true);
@@ -45,8 +46,15 @@ export function FeedShareSheet({ item, onClose }: Props) {
 
     renderShareCard(
       item,
-      { km: t('km'), perKm: t('perKm'), pace: ts('cardPace'), time: ts('cardTime'), hr: ts('cardHr') },
-      { background: photo, transparent: style === 'transparent', template, showTitle },
+      {
+        km: t('km'),
+        perKm: t('perKm'),
+        pace: ts('cardPace'),
+        time: ts('cardTime'),
+        hr: ts('cardHr'),
+        start: ts('cardStart'),
+      },
+      { background: photo, transparent: style === 'transparent', template, showTitle, showStartTime },
     )
       .then(blob => {
         if (cancelled) return;
@@ -65,7 +73,7 @@ export function FeedShareSheet({ item, onClose }: Props) {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [item, photo, style, template, showTitle, t, ts]);
+  }, [item, photo, style, template, showTitle, showStartTime, t, ts]);
 
   const handleShare = useCallback(async () => {
     const blob = blobRef.current;
@@ -177,6 +185,30 @@ export function FeedShareSheet({ item, onClose }: Props) {
                   className={cn(
                     'flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors border',
                     showTitle === o.on
+                      ? 'border-brand-600 text-brand-600 bg-brand-600/10'
+                      : 'border-page text-ink-400 hover:text-ink-500',
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* The start time is a fourth stat on the classic and card templates;
+              'minimal' deliberately carries nothing but the distance. */}
+          {template !== 'minimal' && (
+            <div className="flex gap-2 mb-4">
+              {([
+                { on: true, label: ts('startShow') },
+                { on: false, label: ts('startHide') },
+              ] as const).map(o => (
+                <button
+                  key={String(o.on)}
+                  onClick={() => setShowStartTime(o.on)}
+                  className={cn(
+                    'flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors border',
+                    showStartTime === o.on
                       ? 'border-brand-600 text-brand-600 bg-brand-600/10'
                       : 'border-page text-ink-400 hover:text-ink-500',
                   )}

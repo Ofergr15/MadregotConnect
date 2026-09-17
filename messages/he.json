@@ -1157,7 +1157,7 @@
     "benchmarkHideBoard": "הסתרת הטבלה המלאה",
     "benchmarkShowAll": "הצגת כל {count}"
   },
-"records": {
+  "records": {
     "title": "שיאי המועדון",
     "subtitle": "הזמן הטוב ביותר במועדון בכל מרחק",
     "empty": "אין עוד שיאים",
@@ -2199,7 +2199,10 @@
       "templateMinimal": "מינימלי",
       "cardPace": "קצב ממוצע",
       "cardTime": "זמן",
-      "cardHr": "דופק"
+      "cardHr": "דופק",
+      "cardStart": "התחלה",
+      "startShow": "שעת התחלה",
+      "startHide": "בלי שעת התחלה"
     },
     "focusedTitle": "מההתראה שקיבלתם",
     "focusedShowAll": "הצגת כל הפיד",

@@ -14,6 +14,7 @@
  * result. `transparent` opts into the save-then-add-as-photo-sticker flow instead.
  */
 
+import { formatActivityTime } from '@/lib/utils';
 import type { FeedItem, FeedActivity } from './project';
 
 export const STORY_W = 1080;
@@ -41,6 +42,8 @@ export interface ShareI18n {
   pace: string;
   time: string;
   hr: string;
+  /** Label for the start-of-run clock time — "Started" / "התחלה". */
+  start: string;
 }
 
 export interface ShareCardOptions {
@@ -66,6 +69,15 @@ export interface ShareCardOptions {
    * a title, so this is a no-op there.
    */
   showTitle?: boolean;
+  /**
+   * Draw the run's start time as a fourth stat ("Started 6:01").
+   *
+   * Defaults to true. Requested against Garmin's own share image, which carries
+   * the clock time; only the TIME is drawn, never the date — see the note above
+   * `secondaryStats` for why the date stays off. A no-op on 'minimal', whose whole
+   * point is the bare number.
+   */
+  showStartTime?: boolean;
 }
 
 function formatPace(secPerKm: number): string {
@@ -231,12 +243,27 @@ interface Stat {
   label: string;
 }
 
-/** The secondary stats, in the order they read best. Pace and HR may be absent. */
-function secondaryStats(act: FeedActivity, i18n: ShareI18n): Stat[] {
+/**
+ * The secondary stats, in the order they read best. Pace and HR may be absent.
+ *
+ * The start time rides in this row rather than as a line of its own on purpose:
+ * a value-over-label column draws the number and the Hebrew label as two separate
+ * fillTexts, so there is no "התחלה 6:01" string for the bidi algorithm to reorder
+ * into "6:01 התחלה" (the same trap `drawHeroDistance` exists to dodge). It goes
+ * LAST so pace/time/HR keep the positions athletes already know.
+ *
+ * `formatActivityTime` reads the stored timestamp by its UTC parts, which is what
+ * gives the athlete's own clock — see the note on `parseActivityInstant`. A card
+ * rendered in another timezone therefore still says when they actually ran.
+ */
+export function secondaryStats(act: FeedActivity, i18n: ShareI18n, showStartTime = false): Stat[] {
   const out: Stat[] = [];
   if (act.averagePace) out.push({ value: formatPace(act.averagePace), label: i18n.pace });
   out.push({ value: formatDuration(act.duration), label: i18n.time });
   if (act.averageHr) out.push({ value: `${Math.round(act.averageHr)}`, label: i18n.hr });
+  if (showStartTime && act.startTime) {
+    out.push({ value: formatActivityTime(act.startTime), label: i18n.start });
+  }
   return out;
 }
 
@@ -246,9 +273,13 @@ function distanceKm(act: FeedActivity): string {
 
 /*
  * The card carries the run, nothing else: the athlete's name, their group and the
- * date of the run are all deliberately left off every template. Whoever posts this
- * to a story is already identified by the account they post from, when they ran is
- * implied by when they posted, and the group is nobody else's business.
+ * DATE of the run are all deliberately left off every template. Whoever posts this
+ * to a story is already identified by the account they post from, which day they
+ * ran is implied by when they posted, and the group is nobody else's business.
+ *
+ * The start TIME is the one exception, added on request against Garmin's share
+ * image: "was this the 5am one or the evening one" is part of the run's character
+ * in a way the calendar date isn't, and it says nothing about the athlete.
  */
 
 interface LayoutCtx {
@@ -260,6 +291,7 @@ interface LayoutCtx {
   shadowBlur: number;
   i18n: ShareI18n;
   showTitle: boolean;
+  showStartTime: boolean;
 }
 
 /**
@@ -367,7 +399,7 @@ function drawSecondaryRow(
  * The stack builds upward from the bottom margin so a run with no GPS simply
  * omits the route rather than leaving a hole.
  */
-function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle }: LayoutCtx) {
+function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle, showStartTime }: LayoutCtx) {
   const right = STORY_W - MARGIN;
   // ONE centred column. The title and the distance used to be flush right while the
   // stats row and the badge below them were centred, so the card leaned into its
@@ -407,15 +439,18 @@ function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTit
 
   ctx.shadowColor = shadow;
   ctx.shadowBlur = shadowBlur;
-  const secondary = secondaryStats(act, i18n);
+  const secondary = secondaryStats(act, i18n, showStartTime);
+  // A fourth column cuts each one to ~230px, and "1:02:33" at 64px does not fit
+  // that — so the row steps down a size rather than letting two stats collide.
+  const dense = secondary.length > 3;
   drawSecondaryRow(ctx, secondary, {
     font,
     left: MARGIN,
     right,
     baseline: y,
-    valuePx: 64,
-    labelPx: 32,
-    labelGap: 44,
+    valuePx: dense ? 54 : 64,
+    labelPx: dense ? 28 : 32,
+    labelGap: dense ? 40 : 44,
   });
   y -= 96;
 
@@ -460,7 +495,7 @@ function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTit
  * as a proper sticker over an arbitrary story background, so it's also the best
  * pairing with `transparent`.
  */
-function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle }: LayoutCtx) {
+function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle, showStartTime }: LayoutCtx) {
   const hasRoute = !!act.routePreview && act.routePreview.length > 2;
 
   const PAD = 56;
@@ -566,15 +601,16 @@ function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle 
   // Stats along the bottom of the panel.
   ctx.shadowColor = shadow;
   ctx.shadowBlur = shadowBlur / 2;
-  const secondary = secondaryStats(act, i18n);
+  const secondary = secondaryStats(act, i18n, showStartTime);
+  const dense = secondary.length > 3; // See the note in layoutClassic.
   drawSecondaryRow(ctx, secondary, {
     font,
     left: cardX + PAD,
     right,
     baseline: y + 58,
-    valuePx: 58,
-    labelPx: 30,
-    labelGap: 42,
+    valuePx: dense ? 48 : 58,
+    labelPx: dense ? 27 : 30,
+    labelGap: dense ? 38 : 42,
     labelColor: 'rgba(255,255,255,0.6)',
   });
   ctx.shadowBlur = 0;
@@ -684,6 +720,7 @@ export async function renderShareCard(
     shadowBlur: opts.transparent ? 28 : 16,
     i18n,
     showTitle: opts.showTitle ?? true,
+    showStartTime: opts.showStartTime ?? true,
   });
 
   // JPEG has no alpha channel — a transparent card exported as JPEG comes out with
