@@ -1,8 +1,11 @@
 'use client';
 
-import { Swords } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, Swords } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { AthleteLink } from '@/components/AthleteLink';
 import { SkeletonList } from '@/components/ui';
 
 interface Squad {
@@ -30,9 +33,27 @@ interface Squad {
 // Same emoji as WeeklyLeaderboardCard, for the same reason — see the note there.
 const MEDALS = ['🥇', '🥈', '🥉'];
 
+/**
+ * The roster behind each row, from /api/groups.
+ *
+ * A SECOND fetch rather than names added to /api/groups/standings, which returns
+ * squad-level aggregates only and says so — and because /api/groups is already
+ * the club roster, is already member-gated, and is already loaded on the feed
+ * (the squad filter chips read it), so through SWR's cache this costs nothing
+ * here and adds no endpoint and no exposure.
+ */
+interface GroupRoster {
+  id: string;
+  athletes?: { id: string; name: string | null; status: string | null }[];
+}
+
 export function SquadStandings() {
   const t = useTranslations('squads');
   const { data } = useApi<{ squads: Squad[] }>('/api/groups/standings');
+  const { data: groupsData } = useApi<{ groups?: GroupRoster[] }>('/api/groups');
+  // One squad open at a time: the card sits in a feed, and three rosters expanded
+  // at once pushes the feed itself off the screen.
+  const [openId, setOpenId] = useState<string | null>(null);
 
   if (!data) return <SkeletonList count={3} />; // true first load → shaped skeleton
 
@@ -52,11 +73,30 @@ export function SquadStandings() {
       </div>
 
       <div className="space-y-2">
-        {squads.map((s) => (
+        {squads.map((s) => {
+          const open = openId === s.groupId;
+          // Only active members: the standings divide by the active count, so a
+          // roster that also listed inactive rows would contradict "3 members"
+          // right above it.
+          const roster = (groupsData?.groups || [])
+            .find((g) => g.id === s.groupId)
+            ?.athletes?.filter((a) => a.status === 'active' && a.name)
+            .sort((a, b) => (a.name || '').localeCompare(b.name || '')) ?? [];
+
+          return (
           <div
             key={s.groupId}
-            className="flex items-center gap-3 rounded-xl p-3"
+            className="rounded-xl overflow-hidden"
             style={{ backgroundColor: `${s.color}12`, border: `1px solid ${s.color}30` }}
+          >
+          {/* A <button> around the row, with the roster as its SIBLING below —
+              the names inside are <a>s, and an anchor nested in a button is
+              neither valid nor reliably tappable. */}
+          <button
+            type="button"
+            onClick={() => setOpenId(open ? null : s.groupId)}
+            aria-expanded={open}
+            className="w-full flex items-center gap-3 p-3 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-inset"
           >
             {/* Emoji medals, not a tinted <Medal/>. The palette has no medal
                 colours — band-1/2/3 are the three squad colours — so the old
@@ -77,7 +117,16 @@ export function SquadStandings() {
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
                 <span className="text-sm font-bold text-ink-700 truncate" dir="auto">{s.name}</span>
               </div>
-              <p className="mt-0.5 text-2xs text-ink-400 tabular-nums">{s.members} {t('members')}</p>
+              {/* The chevron rides on the SECOND line. On the first it would take
+                  the ~24px that the squad name needs at 375px, and truncating a
+                  real squad name to "…p 1" is a bug this row has already had. */}
+              <p className="mt-0.5 flex items-center gap-1 text-2xs text-ink-400 tabular-nums">
+                {s.members} {t('members')}
+                <ChevronDown
+                  className={cn('h-3 w-3 transition-transform', open && 'rotate-180')}
+                  aria-hidden="true"
+                />
+              </p>
             </div>
             {/* per-member stats */}
             <div className="flex items-center gap-3 shrink-0 text-center">
@@ -94,8 +143,35 @@ export function SquadStandings() {
                 <div className="text-[9px] text-ink-400 leading-none">{t('ranThisWeek')}</div>
               </div>
             </div>
+          </button>
+
+          {open && (
+            <div className="px-3 pb-3 -mt-0.5">
+              {roster.length === 0 ? (
+                // The count comes from the standings and the names from the group
+                // list, so a roster still in flight (or an athlete with no group
+                // row) must say something rather than collapse to a blank strip.
+                <p className="text-2xs text-ink-400">{t('rosterLoading')}</p>
+              ) : (
+                <ul className="flex flex-wrap gap-1.5">
+                  {roster.map((a) => (
+                    <li key={a.id}>
+                      <AthleteLink
+                        athleteId={a.id}
+                        name={a.name}
+                        className="block px-2.5 py-1 rounded-lg bg-card/70 text-xs font-medium text-ink-700"
+                      >
+                        <span dir="auto">{a.name}</span>
+                      </AthleteLink>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           </div>
-        ))}
+          );
+        })}
       </div>
       <p className="mt-3 text-2xs text-ink-400">{t('footnote')}</p>
     </div>
