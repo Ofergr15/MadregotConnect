@@ -3,6 +3,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireMember } from '@/lib/auth/self-or-staff';
 import { computeDistanceBests, filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
 import { attachLapsForPrs } from '@/lib/prs/attach-laps';
+import { applyPrOverrides } from '@/lib/prs/overrides';
+import { readPrOverrides } from '@/lib/prs/overrides-store';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import {
   buildAllTimeTotals,
@@ -89,6 +91,12 @@ export async function GET(
     // segment — see attach-laps.ts for why they don't ride along with the select
     // above, which everything else on this payload is built from.
     const prRuns = await attachLapsForPrs(supabase, id, filterQualifyingRuns(acts));
+    // Anything this athlete has corrected by hand. Read here as well as in
+    // /api/athletes/prs because both routes render the same tiles on the same
+    // screen, and a correction visible on one but not the other would be a worse
+    // bug than the wrong number it fixed. Absent table (104 not pasted yet) reads
+    // as "no corrections" — see overrides-store.ts.
+    const prOverrides = await readPrOverrides(supabase, id);
 
     return NextResponse.json({
       ...buildAllTimeTotals(acts),
@@ -101,7 +109,7 @@ export async function GET(
       recentRuns: buildRecentRuns(acts, runLimit),
       // Same bucket math as /api/athletes/prs and the badge award engine, so a
       // PR shown here is the one a "first 10K" badge fired on.
-      prs: computeDistanceBests(prRuns),
+      prs: applyPrOverrides(computeDistanceBests(prRuns), prOverrides),
     });
   } catch (error) {
     console.error('Failed to fetch athlete profile stats:', error);

@@ -14,6 +14,7 @@
  * result. `transparent` opts into the save-then-add-as-photo-sticker flow instead.
  */
 
+import { formatActivityTime } from '@/lib/utils';
 import type { FeedItem, FeedActivity } from './project';
 
 export const STORY_W = 1080;
@@ -41,6 +42,8 @@ export interface ShareI18n {
   pace: string;
   time: string;
   hr: string;
+  /** Label for the start-of-run clock time — "Started" / "התחלה". */
+  start: string;
 }
 
 export interface ShareCardOptions {
@@ -66,6 +69,15 @@ export interface ShareCardOptions {
    * a title, so this is a no-op there.
    */
   showTitle?: boolean;
+  /**
+   * Draw the run's start time as a fourth stat ("Started 6:01").
+   *
+   * Defaults to true. Requested against Garmin's own share image, which carries
+   * the clock time; only the TIME is drawn, never the date — see the note above
+   * `secondaryStats` for why the date stays off. A no-op on 'minimal', whose whole
+   * point is the bare number.
+   */
+  showStartTime?: boolean;
 }
 
 function formatPace(secPerKm: number): string {
@@ -231,12 +243,27 @@ interface Stat {
   label: string;
 }
 
-/** The secondary stats, in the order they read best. Pace and HR may be absent. */
-function secondaryStats(act: FeedActivity, i18n: ShareI18n): Stat[] {
+/**
+ * The secondary stats, in the order they read best. Pace and HR may be absent.
+ *
+ * The start time rides in this row rather than as a line of its own on purpose:
+ * a value-over-label column draws the number and the Hebrew label as two separate
+ * fillTexts, so there is no "התחלה 6:01" string for the bidi algorithm to reorder
+ * into "6:01 התחלה" (the same trap `drawHeroDistance` exists to dodge). It goes
+ * LAST so pace/time/HR keep the positions athletes already know.
+ *
+ * `formatActivityTime` reads the stored timestamp by its UTC parts, which is what
+ * gives the athlete's own clock — see the note on `parseActivityInstant`. A card
+ * rendered in another timezone therefore still says when they actually ran.
+ */
+export function secondaryStats(act: FeedActivity, i18n: ShareI18n, showStartTime = false): Stat[] {
   const out: Stat[] = [];
   if (act.averagePace) out.push({ value: formatPace(act.averagePace), label: i18n.pace });
   out.push({ value: formatDuration(act.duration), label: i18n.time });
   if (act.averageHr) out.push({ value: `${Math.round(act.averageHr)}`, label: i18n.hr });
+  if (showStartTime && act.startTime) {
+    out.push({ value: formatActivityTime(act.startTime), label: i18n.start });
+  }
   return out;
 }
 
@@ -246,9 +273,13 @@ function distanceKm(act: FeedActivity): string {
 
 /*
  * The card carries the run, nothing else: the athlete's name, their group and the
- * date of the run are all deliberately left off every template. Whoever posts this
- * to a story is already identified by the account they post from, when they ran is
- * implied by when they posted, and the group is nobody else's business.
+ * DATE of the run are all deliberately left off every template. Whoever posts this
+ * to a story is already identified by the account they post from, which day they
+ * ran is implied by when they posted, and the group is nobody else's business.
+ *
+ * The start TIME is the one exception, added on request against Garmin's share
+ * image: "was this the 5am one or the evening one" is part of the run's character
+ * in a way the calendar date isn't, and it says nothing about the athlete.
  */
 
 interface LayoutCtx {
@@ -260,6 +291,107 @@ interface LayoutCtx {
   shadowBlur: number;
   i18n: ShareI18n;
   showTitle: boolean;
+  showStartTime: boolean;
+}
+
+/**
+ * The hero distance: a big number with its unit beside it.
+ *
+ * The unit goes to the LEFT of the number and the number sits flush right, which
+ * is the opposite of what an LTR eye expects and the whole point of this helper.
+ * Reported on the story sticker: "יחידות הק״מ נמצאות בצד ימין כמו באנגלית וזה
+ * כתוב בעברית". Canvas doesn't reorder anything for us — `direction = 'rtl'` only
+ * shapes a single fillText — so drawing the unit first at `right` (as this used to)
+ * physically places it where the reader's eye lands first, and "15.05 ק״מ" is read
+ * as "ק״מ 15.05". Two fillTexts rather than one string because a number spliced
+ * into Hebrew text is a bidi coin flip (see the note on canvas units in the share
+ * card work); measuring the number and stepping left of it is deterministic.
+ *
+ * `align: 'center'` centres the number-and-unit PAIR on `x` — not the number, which
+ * would leave the pair visually pushed right by the width of the unit. Both draws
+ * are right-aligned internally either way; `textAlign` is restored.
+ */
+function drawHeroDistance(
+  ctx: CanvasRenderingContext2D,
+  act: FeedActivity,
+  i18n: ShareI18n,
+  opts: {
+    font: string;
+    /** Right edge of the pair, or its centre line when `align` is 'center'. */
+    x: number;
+    baseline: number;
+    numberPx: number;
+    unitPx: number;
+    gap?: number;
+    align?: 'right' | 'center';
+  },
+) {
+  const { font, x, baseline, numberPx, unitPx, gap = 24, align = 'right' } = opts;
+  const value = distanceKm(act);
+
+  ctx.font = `800 ${numberPx}px ${font}`;
+  const numberW = ctx.measureText(value).width;
+  ctx.font = `500 ${unitPx}px ${font}`;
+  const unitW = ctx.measureText(i18n.km).width;
+
+  const right = align === 'center' ? x + (numberW + gap + unitW) / 2 : x;
+  const previousAlign = ctx.textAlign;
+  ctx.textAlign = 'right';
+
+  ctx.font = `800 ${numberPx}px ${font}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(value, right, baseline);
+
+  ctx.font = `500 ${unitPx}px ${font}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.fillText(i18n.km, right - numberW - gap, baseline);
+
+  ctx.textAlign = previousAlign;
+}
+
+/**
+ * The row of secondary stats (pace / time / HR), spread across the full width.
+ *
+ * Each stat is CENTRED in its own column. It used to be right-aligned AT the
+ * column boundary, which pinned all three hard against the right of the frame and
+ * left a dead gutter on the left — reported as "הלוגו של המדרגות לא ממורכז
+ * בתמונה", though measuring the reporter's own screenshot showed the logo dead
+ * centre (360.0 of 720) and this row at 426.0: the logo was fine, the content
+ * above it was the thing off-centre.
+ *
+ * Columns are still allocated right-to-left so the reading order is unchanged.
+ * `textAlign` is set here and left as the caller had it.
+ */
+function drawSecondaryRow(
+  ctx: CanvasRenderingContext2D,
+  stats: Stat[],
+  opts: {
+    font: string;
+    left: number;
+    right: number;
+    baseline: number;
+    valuePx: number;
+    labelPx: number;
+    labelGap: number;
+    labelColor?: string;
+  },
+) {
+  const { font, left, right, baseline, valuePx, labelPx, labelGap } = opts;
+  const labelColor = opts.labelColor ?? 'rgba(255,255,255,0.65)';
+  const previousAlign = ctx.textAlign;
+  const colW = (right - left) / stats.length;
+
+  ctx.textAlign = 'center';
+  stats.forEach((s, i) => {
+    const cx = right - i * colW - colW / 2;
+    ctx.font = `700 ${valuePx}px ${font}`;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(s.value, cx, baseline);
+    ctx.font = `500 ${labelPx}px ${font}`;
+    ctx.fillStyle = labelColor;
+    ctx.fillText(s.label, cx, baseline + labelGap);
+  });
+  ctx.textAlign = previousAlign;
 }
 
 /**
@@ -267,8 +399,15 @@ interface LayoutCtx {
  * The stack builds upward from the bottom margin so a run with no GPS simply
  * omits the route rather than leaving a hole.
  */
-function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle }: LayoutCtx) {
+function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle, showStartTime }: LayoutCtx) {
   const right = STORY_W - MARGIN;
+  // ONE centred column. The title and the distance used to be flush right while the
+  // stats row and the badge below them were centred, so the card leaned into its
+  // right edge with a dead third on the left — reported as "הסידור של הכותרת -
+  // ריצה - בצד ימין. שווה אולי לסדר את הסידור של הכותרות". Right-aligning Hebrew
+  // is correct for a paragraph; this is a stack of one-line headlines over a
+  // centred badge, and the mixed axis was the thing that read as wrong.
+  const cx = STORY_W / 2;
   let y = STORY_H - MARGIN;
 
   if (logo) {
@@ -300,34 +439,37 @@ function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTit
 
   ctx.shadowColor = shadow;
   ctx.shadowBlur = shadowBlur;
-  const secondary = secondaryStats(act, i18n);
-  const colW = (STORY_W - MARGIN * 2) / secondary.length;
-  secondary.forEach((s, i) => {
-    // Columns run right-to-left to match the Hebrew reading order.
-    const cx = right - i * colW;
-    ctx.font = `700 64px ${font}`;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(s.value, cx, y);
-    ctx.font = `500 32px ${font}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
-    ctx.fillText(s.label, cx, y + 44);
+  const secondary = secondaryStats(act, i18n, showStartTime);
+  // A fourth column cuts each one to ~230px, and "1:02:33" at 64px does not fit
+  // that — so the row steps down a size rather than letting two stats collide.
+  const dense = secondary.length > 3;
+  drawSecondaryRow(ctx, secondary, {
+    font,
+    left: MARGIN,
+    right,
+    baseline: y,
+    valuePx: dense ? 54 : 64,
+    labelPx: dense ? 28 : 32,
+    labelGap: dense ? 40 : 44,
   });
   y -= 96;
 
-  ctx.font = `500 48px ${font}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.fillText(i18n.km, right, y);
-  const unitW = ctx.measureText(i18n.km).width;
-
-  ctx.font = `800 180px ${font}`;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(distanceKm(act), right - unitW - 24, y);
+  drawHeroDistance(ctx, act, i18n, {
+    font,
+    x: cx,
+    align: 'center',
+    baseline: y,
+    numberPx: 180,
+    unitPx: 48,
+  });
   y -= 200;
 
   if (act.activityName && showTitle) {
     ctx.font = `600 44px ${font}`;
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fillText(act.activityName, right, y);
+    ctx.textAlign = 'center';
+    ctx.fillText(act.activityName, cx, y);
+    ctx.textAlign = 'right';
     y -= 72;
   }
   ctx.shadowBlur = 0;
@@ -353,7 +495,7 @@ function layoutClassic({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTit
  * as a proper sticker over an arbitrary story background, so it's also the best
  * pairing with `transparent`.
  */
-function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle }: LayoutCtx) {
+function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle, showStartTime }: LayoutCtx) {
   const hasRoute = !!act.routePreview && act.routePreview.length > 2;
 
   const PAD = 56;
@@ -420,22 +562,31 @@ function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle 
 
   y += 36;
 
+  // Centred on the panel, like the stats row along its bottom — see the note in
+  // layoutClassic. The badge stays in the top-right corner: a corner mark is not
+  // part of the column, and moving it would cost the panel its sticker look.
+  const panelCx = cardX + cardW / 2;
+
   if (act.activityName && showTitle) {
     ctx.font = `600 40px ${font}`;
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.fillText(act.activityName, right, y + 40);
+    ctx.textAlign = 'center';
+    ctx.fillText(act.activityName, panelCx, y + 40);
+    ctx.textAlign = 'right';
     y += titleH;
   }
 
   // Hero distance
   const heroBaseline = y + 130;
-  ctx.font = `500 44px ${font}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.fillText(i18n.km, right, heroBaseline);
-  const unitW = ctx.measureText(i18n.km).width;
-  ctx.font = `800 150px ${font}`;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(distanceKm(act), right - unitW - 20, heroBaseline);
+  drawHeroDistance(ctx, act, i18n, {
+    font,
+    x: panelCx,
+    align: 'center',
+    baseline: heroBaseline,
+    numberPx: 150,
+    unitPx: 44,
+    gap: 20,
+  });
   y += 150 + 28;
 
   // Divider
@@ -450,16 +601,17 @@ function layoutCard({ ctx, font, act, logo, shadow, shadowBlur, i18n, showTitle 
   // Stats along the bottom of the panel.
   ctx.shadowColor = shadow;
   ctx.shadowBlur = shadowBlur / 2;
-  const secondary = secondaryStats(act, i18n);
-  const colW = (cardW - PAD * 2) / secondary.length;
-  secondary.forEach((s, i) => {
-    const cx = right - i * colW;
-    ctx.font = `700 58px ${font}`;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(s.value, cx, y + 58);
-    ctx.font = `500 30px ${font}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.fillText(s.label, cx, y + 100);
+  const secondary = secondaryStats(act, i18n, showStartTime);
+  const dense = secondary.length > 3; // See the note in layoutClassic.
+  drawSecondaryRow(ctx, secondary, {
+    font,
+    left: cardX + PAD,
+    right,
+    baseline: y + 58,
+    valuePx: dense ? 48 : 58,
+    labelPx: dense ? 27 : 30,
+    labelGap: dense ? 38 : 42,
+    labelColor: 'rgba(255,255,255,0.6)',
   });
   ctx.shadowBlur = 0;
 }
@@ -568,6 +720,7 @@ export async function renderShareCard(
     shadowBlur: opts.transparent ? 28 : 16,
     i18n,
     showTitle: opts.showTitle ?? true,
+    showStartTime: opts.showStartTime ?? true,
   });
 
   // JPEG has no alpha channel — a transparent card exported as JPEG comes out with

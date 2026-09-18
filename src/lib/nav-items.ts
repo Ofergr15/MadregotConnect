@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Bug, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
-  BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift, ShieldCheck, Gauge,
+  BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift, ShieldCheck, Gauge, Trophy,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
@@ -61,6 +61,11 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/workout-feedback', tab: 'workout-feedback', labelKey: 'workoutFeedback', icon: ClipboardCheck },
   { href: '/dashboard/team-volume', tab: 'team-volume', labelKey: 'teamVolume', icon: BarChart3 },
   { href: '/dashboard/calendar', tab: 'calendar', labelKey: 'calendar', icon: CalendarDays },
+  // The club records board. Member-facing, and the data on it is already visible
+  // one profile at a time (/api/athletes/[id]/stats is requireMember), so an
+  // ungranted role losing the nav entry costs discoverability and not access —
+  // which is why the profile's own records section links straight to it as well.
+  { href: '/dashboard/records', tab: 'records', labelKey: 'records', icon: Trophy },
   { href: '/dashboard/history', tab: 'history', labelKey: 'history', icon: Clock },
   { href: '/dashboard/settings', tab: 'settings', labelKey: 'settings', icon: Settings },
 ];

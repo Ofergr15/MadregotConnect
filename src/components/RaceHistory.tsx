@@ -1,6 +1,7 @@
 'use client';
 
-import { Flag } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronLeft, Flag } from 'lucide-react';
 import { useApi } from '@/lib/api';
 
 interface RaceRow {
@@ -49,8 +50,16 @@ export function RaceHistory({ athleteId }: { athleteId: string }) {
         <span className="text-lg font-black text-ink-700 tabular-nums">{total}</span>
       </div>
       <div className="space-y-2">
+        {/* Each race IS one activity — `activityId` is how the row was matched to
+            a calendar event in the first place — so the row opens it. Reported as
+            "I want to open the run from day x from the data screen and it doesn't
+            open": the rows named runs and none of them was a link. */}
         {races.slice(0, 8).map((r) => (
-          <div key={r.id} className="flex items-center gap-3 bg-page/50 rounded-xl p-3">
+          <Link
+            key={r.id}
+            href={`/dashboard/activities/${r.activityId}`}
+            className="flex items-center gap-3 bg-page/50 rounded-xl p-3 active:opacity-60 transition-opacity"
+          >
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold text-ink-700 truncate" dir="auto">
                 {r.eventName || r.activityName || 'מרוץ'}
@@ -65,7 +74,8 @@ export function RaceHistory({ athleteId }: { athleteId: string }) {
                 {Math.round((r.distance / 1000) * 10) / 10} ק״מ
               </div>
             ) : null}
-          </div>
+            <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />
+          </Link>
         ))}
       </div>
       <p className="mt-3 text-2xs text-ink-400">מחושב אוטומטית מהריצות שלך שמתאימות ליום מרוץ בלוח השנה</p>

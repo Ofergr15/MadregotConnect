@@ -27,6 +27,14 @@ const PlanPdfViewer = dynamic(
   { ssr: false },
 );
 
+// The nutrition sheet reads as text rather than as a picture of an A4 page — see
+// the component for why that is arithmetic and not preference. It pulls in the same
+// pdf.js, so it is loaded on demand too, and it falls back to PlanPdfViewer itself.
+const NutritionPlanView = dynamic(
+  () => import('@/components/NutritionPlanView').then(m => m.NutritionPlanView),
+  { ssr: false },
+);
+
 interface WeekPlanDay {
   day: string;
   dayOfWeek: number;
@@ -662,11 +670,23 @@ export default function ProgramPage() {
            zoom, and which on iOS shows a single static first page. The plan is five
            sheets of A4 landscape, so fit-to-width on a phone is 275px of table.
            PlanPdfViewer draws the pages itself and owns the zoom; it falls back to
-           the iframe if pdf.js can't load. */
+           the iframe if pdf.js can't load.
+
+           The nutrition sheet takes a different route: it is a flat day list in A4
+           PORTRAIT, which fits to 7.9pt on a phone, so it is read out of the PDF and
+           rendered as reflowing text (NutritionPlanView, which falls back to this
+           same viewer when the sheet doesn't read cleanly). */
+        activeView === 'nutrition' ? (
+          <NutritionPlanView
+            url={getPdfUrl(currentWeek, activeView)!}
+            title={`${t('nutritionPlan')} — ${currentWeek.date_range}`}
+          />
+        ) : (
         <PlanPdfViewer
           url={getPdfUrl(currentWeek, activeView)!}
-          title={`${activeView === 'training' ? t('trainingProgram') : t('nutritionPlan')} — ${currentWeek.date_range}`}
+          title={`${t('trainingProgram')} — ${currentWeek.date_range}`}
         />
+        )
       ) : currentWeek ? (
         <Card variant="muted">
           <EmptyState

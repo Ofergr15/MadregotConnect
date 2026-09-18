@@ -1,7 +1,8 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Zap } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronLeft, Zap } from 'lucide-react';
 import { formatTime } from '@/lib/academy/benchmark';
 import { useApi } from '@/lib/api';
 
@@ -12,6 +13,8 @@ interface DistanceBest {
   seconds: number | null;
   date: string | null;
   activityName: string | null;
+  /** The run this best was set on, so the row can open it. */
+  activityId?: string | null;
   /** The time came from a lap-measured stretch inside a longer run, not the whole run. */
   fromSegment?: boolean;
   /** What the watch actually recorded for the run this best was taken from. */
@@ -23,6 +26,7 @@ interface LongestRun {
   km: number;
   date: string | null;
   activityName: string | null;
+  activityId?: string | null;
 }
 
 interface BestMonth {
@@ -38,6 +42,31 @@ interface BestMonth {
 interface PrData { distanceBests?: DistanceBest[]; longestRun?: LongestRun | null; bestMonth?: BestMonth | null; }
 
 const HE_MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+
+const ROW = 'flex items-center gap-3 bg-page/50 rounded-xl p-3';
+
+/**
+ * One record, tappable when we know which run it came from.
+ *
+ * Reported by a member: "I go into the data via my profile or a friend's, there
+ * are runs there, I want to open the run from day x — and it doesn't open." Every
+ * row here named a run (a date, a name, a time) and none of them was a link, so
+ * the only route to that run was to scroll the whole activity list for its date.
+ * `bestMonth` is a whole month rather than a run, so it stays inert — a chevron
+ * that leads nowhere is worse than no chevron.
+ *
+ * Any club member may open any member's run, so this works the same on a
+ * teammate's profile as on your own (see /api/activities/details).
+ */
+function RecordRow({ activityId, children }: { activityId?: string | null; children: ReactNode }) {
+  if (!activityId) return <div className={ROW}>{children}</div>;
+  return (
+    <Link href={`/dashboard/activities/${activityId}`} className={`${ROW} active:opacity-60 transition-opacity`}>
+      {children}
+      <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />
+    </Link>
+  );
+}
 
 export function PersonalRecords({ athleteId }: { athleteId: string }) {
   const { data } = useApi<PrData>(
@@ -106,7 +135,7 @@ export function PersonalRecords({ athleteId }: { athleteId: string }) {
         {achieved.map((b) => {
           const note = provenance(b);
           return (
-          <div key={b.key} className="flex items-center gap-3 bg-page/50 rounded-xl p-3">
+          <RecordRow key={b.key} activityId={b.activityId}>
             <span className="shrink-0 w-11 text-center text-2xs font-black uppercase tracking-wide text-brand-600 bg-brand-600/20 rounded-lg py-2">
               {b.key === 'hm' ? 'HM' : b.key === 'fm' ? 'FM' : b.label}
             </span>
@@ -123,11 +152,11 @@ export function PersonalRecords({ athleteId }: { athleteId: string }) {
               {note && <div className="text-2xs text-ink-400/80 leading-snug">{note}</div>}
             </div>
             <div className="text-lg font-black text-ink-700 tabular-nums shrink-0">{formatTime(b.seconds!)}</div>
-          </div>
+          </RecordRow>
           );
         })}
         {longest && (
-          <div className="flex items-center gap-3 bg-page/50 rounded-xl p-3">
+          <RecordRow activityId={longest.activityId}>
             <span className="shrink-0 w-11 text-center text-2xs font-black uppercase tracking-wide text-accent-900 bg-accent-600/20 rounded-lg py-2">
               MAX
             </span>
@@ -140,10 +169,10 @@ export function PersonalRecords({ athleteId }: { athleteId: string }) {
               )}
             </div>
             <div className="text-lg font-black text-ink-700 tabular-nums shrink-0">{longest.km} ק״מ</div>
-          </div>
+          </RecordRow>
         )}
         {bestMonth && (
-          <div className="flex items-center gap-3 bg-page/50 rounded-xl p-3">
+          <div className={ROW}>
             <span className="shrink-0 w-11 text-center text-2xs font-black uppercase tracking-wide text-band-3-ink bg-band-3/20 rounded-lg py-2">
               נפח
             </span>

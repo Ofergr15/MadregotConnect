@@ -1,12 +1,13 @@
 'use client';
 
-import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PenSquare, MessageSquare, AlertCircle, LogIn, X } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useTranslations, useFormatter } from 'next-intl';
-import { cn, dayKeyRelation, dayKeyToDate, feedDayKey } from '@/lib/utils';
+import { cn, dayKeyRelation, dayKeyToDate, feedDayKey, resolveGroup } from '@/lib/utils';
+import { useApi } from '@/lib/api';
 import { fetchFeed, deletePost, fetchFeedItem, fetchFeedItemByActivity } from '@/lib/feed-client';
 import { feedFocusFromParams } from '@/lib/feed/deep-link';
 import { FeedCard } from '@/components/FeedCard';
@@ -39,6 +40,61 @@ const FILTERS = [
 ] as const satisfies ReadonlyArray<{ key: string; labelKey: string; types: readonly string[] }>;
 
 type FilterKey = (typeof FILTERS)[number]['key'];
+
+/**
+ * The squad chips, a second axis under the type chips (373ebe89: "add a filter on
+ * the feed by squad 1/2/3/academy").
+ *
+ * A SECOND ROW rather than four more chips in the first one: the two questions are
+ * independent — "just the runs, from my squad" is a real thing to ask — and seven
+ * chips on one line wraps on a 352 px phone into something that reads like one
+ * flat list of seven alternatives, which is exactly what it isn't.
+ *
+ * The list comes from /api/groups, which the Header already loads on every page,
+ * so the chips cost nothing extra. `academy` is appended by hand because academy
+ * membership is a flag and not a group — see lib/feed/squad-filter.ts.
+ */
+const ACADEMY_CHIP = 'academy';
+
+/**
+ * One squad chip. Same shape as the type chips above it, with the squad's own
+ * colour as the selected fill so the three דבוקות stay the colours they are
+ * everywhere else in the app (GROUP_HEX via resolveGroup) — a squad filter that
+ * highlighted in the app's ink would be the one place in the product where a
+ * squad has no colour.
+ */
+function SquadChip({
+  active,
+  onClick,
+  label,
+  hex,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  hex?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      // shrink-0: the row scrolls horizontally, so a chip must keep its own width
+      // rather than being squeezed into an ellipsis by its neighbours.
+      className={cn(
+        'shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors',
+        active
+          ? hex
+            ? 'text-card'
+            : 'bg-ink-700 text-card'
+          : 'border border-page bg-card text-ink-400 hover:text-ink-500',
+      )}
+      style={active && hex ? { backgroundColor: hex } : undefined}
+    >
+      {label}
+    </button>
+  );
+}
 
 /**
  * A date rule between days, so a long scroll reads as "Today / Yesterday /
@@ -90,6 +146,9 @@ export default function FeedPage() {
   const [commentItem, setCommentItem] = useState<FeedItem | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>('all');
+  /** A group id, `ACADEMY_CHIP`, or null for the whole club. */
+  const [squad, setSquad] = useState<string | null>(null);
+  const { data: groupsData } = useApi<{ groups?: { id: string; name: string }[] }>('/api/groups');
 
   const [myName, setMyName] = useState('');
   const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
@@ -223,19 +282,42 @@ export default function FeedPage() {
 
   const activeTypes = FILTERS.find(f => f.key === filter)!.types;
 
+  // Squad chips, in squad order. `resolveGroup` is the single source of truth for
+  // "which of the three is this?" — keying off the stored name here would break
+  // the moment a coach renames a squad, which the club's names ("SUB 2:30") show
+  // is the normal case rather than the exception.
+  const squadChips = useMemo(() => {
+    const groups = groupsData?.groups || [];
+    return groups
+      .map(g => {
+        const resolved = resolveGroup(g.name);
+        return {
+          id: g.id,
+          index: resolved.index,
+          hex: resolved.hex,
+          // An unrecognised squad keeps its own name — better a real label than
+          // "Squad 0" for something the club calls something else.
+          label: resolved.index >= 0 ? t('filterSquadN', { n: resolved.index + 1 }) : g.name,
+        };
+      })
+      .sort((a, b) => (a.index < 0 ? 1 : a.index) - (b.index < 0 ? 1 : b.index));
+  }, [groupsData, t]);
+
   const loadInitial = useCallback(async () => {
     // Skip the loading gate when a cached page is already on screen — pull-to-
     // refresh/retry then just swap fresh content in behind the existing list
     // instead of flashing back to a blank skeleton. A filter switch is the one
     // case that does want the skeleton: the cache only ever holds the unfiltered
     // feed, so leaving the old cards up would show runs under "posts".
-    if (!lastFeedPage || filter !== 'all') setLoading(true);
+    if (!lastFeedPage || filter !== 'all' || squad) setLoading(true);
     setError(null);
     try {
-      const { items: page, nextCursor } = await fetchFeed(null, PAGE_SIZE, activeTypes);
+      const { items: page, nextCursor } = await fetchFeed(null, PAGE_SIZE, activeTypes, squad);
       setItems(page);
       setCursor(nextCursor);
-      if (activeTypes.length === 0) lastFeedPage = { items: page, cursor: nextCursor };
+      // Only the unfiltered club feed is cached — a squad's page under the "all"
+      // key would come back as everyone's feed on the next visit.
+      if (activeTypes.length === 0 && !squad) lastFeedPage = { items: page, cursor: nextCursor };
     } catch (err: unknown) {
       setError((err as Error).message || t('loadError'));
     } finally {
@@ -243,19 +325,19 @@ export default function FeedPage() {
     }
     // activeTypes is derived from `filter` and stable per value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, filter]);
+  }, [t, filter, squad]);
 
   const loadMore = useCallback(async () => {
     if (loadingMore || !cursor) return;
     setLoadingMore(true);
     try {
-      const { items: page, nextCursor } = await fetchFeed(cursor, PAGE_SIZE, activeTypes);
+      const { items: page, nextCursor } = await fetchFeed(cursor, PAGE_SIZE, activeTypes, squad);
       setItems(prev => [...prev, ...page]);
       setCursor(nextCursor);
     } catch { /* silent — user can scroll again */ }
     finally { setLoadingMore(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingMore, cursor, filter]);
+  }, [loadingMore, cursor, filter, squad]);
 
   useEffect(() => { loadInitial(); }, [loadInitial]);
 
@@ -434,6 +516,31 @@ export default function FeedPage() {
         ))}
       </div>
 
+      {/* ═══ Whose feed — the whole club, one דבוקה, or the academy ═══
+          Reported as 373ebe89. Orthogonal to the row above, so "just the runs,
+          from my squad" is two taps and not a mode. Ordered by resolveGroup's
+          index (1/2/3) rather than by the roster's creation order, so the chips
+          read in the order the club names its squads. */}
+      {squadChips.length > 0 && (
+        <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-0.5">
+          <SquadChip active={squad === null} onClick={() => setSquad(null)} label={t('filterSquadAll')} />
+          {squadChips.map(chip => (
+            <SquadChip
+              key={chip.id}
+              active={squad === chip.id}
+              onClick={() => setSquad(chip.id)}
+              label={chip.label}
+              hex={chip.hex}
+            />
+          ))}
+          <SquadChip
+            active={squad === ACADEMY_CHIP}
+            onClick={() => setSquad(ACADEMY_CHIP)}
+            label={t('filterAcademy')}
+          />
+        </div>
+      )}
+
       {deleteError && (
         <div className="mb-3 bg-accent-red/20 border border-accent-red/30 rounded-2xl px-4 py-3 text-center">
           <p className="text-sm text-accent-red">{deleteError}</p>
@@ -476,9 +583,11 @@ export default function FeedPage() {
           icon={MessageSquare}
           title={t('emptyTitle')}
           description={t('emptyBody')}
-          // A filtered feed that comes back empty is otherwise a dead end.
-          action={filter !== 'all'
-            ? <Button onClick={() => setFilter('all')}>{t('filterAll')}</Button>
+          // A filtered feed that comes back empty is otherwise a dead end. Both
+          // axes are cleared together: with two of them, "show me everything"
+          // taking two taps in the empty state is the same dead end one level up.
+          action={filter !== 'all' || squad
+            ? <Button onClick={() => { setFilter('all'); setSquad(null); }}>{t('filterAll')}</Button>
             : undefined}
         />
       )}

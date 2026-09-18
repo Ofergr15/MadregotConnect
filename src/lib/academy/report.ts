@@ -15,7 +15,7 @@ import { loadAcademySettings } from './settings-server';
 import { isMissingMatchesTable } from '@/lib/plans/match-athlete-activities';
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
 import { normalizeStoredLaps } from '@/lib/garmin/laps';
-import { segmentReportFor } from '@/lib/plan-execution/resolve';
+import { effortReportFor, segmentReportFor } from '@/lib/plan-execution/resolve';
 import { buildVerdict, toExecutionSummary, type ExecutionSummary } from '@/lib/plan-execution/verdict';
 import type { Lap } from './segments';
 
@@ -321,6 +321,10 @@ export async function computeAcademyWeekAdherence(opts: {
         athleteId,
         adherence: w,
         segments: segmentReportFor(raw, lapsByActivity.get(w.actual.id) || [], tolerances.paceSec),
+        // The same rep search this table renders below the score. It has to be in
+        // the score too, or the coach reads "partially done, 15 of 19 reps at
+        // target" next to a 97%.
+        efforts: effortReportFor(raw, lapsByActivity.get(w.actual.id) || [], tolerances.paceSec),
         tolerances,
         workoutName: w.name,
       });

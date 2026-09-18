@@ -11,6 +11,7 @@ import { formatTime } from '@/lib/academy/benchmark';
 import { SegmentedControl } from '@/components/ui';
 import { weekTargetRange, type WeekPlanTotals } from '@/lib/plans/week-target';
 import { WeekTargetBar } from '@/components/profile/WeekTargetBar';
+import { PrEditSheet } from '@/components/profile/PrEditSheet';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The body of an athlete's profile — the SAME component whether you are looking
@@ -70,6 +71,10 @@ interface Pr {
   fromSegment?: boolean;
   /** How long that run was, in metres. */
   sourceMeters?: number | null;
+  /** 'manual' when the athlete stated this time by hand — see lib/prs/overrides.ts. */
+  source?: 'auto' | 'manual';
+  /** Where a stated time came from, in the athlete's words. */
+  note?: string | null;
 }
 
 interface StatsData {
@@ -125,12 +130,18 @@ export function AthleteProfileBody({
   // reused rather than duplicated under `profile`, so the same two words can't
   // end up translated two ways.
   const tt = useTranslations('teammate');
+  // The club records board owns its own copy, and the link into it should read the
+  // same here as it does there.
+  const tRecords = useTranslations('records');
   const locale = useLocale();
   const owner = variant === 'owner';
 
   const [section, setSection] = useState<ProfileSection>('overview');
+  const [editingPrs, setEditingPrs] = useState(false);
 
-  const { data: stats } = useApi<StatsData>(athleteId ? `/api/athletes/${athleteId}/stats` : null);
+  const { data: stats, mutate: refreshStats } = useApi<StatsData>(
+    athleteId ? `/api/athletes/${athleteId}/stats` : null,
+  );
   const { data: profile } = useApi<PublicProfile>(athleteId ? `/api/athletes/${athleteId}/public` : null);
   const { data: connections } = useApi<Connections>(
     athleteId
@@ -286,9 +297,26 @@ export function AthleteProfileBody({
           />
 
           {/* ═══ PERSONAL RECORDS ═══ */}
-          {achievedPrs.length > 0 && (
+          {/* The owner sees this section even with nothing in it: the records are
+              all derived, so an athlete whose races predate the club had no PRs
+              AND no way to say so — which is the report (affd459d, a798197f). */}
+          {(achievedPrs.length > 0 || (owner && (stats?.prs || []).length > 0)) && (
             <section className="rounded-card bg-card p-4">
-              <h2 className="text-xl font-bold text-ink-700">{t('personalRecords')}</h2>
+              <div className="flex items-end justify-between gap-3">
+                <h2 className="text-xl font-bold text-ink-700">{t('personalRecords')}</h2>
+                {owner && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingPrs(true)}
+                    className="text-sm font-bold text-brand-600"
+                  >
+                    {tc('edit')}
+                  </button>
+                )}
+              </div>
+              {achievedPrs.length === 0 && (
+                <p className="mt-2 text-sm font-light text-ink-400">{t('noPrsYet')}</p>
+              )}
               <div className="mt-3 grid grid-cols-2 gap-2">
                 {achievedPrs.map((p) => (
                   <div key={p.key} className="rounded-tile bg-page px-3 py-2">
@@ -318,9 +346,30 @@ export function AthleteProfileBody({
                         ) : null}
                       </p>
                     )}
+                    {/* A stated time says so. Not a disclaimer — the note is often
+                        the race name, which is more than the derived line ever had;
+                        but the reader should know the club didn't measure it. */}
+                    {p.source === 'manual' && (
+                      <p className="mt-0.5 text-3xs font-light text-ink-400" dir="auto">
+                        {p.note || t('prStatedByAthlete')}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
+              {/* Into the club board. The records page has a nav entry, but that
+                  entry needs a role_tab_permissions row for every non-admin role,
+                  and this is the screen someone is already looking at records on —
+                  so the door that matters is here and works for every member on
+                  day one (the API is requireMember, same gate as this page's own
+                  stats). Reports a798197f and f6c7b8dc both asked for the table. */}
+              <Link
+                href="/dashboard/records"
+                className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-brand-600"
+              >
+                {tRecords('clubBoard')}
+                <ChevronLeft className="h-4 w-4" />
+              </Link>
             </section>
           )}
         </>
@@ -430,6 +479,18 @@ export function AthleteProfileBody({
             </table>
           )}
         </section>
+      )}
+
+      {/* Owner only, and mounted once for the whole body rather than per tile:
+          the sheet edits buckets that have no tile. */}
+      {owner && (
+        <PrEditSheet
+          open={editingPrs}
+          onOpenChange={setEditingPrs}
+          athleteId={athleteId}
+          prs={stats?.prs || []}
+          onSaved={() => refreshStats()}
+        />
       )}
     </div>
   );

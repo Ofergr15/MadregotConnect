@@ -274,6 +274,7 @@ export function feedPostCopy(
  */
 const EXECUTION_PUSH: Record<string, { he: string; en: string; emoji: string }> = {
   on_target: { he: 'בוצע לפי התוכנית', en: 'Ran to plan', emoji: '🎯' },
+  incomplete: { he: 'חסרות חזרות', en: 'Reps missing', emoji: '🧩' },
   too_fast: { he: 'מהר מהמתוכנן', en: 'Faster than planned', emoji: '⚡' },
   too_slow: { he: 'לאט מהמתוכנן', en: 'Slower than planned', emoji: '⏱️' },
   mixed: { he: 'קצב לא אחיד', en: 'Uneven pacing', emoji: '📊' },

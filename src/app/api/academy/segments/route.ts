@@ -317,12 +317,14 @@ export async function GET(request: Request) {
     // the per-step lap match — so the ring here, the ring on the feed and the
     // ring on the coach's compliance table cannot disagree about one run.
     //
-    // `efforts` rides along unscored. It answers "are there 6×400 in this run
-    // anywhere", without needing the watch to have driven the workout, which is
-    // the one question `report` cannot answer when the laps are auto 1 km splits.
-    // Folding it into the score would change what the percentage MEANS, so that
-    // is deliberately a separate change; carrying it here costs nothing and is
-    // what the detail card shows instead of "we could not read the laps".
+    // `efforts` answers "are there 6×400 in this run anywhere", without needing the
+    // watch to have driven the workout, which is the one question `report` cannot
+    // answer when the laps don't line up step for step. It used to ride along
+    // UNSCORED, on the grounds that folding it in would change what the percentage
+    // means. It would, and it had to: a session a set short scored 97% off its
+    // whole-run distance and one block's pace while this same search, on this same
+    // response, said "partially done, 15 of 19 reps at target". `buildVerdict` now
+    // takes it as the fallback for the reps — see `effortPart` there.
     if (emitVerdict) {
       const graded = assessWorkout(
         buildPlannedWorkout(planned, date),
@@ -356,6 +358,7 @@ export async function GET(request: Request) {
           athleteId,
           adherence: { ...graded, pace },
           segments: report,
+          efforts,
           tolerances,
           workoutName: planned.name,
           paceScope,

@@ -158,6 +158,10 @@ function ProfileContent() {
   const [garminState, setGarminState] = useState<ConnectionState>('unknown');
   const [stravaState, setStravaState] = useState<ConnectionState>('unknown');
   const [garminSyncedAt, setGarminSyncedAt] = useState<string | null>(null);
+  // How far the scheduled backwards walk has got through this athlete's Garmin
+  // past. 'none' until the cron first reaches them, which is why the line below
+  // renders nothing rather than "not started" — see lib/garmin/history-schedule.
+  const [historyImport, setHistoryImport] = useState<{ state: 'none' | 'importing' | 'complete'; oldest: string | null }>({ state: 'none', oldest: null });
   const [stravaSyncedAt, setStravaSyncedAt] = useState<string | null>(null);
   const [stravaEnabled, setStravaEnabled] = useState(false);
   const [connectingStrava, setConnectingStrava] = useState(false);
@@ -297,6 +301,7 @@ function ProfileContent() {
       stravaState?: ConnectionState;
       garminLastSyncAt?: string | null;
       stravaLastSyncAt?: string | null;
+      historyImport?: { state: 'none' | 'importing' | 'complete'; oldest: string | null; imported: number };
     };
   }>(athleteId ? `/api/athletes/me?id=${encodeURIComponent(athleteId)}` : null);
 
@@ -311,6 +316,7 @@ function ProfileContent() {
     setGarminState(me.garminState || 'unknown');
     setStravaState(me.stravaState || 'unknown');
     setGarminSyncedAt(me.garminLastSyncAt || null);
+    setHistoryImport(me.historyImport || { state: 'none', oldest: null });
     setStravaSyncedAt(me.stravaLastSyncAt || null);
   }, [meData]);
 
@@ -544,6 +550,21 @@ function ProfileContent() {
     // 'unknown' — connected but never stamped — falls through to the plain word,
     // since inventing a sync time would be the same lie in a new shape.
     return ago ? t('lastSynced', { ago }) : t('connected');
+  };
+
+  /**
+   * The one sentence the history import is allowed to say. Null while the walk
+   * has not reached this athlete, and null on `complete` with no oldest date —
+   * "back to <nothing>" is not a claim, and a Garmin account with no runs in it
+   * has no history to have finished importing.
+   */
+  const historyLine = () => {
+    if (!hasGarmin || historyImport.state === 'none') return null;
+    if (historyImport.state === 'importing') return t('historyImporting');
+    if (!historyImport.oldest) return null;
+    return t('historyComplete', {
+      date: format.dateTime(new Date(historyImport.oldest), { month: 'short', year: 'numeric' }),
+    });
   };
 
   /** A credential the provider has actually refused: the only state to act on. */
@@ -905,6 +926,9 @@ function ProfileContent() {
                     <p className={cn('text-2xs', needsReconnect(garminState) ? 'text-accent-red-ink' : 'text-ink-400')}>
                       {statusLine(garminState, garminSyncedAt)}
                     </p>
+                    {historyLine() && (
+                      <p className="text-2xs text-ink-400/80 mt-0.5">{historyLine()}</p>
+                    )}
                   </div>
                 </div>
                 {/* A refused credential offers the connect form rather than a green

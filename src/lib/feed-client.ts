@@ -41,10 +41,17 @@ async function parse<T>(res: Response): Promise<T> {
  * filter has to be applied server-side, or a page of 20 that happens to be all
  * runs comes back empty after client-side filtering.
  */
-export async function fetchFeed(cursor?: string | null, limit = 15, types?: readonly string[]) {
+export async function fetchFeed(
+  cursor?: string | null,
+  limit = 15,
+  types?: readonly string[],
+  /** A group id, or 'academy'. Narrows the feed to that squad — see lib/feed/squad-filter.ts. */
+  squad?: string | null,
+) {
   const qs = new URLSearchParams({ limit: String(limit) });
   if (cursor) qs.set('cursor', cursor);
   if (types && types.length > 0) qs.set('types', types.join(','));
+  if (squad) qs.set('squad', squad);
   const res = await fetch(`/api/feed?${qs}`, { headers: await authHeaders() });
   return parse<{ items: FeedItem[]; nextCursor: string | null }>(res);
 }
