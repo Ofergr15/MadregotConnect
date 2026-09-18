@@ -21,7 +21,23 @@
 
 export const ACADEMY_SQUAD = 'academy';
 
-export type SquadSelector = { kind: 'group'; groupId: string } | { kind: 'academy' };
+/**
+ * The caller's own favourites list (ff8d932e). Rides on this axis rather than
+ * getting its own param because it answers the same question the squad chips do
+ * — WHOSE runs am I looking at — so "just the runs, from my favourites" stays
+ * two independent taps, and the feed route keeps one id-resolution step instead
+ * of two that could disagree.
+ *
+ * Unlike a group id or `academy`, this one is relative to the caller: the same
+ * URL means a different set of athletes for every member, which is why the ids
+ * are resolved from the verified session and never from the query string.
+ */
+export const FAVORITES_SQUAD = 'favorites';
+
+export type SquadSelector =
+  | { kind: 'group'; groupId: string }
+  | { kind: 'academy' }
+  | { kind: 'favorites' };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -39,5 +55,6 @@ export function parseSquadParam(raw: string | null | undefined): SquadSelector |
   const value = (raw || '').trim().toLowerCase();
   if (!value) return null;
   if (value === ACADEMY_SQUAD) return { kind: 'academy' };
+  if (value === FAVORITES_SQUAD) return { kind: 'favorites' };
   return UUID_RE.test(value) ? { kind: 'group', groupId: value } : null;
 }

@@ -2214,7 +2214,10 @@
     "groupRunRunners": "{count} רצים",
     "groupRunShared": "מסלול משותף {pct}%",
     "groupRunLongest": "הארוכה: {km} ק״מ",
-    "groupRunShowAll": "הצגת {count} הרצים הנוספים"
+    "groupRunShowAll": "הצגת {count} הרצים הנוספים",
+    "filterFavorites": "מועדפים",
+    "emptyFavoritesTitle": "אין עדיין מועדפים",
+    "emptyFavoritesBody": "היכנסו לפרופיל של חבר קבוצה ולחצו על הכוכב כדי לראות את הריצות שלו כאן."
   },
   "feedHighlight": {
     "unit_distance_km": "ק״מ",
@@ -2370,7 +2373,9 @@
     "followers": "עוקבים",
     "following": "במעקב",
     "follow": "עקיבה",
-    "followingButton": "עוקב/ת"
+    "followingButton": "עוקב/ת",
+    "favoriteAdd": "הוספה למועדפים",
+    "favoriteRemove": "הסרה מהמועדפים"
   },
   "search": {
     "title": "חיפוש",

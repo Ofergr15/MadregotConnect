@@ -3,13 +3,14 @@
 import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { PenSquare, MessageSquare, AlertCircle, LogIn, X } from 'lucide-react';
+import { PenSquare, MessageSquare, AlertCircle, LogIn, Star, X } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useTranslations, useFormatter } from 'next-intl';
 import { cn, dayKeyRelation, dayKeyToDate, feedDayKey, resolveGroup } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { fetchFeed, deletePost, fetchFeedItem, fetchFeedItemByActivity } from '@/lib/feed-client';
 import { feedFocusFromParams } from '@/lib/feed/deep-link';
+import { FAVORITES_SQUAD } from '@/lib/feed/squad-filter';
 import { FeedCard } from '@/components/FeedCard';
 import { FeedCommentSheet } from '@/components/FeedCommentSheet';
 import { FeedComposer } from '@/components/FeedComposer';
@@ -69,11 +70,14 @@ function SquadChip({
   onClick,
   label,
   hex,
+  icon: Icon,
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
   hex?: string;
+  /** Only the favourites chip uses one — see the chip row below. */
+  icon?: React.ComponentType<{ className?: string }>;
 }) {
   return (
     <button
@@ -84,6 +88,7 @@ function SquadChip({
       // rather than being squeezed into an ellipsis by its neighbours.
       className={cn(
         'shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors',
+        Icon && 'inline-flex items-center gap-1',
         active
           ? hex
             ? 'text-card'
@@ -92,6 +97,7 @@ function SquadChip({
       )}
       style={active && hex ? { backgroundColor: hex } : undefined}
     >
+      {Icon && <Icon className={cn('h-3 w-3', active && 'fill-current')} />}
       {label}
     </button>
   );
@@ -548,6 +554,19 @@ export default function FeedPage() {
             onClick={() => setSquad(ACADEMY_CHIP)}
             label={t('filterAcademy')}
           />
+          {/* ff8d932e: "add to favorites for specific athletes, and then a
+              Favorites view". It belongs on THIS row and not in a mode of its
+              own — it answers the same question the squad chips do, whose runs
+              am I looking at. The chip is always here, even before the member
+              has favourited anybody, because the star that fills it lives on
+              teammate profiles and this is the only place that explains why it
+              is there; the empty state below says what to do next. */}
+          <SquadChip
+            active={squad === FAVORITES_SQUAD}
+            onClick={() => setSquad(FAVORITES_SQUAD)}
+            label={t('filterFavorites')}
+            icon={Star}
+          />
         </div>
       )}
 
@@ -590,9 +609,13 @@ export default function FeedPage() {
 
       {!loading && !error && items.length === 0 && (
         <EmptyState
-          icon={MessageSquare}
-          title={t('emptyTitle')}
-          description={t('emptyBody')}
+          // The favourites lane gets its own copy: "no posts yet" is true but
+          // useless here, because the thing to do about it is not on this screen
+          // — it is the star on a teammate's profile, and nothing else would
+          // tell you that.
+          icon={squad === FAVORITES_SQUAD ? Star : MessageSquare}
+          title={squad === FAVORITES_SQUAD ? t('emptyFavoritesTitle') : t('emptyTitle')}
+          description={squad === FAVORITES_SQUAD ? t('emptyFavoritesBody') : t('emptyBody')}
           // A filtered feed that comes back empty is otherwise a dead end. Both
           // axes are cleared together: with two of them, "show me everything"
           // taking two taps in the empty state is the same dead end one level up.

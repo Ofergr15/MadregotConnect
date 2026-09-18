@@ -2214,7 +2214,10 @@
     "groupRunRunners": "{count} runners",
     "groupRunShared": "{pct}% shared route",
     "groupRunLongest": "Longest: {km} km",
-    "groupRunShowAll": "Show {count} more runners"
+    "groupRunShowAll": "Show {count} more runners",
+    "filterFavorites": "Favorites",
+    "emptyFavoritesTitle": "No favorites yet",
+    "emptyFavoritesBody": "Open a teammate’s profile and tap the star to follow their runs here."
   },
   "feedHighlight": {
     "unit_distance_km": "km",
@@ -2370,7 +2373,9 @@
     "followers": "Followers",
     "following": "Following",
     "follow": "Follow",
-    "followingButton": "Following"
+    "followingButton": "Following",
+    "favoriteAdd": "Add to favorites",
+    "favoriteRemove": "Remove from favorites"
   },
   "search": {
     "title": "Search",
