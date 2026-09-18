@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import {
   GraduationCap, Plus, Search, Users, ClipboardCheck, CalendarPlus,
   BarChart3, Trophy, Settings as SettingsIcon, UserPlus, LayoutDashboard,
-  MessagesSquare, Watch,
+  MessagesSquare, Watch, TrendingUp,
 } from 'lucide-react';
 import { cn, getGroupChip } from '@/lib/utils';
 import { Sheet, Spinner, SkeletonList } from '@/components/ui';
@@ -20,6 +20,7 @@ import { AcademyMembers } from '@/components/academy/AcademyMembers';
 import { AcademyMyView } from '@/components/academy/AcademyMyView';
 import { AcademyThreads } from '@/components/academy/AcademyThreads';
 import { WatchDispatch } from '@/components/academy/WatchDispatch';
+import { TestRegistry } from '@/components/academy/TestRegistry';
 import { MemberSheet } from '@/components/academy/MemberSheet';
 import { sundayOf, type AcademyMember, type AcademyMembersResponse } from '@/components/academy/types';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -59,7 +60,7 @@ interface Athlete {
   hasGarmin?: boolean;
 }
 
-type Tab = 'overview' | 'threads' | 'members' | 'registrations' | 'plans' | 'dispatch' | 'compliance' | 'stats' | 'results' | 'settings';
+type Tab = 'overview' | 'threads' | 'members' | 'registrations' | 'plans' | 'dispatch' | 'compliance' | 'tests' | 'stats' | 'results' | 'settings';
 
 
 
@@ -171,7 +172,7 @@ export default function AcademyPage() {
     // `roster` is the old name for what is now the members directory — links
     // already out in notifications and shared URLs must keep working.
     const normalized = tab === 'roster' ? 'members' : tab;
-    const valid: Tab[] = ['overview', 'threads', 'members', 'registrations', 'plans', 'dispatch', 'compliance', 'stats', 'results', 'settings'];
+    const valid: Tab[] = ['overview', 'threads', 'members', 'registrations', 'plans', 'dispatch', 'compliance', 'tests', 'stats', 'results', 'settings'];
     if (valid.includes(normalized as Tab)) setView(normalized as Tab);
   }, []);
 
@@ -291,6 +292,10 @@ export default function AcademyPage() {
     // actually arrived.
     { value: 'dispatch', label: t('tabDispatch'), icon: Watch },
     { value: 'compliance', label: t('tabCompliance'), icon: ClipboardCheck },
+    // Before `stats`, because this one is about whether the training is working and
+    // `stats` is about volume. It also sits next to compliance on purpose: "did they do
+    // the work" and "did the work move the number" are one question asked twice.
+    { value: 'tests', label: t('tabTests'), icon: TrendingUp },
     { value: 'stats', label: t('tabStats'), icon: BarChart3 },
     { value: 'results', label: t('tabResults'), icon: Trophy, badge: members?.pending.results },
     // Academy-wide settings (registration window, public form copy) are a
@@ -360,6 +365,8 @@ export default function AcademyPage() {
         <WatchDispatch weekStart={weekStart} />
       ) : view === 'compliance' ? (
         <WeeklyReview />
+      ) : view === 'tests' ? (
+        <TestRegistry />
       ) : (
         <AcademyPlanComposer athletes={planComposerAthletes} />
       )}

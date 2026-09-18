@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Heart, Mountain, Timer } from 'lucide-react';
 import { PlannedKmPoint } from '@/lib/academy/segments';
 import { catmullRom, formatPace, getHRZone } from './format';
+import { useChartWidth } from '@/components/charts/useChartWidth';
 import type { Split } from './types';
 
 // ─── Chart geometry ───────────────────────────────────────────────────────────
@@ -12,34 +13,6 @@ import type { Split } from './types';
 // rather than fixed. `left` holds a "5:39"-width pace label at 11px; `right` only
 // has to keep the last x-axis label from being clipped.
 const PAD = { top: 20, right: 14, bottom: 26, left: 42 };
-
-/**
- * The chart's rendered width in CSS pixels, used as the SVG's own coordinate width.
- *
- * These charts declared a fixed 1000-unit viewBox against a fixed pixel height,
- * so preserveAspectRatio scaled all 1000 units down to fit — on a 358px phone the
- * plot rendered at 36%, which left ~140px of dead space above it and drew the
- * 11px axis labels at about 4px. Measuring makes one SVG unit one pixel, so a
- * stated font size means what it says at every container width.
- */
-function useChartWidth() {
-  const boxRef = useRef<HTMLDivElement>(null);
-  // Narrower than any real container, so the first paint is never wider than the
-  // box it lands in — it grows to fit on measure, rather than overflowing first.
-  const [width, setWidth] = useState(320);
-
-  useEffect(() => {
-    const el = boxRef.current;
-    if (!el) return;
-    const measure = () => setWidth(Math.max(240, Math.round(el.clientWidth)));
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  return { boxRef, width };
-}
 
 // ─── Interactive Chart Tooltip Hook ────────────────────────────────────────────
 

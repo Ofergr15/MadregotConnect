@@ -29,6 +29,25 @@ export function isMissingColumn(error: unknown, column?: string): boolean {
   return (candidate.message || '').includes(column);
 }
 
+/**
+ * True when `error` says the whole TABLE isn't there yet.
+ *
+ * The same hand-applied-migration window as above, one level up: a route that ships
+ * before its `CREATE TABLE` has been pasted in should say "not set up yet" rather than
+ * return a 500 that reads like a bug. Both codes again mean one thing:
+ *   42P01   — Postgres: `relation "x" does not exist`
+ *   PGRST205 — PostgREST: the table isn't in its schema cache
+ *
+ * Lives here because it was already open-coded in at least three routes
+ * (`admin/challenges`, `challenges`, `admin/email-health`), each guessing a different
+ * subset of the two codes — which is how a screen ends up degrading gracefully against
+ * PostgREST and 500ing against raw SQL.
+ */
+export function isMissingTable(error: unknown): boolean {
+  const code = (error as { code?: string } | null | undefined)?.code;
+  return code === '42P01' || code === 'PGRST205';
+}
+
 /** Drop keys from every row of an insert payload, for the retry after the above. */
 export function withoutColumns<T extends Record<string, unknown>>(
   rows: T[],
