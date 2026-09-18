@@ -596,8 +596,19 @@ export interface MatchOptions {
   hrBpm?: number;
   /**
    * The athlete's HR anchor in bpm (max HR) — the only way a plan written in % can
-   * be turned into a number to compare. Absent for every athlete today: nothing in
-   * the schema holds one yet, so % plans come back ungraded with 'no_anchor'.
+   * be turned into a number to compare. Read from `athletes.max_hr_bpm`.
+   *
+   * Set for exactly ONE athlete as of 2026-09-18, and deliberately so. An anchor
+   * taken from ordinary training peaks understates the real max, and understating it
+   * is worse than not knowing: if the true max is 190 and we anchor on an observed
+   * 175, then "75-80%" resolves to 131-140 instead of 142-152, and an honest effort
+   * at 145 is graded "ran too hard" — confidently wrong, in the direction that tells
+   * a trainee to slow down when they were right. So NULL stays NULL until a real
+   * measurement exists (the academy intake test), and `no_anchor` says "we do not
+   * know" out loud rather than printing a number nobody measured.
+   *
+   * The tell for a bad candidate is a wide gap between an athlete's peak and their
+   * 95th percentile: 210-vs-168 across 586 runs is a strap dropout, not a heart.
    */
   hrAnchorBpm?: number | null;
 }
