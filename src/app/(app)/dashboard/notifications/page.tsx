@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck, ThumbsUp, CheckCircle2, XCircle } from 'lucide-react';
+import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck, ThumbsUp, CheckCircle2, XCircle, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi, apiHeaders } from '@/lib/api';
 import { SkeletonList, EmptyState, InsetSection, InsetRow } from '@/components/ui';
@@ -263,15 +264,29 @@ export default function NotificationsInboxPage() {
         <h1 className="text-2xl font-bold text-ink-700 flex items-center gap-2">
           <Bell className="h-6 w-6 text-brand-600" /> {tn('title')}
         </h1>
-        {totalUnread > 0 && (
-          <button
-            type="button"
-            onClick={markAllRead}
-            className="flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-semibold text-brand-600 hover:text-ink-900 hover:bg-page/60 transition-colors"
+        <div className="flex items-center gap-1">
+          {totalUnread > 0 && (
+            <button
+              type="button"
+              onClick={markAllRead}
+              className="flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-semibold text-brand-600 hover:text-ink-900 hover:bg-page/60 transition-colors"
+            >
+              <CheckCheck className="h-3.5 w-3.5" /> {tn('markAllRead')}
+            </button>
+          )}
+          {/* The per-category toggles have always lived on the profile, but this
+              inbox is where somebody goes when they want fewer of these — so it
+              needs the way out. Icon-only to keep the header from wrapping next
+              to "mark all read"; the accessible name carries the meaning. */}
+          <Link
+            href="/dashboard/profile?tab=notifications"
+            aria-label={tn('managePrefs')}
+            title={tn('managePrefs')}
+            className="flex items-center justify-center min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page/60 transition-colors"
           >
-            <CheckCheck className="h-3.5 w-3.5" /> {tn('markAllRead')}
-          </button>
-        )}
+            <SlidersHorizontal className="h-4 w-4" />
+          </Link>
+        </div>
       </div>
 
       {loading ? (
