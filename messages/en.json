@@ -2685,5 +2685,15 @@
     "reminderInboxOnly": "in-app inbox only",
     "reminderEmailed": "Reminder emailed ✓",
     "reminderByEmail": "will be sent by email"
+  },
+  "upcoming": {
+    "title": "Coming up",
+    "races": "Races",
+    "club": "Club events",
+    "birthdays": "Birthdays",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "inDays": "In {n} days",
+    "seeAll": "Calendar"
   }
 }

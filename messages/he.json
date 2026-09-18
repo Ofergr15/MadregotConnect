@@ -2685,5 +2685,15 @@
     "reminderInboxOnly": "יגיע רק לתיבה באפליקציה",
     "reminderEmailed": "התזכורת נשלחה במייל ✓",
     "reminderByEmail": "יישלח במייל"
+  },
+  "upcoming": {
+    "title": "אירועים קרובים",
+    "races": "מירוצים",
+    "club": "אירועי מועדון",
+    "birthdays": "ימי הולדת",
+    "today": "היום",
+    "tomorrow": "מחר",
+    "inDays": "בעוד {n} ימים",
+    "seeAll": "ליומן"
   }
 }

@@ -18,6 +18,7 @@ import { FeedHighlightCard } from '@/components/FeedHighlightCard';
 import { GroupRunCard } from '@/components/GroupRunCard';
 import { groupFeedItems } from '@/lib/feed/group-runs';
 import { SquadStandings } from '@/components/SquadStandings';
+import { UpcomingEvents } from '@/components/UpcomingEvents';
 import { SetupNudgeCard } from '@/components/onboarding/SetupNudgeCard';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
@@ -478,6 +479,15 @@ export default function FeedPage() {
           belongs; home is only "what do I do today". ═══ */}
       <div className="mb-4">
         <SquadStandings />
+      </div>
+
+      {/* ═══ WHAT'S COMING ═══
+          Below the rivalry card and above the composer: a member scrolling the
+          feed is being told what everyone DID, and this is the one block that
+          says what is about to happen. Renders nothing when all three lanes are
+          empty, so a quiet month costs no space. */}
+      <div className="mb-4 empty:mb-0">
+        <UpcomingEvents />
       </div>
 
       <div
