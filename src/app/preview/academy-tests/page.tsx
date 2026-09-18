@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { israelToday } from '@/lib/utils';
 import { buildRegistry, buildTrend, type RegistryAthlete, type TestRow } from '@/lib/academy/tests';
 import { ImprovementChart } from '@/components/academy/ImprovementChart';
+import { RecordTest } from '@/components/academy/RecordTest';
 import { RegistryList } from '@/components/academy/TestRegistry';
 
 // ── Login-free preview of the improvement graph and the test registry ────────
@@ -104,8 +105,14 @@ export default function AcademyTestsPreview() {
           subtitle="דבוקה 5 · טסט 30 דקות"
         />
 
-        <div>
-          <h2 className="mb-2 text-sm font-bold text-ink-900">מרשם הטסטים</h2>
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold text-ink-900">מרשם הטסטים</h2>
+          {/* The real form. Saving from here hits the API and gets a 401, which is correct —
+              the audit is after the layout, the computed pace, and the units warning. */}
+          <RecordTest
+            athletes={ATHLETES.map(a => ({ athleteId: a.id, name: a.name }))}
+            onSaved={() => {}}
+          />
           <RegistryList registry={registry} />
         </div>
       </div>

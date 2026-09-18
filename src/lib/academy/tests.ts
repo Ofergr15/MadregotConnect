@@ -63,6 +63,58 @@ export function thresholdPaceSec(test: Pick<TestRow, 'durationSec' | 'distanceM'
 }
 
 /**
+ * What a protocol holds fixed, and therefore which half of the row is the measurement.
+ *
+ * A 30-minute test fixes the clock and measures the distance; a 2000m fixes the distance
+ * and measures the clock. Both are stored, always, because the threshold is one division
+ * either way — but only ONE of them is a thing a person types in, and a form that asks for
+ * both invites the failure migration 105's header warns about: a test whose pace cannot be
+ * trusted because the wrong field was filled in. `PROTOCOL_SHAPE` is what lets the entry
+ * form state the fixed half as a fact and ask only for the measured one.
+ *
+ * An unlisted protocol is legitimate — the club can invent one — and simply has no fixed
+ * half, so the form asks for both. Nothing else in this file branches on protocol.
+ */
+export interface ProtocolShape {
+  fixed: 'duration' | 'distance';
+  /** Seconds when `fixed` is duration, metres when it is distance. */
+  value: number;
+}
+
+export const PROTOCOL_SHAPE: Record<string, ProtocolShape> = {
+  '30min': { fixed: 'duration', value: 1800 },
+  '2000m': { fixed: 'distance', value: 2000 },
+  '5000m': { fixed: 'distance', value: 5000 },
+};
+
+export function protocolShape(protocol: string): ProtocolShape | null {
+  return PROTOCOL_SHAPE[protocol] ?? null;
+}
+
+/**
+ * The range of threshold paces a running human actually produces, in sec/km.
+ *
+ * 2:30/km is faster than the world record pace for 10,000m and 12:00/km is a walk, so a
+ * number outside this is not a fast or slow athlete — it is a units mistake, and there are
+ * two waiting in every entry form: a distance typed in kilometres into a metres field
+ * (6.42 for 6420), and a duration typed in minutes into a seconds field (30 for 1800).
+ * Either one produces a pace off by a factor of a thousand or sixty.
+ *
+ * A WARNING and never a block. The club may one day test a walker, someone returning from
+ * surgery, or a protocol I have not thought of, and a form that refuses the number leaves
+ * the coach with no way to record what happened — which is how data ends up back in Excel.
+ * The point is only that a slip is caught before it is plotted, because a bad test does not
+ * just look wrong on one graph: it becomes the threshold that prices every workout in that
+ * athlete's plan.
+ */
+export const PLAUSIBLE_PACE_SEC = { fastest: 150, slowest: 720 };
+
+export function paceLooksImplausible(paceSec: number | null): boolean {
+  if (paceSec === null || !Number.isFinite(paceSec)) return false;
+  return paceSec < PLAUSIBLE_PACE_SEC.fastest || paceSec > PLAUSIBLE_PACE_SEC.slowest;
+}
+
+/**
  * How much faster or slower counts as a real change, in seconds per kilometre.
  *
  * A GUESS, flagged as one like `SILENT_DAYS` and the ±10 s/km tolerance before it, and

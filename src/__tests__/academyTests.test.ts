@@ -5,6 +5,8 @@ import {
   daysBetween,
   directionOf,
   latestUsable,
+  paceLooksImplausible,
+  protocolShape,
   thresholdPaceSec,
   MEANINGFUL_SEC_PER_KM,
   STALE_TEST_DAYS,
@@ -315,6 +317,41 @@ describe('buildRegistry — the fact the spreadsheet will not volunteer', () => 
     // But the screen must not tell the coach nobody recorded the test he recorded.
     expect(thrown.excludedCount).toBe(1);
     expect(absent.excludedCount).toBe(0);
+  });
+});
+
+describe('protocolShape', () => {
+  it('knows which half each protocol fixes, so the form asks for the measurement only', () => {
+    expect(protocolShape('30min')).toEqual({ fixed: 'duration', value: 1800 });
+    expect(protocolShape('2000m')).toEqual({ fixed: 'distance', value: 2000 });
+  });
+
+  it('leaves an unlisted protocol with no fixed half rather than guessing one', () => {
+    // The club can invent a protocol, and inferring "probably a distance" from the label
+    // would silently fix the wrong number at whatever value the parse produced.
+    expect(protocolShape('hill-repeats')).toBeNull();
+  });
+});
+
+describe('paceLooksImplausible', () => {
+  it('catches the two units slips that would poison every workout in a plan', () => {
+    // 6.42 typed into a metres field: 1800 / 0.00642 km. Off by a thousand.
+    expect(paceLooksImplausible(thresholdPaceSec({ durationSec: 1800, distanceM: 6.42 }))).toBe(true);
+    // 30 typed into a seconds field for a 30-minute test: 30 / 6.42 km, absurdly fast.
+    expect(paceLooksImplausible(thresholdPaceSec({ durationSec: 30, distanceM: 6420 }))).toBe(true);
+  });
+
+  it('accepts the whole range of paces real club members produce', () => {
+    // A fast 30-minute test and a slow one. Neither may be flagged: a warning that fires on
+    // ordinary entries is a warning the coach stops reading, and then it protects nothing.
+    expect(paceLooksImplausible(thresholdPaceSec({ durationSec: 1800, distanceM: 9000 }))).toBe(false);
+    expect(paceLooksImplausible(thresholdPaceSec({ durationSec: 1800, distanceM: 4000 }))).toBe(false);
+  });
+
+  it('does not call a missing measurement implausible', () => {
+    // Nothing typed yet is not a mistake, and warning about it would put a red note under
+    // an empty field the moment the form opens.
+    expect(paceLooksImplausible(null)).toBe(false);
   });
 });
 

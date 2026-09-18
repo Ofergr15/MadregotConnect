@@ -8,6 +8,7 @@ import {
   buildRegistry,
   buildTrend,
   type RegistryAthlete,
+  type RegistrySummary,
   type TestRow,
 } from '@/lib/academy/tests';
 
@@ -154,8 +155,15 @@ export async function GET(request: Request) {
   }
 }
 
-function emptySummary() {
-  return { improved: 0, same: 0, regressed: 0, overdue: 0, neverTested: 0 };
+/**
+ * Every key of `RegistrySummary`, and typed as one so it cannot drift.
+ *
+ * It already did: `noDelta` was added to the summary and this literal kept returning four
+ * keys, so an empty roster would have rendered a KPI the screen expects as `undefined`.
+ * The annotation is the whole fix — an untyped object literal here is invisible to tsc.
+ */
+function emptySummary(): RegistrySummary {
+  return { improved: 0, same: 0, regressed: 0, noDelta: 0, overdue: 0, neverTested: 0 };
 }
 
 /**

@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CalendarClock } from 'lucide-react';
 import { formatPace } from '@/components/activity/format';
 import { apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { initialsOf } from './types';
+import { RecordTest } from './RecordTest';
 import type { Direction, Registry, RegistryRow } from '@/lib/academy/tests';
 
 // ── The test registry, in place of the Excel ─────────────────────────────────
@@ -221,26 +222,25 @@ export function TestRegistry({ protocol = '30min' }: { protocol?: string }) {
   const [registry, setRegistry] = useState<Registry | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
 
-  useEffect(() => {
-    let cancelled = false;
-    setState('loading');
-    (async () => {
-      try {
-        const res = await fetch(`/api/academy/tests?protocol=${encodeURIComponent(protocol)}`, {
-          headers: await apiHeaders(),
-        });
-        const data = await res.json();
-        if (cancelled) return;
-        if (!res.ok) { setState('error'); return; }
-        if (data?.tableMissing) { setState('missing'); return; }
-        setRegistry(data as Registry);
-        setState('ready');
-      } catch {
-        if (!cancelled) setState('error');
-      }
-    })();
-    return () => { cancelled = true; };
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/academy/tests?protocol=${encodeURIComponent(protocol)}`, {
+        headers: await apiHeaders(),
+      });
+      const data = await res.json();
+      if (!res.ok) { setState('error'); return; }
+      if (data?.tableMissing) { setState('missing'); return; }
+      setRegistry(data as Registry);
+      setState('ready');
+    } catch {
+      setState('error');
+    }
   }, [protocol]);
+
+  useEffect(() => {
+    setState('loading');
+    void load();
+  }, [load]);
 
   if (state === 'loading') return <p className="py-6 text-center text-xs text-ink-400">טוען…</p>;
   if (state === 'missing') {
@@ -256,5 +256,20 @@ export function TestRegistry({ protocol = '30min' }: { protocol?: string }) {
   if (state === 'error' || !registry) {
     return <p className="py-6 text-center text-xs text-accent-red-ink">לא הצלחנו לטעון את מרשם הטסטים</p>;
   }
-  return <RegistryList registry={registry} />;
+  return (
+    <div className="space-y-3">
+      {/* The entry form sits ABOVE the list, and the list is what it changes. Recording a
+          test is the action this screen exists to make possible — before this the table was
+          applied and empty with no way to put anything in it — but the queue is what the
+          coach came to read, so the form stays collapsed until asked for. The candidate
+          list is the registry's own rows, so the picker can never offer somebody this
+          caller is not allowed to record for. */}
+      <RecordTest
+        athletes={registry.rows.map(r => ({ athleteId: r.athleteId, name: r.name }))}
+        protocol={protocol}
+        onSaved={() => { void load(); }}
+      />
+      <RegistryList registry={registry} />
+    </div>
+  );
 }
