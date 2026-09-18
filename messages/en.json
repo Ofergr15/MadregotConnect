@@ -78,7 +78,8 @@
     "confirm": "Confirm",
     "attendanceRosterAria": "View attendance roster",
     "account": "Account",
-    "records": "Club Records"
+    "records": "Club Records",
+    "runTogether": "Run together"
   },
   "coachTools": {
     "title": "Coach Tools",
@@ -2701,5 +2702,35 @@
     "tomorrow": "Tomorrow",
     "inDays": "In {n} days",
     "seeAll": "Calendar"
+  },
+  "runTogether": {
+    "title": "Run together",
+    "subtitle": "Say when and where you are heading out. Anyone on a similar session can ask to join.",
+    "post": "Post a run",
+    "emptyTitle": "Nothing planned yet",
+    "emptyBody": "Post when and where you are running and let the club come with you.",
+    "yours": "Yours",
+    "perKm": "/km",
+    "km": "km",
+    "matchClose": "Your pace",
+    "matchNear": "Close to your pace",
+    "going": "Going",
+    "asksToJoin": "{name} wants to join",
+    "accept": "Accept",
+    "decline": "Decline",
+    "cancelRun": "Cancel this run",
+    "askToJoin": "Ask to join",
+    "requestSent": "Request sent",
+    "withdraw": "Withdraw",
+    "youAreIn": "You are in",
+    "wasDeclined": "The host could not take you this time",
+    "fieldDate": "Date",
+    "fieldTime": "Time",
+    "fieldLocation": "Where",
+    "fieldPace": "Planned pace",
+    "fieldDistance": "Distance (km)",
+    "fieldNotes": "Notes",
+    "locationPlaceholder": "Park HaYarkon, north gate",
+    "invalidField": "Check the highlighted field and try again."
   }
 }

@@ -211,6 +211,34 @@ export function followCopy(locale: NotificationLocale, p: { name: string | null 
     : { title: `${who} started following you 👋`, body: 'Open your profile to take a look' };
 }
 
+/**
+ * Somebody asked to join your run (398963c7). The WHEN is in the body because
+ * that is the part the host needs in order to answer — "somebody wants to join"
+ * with no date is a notification you have to open the app to understand.
+ */
+export function meetupRequestCopy(
+  locale: NotificationLocale,
+  p: { name: string | null | undefined; date: string; startTime: string },
+): PushCopy {
+  const who = (p.name || '').trim() || SOMEONE[locale];
+  const when = `${shortDate(locale, p.date)} ${p.startTime}`;
+  return locale === 'he'
+    ? { title: `${who} רוצה להצטרף לריצה שלך 🏃`, body: `${when} · לחצו לאישור` }
+    : { title: `${who} wants to join your run 🏃`, body: `${when} · tap to answer` };
+}
+
+/** The host answered. Only 'accepted' notifies — see the route for why. */
+export function meetupAcceptedCopy(
+  locale: NotificationLocale,
+  p: { name: string | null | undefined; date: string; startTime: string; location: string },
+): PushCopy {
+  const who = (p.name || '').trim() || SOMEONE[locale];
+  const when = `${shortDate(locale, p.date)} ${p.startTime}`;
+  return locale === 'he'
+    ? { title: `${who} אישר/ה את ההצטרפות שלך 🎉`, body: `${when} · ${p.location}` }
+    : { title: `${who} accepted you on their run 🎉`, body: `${when} · ${p.location}` };
+}
+
 export function kudosCopy(locale: NotificationLocale, p: { name: string | null | undefined }): PushCopy {
   const who = (p.name || '').trim() || SOMEONE[locale];
   return locale === 'he'

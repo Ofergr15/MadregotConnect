@@ -78,7 +78,8 @@
     "confirm": "אישור",
     "attendanceRosterAria": "צפייה ברשימת נוכחות",
     "account": "החשבון",
-    "records": "שיאי המועדון"
+    "records": "שיאי המועדון",
+    "runTogether": "ריצה ביחד"
   },
   "coachTools": {
     "title": "כלי מאמן",
@@ -2701,5 +2702,35 @@
     "tomorrow": "מחר",
     "inDays": "בעוד {n} ימים",
     "seeAll": "ליומן"
+  },
+  "runTogether": {
+    "title": "ריצה ביחד",
+    "subtitle": "ספרו מתי ואיפה אתם יוצאים לאימון. מי שיש לו אימון דומה יכול לבקש להצטרף.",
+    "post": "פרסום ריצה",
+    "emptyTitle": "אין עדיין ריצות מתוכננות",
+    "emptyBody": "פרסמו מתי ואיפה אתם רצים, ותנו למועדון להצטרף אליכם.",
+    "yours": "שלך",
+    "perKm": "לק\"מ",
+    "km": "ק\"מ",
+    "matchClose": "הקצב שלך",
+    "matchNear": "קרוב לקצב שלך",
+    "going": "מצטרפים",
+    "asksToJoin": "{name} מבקש/ת להצטרף",
+    "accept": "אישור",
+    "decline": "דחייה",
+    "cancelRun": "ביטול הריצה",
+    "askToJoin": "בקשה להצטרף",
+    "requestSent": "הבקשה נשלחה",
+    "withdraw": "ביטול הבקשה",
+    "youAreIn": "אתם מצטרפים",
+    "wasDeclined": "הפעם לא התאים למפרסם",
+    "fieldDate": "תאריך",
+    "fieldTime": "שעה",
+    "fieldLocation": "איפה",
+    "fieldPace": "קצב מתוכנן",
+    "fieldDistance": "מרחק (ק\"מ)",
+    "fieldNotes": "הערות",
+    "locationPlaceholder": "פארק הירקון, שער צפוני",
+    "invalidField": "בדקו את השדה המסומן ונסו שוב."
   }
 }

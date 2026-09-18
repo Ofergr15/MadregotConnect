@@ -85,6 +85,10 @@ export const COACH_TOOLS_ITEM: NavItem = { href: '/dashboard/coach-tools', tab: 
 // role_tab_permissions (roadmap #9, #5) — every role can reach them.
 export const STORE_ITEM: NavItem = { href: '/dashboard/store', tab: 'store', labelKey: 'store', icon: ShoppingBag };
 export const BENEFITS_ITEM: NavItem = { href: '/dashboard/benefits', tab: 'benefits', labelKey: 'benefits', icon: Gift };
+// Run together (398963c7) — a static row like the two above. Member-to-member,
+// nothing on it staff-gated, so a permission row in front of the door would only
+// decide which members get to arrange runs with each other.
+export const RUN_TOGETHER_ITEM: NavItem = { href: '/dashboard/run-together', tab: 'run-together', labelKey: 'runTogether', icon: Users };
 
 export interface TabPermission { role: string; tab: string; enabled: boolean; }
 
