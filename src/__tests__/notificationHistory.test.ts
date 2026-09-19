@@ -12,8 +12,10 @@ function isoDaysAgo(days: number): string {
 }
 
 describe('dateBucketFor', () => {
-  it('a timestamp from a few minutes ago is "today"', () => {
-    expect(dateBucketFor(isoHoursAgo(0.05))).toBe('today');
+  it('a timestamp from just now is "today"', () => {
+    // NOW, not "three minutes ago": between 00:00 and 00:03 local, three minutes ago is
+    // yesterday's calendar day, and this assertion failed for those three minutes every night.
+    expect(dateBucketFor(new Date().toISOString())).toBe('today');
   });
 
   it('midnight-crossing still resolves correctly relative to calendar days, not a fixed 24h window', () => {

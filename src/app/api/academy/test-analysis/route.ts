@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { COACH_ID } from '@/lib/constants';
-import { isMissingTable } from '@/lib/supabase/schema-drift';
+import { isMissingColumn, isMissingTable } from '@/lib/supabase/schema-drift';
 import { MIN_PACE_SEC_PER_KM, MAX_PACE_SEC_PER_KM } from '@/lib/academy/repace';
 import { analyzeTest, draftSummary, recommendBand } from '@/lib/academy/testAnalysis';
 import { thresholdPaceSec } from '@/lib/academy/tests';
@@ -41,6 +41,43 @@ export const dynamic = 'force-dynamic';
 const ANALYSIS_COLUMNS =
   'id, test_id, athlete_id, derived, approved, recommended_band_id, band_id, summary, status, '
   + 'author_id, approved_by, approved_at, created_at, updated_at';
+
+/**
+ * The delivery columns, added by migration 114 and therefore optional.
+ *
+ * Kept separate so a screen deployed before the paste still works: selecting a column PostgREST
+ * has never heard of fails the WHOLE select, which would take the analysis screen down over a
+ * timestamp. Every read here goes through `selectAnalysis`, which retries without them.
+ */
+const DELIVERY_COLUMNS = 'sent_at, sent_by, sent_summary';
+
+/** One analysis row, with delivery if the database has it yet. */
+async function selectAnalysis(
+  supabase: ReturnType<typeof createServerClient>,
+  testId: string,
+): Promise<{ row: Record<string, unknown> | null; tableMissing: boolean; deliveryMissing: boolean }> {
+  const full = await supabase
+    .from('academy_test_analyses')
+    .select(`${ANALYSIS_COLUMNS}, ${DELIVERY_COLUMNS}`)
+    .eq('test_id', testId)
+    .maybeSingle();
+  if (!full.error) {
+    return { row: (full.data || null) as Record<string, unknown> | null, tableMissing: false, deliveryMissing: false };
+  }
+  if (isMissingTable(full.error)) return { row: null, tableMissing: true, deliveryMissing: false };
+  if (!isMissingColumn(full.error)) return { row: null, tableMissing: false, deliveryMissing: false };
+
+  const base = await supabase
+    .from('academy_test_analyses')
+    .select(ANALYSIS_COLUMNS)
+    .eq('test_id', testId)
+    .maybeSingle();
+  return {
+    row: (base.data || null) as Record<string, unknown> | null,
+    tableMissing: !!base.error && isMissingTable(base.error),
+    deliveryMissing: true,
+  };
+}
 
 /** The numbers a coach is allowed to hand back. Anything else in the body is ignored. */
 const EDITABLE_PACES = ['thresholdPaceSec', 'easyPaceSec', 'intervalPaceSec'] as const;
@@ -182,13 +219,7 @@ export async function GET(request: Request) {
 
     // A saved decision, when there is one. Pre-113 there is no table, and that is a state the
     // screen must be able to describe rather than a 500 — every migration here is pasted by hand.
-    const stored = await supabase
-      .from('academy_test_analyses')
-      .select(ANALYSIS_COLUMNS)
-      .eq('test_id', testId)
-      .maybeSingle();
-    const tableMissing = !!stored.error && isMissingTable(stored.error);
-    const row = (stored.data || null) as Record<string, unknown> | null;
+    const { row, tableMissing, deliveryMissing } = await selectAnalysis(supabase, testId);
 
     return NextResponse.json({
       test: {
@@ -221,8 +252,19 @@ export async function GET(request: Request) {
         summary: (row.summary as string) ?? null,
         status: String(row.status),
         approvedAt: (row.approved_at as string) ?? null,
+        sentAt: (row.sent_at as string) ?? null,
+        /**
+         * What the trainee actually read.
+         *
+         * Returned beside `summary` and not merged into it, so the screen can say "he has an
+         * earlier version of this" after the coach fixes a sentence. A timestamp alone would show
+         * "sent" above text nobody has seen.
+         */
+        sentSummary: (row.sent_summary as string) ?? null,
       },
       tableMissing,
+      // Migration 114 is not in yet, so the screen must not claim anything about delivery.
+      deliveryMissing,
     });
   } catch {
     return NextResponse.json({ error: 'Failed to read the analysis' }, { status: 500 });
@@ -273,6 +315,23 @@ export async function POST(request: Request) {
       ...(derived.avgHrBpm !== null ? { avgHrBpm: derived.avgHrBpm } : {}),
       ...sanitizeApproved(body?.approved),
     };
+
+    // A sent analysis cannot go back to being a draft.
+    //
+    // Migration 114's own CHECK says so (`sent_at IS NULL OR status = 'approved'`), so without
+    // this the downgrade would surface as a 500. But the reason is not the constraint: the summary
+    // is already in the trainee's thread and cannot be unsent, and a screen that let the coach
+    // return it to draft would show him "not yet sent" about a message somebody has read. Editing
+    // the numbers or the text is still allowed — that is a resend, not a retraction.
+    if (!approving) {
+      const existing = await selectAnalysis(supabase, testId);
+      if (existing.row?.sent_at) {
+        return NextResponse.json(
+          { error: 'This analysis has already been sent to the trainee', code: 'already_sent' },
+          { status: 409 },
+        );
+      }
+    }
 
     const bandId = body?.bandId === null || body?.bandId === undefined ? null : String(body.bandId);
     if (bandId) {

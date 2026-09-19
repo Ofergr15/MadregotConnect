@@ -183,3 +183,76 @@ export async function postAcademyFeedback(
     return { posted: false, updated: false, error: String(err) };
   }
 }
+
+/**
+ * The id of the message carrying one test summary.
+ *
+ * Derived from the test for the same reason `academyFeedbackMessageId` is derived from the day:
+ * a coach who fixes a sentence and sends again must EDIT what the trainee already has. Posting a
+ * second message would leave two summaries of one test in the thread and make the trainee decide
+ * which of them is current — a question only the coach can answer.
+ */
+export function academyTestSummaryMessageId(testId: string): string {
+  return `acadtest-${testId}`.replace(/[^a-zA-Z0-9_-]/g, '');
+}
+
+/**
+ * Send the approved test summary to the trainee.
+ *
+ * ── PLAIN TEXT, AND NOT A CARD ────────────────────────────────────────────────────────────
+ *
+ * The opposite choice from `postAcademyFeedback`, on purpose. The weekly review is a structure —
+ * tags and lap comments — that two screens must render identically, so it travels structured. A
+ * test summary is PROSE the coach wrote himself; the words are the artefact. Carrying it as an
+ * attachment with empty text would also make it invisible: `toThreadMessages` drops messages with
+ * neither text nor a known card, so an unrecognised attachment type reads to the trainee as
+ * nothing at all. The thresholds are not in here either — they reach the trainee as the paces in
+ * their plan, which is where a number they are meant to run is useful.
+ *
+ * NEVER throws, same contract as the review: the analysis is already committed and signed, and
+ * the caller decides what to tell the coach about delivery.
+ */
+export async function postAcademyTestSummary(
+  stream: StreamChat,
+  supabase: SupabaseClient,
+  {
+    athleteId,
+    authorStreamId,
+    testId,
+    summary,
+  }: {
+    athleteId: string;
+    authorStreamId: string;
+    testId: string;
+    summary: string;
+  },
+): Promise<{ posted: boolean; updated: boolean; error?: string }> {
+  const text = summary.trim();
+  // An empty summary is not a message. Refused here as well as at the route, because "sent" with
+  // nothing in it is the one delivery state that would be worse than not sending.
+  if (!text) return { posted: false, updated: false, error: 'empty summary' };
+
+  try {
+    const { channel } = await ensureAcademyThread(stream, supabase, athleteId, authorStreamId);
+    const payload = {
+      id: academyTestSummaryMessageId(testId),
+      text,
+      user_id: authorStreamId,
+    } as Record<string, unknown>;
+
+    try {
+      await channel.sendMessage(payload);
+      return { posted: true, updated: false };
+    } catch {
+      // Duplicate id — the coach is resending a corrected summary.
+      await stream.updateMessage(
+        payload as unknown as Parameters<typeof stream.updateMessage>[0],
+        authorStreamId,
+      );
+      return { posted: true, updated: true };
+    }
+  } catch (err: unknown) {
+    console.error('postAcademyTestSummary failed (analysis is saved; delivery is not):', err);
+    return { posted: false, updated: false, error: String(err) };
+  }
+}

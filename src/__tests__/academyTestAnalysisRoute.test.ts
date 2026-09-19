@@ -325,6 +325,29 @@ describe('approving', () => {
     expect((await post({ testId: 'bad', status: 'approved' })).status).toBe(400);
   });
 
+  it('refuses to put a sent analysis back into a draft', async () => {
+    // The summary is already in the trainee's thread and cannot be unsent. A screen showing "not
+    // yet sent" about a message somebody has read is the same class of lie as a stale threshold.
+    await post({ testId: 't1', status: 'approved', summary: 'סיכום' });
+    db.academy_test_analyses[0].sent_at = '2026-09-19T09:00:00.000Z';
+    const res = await post({ testId: 't1', status: 'draft', summary: 'מחשבה שנייה' });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe('already_sent');
+    // And the stored row is untouched — the refusal is not a half-write.
+    expect(db.academy_test_analyses[0].status).toBe('approved');
+    expect(db.academy_test_analyses[0].summary).toBe('סיכום');
+  });
+
+  it('still allows a corrected summary on a sent analysis, which is a resend', async () => {
+    await post({ testId: 't1', status: 'approved', summary: 'סיכום' });
+    db.academy_test_analyses[0].sent_at = '2026-09-19T09:00:00.000Z';
+    const res = await post({ testId: 't1', status: 'approved', summary: 'נוסח מתוקן' });
+    expect(res.status).toBe(200);
+    expect(db.academy_test_analyses[0].summary).toBe('נוסח מתוקן');
+    // The old delivery stands until the coach sends again; the send route is what moves it.
+    expect(db.academy_test_analyses[0].sent_at).toBe('2026-09-19T09:00:00.000Z');
+  });
+
   it('answers 503 when the table is not there, rather than a silent success', async () => {
     analysesMissing = true;
     expect((await post({ testId: 't1', status: 'approved' })).status).toBe(503);

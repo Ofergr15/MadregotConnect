@@ -86,8 +86,13 @@ interface AnalysisResponse {
   analysis: {
     id: string; approved: Record<string, number>; bandId: string | null;
     summary: string | null; status: string; approvedAt: string | null;
+    sentAt: string | null;
+    /** The text the trainee actually received, which an edit since then has diverged from. */
+    sentSummary: string | null;
   } | null;
   tableMissing: boolean;
+  /** Migration 114 is not pasted yet, so nothing on the screen may claim anything about delivery. */
+  deliveryMissing?: boolean;
 }
 
 export function TestAnalysisSheet({
@@ -112,6 +117,7 @@ export function TestAnalysisSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const load = useCallback(async () => {
     if (!testId) return;
@@ -143,6 +149,7 @@ export function TestAnalysisSheet({
     setEditing(false);
     setError(null);
     setDone(false);
+    setSent(false);
     void load();
   }, [open, load]);
 
@@ -194,6 +201,10 @@ export function TestAnalysisSheet({
           : 'השמירה נכשלה. אפשר לנסות שוב.');
         return;
       }
+      // Re-read, because what the screen may now offer depends on what was just stored: sending is
+      // only possible for an APPROVED analysis, and the send request posts the STORED summary.
+      setEditing(false);
+      void load();
       if (status === 'approved') {
         // Said out loud when it did not happen: `academy_band_id` is what the plan composer reads,
         // so an approval whose band write failed is signed and ineffective, which is the one
@@ -213,7 +224,53 @@ export function TestAnalysisSheet({
     }
   };
 
+  /**
+   * Send the approved summary to the trainee — the one outward-facing act on this screen.
+   *
+   * What goes out is what is STORED, never the textarea: the route reads the row. So the button is
+   * disabled while the two differ, with the reason said out loud, rather than quietly sending a
+   * version of the text the coach can see he has changed.
+   */
+  const sendToTrainee = async () => {
+    if (!testId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/academy/test-analysis/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await apiHeaders()) },
+        body: JSON.stringify({ testId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(body?.code === 'not_approved'
+          ? 'צריך לאשר את הניתוח לפני שליחה.'
+          : body?.code === 'empty_summary'
+            ? 'אין מה לשלוח — הסיכום ריק.'
+            : 'השליחה נכשלה. הניתוח שמור, והמתאמן עוד לא קיבל אותו.');
+        return;
+      }
+      // Delivered but not recorded (migration 114 is not in yet). Said plainly, because the
+      // message IS in the thread and the screen will not remember that next time it opens.
+      if (body?.recorded === false) {
+        setError('נשלח למתאמן, אבל השליחה לא נרשמה במסד — מיגרציה 114 עוד לא הורצה.');
+      }
+      setSent(true);
+      void load();
+    } catch {
+      setError('השליחה נכשלה. הניתוח שמור, והמתאמן עוד לא קיבל אותו.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const test = data?.test;
+  const stored = data?.analysis ?? null;
+  const approvedAndSaved = stored?.status === 'approved';
+  /** The coach has typed since the last save, so what is stored is not what he is reading. */
+  const summaryUnsaved = summary.trim() !== String(stored?.summary ?? '').trim();
+  /** Sent, and then edited. The trainee is holding an earlier version of this. */
+  const sentIsStale = !!stored?.sentAt && String(stored?.sentSummary ?? '').trim() !== summary.trim();
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="ניתוח טסט">
@@ -401,11 +458,64 @@ export function TestAnalysisSheet({
                   </button>
                 </div>
                 {/* What approving does, before it is tapped. It moves the trainee's band, which
-                    prices every workout they will receive. */}
+                    prices every workout they will receive — and it does NOT tell the trainee
+                    anything. Sending is the separate tap below. */}
                 <p className="px-1 text-[11px] leading-relaxed text-ink-400">
-                  אישור שומר את הספים ומשבץ את המתאמן לדבוקה שנבחרה. הסיכום נשמר כאן ולא נשלח
-                  מהמסך הזה.
+                  אישור שומר את הספים ומשבץ את המתאמן לדבוקה שנבחרה. המתאמן לא מקבל כלום עד
+                  שליחה.
                 </p>
+
+                {/* ── DELIVERY ── the only thing on this screen that leaves the building.
+                    Kept visually below the approval and never merged into it: approving is a
+                    decision about numbers, sending is a message to a person, and a coach working
+                    through eight analyses must not find out afterwards that he also sent eight
+                    messages. */}
+                <div className="rounded-card bg-page px-3 py-2.5 space-y-2">
+                  <p className="text-[11px] font-semibold text-ink-500">שליחה למתאמן</p>
+                  {!approvedAndSaved ? (
+                    <p className="text-[11px] leading-relaxed text-ink-400">
+                      אחרי אישור אפשר לשלוח מכאן את הסיכום לשרשור של המתאמן.
+                    </p>
+                  ) : (
+                    <>
+                      {stored?.sentAt && (
+                        <p className="text-[11px] leading-relaxed text-ink-500">
+                          נשלח <bdi dir="ltr">{stored.sentAt.slice(0, 10)}</bdi>
+                          {/* Sent, then edited. A timestamp alone would show "sent" above text
+                              nobody has read, which is why 114 stores what actually went out. */}
+                          {sentIsStale && <> · <span className="font-semibold text-band-2-ink">למתאמן יש גרסה מוקדמת יותר</span></>}
+                        </p>
+                      )}
+                      {summaryUnsaved && (
+                        // What goes out is the STORED text, because the route reads the row. Said
+                        // rather than silently sending a version the coach can see he changed.
+                        <p className="text-[11px] leading-relaxed text-band-2-ink">
+                          יש שינויים שלא נשמרו. צריך לאשר שוב לפני השליחה, אחרת יישלח הנוסח השמור.
+                        </p>
+                      )}
+                      {data?.deliveryMissing && (
+                        <p className="text-[11px] leading-relaxed text-ink-400">
+                          מיגרציה <bdi dir="ltr">114</bdi> עוד לא הורצה, ולכן שליחה תתבצע אבל לא
+                          תירשם כאן.
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => { void sendToTrainee(); }}
+                        disabled={busy || summaryUnsaved}
+                        className="min-h-[44px] w-full rounded-card bg-accent-900 text-xs font-bold text-white disabled:opacity-50"
+                      >
+                        {sent && !error
+                          ? 'נשלח'
+                          : stored?.sentAt ? 'שלח שוב עם הנוסח המעודכן' : 'שלח למתאמן'}
+                      </button>
+                      <p className="text-[11px] leading-relaxed text-ink-400">
+                        הסיכום נשלח לשרשור האקדמיה של המתאמן — אותו שרשור שבו הוא מקבל את הפידבק
+                        השבועי. שליחה חוזרת מעדכנת את ההודעה שכבר שם ולא מוסיפה עוד אחת.
+                      </p>
+                    </>
+                  )}
+                </div>
               </>
             )}
           </>

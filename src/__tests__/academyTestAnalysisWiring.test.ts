@@ -96,9 +96,69 @@ describe('what the screen refuses to claim', () => {
     expect(sheet).toContain('שיבוץ הדבוקה נכשל');
   });
 
-  it('does not promise the trainee was told', () => {
-    // No notification is sent from here. The summary reaching the trainee is its own slice, and a
-    // footer implying it went out would be a lie the coach acts on.
-    expect(sheet).toContain('לא נשלח');
+  it('does not promise the trainee was told before the coach has sent it', () => {
+    // Approving is a decision about numbers and tells the trainee nothing. A footer implying it
+    // went out would be a lie the coach acts on.
+    expect(sheet).toContain('המתאמן לא מקבל כלום עד');
+  });
+});
+
+describe('sending it to the trainee', () => {
+  const send = read('app/api/academy/test-analysis/send/route.ts');
+  const thread = read('lib/academy/thread-server.ts');
+
+  it('is a separate tap from approving', () => {
+    // An outward-facing write gets its own button. A coach working through eight analyses must not
+    // find out afterwards that he also sent eight messages.
+    expect(sheet).toContain("fetch('/api/academy/test-analysis/send'");
+    expect(sheet).toContain('approvedAndSaved');
+    // And the analysis route itself still sends nothing.
+    expect(read('app/api/academy/test-analysis/route.ts')).not.toContain('postAcademyTestSummary');
+  });
+
+  it('sends the stored text, and says so when the screen has unsaved edits', () => {
+    // The route reads the row, so an unsaved textarea would send a version the coach can see he
+    // has changed. Refused on the screen rather than silently.
+    expect(send).toContain('String(analysis.summary || \'\').trim()');
+    expect(sheet).toContain('disabled={busy || summaryUnsaved}');
+    expect(sheet).toContain("summary.trim() !== String(stored?.summary ?? '').trim()");
+  });
+
+  it('edits the message the trainee already has instead of sending a second one', () => {
+    expect(thread).toContain('export function academyTestSummaryMessageId');
+    expect(thread).toContain('`acadtest-${testId}`');
+    expect(thread).toContain('stream.updateMessage(');
+  });
+
+  it('travels as text, because an unknown attachment renders as nothing', () => {
+    // `toThreadMessages` drops messages with neither text nor a known card, so a card-only test
+    // summary would reach the trainee as an empty bubble.
+    const fn = thread.slice(thread.indexOf('export async function postAcademyTestSummary'));
+    expect(fn).toContain('text,');
+    expect(fn).not.toContain('academy_feedback');
+  });
+
+  it('never records a delivery that did not happen', () => {
+    expect(send).toContain('if (!delivery.posted)');
+    const after = send.slice(send.indexOf('if (!delivery.posted)'));
+    expect(after.indexOf('sent_at: sentAt')).toBeGreaterThan(0);
+  });
+
+  it('tells the coach when the trainee is holding an earlier version', () => {
+    expect(sheet).toContain('sentIsStale');
+    expect(sheet).toContain('למתאמן יש גרסה מוקדמת יותר');
+  });
+
+  it('refuses to put a sent analysis back into draft', () => {
+    // It cannot be unsent, so "not yet sent" would be false about a message somebody has read.
+    expect(read('app/api/academy/test-analysis/route.ts')).toContain("code: 'already_sent'");
+  });
+
+  it('survives migration 114 not being pasted yet', () => {
+    // Selecting a column PostgREST has never heard of fails the whole select, which would take the
+    // analysis screen down over a timestamp.
+    expect(read('app/api/academy/test-analysis/route.ts')).toContain('async function selectAnalysis');
+    expect(send).toContain('isMissingColumn(stampError)');
+    expect(sheet).toContain('deliveryMissing');
   });
 });
