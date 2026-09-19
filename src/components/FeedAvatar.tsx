@@ -50,44 +50,51 @@ export function FeedAvatar({
   const canEnlarge = enlargeable && showImage;
 
   return (
-    <div
-      className={cn(
-        'w-9 h-9 rounded-full bg-brand-600/10 flex items-center justify-center shrink-0 overflow-hidden',
-        className,
-      )}
-      // A button element would change the layout of every caller (buttons carry
-      // their own box), so the role goes on the div that already draws the circle.
-      {...(canEnlarge
-        ? {
-            role: 'button' as const,
-            tabIndex: 0,
-            onClick: () => setEnlarged(true),
-            onKeyDown: (e: React.KeyboardEvent) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setEnlarged(true);
-              }
-            },
-          }
-        : {})}
-    >
+    <>
+      {/* A SIBLING of the tappable circle, never a child (828aaf40). The lightbox
+          portals itself to document.body, but a React portal still bubbles its
+          events up the React tree — so while it lived inside this div, every tap
+          in it, the X included, reached the onClick below and re-opened what had
+          just closed. The fragment adds no DOM, so no caller's layout moves. */}
       {canEnlarge && enlarged && url && (
         <PhotoLightbox url={url} alt={name} onClose={() => setEnlarged(false)} />
       )}
-      {showImage ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={url}
-          alt={name}
-          referrerPolicy="no-referrer"
-          onError={() => setFailedUrl(url)}
-          className="w-full h-full object-cover"
-        />
-      ) : (
-        <span className={cn('text-brand-600 text-xs font-bold', textClassName)}>
-          {initialsOf(name, maxChars)}
-        </span>
-      )}
-    </div>
+      <div
+        className={cn(
+          'w-9 h-9 rounded-full bg-brand-600/10 flex items-center justify-center shrink-0 overflow-hidden',
+          className,
+        )}
+      // A button element would change the layout of every caller (buttons carry
+      // their own box), so the role goes on the div that already draws the circle.
+        {...(canEnlarge
+          ? {
+              role: 'button' as const,
+              tabIndex: 0,
+              onClick: () => setEnlarged(true),
+              onKeyDown: (e: React.KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setEnlarged(true);
+                }
+              },
+            }
+          : {})}
+      >
+        {showImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={url}
+            alt={name}
+            referrerPolicy="no-referrer"
+            onError={() => setFailedUrl(url)}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <span className={cn('text-brand-600 text-xs font-bold', textClassName)}>
+            {initialsOf(name, maxChars)}
+          </span>
+        )}
+      </div>
+    </>
   );
 }
