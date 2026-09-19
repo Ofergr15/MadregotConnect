@@ -2758,5 +2758,11 @@
     "fieldNotes": "Notes",
     "locationPlaceholder": "Park HaYarkon, north gate",
     "invalidField": "Check the highlighted field and try again."
+  },
+  "watchStatus": {
+    "onWatch": "On your watch ✓",
+    "sendToWatch": "Send to watch",
+    "sending": "Sending…",
+    "failed": "Didn’t send — try again"
   }
 }

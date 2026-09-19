@@ -2758,5 +2758,11 @@
     "fieldNotes": "הערות",
     "locationPlaceholder": "פארק הירקון, שער צפוני",
     "invalidField": "בדקו את השדה המסומן ונסו שוב."
+  },
+  "watchStatus": {
+    "onWatch": "בשעון ✓",
+    "sendToWatch": "שליחה לשעון",
+    "sending": "שולח…",
+    "failed": "לא נשלח — נסו שוב"
   }
 }
