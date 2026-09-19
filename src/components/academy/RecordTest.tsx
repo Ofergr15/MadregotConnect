@@ -335,7 +335,10 @@ export function RecordTest({
         />
         {/* Said here, once, where the number is entered: this is not threshold HR, and the
             difference is a few beats that would end up in every HR-written workout. */}
-        <p className="mt-1 text-[10px] leading-relaxed text-ink-400">
+        {/* 11px and not 10. The audit flags 10 as unreadable, and this is the one caption on
+            the form carrying a distinction worth a few beats in every HR-written workout —
+            a note nobody can read is the same as not writing it. */}
+        <p className="mt-1 text-[11px] leading-relaxed text-ink-400">
           הממוצע של כל הטסט. זה לא דופק סף — דופק סף הוא הממוצע של 20 הדקות האחרונות, וגבוה מזה.
         </p>
       </Field>

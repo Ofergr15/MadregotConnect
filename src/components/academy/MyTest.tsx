@@ -39,6 +39,40 @@ function shortDate(date: string): string {
   return `${day}.${month}`;
 }
 
+/**
+ * "Sent, and nothing has changed yet."
+ *
+ * Exported so the preview route can render it without a session, because the athlete lens
+ * is unreachable for staff — `dashboard/academy` returns the coach console before it ever
+ * gets here — and this card is the one screen in the feature nobody on the coaching side
+ * can see on their own account.
+ *
+ * band-2, not the queue's brand tint: for the coach a submission is a decision waiting on
+ * them, and for the athlete it is a state they cannot act on. Naming what does NOT happen
+ * is the whole job of the card — a confirmation saying "נשמר" above a graph that has not
+ * moved reads as a broken app, not as a pending approval.
+ */
+export function WaitingCard({ item }: { item: PendingSubmission }) {
+  return (
+    <div className="rounded-card bg-band-2/10 px-3.5 py-3">
+      <p className="flex items-start gap-2 text-xs text-band-2-ink">
+        <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>
+          <span className="font-bold">הטסט שלך נשלח למאמן.</span>
+          {' '}
+          <bdi dir="ltr">{shortDate(item.date)}</bdi>
+          {', '}
+          <bdi dir="ltr">{metres(item.distanceM)}</bdi> מ׳
+          {item.paceSec !== null && <> · <bdi dir="ltr">{formatPace(item.paceSec)}</bdi> לק״מ</>}
+          {' — '}
+          הוא יאשר אותו ואז הוא ייכנס לגרף ויעדכן את קצב הסף שלך. עד אז שום דבר
+          בתוכנית לא משתנה.
+        </span>
+      </p>
+    </div>
+  );
+}
+
 export function MyTest({
   athleteId,
   name,
@@ -84,24 +118,7 @@ export function MyTest({
       {hasPoints && <ImprovementChart trend={trend!} heading="השיפור שלך" />}
 
       {waiting.length > 0 ? (
-        waiting.map(item => (
-          <div key={item.testId} className="rounded-card bg-band-2/10 px-3.5 py-3">
-            <p className="flex items-start gap-2 text-xs text-band-2-ink">
-              <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>
-                <span className="font-bold">הטסט שלך נשלח למאמן.</span>
-                {' '}
-                <bdi dir="ltr">{shortDate(item.date)}</bdi>
-                {', '}
-                <bdi dir="ltr">{metres(item.distanceM)}</bdi> מ׳
-                {item.paceSec !== null && <> · <bdi dir="ltr">{formatPace(item.paceSec)}</bdi> לק״מ</>}
-                {' — '}
-                הוא יאשר אותו ואז הוא ייכנס לגרף ויעדכן את קצב הסף שלך. עד אז שום דבר
-                בתוכנית לא משתנה.
-              </span>
-            </p>
-          </div>
-        ))
+        waiting.map(item => <WaitingCard key={item.testId} item={item} />)
       ) : (
         // Only offered when nothing is waiting. Two open submissions for the same person is
         // not a state worth building a screen for, and the form would overwrite the first
