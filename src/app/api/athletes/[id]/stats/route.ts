@@ -13,7 +13,8 @@ import {
   computeLikeForLikeTrend,
   pickWeek,
 } from '@/lib/athletes/profile-stats';
-import { getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
+import { getActivityWeekStart, israelDateAnchor, israelToday } from '@/lib/utils';
+import { buildLast7Report } from '@/lib/reports/last-7-days';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,6 +107,12 @@ export async function GET(
       // week's total, which reads as a collapse every Monday.
       weekTrendPct: computeLikeForLikeTrend(acts, anchor),
       weeks: weekTable,
+      // The rolling seven days behind the profile card and the Saturday 18:00
+      // push. Folded from the SAME `acts` this payload is already built from, so
+      // it needs no request of its own and cannot disagree with the week table
+      // beside it about a run. See lib/reports/last-7-days.ts for why the window
+      // rolls instead of following the Mon–Sun activity week.
+      last7: buildLast7Report(acts, israelToday()),
       recentRuns: buildRecentRuns(acts, runLimit),
       // Same bucket math as /api/athletes/prs and the badge award engine, so a
       // PR shown here is the one a "first 10K" badge fired on.

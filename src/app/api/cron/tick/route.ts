@@ -19,7 +19,11 @@ import { notifySetupSnapshot } from '@/lib/email';
 import { recipientsForKind } from '@/lib/notifications/routing';
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { createAndSendSurvey, notifySurveyNonResponders, rsvpSettlesPaceGroup } from '@/lib/surveys';
-import { israelNow, israelToday, getPlanWeekStart, getActivityWeekStart, israelDateAnchor, addDaysToDateStr } from '@/lib/utils';
+import { israelNow, israelToday, getPlanWeekStart, addDaysToDateStr } from '@/lib/utils';
+import {
+  buildLast7Report, formatReportPace, reportIsEmpty,
+  type Last7Report, type ReportActivity,
+} from '@/lib/reports/last-7-days';
 import { APPROVER_EMAILS } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
@@ -35,14 +39,6 @@ export const maxDuration = 60;
  */
 const SYNC_CHECK_HOUR = 9;
 const SYNC_STALE_HOURS = 24;
-
-/** Format seconds-per-km as m:ss (e.g. 312 -> "5:12"), for the weekly recap. */
-function formatPace(secPerKm: number): string {
-  let m = Math.floor(secPerKm / 60);
-  let s = Math.round(secPerKm % 60);
-  if (s === 60) { m += 1; s = 0; }
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
 
 // External scheduler tick (Vercel Cron hits this every 5 min — see vercel.json;
 // that interval is also the delivery-precision ceiling for scheduled/recurring
@@ -448,32 +444,31 @@ async function run(request: Request) {
     }
   }
 
-  // Sunday 19:00 IL weekly recap: personalized "your week" push to each runner
-  // who ran THIS activity-week (Mon–Sun) — km + runs. Idempotent per activity
-  // week via one ledger tag; per-athlete content computed from one activities
-  // query. Runs only, both Garmin + Strava (same table).
+  // Saturday 18:00 IL weekly report: the personalised "your last 7 days" push to
+  // every athlete who ran in the window — km, runs, average pace — pointing at the
+  // report card on their profile. Idempotent per Saturday via one ledger tag; all
+  // per-athlete content is folded from one activities query.
   //
-  // Activity weeks start MONDAY again (re-split from the plan week on 2026-09-09
-  // — see getActivityWeekStart), which puts Sunday evening on the LAST day of the
-  // week rather than the first day of the next one. So the week to recap is the
-  // one `anchor` is standing in: it closes in five hours. While the anchor was
-  // Sunday (2026-08-21 to 2026-09-09) this slot correctly recapped the PREVIOUS
-  // week; keeping that shape now would push everyone a recap of a week that ended
-  // eight days ago. Still bounded on both ends so it can't bleed into next week.
+  // It used to be Sunday 19:00 over the Mon–Sun activity week. Moved on his call
+  // ("make all 18:00") to Saturday evening, which forces the window to ROLL: the
+  // activity week ends on Sunday, so a calendar-week report sent on Saturday would
+  // be missing the last day of the week it claims to sum up. `buildLast7Report`
+  // takes a trailing seven days ending today instead, which is complete whenever it
+  // is sent — and is the same computation the profile card renders, so the push and
+  // the screen it links to can never print two different numbers.
   //
-  // A run started after 19:00 on the closing Sunday misses its own recap — the
-  // cost of not moving the send to Monday morning, where a "your week" push lands
-  // after people have stopped thinking about the week. Bounded to one evening the
-  // club almost never trains in.
-  if (weekday === 0 && hour === 19) {
+  // One consequence, on purpose: this window and the leaderboard's "this week" are
+  // no longer the same seven days. A run on Sunday evening lands in next Saturday's
+  // report rather than falling out of both.
+  if (weekday === 6 && hour === 18) {
     // Anchored to Israel's calendar day so the boundaries don't depend on the
     // gate above happening to fire at an hour where UTC and Israel agree.
-    const anchor = israelDateAnchor(now);
-    const recapWeekStart = getActivityWeekStart(anchor); // the Monday of the week closing today
-    const nextWeekStart = addDaysToDateStr(recapWeekStart, 7); // exclusive upper bound
-    const tag = `recap:${recapWeekStart}`;
+    const reportTo = israelToday(now);              // today, the last day of the window
+    const reportFrom = addDaysToDateStr(reportTo, -6);
+    // One day past the end, so a run started late today is still inside the read.
+    const readUntil = addDaysToDateStr(reportTo, 1);
+    const tag = `report7:${reportTo}`;
     if (!(await already(tag))) {
-      const RUN_TYPES = ['running', 'trail_running', 'treadmill_running', 'track_running', 'virtual_run'];
       // Active athletes (id → push targets resolved later).
       const { data: athletes } = await supabase
         .from('athletes')
@@ -484,28 +479,33 @@ async function run(request: Request) {
       if (ids.length > 0) {
         const { data: acts } = await supabase
           .from('athlete_activities')
-          .select('athlete_id, activity_type, distance, duration')
+          .select('athlete_id, activity_type, start_time, distance, duration')
           .in('athlete_id', ids)
-          .gte('start_time', recapWeekStart)
-          .lt('start_time', nextWeekStart);
-        // Fold per athlete: km + runs + total seconds (runs only). Total seconds
-        // (not per-activity average_pace) so the weekly pace is a true distance-
-        // weighted average, not an average of averages.
-        const per = new Map<string, { km: number; runs: number; sec: number }>();
-        for (const r of (acts || []) as any[]) {
-          if (!(r.distance > 0) || (r.activity_type && !RUN_TYPES.includes(r.activity_type))) continue;
-          const b = per.get(r.athlete_id) || { km: 0, runs: 0, sec: 0 };
-          b.km += r.distance / 1000; b.runs += 1; b.sec += (r.duration || 0);
-          per.set(r.athlete_id, b);
+          .gte('start_time', reportFrom)
+          .lt('start_time', readUntil);
+        // Split by athlete and hand each list to the SAME builder the profile card
+        // renders from, rather than folding km/pace inline here. The run-type list,
+        // the Israel-day bucketing and the distance-weighted pace then exist in one
+        // place, so the push and the card it links to cannot drift apart.
+        const byAthlete = new Map<string, ReportActivity[]>();
+        for (const r of (acts || []) as (ReportActivity & { athlete_id: string })[]) {
+          const arr = byAthlete.get(r.athlete_id) || [];
+          arr.push(r);
+          byAthlete.set(r.athlete_id, arr);
         }
-        // Push each runner who ran this week their own recap — was a
+        const per = new Map<string, Last7Report>();
+        for (const [athleteId, list] of byAthlete) {
+          const report = buildLast7Report(list, reportTo);
+          if (!reportIsEmpty(report)) per.set(athleteId, report);
+        }
+        // Push each runner who ran this week their own report — was a
         // sequential for-loop (one subs query + one full send, awaited one
         // athlete at a time), invisible at a handful of test runners but a
         // real risk of blowing the 60s function timeout at 100+ real ones
         // (and a timed-out run never reaches markFired below, so it'd keep
         // re-attempting a partial send on the next few ticks). One batched
         // subscription query, then every athlete's send runs concurrently.
-        const runnerIds = Array.from(per.entries()).filter(([, s]) => s.runs > 0).map(([id]) => id);
+        const runnerIds = Array.from(per.keys());
         const allSubs = await subscriptionsForAthletes(runnerIds);
         const subsByAthlete = new Map<string, typeof allSubs>();
         for (const s of allSubs) {
@@ -515,14 +515,16 @@ async function run(request: Request) {
         }
         const sentCounts = await Promise.all(
           runnerIds.map(async (athleteId) => {
-            const s = per.get(athleteId)!;
+            const report = per.get(athleteId)!;
             const subs = subsByAthlete.get(athleteId) || [];
             if (subs.length === 0) return 0;
-            const km = Math.round(s.km * 10) / 10;
-            const paceStr = s.sec > 0 && s.km > 0 ? formatPace(s.sec / s.km) : null;
+            const km = Math.round(report.km * 10) / 10;
+            const paceStr = report.paceSeconds ? formatReportPace(report.paceSeconds) : null;
             const { sent } = await sendPushLocalized(subs, (locale) => ({
-              ...weeklyRecapCopy(locale, { km, runs: s.runs, pace: paceStr }),
-              url: '/dashboard',
+              ...weeklyRecapCopy(locale, { km, runs: report.runs, pace: paceStr }),
+              // The card is on the profile, which is where the same seven days are
+              // drawn day by day — the push is the headline, the profile the detail.
+              url: '/dashboard/profile',
               tag,
               category: 'achievements',
             }));
