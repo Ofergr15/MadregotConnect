@@ -115,12 +115,25 @@ export interface BuildUpcomingInput {
   /** Rows kept per lane. The card is a teaser; the calendar is the full list. */
   perLane?: number;
   /**
+   * How far ahead an event counts as "upcoming" for this card.
+   *
+   * Reported (fe56a3ac) as "it should not show everything — a race only if it is
+   * within the next 7 days, and the rest of the information only in the events
+   * area". Which is the right call: the card lives on the feed, above the posts,
+   * and a race in three months sitting there every single day is wallpaper. It
+   * stops being read, and then the one that IS this week does not get read either.
+   *
+   * The calendar remains the full list; this is deliberately the short answer.
+   */
+  windowDays?: number;
+  /**
    * How far ahead a birthday counts as "upcoming".
    *
-   * Shorter than the race horizon on purpose: a race in three months is
-   * something to train for, a birthday in three months is noise, and with 17
-   * birthdays on the roster a long window would leave this lane permanently
-   * full while the lanes people opened the card for sit below it.
+   * Zero — the same day only, as reported. Shorter than the event horizon on
+   * purpose: a race next week is something to prepare for, a birthday next week
+   * is not actionable until it arrives, and with 17 birthdays on the roster any
+   * window at all leaves this lane permanently full while the lanes people
+   * opened the card for sit below it.
    */
   birthdayWindowDays?: number;
 }
@@ -130,13 +143,18 @@ export function buildUpcoming({
   athletes,
   today,
   perLane = 3,
-  birthdayWindowDays = 45,
+  windowDays = 7,
+  birthdayWindowDays = 0,
 }: BuildUpcomingInput): UpcomingBuckets {
   const byDate = (a: { date: string }, b: { date: string }) => a.date.localeCompare(b.date);
 
   const upcoming = events
     .filter(e => e.date && stillUpcoming(e, today))
     .map(e => ({ ...e, daysAway: Math.max(0, daysBetween(today, e.date)) }))
+    // The window is measured from the START date, so a camp that began before
+    // today is in (daysAway is clamped to 0) — it is happening now, which is as
+    // near as an event gets.
+    .filter(e => e.daysAway <= windowDays)
     .sort(byDate);
 
   const birthdays: UpcomingBirthday[] = [];

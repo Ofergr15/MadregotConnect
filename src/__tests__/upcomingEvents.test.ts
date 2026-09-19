@@ -17,7 +17,10 @@ import {
 
 const TODAY = '2026-09-18';
 
-const race = (over = {}) => ({ id: 'r1', kind: 'race', name: 'Ruler Race', date: '2026-10-09', ...over });
+// Inside the card's 7-day window by default (fe56a3ac). A race three weeks out
+// is deliberately NOT a fixture default any more — that is the case the card was
+// reported for showing.
+const race = (over = {}) => ({ id: 'r1', kind: 'race', name: 'Ruler Race', date: '2026-09-22', ...over });
 const social = (over = {}) => ({ id: 'c1', kind: 'social', name: 'Club dinner', date: '2026-09-20', ...over });
 
 describe('daysBetween', () => {
@@ -96,16 +99,36 @@ describe('buildUpcoming', () => {
       race({ id: 'r4', date: '2027-01-01' }),
       race({ id: 'r2', date: '2026-10-30' }),
     ];
-    expect(buildUpcoming({ ...base, events }).races.map(e => e.id)).toEqual(['r1', 'r2', 'r3']);
+    // A wide window on purpose: this test is about ordering and the cap, and
+    // with the real 7-day window none of these four would reach either.
+    expect(buildUpcoming({ ...base, events, windowDays: 400 }).races.map(e => e.id)).toEqual(['r1', 'r2', 'r3']);
   });
 
-  it('lists the soonest birthdays, without a year', () => {
+  // ── The 7-day window (fe56a3ac) ────────────────────────────────────────────
+  // "It should not show everything — a race only if it is within the next 7
+  // days." The boundary is the whole test: an event exactly 7 days out is in.
+  it('shows an event up to seven days away and nothing beyond', () => {
+    expect(buildUpcoming({ ...base, events: [race({ date: '2026-09-25' })] }).races).toHaveLength(1);
+    expect(buildUpcoming({ ...base, events: [race({ date: '2026-09-26' })] }).races).toEqual([]);
+  });
+
+  it('applies the same window to club events, not just races', () => {
+    expect(buildUpcoming({ ...base, events: [social({ date: '2026-11-01' })] }).club).toEqual([]);
+  });
+
+  /** Already underway is as near as an event gets, so the window must not drop it. */
+  it('keeps an event that started before today', () => {
+    const camp = { id: 'k1', kind: 'camp', name: 'Camp', date: '2026-09-10', end_date: '2026-09-19' };
+    expect(buildUpcoming({ ...base, events: [camp] }).club.map(e => e.id)).toEqual(['k1']);
+  });
+
+  it('lists a birthday without leaking the year', () => {
     const athletes = [
       { id: 'a1', name: 'Tal', birth_date: '1993-11-17', status: 'active' },
-      { id: 'a2', name: 'Roy', birth_date: '1998-10-14', status: 'active' },
+      { id: 'a2', name: 'Roy', birth_date: '1998-09-18', status: 'active' },
     ];
     const b = buildUpcoming({ ...base, athletes });
-    expect(b.birthdays.map(x => [x.name, x.date, x.daysAway])).toEqual([['Roy', '2026-10-14', 26]]);
+    expect(b.birthdays.map(x => [x.name, x.date, x.daysAway])).toEqual([['Roy', '2026-09-18', 0]]);
     expect(JSON.stringify(b.birthdays)).not.toContain('1998');
   });
 
@@ -118,10 +141,16 @@ describe('buildUpcoming', () => {
     expect(buildUpcoming({ ...base, athletes }).birthdays).toEqual([]);
   });
 
-  it('holds birthdays to a nearer horizon than races', () => {
-    const athletes = [{ id: 'a1', name: 'Far', birth_date: '1990-12-01', status: 'active' }];
-    expect(buildUpcoming({ ...base, athletes }).birthdays).toEqual([]);
-    expect(buildUpcoming({ ...base, athletes, birthdayWindowDays: 120 }).birthdays).toHaveLength(1);
+  // "A birthday only if it is on the same day" — so tomorrow's is out, which is
+  // the one thing a reader might mistake for a bug. It is the request.
+  it('shows a birthday on the day itself and not before', () => {
+    const today = [{ id: 'a1', name: 'Today', birth_date: '1990-09-18', status: 'active' }];
+    const tomorrow = [{ id: 'a2', name: 'Tomorrow', birth_date: '1990-09-19', status: 'active' }];
+    expect(buildUpcoming({ ...base, athletes: today }).birthdays).toHaveLength(1);
+    expect(buildUpcoming({ ...base, athletes: tomorrow }).birthdays).toEqual([]);
+    // Still configurable, so the card's horizon is a decision and not a constant
+    // buried in a filter.
+    expect(buildUpcoming({ ...base, athletes: tomorrow, birthdayWindowDays: 7 }).birthdays).toHaveLength(1);
   });
 });
 
