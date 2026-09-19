@@ -97,7 +97,21 @@ function filled(...values: Array<string | null | undefined>): number {
   return values.filter((v) => !!v && String(v).trim() !== '').length;
 }
 
-export function computeSetupState(input: SetupInput): SetupState {
+export interface SetupOptions {
+  /**
+   * Drop the kit-sizes task entirely — not shown, not scored, not the "next up".
+   *
+   * For the admin account (e7951e14: "הוא לא צריך להגדיר מידות וכאלה"). The club's
+   * kit order is something the admin COLLECTS; being chased for four of their own
+   * sizes by the checklist they built to chase everybody else is the kind of small
+   * nonsense that makes an admin stop reading their own screens. It is excluded
+   * rather than pre-completed, so the percentage stays honest — four tasks out of
+   * four, not five with one quietly forgiven.
+   */
+  skipSizes?: boolean;
+}
+
+export function computeSetupState(input: SetupInput, options: SetupOptions = {}): SetupState {
   const connected = hasWorkingSource(input);
   const personalFilled = filled(input.phone, input.birthDate, input.gender);
   // Five, not two. The club orders shirts, pants, tights and socks, and until 100
@@ -109,7 +123,7 @@ export function computeSetupState(input: SetupInput): SetupState {
     input.shirtSize, input.pantsSize, input.tightsSize, input.socksSize, input.shoeSize,
   );
 
-  const tasks: SetupTask[] = [
+  const tasks: SetupTask[] = ([
     {
       key: 'watch',
       done: connected,
@@ -126,7 +140,7 @@ export function computeSetupState(input: SetupInput): SetupState {
     // DELIVERY either — Apple returns 201 for endpoints it has silently
     // orphaned — so this claims "enabled", never "working".
     { key: 'notifications', done: input.pushSubscriptions > 0 },
-  ];
+  ] as SetupTask[]).filter((task) => !(options.skipSizes && task.key === 'sizes'));
 
   const info: SetupInfoItem[] = [
     {

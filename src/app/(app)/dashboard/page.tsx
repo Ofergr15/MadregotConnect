@@ -45,6 +45,9 @@ import { GOAL_RACE } from '@/lib/goal-race';
 const CoachPulse = dynamic(() => import('@/components/CoachPulse').then(m => m.CoachPulse), { ssr: false });
 const AttendanceRoster = dynamic(() => import('@/components/AttendanceRoster').then(m => m.AttendanceRoster), { ssr: false });
 const ActivitySyncEditor = dynamic(() => import('@/components/ActivitySyncEditor').then(m => m.ActivitySyncEditor), { ssr: false });
+// Admin-only, and it renders nothing when the club is quiet — so it is never worth
+// putting in the bundle every member downloads.
+const AdminAttention = dynamic(() => import('@/components/admin/AdminAttention').then(m => m.AdminAttention), { ssr: false });
 // The one exception to "no fallback needed": this replaces the WHOLE screen for an
 // admin, so without a spinner the control room opens on a blank page.
 const ControlRoomScreen = dynamic(() => import('@/components/admin/ControlRoomScreen').then(m => m.ControlRoomScreen), {
@@ -583,6 +586,16 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-extrabold text-ink-700 tracking-tight mt-0.5">מדרגות</h1>
         </div>
       </div>
+
+      {/* ═══ DDORESH TIPUL (admin) — what is waiting for the person who runs the
+          club, on the screen they actually open ═══
+          Every admin here also runs, so /dashboard is their TRAINING home and the
+          control room sits one tap away — which meant the alert list was on a
+          screen nobody opens on a normal morning (e7951e14: "צריך לעשות סדר
+          באיזור של הadmin — לקבל שם פירוט בעמוד הראשי"). Same component and the
+          same request as the control room; renders NOTHING when there is nothing
+          to act on, so it never becomes a permanent empty card above today's run. */}
+      {isAdminView && <AdminAttention compact />}
 
       {/* ═══ ATTENDANCE (coach) — the coach's own "today's action" hero. RSVP is a
           DAY-BEFORE flow (matches the Mon 08:00 + 18:00 pushes for a Tue workout);
