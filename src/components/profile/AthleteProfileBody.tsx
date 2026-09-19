@@ -296,7 +296,7 @@ export function AthleteProfileBody({
               Above the ten-week chart on purpose: this is the card the Saturday
               18:00 notification links to, so it has to be the first thing in view
               when that push opens the page. */}
-          {stats?.last7 && <Last7DaysCard report={stats.last7} />}
+          {stats?.last7 && <Last7DaysCard report={stats.last7} athleteName={profile?.name} />}
 
           <TenWeekChart
             weeks={weeks}

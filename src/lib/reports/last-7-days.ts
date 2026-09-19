@@ -23,6 +23,9 @@ export interface ReportActivity {
   start_time: string;
   distance: number | null;
   duration: number | null;
+  /** Both optional: Strava rows and hand-entered runs often carry neither. */
+  elevation_gain?: number | null;
+  calories?: number | null;
 }
 
 export interface ReportDay {
@@ -33,6 +36,9 @@ export interface ReportDay {
   km: number;
   seconds: number;
   runs: number;
+  /** Metres climbed. Summed, not averaged — a week's climbing is a total. */
+  elevation: number;
+  calories: number;
 }
 
 export interface Last7Report {
@@ -45,6 +51,8 @@ export interface Last7Report {
   km: number;
   seconds: number;
   runs: number;
+  elevation: number;
+  calories: number;
   /** Distance-weighted seconds per km — null when nothing was run. */
   paceSeconds: number | null;
 }
@@ -74,7 +82,10 @@ export function buildLast7Report(acts: ReportActivity[], today: string): Last7Re
   for (let i = 0; i < 7; i++) {
     const date = addDaysToDateStr(from, i);
     // Noon so the weekday cannot be dragged over a boundary by a timezone offset.
-    const day: ReportDay = { date, weekday: new Date(`${date}T12:00:00Z`).getUTCDay(), km: 0, seconds: 0, runs: 0 };
+    const day: ReportDay = {
+      date, weekday: new Date(`${date}T12:00:00Z`).getUTCDay(),
+      km: 0, seconds: 0, runs: 0, elevation: 0, calories: 0,
+    };
     days.push(day);
     byDate.set(date, day);
   }
@@ -87,6 +98,8 @@ export function buildLast7Report(acts: ReportActivity[], today: string): Last7Re
     day.km += Number(a.distance) / 1000;
     day.seconds += Number(a.duration) || 0;
     day.runs += 1;
+    day.elevation += Number(a.elevation_gain) || 0;
+    day.calories += Number(a.calories) || 0;
   }
 
   const km = days.reduce((a, d) => a + d.km, 0);
@@ -99,6 +112,8 @@ export function buildLast7Report(acts: ReportActivity[], today: string): Last7Re
     km,
     seconds,
     runs,
+    elevation: days.reduce((a, d) => a + d.elevation, 0),
+    calories: days.reduce((a, d) => a + d.calories, 0),
     // Total time over total distance, never an average of per-run paces: a 3 km
     // jog and a 30 km long run do not get an equal vote in a weekly pace.
     paceSeconds: km > 0 && seconds > 0 ? seconds / km : null,

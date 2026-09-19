@@ -73,7 +73,9 @@ export async function GET(
     const acts = await fetchAllRows<RunActivityRow>((from, to) =>
       supabase
         .from('athlete_activities')
-        .select('id, activity_name, activity_type, start_time, distance, duration')
+        // elevation_gain and calories ride along for the seven-day report's optional
+        // metrics; nothing else on this payload reads them, and they cost no request.
+        .select('id, activity_name, activity_type, start_time, distance, duration, elevation_gain, calories')
         .eq('athlete_id', id)
         .order('start_time', { ascending: false })
         .order('id')

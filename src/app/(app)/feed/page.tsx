@@ -21,6 +21,7 @@ import { groupFeedItems } from '@/lib/feed/group-runs';
 import { SquadStandings } from '@/components/SquadStandings';
 import { UpcomingEvents } from '@/components/UpcomingEvents';
 import { SetupNudgeCard } from '@/components/onboarding/SetupNudgeCard';
+import { WeekSummaryCard } from '@/components/feed/WeekSummaryCard';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
@@ -473,6 +474,15 @@ export default function FeedPage() {
           )}
         </div>
       )}
+
+      {/* ═══ LAST WEEK ═══
+          Saturday 18:00 → Sunday 10:00 only, and only for the reader's own week.
+          Above the setup nudge because it is the shortest-lived block on the
+          page — it has sixteen hours to be seen, the nudge has three
+          appearances. Dismissible, keyed to the Saturday. See WeekSummaryCard. */}
+      <div className="mb-4 empty:mb-0">
+        <WeekSummaryCard />
+      </div>
 
       {/* ═══ FINISH SETTING UP ═══
           Above everything about everyone else, and below the focused item only

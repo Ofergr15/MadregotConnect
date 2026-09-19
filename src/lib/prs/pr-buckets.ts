@@ -75,6 +75,9 @@ export interface RunActivityRow {
   start_time: string;
   distance: number;
   duration: number;
+  /** Optional, and only read by the seven-day report's extra metrics. */
+  elevation_gain?: number | null;
+  calories?: number | null;
   /**
    * The activity's laps, when the caller selected them. OPTIONAL on purpose:
    * supplying them upgrades the bucket search from "was this whole run a 5K?" to

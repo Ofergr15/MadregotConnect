@@ -221,7 +221,7 @@ describe('the profile card', () => {
 describe('the card is on the profile and its labels exist in both languages', () => {
   it('is wired into the profile body above the ten-week chart', () => {
     const body = read('components/profile/AthleteProfileBody.tsx');
-    expect(body).toMatch(/\{stats\?\.last7 && <Last7DaysCard report=\{stats\.last7\} \/>\}/);
+    expect(body).toMatch(/\{stats\?\.last7 && <Last7DaysCard report=\{stats\.last7\}/);
     expect(body.indexOf('<Last7DaysCard')).toBeLessThan(body.indexOf('<TenWeekChart'));
   });
 

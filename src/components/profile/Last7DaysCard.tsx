@@ -1,11 +1,14 @@
 'use client';
 
+import { useState } from 'react';
+import { Share2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import {
   formatReportHours, formatReportPace,
   type Last7Report,
 } from '@/lib/reports/last-7-days';
+import { WeekShareSheet } from './WeekShareSheet';
 
 /**
  * The seven-day report card — the screen behind the Saturday 18:00 push.
@@ -23,10 +26,11 @@ import {
  * One colour for every day, on his call ("i want same color all days"): a
  * highlighted best day turns a plain record of the week into a verdict on it.
  */
-export function Last7DaysCard({ report }: { report: Last7Report }) {
+export function Last7DaysCard({ report, athleteName }: { report: Last7Report; athleteName?: string | null }) {
   const t = useTranslations('profile');
   const tc = useTranslations('common');
   const dayNames = tc.raw('dayNamesShort') as string[];
+  const [sharing, setSharing] = useState(false);
 
   const peak = Math.max(...report.days.map((d) => d.km), 1);
   const fd = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
@@ -35,10 +39,27 @@ export function Last7DaysCard({ report }: { report: Last7Report }) {
     <section className="rounded-card bg-card p-4">
       <div className="flex items-end justify-between gap-2">
         <h2 className="text-xl font-bold text-ink-700">{t('last7Title')}</h2>
-        <p className="text-xs font-light text-ink-400 tabular-nums">
-          <bdi dir="ltr">{fd(report.from)} – {fd(report.to)}</bdi>
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-light text-ink-400 tabular-nums">
+            <bdi dir="ltr">{fd(report.from)} – {fd(report.to)}</bdi>
+          </p>
+          {/* Nothing to share in a week with no runs, so the button follows the
+              numbers rather than sitting there rendering an empty story. */}
+          {report.runs > 0 && (
+            <button
+              onClick={() => setSharing(true)}
+              aria-label={t('weekShareAction')}
+              className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-page hover:text-brand-600"
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
+
+      {sharing && (
+        <WeekShareSheet report={report} athleteName={athleteName} onClose={() => setSharing(false)} />
+      )}
 
       {report.runs === 0 ? (
         <p className="mt-3 text-sm font-light text-ink-400">{t('last7Empty')}</p>
