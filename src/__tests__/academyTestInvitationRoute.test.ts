@@ -385,6 +385,75 @@ describe('staff re-timing', () => {
     expect((await patch({ id: row.id, action: 'cancel' })).status).toBe(200);
     expect(row.status).toBe('cancelled');
   });
+
+  it('may not cancel another coach’s trainee’s invitation', async () => {
+    const row = seedInvitation({ athlete_id: 'a2' });
+    const res = await patch({ id: row.id, action: 'cancel' });
+    expect(res.status).toBe(403);
+    expect(row.status).toBe('proposed');
+  });
+});
+
+describe('re-offering times', () => {
+  it('replaces the offered times and asks again', async () => {
+    // The commonest move in the whole slice: the trainee said none of these work, so the coach
+    // offers different ones. A second POST cannot do this — one open row per athlete.
+    const row = seedInvitation({ status: 'other', requested_note: 'רק בבוקר' });
+    const res = await patch({ id: row.id, action: 'offer', slots: [NOT_OFFERED] });
+    expect(res.status).toBe(200);
+    expect((await res.json()).invitation).toMatchObject({
+      status: 'proposed',
+      proposedSlots: [NOT_OFFERED],
+    });
+    expect(db.academy_test_invitations).toHaveLength(1);
+  });
+
+  it('keeps the note, because it is still why the first times failed', async () => {
+    const row = seedInvitation({ status: 'other', requested_note: 'רק בבוקר' });
+    await patch({ id: row.id, action: 'offer', slots: [NOT_OFFERED] });
+    expect(row.requested_note).toBe('רק בבוקר');
+  });
+
+  it('clears a confirmation, so no reminder stays armed for a withdrawn time', async () => {
+    const row = seedInvitation({ status: 'confirmed', confirmed_slot: SOON, confirmed_at: 'x' });
+    await patch({ id: row.id, action: 'offer', slots: [NOT_OFFERED] });
+    expect(row.confirmed_slot).toBeNull();
+    expect(row.confirmed_at).toBeNull();
+    expect(row.status).toBe('proposed');
+  });
+
+  it('drops a time that has already gone but refuses an offer with none left', async () => {
+    const row = seedInvitation();
+    await patch({ id: row.id, action: 'offer', slots: ['2020-01-01T00:00:00Z', NOT_OFFERED] });
+    expect(row.proposed_slots).toEqual([NOT_OFFERED]);
+
+    const res = await patch({ id: row.id, action: 'offer', slots: ['2020-01-01T00:00:00Z'] });
+    expect(res.status).toBe(400);
+    expect(row.proposed_slots).toEqual([NOT_OFFERED]);
+  });
+
+  it('is closed to the trainee', async () => {
+    // Offering yourself a time is the confirm hole with extra steps: offer next February, then
+    // confirm it legitimately.
+    const row = seedInvitation();
+    asTrainee();
+    const res = await patch({ id: row.id, action: 'offer', slots: [NOT_OFFERED] });
+    expect(res.status).toBe(403);
+    expect(row.proposed_slots).toEqual([SOON, ALT]);
+  });
+
+  it('is closed to another coach', async () => {
+    const row = seedInvitation({ athlete_id: 'a2' });
+    expect((await patch({ id: row.id, action: 'offer', slots: [NOT_OFFERED] })).status).toBe(403);
+    expect(row.proposed_slots).toEqual([SOON, ALT]);
+  });
+
+  it('cannot re-open a closed invitation', async () => {
+    const row = seedInvitation({ status: 'done', test_id: 't1' });
+    const res = await patch({ id: row.id, action: 'offer', slots: [NOT_OFFERED] });
+    expect(res.status).toBe(409);
+    expect(row.status).toBe('done');
+  });
 });
 
 describe('reading the invitation', () => {

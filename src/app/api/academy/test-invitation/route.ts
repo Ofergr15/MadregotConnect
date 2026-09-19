@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
  *
  *   GET   /api/academy/test-invitation[?athleteId=…]  → the open invitation, or null
  *   POST  /api/academy/test-invitation               → staff: invite somebody to test
- *   PATCH /api/academy/test-invitation               → answer it, or withdraw it
+ *   PATCH /api/academy/test-invitation               → answer it, re-offer times, or withdraw it
  *
  * SELF OR STAFF, and the asymmetry between those two callers is the whole security surface of
  * this route. A trainee answers their own invitation; staff create, re-time and withdraw them.
@@ -109,6 +109,51 @@ function resolveTarget(
   return { athleteId: own };
 }
 
+/** The shape `resolveVerifiedCaller` hands back, narrowed to what this route reads. */
+type Caller = { isSuperUser: boolean; isStaff: boolean; role?: string | null; athleteId: string | null };
+
+/**
+ * The athlete has to exist, and a non-manager coach may only act on their own trainee — the same
+ * scoping every other academy staff route uses.
+ *
+ * Shared by every staff write here rather than living in `POST` alone, which is where it used to
+ * live: `cancel` had no scoping at all, so any coach in the club could withdraw somebody else's
+ * trainee's test. That is the kind of hole that only ever shows up once a second coach exists.
+ */
+async function refuseUnlessTheirTrainee(
+  supabase: ReturnType<typeof createServerClient>,
+  caller: Caller,
+  athleteId: string,
+): Promise<NextResponse | null> {
+  const { data, error } = await supabase
+    .from('athletes')
+    .select('id, academy_coach_id')
+    .eq('id', athleteId)
+    .maybeSingle();
+  if (error) return NextResponse.json({ error: 'Failed to read the athlete' }, { status: 500 });
+  if (!data) return NextResponse.json({ error: 'No such athlete' }, { status: 404 });
+
+  const isManager = caller.isSuperUser || caller.role === 'admin';
+  if (!isManager && data.academy_coach_id !== caller.athleteId) {
+    return NextResponse.json({ error: 'Not your trainee' }, { status: 403 });
+  }
+  return null;
+}
+
+/**
+ * The times to offer, as the column wants them.
+ *
+ * Past times are dropped rather than rejected — a coach building next week's invitation at
+ * midnight should not get a 400 because one chip in the list has just expired — but an offer with
+ * nothing future left in it is refused, because writing it would produce a screen whose every
+ * chip is untappable and whose reminders can never fire.
+ */
+function offeredSlots(raw: unknown): string[] {
+  const now = Date.now();
+  const list: unknown[] = Array.isArray(raw) ? raw : [];
+  return list.map(instant).filter((s): s is string => s !== null && Date.parse(s) > now);
+}
+
 export async function GET(request: Request) {
   try {
     const { denied, caller } = await resolveVerifiedCaller(request);
@@ -166,31 +211,14 @@ export async function POST(request: Request) {
     const athleteId = String(body?.athleteId || '');
     if (!athleteId) return NextResponse.json({ error: 'athleteId is required' }, { status: 400 });
 
-    const now = Date.now();
-    const raw: unknown[] = Array.isArray(body?.slots) ? body.slots : [];
-    const slots = raw
-      .map(instant)
-      .filter((s): s is string => s !== null && Date.parse(s) > now);
+    const slots = offeredSlots(body?.slots);
     if (slots.length === 0) {
       return NextResponse.json({ error: 'At least one future slot is required' }, { status: 400 });
     }
 
     const supabase = createServerClient();
-
-    // The athlete has to exist, and a non-manager coach may only invite their own trainee —
-    // the same scoping every other academy staff route uses.
-    const { data: target, error: readError } = await supabase
-      .from('athletes')
-      .select('id, academy_coach_id')
-      .eq('id', athleteId)
-      .maybeSingle();
-    if (readError) return NextResponse.json({ error: 'Failed to read the athlete' }, { status: 500 });
-    if (!target) return NextResponse.json({ error: 'No such athlete' }, { status: 404 });
-
-    const isManager = caller.isSuperUser || caller.role === 'admin';
-    if (!isManager && target.academy_coach_id !== caller.athleteId) {
-      return NextResponse.json({ error: 'Not your trainee' }, { status: 403 });
-    }
+    const refused = await refuseUnlessTheirTrainee(supabase, caller, athleteId);
+    if (refused) return refused;
 
     const { data, error } = await supabase
       .from('academy_test_invitations')
@@ -225,7 +253,20 @@ export async function POST(request: Request) {
  *
  *   { id, action: 'confirm', slot }   — self or staff
  *   { id, action: 'other', note? }    — self or staff
+ *   { id, action: 'offer', slots }    — STAFF ONLY, see below
  *   { id, action: 'cancel' }          — STAFF ONLY, see the header
+ *
+ * ── WHY RE-OFFERING IS A PATCH AND NOT A SECOND POST ─────────────────────────────────────
+ *
+ * The commonest thing a coach does with an invitation is offer different times: the trainee asked
+ * for another time, which is the entire point of `other`. `POST` cannot do that — migration 112's
+ * partial unique index allows one open row per athlete, so a second create 409s — and closing the
+ * old row to create a new one would throw away the note that says WHY the first times failed,
+ * which is the one fact the new times should be chosen from.
+ *
+ * So `offer` replaces `proposed_slots` in place and puts the row back to `proposed`. It keeps
+ * `requested_note` deliberately: until the trainee answers, "works shifts until the 20th" is still
+ * true and still the reason the board should show for this invitation.
  *
  * Every action is scoped to the invitation's OWN athlete after reading the row, not to the
  * athleteId in the body: the id is the only thing the client sends that matters, and the row
@@ -290,13 +331,35 @@ export async function PATCH(request: Request) {
       // empty one is allowed: "none of these work" is itself an answer worth having.
       const note = typeof body?.note === 'string' ? body.note.trim().slice(0, 500) : '';
       patch = { status: 'other', confirmed_slot: null, confirmed_at: null, requested_note: note || null };
+    } else if (action === 'offer') {
+      if (!isStaff) {
+        // A trainee offering themselves times is the confirm hole with extra steps: they would
+        // offer next February and then legitimately confirm it.
+        return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+      }
+      const refused = await refuseUnlessTheirTrainee(supabase, caller, invite.athleteId);
+      if (refused) return refused;
+
+      const slots = offeredSlots(body?.slots);
+      if (slots.length === 0) {
+        return NextResponse.json({ error: 'At least one future slot is required' }, { status: 400 });
+      }
+      // `confirmed_slot` is cleared because the times it was chosen from no longer stand: leaving
+      // it would keep a reminder armed for a slot that is no longer on offer, and the row would
+      // read "confirmed for Thursday" while showing three new chips.
+      patch = { status: 'proposed', proposed_slots: slots, confirmed_slot: null, confirmed_at: null };
     } else if (action === 'cancel') {
       if (!isStaff) {
         return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
       }
+      const refused = await refuseUnlessTheirTrainee(supabase, caller, invite.athleteId);
+      if (refused) return refused;
       patch = { status: 'cancelled' };
     } else {
-      return NextResponse.json({ error: "action must be 'confirm', 'other' or 'cancel'" }, { status: 400 });
+      return NextResponse.json(
+        { error: "action must be 'confirm', 'other', 'offer' or 'cancel'" },
+        { status: 400 },
+      );
     }
 
     const { data, error } = await supabase

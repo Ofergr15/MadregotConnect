@@ -36,8 +36,13 @@ const COLUMNS =
 /** The states an invitation is still live in. Matches the partial unique index in migration 112. */
 const OPEN = ['proposed', 'confirmed', 'other'];
 
-/** Migration 112 is pasted in by hand, so an absent table has to read as "not set up". */
-const NOT_SET_UP = { rows: [], tableMissing: true };
+/**
+ * Migration 112 is pasted in by hand, so an absent table has to read as "not set up".
+ *
+ * `invitable` is empty here and not the whole roster: with no table there is nowhere to write an
+ * invitation, so offering the button would be offering a 503.
+ */
+const NOT_SET_UP = { rows: [], invitable: [], tableMissing: true };
 
 export async function GET(request: Request) {
   try {
@@ -68,7 +73,7 @@ export async function GET(request: Request) {
     // A coach with no trainees yet is not an error and must not read the invitations table at
     // all: `.in('athlete_id', [])` is a filter that matches nothing, but asking is still a
     // query whose only possible answer is one this caller could not be shown.
-    if (names.size === 0) return NextResponse.json({ rows: [] });
+    if (names.size === 0) return NextResponse.json({ rows: [], invitable: [] });
 
     const { data, error } = await supabase
       .from('academy_test_invitations')
@@ -105,7 +110,19 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json({ rows });
+    // Who could be invited: every trainee in scope with no open invitation.
+    //
+    // Derived here rather than fetched by the sheet, because it is the same two reads the board
+    // has already done and the subtraction is the whole answer. Sending the full roster and
+    // letting the client filter would be the same data over the wire; sending it as a separate
+    // request would let the two halves disagree — a name in both lists means a 409 on tap.
+    const open = new Set(rows.map(r => r.invite.athleteId));
+    const invitable = [...names.entries()]
+      .filter(([id]) => !open.has(id))
+      .map(([athleteId, name]) => ({ athleteId, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+
+    return NextResponse.json({ rows, invitable });
   } catch {
     return NextResponse.json({ error: 'Failed to read the invitations' }, { status: 500 });
   }

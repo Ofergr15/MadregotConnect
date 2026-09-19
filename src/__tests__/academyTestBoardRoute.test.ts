@@ -205,6 +205,34 @@ describe('what the board carries', () => {
     expect(rows[0].state).toBeUndefined();
   });
 
+  it('names who could be invited: in scope, and nothing open', async () => {
+    // The header button's list. Without it the only way to create an invitation is a hand-run
+    // POST, which is how this slice started: a write path with no author.
+    invitation({ athlete_id: 'a1' });
+    asManager();
+    const { rows, invitable } = await (await get()).json();
+    expect(rows).toHaveLength(1);
+    // `a1` has one open, `a3` is not in the academy, so only `a2` is left.
+    expect(invitable).toEqual([{ athleteId: 'a2', name: 'Noa Shemesh' }]);
+  });
+
+  it('scopes the invitable list to the coach’s own trainees', async () => {
+    const { invitable } = await (await get()).json();
+    expect(invitable).toEqual([{ athleteId: 'a1', name: 'Dor Alon' }]);
+  });
+
+  it('counts a closed invitation as invitable again', async () => {
+    // "We invited him three times and he never ran it" has to stay expressible.
+    invitation({ athlete_id: 'a1', status: 'cancelled' });
+    const { invitable } = await (await get()).json();
+    expect(invitable).toEqual([{ athleteId: 'a1', name: 'Dor Alon' }]);
+  });
+
+  it('is empty for a coach with no trainees, alongside the empty board', async () => {
+    asCoach('coach-9');
+    expect(await (await get()).json()).toEqual({ rows: [], invitable: [] });
+  });
+
   it('says the table is missing rather than showing an empty board', async () => {
     // Before migration 112 an empty board would read as "nobody has a test scheduled", which
     // is the wrong thing to tell a coach who scheduled three.

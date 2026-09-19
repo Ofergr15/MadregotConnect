@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { israelToday } from '@/lib/utils';
 import { buildBoard, type BoardRow } from '@/lib/academy/testBoard';
 import { BoardLists } from '@/components/academy/TestBoard';
+import { InviteToTestSheet, type InviteTarget } from '@/components/academy/InviteToTestSheet';
 
 // ── Login-free preview of the coach's test-invitation board ───────────────────
 //
@@ -91,6 +92,27 @@ const TITLES: Record<string, string> = {
   clear: 'הכול נענה',
   backlog: 'שלוש שתיקות',
   empty: 'אין טסטים פתוחים',
+  offer: 'גלישת הצעת זמנים',
+  invite: 'גלישת הזמנה חדשה',
+};
+
+/**
+ * `?state=offer` opens the sheet as a re-offer (with the trainee's note), `?state=invite` as a
+ * fresh invitation. Both over the `full` board, which is where the buttons actually are.
+ *
+ * It sends nowhere. The write lives in `TestBoard`, not in the sheet, which is exactly what lets
+ * this preview exist: a send button that could post a real invitation to a real person is not
+ * something to leave behind a login-free URL.
+ */
+const SHEETS: Record<string, InviteTarget> = {
+  offer: {
+    athleteId: 'a1',
+    name: 'Noa Shemesh',
+    invitationId: 'a1',
+    protocol: '30min',
+    note: 'עובד במשמרות עד ה-20 בחודש, אפשר רק בבוקר',
+  },
+  invite: { athleteId: 'a9', name: 'Maya Ben Ari' },
 };
 
 export default function AcademyTestBoardPreview() {
@@ -100,9 +122,11 @@ export default function AcademyTestBoardPreview() {
   // server too, where `window` does not exist, and the hydration mismatch makes React throw
   // the tree away.
   const [key, setKey] = useState('full');
+  const [target, setTarget] = useState<InviteTarget | null>(null);
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get('state');
-    if (q && q in CASES) setKey(q);
+    if (q && (q in CASES || q in SHEETS)) setKey(q);
+    if (q && q in SHEETS) setTarget(SHEETS[q]);
   }, []);
 
   const board = buildBoard(CASES[key] ?? CASES.full, NOW);
@@ -114,7 +138,27 @@ export default function AcademyTestBoardPreview() {
           <h1 className="text-xl font-bold text-ink-900">הזמנות לטסט</h1>
           <p className="text-xs text-ink-400">תצוגה מקדימה · {TITLES[key]} · נתוני דמה</p>
         </div>
-        <BoardLists board={board} />
+        {/* Tappable as well as reachable by `?state=…`, so the sheet can be read both as a
+            screenshot and as an interaction. `invitable` is a plausible count of trainees with
+            nothing open — this preview has no roster to count. */}
+        <BoardLists
+          board={board}
+          invitable={3}
+          onInvite={() => setTarget(SHEETS.invite)}
+          onOffer={entry => setTarget({
+            athleteId: entry.row.invite.athleteId,
+            name: entry.row.name,
+            invitationId: entry.row.invite.id,
+            protocol: entry.row.invite.protocol,
+            note: entry.row.invite.requestedNote,
+          })}
+        />
+        <InviteToTestSheet
+          open={!!target}
+          onOpenChange={open => { if (!open) setTarget(null); }}
+          target={target}
+          onSend={() => setTarget(null)}
+        />
       </div>
     </div>
   );
