@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { initialsOf } from './types';
 import { RecordTest } from './RecordTest';
 import { PendingTests, type PendingSubmission } from './PendingTests';
+import { TestRoundSheet } from './TestRoundSheet';
 import type { Direction, Registry, RegistryRow } from '@/lib/academy/tests';
 
 /** The registry plus whatever is waiting on staff. `pending` is absent pre-migration 108. */
@@ -71,7 +72,18 @@ function ageText(days: number): string {
 }
 
 /** The pure view, mounted by the preview so the audit measures the real component. */
-export function RegistryList({ registry }: { registry: Registry }) {
+export function RegistryList({
+  registry,
+  onStartRound,
+}: {
+  registry: Registry;
+  /**
+   * `שבץ סבב`. Optional so the preview harness can still mount this component without a sheet,
+   * a fetch or a router — which is the whole reason the view is separate from the fetching
+   * wrapper. When it is absent the banner is exactly what it was: a sentence.
+   */
+  onStartRound?: () => void;
+}) {
   const { rows, summary, byBand } = registry;
   const stale = rows.filter(r => r.overdue);
 
@@ -134,6 +146,23 @@ export function RegistryList({ registry }: { registry: Registry }) {
               ))}
             </span>
           </p>
+          {/* The action lives INSIDE the sentence that calls for it.
+              This banner is the one place on the screen that says "their plans are running on
+              old data", and a coach who reads it has exactly one thing to do about it. Putting
+              `שבץ סבב` in the page header instead — where the mockup draws it — would separate
+              the reason from the button by the height of a phone, and make the count in the
+              banner and the count in the round two unrelated numbers that happen to agree.
+              No overdue trainee, no button: the `לכולם יש טסט עדכני` branch below needs no
+              action, and an always-visible button that reaches nobody is a dead control. */}
+          {onStartRound && (
+            <button
+              type="button"
+              onClick={onStartRound}
+              className="mt-2.5 min-h-[44px] w-full rounded-card bg-band-2-ink/10 text-xs font-bold text-band-2-ink"
+            >
+              שבץ סבב טסטים
+            </button>
+          )}
         </div>
       ) : (
         <div className="rounded-card bg-card px-3.5 py-3">
@@ -258,6 +287,7 @@ export function TestRegistry({
 }) {
   const [registry, setRegistry] = useState<RegistryResponse | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
+  const [roundOpen, setRoundOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -314,7 +344,21 @@ export function TestRegistry({
         protocol={protocol}
         onSaved={() => { void load(); }}
       />
-      <RegistryList registry={registry} />
+      <RegistryList registry={registry} onStartRound={() => setRoundOpen(true)} />
+
+      {/* The round's candidates are the registry's OWN rows, unmodified: the list the coach is
+          looking at is the list the round is built from, so the banner's count and the round's
+          count cannot be two different opinions. Who among them is actually invited is
+          `buildRound`'s decision, and it needs the board too — which the sheet reads for itself
+          on opening, because the board component beside it fetches its own data and holds it
+          privately. */}
+      <TestRoundSheet
+        open={roundOpen}
+        onOpenChange={setRoundOpen}
+        candidates={registry.rows}
+        protocol={protocol}
+        onDone={() => { void load(); }}
+      />
     </div>
   );
 }

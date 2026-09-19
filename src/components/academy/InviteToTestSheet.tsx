@@ -1,17 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Clock, MessageSquareQuote } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { MessageSquareQuote } from 'lucide-react';
 import { Sheet } from '@/components/ui';
 import { protocolLabel, reminderPromise } from '@/lib/academy/testInvite';
-import {
-  COMMON_HOURS,
-  MAX_OFFERED_SLOTS,
-  buildOffer,
-  dayOptions,
-  offerSummary,
-} from '@/lib/academy/offerSlots';
+import { COMMON_HOURS, buildOffer, dayOptions, offerSummary } from '@/lib/academy/offerSlots';
+// The hour row and the day grid live in `OfferTimesPicker`, shared with the test round: every
+// number in them was measured, and a second copy would drift into a 42px tap target.
+import { Chip, Field, OfferTimesPicker, toggleDay } from './OfferTimesPicker';
 
 /**
  * Offering somebody a test.
@@ -51,13 +47,6 @@ export interface InviteTarget {
 }
 
 const PROTOCOLS = ['30min', '2000m'];
-
-/**
- * Sunday first, because an Israeli week starts on Sunday and the whole app's week pager already
- * does (`sundayOf`). `ש` for Saturday rather than the letter-pair `שב`: one character per column
- * is what keeps seven columns fitting at 375px.
- */
-const WEEKDAY_INITIALS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
 
 export function InviteToTestSheet({
   open,
@@ -100,13 +89,6 @@ export function InviteToTestSheet({
   const options = useMemo(() => (now ? dayOptions(now) : []), [now]);
   const slots = useMemo(() => (now ? buildOffer(days, time, now) : []), [days, time, now]);
 
-  const toggle = (day: string) => {
-    setDays(prev => (prev.includes(day)
-      ? prev.filter(d => d !== day)
-      // Oldest out rather than refusing the tap: a coach replacing their third choice should not
-      // have to work out which chip to unpick first.
-      : [...prev, day].slice(-MAX_OFFERED_SLOTS)));
-  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={reOffer ? 'הצעת זמנים חדשים' : 'הזמנה לטסט'}>
@@ -139,81 +121,13 @@ export function InviteToTestSheet({
           </Field>
         )}
 
-        <Field label="באיזו שעה">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {COMMON_HOURS.map(h => (
-              <Chip key={h} selected={time === h} onClick={() => setTime(h)}>
-                <bdi dir="ltr">{h}</bdi>
-              </Chip>
-            ))}
-            {/* A real `<input type="time">`, because the chips are a shortcut and not the list of
-                possible hours.
-                `dir="ltr"`: in the RTL row it rendered `07:00` as `00:07`, which does not read as
-                a field at all — it reads as a fifth hour option at some impossible time. Same
-                bidi rule as every other bare number on these screens.
-                Outlined rather than filled, and with a clock, because the filled pills next to it
-                are CHOICES: a field that looks exactly like them is a choice nobody can make.
-                `text-base`: under 16px iOS Safari zooms the page on focus and does not zoom back
-                out, which inside a sheet puts the send button off-screen behind the keyboard. */}
-            <span className="flex min-h-[44px] items-center gap-1.5 rounded-pill border border-ink-300 px-3">
-              <Clock className="h-3.5 w-3.5 shrink-0 text-ink-400" />
-              <input
-                type="time"
-                dir="ltr"
-                value={time}
-                onChange={e => setTime(e.target.value)}
-                aria-label="שעה אחרת"
-                // Full height of its own pill: the tap area is the INPUT, not the border around
-                // it, and a 26px line of text inside a 44px box is a 26px target.
-                className="min-h-[44px] bg-transparent text-base tabular-nums text-ink-900"
-              />
-            </span>
-          </div>
-        </Field>
-
-        {/* A calendar grid and not a row of chips, which is what the first version was.
-            Fourteen chips reading `יום א׳ 20.09` need the date — each weekday appears twice in a
-            fortnight — and at chip size that date came out at 10px, the design's density floor,
-            fourteen times over. A grid puts the weekday in a header that is written ONCE, which
-            leaves the cell holding nothing but the number, at a readable size and 48px square. */}
-        <Field label={`באילו ימים · עד ${MAX_OFFERED_SLOTS}`}>
-          {/* `gap-0.5` and a negative margin, both measured rather than chosen: seven columns
-              inside the sheet's own padding came out 42px wide, and the audit probes tap targets
-              rather than reading the box, so 42 is 42. A 2px gap and 4px clawed back from the
-              padding is what puts every cell over Apple's 44px floor at 375px. */}
-          <div className="-mx-1 grid grid-cols-7 gap-0.5" role="group">
-            {WEEKDAY_INITIALS.map((letter, i) => (
-              <div key={i} className="pb-0.5 text-center text-[11px] font-semibold text-ink-400">
-                {letter}
-              </div>
-            ))}
-            {/* Empty cells before the first offerable day, so every column really is one weekday
-                down the whole grid. Without them "Tuesday" would mean a different column in the
-                second row and the header would be a lie. */}
-            {options.length > 0 && Array.from({ length: options[0].weekday }, (_, i) => (
-              <div key={`pad-${i}`} aria-hidden />
-            ))}
-            {options.map(d => {
-              const selected = days.includes(d.day);
-              return (
-                <button
-                  key={d.day}
-                  type="button"
-                  onClick={() => toggle(d.day)}
-                  aria-pressed={selected}
-                  // The accessible name is the whole date, because `20` alone is not a day.
-                  aria-label={`${d.label} ${d.date}`}
-                  className={cn(
-                    'min-h-[48px] rounded-card text-sm font-bold tabular-nums',
-                    selected ? 'bg-brand-600 text-white' : 'bg-page text-ink-700',
-                  )}
-                >
-                  <bdi dir="ltr">{d.dayOfMonth}</bdi>
-                </button>
-              );
-            })}
-          </div>
-        </Field>
+        <OfferTimesPicker
+          time={time}
+          onTimeChange={setTime}
+          days={days}
+          onToggleDay={day => setDays(prev => toggleDay(prev, day))}
+          options={options}
+        />
 
         {/* What will actually be written, read back in the trainee's words. The confirm line is
             worth its own row here and not just a button label, because every chip above is a
@@ -239,36 +153,5 @@ export function InviteToTestSheet({
         </button>
       </div>
     </Sheet>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="mb-1.5 px-1 text-[11px] font-semibold text-ink-500">{label}</p>
-      {children}
-    </div>
-  );
-}
-
-function Chip({
-  selected, onClick, children,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className={cn(
-        'min-h-[44px] rounded-pill px-3 text-xs font-semibold',
-        selected ? 'bg-brand-600 text-white' : 'bg-page text-ink-700',
-      )}
-    >
-      {children}
-    </button>
   );
 }
