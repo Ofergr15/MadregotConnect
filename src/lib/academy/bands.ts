@@ -32,6 +32,17 @@ export interface BandPaceProfile {
   marathonGoal?: string;
   offsetSeconds?: number;
   level?: PaceLevel;
+  /**
+   * The threshold pace this band is for, sec/km — what a test result is matched against to
+   * recommend a band (`recommendBand` in `testAnalysis.ts`).
+   *
+   * Optional, and currently absent on every band: nothing in the academy has ever recorded
+   * which measured paces belong to which דבוקה. That is the one piece of data the band
+   * recommendation is blocked on, and it needs no migration because `pace_profile` is JSONB.
+   * Until it is filled in, the analysis screen says there is no recommendation and why, rather
+   * than inventing a mapping a coach could not tell apart from the club's own.
+   */
+  thresholdPaceSec?: number;
 }
 
 /** A goal band as the API returns it. */

@@ -280,6 +280,14 @@ export interface RegistryRow {
   bandNumber: number | null;
   /** Null when they have never produced a usable test — the intake gap, not a regression. */
   lastTestDate: string | null;
+  /**
+   * The id of that last test, so the row can open its analysis.
+   *
+   * Carried here rather than fetched by the screen because the registry has already decided
+   * WHICH test is this athlete's current one — newest, counted, right protocol — and a second
+   * answer to that question is a screen analysing a test the row above it is not showing.
+   */
+  lastTestId: string | null;
   lastPaceSec: number | null;
   /** Against their previous counted test. Negative is faster. */
   deltaSec: number | null;
@@ -382,6 +390,7 @@ export function buildRegistry({
       name: athlete.name,
       bandNumber: athlete.bandNumber ?? null,
       lastTestDate: last?.date ?? null,
+      lastTestId: last?.testId ?? null,
       lastPaceSec: last?.paceSec ?? null,
       deltaSec: last?.deltaPrevSec ?? null,
       direction: last?.directionPrev ?? null,

@@ -9,6 +9,7 @@ import { initialsOf } from './types';
 import { RecordTest } from './RecordTest';
 import { PendingTests, type PendingSubmission } from './PendingTests';
 import { TestRoundSheet } from './TestRoundSheet';
+import { TestAnalysisSheet } from './TestAnalysisSheet';
 import type { Direction, Registry, RegistryRow } from '@/lib/academy/tests';
 
 /** The registry plus whatever is waiting on staff. `pending` is absent pre-migration 108. */
@@ -75,6 +76,7 @@ function ageText(days: number): string {
 export function RegistryList({
   registry,
   onStartRound,
+  onAnalyse,
 }: {
   registry: Registry;
   /**
@@ -83,6 +85,13 @@ export function RegistryList({
    * wrapper. When it is absent the banner is exactly what it was: a sentence.
    */
   onStartRound?: () => void;
+  /**
+   * `ניתוח` — open the analysis of the test this row is already showing.
+   *
+   * Takes the row rather than an id, because the caller needs the name for the sheet's header and
+   * the row is the only place this screen holds it. Optional for the same reason as above.
+   */
+  onAnalyse?: (row: RegistryRow) => void;
 }) {
   const { rows, summary, byBand } = registry;
   const stale = rows.filter(r => r.overdue);
@@ -171,7 +180,16 @@ export function RegistryList({
       )}
 
       <div className="space-y-1.5">
-        {rows.map(row => <Row key={row.athleteId} row={row} />)}
+        {rows.map(row => (
+          <Row
+            key={row.athleteId}
+            row={row}
+            // Only where there is something to analyse. A trainee with no usable test has no
+            // measurement to turn into thresholds, and a `ניתוח` button that opens an empty
+            // screen teaches the coach to distrust the one beside it that works.
+            onAnalyse={onAnalyse && row.lastTestId ? () => onAnalyse(row) : undefined}
+          />
+        ))}
       </div>
 
       {/* The manager's question, which no single athlete's graph answers: does the method
@@ -215,7 +233,7 @@ function Kpi({ value, label, tone }: { value: number; label: string; tone: strin
   );
 }
 
-function Row({ row }: { row: RegistryRow }) {
+function Row({ row, onAnalyse }: { row: RegistryRow; onAnalyse?: () => void }) {
   return (
     <div className="flex items-center gap-3 rounded-card bg-card px-3 py-3 text-right">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-page text-xs font-bold text-ink-500">
@@ -263,6 +281,21 @@ function Row({ row }: { row: RegistryRow }) {
             : <DeltaText sec={row.deltaSec} />}
         </div>
       </div>
+
+      {/* The pace on this row IS the thing the analysis turns into a plan, so the way in sits
+          beside it rather than in a menu. A quiet chip and not a filled button: reading the queue
+          is what the coach came here for, and eleven bright buttons down the list would make the
+          overdue banner above compete with them. */}
+      {onAnalyse && (
+        <button
+          type="button"
+          onClick={onAnalyse}
+          aria-label={`ניתוח הטסט של ${row.name}`}
+          className="-my-1 shrink-0 rounded-pill bg-page px-2.5 py-2 text-[11px] font-bold text-brand-600"
+        >
+          ניתוח
+        </button>
+      )}
     </div>
   );
 }
@@ -288,6 +321,8 @@ export function TestRegistry({
   const [registry, setRegistry] = useState<RegistryResponse | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
   const [roundOpen, setRoundOpen] = useState(false);
+  /** Which test's analysis is open. The id and not a boolean — the sheet analyses one test. */
+  const [analysing, setAnalysing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -344,7 +379,23 @@ export function TestRegistry({
         protocol={protocol}
         onSaved={() => { void load(); }}
       />
-      <RegistryList registry={registry} onStartRound={() => setRoundOpen(true)} />
+      <RegistryList
+        registry={registry}
+        onStartRound={() => setRoundOpen(true)}
+        onAnalyse={row => setAnalysing(row.lastTestId)}
+      />
+
+      {/* The test the ROW is showing, not "this athlete's latest test" refetched here. The
+          registry has already decided which test is current — newest, counted, right protocol —
+          and asking the question twice is how the screen ends up analysing a test the row above
+          it is not displaying. Re-reads the registry after an approval, because approving moves
+          the athlete's band and the per-band rollup below is drawn from it. */}
+      <TestAnalysisSheet
+        open={analysing !== null}
+        onOpenChange={open => { if (!open) setAnalysing(null); }}
+        testId={analysing}
+        onApproved={() => { void load(); }}
+      />
 
       {/* The round's candidates are the registry's OWN rows, unmodified: the list the coach is
           looking at is the list the round is built from, so the banner's count and the round's
