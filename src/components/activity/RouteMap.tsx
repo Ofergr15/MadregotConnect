@@ -5,8 +5,9 @@ import { useTranslations } from 'next-intl';
 import {
   BASEMAP_ATTRIBUTION,
   BASEMAP_MAX_ZOOM,
-  BASEMAP_QUIET_FILTER,
+  BASEMAP_QUIET_MAX_ZOOM,
   BASEMAP_URL_TEMPLATE,
+  BASEMAP_URL_TEMPLATE_DEEP,
 } from '@/lib/basemap';
 import { useMapPrefs } from '@/lib/mapPrefs';
 import { cn } from '@/lib/utils';
@@ -107,21 +108,30 @@ export function RouteMap({
       map.on('click', () => map.scrollWheelZoom.enable());
       map.on('mouseout', () => map.scrollWheelZoom.disable());
 
-      // A real street map, not the near-blank grey plate this used to draw: the
-      // point of zooming in is to see which streets and paths the run went
-      // through. Attribution stays on — it's a condition of using these tiles.
+      // TWO plates, handing over at the canvas's own ceiling (15046ef2).
+      //
+      // The pale canvas is what a route should sit on: at the zooms this map
+      // actually opens at — a fitted 5 km loop lands around z14–15 — the reader
+      // should see their line, not a page of doubled street labels. Its raster
+      // cache stops at z16, which is the entire reason the app used to draw the
+      // navigation plate everywhere instead.
+      //
+      // So the street plate stays, as the DEEP layer. Leaflet shows a tile layer
+      // only inside its own min/max zoom, so the swap is declarative: the canvas
+      // covers up to z16, the street map takes over at z17 and carries the map's
+      // ceiling to z19. `+` keeps working exactly as far as it did.
+      //
+      // Attribution goes on the canvas layer only — Leaflet concatenates the
+      // attributions of every layer currently shown, and both plates credit the
+      // same suppliers, so putting it on both prints it twice at z17+.
       L.tileLayer(BASEMAP_URL_TEMPLATE, {
-        maxZoom: BASEMAP_MAX_ZOOM,
+        maxZoom: BASEMAP_QUIET_MAX_ZOOM,
         attribution: BASEMAP_ATTRIBUTION,
       }).addTo(map);
-
-      // Quieted on the tile pane, not on the map container: Leaflet keeps tiles
-      // and vectors in sibling panes, so this desaturates the streets and leaves
-      // the route, the markers and the pace legend at full strength. Filtering
-      // the container would drain the colour out of the very thing the colour
-      // means something on.
-      const tilePane = map.getPane('tilePane');
-      if (tilePane) tilePane.style.filter = BASEMAP_QUIET_FILTER;
+      L.tileLayer(BASEMAP_URL_TEMPLATE_DEEP, {
+        minZoom: BASEMAP_QUIET_MAX_ZOOM + 1,
+        maxZoom: BASEMAP_MAX_ZOOM,
+      }).addTo(map);
 
       // Leaflet refuses layer work before the map has a view; the route effect
       // below replaces this immediately.

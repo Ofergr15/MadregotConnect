@@ -2,7 +2,6 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { planRoutePlate, toSvgPath, type LatLng } from '@/lib/activity/tiles';
-import { BASEMAP_QUIET_SVG } from '@/lib/basemap';
 import { paceSegments } from '@/components/activity/format';
 import { useMapPrefs } from '@/lib/mapPrefs';
 
@@ -45,7 +44,6 @@ export function RouteMinimap({
   const [{ paceColors }] = useMapPrefs();
   const plate = planRoutePlate(points, width, height);
   const clipId = useId();
-  const quietId = useId();
   const hostRef = useRef<SVGSVGElement>(null);
   const [tilesVisible, setTilesVisible] = useState(false);
 
@@ -94,28 +92,18 @@ export function RouteMinimap({
         <clipPath id={clipId}>
           <rect width={width} height={height} rx="12" />
         </clipPath>
-        {/* An SVG filter and not the CSS one, because Safari ignores CSS
-            `filter` on an inner SVG element outright — see BASEMAP_QUIET_SVG for
-            the measurement and for how these numbers map onto the CSS recipe. */}
-        <filter id={quietId} colorInterpolationFilters="sRGB">
-          <feColorMatrix type="saturate" values={String(BASEMAP_QUIET_SVG.saturate)} />
-          <feComponentTransfer>
-            <feFuncR type="linear" slope={BASEMAP_QUIET_SVG.slope} intercept={BASEMAP_QUIET_SVG.intercept} />
-            <feFuncG type="linear" slope={BASEMAP_QUIET_SVG.slope} intercept={BASEMAP_QUIET_SVG.intercept} />
-            <feFuncB type="linear" slope={BASEMAP_QUIET_SVG.slope} intercept={BASEMAP_QUIET_SVG.intercept} />
-          </feComponentTransfer>
-        </filter>
       </defs>
       <g clipPath={`url(#${clipId})`}>
         {/* Page grey shows through until the tiles land, and stays as the
             backdrop for an indoor run with a stray fix or two. */}
         <rect width={width} height={height} fill="#DFDFDF" />
-        {/* The filter goes on the tiles' own group, not on the SVG or the clip
-            group, so the route line and the start/end dots keep their full
-            colour over quieted streets — same split Leaflet gets for free from
-            its separate tile pane. See `BASEMAP_QUIET_SVG`. */}
+        {/* Drawn unfiltered. There used to be an SVG desaturation filter here,
+            turning the navigation plate down far enough for a route line to be
+            found on it; the plate is now the pale canvas one, which needs no help
+            — see lib/basemap.ts, including why the filter had to be SVG and not
+            CSS if one is ever wanted again. */}
         {tilesVisible && (
-          <g filter={`url(#${quietId})`}>
+          <g>
             {plate.tiles.map((tile) => (
               <image
                 key={tile.key}

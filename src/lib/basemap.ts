@@ -33,89 +33,94 @@ const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services';
 export const BASEMAP_HOSTNAME = 'server.arcgisonline.com';
 
 /**
- * The route basemap: a real street map, the default everywhere a run is drawn.
+ * The route basemap: the pale canvas plate, which is what a run should be drawn
+ * on at the zooms anybody actually looks at.
  *
- * ⚠️ This was `Canvas/World_Light_Gray_Base`, a near-blank grey plate, and that
- * choice is what made the route map feel broken rather than muted:
+ * ── The history, because this constant has now been both things ──────────────
  *
- *  - **It could not zoom in.** The gray canvas raster cache stops at z16
- *    (verified: z17+ answers 200 with the same 2,521-byte "Map data not yet
- *    available" placeholder). Leaflet takes the map's max zoom from its tile
- *    layer, so `+` greyed out two or three steps in from a fitted 5 km loop —
- *    which reads exactly like a broken map, not a provider limit.
- *  - **There was nothing to zoom to.** The gray canvas has no street names and
- *    almost no detail, so a route was a line on nothing. Strava's appeal is
- *    seeing *which* streets and parks you ran through.
+ * It was `World_Street_Map` with a desaturating filter over it, on the theory
+ * that "Strava's map isn't a different provider, it's this same kind of map with
+ * the colour taken out". That theory was wrong, and 15046ef2 said so from a
+ * phone: *"the map uses Garmin's map; on Strava it looks better"*. Two things
+ * were going on.
  *
- * `World_Street_Map` is the same keyless host, has real streets/paths/labels,
- * and its cache runs to z19 (z20+ returns the placeholder) — deep enough to see
- * which side of the road a lap was run on.
+ *  1. **The Garmin part is the attribution line.** `BASEMAP_ATTRIBUTION` credits
+ *     "Esri, HERE, Garmin, © OpenStreetMap contributors" — Garmin is one of
+ *     Esri's data suppliers, and reading that under a route map is a perfectly
+ *     reasonable way to conclude the app draws Garmin's map. Nothing to fix; it
+ *     is a required credit. Worth knowing before redesigning a map over it.
+ *  2. **Desaturation was the wrong instrument.** What separates Strava's plate
+ *     from a navigation plate is not colour, it is DENSITY, and greyscale cannot
+ *     remove a label. Measured on one real Esri street tile over Tel Aviv at
+ *     z16: every building footprint drawn, and every street labelled *twice* —
+ *     Latin and Hebrew, one above the other. Faded, that is still a page of
+ *     text with a line on it.
+ *
+ * `Canvas/World_Light_Gray_Base` is the same keyless host and is the plate the
+ * street map is a fallback FOR: pale paper, thin white roads, buildings as a
+ * barely-there tint, and labels once, in one language. No filter — it is already
+ * quiet, and desaturating it further only makes it muddy (same reason the dark
+ * plate is left alone).
+ *
+ * The ⚠️ that sent the last redesign the other way is real and still applies:
+ * this cache **stops at z16** (verified again — z17 answers 200 with the same
+ * 2,521-byte "Map data not yet available" placeholder). Leaflet takes a map's
+ * ceiling from its tile layer, so on its own this plate greys out `+` two or
+ * three steps in from a fitted 5 km loop, which reads as a broken map. That is
+ * what `BASEMAP_URL_TEMPLATE_DEEP` below is for, and why the two are separate
+ * constants rather than a choice.
  */
-export const BASEMAP_URL_TEMPLATE = `${ESRI}/World_Street_Map/MapServer/tile/{z}/{y}/{x}`;
+export const BASEMAP_URL_TEMPLATE = `${ESRI}/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`;
+
+/**
+ * The plate for z17 and deeper, where the canvas has no tiles.
+ *
+ * `World_Street_Map` runs to z19 and has the detail that makes a deliberate deep
+ * zoom worth doing — which side of the road a lap was run on, the name of the
+ * park path. Its density is the whole reason it isn't the default, and it is
+ * also the reason it is fine here: somebody who has pinched past z16 is asking
+ * for exactly that.
+ *
+ * Drawn at full strength. The desaturating filter was a way to make this plate
+ * bearable as a DEFAULT; at z17+ it is chosen, not endured.
+ */
+export const BASEMAP_URL_TEMPLATE_DEEP = `${ESRI}/World_Street_Map/MapServer/tile/{z}/{y}/{x}`;
+
+/**
+ * Last zoom the canvas plate has tiles for — and therefore the handover point.
+ * A layer capped here plus a deep layer starting at `+ 1` is the whole mechanism;
+ * anything that renders its own single plate (the feed thumbnail) should just
+ * clamp to this and never reach for the street map at all.
+ */
+export const BASEMAP_QUIET_MAX_ZOOM = 16;
 
 /** Dark muted plate. Only for surfaces that are themselves dark (the race map). */
 export const BASEMAP_URL_TEMPLATE_DARK = `${ESRI}/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}`;
 
-/**
- * Turns the street plate down so the route is the loudest thing on it.
- *
- * `World_Street_Map` is a *navigation* basemap: orange motorway casings, yellow
- * arterials, coloured landuse. Drawn full strength behind a 5px line it competes
- * with the run — the reader's eye has to hunt for the route on a map that is
- * shouting about roads. Strava's map isn't a different provider, it's this same
- * kind of map with the colour taken out; that's the whole trick.
- *
- * Applied to the tiles only, never to the route layer — that's the point: the
- * line and its start/end markers stay fully saturated against near-white paper.
- *
- * ⚠️ `grayscale(.85)`, not `1`. The last 15% of colour is what keeps the
- * Mediterranean blue and the parks green, and on this coastline the sea is the
- * strongest orientation cue a Tel Aviv runner has — mono tiles make the coast
- * read as just another grey field. `brightness`/`contrast` lift the paper back up
- * after desaturation, which otherwise leaves it muddy rather than light.
- *
- * Chosen by rendering six candidate recipes over the real tiles at both zooms
- * the app uses (z13 for the feed thumbnail, z16 for the detail map) and looking
- * at them, because "quiet enough but still legible" isn't a thing you can assert.
- *
- * Not for the dark plate: `World_Dark_Gray_Base` is already muted, and lifting
- * its brightness would wash out a map that is meant to sit on a dark surface.
- */
-export const BASEMAP_QUIET_FILTER = 'grayscale(.85) brightness(1.06) contrast(.93)';
-
-/**
- * The same recipe as an SVG filter, for the feed thumbnail.
- *
- * ⚠️ NOT a stylistic alternative — it is the only version that works inside an
- * SVG. `BASEMAP_QUIET_FILTER` above is a CSS filter, and Safari silently ignores
- * CSS `filter` on an inner SVG element: measured mean saturation of one real
- * Esri street tile, rendered and screenshotted in both engines —
- *
- *            raw     CSS filter        SVG filter
- *   Chromium 0.171   0.022  works      0.024  works
- *   WebKit   0.171   0.171  IGNORED    0.026  works
- *
- * So every feed thumbnail on every iPhone was drawing the navigation plate at
- * full strength — orange motorway casings, tan landuse, highway shields — while
- * looking correct on a desktop Chrome. The detail map is unaffected because
- * there the filter goes on a Leaflet <div>, where CSS filters are honoured.
- *
- * The numbers are `grayscale(.85) brightness(1.06) contrast(.93)` rewritten as
- * filter primitives:
- *   grayscale(.85)  -> feColorMatrix type="saturate" values="0.15"
- *   brightness(1.06)-> out = in * 1.06
- *   contrast(.93)   -> out = in * 0.93 + (1 - 0.93) / 2
- *   composed        -> out = in * (1.06 * 0.93) + 0.035
- *                        = in * 0.9858 + 0.035
- * `color-interpolation-filters="sRGB"` is not optional: SVG filters default to
- * linearRGB, which would darken the midtones and give a visibly different result
- * from the CSS version on the detail map.
- */
-export const BASEMAP_QUIET_SVG = {
-  saturate: 0.15,
-  slope: 0.9858,
-  intercept: 0.035,
-} as const;
+// ── NO TILE FILTER ANY MORE, and the measurement that means you shouldn't add
+//    one back casually ──────────────────────────────────────────────────────
+//
+// Both plates above are used as their designers drew them. There used to be a
+// `BASEMAP_QUIET_FILTER` (`grayscale(.85) brightness(1.06) contrast(.93)`) over
+// the street plate, plus an SVG-primitive twin of it for the feed thumbnail,
+// and 15046ef2 retired both: the canvas plate is already quiet, and the street
+// plate is now only ever reached by somebody who pinched past z16 and wants the
+// detail.
+//
+// ⚠️ If a filter is ever needed again, it needs TWO implementations, not one.
+// Safari silently ignores CSS `filter` on an inner SVG element. Measured mean
+// saturation of one real Esri street tile, rendered and screenshotted in both
+// engines:
+//
+//            raw     CSS filter        SVG filter
+//   Chromium 0.171   0.022  works      0.024  works
+//   WebKit   0.171   0.171  IGNORED    0.026  works
+//
+// That bug shipped once: every feed thumbnail on every iPhone drew the
+// navigation plate at full strength while looking correct in desktop Chrome. A
+// Leaflet <div> honours CSS filters, an inner <image> does not. And an SVG
+// filter needs `color-interpolation-filters="sRGB"` — the default is linearRGB,
+// which darkens the midtones and will not match the CSS version.
 
 /**
  * Deepest zoom the street plate actually has tiles for. Service metadata
