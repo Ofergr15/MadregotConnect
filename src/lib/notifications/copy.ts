@@ -920,6 +920,31 @@ export function deliveryFailedCopy(
       };
 }
 
+/**
+ * To the ATHLETE: their watch link is gone, so the week did not reach them.
+ *
+ * `deliveryFailedCopy` above is the coach's version of the same event and is deliberately a
+ * different sentence. The coach is told a count, because their question is how bad the batch
+ * was. The athlete is told the one thing they can do, because nothing about the count is
+ * actionable to them — and this notification is only ever sent when there IS something to do
+ * (see `garmin/delivery-failure.ts`; a Garmin outage never reaches this text).
+ *
+ * It names the consequence in the body rather than the cause in the title. "החיבור לגרמין
+ * נפסק" is a technical event somebody can file away for later; "אין לך אימונים על השעון" is
+ * Monday morning, and it is the fact that makes reconnecting worth doing now.
+ */
+export function watchDisconnectedCopy(locale: NotificationLocale): PushCopy {
+  return locale === 'he'
+    ? {
+        title: '⌚ אין לך אימונים על השעון',
+        body: 'החיבור לגרמין נפסק, ולכן האימונים החדשים לא נשלחו. חיבור מחדש לוקח דקה.',
+      }
+    : {
+        title: '⌚ Your watch has no workouts',
+        body: 'The Garmin connection dropped, so the new workouts weren’t sent. Reconnecting takes a minute.',
+      };
+}
+
 /** The daily "the pipe is dry" check. `hours` is how long it's been. */
 export function syncStalledCopy(
   locale: NotificationLocale,

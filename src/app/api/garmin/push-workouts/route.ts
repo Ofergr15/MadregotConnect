@@ -8,8 +8,9 @@ import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { notifyAthlete } from '@/lib/push';
-import { deliveryFailedCopy, planPushedCopy } from '@/lib/notifications/copy';
+import { deliveryFailedCopy, planPushedCopy, watchDisconnectedCopy } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
+import { shouldTellAthlete } from '@/lib/garmin/delivery-failure';
 import { authError, requireSession } from '@/lib/auth-session';
 
 interface PushResult {
@@ -275,6 +276,40 @@ export async function POST(req: NextRequest) {
           status: 'failed',
           error: error.message || 'Unknown error',
         });
+
+        // Tell the ATHLETE, but only when the failure is theirs to fix.
+        //
+        // The gap this closes is the failed row in the mockup, and the sentence under it:
+        // "he doesn't know he has no workout". Until now a failed delivery produced one
+        // batch alert to staff and complete silence to the person whose watch is empty —
+        // so a dead Garmin link costs a session every week until somebody notices, and the
+        // athlete is the only one who can reconnect it.
+        //
+        // `shouldTellAthlete` is what keeps this from becoming noise: a rate limit or a
+        // Garmin outage stays between us and the coach, because there is nothing for the
+        // athlete to do about it and a warning they cannot act on is how the whole channel
+        // gets muted. See lib/garmin/delivery-failure.ts.
+        if (shouldTellAthlete(error?.message)) {
+          try {
+            await notifyAthlete({
+              athleteId: athlete.id,
+              kind: 'watch_disconnected',
+              copy: watchDisconnectedCopy,
+              // Where the reconnect button is — the notification names an action, so it has
+              // to land on the screen that performs it.
+              url: '/dashboard/settings',
+              // Per athlete per week, so a coach retrying the push four times sends this
+              // once. The retries fail identically until the athlete reconnects, and four
+              // copies of "your watch is disconnected" is the noise this whole branch is
+              // designed to avoid.
+              tag: `watch-disconnected-${athlete.id}-${weekStartDate}`,
+              category: 'workouts',
+            });
+          } catch {
+            // best-effort, exactly like the success notification above: telling somebody
+            // about a failed delivery must never turn into a second failure.
+          }
+        }
 
         // A summary row for the athlete's failure. Any workouts that did reach
         // Garmin before the failure keep their own 'pending' rows — they carry

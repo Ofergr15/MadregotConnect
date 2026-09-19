@@ -92,6 +92,10 @@ export const KIND_CATEGORY: Record<string, Category> = {
   workout_detected: 'workouts',
   post_workout_prompt: 'workouts',
   shoe_limit: 'workouts',
+  // 'workouts' and not 'program': this is not news about a plan being written, it is the
+  // week that was written not being on the watch. It sits with `training_before` because it
+  // answers the same question — is there training waiting for me tomorrow.
+  watch_disconnected: 'workouts',
   badge: 'achievements',
   plan_pushed: 'program',
   feedback_reply: 'coach',

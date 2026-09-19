@@ -34,10 +34,15 @@
  * `no_run`, because accusing someone who ran of skipping is the one output of this
  * screen that would cost the coach the trainee's trust.
  *
- * Pure and dependency-free below the type imports, so every one of these
- * distinctions is testable without a database, a Garmin account, or a clock.
+ * Pure below the imports — the one value import, `classifyDeliveryFailure`, is itself a pure
+ * function of an error string — so every one of these distinctions is testable without a
+ * database, a Garmin account, or a clock. It is imported rather than reimplemented because
+ * the send path uses the same function to decide whether the athlete gets told their watch
+ * is disconnected, and a second copy of that judgement is how the screen and the phone start
+ * disagreeing about whose fault a failure is.
  */
 
+import { classifyDeliveryFailure, type DeliveryFailureBlame } from '../garmin/delivery-failure';
 import type { ConnectionState } from '../providers/health';
 
 export type DispatchState =
@@ -114,6 +119,24 @@ export interface DispatchRow {
   confirmedAt: string | null;
   /** Garmin's own error text on a failure — never paraphrased. */
   detail: string | null;
+  /**
+   * On `send_failed`: whose problem it is.
+   *
+   * The mockup calls the failure row the critical one, and what it asks for is not just WHO
+   * did not receive the week but WHY — because the two answers lead to opposite actions.
+   * `'ours'` means press the button again. `'reconnect'` means pressing it again will fail
+   * identically until the athlete relinks their watch, and the coach's job is a message to
+   * that person, not a retry.
+   *
+   * `detail` already carried the raw text, which is the honest record and unreadable as a
+   * decision: "Request failed with status code 401" does not tell a coach at a glance that
+   * this one is not theirs to fix. `null` on every state that is not a send failure.
+   *
+   * It is also what makes the screen agree with the athlete's phone. `push-workouts` sends
+   * the athlete a "reconnect your watch" notification on exactly this classification, so a
+   * row marked `'reconnect'` is precisely a row where they have already been told.
+   */
+  blame: DeliveryFailureBlame | null;
   connection: ConnectionState;
   /** Whether this row is asking the coach to do something. Drives the red box. */
   actionable: boolean;
@@ -306,6 +329,9 @@ export function buildDispatchReport({
       // Only ever the failure's own text. A `pending` row has no error to show —
       // the whole point of `unconfirmed` is that nothing told us anything.
       detail: state === 'send_failed' ? (row?.error_message ?? null) : null,
+      // Read off the same text, by the same function the send path uses to decide whether
+      // the athlete gets told. One classifier, so the screen and the phone cannot disagree.
+      blame: state === 'send_failed' ? classifyDeliveryFailure(row?.error_message) : null,
       connection: athlete.connection,
       actionable: ACTIONABLE.has(state),
     });

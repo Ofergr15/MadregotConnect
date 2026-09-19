@@ -246,10 +246,35 @@ function Row({ row }: { row: DispatchRow }) {
 function detailText(row: DispatchRow): React.ReactNode {
   switch (row.state) {
     case 'send_failed':
-      // Garmin's own words, verbatim and untranslated. A paraphrase of "No Garmin
-      // auth token" is how a coach ends up re-pushing instead of asking the athlete
-      // to reconnect.
-      return row.detail ? <span dir="auto">{row.detail}</span> : 'הדחיפה נכשלה';
+      // Garmin's own words are kept verbatim and untranslated — but they are no longer the
+      // whole line, because on their own they are not readable as a decision. The comment
+      // that used to sit here named the exact failure: a coach seeing "No Garmin auth token"
+      // re-pushes instead of asking the athlete to reconnect. Keeping the raw text and
+      // refusing to paraphrase it did not fix that; it just left the reading to the coach.
+      //
+      // So the verdict comes first, in a sentence that says what to DO, and the raw text
+      // stays underneath it as the record. `blame` comes from the same classifier the send
+      // path uses to decide whether the athlete was notified, which is why the reconnect
+      // line can promise they were told — see lib/garmin/delivery-failure.ts.
+      return (
+        <>
+          {row.blame === 'reconnect'
+            ? 'החיבור שלו לגרמין נפסק — דחיפה חוזרת תיכשל בדיוק אותו דבר. הוא קיבל התראה לחבר מחדש.'
+            : row.blame === 'ours'
+              ? 'התקלה בצד שלנו או אצל גרמין — כדאי לדחוף שוב.'
+              : 'הדחיפה נכשלה'}
+          {/* The raw text is SECONDARY to the verdict above it, but it cannot be dimmer:
+              `text-ink-300` measured 1.92:1 here, which is a sentence the coach is being
+              shown and cannot read. So the hierarchy is carried by a label rather than by
+              colour — "גרמין:" also says whose words these are, which is the reason they are
+              quoted verbatim in the first place. */}
+          {row.detail && (
+            <span className="mt-0.5 block" dir="auto">
+              <span className="font-semibold">גרמין: </span>{row.detail}
+            </span>
+          )}
+        </>
+      );
     case 'unconfirmed':
       return 'גרמין קיבל אבל לא אישר — כדאי לדחוף שוב';
     case 'not_sent':

@@ -61,6 +61,36 @@ describe('buildDispatchReport — what we can honestly claim about a push', () =
     expect(report.rows[0].detail).toBe('No Garmin auth token');
   });
 
+  it('says whose failure it is, because the two answers lead to opposite actions', () => {
+    const blameOf = (error_message: string) =>
+      buildDispatchReport({
+        athletes: [athlete()],
+        deliveries: [delivery({ status: 'failed', error_message })],
+        activityDays: new Set(),
+        today: TODAY,
+      }).rows[0].blame;
+
+    // Re-pushing this one will fail identically forever; the coach's job is a message to
+    // the athlete, who has already been notified by the send path.
+    expect(blameOf('No Garmin auth token')).toBe('reconnect');
+    expect(blameOf('Request failed with status code 401')).toBe('reconnect');
+    // And this one is just Garmin, so the answer is press the button again.
+    expect(blameOf('Request failed with status code 503')).toBe('ours');
+  });
+
+  it('leaves blame null on every state that is not a send failure', () => {
+    // A `pending` row has no error to classify, and claiming one would put a verdict on a
+    // slot whose whole meaning is that nothing told us anything.
+    const report = buildDispatchReport({
+      athletes: [athlete()],
+      deliveries: [delivery({ status: 'pending', garmin_workout_id: '99', error_message: '401' })],
+      activityDays: new Set(),
+      today: TODAY,
+    });
+    expect(report.rows[0].state).toBe('unconfirmed');
+    expect(report.rows[0].blame).toBeNull();
+  });
+
   it('keeps an unverified push separate from a failed one, and shows no error for it', () => {
     // `push-workouts` writes 'pending' when Garmin issued an id but the batch was
     // never read back. Nothing told us anything, so there is nothing to quote.

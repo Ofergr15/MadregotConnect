@@ -45,6 +45,7 @@ const ATHLETES: DispatchAthlete[] = [
   { id: 'pending', name: 'Avi Barak', connection: 'ok' },
   { id: 'ahead', name: 'Tamar Gold', connection: 'ok' },
   { id: 'stale', name: 'Ronen Levi', connection: 'stale' },
+  { id: 'garmin_down', name: 'Maya Kfir', connection: 'ok' },
 ];
 
 const SENT = at(4, '21:04');
@@ -60,6 +61,11 @@ const DELIVERIES: DeliveryRow[] = [
   // Garmin's own words, verbatim — the sentence that tells the coach to ask for a
   // reconnect rather than to re-push.
   { athlete_id: 'failed', workout_date: day(2), status: 'failed', created_at: SENT, error_message: 'No Garmin auth token' },
+  // The OTHER kind of failure, and the reason the row now states a verdict instead of only
+  // quoting Garmin. Same red chip, same "לא נשלח", opposite action: this one is fixed by
+  // pressing the button again, and the athlete is told nothing because there is nothing they
+  // could do. Both sentences have to be on this screen or only one of them is ever reviewed.
+  { athlete_id: 'garmin_down', workout_date: day(2), status: 'failed', created_at: SENT, error_message: 'Request failed with status code 503' },
   // Nothing came back, and we CAN see this athlete's runs. The honest empty case.
   { athlete_id: 'quiet', workout_date: day(2), status: 'success', created_at: SENT },
   // Garmin issued an id and the batch was never verified on the account.
