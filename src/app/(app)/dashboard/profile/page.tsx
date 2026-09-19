@@ -1059,7 +1059,7 @@ function ProfileContent() {
                       }
                     }}
                     disabled={garminLoading || (mfaRequired ? !mfaCode : (!garminEmail || !garminPassword))}
-                    className="w-full bg-accent-600 hover:opacity-90 text-white font-semibold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                    className="w-full bg-accent-700 hover:opacity-90 text-white font-semibold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                   >
                     {garminLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

@@ -1267,7 +1267,7 @@ export default function SettingsPage() {
                         <button
                           onClick={() => handleApprove(user)}
                           disabled={updatingUsers.has(user.id)}
-                          className="flex items-center gap-1.5 px-3 min-h-[44px] text-xs font-semibold text-white bg-accent-600 hover:opacity-90 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                          className="flex items-center gap-1.5 px-3 min-h-[44px] text-xs font-semibold text-white bg-accent-700 hover:opacity-90 rounded-lg transition-colors disabled:opacity-50 shrink-0"
                         >
                           {updatingUsers.has(user.id) ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1527,7 +1527,7 @@ export default function SettingsPage() {
                                   onClick={() => toggleMobilePermission(role, tabKey, mobileEnabled)}
                                   className={cn(
                                     'min-h-[44px] min-w-[44px] rounded-lg flex items-center justify-center transition-all',
-                                    mobileEnabled ? 'bg-accent-600 text-white' : 'bg-page text-ink-400 hover:bg-ink-300/40'
+                                    mobileEnabled ? 'bg-accent-700 text-white' : 'bg-page text-ink-400 hover:bg-ink-300/40'
                                   )}
                                   aria-label={t('mobile')}
                                   title={t('mobile')}

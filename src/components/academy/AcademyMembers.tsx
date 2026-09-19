@@ -245,7 +245,7 @@ export function AcademyMembers({
             className={cn(
               'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors min-h-[34px]',
               bandId === null
-                ? 'bg-accent-600 border-accent-600 text-white'
+                ? 'bg-accent-700 border-accent-700 text-white'
                 : 'bg-card/70 border-page text-ink-500 hover:bg-page',
             )}
           >
@@ -258,7 +258,7 @@ export function AcademyMembers({
               className={cn(
                 'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors min-h-[34px]',
                 bandId === b.key
-                  ? 'bg-accent-600 border-accent-600 text-white'
+                  ? 'bg-accent-700 border-accent-700 text-white'
                   : 'bg-card/70 border-page text-ink-500 hover:bg-page',
               )}
             >

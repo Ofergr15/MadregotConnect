@@ -73,7 +73,7 @@ const CATEGORY_ACTIVE_CLASS: Record<string, string> = {
   orange: 'bg-band-3 text-white',
   blue: 'bg-band-2 text-white',
   purple: 'bg-purple-500 text-white',
-  green: 'bg-accent-600 text-white',
+  green: 'bg-accent-700 text-white',
 };
 
 interface WorkoutVideo {

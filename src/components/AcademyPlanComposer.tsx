@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Send, CheckCircle2, XCircle, Calendar, ChevronLeft, ChevronRight,
-  Plus, Pencil, Trash2, BookOpen, Users, Check, AlertTriangle, ArrowDownToLine, Search,
+  Plus, Pencil, Trash2, BookOpen, Users, Check, AlertTriangle, ArrowDownToLine, Search, Archive,
 } from 'lucide-react';
 import { cn, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { COACH_ID } from '@/lib/constants';
@@ -12,9 +12,15 @@ import { formatPace } from '@/lib/garmin/pace';
 import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 import { Spinner, EmptyState, Sheet, Button } from '@/components/ui';
-import { canResolvePaces, effectiveOffsetSec, fmtOffsetSec, type AcademyBand } from '@/lib/academy/bands';
-import { repaceWeek } from '@/lib/academy/repace';
+import { effectiveOffsetSec, fmtOffsetSec, type AcademyBand } from '@/lib/academy/bands';
 import { laneForBand, laneWorkouts, lanesDiffer, LANE_MARKS, type Lane } from '@/lib/academy/group-lane';
+import {
+  entryHeadline, entryShape, entryVolume, filterLibrary, type LibraryEntry,
+} from '@/lib/academy/library';
+import { ZONE_LABEL } from '@/components/academy/libraryText';
+import {
+  bookEntryIds, materialiseWeek, weekGaps, type PlanSlot, type Recipient,
+} from '@/lib/academy/plan-slot';
 
 interface AcademyAthlete {
   id: string;
@@ -61,6 +67,33 @@ function emptyWorkout(dayOfWeek: number): ParsedWorkout {
   };
 }
 
+/**
+ * A book entry in one line, with no pace in it.
+ *
+ * The same three facts the book's own list shows — structure, volume, effort — because the
+ * coach is recognising a session they already know. `stepSummary` would print `@ 4:33` here,
+ * which is the one thing an entry cannot honestly say until a trainee is named.
+ */
+function bookSummary(entry: Pick<LibraryEntry, 'steps'>): string {
+  const shape = entryShape(entry.steps);
+  const { distanceM, durationSec } = entryVolume(entry.steps);
+  const headline = entryHeadline(entry.steps);
+  const effort = !headline
+    ? null
+    : headline.kind === 'hr'
+      ? 'דופק'
+      : (headline.zone && ZONE_LABEL[headline.zone]) || `${headline.fastPct}% מהסף`;
+  // BOTH measures when an entry has both, which most of them do: a 30-minute test opens with
+  // a 2 km warm-up, and printing only the kilometres made `טסט 30 דקות` read as a 2 km jog —
+  // the thirty minutes, which is the entire session, was the part left off the line.
+  return [
+    shape && shape.kind === 'reps' ? `${shape.count}×${shape.distanceM}` : null,
+    distanceM ? `${Number.isInteger(distanceM / 1000) ? distanceM / 1000 : (distanceM / 1000).toFixed(1)} ק"מ` : null,
+    durationSec ? `${Math.round(durationSec / 60)} דק'` : null,
+    effort,
+  ].filter(Boolean).join(' · ');
+}
+
 function stepSummary(step: WorkoutStep): string {
   const dur = step.durationType === 'distance'
     ? `${((step.durationValue || 0) / 1000).toFixed(1)} ק"מ`
@@ -89,15 +122,23 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
   // the first pick is the trainee whose saved week seeds the board.
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [weekStart, setWeekStart] = useState(() => planWeekStartOf());
-  // Day-of-week (0=Sun..6=Sat) → the workout planned for that day.
-  const [slots, setSlots] = useState<Record<number, ParsedWorkout>>({});
+  // Day-of-week (0=Sun..6=Sat) → what is planned for that day: either a written workout
+  // carrying absolute paces, or a book entry carrying none. See `lib/academy/plan-slot.ts` —
+  // the slot remembers which, because the two are priced for a trainee by different
+  // mechanisms and applying both to one workout is pace math done twice.
+  const [slots, setSlots] = useState<Record<number, PlanSlot>>({});
   // Whether the board holds edits that were never saved. Guards the seed-load
   // below: switching recipient mid-build must not silently discard the workout
   // the coach just wrote.
   const [dirty, setDirty] = useState(false);
   const [editingDay, setEditingDay] = useState<number | null>(null);
   const [library, setLibrary] = useState<LibraryWorkout[]>([]);
+  const [book, setBook] = useState<LibraryEntry[]>([]);
+  /** athleteId → their latest approved test's threshold pace, in sec/km. */
+  const [thresholds, setThresholds] = useState<Record<string, number>>({});
+  const [sourceDay, setSourceDay] = useState<number | null>(null);
   const [pickerDay, setPickerDay] = useState<number | null>(null);
+  const [bookDay, setBookDay] = useState<number | null>(null);
   const [importDay, setImportDay] = useState<number | null>(null);
   const [whoOpen, setWhoOpen] = useState(false);
   const [groupPlans, setGroupPlans] = useState<any[]>([]);
@@ -125,6 +166,45 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
   }, []);
 
   useEffect(() => { fetchLibrary(); }, [fetchLibrary]);
+
+  // The book, and the thresholds that price it.
+  //
+  // Both are optional in the same way the library is: the book's table is pasted in by hand
+  // like every migration here, and this screen worked before either existed. A failed fetch
+  // leaves the board with the sources it always had rather than an error — but a MISSING
+  // threshold is never treated as a default, see `materialiseWeek`.
+  useEffect(() => {
+    let cancelled = false;
+    bearerHeaders(false)
+      .then(headers => fetch('/api/academy/library', { headers }))
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled) setBook(d?.entries || []); })
+      .catch(() => {});
+    bearerHeaders(false)
+      // The registry's own protocol default. A 2000m and a 30-minute effort give different
+      // paces at the same fitness, so the board prices the book off ONE protocol — mixing
+      // them would make a trainee's session depend on which test they last happened to run.
+      .then(headers => fetch('/api/academy/tests?protocol=30min', { headers }))
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (cancelled) return;
+        const next: Record<string, number> = {};
+        for (const row of d?.rows || []) {
+          if (typeof row?.lastPaceSec === 'number' && row.lastPaceSec > 0) next[row.athleteId] = row.lastPaceSec;
+        }
+        setThresholds(next);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  /** One trainee, with both pace mechanisms resolved — the input `materialiseWeek` takes. */
+  const recipientOf = useCallback((a: AcademyAthlete): Recipient => ({
+    athleteId: a.id,
+    name: a.name,
+    offsetSec: effectiveOffsetSec(a.paceOffsetSec, a.band),
+    thresholdPaceSec: thresholds[a.id] ?? null,
+  }), [thresholds]);
 
   // The club's group plan for the displayed week (athlete_id IS NULL — that's what
   // an unscoped list returns), so a trainee's week can be seeded from the session
@@ -170,8 +250,11 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
         if (cancelled) return;
         const plan = (d?.plans || []).find((p: any) => p.week_start_date === weekStart);
         const workouts: ParsedWorkout[] = plan?.parsed_workouts?.workouts || [];
-        const next: Record<number, ParsedWorkout> = {};
-        for (const w of workouts) if (typeof w?.dayOfWeek === 'number') next[w.dayOfWeek] = w;
+        const next: Record<number, PlanSlot> = {};
+        // A saved plan row is `written` by definition, whatever it was picked from: it holds
+        // the resolved paces one trainee was sent. Re-seeding it as a book slot would re-derive
+        // it from whoever the board is pointed at now.
+        for (const w of workouts) if (typeof w?.dayOfWeek === 'number') next[w.dayOfWeek] = { source: 'written', workout: w };
         setSlots(next);
       })
       .catch(() => {});
@@ -181,7 +264,14 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
   const filledDays = Object.keys(slots).map(Number).sort((a, b) => a - b);
 
   const setSlot = (day: number, workout: ParsedWorkout) => {
-    setSlots(prev => ({ ...prev, [day]: { ...workout, dayOfWeek: day } }));
+    setSlots(prev => ({ ...prev, [day]: { source: 'written', workout: { ...workout, dayOfWeek: day } } }));
+    setDirty(true);
+    setPushResults(null);
+  };
+  const setBookSlot = (day: number, entry: LibraryEntry) => {
+    // The ENTRY, not a resolved copy of it. Resolving here would mean resolving against
+    // somebody — and the board has several recipients, so there is no somebody yet.
+    setSlots(prev => ({ ...prev, [day]: { source: 'book', entry } }));
     setDirty(true);
     setPushResults(null);
   };
@@ -222,8 +312,19 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
   // has an offset set — so this drives a visible warning rather than a block:
   // their workout goes out with the paces exactly as written and with the watch's
   // pace alerts suppressed.
-  const unresolved = selected.filter(a => !canResolvePaces(a.paceOffsetSec, a.band));
   const noGarmin = selected.filter(a => !a.hasGarmin);
+
+  // Whose copy of THIS board loses days, and whose loses all of them. A missing band is a
+  // warning; a missing test against a book entry is a workout that cannot be written at all,
+  // because the entry holds a share of a number this trainee does not have.
+  //
+  // Both are asked about the BOARD and not about the trainee, which is the change the book
+  // forces: a week made entirely of book entries needs no band at all, so warning that a
+  // trainee has no offset would be warning about a mechanism this week does not use.
+  const gaps = selected.map(a => ({ athlete: a, ...weekGaps(slots, recipientOf(a)) }));
+  const unresolved = gaps.filter(g => g.needsBand).map(g => g.athlete);
+  const untested = gaps.filter(g => g.needsTest);
+  const wouldGetNothing = gaps.filter(g => g.empty);
 
   /**
    * Send the board to every selected trainee.
@@ -238,13 +339,35 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
     setPushing(true);
     setError(null);
     setPushResults(null);
-    const base = filledDays.map(d => slots[d]);
     const outcomes: PushOutcome[] = [];
+    // How many trainees actually ended up with a plan row holding a book entry. That, and not
+    // the watch, is what `use_count` counts: a trainee on Strava was still assigned the
+    // session, and a Garmin failure is a delivery problem rather than a decision reversed.
+    let bookTrainees = 0;
+    const writtenDays = Object.values(slots).filter(s => s.source === 'written').length;
+    const usedEntries = bookEntryIds(slots);
 
     try {
       for (const athlete of selected) {
-        const offset = effectiveOffsetSec(athlete.paceOffsetSec, athlete.band);
-        const workouts = repaceWeek(base, offset);
+        const recipient = recipientOf(athlete);
+        const offset = recipient.offsetSec;
+        // THIS trainee's copy: written days shifted by their offset, book days derived from
+        // their own threshold, and book days they have no test for left out rather than
+        // guessed. See `lib/academy/plan-slot.ts`.
+        const { workouts, skipped, paceAlerts } = materialiseWeek(slots, recipient);
+        // Naming the days rather than counting them: the coach's next move is to look at that
+        // day, and `דולג יום ג׳` is the whole message.
+        const skippedNote = skipped.length
+          ? ` · דולגו ${skipped.map(s => DAY_LABELS[s.dayOfWeek]).join(', ')} — אין טסט`
+          : '';
+
+        if (!workouts.length) {
+          outcomes.push({
+            id: athlete.id, name: athlete.name, ok: false,
+            msg: 'כל האימונים בלוח הם מהספר ואין טסט סף — אין ממה לגזור קצבים',
+          });
+          continue;
+        }
 
         // Save the plan (individual, flat, at THIS trainee's paces) so their app
         // and their adherence show the same numbers their watch got.
@@ -262,13 +385,14 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
         });
         const saveData = await saveRes.json().catch(() => ({}));
         const planId = saveRes.ok ? saveData.plan?.id : null;
+        if (planId && workouts.length > writtenDays) bookTrainees += 1;
 
         if (!athlete.hasGarmin) {
           // Worth saving anyway: adherence works off the plan row, and a trainee
           // on Strava has a plan to follow even with no watch to push to.
           outcomes.push({
             id: athlete.id, name: athlete.name, ok: !!planId,
-            msg: planId ? 'התוכנית נשמרה · אין גרמין מחובר, לא נשלח לשעון' : 'שמירת התוכנית נכשלה',
+            msg: planId ? `התוכנית נשמרה · אין גרמין מחובר, לא נשלח לשעון${skippedNote}` : 'שמירת התוכנית נכשלה',
           });
           continue;
         }
@@ -283,8 +407,10 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
             weekStartDate: weekStart,
             // Paces we could not resolve must not become an alert on the watch.
             // The route can only narrow this, never widen it past the academy
-            // setting.
-            paceAlerts: offset !== null,
+            // setting. `materialiseWeek` owns the answer now, because with the book in
+            // play a week can be fully priced for a trainee who has no band at all —
+            // and a week with one unpriced day is not fully priced even if they do.
+            paceAlerts,
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -292,12 +418,19 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
         const ok = res.ok && results.length > 0 && results.every((r: any) => r.status === 'success');
         const failed = results.find((r: any) => r.status === 'failed');
         const count = workouts.length === 1 ? 'אימון אחד' : `${workouts.length} אימונים`;
+        // The two mechanisms are reported separately because they are separate claims: the
+        // offset moved the paces the coach wrote, and the test produced paces nobody wrote.
+        const fromBook = workouts.length - writtenDays;
+        const how = [
+          writtenDays && offset ? `הקצבים הוזזו ב־${fmtOffsetSec(offset)} ש׳/ק״מ` : '',
+          fromBook ? `${fromBook} מהספר לפי טסט הסף` : '',
+        ].filter(Boolean).join(' · ');
         outcomes.push({
           id: athlete.id,
           name: athlete.name,
           ok,
           msg: ok
-            ? `נשלחו ${count}${offset ? ` · הקצבים הוזזו ב־${fmtOffsetSec(offset)} ש׳/ק״מ` : ''}`
+            ? `נשלחו ${count}${how ? ` · ${how}` : ''}${skippedNote}`
             : (failed?.error || data.message || data.error || 'השליחה נכשלה'),
         });
 
@@ -308,6 +441,24 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
           })).catch(() => {});
         }
       }
+      // Record the pushes against the book, after the fact and without blocking anything.
+      //
+      // Fire-and-forget on purpose: the count orders a list, and a failed increment costs a
+      // row's position in the book. Reporting it would put an error on a screen whose
+      // headline result — the workouts reached the watches — is a success.
+      if (bookTrainees > 0) {
+        for (const id of usedEntries) {
+          bearerHeaders().then(headers => fetch('/api/academy/library', {
+            method: 'PATCH', headers,
+            body: JSON.stringify({ id, action: 'used', trainees: bookTrainees }),
+          })).catch(() => {});
+        }
+        // Optimistic, so the picker's ordering and the `הורץ N פעמים` line match what just
+        // happened without a refetch of the whole book.
+        setBook(prev => prev.map(e => (usedEntries.includes(e.id)
+          ? { ...e, useCount: e.useCount + bookTrainees, lastUsedAt: new Date().toISOString() }
+          : e)));
+      }
       setPushResults(outcomes);
       // Saved — the board now matches what's stored, so let it re-seed.
       setDirty(false);
@@ -317,7 +468,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
     } finally {
       setPushing(false);
     }
-  }, [filledDays, slots, selected, weekStart]);
+  }, [filledDays, slots, selected, weekStart, recipientOf]);
 
   if (!athletes.length) {
     return (
@@ -327,6 +478,11 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
       />
     );
   }
+
+  // Narrowed here rather than inline: the panel edits absolute paces, and a book day has
+  // none — the JSX below must not be able to hand it one.
+  const editing = editingDay !== null ? slots[editingDay] : undefined;
+  const editingWorkout = editing?.source === 'written' ? editing.workout : null;
 
   const whoLabel = selected.length === 0
     ? 'בחירת מתאמנים'
@@ -355,13 +511,13 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
         <div>
           <label className="block text-xs font-medium text-ink-400 mb-1.5">שבוע</label>
           <div className="flex items-center gap-1 bg-page border border-page rounded-xl h-11 px-1">
-            <button onClick={() => setWeekStart(w => shiftWeekStart(w, -1))} className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page">
+            <button onClick={() => setWeekStart(w => shiftWeekStart(w, -1))} aria-label="שבוע קודם" className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page">
               <ChevronRight className="h-4 w-4" />
             </button>
             <span className="text-sm text-ink-700 font-medium px-1 flex items-center gap-1.5 min-w-[150px] justify-center">
               <Calendar className="h-3.5 w-3.5 text-ink-400" /> {fmtWeekLabel(weekStart)}
             </span>
-            <button onClick={() => setWeekStart(w => shiftWeekStart(w, 1))} className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page">
+            <button onClick={() => setWeekStart(w => shiftWeekStart(w, 1))} aria-label="שבוע הבא" className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page">
               <ChevronLeft className="h-4 w-4" />
             </button>
           </div>
@@ -380,24 +536,37 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
       {/* Day slots */}
       <div className="space-y-2">
         {DAY_LABELS.map((label, day) => {
-          const w = slots[day];
+          const slot = slots[day];
           return (
             <div key={day} className="flex items-center gap-3 bg-card/50 border border-page/50 rounded-xl p-3">
               <div className="w-10 text-center shrink-0">
                 <div className="text-xs font-bold text-ink-500">{label}</div>
               </div>
-              {w ? (
+              {slot ? (
                 <>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-ink-700 truncate" dir="auto">{w.name}</div>
+                    <div className="text-sm font-medium text-ink-700 truncate" dir="auto">
+                      {slot.source === 'book' ? slot.entry.name : slot.workout.name}
+                    </div>
+                    {/* A book day shows its STRUCTURE and its effort, and no pace — because it
+                        holds none. Resolving one here for the display would mean picking a
+                        trainee to price it against while the board is addressed to several,
+                        and the first name on the list is not a neutral choice. */}
                     <div className="text-xs text-ink-400 truncate">
-                      {w.steps.map(stepSummary).join(' · ')}
+                      {slot.source === 'book'
+                        ? <><span className="font-semibold text-brand-600">מהספר</span> · {bookSummary(slot.entry)}</>
+                        : slot.workout.steps.map(stepSummary).join(' · ')}
                     </div>
                   </div>
-                  <button onClick={() => setEditingDay(day)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page" title="עריכה">
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => clearSlot(day)} className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10" title="הסרה">
+                  {/* No step editor on a book day: editing it would have to write absolute
+                      paces, and there is nobody yet to derive them from. The book's own
+                      editor is where an entry changes — for everybody who pushes it. */}
+                  {slot.source === 'written' && (
+                    <button onClick={() => setEditingDay(day)} aria-label="עריכת האימון" className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page" title="עריכה">
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                  <button onClick={() => clearSlot(day)} aria-label="הסרת האימון" className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10" title="הסרה">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </>
@@ -410,21 +579,15 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
                   >
                     <Plus className="h-3.5 w-3.5" /> בנייה
                   </button>
+                  {/* One control for all three existing sources rather than a fourth button
+                      on the row: at 375px the three that were here already filled it, and
+                      the sheet is also the only place the coach can see that the book and
+                      the old library are two different lists. */}
                   <button
-                    onClick={() => setImportDay(day)}
-                    disabled={!groupPlan}
-                    className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg bg-page text-ink-500 hover:bg-ink-300/40 text-xs font-semibold disabled:opacity-40 shrink-0"
-                    title={groupPlan ? 'ייבוא מתוכנית הקבוצה' : 'אין תוכנית קבוצה לשבוע הזה'}
+                    onClick={() => setSourceDay(day)}
+                    className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg bg-page text-ink-500 hover:bg-ink-300/40 text-xs font-semibold shrink-0"
                   >
-                    <ArrowDownToLine className="h-3.5 w-3.5" /> מהקבוצה
-                  </button>
-                  <button
-                    onClick={() => setPickerDay(day)}
-                    disabled={library.length === 0}
-                    className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg bg-page text-ink-500 hover:bg-ink-300/40 text-xs font-semibold disabled:opacity-40 shrink-0"
-                    title={library.length ? 'בחירה מהספרייה' : 'הספרייה ריקה'}
-                  >
-                    <BookOpen className="h-3.5 w-3.5" /> ספרייה
+                    <BookOpen className="h-3.5 w-3.5" /> בחירה
                   </button>
                 </div>
               )}
@@ -433,6 +596,27 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
         })}
       </div>
 
+      {/* Two pace warnings, worst first, and they have to be told apart at a glance.
+          `band-3/10` and `accent-red/10` on this background were the same pink card in the
+          screenshot — so the blocking one carries a full-strength border and a bold lead,
+          and the band warning keeps the softer fill it always had. The difference is real:
+          a missing band still sends the coach's paces, a missing test sends nothing. */}
+      {untested.length > 0 && (
+        <div className="flex items-start gap-2 bg-accent-red/10 border-[1.5px] border-accent-red text-accent-red-ink rounded-xl px-4 py-3 text-xs leading-relaxed">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>
+            <span className="font-bold">
+              {untested.length === selected.length
+                ? 'לאף אחד מהנבחרים אין טסט סף'
+                : `אין טסט סף ל־${untested.map(g => g.athlete.name).join(', ')}`}
+            </span>
+            {' — '}
+            {wouldGetNothing.length > 0
+              ? 'האימונים מהספר נגזרים מהטסט, ולכן לא יישלח כלום. רישום טסט בלשונית הטסטים יפתור זאת.'
+              : 'הימים שנבחרו מהספר יידלגו, ושאר הימים יישלחו כרגיל.'}
+          </span>
+        </div>
+      )}
       {/* What will happen to the paces, before it happens. */}
       {unresolved.length > 0 && (
         <div className="flex items-start gap-2 bg-band-3/10 border border-band-3/30 text-band-3-ink rounded-xl px-4 py-3 text-xs leading-relaxed">
@@ -480,7 +664,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
       {/* Push */}
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-ink-400">
-          {filledDays.length} אימונים · {selected.length} מתאמנים
+          {filledDays.length === 1 ? 'אימון אחד' : `${filledDays.length} אימונים`} · {selected.length === 1 ? 'מתאמן/ת אחד' : `${selected.length} מתאמנים`}
         </span>
         <Button
           variant="secondary"
@@ -490,7 +674,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
           // the pill and the border, so the fill has to bring its own foreground —
           // without it the label inherits the outline variant's blue and lands
           // blue-on-green.
-          className="bg-accent-600 border-accent-600 text-white hover:opacity-90"
+          className="bg-accent-700 border-accent-700 text-white hover:opacity-90"
         >
           {pushing ? <Spinner size={16} /> : <Send className="h-4 w-4" />}
           {pushing
@@ -503,9 +687,9 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
 
       {/* Structured builder — reuses the same editor as the group planner. On save,
           also store the workout in the library for reuse. */}
-      {editingDay !== null && slots[editingDay] && (
+      {editingDay !== null && editingWorkout && (
         <WorkoutEditorPanel
-          workout={slots[editingDay]}
+          workout={editingWorkout}
           dayName={DAY_FULL[editingDay]}
           onChange={(w) => { setSlot(editingDay, w); saveToLibrary(w); }}
           onClose={() => setEditingDay(null)}
@@ -532,8 +716,8 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
           onPick={(w, day) => { setSlot(day, w); setImportDay(null); }}
           onPickWeek={(ws) => {
             setSlots(() => {
-              const next: Record<number, ParsedWorkout> = {};
-              for (const w of ws) if (typeof w?.dayOfWeek === 'number') next[w.dayOfWeek] = w;
+              const next: Record<number, PlanSlot> = {};
+              for (const w of ws) if (typeof w?.dayOfWeek === 'number') next[w.dayOfWeek] = { source: 'written', workout: w };
               return next;
             });
             setDirty(true);
@@ -541,6 +725,34 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
             setImportDay(null);
           }}
           onClose={() => setImportDay(null)}
+        />
+      )}
+
+      {/* Where a day's workout comes from */}
+      {sourceDay !== null && (
+        <SourcePicker
+          day={sourceDay}
+          book={book.length}
+          library={library.length}
+          groupPlan={!!groupPlan}
+          onPick={(source) => {
+            const day = sourceDay;
+            setSourceDay(null);
+            if (source === 'book') setBookDay(day);
+            else if (source === 'library') setPickerDay(day);
+            else setImportDay(day);
+          }}
+          onClose={() => setSourceDay(null)}
+        />
+      )}
+
+      {/* The book */}
+      {bookDay !== null && (
+        <BookPicker
+          day={bookDay}
+          entries={book}
+          onPick={(entry) => { setBookSlot(bookDay, entry); setBookDay(null); }}
+          onClose={() => setBookDay(null)}
         />
       )}
 
@@ -798,6 +1010,176 @@ function LibraryPicker({
             </div>
           ))
         )}
+      </div>
+    </Sheet>
+  );
+}
+
+/**
+ * Which of the three sources a day comes from.
+ *
+ * A chooser and not three buttons on the row, for the reason the row comment gives — but it
+ * also puts a real question in front of the coach in words: the academy currently has TWO
+ * lists of saved workouts. `ספר האימונים` (migration 109) stores shares of a threshold and
+ * prices them per trainee; `ספרייה` (migration 020) stores one coach's absolute paces and was
+ * filled automatically by every workout ever built on this board. They overlap, and which one
+ * survives is Ofer's call rather than something to settle by deleting a button. Until then the
+ * sheet states what each one is, which is the least this screen can do about it.
+ */
+function SourcePicker({
+  day, book, library, groupPlan, onPick, onClose,
+}: {
+  day: number;
+  book: number;
+  library: number;
+  groupPlan: boolean;
+  onPick: (source: 'book' | 'library' | 'group') => void;
+  onClose: () => void;
+}) {
+  const sources: {
+    key: 'book' | 'library' | 'group';
+    icon: React.ReactNode;
+    title: string;
+    note: string;
+    count: number | null;
+    disabled: boolean;
+  }[] = [
+    {
+      key: 'book', icon: <BookOpen className="h-4 w-4 text-brand-600" />,
+      title: 'ספר האימונים',
+      note: 'הקצבים נגזרים מטסט הסף של כל מתאמן/ת בנפרד',
+      count: book, disabled: book === 0,
+    },
+    {
+      key: 'group', icon: <ArrowDownToLine className="h-4 w-4 text-brand-600" />,
+      title: 'תוכנית הקבוצה',
+      note: groupPlan ? 'האימון שהמועדון עושה בשבוע הזה' : 'אין תוכנית קבוצה לשבוע הזה',
+      count: null, disabled: !groupPlan,
+    },
+    {
+      key: 'library', icon: <Archive className="h-4 w-4 text-ink-400" />,
+      title: 'ספרייה',
+      note: 'אימונים שנבנו כאן, עם הקצבים שנכתבו בהם',
+      count: library, disabled: library === 0,
+    },
+  ];
+
+  return (
+    <Sheet
+      open
+      onOpenChange={(o) => { if (!o) onClose(); }}
+      title={<span className="flex items-center justify-center gap-2">בחירת אימון · {DAY_FULL[day]}</span>}
+      bodyClassName="px-2"
+    >
+      <div dir="rtl" className="space-y-2">
+        {sources.map(s => (
+          <button
+            key={s.key}
+            onClick={() => onPick(s.key)}
+            disabled={s.disabled}
+            className="w-full flex items-center gap-3 p-3 rounded-xl bg-card border border-page text-start hover:bg-page/50 disabled:opacity-40"
+          >
+            <span className="shrink-0">{s.icon}</span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-medium text-ink-700 truncate">{s.title}</span>
+              <span className="block text-xs text-ink-400">{s.note}</span>
+            </span>
+            {s.count !== null && (
+              <span className="text-[10px] font-bold rounded-full px-2 py-0.5 shrink-0 bg-page text-ink-500 tabular-nums">
+                {s.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+    </Sheet>
+  );
+}
+
+/**
+ * Pick an entry out of the book.
+ *
+ * The canon first and the coach's own shelf after it, which is the book's own order and the
+ * order that matters here: the academy's session is the default, and a private draft is the
+ * exception a coach reaches for deliberately. Nothing in this sheet shows a pace — see
+ * `bookSummary`, and the note at the bottom, which is on screen because a coach looking for
+ * the pace and not finding one would otherwise read it as broken.
+ */
+function BookPicker({
+  day, entries, onPick, onClose,
+}: {
+  day: number;
+  entries: LibraryEntry[];
+  onPick: (entry: LibraryEntry) => void;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState('');
+  const shown = useMemo(() => {
+    const matched = filterLibrary(entries, { query: q });
+    return [...matched].sort((a, b) => {
+      if (a.scope !== b.scope) return a.scope === 'academy' ? -1 : 1;
+      return b.useCount - a.useCount;
+    });
+  }, [entries, q]);
+
+  return (
+    <Sheet
+      open
+      onOpenChange={(o) => { if (!o) onClose(); }}
+      title={(
+        <span className="flex items-center justify-center gap-2">
+          <BookOpen className="h-4 w-4 text-brand-600" /> ספר האימונים · {DAY_FULL[day]}
+        </span>
+      )}
+      bodyClassName="px-2"
+    >
+      <div dir="rtl" className="space-y-2">
+        {entries.length > 8 && (
+          <div className="flex items-center gap-2 bg-page border border-page rounded-xl px-3 h-11 mx-1">
+            <Search className="h-4 w-4 text-ink-400 shrink-0" />
+            <input
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              placeholder="חיפוש אימון"
+              className="flex-1 bg-transparent text-[16px] text-ink-700 placeholder:text-ink-400 focus:outline-none"
+            />
+          </div>
+        )}
+
+        {shown.length === 0 ? (
+          <p className="text-sm text-ink-400 text-center py-8">
+            {entries.length === 0 ? 'הספר ריק עדיין.' : 'אין אימון בשם הזה.'}
+          </p>
+        ) : shown.map(entry => (
+          <button
+            key={entry.id}
+            onClick={() => onPick(entry)}
+            className="w-full flex items-center gap-3 p-3 rounded-xl bg-card border border-page text-start hover:bg-page/50"
+          >
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-medium text-ink-700 truncate" dir="auto">{entry.name}</span>
+              {/* No kind label: it printed `אינטרוולים · 6×1000 · 9.5 ק"מ · אינטרוולים`,
+                  which is the same word twice on a line 200px wide. The shape and the effort
+                  are what tell two interval sessions apart; the kind tells them apart from
+                  nothing. */}
+              <span className="block text-xs text-ink-400 truncate">{bookSummary(entry)}</span>
+            </span>
+            {/* Which shelf, because pushing the academy's session and pushing your own draft
+                are different acts — and the canon is what the trainee's coach would expect
+                to see in their week. */}
+            <span className={cn(
+              'text-[10px] font-bold rounded-full px-2 py-0.5 shrink-0',
+              entry.scope === 'academy' ? 'bg-brand-600/12 text-brand-600' : 'bg-page text-ink-500',
+            )}>
+              {entry.scope === 'academy' ? 'האקדמיה' : 'שלי'}
+            </span>
+          </button>
+        ))}
+
+        <p className="text-[11px] text-ink-400 leading-relaxed px-1 pt-1">
+          אימון מהספר לא מחזיק קצבים — הוא מחזיק אחוזים מהסף. הקצב נגזר בשליחה, לכל מתאמן/ת
+          מהטסט שלו/שלה, ולכן אותו אימון יוצא במספרים שונים לכל אחד.
+        </p>
       </div>
     </Sheet>
   );

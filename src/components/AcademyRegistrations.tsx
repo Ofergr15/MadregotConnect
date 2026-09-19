@@ -200,7 +200,7 @@ export function AcademyRegistrations() {
                     </button>
                     {canApproveHere ? (
                       <button onClick={() => approve(r.id)} disabled={busy === r.id}
-                        className="flex items-center gap-1.5 px-4 min-h-[44px] rounded-lg bg-accent-600 hover:opacity-90 text-white text-sm font-semibold disabled:opacity-50">
+                        className="flex items-center gap-1.5 px-4 min-h-[44px] rounded-lg bg-accent-700 hover:opacity-90 text-white text-sm font-semibold disabled:opacity-50">
                         {busy === r.id ? <Spinner size={16} /> : <Check className="h-4 w-4" />} אישור
                       </button>
                     ) : (

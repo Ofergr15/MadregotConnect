@@ -59,6 +59,13 @@ const config: Config = {
           400: '#4ade80',
           500: '#22c55e',
           600: '#16a34a',
+          // WHITE-ON-GREEN. The same 3.30:1 the note below describes, from the other
+          // direction: a solid `bg-accent-600` with a white label is 3.30:1 too, so
+          // every filled green button in the app failed AA at 14px — including the
+          // academy composer's send button, which is the one action that screen is
+          // for. This is the fill those buttons use instead: 5.01:1 with white, and
+          // close enough to 600 that a green pill still reads as the success colour.
+          700: '#15803d',
           // TEXT-ON-TINT. The app's status-chip idiom sets `text-accent-600` on
           // `bg-accent-600/15`, i.e. a colour on a 15% wash of itself, which caps
           // the ratio at what the colour scores against near-white — 3.30:1 for
