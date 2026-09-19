@@ -239,7 +239,23 @@ function Row({ row }: { row: RegistryRow }) {
 }
 
 /** The fetching wrapper. Staff-only screen, so it does not guard on identity here. */
-export function TestRegistry({ protocol = '30min' }: { protocol?: string }) {
+export function TestRegistry({
+  protocol = '30min',
+  scheduling,
+}: {
+  protocol?: string;
+  /**
+   * The invitation board (`TestBoard`), injected rather than imported.
+   *
+   * It fetches its own data, so it does not belong inside this component's loading states — but
+   * it does belong at this exact position on the page: BELOW the pending submissions and ABOVE
+   * the registry. Both of those are queues of people waiting on the coach, and a submitted
+   * result outranks an unanswered invitation because the athlete on the other end of it already
+   * believes they have tested. Passing it in is what keeps that order in one place instead of
+   * leaving it to whoever next edits the page.
+   */
+  scheduling?: React.ReactNode;
+}) {
   const [registry, setRegistry] = useState<RegistryResponse | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
 
@@ -284,6 +300,8 @@ export function TestRegistry({ protocol = '30min' }: { protocol?: string }) {
           they have tested. Anything that reads as optional here makes the screen less
           truthful, not more. */}
       <PendingTests pending={registry.pending ?? []} onDecided={() => { void load(); }} />
+
+      {scheduling}
 
       {/* The entry form sits ABOVE the list, and the list is what it changes. Recording a
           test is the action this screen exists to make possible — before this the table was

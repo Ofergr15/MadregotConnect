@@ -23,6 +23,7 @@ import { WatchDispatch } from '@/components/academy/WatchDispatch';
 import { CandidateFunnel } from '@/components/academy/CandidateFunnel';
 import { BookIcon, WorkoutBook } from '@/components/academy/WorkoutBook';
 import { TestRegistry } from '@/components/academy/TestRegistry';
+import { TestBoard } from '@/components/academy/TestBoard';
 import { MemberSheet } from '@/components/academy/MemberSheet';
 import { sundayOf, type AcademyMember, type AcademyMembersResponse } from '@/components/academy/types';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -382,7 +383,10 @@ export default function AcademyPage() {
       ) : view === 'compliance' ? (
         <WeeklyReview />
       ) : view === 'tests' ? (
-        <TestRegistry />
+        // The board fetches its own rows, but its POSITION on this tab is a decision that
+        // belongs to the registry — see `TestRegistry`'s `scheduling` prop. Tapping a row opens
+        // the same member sheet every other academy list opens.
+        <TestRegistry scheduling={<TestBoard onSelectAthlete={setSelectedId} />} />
       ) : (
         <AcademyPlanComposer athletes={planComposerAthletes} />
       )}
