@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isMissingTable } from '@/lib/supabase/schema-drift';
+import {
+  pendingSubmissionsByAthlete,
+  submittedAtFor,
+} from '@/lib/academy/settle-invitation-server';
 import type { TestInvitation } from '@/lib/academy/testInvite';
 
 export const dynamic = 'force-dynamic';
@@ -181,8 +185,26 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to read the invitation' }, { status: 500 });
     }
 
+    const row = data as unknown as Record<string, unknown> | null;
+    if (!row) return NextResponse.json({ invitation: null, submittedAt: null });
+
+    // Whether the trainee has already sent a result for this invitation and is waiting on the
+    // coach's approval. A sibling of `invitation` rather than a field on it, because it is not a
+    // property of the invitation row — it is a fact about a DIFFERENT table that happens to
+    // answer this one, and `TestInvitation` is the shape both the client and the board share.
+    //
+    // The card needs it because without it the trainee sees two things at once that say the same
+    // thing: an overdue invitation asking them to record a result, next to their own
+    // `WaitingCard` saying the result was sent. The invitation cannot be `done` yet — `done`
+    // claims a measurement exists and nobody has looked at this number — so the only honest
+    // version of this window is the invitation card standing down and the waiting card speaking.
+    const submissions = await pendingSubmissionsByAthlete(supabase, [target.athleteId]);
     return NextResponse.json({
-      invitation: data ? readInvitation(data as unknown as Record<string, unknown>) : null,
+      invitation: readInvitation(row),
+      submittedAt: submittedAtFor(submissions.get(target.athleteId), {
+        protocol: String(row.protocol || '30min'),
+        createdAt: String(row.created_at ?? ''),
+      }),
     });
   } catch {
     return NextResponse.json({ error: 'Failed to read the invitation' }, { status: 500 });

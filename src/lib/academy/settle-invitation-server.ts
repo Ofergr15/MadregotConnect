@@ -20,6 +20,83 @@ import { settlementFor, type RecordedTest, type Settlement } from './settleInvit
  * the whole product was in before this function existed; the cost of throwing is a coach who
  * cannot approve tests.
  */
+/** A test a trainee submitted and nobody has approved. */
+export interface PendingSubmission { id: string; protocol: string; date: string; submittedAt: string }
+
+/**
+ * The unapproved submissions for these athletes, one per athlete.
+ *
+ * One and not all, because the partial unique index allows a single open invitation per athlete,
+ * so at most one submission can be answering it. Where somebody has submitted twice — two
+ * protocols, or a correction, which migration 105's unique index turns into an upsert — the
+ * latest is the one the coach is about to look at.
+ *
+ * Degrades to "none" on purpose. Pre-108 there is no `status` column and therefore no pending row
+ * anywhere in the table, and a screen that fails to load over a column it only wanted for a label
+ * is trading the whole thing for a nicety.
+ */
+export async function pendingSubmissionsByAthlete(
+  supabase: ReturnType<typeof createServerClient>,
+  athleteIds: readonly string[],
+): Promise<Map<string, PendingSubmission>> {
+  const out = new Map<string, PendingSubmission>();
+  if (athleteIds.length === 0) return out;
+  const { data, error } = await supabase
+    .from('academy_tests')
+    .select('id, athlete_id, protocol, test_date, submitted_at, status')
+    .in('athlete_id', [...athleteIds])
+    .eq('status', 'pending')
+    .order('test_date', { ascending: true });
+  if (error || !data) {
+    if (error && !isMissingTable(error) && !isMissingColumn(error)) {
+      console.error('pendingSubmissionsByAthlete read failed:', error);
+    }
+    return out;
+  }
+  for (const r of data) {
+    const raw = r as unknown as Record<string, unknown>;
+    const date = String(raw.test_date ?? '').slice(0, 10);
+    if (!date) continue;
+    // Ascending, so the last write wins and the map holds the most recent submission.
+    out.set(String(raw.athlete_id), {
+      id: String(raw.id),
+      protocol: String(raw.protocol || '30min'),
+      date,
+      // Falling back to the test's own day: pre-108 rows have no `submitted_at`, and this
+      // field's job is "there is a result waiting", not a precise timestamp.
+      submittedAt: typeof raw.submitted_at === 'string' ? raw.submitted_at : date,
+    });
+  }
+  return out;
+}
+
+/**
+ * Whether that submission is the answer to THIS invitation — the settle's own rule, reused.
+ *
+ * `settlementFor` with `approved: false` returns `hold` for exactly the submissions that would
+ * settle the invitation once approved: right protocol, not predating it. Calling it rather than
+ * re-comparing the fields is the point — every screen that says "waiting for approval" says it
+ * about precisely the rows approval will close.
+ */
+export function submittedAtFor(
+  submission: PendingSubmission | undefined,
+  invite: { protocol: string; createdAt: string },
+): string | null {
+  if (!submission) return null;
+  const settlement = settlementFor(
+    {
+      id: 'lookup',
+      protocol: invite.protocol,
+      // The Israel calendar day, because a test's date is one.
+      createdDay: israelToday(new Date(invite.createdAt)),
+      reminderBeforeId: null,
+      reminderAfterId: null,
+    },
+    { id: submission.id, protocol: submission.protocol, date: submission.date, approved: false },
+  );
+  return settlement.kind === 'hold' ? submission.submittedAt : null;
+}
+
 export async function settleInvitationForTest(
   supabase: ReturnType<typeof createServerClient>,
   athleteId: string,

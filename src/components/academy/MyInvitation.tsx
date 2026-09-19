@@ -35,13 +35,20 @@ import type { TestInvitation } from '@/lib/academy/testInvite';
  * comparison against it, and a component that re-reads the clock on every render can show
  * `confirmed` and `overdue` in the same paint if a re-render straddles midnight.
  *
- * ── STILL MISSING, DELIBERATELY ───────────────────────────────────────────────────────────
+ * ── AND SILENT ONCE A RESULT IS WAITING ───────────────────────────────────────────────────
  *
- * Recording a result does not close the invitation. The submission is pending until the coach
- * approves it, and the invitation should settle at approval time by writing
- * `academy_test_invitations.test_id` from whatever handles that approval — a server-side link,
- * not a client guess. Until then an overdue invitation stays on screen beside the trainee's own
- * `WaitingCard`, which reads correctly ("sent, nothing has changed yet") but says it twice.
+ * There are two ways this card stops: approval and submission, and only the first closes the
+ * invitation. Approving a result writes `academy_test_invitations.test_id` and `done`
+ * (`settle-invitation-server.ts`), so the row leaves `OPEN` and the fetch returns null — nothing
+ * to render, nothing to decide here.
+ *
+ * The window between the two is the one that needs this component's help. A submitted result
+ * cannot settle the invitation, because `done` claims a measurement exists and nobody has looked
+ * at this number yet — so the appointment stays open and the card would go on asking for a result
+ * that has already been sent, directly beside `MyTest`'s own `WaitingCard` saying it was sent.
+ * Two cards, one screen, opposite instructions. So the route hands back `submittedAt` — computed
+ * with the settle's own rule, so it is set for exactly the submissions approval will close — and
+ * this card stands down and reports itself invisible, leaving the waiting card to speak alone.
  */
 export function MyInvitation({
   athleteId,
@@ -55,6 +62,8 @@ export function MyInvitation({
   onVisible?: (visible: boolean) => void;
 }) {
   const [invitation, setInvitation] = useState<TestInvitation | null>(null);
+  /** Set while a result for this invitation is sitting in the coach's approval queue. */
+  const [submittedAt, setSubmittedAt] = useState<string | null>(null);
   const [now, setNow] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -67,9 +76,11 @@ export function MyInvitation({
       );
       const data = await res.json().catch(() => ({}));
       setInvitation(res.ok && data?.invitation ? (data.invitation as TestInvitation) : null);
+      setSubmittedAt(res.ok && typeof data?.submittedAt === 'string' ? data.submittedAt : null);
       setNow(new Date().toISOString());
     } catch {
       setInvitation(null);
+      setSubmittedAt(null);
     }
   }, [athleteId]);
 
@@ -102,10 +113,13 @@ export function MyInvitation({
     }
   }, [invitation, load]);
 
-  const visible = !!invitation && !!now;
+  // `submittedAt` counts as "nothing to show" for the parent too, not just for the render: the
+  // heading and the closing explainer are suppressed on the strength of this flag, and a heading
+  // over a card that returned null is the one thing the header block says must never happen.
+  const visible = !!invitation && !!now && !submittedAt;
   useEffect(() => { onVisible?.(visible); }, [visible, onVisible]);
 
-  if (!invitation || !now) return null;
+  if (!invitation || !now || submittedAt) return null;
 
   return (
     <>

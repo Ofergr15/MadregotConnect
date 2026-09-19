@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { COACH_ID } from '@/lib/constants';
-import { isMissingColumn, isMissingTable } from '@/lib/supabase/schema-drift';
-import { israelToday } from '@/lib/utils';
-import { settlementFor } from '@/lib/academy/settleInvitation';
+import { isMissingTable } from '@/lib/supabase/schema-drift';
+import {
+  pendingSubmissionsByAthlete,
+  submittedAtFor,
+} from '@/lib/academy/settle-invitation-server';
 import type { BoardRow } from '@/lib/academy/testBoard';
 
 export const dynamic = 'force-dynamic';
@@ -45,75 +47,6 @@ const OPEN = ['proposed', 'confirmed', 'other'];
  * invitation, so offering the button would be offering a 503.
  */
 const NOT_SET_UP = { rows: [], invitable: [], tableMissing: true };
-
-/** A test a trainee submitted and nobody has approved. */
-interface PendingSubmission { id: string; protocol: string; date: string; submittedAt: string }
-
-/**
- * The unapproved submissions for these athletes, one per athlete.
- *
- * Why one and not all: the partial unique index allows a single open invitation per athlete, so
- * at most one submission can be answering it. Where somebody has submitted twice — a correction,
- * which migration 105's unique index turns into an upsert, or two different protocols — the
- * latest is the one the coach is about to look at.
- *
- * Degrades to "none" on purpose. Pre-108 there is no `status` column and therefore no pending row
- * anywhere in the table, and a board that fails to load because of an approval column it only
- * wanted for a label would be trading the whole screen for a nicety.
- */
-async function pendingSubmissions(
-  supabase: ReturnType<typeof createServerClient>,
-  athleteIds: string[],
-): Promise<Map<string, PendingSubmission>> {
-  const out = new Map<string, PendingSubmission>();
-  const { data, error } = await supabase
-    .from('academy_tests')
-    .select('id, athlete_id, protocol, test_date, submitted_at, status')
-    .in('athlete_id', athleteIds)
-    .eq('status', 'pending')
-    .order('test_date', { ascending: true });
-  if (error || !data) {
-    if (error && !isMissingTable(error) && !isMissingColumn(error)) {
-      console.error('board pending submissions read failed:', error);
-    }
-    return out;
-  }
-  for (const r of data) {
-    const raw = r as unknown as Record<string, unknown>;
-    const date = String(raw.test_date ?? '').slice(0, 10);
-    if (!date) continue;
-    // Ascending, so the last write wins and the map holds the most recent submission.
-    out.set(String(raw.athlete_id), {
-      id: String(raw.id),
-      protocol: String(raw.protocol || '30min'),
-      date,
-      // Falling back to the test's own day: pre-108 rows have no `submitted_at`, and the field's
-      // job here is "there is a result waiting", not a precise timestamp.
-      submittedAt: typeof raw.submitted_at === 'string' ? raw.submitted_at : date,
-    });
-  }
-  return out;
-}
-
-/**
- * Whether that submission is the answer to THIS invitation, via the write path's own rule.
- *
- * `settlementFor` with `approved: false` returns `hold` for exactly the submissions that would
- * settle the invitation once approved — right protocol, not predating it. Calling it here rather
- * than re-implementing the comparison is the point: the board says "waiting for approval" about
- * precisely the rows that approval will close.
- */
-function submittedAtFor(
-  submission: PendingSubmission | undefined,
-  invite: { protocol: string; createdDay: string },
-): string | null {
-  if (!submission) return null;
-  const settlement = settlementFor(
-    { id: 'board', protocol: invite.protocol, createdDay: invite.createdDay, reminderBeforeId: null, reminderAfterId: null },
-    { id: submission.id, protocol: submission.protocol, date: submission.date, approved: false },
-  );
-  return settlement.kind === 'hold' ? submission.submittedAt : null;
-}
 
 export async function GET(request: Request) {
   try {
@@ -158,7 +91,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to read the invitations' }, { status: 500 });
     }
 
-    const submissions = await pendingSubmissions(supabase, [...names.keys()]);
+    // The same helper the trainee's own route calls, so the two screens cannot disagree about
+    // whether a submitted result answers the invitation that is still open.
+    const submissions = await pendingSubmissionsByAthlete(supabase, [...names.keys()]);
 
     const rows: BoardRow[] = (data || []).map(r => {
       const raw = r as unknown as Record<string, unknown>;
@@ -175,7 +110,7 @@ export async function GET(request: Request) {
         // result answers which appointment.
         submittedAt: submittedAtFor(submissions.get(String(raw.athlete_id)), {
           protocol: String(raw.protocol || '30min'),
-          createdDay: israelToday(new Date(String(raw.created_at ?? ''))),
+          createdAt: String(raw.created_at ?? ''),
         }),
         invite: {
           id: String(raw.id),

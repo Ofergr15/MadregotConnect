@@ -29,7 +29,12 @@ const db: {
   academy_test_invitations: Row[];
   athletes: Row[];
   academy_candidate_events: Row[];
-} = { academy_test_invitations: [], athletes: [], academy_candidate_events: [] };
+  // Read by GET for one purpose: an invitation whose result is already sitting in the approval
+  // queue must not go on asking the trainee to record a result they have already sent.
+  academy_tests: Row[];
+} = {
+  academy_test_invitations: [], athletes: [], academy_candidate_events: [], academy_tests: [],
+};
 let seq = 0;
 
 /** The partial unique index from migration 112: one OPEN invitation per athlete. */
@@ -198,9 +203,25 @@ function seedInvitation(over: Row = {}): Row {
   return row;
 }
 
+/** A result `a1` has sent in and nobody has approved. */
+function seedSubmission(over: Row = {}): Row {
+  const row: Row = {
+    id: 'test-1',
+    athlete_id: 'a1',
+    protocol: '30min',
+    test_date: '2026-09-16',
+    submitted_at: '2026-09-16T17:00:00.000Z',
+    status: 'pending',
+    ...over,
+  };
+  db.academy_tests.push(row);
+  return row;
+}
+
 beforeEach(() => {
   db.academy_test_invitations = [];
   db.academy_candidate_events = [];
+  db.academy_tests = [];
   // `a1` is the coach's own trainee; `a2` belongs to somebody else's coach.
   db.athletes = [
     { id: 'a1', name: 'Dor Alon', academy_coach_id: 'coach-1' },
@@ -486,6 +507,64 @@ describe('reading the invitation', () => {
     seedInvitation();
     const res = await get('?athleteId=a1');
     expect((await res.json()).invitation).toMatchObject({ athleteId: 'a1' });
+  });
+
+  it('says nothing is waiting when nothing is', async () => {
+    seedInvitation();
+    asTrainee();
+    expect((await (await get()).json()).submittedAt).toBeNull();
+  });
+
+  it('is null and carries no submission when there is no invitation at all', async () => {
+    asTrainee();
+    expect(await (await get()).json()).toEqual({ invitation: null, submittedAt: null });
+  });
+});
+
+// ── The window between sending a result and the coach approving it ──
+//
+// The invitation cannot close yet: `done` claims a measurement exists, and nobody has looked at
+// this number. So the card has to stand down on this fact instead, or the trainee gets an overdue
+// invitation asking for a result beside their own "sent to the coach" card.
+
+describe('a result that is waiting for approval', () => {
+  it('is reported beside the still-open invitation', async () => {
+    seedInvitation({ status: 'confirmed', confirmed_slot: SOON });
+    seedSubmission();
+    asTrainee();
+    const { invitation, submittedAt } = await (await get()).json();
+    // Still open — only approval closes it — and now the screen knows why not to ask again.
+    expect(invitation).toMatchObject({ status: 'confirmed' });
+    expect(submittedAt).toBe('2026-09-16T17:00:00.000Z');
+  });
+
+  it('ignores a submission for another protocol, which answers nothing', async () => {
+    seedInvitation();
+    seedSubmission({ protocol: '2000m' });
+    asTrainee();
+    expect((await (await get()).json()).submittedAt).toBeNull();
+  });
+
+  it('ignores a result from before the invitation was sent', async () => {
+    // Backfilled history must not silence next week's appointment.
+    seedInvitation({ created_at: '2026-09-15T00:00:00.000Z' });
+    seedSubmission({ test_date: '2026-05-02' });
+    asTrainee();
+    expect((await (await get()).json()).submittedAt).toBeNull();
+  });
+
+  it('ignores an approved result, which has already closed the invitation', async () => {
+    seedInvitation();
+    seedSubmission({ status: 'approved' });
+    asTrainee();
+    expect((await (await get()).json()).submittedAt).toBeNull();
+  });
+
+  it('ignores somebody else’s submission', async () => {
+    seedInvitation();
+    seedSubmission({ id: 'test-2', athlete_id: 'a2' });
+    asTrainee();
+    expect((await (await get()).json()).submittedAt).toBeNull();
   });
 });
 
