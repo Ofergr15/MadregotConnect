@@ -854,7 +854,10 @@
     "garminHistoryProgress": "{imported} ריצות נוספו · הוותיקה {date}",
     "garminHistoryTotal": "{count} ריצות נוספו עד כה",
     "garminHistoryNoGarmin": "אין חיבור לגרמין — Strava בלבד",
-    "garminHistoryNobody": "לאף אחד אין שעון מחובר"
+    "garminHistoryNobody": "לאף אחד אין שעון מחובר",
+    "feedbackOpenCount": "{count} פתוחים",
+    "feedbackPhaseOpen": "פתוחים",
+    "feedbackPhaseResolved": "סגורים"
   },
   "badgeManager": {
     "existingBadges": "תגים קיימים",
@@ -1235,7 +1238,10 @@
     "statusDone": "טופל",
     "statusDenied": "לא ייטופל",
     "adminInbox": "כל הדיווחים",
-    "adminInboxHint": "מה שהמתאמנים דיווחו — לצוות בלבד"
+    "adminInboxHint": "מה שהמתאמנים דיווחו — לצוות בלבד",
+    "myReportsOpen": "{count} ממתינים לתשובה",
+    "myReportsClosed": "סגורים ({count})",
+    "myReportsAllClosed": "כל מה שדיווחת קיבל מענה."
   },
   "setup": {
     "title": "השלמת הפרופיל",
@@ -1828,8 +1834,8 @@
       "title": "עריכת אירוע",
       "save": "שמירת שינויים",
       "delete": "מחיקת אירוע",
-      "deleting": "מוחק\u2026",
-      "deleteConfirm": "למחוק את \u201c{name}\u201d? גם ההרשמות לאירוע יימחקו, ואי אפשר לבטל את זה.",
+      "deleting": "מוחק…",
+      "deleteConfirm": "למחוק את “{name}”? גם ההרשמות לאירוע יימחקו, ואי אפשר לבטל את זה.",
       "mapLinkCurrent": "סימון קיים במפה: {lat}, {lng}. השאירו ריק כדי לשמור אותו, או הדביקו קישור חדש כדי להזיז אותו."
     }
   },

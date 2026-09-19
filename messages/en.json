@@ -854,7 +854,10 @@
     "garminHistoryProgress": "{imported} runs added · oldest run now {date}",
     "garminHistoryTotal": "{count} runs added so far",
     "garminHistoryNoGarmin": "No Garmin connection — Strava only",
-    "garminHistoryNobody": "Nobody has a watch connected"
+    "garminHistoryNobody": "Nobody has a watch connected",
+    "feedbackOpenCount": "{count} open",
+    "feedbackPhaseOpen": "Open",
+    "feedbackPhaseResolved": "Closed"
   },
   "badgeManager": {
     "existingBadges": "Existing Badges",
@@ -1235,7 +1238,10 @@
     "statusDone": "Done",
     "statusDenied": "Won't do",
     "adminInbox": "All reports",
-    "adminInboxHint": "What the club reported — staff only"
+    "adminInboxHint": "What the club reported — staff only",
+    "myReportsOpen": "{count} waiting for an answer",
+    "myReportsClosed": "Closed ({count})",
+    "myReportsAllClosed": "Everything you reported has been answered."
   },
   "setup": {
     "title": "Finish your profile",
@@ -1828,8 +1834,8 @@
       "title": "Edit event",
       "save": "Save changes",
       "delete": "Delete event",
-      "deleting": "Deleting\u2026",
-      "deleteConfirm": "Delete \u201c{name}\u201d? Registrations for it are deleted too, and this cannot be undone.",
+      "deleting": "Deleting…",
+      "deleteConfirm": "Delete “{name}”? Registrations for it are deleted too, and this cannot be undone.",
       "mapLinkCurrent": "Pin on file: {lat}, {lng}. Leave empty to keep it, or paste a new link to move it."
     }
   },
