@@ -35,9 +35,15 @@ import {
 //     a list. Seeing `4:40` appear under the field is the check; the warning is the
 //     backstop. Never a block — see `PLAUSIBLE_PACE_SEC`.
 //
-// Staff only, and the route enforces that independently: a coach may record for their own
-// trainees, the manager for anyone. Unlike `benchmark_results`, nothing here is
-// self-submitted, because this number is not a trophy — it sets someone's training paces.
+// WHO MAY SAVE, and the route enforces all of it independently of this component: a coach
+// records for their own trainees, the manager for anyone, and an academy trainee may submit
+// their OWN test — which lands as `status='pending'` and counts toward nothing until staff
+// approve it (migration 108). That queue is the whole reason self-submission is safe: this
+// number is not a trophy like a `benchmark_results` entry, it sets someone's training paces,
+// so it may not start doing that unreviewed.
+//
+// `selfSubmit` only changes the WORDS. A trainee is not recording a test, they are sending
+// one, and a button that says "רישום" promises something the route will not do.
 
 const PROTOCOLS: { id: string; label: string }[] = [
   { id: '30min', label: '30 דקות' },
@@ -54,10 +60,13 @@ export function RecordTest({
   athletes,
   onSaved,
   protocol: initialProtocol = '30min',
+  selfSubmit = false,
 }: {
   athletes: RecordTestCandidate[];
   onSaved: () => void;
   protocol?: string;
+  /** The athlete is sending their own test for approval, not recording it. Wording only. */
+  selfSubmit?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState('');
@@ -72,6 +81,10 @@ export function RecordTest({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedName, setSavedName] = useState<string | null>(null);
+  // The route answers `pending: true` when the caller was not staff, i.e. an athlete
+  // submitting their own test. "נשמר" would be a lie in that case — nothing has been
+  // recorded yet, it is waiting for a coach.
+  const [savedPending, setSavedPending] = useState(false);
 
   // ── Who the test is for ────────────────────────────────────────────────────
   //
@@ -142,6 +155,7 @@ export function RecordTest({
       // Named in the confirmation. A coach entering six tests in a row needs to know WHICH
       // one landed, and "נשמר" alone is the same message six times.
       setSavedName(name);
+      setSavedPending(data?.pending === true);
       reset();
       setOpen(false);
       onSaved();
@@ -165,16 +179,18 @@ export function RecordTest({
         {savedName && (
           <p className="flex items-center gap-1.5 rounded-card bg-card px-3.5 py-2.5 text-xs text-accent-900">
             <Check className="h-3.5 w-3.5 shrink-0" />
-            הטסט של <bdi dir="auto">{savedName}</bdi> נשמר.
+            {savedPending
+              ? <>הטסט של <bdi dir="auto">{savedName}</bdi> נשלח לאישור המאמן.</>
+              : <>הטסט של <bdi dir="auto">{savedName}</bdi> נשמר.</>}
           </p>
         )}
         <button
           type="button"
-          onClick={() => { setSavedName(null); setOpen(true); }}
+          onClick={() => { setSavedName(null); setSavedPending(false); setOpen(true); }}
           className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-card bg-card text-sm font-bold text-brand-700"
         >
           <Plus className="h-4 w-4" />
-          רישום טסט
+          {selfSubmit ? 'שליחת טסט למאמן' : 'רישום טסט'}
         </button>
       </div>
     );
@@ -183,7 +199,7 @@ export function RecordTest({
   return (
     <div className="rounded-card bg-card p-3.5 space-y-3" dir="rtl">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-ink-900">רישום טסט</h3>
+        <h3 className="text-sm font-bold text-ink-900">{selfSubmit ? 'שליחת טסט' : 'רישום טסט'}</h3>
         <button
           type="button"
           onClick={() => { setOpen(false); reset(); }}
@@ -342,7 +358,7 @@ export function RecordTest({
           complete && !saving ? 'bg-brand-600 text-white' : 'bg-page text-ink-400',
         )}
       >
-        {saving ? 'שומר…' : 'שמירה'}
+        {saving ? (selfSubmit ? 'שולח…' : 'שומר…') : (selfSubmit ? 'שליחה לאישור' : 'שמירה')}
       </button>
     </div>
   );

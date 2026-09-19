@@ -7,7 +7,11 @@ import { apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { initialsOf } from './types';
 import { RecordTest } from './RecordTest';
+import { PendingTests, type PendingSubmission } from './PendingTests';
 import type { Direction, Registry, RegistryRow } from '@/lib/academy/tests';
+
+/** The registry plus whatever is waiting on staff. `pending` is absent pre-migration 108. */
+type RegistryResponse = Registry & { pending?: PendingSubmission[] };
 
 // ── The test registry, in place of the Excel ─────────────────────────────────
 //
@@ -236,7 +240,7 @@ function Row({ row }: { row: RegistryRow }) {
 
 /** The fetching wrapper. Staff-only screen, so it does not guard on identity here. */
 export function TestRegistry({ protocol = '30min' }: { protocol?: string }) {
-  const [registry, setRegistry] = useState<Registry | null>(null);
+  const [registry, setRegistry] = useState<RegistryResponse | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
 
   const load = useCallback(async () => {
@@ -247,7 +251,7 @@ export function TestRegistry({ protocol = '30min' }: { protocol?: string }) {
       const data = await res.json();
       if (!res.ok) { setState('error'); return; }
       if (data?.tableMissing) { setState('missing'); return; }
-      setRegistry(data as Registry);
+      setRegistry(data as RegistryResponse);
       setState('ready');
     } catch {
       setState('error');
@@ -275,6 +279,12 @@ export function TestRegistry({ protocol = '30min' }: { protocol?: string }) {
   }
   return (
     <div className="space-y-3">
+      {/* FIRST, above even the entry form: a submission nobody has looked at is a number
+          the registry below is deliberately ignoring, and the athlete who sent it believes
+          they have tested. Anything that reads as optional here makes the screen less
+          truthful, not more. */}
+      <PendingTests pending={registry.pending ?? []} onDecided={() => { void load(); }} />
+
       {/* The entry form sits ABOVE the list, and the list is what it changes. Recording a
           test is the action this screen exists to make possible — before this the table was
           applied and empty with no way to put anything in it — but the queue is what the

@@ -13,6 +13,7 @@ import { Card, EmptyState, InsetRow, InsetSection, SkeletonList } from '@/compon
 import { fmtRate, fmtWeekRange, initialsOf, rateColor, shiftWeek, sundayOf } from './types';
 import { AthleteLink } from '@/components/AthleteLink';
 import { AcademyThreadPanel } from './AcademyThreadPanel';
+import { MyTest } from './MyTest';
 
 // The academy as one of its athletes sees it.
 //
@@ -283,6 +284,17 @@ export function AcademyMyView({ athleteId }: {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* The threshold test: their own improvement graph, and the form that puts a result in
+          without waiting for Ofer's evening. Above the all-time footer because it is the
+          number that changes their training, not a souvenir. Renders nothing at all until
+          the athlete is a known academy member with a name to submit under. */}
+      {data?.athlete?.athleteId && (
+        <div>
+          <SectionTitle>טסט סף</SectionTitle>
+          <MyTest athleteId={data.athlete.athleteId} name={data.athlete.name} />
         </div>
       )}
 

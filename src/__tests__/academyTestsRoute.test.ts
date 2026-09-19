@@ -48,6 +48,8 @@ class Query implements PromiseLike<{ data: Row[] | null; error: unknown }> {
   private orderBy: { column: string; ascending: boolean } | null = null;
   private pending: Row | null = null;
   private conflict: string[] = [];
+  private patch: Row | null = null;
+  private deleting = false;
 
   constructor(private table: keyof typeof db) {}
 
@@ -65,6 +67,16 @@ class Query implements PromiseLike<{ data: Row[] | null; error: unknown }> {
 
   order(column: string, opts?: { ascending?: boolean }) {
     this.orderBy = { column, ascending: opts?.ascending !== false };
+    return this;
+  }
+
+  update(row: Row) {
+    this.patch = row;
+    return this;
+  }
+
+  delete() {
+    this.deleting = true;
     return this;
   }
 
@@ -91,7 +103,18 @@ class Query implements PromiseLike<{ data: Row[] | null; error: unknown }> {
 
   private rows(): Row[] {
     if (this.pending) return this.commit();
-    let rows = db[this.table].filter(r => this.filters.every(f => f(r)));
+    const matched = db[this.table].filter(r => this.filters.every(f => f(r)));
+    // PATCH's two writes. Applied to the SAME objects the reads hand out, so an approval is
+    // visible to the next GET without the fake having to model a transaction.
+    if (this.patch) {
+      for (const row of matched) Object.assign(row, this.patch);
+      return matched;
+    }
+    if (this.deleting) {
+      db[this.table] = db[this.table].filter(r => !matched.includes(r));
+      return matched;
+    }
+    let rows = matched;
     if (this.orderBy) {
       const { column, ascending } = this.orderBy;
       rows = [...rows].sort((a, b) =>
@@ -116,7 +139,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({ from: (table: keyof typeof db) => new Query(table) }),
 }));
 
-const { GET, POST } = await import('@/app/api/academy/tests/route');
+const { GET, PATCH, POST } = await import('@/app/api/academy/tests/route');
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -186,6 +209,13 @@ const post = (payload: unknown) =>
 
 const get = (query = 'protocol=30min') =>
   GET(new Request(`http://localhost/api/academy/tests?${query}`));
+
+const patch = (payload: unknown) =>
+  PATCH(new Request('http://localhost/api/academy/tests', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }));
 
 beforeEach(() => {
   db.athletes = [
@@ -321,12 +351,13 @@ describe('POST — the gate', () => {
     expect(db.academy_tests).toHaveLength(0);
   });
 
-  it('does not let an athlete record their own test', async () => {
-    // Unlike the records board, which accepts self-submissions behind an approval queue.
-    // This number prices every workout in a plan, so it is not self-reported.
+  it('does not let an athlete RECORD their own test — only submit it', async () => {
+    // This was a flat 403 until migration 108. It is now the records board's shape: the
+    // number is accepted, but it is not a recorded test until staff say so, because this
+    // one prices every workout in a plan. See the submission block at the bottom.
     asRunner(MINE);
-    expect((await post(body(MINE, 6420))).status).toBe(403);
-    expect(db.academy_tests).toHaveLength(0);
+    expect((await post(body(MINE, 6420))).status).toBe(200);
+    expect(db.academy_tests[0].status).toBe('pending');
   });
 });
 
@@ -379,5 +410,168 @@ describe('GET — scope', () => {
       improved: 0, same: 0, regressed: 0, noDelta: 0, overdue: 0, neverTested: 0,
     });
     expect(empty.rows).toEqual([]);
+  });
+});
+
+// ── The athlete submits, the coach decides ───────────────────────────────────
+//
+// Migration 108. The thing that must hold, in every one of these, is that a submission
+// changes NOTHING until somebody approves it: not the pace on the registry, not the trend,
+// not the staleness clock. A test that quietly counted while pending would be worse than no
+// approval step at all, because the screen would claim a review that never happened.
+
+describe('a trainee submits their own test', () => {
+  it('stores it as pending, and pending moves nothing', async () => {
+    asRunner(MINE);
+    const res = await post(body(MINE, 6420));
+    expect(res.status).toBe(200);
+    expect((await res.json()).pending).toBe(true);
+
+    const stored = db.academy_tests[0];
+    expect(stored.status).toBe('pending');
+    expect(stored.submitted_by).toBe(MINE);
+    expect(stored.approved_at).toBeNull();
+
+    // The registry the coach reads: the athlete is STILL overdue and still has no pace,
+    // because nobody has looked at the number yet.
+    asManager();
+    const registry = await (await get()).json();
+    const row = registry.rows.find((r: any) => r.athleteId === MINE);
+    expect(row.lastPaceSec).toBeNull();
+    expect(row.overdue).toBe(true);
+    expect(registry.pending).toHaveLength(1);
+    expect(registry.pending[0].paceSec).toBeCloseTo(280.37, 1);
+    expect(registry.pending[0].name).toBe(db.athletes.find(a => a.id === MINE)!.name);
+  });
+
+  it('ignores the athleteId in the body and writes to the caller instead', async () => {
+    // The whole attack in one line: a trainee posting somebody else's id.
+    asRunner(MINE);
+    const res = await post(body(THEIRS, 6420));
+    expect(res.status).toBe(403);
+    expect(db.academy_tests).toHaveLength(0);
+
+    // And with no id at all, it still lands on the caller — the session is the source.
+    const ok = await post({ ...body(MINE, 6420), athleteId: undefined });
+    expect(ok.status).toBe(200);
+    expect(db.academy_tests[0].athlete_id).toBe(MINE);
+  });
+
+  it('will not let a submission overwrite a test the coach already approved', async () => {
+    asManager();
+    await post(body(MINE, 6420));
+    expect(db.academy_tests[0].status).toBe('approved');
+
+    // Same athlete, same day, same protocol: the upsert WOULD have replaced the coach's
+    // measured number with the athlete's own and flipped the row back to pending.
+    asRunner(MINE);
+    const res = await post(body(MINE, 7000));
+    expect(res.status).toBe(409);
+    expect(db.academy_tests).toHaveLength(1);
+    expect(db.academy_tests[0].distance_m).toBe(6420);
+    expect(db.academy_tests[0].status).toBe('approved');
+  });
+
+  it('lets the athlete correct their own submission while it is still waiting', async () => {
+    asRunner(MINE);
+    await post(body(MINE, 6420));
+    const res = await post(body(MINE, 6500));
+    expect(res.status).toBe(200);
+    // One row, corrected — the same "a re-record is not a second test" rule as for a coach.
+    expect(db.academy_tests).toHaveLength(1);
+    expect(db.academy_tests[0].distance_m).toBe(6500);
+    expect(db.academy_tests[0].status).toBe('pending');
+  });
+
+  it('does not let an athlete exclude their own test from the trend', async () => {
+    asRunner(MINE);
+    await post(body(MINE, 6420, { excludedReason: 'היה לי חם' }));
+    // Accepting this would be a delete button on a bad day, worded as a reason.
+    expect(db.academy_tests[0].excluded_reason).toBeNull();
+  });
+
+  it('refuses a submission for an athlete who is not in the academy', async () => {
+    asRunner(OUTSIDER);
+    const res = await post(body(OUTSIDER, 6420));
+    expect(res.status).toBe(404);
+    expect(db.academy_tests).toHaveLength(0);
+  });
+
+  it('shows the athlete their own pending submission on their own graph', async () => {
+    asRunner(MINE);
+    await post(body(MINE, 6420));
+    const mine = await (await get(`protocol=30min&athleteId=${MINE}`)).json();
+    // Not on the line yet — the graph is what approval changes — but named, so the screen
+    // can say "sent, waiting" rather than showing nothing and looking broken.
+    expect(mine.trend.points).toHaveLength(0);
+    expect(mine.pending).toHaveLength(1);
+    expect(mine.pending[0].distanceM).toBe(6420);
+  });
+});
+
+describe('PATCH — the coach decides', () => {
+  it('approving a submission is what puts it on the graph and clears the overdue flag', async () => {
+    asRunner(MINE);
+    await post(body(MINE, 6420));
+    const testId = String(db.academy_tests[0].id);
+
+    asManager();
+    const res = await patch({ testId, action: 'approve' });
+    expect(res.status).toBe(200);
+    expect(db.academy_tests[0].status).toBe('approved');
+    expect(db.academy_tests[0].approved_by).toBe(MANAGER);
+
+    const registry = await (await get()).json();
+    const row = registry.rows.find((r: any) => r.athleteId === MINE);
+    expect(row.lastPaceSec).toBeCloseTo(280.37, 1);
+    expect(row.overdue).toBe(false);
+    expect(registry.pending).toHaveLength(0);
+  });
+
+  it('rejecting deletes the row rather than leaving a third state behind', async () => {
+    asRunner(MINE);
+    await post(body(MINE, 6420));
+    const testId = String(db.academy_tests[0].id);
+
+    asManager();
+    expect((await patch({ testId, action: 'reject' })).status).toBe(200);
+    expect(db.academy_tests).toHaveLength(0);
+  });
+
+  it('does not let a coach decide on somebody else\'s trainee, or learn that they exist', async () => {
+    asRunner(THEIRS);
+    await post(body(THEIRS, 6420));
+    const testId = String(db.academy_tests[0].id);
+
+    asCoach();
+    const res = await patch({ testId, action: 'approve' });
+    // 404 and not 403: the same answer a made-up id gets.
+    expect(res.status).toBe(404);
+    expect(db.academy_tests[0].status).toBe('pending');
+  });
+
+  it('does not let an athlete approve their own test', async () => {
+    asRunner(MINE);
+    await post(body(MINE, 6420));
+    const testId = String(db.academy_tests[0].id);
+
+    const res = await patch({ testId, action: 'approve' });
+    expect(res.status).toBe(403);
+    expect(db.academy_tests[0].status).toBe('pending');
+  });
+
+  it('refuses an unknown action rather than guessing which one was meant', async () => {
+    asManager();
+    const res = await patch({ testId: 'whatever', action: 'maybe' });
+    expect(res.status).toBe(400);
+  });
+
+  it('treats a coach entry as already approved, so it never reaches the queue', async () => {
+    asCoach();
+    await post(body(MINE, 6420));
+    const registry = await (await get()).json();
+    expect(registry.pending).toHaveLength(0);
+    expect(db.academy_tests[0].approved_by).toBe(COACH);
+    expect(db.academy_tests[0].submitted_by).toBeNull();
   });
 });
