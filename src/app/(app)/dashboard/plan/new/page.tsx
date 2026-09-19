@@ -1224,7 +1224,7 @@ export default function WeeklyPlannerPage() {
                   correctly, pointed left. Matches the two other navigators of this
                   exact shape, AcademyCompliance's week nav and the calendar's month
                   nav, which both already do it this way. */}
-              <ChevronRight className="h-5 w-5" />
+              <ChevronLeft className="h-5 w-5 rtl:rotate-180" />
             </button>
 
             <div className="text-center min-w-[140px] sm:min-w-[180px]">
@@ -1239,7 +1239,7 @@ export default function WeeklyPlannerPage() {
               aria-label={t('nextWeek')}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronRight className="h-5 w-5 rtl:rotate-180" />
             </button>
 
             {weekOffset !== getDefaultOffset() && (

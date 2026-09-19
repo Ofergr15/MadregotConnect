@@ -486,7 +486,7 @@ export default function ProgramPage() {
                         : 'bg-page text-ink-700 active:scale-90'
                     )}
                   >
-                    <ChevronLeft className="h-5 w-5" />
+                    <ChevronLeft className="h-5 w-5 rtl:rotate-180" />
                   </button>
                   <span className="text-xs text-ink-400 font-bold min-w-[36px] text-center">
                     {currentFilteredIndex + 1}/{filteredExercises.length}
@@ -502,7 +502,7 @@ export default function ProgramPage() {
                         : 'bg-page text-ink-700 active:scale-90'
                     )}
                   >
-                    <ChevronRight className="h-5 w-5" />
+                    <ChevronRight className="h-5 w-5 rtl:rotate-180" />
                   </button>
                 </div>
               </div>

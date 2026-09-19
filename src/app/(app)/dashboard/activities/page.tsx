@@ -412,7 +412,7 @@ export default function ActivitiesPage() {
               onClick={() => setWeekOffset(o => o - 1)}
               className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all"
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-5 w-5 rtl:rotate-180" />
             </button>
 
             <div className="text-center min-w-[140px] sm:min-w-[180px]">
@@ -430,7 +430,7 @@ export default function ActivitiesPage() {
               )}
               disabled={weekOffset >= 0}
             >
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="h-5 w-5 rtl:rotate-180" />
             </button>
 
             {weekOffset !== 0 && (

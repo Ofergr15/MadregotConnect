@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import {
-  ArrowRight,
+  ArrowLeft,
   MapPin,
   Calendar,
   Clock,
@@ -239,7 +239,10 @@ export default function EventDetailPage() {
         onClick={() => router.back()}
         className="inline-flex items-center gap-1.5 min-h-[44px] px-2 -ms-2 text-sm text-ink-400 hover:text-ink-900 transition-colors"
       >
-        <ArrowRight className="h-4 w-4" />
+        {/* Same rule as the month arrows above: written as "back points
+            backwards" and flipped by direction, rather than hardcoding the
+            Hebrew glyph and pointing the wrong way in English. */}
+        <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
         {tc('back')}
       </button>
 

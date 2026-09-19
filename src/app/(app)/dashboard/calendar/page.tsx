@@ -196,22 +196,32 @@ export default function CalendarPage() {
         <RaceMapView races={races} dateLocale={dateLocale} />
       ) : (
         <>
-      {/* Month header */}
+      {/* Month header.
+          Reported as "the arrows on the events screen are reversed". They were:
+          the button on the right went FORWARD while its arrow pointed left.
+
+          The rule, used by every prev/next pair in the app as of 2.40.77:
+          PREVIOUS is written first and NEXT second, and each glyph carries
+          `rtl:rotate-180`. Flex lays the first child out on the right in Hebrew
+          and on the left in English, and the rotation turns the glyph to match,
+          so both directions come out right from one piece of markup. Writing
+          them in reading order is also what keeps a later edit from re-swapping
+          them — the previous code had to be read twice to see which was which. */}
       <div className="flex items-center justify-between mb-3">
-        <button
-          onClick={() => shiftMonth(1)}
-          aria-label={t('nextMonth')}
-          className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <div className="text-lg font-bold text-ink-700">{monthLabel}</div>
         <button
           onClick={() => shiftMonth(-1)}
           aria-label={t('prevMonth')}
           className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
+        </button>
+        <div className="text-lg font-bold text-ink-700">{monthLabel}</div>
+        <button
+          onClick={() => shiftMonth(1)}
+          aria-label={t('nextMonth')}
+          className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all"
+        >
+          <ChevronRight className="h-4 w-4 rtl:rotate-180" />
         </button>
       </div>
 

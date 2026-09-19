@@ -283,7 +283,7 @@ export function AcademyCompliance() {
           className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
           aria-label="השבוע הקודם"
         >
-          <ChevronRight className="h-5 w-5" />
+          <ChevronLeft className="h-5 w-5 rtl:rotate-180" />
         </button>
         <div className="text-center min-w-[180px]">
           <div className="text-sm font-semibold text-ink-700">{fmtWeekLabel(weekStart)}</div>
@@ -295,7 +295,7 @@ export function AcademyCompliance() {
           className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:opacity-30 disabled:cursor-not-allowed"
           aria-label="השבוע הבא"
         >
-          <ChevronLeft className="h-5 w-5" />
+          <ChevronRight className="h-5 w-5 rtl:rotate-180" />
         </button>
       </div>
 
