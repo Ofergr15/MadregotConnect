@@ -26,6 +26,7 @@ import { AthleteLink } from '@/components/AthleteLink';
 import { BenchmarkLeaderboard } from '@/components/BenchmarkLeaderboard';
 import { cn } from '@/lib/utils';
 import type { EventKind } from '@/lib/events';
+import { googleMapsUrl } from '@/lib/events/map-link';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 // Mirrors the raw snake_case columns from GET /api/events/[id] (see
@@ -197,6 +198,7 @@ export default function EventDetailPage() {
 
   const kindStyle = KIND_STYLES[event.kind] || KIND_STYLES.race;
   const waze = resolveWazeUrl(event);
+  const maps = event.lat != null && event.lng != null ? googleMapsUrl({ lat: event.lat, lng: event.lng }) : null;
   const dateLabel = new Date(`${event.date}T00:00:00`).toLocaleDateString(dateLocale, {
     day: 'numeric',
     month: 'long',
@@ -260,16 +262,35 @@ export default function EventDetailPage() {
           </p>
         )}
 
-        {waze && (
-          <a
-            href={waze}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors"
-          >
-            <Navigation className="h-4 w-4" />
-            {t('openInWaze')}
-          </a>
+        {/* Two links and not one: the club is split between the two apps, and the
+            Waze deep-link opens Waze's *web* page for anyone who does not have it
+            installed, which is a dead end on the morning of a race. Both are shown
+            only when the event actually has coordinates. */}
+        {(waze || maps) && (
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            {waze && (
+              <a
+                href={waze}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors"
+              >
+                <Navigation className="h-4 w-4" />
+                {t('openInWaze')}
+              </a>
+            )}
+            {maps && (
+              <a
+                href={maps}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors"
+              >
+                <MapPin className="h-4 w-4" />
+                {t('openInMaps')}
+              </a>
+            )}
+          </div>
         )}
       </Card>
 

@@ -17,6 +17,7 @@ import { useApi } from '@/lib/api';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { EVENT_KINDS, type EventKind } from '@/lib/events';
+import { parseMapLink } from '@/lib/events/map-link';
 import { Button, EmptyState, Sheet, SkeletonCard, SegmentedControl, InsetSection, InsetRow } from '@/components/ui';
 
 // Generic events/calendar browser (roadmap Phase 3 — #4 Calendar). A month
@@ -539,13 +540,20 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
   const [name, setName] = useState('');
   const [date, setDate] = useState(todayIso());
   const [location, setLocation] = useState('');
+  const [mapLink, setMapLink] = useState('');
   const [description, setDescription] = useState('');
   const [capacity, setCapacity] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Parsed as you type, so the row below the input can confirm the coordinates
+  // BEFORE the event is saved. The paste either resolves to a point on the map or
+  // it does not, and that is worth knowing while the link is still on the clipboard.
+  const mapParse = mapLink.trim() ? parseMapLink(mapLink) : null;
+  const mapPoint = mapParse?.ok ? mapParse.point : null;
+
   const reset = () => {
-    setKind('race'); setName(''); setDate(todayIso()); setLocation('');
+    setKind('race'); setName(''); setDate(todayIso()); setLocation(''); setMapLink('');
     setDescription(''); setCapacity(''); setError('');
   };
 
@@ -560,6 +568,13 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
       setError(t('addEvent.requiredError'));
       return;
     }
+    // A link that was typed but cannot be read is a hard stop, not a silent drop:
+    // somebody who pasted a location expects the pin to be there, and finding out
+    // on race week that it never saved is worse than being told now.
+    if (mapParse && !mapParse.ok) {
+      setError(mapParse.reason === 'shortLink' ? t('addEvent.mapLinkShort') : t('addEvent.mapLinkInvalid'));
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
@@ -571,6 +586,10 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
           name: name.trim(),
           date,
           location: location.trim(),
+          // The route already accepted lat/lng — the migration has carried the
+          // columns since 055 and the map plots them — nothing had ever sent them.
+          lat: mapPoint?.lat,
+          lng: mapPoint?.lng,
           description: description.trim() || undefined,
           capacity: capacity ? Number(capacity) : undefined,
         }),
@@ -648,6 +667,27 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
                 />
               }
             />
+            {/* The map link. Full width and its own row rather than a trailing
+                input, because a pasted Google Maps URL is 150 characters and would
+                be invisible in a 48px trailing box. Optional: an event with no
+                coordinates keeps working exactly as before — it just has no pin on
+                the map above and no navigate button on its page. */}
+            <div className="px-4 py-3">
+              <label className="block text-xs font-bold text-ink-400 mb-1.5">{t('addEvent.mapLink')}</label>
+              <input
+                value={mapLink}
+                onChange={(e) => setMapLink(e.target.value)}
+                placeholder={t('addEvent.mapLinkPlaceholder')}
+                dir="ltr"
+                inputMode="url"
+                className="w-full bg-transparent text-sm text-ink-700 placeholder-ink-400 focus:outline-none"
+              />
+              <p className="mt-1 text-2xs text-ink-400" dir="auto">
+                {mapPoint
+                  ? t('addEvent.mapLinkResolved', { lat: mapPoint.lat.toFixed(4), lng: mapPoint.lng.toFixed(4) })
+                  : t('addEvent.mapLinkHint')}
+              </p>
+            </div>
             <div className="px-4 py-3">
               <label className="block text-xs font-bold text-ink-400 mb-1.5">{t('addEvent.description')}</label>
               <textarea
