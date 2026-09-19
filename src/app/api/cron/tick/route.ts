@@ -7,6 +7,7 @@ import {
   setupSnapshotCopy, snapshotRowCopy,
 } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
+import { reconcileResolvedReports } from '@/lib/feedback-notify';
 import { computeSetupState } from '@/lib/onboarding/setup-tasks';
 import {
   SNAPSHOT_DELAY_MINUTES, SNAPSHOT_LATEST_MINUTES, snapshotChannel, snapshotDue,
@@ -585,6 +586,15 @@ async function run(request: Request) {
     }
   }
 
+  // ── "Your report was fixed", driven by the state and not by the click ────
+  // Runs on every tick, and in steady state that is one indexed query that finds
+  // nothing. See lib/feedback-notify.ts: the notification has existed for weeks
+  // and had fired twice, because reports get closed by pasted SQL rather than
+  // through PATCH /api/feedback. This is what makes the closing itself the
+  // trigger, whoever does it and however (9a818a94).
+  const resolvedReports = await reconcileResolvedReports(supabase, now);
+  if (resolvedReports.sent) fired.push(`reviewResolved → ${resolvedReports.sent}`);
+
   // ── The 15-minute setup snapshot ─────────────────────────────────────────
   // Runs on every tick (the window is minutes wide, not hours), and is OFF until
   // somebody turns it on — see runSetupSnapshots.
@@ -639,7 +649,7 @@ async function run(request: Request) {
     .eq('tick_at', tickAt);
   if (timingError) console.warn('[cron/tick] could not record timing:', timingError.message);
 
-  return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, setupSnapshot, scanned, durationMs });
+  return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, resolvedReports, setupSnapshot, scanned, durationMs });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
