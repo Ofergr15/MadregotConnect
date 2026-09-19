@@ -22,6 +22,7 @@ import { SquadStandings } from '@/components/SquadStandings';
 import { UpcomingEvents } from '@/components/UpcomingEvents';
 import { SetupNudgeCard } from '@/components/onboarding/SetupNudgeCard';
 import { WeekSummaryCard } from '@/components/feed/WeekSummaryCard';
+import { NextSessionCard } from '@/components/feed/NextSessionCard';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
@@ -474,6 +475,15 @@ export default function FeedPage() {
           )}
         </div>
       )}
+
+      {/* ═══ WHAT'S NEXT ═══
+          One line: tomorrow's session (from 20:00 the evening before), its
+          distance, and whether Garmin has it. Tap opens the full session. Gone
+          once it's run. Read-only on the watch question by design — see
+          NextSessionCard. */}
+      <div className="mb-4 empty:mb-0">
+        <NextSessionCard />
+      </div>
 
       {/* ═══ LAST WEEK ═══
           Saturday 18:00 → Sunday 10:00 only, and only for the reader's own week.

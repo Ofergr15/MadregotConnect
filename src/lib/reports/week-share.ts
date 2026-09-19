@@ -69,6 +69,42 @@ export const WEEK_METRICS: WeekMetric[] = [
   },
 ];
 
+/**
+ * THE CARD'S OWN LANGUAGE, which is not the app's.
+ *
+ * The app is Hebrew for everyone here, but the card is posted to networks where
+ * plenty of the audience is not — so the athlete picks per share, and this is a
+ * plain table rather than a next-intl lookup because `useTranslations` only ever
+ * resolves the ACTIVE locale. Reading the other catalogue at runtime would mean
+ * shipping both message files to the browser to print seven short strings.
+ *
+ * Kept beside the metrics on purpose: a new metric that forgets a label here
+ * fails to compile.
+ */
+export type WeekCardLang = 'he' | 'en';
+
+export interface WeekCardText {
+  title: string;
+  labels: Record<WeekMetricKey, string>;
+}
+
+export const WEEK_CARD_TEXT: Record<WeekCardLang, WeekCardText> = {
+  he: {
+    title: '7 הימים האחרונים',
+    labels: {
+      km: 'ק״מ', time: 'שעות', pace: 'קצב ממוצע', runs: 'אימונים',
+      elev: 'טיפוס (מ׳)', cal: 'קלוריות',
+    },
+  },
+  en: {
+    title: 'Last 7 days',
+    labels: {
+      km: 'km', time: 'hours', pace: 'avg pace', runs: 'runs',
+      elev: 'elev gain (m)', cal: 'calories',
+    },
+  },
+};
+
 /** The metrics this athlete's week can actually print, in card order. */
 export function availableMetrics(report: Last7Report): WeekMetric[] {
   return WEEK_METRICS.filter((m) => m.has(report));

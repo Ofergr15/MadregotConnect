@@ -1543,6 +1543,7 @@
     "weekShareRuns": "runs",
     "weekShareElev": "elev gain (m)",
     "weekShareCal": "calories",
+    "weekShareName": "name",
     "weekSharePreview": "Card preview",
     "weekShareAddPhoto": "Pick a background photo",
     "weekShareChangePhoto": "Change photo",
@@ -2781,6 +2782,7 @@
   },
   "watchStatus": {
     "onWatch": "On your watch ✓",
+    "notOnWatch": "Not on your watch",
     "sendToWatch": "Send to watch",
     "sending": "Sending…",
     "failed": "Didn’t send — try again"

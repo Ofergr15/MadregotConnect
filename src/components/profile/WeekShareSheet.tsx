@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { X, Share2, ImagePlus, Loader2 } from 'lucide-react';
+import { X, Share2, ImagePlus, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { Sheet } from '@/components/ui/Sheet';
 import { shareCard } from '@/lib/feed/share-image';
 import { renderWeekShareCard } from '@/lib/reports/week-share-image';
-import { availableMetrics, defaultMetricKeys, type WeekMetricKey } from '@/lib/reports/week-share';
+import {
+  availableMetrics, defaultMetricKeys,
+  type WeekCardLang, type WeekMetricKey,
+} from '@/lib/reports/week-share';
 import type { Last7Report } from '@/lib/reports/last-7-days';
 
 /**
@@ -21,6 +24,12 @@ import type { Last7Report } from '@/lib/reports/last-7-days';
  *
  * At least one has to stay on: an empty panel is not a share, it is a bug that
  * looks like one, so the last chip cannot be turned off.
+ *
+ * Three things beyond the metrics, all for the same reason — this file leaves the
+ * club: the card's LANGUAGE is chosen here rather than inherited from the app (the
+ * app is Hebrew; a story's audience often is not), the NAME can be left off, and
+ * there is no photo unless the athlete adds one, because a stock club photo behind
+ * somebody's own week is a picture they did not choose to post.
  */
 export function WeekShareSheet({
   report, athleteName, onClose,
@@ -36,6 +45,9 @@ export function WeekShareSheet({
 
   const metrics = useMemo(() => availableMetrics(report), [report]);
   const [keys, setKeys] = useState<WeekMetricKey[]>(() => defaultMetricKeys(report));
+  // Opens in the app's own language, which is the one the athlete is reading in.
+  const [cardLang, setCardLang] = useState<WeekCardLang>(rtl ? 'he' : 'en');
+  const [withName, setWithName] = useState(true);
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [rendering, setRendering] = useState(true);
@@ -63,10 +75,9 @@ export function WeekShareSheet({
 
     renderWeekShareCard(report, {
       background: photo,
-      athleteName,
+      athleteName: withName ? athleteName : null,
       metrics: keys,
-      rtl,
-      i18n: { title: t('last7Title'), labels },
+      lang: cardLang,
     })
       .then((blob) => {
         if (cancelled) return;
@@ -85,7 +96,7 @@ export function WeekShareSheet({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [report, photo, keys, rtl, athleteName, labels, t]);
+  }, [report, photo, keys, cardLang, withName, athleteName, t]);
 
   const toggle = useCallback((key: WeekMetricKey) => {
     setKeys((prev) => {
@@ -164,6 +175,42 @@ export function WeekShareSheet({
               </button>
             );
           })}
+        </div>
+
+        {/* The card's language, and whether it carries a name. Both are about the
+            audience outside the club, so they sit with the chips and not in
+            settings: they are a per-share decision, not a preference. */}
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex rounded-full bg-page p-0.5">
+            {(['he', 'en'] as WeekCardLang[]).map((l) => (
+              <button
+                key={l}
+                onClick={() => setCardLang(l)}
+                aria-pressed={cardLang === l}
+                className={cn(
+                  'rounded-full px-3 py-1 text-xs font-bold transition-colors',
+                  cardLang === l ? 'bg-card text-ink-700 shadow-sm' : 'text-ink-400',
+                )}
+              >
+                {l === 'he' ? 'עברית' : 'English'}
+              </button>
+            ))}
+          </div>
+          {athleteName && (
+            <button
+              onClick={() => setWithName((v) => !v)}
+              aria-pressed={withName}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition-colors',
+                withName
+                  ? 'border-brand-600 bg-brand-600/10 text-brand-600'
+                  : 'border-page text-ink-400 hover:text-ink-500',
+              )}
+            >
+              {withName ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+              {t('weekShareName')}
+            </button>
+          )}
         </div>
 
         {/* 9:16, the frame the story will actually be. */}

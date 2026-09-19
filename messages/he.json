@@ -1543,6 +1543,7 @@
     "weekShareRuns": "אימונים",
     "weekShareElev": "טיפוס (מ׳)",
     "weekShareCal": "קלוריות",
+    "weekShareName": "שם",
     "weekSharePreview": "תצוגה מקדימה של הכרטיס",
     "weekShareAddPhoto": "בחירת תמונת רקע",
     "weekShareChangePhoto": "החלפת תמונה",
@@ -2781,6 +2782,7 @@
   },
   "watchStatus": {
     "onWatch": "בשעון ✓",
+    "notOnWatch": "לא בשעון",
     "sendToWatch": "שליחה לשעון",
     "sending": "שולח…",
     "failed": "לא נשלח — נסו שוב"

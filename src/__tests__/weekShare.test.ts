@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { join } from 'path';
 import { buildLast7Report, type ReportActivity } from '@/lib/reports/last-7-days';
 import {
-  WEEK_METRICS, availableMetrics, defaultMetricKeys, selectedMetrics,
+  WEEK_CARD_TEXT, WEEK_METRICS, availableMetrics, defaultMetricKeys, selectedMetrics,
 } from '@/lib/reports/week-share';
 import { formatWeekRange } from '@/lib/reports/week-share-image';
 
@@ -111,6 +111,23 @@ describe('the rows that get drawn', () => {
   });
 });
 
+describe('the card prints in either language', () => {
+  it('labels every metric in both, so a new metric cannot ship half-translated', () => {
+    for (const lang of ['he', 'en'] as const) {
+      for (const m of WEEK_METRICS) {
+        expect(WEEK_CARD_TEXT[lang].labels[m.key], `${lang}.${m.key}`).toBeTruthy();
+      }
+      expect(WEEK_CARD_TEXT[lang].title).toBeTruthy();
+    }
+  });
+
+  it('does not print Hebrew on an English card', () => {
+    const hebrew = /[֐-׿]/;
+    expect(hebrew.test(JSON.stringify(WEEK_CARD_TEXT.en))).toBe(false);
+    expect(hebrew.test(WEEK_CARD_TEXT.he.labels.km)).toBe(true);
+  });
+});
+
 describe('the date range on the card', () => {
   it('reads left-to-right in English', () => {
     expect(formatWeekRange(plain(), false)).toBe('13.09 – 19.09');
@@ -132,8 +149,24 @@ describe('the canvas card', () => {
     expect(img).not.toMatch(/function drawCover|function resolveFontStack/);
   });
 
-  it('falls back to the club photo rather than shipping a blank card', () => {
+  it('opens on the club photo, with the gradient as the floor', () => {
     expect(img).toMatch(/DEFAULT_WEEK_BACKGROUND = '\/images\/runners-group\.jpg'/);
+    expect(img).toMatch(/createLinearGradient/);
+  });
+
+  it('draws the club mark big and centred, not tucked in a corner', () => {
+    expect(img).toMatch(/LOGO_SIZE = 260/);
+    expect(img).toMatch(/\(STORY_W - w\) \/ 2/);
+  });
+
+  it('prints the range alone when the name is left off', () => {
+    expect(img).toMatch(/\[opts\.athleteName\?\.trim\(\), formatWeekRange\(report, rtl\)\]/);
+    expect(img).toMatch(/\.filter\(Boolean\)\.join\(' · '\)/);
+  });
+
+  it('takes its language from the card, not from the app locale', () => {
+    expect(img).toMatch(/const rtl = opts\.lang === 'he'/);
+    expect(img).toMatch(/WEEK_CARD_TEXT\[opts\.lang\]/);
   });
 
   it('draws one row per CHOSEN metric, from the shared selector', () => {
@@ -157,6 +190,18 @@ describe('the sheet', () => {
 
   it('cannot be emptied — the last chip stays on', () => {
     expect(sheet).toMatch(/prev\.length === 1 \? prev : prev\.filter/);
+  });
+
+  it('offers both card languages and opens in the one being read', () => {
+    expect(sheet).toMatch(/\(\['he', 'en'\] as WeekCardLang\[\]\)/);
+    expect(sheet).toMatch(/useState<WeekCardLang>\(rtl \? 'he' : 'en'\)/);
+    expect(sheet).toMatch(/lang: cardLang/);
+  });
+
+  it('can leave the name off the card', () => {
+    expect(sheet).toMatch(/athleteName: withName \? athleteName : null/);
+    // No toggle to show when there is no name to hide.
+    expect(sheet).toMatch(/\{athleteName && \(/);
   });
 
   it('hands the blob to the OS share sheet, with the download fallback', () => {
@@ -196,6 +241,7 @@ describe('every label exists in both languages', () => {
       'weekShareTitle', 'weekShareAction', 'weekShareWhat', 'weekShareKm', 'weekShareHours',
       'weekSharePace', 'weekShareRuns', 'weekShareElev', 'weekShareCal', 'weekSharePreview',
       'weekShareAddPhoto', 'weekShareChangePhoto', 'weekShareSaved', 'weekShareError',
+      'weekShareName',
     ];
     const he = JSON.parse(readFileSync(join(SRC, '../messages/he.json'), 'utf8')).profile;
     const en = JSON.parse(readFileSync(join(SRC, '../messages/en.json'), 'utf8')).profile;

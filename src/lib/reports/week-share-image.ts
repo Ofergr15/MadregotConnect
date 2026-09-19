@@ -2,7 +2,9 @@ import {
   STORY_W, STORY_H, drawCover, loadImage, resolveFontStack, roundRectPath,
 } from '@/lib/feed/share-image';
 import type { Last7Report } from './last-7-days';
-import { selectedMetrics, type WeekMetricKey } from './week-share';
+import {
+  WEEK_CARD_TEXT, selectedMetrics, type WeekCardLang, type WeekMetricKey,
+} from './week-share';
 
 /**
  * The seven-day report as a 1080×1920 story image.
@@ -11,11 +13,16 @@ import { selectedMetrics, type WeekMetricKey } from './week-share';
  * (lib/feed/share-image.ts, whose helpers this imports rather than copies), so
  * the two kinds of share cannot drift apart on font, crop or encoding.
  *
- * The design is a frosted panel over a photo, one row per metric — the layout he
- * approved in the `view=list` mockup. It is deliberately NOT the bar chart that
- * sits on the profile: bars need a legend and a scale to mean anything, and a
- * story is read in about a second by somebody who does not know the athlete's
- * normal week. A label and a number on their own line survive that second.
+ * The design is a frosted panel, one row per metric — the layout he approved in
+ * the `view=list` mockup. It is deliberately NOT the bar chart that sits on the
+ * profile: bars need a legend and a scale to mean anything, and a story is read in
+ * about a second by somebody who does not know the athlete's normal week. A label
+ * and a number on their own line survive that second.
+ *
+ * It opens on the club photo and the athlete can swap in their own in one tap —
+ * his call, once the picker existed: a card that starts blank asks everyone to do
+ * work before they can post, and the gradient is still there as the floor if the
+ * photo fails to decode.
  *
  * "Frosted" on a canvas is a real blur of the photo behind the panel, drawn
  * clipped to the panel's own rounded path. `ctx.filter` is Safari 17+; where it is
@@ -27,27 +34,23 @@ import { selectedMetrics, type WeekMetricKey } from './week-share';
 export const DEFAULT_WEEK_BACKGROUND = '/images/runners-group.jpg';
 const LOGO_SRC = '/images/logo-white.png';
 
-/** Every string the card prints, resolved by the caller from next-intl. */
-export interface WeekShareI18n {
-  /** "7 הימים האחרונים" */
-  title: string;
-  /** One label per metric key, already translated. */
-  labels: Record<WeekMetricKey, string>;
-}
-
 export interface WeekShareOptions {
   /** A photo the athlete picked; falls back to the club photo. */
   background?: Blob | null;
-  /** Printed under the title with the date range. */
+  /**
+   * Printed under the title with the date range. Empty or null prints the range
+   * alone — a share to a public network is not always a share under your name.
+   */
   athleteName?: string | null;
   metrics: WeekMetricKey[];
-  i18n: WeekShareI18n;
-  /** RTL flips the panel's text alignment, nothing else. */
-  rtl?: boolean;
+  /** The card's language, chosen per share; also decides the panel's direction. */
+  lang: WeekCardLang;
 }
 
 const MARGIN = 80;
 const PANEL_RADIUS = 56;
+/** Nearly a third of the width: the club mark is the point of posting this. */
+const LOGO_SIZE = 260;
 
 const fd = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 
@@ -69,7 +72,8 @@ export async function renderWeekShareCard(
   // Otherwise the first paint uses a fallback face and every number is subtly wrong.
   await document.fonts.ready;
   const font = resolveFontStack();
-  const rtl = opts.rtl ?? false;
+  const rtl = opts.lang === 'he';
+  const text = WEEK_CARD_TEXT[opts.lang];
 
   const canvas = document.createElement('canvas');
   canvas.width = STORY_W;
@@ -122,7 +126,11 @@ export async function renderWeekShareCard(
   const rowH = 150;
   const panelH = headerH + Math.max(rows.length, 1) * rowH + 40;
   const panelX = MARGIN;
-  const panelY = Math.round((STORY_H - panelH) / 2);
+  // The logo owns the top of the card, so the panel is centred in what is LEFT
+  // rather than in the frame — centring it in the frame would ride up under the
+  // mark on a six-row card.
+  const logoBottom = MARGIN + 40 + LOGO_SIZE;
+  const panelY = Math.round(logoBottom + Math.max(0, STORY_H - logoBottom - panelH) / 2);
 
   // Frost: the photo again, blurred, clipped to the panel.
   if (bg) {
@@ -156,22 +164,25 @@ export async function renderWeekShareCard(
 
   ctx.fillStyle = '#ffffff';
   ctx.font = `800 54px ${font}`;
-  ctx.fillText(opts.i18n.title, textX, panelY + 90);
+  ctx.fillText(text.title, textX, panelY + 90);
 
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
   ctx.font = `600 32px ${font}`;
-  const sub = [opts.athleteName, formatWeekRange(report, rtl)].filter(Boolean).join(' · ');
+  // The name is optional; with it off the range stands alone rather than leaving a
+  // stray separator behind it.
+  const sub = [opts.athleteName?.trim(), formatWeekRange(report, rtl)]
+    .filter(Boolean).join(' · ');
   ctx.fillText(sub, textX, panelY + 140);
 
-  // The club mark, opposite the heading whichever way the panel reads.
+  // ── The club mark ─────────────────────────────────────────────────────────
+  // Big, and centred above the panel rather than tucked in its corner: this card
+  // is going to networks where nobody knows the club, and a 74px mark in a corner
+  // is branding that gets cropped out of a re-share.
   const logo = await loadImage(LOGO_SRC).catch(() => null);
   if (logo) {
-    const h = 74;
+    const h = LOGO_SIZE;
     const w = (logo.width / logo.height) * h;
-    const x = rtl ? panelX + padX : panelX + panelW - padX - w;
-    ctx.globalAlpha = 0.9;
-    ctx.drawImage(logo, x, panelY + 52, w, h);
-    ctx.globalAlpha = 1;
+    ctx.drawImage(logo, Math.round((STORY_W - w) / 2), MARGIN + 40, w, h);
   }
 
   // ── One row per metric ────────────────────────────────────────────────────
@@ -191,7 +202,7 @@ export async function renderWeekShareCard(
     ctx.textAlign = rtl ? 'right' : 'left';
     ctx.fillStyle = 'rgba(255,255,255,0.62)';
     ctx.font = `700 36px ${font}`;
-    ctx.fillText(opts.i18n.labels[m.key], textX, baseline - 8);
+    ctx.fillText(text.labels[m.key], textX, baseline - 8);
 
     // The value sits against the opposite edge, so a glance down the card reads a
     // column of numbers rather than hunting for each one after its label.

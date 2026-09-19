@@ -94,6 +94,12 @@ describe('the feed card', () => {
     expect(card).toMatch(/built\.runs > 0/);
   });
 
+  it('is the one dark block in the feed, on a gradient and not a runner photo', () => {
+    expect(card).toMatch(/bg-gradient-to-br from-\[#2f45ff\] to-\[#1b1150\]/);
+    expect(card).toMatch(/radial-gradient/);
+    expect(card).not.toMatch(/\.jpg|\.png|<img/);
+  });
+
   it('carries the same share sheet as the profile card', () => {
     expect(card).toMatch(/<WeekShareSheet report=\{report\}/);
   });

@@ -86,24 +86,40 @@ export function WeekSummaryCard() {
   const fd = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
   return (
-    <section className="rounded-card bg-card p-4">
-      <div className="flex items-start justify-between gap-2">
+    // The one dark block in a feed of white cards, and the same gradient the story
+    // it produces is drawn on — abstract rather than photographic on his call: a
+    // photo of somebody running is a claim about whose week this is, and the block
+    // belongs to whoever is reading it.
+    <section className="relative overflow-hidden rounded-card bg-gradient-to-br from-[#2f45ff] to-[#1b1150] p-4 text-white">
+      {/* Two soft lights, the only decoration — cheap, no asset, and they survive
+          any width because they are sized in percentages. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-70"
+        style={{
+          background:
+            'radial-gradient(120% 90% at 85% -10%, rgba(255,255,255,.28), transparent 60%), '
+            + 'radial-gradient(90% 80% at 0% 110%, rgba(93,255,208,.18), transparent 60%)',
+        }}
+      />
+
+      <div className="relative flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="text-base font-bold text-ink-700">{t('last7Title')}</h2>
-          <p className="mt-0.5 text-xs font-light text-ink-400 tabular-nums">
+          <h2 className="text-base font-bold">{t('last7Title')}</h2>
+          <p className="mt-0.5 text-xs font-light text-white/60 tabular-nums">
             <bdi dir="ltr">{fd(report.from)} – {fd(report.to)}</bdi>
           </p>
         </div>
         <button
           onClick={dismiss}
           aria-label={tc('close')}
-          className="-me-1 -mt-1 rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-page hover:text-ink-900"
+          className="-me-1 -mt-1 rounded-lg p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="mt-3 grid grid-cols-4 gap-1 border-t border-page pt-3">
+      <div className="relative mt-3 grid grid-cols-4 gap-1 border-t border-white/15 pt-3">
         <Total value={String(Math.round(report.km * 10) / 10)} label={t('last7Km')} />
         <Total value={formatReportHours(report.seconds)} label={t('last7Hours')} />
         <Total
@@ -115,7 +131,7 @@ export function WeekSummaryCard() {
 
       <button
         onClick={() => setSharing(true)}
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-2.5 text-sm font-bold text-white transition-all active:scale-[0.98]"
+        className="relative mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white/15 py-2.5 text-sm font-bold text-white backdrop-blur-sm transition-all hover:bg-white/25 active:scale-[0.98]"
       >
         <Share2 className="h-4 w-4" />
         {t('weekShareAction')}
@@ -132,10 +148,10 @@ function Total({ value, label }: { value: string; label: string }) {
   return (
     <div className="text-center">
       {/* bdi so a pace's colon keeps its digits in order inside an RTL block. */}
-      <span className="block text-lg font-bold tabular-nums text-ink-700">
+      <span className="block text-lg font-bold tabular-nums">
         <bdi dir="ltr">{value}</bdi>
       </span>
-      <span className="block text-4xs font-light text-ink-400">{label}</span>
+      <span className="block text-4xs font-light text-white/60">{label}</span>
     </div>
   );
 }
