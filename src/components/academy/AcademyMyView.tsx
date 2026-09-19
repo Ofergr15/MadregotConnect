@@ -59,6 +59,16 @@ export function AcademyMyView({ athleteId }: {
   const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()));
   /** Set by `MyInvitation`, read by `MyTest`, so one explanation is not printed twice. */
   const [hasInvitation, setHasInvitation] = useState(false);
+  /**
+   * Set by `MyTest` when a result is saved, read by `MyInvitation` above it.
+   *
+   * The two fetch independently — deliberately, so a bad minute on the trend endpoint cannot cost
+   * somebody the date of their test — and that independence has one cost: saving a result changes
+   * what the OTHER one should be showing, and only this screen sees both. The invitation stays
+   * open (only the coach's approval closes it), so without this the card asks for a result that
+   * was sent a second ago.
+   */
+  const [resultJustSent, setResultJustSent] = useState(false);
 
   const { data, isLoading } = useApi<MyView>(
     athleteId ? `/api/academy/me?athleteId=${encodeURIComponent(athleteId)}&weekStart=${weekStart}` : null,
@@ -305,11 +315,13 @@ export function AcademyMyView({ athleteId }: {
             athleteId={data.athlete.athleteId}
             watchConnected={data.athlete.hasWatch}
             onVisible={setHasInvitation}
+            resultJustSent={resultJustSent}
           />
           <MyTest
             athleteId={data.athlete.athleteId}
             name={data.athlete.name}
             invitationShown={hasInvitation}
+            onRecorded={() => setResultJustSent(true)}
           />
         </div>
       )}

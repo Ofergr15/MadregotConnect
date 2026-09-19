@@ -54,12 +54,25 @@ export function MyInvitation({
   athleteId,
   watchConnected,
   onVisible,
+  resultJustSent,
 }: {
   athleteId: string;
   /** Whether a watch is linked — changes what the trainee has to do after the run. */
   watchConnected?: boolean;
   /** Tells the parent whether anything rendered, so it can drop text this screen replaces. */
   onVisible?: (visible: boolean) => void;
+  /**
+   * A result was just saved further down this screen — the same fact `submittedAt` carries, known
+   * one round trip earlier.
+   *
+   * Set by the parent rather than re-fetched, because there is nothing to ask: the save returned
+   * 200, so a submission for this person exists now. Re-reading the route would produce the same
+   * answer a moment later and the wrong one in between — and that moment, the second after
+   * tapping save, is the one the trainee is certainly looking at. Only the coach's approval closes
+   * the invitation, so without this the card goes on asking for a result already sent, directly
+   * above the `WaitingCard` that says it was.
+   */
+  resultJustSent?: boolean;
 }) {
   const [invitation, setInvitation] = useState<TestInvitation | null>(null);
   /** Set while a result for this invitation is sitting in the coach's approval queue. */
@@ -113,13 +126,17 @@ export function MyInvitation({
     }
   }, [invitation, load]);
 
-  // `submittedAt` counts as "nothing to show" for the parent too, not just for the render: the
-  // heading and the closing explainer are suppressed on the strength of this flag, and a heading
-  // over a card that returned null is the one thing the header block says must never happen.
-  const visible = !!invitation && !!now && !submittedAt;
+  // Either way of knowing a result is waiting silences this card: the route's `submittedAt` on
+  // load, and the parent's flag for the save that has just happened.
+  //
+  // And it counts as "nothing to show" for the parent too, not just for the render: the heading
+  // and the closing explainer are suppressed on the strength of that flag, and a heading over a
+  // card that returned null is the one thing the header block says must never happen.
+  const waiting = !!submittedAt || !!resultJustSent;
+  const visible = !!invitation && !!now && !waiting;
   useEffect(() => { onVisible?.(visible); }, [visible, onVisible]);
 
-  if (!invitation || !now || submittedAt) return null;
+  if (!invitation || !now || waiting) return null;
 
   return (
     <>

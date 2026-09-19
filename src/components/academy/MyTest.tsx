@@ -78,6 +78,7 @@ export function MyTest({
   name,
   protocol = '30min',
   invitationShown,
+  onRecorded,
 }: {
   athleteId: string;
   name: string;
@@ -90,6 +91,16 @@ export function MyTest({
    * being read.
    */
   invitationShown?: boolean;
+  /**
+   * Called after a result is saved from here, so the invitation above can stand down.
+   *
+   * The two components fetch independently on purpose (see `AcademyMyView`), which means a
+   * submission changes what the OTHER one should be showing and leaves it none the wiser: the
+   * invitation stays open until the coach approves, so without this the trainee would be looking
+   * at a card asking for a result beside their own `WaitingCard` saying it was sent — at the one
+   * moment, the second after tapping save, when they are certainly looking.
+   */
+  onRecorded?: () => void;
 }) {
   const [data, setData] = useState<MyTestResponse | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -136,7 +147,7 @@ export function MyTest({
           athletes={[{ athleteId, name }]}
           protocol={protocol}
           selfSubmit
-          onSaved={() => { void load(); }}
+          onSaved={() => { void load(); onRecorded?.(); }}
         />
       )}
 
