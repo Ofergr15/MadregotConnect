@@ -142,6 +142,11 @@ export default function AcademyFunnelPreview() {
           onUnstep={() => undefined}
           onArchive={() => undefined}
           onRestore={() => undefined}
+          // The row that leads to the characterization form. `filled` rather than `empty` so
+          // the card shows the state it is in for most of a candidate's life on the board —
+          // and so `ריק` versus `מולא` is a difference somebody has to have chosen.
+          onCharacterize={() => undefined}
+          characterizationState="filled"
         />
         <AddCandidateSheet
           open={adding}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, Plus, RotateCcw, Undo2, UserPlus } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ClipboardList, Plus, RotateCcw, Undo2, UserPlus } from 'lucide-react';
 import { apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { EmptyState, LoadingBlock, SegmentedControl, Sheet } from '@/components/ui';
@@ -15,6 +15,8 @@ import {
   type StageOwner,
   type TimelineStep,
 } from '@/lib/academy/funnel';
+import type { Characterization } from '@/lib/academy/characterization';
+import { CharacterizationSheet } from './CharacterizationForm';
 import { initialsOf } from './types';
 
 // ── The candidates board ─────────────────────────────────────────────────────
@@ -411,6 +413,8 @@ export function CandidateSheet({
   onUnstep,
   onArchive,
   onRestore,
+  onCharacterize,
+  characterizationState = 'empty',
   busy,
 }: {
   candidate: (CandidateRow & { email?: string | null; phone?: string | null }) | null;
@@ -421,6 +425,17 @@ export function CandidateSheet({
   onUnstep?: (stage: string) => void;
   onArchive?: (reason: string) => void;
   onRestore?: () => void;
+  /** Opens the characterization form (funnel step 3), which is the one step with answers. */
+  onCharacterize?: () => void;
+  /**
+   * Whether those answers exist yet, because an empty form and a filled one are the difference
+   * between "have the call" and "look at what he said".
+   *
+   * `error` is its own state and not a silently empty form: the save is a PUT of the whole
+   * form, so a blank form opened over answers nobody could read would erase them on the first
+   * keystroke. When the read failed, the row says so and does not open.
+   */
+  characterizationState?: 'loading' | 'empty' | 'filled' | 'error';
   busy?: string | null;
 }) {
   const steps = useMemo(
@@ -477,6 +492,36 @@ export function CandidateSheet({
             busy={busy}
           />
         </div>
+
+        {/* The characterization form. One step out of the nine has ANSWERS behind it — what he
+            wants, which mornings he has, what hurts — and they are the input to the first
+            training plan, so they need a door that is not a tick mark. Below the timeline
+            rather than beside the step for the same reason everything else is: the timeline is
+            a history, and a form is not a history entry. */}
+        {onCharacterize && !candidate.archivedAt && (
+          <button
+            type="button"
+            onClick={onCharacterize}
+            disabled={characterizationState === 'loading' || characterizationState === 'error'}
+            className="mt-5 flex w-full items-center justify-between gap-2 min-h-[48px] rounded-card bg-page px-3.5 text-sm font-bold text-ink-900 disabled:opacity-60"
+          >
+            <span className="flex items-center gap-2" dir="auto">
+              <ClipboardList className="h-4 w-4 text-ink-500" />
+              טופס אפיון
+            </span>
+            <span
+              className={cn(
+                'text-xs font-medium',
+                characterizationState === 'error' ? 'text-accent-red-ink' : 'text-ink-400',
+              )}
+              dir="auto"
+            >
+              {characterizationState === 'loading' ? 'טוען…'
+                : characterizationState === 'error' ? 'לא נטען'
+                : characterizationState === 'filled' ? 'מולא' : 'ריק'}
+            </span>
+          </button>
+        )}
 
         {/* Leaving, and coming back. Below the timeline and never beside a step: this is the
             one control on the card that takes somebody off the board, and a red row within a
@@ -701,6 +746,12 @@ export function CandidateFunnel() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  // The characterization form, and the answers behind it. `undefined` means "not fetched yet"
+  // and `null` means "fetched, and nobody has characterised him" — different facts, and the
+  // form must not open on an empty shell while the real answers are still in flight.
+  const [characterizing, setCharacterizing] = useState(false);
+  const [characterization, setCharacterization] = useState<Characterization | null | undefined>(undefined);
+  const [charError, setCharError] = useState(false);
 
   // The reader's own today, read once per load rather than per render: a `now`
   // that changes on every render would make every memo below a lie, and nobody
@@ -731,6 +782,31 @@ export function CandidateFunnel() {
   );
 
   const open = data?.candidates.find(c => c.id === openId) ?? null;
+
+  // The answers travel with the card, not with the form: the card's row says whether the form
+  // is filled, so it has to know before anybody taps it.
+  useEffect(() => {
+    if (!openId) { setCharacterization(undefined); setCharError(false); return; }
+    let live = true;
+    setCharacterization(undefined);
+    setCharError(false);
+    void (async () => {
+      try {
+        const res = await fetch(`/api/academy/characterization?candidateId=${encodeURIComponent(openId)}`, {
+          headers: await apiHeaders(),
+        });
+        if (!res.ok) { if (live) setCharError(true); return; }
+        const body = await res.json();
+        if (live) setCharacterization(body?.characterization ?? null);
+      } catch {
+        // A failed read must NOT open an empty form. The save is a PUT of the whole form — that
+        // is what lets an answer be taken back — so a blank form opened over answers nobody
+        // could read would erase them on the first keystroke. The row says it did not load.
+        if (live) setCharError(true);
+      }
+    })();
+    return () => { live = false; };
+  }, [openId]);
 
   /** Every write on the card goes through here: one request in flight, then re-read. */
   async function patch(payload: Record<string, unknown>, busyKey: string) {
@@ -797,8 +873,43 @@ export function CandidateFunnel() {
           if (await patch({ action: 'archive', reason }, ARCHIVE)) setOpenId(null);
         })()}
         onRestore={() => void patch({ action: 'restore' }, RESTORE)}
+        onCharacterize={() => setCharacterizing(true)}
+        characterizationState={
+          charError ? 'error'
+            : characterization === undefined ? 'loading'
+            : characterization === null ? 'empty'
+            : 'filled'
+        }
         busy={busy}
       />
+      {open && characterization !== undefined && (
+        <CharacterizationSheet
+          open={characterizing}
+          onOpenChange={setCharacterizing}
+          candidateName={open.name}
+          candidateId={open.id}
+          value={characterization}
+          onSave={async next => {
+            const res = await fetch('/api/academy/characterization', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', ...(await apiHeaders()) },
+              body: JSON.stringify({ ...next, candidateId: open.id }),
+            });
+            if (!res.ok) return false;
+            // The saved row and not the sent one, so the card's `מולא` and the form's fields
+            // agree with what the table actually holds — a date the column refused is null
+            // here, and the coach sees that rather than a value that only exists on screen.
+            const body = await res.json().catch(() => null);
+            if (body?.characterization) setCharacterization(body.characterization);
+            return true;
+          }}
+          // The SAME request the card's `בוצע` button makes, so one code path moves the funnel.
+          onComplete={() => void patch({ action: 'step', stage: 'characterization' }, 'characterization')}
+          completed={(data?.events ?? []).some(e => e.candidateId === open.id && e.stage === 'characterization')}
+          busy={busy === 'characterization'}
+          today={now}
+        />
+      )}
       <AddCandidateSheet open={adding} onOpenChange={setAdding} onCreate={create} />
     </>
   );
