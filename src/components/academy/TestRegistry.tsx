@@ -102,13 +102,17 @@ export function RegistryList({ registry }: { registry: Registry }) {
               </span>
               {' — '}בלי טסט אין עדכון ספים, והתוכניות שלהם רצות על נתונים ישנים:
               {' '}
-              {/* Each name isolated on its own. The roster is Latin-only inside a Hebrew
-                  sentence, and a plain join put the comma of one name against the first
-                  word of the next when the line wrapped. */}
+              {/* Each name isolated AND unbreakable. The roster is Latin-only inside a
+                  Hebrew sentence, so `<bdi>` is what keeps a comma from landing against the
+                  wrong name — but isolation is not the same as cohesion, and it did not stop
+                  the wrap: "Tamar Gold" still broke across the line end, which turned three
+                  named people into what reads as four ("…, Tamar" / "Gold, …"). A count of 3
+                  above a list of 4 is the kind of thing that makes a coach distrust the
+                  whole panel. `whitespace-nowrap` moves the whole name to the next line. */}
               {stale.map((r, i) => (
                 <span key={r.athleteId}>
                   {i > 0 && ', '}
-                  <bdi dir="ltr">{r.name}</bdi>
+                  <bdi dir="ltr" className="whitespace-nowrap">{r.name}</bdi>
                 </span>
               ))}
             </span>

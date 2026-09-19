@@ -49,10 +49,44 @@ function DeltaText({ sec }: { sec: number }) {
   return <bdi dir="ltr">{rounded < 0 ? '−' : '+'}{Math.abs(rounded)}</bdi>;
 }
 
-/** `2026-09-14` → `09.26`, for an axis where only month and year fit. */
-function monthLabel(date: string): string {
+const MONTHS_HE = ['ינו׳', 'פבר׳', 'מרץ', 'אפר׳', 'מאי', 'יוני', 'יולי', 'אוג׳', 'ספט׳', 'אוק׳', 'נוב׳', 'דצמ׳'];
+
+/**
+ * `2026-09-14` → `ספט׳ 26`, for an axis where only month and year fit.
+ *
+ * NAMED and not `09.26`, which is what this was. The table three centimetres below prints
+ * the same test as `15.09.26`, so the screen had two dot-separated dates in two different
+ * orders — and read as day.month, the axis put a seven-month history inside one week. A
+ * month name cannot be mistaken for a day.
+ */
+export function monthLabel(date: string): string {
   const [year, month] = date.split('-');
-  return `${month}.${year.slice(2)}`;
+  return `${MONTHS_HE[Number(month) - 1] ?? month} ${year.slice(2)}`;
+}
+
+/**
+ * Which x labels to draw, given where the points landed.
+ *
+ * Labelling every point is fine at four tests and unreadable at nine: the club tests three
+ * times a year, so a two-year history overlaps its own labels, and two tests in one month
+ * print the same text twice side by side. The ends always survive — they are the span the
+ * headline is quoted over — and the interior is thinned to whatever fits.
+ */
+const MIN_LABEL_GAP = 48;
+export function labelledIndexes(xs: number[]): Set<number> {
+  const keep = new Set<number>();
+  if (xs.length === 0) return keep;
+  const last = xs.length - 1;
+  keep.add(0);
+  keep.add(last);
+  let lastX = xs[0];
+  for (let i = 1; i < last; i++) {
+    if (xs[i] - lastX >= MIN_LABEL_GAP && xs[last] - xs[i] >= MIN_LABEL_GAP) {
+      keep.add(i);
+      lastX = xs[i];
+    }
+  }
+  return keep;
 }
 
 /**
@@ -85,6 +119,7 @@ function TrendLine({ points }: { points: TrendPoint[] }) {
 
   const coords = plotted.map((p, i) => ({ x: toX(i), y: toY(p.paceSec), point: p }));
   const line = coords.map((c, i) => `${i ? 'L' : 'M'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
+  const labelled = labelledIndexes(coords.map(c => c.x));
 
   const ticks = [viewFast + span * 0.15, middle, viewSlow - span * 0.15];
 
@@ -126,13 +161,22 @@ function TrendLine({ points }: { points: TrendPoint[] }) {
           />
         ))}
 
-        {coords.map(({ x, point }) => (
-          <text
-            key={point.testId} x={x} y={HEIGHT - 6} textAnchor="middle"
-            className="fill-ink-400 text-[10px] tabular-nums"
-          >
-            {monthLabel(point.date)}
-          </text>
+        {/* The END labels are anchored to their own edge, not centred on their point.
+            Centred, the last one hung ~9px past the card and WebKit clipped the first
+            letter: `ספט׳ 26` rendered as `פט׳ 26` at 375px — a truncated month on the axis
+            whose span the headline ("over 7 months") is quoting. PAD.right is 12px, and no
+            label fits in 12px, so this is a layout rule and not a padding number to grow. */}
+        {coords.map(({ x, point }, i) => (
+          labelled.has(i) && (
+            <text
+              key={point.testId}
+              x={x} y={HEIGHT - 6}
+              textAnchor={i === 0 ? 'start' : i === coords.length - 1 ? 'end' : 'middle'}
+              className="fill-ink-400 text-[10px]"
+            >
+              {monthLabel(point.date)}
+            </text>
+          )
         ))}
       </svg>
     </div>
@@ -197,7 +241,10 @@ export function ImprovementChart({
           reads the actual numbers, and the mockup asks for both. */}
       <div className="space-y-1">
         <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 px-1 text-[10px] font-semibold text-ink-400">
-          <span>תאריך</span><span className="text-end">מרחק</span>
+          {/* The unit is on the header, because the cell is `6.42` and the form that
+              produced it asked for METRES. A coach who typed 6420 and reads a bare 6.42
+              next to a pace in minutes per kilometre has to guess which one changed. */}
+          <span>תאריך</span><span className="text-end">מרחק (ק״מ)</span>
           <span className="text-end">קצב</span><span className="text-end">שינוי</span>
         </div>
         {/* Newest first — the opposite of the graph, which is drawn oldest-to-newest.
