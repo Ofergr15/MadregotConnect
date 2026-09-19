@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import {
   GraduationCap, Plus, Search, Users, ClipboardCheck, CalendarPlus,
   BarChart3, Trophy, Settings as SettingsIcon, UserPlus, LayoutDashboard,
-  MessagesSquare, Watch, TrendingUp,
+  MessagesSquare, Watch, TrendingUp, UserRoundSearch,
 } from 'lucide-react';
 import { cn, getGroupChip } from '@/lib/utils';
 import { Sheet, Spinner, SkeletonList } from '@/components/ui';
@@ -20,6 +20,7 @@ import { AcademyMembers } from '@/components/academy/AcademyMembers';
 import { AcademyMyView } from '@/components/academy/AcademyMyView';
 import { AcademyThreads } from '@/components/academy/AcademyThreads';
 import { WatchDispatch } from '@/components/academy/WatchDispatch';
+import { CandidateFunnel } from '@/components/academy/CandidateFunnel';
 import { BookIcon, WorkoutBook } from '@/components/academy/WorkoutBook';
 import { TestRegistry } from '@/components/academy/TestRegistry';
 import { MemberSheet } from '@/components/academy/MemberSheet';
@@ -61,7 +62,7 @@ interface Athlete {
   hasGarmin?: boolean;
 }
 
-type Tab = 'overview' | 'threads' | 'members' | 'registrations' | 'plans' | 'book' | 'dispatch' | 'compliance' | 'tests' | 'stats' | 'results' | 'settings';
+type Tab = 'overview' | 'threads' | 'funnel' | 'members' | 'registrations' | 'plans' | 'book' | 'dispatch' | 'compliance' | 'tests' | 'stats' | 'results' | 'settings';
 
 
 
@@ -173,7 +174,7 @@ export default function AcademyPage() {
     // `roster` is the old name for what is now the members directory — links
     // already out in notifications and shared URLs must keep working.
     const normalized = tab === 'roster' ? 'members' : tab;
-    const valid: Tab[] = ['overview', 'threads', 'members', 'registrations', 'plans', 'book', 'dispatch', 'compliance', 'tests', 'stats', 'results', 'settings'];
+    const valid: Tab[] = ['overview', 'threads', 'funnel', 'members', 'registrations', 'plans', 'book', 'dispatch', 'compliance', 'tests', 'stats', 'results', 'settings'];
     if (valid.includes(normalized as Tab)) setView(normalized as Tab);
   }, []);
 
@@ -285,6 +286,11 @@ export default function AcademyPage() {
   const tabs: Array<{ value: Tab; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number }> = [
     { value: 'overview', label: t('tabOverview'), icon: LayoutDashboard },
     { value: 'threads', label: t('tabThreads'), icon: MessagesSquare },
+    // Before the roster, because it comes before the roster in real life: everybody
+    // on this board is somebody who is not yet a member. The club's own
+    // registrations tab is a different queue — that one is the public door to the
+    // running club, this one is nine steps with four owners.
+    { value: 'funnel', label: t('tabFunnel'), icon: UserRoundSearch },
     { value: 'members', label: t('tabMembers'), icon: Users },
     { value: 'registrations', label: t('tabRegistrations'), icon: UserPlus, badge: members?.pending.registrations },
     { value: 'plans', label: t('tabPlans'), icon: CalendarPlus },
@@ -357,6 +363,8 @@ export default function AcademyPage() {
           onSelectMember={selectMember}
           onAdd={openAdd}
         />
+      ) : view === 'funnel' ? (
+        <CandidateFunnel />
       ) : view === 'registrations' ? (
         <AcademyRegistrations />
       ) : view === 'stats' ? (
