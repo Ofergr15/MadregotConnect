@@ -60,7 +60,7 @@ export function RecordTest({
   protocol?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [athleteId, setAthleteId] = useState('');
+  const [picked, setPicked] = useState('');
   const [protocol, setProtocol] = useState(initialProtocol);
   const [date, setDate] = useState(() => israelToday());
   // Kept as strings: a number input that clears to `0` is a field that silently agrees to
@@ -72,6 +72,20 @@ export function RecordTest({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedName, setSavedName] = useState<string | null>(null);
+
+  // ── Who the test is for ────────────────────────────────────────────────────
+  //
+  // The candidate list is already scoped by the route — a coach is handed their own
+  // trainees and nobody else's — so there is nothing to choose when it holds one person.
+  // A dropdown with a single option is worse than no dropdown: it reads as a decision,
+  // it starts on "בחר מתאמן…" so the save button is disabled until you make a choice
+  // that has no alternatives, and it is one more tap between a coach and the number.
+  // 1:1 coaching is the academy's actual shape, so this is the common case, not the edge.
+  //
+  // Stated as a fact, like the fixed half of the protocol above, and for the same reason:
+  // a fact is not something a person overwrites by accident.
+  const only = athletes.length === 1 ? athletes[0] : null;
+  const athleteId = only ? only.athleteId : picked;
 
   const shape = protocolShape(protocol);
 
@@ -93,7 +107,7 @@ export function RecordTest({
   const complete = !!athleteId && !!date && !future && paceSec !== null;
 
   function reset() {
-    setAthleteId('');
+    setPicked('');
     setDistanceText('');
     setDurationText('');
     setHrText('');
@@ -181,16 +195,26 @@ export function RecordTest({
       </div>
 
       <Field label="מתאמן">
-        <select
-          value={athleteId}
-          onChange={e => setAthleteId(e.target.value)}
-          className={SELECT}
-        >
-          <option value="">בחר מתאמן…</option>
-          {athletes.map(a => (
-            <option key={a.athleteId} value={a.athleteId}>{a.name}</option>
-          ))}
-        </select>
+        {only ? (
+          // Plain text, NOT a grey field. Every real input on this form wears `bg-page`, so
+          // the first version of this put the name in a box identical to the metres field —
+          // which reads as an input that refuses to take a tap, i.e. as broken. The fixed
+          // half of the protocol below is plain text for the same reason.
+          <p className="text-[16px] font-bold text-ink-900">
+            <bdi dir="auto">{only.name}</bdi>
+          </p>
+        ) : (
+          <select
+            value={picked}
+            onChange={e => setPicked(e.target.value)}
+            className={SELECT}
+          >
+            <option value="">בחר מתאמן…</option>
+            {athletes.map(a => (
+              <option key={a.athleteId} value={a.athleteId}>{a.name}</option>
+            ))}
+          </select>
+        )}
       </Field>
 
       <Field label="סוג הטסט">
