@@ -558,6 +558,11 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
   const [resolved, setResolved] = useState<{ link: string; point: MapPoint } | null>(null);
   const [resolving, setResolving] = useState(false);
   const [mapLinkError, setMapLinkError] = useState('');
+  // A short link expands to a PLACE, not a point (see the route's docblock). Usually
+  // that place geocodes and there is a pin; when it does not, the name is still the
+  // useful half. Held so the event can be saved anyway — refusing to save because a
+  // geocoder had never heard of the venue would be punishing the wrong person.
+  const [placeOnly, setPlaceOnly] = useState<string | null>(null);
   const mapPoint = mapParse?.ok
     ? mapParse.point
     : resolved && resolved.link === mapLink.trim()
@@ -571,6 +576,7 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
   useEffect(() => {
     const value = mapLink.trim();
     setMapLinkError('');
+    setPlaceOnly(null);
     if (!value || !isShortMapLink(value)) return;
     if (resolved?.link === value) return;
 
@@ -585,8 +591,16 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
         });
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
+        // The expanded link knows the venue's name, and whoever pasted it should not
+        // have to retype it into the location field. Only when that field is still
+        // empty: an address typed by hand beats one guessed from a link.
+        if (typeof data.place === 'string' && data.place) {
+          setLocation(prev => (prev.trim() ? prev : data.place));
+        }
         if (res.ok && typeof data.lat === 'number' && typeof data.lng === 'number') {
           setResolved({ link: value, point: { lat: data.lat, lng: data.lng } });
+        } else if (data.error === 'no_coords' && typeof data.place === 'string') {
+          setPlaceOnly(data.place);
         } else {
           setMapLinkError(
             data.error === 'unreachable' ? t('addEvent.mapLinkUnreachable') : t('addEvent.mapLinkShort'),
@@ -603,7 +617,7 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
 
   const reset = () => {
     setKind('race'); setName(''); setDate(todayIso()); setLocation(''); setMapLink('');
-    setResolved(null); setMapLinkError('');
+    setResolved(null); setMapLinkError(''); setPlaceOnly(null);
     setDescription(''); setCapacity(''); setError('');
   };
 
@@ -622,7 +636,10 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
     // somebody who pasted a location expects the pin to be there, and finding out
     // on race week that it never saved is worse than being told now. A short link
     // still in flight waits rather than failing — it is about to succeed.
-    if (mapLink.trim() && !mapPoint) {
+    // `placeOnly` is the exception: the link WAS read, it just names a venue no
+    // geocoder places. The location text is filled from it, so the event is complete
+    // apart from the pin — blocking that would lose real information to gain none.
+    if (mapLink.trim() && !mapPoint && !placeOnly) {
       if (resolving) {
         setError(t('addEvent.mapLinkResolving'));
         return;
@@ -755,7 +772,9 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
                           lat: mapPoint.lat.toFixed(4),
                           lng: mapPoint.lng.toFixed(4),
                         })
-                      : t('addEvent.mapLinkHint')}
+                      : placeOnly
+                        ? t('addEvent.mapLinkNoCoords', { place: placeOnly })
+                        : t('addEvent.mapLinkHint')}
               </p>
             </div>
             <div className="px-4 py-3">

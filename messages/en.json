@@ -1811,6 +1811,7 @@
       "mapLinkPlaceholder": "Paste a link from Google Maps",
       "mapLinkHint": "Optional. Share the place from Google Maps and paste the link here — short links work too.",
       "mapLinkResolved": "Location found: {lat}, {lng}",
+      "mapLinkNoCoords": "Found {place}, but not its exact spot on the map. The event will be saved without a pin.",
       "mapLinkResolving": "Looking up the location…",
       "mapLinkUnreachable": "Couldn't reach Google Maps just now. Try again, or paste the full link.",
       "mapLinkShort": "Couldn't read that short link. Open it, then copy the full address from the address bar.",

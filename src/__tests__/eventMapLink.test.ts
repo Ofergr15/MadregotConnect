@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { googleMapsUrl, isAllowedMapUrl, isShortMapLink, parseMapLink } from '@/lib/events/map-link';
+import {
+  extractPlaceQuery,
+  geocodeCandidates,
+  googleMapsUrl,
+  isAllowedMapUrl,
+  isShortMapLink,
+  parseMapLink,
+} from '@/lib/events/map-link';
 
 /** Every link below was taken from a real Google Maps share, not invented. */
 describe('parseMapLink', () => {
@@ -136,5 +143,50 @@ describe('isShortMapLink', () => {
     expect(isShortMapLink('https://www.google.com/maps/@32.1,34.8,15z')).toBe(false);
     expect(isShortMapLink('32.0853, 34.7818')).toBe(false);
     expect(isShortMapLink('')).toBe(false);
+  });
+});
+
+describe('extractPlaceQuery — what a short link really expands to', () => {
+  // The exact redirect target of a real iPhone share, which carries a place and
+  // no coordinates at all.
+  const expanded =
+    'https://maps.google.com?q=Country+Club+Afula,+Yitshak+Rabin+Boulevard+1,+Afula&ftid=0x151c51831d06439b:0x950a11dc489e08bd&entry=gps';
+
+  it('pulls the place out of the expanded URL', () => {
+    expect(extractPlaceQuery(expanded)).toBe('Country Club Afula, Yitshak Rabin Boulevard 1, Afula');
+  });
+
+  it('does not return a coordinate pair as a place to geocode', () => {
+    expect(extractPlaceQuery('https://maps.google.com/?q=32.0853,34.7818')).toBeNull();
+  });
+
+  it('returns null when there is no place in the URL', () => {
+    expect(extractPlaceQuery('https://www.google.com/maps/@32.1,34.8,15z')).toBeNull();
+    expect(extractPlaceQuery('not a url')).toBeNull();
+  });
+});
+
+describe('geocodeCandidates', () => {
+  it('tries the full address, then venue + city, then the venue', () => {
+    expect(geocodeCandidates('Country Club Afula, Yitshak Rabin Boulevard 1, Afula')).toEqual([
+      'Country Club Afula, Yitshak Rabin Boulevard 1, Afula',
+      // The one that actually resolves against OSM — the street kills the match.
+      'Country Club Afula, Afula',
+      'Country Club Afula',
+    ]);
+  });
+
+  it('does not repeat itself on a short address', () => {
+    expect(geocodeCandidates('Park HaYarkon, Tel Aviv')).toEqual(['Park HaYarkon, Tel Aviv', 'Park HaYarkon']);
+    expect(geocodeCandidates('Afula')).toEqual(['Afula']);
+  });
+
+  it('never returns more than three queries against a free service', () => {
+    expect(geocodeCandidates('a, b, c, d, e, f, g').length).toBeLessThanOrEqual(3);
+  });
+
+  it('handles an empty address', () => {
+    expect(geocodeCandidates('')).toEqual([]);
+    expect(geocodeCandidates('  ,  ,  ')).toEqual([]);
   });
 });

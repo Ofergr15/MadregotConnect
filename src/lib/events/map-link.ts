@@ -182,3 +182,69 @@ export function isAllowedMapUrl(value: string): boolean {
 export function isShortMapLink(value: string): boolean {
   return SHORT_LINK_RE.test((value || '').trim());
 }
+
+/**
+ * ── What a short link actually expands to ────────────────────────────────────
+ * Measured against a real share from an iPhone, because the guess was wrong:
+ *
+ *   https://maps.app.goo.gl/Vp7ZyXcgyqS3H7Mh7
+ *     → 302 → https://maps.google.com?q=Country+Club+Afula,+Yitshak+Rabin+Boulevard+1,+Afula&ftid=…
+ *
+ * There are NO coordinates anywhere in that chain, and none in the page it
+ * finally serves either (checked: no `!3d/!4d`, no `/@lat,lng`, nothing in 800 KB
+ * of body). What the redirect does carry is the place's name and address in `q=`,
+ * and an `ftid` place id that only Google can resolve.
+ *
+ * So expanding a short link yields a PLACE, not a point, and turning a place into
+ * a point is geocoding. Hence the pair below: pull the query out of the expanded
+ * URL, then hand it to the geocoder the app already has data attribution for
+ * (OpenStreetMap, whose tiles the calendar map is already drawn on).
+ */
+export function extractPlaceQuery(value: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  for (const key of ['q', 'query', 'destination', 'daddr']) {
+    const raw = url.searchParams.get(key);
+    if (!raw) continue;
+    const text = raw.trim();
+    // A coordinate pair is not a place query — the caller already tried to read
+    // it as coordinates and should not now geocode the string "32.1,34.8".
+    if (!text || BARE_PAIR_RE.test(text)) continue;
+    return text;
+  }
+  return null;
+}
+
+/**
+ * Geocoder queries to try, most specific first.
+ *
+ * Needed because the full string Google hands over often finds nothing: the real
+ * address above returns no result with the street in it and the right building
+ * without it ("Country Club Afula, Afula" → the sports centre in Afula). A venue
+ * name plus its city is what OSM tends to actually hold, so that is the second
+ * attempt, and the bare venue name is the third.
+ *
+ * Capped and deduplicated, so a long address cannot turn one paste into a burst of
+ * requests against a free service.
+ */
+export function geocodeCandidates(address: string): string[] {
+  const parts = (address || '')
+    .split(',')
+    .map(p => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return [];
+
+  const candidates = [
+    parts.join(', '),
+    // Venue + city: the first and last components, which is what the middle-
+    // dropping above amounts to.
+    parts.length > 2 ? `${parts[0]}, ${parts[parts.length - 1]}` : null,
+    parts[0],
+  ].filter((c): c is string => !!c);
+
+  return [...new Set(candidates)].slice(0, 3);
+}

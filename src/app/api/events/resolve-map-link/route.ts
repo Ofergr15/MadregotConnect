@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import { requireSession, authError } from '@/lib/auth-session';
-import { isAllowedMapUrl, isShortMapLink, parseMapLink } from '@/lib/events/map-link';
+import {
+  extractPlaceQuery,
+  geocodeCandidates,
+  isAllowedMapUrl,
+  isShortMapLink,
+  parseMapLink,
+  type MapPoint,
+} from '@/lib/events/map-link';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +44,55 @@ export const dynamic = 'force-dynamic';
 
 const MAX_HOPS = 5;
 const FETCH_TIMEOUT_MS = 6000;
+
+/**
+ * Geocoding, for the case above where the link names a place instead of pointing at
+ * one.
+ *
+ * Nominatim (OpenStreetMap) rather than Google's Geocoding API: the app is already
+ * drawn on OSM tiles and already carries OSM's attribution on the calendar map, so
+ * no new data source and no new credit line — and the Geocoding API needs a billed
+ * key this app does not have.
+ *
+ * Its usage policy is the reason for the shape of this: an identifying User-Agent,
+ * at most three queries per paste (geocodeCandidates caps that), tried in sequence
+ * and stopped at the first hit, and only ever on a staff action. This is single
+ * digits of requests per month, not a crawl.
+ */
+const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
+const GEOCODER_UA = 'MadregotConnect/1.0 (running club calendar; https://www.madregot.app)';
+
+async function geocodePlace(place: string): Promise<MapPoint | null> {
+  for (const query of geocodeCandidates(place)) {
+    try {
+      const url = new URL(NOMINATIM_URL);
+      url.searchParams.set('format', 'json');
+      url.searchParams.set('limit', '1');
+      url.searchParams.set('q', query);
+
+      const res = await fetch(url, {
+        headers: { 'User-Agent': GEOCODER_UA, 'Accept-Language': 'he,en' },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      if (!res.ok) continue;
+
+      const hits = await res.json();
+      const first = Array.isArray(hits) ? hits[0] : null;
+      if (!first) continue;
+
+      // Nominatim returns lat/lon as STRINGS, and calls longitude `lon`.
+      const lat = Number(first.lat);
+      const lng = Number(first.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) continue;
+      return { lat, lng };
+    } catch {
+      // A failed candidate is not a failed geocode — try the next, looser one.
+      continue;
+    }
+  }
+  return null;
+}
 
 export async function POST(request: Request) {
   const auth = await requireSession(request);
@@ -94,9 +150,24 @@ export async function POST(request: Request) {
       current = next;
     }
 
-    // Resolved to something real that still has no coordinates in it — a place
-    // page without a pin, or a consent wall. Say so plainly; the sheet asks for
-    // the full link instead.
+    // ── No coordinates in the chain, which is the NORMAL case ────────────────
+    // Measured against a real iPhone share: the short link redirects to
+    // `maps.google.com?q=<name>, <street>, <city>` and nothing in the chain (or in
+    // the 800 KB page at the end) holds a lat/lng. What it does hold is the place.
+    // Turning a place into a point is geocoding, so that is what happens here.
+    const place = extractPlaceQuery(current);
+    if (place) {
+      const point = await geocodePlace(place);
+      // The place name goes back either way. Without coordinates there is no map
+      // pin — but the name is still the useful half, and the sheet offers it as the
+      // event's location text rather than making somebody retype what they pasted.
+      return NextResponse.json(point ? { ...point, place } : { place, error: 'no_coords' }, {
+        status: point ? 200 : 422,
+      });
+    }
+
+    // Resolved to something real with neither coordinates nor a place in it — a
+    // consent wall, most likely. Say so plainly; the sheet asks for the full link.
     return NextResponse.json({ error: 'not_found' }, { status: 422 });
   } catch (error) {
     // A timeout or a network failure is not the person's fault and not a bad
