@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { PhotoLightbox } from '@/components/PhotoLightbox';
 
 /** "Tal Borenstein" -> "TA". Used whenever there's no usable photo. */
 export function initialsOf(name: string, maxChars = 2): string {
@@ -20,12 +21,33 @@ interface Props {
   textClassName?: string;
   /** 1 for the tiny like-stack bubbles, where two characters don't fit. */
   maxChars?: number;
+  /**
+   * Tap the photo to see it full screen (21cc272c).
+   *
+   * Opt-in, and off by default on purpose: most avatars sit inside an
+   * `AthleteLink`, where the tap already opens the person's profile. Adding a
+   * handler here would swallow that. See PhotoLightbox for where it IS offered.
+   *
+   * Has no effect without a real photo — there is nothing to enlarge about two
+   * initials, and a tap that sometimes does nothing is worse than one that never
+   * does anything.
+   */
+  enlargeable?: boolean;
 }
 
 /** Profile photo with an initials fallback. */
-export function FeedAvatar({ name, url, className, textClassName, maxChars = 2 }: Props) {
+export function FeedAvatar({
+  name,
+  url,
+  className,
+  textClassName,
+  maxChars = 2,
+  enlargeable = false,
+}: Props) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const [enlarged, setEnlarged] = useState(false);
   const showImage = !!url && failedUrl !== url;
+  const canEnlarge = enlargeable && showImage;
 
   return (
     <div
@@ -33,7 +55,25 @@ export function FeedAvatar({ name, url, className, textClassName, maxChars = 2 }
         'w-9 h-9 rounded-full bg-brand-600/10 flex items-center justify-center shrink-0 overflow-hidden',
         className,
       )}
+      // A button element would change the layout of every caller (buttons carry
+      // their own box), so the role goes on the div that already draws the circle.
+      {...(canEnlarge
+        ? {
+            role: 'button' as const,
+            tabIndex: 0,
+            onClick: () => setEnlarged(true),
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setEnlarged(true);
+              }
+            },
+          }
+        : {})}
     >
+      {canEnlarge && enlarged && url && (
+        <PhotoLightbox url={url} alt={name} onClose={() => setEnlarged(false)} />
+      )}
       {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img

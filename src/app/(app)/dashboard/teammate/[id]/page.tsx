@@ -193,7 +193,17 @@ export default function TeammateProfilePage() {
       {/* ═══ HERO ═══ Avatar, name, group, join date — the owner-only bits (email,
           data-source badges, photo upload) have no place on a peer's profile. */}
       <div className="flex items-center gap-4">
-        <FeedAvatar name={profile.name} url={profile.avatarUrl} className="w-16 h-16" textClassName="text-xl" />
+        {/* Enlargeable here and not in the feed: this header is the one place the
+            photo is the subject rather than a label beside a name, and the tap is
+            free — everywhere else it means "open this person's profile", which is
+            where you already are. */}
+        <FeedAvatar
+          name={profile.name}
+          url={profile.avatarUrl}
+          className="w-16 h-16"
+          textClassName="text-xl"
+          enlargeable
+        />
         <div className="flex-1 min-w-0">
           {/* The 🌰 sits NEXT to the name, outside its truncate, so a long name
               can't eat the mark — same rule as the owner's own header. */}
