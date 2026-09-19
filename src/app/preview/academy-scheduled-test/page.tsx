@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { israelToday } from '@/lib/utils';
 import type { TestInvitation } from '@/lib/academy/testInvite';
 import { ScheduledTest } from '@/components/academy/ScheduledTest';
+import { AskOtherTimeSheet } from '@/components/academy/AskOtherTimeSheet';
 
 // ── Login-free preview of the trainee's scheduled-test card ──────────────────
 //
@@ -80,7 +81,11 @@ const TITLES: Record<string, string> = {
   overdue: 'הזמן עבר',
   other: 'ביקש זמן אחר',
   expired: 'הזמנים פגו',
+  ask: 'גלישת בקשת זמן אחר',
 };
+
+/** `?state=ask` opens the note sheet over the awaiting screen, which is the only way in. */
+const ASK = 'ask';
 
 export default function AcademyScheduledTestPreview() {
   if (process.env.NODE_ENV === 'production') notFound();
@@ -90,9 +95,11 @@ export default function AcademyScheduledTestPreview() {
   // initializer — the initializer runs on the server too, where `window` does not exist, and
   // the hydration mismatch makes React throw the tree away.
   const [key, setKey] = useState('awaiting');
+  const [asking, setAsking] = useState(false);
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get('state');
-    if (q && q in CASES) setKey(q);
+    if (q && (q in CASES || q === ASK)) setKey(q);
+    if (q === ASK) setAsking(true);
   }, []);
 
   const shown = CASES[key] ?? CASES.awaiting;
@@ -109,8 +116,11 @@ export default function AcademyScheduledTestPreview() {
           now={NOW}
           watchConnected={shown.watch}
           onConfirm={() => undefined}
-          onAskOther={() => undefined}
+          onAskOther={() => setAsking(true)}
         />
+        {/* Tappable here as well as reachable by `?state=ask`, so the sheet can be read both as
+            a screenshot and as an interaction. It sends nowhere: this preview has no session. */}
+        <AskOtherTimeSheet open={asking} onOpenChange={setAsking} onSend={() => setAsking(false)} />
       </div>
     </div>
   );

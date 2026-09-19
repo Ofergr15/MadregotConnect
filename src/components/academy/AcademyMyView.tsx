@@ -14,6 +14,7 @@ import { fmtRate, fmtWeekRange, initialsOf, rateColor, shiftWeek, sundayOf } fro
 import { AthleteLink } from '@/components/AthleteLink';
 import { AcademyThreadPanel } from './AcademyThreadPanel';
 import { MyTest } from './MyTest';
+import { MyInvitation } from './MyInvitation';
 
 // The academy as one of its athletes sees it.
 //
@@ -56,6 +57,8 @@ export function AcademyMyView({ athleteId }: {
   const t = useTranslations('academy');
   const locale = useLocale();
   const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()));
+  /** Set by `MyInvitation`, read by `MyTest`, so one explanation is not printed twice. */
+  const [hasInvitation, setHasInvitation] = useState(false);
 
   const { data, isLoading } = useApi<MyView>(
     athleteId ? `/api/academy/me?athleteId=${encodeURIComponent(athleteId)}&weekStart=${weekStart}` : null,
@@ -292,9 +295,22 @@ export function AcademyMyView({ athleteId }: {
           number that changes their training, not a souvenir. Renders nothing at all until
           the athlete is a known academy member with a name to submit under. */}
       {data?.athlete?.athleteId && (
-        <div>
+        <div className="space-y-3">
           <SectionTitle>טסט סף</SectionTitle>
-          <MyTest athleteId={data.athlete.athleteId} name={data.athlete.name} />
+          {/* The invitation FIRST, and outside `MyTest` on purpose. `MyTest` renders nothing
+              when its own request fails — the right call for a graph, wrong for an appointment:
+              a trainee must not lose the date of their test because the trend endpoint had a bad
+              minute. Two independent fetches, and only the one that matters is load-bearing. */}
+          <MyInvitation
+            athleteId={data.athlete.athleteId}
+            watchConnected={data.athlete.hasWatch}
+            onVisible={setHasInvitation}
+          />
+          <MyTest
+            athleteId={data.athlete.athleteId}
+            name={data.athlete.name}
+            invitationShown={hasInvitation}
+          />
         </div>
       )}
 

@@ -77,10 +77,19 @@ export function MyTest({
   athleteId,
   name,
   protocol = '30min',
+  invitationShown,
 }: {
   athleteId: string;
   name: string;
   protocol?: string;
+  /**
+   * Whether `MyInvitation` is rendering above this, in which case the closing explainer is
+   * dropped: that paragraph exists to tell somebody who has never tested what a threshold test
+   * is, and the invitation already says it — with the protocol, the instructions and what
+   * happens afterwards. Two explanations of the same thing on one screen is how a screen stops
+   * being read.
+   */
+  invitationShown?: boolean;
 }) {
   const [data, setData] = useState<MyTestResponse | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -131,7 +140,7 @@ export function MyTest({
         />
       )}
 
-      {!hasPoints && waiting.length === 0 && (
+      {!hasPoints && waiting.length === 0 && !invitationShown && (
         <p className="px-1 text-xs leading-relaxed text-ink-400">
           טסט סף הוא ריצה של 30 דקות בכל הכוח. המרחק שעברת קובע את קצב הסף שלפיו נכתבים
           האימונים שלך, ואחרי שני טסטים יופיע כאן גרף שיפור.
