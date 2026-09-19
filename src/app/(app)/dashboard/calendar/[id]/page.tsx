@@ -20,6 +20,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { useApi } from '@/lib/api';
+import { useAthleteId } from '@/lib/use-athlete-id';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 import { Card, Button, EmptyState, LoadingBlock, Spinner, InsetSection, InsetRow } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
@@ -119,10 +120,8 @@ export default function EventDetailPage() {
   // Only real athlete accounts (not bare staff logins) can RSVP — the app's
   // convention is that an athlete's own id lives in localStorage once signed
   // in as a club member (see AttendanceRSVP for the same read).
-  const [athleteId, setAthleteId] = useState('');
-  useEffect(() => {
-    setAthleteId(localStorage.getItem('athlete_id') || '');
-  }, []);
+  // Read during the first render — see src/lib/use-athlete-id.ts (41b26dca).
+  const athleteId = useAthleteId();
 
   // Staff get an edit button on the event they are looking at. Same check as the
   // calendar page — a "view as" preview wins so the super user can see both

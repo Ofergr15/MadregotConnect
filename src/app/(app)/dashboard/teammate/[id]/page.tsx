@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { AlertCircle, Star, UserCheck, UserPlus, Users } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
+import { useAthleteId } from '@/lib/use-athlete-id';
 import { Button, EmptyState, LoadingBlock, Skeleton, BackNav } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { FeedAvatar } from '@/components/FeedAvatar';
@@ -55,25 +56,20 @@ export default function TeammateProfilePage() {
   const tProfile = useTranslations('profile');
   const tc = useTranslations('common');
 
-  // The viewer's own athlete id, same localStorage convention used across the
-  // app (see dashboard/profile/page.tsx). `viewerLoaded` distinguishes "not
-  // read yet" from "read, and there genuinely is none", so the connections
-  // fetch doesn't fire once with a missing viewerId and again a moment later.
-  const [viewerId, setViewerId] = useState('');
-  const [viewerLoaded, setViewerLoaded] = useState(false);
-  useEffect(() => {
-    setViewerId(localStorage.getItem('athlete_id') || '');
-    setViewerLoaded(true);
-  }, []);
+  // The viewer's own athlete id, read during the first render (see
+  // src/lib/use-athlete-id.ts). This replaced a mount effect plus a
+  // `viewerLoaded` flag whose only job was to stop the connections fetch from
+  // firing once without a viewerId and again a moment later — with the id known
+  // on render #1 there is no "not read yet" state left to distinguish.
+  const viewerId = useAthleteId();
 
   const { data: profile, error: profileError, isLoading: profileLoading } = useApi<PublicProfile>(
     id ? `/api/athletes/${id}/public` : null,
   );
 
-  const connectionsKey =
-    id && viewerLoaded
-      ? `/api/athletes/${id}/connections${viewerId ? `?viewerId=${encodeURIComponent(viewerId)}` : ''}`
-      : null;
+  const connectionsKey = id
+    ? `/api/athletes/${id}/connections${viewerId ? `?viewerId=${encodeURIComponent(viewerId)}` : ''}`
+    : null;
   const {
     data: connections,
     isLoading: connectionsLoading,
@@ -85,7 +81,7 @@ export default function TeammateProfilePage() {
   // folded into the connections request: a favourite is private, and the
   // connections payload is about this athlete's public social graph.
   const { data: favorites, mutate: mutateFavorites } = useApi<{ athleteIds: string[] }>(
-    viewerLoaded && viewerId ? '/api/athletes/favorites' : null,
+    viewerId ? '/api/athletes/favorites' : null,
   );
   const isFavorite = !!favorites?.athleteIds?.includes(id);
   const [favoritePending, setFavoritePending] = useState(false);
@@ -126,7 +122,7 @@ export default function TeammateProfilePage() {
   // Viewing your own profile via this route (e.g. from a shared link) — no
   // self-follow concept (blocked by the athlete_follows CHECK constraint
   // anyway), so the toggle is hidden entirely rather than shown disabled.
-  const isOwnProfile = viewerLoaded && !!viewerId && viewerId === id;
+  const isOwnProfile = !!viewerId && viewerId === id;
 
   async function handleFollowToggle() {
     if (!viewerId || !id || !connections || followPending) return;
@@ -231,7 +227,7 @@ export default function TeammateProfilePage() {
           you can do ABOUT this person, but they are two separate actions and not
           one: a follow is public and drives their notifications, a favourite is
           private and only changes what the viewer's own feed shows. */}
-      {!isOwnProfile && viewerLoaded && viewerId && (
+      {!isOwnProfile && viewerId && (
         showConnectionsSkeleton ? (
           <Skeleton className="h-11 w-full rounded-xl" />
         ) : (

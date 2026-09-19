@@ -7,6 +7,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck, ThumbsUp, CheckCircle2, XCircle, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi, apiHeaders } from '@/lib/api';
+import { useAthleteId } from '@/lib/use-athlete-id';
 import { SkeletonList, EmptyState, InsetSection, InsetRow } from '@/components/ui';
 import {
   type HistoryItem as Item,
@@ -199,26 +200,31 @@ export default function NotificationsInboxPage() {
   const locale = useLocale();
   const dateLocale = locale === 'he' ? 'he-IL' : 'en-US';
 
-  // athleteId comes from localStorage (client-only); resolve on mount so the SWR
-  // key is SSR-safe. null = not yet resolved, '' = resolved but no athlete.
-  const [athleteId, setAthleteId] = useState<string | null>(null);
-  useEffect(() => { setAthleteId(localStorage.getItem('athlete_id') || ''); }, []);
+  // Known on the FIRST render, not after a mount effect — this is the screen
+  // 41b26dca was reported from, and the reason it showed a spinner on every open
+  // was that a null SWR key on render #1 gave the persisted cache nothing to
+  // paint. See src/lib/use-athlete-id.ts. '' = no athlete row.
+  const athleteId = useAthleteId();
 
   const { data } = useApi<{ items?: Item[] }>(
     athleteId ? `/api/notifications/inbox?athleteId=${encodeURIComponent(athleteId)}` : null,
   );
   const items = useMemo(() => data?.items || [], [data]);
-  const loading = athleteId === null || (!!athleteId && !data);
+  const loading = !!athleteId && !data;
 
-  // Locally-dismissed ids (group "X" target) — see readStoreKey() above.
-  const [clearedIds, setClearedIds] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    if (!athleteId) return;
+  // Locally-dismissed ids (group "X" target) — see readStoreKey() above. Read in
+  // the initializer for the same reason as athleteId: now that the list can paint
+  // from cache on the first frame, loading this one commit later would flash every
+  // already-read row as unread.
+  const [clearedIds, setClearedIds] = useState<Set<string>>(() => {
+    if (!athleteId) return new Set();
     try {
       const raw = localStorage.getItem(readStoreKey(athleteId));
-      if (raw) setClearedIds(new Set(JSON.parse(raw)));
-    } catch { /* corrupt/missing storage — start clean */ }
-  }, [athleteId]);
+      return raw ? new Set<string>(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set(); // corrupt/missing storage — start clean
+    }
+  });
 
   const isUnread = useCallback((it: Item) => it.unread && !clearedIds.has(it.id), [clearedIds]);
   const totalUnread = useMemo(() => items.filter(isUnread).length, [items, isUnread]);

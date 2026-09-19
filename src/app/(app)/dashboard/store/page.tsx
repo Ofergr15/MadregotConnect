@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { ShoppingBag, ShoppingCart, X, Plus, Minus, Trash2, CheckCircle2, Package } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useApi, apiHeaders } from '@/lib/api';
+import { useAthleteId } from '@/lib/use-athlete-id';
 import { Card, Button, EmptyState, SkeletonCard, SegmentedControl, Sheet } from '@/components/ui';
 
 interface Product {
@@ -46,8 +47,20 @@ function StorePageContent() {
   const t = useTranslations('store');
   const locale = useLocale();
   const [tab, setTab] = useState<'shop' | 'orders'>('shop');
-  const [athleteId, setAthleteId] = useState('');
-  const [cart, setCart] = useState<CartLine[]>([]);
+  // First render, not a mount effect — see src/lib/use-athlete-id.ts (41b26dca).
+  const athleteId = useAthleteId();
+  // Restored in the initializer, not an effect: the write-back effect below fires
+  // on the very first commit, and a cart that is still empty at that point would
+  // be persisted OVER the stored one before the load had run.
+  const [cart, setCart] = useState<CartLine[]>(() => {
+    if (!athleteId) return [];
+    try {
+      const raw = localStorage.getItem(cartKey(athleteId));
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return []; // corrupt cart
+    }
+  });
   const [cartOpen, setCartOpen] = useState(false);
   const [product, setProduct] = useState<Product | null>(null);
   const [size, setSize] = useState<string | null>(null);
@@ -58,16 +71,6 @@ function StorePageContent() {
   const [placing, setPlacing] = useState(false);
   const [placeError, setPlaceError] = useState('');
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const id = localStorage.getItem('athlete_id') || '';
-    setAthleteId(id);
-    if (!id) return;
-    try {
-      const raw = localStorage.getItem(cartKey(id));
-      if (raw) setCart(JSON.parse(raw));
-    } catch { /* ignore corrupt cart */ }
-  }, []);
 
   useEffect(() => {
     if (!athleteId) return;
