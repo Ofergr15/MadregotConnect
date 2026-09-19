@@ -89,7 +89,7 @@ export async function GET(request: Request) {
     // response are ever looked up, so the extra rows are inert — but note that
     // PostgREST caps an unpaginated select at 1000 rows, so if the roster ever
     // passes ~1000 connected athletes these need scoping (or pagination).
-    const [groupsRes, garminRes, stravaRes] = await Promise.all([
+    const [groupsRes, garminRes, stravaRes, academyRes] = await Promise.all([
       supabase
         .from('groups')
         .select(`
@@ -103,6 +103,18 @@ export async function GET(request: Request) {
         .order('created_at', { ascending: true }),
       supabase.from('athletes').select('id').not('garmin_auth', 'is', null),
       supabase.from('athletes').select('id').not('strava_auth', 'is', null),
+      // aae77577: "filtering the Feed to the academy shows Ofer even though he is
+      // Group C". The filter was right — academy membership is the `is_academy`
+      // flag, not a group — but exactly one athlete carried the flag, so the chip
+      // meant "one person" and read as broken. The feed hides the chip until the
+      // academy has members, and this is the count it hides on.
+      //
+      // It rides this route rather than /api/academy/* because the feed already
+      // loads this one on every render and the extra lookup is id-only, inside the
+      // same Promise.all — so it costs no wall clock (same trick as the two auth
+      // lookups above). Ids and not a name: the response must not start listing
+      // who is in the academy to a caller who only asked for the group list.
+      supabase.from('athletes').select('id').eq('is_academy', true),
     ]);
 
     const { data: groups, error } = groupsRes;
@@ -157,7 +169,13 @@ export async function GET(request: Request) {
       };
     });
 
-    const body = { groups: transformedGroups || [] };
+    // `null`, not 0, when the lookup itself failed: the feed treats null as "show
+    // the chip", i.e. the behaviour before aae77577. A failed count must not make a
+    // working filter vanish — only a real, confident "nobody is in the academy"
+    // should do that.
+    const academyCount = academyRes.error ? null : (academyRes.data || []).length;
+
+    const body = { groups: transformedGroups || [], academyCount };
     // Only a read that answered — the catch below is a 500, so there is no
     // empty-club response to memoise.
     memo.set(coachId, { body, expires: Date.now() + MEMO_TTL_MS });

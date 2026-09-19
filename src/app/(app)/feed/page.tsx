@@ -59,6 +59,12 @@ type FilterKey = (typeof FILTERS)[number]['key'];
 const ACADEMY_CHIP = 'academy';
 
 /**
+ * How many flagged athletes the academy needs before the feed offers to filter to
+ * it (aae77577). One is the club's testing state, not an academy.
+ */
+const MIN_ACADEMY_FOR_CHIP = 2;
+
+/**
  * One squad chip. Same shape as the type chips above it, with the squad's own
  * colour as the selected fill so the three דבוקות stay the colours they are
  * everywhere else in the app (GROUP_HEX via resolveGroup) — a squad filter that
@@ -155,7 +161,10 @@ export default function FeedPage() {
   const [filter, setFilter] = useState<FilterKey>('all');
   /** A group id, `ACADEMY_CHIP`, or null for the whole club. */
   const [squad, setSquad] = useState<string | null>(null);
-  const { data: groupsData } = useApi<{ groups?: { id: string; name: string }[] }>('/api/groups');
+  const { data: groupsData } = useApi<{
+    groups?: { id: string; name: string }[];
+    academyCount?: number | null;
+  }>('/api/groups');
 
   const [myName, setMyName] = useState('');
   const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
@@ -309,6 +318,11 @@ export default function FeedPage() {
       })
       .sort((a, b) => (a.index < 0 ? 1 : a.index) - (b.index < 0 ? 1 : b.index));
   }, [groupsData, t]);
+
+  // Two, not one: a filter that can only ever return one person's runs is not a
+  // filter. See the chip below.
+  const academyCount = groupsData?.academyCount;
+  const showAcademyChip = academyCount == null || academyCount >= MIN_ACADEMY_FOR_CHIP;
 
   const loadInitial = useCallback(async () => {
     // Skip the loading gate when a cached page is already on screen — pull-to-
@@ -549,11 +563,19 @@ export default function FeedPage() {
               hex={chip.hex}
             />
           ))}
-          <SquadChip
-            active={squad === ACADEMY_CHIP}
-            onClick={() => setSquad(ACADEMY_CHIP)}
-            label={t('filterAcademy')}
-          />
+          {/* aae77577: hidden until the academy actually has members. The filter
+              itself was never wrong — academy membership is the `is_academy` flag
+              and not a group — but with one flagged athlete the chip was a filter
+              down to one person, which reads as a bug rather than as a filter.
+              `undefined`/`null` means the count did not answer, and then the chip
+              stays: a failed read must not hide a working feature. */}
+          {showAcademyChip && (
+            <SquadChip
+              active={squad === ACADEMY_CHIP}
+              onClick={() => setSquad(ACADEMY_CHIP)}
+              label={t('filterAcademy')}
+            />
+          )}
           {/* ff8d932e: "add to favorites for specific athletes, and then a
               Favorites view". It belongs on THIS row and not in a mode of its
               own — it answers the same question the squad chips do, whose runs
