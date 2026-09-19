@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { googleMapsUrl, parseMapLink } from '@/lib/events/map-link';
+import { googleMapsUrl, isAllowedMapUrl, isShortMapLink, parseMapLink } from '@/lib/events/map-link';
 
 /** Every link below was taken from a real Google Maps share, not invented. */
 describe('parseMapLink', () => {
@@ -93,5 +93,48 @@ describe('googleMapsUrl', () => {
   it('round-trips through the parser', () => {
     const point = { lat: 31.7683, lng: 35.2137 };
     expect(parseMapLink(googleMapsUrl(point))).toEqual({ ok: true, point });
+  });
+});
+
+describe('isAllowedMapUrl — the boundary that makes the server-side hop safe', () => {
+  it('allows https on the Google domains the redirector uses', () => {
+    expect(isAllowedMapUrl('https://maps.app.goo.gl/AbCdEf')).toBe(true);
+    expect(isAllowedMapUrl('https://goo.gl/maps/AbCdEf')).toBe(true);
+    expect(isAllowedMapUrl('https://www.google.com/maps/place/X/@32.1,34.8,15z')).toBe(true);
+    expect(isAllowedMapUrl('https://maps.google.co.il/?q=32.1,34.8')).toBe(true);
+  });
+
+  it('refuses every other host, including look-alikes', () => {
+    expect(isAllowedMapUrl('https://google.com.evil.test/maps')).toBe(false);
+    expect(isAllowedMapUrl('https://notgoogle.com/maps')).toBe(false);
+    expect(isAllowedMapUrl('https://evil.test/?x=google.com')).toBe(false);
+    // The suffix match is on a dot boundary, so this is NOT a subdomain of goo.gl.
+    expect(isAllowedMapUrl('https://xgoo.gl/maps/A')).toBe(false);
+  });
+
+  it('refuses anything that is not https, including internal addresses', () => {
+    expect(isAllowedMapUrl('http://www.google.com/maps')).toBe(false);
+    expect(isAllowedMapUrl('http://169.254.169.254/latest/meta-data/')).toBe(false);
+    expect(isAllowedMapUrl('https://127.0.0.1/maps')).toBe(false);
+    expect(isAllowedMapUrl('file:///etc/passwd')).toBe(false);
+    expect(isAllowedMapUrl('not a url')).toBe(false);
+  });
+
+  it('refuses credentials in the URL, which make a host read as one thing and fetch as another', () => {
+    expect(isAllowedMapUrl('https://www.google.com@evil.test/maps')).toBe(false);
+    expect(isAllowedMapUrl('https://user:pw@maps.app.goo.gl/AbCdEf')).toBe(false);
+  });
+});
+
+describe('isShortMapLink', () => {
+  it('recognises the links that need expanding', () => {
+    expect(isShortMapLink('https://maps.app.goo.gl/AbCdEf')).toBe(true);
+    expect(isShortMapLink('https://goo.gl/maps/AbCdEf')).toBe(true);
+  });
+
+  it('does not claim a full link needs expanding', () => {
+    expect(isShortMapLink('https://www.google.com/maps/@32.1,34.8,15z')).toBe(false);
+    expect(isShortMapLink('32.0853, 34.7818')).toBe(false);
+    expect(isShortMapLink('')).toBe(false);
   });
 });

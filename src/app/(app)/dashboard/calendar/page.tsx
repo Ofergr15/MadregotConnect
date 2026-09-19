@@ -17,7 +17,7 @@ import { useApi } from '@/lib/api';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { EVENT_KINDS, type EventKind } from '@/lib/events';
-import { parseMapLink } from '@/lib/events/map-link';
+import { isShortMapLink, parseMapLink, type MapPoint } from '@/lib/events/map-link';
 import { Button, EmptyState, Sheet, SkeletonCard, SegmentedControl, InsetSection, InsetRow } from '@/components/ui';
 
 // Generic events/calendar browser (roadmap Phase 3 — #4 Calendar). A month
@@ -550,10 +550,60 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
   // BEFORE the event is saved. The paste either resolves to a point on the map or
   // it does not, and that is worth knowing while the link is still on the clipboard.
   const mapParse = mapLink.trim() ? parseMapLink(mapLink) : null;
-  const mapPoint = mapParse?.ok ? mapParse.point : null;
+  // A short link has no coordinates in it, so the server expands it (see
+  // /api/events/resolve-map-link). Held separately from the local parse rather than
+  // written back into the input: replacing what somebody just pasted with a
+  // 150-character URL they did not type is startling, and it also destroys the
+  // evidence if the resolution turns out to be wrong.
+  const [resolved, setResolved] = useState<{ link: string; point: MapPoint } | null>(null);
+  const [resolving, setResolving] = useState(false);
+  const [mapLinkError, setMapLinkError] = useState('');
+  const mapPoint = mapParse?.ok
+    ? mapParse.point
+    : resolved && resolved.link === mapLink.trim()
+      ? resolved.point
+      : null;
+
+  // Expands a short link as soon as one is in the box, so the confirmation line
+  // behaves the same for both kinds of link. Keyed on the exact text that was
+  // resolved, so an edit invalidates the answer instead of silently keeping a pin
+  // from the previous paste.
+  useEffect(() => {
+    const value = mapLink.trim();
+    setMapLinkError('');
+    if (!value || !isShortMapLink(value)) return;
+    if (resolved?.link === value) return;
+
+    let cancelled = false;
+    setResolving(true);
+    (async () => {
+      try {
+        const res = await authedFetch('/api/events/resolve-map-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: value }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (res.ok && typeof data.lat === 'number' && typeof data.lng === 'number') {
+          setResolved({ link: value, point: { lat: data.lat, lng: data.lng } });
+        } else {
+          setMapLinkError(
+            data.error === 'unreachable' ? t('addEvent.mapLinkUnreachable') : t('addEvent.mapLinkShort'),
+          );
+        }
+      } catch {
+        if (!cancelled) setMapLinkError(t('addEvent.mapLinkUnreachable'));
+      } finally {
+        if (!cancelled) setResolving(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [mapLink, resolved, t]);
 
   const reset = () => {
     setKind('race'); setName(''); setDate(todayIso()); setLocation(''); setMapLink('');
+    setResolved(null); setMapLinkError('');
     setDescription(''); setCapacity(''); setError('');
   };
 
@@ -570,9 +620,19 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
     }
     // A link that was typed but cannot be read is a hard stop, not a silent drop:
     // somebody who pasted a location expects the pin to be there, and finding out
-    // on race week that it never saved is worse than being told now.
-    if (mapParse && !mapParse.ok) {
-      setError(mapParse.reason === 'shortLink' ? t('addEvent.mapLinkShort') : t('addEvent.mapLinkInvalid'));
+    // on race week that it never saved is worse than being told now. A short link
+    // still in flight waits rather than failing — it is about to succeed.
+    if (mapLink.trim() && !mapPoint) {
+      if (resolving) {
+        setError(t('addEvent.mapLinkResolving'));
+        return;
+      }
+      setError(
+        mapLinkError ||
+          (mapParse && !mapParse.ok && mapParse.reason === 'shortLink'
+            ? t('addEvent.mapLinkShort')
+            : t('addEvent.mapLinkInvalid')),
+      );
       return;
     }
     setSubmitting(true);
@@ -682,10 +742,20 @@ function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: (
                 inputMode="url"
                 className="w-full bg-transparent text-sm text-ink-700 placeholder-ink-400 focus:outline-none"
               />
-              <p className="mt-1 text-2xs text-ink-400" dir="auto">
-                {mapPoint
-                  ? t('addEvent.mapLinkResolved', { lat: mapPoint.lat.toFixed(4), lng: mapPoint.lng.toFixed(4) })
-                  : t('addEvent.mapLinkHint')}
+              <p
+                className={cn('mt-1 text-2xs', mapLinkError ? 'text-accent-red-ink' : 'text-ink-400')}
+                dir="auto"
+              >
+                {mapLinkError
+                  ? mapLinkError
+                  : resolving
+                    ? t('addEvent.mapLinkResolving')
+                    : mapPoint
+                      ? t('addEvent.mapLinkResolved', {
+                          lat: mapPoint.lat.toFixed(4),
+                          lng: mapPoint.lng.toFixed(4),
+                        })
+                      : t('addEvent.mapLinkHint')}
               </p>
             </div>
             <div className="px-4 py-3">

@@ -143,3 +143,42 @@ export function parseMapLink(input: string): MapLinkResult {
 export function googleMapsUrl(point: MapPoint): string {
   return `https://www.google.com/maps/search/?api=1&query=${point.lat},${point.lng}`;
 }
+
+/**
+ * ── Expanding a short link ───────────────────────────────────────────────────
+ * The docblock at the top of this file used to say a short link would simply be
+ * refused. Asked for anyway ("add paste support for the shortened link"), which is
+ * fair: the share sheet on a phone produces a short link and nothing else, so
+ * refusing them refuses the normal way of doing this.
+ *
+ * It needs one server-side hop, and the ONLY thing that keeps that hop from being
+ * a request-forgery hole is this host list. It is a suffix match on the registrable
+ * domain, checked again on every redirect in the chain — not once on the input —
+ * because a redirect is attacker-controlled input too, and an open redirector on a
+ * trusted host is how a one-hop check gets walked to an internal address.
+ *
+ * Deliberately not configurable and deliberately tiny: three domains Google itself
+ * emits. Anything else, including any bare IP or any non-https scheme, fails.
+ */
+const ALLOWED_MAP_HOSTS = ['goo.gl', 'google.com', 'google.co.il', 'g.co'];
+
+/** Is this a URL the resolver is allowed to fetch? Applied to every hop. */
+export function isAllowedMapUrl(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'https:') return false;
+  // Credentials in a URL are never needed here and are a classic way to make a
+  // host look like one thing to a reader and another to a fetcher.
+  if (url.username || url.password) return false;
+  const host = url.hostname.toLowerCase();
+  return ALLOWED_MAP_HOSTS.some(domain => host === domain || host.endsWith(`.${domain}`));
+}
+
+/** Does this look like a link that needs expanding before it can be read? */
+export function isShortMapLink(value: string): boolean {
+  return SHORT_LINK_RE.test((value || '').trim());
+}
