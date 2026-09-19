@@ -35,7 +35,16 @@ export interface WhatsNewEntry {
   /** `YYYY-MM-DD`, the day it reached prod. */
   publishedAt: string;
   art: WhatsNewArt;
-  /** Where the row goes. An in-app path: the row is a door, not an OK button. */
+  /**
+   * Where the row goes — and it must be a REAL route, i.e. a directory under
+   * `src/app/(app)/`. `/program` was written here first and there is no such
+   * page (it is `/dashboard/program`), which is half of why the rows looked dead
+   * in 2.40.91. The test asserts every href resolves to a page on disk.
+   *
+   * Point it at a page that SHOWS the feature, not at the page the reader is
+   * already on: both of these features live on the feed, and sending somebody
+   * from the feed back to the feed is indistinguishable from a broken row.
+   */
   href: string;
   he: WhatsNewCopy;
   en: WhatsNewCopy;
@@ -61,7 +70,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     slug: 'next-session-feed-2026-09',
     publishedAt: '2026-09-19',
     art: 'nextSession',
-    href: '/program',
+    href: '/dashboard/program',
     he: {
       title: 'האימון של מחר, בפיד',
       body: 'מה יש מחר, כמה ק״מ, ואם זה כבר נמצא בשעון. לחיצה פותחת את האימון המלא.',

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { Sheet } from '@/components/ui/Sheet';
@@ -47,9 +47,14 @@ function EntryRow({
   const copy = entry[lang];
   // The chevron points at the row's trailing edge, which flips with the script.
   const Chevron = lang === 'he' ? ChevronLeft : ChevronRight;
+  // A real <Link>, not a button that calls router.push: lib/use-back-dismiss.ts
+  // watches for a click inside `a[href]` to know a navigation is coming, and
+  // without that evidence it pops the sheet's own history entry on close — which
+  // cancels the push outright and leaves the reader exactly where they were.
+  // This row looked dead in 2.40.91 for precisely that reason.
   return (
-    <button
-      type="button"
+    <Link
+      href={entry.href}
       onClick={onOpen}
       className="flex w-full items-center gap-3 py-3 text-start active:opacity-70"
     >
@@ -66,7 +71,7 @@ function EntryRow({
         <span className="mt-0.5 block text-xs leading-snug text-ink-500">{copy.body}</span>
       </span>
       <Chevron className="h-4 w-4 shrink-0 text-ink-300" />
-    </button>
+    </Link>
   );
 }
 
@@ -80,7 +85,6 @@ export function WhatsNewSheet({
   newSlugs?: string[];
 }) {
   const t = useTranslations('whatsNew');
-  const router = useRouter();
   const lang = localeLang(useLocale());
 
   if (entries.length === 0) return null;
@@ -118,10 +122,7 @@ export function WhatsNewSheet({
             entry={e}
             lang={lang}
             isNew={newSlugs.includes(e.slug)}
-            onOpen={() => {
-              onOpenChange(false);
-              router.push(e.href);
-            }}
+            onOpen={() => onOpenChange(false)}
           />
         ))}
       </div>

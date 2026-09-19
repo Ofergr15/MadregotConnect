@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join } from 'path';
 import { WHATS_NEW, WHATS_NEW_LANGS, type WhatsNewEntry } from '@/lib/whats-new/entries';
@@ -135,6 +135,23 @@ describe('the entries file', () => {
     }
   });
 
+  it('points every row at a page that exists', () => {
+    // `/program` shipped here once and is a 404 — the real route is
+    // `/dashboard/program`. A dead href is invisible until someone taps it.
+    for (const e of WHATS_NEW) {
+      const dir = join(SRC, 'app/(app)', e.href);
+      expect(existsSync(join(dir, 'page.tsx')), `${e.slug} → ${e.href}`).toBe(true);
+    }
+  });
+
+  it('never sends a reader from the feed back to the feed', () => {
+    // The sheet opens ON the feed. A row pointing at /feed closes the sheet and
+    // changes nothing, which reads as broken even though it navigated.
+    for (const e of WHATS_NEW) {
+      expect(e.href, `${e.slug}.href`).not.toBe('/feed');
+    }
+  });
+
   it('keeps Hebrew out of the English copy', () => {
     const hebrew = /[֐-׿]/;
     for (const e of WHATS_NEW) {
@@ -160,7 +177,15 @@ describe('the sheet component', () => {
   });
 
   it('sends every row into its feature instead of just closing', () => {
-    expect(sheet).toMatch(/router\.push\(e\.href\)/);
+    expect(sheet).toMatch(/<Link\s+href=\{entry\.href\}/);
+  });
+
+  it('navigates with a real anchor, because router.push here gets cancelled', () => {
+    // lib/use-back-dismiss.ts only learns a navigation is coming by seeing the
+    // click land inside `a[href]`; from a <button> it pops the sheet's history
+    // entry on close and the push never lands. That was the 2.40.91 dead row.
+    expect(sheet).not.toMatch(/from 'next\/navigation'|router\.push\(/);
+    expect(sheet).toMatch(/import Link from 'next\/link'/);
   });
 
   it('is recallable from settings, and reopening it spends nothing', () => {
