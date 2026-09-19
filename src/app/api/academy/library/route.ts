@@ -108,7 +108,18 @@ export async function GET(request: Request) {
       .map(toEntry)
       .filter(e => e.scope === 'academy' || (caller.athleteId && e.ownerId === caller.athleteId));
 
-    return NextResponse.json({ entries });
+    // Who is reading, in the two terms the screen needs: a manager gets the shelf picker in
+    // the editor, and everyone else must not be offered a choice that would 403 on save. The
+    // same two facts decide which rows get an עריכה button, and deriving them client-side
+    // from the entry list is not possible — `scope: 'mine'` rows are already filtered to the
+    // caller, so the list alone cannot say whether the canon rows are theirs to touch.
+    return NextResponse.json({
+      entries,
+      viewer: {
+        athleteId: caller.athleteId ?? null,
+        isManager: caller.isSuperUser || caller.role === 'admin',
+      },
+    });
   } catch {
     return NextResponse.json({ error: 'Failed to read the library' }, { status: 500 });
   }

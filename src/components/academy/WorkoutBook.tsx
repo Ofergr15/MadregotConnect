@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Copy, Heart, Layers, Search } from 'lucide-react';
+import { Archive, BookOpen, Copy, Heart, Layers, Pencil, Plus, Search } from 'lucide-react';
 import { apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { KIND_LABEL, ZONE_LABEL } from './libraryText';
+import { WorkoutEditor, type WorkoutDraftPayload } from './WorkoutEditor';
 import {
   LIBRARY_KINDS,
+  duplicateEntry,
   entryHeadline,
   entryShape,
   entryVolume,
@@ -32,32 +35,6 @@ import {
 // omission. An entry holds `102% מהסף`, and the number a trainee runs does not exist until
 // one is chosen — see the explainer box at the bottom, which is on the screen precisely
 // because a coach looking for a pace and not finding one would otherwise assume it broke.
-
-const KIND_LABEL: Record<LibraryKind, string> = {
-  intervals: 'אינטרוולים',
-  tempo: 'טמפו',
-  long: 'ארוך',
-  easy: 'קל',
-  hills: 'גבעות',
-  test: 'טסט',
-};
-
-/**
- * The academy's own words for each effort.
- *
- * `threshold` is `קצב סף` — the phrase the mockup writes into the list row itself, and the
- * one Ofer uses out loud. An effort with no zone name falls through to its percentage,
- * which is the mockup's second row (`102% מהסף`) and the general case: the book can hold
- * any intensity, not only the six with names.
- */
-const ZONE_LABEL: Record<string, string> = {
-  easy: 'קל',
-  marathon_pace: 'קצב מרתון',
-  tempo: 'טמפו',
-  threshold: 'קצב סף',
-  interval: 'אינטרוולים',
-  sprint: 'ספרינט',
-};
 
 function effortLabel(steps: LibraryEntry['steps']): React.ReactNode {
   const headline = entryHeadline(steps);
@@ -102,11 +79,20 @@ export function BookList({
   scope,
   onScope,
   onDuplicate,
+  onNew,
+  onEdit,
+  canEdit,
+  busyId,
 }: {
   entries: LibraryEntry[];
   scope: LibraryScope;
   onScope: (next: LibraryScope) => void;
   onDuplicate?: (entry: LibraryEntry) => void;
+  onNew?: () => void;
+  onEdit?: (entry: LibraryEntry) => void;
+  /** Whether this viewer may write to the row at all — a mentor may not touch the canon. */
+  canEdit?: (entry: LibraryEntry) => boolean;
+  busyId?: string | null;
 }) {
   const [query, setQuery] = useState('');
   const [kind, setKind] = useState<LibraryKind | null>(null);
@@ -207,9 +193,29 @@ export function BookList({
       ) : (
         <div className="space-y-1.5">
           {shown.map(entry => (
-            <Row key={entry.id} entry={entry} onDuplicate={onDuplicate} />
+            <Row
+              key={entry.id}
+              entry={entry}
+              onDuplicate={onDuplicate}
+              onEdit={canEdit && !canEdit(entry) ? undefined : onEdit}
+              busy={busyId === entry.id}
+            />
           ))}
         </div>
+      )}
+
+      {/* The footer button, where the mockup puts it: under the shelf, so the answer to "the
+          session I want is not here" is one thumb-reach from where the coach just failed to
+          find it. */}
+      {onNew && (
+        <button
+          type="button"
+          onClick={onNew}
+          className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-card bg-brand-600 text-sm font-bold text-white"
+        >
+          <Plus className="h-4 w-4" />
+          אימון חדש
+        </button>
       )}
 
       {/* On the screen and not only in the mockup. A coach looking for the pace of a session
@@ -240,16 +246,20 @@ export function BookList({
 function Row({
   entry,
   onDuplicate,
+  onEdit,
+  busy,
 }: {
   entry: LibraryEntry;
   onDuplicate?: (entry: LibraryEntry) => void;
+  onEdit?: (entry: LibraryEntry) => void;
+  busy?: boolean;
 }) {
   const shape = entryShape(entry.steps);
   const { distanceM, durationSec } = entryVolume(entry.steps);
   const effort = effortLabel(entry.steps);
 
   return (
-    <div className="flex items-center gap-3 rounded-card bg-card px-3 py-3 text-right">
+    <div className={cn('flex items-center gap-3 rounded-card bg-card px-3 py-3 text-right', busy && 'opacity-50')}>
       {/* The structure, on the leading edge, because that is what a coach recognises the
           session by before reading anything. band-3 for the heart-rate sessions — the
           academy's one warning-free accent that is not brand blue — so the entries that
@@ -272,10 +282,36 @@ function Row({
         </span>
       )}
 
-      <div className="min-w-0 flex-1">
+      {/* The row body IS the edit control, and nothing else would fit: three icon buttons at
+          44px each is 132px of a 375px row, on a list whose rows are told apart by names that
+          already truncate. An entry this viewer may not write to is not a button at all —
+          `canEdit` withholds `onEdit` rather than showing one that 404s. Archive lives inside
+          the editor for the same reason: one control here, and the destructive one is a step
+          further in. */}
+      <div
+        // 44px on the BODY once it is the control, and not only on the row: the row's `py-3`
+        // belongs to the row, so the two lines of text measured 38px on their own — and the
+        // text is what a thumb lands on.
+        className={cn('min-w-0 flex-1', onEdit && 'flex min-h-[44px] flex-col justify-center')}
+        {...(onEdit ? {
+          role: 'button' as const,
+          tabIndex: 0,
+          onClick: () => onEdit(entry),
+          onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(entry); }
+          },
+          'aria-label': `עריכת ${entry.name}`,
+        } : {})}
+      >
         {/* The name gets the whole line. The author used to sit beside it and cost it 50px of
             the 200 it has — on a list whose rows are told apart by their names. */}
-        <p className="truncate text-sm font-bold text-ink-900" dir="auto">{entry.name}</p>
+        {/* The name in its own `truncate` span and not on the flex row: an ellipsis needs a
+            block to clip, and a bare text node beside an icon is an anonymous flex item that
+            simply overflows instead. */}
+        <p className="flex items-center gap-1 text-sm font-bold text-ink-900">
+          <span className="truncate" dir="auto">{entry.name}</span>
+          {onEdit && <Pencil className="h-3 w-3 shrink-0 text-ink-400" aria-hidden />}
+        </p>
         {/* One measure of size, not two. A session written in minutes is a session whose
             kilometres are its warmup — the mockup's own heart-rate row prints no distance at
             all — and printing both ran the line past its width, which truncates from the end
@@ -307,12 +343,24 @@ function Row({
   );
 }
 
+interface Viewer {
+  athleteId: string | null;
+  isManager: boolean;
+}
+
+/** What the editor is open on. `null` is the list. */
+type Editing = { mode: 'new'; from?: LibraryEntry } | { mode: 'edit'; entry: LibraryEntry };
+
 /** The fetching wrapper. Staff-only screen, so it does not guard on identity here. */
 export function WorkoutBook() {
   const [entries, setEntries] = useState<LibraryEntry[] | null>(null);
+  const [viewer, setViewer] = useState<Viewer>({ athleteId: null, isManager: false });
   const [error, setError] = useState<string | null>(null);
   const [notSetUp, setNotSetUp] = useState(false);
   const [scope, setScope] = useState<LibraryScope>('mine');
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -324,12 +372,90 @@ export function WorkoutBook() {
         if (!res.ok) { setError(data?.error || 'לא הצלחנו לטעון את ספר האימונים'); return; }
         setNotSetUp(!!data.tableMissing);
         setEntries((data.entries || []) as LibraryEntry[]);
+        if (data.viewer) setViewer(data.viewer as Viewer);
       } catch {
         if (!cancelled) setError('לא הצלחנו לטעון את ספר האימונים');
       }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  /**
+   * A row is this coach's to write when it is on their own shelf, or when they hold the canon.
+   *
+   * The same rule the route enforces, restated here only to decide what to DRAW — the route
+   * stays the authority, and it answers a write you may not make with 404. Drawing a control
+   * that 404s is the one thing this must not do: the coach's reading of that is not "I may not
+   * edit the canon", it is "the book is broken".
+   */
+  const canEdit = (entry: LibraryEntry) =>
+    entry.scope === 'academy' ? viewer.isManager : entry.ownerId === viewer.athleteId;
+
+  const save = async (payload: WorkoutDraftPayload) => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const editingId = editing?.mode === 'edit' ? editing.entry.id : null;
+      const res = await fetch('/api/academy/library', {
+        method: editingId ? 'PATCH' : 'POST',
+        headers: { ...(await apiHeaders()), 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingId ? { id: editingId, action: 'edit', ...payload } : payload),
+      });
+      const data = await res.json();
+      if (!res.ok) { setSaveError(data?.error || 'לא הצלחנו לשמור את האימון'); return; }
+      const saved = data.entry as LibraryEntry;
+      setEntries(list => {
+        const rest = (list || []).filter(e => e.id !== saved.id);
+        return [...rest, saved];
+      });
+      // Onto the shelf it actually landed on, so the coach sees the row they just wrote
+      // rather than an unchanged list — an academy entry saved from the `שלי` tab is
+      // otherwise invisible the moment it is saved.
+      setScope(saved.scope);
+      setEditing(null);
+    } catch {
+      setSaveError('לא הצלחנו לשמור את האימון');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const archive = async (entry: LibraryEntry) => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const res = await fetch('/api/academy/library', {
+        method: 'PATCH',
+        headers: { ...(await apiHeaders()), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: entry.id, action: 'archive' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setSaveError(data?.error || 'לא הצלחנו להוציא את האימון מהספר'); return; }
+      setEntries(list => (list || []).filter(e => e.id !== entry.id));
+      setEditing(null);
+    } catch {
+      setSaveError('לא הצלחנו להוציא את האימון מהספר');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /**
+   * Duplicate. Opens the editor rather than writing a row.
+   *
+   * The point of duplicating is almost always to change something, and the change belongs in
+   * front of the coach rather than behind a second tap on a row they have not read. It also
+   * puts the shelf's unique index where it can be answered: a copy of a canon entry lands on
+   * `שלי` and usually does not collide, and when it does the 409 arrives as a sentence about
+   * the name in a form that has a name field, not as a failed tap on a list.
+   *
+   * `duplicateEntry` still builds it, because it is the thing that deep-clones the steps —
+   * sharing the array would let an edit here rewrite the entry it was copied from.
+   */
+  const duplicate = (entry: LibraryEntry) => {
+    setSaveError(null);
+    setEditing({ mode: 'new', from: { ...entry, ...duplicateEntry(entry, viewer.athleteId ?? '') } });
+  };
 
   if (error) return <p className="py-6 text-center text-xs text-accent-red-ink">{error}</p>;
   // Said plainly rather than as an empty book: migration 109 is pasted in by hand, and a
@@ -338,7 +464,36 @@ export function WorkoutBook() {
     return <p className="py-6 text-center text-xs text-ink-400">ספר האימונים עדיין לא הוגדר במסד הנתונים.</p>;
   }
   if (!entries) return <p className="py-6 text-center text-xs text-ink-400">טוען…</p>;
-  return <BookList entries={entries} scope={scope} onScope={setScope} />;
+
+  if (editing) {
+    const entry = editing.mode === 'edit' ? editing.entry : editing.from;
+    return (
+      <WorkoutEditor
+        // Remounted per entry, so the fields hold the workout that was opened and not the one
+        // before it: the editor's state is seeded from `initial` once, by design.
+        key={editing.mode === 'edit' ? editing.entry.id : `new:${entry?.id ?? ''}`}
+        initial={entry}
+        canWriteCanon={viewer.isManager}
+        saving={saving}
+        error={saveError}
+        onSave={save}
+        onArchive={editing.mode === 'edit' ? () => archive(editing.entry) : undefined}
+        onCancel={() => { setSaveError(null); setEditing(null); }}
+      />
+    );
+  }
+
+  return (
+    <BookList
+      entries={entries}
+      scope={scope}
+      onScope={setScope}
+      onNew={() => { setSaveError(null); setEditing({ mode: 'new' }); }}
+      onEdit={entry => { setSaveError(null); setEditing({ mode: 'edit', entry }); }}
+      onDuplicate={duplicate}
+      canEdit={canEdit}
+    />
+  );
 }
 
 /** The icon the tab uses, exported so the page does not import lucide twice. */
