@@ -430,7 +430,12 @@ export function SegmentedControl<T extends string>({
             title={opt.iconOnly ? opt.label : undefined}
             aria-pressed={active}
             className={cn(
-              'min-w-0 flex-1 flex items-center justify-center gap-1.5 rounded-pill px-2 py-2 text-sm font-bold transition-colors min-h-[40px]',
+              // 44 and not 40. The audit measured these segments at 43×38 — under Apple's
+              // floor on the 375px phone and on the 393px one — and it took until a
+              // segmented control appeared on an audited PREVIEW to find out: every one of
+              // the thirty-odd other screens using this sits behind a login the audit runs
+              // without, so the control has been 4px short everywhere for its whole life.
+              'min-w-0 flex-1 flex items-center justify-center gap-1.5 rounded-pill px-2 py-2 text-sm font-bold transition-colors min-h-[44px]',
               active
                 ? cn(opt.activeBg || 'bg-brand-600', 'text-white shadow-sm')
                 : 'text-ink-400 hover:text-ink-700',

@@ -151,6 +151,7 @@ export interface FunnelCandidate {
   stuck: boolean;
   /** Completed stages, in funnel order. */
   done: FunnelStage[];
+  archivedAt: string | null;
   archivedReason: string | null;
 }
 
@@ -168,6 +169,15 @@ export interface FunnelBoard {
   stuck: number;
   joined: number;
   archived: number;
+  /**
+   * The ones who left, most recently first.
+   *
+   * The rows themselves and not just the count, because archiving is reversible — somebody who
+   * said no in March and came back in September keeps every step they already did — and a
+   * count alone leaves no way back. They are off the columns, so nothing about this puts them
+   * in front of the coach's work.
+   */
+  archivedCandidates: FunnelCandidate[];
 }
 
 /**
@@ -235,6 +245,7 @@ export function placeCandidate(
     // colouring them red would put the people who said no at the top of the board forever.
     stuck: status === 'live' && next !== null && daysWaiting >= next.stuckAfterDays,
     done,
+    archivedAt: candidate.archivedAt ?? null,
     archivedReason: candidate.archivedReason ?? null,
   };
 }
@@ -275,12 +286,19 @@ export function buildFunnel({
         a.name.localeCompare(b.name)),
   }));
 
+  const archivedCandidates = placed
+    .filter(c => c.status === 'archived')
+    // Most recently gone first: the one worth a second look is the one who just said no, and
+    // a row with no `archived_at` (archived by hand in SQL) sorts last rather than first.
+    .sort((a, b) => String(b.archivedAt ?? '').localeCompare(String(a.archivedAt ?? '')));
+
   return {
     columns,
     live: live.length,
     stuck: live.filter(c => c.stuck).length,
     joined: placed.filter(c => c.status === 'joined').length,
-    archived: placed.filter(c => c.status === 'archived').length,
+    archived: archivedCandidates.length,
+    archivedCandidates,
   };
 }
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { israelToday } from '@/lib/utils';
 import { buildFunnel, type CandidateEvent, type CandidateRow } from '@/lib/academy/funnel';
-import { CandidateSheet, FunnelBoardView } from '@/components/academy/CandidateFunnel';
+import { AddCandidateSheet, CandidateSheet, FunnelBoardView } from '@/components/academy/CandidateFunnel';
 
 // ── Login-free preview of the candidates board ───────────────────────────────
 //
@@ -51,6 +51,10 @@ const CANDIDATES: (CandidateRow & { email?: string | null; phone?: string | null
   // Said no. Off the board entirely, and NOT deleted: the reason is the answer to
   // "why is he not here", which a deleted row cannot give.
   { id: 'gone', name: 'עומר טל', source: 'instagram', createdAt: at(25), archivedAt: at(9), archivedReason: 'מחיר גבוה מדי בשלב הזה' },
+  // Left LATE — after signing up and running the test — and with no reason recorded. Both
+  // halves are deliberate: people are lost deep in the funnel and not only at the door, and a
+  // row whose reason nobody typed must still be a row somebody can open.
+  { id: 'faded', name: 'תמר אביב', source: 'form', goal: 'מרתון', athleteId: 'a5', createdAt: at(60), archivedAt: at(21) },
 ];
 
 const STEP = (candidateId: string, stage: string, daysAgo: number, over: Partial<CandidateEvent> = {}): CandidateEvent =>
@@ -80,25 +84,41 @@ const EVENTS: CandidateEvent[] = [
 
   STEP('gone', 'form', 25),
   STEP('gone', 'intro_call', 24, { recordedBy: 'yossi@madregot.app', note: 'ביקש לחשוב על זה' }),
+
+  STEP('faded', 'form', 60),
+  STEP('faded', 'intro_call', 58, { recordedBy: 'yossi@madregot.app' }),
+  STEP('faded', 'characterization', 55, { recordedBy: 'ofer@madregot.app' }),
+  STEP('faded', 'signup', 50),
+  STEP('faded', 'test', 40, { recordedBy: 'ofer@madregot.app' }),
 ];
 
 export default function AcademyFunnelPreview() {
   if (process.env.NODE_ENV === 'production') notFound();
 
-  // A query string chooses the state, which is how two audit entries can screenshot
-  // the board and an open card without one navigation interrupting the other.
+  // A query string chooses the state, which is how several audit entries can screenshot
+  // the board, an open card and the new-candidate form without one navigation
+  // interrupting the other.
   //
   // Read in an effect and not in the `useState` initializer: the initializer runs on
   // the server too, where `window` does not exist, so `?card` would render a closed
   // sheet on the server and an open one on the client — the hydration mismatch that
   // makes React discard the tree.
   const [openId, setOpenId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  // Day one: one candidate, and he is stuck, and one person has already said no. Worth its own
+  // state because every counter on this board is singular then — the case Hebrew agreement
+  // makes different rather than smaller, and the case the club will actually open first.
+  const [solo, setSolo] = useState(false);
   useEffect(() => {
-    if (window.location.search.includes('card')) setOpenId('analysis');
+    const q = window.location.search;
+    if (q.includes('card')) setOpenId('analysis');
+    if (q.includes('gone')) setOpenId('gone');
+    if (q.includes('add')) setAdding(true);
+    if (q.includes('solo')) setSolo(true);
   }, []);
 
   const board = buildFunnel({
-    candidates: CANDIDATES,
+    candidates: solo ? CANDIDATES.filter(c => c.id === 'dm' || c.id === 'gone') : CANDIDATES,
     events: EVENTS,
     now: new Date(at(0, '12:00')).toISOString(),
   });
@@ -112,7 +132,7 @@ export default function AcademyFunnelPreview() {
           <h1 className="text-xl font-bold text-ink-900">מועמדים</h1>
           <p className="text-xs text-ink-400">תצוגה מקדימה · נתוני דמה</p>
         </div>
-        <FunnelBoardView board={board} onOpen={setOpenId} onAdd={() => undefined} />
+        <FunnelBoardView board={board} onOpen={setOpenId} onAdd={() => setAdding(true)} />
         <CandidateSheet
           candidate={open}
           events={EVENTS}
@@ -120,6 +140,13 @@ export default function AcademyFunnelPreview() {
           onOpenChange={o => { if (!o) setOpenId(null); }}
           onStep={() => undefined}
           onUnstep={() => undefined}
+          onArchive={() => undefined}
+          onRestore={() => undefined}
+        />
+        <AddCandidateSheet
+          open={adding}
+          onOpenChange={setAdding}
+          onCreate={async () => true}
         />
       </div>
     </div>

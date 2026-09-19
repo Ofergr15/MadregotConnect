@@ -162,6 +162,27 @@ describe('leaving the funnel', () => {
     expect(placed.daysWaiting).toBe(17);
     expect(placed.stuck).toBe(false);
   });
+
+  it('hands back the ones who left, most recently first, so coming back is possible', () => {
+    // The rows and not just the count: archiving is reversible and somebody who said no in
+    // March keeps every step they already did, so a count with nothing behind it would force
+    // a returning candidate to be typed in again from scratch.
+    const board = buildFunnel({
+      candidates: [
+        candidate('march', { name: 'רון', archivedAt: '2026-03-04T09:00:00Z', archivedReason: 'מחיר' }),
+        candidate('sept', { name: 'מיכל', archivedAt: '2026-09-15T09:00:00Z' }),
+        candidate('live', { name: 'נועה' }),
+      ],
+      events: [],
+      now: NOW,
+    });
+    expect(board.archived).toBe(2);
+    expect(board.archivedCandidates.map(c => c.id)).toEqual(['sept', 'march']);
+    expect(board.archivedCandidates[0].archivedAt).toBe('2026-09-15T09:00:00Z');
+    expect(board.live).toBe(1);
+    // And none of them appears in a column, which is the whole point of being off the board.
+    expect(board.columns.flatMap(c => c.candidates).map(c => c.id)).toEqual(['live']);
+  });
 });
 
 describe('the board', () => {
