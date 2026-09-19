@@ -7,6 +7,7 @@ import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Check, Eye, EyeOff } 
 import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { InsetSection, InsetRow, EmptyState, LoadingBlock } from '@/components/ui';
 import { ApprovalPushOptIn } from '@/components/PushOptIn';
+import { WhatsNewOnboardingCard } from '@/components/whats-new/WhatsNewOnboarding';
 import { cn } from '@/lib/utils';
 
 // Local input primitive — see src/app/admin/login/page.tsx for why this is
@@ -262,6 +263,11 @@ function OnboardContent() {
               </div>
             </div>
           )}
+
+          {/* The digest sheet never opens for somebody new, so this is the one
+              place these two features are introduced — and the one place the app
+              explains that future ones arrive the same way. */}
+          <WhatsNewOnboardingCard />
 
           <div className="mt-6">
             <button

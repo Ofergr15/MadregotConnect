@@ -207,11 +207,40 @@ describe('the sheet component', () => {
   });
 });
 
+describe('the onboarding card', () => {
+  const card = read('components/whats-new/WhatsNewOnboarding.tsx');
+
+  it('shows the same entries a returning member would be told about', () => {
+    expect(card).toMatch(/recentEntries\(WHATS_NEW\)/);
+  });
+
+  it('does not pretend the rows are tappable, since the account is unapproved', () => {
+    expect(card).not.toMatch(/next\/link|router\.push\(|onClick/);
+  });
+
+  it('spends nothing — an unapproved account gets no ledger written for it', () => {
+    expect(card).not.toMatch(/markSeen|initLedger|localStorage/);
+  });
+
+  it('is the one place the app promises that features arrive this way', () => {
+    expect(card).toMatch(/onboardPromise/);
+    const page = read('app/join/onboard/page.tsx');
+    expect(page).toMatch(/<WhatsNewOnboardingCard \/>/);
+    // On the 'done' step, i.e. the approval wait — not mid-form.
+    expect(page.indexOf('<WhatsNewOnboardingCard />')).toBeGreaterThan(
+      page.indexOf("if (step === 'done')"),
+    );
+  });
+});
+
 describe('the sheet has its labels in both catalogues', () => {
   it('has he/en parity', () => {
     for (const f of ['../messages/he.json', '../messages/en.json']) {
       const wn = JSON.parse(read(f)).whatsNew;
-      for (const k of ['title', 'lead', 'badge', 'gotIt', 'recall']) {
+      for (const k of [
+        'title', 'lead', 'badge', 'gotIt', 'recall',
+        'onboardTitle', 'onboardLead', 'onboardPromise',
+      ]) {
         expect(wn?.[k], `${f}.${k}`).toBeTruthy();
       }
     }

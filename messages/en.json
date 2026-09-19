@@ -2792,6 +2792,9 @@
     "lead": "What shipped in the app over the last few weeks.",
     "badge": "New",
     "gotIt": "Got it",
-    "recall": "Always here: Settings → What's new"
+    "recall": "Always here: Settings → What's new",
+    "onboardTitle": "What's inside",
+    "onboardLead": "Two things worth knowing before your first session.",
+    "onboardPromise": "Every new feature shows up like this — once, on your feed."
   }
 }
