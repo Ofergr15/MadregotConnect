@@ -61,6 +61,21 @@ export interface BoardRow {
   createdAt: string;
   /** When it last changed. For `other`, the moment the ball landed in the coach's court. */
   updatedAt: string;
+  /**
+   * When the trainee submitted a result for this invitation that nobody has approved yet.
+   *
+   * Null in every normal case, and the row's most important fact when it is not. An invitation
+   * only becomes `done` at approval — `done` claims a measurement exists and this number has not
+   * been looked at — so a submitted test leaves the invitation open, which without this field
+   * puts the person on the board wearing `אין תוצאה`. That is the one label here that would be
+   * flatly untrue: there is a result, it is sitting in the approval queue, and telling the coach
+   * there is none is how a number waits a week.
+   *
+   * The route fills it from the same rule that settles the invitation
+   * (`settleInvitation.ts` → `hold`), so "which submission answers this invitation" cannot drift
+   * between the board and the write path.
+   */
+  submittedAt?: string | null;
 }
 
 export interface BoardEntry {
@@ -156,6 +171,17 @@ export function boardEntry(row: BoardRow, now: string): BoardEntry | null {
   // rows, so this is belt and braces — but a `done` row rendered under "waiting on the
   // trainee" would be the coach chasing somebody who already ran it.
   if (state === 'done' || state === 'cancelled') return null;
+
+  // Nor is one whose result is already in the approval queue.
+  //
+  // It IS the coach's move — but it is not a SCHEDULING move, and this board is about
+  // scheduling only (see the component header). The move is "check this number", the screen for
+  // it is `PendingTests`, and that queue sits directly above this one on the tests tab, by
+  // construction rather than by luck: `TestRegistry` takes the board as a prop precisely so that
+  // order lives in one place. Showing the row here as well would put the same person in two
+  // queues on one screen with two different answers, and the answer on this one — offer times —
+  // is the wrong thing to do to somebody who has already run the test.
+  if (row.submittedAt) return null;
 
   const handedOver = state === 'overdue' && followUpOwed(row.invite, now);
   const slot = slotOf(row.invite);

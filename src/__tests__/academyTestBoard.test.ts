@@ -26,12 +26,17 @@ const T = Date.parse(NOW);
 /** An instant `days` from `NOW`. Negative is the past. */
 const at = (days: number) => new Date(T + days * DAY).toISOString();
 
-function row(over: Partial<TestInvitation> & { name?: string; createdAt?: string; updatedAt?: string } = {}): BoardRow {
-  const { name, createdAt, updatedAt, ...invite } = over;
+function row(
+  over: Partial<TestInvitation> & {
+    name?: string; createdAt?: string; updatedAt?: string; submittedAt?: string | null;
+  } = {},
+): BoardRow {
+  const { name, createdAt, updatedAt, submittedAt, ...invite } = over;
   return {
     name: name ?? 'Dor Alon',
     createdAt: createdAt ?? at(-3),
     updatedAt: updatedAt ?? at(-3),
+    submittedAt: submittedAt ?? null,
     invite: {
       id: 'inv-1',
       athleteId: 'a1',
@@ -280,5 +285,28 @@ describe('robustness', () => {
     expect(entryTime(entry(row()))).toBeNull();
     expect(entryTime(entry(row({ status: 'other' })))).toBeNull();
     expect(entryTime(entry(row({ proposedSlots: [at(-2)] })))).toBeNull();
+  });
+});
+
+describe('a result that is waiting for approval', () => {
+  it('leaves the board entirely rather than claiming there is no result', () => {
+    // The coach's move here is "check this number", and the screen for that is the approval
+    // queue directly above this board. Showing the row here as well would put the same person
+    // in two queues with two different answers — and this one's answer, offer new times, is
+    // the wrong thing to do to somebody who has already run the test.
+    const submitted = row({
+      status: 'confirmed', confirmedSlot: at(-4), submittedAt: at(-4),
+    });
+    const board = buildBoard([submitted], NOW);
+    expect(board.onCoach).toEqual([]);
+    expect(board.onAthlete).toEqual([]);
+    expect(board.testingThisWeek).toBe(0);
+  });
+
+  it('still shows a test whose result has NOT been submitted', () => {
+    // The same row without the submission: four days past the slot, so the follow-up has been
+    // and gone and this genuinely is the coach's to chase.
+    const board = buildBoard([row({ status: 'confirmed', confirmedSlot: at(-4) })], NOW);
+    expect(board.onCoach.map(e => e.state)).toEqual(['overdue']);
   });
 });

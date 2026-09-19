@@ -16,9 +16,12 @@ vi.mock('@/lib/auth/self-or-staff', () => ({
 
 type Row = Record<string, unknown>;
 
-const db: { academy_test_invitations: Row[]; athletes: Row[] } = {
+const db: { academy_test_invitations: Row[]; athletes: Row[]; academy_tests: Row[] } = {
   academy_test_invitations: [],
   athletes: [],
+  // Read for one label and one omission: a trainee who has submitted a result must not appear
+  // on this board wearing `אין תוצאה`, which is the only flatly untrue thing it could say.
+  academy_tests: [],
 };
 
 /** Set to make the invitations table read as absent, the way it is before migration 112. */
@@ -115,7 +118,23 @@ function asTrainee() {
 
 const get = () => GET(new Request('http://x/api/academy/test-invitation/board'));
 
+/** A submission of `athleteId`'s that nobody has approved yet. */
+function submission(over: Row = {}): Row {
+  const row: Row = {
+    id: 'test-1',
+    athlete_id: 'a1',
+    protocol: '30min',
+    test_date: '2026-09-16',
+    submitted_at: '2026-09-16T17:00:00.000Z',
+    status: 'pending',
+    ...over,
+  };
+  db.academy_tests.push(row);
+  return row;
+}
+
 beforeEach(() => {
+  db.academy_tests = [];
   db.academy_test_invitations = [];
   db.athletes = [
     // `coach_id` is the club's single head coach, the same filter every academy route uses.
@@ -240,5 +259,46 @@ describe('what the board carries', () => {
     const res = await get();
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ rows: [], tableMissing: true });
+  });
+});
+
+// ── A result that is waiting for the coach's eye, not for the coach's calendar ──
+
+describe('a submitted result the coach has not approved', () => {
+  it('is marked on the row, so the board can drop it instead of saying there is no result', async () => {
+    invitation({ confirmed_slot: '2026-09-16T04:00:00.000Z', status: 'confirmed' });
+    submission();
+    const { rows } = await (await get()).json();
+    expect(rows[0].submittedAt).toBe('2026-09-16T17:00:00.000Z');
+  });
+
+  it('still blocks a second invitation, because the first one is open', async () => {
+    invitation();
+    submission();
+    const { invitable } = await (await get()).json();
+    expect(invitable).toEqual([]);
+  });
+
+  it('ignores a submission for a different protocol', async () => {
+    // A 2000m does not answer an invitation to a 30-minute test, so that invitation really is
+    // still waiting for a result.
+    invitation();
+    submission({ protocol: '2000m' });
+    const { rows } = await (await get()).json();
+    expect(rows[0].submittedAt).toBeNull();
+  });
+
+  it('ignores a submission from before the invitation was sent', async () => {
+    invitation({ created_at: '2026-09-15T00:00:00.000Z' });
+    submission({ test_date: '2026-05-02' });
+    const { rows } = await (await get()).json();
+    expect(rows[0].submittedAt).toBeNull();
+  });
+
+  it('ignores an approved test, which the settle has already closed', async () => {
+    invitation();
+    submission({ status: 'approved' });
+    const { rows } = await (await get()).json();
+    expect(rows[0].submittedAt).toBeNull();
   });
 });
