@@ -1822,9 +1822,18 @@
       "genericError": "Error creating the event",
       "saving": "Saving...",
       "create": "Create Event"
+    },
+    "editEvent": {
+      "title": "Edit event",
+      "save": "Save changes",
+      "delete": "Delete event",
+      "deleting": "Deleting\u2026",
+      "deleteConfirm": "Delete \u201c{name}\u201d? Registrations for it are deleted too, and this cannot be undone.",
+      "mapLinkCurrent": "Pin on file: {lat}, {lng}. Leave empty to keep it, or paste a new link to move it."
     }
   },
   "eventDetail": {
+    "edit": "Edit event",
     "kinds": {
       "race": "Race",
       "camp": "Training Camp",
