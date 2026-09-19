@@ -23,6 +23,7 @@ import { UpcomingEvents } from '@/components/UpcomingEvents';
 import { SetupNudgeCard } from '@/components/onboarding/SetupNudgeCard';
 import { WeekSummaryCard } from '@/components/feed/WeekSummaryCard';
 import { NextSessionCard } from '@/components/feed/NextSessionCard';
+import { WhatsNewAutoSheet } from '@/components/whats-new/WhatsNewSheet';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
@@ -475,6 +476,15 @@ export default function FeedPage() {
           )}
         </div>
       )}
+
+      {/* ═══ WHAT'S NEW ═══
+          A sheet, not a block: up to three shipped features, one row each, every
+          row a door into the feature. Opens once per feature and only on a feed
+          that has already painted — `ready` is that signal, and a modal over a
+          skeleton is the mistake it exists to avoid. Never opens for somebody who
+          joined after the feature shipped. See WhatsNewSheet and
+          lib/whats-new/ledger.ts. */}
+      <WhatsNewAutoSheet ready={!loading && !error && items.length > 0} />
 
       {/* ═══ WHAT'S NEXT ═══
           One line: tomorrow's session (from 20:00 the evening before), its

@@ -2786,5 +2786,12 @@
     "sendToWatch": "Send to watch",
     "sending": "Sending…",
     "failed": "Didn’t send — try again"
+  },
+  "whatsNew": {
+    "title": "What's new",
+    "lead": "What shipped in the app over the last few weeks.",
+    "badge": "New",
+    "gotIt": "Got it",
+    "recall": "Always here: Settings → What's new"
   }
 }

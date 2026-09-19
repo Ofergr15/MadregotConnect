@@ -30,6 +30,7 @@ import { useTranslations } from 'next-intl';
 import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, BackNav } from '@/components/ui';
 import { AthleteLink } from '@/components/AthleteLink';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
+import { WhatsNewSettingsRow } from '@/components/whats-new/WhatsNewSheet';
 
 type TFunc = ReturnType<typeof useTranslations>;
 
@@ -1138,6 +1139,10 @@ export default function SettingsPage() {
               trailing={<ChevronRight className="h-4 w-4 text-ink-400 shrink-0 rotate-180" />}
             />
             <MapPrefsRow />
+            {/* The half of the what's-new module that is not a popup: closing the
+                sheet is final, which is only honest because this row never goes
+                away. Hides itself when there is nothing to show. */}
+            <WhatsNewSettingsRow />
           </InsetSection>
 
           {/* Allowlist editor — only appears while maintenance is on. */}
