@@ -20,6 +20,7 @@ import { AcademyMembers } from '@/components/academy/AcademyMembers';
 import { AcademyMyView } from '@/components/academy/AcademyMyView';
 import { AcademyThreads } from '@/components/academy/AcademyThreads';
 import { WatchDispatch } from '@/components/academy/WatchDispatch';
+import { BookIcon, WorkoutBook } from '@/components/academy/WorkoutBook';
 import { TestRegistry } from '@/components/academy/TestRegistry';
 import { MemberSheet } from '@/components/academy/MemberSheet';
 import { sundayOf, type AcademyMember, type AcademyMembersResponse } from '@/components/academy/types';
@@ -60,7 +61,7 @@ interface Athlete {
   hasGarmin?: boolean;
 }
 
-type Tab = 'overview' | 'threads' | 'members' | 'registrations' | 'plans' | 'dispatch' | 'compliance' | 'tests' | 'stats' | 'results' | 'settings';
+type Tab = 'overview' | 'threads' | 'members' | 'registrations' | 'plans' | 'book' | 'dispatch' | 'compliance' | 'tests' | 'stats' | 'results' | 'settings';
 
 
 
@@ -172,7 +173,7 @@ export default function AcademyPage() {
     // `roster` is the old name for what is now the members directory — links
     // already out in notifications and shared URLs must keep working.
     const normalized = tab === 'roster' ? 'members' : tab;
-    const valid: Tab[] = ['overview', 'threads', 'members', 'registrations', 'plans', 'dispatch', 'compliance', 'tests', 'stats', 'results', 'settings'];
+    const valid: Tab[] = ['overview', 'threads', 'members', 'registrations', 'plans', 'book', 'dispatch', 'compliance', 'tests', 'stats', 'results', 'settings'];
     if (valid.includes(normalized as Tab)) setView(normalized as Tab);
   }, []);
 
@@ -287,6 +288,11 @@ export default function AcademyPage() {
     { value: 'members', label: t('tabMembers'), icon: Users },
     { value: 'registrations', label: t('tabRegistrations'), icon: UserPlus, badge: members?.pending.registrations },
     { value: 'plans', label: t('tabPlans'), icon: CalendarPlus },
+    // Immediately after the composer, because it is where the composer's contents come
+    // from: the book's whole claim is three clicks instead of writing a week from scratch,
+    // and a shelf filed two tabs away from the screen that writes the plan is a shelf
+    // nobody reaches for.
+    { value: 'book', label: t('tabBook'), icon: BookIcon },
     // Immediately after the tab that pushes the week, because that is the question
     // it raises: the composer says "sent to 18 athletes" and this says whether it
     // actually arrived.
@@ -359,6 +365,8 @@ export default function AcademyPage() {
         <AcademyResults />
       ) : view === 'settings' ? (
         <AcademySettingsPanel />
+      ) : view === 'book' ? (
+        <WorkoutBook />
       ) : view === 'dispatch' ? (
         // Shares the page's week, so moving the week on the overview and opening
         // this tab shows the same week rather than silently jumping to this one.
