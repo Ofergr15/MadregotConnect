@@ -147,6 +147,11 @@ export default function AcademyFunnelPreview() {
           // and so `ריק` versus `מולא` is a difference somebody has to have chosen.
           onCharacterize={() => undefined}
           characterizationState="filled"
+          // The row that leads to account linking. A NAME and not `מחובר`, because which
+          // account it is joined to is the fact worth checking on a card — and because a Latin
+          // name in an RTL row is exactly where the last word ends up first.
+          onLink={() => undefined}
+          linkedAthleteName="Yael Peretz"
         />
         <AddCandidateSheet
           open={adding}

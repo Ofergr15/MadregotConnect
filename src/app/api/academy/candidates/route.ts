@@ -181,6 +181,7 @@ export async function POST(request: Request) {
  *   { id, action: 'archive', reason? }
  *   { id, action: 'restore' }
  *   { id, action: 'link',    athleteId }
+ *   { id, action: 'unlink' }
  */
 export async function PATCH(request: Request) {
   try {
@@ -301,9 +302,34 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    /**
+     * Join the candidate to the athlete they became.
+     *
+     * This is the seam between the two doors the same human arrives through: staff open the
+     * candidate row, the person registers themselves at `/academy-register`, and nothing else
+     * in the product connects the two. Steps 5-9 of the funnel — watch, test, analysis, band,
+     * first plan — are all facts about an ATHLETE, so without this field none of them can ever
+     * be derived from data; they can only be hand-stamped by somebody remembering to.
+     *
+     * It does NOT record the `signup` step. Linking is strong evidence that signing up
+     * happened, and stamping it here would still be a second door into one stage — the failure
+     * the tests below guard against, where the same candidate lands in different columns
+     * depending on which screen recorded them. The card's `בוצע` button is the one door.
+     */
     if (action === 'link') {
       const athleteId = String(body?.athleteId || '');
       if (!athleteId) return NextResponse.json({ error: 'athleteId is required' }, { status: 400 });
+
+      // The athlete has to exist. The foreign key would catch it, but as a 500 — and this
+      // read is needed anyway, for the flag below.
+      const { data: athlete, error: athleteError } = await supabase
+        .from('athletes')
+        .select('id, is_academy')
+        .eq('id', athleteId)
+        .maybeSingle();
+      if (athleteError) return NextResponse.json({ error: 'Failed to read the athlete' }, { status: 500 });
+      if (!athlete) return NextResponse.json({ error: 'No such athlete' }, { status: 404 });
+
       const { error } = await supabase
         .from('academy_candidates')
         .update({ ...touch, athlete_id: athleteId })
@@ -316,6 +342,49 @@ export async function PATCH(request: Request) {
         }
         return NextResponse.json({ error: 'Failed to link the candidate' }, { status: 500 });
       }
+
+      // An athlete joined to an academy candidate IS an academy trainee, and this is the only
+      // place that fact gets recorded by staff. `/api/academy/register` already sets the same
+      // flag for whoever arrives through the public door; the case here is the existing club
+      // member who joined the academy afterwards, whose row predates the academy entirely.
+      // Without the flag they are invisible to every academy screen — tests, bands, threads,
+      // dispatch — and no screen anywhere can fix it.
+      //
+      // Reported rather than thrown: the link is the thing that was asked for and it worked.
+      // A failed flag leaves a trainee missing from the academy screens, which is visible and
+      // one tap from fixed; failing the whole request would leave the two rows unjoined, which
+      // is the state nothing can recover from.
+      let academyFlagged = Boolean(athlete.is_academy);
+      if (!academyFlagged) {
+        const { error: flagError } = await supabase
+          .from('athletes')
+          .update({ is_academy: true })
+          .eq('id', athleteId);
+        academyFlagged = !flagError;
+      }
+
+      return NextResponse.json({ ok: true, academyFlagged });
+    }
+
+    /**
+     * Take the link back.
+     *
+     * A mis-link is the most expensive mistake on this board: one stranger's injuries and the
+     * coach's private `fit` verdict sitting on somebody else's account. The partial unique
+     * index makes it unfixable without this — the right athlete cannot be linked while the
+     * wrong one holds the row.
+     *
+     * It deliberately does NOT clear `is_academy`. Being an academy trainee is not undone by
+     * correcting a clerical error, and clearing it would drop a real trainee out of every
+     * academy screen as a side effect of fixing an unrelated mistake. The flag has its own
+     * door, in the athlete's own settings.
+     */
+    if (action === 'unlink') {
+      const { error } = await supabase
+        .from('academy_candidates')
+        .update({ ...touch, athlete_id: null })
+        .eq('id', id);
+      if (error) return NextResponse.json({ error: 'Failed to unlink the candidate' }, { status: 500 });
       return NextResponse.json({ ok: true });
     }
 

@@ -28,9 +28,13 @@ vi.mock('@/lib/auth/self-or-staff', () => ({
 
 type Row = Record<string, unknown>;
 
-const db: { academy_candidates: Row[]; academy_candidate_events: Row[] } = {
+const db: { academy_candidates: Row[]; academy_candidate_events: Row[]; athletes: Row[] } = {
   academy_candidates: [],
   academy_candidate_events: [],
+  // The roster, because linking now reads it: the athlete has to exist, and the academy flag
+  // has to be set on them. `a1` is an existing club member who never touched the academy —
+  // which is the case the flag is FOR.
+  athletes: [],
 };
 let seq = 0;
 
@@ -181,6 +185,10 @@ const get = () => GET(new Request('http://localhost/api/academy/candidates'));
 beforeEach(() => {
   db.academy_candidates = [];
   db.academy_candidate_events = [];
+  db.athletes = [
+    { id: 'a1', name: 'Noa Shemesh', is_academy: false },
+    { id: 'a2', name: 'Dor Alon', is_academy: true },
+  ];
   seq = 0;
   asStaff();
 });
@@ -354,6 +362,70 @@ describe('becoming a trainee', () => {
   it('needs an athleteId to link', async () => {
     const body = await (await post({ name: 'ג' })).json();
     expect((await patch({ id: body.candidate.id, action: 'link' })).status).toBe(400);
+  });
+
+  it('refuses an athlete who does not exist', async () => {
+    // The foreign key would catch this anyway, but as a 500 — and a 500 mid-call reads as the
+    // app being broken rather than as the id being wrong.
+    const body = await (await post({ name: 'ד' })).json();
+    const res = await patch({ id: body.candidate.id, action: 'link', athleteId: 'nobody' });
+    expect(res.status).toBe(404);
+    expect(db.academy_candidates[0].athlete_id).toBeNull();
+  });
+
+  it('marks the athlete as academy, because nothing else does', async () => {
+    // `a1` is an existing club member who joined the academy afterwards: their row predates
+    // the academy, so `is_academy` is false and `/api/academy/register` never ran for them.
+    // Without this they would be invisible to every academy screen — tests, bands, threads,
+    // dispatch — with no screen anywhere able to fix it.
+    const body = await (await post({ name: 'ה' })).json();
+    const res = await patch({ id: body.candidate.id, action: 'link', athleteId: 'a1' });
+    expect(await res.json()).toMatchObject({ ok: true, academyFlagged: true });
+    expect(db.athletes.find(a => a.id === 'a1')!.is_academy).toBe(true);
+  });
+
+  it('leaves an athlete who already came through the academy door alone', async () => {
+    const body = await (await post({ name: 'ו' })).json();
+    const res = await patch({ id: body.candidate.id, action: 'link', athleteId: 'a2' });
+    expect(await res.json()).toMatchObject({ ok: true, academyFlagged: true });
+  });
+
+  it('takes a mis-link back, and frees the athlete for the right candidate', async () => {
+    // The most expensive mistake on this board is one stranger's injuries and the coach's
+    // private verdict sitting on somebody else's account. The partial unique index makes it
+    // unfixable without this: the right athlete cannot be linked while the wrong one holds it.
+    const wrong = await (await post({ name: 'ז' })).json();
+    const right = await (await post({ name: 'ח' })).json();
+    await patch({ id: wrong.candidate.id, action: 'link', athleteId: 'a1' });
+    expect((await patch({ id: right.candidate.id, action: 'link', athleteId: 'a1' })).status).toBe(409);
+
+    expect((await patch({ id: wrong.candidate.id, action: 'unlink' })).status).toBe(200);
+    expect((await patch({ id: right.candidate.id, action: 'link', athleteId: 'a1' })).status).toBe(200);
+
+    const after = await (await get()).json();
+    const rows = after.candidates as CandidateRow[];
+    expect(rows.find(c => c.name === 'ז')!.athleteId).toBeNull();
+    expect(rows.find(c => c.name === 'ח')!.athleteId).toBe('a1');
+  });
+
+  it('does NOT un-academy somebody when a mis-link is corrected', async () => {
+    // Being an academy trainee is not undone by fixing a clerical error, and clearing the flag
+    // would drop a real trainee out of every academy screen as a side effect.
+    const body = await (await post({ name: 'ט' })).json();
+    await patch({ id: body.candidate.id, action: 'link', athleteId: 'a1' });
+    await patch({ id: body.candidate.id, action: 'unlink' });
+    expect(db.athletes.find(a => a.id === 'a1')!.is_academy).toBe(true);
+  });
+
+  it('records no funnel step, in either direction', async () => {
+    // Linking is strong evidence that signing up happened, and stamping it here would still be
+    // a second door into one stage: the same candidate in different columns depending on which
+    // screen recorded them. The card's `בוצע` button is the one door.
+    const body = await (await post({ name: 'י' })).json();
+    const id = body.candidate.id;
+    await patch({ id, action: 'link', athleteId: 'a1' });
+    await patch({ id, action: 'unlink' });
+    expect(db.academy_candidate_events).toHaveLength(0);
   });
 });
 

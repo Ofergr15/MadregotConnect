@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, ClipboardList, Plus, RotateCcw, Undo2, UserPlus } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ClipboardList, Link2, Plus, RotateCcw, Undo2, UserPlus } from 'lucide-react';
 import { apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { EmptyState, LoadingBlock, SegmentedControl, Sheet } from '@/components/ui';
@@ -16,7 +16,9 @@ import {
   type TimelineStep,
 } from '@/lib/academy/funnel';
 import type { Characterization } from '@/lib/academy/characterization';
+import type { LinkableAthlete } from '@/lib/academy/link';
 import { CharacterizationSheet } from './CharacterizationForm';
+import { LinkAthleteSheet } from './LinkAthleteSheet';
 import { initialsOf } from './types';
 
 // ── The candidates board ─────────────────────────────────────────────────────
@@ -67,6 +69,8 @@ interface FunnelResponse {
  */
 const ARCHIVE = '__archive';
 const RESTORE = '__restore';
+/** Linking and unlinking share a key: they are the same control, in its two directions. */
+const LINK = '__link';
 
 /** Who to chase. A role, because staffing changes without the funnel changing. */
 const OWNER_LABEL: Record<StageOwner, string> = {
@@ -415,6 +419,8 @@ export function CandidateSheet({
   onRestore,
   onCharacterize,
   characterizationState = 'empty',
+  onLink,
+  linkedAthleteName,
   busy,
 }: {
   candidate: (CandidateRow & { email?: string | null; phone?: string | null }) | null;
@@ -436,6 +442,14 @@ export function CandidateSheet({
    * keystroke. When the read failed, the row says so and does not open.
    */
   characterizationState?: 'loading' | 'empty' | 'filled' | 'error';
+  /** Opens the sheet that joins this candidate to the athlete account they registered. */
+  onLink?: () => void;
+  /**
+   * The name of that account, when there is one. The name and not a boolean, because "linked"
+   * is not the useful fact — WHO it is linked to is, and a wrong link is the most expensive
+   * mistake on this board. Seeing the name on the card is what makes it findable.
+   */
+  linkedAthleteName?: string | null;
   busy?: string | null;
 }) {
   const steps = useMemo(
@@ -519,6 +533,31 @@ export function CandidateSheet({
               {characterizationState === 'loading' ? 'טוען…'
                 : characterizationState === 'error' ? 'לא נטען'
                 : characterizationState === 'filled' ? 'מולא' : 'ריק'}
+            </span>
+          </button>
+        )}
+
+        {/* The account this candidate registered with. The seam between the two doors the same
+            human arrives through — staff open the candidate row, the person registers
+            themselves — and steps 5-9 (watch, test, analysis, band, first plan) are all facts
+            about an ATHLETE, so until this is joined none of them can ever come from data.
+            A row and not a tick mark, for the same reason the form is. */}
+        {onLink && !candidate.archivedAt && (
+          <button
+            type="button"
+            onClick={onLink}
+            className="mt-2 flex w-full items-center justify-between gap-2 min-h-[48px] rounded-card bg-page px-3.5 text-sm font-bold text-ink-900"
+          >
+            <span className="flex items-center gap-2" dir="auto">
+              <Link2 className="h-4 w-4 text-ink-500" />
+              חשבון באפליקציה
+            </span>
+            <span className="min-w-0 truncate text-xs font-medium text-ink-400" dir="auto">
+              {linkedAthleteName
+                // LTR, because a roster name is Latin by rule (`lib/names/latin.ts`) and a
+                // Latin name in an RTL run puts its last word first.
+                ? <bdi dir="ltr">{linkedAthleteName}</bdi>
+                : 'לא מחובר'}
             </span>
           </button>
         )}
@@ -752,6 +791,12 @@ export function CandidateFunnel() {
   const [characterizing, setCharacterizing] = useState(false);
   const [characterization, setCharacterization] = useState<Characterization | null | undefined>(undefined);
   const [charError, setCharError] = useState(false);
+  // The roster, for joining a candidate to the account they registered. Fetched once, on the
+  // first card that asks for it: it is 25 rows of staff-only data and most visits to this board
+  // never open the sheet at all, so it does not belong on the board's own load.
+  const [linking, setLinking] = useState(false);
+  const [roster, setRoster] = useState<LinkableAthlete[] | null>(null);
+  const [rosterFailed, setRosterFailed] = useState(false);
 
   // The reader's own today, read once per load rather than per render: a `now`
   // that changes on every render would make every memo below a lie, and nobody
@@ -807,6 +852,61 @@ export function CandidateFunnel() {
     })();
     return () => { live = false; };
   }, [openId]);
+
+  /**
+   * The club roster, read once and kept.
+   *
+   * `GET /api/athletes` already returns exactly what the matcher needs — id, name, email,
+   * `is_academy` and `created_at` — so this needs no route of its own. It returns the whole
+   * roster with email addresses, which is why it is only ever read from inside this staff-only
+   * screen and only when the sheet is actually opened.
+   */
+  const loadRoster = useCallback(async () => {
+    if (roster || rosterFailed) return;
+    try {
+      const res = await fetch('/api/athletes', { headers: await apiHeaders() });
+      if (!res.ok) { setRosterFailed(true); return; }
+      const body = await res.json();
+      const rows: unknown[] = Array.isArray(body) ? body : (body?.athletes ?? []);
+      setRoster(
+        rows.map(row => {
+          const a = row as Record<string, unknown>;
+          return {
+            id: String(a.id),
+            name: String(a.name ?? ''),
+            email: typeof a.email === 'string' ? a.email : null,
+            isAcademy: Boolean(a.isAcademy ?? a.is_academy),
+            createdAt: typeof a.createdAt === 'string' ? a.createdAt
+              : typeof a.created_at === 'string' ? a.created_at : null,
+          };
+        }),
+      );
+    } catch {
+      setRosterFailed(true);
+    }
+  }, [roster, rosterFailed]);
+
+  /**
+   * Which athlete each candidate already holds, so the sheet can show the unique index rather
+   * than let the coach discover it as a 409. Every candidate on the board, archived included:
+   * somebody who left in March still holds their account, and the index does not care that
+   * they are off the board.
+   */
+  const takenBy = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const c of data?.candidates ?? []) if (c.athleteId) out[c.athleteId] = c.id;
+    return out;
+  }, [data]);
+
+  /** The candidate's last event, which is what "registered around then" is measured against. */
+  const lastEventAt = useMemo(() => {
+    if (!open) return null;
+    const mine = (data?.events ?? [])
+      .filter(e => e.candidateId === open.id)
+      .map(e => e.occurredAt)
+      .sort();
+    return mine.length > 0 ? mine[mine.length - 1] : open.createdAt;
+  }, [data, open]);
 
   /** Every write on the card goes through here: one request in flight, then re-read. */
   async function patch(payload: Record<string, unknown>, busyKey: string) {
@@ -880,8 +980,33 @@ export function CandidateFunnel() {
             : characterization === null ? 'empty'
             : 'filled'
         }
+        onLink={() => { void loadRoster(); setLinking(true); }}
+        linkedAthleteName={
+          open?.athleteId ? (roster?.find(a => a.id === open.athleteId)?.name ?? null) : null
+        }
         busy={busy}
       />
+      {open && (
+        <LinkAthleteSheet
+          open={linking}
+          onOpenChange={setLinking}
+          candidate={open}
+          athletes={roster ?? []}
+          takenBy={takenBy}
+          since={lastEventAt}
+          linkedAthlete={open.athleteId ? (roster?.find(a => a.id === open.athleteId) ?? null) : null}
+          // Closes only on success. A failed link that closed the sheet would look like it
+          // worked, and the card's row would say `לא מחובר` with nothing to explain why.
+          onLink={id => void (async () => {
+            if (await patch({ action: 'link', athleteId: id }, LINK)) setLinking(false);
+          })()}
+          onUnlink={() => void patch({ action: 'unlink' }, LINK)}
+          busy={busy === LINK}
+          // The roster read failed, as opposed to the roster being empty: a search box over
+          // nothing says "no such athlete" to every query, which is a lie.
+          loadFailed={rosterFailed}
+        />
+      )}
       {open && characterization !== undefined && (
         <CharacterizationSheet
           open={characterizing}
