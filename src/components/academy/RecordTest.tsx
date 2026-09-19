@@ -138,6 +138,13 @@ export function RecordTest({
     }
   }
 
+  // Nothing to record a test AGAINST. Found on the real dashboard, where the academy roster
+  // is empty: the form opened anyway, offering an empty picker above a save button that could
+  // never enable, and the panel below it already said there are no trainees. A form for
+  // nobody reads as a broken form — the honest screen says what is missing, and that is the
+  // list's job (see `RegistryList`), not a second copy of the same sentence up here.
+  if (athletes.length === 0) return null;
+
   if (!open) {
     return (
       <div className="space-y-2">

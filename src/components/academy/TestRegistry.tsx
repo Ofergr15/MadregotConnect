@@ -71,8 +71,21 @@ export function RegistryList({ registry }: { registry: Registry }) {
   const { rows, summary, byBand } = registry;
   const stale = rows.filter(r => r.overdue);
 
+  // An empty roster is a SETUP gap, and it used to read as "nothing to see here" in grey
+  // 11px. It is the one state where the screen has to say what is missing, because the only
+  // way into the academy is the registration form — there is no staff toggle that marks an
+  // existing member as a trainee, so a coach who sees "no trainees" has no next step unless
+  // the screen names one. band-2, like every other academy setup gap: nobody's fault.
   if (!rows.length) {
-    return <p className="py-6 text-center text-xs text-ink-400">אין מתאמנים באקדמיה להצגה.</p>;
+    return (
+      <div className="rounded-card bg-band-2/10 px-3.5 py-3" dir="rtl">
+        <p className="text-sm font-bold text-band-2-ink">אין אף מתאמן באקדמיה.</p>
+        <p className="mt-1 text-xs leading-relaxed text-ink-500">
+          טסט נרשם למתאמן אקדמיה, וכרגע אין למי לרשום. מתאמן נכנס לאקדמיה דרך טופס ההרשמה
+          שלה, ולא דרך מסך החברים — עד שמישהו נרשם, גם הגרף וגם המרשם יישארו ריקים.
+        </p>
+      </div>
+    );
   }
 
   return (
