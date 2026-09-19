@@ -40,7 +40,17 @@ vi.mock('@/lib/auth/self-or-staff', () => ({
 
 type Row = Record<string, unknown>;
 
-const db: { athletes: Row[]; academy_tests: Row[] } = { athletes: [], academy_tests: [] };
+const db: {
+  athletes: Row[];
+  academy_tests: Row[];
+  // The two tables the settlement touches. An invitation and a test are an intention and a
+  // measurement, and they meet at `test_id` — which nothing wrote until the route started
+  // calling `settleInvitationForTest`. Modelled here rather than stubbed because the thing
+  // worth proving is that approving a number closes the appointment AND silences its two
+  // reminders, and those are three writes across two tables.
+  academy_test_invitations: Row[];
+  scheduled_notifications: Row[];
+} = { athletes: [], academy_tests: [], academy_test_invitations: [], scheduled_notifications: [] };
 let seq = 0;
 
 class Query implements PromiseLike<{ data: Row[] | null; error: unknown }> {
@@ -226,6 +236,8 @@ beforeEach(() => {
     athlete(OUTSIDER, { is_academy: false }),
   ];
   db.academy_tests = [];
+  db.academy_test_invitations = [];
+  db.scheduled_notifications = [];
   seq = 0;
   resolveVerifiedCaller.mockReset();
 });
@@ -573,5 +585,113 @@ describe('PATCH — the coach decides', () => {
     expect(registry.pending).toHaveLength(0);
     expect(db.academy_tests[0].approved_by).toBe(COACH);
     expect(db.academy_tests[0].submitted_by).toBeNull();
+  });
+});
+
+// ── The result closes the invitation ────────────────────────────────────────
+//
+// The other half of the loop. Everything before this file's `PATCH` block proves the number is
+// stored and counted; none of it touches the appointment that asked for it, which is what the
+// coach's board is a list of. An invitation that stays open after the test was approved keeps a
+// row in `מחכים לך` forever and — once dispatch exists — sends "you have not done your test" to
+// somebody who has.
+
+/** An open invitation for `athleteId`, with both reminders scheduled. */
+function invitation(athleteId: string, over: Row = {}) {
+  const createdAt = new Date(Date.parse(`${day(3)}T07:00:00+03:00`)).toISOString();
+  db.scheduled_notifications.push(
+    { id: 'rem-before', status: 'scheduled' },
+    { id: 'rem-after', status: 'scheduled' },
+  );
+  const row: Row = {
+    id: 'inv-1',
+    athlete_id: athleteId,
+    protocol: '30min',
+    status: 'proposed',
+    created_at: createdAt,
+    test_id: null,
+    reminder_before_id: 'rem-before',
+    reminder_after_id: 'rem-after',
+    ...over,
+  };
+  db.academy_test_invitations.push(row);
+  return row;
+}
+
+const statusOf = (id: string) =>
+  db.scheduled_notifications.find(r => r.id === id)?.status;
+
+describe('a recorded result settles the invitation that asked for it', () => {
+  it('marks the invitation done and cancels both reminders when the coach approves', async () => {
+    invitation(MINE);
+    asRunner(MINE);
+    await post(body(MINE, 6420));
+    const testId = String(db.academy_tests[0].id);
+
+    // A submission is not a measurement yet: the appointment stays open. But they have plainly
+    // run it, so nothing should still be asking them whether they have.
+    expect(db.academy_test_invitations[0].status).toBe('proposed');
+    expect(statusOf('rem-after')).toBe('cancelled');
+
+    asManager();
+    const res = await patch({ testId, action: 'approve' });
+    expect((await res.json()).settledInvitationId).toBe('inv-1');
+    expect(db.academy_test_invitations[0].status).toBe('done');
+    expect(db.academy_test_invitations[0].test_id).toBe(testId);
+    expect(statusOf('rem-before')).toBe('cancelled');
+  });
+
+  it('settles it outright when staff record the test themselves', async () => {
+    invitation(MINE);
+    asCoach();
+    const saved = await (await post(body(MINE, 6420))).json();
+    expect(saved.settledInvitationId).toBe('inv-1');
+    expect(db.academy_test_invitations[0].status).toBe('done');
+    expect(db.academy_test_invitations[0].test_id).toBe(String(db.academy_tests[0].id));
+  });
+
+  it('leaves an invitation for a different protocol alone', async () => {
+    // An invitation to a 2000m answered by a 30-minute test is a different measurement, and
+    // closing it would stop the reminders for a test nobody has run.
+    invitation(MINE, { protocol: '2000m' });
+    asCoach();
+    const saved = await (await post(body(MINE, 6420))).json();
+    expect(saved.settledInvitationId).toBeNull();
+    expect(db.academy_test_invitations[0].status).toBe('proposed');
+    expect(statusOf('rem-after')).toBe('scheduled');
+  });
+
+  it('does not let backfilled history close next week\'s appointment', async () => {
+    invitation(MINE);
+    asCoach();
+    const saved = await (await post(body(MINE, 6420, { date: day(90) }))).json();
+    expect(saved.settledInvitationId).toBeNull();
+    expect(db.academy_test_invitations[0].status).toBe('proposed');
+  });
+
+  it('never re-settles a closed invitation', async () => {
+    // A correction to an approved test must not resurrect and re-cancel reminders that were
+    // dealt with the first time round.
+    invitation(MINE, { status: 'done', test_id: 'earlier-test' });
+    asCoach();
+    const saved = await (await post(body(MINE, 6420))).json();
+    expect(saved.settledInvitationId).toBeNull();
+    expect(db.academy_test_invitations[0].test_id).toBe('earlier-test');
+  });
+
+  it('saves the test anyway when the invitations table is not there yet', async () => {
+    // Every migration here is pasted in by hand, so there is always a window where this code
+    // is deployed and 112 is not. A coach must not be unable to record a number because of it.
+    const original = db.academy_test_invitations;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (db as any).academy_test_invitations;
+    try {
+      asCoach();
+      const res = await post(body(MINE, 6420));
+      expect(res.status).toBe(200);
+      expect((await res.json()).test.distanceM).toBe(6420);
+    } finally {
+      db.academy_test_invitations = original;
+    }
   });
 });

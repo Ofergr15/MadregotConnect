@@ -4,6 +4,7 @@ import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { COACH_ID } from '@/lib/constants';
 import { isMissingColumn, isMissingTable, withoutColumns } from '@/lib/supabase/schema-drift';
 import { israelToday } from '@/lib/utils';
+import { settleInvitationForTest } from '@/lib/academy/settle-invitation-server';
 import {
   buildRegistry,
   buildTrend,
@@ -398,11 +399,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to save the test' }, { status: 500 });
     }
 
+    // ── The invitation this number answers ─────────────────────────────────────
+    //
+    // An intention and a measurement meet at `test_id`, and this is one of the two places
+    // they can meet (the other is approval below). A staff entry settles the invitation
+    // outright; a trainee's submission only silences the two reminders and leaves it open,
+    // because `done` claims a measurement exists and nobody has looked at this one yet.
+    // See `lib/academy/settleInvitation.ts`. It cannot fail this response.
+    const settlement = data
+      ? await settleInvitationForTest(supabase, athleteId, {
+        id: String(data.id),
+        protocol,
+        date,
+        approved: isStaff,
+      })
+      : null;
+
     return NextResponse.json({
       test: data ? toTestRow(data) : null,
       // The screen must not say "saved, here is your new pace" for something nobody has
       // looked at yet.
       pending: !isStaff,
+      // So the trainee's screen can stop showing the invitation card without a second fetch.
+      settledInvitationId: settlement?.kind === 'settle' ? settlement.invitationId : null,
     });
   } catch (err: unknown) {
     console.error('POST /api/academy/tests error:', err);
@@ -450,7 +469,9 @@ export async function PATCH(request: Request) {
 
     const { data: target, error: readError } = await supabase
       .from('academy_tests')
-      .select('id, athlete_id, status')
+      // `protocol` and `test_date` come along for the settlement below: which invitation this
+      // number answers is a question about the protocol and the day, not just the athlete.
+      .select('id, athlete_id, status, protocol, test_date')
       .eq('id', testId)
       .maybeSingle();
     if (readError) {
@@ -484,7 +505,22 @@ export async function PATCH(request: Request) {
       })
       .eq('id', testId);
     if (error) return NextResponse.json({ error: 'Failed to approve the test' }, { status: 500 });
-    return NextResponse.json({ testId, status: 'approved' });
+
+    // Now the number counts, so now the invitation is done. This is the moment the board's
+    // `מחכים לך` row disappears on its own — see `lib/academy/settleInvitation.ts` — and it
+    // cannot fail the approval it follows.
+    const settlement = await settleInvitationForTest(supabase, String(target.athlete_id), {
+      id: testId,
+      protocol: String(target.protocol || DEFAULT_PROTOCOL),
+      date: String(target.test_date).slice(0, 10),
+      approved: true,
+    });
+
+    return NextResponse.json({
+      testId,
+      status: 'approved',
+      settledInvitationId: settlement?.kind === 'settle' ? settlement.invitationId : null,
+    });
   } catch (err: unknown) {
     console.error('PATCH /api/academy/tests error:', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
