@@ -21,6 +21,9 @@ import { ZONE_LABEL } from '@/components/academy/libraryText';
 import {
   bookEntryIds, materialiseWeek, weekGaps, type PlanSlot, type Recipient,
 } from '@/lib/academy/plan-slot';
+import { raceCountdown, weekFit, type PlannedDay } from '@/lib/academy/plan-fit';
+import type { PlanInputs } from '@/lib/academy/characterization';
+import { getWorkoutKm } from '@/lib/plans/workout-parsing';
 
 interface AcademyAthlete {
   id: string;
@@ -136,6 +139,14 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
   const [book, setBook] = useState<LibraryEntry[]>([]);
   /** athleteId → their latest approved test's threshold pace, in sec/km. */
   const [thresholds, setThresholds] = useState<Record<string, number>>({});
+  /**
+   * athleteId → what they said on the characterization call, for whoever is selected.
+   *
+   * An athlete missing from this map has no answers on file, which most of the club does not:
+   * the form is newer than the roster. `plan-fit.ts` says nothing at all about those people
+   * rather than assuming they train every day.
+   */
+  const [planInputs, setPlanInputs] = useState<Record<string, PlanInputs>>({});
   const [sourceDay, setSourceDay] = useState<number | null>(null);
   const [pickerDay, setPickerDay] = useState<number | null>(null);
   const [bookDay, setBookDay] = useState<number | null>(null);
@@ -197,6 +208,24 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
+
+  // What the characterization call said about the trainees currently selected.
+  //
+  // Keyed on the joined id list rather than on the array, so re-selecting the same people in a
+  // different order does not refetch. Optional in the same way the book and the thresholds are:
+  // migration 111 is hand-pasted, most of the roster predates the form, and a failed fetch
+  // leaves the board exactly as it was before this existed.
+  const selectedKey = selectedIds.join(',');
+  useEffect(() => {
+    if (!selectedKey) { setPlanInputs({}); return; }
+    let cancelled = false;
+    bearerHeaders(false)
+      .then(headers => fetch(`/api/academy/plan-inputs?athleteIds=${encodeURIComponent(selectedKey)}`, { headers }))
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled) setPlanInputs(d?.inputs || {}); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedKey]);
 
   /** One trainee, with both pace mechanisms resolved — the input `materialiseWeek` takes. */
   const recipientOf = useCallback((a: AcademyAthlete): Recipient => ({
@@ -321,6 +350,41 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
   // Both are asked about the BOARD and not about the trainee, which is the change the book
   // forces: a week made entirely of book entries needs no band at all, so warning that a
   // trainee has no offset would be warning about a mechanism this week does not use.
+  // The board against what the trainees said they could do.
+  //
+  // The two sources of a day's distance are read here rather than in `plan-fit.ts`, because they
+  // are two different mechanisms — a written workout carries its own estimate (or the coach's own
+  // figure), a book entry only has the metres in its steps — and the pure module should be
+  // testable without a fixture of parsed workouts. `getWorkoutKm(...).min` is deliberately the
+  // floor of the estimate: the volume warning below should fire on a week that is unambiguously
+  // too big, not on the wide end of a guess about an open block.
+  const plannedDays: PlannedDay[] = useMemo(() => (
+    Object.entries(slots)
+      .filter(([, slot]) => !!slot)
+      .map(([day, slot]) => {
+        const s = slot as PlanSlot;
+        const km = s.source === 'written'
+          ? getWorkoutKm(s.workout).min
+          : entryVolume(s.entry.steps).distanceM / 1000;
+        // A session written purely in minutes has no distance to compare. 0 would read as a rest
+        // day and quietly shrink the week's total, so it is "unknown" instead.
+        return { dayOfWeek: Number(day), km: km > 0 ? km : null };
+      })
+  ), [slots]);
+
+  const fit = useMemo(() => weekFit({
+    days: plannedDays,
+    recipients: selected.map(a => ({ athleteId: a.id, name: a.name, inputs: planInputs[a.id] ?? null })),
+    primaryId: primary?.id ?? null,
+  }), [plannedDays, selected, planInputs, primary]);
+
+  const primaryInputs = primary ? planInputs[primary.id] ?? null : null;
+  const countdown = raceCountdown(primaryInputs);
+  const clashByDay = useMemo(
+    () => new Map(fit.clashes.map(c => [c.dayOfWeek, c.names])),
+    [fit.clashes],
+  );
+
   const gaps = selected.map(a => ({ athlete: a, ...weekGaps(slots, recipientOf(a)) }));
   const unresolved = gaps.filter(g => g.needsBand).map(g => g.athlete);
   const untested = gaps.filter(g => g.needsTest);
@@ -533,10 +597,67 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
         </p>
       )}
 
+      {/* What the characterization call said, beside the board it was collected for.
+          Context and not a warning — it is the reason the week looks the way it does — so it sits
+          above the grid, while what is WRONG with the week sits below it with the pace warnings.
+          Rendered only when there are answers: an empty version of this card would say "ימי אימון"
+          above nothing and read as "this trainee cannot train at all". */}
+      {primaryInputs && primary && (
+        primaryInputs.availableDays.length > 0
+        || primaryInputs.weeklyKm !== null
+        || primaryInputs.limitation
+        || countdown
+      ) && (
+        <div className="bg-page/60 border border-page rounded-xl px-4 py-3 space-y-2 -mt-1">
+          <div className="flex items-center gap-x-3 gap-y-1.5 flex-wrap text-xs text-ink-500">
+            <span className="text-ink-400">משיחת האפיון של {primary.name}:</span>
+            {primaryInputs.availableDays.length > 0 && (
+              <span className="flex items-center gap-1">
+                {DAY_LABELS.map((d, i) => (
+                  <span
+                    key={i}
+                    className={cn(
+                      'w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold',
+                      primaryInputs.availableDays.includes(i)
+                        ? 'bg-brand-600/20 text-brand-600'
+                        : 'text-ink-300',
+                    )}
+                    // All seven, with the days they did not offer dimmed rather than absent: the
+                    // useful comparison is against the whole week, which is what the grid below is.
+                    title={primaryInputs.availableDays.includes(i) ? 'יום שהוא פנוי בו' : 'לא הוצע'}
+                  >
+                    {d}
+                  </span>
+                ))}
+              </span>
+            )}
+            {primaryInputs.weeklyKm !== null && (
+              <span>נפח נוכחי <bdi dir="ltr">{primaryInputs.weeklyKm}</bdi> ק״מ בשבוע</span>
+            )}
+            {countdown && (
+              <span>
+                {countdown.weeks === 0
+                  ? 'התחרות השבוע'
+                  : <>עוד <bdi dir="ltr">{countdown.weeks}</bdi> שבועות לתחרות</>}
+              </span>
+            )}
+          </div>
+          {/* Verbatim, never summarised, and the one line here with a colour on it: this is the
+              sentence that keeps somebody off intervals for a month, and it was typed during the
+              call for exactly this moment. */}
+          {primaryInputs.limitation && (
+            <p className="text-xs leading-relaxed bg-band-3/10 border border-band-3/30 text-band-3-ink rounded-lg px-3 py-2" dir="auto">
+              <span className="font-semibold">מגבלה: </span>{primaryInputs.limitation}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Day slots */}
       <div className="space-y-2">
         {DAY_LABELS.map((label, day) => {
           const slot = slots[day];
+          const clash = clashByDay.get(day);
           return (
             <div key={day} className="flex items-center gap-3 bg-card/50 border border-page/50 rounded-xl p-3">
               <div className="w-10 text-center shrink-0">
@@ -557,6 +678,15 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
                         ? <><span className="font-semibold text-brand-600">מהספר</span> · {bookSummary(slot.entry)}</>
                         : slot.workout.steps.map(stepSummary).join(' · ')}
                     </div>
+                    {/* On the row and not in the warning stack below, because the answer is about
+                        THIS day: a list at the bottom saying "ג׳ clashes" makes the coach count
+                        rows to find it. Nothing is disabled — the answer is from February and the
+                        coach knows things this table does not. */}
+                    {clash && (
+                      <div className="text-xs text-band-3-ink mt-0.5 truncate">
+                        {clash.length === 1 ? `${clash[0]} לא מתאמן/ת ביום זה` : `לא מתאמנים ביום זה: ${clash.join(', ')}`}
+                      </div>
+                    )}
                   </div>
                   {/* No step editor on a book day: editing it would have to write absolute
                       paces, and there is nobody yet to derive them from. The book's own
@@ -572,7 +702,14 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
                 </>
               ) : (
                 <div className="flex-1 flex items-center gap-2">
-                  <span className="text-xs text-ink-400 flex-1 min-w-0 truncate">מנוחה / אין אימון</span>
+                  {/* A day the trainee offered and the week left empty. Said quietly, in the row's
+                      own words, because an unused day is a choice at least as often as an
+                      oversight — a three-day plan for somebody who offered five is normal. */}
+                  <span className="text-xs flex-1 min-w-0 truncate">
+                    {fit.unusedDays.includes(day)
+                      ? <span className="text-ink-500">מנוחה — <span className="text-brand-600">הוא פנוי ביום זה</span></span>
+                      : <span className="text-ink-400">מנוחה / אין אימון</span>}
+                  </span>
                   <button
                     onClick={() => { setSlot(day, emptyWorkout(day)); setEditingDay(day); }}
                     className="flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg bg-brand-600/20 text-brand-600 hover:bg-brand-600/30 text-xs font-semibold shrink-0"
@@ -630,6 +767,36 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
           </span>
         </div>
       )}
+      {/* The week against what they said they run today. Softer than the pace warnings on
+          purpose: those describe what the push will DO, this describes a judgement the coach is
+          entitled to make and may already have made deliberately. */}
+      {fit.jumps.length > 0 && (
+        <div className="flex items-start gap-2 bg-band-3/10 border border-band-3/30 text-band-3-ink rounded-xl px-4 py-3 text-xs leading-relaxed">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>
+            {fit.jumps.map(j => (
+              <span key={j.athleteId} className="block">
+                <span className="font-semibold">{j.name}</span>
+                {' — '}
+                השבוע הזה הוא <bdi dir="ltr">{j.partial ? `לפחות ${j.plannedKm}` : j.plannedKm}</bdi> ק״מ,
+                {' '}<bdi dir="ltr">{Math.round(j.jump * 100)}%</bdi> יותר מ<bdi dir="ltr">{j.currentKm}</bdi> ק״מ שאמר שהוא רץ היום.
+              </span>
+            ))}
+          </span>
+        </div>
+      )}
+
+      {/* Who the three notes above are silent about, and why. Only once there is something to be
+          silent beside — a club that was never characterised would otherwise carry this line on
+          every week forever. */}
+      {fit.anything && fit.uncharacterised.length > 0 && (
+        <p className="text-xs text-ink-400 leading-relaxed px-1">
+          {fit.uncharacterised.length === selected.length
+            ? 'אין שיחת אפיון מוקלטת לאף אחד מהנבחרים, ולכן אין כאן בדיקה מול ימי האימון והנפח שלהם.'
+            : `אין שיחת אפיון מוקלטת ל־${fit.uncharacterised.join(', ')} — ההערות למעלה לא אומרות עליהם דבר.`}
+        </p>
+      )}
+
       {noGarmin.length > 0 && (
         <div className="flex items-start gap-2 bg-page border border-page text-ink-500 rounded-xl px-4 py-3 text-xs leading-relaxed">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
