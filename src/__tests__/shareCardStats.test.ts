@@ -10,7 +10,11 @@ import type { FeedActivity } from '@/lib/feed/project';
  * that shouldn't be there, and a clock time shifted by the viewer's timezone.
  */
 
-const I18N = { km: 'km', perKm: '/km', pace: 'Avg pace', time: 'Time', hr: 'HR', start: 'Started' };
+const I18N = {
+  km: 'km', perKm: '/km', pace: 'Avg pace', time: 'Time', hr: 'HR', start: 'Started',
+  // Only the newer views print these, but the type is shared.
+  distance: 'Distance', elevation: 'Elevation', calories: 'Calories', metres: 'm',
+};
 
 function activity(over: Partial<FeedActivity> = {}): FeedActivity {
   return {
