@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import {
   GraduationCap, Plus, Search, Users, ClipboardCheck, CalendarPlus,
   BarChart3, Trophy, Settings as SettingsIcon, UserPlus, LayoutDashboard,
-  MessagesSquare, Watch, TrendingUp, UserRoundSearch,
+  MessagesSquare, Watch, TrendingUp, UserRoundSearch, Banknote,
 } from 'lucide-react';
 import { cn, getGroupChip } from '@/lib/utils';
 import { Sheet, Spinner, SkeletonList } from '@/components/ui';
@@ -23,6 +23,7 @@ import { WatchDispatch } from '@/components/academy/WatchDispatch';
 import { CandidateFunnel } from '@/components/academy/CandidateFunnel';
 import { BookIcon, WorkoutBook } from '@/components/academy/WorkoutBook';
 import { TestRegistry } from '@/components/academy/TestRegistry';
+import { AcademyPayments } from '@/components/academy/AcademyPayments';
 import { TestBoard } from '@/components/academy/TestBoard';
 import { MemberSheet } from '@/components/academy/MemberSheet';
 import { sundayOf, type AcademyMember, type AcademyMembersResponse } from '@/components/academy/types';
@@ -63,7 +64,7 @@ interface Athlete {
   hasGarmin?: boolean;
 }
 
-type Tab = 'overview' | 'threads' | 'funnel' | 'members' | 'registrations' | 'plans' | 'book' | 'dispatch' | 'compliance' | 'tests' | 'stats' | 'results' | 'settings';
+type Tab = 'overview' | 'threads' | 'funnel' | 'members' | 'registrations' | 'plans' | 'book' | 'dispatch' | 'compliance' | 'tests' | 'stats' | 'results' | 'payments' | 'settings';
 
 
 
@@ -311,6 +312,14 @@ export default function AcademyPage() {
     { value: 'tests', label: t('tabTests'), icon: TrendingUp },
     { value: 'stats', label: t('tabStats'), icon: BarChart3 },
     { value: 'results', label: t('tabResults'), icon: Trophy, badge: members?.pending.results },
+    // Manager only, and more strictly than Settings is: what one trainee pays and what a
+    // mentor earns are the two facts in this app that no colleague is entitled to. The
+    // mockup says so itself — "מודול קטן ומוגן — רק אתה". The route refuses everybody
+    // else regardless; this only keeps the tab out of a coach's way.
+    // No badge on this one, unlike Registrations and Results: the count would mean another
+    // fetch of a manager-only payload on every visit to every other tab, and "somebody has
+    // not paid" is a monthly question rather than an inbox.
+    ...(isManager ? [{ value: 'payments' as Tab, label: t('tabPayments'), icon: Banknote }] : []),
     // Academy-wide settings (registration window, public form copy) are a
     // manager decision, not a per-coach one.
     ...(isManager ? [{ value: 'settings' as Tab, label: t('tabSettings'), icon: SettingsIcon }] : []),
@@ -372,6 +381,8 @@ export default function AcademyPage() {
         <AcademyStats />
       ) : view === 'results' ? (
         <AcademyResults />
+      ) : view === 'payments' ? (
+        <AcademyPayments />
       ) : view === 'settings' ? (
         <AcademySettingsPanel />
       ) : view === 'book' ? (
