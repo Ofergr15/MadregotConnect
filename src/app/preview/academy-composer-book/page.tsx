@@ -22,6 +22,11 @@ import { CANON, SHELF } from '../academy-book/fixtures';
 //     other. They are two different problems and the louder one has to look louder.
 //  4. **One `בחירה` control**, and the sheet behind it, which is the only place in the app
 //     that says out loud that `ספר האימונים` and `ספרייה` are two different lists.
+//  5. **What the characterization call said**, above the grid and on the day it is about. The
+//     fixture below is built so three of the four notes are visible on arrival — the strip, a
+//     clash on the one filled day, and the offered days the week leaves empty — and the fourth,
+//     the volume jump, appears when Dani is added, because his current volume is 8 km. None of
+//     them disables anything, which is the property worth checking by hand here.
 //
 // The stub is not a mock of the product's logic — every number on screen is computed by the
 // real component off these fixtures. It replaces the network only.
@@ -65,7 +70,31 @@ const SAVED_PLAN = {
   },
 };
 
+/**
+ * What the characterization call said, shaped as `GET /api/academy/plan-inputs` returns it.
+ *
+ * Rut is the primary (the composer selects the first athlete), and her days deliberately exclude
+ * Thursday — the one day the saved plan fills — so the clash renders where it belongs instead of
+ * needing a second recipient. `a3` is absent on purpose: never characterised, and the board must
+ * say nothing about her rather than assume she trains every day.
+ */
+const PLAN_INPUTS: Record<string, unknown> = {
+  a1: {
+    goalType: 'half', availableDays: [0, 2, 3], daysPerWeek: 3, weeklyKm: 42,
+    limitation: 'גב תחתון — בלי אינטרוולים קצרים עד סוף החודש',
+    targetRaceDate: '2026-12-05', weeksToRace: 11, prPaceSec: 291, ready: true, missing: [],
+  },
+  a2: {
+    goalType: '10k', availableDays: [1, 3, 5], daysPerWeek: 3, weeklyKm: 8,
+    limitation: null, targetRaceDate: null, weeksToRace: null, prPaceSec: null, ready: true, missing: [],
+  },
+};
+
 function stub(url: string): unknown {
+  if (url.startsWith('/api/academy/plan-inputs')) {
+    const asked = (new URL(url, 'http://x').searchParams.get('athleteIds') || '').split(',');
+    return { inputs: Object.fromEntries(asked.filter(id => PLAN_INPUTS[id]).map(id => [id, PLAN_INPUTS[id]])) };
+  }
   if (url.startsWith('/api/academy/library')) {
     return { entries: [...CANON, ...SHELF], viewer: { athleteId: 'me', isManager: true } };
   }
@@ -116,6 +145,8 @@ export default function PreviewAcademyComposerBook() {
       <p className="mb-4 text-xs text-ink-400 leading-relaxed">
         חמישי נטען מתוכנית שמורה (עם קצבים). שלושה נמענים: עם טסט ועם דבוקה, עם טסט בלי
         דבוקה, ובלי כלום. בחירה ← ספר האימונים כדי למלא יום מהספר — שורה כזו לא מציגה קצב.
+        למעלה מופיע מה שנאמר בשיחת האפיון, וחמישי הוא יום שרות לא מתאמנת בו — שום דבר מזה
+        לא חוסם שליחה.
       </p>
       <AcademyPlanComposer athletes={ATHLETES as unknown as Parameters<typeof AcademyPlanComposer>[0]['athletes']} />
     </div>

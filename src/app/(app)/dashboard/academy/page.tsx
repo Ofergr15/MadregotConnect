@@ -176,7 +176,10 @@ export default function AcademyPage() {
     // `roster` is the old name for what is now the members directory — links
     // already out in notifications and shared URLs must keep working.
     const normalized = tab === 'roster' ? 'members' : tab;
-    const valid: Tab[] = ['overview', 'threads', 'funnel', 'members', 'registrations', 'plans', 'book', 'dispatch', 'compliance', 'tests', 'stats', 'results', 'settings'];
+    // Every member of `Tab`. A tab missing from here has no deep link and fails
+    // silently on the default view, which is how `payments` was unreachable by URL
+    // from the day it shipped — `academyFlowMap.test.ts` now fails on any new gap.
+    const valid: Tab[] = ['overview', 'threads', 'funnel', 'members', 'registrations', 'plans', 'book', 'dispatch', 'compliance', 'tests', 'stats', 'results', 'payments', 'settings'];
     if (valid.includes(normalized as Tab)) setView(normalized as Tab);
   }, []);
 
