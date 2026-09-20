@@ -96,6 +96,11 @@ export const KIND_CATEGORY: Record<string, Category> = {
   // week that was written not being on the watch. It sits with `training_before` because it
   // answers the same question — is there training waiting for me tomorrow.
   watch_disconnected: 'workouts',
+  // The academy's two test reminders (see academy/testReminders.ts). 'workouts' and not 'coach':
+  // the coach asked for the test days ago and the trainee already said yes — these are messages
+  // about the athlete's own training day, and they sit with `training_before` for the same reason.
+  academy_test_before: 'workouts',
+  academy_test_after: 'workouts',
   badge: 'achievements',
   plan_pushed: 'program',
   feedback_reply: 'coach',

@@ -25,6 +25,7 @@ import {
   type Last7Report, type ReportActivity,
 } from '@/lib/reports/last-7-days';
 import { APPROVER_EMAILS } from '@/lib/constants';
+import { dispatchDueTestReminders } from '@/lib/academy/testReminders-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -603,6 +604,16 @@ async function run(request: Request) {
   const setupSnapshot = await runSetupSnapshots(supabase, now);
   if (setupSnapshot.sent) fired.push(`setupSnapshot → ${setupSnapshot.sent}`);
 
+  // ── The academy's test reminders ─────────────────────────────────────────
+  // The two rows a confirmed test invitation arms (migration 112). Beside the
+  // broadcast scanner below rather than inside it, because the follow-up — "we
+  // have no result for your test" — must be re-checked against the invitation in
+  // the instant before it goes out, and a scheduled row cannot carry a condition.
+  // Steady state is one indexed query that finds nothing.
+  const testReminders = await dispatchDueTestReminders(supabase, now.toISOString());
+  if (testReminders.sent) fired.push(`academyTestReminders → ${testReminders.sent}`);
+  if (testReminders.withheld) fired.push(`academyTestRemindersWithheld → ${testReminders.withheld}`);
+
   // precision (delegate to the existing scanner route).
   let scanned: unknown = null;
   try {
@@ -651,7 +662,7 @@ async function run(request: Request) {
     .eq('tick_at', tickAt);
   if (timingError) console.warn('[cron/tick] could not record timing:', timingError.message);
 
-  return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, resolvedReports, setupSnapshot, scanned, durationMs });
+  return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, resolvedReports, setupSnapshot, testReminders, scanned, durationMs });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

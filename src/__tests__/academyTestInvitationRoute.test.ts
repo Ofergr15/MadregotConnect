@@ -32,8 +32,12 @@ const db: {
   // Read by GET for one purpose: an invitation whose result is already sitting in the approval
   // queue must not go on asking the trainee to record a result they have already sent.
   academy_tests: Row[];
+  // Where the two reminders live. Migration 112 chose this table over a second reminder engine,
+  // so "did confirming arm anything?" is a question about rows here.
+  scheduled_notifications: Row[];
 } = {
   academy_test_invitations: [], athletes: [], academy_candidate_events: [], academy_tests: [],
+  scheduled_notifications: [],
 };
 let seq = 0;
 
@@ -79,18 +83,23 @@ class Query implements PromiseLike<{ data: Row[] | null; error: unknown }> {
   }
 
   insert(row: Row) {
-    if (duplicatesAnOpenInvitation(row)) {
+    if (this.table === 'academy_test_invitations' && duplicatesAnOpenInvitation(row)) {
       this.error = { code: '23505', message: 'duplicate key value violates unique constraint' };
       return this;
     }
+    const defaults: Row = this.table === 'academy_test_invitations'
+      ? {
+        created_at: '2026-09-15T00:00:00.000Z',
+        updated_at: '2026-09-15T00:00:00.000Z',
+        confirmed_slot: null,
+        confirmed_at: null,
+        requested_note: null,
+        test_id: null,
+      }
+      : {};
     this.inserting = {
-      id: `inv-${++seq}`,
-      created_at: '2026-09-15T00:00:00.000Z',
-      updated_at: '2026-09-15T00:00:00.000Z',
-      confirmed_slot: null,
-      confirmed_at: null,
-      requested_note: null,
-      test_id: null,
+      id: `${this.table === 'scheduled_notifications' ? 'notif' : 'inv'}-${++seq}`,
+      ...defaults,
       ...row,
     };
     db[this.table].push(this.inserting);
@@ -222,6 +231,7 @@ beforeEach(() => {
   db.academy_test_invitations = [];
   db.academy_candidate_events = [];
   db.academy_tests = [];
+  db.scheduled_notifications = [];
   // `a1` is the coach's own trainee; `a2` belongs to somebody else's coach.
   db.athletes = [
     { id: 'a1', name: 'Dor Alon', academy_coach_id: 'coach-1' },
@@ -585,5 +595,126 @@ describe('the funnel', () => {
     const res = await patch({ id: row.id, action: 'done' });
     expect(res.status).toBe(400);
     expect(row.test_id).toBeNull();
+  });
+});
+
+describe('the reminders a confirmed time arms', () => {
+  /** The two rows for this invitation, by kind. */
+  const reminders = () => ({
+    before: db.scheduled_notifications.filter(r => r.kind === 'academy_test_before'),
+    after: db.scheduled_notifications.filter(r => r.kind === 'academy_test_after'),
+  });
+
+  it('writes both rows, addressed to the trainee, due 12h before and 2 days after', async () => {
+    const row = seedInvitation();
+    asTrainee();
+    const res = await patch({ id: row.id, action: 'confirm', slot: SOON });
+    expect(res.status).toBe(200);
+
+    const { before, after } = reminders();
+    expect(before).toHaveLength(1);
+    expect(after).toHaveLength(1);
+    // 2099-09-17T04:00Z minus twelve hours, and plus two days.
+    expect(before[0].next_run_at).toBe('2099-09-16T16:00:00.000Z');
+    expect(after[0].next_run_at).toBe('2099-09-19T04:00:00.000Z');
+    // `next_run_at` and not only `scheduled_at`: the scanner drives off next_run_at, so a row
+    // with just the other column is documented as due and never becomes due.
+    expect(before[0].scheduled_at).toBe(before[0].next_run_at);
+    for (const r of [before[0], after[0]]) {
+      expect(r.audience_type).toBe('athlete');
+      expect(r.audience_id).toBe('a1');
+      expect(r.status).toBe('scheduled');
+      expect(r.schedule_type).toBe('once_at');
+      expect(r.url).toBe('/dashboard/academy');
+    }
+    // And the invitation can find them again, which is what makes cancelling possible.
+    expect(row.reminder_before_id).toBe(before[0].id);
+    expect(row.reminder_after_id).toBe(after[0].id);
+  });
+
+  it('arms only the follow-up when the test is less than twelve hours away', async () => {
+    // A trainee confirming a slot three hours out is holding the phone that confirmed it. A
+    // "your test is coming up" row whose due time is already behind the clock would be sent on
+    // the very next tick, about a test they agreed to seconds ago.
+    const soon = new Date(Date.now() + 3 * 3_600_000).toISOString();
+    const row = seedInvitation({ proposed_slots: [soon] });
+    asTrainee();
+    expect((await patch({ id: row.id, action: 'confirm', slot: soon })).status).toBe(200);
+
+    const { before, after } = reminders();
+    expect(before).toHaveLength(0);
+    expect(after).toHaveLength(1);
+    expect(row.reminder_before_id).toBeNull();
+    expect(row.reminder_after_id).toBe(after[0].id);
+  });
+
+  it('cancels the old pair when the trainee confirms a different time', async () => {
+    const row = seedInvitation();
+    asTrainee();
+    await patch({ id: row.id, action: 'confirm', slot: SOON });
+    const first = reminders();
+    await patch({ id: row.id, action: 'confirm', slot: ALT });
+
+    // The old rows are cancelled rather than deleted — and cancelled is what stops the
+    // follow-up asking "where is your result?" two days after a time that no longer exists.
+    expect(first.before[0].status).toBe('cancelled');
+    expect(first.after[0].status).toBe('cancelled');
+    const live = db.scheduled_notifications.filter(r => r.status === 'scheduled');
+    expect(live).toHaveLength(2);
+    expect(row.reminder_before_id).toBe(live.find(r => r.kind === 'academy_test_before')?.id);
+    // 2099-09-18T04:00Z minus twelve hours.
+    expect(live.find(r => r.kind === 'academy_test_before')?.next_run_at).toBe('2099-09-17T16:00:00.000Z');
+  });
+
+  it('cancels both when the trainee asks for another time instead', async () => {
+    const row = seedInvitation();
+    asTrainee();
+    await patch({ id: row.id, action: 'confirm', slot: SOON });
+    await patch({ id: row.id, action: 'other', note: 'עובד במשמרות' });
+
+    expect(db.scheduled_notifications.every(r => r.status === 'cancelled')).toBe(true);
+    expect(row.reminder_before_id).toBeNull();
+    expect(row.reminder_after_id).toBeNull();
+  });
+
+  it('cancels both when staff withdraw the invitation', async () => {
+    const row = seedInvitation();
+    asTrainee();
+    await patch({ id: row.id, action: 'confirm', slot: SOON });
+    asStaff();
+    await patch({ id: row.id, action: 'cancel' });
+
+    expect(db.scheduled_notifications.every(r => r.status === 'cancelled')).toBe(true);
+    expect(row.reminder_before_id).toBeNull();
+  });
+
+  it('cancels both when staff re-offer times', async () => {
+    const row = seedInvitation();
+    asTrainee();
+    await patch({ id: row.id, action: 'confirm', slot: SOON });
+    asStaff();
+    await patch({ id: row.id, action: 'offer', slots: [NOT_OFFERED] });
+
+    // `offer` clears `confirmed_slot`, so leaving the reminders armed would keep two messages
+    // pointed at a time nobody is expecting any more.
+    expect(db.scheduled_notifications.every(r => r.status === 'cancelled')).toBe(true);
+    expect(row.reminder_before_id).toBeNull();
+    expect(row.reminder_after_id).toBeNull();
+  });
+
+  it('still confirms the time when the reminder rows cannot be written', async () => {
+    // Every migration in this repo is pasted in by hand, so there is always a window where the
+    // table or the id columns are not there. Confirming a test time must not depend on them.
+    const row = seedInvitation();
+    const original = db.scheduled_notifications;
+    // @ts-expect-error — simulating the table not existing at all.
+    db.scheduled_notifications = undefined;
+    asTrainee();
+    const res = await patch({ id: row.id, action: 'confirm', slot: SOON });
+    db.scheduled_notifications = original;
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).invitation.confirmedSlot).toBe(SOON);
+    expect(row.status).toBe('confirmed');
   });
 });

@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { sendPushLocalized, resolveAudience } from '@/lib/push';
 import { pickBilingual } from '@/lib/notifications/copy';
 import { publishAnnouncement } from '@/lib/feed/announce';
+import { ACADEMY_REMINDER_KINDS } from '@/lib/academy/testReminders';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -35,10 +36,19 @@ async function run(request: Request) {
   const supabase = createServerClient();
   const nowIso = new Date().toISOString();
 
+  // Academy test reminders are deliberately NOT ours. They live in this table (migration 112
+  // chose that over a second reminder engine), but this scanner sends every due row it finds,
+  // unconditionally — which is right for a broadcast and wrong for the follow-up reminder, whose
+  // whole content is "we have no result for your test". That one has to be checked against the
+  // invitation first, because sending it to somebody who ran the test is the message this
+  // product cannot take back. So `dispatchDueTestReminders` owns those two kinds (it runs from
+  // the same five-minute tick that calls this route) and they are skipped here: two scanners
+  // over the same rows would race to send the same push twice.
   const { data: due, error } = await supabase
     .from('scheduled_notifications')
     .select('*')
     .eq('status', 'scheduled')
+    .not('kind', 'in', `(${ACADEMY_REMINDER_KINDS.join(',')})`)
     .lte('next_run_at', nowIso);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

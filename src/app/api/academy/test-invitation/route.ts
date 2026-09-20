@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { isMissingTable } from '@/lib/supabase/schema-drift';
+import { isMissingColumn, isMissingTable } from '@/lib/supabase/schema-drift';
 import {
   pendingSubmissionsByAthlete,
   submittedAtFor,
 } from '@/lib/academy/settle-invitation-server';
+import {
+  armTestReminders,
+  disarmTestReminders,
+  reminderIdsFor,
+} from '@/lib/academy/testReminders-server';
 import type { TestInvitation } from '@/lib/academy/testInvite';
 
 export const dynamic = 'force-dynamic';
@@ -384,12 +389,54 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const { data, error } = await supabase
+    // ── THE REMINDERS ────────────────────────────────────────────────────────────────────
+    //
+    // A confirm arms them; every other action cancels them. Both branches cancel whatever was
+    // armed before, and that is not symmetry for its own sake: re-confirming to a different
+    // time is a single PATCH, and the old rows left scheduled would nag about a slot that no
+    // longer exists — including the follow-up, asking "where is your result?" two days after a
+    // time the trainee already moved away from.
+    //
+    // The ids go into the SAME update as the status change, so an invitation can never be
+    // confirmed-with-orphan-reminders: either both land or neither does. Everything inside
+    // these helpers is best-effort and logged — see their header for why a failure here must
+    // not turn into "could not confirm your time".
+    const previousIds = await reminderIdsFor(supabase, id);
+    if (action === 'confirm') {
+      const armed = await armTestReminders(
+        supabase,
+        { id, athleteId: invite.athleteId, protocol: invite.protocol, confirmedSlot: String(patch.confirmed_slot) },
+        previousIds,
+        nowIso,
+      );
+      patch.reminder_before_id = armed.before;
+      patch.reminder_after_id = armed.after;
+    } else {
+      await disarmTestReminders(supabase, [previousIds.before, previousIds.after]);
+      patch.reminder_before_id = null;
+      patch.reminder_after_id = null;
+    }
+
+    let { data, error } = await supabase
       .from('academy_test_invitations')
       .update({ ...patch, updated_at: nowIso })
       .eq('id', id)
       .select(COLUMNS)
       .single();
+
+    // Migration 112 is pasted in by hand like every other one, so the two id columns may not be
+    // there yet. Answering a test invitation must not depend on them: the retry writes the same
+    // status change without the reminder link, which is exactly the behaviour this route had
+    // before reminders existed.
+    if (error && isMissingColumn(error)) {
+      const { reminder_before_id: _b, reminder_after_id: _a, ...rest } = patch;
+      ({ data, error } = await supabase
+        .from('academy_test_invitations')
+        .update({ ...rest, updated_at: nowIso })
+        .eq('id', id)
+        .select(COLUMNS)
+        .single());
+    }
 
     if (error) {
       if (isMissingTable(error)) return NextResponse.json(NOT_SET_UP, { status: 503 });
