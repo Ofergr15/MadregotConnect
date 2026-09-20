@@ -20,6 +20,8 @@ import {
 import {
   normalizeStatus, splitByPhase, STATUS_LABEL_KEY, STATUS_PILL,
 } from '@/lib/feedback/status';
+import { compareAppVersions } from '@/lib/feedback/lifecycle';
+import { APP_VERSION } from '@/lib/version';
 
 /**
  * /dashboard/review — the club's "something isn't working" channel.
@@ -73,6 +75,10 @@ interface MyReport {
   category: FeedbackCategory;
   status: string | null;
   created_at: string;
+  /** Migration 116. Absent until it is applied, which is exactly when the confirm
+   *  button must not be offered — there would be nowhere to record the answer. */
+  fixed_in_version?: string | null;
+  verified_at?: string | null;
 }
 
 export default function ReviewPage() {
@@ -141,6 +147,33 @@ export default function ReviewPage() {
 
   const { data: mineData, mutate: refreshMine } = useApi<{ feedback?: MyReport[] }>('/api/feedback?mine=1');
   const myReports = mineData?.feedback || [];
+  /** Which report we are mid-confirm on, so the row can't be double-tapped. */
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  /**
+   * "Yes, this is actually fixed."
+   *
+   * The other half of the loop, and the half that was missing: `status = 'done'`
+   * is the coach's opinion, and somebody holding a stale service worker will keep
+   * seeing the bug and quietly conclude that reporting things is pointless. This
+   * is the only place `verified_at` is ever written — the staff panel cannot set
+   * it, deliberately.
+   */
+  const confirmFixed = useCallback(async (id: string) => {
+    setConfirming(id);
+    try {
+      await fetch('/api/feedback', {
+        method: 'PUT',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ id, verified: true }),
+      });
+      await refreshMine();
+    } catch {
+      /* the button comes back; nothing was said on their behalf */
+    } finally {
+      setConfirming(null);
+    }
+  }, [refreshMine]);
 
   // Staff only, and counts only — never the list. The full staff response
   // carries a base64 screenshot per row, so fetching it just to show a badge
@@ -530,6 +563,33 @@ export default function ReviewPage() {
                       </span>
                     </div>
                     <p className="mt-1 line-clamp-2 text-13 leading-snug text-ink-700" dir="auto">{r.message}</p>
+                    {/* ── Did it actually work? ──
+                        Only on a report marked fixed, only while `verified_at` is a
+                        column we can read (migration 116), and only once. The
+                        version line is there because the commonest reason a fix
+                        looks broken is a PWA still running the old service worker —
+                        so the app says which build has the fix and whether this
+                        device is on it, rather than leaving them to guess. */}
+                    {status === 'done' && r.verified_at !== undefined && (
+                      r.verified_at ? (
+                        <p className="mt-1.5 text-3xs font-semibold text-accent-900">{t('verifiedThanks')}</p>
+                      ) : (
+                        <div className="mt-2">
+                          {r.fixed_in_version && compareAppVersions(APP_VERSION, r.fixed_in_version) < 0 && (
+                            <p className="mb-1.5 text-3xs leading-relaxed text-ink-400" dir="auto">
+                              {t('fixedInReload', { version: r.fixed_in_version })}
+                            </p>
+                          )}
+                          <button
+                            onClick={() => confirmFixed(r.id)}
+                            disabled={confirming === r.id}
+                            className="min-h-[36px] rounded-lg border border-accent-600/30 bg-accent-600/15 px-3 text-3xs font-bold text-accent-900 transition-colors active:bg-accent-600/25 disabled:opacity-50"
+                          >
+                            {confirming === r.id ? t('verifyingNow') : t('verifyItWorks')}
+                          </button>
+                        </div>
+                      )
+                    )}
                   </div>
                 );
               })}
