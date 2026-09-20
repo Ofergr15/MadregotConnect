@@ -26,6 +26,10 @@
     {
       "path": "/api/cron/workout-watch",
       "schedule": "*/15 3-10 * * *"
+    },
+    {
+      "path": "/api/cron/detect",
+      "schedule": "12 3 * * *"
     }
   ]
 }
