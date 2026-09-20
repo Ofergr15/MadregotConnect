@@ -71,6 +71,10 @@ export interface ResolvedReportRow {
   id: string;
   athlete_id: string | null;
   message: string | null;
+  /** Migration 116. Absent until it is applied, and absent on every report closed
+   *  before anybody recorded a fix version — in both cases the message simply
+   *  doesn't name one, rather than naming a wrong one. */
+  fixed_in_version?: string | null;
 }
 
 export type ResolvedNotifyResult = 'sent' | 'already' | 'no-reporter';
@@ -104,7 +108,13 @@ export async function notifyReportResolved(
     actorAthleteId: null,
     url: '/dashboard/review',
     tag,
-    copy: (locale) => reviewResolvedCopy(locale, { preview: report.message }),
+    copy: (locale) => reviewResolvedCopy(locale, {
+      preview: report.message,
+      // The version to reload into. A PWA holding a stale service worker will keep
+      // showing the bug, so "it's fixed" without a version is a message that reads
+      // as a lie to the one person who did us a favour.
+      fixedInVersion: report.fixed_in_version ?? null,
+    }),
   });
 
   // After the send, not before: a ledger row written first would silently eat the
@@ -135,18 +145,28 @@ export async function reconcileResolvedReports(
 ): Promise<{ available: boolean; considered: number; sent: number; ids: string[] }> {
   const since = new Date(now.getTime() - RESOLVED_RECONCILE_WINDOW_HOURS * 3_600_000).toISOString();
 
-  const { data, error } = await supabase
+  const pass = (columns: string) => supabase
     .from('feedback')
-    .select('id, athlete_id, message')
+    .select(columns)
     .eq('status', 'done')
     .not('athlete_id', 'is', null)
     .gte('resolved_at', since);
+
+  // Migration 116 adds `fixed_in_version`. Asking for a column that isn't there is
+  // a 42703 on the whole query, so the narrow select is retried — losing the
+  // version from the push is a downgrade, losing the push is a regression.
+  let { data, error } = await pass('id, athlete_id, message, fixed_in_version');
+  if (error && (error as { code?: string }).code === '42703') {
+    ({ data, error } = await pass('id, athlete_id, message'));
+  }
 
   // Migration 105 not applied yet: "we could not look" is not "there was nothing
   // to find", and it must not read as a healthy pass in the tick's JSON.
   if (error) return { available: false, considered: 0, sent: 0, ids: [] };
 
-  const rows = (data || []) as ResolvedReportRow[];
+  // `as unknown` first: the select list is a runtime string here (the narrow retry),
+  // so supabase-js can no longer infer a row type and widens it to its error shape.
+  const rows = (data || []) as unknown as ResolvedReportRow[];
   const ids: string[] = [];
   for (const row of rows) {
     try {

@@ -113,12 +113,23 @@ export async function GET(request: Request) {
       if (!caller.athleteId) return NextResponse.json({ feedback: [] });
 
       const supabase = createServerClient();
-      const { data, error } = await supabase
+      const mine = (columns: string) => supabase
         .from('feedback')
-        .select('id, message, category, status, created_at')
+        .select(columns)
         .eq('athlete_id', caller.athleteId)
         .order('created_at', { ascending: false })
         .limit(20);
+
+      // `fixed_in_version` and `verified_at` are migration 116: the reporter's own
+      // list is where they confirm a fix, and it can't ask without knowing which
+      // version claims to carry it. Retried narrow on 42703 so the list keeps
+      // working — without the confirm button, which is the honest degrade — until
+      // the migration is applied. `context` is NOT selected: it is a diagnostics
+      // blob the reporter has already seen once and the list doesn't render.
+      let { data, error } = await mine('id, message, category, status, created_at, fixed_in_version, verified_at');
+      if (error && (error as { code?: string }).code === '42703') {
+        ({ data, error } = await mine('id, message, category, status, created_at'));
+      }
       if (error) throw error;
       return NextResponse.json({ feedback: data || [] });
     }
@@ -208,7 +219,8 @@ export async function PATCH(request: Request) {
     const denied = await requireStaff(request);
     if (denied) return denied;
 
-    const { id, status, priority, admin_notes, sort_order } = await request.json();
+    const body = await request.json();
+    const { id, status, priority, admin_notes, sort_order } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Feedback ID is required' }, { status: 400 });
@@ -220,6 +232,32 @@ export async function PATCH(request: Request) {
     if (priority !== undefined) updateData.priority = priority;
     if (admin_notes !== undefined) updateData.admin_notes = admin_notes;
     if (sort_order !== undefined) updateData.sort_order = sort_order;
+
+    // ── Migration 116: what fixed it, who decided it, and what it duplicates ──
+    // Split out because these columns may not exist yet, and a 42703 on the whole
+    // UPDATE would lose the status change too — which is the part of the request
+    // that has always worked and must keep working. Applied as a second write.
+    const lifecycle: any = {};
+    for (const key of ['fixed_in_version', 'fix_branch', 'fix_commit', 'triage_note'] as const) {
+      if (body[key] !== undefined) lifecycle[key] = body[key] || null;
+    }
+    // Explicit null clears a mistaken merge; an id sets it. Never the row itself:
+    // a report that duplicates itself belongs to no view (see lifecycle.ts).
+    if (body.duplicate_of !== undefined) {
+      lifecycle.duplicate_of = body.duplicate_of && body.duplicate_of !== id ? body.duplicate_of : null;
+    }
+    // A boolean from the client, a timestamp in the row — the client's clock is
+    // not evidence of when anything happened.
+    if (body.archived !== undefined) {
+      lifecycle.archived_at = body.archived ? new Date().toISOString() : null;
+    }
+    // Who decided, stamped by the server whenever a decision is being recorded.
+    // `admin_notes` alone is a note, not a decision, so it doesn't stamp.
+    if (status !== undefined || body.triage_note !== undefined) {
+      const { caller } = await resolveVerifiedCaller(request);
+      lifecycle.triaged_by = caller?.email || 'staff';
+      lifecycle.triaged_at = new Date().toISOString();
+    }
 
     // Read the row BEFORE writing, to learn what the status was. That's the only
     // way to tell "just marked done" from "was already done and the note
@@ -236,6 +274,18 @@ export async function PATCH(request: Request) {
       .eq('id', id);
 
     if (error) throw error;
+
+    // Second write, and its failure is reported rather than thrown: the triage the
+    // coach just performed is already saved, and a missing migration must not read
+    // back as "nothing happened".
+    let lifecycleSaved = true;
+    if (Object.keys(lifecycle).length > 0) {
+      const { error: lifecycleError } = await supabase.from('feedback').update(lifecycle).eq('id', id);
+      if (lifecycleError) {
+        lifecycleSaved = false;
+        console.error('Feedback lifecycle update failed (migration 116 applied?):', lifecycleError.message);
+      }
+    }
 
     // Close the loop: the reporter did unpaid work for us, and the only thing
     // that makes anyone report a second bug is finding out the first one led
@@ -256,15 +306,63 @@ export async function PATCH(request: Request) {
           id,
           athlete_id: before.athlete_id,
           message: before.message,
+          // Straight off this request, not re-read: the version the coach typed in
+          // the same save is the one that fixed it.
+          fixed_in_version: lifecycleSaved ? (body.fixed_in_version ?? null) : null,
         });
       } catch (pushError) {
         console.error('Feedback resolved notify failed:', pushError);
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, lifecycleSaved });
   } catch (error: any) {
     console.error('Feedback update error:', error);
     return NextResponse.json({ error: error.message || 'Failed to update' }, { status: 500 });
+  }
+}
+
+/**
+ * The reporter confirming their own report is actually fixed.
+ *
+ * `status = 'done'` is staff's opinion, and it is the one the whole panel was
+ * built on — which is why a report could read as closed while the person who
+ * filed it was still watching the bug happen on a stale service worker. This is
+ * the other half: `verified_at` is set by the REPORTER and by nobody else.
+ *
+ * Not a widening of the route's surface. `resolveVerifiedCaller` gives the
+ * session's athlete id, the UPDATE is filtered on `athlete_id` as well as `id`, so
+ * the only row a caller can ever touch is one they filed — an id from the body
+ * that belongs to somebody else matches nothing and changes nothing.
+ */
+export async function PUT(request: Request) {
+  try {
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    if (!caller.athleteId) return NextResponse.json({ error: 'no-athlete' }, { status: 403 });
+
+    const { id, verified } = await request.json();
+    if (!id) return NextResponse.json({ error: 'Feedback ID is required' }, { status: 400 });
+
+    const supabase = createServerClient();
+    const { error } = await supabase
+      .from('feedback')
+      .update({ verified_at: verified === false ? null : new Date().toISOString() })
+      .eq('id', id)
+      .eq('athlete_id', caller.athleteId);
+
+    // Migration 116 not applied yet. A 400 here would surface on the reporter's
+    // screen as their confirmation being rejected, which is the worst possible
+    // place to be honest about our own schema — so it reports the column, and the
+    // button is hidden anyway until the list comes back carrying `verified_at`.
+    if (error && (error as { code?: string }).code === '42703') {
+      return NextResponse.json({ error: 'not-available' }, { status: 503 });
+    }
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Feedback verify error:', error);
+    return NextResponse.json({ error: error.message || 'Failed to verify' }, { status: 500 });
   }
 }

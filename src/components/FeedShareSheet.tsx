@@ -106,6 +106,8 @@ export function FeedShareSheet({ item, onClose }: Props) {
         elevation: ts('cardElevation'),
         calories: ts('cardCalories'),
         metres: ts('cardMetres'),
+        hoursShort: ts('cardHoursShort'),
+        minutesShort: ts('cardMinutesShort'),
       },
       {
         background: photo,
