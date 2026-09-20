@@ -136,6 +136,16 @@ export interface ShareI18n {
   calories: string;
   /** Unit for elevation gain. */
   metres: string;
+  /**
+   * Units for the duration — "1:13:26 ש׳" / "43:26 דק׳".
+   *
+   * A bare clock string is ambiguous on a card with no other context: "43:26" is
+   * read as forty-three hours as readily as forty-three minutes, and the newer
+   * views print it at the same size as the distance, with nothing around it to
+   * settle the question.
+   */
+  hoursShort: string;
+  minutesShort: string;
 }
 
 export interface ShareCardOptions {
@@ -411,7 +421,12 @@ function coreStats(act: FeedActivity, i18n: ShareI18n): Stat[] {
   if (act.averagePace) {
     out.push({ value: formatPace(act.averagePace), unit: i18n.perKm, label: i18n.pace });
   }
-  out.push({ value: formatDuration(act.duration), label: i18n.time });
+  // Whichever unit the clock string's leading number is actually in.
+  out.push({
+    value: formatDuration(act.duration),
+    unit: act.duration >= 3600 ? i18n.hoursShort : i18n.minutesShort,
+    label: i18n.time,
+  });
   return out;
 }
 
@@ -591,6 +606,14 @@ function drawValueWithUnit(
   ctx.direction = 'ltr';
   ctx.textAlign = 'left';
 
+  // WHICH SIDE the unit goes on is a property of the unit's own script, not of
+  // the app's locale: "16.3 km" puts it on the right, and the same phrase in
+  // Hebrew — "16.3 ק״מ" — puts it on the left, because that is where the word
+  // AFTER the number lands when the line reads right-to-left. Drawing it on the
+  // right in Hebrew reads as "ק״מ 16.3", i.e. unit first, which is how the card
+  // ended up saying the equivalent of "km 16.3".
+  const unitFirst = !!s.unit && /[\u0590-\u05FF]/.test(s.unit);
+
   const measure = (px: number) => {
     ctx.font = `700 ${px}px ${font}`;
     const vW = ctx.measureText(s.value).width;
@@ -609,13 +632,14 @@ function drawValueWithUnit(
   }
 
   const startX = align === 'center' ? x - m.total / 2 : x;
+  const valueX = unitFirst ? startX + m.uW + m.gap : startX;
   ctx.font = `700 ${px}px ${font}`;
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(s.value, startX, baseline);
+  ctx.fillText(s.value, valueX, baseline);
   if (s.unit) {
     ctx.font = `700 ${m.uPx}px ${font}`;
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.fillText(s.unit, startX + m.vW + m.gap, baseline);
+    ctx.fillText(s.unit, unitFirst ? startX : startX + m.vW + m.gap, baseline);
   }
 }
 

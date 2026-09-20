@@ -2299,7 +2299,9 @@
       "cardDistance": "מרחק",
       "cardElevation": "טיפוס",
       "cardCalories": "קלוריות",
-      "cardMetres": "מ׳"
+      "cardMetres": "מ׳",
+      "cardHoursShort": "ש׳",
+      "cardMinutesShort": "דק׳"
     },
     "focusedTitle": "מההתראה שקיבלתם",
     "focusedShowAll": "הצגת כל הפיד",

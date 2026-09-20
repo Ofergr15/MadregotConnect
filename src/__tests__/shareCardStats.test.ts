@@ -13,7 +13,7 @@ import type { FeedActivity } from '@/lib/feed/project';
 const I18N = {
   km: 'km', perKm: '/km', pace: 'Avg pace', time: 'Time', hr: 'HR', start: 'Started',
   // Only the newer views print these, but the type is shared.
-  distance: 'Distance', elevation: 'Elevation', calories: 'Calories', metres: 'm',
+  distance: 'Distance', elevation: 'Elevation', calories: 'Calories', metres: 'm', hoursShort: 'h', minutesShort: 'min',
 };
 
 function activity(over: Partial<FeedActivity> = {}): FeedActivity {
