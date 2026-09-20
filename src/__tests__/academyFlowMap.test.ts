@@ -87,12 +87,23 @@ describe('the shape of the walkthrough', () => {
 
 describe('the open questions', () => {
   it('counts every one of them, including the ones not tied to a step', () => {
-    const perStep = FLOW_STEPS.reduce((n, s) => n + s.questions.length, 0);
-    expect(perStep).toBeGreaterThan(0);
-    expect(flowCounts().questions).toBe(perStep + CROSS_CUTTING_QUESTIONS.length);
+    const live = FLOW_STEPS.filter(s => !s.deferred).reduce((n, s) => n + s.questions.length, 0);
+    expect(live).toBeGreaterThan(0);
+    expect(flowCounts().questions).toBe(live + CROSS_CUTTING_QUESTIONS.length);
   });
 
-  it('names the money decisions on the payment step, where they are answerable', () => {
+  it('keeps a parked step\'s questions out of the open count, but does not lose them', () => {
+    // Payments was parked on 2026-09-20. A postponed decision inside the count of decisions to
+    // make now is how the list stops being read; dropping it is how it gets rebuilt from memory.
+    const parked = FLOW_STEPS.filter(s => s.deferred);
+    expect(parked.length).toBeGreaterThan(0);
+    const counts = flowCounts();
+    expect(counts.deferredQuestions).toBe(parked.reduce((n, s) => n + s.questions.length, 0));
+    expect(counts.deferredQuestions).toBeGreaterThan(0);
+    expect(counts.withQuestions).toBe(FLOW_STEPS.filter(s => !s.deferred && s.questions.length > 0).length);
+  });
+
+  it('still keeps the money decisions written down on the step they belong to', () => {
     const payment = FLOW_STEPS.find(s => s.n === 14);
     expect(payment?.questions.length).toBeGreaterThanOrEqual(4);
   });

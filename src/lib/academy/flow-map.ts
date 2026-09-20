@@ -53,6 +53,15 @@ export interface FlowStep {
   screens: StepScreen[];
   /** Decisions waiting on Ofer that would change THIS step. */
   questions: string[];
+  /**
+   * Parked by Ofer: built, but not on the table now and not to be discussed now.
+   *
+   * Kept as a flag rather than by deleting the step, because the step is still part of the
+   * process — the app simply is not the place it is being decided. Deleting it would make the
+   * walkthrough describe a fourteen-step flow, and re-deriving what was already built when it is
+   * unparked is the expensive way to save a line of data.
+   */
+  deferred?: boolean;
 }
 
 export const FLOW_STEPS: FlowStep[] = [
@@ -149,7 +158,10 @@ export const FLOW_STEPS: FlowStep[] = [
     today: 'Excel · WhatsApp',
     state: 'inApp',
     built: 'ספי אימון מחושבים, המלצת דבוקה, והסיכום המאושר נשלח למתאמן עצמו.',
-    screens: [{ label: 'שיפור ומגמות', href: '/preview/academy-tests', kind: 'preview' }],
+    screens: [
+      { label: 'ניתוח טסט', href: '/preview/academy-analysis', kind: 'preview' },
+      { label: 'שיפור ומגמות', href: '/preview/academy-tests', kind: 'preview' },
+    ],
     questions: [
       'הטבלה שלך (1500 מ׳ → מרתון, אחוזי דופק) — היא מחליפה את המקדמים שניחשתי.',
       'קצב הסף של כל דבוקה, אחרת המלצת הדבוקה שותקת במקום לנחש.',
@@ -162,7 +174,10 @@ export const FLOW_STEPS: FlowStep[] = [
     today: 'שיקול דעת',
     state: 'inApp',
     built: 'המלצה בלבד, לצד הנתון שעליו היא מתבססת — ההחלטה נשארת שלך.',
-    screens: [{ label: 'שיפור ומגמות', href: '/preview/academy-tests', kind: 'preview' }],
+    screens: [
+      { label: 'המלצת שיבוץ', href: '/preview/academy-analysis', kind: 'preview' },
+      { label: 'שיפור ומגמות', href: '/preview/academy-tests', kind: 'preview' },
+    ],
     questions: [],
   },
   {
@@ -226,8 +241,15 @@ export const FLOW_STEPS: FlowStep[] = [
     // GO issues the link and holds the standing order. What the app keeps is the STATUS, because
     // that is the part that sat in a spreadsheet beside a roster that moved without it.
     state: 'partly',
+    // Parked 2026-09-20: "כל האיזור של התשלומים תשאיר בתור — יפתח בעתיד, כרגע לא רלוונטי".
+    // The screens stay openable, because they are built and green; nothing more gets built on
+    // them and the four money questions are off the agenda until Ofer opens this again.
+    deferred: true,
     built: 'מצב תשלום מול מצב אימון, ומי מאומן בחינם. הכסף עצמו נשאר ב-GO.',
-    screens: [{ label: 'בפועל', href: '/dashboard/academy?tab=payments', kind: 'app' }],
+    screens: [
+      { label: 'לוח התשלומים', href: '/preview/academy-payments', kind: 'preview' },
+      { label: 'בפועל', href: '/dashboard/academy?tab=payments', kind: 'app' },
+    ],
     questions: [
       'האם מייל מ-GO נקרא אוטומטית, או שאתה מסמן בלחיצה.',
       'האם המערכת אמורה לשלוח תזכורת תשלום בעצמה. כרגע היא רק מכינה טקסט להעתקה.',
@@ -269,9 +291,12 @@ export interface FlowCounts {
   inApp: number;
   partly: number;
   outsideApp: number;
-  /** How many steps still carry a decision. */
+  /** How many steps still carry a decision. Parked steps do not count. */
   withQuestions: number;
+  /** Decisions open FOR NOW: the parked steps' questions are not among them. */
   questions: number;
+  /** Questions on parked steps, counted separately so nothing is silently lost. */
+  deferredQuestions: number;
 }
 
 export function flowCounts(steps: FlowStep[] = FLOW_STEPS): FlowCounts {
@@ -280,10 +305,16 @@ export function flowCounts(steps: FlowStep[] = FLOW_STEPS): FlowCounts {
     inApp: steps.filter(s => s.state === 'inApp').length,
     partly: steps.filter(s => s.state === 'partly').length,
     outsideApp: steps.filter(s => s.state === 'outsideApp').length,
-    withQuestions: steps.filter(s => s.questions.length > 0).length,
+    withQuestions: steps.filter(s => s.questions.length > 0 && !s.deferred).length,
     // The cross-cutting ones are counted too: the header number is "how many decisions are open",
     // and a total that silently dropped four of them would be the wrong number to act on.
-    questions: steps.reduce((n, s) => n + s.questions.length, 0) + CROSS_CUTTING_QUESTIONS.length,
+    //
+    // A parked step's questions are the one exception, and they get their own number rather than
+    // vanishing: putting a decision Ofer has explicitly postponed into the count of what he has
+    // to decide now is how a list of open questions stops being read.
+    questions: steps.filter(s => !s.deferred).reduce((n, s) => n + s.questions.length, 0)
+      + CROSS_CUTTING_QUESTIONS.length,
+    deferredQuestions: steps.filter(s => s.deferred).reduce((n, s) => n + s.questions.length, 0),
   };
 }
 

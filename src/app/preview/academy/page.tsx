@@ -60,6 +60,11 @@ export default function AcademyFlowIndex() {
             <span className="rounded-full bg-ink-300/40 px-2 py-1 text-ink-500">
               <bdi dir="ltr">{counts.questions}</bdi> החלטות פתוחות
             </span>
+            {counts.deferredQuestions > 0 && (
+              <span className="rounded-full bg-ink-300/40 px-2 py-1 text-ink-500">
+                <bdi dir="ltr">{counts.deferredQuestions}</bdi> בתור לעתיד
+              </span>
+            )}
           </div>
           <p className="mt-2.5 text-[11px] leading-relaxed text-ink-400">
             גרסה <bdi dir="ltr">{APP_VERSION}</bdi> · הכל יושב על ענף נפרד ולא על הראשי, כך
@@ -77,8 +82,13 @@ export default function AcademyFlowIndex() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start gap-2">
                     <h2 className="flex-1 text-sm font-bold leading-snug text-ink-900">{step.title}</h2>
-                    <span className={`flex-none rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATE_CLASS[step.state]}`}>
-                      {STATE_LABEL[step.state]}
+                    {/* A parked step wears one pill, not two: "built, and not on the table" is a
+                        single fact about it, and the state it would otherwise show is a detail of
+                        something nobody is deciding now. */}
+                    <span className={`flex-none rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      step.deferred ? 'bg-ink-300/40 text-ink-500' : STATE_CLASS[step.state]
+                    }`}>
+                      {step.deferred ? 'בתור — לא עכשיו' : STATE_LABEL[step.state]}
                     </span>
                   </div>
                   <p className="mt-1 text-[11px] text-ink-400">
@@ -110,9 +120,20 @@ export default function AcademyFlowIndex() {
                   )}
 
                   {step.questions.length > 0 && (
-                    <ul className="mt-2.5 space-y-1.5 rounded-xl bg-band-3/10 p-2.5">
+                    <ul className={`mt-2.5 space-y-1.5 rounded-xl p-2.5 ${
+                      step.deferred ? 'bg-ink-300/40' : 'bg-band-3/10'
+                    }`}>
+                      {step.deferred && (
+                        <li className="text-[11px] font-semibold leading-relaxed text-ink-500">
+                          השלב הזה בתור לעתיד, ולכן השאלות האלה לא לדיון עכשיו — הן שמורות כאן
+                          כדי שלא יאבדו. המסכים בנויים ופתוחים לצפייה.
+                        </li>
+                      )}
                       {step.questions.map(q => (
-                        <li key={q} className="text-[11px] leading-relaxed text-band-3">
+                        <li
+                          key={q}
+                          className={`text-[11px] leading-relaxed ${step.deferred ? 'text-ink-500' : 'text-band-3'}`}
+                        >
                           {q}
                         </li>
                       ))}
