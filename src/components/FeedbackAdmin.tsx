@@ -6,6 +6,10 @@ import { Loader2, MessageSquare, Trash2, Bug, Lightbulb, Dumbbell, MessageCircle
 import { cn } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
 import { reviewContextRows, type ReviewContext } from '@/lib/review-context';
+import {
+  FEEDBACK_STATUS_ORDER, normalizeStatus, statusPhase, STATUS_LABEL_KEY, STATUS_PILL,
+  type FeedbackPhase, type FeedbackStatus,
+} from '@/lib/feedback/status';
 import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, Spinner } from '@/components/ui';
 import { InsetSection } from '@/components/ui/InsetList';
 
@@ -29,7 +33,6 @@ import { InsetSection } from '@/components/ui/InsetList';
  */
 
 type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
-type FeedbackStatus = 'new' | 'idea' | 'sprint' | 'denied' | 'done';
 type FeedbackPriority = 'low' | 'medium' | 'high';
 
 export interface FeedbackItem {
@@ -70,11 +73,15 @@ const priorityConfig = {
   high: { label: 'High', bg: 'bg-accent-red/15', text: 'text-accent-red-ink', border: 'border-accent-red/30' },
 };
 
-const STATUS_ORDER: FeedbackStatus[] = ['new', 'idea', 'sprint', 'denied', 'done'];
-
 export function FeedbackAdmin() {
   const t = useTranslations('settings');
   const tc = useTranslations('common');
+  // Status labels come from the `review` namespace — the same words the athlete
+  // who filed the report reads on their own list. This screen used to have its own
+  // set ("ספרינט", "בוצע"), so one report had two names for its state depending on
+  // who was looking at it. See lib/feedback/status.ts (2d076a9c).
+  const tr = useTranslations('review');
+  const statusLabel = (s: FeedbackStatus) => tr(STATUS_LABEL_KEY[s]);
   const locale = useLocale();
   const catLabel = (c: FeedbackCategory) => t(categoryConfig[c].labelKey);
 
@@ -82,6 +89,11 @@ export function FeedbackAdmin() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<FeedbackItem | null>(null);
   const [filterCategory, setFilterCategory] = useState<FeedbackCategory | 'all'>('all');
+  // Opens on OPEN. The five status sections were stacked on one scroll, so the
+  // outstanding work and the year's closed pile looked like one undifferentiated
+  // list — and with `done` the biggest section, the answer to "what is left" was
+  // below the fold. Two taps reach either of the other views (2d076a9c).
+  const [filterPhase, setFilterPhase] = useState<FeedbackPhase | 'all'>('open');
   const [query, setQuery] = useState('');
   const [updating, setUpdating] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
@@ -163,11 +175,13 @@ export function FeedbackAdmin() {
   const needle = query.trim().toLowerCase();
   const visible = items.filter(item => {
     if (filterCategory !== 'all' && (item.category || 'general') !== filterCategory) return false;
+    if (filterPhase !== 'all' && statusPhase(item.status) !== filterPhase) return false;
     if (!needle) return true;
     return [item.message, item.athlete_name, item.athlete_email, item.group_name]
       .some(v => (v || '').toLowerCase().includes(needle));
   });
-  const newCount = items.filter(i => (i.status || 'new') === 'new').length;
+  const newCount = items.filter(i => normalizeStatus(i.status) === 'new').length;
+  const openCount = items.filter(i => statusPhase(i.status) === 'open').length;
 
   return (
     <>
@@ -270,9 +284,9 @@ export function FeedbackAdmin() {
               <div className={cn(updating === selected.id && 'opacity-50 pointer-events-none')}>
                 <label className="text-xs font-semibold text-ink-400 mb-2 block">{t('status')}</label>
                 <SegmentedControl<FeedbackStatus>
-                  value={selected.status || 'new'}
+                  value={normalizeStatus(selected.status)}
                   onChange={(status) => updateStatus(selected.id, status, selected.priority || 'medium')}
-                  options={STATUS_ORDER.map(status => ({ value: status, label: t(status) }))}
+                  options={FEEDBACK_STATUS_ORDER.map(status => ({ value: status, label: statusLabel(status) }))}
                 />
               </div>
               <div className={cn(updating === selected.id && 'opacity-50 pointer-events-none')}>
@@ -342,13 +356,33 @@ export function FeedbackAdmin() {
 
       {/* How much is waiting, and how much of it nobody has looked at — the one
           number that says whether this screen needs attention today. */}
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <p className="text-2xs font-semibold text-ink-400">{t('feedbackCount', { count: items.length })}</p>
         {newCount > 0 && (
           <span className="rounded-full bg-accent-red/15 px-2 py-0.5 text-3xs font-bold text-accent-red-ink">
             {t('feedbackNewCount', { count: newCount })}
           </span>
         )}
+        {/* How much is still open, stated as a number rather than left to be
+            counted off five section headers. */}
+        <span className="rounded-full bg-page px-2 py-0.5 text-3xs font-bold text-ink-500">
+          {t('feedbackOpenCount', { count: openCount })}
+        </span>
+      </div>
+
+      {/* Open / Fixed / everything. Three words, unlike the category filter below
+          it — this is the axis the whole screen is read along, and an icon for
+          "resolved" would be one more thing to decode. */}
+      <div className="mb-3">
+        <SegmentedControl<FeedbackPhase | 'all'>
+          value={filterPhase}
+          onChange={setFilterPhase}
+          options={[
+            { value: 'open', label: t('feedbackPhaseOpen') },
+            { value: 'resolved', label: t('feedbackPhaseResolved') },
+            { value: 'all', label: t('all') },
+          ]}
+        />
       </div>
 
       <div className="mb-3 relative">
@@ -400,11 +434,11 @@ export function FeedbackAdmin() {
         <EmptyState icon={Search} title={t('feedbackNoMatch')} />
       ) : (
         <div className="space-y-4">
-          {STATUS_ORDER.map(status => {
-            const colItems = visible.filter(item => (item.status || 'new') === status);
+          {FEEDBACK_STATUS_ORDER.map(status => {
+            const colItems = visible.filter(item => normalizeStatus(item.status) === status);
             if (colItems.length === 0) return null;
             return (
-              <InsetSection key={status} header={`${t(status)} (${colItems.length})`}>
+              <InsetSection key={status} header={`${statusLabel(status)} (${colItems.length})`}>
                 {colItems.map(item => {
                   const catCfg = categoryConfig[item.category || 'general'];
                   const CatIcon = catCfg.icon;
@@ -432,6 +466,13 @@ export function FeedbackAdmin() {
                           card has nothing to give — it's inside the inset list's
                           px-4. Wrapping is the only honest answer. */}
                       <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                        {/* The state on the ROW too, not only on the section header
+                            above it. A row read mid-scroll — or after a search, where
+                            the matches come from several sections — otherwise says
+                            nothing about whether it was fixed. */}
+                        <span className={cn('shrink-0 rounded-full px-1.5 py-0.5 text-3xs font-bold', STATUS_PILL[normalizeStatus(item.status)])}>
+                          {statusLabel(normalizeStatus(item.status))}
+                        </span>
                         <span className={cn('flex min-w-0 items-center gap-1 text-3xs font-semibold px-1.5 py-0.5 rounded border', catCfg.bg, catCfg.border, catCfg.color)}>
                           <CatIcon className="w-2.5 h-2.5 shrink-0" />
                           <span className="truncate">{catLabel(item.category || 'general')}</span>

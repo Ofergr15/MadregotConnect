@@ -3,13 +3,14 @@
 import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { PenSquare, MessageSquare, AlertCircle, LogIn, X } from 'lucide-react';
+import { PenSquare, MessageSquare, AlertCircle, LogIn, Star, X } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useTranslations, useFormatter } from 'next-intl';
 import { cn, dayKeyRelation, dayKeyToDate, feedDayKey, resolveGroup } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { fetchFeed, deletePost, fetchFeedItem, fetchFeedItemByActivity } from '@/lib/feed-client';
 import { feedFocusFromParams } from '@/lib/feed/deep-link';
+import { FAVORITES_SQUAD } from '@/lib/feed/squad-filter';
 import { FeedCard } from '@/components/FeedCard';
 import { FeedCommentSheet } from '@/components/FeedCommentSheet';
 import { FeedComposer } from '@/components/FeedComposer';
@@ -18,7 +19,11 @@ import { FeedHighlightCard } from '@/components/FeedHighlightCard';
 import { GroupRunCard } from '@/components/GroupRunCard';
 import { groupFeedItems } from '@/lib/feed/group-runs';
 import { SquadStandings } from '@/components/SquadStandings';
+import { UpcomingEvents } from '@/components/UpcomingEvents';
 import { SetupNudgeCard } from '@/components/onboarding/SetupNudgeCard';
+import { WeekSummaryCard } from '@/components/feed/WeekSummaryCard';
+import { NextSessionCard } from '@/components/feed/NextSessionCard';
+import { WhatsNewAutoSheet } from '@/components/whats-new/WhatsNewSheet';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
@@ -57,6 +62,12 @@ type FilterKey = (typeof FILTERS)[number]['key'];
 const ACADEMY_CHIP = 'academy';
 
 /**
+ * How many flagged athletes the academy needs before the feed offers to filter to
+ * it (aae77577). One is the club's testing state, not an academy.
+ */
+const MIN_ACADEMY_FOR_CHIP = 2;
+
+/**
  * One squad chip. Same shape as the type chips above it, with the squad's own
  * colour as the selected fill so the three דבוקות stay the colours they are
  * everywhere else in the app (GROUP_HEX via resolveGroup) — a squad filter that
@@ -68,11 +79,14 @@ function SquadChip({
   onClick,
   label,
   hex,
+  icon: Icon,
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
   hex?: string;
+  /** Only the favourites chip uses one — see the chip row below. */
+  icon?: React.ComponentType<{ className?: string }>;
 }) {
   return (
     <button
@@ -83,6 +97,7 @@ function SquadChip({
       // rather than being squeezed into an ellipsis by its neighbours.
       className={cn(
         'shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors',
+        Icon && 'inline-flex items-center gap-1',
         active
           ? hex
             ? 'text-card'
@@ -91,6 +106,7 @@ function SquadChip({
       )}
       style={active && hex ? { backgroundColor: hex } : undefined}
     >
+      {Icon && <Icon className={cn('h-3 w-3', active && 'fill-current')} />}
       {label}
     </button>
   );
@@ -148,7 +164,10 @@ export default function FeedPage() {
   const [filter, setFilter] = useState<FilterKey>('all');
   /** A group id, `ACADEMY_CHIP`, or null for the whole club. */
   const [squad, setSquad] = useState<string | null>(null);
-  const { data: groupsData } = useApi<{ groups?: { id: string; name: string }[] }>('/api/groups');
+  const { data: groupsData } = useApi<{
+    groups?: { id: string; name: string }[];
+    academyCount?: number | null;
+  }>('/api/groups');
 
   const [myName, setMyName] = useState('');
   const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
@@ -303,6 +322,11 @@ export default function FeedPage() {
       .sort((a, b) => (a.index < 0 ? 1 : a.index) - (b.index < 0 ? 1 : b.index));
   }, [groupsData, t]);
 
+  // Two, not one: a filter that can only ever return one person's runs is not a
+  // filter. See the chip below.
+  const academyCount = groupsData?.academyCount;
+  const showAcademyChip = academyCount == null || academyCount >= MIN_ACADEMY_FOR_CHIP;
+
   const loadInitial = useCallback(async () => {
     // Skip the loading gate when a cached page is already on screen — pull-to-
     // refresh/retry then just swap fresh content in behind the existing list
@@ -453,6 +477,33 @@ export default function FeedPage() {
         </div>
       )}
 
+      {/* ═══ WHAT'S NEW ═══
+          A sheet, not a block: up to three shipped features, one row each, every
+          row a door into the feature. Opens once per feature and only on a feed
+          that has already painted — `ready` is that signal, and a modal over a
+          skeleton is the mistake it exists to avoid. Never opens for somebody who
+          joined after the feature shipped. See WhatsNewSheet and
+          lib/whats-new/ledger.ts. */}
+      <WhatsNewAutoSheet ready={!loading && !error && items.length > 0} />
+
+      {/* ═══ WHAT'S NEXT ═══
+          One line: tomorrow's session (from 20:00 the evening before), its
+          distance, and whether Garmin has it. Tap opens the full session. Gone
+          once it's run. Read-only on the watch question by design — see
+          NextSessionCard. */}
+      <div className="mb-4 empty:mb-0">
+        <NextSessionCard />
+      </div>
+
+      {/* ═══ LAST WEEK ═══
+          Saturday 18:00 → Sunday 10:00 only, and only for the reader's own week.
+          Above the setup nudge because it is the shortest-lived block on the
+          page — it has sixteen hours to be seen, the nudge has three
+          appearances. Dismissible, keyed to the Saturday. See WeekSummaryCard. */}
+      <div className="mb-4 empty:mb-0">
+        <WeekSummaryCard />
+      </div>
+
       {/* ═══ FINISH SETTING UP ═══
           Above everything about everyone else, and below the focused item only
           (a push promised that one specifically). The score and the checklist
@@ -478,6 +529,15 @@ export default function FeedPage() {
           belongs; home is only "what do I do today". ═══ */}
       <div className="mb-4">
         <SquadStandings />
+      </div>
+
+      {/* ═══ WHAT'S COMING ═══
+          Below the rivalry card and above the composer: a member scrolling the
+          feed is being told what everyone DID, and this is the one block that
+          says what is about to happen. Renders nothing when all three lanes are
+          empty, so a quiet month costs no space. */}
+      <div className="mb-4 empty:mb-0">
+        <UpcomingEvents />
       </div>
 
       <div
@@ -533,10 +593,31 @@ export default function FeedPage() {
               hex={chip.hex}
             />
           ))}
+          {/* aae77577: hidden until the academy actually has members. The filter
+              itself was never wrong — academy membership is the `is_academy` flag
+              and not a group — but with one flagged athlete the chip was a filter
+              down to one person, which reads as a bug rather than as a filter.
+              `undefined`/`null` means the count did not answer, and then the chip
+              stays: a failed read must not hide a working feature. */}
+          {showAcademyChip && (
+            <SquadChip
+              active={squad === ACADEMY_CHIP}
+              onClick={() => setSquad(ACADEMY_CHIP)}
+              label={t('filterAcademy')}
+            />
+          )}
+          {/* ff8d932e: "add to favorites for specific athletes, and then a
+              Favorites view". It belongs on THIS row and not in a mode of its
+              own — it answers the same question the squad chips do, whose runs
+              am I looking at. The chip is always here, even before the member
+              has favourited anybody, because the star that fills it lives on
+              teammate profiles and this is the only place that explains why it
+              is there; the empty state below says what to do next. */}
           <SquadChip
-            active={squad === ACADEMY_CHIP}
-            onClick={() => setSquad(ACADEMY_CHIP)}
-            label={t('filterAcademy')}
+            active={squad === FAVORITES_SQUAD}
+            onClick={() => setSquad(FAVORITES_SQUAD)}
+            label={t('filterFavorites')}
+            icon={Star}
           />
         </div>
       )}
@@ -580,9 +661,13 @@ export default function FeedPage() {
 
       {!loading && !error && items.length === 0 && (
         <EmptyState
-          icon={MessageSquare}
-          title={t('emptyTitle')}
-          description={t('emptyBody')}
+          // The favourites lane gets its own copy: "no posts yet" is true but
+          // useless here, because the thing to do about it is not on this screen
+          // — it is the star on a teammate's profile, and nothing else would
+          // tell you that.
+          icon={squad === FAVORITES_SQUAD ? Star : MessageSquare}
+          title={squad === FAVORITES_SQUAD ? t('emptyFavoritesTitle') : t('emptyTitle')}
+          description={squad === FAVORITES_SQUAD ? t('emptyFavoritesBody') : t('emptyBody')}
           // A filtered feed that comes back empty is otherwise a dead end. Both
           // axes are cleared together: with two of them, "show me everything"
           // taking two taps in the empty state is the same dead end one level up.

@@ -17,6 +17,7 @@ import { useApi } from '@/lib/api';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { EVENT_KINDS, type EventKind } from '@/lib/events';
+import { EventSheet, KIND_COLOR, KIND_ICON } from '@/components/events/EventSheet';
 import { Button, EmptyState, Sheet, SkeletonCard, SegmentedControl, InsetSection, InsetRow } from '@/components/ui';
 
 // Generic events/calendar browser (roadmap Phase 3 — #4 Calendar). A month
@@ -59,24 +60,8 @@ const todayIso = () => iso(new Date());
 // the pre-existing, highest-profile kind), the rest spread across hues that
 // don't collide with the green/amber/red already used for attendance status.
 // Labels come from next-intl (`kinds.*`), not a hardcoded table.
-const KIND_COLOR: Record<EventKind, string> = {
-  race: 'bg-brand-600',
-  camp: 'bg-accent-600',
-  lecture: 'bg-band-3',
-  social: 'bg-pink-400',
-  photo_shoot: 'bg-band-2',
-  sponsor: 'bg-band-3',
-  workout: 'bg-ink-300',
-};
-const KIND_ICON: Record<EventKind, React.ComponentType<{ className?: string }>> = {
-  race: Trophy,
-  camp: Tent,
-  lecture: BookOpen,
-  social: PartyPopper,
-  photo_shoot: Camera,
-  sponsor: Gift,
-  workout: Dumbbell,
-};
+// KIND_COLOR / KIND_ICON now live with the event form (components/events/
+// EventSheet), so the month grid and the form label a kind identically.
 
 // Expand each event across every day it covers (multi-day camps use
 // `end_date`; everything else is single-day) so the month grid can show a dot
@@ -211,22 +196,32 @@ export default function CalendarPage() {
         <RaceMapView races={races} dateLocale={dateLocale} />
       ) : (
         <>
-      {/* Month header */}
+      {/* Month header.
+          Reported as "the arrows on the events screen are reversed". They were:
+          the button on the right went FORWARD while its arrow pointed left.
+
+          The rule, used by every prev/next pair in the app as of 2.40.77:
+          PREVIOUS is written first and NEXT second, and each glyph carries
+          `rtl:rotate-180`. Flex lays the first child out on the right in Hebrew
+          and on the left in English, and the rotation turns the glyph to match,
+          so both directions come out right from one piece of markup. Writing
+          them in reading order is also what keeps a later edit from re-swapping
+          them — the previous code had to be read twice to see which was which. */}
       <div className="flex items-center justify-between mb-3">
-        <button
-          onClick={() => shiftMonth(1)}
-          aria-label={t('nextMonth')}
-          className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <div className="text-lg font-bold text-ink-700">{monthLabel}</div>
         <button
           onClick={() => shiftMonth(-1)}
           aria-label={t('prevMonth')}
           className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
+        </button>
+        <div className="text-lg font-bold text-ink-700">{monthLabel}</div>
+        <button
+          onClick={() => shiftMonth(1)}
+          aria-label={t('nextMonth')}
+          className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all"
+        >
+          <ChevronRight className="h-4 w-4 rtl:rotate-180" />
         </button>
       </div>
 
@@ -304,7 +299,7 @@ export default function CalendarPage() {
         </>
       )}
 
-      <AddEventSheet open={showAddForm} onClose={() => setShowAddForm(false)} onCreated={() => mutate()} />
+      <EventSheet open={showAddForm} onClose={() => setShowAddForm(false)} onSaved={() => mutate()} />
     </div>
   );
 }
@@ -532,159 +527,3 @@ function RaceMapView({ races, dateLocale }: { races: EventRow[]; dateLocale: str
 }
 
 // ────────────────────────── Staff-only "add event" form ──────────────────────────
-function AddEventSheet({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
-  const t = useTranslations('calendar');
-  const [kind, setKind] = useState<EventKind>('race');
-  const [kindPickerOpen, setKindPickerOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [date, setDate] = useState(todayIso());
-  const [location, setLocation] = useState('');
-  const [description, setDescription] = useState('');
-  const [capacity, setCapacity] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-
-  const reset = () => {
-    setKind('race'); setName(''); setDate(todayIso()); setLocation('');
-    setDescription(''); setCapacity(''); setError('');
-  };
-
-  const handleClose = () => {
-    if (submitting) return;
-    onClose();
-    reset();
-  };
-
-  const handleSubmit = async () => {
-    if (!name.trim() || !date || !location.trim()) {
-      setError(t('addEvent.requiredError'));
-      return;
-    }
-    setSubmitting(true);
-    setError('');
-    try {
-      const res = await authedFetch('/api/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kind,
-          name: name.trim(),
-          date,
-          location: location.trim(),
-          description: description.trim() || undefined,
-          capacity: capacity ? Number(capacity) : undefined,
-        }),
-      });
-      const responseData = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(responseData.error || t('addEvent.genericError'));
-      onCreated();
-      handleClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('addEvent.genericError'));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <>
-      <Sheet open={open} onOpenChange={(o) => { if (!o) handleClose(); }} title={t('addEvent.title')}>
-        <div className="space-y-3.5 px-1 pb-2">
-          {/* iOS Settings-style form: a tap-to-open row for the kind picker
-              (opens the nested Sheet below) plus one labeled row per field,
-              grouped in the same InsetSection/InsetRow chrome used across the
-              app — replacing the raw <select>/<input> HTML form. */}
-          <InsetSection>
-            <InsetRow
-              label={t('addEvent.kind')}
-              value={t(`kinds.${kind}`)}
-              onClick={() => setKindPickerOpen(true)}
-            />
-            <InsetRow
-              label={t('addEvent.name')}
-              trailing={
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={t('addEvent.namePlaceholder')}
-                  dir="auto"
-                  className="w-36 sm:w-48 bg-transparent text-sm text-ink-700 placeholder-ink-400 text-end focus:outline-none"
-                />
-              }
-            />
-            <InsetRow
-              label={t('addEvent.date')}
-              trailing={
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="bg-transparent text-sm text-ink-700 focus:outline-none"
-                />
-              }
-            />
-            <InsetRow
-              label={t('addEvent.capacity')}
-              trailing={
-                <input
-                  type="number"
-                  min={1}
-                  value={capacity}
-                  onChange={(e) => setCapacity(e.target.value)}
-                  placeholder={t('addEvent.capacityPlaceholder')}
-                  className="w-24 bg-transparent text-sm text-ink-700 placeholder-ink-400 text-end focus:outline-none"
-                />
-              }
-            />
-            <InsetRow
-              label={t('addEvent.location')}
-              trailing={
-                <input
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder={t('addEvent.locationPlaceholder')}
-                  dir="auto"
-                  className="w-36 sm:w-48 bg-transparent text-sm text-ink-700 placeholder-ink-400 text-end focus:outline-none"
-                />
-              }
-            />
-            <div className="px-4 py-3">
-              <label className="block text-xs font-bold text-ink-400 mb-1.5">{t('addEvent.description')}</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                placeholder={t('addEvent.descriptionPlaceholder')}
-                dir="auto"
-                className="w-full bg-transparent text-sm text-ink-700 placeholder-ink-400 focus:outline-none resize-none"
-              />
-            </div>
-          </InsetSection>
-
-          {error && <p className="text-sm text-accent-red">{error}</p>}
-
-          <Button type="button" onClick={handleSubmit} disabled={submitting} className="w-full">
-            {submitting ? t('addEvent.saving') : t('addEvent.create')}
-          </Button>
-        </div>
-      </Sheet>
-
-      {/* Kind picker — a nested option-picker Sheet listing the 7 kinds as
-          InsetRow items, opened by tapping the "kind" row above. */}
-      <Sheet open={kindPickerOpen} onOpenChange={setKindPickerOpen} title={t('addEvent.kind')}>
-        <InsetSection>
-          {EVENT_KINDS.map((k) => (
-            <InsetRow
-              key={k}
-              icon={KIND_ICON[k]}
-              iconBg={KIND_COLOR[k]}
-              label={t(`kinds.${k}`)}
-              onClick={() => { setKind(k); setKindPickerOpen(false); }}
-              trailing={kind === k ? <Check className="h-4 w-4 text-brand-600" /> : <span className="w-4 h-4" />}
-            />
-          ))}
-        </InsetSection>
-      </Sheet>
-    </>
-  );
-}

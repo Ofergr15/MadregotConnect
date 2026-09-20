@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 const FILTERABLE_TYPES = ['activity', 'post', 'achievement', 'announcement', 'new_plan'];
 
 /**
- * GET /api/feed?cursor=<occurredAt>,<id>&limit=20&types=announcement,post&squad=<groupId|academy>
+ * GET /api/feed?cursor=<occurredAt>,<id>&limit=20&types=announcement,post&squad=<groupId|academy|favorites>
  *
  * The club feed: runs and member posts interleaved, newest first.
  *
@@ -63,7 +63,21 @@ export async function GET(request: Request) {
     // case. Two dozen ids is a cheap `in`.
     const squad = parseSquadParam(searchParams.get('squad'));
     let squadAuthorIds: string[] | null = null;
-    if (squad) {
+    if (squad?.kind === 'favorites') {
+      // ff8d932e. Resolved from the SESSION, never from the query string: the
+      // same `?squad=favorites` means a different set of athletes for every
+      // caller, and the list is private to its owner. A caller with no athlete
+      // row has no list, which is the same answer as an empty list.
+      const { data: favorites, error: favoritesError } = auth.user.athleteId
+        ? await supabase
+            .from('athlete_favorites')
+            .select('favorite_athlete_id')
+            .eq('athlete_id', auth.user.athleteId)
+        : { data: [], error: null };
+      if (favoritesError) throw favoritesError;
+      squadAuthorIds = (favorites || []).map((f: { favorite_athlete_id: string }) => f.favorite_athlete_id);
+      if (squadAuthorIds.length === 0) return NextResponse.json({ items: [], nextCursor: null });
+    } else if (squad) {
       const scope = supabase.from('athletes').select('id');
       const { data: members, error: membersError } =
         squad.kind === 'academy' ? await scope.eq('is_academy', true) : await scope.eq('group_id', squad.groupId);

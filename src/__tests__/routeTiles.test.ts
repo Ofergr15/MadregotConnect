@@ -6,9 +6,9 @@ import { TILE_SIZE, planRoutePlate, toMercator, toSvgPath } from '@/lib/activity
 import {
   BASEMAP_ATTRIBUTION,
   BASEMAP_MAX_ZOOM,
-  BASEMAP_QUIET_FILTER,
-  BASEMAP_QUIET_SVG,
+  BASEMAP_QUIET_MAX_ZOOM,
   BASEMAP_URL_TEMPLATE,
+  BASEMAP_URL_TEMPLATE_DEEP,
   fillTileTemplate,
 } from '@/lib/basemap';
 
@@ -166,7 +166,10 @@ describe('planRoutePlate', () => {
       // there is no span to divide by.
       const still = [{ lat: 32.07, lng: 34.79 }, { lat: 32.07, lng: 34.79 }];
       const plate = planRoutePlate(still, 392, 208)!;
-      expect(plate.zoom).toBe(BASEMAP_MAX_ZOOM);
+      // The QUIET ceiling, not the map's: the thumbnail draws the canvas plate
+      // alone, so its ceiling is that plate's cache, not the deepest zoom the
+      // detail map can reach with a second layer.
+      expect(plate.zoom).toBe(BASEMAP_QUIET_MAX_ZOOM);
       expect(plate.tileScale).toBe(1);
       expect(plate.points.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true);
     });
@@ -193,7 +196,7 @@ describe('planRoutePlate', () => {
     expect(new Set(plate.tiles.map((t) => t.key)).size).toBe(plate.tiles.length);
     for (const tile of plate.tiles) {
       expect(tile.url).toMatch(
-        new RegExp(`/World_Street_Map/MapServer/tile/${plate.zoom}/\\d+/\\d+$`),
+        new RegExp(`/Canvas/World_Light_Gray_Base/MapServer/tile/${plate.zoom}/\\d+/\\d+$`),
       );
     }
   });
@@ -294,62 +297,54 @@ describe('basemap provider', () => {
     expect(fillTileTemplate(BASEMAP_URL_TEMPLATE, 12, 2443, 1662)).toMatch(/\/12\/1662\/2443$/);
   });
 
-  // The street plate is quieted so the route reads first. Two things can rot
-  // here: someone re-adds the recipe inline in one of the two map surfaces and
-  // they drift apart, or someone rounds `.85` up to a clean `1` and silently
-  // turns the Mediterranean grey.
-  describe('quiet filter', () => {
-    it('keeps some colour, so the sea and the parks survive', () => {
-      const grayscale = BASEMAP_QUIET_FILTER.match(/grayscale\(([\d.]+)\)/);
-      expect(grayscale).not.toBeNull();
-      const amount = Number(grayscale![1]);
-      expect(amount).toBeGreaterThan(0.5); // quiet enough to stop competing
-      expect(amount).toBeLessThan(1); // but not mono
+  // TWO plates now, handing over at the canvas's ceiling (15046ef2). What can rot
+  // here is the handover: a gap leaves a zoom level with no tiles at all, and an
+  // overlap draws the dense plate over the quiet one at a zoom that should be
+  // quiet. Neither is visible in a diff.
+  describe('the two plates', () => {
+    it('opens on the pale canvas, not the navigation plate', () => {
+      expect(BASEMAP_URL_TEMPLATE).toMatch(/Canvas\/World_Light_Gray_Base/);
+      expect(BASEMAP_URL_TEMPLATE_DEEP).toMatch(/World_Street_Map/);
     });
 
-    it('lifts the paper back up after desaturating it', () => {
-      expect(BASEMAP_QUIET_FILTER).toMatch(/brightness\([\d.]+\)/);
+    it('hands over with no gap and no overlap', () => {
+      // The canvas cache stops here — verified against the live service: z17
+      // answers 200 with the 2,521-byte "Map data not yet available" placeholder.
+      expect(BASEMAP_QUIET_MAX_ZOOM).toBe(16);
+      // …and the street plate must start on the very next level, or a pinch lands
+      // on a zoom with no tiles at all.
+      expect(BASEMAP_QUIET_MAX_ZOOM).toBeLessThan(BASEMAP_MAX_ZOOM);
     });
 
-    it('is written out in exactly one module', () => {
+    it('wires those exact bounds into the Leaflet layers', () => {
+      const src = readFileSync(join(SRC, 'components/activity/RouteMap.tsx'), 'utf8');
+      expect(src).toMatch(/maxZoom:\s*BASEMAP_QUIET_MAX_ZOOM/);
+      expect(src).toMatch(/minZoom:\s*BASEMAP_QUIET_MAX_ZOOM \+ 1/);
+      expect(src).toMatch(/maxZoom:\s*BASEMAP_MAX_ZOOM/);
+    });
+
+    it('keeps the thumbnail on one plate, clamped to that plate', () => {
+      // The SVG thumbnail mounts no second layer, so asking past the canvas's
+      // ceiling would hand it the grey placeholder — indistinguishable from a
+      // failed load, in the one surface with no spinner.
+      const src = readFileSync(join(SRC, 'lib/activity/tiles.ts'), 'utf8');
+      expect(src).toMatch(/MAX_ZOOM = BASEMAP_QUIET_MAX_ZOOM/);
+      expect(src).not.toMatch(/BASEMAP_URL_TEMPLATE_DEEP/);
+    });
+
+    // The old design desaturated the navigation plate to make it bearable as the
+    // default. Both plates are now used as drawn — and if a filter is ever wanted
+    // back, the SVG surface needs the primitive form, because Safari ignores CSS
+    // `filter` on an inner SVG element outright. That bug shipped once: measured,
+    // one real Esri tile, mean saturation raw 0.171 / CSS-in-SVG 0.171 (no
+    // effect) / SVG filter 0.026.
+    it('draws both plates unfiltered', () => {
       const offenders = sourceFiles(SRC).filter(
-        (f) => !isProviderModule(f) && /grayscale\(|saturate\(/.test(readFileSync(f, 'utf8')),
+        (f) => !isProviderModule(f) && /grayscale\(|filter:\s*['`"]?grayscale/.test(readFileSync(f, 'utf8')),
       );
       expect(offenders).toEqual([]);
-    });
-
-    it('is applied by both map surfaces, each in the form its surface honours', () => {
-      // The Leaflet tile pane is an HTML div, so it takes the CSS filter.
-      expect(readFileSync(join(SRC, 'components/activity/RouteMap.tsx'), 'utf8')).toMatch(
-        /BASEMAP_QUIET_FILTER/,
-      );
-      // The feed thumbnail is an SVG, so it MUST take the filter-primitive form.
-      expect(readFileSync(join(SRC, 'components/RouteMinimap.tsx'), 'utf8')).toMatch(
-        /BASEMAP_QUIET_SVG/,
-      );
-    });
-
-    // The bug this whole pair of constants exists to prevent: a CSS `filter` on
-    // an inner SVG element is silently IGNORED by Safari, so the feed thumbnail
-    // rendered the full-strength navigation plate on every iPhone while looking
-    // correct in desktop Chrome. Measured, one real Esri tile, mean saturation:
-    // raw 0.171 / CSS-in-SVG 0.171 (no effect) / SVG filter 0.026.
-    it('never re-applies the CSS filter inside the SVG thumbnail', () => {
-      const src = readFileSync(join(SRC, 'components/RouteMinimap.tsx'), 'utf8');
-      expect(src).not.toMatch(/filter:\s*BASEMAP_QUIET_FILTER/);
-      expect(src).not.toMatch(/style=\{\{\s*filter:/);
-    });
-
-    it('keeps the SVG form numerically equal to the CSS one', () => {
-      // grayscale(x) leaves (1 - x) of the saturation.
-      const grayscale = Number(BASEMAP_QUIET_FILTER.match(/grayscale\(([\d.]+)\)/)![1]);
-      expect(BASEMAP_QUIET_SVG.saturate).toBeCloseTo(1 - grayscale, 4);
-
-      // brightness(b) then contrast(c) composes to slope b*c, intercept (1-c)/2.
-      const b = Number(BASEMAP_QUIET_FILTER.match(/brightness\(([\d.]+)\)/)![1]);
-      const c = Number(BASEMAP_QUIET_FILTER.match(/contrast\(([\d.]+)\)/)![1]);
-      expect(BASEMAP_QUIET_SVG.slope).toBeCloseTo(b * c, 3);
-      expect(BASEMAP_QUIET_SVG.intercept).toBeCloseTo((1 - c) / 2, 3);
+      const minimap = readFileSync(join(SRC, 'components/RouteMinimap.tsx'), 'utf8');
+      expect(minimap).not.toMatch(/style=\{\{\s*filter:/);
     });
   });
 });

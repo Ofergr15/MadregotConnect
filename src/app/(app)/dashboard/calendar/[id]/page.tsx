@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import {
-  ArrowRight,
+  ArrowLeft,
   MapPin,
   Calendar,
   Clock,
@@ -17,8 +17,10 @@ import {
   HelpCircle,
   ListChecks,
   AlertCircle,
+  Pencil,
 } from 'lucide-react';
 import { useApi } from '@/lib/api';
+import { useAthleteId } from '@/lib/use-athlete-id';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 import { Card, Button, EmptyState, LoadingBlock, Spinner, InsetSection, InsetRow } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
@@ -26,6 +28,9 @@ import { AthleteLink } from '@/components/AthleteLink';
 import { BenchmarkLeaderboard } from '@/components/BenchmarkLeaderboard';
 import { cn } from '@/lib/utils';
 import type { EventKind } from '@/lib/events';
+import { googleMapsUrl } from '@/lib/events/map-link';
+import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
+import { EventSheet } from '@/components/events/EventSheet';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 // Mirrors the raw snake_case columns from GET /api/events/[id] (see
@@ -109,15 +114,26 @@ export default function EventDetailPage() {
   const tc = useTranslations('common');
 
   // Public read — no auth required, same convention as GET /api/events.
-  const { data, error, isLoading } = useApi<{ event: EventRow }>(id ? `/api/events/${id}` : null);
+  const { data, error, isLoading, mutate } = useApi<{ event: EventRow }>(id ? `/api/events/${id}` : null);
   const event = data?.event ?? null;
 
   // Only real athlete accounts (not bare staff logins) can RSVP — the app's
   // convention is that an athlete's own id lives in localStorage once signed
   // in as a club member (see AttendanceRSVP for the same read).
-  const [athleteId, setAthleteId] = useState('');
+  // Read during the first render — see src/lib/use-athlete-id.ts (41b26dca).
+  const athleteId = useAthleteId();
+
+  // Staff get an edit button on the event they are looking at. Same check as the
+  // calendar page — a "view as" preview wins so the super user can see both
+  // sides — and the same check the PATCH route enforces server-side, so this is
+  // which button to draw and not where the permission lives.
+  const [isStaff, setIsStaff] = useState(false);
+  const [editing, setEditing] = useState(false);
   useEffect(() => {
-    setAthleteId(localStorage.getItem('athlete_id') || '');
+    const coachEmail = localStorage.getItem('coach_email');
+    const viewMode = getViewMode();
+    const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
+    setIsStaff(previewRole ? STAFF_ROLES.includes(previewRole) : !!coachEmail);
   }, []);
 
   const [registrations, setRegistrations] = useState<RegistrationsPayload | null>(null);
@@ -197,6 +213,7 @@ export default function EventDetailPage() {
 
   const kindStyle = KIND_STYLES[event.kind] || KIND_STYLES.race;
   const waze = resolveWazeUrl(event);
+  const maps = event.lat != null && event.lng != null ? googleMapsUrl({ lat: event.lat, lng: event.lng }) : null;
   const dateLabel = new Date(`${event.date}T00:00:00`).toLocaleDateString(dateLocale, {
     day: 'numeric',
     month: 'long',
@@ -221,7 +238,10 @@ export default function EventDetailPage() {
         onClick={() => router.back()}
         className="inline-flex items-center gap-1.5 min-h-[44px] px-2 -ms-2 text-sm text-ink-400 hover:text-ink-900 transition-colors"
       >
-        <ArrowRight className="h-4 w-4" />
+        {/* Same rule as the month arrows above: written as "back points
+            backwards" and flipped by direction, rather than hardcoding the
+            Hebrew glyph and pointing the wrong way in English. */}
+        <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
         {tc('back')}
       </button>
 
@@ -230,9 +250,21 @@ export default function EventDetailPage() {
         <span className={cn('inline-block text-2xs font-bold px-2 py-0.5 rounded-md mb-2', kindStyle.bg, kindStyle.text)}>
           {t(`kinds.${event.kind}`)}
         </span>
-        <h1 className="text-xl font-black text-ink-700" dir="auto">
-          {event.name}
-        </h1>
+        <div className="flex items-start gap-2">
+          <h1 className="min-w-0 flex-1 text-xl font-black text-ink-700" dir="auto">
+            {event.name}
+          </h1>
+          {isStaff && (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              aria-label={t('edit')}
+              className="shrink-0 -me-1 -mt-1 inline-flex h-11 w-11 items-center justify-center rounded-full text-ink-400 active:bg-page"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
+        </div>
 
         <div className="mt-3 space-y-1.5">
           <div className="flex items-center gap-2 text-sm text-ink-500 flex-wrap">
@@ -260,16 +292,35 @@ export default function EventDetailPage() {
           </p>
         )}
 
-        {waze && (
-          <a
-            href={waze}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors"
-          >
-            <Navigation className="h-4 w-4" />
-            {t('openInWaze')}
-          </a>
+        {/* Two links and not one: the club is split between the two apps, and the
+            Waze deep-link opens Waze's *web* page for anyone who does not have it
+            installed, which is a dead end on the morning of a race. Both are shown
+            only when the event actually has coordinates. */}
+        {(waze || maps) && (
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            {waze && (
+              <a
+                href={waze}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors"
+              >
+                <Navigation className="h-4 w-4" />
+                {t('openInWaze')}
+              </a>
+            )}
+            {maps && (
+              <a
+                href={maps}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors"
+              >
+                <MapPin className="h-4 w-4" />
+                {t('openInMaps')}
+              </a>
+            )}
+          </div>
         )}
       </Card>
 
@@ -393,6 +444,30 @@ export default function EventDetailPage() {
 
       {/* FAQ */}
       {event.faqs && event.faqs.length > 0 && <FaqAccordion items={event.faqs} title={t('faqTitle')} />}
+
+      {/* The same form the calendar creates events with, in edit mode. Mounted
+          only while open so it seeds from a freshly-loaded row rather than from
+          whatever was on screen when the page first rendered. A delete sends the
+          reader back to the calendar — there is no page left to stay on. */}
+      {isStaff && editing && (
+        <EventSheet
+          open={editing}
+          onClose={() => setEditing(false)}
+          onSaved={() => mutate()}
+          onDeleted={() => router.replace('/dashboard/calendar')}
+          event={{
+            id: event.id,
+            kind: event.kind,
+            name: event.name,
+            date: event.date,
+            location: event.location,
+            description: event.description,
+            capacity: event.capacity,
+            lat: event.lat,
+            lng: event.lng,
+          }}
+        />
+      )}
     </div>
   );
 }

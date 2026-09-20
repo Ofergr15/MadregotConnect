@@ -37,6 +37,8 @@ interface NextWorkoutCardProps {
   rsvpAnswered: boolean;
   /** This week's plan was pushed recently — shows a badge on the "view plan" CTA. */
   isNewPlan?: boolean;
+  /** The <WatchStatus /> row for this workout's date, or nothing when there's no watch to ask about. */
+  watch?: React.ReactNode;
   /** The embedded <AttendanceRSVP /> for this workout, or null when there's no team day to RSVP for. */
   children?: React.ReactNode;
 }
@@ -49,7 +51,7 @@ interface NextWorkoutCardProps {
 // "what's next" into a single hero card with inline actions.)
 export function NextWorkoutCard({
   isToday, workout, typeLabel, typeColor, typeTextColor, done, doneKm, date, workoutHour,
-  hasRsvpTarget, rsvpAnswered, isNewPlan, children,
+  hasRsvpTarget, rsvpAnswered, isNewPlan, watch, children,
 }: NextWorkoutCardProps) {
   const t = useTranslations('nextWorkout');
   const td = useTranslations('dashboard');
@@ -109,6 +111,11 @@ export function NextWorkoutCard({
           >
             <CalendarPlus className="h-3.5 w-3.5" /> {t('addToCalendar')}
           </a>
+          {/* Inline action: is this session on the watch, and one tap if it isn't.
+              Passed in rather than fetched here so this card stays presentational,
+              and renders nothing at all until the answer is known — see
+              WatchStatus for why a wrong "no" is the expensive state. */}
+          {watch}
         </div>
 
         {/* Inline action: RSVP (embedded, existing component — untouched internals) */}

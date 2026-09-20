@@ -24,11 +24,13 @@ import { canGrantAdmin } from '@/lib/constants';
 import { FeedbackAdmin } from '@/components/FeedbackAdmin';
 import { CORE_RUNNER_LABEL, CORE_RUNNER_MARK } from '@/lib/core-runner';
 import { apiHeaders, useApi } from '@/lib/api';
+import { useAthleteId } from '@/lib/use-athlete-id';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useTranslations } from 'next-intl';
 import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, BackNav } from '@/components/ui';
 import { AthleteLink } from '@/components/AthleteLink';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
+import { WhatsNewSettingsRow } from '@/components/whats-new/WhatsNewSheet';
 
 type TFunc = ReturnType<typeof useTranslations>;
 
@@ -439,8 +441,9 @@ export default function SettingsPage() {
   };
   // The signed-in athlete's own id — powers the personal notification-prefs
   // detail (coaches are athletes too; null if this account has no athlete row).
-  const [notifPrefsAthleteId, setNotifPrefsAthleteId] = useState('');
-  useEffect(() => { setNotifPrefsAthleteId(localStorage.getItem('athlete_id') || ''); }, []);
+  // Read on the first render so the prefs request starts (and the persisted cache
+  // paints) without waiting for a mount effect — see src/lib/use-athlete-id.ts.
+  const notifPrefsAthleteId = useAthleteId();
   const [users, setUsers] = useState<User[]>([]);
   // These three start true meaning "not fetched yet" — the fetches are lazy now
   // (see the activeTab effect below), so the flag has to already be set when the
@@ -1136,6 +1139,10 @@ export default function SettingsPage() {
               trailing={<ChevronRight className="h-4 w-4 text-ink-400 shrink-0 rotate-180" />}
             />
             <MapPrefsRow />
+            {/* The half of the what's-new module that is not a popup: closing the
+                sheet is final, which is only honest because this row never goes
+                away. Hides itself when there is nothing to show. */}
+            <WhatsNewSettingsRow />
           </InsetSection>
 
           {/* Allowlist editor — only appears while maintenance is on. */}

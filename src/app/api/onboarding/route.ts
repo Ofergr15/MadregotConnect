@@ -110,6 +110,11 @@ export async function GET(request: Request) {
       pushSubscriptions: pushCount ?? 0,
       groupName,
       hasActiveShoe: !!athlete.active_shoe_id,
+    }, {
+      // Admins only, not all staff: a coach wears the club kit like everybody else
+      // and still needs to be asked for their sizes. The admin is the person
+      // COLLECTING the order (e7951e14).
+      skipSizes: auth.user.role === 'admin',
     });
 
     // Before 078 lands: nobody has been marked, so everyone reads as new and the

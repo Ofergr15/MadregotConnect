@@ -11,6 +11,8 @@ import { formatTime } from '@/lib/academy/benchmark';
 import { SegmentedControl } from '@/components/ui';
 import { weekTargetRange, type WeekPlanTotals } from '@/lib/plans/week-target';
 import { WeekTargetBar } from '@/components/profile/WeekTargetBar';
+import { Last7DaysCard } from '@/components/profile/Last7DaysCard';
+import type { Last7Report } from '@/lib/reports/last-7-days';
 import { PrEditSheet } from '@/components/profile/PrEditSheet';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -86,6 +88,8 @@ interface StatsData {
   /** This week so far vs the same slice of last week. Null when last week had no runs. */
   weekTrendPct: number | null;
   weeks: KmWeek[];
+  /** The rolling seven days — same payload the Saturday 18:00 push is built from. */
+  last7: Last7Report;
   recentRuns: RecentRun[];
   prs: Pr[];
 }
@@ -287,6 +291,12 @@ export function AthleteProfileBody({
                 </div>
               </div>
             ))}
+
+          {/* ═══ THE LAST SEVEN DAYS ═══
+              Above the ten-week chart on purpose: this is the card the Saturday
+              18:00 notification links to, so it has to be the first thing in view
+              when that push opens the page. */}
+          {stats?.last7 && <Last7DaysCard report={stats.last7} athleteName={profile?.name} />}
 
           <TenWeekChart
             weeks={weeks}

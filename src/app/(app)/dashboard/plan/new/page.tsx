@@ -41,6 +41,7 @@ import { DayByDayReview } from '@/components/DayByDayReview';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
 import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
 import { undoAutoFixes } from '@/lib/plans/auto-fix';
+import { paceGroupMap, sortByPaceGroup } from '@/lib/plans/pace-group';
 import { cn, activityLocalDay, formatActivityTime, formatWeekRange, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -1050,17 +1051,11 @@ export default function WeeklyPlannerPage() {
         throw new Error(t('errors.noGarminSelected'));
       }
 
-      const sortedGroups = [...groups].sort((a, b) => {
-        const aGoal = a.marathonGoal ? parseFloat(a.marathonGoal) : 999;
-        const bGoal = b.marathonGoal ? parseFloat(b.marathonGoal) : 999;
-        return aGoal - bGoal;
-      });
-      const groupLevelMap: Record<string, keyof GroupedWeeklyPlans> = {};
-      sortedGroups.forEach((g, i) => {
-        if (i === 0) groupLevelMap[g.id] = 'group1';
-        else if (i === 1) groupLevelMap[g.id] = 'group2';
-        else groupLevelMap[g.id] = 'group3';
-      });
+      // The fastest-group-first rule now lives in lib/plans/pace-group.ts, because
+      // the athlete's own one-tap push (POST /api/my-watch) has to reach the same
+      // answer — a second copy that disagreed by one index would put the wrong
+      // paces on somebody's watch.
+      const groupLevelMap = paceGroupMap(groups) as Record<string, keyof GroupedWeeklyPlans>;
 
       const allResults: PushResultItem[] = [];
       const athletesByPaceGroup: Record<string, string[]> = { group1: [], group2: [], group3: [] };
@@ -1224,7 +1219,7 @@ export default function WeeklyPlannerPage() {
                   correctly, pointed left. Matches the two other navigators of this
                   exact shape, AcademyCompliance's week nav and the calendar's month
                   nav, which both already do it this way. */}
-              <ChevronRight className="h-5 w-5" />
+              <ChevronLeft className="h-5 w-5 rtl:rotate-180" />
             </button>
 
             <div className="text-center min-w-[140px] sm:min-w-[180px]">
@@ -1239,7 +1234,7 @@ export default function WeeklyPlannerPage() {
               aria-label={t('nextWeek')}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronRight className="h-5 w-5 rtl:rotate-180" />
             </button>
 
             {weekOffset !== getDefaultOffset() && (
@@ -2168,11 +2163,7 @@ export default function WeeklyPlannerPage() {
                             <p className="text-sm text-ink-400 text-center py-8">{t('noGroupsFound')}</p>
                           ) : (
                             <InsetSection>
-                              {[...groups].sort((a, b) => {
-                                const aGoal = a.marathonGoal ? parseFloat(a.marathonGoal) : 999;
-                                const bGoal = b.marathonGoal ? parseFloat(b.marathonGoal) : 999;
-                                return aGoal - bGoal;
-                              }).map((group, groupIdx) => {
+                              {sortByPaceGroup(groups).map((group, groupIdx) => {
                                 const count = activeAthletes.filter((a) => a.group_id === group.id).length;
                                 const isSelected = selectedGroupIds.includes(group.id);
                                 const groupLabel = t('groupLabel', { n: Math.min(groupIdx + 1, 3) });

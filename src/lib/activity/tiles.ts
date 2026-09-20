@@ -13,7 +13,7 @@
  */
 
 import {
-  BASEMAP_MAX_ZOOM,
+  BASEMAP_QUIET_MAX_ZOOM,
   BASEMAP_URL_TEMPLATE,
   fillTileTemplate,
 } from '@/lib/basemap';
@@ -53,13 +53,20 @@ export interface RoutePlate {
 export const TILE_SIZE = 256;
 
 /**
- * Deepest zoom we'll ever ask for — as deep as the basemap's raster cache goes
- * (see `BASEMAP_MAX_ZOOM`), because asking for more returns a grey placeholder
- * rather than a map. Only a route with no extent at all reaches it: `planRoutePlate`
- * scales the view so the route just fills the box, so a 5 km run lands far
- * shallower and the ceiling never enters into it.
+ * Deepest zoom we'll ever ask for — as deep as the canvas plate's raster cache
+ * goes, because asking for more returns a grey placeholder rather than a map.
+ *
+ * `BASEMAP_QUIET_MAX_ZOOM` (16), not `BASEMAP_MAX_ZOOM` (19): this draws ONE
+ * plate and it is the pale one, so it stops where that plate stops. The detail
+ * map can go deeper only because it mounts a second, denser layer up there — a
+ * thumbnail the width of a feed card has nothing to show at z19 that it doesn't
+ * show at z16, so it is not worth a second provider to reach it.
+ *
+ * Only a route with no extent at all reaches the ceiling anyway:
+ * `planRoutePlate` scales the view so the route just fills the box, so a 5 km run
+ * lands far shallower.
  */
-const MAX_ZOOM = BASEMAP_MAX_ZOOM;
+const MAX_ZOOM = BASEMAP_QUIET_MAX_ZOOM;
 
 /** The latitude where Mercator's y goes to infinity; clamp just inside it. */
 const MAX_LATITUDE = 85.05112878;
@@ -82,7 +89,7 @@ export function toMercator({ lat, lng }: LatLng): { x: number; y: number } {
 }
 
 function tileUrl(zoom: number, x: number, y: number): string {
-  // The same light street plate the detail map uses, not the dark one: a dark
+  // The same pale canvas plate the detail map opens on, not the dark one: a dark
   // map plate inside a white card was the single dark rectangle on screen, and
   // sharing the plate means tapping a card doesn't change what the map looks
   // like. Provider and path order live in `lib/basemap.ts`.

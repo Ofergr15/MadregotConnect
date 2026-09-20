@@ -312,7 +312,21 @@ export function ActionRow({
           {commentCount > 0 && <span className="tabular-nums text-xs">{commentCount}</span>}
         </button>
 
-        {item.activity && (
+        {/* Your OWN runs only (72949cd6: "when I pick somebody else's workout it
+            comes out as though I did it — sharing should only be for mine").
+
+            The share card carries the run and nothing else: no name, no group, no
+            date, deliberately, because whoever posts it to a story is identified
+            by the account they post it from. That is exactly right for your own
+            run and exactly wrong for a clubmate's — the same missing name that
+            keeps the card clean turns a teammate's 21k into an unattributed
+            image on your story. Strava draws the line the same way: its share
+            image is for your own activity, and somebody else's is a link to
+            their page, which this app has no public equivalent of.
+
+            The activity detail page and ActivityFeed already gated on this; the
+            feed row was the one place that didn't. */}
+        {item.activity && isMyActivity && (
           <button
             onClick={() => setShareOpen(true)}
             aria-label={t('shareToStory')}

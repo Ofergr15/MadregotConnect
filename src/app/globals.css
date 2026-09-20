@@ -541,3 +541,29 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /* Smooth momentum scrolling on iOS */
 .scroll-touch { -webkit-overflow-scrolling: touch; }
+
+/* ── Why every form control is 16px on a phone ──────────────────────────────
+   Reported as "I have to zoom out" while adding an event. Mobile Safari zooms
+   the page IN whenever a focused form control's font-size is under 16px, and it
+   does NOT zoom back out on blur — so one tap into any field leaves the whole
+   app oversized until the person pinches out by hand. The app's inputs are
+   text-sm (14px) almost everywhere, which is why it happens on nearly every
+   form rather than on one screen.
+
+   The other fix for this is `maximum-scale=1` on the viewport, and that one is
+   not available here: it disables pinch-zoom for everybody and fails WCAG 1.4.4
+   (see the note on the viewport export in app/layout.tsx). Raising the font
+   instead keeps pinch-zoom working and removes the reason for the auto-zoom.
+
+   Scoped to coarse pointers so the designed 14px survives on desktop, where no
+   browser does this. `!important` because the size comes from a utility class on
+   almost every one of these elements. Checkbox/radio/button-like controls are
+   excluded: they render no text, so they never trigger the zoom, and sizing them
+   here would move real layout. */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='button']):not([type='submit']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

@@ -122,15 +122,15 @@ function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
     <div>
       {/* Month header */}
       <div className="flex items-center justify-between mb-3">
-        <button onClick={() => shiftMonth(1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
-          <ChevronLeft className="h-4 w-4" />
+        <button onClick={() => shiftMonth(-1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
+          <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
         </button>
         <div className="text-center">
           <div className="text-lg font-bold text-ink-700">{MONTHS_HE[month]} {year}</div>
           {!loading && <div className="text-2xs text-ink-400 tabular-nums">{monthTotal} הגעות החודש</div>}
         </div>
-        <button onClick={() => shiftMonth(-1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
-          <ChevronRight className="h-4 w-4" />
+        <button onClick={() => shiftMonth(1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
+          <ChevronRight className="h-4 w-4 rtl:rotate-180" />
         </button>
       </div>
 
@@ -230,7 +230,7 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
       {/* Date picker */}
       <div className="flex items-center gap-2 mb-2">
         <button onClick={() => shiftDay(-1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
-          <ChevronRight className="h-4 w-4" />
+          <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
         </button>
         <div className="relative flex-1">
           <CalendarDays className="absolute top-1/2 -translate-y-1/2 end-3 h-4 w-4 text-ink-400 pointer-events-none" />
@@ -242,7 +242,7 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
           />
         </div>
         <button onClick={() => shiftDay(1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4 rtl:rotate-180" />
         </button>
       </div>
       <p className="text-xs text-ink-400 mb-4">

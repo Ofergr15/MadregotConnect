@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { Camera, ChevronLeft, Loader2, Trophy } from 'lucide-react';
 import { useApi } from '@/lib/api';
@@ -12,6 +13,7 @@ import { AttendanceRSVP } from '@/components/AttendanceRSVP';
 import { WeekTargetBar } from '@/components/profile/WeekTargetBar';
 import CoreRunnerBadge from '@/components/CoreRunnerBadge';
 import { SetupProgressCard } from '@/components/onboarding/SetupProgressCard';
+import { PhotoLightbox } from '@/components/PhotoLightbox';
 import type { FeedItem } from '@/lib/feed/project';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -181,32 +183,48 @@ export function ProfileOverview({
   const showRsvp = !!upcoming?.isTeamDay && (rsvpOffset === 0 || rsvpOffset === 1);
 
   const race = goalRaceProgress();
+  const [photoOpen, setPhotoOpen] = useState(false);
   const raceDate = GOAL_RACE.date.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 
   return (
     <div className="space-y-5">
       {/* ═══ GREETING + AVATAR ═══ */}
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onPhotoClick}
-          className="relative h-[55px] w-[55px] shrink-0 rounded-full"
-          aria-label={t('changePhoto')}
-        >
-          <span className="block h-full w-full overflow-hidden rounded-full">
+        {/* Two targets in one circle once there IS a photo: the picture opens it
+            full screen (21cc272c), the camera badge replaces it. Before that there
+            is one target — the whole circle picks a photo, because a lightbox of
+            your own initials is not a thing anybody asked for. Two <button>s side
+            by side rather than nested, which is invalid HTML and does not fire. */}
+        <div className="relative h-[55px] w-[55px] shrink-0 rounded-full">
+          {photoOpen && avatarUrl && (
+            <PhotoLightbox url={avatarUrl} alt={athleteName} onClose={() => setPhotoOpen(false)} />
+          )}
+          <button
+            type="button"
+            onClick={avatarUrl ? () => setPhotoOpen(true) : onPhotoClick}
+            className="block h-full w-full overflow-hidden rounded-full"
+            aria-label={avatarUrl ? t('viewPhoto') : t('changePhoto')}
+          >
             {avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={avatarUrl} alt={athleteName} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
             ) : (
               <span className="flex h-full w-full items-center justify-center bg-brand-600 text-lg font-bold text-white">{initials}</span>
             )}
-          </span>
-          {/* The frame draws a bare avatar, but tapping it is the only way to
-              change a photo anywhere in the app — so the badge stays, smaller. */}
-          <span className="absolute bottom-0 end-0 flex h-5 w-5 items-center justify-center rounded-full bg-card shadow-sm">
+          </button>
+          {/* The frame draws a bare avatar, but this badge is the only way to
+              change a photo anywhere in the app — so it stays, smaller. It is a
+              real button now: when a photo exists the circle behind it enlarges
+              instead of uploading, so the badge has to carry the upload itself. */}
+          <button
+            type="button"
+            onClick={onPhotoClick}
+            aria-label={t('changePhoto')}
+            className="absolute bottom-0 end-0 flex h-5 w-5 items-center justify-center rounded-full bg-card shadow-sm"
+          >
             {uploadingPhoto ? <Loader2 className="h-3 w-3 animate-spin text-brand-600" /> : <Camera className="h-3 w-3 text-ink-500" />}
-          </span>
-        </button>
+          </button>
+        </div>
         <div className="min-w-0 flex-1 text-start">
           <p className="text-sm font-bold text-ink-700">{greeting},</p>
           {/* The 🌰 goes NEXT to the name, not inside the <h1>'s truncate: a long

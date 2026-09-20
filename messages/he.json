@@ -78,7 +78,8 @@
     "confirm": "אישור",
     "attendanceRosterAria": "צפייה ברשימת נוכחות",
     "account": "החשבון",
-    "records": "שיאי המועדון"
+    "records": "שיאי המועדון",
+    "runTogether": "ריצה ביחד"
   },
   "coachTools": {
     "title": "כלי מאמן",
@@ -853,7 +854,10 @@
     "garminHistoryProgress": "{imported} ריצות נוספו · הוותיקה {date}",
     "garminHistoryTotal": "{count} ריצות נוספו עד כה",
     "garminHistoryNoGarmin": "אין חיבור לגרמין — Strava בלבד",
-    "garminHistoryNobody": "לאף אחד אין שעון מחובר"
+    "garminHistoryNobody": "לאף אחד אין שעון מחובר",
+    "feedbackOpenCount": "{count} פתוחים",
+    "feedbackPhaseOpen": "פתוחים",
+    "feedbackPhaseResolved": "סגורים"
   },
   "badgeManager": {
     "existingBadges": "תגים קיימים",
@@ -1241,7 +1245,10 @@
     "statusDone": "טופל",
     "statusDenied": "לא ייטופל",
     "adminInbox": "כל הדיווחים",
-    "adminInboxHint": "מה שהמתאמנים דיווחו — לצוות בלבד"
+    "adminInboxHint": "מה שהמתאמנים דיווחו — לצוות בלבד",
+    "myReportsOpen": "{count} ממתינים לתשובה",
+    "myReportsClosed": "סגורים ({count})",
+    "myReportsAllClosed": "כל מה שדיווחת קיבל מענה."
   },
   "setup": {
     "title": "השלמת הפרופיל",
@@ -1483,6 +1490,7 @@
     "notificationPrefs": "העדפות התראות",
     "memberSince": "חבר/ה מאז",
     "changePhoto": "החלף תמונה",
+    "viewPhoto": "הצג תמונה",
     "noProfileFound": "פרופיל לא נמצא",
     "joinViaInvite": "הצטרף דרך קישור ההזמנה כדי להגדיר את הפרופיל שלך.",
     "syncingActivities": "מסנכרן פעילויות",
@@ -1527,6 +1535,27 @@
     "weekTargetLegend": "הירוק = טווח היעד",
     "weekTargetOptional": "האימונים האופציונליים מוסיפים עד {km} ק״מ",
     "lastTenWeeks": "10 השבועות האחרונים",
+    "last7Title": "7 הימים האחרונים",
+    "last7Empty": "לא נרשמו ריצות בשבעת הימים האחרונים",
+    "last7Km": "ק״מ",
+    "last7Hours": "שעות",
+    "last7Pace": "קצב ממוצע",
+    "last7Runs": "אימונים",
+    "weekShareTitle": "שיתוף הסיכום השבועי",
+    "weekShareAction": "שיתוף",
+    "weekShareWhat": "מה ייכנס לכרטיס",
+    "weekShareKm": "ק״מ",
+    "weekShareHours": "שעות",
+    "weekSharePace": "קצב ממוצע",
+    "weekShareRuns": "אימונים",
+    "weekShareElev": "טיפוס (מ׳)",
+    "weekShareCal": "קלוריות",
+    "weekShareName": "שם",
+    "weekSharePreview": "תצוגה מקדימה של הכרטיס",
+    "weekShareAddPhoto": "בחירת תמונת רקע",
+    "weekShareChangePhoto": "החלפת תמונה",
+    "weekShareSaved": "הכרטיס נשמר לגלריה",
+    "weekShareError": "לא הצלחנו להכין את הכרטיס",
     "recentRuns": "הריצות האחרונות",
     "noRunsYet": "עדיין אין ריצות",
     "allRuns": "לכל הריצות",
@@ -1813,15 +1842,33 @@
       "capacityPlaceholder": "ללא הגבלה",
       "location": "מיקום",
       "locationPlaceholder": "לדוגמה: מועדון הריצה, הרצליה",
+      "mapLink": "קישור לגוגל מפות",
+      "mapLinkPlaceholder": "הדביקו קישור מגוגל מפות",
+      "mapLinkHint": "לא חובה. שתפו את המקום מגוגל מפות והדביקו כאן — גם קישור מקוצר עובד.",
+      "mapLinkResolved": "המקום נמצא: {lat}, {lng}",
+      "mapLinkNoCoords": "נמצא {place}, אבל לא המקום המדויק על המפה. האירוע יישמר בלי סימון מפה.",
+      "mapLinkResolving": "מחפש את המקום…",
+      "mapLinkUnreachable": "לא הצלחנו להגיע לגוגל מפות כרגע. נסו שוב, או הדביקו את הקישור המלא.",
+      "mapLinkShort": "לא הצלחנו לקרוא את הקישור המקוצר. פתחו אותו והעתיקו את הכתובת המלאה משורת הכתובת.",
+      "mapLinkInvalid": "לא נמצא מקום בקישור. הדביקו קישור מגוגל מפות או קואורדינטות.",
       "description": "תיאור (אופציונלי)",
       "descriptionPlaceholder": "פרטים נוספים על האירוע...",
       "requiredError": "שם, תאריך ומיקום הם שדות חובה",
       "genericError": "שגיאה ביצירת האירוע",
       "saving": "שומר...",
       "create": "צור אירוע"
+    },
+    "editEvent": {
+      "title": "עריכת אירוע",
+      "save": "שמירת שינויים",
+      "delete": "מחיקת אירוע",
+      "deleting": "מוחק…",
+      "deleteConfirm": "למחוק את “{name}”? גם ההרשמות לאירוע יימחקו, ואי אפשר לבטל את זה.",
+      "mapLinkCurrent": "סימון קיים במפה: {lat}, {lng}. השאירו ריק כדי לשמור אותו, או הדביקו קישור חדש כדי להזיז אותו."
     }
   },
   "eventDetail": {
+    "edit": "עריכת אירוע",
     "kinds": {
       "race": "מרוץ",
       "camp": "מחנה אימונים",
@@ -1834,6 +1881,7 @@
     "notFound": "האירוע לא נמצא",
     "notFoundHint": "האירוע שביקשת לא קיים או הוסר",
     "openInWaze": "פתח בוויז",
+    "openInMaps": "פתח במפות",
     "agendaTitle": "לוח זמנים",
     "gearTitle": "ציוד מומלץ",
     "participantsTitle": "משתתפים",
@@ -1983,6 +2031,7 @@
     "yesterday": "אתמול",
     "daysAgo": "לפני {count} ימים",
     "markAllRead": "סמן הכל כנקרא",
+    "managePrefs": "הגדרות התראות",
     "dateSections": {
       "today": "היום",
       "yesterday": "אתמול",
@@ -2102,7 +2151,8 @@
     "kmAvg": "ק״מ ממוצע",
     "attendAvg": "נוכחות",
     "ranThisWeek": "רצו השבוע",
-    "footnote": "דירוג לפי ממוצע לחבר — נפח ריצה, נוכחות והתמדה. גודל הדבוקה לא משפיע."
+    "footnote": "דירוג לפי ממוצע לחבר — נפח ריצה, נוכחות והתמדה. גודל הדבוקה לא משפיע.",
+    "rosterLoading": "טוען חברים…"
   },
   "feed": {
     "composerPlaceholder": "מה חדש אצלך?",
@@ -2219,7 +2269,10 @@
     "groupRunRunners": "{count} רצים",
     "groupRunShared": "מסלול משותף {pct}%",
     "groupRunLongest": "הארוכה: {km} ק״מ",
-    "groupRunShowAll": "הצגת {count} הרצים הנוספים"
+    "groupRunShowAll": "הצגת {count} הרצים הנוספים",
+    "filterFavorites": "מועדפים",
+    "emptyFavoritesTitle": "אין עדיין מועדפים",
+    "emptyFavoritesBody": "היכנסו לפרופיל של חבר קבוצה ולחצו על הכוכב כדי לראות את הריצות שלו כאן."
   },
   "feedHighlight": {
     "unit_distance_km": "ק״מ",
@@ -2375,7 +2428,9 @@
     "followers": "עוקבים",
     "following": "במעקב",
     "follow": "עקיבה",
-    "followingButton": "עוקב/ת"
+    "followingButton": "עוקב/ת",
+    "favoriteAdd": "הוספה למועדפים",
+    "favoriteRemove": "הסרה מהמועדפים"
   },
   "search": {
     "title": "חיפוש",
@@ -2691,5 +2746,62 @@
     "reminderInboxOnly": "יגיע רק לתיבה באפליקציה",
     "reminderEmailed": "התזכורת נשלחה במייל ✓",
     "reminderByEmail": "יישלח במייל"
+  },
+  "upcoming": {
+    "title": "אירועים קרובים",
+    "races": "מירוצים",
+    "club": "אירועי מועדון",
+    "birthdays": "ימי הולדת",
+    "today": "היום",
+    "tomorrow": "מחר",
+    "inDays": "בעוד {n} ימים",
+    "seeAll": "ליומן"
+  },
+  "runTogether": {
+    "title": "ריצה ביחד",
+    "subtitle": "ספרו מתי ואיפה אתם יוצאים לאימון. מי שיש לו אימון דומה יכול לבקש להצטרף.",
+    "post": "פרסום ריצה",
+    "emptyTitle": "אין עדיין ריצות מתוכננות",
+    "emptyBody": "פרסמו מתי ואיפה אתם רצים, ותנו למועדון להצטרף אליכם.",
+    "yours": "שלך",
+    "perKm": "לק\"מ",
+    "km": "ק\"מ",
+    "matchClose": "הקצב שלך",
+    "matchNear": "קרוב לקצב שלך",
+    "going": "מצטרפים",
+    "asksToJoin": "{name} מבקש/ת להצטרף",
+    "accept": "אישור",
+    "decline": "דחייה",
+    "cancelRun": "ביטול הריצה",
+    "askToJoin": "בקשה להצטרף",
+    "requestSent": "הבקשה נשלחה",
+    "withdraw": "ביטול הבקשה",
+    "youAreIn": "אתם מצטרפים",
+    "wasDeclined": "הפעם לא התאים למפרסם",
+    "fieldDate": "תאריך",
+    "fieldTime": "שעה",
+    "fieldLocation": "איפה",
+    "fieldPace": "קצב מתוכנן",
+    "fieldDistance": "מרחק (ק\"מ)",
+    "fieldNotes": "הערות",
+    "locationPlaceholder": "פארק הירקון, שער צפוני",
+    "invalidField": "בדקו את השדה המסומן ונסו שוב."
+  },
+  "watchStatus": {
+    "onWatch": "בשעון ✓",
+    "notOnWatch": "לא בשעון",
+    "sendToWatch": "שליחה לשעון",
+    "sending": "שולח…",
+    "failed": "לא נשלח — נסו שוב"
+  },
+  "whatsNew": {
+    "title": "מה חדש",
+    "lead": "מה שנכנס באפליקציה בשבועות האחרונים.",
+    "badge": "חדש",
+    "gotIt": "הבנתי",
+    "recall": "תמיד כאן: הגדרות ← מה חדש",
+    "onboardTitle": "מה יש באפליקציה",
+    "onboardLead": "שני דברים ששווה להכיר, עוד לפני האימון הראשון.",
+    "onboardPromise": "כל פיצ׳ר חדש יופיע ככה — פעם אחת, בפיד."
   }
 }

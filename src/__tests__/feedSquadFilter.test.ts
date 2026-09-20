@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSquadParam, ACADEMY_SQUAD } from '@/lib/feed/squad-filter';
+import { parseSquadParam, ACADEMY_SQUAD, FAVORITES_SQUAD } from '@/lib/feed/squad-filter';
 
 /**
  * The feed's squad param.
@@ -21,6 +21,25 @@ describe('parseSquadParam', () => {
   it('reads the academy, which is a flag and not a group', () => {
     expect(parseSquadParam(ACADEMY_SQUAD)).toEqual({ kind: 'academy' });
     expect(parseSquadParam('Academy')).toEqual({ kind: 'academy' });
+  });
+
+  /**
+   * ff8d932e. The one selector that is relative to the caller — the route
+   * resolves it from the session, so the parse must NOT let it be confused with
+   * a group id or silently fall through to "the whole club", which would show a
+   * favourites-only feed containing everybody.
+   */
+  it('reads the caller-relative favourites list', () => {
+    expect(parseSquadParam(FAVORITES_SQUAD)).toEqual({ kind: 'favorites' });
+    expect(parseSquadParam('Favorites')).toEqual({ kind: 'favorites' });
+    expect(parseSquadParam(' favorites ')).toEqual({ kind: 'favorites' });
+  });
+
+  /** A near miss is not the favourites list, and must not become one. */
+  it('does not read favourite-ish spellings as the favourites list', () => {
+    for (const input of ['favourites', 'favorite', 'favs', 'my-favorites']) {
+      expect(parseSquadParam(input), input).toBeNull();
+    }
   });
 
   it('treats absent as no filter', () => {

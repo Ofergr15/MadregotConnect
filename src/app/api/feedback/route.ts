@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaff, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { notifyAthlete } from '@/lib/push';
-import { problemReportCopy, reviewResolvedCopy } from '@/lib/notifications/copy';
+import { problemReportCopy } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
 import { shouldNotifyReporter, type ResolutionStatus } from '@/lib/feedback-resolution';
+import { notifyReportResolved } from '@/lib/feedback-notify';
 
 // App feedback ("ביקורת"): athletes file it from /dashboard/review, staff
 // triage it from the admin settings page. Submitting is self-only, reading and
@@ -245,19 +246,16 @@ export async function PATCH(request: Request) {
     // send the coach back to re-click a button that already worked.
     if (before && shouldNotifyReporter(before.status, status, before.athlete_id)) {
       try {
-        await notifyAthlete({
-          athleteId: before.athlete_id!,
-          // Deliberately absent from KIND_CATEGORY (src/lib/notifications/prefs.ts)
-          // and sent with no `category`, so no preference toggle can mute it —
-          // same treatment as `approval`. It's a direct answer to a message this
-          // person sent us, not a stream of chatter they might want quieter.
-          kind: 'review_resolved',
-          actorAthleteId: null,
-          url: '/dashboard/review',
-          // One tag per report, so a re-resolved report replaces its own old
-          // notification on the lock screen instead of stacking.
-          tag: `review-resolved-${id}`,
-          copy: (locale) => reviewResolvedCopy(locale, { preview: before.message }),
+        // The send itself lives in lib/feedback-notify.ts, which the cron pass
+        // also calls — so the two paths share one ledger and one piece of copy.
+        // This one stays here, immediate, because a coach who just marked
+        // something done should see it land now rather than within five minutes;
+        // the cron is the safety net for every OTHER way a report gets closed,
+        // which in practice is nearly all of them (9a818a94).
+        await notifyReportResolved(supabase, {
+          id,
+          athlete_id: before.athlete_id,
+          message: before.message,
         });
       } catch (pushError) {
         console.error('Feedback resolved notify failed:', pushError);

@@ -99,13 +99,13 @@ function formatDuration(seconds: number): string {
  * "Heebo" in a canvas font string silently falls back to the system sans. Reading
  * the resolved stack off <body> gets the real name.
  */
-function resolveFontStack(): string {
+export function resolveFontStack(): string {
   if (typeof window === 'undefined') return 'sans-serif';
   const family = getComputedStyle(document.body).fontFamily;
   return family || 'sans-serif';
 }
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
@@ -115,7 +115,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /** ctx.roundRect is Safari 16+ only; this keeps older iOS working. */
-function roundRectPath(
+export function roundRectPath(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
@@ -134,7 +134,7 @@ function roundRectPath(
 }
 
 /** Scale-to-fill with a centre crop, the way a story background should behave. */
-function drawCover(
+export function drawCover(
   ctx: CanvasRenderingContext2D,
   img: CanvasImageSource,
   iw: number,

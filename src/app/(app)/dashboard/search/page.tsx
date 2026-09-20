@@ -8,7 +8,7 @@ import { useApi } from '@/lib/api';
 import { EmptyState, Spinner } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import type { EventKind } from '@/lib/events';
-import { useNavItems, STORE_ITEM, BENEFITS_ITEM, type NavItem } from '@/lib/nav-items';
+import { useNavItems, STORE_ITEM, BENEFITS_ITEM, RUN_TOGETHER_ITEM, type NavItem } from '@/lib/nav-items';
 import { AthleteLink } from '@/components/AthleteLink';
 
 // English/Hebrew synonym aliases per section — a plain substring match against
@@ -111,7 +111,7 @@ export default function SearchPage() {
   const sections = useMemo<NavItem[]>(() => {
     const q = debounced.trim().toLowerCase();
     if (q.length < 2) return [];
-    const candidates = [...navItems, STORE_ITEM, BENEFITS_ITEM];
+    const candidates = [...navItems, STORE_ITEM, BENEFITS_ITEM, RUN_TOGETHER_ITEM];
     return candidates.filter((item) => {
       const label = tNav(item.labelKey as any).toLowerCase();
       const keywords = SECTION_KEYWORDS[item.tab] || [];

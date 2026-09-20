@@ -17,6 +17,9 @@ import {
   collectReviewContext, compressImage, dataUrlBytes, formatBytes,
   reviewContextRows, REVIEW_DRAFT_KEY, REVIEW_LAST_PATH_KEY, type ReviewContext,
 } from '@/lib/review-context';
+import {
+  normalizeStatus, splitByPhase, STATUS_LABEL_KEY, STATUS_PILL,
+} from '@/lib/feedback/status';
 
 /**
  * /dashboard/review — the club's "something isn't working" channel.
@@ -60,16 +63,9 @@ const CATEGORIES = [
  *  "where did it happen" about the paces would just be noise. */
 const ASKS_WHERE: FeedbackCategory[] = ['bug_report', 'feature_request'];
 
-const STATUS_KEY: Record<string, string> = {
-  new: 'statusNew', idea: 'statusIdea', sprint: 'statusSprint', done: 'statusDone', denied: 'statusDenied',
-};
-const STATUS_STYLE: Record<string, string> = {
-  new: 'bg-brand-600/10 text-brand-600',
-  idea: 'bg-purple-600/10 text-purple-600',
-  sprint: 'bg-band-3/20 text-band-3-ink',
-  done: 'bg-accent-600/15 text-accent-900',
-  denied: 'bg-page text-ink-400',
-};
+// The labels and the pill colours moved to lib/feedback/status.ts so that this
+// screen and the staff inbox cannot describe the same report differently — see
+// that file's docblock (2d076a9c).
 
 interface MyReport {
   id: string;
@@ -511,27 +507,60 @@ export default function ReviewPage() {
 
       {/* ── My past reports ── */}
       {myReports.length > 0 && (
-        <div className="pt-2">
-          <SectionCaption>{t('myReports')}</SectionCaption>
-          <div className="overflow-hidden rounded-card bg-card">
-            {myReports.map((r, i) => {
-              const status = r.status || 'new';
-              return (
-                <div key={r.id} className={cn('px-4 py-3', i < myReports.length - 1 && 'border-b border-page')}>
-                  <div className="flex items-center gap-2">
-                    <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-3xs font-bold', STATUS_STYLE[status] || STATUS_STYLE.new)}>
-                      {t((STATUS_KEY[status] || 'statusNew') as any)}
-                    </span>
-                    <span className="text-3xs text-ink-400">
-                      {new Date(r.created_at).toLocaleDateString(locale === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short' })}
-                    </span>
+        // Two lists, not one — "what is still open" above "what is closed", each
+        // with its count in the caption. A single date-sorted list answered the
+        // question this screen exists to answer ("did anything happen to what I
+        // reported?") only by reading five different pills one at a time, which is
+        // exactly what 2d076a9c said was hard. Open first, because that is the half
+        // you can still be told something about.
+        (() => {
+          const { open, resolved } = splitByPhase(myReports, r => r.status);
+          const rows = (list: MyReport[]) => (
+            <div className="overflow-hidden rounded-card bg-card">
+              {list.map((r, i) => {
+                const status = normalizeStatus(r.status);
+                return (
+                  <div key={r.id} className={cn('px-4 py-3', i < list.length - 1 && 'border-b border-page')}>
+                    <div className="flex items-center gap-2">
+                      <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-3xs font-bold', STATUS_PILL[status])}>
+                        {t(STATUS_LABEL_KEY[status] as any)}
+                      </span>
+                      <span className="text-3xs text-ink-400">
+                        {new Date(r.created_at).toLocaleDateString(locale === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short' })}
+                      </span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-13 leading-snug text-ink-700" dir="auto">{r.message}</p>
                   </div>
-                  <p className="mt-1 line-clamp-2 text-13 leading-snug text-ink-700" dir="auto">{r.message}</p>
+                );
+              })}
+            </div>
+          );
+          return (
+            <div className="space-y-4 pt-2">
+              <div>
+                <SectionCaption>{t('myReports')}</SectionCaption>
+                {open.length > 0 ? (
+                  <>
+                    <p className="-mt-1 mb-1.5 px-4 text-3xs text-ink-400">
+                      {t('myReportsOpen', { count: open.length })}
+                    </p>
+                    {rows(open)}
+                  </>
+                ) : (
+                  // Everything filed has been answered. Worth SAYING, not leaving
+                  // as an empty space above the closed pile — it is the good news.
+                  <p className="px-4 text-13 leading-relaxed text-ink-400">{t('myReportsAllClosed')}</p>
+                )}
+              </div>
+              {resolved.length > 0 && (
+                <div>
+                  <SectionCaption>{t('myReportsClosed', { count: resolved.length })}</SectionCaption>
+                  {rows(resolved)}
                 </div>
-              );
-            })}
-          </div>
-        </div>
+              )}
+            </div>
+          );
+        })()
       )}
 
       {/* ── Staff: the other half of the loop ──

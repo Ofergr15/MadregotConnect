@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut, Bug } from 'lucide-react';
+import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut, Bug, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
@@ -87,7 +87,7 @@ export function BottomTabBar() {
   const overflowActive = overflow.some(i => isActive(i.href));
   // The static quick-action pages are reachable from the "More" sheet only, so
   // they light its slot up exactly like an overflow page does.
-  const MORE_SHEET_HREFS = ['/dashboard/search', '/dashboard/store', '/dashboard/benefits', '/dashboard/review'];
+  const MORE_SHEET_HREFS = ['/dashboard/search', '/dashboard/store', '/dashboard/benefits', '/dashboard/review', '/dashboard/run-together'];
   const moreActive = MORE_SHEET_HREFS.some(isActive);
 
   // STAFF ONLY: one "do something now" destination, additive to the 4 primary
@@ -213,6 +213,12 @@ export function BottomTabBar() {
                   wrong. Also lives beside the logo in the Header now; this card
                   keeps the place the club already knows. */}
               <MoreCard icon={Bug} label={t('review' as any)} href="/dashboard/review" active={isActive('/dashboard/review')} onClick={() => setMoreOpen(false)} />
+              {/* Run together (398963c7) — static for the same reason Store and
+                  Benefits are: it is a member-to-member feature with nothing
+                  staff-gated on it, so gating its door on a permission row would
+                  mean a club social feature that only exists for whoever the
+                  matrix happens to have granted. */}
+              <MoreCard icon={Users} label={t('runTogether' as any)} href="/dashboard/run-together" active={isActive('/dashboard/run-together')} onClick={() => setMoreOpen(false)} />
               {/* Photos is still being built — card and route disabled for now.
                   Restore with the Header nav entry and the page (re-add the
                   lucide Camera import too). */}

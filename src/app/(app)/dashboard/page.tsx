@@ -14,6 +14,7 @@ import { apiHeaders, useApi } from '@/lib/api';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { AttendanceRSVP, type AttendanceStatus } from '@/components/AttendanceRSVP';
 import { NextWorkoutCard } from '@/components/NextWorkoutCard';
+import { WatchStatus } from '@/components/WatchStatus';
 import { StatTiles } from '@/components/StatTiles';
 import { WeeklyLeaderboardCard } from '@/components/WeeklyLeaderboardCard';
 import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_TEXT_COLORS as typeTextColors, WORKOUT_TYPE_LABELS as typeLabels, planDayKey } from '@/lib/plans/workout-parsing';
@@ -45,6 +46,9 @@ import { GOAL_RACE } from '@/lib/goal-race';
 const CoachPulse = dynamic(() => import('@/components/CoachPulse').then(m => m.CoachPulse), { ssr: false });
 const AttendanceRoster = dynamic(() => import('@/components/AttendanceRoster').then(m => m.AttendanceRoster), { ssr: false });
 const ActivitySyncEditor = dynamic(() => import('@/components/ActivitySyncEditor').then(m => m.ActivitySyncEditor), { ssr: false });
+// Admin-only, and it renders nothing when the club is quiet — so it is never worth
+// putting in the bundle every member downloads.
+const AdminAttention = dynamic(() => import('@/components/admin/AdminAttention').then(m => m.AdminAttention), { ssr: false });
 // The one exception to "no fallback needed": this replaces the WHOLE screen for an
 // admin, so without a spinner the control room opens on a blank page.
 const ControlRoomScreen = dynamic(() => import('@/components/admin/ControlRoomScreen').then(m => m.ControlRoomScreen), {
@@ -117,6 +121,15 @@ function countThisWeek(activities: Array<{ start_time: string }>): number {
   const thisWeek = getActivityWeekStart(israelDateAnchor());
   return activities.filter((a) => activityWeekStart(a.start_time) === thisWeek).length;
 }
+
+/**
+ * The hour the hero card stops talking about today and starts talking about
+ * tomorrow — 20:00 Israel, asked for in as many words (c1334a75: "from 8 in the
+ * evening every day, Israel time, show the NEXT workout, and beside it show
+ * whether it is on the watch"). It is also the hour the club's own week rolls
+ * over on a Saturday, so the app already treats 20:00 as the end of a day.
+ */
+const EVENING_LOOKAHEAD_HOUR = 20;
 
 // A radically simplified home: one hero (today's/tomorrow's workout + RSVP),
 // a slim stat strip, and a single clear CTA — everything else that used to
@@ -562,10 +575,16 @@ export default function DashboardPage() {
       .filter(a => activityLocalDateStr(a.start_time) === todayKey)
       .reduce((s, a) => s + (a.distance || 0) / 1000, 0);
     const todayDone = !!todayW && todayKm >= todayW.min;
-    // Next relevant workout: today's if it isn't done yet; otherwise
-    // tomorrow's; falling back to today's (as a completed recap) if
-    // there's no workout scheduled tomorrow.
-    const nextWorkout = (todayW && !todayDone) ? todayW : (tomorrowW || todayW)!;
+    // From 20:00 Israel the day is over whether or not the kilometres were run,
+    // and "the next workout" is tomorrow's (c1334a75). Before that gate the card
+    // kept insisting on today's session all evening to anybody who had skipped or
+    // shortened it — which is the one time of day somebody is actually checking
+    // what is coming, and the reason the watch row below matters at that hour.
+    const eveningAnchor = israelNow().hour >= EVENING_LOOKAHEAD_HOUR;
+    // Next relevant workout: today's if it isn't done yet and the evening hasn't
+    // turned over; otherwise tomorrow's; falling back to today's (as a completed
+    // recap) if there's no workout scheduled tomorrow.
+    const nextWorkout = (todayW && !todayDone && !eveningAnchor) ? todayW : (tomorrowW || todayW)!;
     const showingToday = nextWorkout === todayW;
     // Noon anchor off the matched day key, so the date handed to the calendar
     // link is the workout's own date and can't drift across a midnight.
@@ -583,6 +602,16 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-extrabold text-ink-700 tracking-tight mt-0.5">מדרגות</h1>
         </div>
       </div>
+
+      {/* ═══ DDORESH TIPUL (admin) — what is waiting for the person who runs the
+          club, on the screen they actually open ═══
+          Every admin here also runs, so /dashboard is their TRAINING home and the
+          control room sits one tap away — which meant the alert list was on a
+          screen nobody opens on a normal morning (e7951e14: "צריך לעשות סדר
+          באיזור של הadmin — לקבל שם פירוט בעמוד הראשי"). Same component and the
+          same request as the control room; renders NOTHING when there is nothing
+          to act on, so it never becomes a permanent empty card above today's run. */}
+      {isAdminView && <AdminAttention compact />}
 
       {/* ═══ ATTENDANCE (coach) — the coach's own "today's action" hero. RSVP is a
           DAY-BEFORE flow (matches the Mon 08:00 + 18:00 pushes for a Tue workout);
@@ -670,6 +699,7 @@ export default function DashboardPage() {
           hasRsvpTarget={!!rsvpTarget}
           rsvpAnswered={rsvpAnswered}
           isNewPlan={isRecentlyPublished(weekly?.publishedAt)}
+          watch={<WatchStatus date={toISODate(heroWorkout.nextDate)} />}
         >
           {rsvpTarget && (
             <AttendanceRSVP

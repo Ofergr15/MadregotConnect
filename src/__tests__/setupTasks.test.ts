@@ -139,4 +139,24 @@ describe('computeSetupState', () => {
     expect(computeSetupState(EMPTY).tasks.map((t) => t.key)).toEqual([...SETUP_TASK_KEYS]);
     expect(computeSetupState(EMPTY).info.map((i) => i.key)).toEqual([...SETUP_INFO_KEYS]);
   });
+
+  // e7951e14 — the admin collects the kit order; nobody collects it from them.
+  it('drops the kit-sizes task for an admin instead of forgiving it', () => {
+    const state = computeSetupState(EMPTY, { skipSizes: true });
+    expect(state.tasks.map((t) => t.key)).toEqual(['watch', 'photo', 'personalInfo', 'notifications']);
+    expect(state.totalCount).toBe(4);
+    // Still 0%: excluded, not marked done — a percentage that counts a task nobody
+    // will ever do is the thing this option exists to avoid.
+    expect(state.pct).toBe(0);
+    expect(state.nextKey).toBe('watch');
+  });
+
+  it('lets an admin reach 100% with no sizes on file at all', () => {
+    const noSizes = {
+      ...FULL, shirtSize: null, pantsSize: null, tightsSize: null, socksSize: null, shoeSize: null,
+    };
+    expect(computeSetupState(noSizes).pct).toBe(80);
+    expect(computeSetupState(noSizes, { skipSizes: true }).pct).toBe(100);
+    expect(computeSetupState(noSizes, { skipSizes: true }).allDone).toBe(true);
+  });
 });

@@ -30,6 +30,7 @@ import { sundayOf, type AcademyMember, type AcademyMembersResponse } from '@/com
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
+import { useAthleteId } from '@/lib/use-athlete-id';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 
@@ -129,9 +130,8 @@ export default function AcademyPage() {
   const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
 
   const [email, setEmail] = useState<string | null>(null);
-  const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
+  const myAthleteId = useAthleteId();
   useEffect(() => {
-    setMyAthleteId(localStorage.getItem('athlete_id') || '');
     if (previewRole) { setEmail(''); return; }
     const stored = localStorage.getItem('athlete_email') || localStorage.getItem('coach_email') || '';
     if (stored) { setEmail(stored); return; }

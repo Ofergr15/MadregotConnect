@@ -576,13 +576,13 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
           <label className="block text-xs font-medium text-ink-400 mb-1.5">שבוע</label>
           <div className="flex items-center gap-1 bg-page border border-page rounded-xl h-11 px-1">
             <button onClick={() => setWeekStart(w => shiftWeekStart(w, -1))} aria-label="שבוע קודם" className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page">
-              <ChevronRight className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
             </button>
             <span className="text-sm text-ink-700 font-medium px-1 flex items-center gap-1.5 min-w-[150px] justify-center">
               <Calendar className="h-3.5 w-3.5 text-ink-400" /> {fmtWeekLabel(weekStart)}
             </span>
             <button onClick={() => setWeekStart(w => shiftWeekStart(w, 1))} aria-label="שבוע הבא" className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page">
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 rtl:rotate-180" />
             </button>
           </div>
         </div>
