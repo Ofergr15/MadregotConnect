@@ -5,6 +5,7 @@ import { KIT_SIZE_FIELDS } from '@/lib/kit-sizes';
 import { PROVIDER_HEALTH_COLUMNS_101, connectionState } from '@/lib/providers/health';
 import { nameProblem, normalizeDisplayName } from '@/lib/names/latin';
 import { historyImportStatus, readHistoryCursors, type HistoryImportStatus } from '@/lib/garmin/history-schedule';
+import { weekStartDayOf } from '@/lib/utils';
 
 const GENDERS = ['male', 'female'] as const;
 type Gender = (typeof GENDERS)[number];
@@ -25,9 +26,12 @@ const CORE_COLUMNS = 'id, name, email, garmin_auth, strava_auth, strava_enabled,
 // PGRST204 retry below and the route serves the pre-100 set instead of 404ing.
 const PRE_100_COLUMNS = `${CORE_COLUMNS}, shirt_size, phone, discoverable`;
 const PRE_101_COLUMNS = `${PRE_100_COLUMNS}, pants_size, tights_size, socks_size`;
-// Migration 101's connection-health timestamps are now the newest columns here, so
-// they take the first step of the degrade path — see the retry in GET.
-const FULL_COLUMNS = `${PRE_101_COLUMNS}, ${PROVIDER_HEALTH_COLUMNS_101}`;
+const PRE_119_COLUMNS = `${PRE_101_COLUMNS}, ${PROVIDER_HEALTH_COLUMNS_101}`;
+// Migration 119's week preference is now the newest column here, so it takes the
+// first step of the degrade path — see the retry in GET. Same reason as every step
+// below it: migrations are pasted by hand, so the deploy is live before the column
+// exists and one missing column must not blank the whole profile screen.
+const FULL_COLUMNS = `${PRE_119_COLUMNS}, week_start_day`;
 
 /** `{ shirtSize: 'L', pantsSize: null, … }` from whichever columns the row carries. */
 function kitSizesOf(row: Record<string, unknown>) {
@@ -59,11 +63,14 @@ export async function GET(req: NextRequest) {
     // Step down one migration at a time — otherwise, in the window before 101 is
     // applied, the profile screen would also stop showing the kit sizes, shirt size
     // and phone it has been showing since 100 and 061.
-    ({ data, error } = await supabase.from('athletes').select(PRE_101_COLUMNS).eq('id', id).single());
+    ({ data, error } = await supabase.from('athletes').select(PRE_119_COLUMNS).eq('id', id).single());
     if (error?.code === '42703' || error?.code === 'PGRST204') {
-      ({ data, error } = await supabase.from('athletes').select(PRE_100_COLUMNS).eq('id', id).single());
+      ({ data, error } = await supabase.from('athletes').select(PRE_101_COLUMNS).eq('id', id).single());
       if (error?.code === '42703' || error?.code === 'PGRST204') {
-        ({ data, error } = await supabase.from('athletes').select(CORE_COLUMNS).eq('id', id).single());
+        ({ data, error } = await supabase.from('athletes').select(PRE_100_COLUMNS).eq('id', id).single());
+        if (error?.code === '42703' || error?.code === 'PGRST204') {
+          ({ data, error } = await supabase.from('athletes').select(CORE_COLUMNS).eq('id', id).single());
+        }
       }
     }
   }
@@ -125,6 +132,10 @@ export async function GET(req: NextRequest) {
       ...kitSizesOf(data as unknown as Record<string, unknown>),
       phone: (data as any).phone || null,
       discoverable: (data as any).discoverable ?? true,
+      // Which day this member's own week starts on (migration 119). Always one of
+      // 0/1 on the way out, never null, so the screens can switch on it without
+      // each one deciding what an absent value means.
+      weekStartDay: weekStartDayOf((data as any).week_start_day),
     },
   });
 }
@@ -143,7 +154,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, birthDate, gender, shoeSize, phone, discoverable } = body;
+    const { id, name, birthDate, gender, shoeSize, phone, discoverable, weekStartDay } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
@@ -168,6 +179,13 @@ export async function PUT(req: NextRequest) {
     // The roster is Latin-only and always has been in intent; this is where the
     // rule is actually enforced. `code` is what the UI switches its message on —
     // "can't be empty" and "English letters, please" are different asks.
+    // 0 or 1 only, matching the CHECK in migration 119. Rejected here rather than
+    // coerced: a 400 tells the caller the value was wrong, where silently writing
+    // Monday for a 3 would look like the setting simply doesn't save.
+    if (weekStartDay !== undefined && weekStartDay !== 0 && weekStartDay !== 1) {
+      return NextResponse.json({ error: 'weekStartDay must be 0 (Sunday) or 1 (Monday)' }, { status: 400 });
+    }
+
     const problem = name === undefined ? null : nameProblem(name);
     if (problem === 'empty') {
       return NextResponse.json({ error: 'name cannot be empty', code: problem }, { status: 400 });
@@ -179,7 +197,7 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const updates: Record<string, string | boolean | Gender | null> = {};
+    const updates: Record<string, string | number | boolean | Gender | null> = {};
     if (name !== undefined) updates.name = normalizeDisplayName(name);
     if (birthDate !== undefined) updates.birth_date = birthDate || null;
     if (gender !== undefined) updates.gender = gender || null;
@@ -189,6 +207,7 @@ export async function PUT(req: NextRequest) {
     }
     if (phone !== undefined) updates.phone = (phone && String(phone).trim()) || null;
     if (discoverable !== undefined) updates.discoverable = !!discoverable;
+    if (weekStartDay !== undefined) updates.week_start_day = weekStartDay;
 
     const missingColumn = (e: { code?: string } | null) => e?.code === '42703' || e?.code === 'PGRST204';
     const supabase = createServerClient();
@@ -197,6 +216,15 @@ export async function PUT(req: NextRequest) {
     // personal-info save to fail on a column it doesn't care about.
     let { data, error } = await supabase.from('athletes').update(updates).eq('id', id).select(PRE_101_COLUMNS).single();
     if (missingColumn(error)) {
+      // 119 first — it is the newest column, and it is the only one in `updates`
+      // that a pre-119 database will reject. Dropping it keeps the rest of a
+      // personal-info save working in the window before the migration is pasted.
+      const { week_start_day, ...pre119 } = updates as Record<string, unknown>;
+      if (week_start_day !== undefined) {
+        ({ data, error } = await supabase.from('athletes').update(pre119).eq('id', id).select(PRE_101_COLUMNS).single());
+      }
+    }
+    if (missingColumn(error)) {
       // ── Two steps down, not one ───────────────────────────────────────────────
       // The newest columns are 100's three kit sizes, and there is a window between
       // this deploy and 100 being pasted into the SQL editor. Dropping straight to
@@ -204,7 +232,10 @@ export async function PUT(req: NextRequest) {
       // shirt_size save for the whole of that window — the sheet would close, say
       // nothing, and the size would be gone. So: try without 100 first, and only
       // fall all the way back to pre-061 if THAT still fails.
-      const { pants_size, tights_size, socks_size, ...pre100 } = updates as Record<string, unknown>;
+      // week_start_day comes out here as well: if we got this far, the step above
+      // already established the database is older than 119.
+      const { pants_size, tights_size, socks_size, week_start_day: _wsd, ...pre100 } =
+        updates as Record<string, unknown>;
       ({ data, error } = await supabase.from('athletes').update(pre100).eq('id', id).select(PRE_100_COLUMNS).single());
       if (missingColumn(error)) {
         const { shirt_size, phone: _phone, discoverable: _discoverable, ...coreUpdates } = pre100;

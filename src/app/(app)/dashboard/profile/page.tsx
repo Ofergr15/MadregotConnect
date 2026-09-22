@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { mutate as globalMutate } from 'swr';
 import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, MONDAY_WEEK, type WeekStartDay } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { useTranslations, useFormatter } from 'next-intl';
 import type { ConnectionState } from '@/lib/providers/health';
@@ -23,6 +23,7 @@ import { ProfileOverview } from '@/components/profile/ProfileOverview';
 import { SetupChecklist } from '@/components/onboarding/SetupChecklist';
 import { ONBOARDING_KEY } from '@/lib/onboarding/use-onboarding';
 import { Sheet, SegmentedControl, BackNav } from '@/components/ui';
+import { WeekStartSetting } from '@/components/profile/WeekStartSetting';
 import { shareTextForDay } from '@/lib/workout-share';
 import { getDisplayWeekStart, formatPlanWeekRange } from '@/lib/plans/workout-parsing';
 import { fetchActivities } from '@/lib/activities-client';
@@ -302,6 +303,7 @@ function ProfileContent() {
       garminLastSyncAt?: string | null;
       stravaLastSyncAt?: string | null;
       historyImport?: { state: 'none' | 'importing' | 'complete'; oldest: string | null; imported: number };
+      weekStartDay?: WeekStartDay;
     };
   }>(athleteId ? `/api/athletes/me?id=${encodeURIComponent(athleteId)}` : null);
 
@@ -758,6 +760,20 @@ function ProfileContent() {
               href="/dashboard/activities"
             />
           </InsetSection>
+
+          {/*
+            Under MY NUMBERS on purpose, because that is exactly what it changes.
+            Put in Account or Personal Info it would read as a locale setting; here
+            it sits directly beneath the screens whose weekly figures move when it
+            is tapped. See WeekStartSetting for why the leaderboard doesn't.
+          */}
+          {athleteId && (
+            <WeekStartSetting
+              athleteId={athleteId}
+              value={meData?.athlete?.weekStartDay ?? MONDAY_WEEK}
+              onSaved={() => mutateMe()}
+            />
+          )}
 
           <InsetSection header={t('account')}>
             <InsetRow

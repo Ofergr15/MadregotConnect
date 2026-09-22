@@ -1,5 +1,8 @@
 import { filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
-import { activityLocalDateStr, activityWeekStart, getActivityWeekStart, toISODate } from '@/lib/utils';
+import {
+  activityLocalDateStr, activityWeekStart, MONDAY_WEEK, toISODate, weekStartOn,
+  type WeekStartDay,
+} from '@/lib/utils';
 
 /**
  * Pure shaping for GET /api/athletes/[id]/stats — the peer-safe training
@@ -53,9 +56,14 @@ export interface KmTableRow {
  *
  * Activities are the source of truth those snapshots are derived from, this
  * route already loads all of them for the all-time totals, and bucketing them
- * with `activityWeekStart` gives one Monday-anchored week per column by
- * construction — and the same week boundary the trend badge and the leaderboards
- * use, so the three can't disagree. It also costs one fewer DB round trip.
+ * with `activityWeekStart` gives one week per column by construction, on the same
+ * boundary the trend badge uses, so the two can't disagree. It also costs one
+ * fewer DB round trip.
+ *
+ * `opts.startDay` is the PROFILE OWNER's week preference (migration 119), so a
+ * member who reads Sunday–Saturday sees their chart cut that way whoever is
+ * looking at it. The leaderboards do not take it and never will — see
+ * `weekStartOn`.
  *
  * The window is GENERATED from the current week rather than read off the data,
  * so a week with no runs is a visible zero rather than a gap that silently
@@ -65,16 +73,21 @@ export interface KmTableRow {
  */
 export function buildKmTable<T extends RunActivityRow>(
   acts: T[],
-  opts: { limit?: number; currentWeekStart: string },
+  opts: { limit?: number; currentWeekStart: string; startDay?: WeekStartDay },
 ): KmTableRow[] {
   const limit = opts.limit ?? 10;
+  // The reader's own week boundary (athletes.week_start_day, migration 119).
+  // Defaulted rather than required because every caller that compares this
+  // athlete to another one must stay on Monday, and a default is the version of
+  // that rule which cannot be got wrong by forgetting an argument.
+  const startDay = opts.startDay ?? MONDAY_WEEK;
 
   const buckets = new Map<string, { meters: number; runs: number; seconds: number }>();
   for (const r of filterQualifyingRuns(acts)) {
     // Week keys come from the date STRING, never from an instant: `start_time`
     // is wall clock stored as UTC, and reading it as an instant shifts a 21:30
     // Saturday run into the next week.
-    const wk = activityWeekStart(r.start_time);
+    const wk = activityWeekStart(r.start_time, startDay);
     const b = buckets.get(wk) || { meters: 0, runs: 0, seconds: 0 };
     b.meters += r.distance;
     b.runs += 1;
@@ -200,17 +213,18 @@ export function pickWeek(table: KmTableRow[], weekStart: string): { km: number; 
 export function computeLikeForLikeTrend<T extends RunActivityRow>(
   acts: T[],
   anchor: Date,
+  startDay: WeekStartDay = MONDAY_WEEK,
 ): number | null {
   const runs = filterQualifyingRuns(acts);
   // How far into the ACTIVITY week (Monday-anchored) the athlete is. Off-by-one
   // here is not cosmetic: it truncates last week at the wrong weekday, which is
   // the whole mechanism the badge exists to get right.
-  const daysElapsed = ((anchor.getDay() + 6) % 7) + 1; // Mon → 1 … Sun → 7
-  const thisKey = getActivityWeekStart(anchor);
+  const daysElapsed = ((anchor.getDay() - startDay + 7) % 7) + 1; // first day → 1 … last → 7
+  const thisKey = weekStartOn(anchor, startDay);
 
   const prevStart = new Date(`${thisKey}T00:00:00`);
   prevStart.setDate(prevStart.getDate() - 7);
-  const prevKey = getActivityWeekStart(prevStart);
+  const prevKey = weekStartOn(prevStart, startDay);
   const prevCutoff = new Date(prevStart);
   prevCutoff.setDate(prevCutoff.getDate() + daysElapsed);
   const prevCutoffKey = toISODate(prevCutoff);
@@ -218,7 +232,7 @@ export function computeLikeForLikeTrend<T extends RunActivityRow>(
   let thisSoFar = 0;
   let prevSoFar = 0;
   for (const r of runs) {
-    const wk = activityWeekStart(r.start_time);
+    const wk = activityWeekStart(r.start_time, startDay);
     if (wk === thisKey) thisSoFar += r.distance;
     else if (wk === prevKey && activityLocalDateStr(r.start_time) < prevCutoffKey) prevSoFar += r.distance;
   }
