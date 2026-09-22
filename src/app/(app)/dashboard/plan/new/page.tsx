@@ -42,6 +42,11 @@ import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from
 import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
 import { undoAutoFixes } from '@/lib/plans/auto-fix';
 import { paceGroupMap, sortByPaceGroup } from '@/lib/plans/pace-group';
+import {
+  planDaysOf,
+  selectedDayCountOf,
+  selectedWorkoutCount as countSelectedWorkouts,
+} from '@/lib/plans/push-selection';
 import { cn, activityLocalDay, formatActivityTime, formatWeekRange, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -1168,15 +1173,33 @@ export default function WeeklyPlannerPage() {
   // the number Garmin will receive, which is per session.
   const workoutCount = parsedPlan ? parsedPlan.workouts.length : 0;
 
-  // Days that actually have a workout (from the base plan) — for the per-day
-  // push selector. Sorted Sunday→Saturday.
-  const planDays = useMemo(() => {
-    const src = groupedPlans?.group1.workouts || parsedPlan?.workouts || [];
-    return Array.from(new Set(src.map((w) => w.dayOfWeek))).sort((a, b) => a - b);
-  }, [groupedPlans, parsedPlan]);
+  // The one workout list every count on the push sheet is measured against. The
+  // group plans win when they exist because that is what executePush actually
+  // sends; they share the base plan's day structure, differing only in paces.
+  const pushSource = useMemo(
+    () => groupedPlans?.group1.workouts || parsedPlan?.workouts || [],
+    [groupedPlans, parsedPlan]
+  );
 
-  // How many workouts the current day selection will send (per athlete).
-  const selectedDayCount = pushDays === null ? planDays.length : pushDays.length;
+  /** Chips to offer — days that actually hold a session, Sunday→Saturday. */
+  const planDays = useMemo(() => planDaysOf(pushSource), [pushSource]);
+
+  // What ONE athlete's watch receives, which is the number allowed next to the
+  // word "workouts". Not `workoutCount` above: that is the size of the parsed
+  // plan, so a sheet with only Sunday picked announced "will receive 8 workouts"
+  // while its own day-picker line nine lines up said "sending 1 workout per
+  // athlete" — both on screen at once, labelled the same way (feedback 52320d01).
+  const selectedWorkoutCount = useMemo(
+    () => countSelectedWorkouts(pushSource, pushDays),
+    [pushSource, pushDays]
+  );
+
+  // Days, for the button ("שלח 2 ימים") and the "pick at least one" guard — both
+  // of which are about the chips, not about what lands on the watch.
+  const selectedDayCount = useMemo(
+    () => selectedDayCountOf(pushSource, pushDays),
+    [pushSource, pushDays]
+  );
 
   // ─────────────────────────────────────────────
   // RENDER
@@ -2048,7 +2071,7 @@ export default function WeeklyPlannerPage() {
                       })}
                     </div>
                     <p className="text-3xs text-ink-400 mt-2">
-                      {t('sendingWorkouts', { count: selectedDayCount })}
+                      {t('sendingWorkouts', { count: selectedWorkoutCount })}
                       {pushDays !== null && selectedDayCount === 0 && t('selectAtLeastOneDay')}
                     </p>
                   </div>
@@ -2082,7 +2105,7 @@ export default function WeeklyPlannerPage() {
                                   {t('activeAthletesCount', { count: activeAthletes.length })}
                                 </p>
                                 <p className="text-sm text-ink-400 mt-0.5">
-                                  {t('garminWillReceive', { ready: readyCount, count: workoutCount })}
+                                  {t('garminWillReceive', { ready: readyCount, count: selectedWorkoutCount })}
                                 </p>
                               </div>
                             );
