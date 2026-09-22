@@ -8,7 +8,7 @@ import {
   formatReportHours, formatReportPace,
   type Last7Report,
 } from '@/lib/reports/last-7-days';
-import { WeekShareSheet } from './WeekShareSheet';
+import { ShareSheet } from '@/components/ShareSheet';
 
 /**
  * The seven-day report card — the screen behind the Saturday 18:00 push.
@@ -58,7 +58,10 @@ export function Last7DaysCard({ report, athleteName }: { report: Last7Report; at
       </div>
 
       {sharing && (
-        <WeekShareSheet report={report} athleteName={athleteName} onClose={() => setSharing(false)} />
+        <ShareSheet
+          subject={{ kind: 'week', report, athleteName }}
+          onClose={() => setSharing(false)}
+        />
       )}
 
       {report.runs === 0 ? (

@@ -2859,5 +2859,33 @@
     "onboardTitle": "What's inside",
     "onboardLead": "Two things worth knowing before your first session.",
     "onboardPromise": "Every new feature shows up like this — once, on your feed."
+  },
+  "shareSheet": {
+    "titleWorkout": "Share your run",
+    "titleWeek": "Share your week",
+    "action": "Share",
+    "preview": "Card preview",
+    "renderError": "Could not build the card",
+    "shareError": "Sharing failed",
+    "saved": "Card saved to your photos",
+    "savedSticker": "Image saved. Open Instagram and add it to your story as a sticker from your photo library",
+    "stickerHint": "Save the image, then add it to your story in Instagram as a sticker from your photo library. Instagram doesn't allow pasting an image straight into the story editor.",
+    "frameTitle": "Layout",
+    "framePhoto": "Photo",
+    "frameRoute": "Route",
+    "frameNumbers": "Numbers",
+    "noRoute": "This run has no route.",
+    "noWeekRoute": "A whole week has no single route.",
+    "contentTitle": "What goes on the card",
+    "contentFull": "This layout fits {count} numbers — turn one off to swap.",
+    "wordingTitle": "Language · heading",
+    "nameOn": "With my name",
+    "nameOff": "No name",
+    "sticker": "Transparent sticker",
+    "accentTitle": "Route colour",
+    "accentWhite": "White",
+    "accentOrange": "Orange",
+    "addPhoto": "＋ Add my own photo",
+    "changePhoto": "Change photo"
   }
 }

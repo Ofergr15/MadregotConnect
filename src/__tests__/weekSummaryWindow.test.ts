@@ -101,7 +101,7 @@ describe('the feed card', () => {
   });
 
   it('carries the same share sheet as the profile card', () => {
-    expect(card).toMatch(/<WeekShareSheet report=\{report\}/);
+    expect(card).toMatch(/<ShareSheet\n\s+subject=\{\{ kind: 'week', report, athleteName \}\}/);
   });
 
   it('is mounted at the top of the feed, above the setup nudge', () => {

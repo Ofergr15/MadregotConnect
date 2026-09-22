@@ -182,6 +182,15 @@ export interface ShareCardOptions {
    * point is the bare number.
    */
   showStartTime?: boolean;
+  /**
+   * Which numbers go on the card, chosen by the athlete in the sheet.
+   *
+   * Defaults to distance/pace/time, which is what the newer views printed before
+   * the chips existed — so a caller that doesn't pass this gets exactly the card
+   * it got before. The legacy three (`classic`, `card`, `minimal`) ignore it: they
+   * draw `secondaryStats` and have their own fixed row.
+   */
+  metrics?: WorkoutMetricKey[];
 }
 
 function formatPace(secPerKm: number): string {
@@ -415,36 +424,111 @@ function distanceKm(act: FeedActivity): string {
  * in a way the calendar date isn't, and it says nothing about the athlete.
  */
 
-/** Distance, pace, time — the three every newer view leads with. */
-function coreStats(act: FeedActivity, i18n: ShareI18n): Stat[] {
-  const out: Stat[] = [{ value: distanceKm(act), unit: i18n.km, label: i18n.distance }];
-  if (act.averagePace) {
-    out.push({ value: formatPace(act.averagePace), unit: i18n.perKm, label: i18n.pace });
-  }
-  // Whichever unit the clock string's leading number is actually in.
-  out.push({
-    value: formatDuration(act.duration),
-    unit: act.duration >= 3600 ? i18n.hoursShort : i18n.minutesShort,
-    label: i18n.time,
-  });
-  return out;
+/**
+ * WHICH numbers can go on a workout card, and how each one prints.
+ *
+ * One table, read by three things that used to disagree: the chips in the sheet,
+ * the preview, and the exported image. The weekly card has had this since it
+ * shipped (see `lib/reports/week-share.ts` and the note at the top of it) and the
+ * workout card had a fixed set per template instead — which is exactly why the two
+ * sheets could not be one sheet.
+ *
+ * The ORDER here is the order they print, not the order the athlete tapped: the
+ * card is a report, and a report whose columns move around between two shares is
+ * harder to read than one with a column the athlete didn't want. `start` is last
+ * for the same reason it was appended last to `secondaryStats` — the stats athletes
+ * already know keep their positions.
+ */
+export type WorkoutMetricKey = 'km' | 'pace' | 'time' | 'elev' | 'cal' | 'hr' | 'start';
+
+export const WORKOUT_METRIC_KEYS: WorkoutMetricKey[] = [
+  'km', 'pace', 'time', 'elev', 'cal', 'hr', 'start',
+];
+
+const WORKOUT_METRICS: Record<WorkoutMetricKey, {
+  /** Does this run carry the metric at all. A dash on a card is worse than a gap. */
+  has: (act: FeedActivity) => boolean;
+  stat: (act: FeedActivity, i18n: ShareI18n) => Stat;
+}> = {
+  km: {
+    has: act => act.distance > 0,
+    stat: (act, i18n) => ({ value: distanceKm(act), unit: i18n.km, label: i18n.distance }),
+  },
+  pace: {
+    has: act => !!act.averagePace,
+    stat: (act, i18n) => ({ value: formatPace(act.averagePace!), unit: i18n.perKm, label: i18n.pace }),
+  },
+  time: {
+    has: act => act.duration > 0,
+    // Whichever unit the clock string's leading number is actually in.
+    stat: (act, i18n) => ({
+      value: formatDuration(act.duration),
+      unit: act.duration >= 3600 ? i18n.hoursShort : i18n.minutesShort,
+      label: i18n.time,
+    }),
+  },
+  elev: {
+    has: act => act.elevationGain != null,
+    stat: (act, i18n) => ({
+      value: `${Math.round(act.elevationGain!)}`, unit: i18n.metres, label: i18n.elevation,
+    }),
+  },
+  cal: {
+    has: act => act.calories != null,
+    stat: (act, i18n) => ({
+      value: Math.round(act.calories!).toLocaleString('en-US'), label: i18n.calories,
+    }),
+  },
+  hr: {
+    has: act => !!act.averageHr,
+    stat: (act, i18n) => ({ value: `${Math.round(act.averageHr!)}`, label: i18n.hr }),
+  },
+  start: {
+    has: act => !!act.startTime,
+    stat: (act, i18n) => ({ value: formatActivityTime(act.startTime), label: i18n.start }),
+  },
+};
+
+/** The metrics this run can actually print, in card order. */
+export function availableWorkoutMetrics(act: FeedActivity): WorkoutMetricKey[] {
+  return WORKOUT_METRIC_KEYS.filter(key => WORKOUT_METRICS[key].has(act));
 }
 
+/** One metric as it appears on the card — the chips print this, not their own copy. */
+export function workoutMetricStat(
+  act: FeedActivity,
+  i18n: ShareI18n,
+  key: WorkoutMetricKey,
+): Stat | null {
+  return WORKOUT_METRICS[key].has(act) ? WORKOUT_METRICS[key].stat(act, i18n) : null;
+}
+
+/** The chosen metrics, in card order, skipping any this run doesn't carry. */
+export function workoutStats(
+  act: FeedActivity,
+  i18n: ShareI18n,
+  keys: WorkoutMetricKey[],
+): Stat[] {
+  return WORKOUT_METRIC_KEYS
+    .filter(key => keys.includes(key))
+    .map(key => workoutMetricStat(act, i18n, key))
+    .filter((s): s is Stat => !!s);
+}
+
+/** The default set: distance, pace, time — what every newer view always led with. */
+export const DEFAULT_WORKOUT_METRICS: WorkoutMetricKey[] = ['km', 'pace', 'time'];
+
 /**
- * Up to six. Elevation, calories and heart rate are not on every activity — a
- * treadmill run or a watch worn without a strap simply yields a shorter grid,
- * which is why `fullStats` lays itself out from the length rather than assuming 6.
+ * What a layout actually draws.
+ *
+ * Capped rather than wrapped: the row layouts are built for three columns across
+ * the frame and the grid for six, so the cap is a property of the FRAME. The sheet
+ * knows the same numbers (`frameCapacity` in `lib/share/sheet-model.ts`) and stops
+ * offering a fourth chip, so in practice nothing is ever silently dropped here —
+ * this slice is the renderer refusing to be the place that first finds out.
  */
-function extendedStats(act: FeedActivity, i18n: ShareI18n): Stat[] {
-  const out = coreStats(act, i18n);
-  if (act.elevationGain != null) {
-    out.push({ value: `${Math.round(act.elevationGain)}`, unit: i18n.metres, label: i18n.elevation });
-  }
-  if (act.calories != null) {
-    out.push({ value: Math.round(act.calories).toLocaleString('en-US'), label: i18n.calories });
-  }
-  if (act.averageHr) out.push({ value: `${Math.round(act.averageHr)}`, label: i18n.hr });
-  return out;
+function pickedStats(c: LayoutCtx, max: number): Stat[] {
+  return workoutStats(c.act, c.i18n, c.metrics).slice(0, max);
 }
 
 interface LayoutCtx {
@@ -462,6 +546,8 @@ interface LayoutCtx {
   i18n: ShareI18n;
   showTitle: boolean;
   showStartTime: boolean;
+  /** The chosen numbers, in card order — see WORKOUT_METRICS. */
+  metrics: WorkoutMetricKey[];
 }
 
 /**
@@ -1001,7 +1087,7 @@ function layoutPhoto(c: LayoutCtx) {
   const wmH = drawWordmark(c, wmTop, wmW);
   drawShoe(ctx, CX - wmW / 2 - p(9) - p(36), wmTop + (wmH - p(36)) / 2, p(36));
 
-  drawStatRow(c, coreStats(act, i18n), p(22), STORY_W - p(22), p(552));
+  drawStatRow(c, pickedStats(c, 3), p(22), STORY_W - p(22), p(552));
   ctx.shadowBlur = 0;
 }
 
@@ -1019,7 +1105,7 @@ function layoutRoute(c: LayoutCtx) {
   ctx.shadowBlur = shadowBlur;
   drawTitle(c, p(375));
   drawWordmark(c, p(412), p(132));
-  drawStatRow(c, coreStats(act, i18n), p(22), STORY_W - p(22), p(488));
+  drawStatRow(c, pickedStats(c, 3), p(22), STORY_W - p(22), p(488));
   ctx.shadowBlur = 0;
   drawShoe(ctx, CX - p(18), p(545), p(36));
 }
@@ -1058,7 +1144,7 @@ function layoutStatsBar(c: LayoutCtx) {
   drawWordmark(c, wmTop, wmW);
   drawShoe(ctx, CX - wmW / 2 - p(48), wmTop + p(9), p(36));
 
-  drawStatRow(c, coreStats(act, i18n), p(18), STORY_W - p(18), p(368));
+  drawStatRow(c, pickedStats(c, 3), p(18), STORY_W - p(18), p(368));
   ctx.shadowBlur = 0;
 }
 
@@ -1076,7 +1162,7 @@ function layoutFullStats(c: LayoutCtx) {
   drawWordmark(c, wmTop, wmW);
   drawShoe(ctx, CX - wmW / 2 - p(48), wmTop + p(9), p(36));
 
-  const stats = extendedStats(act, i18n);
+  const stats = pickedStats(c, 6);
   const left = p(18);
   const right = STORY_W - p(18);
   const cols = Math.min(3, stats.length);
@@ -1113,7 +1199,7 @@ function layoutSideBySide(c: LayoutCtx) {
 
   let labelBaseline = p(240) + wmH + p(16) + p(14);
   const colWidth = STORY_W - p(10) - colX;
-  for (const s of coreStats(act, i18n)) {
+  for (const s of pickedStats(c, 3)) {
     drawStat(c, s, colX, labelBaseline, 'left', colWidth);
     labelBaseline += p(55);
   }
@@ -1129,7 +1215,7 @@ function layoutBigNumbers(c: LayoutCtx) {
   ctx.shadowColor = shadow;
   ctx.shadowBlur = shadowBlur;
 
-  const stats = coreStats(act, i18n);
+  const stats = pickedStats(c, 3);
   let top = p(56);
   for (const s of stats) {
     ctx.direction = 'rtl';
@@ -1234,6 +1320,7 @@ export async function renderShareCard(
     i18n,
     showTitle: opts.showTitle ?? true,
     showStartTime: opts.showStartTime ?? true,
+    metrics: opts.metrics ?? DEFAULT_WORKOUT_METRICS,
   });
 
   // JPEG has no alpha channel — a transparent card exported as JPEG comes out with

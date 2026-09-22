@@ -12,7 +12,7 @@ import {
 import {
   isWeekSummaryWindow, weekSummaryAnchor, weekSummaryDismissKey,
 } from '@/lib/reports/week-summary-window';
-import { WeekShareSheet } from '@/components/profile/WeekShareSheet';
+import { ShareSheet } from '@/components/ShareSheet';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // LAST WEEK, AT THE TOP OF THE FEED — SATURDAY 18:00 → SUNDAY 10:00
@@ -138,7 +138,10 @@ export function WeekSummaryCard() {
       </button>
 
       {sharing && (
-        <WeekShareSheet report={report} athleteName={athleteName} onClose={() => setSharing(false)} />
+        <ShareSheet
+          subject={{ kind: 'week', report, athleteName }}
+          onClose={() => setSharing(false)}
+        />
       )}
     </section>
   );
