@@ -3,9 +3,13 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join } from 'path';
 import {
+  dayMapChanges,
   planDaysOf,
+  remapForAthlete,
   selectedDayCountOf,
+  selectedSessions,
   selectedWorkoutCount,
+  sessionSlot,
 } from '@/lib/plans/push-selection';
 
 /**
@@ -72,5 +76,115 @@ describe('what the Garmin push sheet says it will send', () => {
     // `workoutCount` is the parsed plan's size and belongs to the plan summary
     // card only. Handing it to the sheet again is the regression.
     expect(src).not.toMatch(/garminWillReceive[^)]*count: workoutCount/);
+  });
+});
+
+/** The same week with names, for the "which workout" and custom-week parts. */
+const NAMED = [
+  { dayOfWeek: 0, name: 'ריצה קלה 8 ק״מ', workoutKey: 'day-0-part-1-single' },
+  { dayOfWeek: 2, name: 'אינטרוולים 6×400', workoutKey: 'day-2-part-1-morning', partIndex: 1, partCount: 2 },
+  { dayOfWeek: 2, name: 'שחייה', workoutKey: 'day-2-part-2-evening', partIndex: 2, partCount: 2 },
+  { dayOfWeek: 3, name: 'טמפו 5 ק״מ', workoutKey: 'day-3-part-1-single' },
+  { dayOfWeek: 6, name: 'ארוכה 18 ק״מ', workoutKey: 'day-6-part-1-single' },
+];
+
+describe('which workouts the sheet is about to send', () => {
+  it('names them in the order the week runs, two-a-days in part order', () => {
+    expect(selectedSessions(NAMED, null).map((w) => w.name)).toEqual([
+      'ריצה קלה 8 ק״מ', 'אינטרוולים 6×400', 'שחייה', 'טמפו 5 ק״מ', 'ארוכה 18 ק״מ',
+    ]);
+  });
+
+  it('names only the picked days', () => {
+    expect(selectedSessions(NAMED, [2]).map((w) => w.name)).toEqual(['אינטרוולים 6×400', 'שחייה']);
+    expect(selectedSessions(NAMED, [])).toEqual([]);
+  });
+
+  it('does not reorder the caller\'s array in place', () => {
+    const before = NAMED.map((w) => w.name);
+    selectedSessions(NAMED, null);
+    expect(NAMED.map((w) => w.name)).toEqual(before);
+  });
+});
+
+describe('a custom week for one athlete', () => {
+  it("sends Wednesday's workout as their Monday", () => {
+    // The ask, literally: Ofer needs Wednesday's session on Monday. The delivery
+    // date is weekStartDate + dayOfWeek, so rewriting the day is the whole fix.
+    const mine = remapForAthlete(NAMED, { 'day-3-part-1-single': 1 });
+    const moved = mine.find((w) => w.name === 'טמפו 5 ק״מ');
+    expect(moved?.dayOfWeek).toBe(1);
+    // Nobody else's day moved, and nothing was added or lost.
+    expect(mine).toHaveLength(NAMED.length);
+    expect(mine.filter((w) => w.name !== 'טמפו 5 ק״מ').map((w) => w.dayOfWeek)).toEqual([0, 2, 2, 6]);
+  });
+
+  it('leaves the plan itself untouched', () => {
+    remapForAthlete(NAMED, { 'day-3-part-1-single': 1 });
+    expect(NAMED.find((w) => w.name === 'טמפו 5 ק״מ')?.dayOfWeek).toBe(3);
+  });
+
+  it('drops a session that is explicitly not for them', () => {
+    const mine = remapForAthlete(NAMED, { 'day-6-part-1-single': null });
+    expect(mine.map((w) => w.name)).not.toContain('ארוכה 18 ק״מ');
+    expect(mine).toHaveLength(NAMED.length - 1);
+  });
+
+  it('moves one half of a two-a-day without touching the other', () => {
+    const mine = remapForAthlete(NAMED, { 'day-2-part-2-evening': 4 });
+    expect(mine.find((w) => w.name === 'שחייה')?.dayOfWeek).toBe(4);
+    expect(mine.find((w) => w.name === 'אינטרוולים 6×400')?.dayOfWeek).toBe(2);
+  });
+
+  it('is a no-op with no map, and hands back a copy either way', () => {
+    expect(remapForAthlete(NAMED, null)).toEqual(NAMED);
+    expect(remapForAthlete(NAMED, {})).toEqual(NAMED);
+    expect(remapForAthlete(NAMED, null)).not.toBe(NAMED);
+  });
+
+  it('reports only what actually differs', () => {
+    const changes = dayMapChanges(NAMED, {
+      'day-3-part-1-single': 1,
+      // Same day as the plan: not a change, and must not be listed as one.
+      'day-0-part-1-single': 0,
+      'day-6-part-1-single': null,
+    });
+    expect(changes.map((c) => [c.from, c.to])).toEqual([[3, 1], [6, null]]);
+    expect(dayMapChanges(NAMED, null)).toEqual([]);
+  });
+
+  it('keys a session the same way across the three pace-group variants', () => {
+    // The coach builds the map looking at one group; the athlete may be in another.
+    const group3 = NAMED.map((w) => ({ ...w, name: `${w.name} (איטי)` }));
+    expect(group3.map((w, i) => sessionSlot(w, i))).toEqual(NAMED.map((w, i) => sessionSlot(w, i)));
+    expect(remapForAthlete(group3, { 'day-3-part-1-single': 1 })
+      .find((w) => w.dayOfWeek === 1)?.name).toBe('טמפו 5 ק״מ (איטי)');
+  });
+
+  it('falls back to a positional key for a plan saved before keys existed', () => {
+    const old = [{ dayOfWeek: 3, name: 'טמפו' }];
+    const slot = sessionSlot(old[0], 0);
+    expect(slot).toBe('slot-3-1');
+    expect(remapForAthlete(old, { [slot]: 1 })[0].dayOfWeek).toBe(1);
+  });
+});
+
+describe('the send path uses one batching rule for pushes and retries', () => {
+  const src = readFileSync(
+    join(fileURLToPath(new URL('../', import.meta.url)), 'app/(app)/dashboard/plan/new/page.tsx'),
+    'utf8'
+  );
+
+  it('retries through pushToAthletes instead of rebuilding a group-1 payload', () => {
+    // The retry used to post groupedPlans.group1 for every failed athlete, so a
+    // group-3 athlete was retried with group-1 paces on their watch.
+    expect(src).toMatch(/const retryResults = await pushToAthletes\(/);
+    expect(src).not.toMatch(/workouts: pushDays\s*\n?\s*\?\s*groupedPlans\.group1/);
+  });
+
+  it('sends a custom week as its own request, not inside a pace-group batch', () => {
+    expect(src).toMatch(/athletes\.filter\(\(x\) => hasCustomWeek\(x\.id\)\)/);
+    expect(src).toMatch(/remapForAthlete\(sessions, dayMaps\[a\.id\]\)/);
+    expect(src).toMatch(/athletes\.filter\(\(x\) => !hasCustomWeek\(x\.id\)\)/);
   });
 });
