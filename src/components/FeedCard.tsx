@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Heart, MessageCircle, MessagesSquare, Trash2, Route, MapPin, Mountain, Share2, Award, Flame, Gauge, ChevronRight } from 'lucide-react';
 import { activityDayRelation, cn, formatActivityDate, formatActivityTime } from '@/lib/utils';
-import { useTranslations, useFormatter, useLocale } from 'next-intl';
+import { useTranslations, useFormatter, useLocale, useNow } from 'next-intl';
 import { toggleLike } from '@/lib/feed-client';
 import { FeedLikesSheet } from '@/components/FeedLikesSheet';
 import { FeedAvatar } from '@/components/FeedAvatar';
@@ -61,8 +61,16 @@ function WhenLabel({ item }: { item: FeedItem }) {
   const format = useFormatter();
   const locale = useLocale();
   const t = useTranslations('feed');
+  // `now` is passed explicitly. Without it next-intl falls back to the ambient clock
+  // and logs an ENVIRONMENT_FALLBACK error per card — eight of them on a five-card
+  // feed, which is what the audit's first look at this screen actually found. The
+  // warning is not cosmetic: the fallback reads the clock separately on the server and
+  // on the client, so a card rendered either side of a minute boundary hydrates with
+  // two different strings. `useNow` hands every card on the page the same instant.
+  // (`dashboard/profile` already passed a `now`; these two call sites did not.)
+  const now = useNow();
   const startTime = item.activity?.startTime;
-  if (!startTime) return <>{format.relativeTime(new Date(item.occurredAt))}</>;
+  if (!startTime) return <>{format.relativeTime(new Date(item.occurredAt), now)}</>;
 
   const time = formatActivityTime(startTime);
   switch (activityDayRelation(startTime)) {

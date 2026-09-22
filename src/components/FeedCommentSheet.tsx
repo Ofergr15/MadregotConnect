@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Send, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTranslations, useFormatter } from 'next-intl';
+import { useTranslations, useFormatter, useNow } from 'next-intl';
 import { fetchComments, addComment, deleteComment } from '@/lib/feed-client';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { FeedBodyText } from '@/components/FeedBodyText';
@@ -28,6 +28,9 @@ interface Props {
 export function FeedCommentSheet({ item, myAthleteId, onClose }: Props) {
   const t = useTranslations('feed');
   const format = useFormatter();
+  // Same reason as the `useNow` note in FeedCard: an explicit `now`, or next-intl logs
+  // an ENVIRONMENT_FALLBACK error per comment and times the sheet off two clocks.
+  const now = useNow();
   const [comments, setComments] = useState<FeedComment[]>([]);
   const [commentCount, setCommentCount] = useState(item.commentCount);
   const [loading, setLoading] = useState(true);
@@ -180,7 +183,7 @@ export function FeedCommentSheet({ item, myAthleteId, onClose }: Props) {
                 </p>
                 <p className="text-sm text-ink-700 leading-snug whitespace-pre-line"><FeedBodyText body={c.body} /></p>
               </div>
-              <p className="text-[10px] text-ink-400 mt-1 ms-1">{format.relativeTime(new Date(c.createdAt))}</p>
+              <p className="text-[10px] text-ink-400 mt-1 ms-1">{format.relativeTime(new Date(c.createdAt), now)}</p>
             </div>
             {c.canDelete && (
               <button
