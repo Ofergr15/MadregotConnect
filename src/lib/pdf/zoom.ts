@@ -30,6 +30,8 @@ const EPS = 0.005;
 export const clampZoom = (zoom: number): number =>
   Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
 
+export const atZoom = (a: number, b: number): boolean => Math.abs(a - b) < EPS;
+
 /**
  * The next stop above (`dir` 1) or below (`dir` -1) where we are now.
  *
@@ -46,38 +48,38 @@ export const stepZoom = (zoom: number, dir: 1 | -1): number => {
 export const canZoom = (zoom: number, dir: 1 | -1): boolean =>
   dir > 0 ? zoom < MAX_ZOOM - EPS : zoom > MIN_ZOOM + EPS;
 
-export interface AnchorInput {
-  scrollLeft: number;
-  scrollTop: number;
-  /** The point to hold still, in the scroller's own coordinates. */
-  anchorX: number;
-  anchorY: number;
+export interface ZoomScrollInput {
+  /** The scroller's current `scrollLeft` or `scrollTop`. */
+  scroll: number;
+  /**
+   * How far the point to hold still sits along that axis INSIDE the content, in
+   * the content's own unscaled pixels — i.e. `touchX - contentRect.left`.
+   */
+  pointInContent: number;
   /** New zoom over old zoom. */
   ratio: number;
 }
 
 /**
- * Where to scroll so that the point under the fingers stays under the fingers.
+ * Where to scroll so the point under the fingers stays under the fingers.
  *
- * Without this, zooming keeps the top-left corner fixed: you pinch on Wednesday
- * and Wednesday slides off the screen, which is most of what "the zoom breaks it"
- * feels like on a phone. Content scales linearly with zoom, so the content
- * coordinate under the anchor is `(scroll + anchor)`, and after the scale it wants
- * to be at the same `anchor` again.
+ * Without it, zooming keeps the content's corner fixed: you pinch on Wednesday and
+ * Wednesday slides off the screen, which is most of what "the zoom breaks it" feels
+ * like in the hand.
  *
- * Negative results are clamped: the scroller cannot scroll past its own start, and
- * a page narrower than the viewport is centred by the layout rather than scrolled.
+ * Measured from the CONTENT's own rect rather than from the viewport, which is what
+ * makes it correct in RTL. This app is `dir="rtl"`, and in an RTL scroller
+ * `scrollLeft` starts at 0 on the RIGHT edge and runs NEGATIVE leftwards. Any
+ * formula phrased as "distance from the left edge of the viewport plus scrollLeft"
+ * is therefore wrong on exactly the axis a zoomed-in page needs, and the old
+ * version of this also clamped at 0 — which in RTL is the end of the range, so it
+ * pinned the page to the right edge on every pinch.
+ *
+ * The result is deliberately NOT clamped: assigning an out-of-range scroll offset
+ * is clamped by the browser, in the direction that element actually scrolls.
  */
-export const zoomAnchor = ({
-  scrollLeft,
-  scrollTop,
-  anchorX,
-  anchorY,
-  ratio,
-}: AnchorInput): { scrollLeft: number; scrollTop: number } => ({
-  scrollLeft: Math.max(0, (scrollLeft + anchorX) * ratio - anchorX),
-  scrollTop: Math.max(0, (scrollTop + anchorY) * ratio - anchorY),
-});
+export const zoomScroll = ({ scroll, pointInContent, ratio }: ZoomScrollInput): number =>
+  scroll + pointInContent * (ratio - 1);
 
 /** Hard ceiling on canvas pixels, well under the ~16.7M iOS gives up at. */
 export const MAX_CANVAS_PIXELS = 8_000_000;

@@ -12,7 +12,7 @@ import {
   MIN_ZOOM,
   renderScale,
   stepZoom,
-  zoomAnchor,
+  zoomScroll,
 } from '@/lib/pdf/zoom';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
@@ -70,31 +70,31 @@ describe('the zoom ladder', () => {
   });
 });
 
-describe('zoomAnchor', () => {
+describe('zoomScroll', () => {
   it('keeps the point under the fingers under the fingers', () => {
-    // Pinching on a spot 100px into a scroller already 200px down: that spot is at
-    // content 300, which after doubling is 600, and it has to end up at 100 again.
-    const s = zoomAnchor({ scrollLeft: 0, scrollTop: 200, anchorX: 0, anchorY: 100, ratio: 2 });
-    expect(s.scrollTop).toBe(500);
-    expect(500 + 100).toBe(600);
+    // A scroller 200px down, pinching a spot 100px below its top edge: that spot is
+    // 300px into the content, and after doubling it is 600px in. To leave it where
+    // the fingers are, the scroll has to end up at 500.
+    const next = zoomScroll({ scroll: 200, pointInContent: 300, ratio: 2 });
+    expect(next).toBe(500);
+    expect(600 - next).toBe(100);
   });
 
   it('holds a horizontal spot too, because a zoomed page is wider than the screen', () => {
-    const s = zoomAnchor({ scrollLeft: 120, scrollTop: 0, anchorX: 80, anchorY: 0, ratio: 1.5 });
-    expect(s.scrollLeft).toBe(220);
+    expect(zoomScroll({ scroll: 120, pointInContent: 200, ratio: 1.5 })).toBe(220);
   });
 
-  it('never asks for a negative scroll', () => {
-    // Zooming out past the start: the layout centres what is narrower than the
-    // viewport, and a negative scrollLeft is silently clamped by the browser anyway.
-    const s = zoomAnchor({ scrollLeft: 0, scrollTop: 0, anchorX: 100, anchorY: 100, ratio: 0.5 });
-    expect(s.scrollLeft).toBe(0);
-    expect(s.scrollTop).toBe(0);
+  it('works from a NEGATIVE scroll, which is what RTL gives', () => {
+    // This app is dir="rtl", and in an RTL scroller scrollLeft is 0 at the right
+    // edge and runs negative leftwards. The old version measured from the viewport
+    // and clamped at 0 — in RTL that is the END of the range, so every pinch pinned
+    // the page to its right edge.
+    expect(zoomScroll({ scroll: -120, pointInContent: 200, ratio: 1.5 })).toBe(-20);
+    expect(zoomScroll({ scroll: -300, pointInContent: 400, ratio: 0.5 })).toBe(-500);
   });
 
   it('is a no-op at ratio 1', () => {
-    const s = zoomAnchor({ scrollLeft: 40, scrollTop: 90, anchorX: 10, anchorY: 20, ratio: 1 });
-    expect(s).toEqual({ scrollLeft: 40, scrollTop: 90 });
+    expect(zoomScroll({ scroll: 40, pointInContent: 900, ratio: 1 })).toBe(40);
   });
 });
 
@@ -144,9 +144,40 @@ describe('the viewer', () => {
   it('lets the layout lead and the bitmap follow', () => {
     // Otherwise a pinch rasterises on every frame of the gesture.
     expect(VIEWER).toMatch(/setRenderZoom\(zoom\)/);
-    expect(VIEWER).toMatch(/renderZoom \* dpr|fit \* renderZoom \* dpr/);
-    // The holder and the canvas are sized from the LIVE zoom, together.
+    expect(VIEWER).toMatch(/fit \* renderZoom \* dpr/);
+    // The holder and the canvas are sized from the same zoom, together.
     expect(VIEWER).toMatch(/style=\{\{ width: cssW, height: cssH \}\}/);
+  });
+
+  it('previews the pinch as a transform and commits it once', () => {
+    // Driving `zoom` state from touchmove re-laid-out five canvases per frame and
+    // raced React: touchmove is a continuous event, so the commit could land after
+    // the frame that corrected the scroll.
+    expect(VIEWER).toMatch(/content\.style\.transform = `scale\(\$\{scale\}\)`/);
+    expect(VIEWER).toMatch(/clearPreview\(\);\s*commitZoom\(pinchZoom \* pinchScale/);
+  });
+
+  it('corrects the scroll in a layout effect, not a frame callback', () => {
+    // The new scroll range exists only after React has committed the new page
+    // sizes; in a rAF the assignment clamps against the old range and is lost.
+    expect(VIEWER).toMatch(/useLayoutEffect\(\(\) => \{[\s\S]*?pendingScroll\.current/);
+    expect(VIEWER).not.toMatch(/requestAnimationFrame\(/);
+  });
+
+  it('lets the buttons be tapped twice in a row', () => {
+    // MEASURED in a real Chromium at iPhone 13 size: without `touch-manipulation`
+    // the browser keeps its own double-tap-to-zoom gesture on these buttons and
+    // swallows the second of two fast taps — four taps on "+" moved the zoom one
+    // step. With it, four taps land on 250%.
+    const buttons = VIEWER.match(/touch-manipulation/g) ?? [];
+    expect(buttons.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('will not mistake a scroll flick for a double tap', () => {
+    // Two flicks that happen to end near each other used to jump the plan to 200%.
+    expect(VIEWER).toMatch(/TAP_MAX_MS/);
+    expect(VIEWER).toMatch(/TAP_SLOP_PX/);
+    expect(VIEWER).toMatch(/if \(!touch \|\| moved \|\| Date\.now\(\) - downAt > TAP_MAX_MS\)/);
   });
 
   it('does not keep a zoom index anywhere', () => {

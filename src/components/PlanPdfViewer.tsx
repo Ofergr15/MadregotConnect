@@ -1,16 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ExternalLink, FileText, Loader2, Maximize2, Minus, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import {
+  atZoom,
   canZoom,
   clampZoom,
   FIT_ZOOM,
   renderScale,
   stepZoom,
-  zoomAnchor,
+  zoomScroll,
 } from '@/lib/pdf/zoom';
 import type { PDFDocumentLoadingTask, PDFPageProxy, RenderTask } from 'pdfjs-dist';
 
@@ -24,24 +25,25 @@ import type { PDFDocumentLoadingTask, PDFPageProxy, RenderTask } from 'pdfjs-dis
  * 390pt phone squeezes a whole week's table into 275px of height. Unreadable, and
  * the only way out was "open in a new tab", which leaves the app.
  *
- * So pdf.js rasterises the pages onto canvases we own, and the zoom is ours too:
+ * So pdf.js rasterises the pages onto canvases we own, and the zoom is ours too.
+ * Three rules hold the whole thing up, and each one is a bug that was reported:
  *
- *  - **Pinch works.** It didn't before, and there was no fallback: page-level pinch
- *    is left enabled in the viewport config, but iOS gives an INSTALLED PWA no page
- *    zoom at all, so the buttons were the only zoom in the app. Two fingers here are
- *    handled directly, on a non-passive listener — React attaches `touchmove`
- *    passively at the root, so a React `onTouchMove` prop cannot call
- *    `preventDefault` and the browser pans the scroller out from under the gesture.
- *  - **The point under the fingers stays put** (`zoomAnchor`). Zooming from the
- *    top-left corner slides the day you were reading off the screen.
- *  - **A zoom can no longer blank a page.** Each tap used to start a new
- *    `page.render()` on a canvas whose previous render was still cancelling; pdf.js
- *    refuses a second render on a canvas in use, and the rejection was swallowed by
- *    a bare `.catch(() => {})`, so the page just went white. Renders are serialised
- *    per page now: cancel, *await* the cancellation, then draw.
- *  - **The bitmap lags the layout on purpose.** `zoom` resizes the page instantly so
- *    the gesture tracks the fingers; `renderZoom` follows once the pinch settles, so
- *    a pinch rasterises once at its final scale instead of forty times on the way.
+ *  1. **A pinch is a CSS transform, never React state.** The gesture updates one
+ *     `style.transform` imperatively, at frame rate, and nothing re-renders. Driving
+ *     `zoom` state from `touchmove` re-laid-out five canvases per frame AND raced
+ *     React: `touchmove` is a continuous event, so the commit can land after the
+ *     frame that tried to correct the scroll, the correction then clamps against the
+ *     old scroll range, and the page fights the fingers. The scale is committed to
+ *     state once, when the fingers lift.
+ *  2. **The scroll correction runs in a layout effect**, not a `requestAnimationFrame`
+ *     — the new scroll range exists only after React has committed the new page
+ *     sizes, and a layout effect is the only hook that is guaranteed to be after
+ *     that and before paint.
+ *  3. **Renders are serialised per page.** Each zoom used to start a `page.render()`
+ *     on a canvas whose previous render was still cancelling; pdf.js refuses that,
+ *     and the rejection was swallowed by a bare `.catch(() => {})`, so the page went
+ *     white. `cancel()` is not enough on its own: it settles asynchronously, so the
+ *     cancellation has to be awaited before the canvas is touched again.
  *
  * Only visible pages are rasterised (see PdfPage). At 300% a landscape A4 canvas is
  * ~32 MB; five of them held at once is how iOS Safari decides to throw the whole
@@ -52,14 +54,15 @@ import type { PDFDocumentLoadingTask, PDFPageProxy, RenderTask } from 'pdfjs-dis
 const WORKER_SRC = '/pdf.worker.min.mjs';
 
 /**
- * How long after the last zoom change the pages are redrawn at the new scale.
- *
- * Long enough that a pinch (a touchmove every frame) and a double tap on "+" each
- * rasterise once, short enough that letting go feels like it sharpened immediately.
+ * How long after the last committed zoom the pages are redrawn at the new scale.
+ * Short, and only there so three quick taps on "+" rasterise once.
  */
-const RERENDER_DELAY_MS = 140;
+const RERENDER_DELAY_MS = 120;
 
-/** Two taps closer together than this, near the same spot, are a double tap. */
+/** What counts as a tap rather than a scroll, so a flick can't zoom the plan. */
+const TAP_MAX_MS = 250;
+const TAP_SLOP_PX = 10;
+/** Two taps this close together, in time and in place, are a double tap. */
 const DOUBLE_TAP_MS = 300;
 const DOUBLE_TAP_SLOP_PX = 32;
 /** What a double tap zooms to when the page is at fit. */
@@ -74,17 +77,21 @@ interface Props {
 export function PlanPdfViewer({ url, title }: Props) {
   const t = useTranslations('program');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<PDFPageProxy[]>([]);
   const [containerWidth, setContainerWidth] = useState(0);
   const [state, setState] = useState<'loading' | 'ready' | 'failed'>('loading');
 
-  // The size the pages are LAID OUT at, and the size their bitmaps are drawn at.
-  // They are the same number at rest and diverge only while a gesture is running.
+  // The committed zoom (what the pages are laid out at) and the zoom the bitmaps
+  // are drawn at, which trails it by `RERENDER_DELAY_MS`.
   const [zoom, setZoom] = useState(FIT_ZOOM);
   const [renderZoom, setRenderZoom] = useState(FIT_ZOOM);
   // The gesture handlers are attached once and must not be re-attached on every
   // zoom change, so they read the current zoom from here rather than from state.
   const zoomRef = useRef(FIT_ZOOM);
+  // Where to scroll to once React has laid the pages out at the new zoom. See
+  // rule 2 in the docblock: this cannot be applied before the commit.
+  const pendingScroll = useRef<{ left: number; top: number } | null>(null);
 
   // Width of the scroller's content box, which is what "fit" is measured against.
   // Watched rather than read once: rotating the phone changes it, and a plan
@@ -152,38 +159,52 @@ export function PlanPdfViewer({ url, title }: Props) {
   }, [url]);
 
   /**
-   * Go to a zoom, holding `anchor` (in the scroller's coordinates) still.
+   * Commit a zoom, holding one point of the CONTENT still.
    *
-   * The scroll correction is deferred a frame because it has to be applied to the
-   * NEW content size: setting `scrollLeft` before React has resized the pages just
-   * clamps it to the old, smaller scroll range and the correction is lost.
+   * `point` is measured inside the content's own unscaled box (`touch - contentRect`),
+   * not against the viewport, because that is the only phrasing that survives RTL:
+   * in an RTL scroller `scrollLeft` is 0 at the right edge and runs negative
+   * leftwards. See `zoomScroll`.
    */
-  const zoomTo = useCallback((next: number, anchor?: { x: number; y: number }) => {
+  const commitZoom = useCallback((next: number, point?: { x: number; y: number }) => {
     const target = clampZoom(next);
     const prev = zoomRef.current;
-    if (target === prev) return;
+    if (atZoom(target, prev)) return;
     zoomRef.current = target;
 
     const el = scrollRef.current;
-    if (el) {
-      const a = anchor ?? { x: el.clientWidth / 2, y: el.clientHeight / 2 };
-      const fixed = zoomAnchor({
-        scrollLeft: el.scrollLeft,
-        scrollTop: el.scrollTop,
-        anchorX: a.x,
-        anchorY: a.y,
-        ratio: target / prev,
-      });
-      requestAnimationFrame(() => {
-        el.scrollLeft = fixed.scrollLeft;
-        el.scrollTop = fixed.scrollTop;
-      });
+    const content = contentRef.current;
+    if (el && content) {
+      const rect = content.getBoundingClientRect();
+      const p = point ?? {
+        // No anchor (the buttons): hold the middle of what is on screen.
+        x: el.clientWidth / 2 + el.getBoundingClientRect().left - rect.left,
+        y: el.clientHeight / 2 + el.getBoundingClientRect().top - rect.top,
+      };
+      const ratio = target / prev;
+      pendingScroll.current = {
+        left: zoomScroll({ scroll: el.scrollLeft, pointInContent: p.x, ratio }),
+        top: zoomScroll({ scroll: el.scrollTop, pointInContent: p.y, ratio }),
+      };
     }
     setZoom(target);
   }, []);
 
-  // The bitmaps catch up once the zoom has stopped moving. Every change restarts
-  // the clock, so a pinch redraws once, at the end, at the scale it ended on.
+  // Rule 2: after the commit, before the paint. In a `requestAnimationFrame` this
+  // can run before React has resized the pages, and the assignment is then clamped
+  // to the old, smaller scroll range and silently lost.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    const p = pendingScroll.current;
+    if (!el || !p) return;
+    pendingScroll.current = null;
+    // Assigned, not clamped by us: the browser clamps into the range this element
+    // actually scrolls, which in RTL runs the other way.
+    el.scrollLeft = p.left;
+    el.scrollTop = p.top;
+  }, [zoom]);
+
+  // The bitmaps catch up once the zoom has stopped moving.
   useEffect(() => {
     const id = setTimeout(() => setRenderZoom(zoom), RERENDER_DELAY_MS);
     return () => clearTimeout(id);
@@ -191,56 +212,119 @@ export function PlanPdfViewer({ url, title }: Props) {
 
   // Pinch, double tap, and ctrl+wheel (which is what a trackpad pinch arrives as).
   //
-  // All three on native listeners with `passive: false`: React's own touch and
-  // wheel handlers are registered passively on the root, so `preventDefault` from a
-  // JSX prop is a no-op and the browser scrolls or zooms the page underneath us.
+  // All on native listeners with `passive: false` where a default has to be
+  // prevented: React registers `touchmove` and `wheel` passively on the root, so
+  // `preventDefault` from a JSX prop is a no-op and the browser scrolls the page
+  // out from under the gesture.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || state !== 'ready') return;
 
-    let startDist = 0;
-    let startZoom = FIT_ZOOM;
+    // The live pinch. `scale` is applied as a transform and never as state.
+    let pinchDist = 0;
+    let pinchZoom = FIT_ZOOM;
+    let pinchScale = 1;
+    let originX = 0;
+    let originY = 0;
+    // Tap tracking, so a scroll flick is not mistaken for a tap.
+    let downAt = 0;
+    let downX = 0;
+    let downY = 0;
+    let moved = false;
     let lastTapAt = 0;
     let lastTapX = 0;
     let lastTapY = 0;
 
     const spread = (a: Touch, b: Touch) =>
       Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-    const local = (x: number, y: number) => {
-      const r = el.getBoundingClientRect();
-      return { x: x - r.left, y: y - r.top };
+
+    const preview = (scale: number) => {
+      const content = contentRef.current;
+      if (!content) return;
+      content.style.transformOrigin = `${originX}px ${originY}px`;
+      content.style.transform = `scale(${scale})`;
+    };
+    const clearPreview = () => {
+      const content = contentRef.current;
+      if (!content) return;
+      content.style.transform = '';
+      content.style.transformOrigin = '';
     };
 
     const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        downAt = Date.now();
+        downX = touch.clientX;
+        downY = touch.clientY;
+        moved = false;
+        return;
+      }
       if (e.touches.length !== 2) return;
-      startDist = spread(e.touches[0], e.touches[1]);
-      startZoom = zoomRef.current;
+      const [a, b] = [e.touches[0], e.touches[1]];
+      const content = contentRef.current;
+      if (!content) return;
+      // The origin is taken once, at the start, in the content's unscaled
+      // coordinates — the midpoint wanders during a pinch, and a transform-origin
+      // that wanders with it makes the page swim.
+      const rect = content.getBoundingClientRect();
+      originX = (a.clientX + b.clientX) / 2 - rect.left;
+      originY = (a.clientY + b.clientY) / 2 - rect.top;
+      pinchDist = spread(a, b);
+      pinchZoom = zoomRef.current;
+      pinchScale = 1;
+      moved = true;
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length !== 2 || startDist <= 0) return;
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        if (Math.abs(touch.clientX - downX) > TAP_SLOP_PX || Math.abs(touch.clientY - downY) > TAP_SLOP_PX) {
+          moved = true;
+        }
+        return;
+      }
+      if (e.touches.length !== 2 || pinchDist <= 0) return;
       // Without this the scroller pans on two fingers as well, so the page runs
       // away from the gesture that is trying to scale it.
       e.preventDefault();
-      const [a, b] = [e.touches[0], e.touches[1]];
-      const mid = local((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2);
-      zoomTo(startZoom * (spread(a, b) / startDist), mid);
+      const raw = spread(e.touches[0], e.touches[1]) / pinchDist;
+      // Previewed within the zoom limits, so the page cannot be stretched to
+      // somewhere it will snap back from when the fingers lift.
+      pinchScale = clampZoom(pinchZoom * raw) / pinchZoom;
+      preview(pinchScale);
     };
 
     const onTouchEnd = (e: TouchEvent) => {
-      if (e.touches.length < 2) startDist = 0;
-      // A double tap toggles between fit and 2× — the gesture everyone tries on a
-      // document before they look for buttons.
+      // A pinch ends when either finger leaves: commit what it reached.
+      if (pinchDist > 0 && e.touches.length < 2) {
+        pinchDist = 0;
+        clearPreview();
+        commitZoom(pinchZoom * pinchScale, { x: originX, y: originY });
+        pinchScale = 1;
+        return;
+      }
+      if (e.touches.length > 0) return;
+
       const touch = e.changedTouches[0];
-      if (e.touches.length > 0 || !touch) return;
+      if (!touch || moved || Date.now() - downAt > TAP_MAX_MS) {
+        moved = false;
+        return;
+      }
+      // A double tap toggles between fit and 2× — the gesture everyone tries on a
+      // document before they look for buttons. Guarded by `moved`/`TAP_MAX_MS`,
+      // because two scroll flicks that happen to end near each other are not it.
       const now = Date.now();
       const near =
         Math.abs(touch.clientX - lastTapX) < DOUBLE_TAP_SLOP_PX &&
         Math.abs(touch.clientY - lastTapY) < DOUBLE_TAP_SLOP_PX;
       if (now - lastTapAt < DOUBLE_TAP_MS && near) {
         lastTapAt = 0;
-        const at = local(touch.clientX, touch.clientY);
-        zoomTo(zoomRef.current > FIT_ZOOM ? FIT_ZOOM : DOUBLE_TAP_ZOOM, at);
+        const rect = contentRef.current?.getBoundingClientRect();
+        const at = rect
+          ? { x: touch.clientX - rect.left, y: touch.clientY - rect.top }
+          : undefined;
+        commitZoom(zoomRef.current > FIT_ZOOM ? FIT_ZOOM : DOUBLE_TAP_ZOOM, at);
         return;
       }
       lastTapAt = now;
@@ -248,32 +332,40 @@ export function PlanPdfViewer({ url, title }: Props) {
       lastTapY = touch.clientY;
     };
 
+    const onTouchCancel = () => {
+      pinchDist = 0;
+      pinchScale = 1;
+      clearPreview();
+    };
+
     const onWheel = (e: WheelEvent) => {
       // A trackpad pinch is a wheel event with ctrlKey set. A plain wheel is
       // scrolling and is left alone.
       if (!e.ctrlKey) return;
       e.preventDefault();
-      const at = local(e.clientX, e.clientY);
-      zoomTo(zoomRef.current * Math.exp(-e.deltaY / 180), at);
+      const rect = contentRef.current?.getBoundingClientRect();
+      const at = rect ? { x: e.clientX - rect.left, y: e.clientY - rect.top } : undefined;
+      commitZoom(zoomRef.current * Math.exp(-e.deltaY / 180), at);
     };
 
     el.addEventListener('touchstart', onTouchStart, { passive: true });
     el.addEventListener('touchmove', onTouchMove, { passive: false });
     el.addEventListener('touchend', onTouchEnd, { passive: true });
-    el.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    el.addEventListener('touchcancel', onTouchCancel, { passive: true });
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => {
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchmove', onTouchMove);
       el.removeEventListener('touchend', onTouchEnd);
-      el.removeEventListener('touchcancel', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchCancel);
       el.removeEventListener('wheel', onWheel);
+      clearPreview();
     };
-  }, [state, zoomTo]);
+  }, [state, commitZoom]);
 
   const canOut = canZoom(zoom, -1);
   const canIn = canZoom(zoom, 1);
-  const atFit = Math.abs(zoom - FIT_ZOOM) < 0.005;
+  const atFit = atZoom(zoom, FIT_ZOOM);
 
   const header = (
     <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 border-b border-page/60">
@@ -314,11 +406,16 @@ export function PlanPdfViewer({ url, title }: Props) {
       <div className="flex items-center justify-center gap-1 px-4 sm:px-5 py-2 border-b border-page/60 bg-card/40">
         <button
           type="button"
-          onClick={() => zoomTo(stepZoom(zoomRef.current, -1))}
+          onClick={() => commitZoom(stepZoom(zoomRef.current, -1))}
           disabled={!canOut}
           aria-label={t('zoomOut')}
           className={cn(
-            'grid place-items-center w-11 h-11 rounded-xl transition-colors',
+            // `touch-manipulation` is not a nicety. Without it the browser keeps
+            // its own double-tap-to-zoom gesture on these buttons, and the SECOND
+            // of two fast taps is swallowed as part of that gesture — which is what
+            // "only by the buttons, and even then" meant: tapping "+" twice quickly
+            // moved the zoom one step, or none.
+            'grid place-items-center w-11 h-11 rounded-xl transition-colors touch-manipulation',
             canOut ? 'text-ink-700 active:bg-page' : 'text-ink-300 cursor-not-allowed',
           )}
         >
@@ -329,11 +426,11 @@ export function PlanPdfViewer({ url, title }: Props) {
             fixed-width digits the label jitters the buttons sideways on every tap. */}
         <button
           type="button"
-          onClick={() => zoomTo(FIT_ZOOM)}
+          onClick={() => commitZoom(FIT_ZOOM)}
           disabled={atFit}
           aria-label={t('zoomFit')}
           className={cn(
-            'inline-flex items-center gap-1.5 min-w-[92px] h-11 justify-center rounded-xl px-3 text-xs font-bold transition-colors',
+            'inline-flex items-center gap-1.5 min-w-[92px] h-11 justify-center rounded-xl px-3 text-xs font-bold transition-colors touch-manipulation',
             atFit ? 'text-ink-400' : 'text-ink-700 active:bg-page',
           )}
         >
@@ -343,11 +440,16 @@ export function PlanPdfViewer({ url, title }: Props) {
 
         <button
           type="button"
-          onClick={() => zoomTo(stepZoom(zoomRef.current, 1))}
+          onClick={() => commitZoom(stepZoom(zoomRef.current, 1))}
           disabled={!canIn}
           aria-label={t('zoomIn')}
           className={cn(
-            'grid place-items-center w-11 h-11 rounded-xl transition-colors',
+            // `touch-manipulation` is not a nicety. Without it the browser keeps
+            // its own double-tap-to-zoom gesture on these buttons, and the SECOND
+            // of two fast taps is swallowed as part of that gesture — which is what
+            // "only by the buttons, and even then" meant: tapping "+" twice quickly
+            // moved the zoom one step, or none.
+            'grid place-items-center w-11 h-11 rounded-xl transition-colors touch-manipulation',
             canIn ? 'text-ink-700 active:bg-page' : 'text-ink-300 cursor-not-allowed',
           )}
         >
@@ -361,8 +463,9 @@ export function PlanPdfViewer({ url, title }: Props) {
         // `overscroll-contain` stops a swipe that runs out of plan from carrying on
         // into the page behind it, which on a phone reads as the app jumping.
         className="w-full overflow-auto overscroll-contain bg-page/40 p-2 sm:p-4"
-        // One finger pans, two fingers are ours. Without `pan-x pan-y` iOS can
-        // claim the second finger for a scroll before our handler ever sees it.
+        // One finger pans natively — momentum and all — and two fingers are ours.
+        // Without `pan-x pan-y` iOS can claim the second finger for a scroll before
+        // the handler above ever sees it.
         style={{ height: '80vh', touchAction: 'pan-x pan-y' }}
       >
         {state === 'loading' ? (
@@ -370,7 +473,13 @@ export function PlanPdfViewer({ url, title }: Props) {
             <Loader2 className="h-6 w-6 animate-spin text-brand-600" />
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-3">
+          <div
+            ref={contentRef}
+            className="flex flex-col items-center gap-3"
+            // `will-change` so the live pinch is composited rather than repainted:
+            // the transform is written every frame the fingers move.
+            style={{ willChange: 'transform' }}
+          >
             {pages.map((page, i) => (
               <PdfPage
                 key={page.pageNumber}
@@ -407,9 +516,9 @@ function PdfPage({
 }: {
   page: PDFPageProxy;
   containerWidth: number;
-  /** What the page is LAID OUT at — follows the fingers. */
+  /** The committed zoom, which is what the page is laid out at. */
   zoom: number;
-  /** What the bitmap is DRAWN at — follows the fingers once they stop. */
+  /** What the bitmap is drawn at — the same number, a beat later. */
   renderZoom: number;
   scroller: React.RefObject<HTMLDivElement | null>;
   label: string;
@@ -450,7 +559,7 @@ function PdfPage({
       // canvas make pdf.js reject the second ("Cannot use the same canvas during
       // multiple render() operations"), and the page stays blank — which is what
       // tapping the zoom buttons twice in a row used to do. `cancel()` alone is not
-      // enough: it resolves asynchronously, so the canvas is still in use when the
+      // enough: it settles asynchronously, so the canvas is still in use when the
       // next tap arrives. Awaiting the cancellation is what frees it.
       const running = taskRef.current;
       if (running) {
@@ -507,10 +616,10 @@ function PdfPage({
       style={{ width: cssW, height: cssH }}
     >
       {/* The bitmap is stretched to the CSS size rather than matching it, which is
-          what lets the layout follow a pinch while the redraw waits for it to end:
-          mid-gesture the page is briefly a scaled-up copy of itself, then it
-          sharpens. Sized here rather than imperatively so it can never disagree
-          with the holder. */}
+          what lets the page be laid out at the new zoom while the redraw is still a
+          beat behind: it is briefly a scaled copy of itself, then it sharpens.
+          Sized here rather than imperatively so it can never disagree with the
+          holder. */}
       <canvas
         ref={canvasRef}
         aria-label={label}
