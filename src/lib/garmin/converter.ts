@@ -26,29 +26,59 @@ const END_CONDITION_MAP: Record<string, { conditionTypeId: number; conditionType
   open: { conditionTypeId: 1, conditionTypeKey: 'lap.button' },
 };
 
+/**
+ * ONE RUNNING COUNTER FOR A WHOLE WORKOUT — see feedback ccc4e092.
+ *
+ * Both numbers have to be unique across the FLATTENED step list, including the
+ * steps nested inside a repeat group, because that is the list Garmin Connect's
+ * editor builds when it opens the workout. It used to restart at 1 inside every
+ * repeat (`convertStep(s, …, i + 1)`), so a 6×400 workout shipped several steps
+ * all claiming stepOrder 1 and none of them carrying a stepId at all. The watch
+ * ran it fine — it reads the tree — but the editor keys its rows by those two
+ * fields and PUT the mess straight back, which is the save that never worked.
+ */
+interface StepNumbering {
+  order: number;
+  id: number;
+}
+
 function convertStep(
   step: WorkoutStep,
   paceProfile: StoredPaceProfile,
-  stepOrder: number,
-  opts: ConvertOptions = {}
+  num: StepNumbering,
+  opts: ConvertOptions = {},
+  /** The enclosing repeat group's `stepId`, when this step is one of its children. */
+  childStepId: number | null = null
 ): GarminWorkoutStep {
+  const stepOrder = ++num.order;
+  const stepId = ++num.id;
+
   if (step.repeatCount && step.repeatSteps) {
     return {
       type: 'RepeatGroupDTO',
+      stepId,
       stepOrder,
+      childStepId,
       stepType: { stepTypeId: 6, stepTypeKey: 'repeat' },
       endCondition: { conditionTypeId: 7, conditionTypeKey: 'iterations' },
       numberOfIterations: step.repeatCount,
+      // Garmin's editor reads the iteration count off endConditionValue, not off
+      // numberOfIterations, and shows an empty "repeat ? times" box without it —
+      // which is a required field, so the save is refused.
+      endConditionValue: step.repeatCount,
+      smartRepeat: false,
       targetType: { workoutTargetTypeId: 1, workoutTargetTypeKey: 'no.target' },
-      workoutSteps: step.repeatSteps.map((s, i) =>
-        convertStep(s, paceProfile, i + 1, opts)
+      workoutSteps: step.repeatSteps.map((s) =>
+        convertStep(s, paceProfile, num, opts, stepId)
       ),
     };
   }
 
   const garminStep: GarminWorkoutStep = {
     type: 'ExecutableStepDTO',
+    stepId,
     stepOrder,
+    childStepId,
     stepType: STEP_TYPE_MAP[step.type] || STEP_TYPE_MAP.active,
     endCondition: END_CONDITION_MAP[step.durationType] || END_CONDITION_MAP.open,
     targetType: { workoutTargetTypeId: 1, workoutTargetTypeKey: 'no.target' },
@@ -152,11 +182,12 @@ export function convertToGarminWorkout(
   paceProfile: StoredPaceProfile,
   opts: ConvertOptions = {}
 ): GarminWorkout {
-  let stepOrder = 0;
-  const workoutSteps: GarminWorkoutStep[] = workout.steps.map((step) => {
-    stepOrder++;
-    return convertStep(step, paceProfile, stepOrder, opts);
-  });
+  // One counter for the whole workout, handed down through the repeat groups, so
+  // stepOrder/stepId are unique across every step Garmin will render.
+  const num: StepNumbering = { order: 0, id: 0 };
+  const workoutSteps: GarminWorkoutStep[] = workout.steps.map((step) =>
+    convertStep(step, paceProfile, num, opts)
+  );
 
   return {
     workoutName: workout.name,

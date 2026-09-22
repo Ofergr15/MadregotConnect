@@ -19,7 +19,18 @@ export interface GarminWorkoutSegment {
 
 export interface GarminWorkoutStep {
   type: 'ExecutableStepDTO' | 'RepeatGroupDTO';
+  /**
+   * Garmin's own handle on the step, unique within the workout.
+   *
+   * We create workouts, so we could leave this to Garmin — but Garmin Connect's
+   * editor doesn't assign one when the workout is OPENED: it keys the rows it
+   * renders by `stepId` and PUTs them back with whatever was there, so a workout
+   * created without ids could be edited on screen and never saved (ccc4e092).
+   */
+  stepId: number;
   stepOrder: number;
+  /** The `stepId` of the repeat group this step sits inside; null at the top level. */
+  childStepId?: number | null;
   stepType: { stepTypeId: number; stepTypeKey: string };
   endCondition: { conditionTypeId: number; conditionTypeKey: string };
   endConditionValue?: number;
@@ -28,6 +39,8 @@ export interface GarminWorkoutStep {
   targetValueTwo?: number;
   description?: string;
   numberOfIterations?: number;
+  /** Garmin's "repeat until I press lap" mode. Always false here: our repeats are counted. */
+  smartRepeat?: boolean;
   workoutSteps?: GarminWorkoutStep[];
 }
 
