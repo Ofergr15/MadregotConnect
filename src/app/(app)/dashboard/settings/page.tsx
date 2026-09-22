@@ -377,10 +377,12 @@ type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'notifRouti
 const settingsTabs = [
   // iconBg = the colored glyph tile (panel-18 iOS-Settings look).
   // NOTE: 'registrations' is deliberately absent. Its row now opens the entry
-  // queue, which holds the same people with their actual state; the old screen
-  // stays reachable at ?tab=registrations for the two things it still owns
-  // (re-sending a join link, rejecting a signup) and is listed by hand in
-  // ALL_TAB_KEYS below rather than here.
+  // queue, which holds the same people with their actual state. The old screen is
+  // the submission LOG now, not a second queue: nothing that alerts an approver
+  // points at it any more, it is reached by one labelled link from the bottom of
+  // the entry queue, and it keeps only what it alone holds (the full log including
+  // rejections, re-sending a join link, merging a Strava sign-in into an existing
+  // member). Listed by hand in ALL_TAB_KEYS below rather than here.
   { key: 'users' as SettingsTab, label: 'User Manager', icon: Users, iconBg: 'bg-indigo-500' },
   // Directly under User Manager, because that is where somebody looking to tag a
   // person goes first — and the גרעין is no longer something the role dropdown there

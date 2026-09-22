@@ -893,7 +893,8 @@
     "detectorUnknown": "מה שהגלאי לא יודע",
     "affectedPeople": "{count} נפגעו",
     "weakSignal": "אות חלש · בלי התראה",
-    "firstSeenIn": "התחיל ב-{version}"
+    "firstSeenIn": "התחיל ב-{version}",
+    "registrationLog": "יומן ההרשמות"
   },
   "badgeManager": {
     "existingBadges": "תגים קיימים",
@@ -2807,7 +2808,15 @@
     "reminderWillSayGeneral": "התזכורת תזמין להיכנס ולסיים את ההגדרה",
     "reminderInboxOnly": "יגיע רק לתיבה באפליקציה",
     "reminderEmailed": "התזכורת נשלחה במייל ✓",
-    "reminderByEmail": "יישלח במייל"
+    "reminderByEmail": "יישלח במייל",
+    "dupHeading": "החשבון הזה לא זוהה ברשימת המועדון",
+    "dupHint": "האישור ייצור חבר חדש. אם זה מישהו שכבר במועדון — כדאי לוודא לפני, כי אחרי האישור יהיו שתי שורות לאותו אדם.",
+    "dupNone": "אין אף שם דומה במועדון. יכול להיות שזה באמת מישהו חדש — ויכול להיות שהשם כתוב אצלנו אחרת לגמרי.",
+    "dupConfidence_exact": "כנראה",
+    "dupConfidence_near": "אולי",
+    "dupConfidence_weak": "שם דומה",
+    "openLog": "יומן ההרשמות",
+    "openLogHint": "כל מי שנרשם — כולל מי שנדחה · שליחה מחדש של קישור הצטרפות · העתקת קישור"
   },
   "upcoming": {
     "title": "אירועים קרובים",

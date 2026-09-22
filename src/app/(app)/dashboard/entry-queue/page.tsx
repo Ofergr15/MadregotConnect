@@ -8,7 +8,7 @@ import {
   Wrench, Search, Lock, Unlock, Bell, BellOff, Watch, Activity,
   CheckCircle2, UserCheck, ChevronLeft, Users as UsersIcon,
   UserPlus, Mail, Smartphone, AlertTriangle, HelpCircle,
-  UserMinus, RotateCcw, Trash2,
+  UserMinus, RotateCcw, Trash2, ShieldAlert, FileClock,
 } from 'lucide-react';
 import { cn, getGroupChip, groupDisplayName } from '@/lib/utils';
 import { useApi } from '@/lib/api';
@@ -859,6 +859,45 @@ export default function EntryQueuePage() {
                   <Chip tone={m.setupDone >= m.setupTotal ? 'ok' : 'muted'} icon={UserCheck} label={t('setupProgress', { done: m.setupDone, total: m.setupTotal })} />
                 </div>
 
+                {/* ── "ISN'T THIS SOMEBODY WE ALREADY HAVE?" ──────────────────
+                    A Strava sign-in the app could not place, sitting one tap away
+                    from an approve button that will create a duplicate member. This
+                    warning used to live on the retired הרשמות list, which is where
+                    the approve button used to be; that screen is no longer anybody's
+                    destination, so the warning had to move to where the decision is
+                    actually made. The EMPTY case is stated too, on purpose: an
+                    unplaced sign-in with nothing resembling it looks exactly like an
+                    ordinary stranger, and going quiet is how the fifth duplicate got
+                    through 35 seconds after it arrived. */}
+                {m.unplaced && (
+                  <div className="mt-3 rounded-xl bg-band-3/15 px-3 py-2.5" dir="rtl">
+                    <p className="text-[13px] font-semibold text-band-3-ink flex items-start gap-1.5">
+                      <ShieldAlert className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span>{t('dupHeading')}</span>
+                    </p>
+                    {m.matchCandidates?.length ? (
+                      <>
+                        <p className="mt-1 text-2xs text-ink-500 leading-relaxed">{t('dupHint')}</p>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {m.matchCandidates.map((c) => (
+                            <AthleteLink
+                              key={c.id}
+                              athleteId={c.id}
+                              name={c.name || '—'}
+                              className="inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 text-2xs font-semibold text-ink-700"
+                            >
+                              <span className="text-ink-400">{t(`dupConfidence_${c.confidence}` as never)}</span>
+                              <span dir="auto">{c.name || '—'}</span>
+                            </AthleteLink>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="mt-1 text-2xs text-ink-500 leading-relaxed">{t('dupNone')}</p>
+                    )}
+                  </div>
+                )}
+
                 {/* What the reminder will actually say, before it is sent, and
                     whether it will light up a phone or only land in the in-app
                     inbox. Both were only discoverable by tapping and reading the
@@ -1018,6 +1057,30 @@ export default function EntryQueuePage() {
             );
           })}
         </div>
+      )}
+
+      {/* ── THE ONE WAY OUT OF THIS SCREEN, AND IT IS DOWNSTREAM ───────────────
+          The old הרשמות list is not a second answer to "who is waiting" any more —
+          every notification, every email and every alert card now lands here. What
+          it still owns is the paperwork: the whole submission log including the
+          people who were turned down, re-sending a join link whose mail never
+          arrived, and copying an invite link by hand. Those are things you go
+          looking for, so they are one labelled link at the bottom rather than a
+          rival destination that the club's own alerts used to open. */}
+      {canApprove && (
+        <Link
+          href="/dashboard/settings?tab=registrations"
+          className="mt-5 flex items-center gap-3 rounded-2xl bg-card px-4 py-3.5"
+        >
+          <span className="shrink-0 w-8 h-8 rounded-lg bg-ink-700 flex items-center justify-center">
+            <FileClock className="h-4 w-4 text-white" />
+          </span>
+          <span className="min-w-0 flex-1" dir="rtl">
+            <span className="block text-[15px] font-semibold text-ink-700">{t('openLog')}</span>
+            <span className="block text-2xs text-ink-400 leading-relaxed">{t('openLogHint')}</span>
+          </span>
+          <ChevronLeft className="h-4 w-4 text-ink-300 shrink-0" />
+        </Link>
       )}
     </div>
   );

@@ -893,7 +893,8 @@
     "detectorUnknown": "What the detector cannot tell you",
     "affectedPeople": "{count} affected",
     "weakSignal": "Weak signal · no alert",
-    "firstSeenIn": "started in {version}"
+    "firstSeenIn": "started in {version}",
+    "registrationLog": "Registration log"
   },
   "badgeManager": {
     "existingBadges": "Existing Badges",
@@ -2807,7 +2808,15 @@
     "reminderWillSayGeneral": "The reminder will invite them in to finish setting up",
     "reminderInboxOnly": "in-app inbox only",
     "reminderEmailed": "Reminder emailed ✓",
-    "reminderByEmail": "will be sent by email"
+    "reminderByEmail": "will be sent by email",
+    "dupHeading": "This sign-in was not recognised on the roster",
+    "dupHint": "Approving creates a new member. If this is somebody already in the club, check first — after approval there are two rows for one person.",
+    "dupNone": "Nothing on the roster resembles this name. They may genuinely be new — or we may spell their name entirely differently.",
+    "dupConfidence_exact": "Probably",
+    "dupConfidence_near": "Maybe",
+    "dupConfidence_weak": "Similar name",
+    "openLog": "Registration log",
+    "openLogHint": "Everybody who signed up, rejections included · re-send a join link · copy a link"
   },
   "upcoming": {
     "title": "Coming up",

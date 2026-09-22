@@ -211,7 +211,9 @@ export async function POST(request: Request) {
         .eq('status', 'pending');
       await notifyStaff({
         kind: 'signup_request',
-        url: '/dashboard/settings?tab=registrations',
+        // The entry queue — the one destination for "somebody is waiting", shared
+        // with the admin email and the home alert card.
+        url: '/dashboard/entry-queue?at=mine',
         // Per-email tag: two different people waiting are two different facts,
         // but the same person pressing submit twice must not stack.
         tag: `signup-request-${email}`,

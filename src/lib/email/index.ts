@@ -132,7 +132,10 @@ export async function notifyAdminNewSignupRequest(req: {
         ['Email', address || 'none — they signed in with Strava'],
         ['Group', req.groupName || '—'],
       ],
-      cta: { label: 'Review & approve →', href: `${APP_URL}/dashboard/settings?tab=registrations` },
+      // The entry queue, which is now the only place anybody is let in. This used
+      // to open the הרשמות list while every in-app path opened the entry queue, so
+      // tapping the mail showed the approver a different screen than browsing did.
+      cta: { label: 'Review & approve →', href: `${APP_URL}/dashboard/entry-queue?at=mine` },
       notes: ['They cannot enter the app until someone approves this.'],
     }),
   });
