@@ -170,9 +170,27 @@ export default function HistoryPage() {
 
             return (
               <Card key={plan.id} className="hover:border-ink-300 transition-colors">
+                {/* The only way to open a plan, and until now a bare
+                    `<div onClick>`: no role, no tabIndex, no key handler, no
+                    aria-expanded. A coach on a keyboard could not open a single
+                    card on this page, a screen reader announced the whole header
+                    as static text, and the UI audit reported zero tap findings
+                    here precisely because there was nothing it could recognise
+                    as a control to measure.
+                    `role="button"` + `tabIndex` + Enter/Space is the idiom
+                    InsetList.tsx already documents for this exact case — a real
+                    <button> is wrong here because the expanded body it controls
+                    (PlanDetail) contains its own buttons, and because this header
+                    is a two-line block, not a label. */}
                 <div
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isExpanded}
                   className="flex items-center justify-between cursor-pointer"
                   onClick={() => handleTogglePlan(plan.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTogglePlan(plan.id); }
+                  }}
                 >
                   <div className="flex items-center gap-4">
                     <div className="bg-page p-2 rounded-lg">

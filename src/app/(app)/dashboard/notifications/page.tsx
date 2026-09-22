@@ -66,6 +66,10 @@ function RsvpInlineButtons({
   athleteId,
   initialAttending,
 }: { weekStart: string; day: number; athleteId: string; initialAttending?: boolean | null }) {
+  // The two buttons are icon-only, so their names come from the same copy the
+  // full-size attendance card uses ("מגיע/ה" / "לא הפעם") rather than new
+  // strings — one answer, one wording, wherever the athlete is asked.
+  const ta = useTranslations('attendance');
   const [attending, setAttending] = useState<boolean | null>(initialAttending ?? null);
   const [busy, setBusy] = useState(false);
 
@@ -104,12 +108,26 @@ function RsvpInlineButtons({
   };
 
   return (
+    // Both buttons measured 28×24px: an icon with `px-2 py-1.5` around it and
+    // nothing else, which is barely half the 44px floor in each direction — and
+    // they sit 6px apart, so the yes and the no were two adjacent 24px-tall
+    // strips and a thumb answering a reminder had a real chance of sending the
+    // opposite answer. `w-11 h-11` is the floor exactly; the icons stay 14px, so
+    // only the hit area grows.
+    //
+    // They also had no accessible name at all (an icon-only <button> with no
+    // aria-label announces as "button"), which on this row means a screen-reader
+    // user was offered two identical unnamed buttons that commit to opposite
+    // answers.
     <div className="flex items-center gap-1.5 shrink-0">
       <button
         type="button"
         onClick={(e) => submit(e, true)}
+        aria-label={ta('coming')}
+        aria-pressed={attending === true}
+        title={ta('coming')}
         className={cn(
-          'flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+          'flex w-11 h-11 items-center justify-center rounded-lg transition-colors',
           attending === true ? 'bg-brand-600 text-white' : 'bg-page/60 text-ink-500 hover:bg-ink-300/40',
         )}
       >
@@ -118,8 +136,11 @@ function RsvpInlineButtons({
       <button
         type="button"
         onClick={(e) => submit(e, false)}
+        aria-label={ta('notComing')}
+        aria-pressed={attending === false}
+        title={ta('notComing')}
         className={cn(
-          'flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+          'flex w-11 h-11 items-center justify-center rounded-lg transition-colors',
           attending === false ? 'bg-ink-300 text-ink-700' : 'bg-page/60 text-ink-500 hover:bg-ink-300/40',
         )}
       >
@@ -180,8 +201,15 @@ function KudosButton({
     <button
       type="button"
       onClick={toggle}
+      aria-pressed={given}
+      // 56×28px before: the text gave it enough width, but `py-1.5` around 14px
+      // type is 28px of height on the one control that toggles a real reaction
+      // on somebody else's run — and an accidental second tap here sends a
+      // DELETE (see the note above). `min-h-[44px]` with `-my-1` grows it into
+      // InsetRow's own `py-3` the way the feedback list's AthleteLink does, so
+      // the thumb target reaches the floor without the row getting taller.
       className={cn(
-        'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0',
+        'flex items-center gap-1 px-2.5 min-h-[44px] -my-1 rounded-lg text-xs font-semibold transition-colors shrink-0',
         given ? 'bg-brand-600 text-white' : 'bg-page/60 text-ink-500 hover:bg-ink-300/40',
       )}
     >
@@ -317,6 +345,15 @@ export default function NotificationsInboxPage() {
                       avatarUrl={it.actorAvatarUrl || undefined}
                       label={it.title}
                       sublabel={it.body}
+                      // Here the sublabel IS the notification — the body of the
+                      // coach's reply, the workout the reminder is about — and
+                      // one truncated line showed a quarter of it: a reply
+                      // needing 650px got 185px at 393px, and at 375px even
+                      // "מגיעים? האימון מתחיל ב-19:00 באצטדיון" was cut. Two
+                      // lines, still bounded. Same for the title above it, which
+                      // is the sentence the athlete actually reads.
+                      sublabelClamp
+                      labelClamp
                       onClick={() => router.push(it.url || '/dashboard')}
                       trailing={
                         kudosId && athleteId ? (

@@ -34,6 +34,26 @@ interface RowProps {
   avatarUrl?: string;   // a person's photo instead of an icon tile (e.g. who liked/followed/replied) — takes precedence over icon when set
   label: string;
   sublabel?: string;
+  /**
+   * Let the sublabel wrap to two lines instead of truncating at one.
+   *
+   * Default off, because in Settings the sublabel is a short caption under a
+   * label and one line is the whole point of the row. Opt in when the sublabel
+   * is the CONTENT and not a caption — the notification inbox is the case that
+   * asked for it: a coach's reply ("קראתי את מה שכתבת על הכאב בשוק…") needed
+   * 650px and got 185px on a 393px phone, so the athlete saw a quarter of the
+   * message and had to open the thread to learn what it said. Two lines and not
+   * unbounded, so a long body still can't push the next rows off the screen.
+   */
+  sublabelClamp?: boolean;
+  /**
+   * Same opt-in for the label. Separate prop because the two are different
+   * decisions: the inbox wants both (a notification's title is the sentence you
+   * read — "🏆 נפתחה ההרשמה למרתון תל אביב 2027" needed 266px and got 180px, so
+   * the row said a marathon opened and hid which one), while a caller with a long
+   * body under a short label wants only the sublabel to wrap.
+   */
+  labelClamp?: boolean;
   value?: string;       // trailing muted value (e.g. "08:00")
   valueMuted?: boolean; // dims + italicizes `value` — an unset-field placeholder (e.g. "Not set") rather than real data
   valueSuccess?: boolean; // shows `value` in green — a field the user has actually filled in
@@ -45,7 +65,7 @@ interface RowProps {
 
 // One row. If href/onClick given → navigable (chevron). If `trailing` given
 // (e.g. a toggle) → no chevron. Otherwise a static info row.
-export function InsetRow({ icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label, sublabel, value, valueMuted, valueSuccess, href, onClick, trailing, danger }: RowProps) {
+export function InsetRow({ icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label, sublabel, sublabelClamp, labelClamp, value, valueMuted, valueSuccess, href, onClick, trailing, danger }: RowProps) {
   const press = 'active:bg-page/60';
   const interactive = !!href || !!onClick;
   const inner = (
@@ -59,8 +79,24 @@ export function InsetRow({ icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label
         </span>
       )}
       <span className="flex-1 min-w-0">
-        <span className={cn('block text-[15px] font-medium truncate', danger ? 'text-accent-red' : 'text-ink-700')} dir="auto">{label}</span>
-        {sublabel && <span className="block text-xs truncate text-ink-400" dir="auto">{sublabel}</span>}
+        <span
+          className={cn(
+            'block text-[15px] font-medium',
+            labelClamp ? 'line-clamp-2 leading-snug' : 'truncate',
+            danger ? 'text-accent-red' : 'text-ink-700',
+          )}
+          dir="auto"
+        >
+          {label}
+        </span>
+        {sublabel && (
+          <span
+            className={cn('block text-xs text-ink-400', sublabelClamp ? 'line-clamp-2 leading-snug' : 'truncate')}
+            dir="auto"
+          >
+            {sublabel}
+          </span>
+        )}
       </span>
       {/* dir="auto" so a value made only of digits and punctuation isn't
           bidi-reordered by the RTL page around it. A date range ("06.09 –

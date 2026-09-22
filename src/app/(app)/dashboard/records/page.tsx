@@ -112,9 +112,26 @@ function RecordRow({ entry, rank, isMe }: { entry: Entry; rank: number; isMe: bo
   const year = recordYear(entry.date);
 
   return (
-    <div
+    // The WHOLE row is the link, not just the name.
+    //
+    // The docblock above already promises "every row links to that teammate's
+    // profile … rather than a dead end", but the anchor was wrapped around the
+    // name text alone: `block truncate text-sm font-bold`, which measured
+    // 237×20px at 393px and 219×20px at 375px. 20px of height is under half the
+    // 44px floor, on a list whose whole purpose is to be tapped, and the row
+    // read as tappable everywhere (the rank, the time, the run name) while only
+    // one 20px strip of it was.
+    //
+    // Nothing else in the row is interactive, so there is no nesting problem and
+    // no need for the `role="button"` treatment InsetList documents — a real
+    // anchor spanning the row is both correct and 52px tall for free (py-3 plus
+    // the two text lines). The name below is now a plain span: it is the link's
+    // visible content, and AthleteLink already carries the accessible name.
+    <AthleteLink
+      athleteId={entry.athleteId}
+      name={entry.name}
       className={cn(
-        'flex items-center gap-3 border-b border-page/50 px-4 py-3 last:border-b-0',
+        'flex items-center gap-3 border-b border-page/50 px-4 py-3 last:border-b-0 transition-colors active:bg-page/60',
         isMe && 'bg-brand-600/5',
       )}
     >
@@ -127,24 +144,25 @@ function RecordRow({ entry, rank, isMe }: { entry: Entry; rank: number; isMe: bo
         {rank}
       </span>
 
-      <div className="min-w-0 flex-1">
-        <AthleteLink athleteId={entry.athleteId} name={entry.name} className="block truncate text-sm font-bold text-ink-700">
-          {entry.name}
-        </AthleteLink>
-        <p className="truncate text-3xs text-ink-400">
+      {/* Spans and not divs/paragraphs: the fallback branch of AthleteLink (an
+          athlete with no id) renders a <span>, and a <div>/<p> inside a <span>
+          is invalid markup React will complain about in the console. */}
+      <span className="block min-w-0 flex-1">
+        <span className="block truncate text-sm font-bold text-ink-700" dir="auto">{entry.name}</span>
+        <span className="block truncate text-3xs text-ink-400" dir="auto">
           {entry.source === 'manual'
             ? entry.note || t('stated')
             : entry.activityName || t('fromRuns')}
-        </p>
-      </div>
+        </span>
+      </span>
 
-      <div className="shrink-0 text-end">
+      <span className="block shrink-0 text-end">
         {/* dir="ltr": a time is not RTL text — bidi moves the colon. */}
         <span dir="ltr" className="block text-base font-extrabold tabular-nums text-ink-700">
           {formatTime(entry.seconds)}
         </span>
         {year && <span className="block text-3xs text-ink-400 tabular-nums">{year}</span>}
-      </div>
-    </div>
+      </span>
+    </AthleteLink>
   );
 }
