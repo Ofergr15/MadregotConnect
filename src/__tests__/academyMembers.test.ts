@@ -544,14 +544,15 @@ describe('fmtRate / rateColor', () => {
   });
 
   // Asserts the exact tokens, not hue substrings: the light system's severity
-  // ramp is accent-600 / band-3-ink / accent-red, and "band" here is a rate bracket,
+  // ramp is accent-900 / band-3-ink / accent-red, and "band" here is a rate bracket,
   // not the `band-N` colour tokens — a substring match on 'band' would pass on
-  // the wrong colour. The middle token is the `-ink` companion and not the squad
-  // colour itself, which is a FILL: #FF5315 is 3.22:1 as text on white, so the raw
-  // token here failed AA on every adherence number in the academy.
+  // the wrong colour. Both of the first two tokens are text companions rather than
+  // the fills they belong to: #FF5315 is 3.22:1 as text on white and #16a34a is
+  // 3.30:1, so the raw tokens failed AA on every 14px adherence number in the
+  // academy — which is all of them but the trainee's own text-5xl headline.
   it('colours by band, with a neutral colour for no plan', () => {
     expect(rateColor(null)).toBe('text-ink-400');
-    expect(rateColor(0.9)).toBe('text-accent-600');
+    expect(rateColor(0.9)).toBe('text-accent-900');
     expect(rateColor(0.6)).toBe('text-band-3-ink');
     expect(rateColor(0.2)).toBe('text-accent-red');
   });

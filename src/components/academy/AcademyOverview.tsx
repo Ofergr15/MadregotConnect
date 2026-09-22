@@ -312,8 +312,14 @@ function SectionHeader({
         {title}
         {count !== undefined && count > 0 && <span className="ms-1.5 text-ink-400 font-semibold">{count}</span>}
       </h2>
+      {/* 43×32 measured. Grown into the header's own mb-2 and px-1 rather than
+          given real height: a taller header would push every section down, and
+          this control is a jump between tabs — easy to miss by a thumb. */}
       {actionLabel && onAction && (
-        <button onClick={onAction} className="text-xs font-semibold text-brand-600 hover:text-brand-700 min-h-[32px]">
+        <button
+          onClick={onAction}
+          className="text-xs font-semibold text-brand-600 hover:text-brand-700 min-h-[44px] -my-1.5 -mx-1 px-2"
+        >
           {actionLabel}
         </button>
       )}

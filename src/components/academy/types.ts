@@ -78,10 +78,17 @@ export function fmtRate(rate: number | null): string {
  * the academy already used the companion; this function and seven other files did not, which is
  * how the whole middle band of every adherence number in the app came to be the one colour a
  * person reads worst — on the screens read outdoors, right after a run.
+ *
+ * The TOP band is `accent-900` for exactly the same reason, one band later. #16a34a is 3.30:1
+ * on a near-white card, which passes only at 18px+ — and the four places this function's value
+ * lands on a rate are 14px: the members list, the manager's group rollup, the group column on
+ * the overview and the member sheet's inset row. The one site that is large is the trainee's
+ * own headline rate at `text-5xl`, and it passes either way. So the whole band moves to the
+ * companion the palette already ships for untinted green text; nothing here is a fill.
  */
 export function rateColor(rate: number | null): string {
   if (rate === null) return 'text-ink-400';
-  if (rate >= 0.8) return 'text-accent-600';
+  if (rate >= 0.8) return 'text-accent-900';
   if (rate >= 0.5) return 'text-band-3-ink';
   return 'text-accent-red';
 }

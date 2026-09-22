@@ -106,7 +106,12 @@ export function BandPaces({
         </span>
         <span className="flex-1 min-w-0">
           <span className="block text-sm font-bold text-ink-700">{t('bandPacesHeader')}</span>
-          <span className={cn('block text-xs truncate', unpriced.length > 0 ? 'text-band-3-ink' : 'text-ink-400')}>
+          {/* Wraps, not truncates. This line is the only place the manager is told
+              WHY an unpriced band matters — "המתכנן לא יכול להתאים להן אימון" — and at
+              393px the truncate cut it at "לא יכול להתאי…", i.e. it clipped away the
+              consequence and left the count, which is the half a manager can already
+              see. The all-set variant is short enough to fit on one line either way. */}
+          <span className={cn('block text-xs leading-snug', unpriced.length > 0 ? 'text-band-3-ink' : 'text-ink-400')}>
             {unpriced.length > 0
               ? t('bandPacesMissing', { count: unpriced.length })
               : t('bandPacesAllSet', { count: ordered.length })}
@@ -141,7 +146,11 @@ export function BandPaces({
                   {canEdit && !editing && (
                     <button
                       onClick={() => startEdit(b)}
-                      className="text-xs font-semibold text-brand-600 hover:text-brand-700 shrink-0 min-h-[32px] px-1"
+                      // 40×32 measured, against a 44px floor. The extra 12px is grown
+                      // INTO the row's own py-3 with `-my-1.5`, and the extra width into
+                      // the flex gap with `-mx-1`, so the hit area clears the floor
+                      // without one pixel on screen moving.
+                      className="text-xs font-semibold text-brand-600 hover:text-brand-700 shrink-0 min-h-[44px] -my-1.5 -mx-1 px-2"
                     >
                       {typeof offset === 'number' ? t('edit') : t('setPace')}
                     </button>
