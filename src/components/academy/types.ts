@@ -69,10 +69,20 @@ export function fmtRate(rate: number | null): string {
   return rate === null ? '—' : `${Math.round(rate * 100)}%`;
 }
 
+/**
+ * The middle band is `band-3-ink`, not `band-3`.
+ *
+ * The squad colour #FF5315 is 3.22:1 as text on white and 2.42:1 on its own `/15` wash — it is a
+ * FILL, and the palette ships `band-3-ink` (#8A2B08) as its text companion precisely so the
+ * squad hue can stay exactly as delivered in the chips while the label on top clears AA. Most of
+ * the academy already used the companion; this function and seven other files did not, which is
+ * how the whole middle band of every adherence number in the app came to be the one colour a
+ * person reads worst — on the screens read outdoors, right after a run.
+ */
 export function rateColor(rate: number | null): string {
   if (rate === null) return 'text-ink-400';
   if (rate >= 0.8) return 'text-accent-600';
-  if (rate >= 0.5) return 'text-band-3';
+  if (rate >= 0.5) return 'text-band-3-ink';
   return 'text-accent-red';
 }
 

@@ -26,10 +26,18 @@ const STATE_LABEL: Record<FlowStep['state'], string> = {
   outsideApp: 'מחוץ למערכת',
 };
 
-/** Blue for what the app does, band-3 for shared, grey for what deliberately stays out. */
+/**
+ * Blue for what the app does, band-3 for shared, grey for what deliberately stays out.
+ *
+ * `band-3-ink` and not `band-3` for the LABEL: the squad colour is 3.23:1 as text on a card and
+ * 2.42:1 on its own `/15` wash, so on the one page whose whole job is to be read, the state pill
+ * and — worse — every open question were the least legible things on it. The palette already
+ * ships the companion token for exactly this (#8A2B08, 5.28:1 on the darkest wash the app makes)
+ * so the squad hue stays exactly as delivered in the fills and only the text darkens.
+ */
 const STATE_CLASS: Record<FlowStep['state'], string> = {
   inApp: 'bg-brand-600/15 text-brand-600',
-  partly: 'bg-band-3/15 text-band-3',
+  partly: 'bg-band-3/15 text-band-3-ink',
   outsideApp: 'bg-ink-300/40 text-ink-500',
 };
 
@@ -51,7 +59,7 @@ export default function AcademyFlowIndex() {
             <span className="rounded-full bg-brand-600/15 px-2 py-1 text-brand-600">
               <bdi dir="ltr">{counts.inApp}</bdi> שלבים במערכת
             </span>
-            <span className="rounded-full bg-band-3/15 px-2 py-1 text-band-3">
+            <span className="rounded-full bg-band-3/15 px-2 py-1 text-band-3-ink">
               <bdi dir="ltr">{counts.partly}</bdi> חלקית
             </span>
             <span className="rounded-full bg-ink-300/40 px-2 py-1 text-ink-500">
@@ -132,7 +140,7 @@ export default function AcademyFlowIndex() {
                       {step.questions.map(q => (
                         <li
                           key={q}
-                          className={`text-[11px] leading-relaxed ${step.deferred ? 'text-ink-500' : 'text-band-3'}`}
+                          className={`text-[11px] leading-relaxed ${step.deferred ? 'text-ink-500' : 'text-band-3-ink'}`}
                         >
                           {q}
                         </li>

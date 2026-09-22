@@ -106,7 +106,7 @@ export function BandPaces({
         </span>
         <span className="flex-1 min-w-0">
           <span className="block text-sm font-bold text-ink-700">{t('bandPacesHeader')}</span>
-          <span className={cn('block text-xs truncate', unpriced.length > 0 ? 'text-band-3/80' : 'text-ink-400')}>
+          <span className={cn('block text-xs truncate', unpriced.length > 0 ? 'text-band-3-ink' : 'text-ink-400')}>
             {unpriced.length > 0
               ? t('bandPacesMissing', { count: unpriced.length })
               : t('bandPacesAllSet', { count: ordered.length })}
@@ -130,7 +130,7 @@ export function BandPaces({
                   <div className="text-end shrink-0">
                     <div className={cn(
                       'text-sm font-bold tabular-nums',
-                      typeof offset === 'number' ? 'text-ink-700' : 'text-band-3',
+                      typeof offset === 'number' ? 'text-ink-700' : 'text-band-3-ink',
                     )}>
                       {typeof offset === 'number' ? fmtOffsetSec(offset) : '—'}
                     </div>

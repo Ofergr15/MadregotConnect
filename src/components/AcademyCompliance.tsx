@@ -98,16 +98,16 @@ function initialsOf(name: string) {
 
 function scoreColor(rate: number): string {
   if (rate >= 0.8) return 'text-accent-600';
-  if (rate >= 0.5) return 'text-band-3';
+  if (rate >= 0.5) return 'text-band-3-ink';
   return 'text-accent-red';
 }
 
 const metricStyle: Record<MetricStatus | PaceStatus, string> = {
   on_target: 'text-accent-600',
-  under: 'text-band-3',
-  over: 'text-band-3',
-  slower: 'text-band-3',
-  faster: 'text-band-2',
+  under: 'text-band-3-ink',
+  over: 'text-band-3-ink',
+  slower: 'text-band-3-ink',
+  faster: 'text-band-2-ink',
   unknown: 'text-ink-400',
 };
 
@@ -184,13 +184,13 @@ function ComplianceLegend({ tolerances }: { tolerances: AdherenceTolerances }) {
           <div className="border-t border-page/50 pt-3 space-y-1.5">
             <div className="font-semibold text-ink-700">שילובים שכדאי להכיר</div>
             <div className="text-ink-500">
-              <span className="text-band-3 font-semibold">מרחק מתחת</span> +{' '}
+              <span className="text-band-3-ink font-semibold">מרחק מתחת</span> +{' '}
               <span className="text-accent-600 font-semibold">קצב בטווח</span> — בוצע רק חלק
               מהאימון, אבל מה שבוצע היה בקצב שנקבע.
             </div>
             <div className="text-ink-500">
-              <span className="text-band-3 font-semibold">מרחק מתחת</span> +{' '}
-              <span className="text-band-3 font-semibold">קצב לא בטווח</span> — בוצע רק חלק
+              <span className="text-band-3-ink font-semibold">מרחק מתחת</span> +{' '}
+              <span className="text-band-3-ink font-semibold">קצב לא בטווח</span> — בוצע רק חלק
               מהאימון, וגם לא בקצב שנקבע.
             </div>
           </div>
@@ -698,7 +698,7 @@ function SegmentsPanel({ athleteId, date, workoutName }: { athleteId: string; da
                efforts instead of step by step. */
             <div className="space-y-1.5 text-xs">
               <div className={cn('font-semibold',
-                efforts.verdict === 'partial' ? 'text-band-3' : effortHeadline[efforts.verdict].style)}>
+                efforts.verdict === 'partial' ? 'text-band-3-ink' : effortHeadline[efforts.verdict].style)}>
                 {efforts.verdict === 'partial'
                   ? `בוצע חלקית — ${efforts.foundTotal} מתוך ${efforts.neededTotal} חזרות בקצב היעד`
                   : effortHeadline[efforts.verdict].text}
@@ -719,7 +719,7 @@ function SegmentsPanel({ athleteId, date, workoutName }: { athleteId: string; da
                     {r.paces.map(p => formatPace(p)).join(' · ') || '—'}
                   </span>
                   <span className={cn('font-semibold w-14 text-end',
-                    r.found >= r.needed ? 'text-accent-600' : r.attempted > 0 ? 'text-band-3' : 'text-accent-red')}>
+                    r.found >= r.needed ? 'text-accent-600' : r.attempted > 0 ? 'text-band-3-ink' : 'text-accent-red')}>
                     {r.found}/{r.needed}
                   </span>
                 </div>

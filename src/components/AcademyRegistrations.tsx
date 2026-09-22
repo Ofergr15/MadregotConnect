@@ -170,7 +170,7 @@ export function AcademyRegistrations() {
                       <CheckCircle2 className="h-4 w-4" /> {r.hasGarmin ? 'פעיל/ה' : 'אושר'}
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-band-3 shrink-0">
+                    <span className="flex items-center gap-1 text-xs font-semibold text-band-3-ink shrink-0">
                       <Clock className="h-4 w-4" /> מחכה
                     </span>
                   )}

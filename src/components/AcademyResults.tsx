@@ -21,7 +21,7 @@ interface Result {
 }
 
 const medalColor = (rank: number) =>
-  rank === 1 ? 'text-band-3' : rank === 2 ? 'text-ink-500' : rank === 3 ? 'text-band-3' : 'text-ink-400';
+  rank === 1 ? 'text-band-3-ink' : rank === 2 ? 'text-ink-500' : rank === 3 ? 'text-band-3-ink' : 'text-ink-400';
 
 export function AcademyResults() {
   const [results, setResults] = useState<Result[]>([]);
@@ -118,7 +118,7 @@ export function AcademyResults() {
         <div className="bg-band-3/10 border border-band-3/30 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <Clock className="h-4 w-4 text-band-3" />
-            <h3 className="text-sm font-bold text-band-3">מחכים לאישור ({pending.length})</h3>
+            <h3 className="text-sm font-bold text-band-3-ink">מחכים לאישור ({pending.length})</h3>
           </div>
           <div className="space-y-1.5">
             {pending.map(p => (

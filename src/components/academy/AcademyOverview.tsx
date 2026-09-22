@@ -276,7 +276,7 @@ export function AcademyOverview({
               planned sessions the week contained at all. */}
           <div className="grid grid-cols-2 gap-2.5">
             <Tile icon={Watch} label={t('statConnected')} value={`${team.connected}/${team.members}`}
-              valueClass={team.connected < team.members ? 'text-band-3' : undefined} />
+              valueClass={team.connected < team.members ? 'text-band-3-ink' : undefined} />
             <Tile icon={ClipboardCheck} label={t('statPlannedSessions')} value={`${team.completed}/${team.planned}`}
               onClick={() => onGoTab('compliance')} />
           </div>
@@ -368,7 +368,7 @@ function ActionCard({
       </span>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-bold text-ink-700">{count}</div>
-        <div className="text-xs text-band-3/80 truncate">{label}</div>
+        <div className="text-xs text-band-3-ink truncate">{label}</div>
       </div>
       <ChevronLeft className="h-4 w-4 text-band-3/70 shrink-0" />
     </button>

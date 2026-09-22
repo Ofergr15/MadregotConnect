@@ -1095,7 +1095,7 @@ function GroupPlanPicker({
               ))}
             </div>
             {lane === null ? (
-              <p className="flex items-start gap-2 text-xs text-band-3 leading-relaxed">
+              <p className="flex items-start gap-2 text-xs text-band-3-ink leading-relaxed">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                 אין דבוקה למתאמן/ת, ולכן אין ברירת מחדל — צריך לבחור קצב.
               </p>
