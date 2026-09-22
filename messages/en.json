@@ -692,7 +692,11 @@
     "stepRepeatLabel": "Step {n} · Repeat",
     "repeats": "Repeats",
     "addedSubStep": "Added sub-step",
-    "removedSubStep": "Removed sub-step"
+    "removedSubStep": "Removed sub-step",
+    "storyCopy": "Copy for story",
+    "storyCopied": "Copied",
+    "storyTime": "Time",
+    "storyPlace": "Place"
   },
   "settings": {
     "title": "Settings",

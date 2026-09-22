@@ -692,7 +692,11 @@
     "stepRepeatLabel": "שלב {n} · חזרות",
     "repeats": "חזרות",
     "addedSubStep": "שלב משנה נוסף",
-    "removedSubStep": "שלב משנה הוסר"
+    "removedSubStep": "שלב משנה הוסר",
+    "storyCopy": "העתקה לסטורי",
+    "storyCopied": "הועתק",
+    "storyTime": "שעה",
+    "storyPlace": "מקום"
   },
   "settings": {
     "title": "הגדרות",
