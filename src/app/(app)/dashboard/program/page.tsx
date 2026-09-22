@@ -600,7 +600,7 @@ export default function ProgramPage() {
                   <div className="p-3 flex-1 min-w-0 flex flex-col justify-center">
                     <h4 className={cn(
                       'font-bold text-sm leading-tight',
-                      isSelected ? 'text-band-3' : 'text-ink-700'
+                      isSelected ? 'text-band-3-ink' : 'text-ink-700'
                     )}>
                       {video.name}
                     </h4>

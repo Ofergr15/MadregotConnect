@@ -236,7 +236,7 @@ export function ActivityDetailBody({
           <StatTile icon={<Activity className="h-3.5 w-3.5 text-band-2" />} label={t('trainingEffect')}>
             <div className="flex items-baseline gap-3">
               <div>
-                <p className="text-xl font-black text-band-2 tabular-nums">{details.summary.trainingEffect.toFixed(1)}</p>
+                <p className="text-xl font-black text-band-2-ink tabular-nums">{details.summary.trainingEffect.toFixed(1)}</p>
                 <p className="text-3xs text-ink-400">{t('aerobic')}</p>
               </div>
               {details.summary.anaerobicTrainingEffect && (

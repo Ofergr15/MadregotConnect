@@ -427,8 +427,8 @@ export function ActivitySyncEditor({
             the raw error code. */}
         {loadError === 'NOT_SIGNED_IN' && !loading && (
           <div className="rounded-xl border border-band-3/30 bg-band-3/10 p-3">
-            <p className="text-sm text-band-3">{tFeed('sessionExpiredBody')}</p>
-            <Link href="/" className="mt-2 inline-block text-xs font-semibold text-band-3 underline">
+            <p className="text-sm text-band-3-ink">{tFeed('sessionExpiredBody')}</p>
+            <Link href="/" className="mt-2 inline-block text-xs font-semibold text-band-3-ink underline">
               {tFeed('signInAgain')}
             </Link>
           </div>
@@ -436,8 +436,8 @@ export function ActivitySyncEditor({
 
         {loadError && loadError !== 'NOT_SIGNED_IN' && !loading && (
           <div className="rounded-xl border border-band-3/30 bg-band-3/10 p-3">
-            <p className="text-sm text-band-3">{loadError}</p>
-            <button onClick={load} className="mt-2 text-xs font-semibold text-band-3 underline">
+            <p className="text-sm text-band-3-ink">{loadError}</p>
+            <button onClick={load} className="mt-2 text-xs font-semibold text-band-3-ink underline">
               {t('retry')}
             </button>
           </div>

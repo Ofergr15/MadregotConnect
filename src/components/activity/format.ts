@@ -45,8 +45,8 @@ const SPORT_BADGES: Record<string, RunTypeBadge> = {
   trail_running: { type: 'trail_running', label: 'Trail', color: 'text-accent-900', bg: 'bg-accent-600/15' },
   treadmill_running: { type: 'treadmill_running', label: 'Treadmill', color: 'text-ink-400', bg: 'bg-ink-300/15' },
   indoor_running: { type: 'treadmill_running', label: 'Treadmill', color: 'text-ink-400', bg: 'bg-ink-300/15' },
-  track_running: { type: 'track_running', label: 'Track', color: 'text-band-2', bg: 'bg-band-2/15' },
-  virtual_run: { type: 'virtual_run', label: 'Virtual', color: 'text-band-2', bg: 'bg-band-2/15' },
+  track_running: { type: 'track_running', label: 'Track', color: 'text-band-2-ink', bg: 'bg-band-2/15' },
+  virtual_run: { type: 'virtual_run', label: 'Virtual', color: 'text-band-2-ink', bg: 'bg-band-2/15' },
 };
 
 /**

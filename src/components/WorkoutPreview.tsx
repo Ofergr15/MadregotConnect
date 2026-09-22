@@ -37,14 +37,18 @@ const stepColors: Record<string, { dot: string; bg: string }> = {
   recovery: { dot: 'bg-accent-600/10', bg: 'bg-accent-600/10' },
 };
 
-const workoutTypeStyles: Record<string, { border: string; color: string }> = {
-  intervals: { border: 'border-s-red-400', color: 'text-accent-red' },
-  long_run: { border: 'border-s-purple-400', color: 'text-purple-600' },
-  tempo: { border: 'border-s-orange-400', color: 'text-band-3' },
-  fartlek: { border: 'border-s-pink-400', color: 'text-pink-600' },
-  progressive: { border: 'border-s-teal-400', color: 'text-teal-600' },
-  easy: { border: 'border-s-blue-400', color: 'text-band-2' },
-  recovery: { border: 'border-s-green-400', color: 'text-accent-600' },
+// Only the border is used. The map also carried a `color` per type, never read by anything —
+// and two of those were `band-3` / `band-2`, which are FILLS: 3.22:1 and 2.95:1 as text on a
+// light surface. Deleting the dead field rather than repointing it at the `-ink` companions,
+// because a colour nobody renders is not a style, it is a trap for whoever renders it next.
+const workoutTypeStyles: Record<string, { border: string }> = {
+  intervals: { border: 'border-s-red-400' },
+  long_run: { border: 'border-s-purple-400' },
+  tempo: { border: 'border-s-orange-400' },
+  fartlek: { border: 'border-s-pink-400' },
+  progressive: { border: 'border-s-teal-400' },
+  easy: { border: 'border-s-blue-400' },
+  recovery: { border: 'border-s-green-400' },
 };
 
 /** A zone name ("Z3") for the rare step that targets a zone instead of a pace. */

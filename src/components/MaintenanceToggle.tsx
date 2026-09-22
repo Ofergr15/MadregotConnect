@@ -100,7 +100,7 @@ export function MaintenanceAllowlist() {
         מורשים בזמן תחזוקה {allowlist.length > 0 && `(${allowlist.length})`}
       </p>
       <div className="flex flex-col gap-1.5 mb-2">
-        {allowlist.length === 0 && <span className="text-xs text-band-3" dir="rtl">⚠️ אף אחד לא מורשה — הפעלת תחזוקה תנעל את כולם. הוסיפו משתמשים למטה.</span>}
+        {allowlist.length === 0 && <span className="text-xs text-band-3-ink" dir="rtl">⚠️ אף אחד לא מורשה — הפעלת תחזוקה תנעל את כולם. הוסיפו משתמשים למטה.</span>}
         {allowlist.map(e => {
           const u = athletes.find(a => a.email.toLowerCase() === e);
           return (

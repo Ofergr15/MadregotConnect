@@ -28,7 +28,7 @@ export function MomentumCard({ athleteId }: { athleteId: string }) {
 
   const deltaKm = Math.round((s.thisWeek.km - s.lastWeek.km) * 10) / 10;
   const TrendIcon = deltaKm > 0.05 ? TrendingUp : deltaKm < -0.05 ? TrendingDown : Minus;
-  const trendColor = deltaKm > 0.05 ? 'text-accent-600' : deltaKm < -0.05 ? 'text-band-3' : 'text-ink-400';
+  const trendColor = deltaKm > 0.05 ? 'text-accent-600' : deltaKm < -0.05 ? 'text-band-3-ink' : 'text-ink-400';
 
   // Biggest week ever. If this week IS the peak (and it's a real week, ≥2 runs so
   // a single long run doesn't spuriously "win"), celebrate a new record.
@@ -71,7 +71,7 @@ export function MomentumCard({ athleteId }: { athleteId: string }) {
       {/* Biggest week ever — a new record this week, or the peak as a target. */}
       {peak && peak.km > 0 && (
         isRecordThisWeek ? (
-          <div className="mt-3 pt-3 border-t border-page/60 flex items-center gap-2 text-xs font-bold text-band-3">
+          <div className="mt-3 pt-3 border-t border-page/60 flex items-center gap-2 text-xs font-bold text-band-3-ink">
             <Trophy className="h-4 w-4 shrink-0" />
             <span>{t('newRecordWeek', { km: peak.km })}</span>
           </div>

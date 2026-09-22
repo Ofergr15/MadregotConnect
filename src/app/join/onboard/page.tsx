@@ -489,7 +489,7 @@ function OnboardContent() {
             <div className="bg-band-3/10 border border-band-3/30 rounded-lg p-3 flex items-start gap-2">
               <Shield className="h-4 w-4 text-band-3 mt-0.5 shrink-0" />
               <p className="text-xs text-ink-500">
-                <span className="text-band-3 font-medium">{t('verificationRequired')}</span> {t('mfaHelper')}
+                <span className="text-band-3-ink font-medium">{t('verificationRequired')}</span> {t('mfaHelper')}
               </p>
             </div>
 

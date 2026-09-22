@@ -1252,7 +1252,7 @@ export default function SettingsPage() {
               >
                 {pendOpen ? <ChevronDown className="w-4 h-4 text-band-3" /> : <ChevronRight className="w-4 h-4 text-band-3" />}
                 <Clock className="w-4 h-4 text-band-3" />
-                <h3 className="text-sm font-semibold text-band-3">{t('pendingApproval')} ({pendingUsers.length})</h3>
+                <h3 className="text-sm font-semibold text-band-3-ink">{t('pendingApproval')} ({pendingUsers.length})</h3>
               </button>
               {pendOpen && (
               <div className="space-y-2">
@@ -1260,7 +1260,7 @@ export default function SettingsPage() {
                   <div key={user.id} className="p-3 rounded-xl bg-card/80 border border-page/50">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-band-3/15 flex items-center justify-center shrink-0">
-                        <span className="text-xs font-bold text-band-3">
+                        <span className="text-xs font-bold text-band-3-ink">
                           {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                         </span>
                       </div>

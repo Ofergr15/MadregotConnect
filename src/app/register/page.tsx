@@ -647,6 +647,12 @@ export default function RegisterPage() {
                 >
                   <input type="radio" name="group" checked={selected} onChange={() => setGroupId(g.id)} className="sr-only" />
                   <span className="min-w-0 text-center">
+                    {/* `band-3` and NOT `band-3-ink` — the one place in the app where that is
+                        right. The `-ink` companion exists because the squad orange is 3.22:1 as
+                        text on a LIGHT surface; this page is dark, and the same orange measures
+                        about 5:1 on it. Swapping in the dark-brown companion here would put dark
+                        on dark and make the selected group the unreadable one. Polarity decides
+                        which token is correct, not the token's name. */}
                     <span className={cn('block text-2xs font-semibold leading-tight', selected ? 'text-band-3' : 'text-white')}>
                       {groupLabel(g)}
                     </span>

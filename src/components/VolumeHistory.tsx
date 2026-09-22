@@ -57,7 +57,7 @@ export function VolumeHistory({ athleteId }: { athleteId: string }) {
   const prev = series[series.length - 2];
   const delta = prev ? Math.round((last.km - prev.km) * 10) / 10 : 0;
   const TrendIcon = delta > 0.05 ? TrendingUp : delta < -0.05 ? TrendingDown : Minus;
-  const trendColor = delta > 0.05 ? 'text-accent-600' : delta < -0.05 ? 'text-band-3' : 'text-ink-400';
+  const trendColor = delta > 0.05 ? 'text-accent-600' : delta < -0.05 ? 'text-band-3-ink' : 'text-ink-400';
 
   // Chart geometry (viewBox; scales to container width).
   const W = 1000, H = 240;

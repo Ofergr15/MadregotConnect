@@ -635,7 +635,7 @@ function AchievementCard({
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-2xs font-bold uppercase tracking-wider text-band-3">{t('newBadgeEarned')}</p>
+            <p className="text-2xs font-bold uppercase tracking-wider text-band-3-ink">{t('newBadgeEarned')}</p>
             <p className="text-lg font-black text-ink-700 truncate" dir="auto">{badgeName}</p>
           </div>
         </div>

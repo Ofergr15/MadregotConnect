@@ -381,7 +381,7 @@ export default function EventDetailPage() {
             <p className="text-xs text-ink-400">
               <span className="font-bold text-ink-700">{registrations.registeredCount}</span> {t('registeredLabel')}
               {registrations.waitlistCount > 0 && (
-                <span className="text-band-3 font-semibold ms-2">
+                <span className="text-band-3-ink font-semibold ms-2">
                   +{registrations.waitlistCount} {t('waitlistedLabel')}
                 </span>
               )}
@@ -424,7 +424,7 @@ export default function EventDetailPage() {
             )}
             {myStatus === 'waitlisted' && (
               <div className="flex items-center justify-between gap-3 rounded-xl border border-band-3/30 bg-band-3/10 px-3 py-2.5">
-                <span className="flex items-center gap-1.5 text-sm font-bold text-band-3">
+                <span className="flex items-center gap-1.5 text-sm font-bold text-band-3-ink">
                   <Clock className="h-4 w-4" /> {t('youAreWaitlisted')}
                 </span>
                 <Button variant="ghost" size="sm" onClick={handleCancel} disabled={actionPending}>

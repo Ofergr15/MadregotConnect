@@ -418,7 +418,7 @@ function RaceMapView({ races, dateLocale }: { races: EventRow[]; dateLocale: str
         <div ref={mapRef} className="absolute inset-0" style={{ zIndex: 0 }} />
         {goalRace && (
           <div className="absolute top-3 start-3 z-10 bg-page/90 backdrop-blur border border-page rounded-xl p-3.5 max-w-[260px]">
-            <p className="text-3xs font-bold text-band-3 uppercase tracking-wider mb-1">{t('nextRace')}</p>
+            <p className="text-3xs font-bold text-band-3-ink uppercase tracking-wider mb-1">{t('nextRace')}</p>
             <p className="text-sm font-bold text-ink-700 truncate">{goalRace.name}</p>
             <div className="flex items-center gap-2 mt-1.5">
               <span className="text-xl font-black text-ink-700 tabular-nums">{daysUntil(goalRace.date)}</span>

@@ -965,7 +965,7 @@ function ProfileContent() {
                   )}
                   {mfaRequired && (
                     <div className="space-y-2">
-                      <p className="text-xs text-band-3">{t('verificationCodeSent')}</p>
+                      <p className="text-xs text-band-3-ink">{t('verificationCodeSent')}</p>
                       <input
                         type="text"
                         placeholder={t('sixDigitCode')}

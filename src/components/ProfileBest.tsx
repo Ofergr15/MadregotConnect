@@ -19,7 +19,7 @@ interface Result {
 }
 
 const medalColor = (rank: number) =>
-  rank === 1 ? 'text-band-3' : rank === 2 ? 'text-ink-500' : rank === 3 ? 'text-band-3' : 'text-ink-400';
+  rank === 1 ? 'text-band-3-ink' : rank === 2 ? 'text-ink-500' : rank === 3 ? 'text-band-3-ink' : 'text-ink-400';
 
 /**
  * Profile "Your Best": shows the athlete's approved results and lets them submit
@@ -140,7 +140,7 @@ export function ProfileBest({ athleteId, athleteName }: { athleteId: string; ath
               <Clock className="h-4 w-4 text-band-3 shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-ink-700">{r.test_name}</div>
-                <div className="text-xs text-band-3/80">{t('awaitingApproval')}</div>
+                <div className="text-xs text-band-3-ink">{t('awaitingApproval')}</div>
               </div>
               <div className="text-lg font-black text-ink-700 tabular-nums shrink-0">{formatTime(r.time_seconds)}</div>
             </div>
