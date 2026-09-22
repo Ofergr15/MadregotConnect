@@ -25,7 +25,9 @@ import { AlertCircle, Info, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DIRECTION_COLOR,
+  DIRECTION_INK,
   PACE_STATUS_COLOR,
+  PACE_STATUS_INK,
   ZERO_AT_TOLERANCE_MULTIPLE,
   planGap,
   type ExecutionDirection,
@@ -158,6 +160,8 @@ function DeviationAxis({
   const markerPct = clamp(pos(actual));
   const insideTolerance = actual >= bandMin - toleranceSec && actual <= bandMax + toleranceSec;
   const color = DIRECTION_COLOR[direction];
+  // Pin keeps the hue, the pace above it darkens — see DIRECTION_INK.
+  const ink = DIRECTION_INK[direction];
 
   return (
     <div>
@@ -194,7 +198,7 @@ function DeviationAxis({
           className="absolute top-0.5 flex flex-col items-center"
           style={{ left: `${markerPct}%`, transform: 'translateX(-50%)' }}
         >
-          <span className="text-2xs font-bold tabular-nums" style={{ color }}>{formatPace(actual)}</span>
+          <span className="text-2xs font-bold tabular-nums" style={{ color: ink }}>{formatPace(actual)}</span>
           <span className="mt-0.5 h-4 w-1.5 rounded-full" style={{ background: color }} />
         </div>
       </div>
@@ -269,7 +273,7 @@ function RepsChart({
       {ticks.map((tick) => (
         <g key={tick}>
           <line x1={PAD_L - 3} x2={PAD_L} y1={y(tick)} y2={y(tick)} stroke="#C9C9C9" strokeWidth="1" />
-          <text x={PAD_L - 6} y={y(tick) + 4} textAnchor="end" fontSize="10" fill={DIRECTION_COLOR.on_target} className="tabular-nums">
+          <text x={PAD_L - 6} y={y(tick) + 4} textAnchor="end" fontSize="10" fill={DIRECTION_INK.on_target} className="tabular-nums">
             {formatPace(tick)}
           </text>
         </g>
@@ -290,7 +294,7 @@ function RepsChart({
         height={Math.max(y(bandMax) - y(bandMin), 1.5)}
         fill={`${DIRECTION_COLOR.on_target}3D`}
       />
-      <text x={CHART_W - PAD_R} y={y(bandMin) - 4} textAnchor="end" fontSize="10" fill={DIRECTION_COLOR.on_target}>
+      <text x={CHART_W - PAD_R} y={y(bandMin) - 4} textAnchor="end" fontSize="10" fill={DIRECTION_INK.on_target}>
         {t('targetBand')}
       </text>
 
@@ -308,7 +312,7 @@ function RepsChart({
             <circle cx={x(index)} cy={y(rep.actualPace as number)} r="4.5" fill={color} stroke="#FFFFFF" strokeWidth="1.5" />
             {/* Rep number only. The pace of each dot is on its own row directly
                 below the chart; printing it twice, 20px apart, read as noise. */}
-            <text x={x(index)} y={CHART_H - 3} textAnchor="middle" fontSize="10" fill="#8A8A8A" className="tabular-nums">
+            <text x={x(index)} y={CHART_H - 3} textAnchor="middle" fontSize="10" fill="#5F5F5F" className="tabular-nums">
               {index + 1}
             </text>
           </g>
@@ -324,12 +328,14 @@ function RepRows({ reps }: { reps: ExecutionRep[] }) {
     <div className="divide-y divide-page">
       {reps.map((rep, index) => {
         const color = PACE_STATUS_COLOR[rep.status];
+        // Wash keeps the hue, every glyph on the row darkens — see DIRECTION_INK.
+        const ink = PACE_STATUS_INK[rep.status];
         const delta = rep.deviation ?? 0;
         return (
           <div key={rep.index} className="flex items-center gap-3 py-2">
             <span
               className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-2xs font-bold tabular-nums"
-              style={{ background: `${color}1F`, color }}
+              style={{ background: `${color}1F`, color: ink }}
             >
               {index + 1}
             </span>
@@ -341,10 +347,10 @@ function RepRows({ reps }: { reps: ExecutionRep[] }) {
                 ? <><Num>{(rep.actualDistanceM / 1000).toFixed(2)}</Num> {t('unitKm')}</>
                 : rep.label}
             </span>
-            <span className="text-sm font-bold tabular-nums" style={{ color }}>
+            <span className="text-sm font-bold tabular-nums" style={{ color: ink }}>
               <Num>{formatPace(rep.actualPace as number)}</Num>
             </span>
-            <span className="w-16 shrink-0 text-end text-2xs font-semibold" style={{ color }}>
+            <span className="w-16 shrink-0 text-end text-2xs font-semibold" style={{ color: ink }}>
               {delta === 0
                 ? t('repInBand')
                 : <><Num>{delta > 0 ? '+' : '−'}{Math.abs(delta)}</Num>{t('unitSec')}</>}
@@ -361,13 +367,14 @@ function RepRows({ reps }: { reps: ExecutionRep[] }) {
 function MetricRow({ metric, note }: { metric: ExecutionMetric; note?: React.ReactNode }) {
   const t = useTranslations('execution');
   const graded = metric.status !== 'unknown';
+  // Every use of this in the row is a glyph, so it is the ink map throughout.
   const color = graded
     ? metric.status === 'on_target'
-      ? DIRECTION_COLOR.on_target
+      ? DIRECTION_INK.on_target
       : metric.status === 'faster' || metric.status === 'under'
-        ? DIRECTION_COLOR.too_fast
-        : DIRECTION_COLOR.too_slow
-    : '#8A8A8A';
+        ? DIRECTION_INK.too_fast
+        : DIRECTION_INK.too_slow
+    : '#5F5F5F';
 
   // `estimated_plan` means adherence.ts INVENTED this target (a duration derived
   // from a distance the coach wrote, say). Printing it in the "planned" column
@@ -686,6 +693,8 @@ export function ExecutionQuality({
     ? Math.round(workReps.reduce((sum, rep) => sum + (rep.actualPace as number), 0) / workReps.length)
     : paceMetric?.actual ?? null;
   const color = DIRECTION_COLOR[verdict.direction];
+  // Hairline keeps the hue, headline darkens — see DIRECTION_INK.
+  const ink = DIRECTION_INK[verdict.direction];
 
   /**
    * Whether plotting that pace against the coach's band is a fair comparison.
@@ -728,7 +737,7 @@ export function ExecutionQuality({
             {/* One statement of the verdict, not two: the coloured hairline above,
                 this coloured headline and the ring already say it three ways. A
                 chip repeating these exact words sat directly under them. */}
-            <h3 className="mt-1.5 text-xl font-black leading-tight" style={{ color }}>
+            <h3 className="mt-1.5 text-xl font-black leading-tight" style={{ color: ink }}>
               {t(`dir_${verdict.direction}` as 'dir_on_target')}
             </h3>
             <p className="mt-1 text-sm leading-relaxed text-ink-500">{verdictDetail(verdict, t)}</p>

@@ -15,7 +15,7 @@
 import { useTranslations } from 'next-intl';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { DIRECTION_COLOR, type ExecutionSummary } from '@/lib/plan-execution/verdict';
+import { DIRECTION_COLOR, DIRECTION_INK, type ExecutionSummary } from '@/lib/plan-execution/verdict';
 import { ExecutionRing } from './ExecutionRing';
 
 export function ExecutionBadge({
@@ -31,7 +31,11 @@ export function ExecutionBadge({
   const t = useTranslations('execution');
   if (!summary || summary.status !== 'graded' || summary.score == null) return null;
 
+  // The wash keeps the verdict's own hue; the sentence on top of it uses the
+  // text companion. This badge sits on the page tint on the runs list, where the
+  // bright green measured 2.47:1.
   const color = DIRECTION_COLOR[summary.direction];
+  const ink = DIRECTION_INK[summary.direction];
 
   return (
     <div
@@ -54,7 +58,7 @@ export function ExecutionBadge({
       />
       <div className="min-w-0 flex-1">
         <p className="text-3xs font-bold uppercase tracking-wide text-ink-400">{t('feedLabel')}</p>
-        <p className="truncate text-sm font-bold leading-tight" style={{ color }}>
+        <p className="truncate text-sm font-bold leading-tight" style={{ color: ink }}>
           {t(`dir_${summary.direction}` as 'dir_on_target')}
         </p>
         {summary.workoutName && (

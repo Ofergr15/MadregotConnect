@@ -705,6 +705,39 @@ export const DIRECTION_COLOR: Record<ExecutionDirection, string> = {
   unknown: '#B9B9B9',
 };
 
+/**
+ * THE SAME COLOURS, DARKENED FOR TEXT. Use these wherever a direction colours a
+ * GLYPH; keep `DIRECTION_COLOR` for arcs, pins, dots, bars and washes.
+ *
+ * The audit caught it on the runs list: the execution badge sits on the page
+ * tint (#DFDFDF), and `on_target` green measures 2.47:1 there — the score, the
+ * percent sign and the verdict sentence all failed AA on the one row that has
+ * something to say. It is 3.26:1 on a white card too, so this was never only
+ * about the tint; the badge is just where it is worst.
+ *
+ * Same move as `accent.900`, `band-N-ink` and `accent-red-ink` in the Tailwind
+ * config, and for the same reason: the fills keep the hue the design delivered
+ * and only the label darkens. Each value below holds its own hue and clears
+ * 4.5:1 against the WORST surface the app produces, the page tint:
+ *
+ *   on_target  #14532d  6.8:1     (= accent.900)
+ *   too_fast   #1525FF  5.8:1     (brand-600 already passes — unchanged)
+ *   too_slow   #8A2B08  6.5:1     (= band-3-ink; #FF5315 was 2.4:1)
+ *   too_long   #0B5285  6.1:1     (= band-2-ink; #159AFF was 2.2:1)
+ *   mixed      #8F2B2B  5.5:1     (= accent-red-ink)
+ *   unknown    #5F5F5F  4.8:1     (= ink-400; #B9B9B9 is a border colour)
+ */
+export const DIRECTION_INK: Record<ExecutionDirection, string> = {
+  on_target: '#14532d',
+  incomplete: '#8A2B08',
+  too_fast: '#1525FF',
+  too_slow: '#8A2B08',
+  mixed: '#8F2B2B',
+  too_long: '#0B5285',
+  too_short: '#8A2B08',
+  unknown: '#5F5F5F',
+};
+
 /** Ring fill for a score, when there is no direction to colour by. */
 export const NEUTRAL_RING_COLOR = '#B9B9B9';
 
@@ -718,4 +751,12 @@ export const PACE_STATUS_COLOR: Record<PaceStatus, string> = {
   faster: DIRECTION_COLOR.too_fast,
   slower: DIRECTION_COLOR.too_slow,
   unknown: DIRECTION_COLOR.unknown,
+};
+
+/** The text companion of the row above — see `DIRECTION_INK`. */
+export const PACE_STATUS_INK: Record<PaceStatus, string> = {
+  on_target: DIRECTION_INK.on_target,
+  faster: DIRECTION_INK.too_fast,
+  slower: DIRECTION_INK.too_slow,
+  unknown: DIRECTION_INK.unknown,
 };

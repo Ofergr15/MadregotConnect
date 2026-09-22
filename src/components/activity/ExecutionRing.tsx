@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
   DIRECTION_COLOR,
+  DIRECTION_INK,
   NEUTRAL_RING_COLOR,
   type ExecutionDirection,
 } from '@/lib/plan-execution/verdict';
@@ -47,6 +48,10 @@ export function ExecutionRing({
   const circumference = 2 * Math.PI * radius;
   const pct = score == null ? 0 : Math.max(0, Math.min(100, score)) / 100;
   const color = score == null ? NEUTRAL_RING_COLOR : DIRECTION_COLOR[direction];
+  // The ARC keeps the verdict's delivered hue; the digits inside it use the text
+  // companion. On the runs list this ring sits on the page tint, where the
+  // on-target green measured 2.47:1 as text — see DIRECTION_INK.
+  const ink = DIRECTION_INK[direction];
 
   // Draws itself in on mount: the arc IS the number, so animating it makes the
   // score legible as a proportion before anyone reads the digits.
@@ -98,7 +103,7 @@ export function ExecutionRing({
         {score == null ? (
           <span className="font-bold text-ink-400" style={{ fontSize }}>—</span>
         ) : (
-          <span className="font-bold tabular-nums" style={{ fontSize, color }}>
+          <span className="font-bold tabular-nums" style={{ fontSize, color: ink }}>
             {score}
             {/* Floored at 10px. Half of the score's size is a good proportion on
                 the big ring and stops being a size on the small one: at size=48
