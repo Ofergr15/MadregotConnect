@@ -81,6 +81,39 @@ export interface ZoomScrollInput {
 export const zoomScroll = ({ scroll, pointInContent, ratio }: ZoomScrollInput): number =>
   scroll + pointInContent * (ratio - 1);
 
+export interface ScrollAnchorInput {
+  /** Distance from the content's START edge (top, or left) to the point, unscaled. */
+  pointInContent: number;
+  /** The content's current size along that axis, unscaled. */
+  contentSize: number;
+  /**
+   * Whether the scrollable area grows away from the scroll origin — true for the
+   * horizontal axis of a `dir="rtl"` scroller, false for everything else.
+   */
+  growsFromEnd: boolean;
+}
+
+/**
+ * The same point, re-expressed against the edge the scroll box grows FROM.
+ *
+ * MEASURED, identically in Chromium and WebKit, on the real Program screen: at 200%
+ * and scrolled to the middle of the range, one tap on "+" left the point that had
+ * been in the centre of the screen 170px away from it — exactly the scroll offset.
+ *
+ * The reason is that an RTL scroller's overflow is added on the LEFT while
+ * `scrollLeft: 0` stays pinned to the RIGHT. So when the pages get wider, the
+ * content's left edge slides left by the whole of the growth at an unchanged
+ * `scrollLeft`, and a correction phrased as a distance from that left edge is
+ * short by precisely how far the box was scrolled. Measured from the right edge —
+ * a negative number, the edge that does not move — it is right on both axes and in
+ * both directions.
+ */
+export const scrollAnchor = ({
+  pointInContent,
+  contentSize,
+  growsFromEnd,
+}: ScrollAnchorInput): number => (growsFromEnd ? pointInContent - contentSize : pointInContent);
+
 /** Hard ceiling on canvas pixels, well under the ~16.7M iOS gives up at. */
 export const MAX_CANVAS_PIXELS = 8_000_000;
 /** And on either dimension — older iPhones cap a canvas edge at 4096. */

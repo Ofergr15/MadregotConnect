@@ -10,6 +10,7 @@ import {
   clampZoom,
   FIT_ZOOM,
   renderScale,
+  scrollAnchor,
   stepZoom,
   zoomScroll,
 } from '@/lib/pdf/zoom';
@@ -67,6 +68,28 @@ const DOUBLE_TAP_MS = 300;
 const DOUBLE_TAP_SLOP_PX = 32;
 /** What a double tap zooms to when the page is at fit. */
 const DOUBLE_TAP_ZOOM = 2;
+
+/**
+ * Safari's own pinch. It is not in any standard and TypeScript's DOM library does
+ * not know it, but it is what every iPhone reports for two fingers — and an
+ * installed PWA gets no page-level pinch to fall back on, so this is the gesture.
+ * `scale` is cumulative from the start of the gesture.
+ */
+interface GestureEvent extends UIEvent {
+  readonly scale: number;
+  readonly clientX: number;
+  readonly clientY: number;
+}
+
+/**
+ * MEASURED: iOS Safari has `ongesturechange` on `window`, but some WebKit builds
+ * (Playwright's, among others) ship the events and the constructor WITHOUT the
+ * on-handler property — so detecting only the handler misses a WebKit that does
+ * send gestures, and the touch path then has to carry it. Either signal is enough.
+ */
+const HAS_GESTURE_EVENTS =
+  typeof window !== 'undefined' &&
+  ('ongesturechange' in window || typeof (window as { GestureEvent?: unknown }).GestureEvent === 'function');
 
 interface Props {
   url: string;
@@ -182,9 +205,30 @@ export function PlanPdfViewer({ url, title }: Props) {
         y: el.clientHeight / 2 + el.getBoundingClientRect().top - rect.top,
       };
       const ratio = target / prev;
+      // In RTL the scrollable area grows LEFTWARDS while scrollLeft 0 stays pinned
+      // to the right, so the horizontal anchor has to be measured from the content's
+      // right edge — the one that does not move. See `scrollAnchor`.
+      const rtl = getComputedStyle(el).direction === 'rtl';
       pendingScroll.current = {
-        left: zoomScroll({ scroll: el.scrollLeft, pointInContent: p.x, ratio }),
-        top: zoomScroll({ scroll: el.scrollTop, pointInContent: p.y, ratio }),
+        left: zoomScroll({
+          scroll: el.scrollLeft,
+          pointInContent: scrollAnchor({
+            pointInContent: p.x,
+            contentSize: rect.width,
+            growsFromEnd: rtl,
+          }),
+          ratio,
+        }),
+        top: zoomScroll({
+          scroll: el.scrollTop,
+          pointInContent: scrollAnchor({
+            pointInContent: p.y,
+            contentSize: rect.height,
+            // Blocks always grow downwards, whatever the writing direction.
+            growsFromEnd: false,
+          }),
+          ratio,
+        }),
       };
     }
     setZoom(target);
@@ -270,7 +314,9 @@ export function PlanPdfViewer({ url, title }: Props) {
       const rect = content.getBoundingClientRect();
       originX = (a.clientX + b.clientX) / 2 - rect.left;
       originY = (a.clientY + b.clientY) / 2 - rect.top;
-      pinchDist = spread(a, b);
+      // On Safari the scale comes from `gesturechange`, which has already done this
+      // arithmetic; leaving `pinchDist` at 0 keeps the two paths from both scaling.
+      pinchDist = HAS_GESTURE_EVENTS ? 0 : spread(a, b);
       pinchZoom = zoomRef.current;
       pinchScale = 1;
       moved = true;
@@ -284,10 +330,12 @@ export function PlanPdfViewer({ url, title }: Props) {
         }
         return;
       }
-      if (e.touches.length !== 2 || pinchDist <= 0) return;
+      if (e.touches.length !== 2) return;
       // Without this the scroller pans on two fingers as well, so the page runs
-      // away from the gesture that is trying to scale it.
+      // away from the gesture that is trying to scale it. Needed on Safari too,
+      // where the scale itself comes from the gesture events below.
       e.preventDefault();
+      if (pinchDist <= 0) return;
       const raw = spread(e.touches[0], e.touches[1]) / pinchDist;
       // Previewed within the zoom limits, so the page cannot be stretched to
       // somewhere it will snap back from when the fingers lift.
@@ -348,17 +396,56 @@ export function PlanPdfViewer({ url, title }: Props) {
       commitZoom(zoomRef.current * Math.exp(-e.deltaY / 180), at);
     };
 
+    // Safari — which is every iPhone, including this app installed to the home
+    // screen — reports a two-finger pinch as its own `gesture*` events as well as
+    // as touches, and it gives those events the scale it has already decided on.
+    // Using them is both smoother and closer to what the OS thinks is happening,
+    // so where they exist they win and the touch pinch above stands down.
+    const onGestureStart = (e: GestureEvent) => {
+      e.preventDefault();
+      const content = contentRef.current;
+      if (!content) return;
+      const rect = content.getBoundingClientRect();
+      originX = e.clientX - rect.left;
+      originY = e.clientY - rect.top;
+      pinchZoom = zoomRef.current;
+      pinchScale = 1;
+      // So the finger that lifts out of a pinch cannot also read as a tap.
+      moved = true;
+    };
+
+    const onGestureChange = (e: GestureEvent) => {
+      e.preventDefault();
+      pinchScale = clampZoom(pinchZoom * e.scale) / pinchZoom;
+      preview(pinchScale);
+    };
+
+    const onGestureEnd = (e: GestureEvent) => {
+      e.preventDefault();
+      clearPreview();
+      commitZoom(pinchZoom * pinchScale, { x: originX, y: originY });
+      pinchScale = 1;
+    };
+
     el.addEventListener('touchstart', onTouchStart, { passive: true });
     el.addEventListener('touchmove', onTouchMove, { passive: false });
     el.addEventListener('touchend', onTouchEnd, { passive: true });
     el.addEventListener('touchcancel', onTouchCancel, { passive: true });
     el.addEventListener('wheel', onWheel, { passive: false });
+    if (HAS_GESTURE_EVENTS) {
+      el.addEventListener('gesturestart', onGestureStart as EventListener, { passive: false });
+      el.addEventListener('gesturechange', onGestureChange as EventListener, { passive: false });
+      el.addEventListener('gestureend', onGestureEnd as EventListener, { passive: false });
+    }
     return () => {
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchmove', onTouchMove);
       el.removeEventListener('touchend', onTouchEnd);
       el.removeEventListener('touchcancel', onTouchCancel);
       el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('gesturestart', onGestureStart as EventListener);
+      el.removeEventListener('gesturechange', onGestureChange as EventListener);
+      el.removeEventListener('gestureend', onGestureEnd as EventListener);
       clearPreview();
     };
   }, [state, commitZoom]);
@@ -475,10 +562,26 @@ export function PlanPdfViewer({ url, title }: Props) {
         ) : (
           <div
             ref={contentRef}
-            className="flex flex-col items-center gap-3"
-            // `will-change` so the live pinch is composited rather than repainted:
-            // the transform is written every frame the fingers move.
-            style={{ willChange: 'transform' }}
+            className="flex flex-col gap-3"
+            style={{
+              // `will-change` so the live pinch is composited rather than repainted:
+              // the transform is written every frame the fingers move.
+              willChange: 'transform',
+              // NOT `items-center`, and this is a measured bug, not a preference.
+              // A flex item centred on the cross axis that is WIDER than its
+              // container overflows in both directions, and the half that overflows
+              // towards the container's start edge cannot be scrolled to: at 263% the
+              // pages measured 934px wide while the scroller reported a scrollWidth of
+              // 653, so ~280px of every page was unreachable. That is most of what
+              // "the zoom breaks everything" was.
+              //
+              // `max-content` + auto inline margins is the fix: the box is as wide as
+              // the widest page, it is centred while it fits, and once it does not,
+              // the auto margins resolve to zero and every pixel of it is inside the
+              // scrollable area.
+              width: 'max-content',
+              marginInline: 'auto',
+            }}
           >
             {pages.map((page, i) => (
               <PdfPage
