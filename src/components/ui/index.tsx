@@ -414,6 +414,17 @@ export function SegmentedControl<T extends string>({
      * name of still beats a track that runs off the screen.
      */
     iconOnly?: boolean;
+    /**
+     * A SHORT string shown beside the icon in `iconOnly` mode — a count, not a
+     * label. The five-segment category filter on the feedback inbox needs both
+     * halves of its labels: the icon says which pile, and the number says whether
+     * the pile is worth opening ("⚠️ כאב (0)" is the answer a coach wants most
+     * often). Dropping to icons alone would have thrown the number away, and
+     * keeping the words truncated them — measured 53px shown against 69px
+     * needed at 393px. The accessible name still comes from `label`, so the full
+     * Hebrew phrase including the count is what a screen reader announces.
+     */
+    badge?: string;
   }>;
   className?: string;
 }) {
@@ -443,6 +454,12 @@ export function SegmentedControl<T extends string>({
           >
             {Icon && <Icon className="h-4 w-4 shrink-0" />}
             {!opt.iconOnly && <span className="truncate">{opt.label}</span>}
+            {opt.iconOnly && opt.badge && (
+              // `aria-hidden` because `aria-label` above already carries the count;
+              // without it the segment is announced twice, once as the phrase and
+              // once as a bare number.
+              <span aria-hidden className="text-xs font-bold tabular-nums">{opt.badge}</span>
+            )}
           </button>
         );
       })}

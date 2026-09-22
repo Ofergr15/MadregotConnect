@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { MessageSquare, AlertTriangle, MessageCircle, Bell } from 'lucide-react';
 import { feelInfo, rpeHex, rpeLabel } from '@/lib/feedback-scales';
-import { resolveGroup } from '@/lib/utils';
+import { cn, resolveGroup } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { SkeletonList, SegmentedControl, Card, EmptyState } from '@/components/ui';
 import { FeedbackThread, type ThreadMessage } from '@/components/FeedbackThread';
@@ -89,29 +89,46 @@ export default function WorkoutFeedbackPage() {
         <p className="text-sm text-ink-400 mt-1">איך הרגישו הרצים אחרי האימונים</p>
       </div>
 
-      {/* Range selector */}
+      {/* Range selector.
+
+          Full width and not `w-fit`. `w-fit` sizes the track to the content the
+          segments ASK for, but each segment is `flex-1 min-w-0 truncate`, so the
+          asking and the fitting cancel out: the track came out at 145px and every
+          label was clipped ("30 ימים" needed 48px inside a 45px segment). Given
+          the whole column each segment gets ~113px, and the control now lines up
+          with the category filter directly below it. */}
       <SegmentedControl
         value={String(days)}
         onChange={(v) => setDays(Number(v))}
         options={[7, 30, 90].map((d) => ({ value: String(d), label: `${d} ימים` }))}
-        className="mb-4 w-fit"
+        className="mb-4"
       />
 
       {loading ? (
         <SkeletonList count={5} />
       ) : (
         <>
-          {/* Filter — exclusive choice (all/pain/wants/comment), same
-              SegmentedControl pattern as the days range selector above. */}
+          {/* Filter — exclusive choice (all/pain/wants/comment/missing), same
+              SegmentedControl pattern as the days range selector above.
+
+              Five segments of Hebrew words do not fit a phone: the widest,
+              "⚠️ כאב (1)", measured 53px shown against 69px needed at 393px and
+              49 against 69 at 375px, so every category was clipped mid-word. The
+              four narrow ones therefore go icon + count (`iconOnly` + `badge`),
+              and each icon is the one this page already uses for that same pile
+              elsewhere — AlertTriangle for pain, MessageCircle for "asked for
+              feedback", MessageSquare for a comment, Bell for the ones who ran
+              and said nothing (the MissingCard's own badge). `label` stays the
+              full phrase, which is what `aria-label` and the tooltip announce. */}
           <SegmentedControl
             value={filter}
             onChange={setFilter}
             options={[
               { value: 'all', label: `הכל (${counts.total})` },
-              { value: 'pain', label: `⚠️ כאב (${counts.pain})` },
-              { value: 'wants', label: `ביקשו משוב (${counts.wantsFeedback})` },
-              { value: 'comment', label: `עם הערה (${counts.withComment})` },
-              { value: 'missing', label: `לא הגיבו (${counts.missing})` },
+              { value: 'pain', label: `כאב (${counts.pain})`, icon: AlertTriangle, iconOnly: true, badge: String(counts.pain) },
+              { value: 'wants', label: `ביקשו משוב (${counts.wantsFeedback})`, icon: MessageCircle, iconOnly: true, badge: String(counts.wantsFeedback) },
+              { value: 'comment', label: `עם הערה (${counts.withComment})`, icon: MessageSquare, iconOnly: true, badge: String(counts.withComment) },
+              { value: 'missing', label: `לא הגיבו (${counts.missing})`, icon: Bell, iconOnly: true, badge: String(counts.missing) },
             ]}
             className="mb-4"
           />
@@ -151,7 +168,11 @@ function MissingCard({ m }: { m: MissingEntry }) {
         <AthleteLink
           athleteId={m.athleteId}
           name={m.name}
-          className="flex min-w-0 flex-1 items-center gap-3"
+          // 36px tall, because that is exactly the avatar. It is the card's main
+          // control — it opens the athlete the coach is about to chase — so it
+          // grows into the card's own padding with `-my-1`: 44px of thumb, and the
+          // row's height is still set by the avatar, so nothing moves.
+          className="flex min-w-0 flex-1 items-center gap-3 min-h-[44px] -my-1"
         >
           {m.avatarUrl
             ? <img src={m.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
@@ -159,7 +180,17 @@ function MissingCard({ m }: { m: MissingEntry }) {
           <span className="flex-1 min-w-0">
             <span className="flex items-center gap-2">
               <span className="text-sm font-bold text-ink-700 truncate" dir="auto">{m.name}</span>
-              {rg && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: rg.hex, backgroundColor: `${rg.hex}20` }}>{m.squad}</span>}
+              {/* The squad chip takes `resolveGroup(...).colors.chip`, not the raw
+                  `hex`. `hex` is the squad's IDENTITY colour — right for a dot, a
+                  bar or a chart series, and that is all GROUP_HEX was written for.
+                  Printing it as 10px TEXT on its own 12%-alpha wash measured
+                  2.96:1 for squad 1 (#16a34a) and worse for squad 3, i.e. it
+                  failed AA at the smallest type on the screen. `colors.chip` is
+                  the same three hues with the ink companions the palette already
+                  ships for exactly this (`accent-900` / `band-2-ink` /
+                  `band-3-ink`), so the squad still reads as its own colour. Same
+                  change in FeedbackCard below — the two cards are twins. */}
+              {rg && <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', rg.colors.chip.bg, rg.colors.chip.text)}>{m.squad}</span>}
             </span>
             <span className="block text-xs text-ink-400 truncate">
               {m.activityName || 'אימון'}{km ? ` · ${km} ק״מ` : ''}{dateStr ? ` · ${dateStr}` : ''}
@@ -194,7 +225,8 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
         <AthleteLink
           athleteId={it.athleteId}
           name={it.name}
-          className="flex min-w-0 flex-1 items-center gap-3"
+          // Same 36→44 grow as MissingCard's link above.
+          className="flex min-w-0 flex-1 items-center gap-3 min-h-[44px] -my-1"
         >
           {it.avatarUrl
             ? <img src={it.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
@@ -202,7 +234,8 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
           <span className="flex-1 min-w-0">
             <span className="flex items-center gap-2">
               <span className="text-sm font-bold text-ink-700 truncate" dir="auto">{it.name}</span>
-              {rg && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: rg.hex, backgroundColor: `${rg.hex}20` }}>{it.squad}</span>}
+              {/* Same chip, same reason as MissingCard's — see the note there. */}
+              {rg && <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', rg.colors.chip.bg, rg.colors.chip.text)}>{it.squad}</span>}
             </span>
             <span className="block text-xs text-ink-400 truncate">
               {it.activityName || 'אימון'}{km ? ` · ${km} ק״מ` : ''}{dateStr ? ` · ${dateStr}` : ''}

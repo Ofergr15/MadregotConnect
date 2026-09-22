@@ -1,8 +1,10 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { getPlanWeekStart, israelDateAnchor, toISODate } from '@/lib/utils';
 import { planDayKey } from '@/lib/plans/workout-parsing';
+import { useWorkoutTypeLabel } from '@/lib/plans/use-workout-type-label';
 import { AttendanceRSVP } from './AttendanceRSVP';
 
 // The athlete's "confirm attendance" surface, now that the tab bar has no
@@ -25,6 +27,8 @@ interface WeeklyPlan {
 }
 
 export function AttendanceConfirmCard() {
+  const tc = useTranslations('common');
+  const workoutTypeLabel = useWorkoutTypeLabel();
   const { data: reminderConfig } = useApi<{ config?: { teamDays?: number[]; workoutHour?: number } }>('/api/reminder-config');
   const { data: weekly } = useApi<WeeklyPlan>('/api/dashboard/weekly');
   // Same fallback as the dashboard: Tuesday + Friday are the club's team days
@@ -62,7 +66,17 @@ export function AttendanceConfirmCard() {
     : undefined;
   // The title itself says today/tomorrow (AttendanceRSVP's dayBefore prop); this
   // label only names the workout.
-  const label = workout?.type ? `${workout.day} · ${workout.type}` : workout?.day;
+  //
+  // Both halves are raw DATA and neither is copy. `d.day` comes off the English
+  // `DAY_NAMES` array in workout-parsing.ts and `d.type` is the stored slug, so
+  // this line printed "Fri · long_run" on an RTL Hebrew card — measured on the
+  // program tab. The dashboard had exactly this bug on exactly this card and fixed
+  // it (see `rsvpDayLabel` in dashboard/page.tsx); this is the second mount of the
+  // same component, reached from the Program tab, and it never got the fix. Same
+  // two sources as there: `common.dayNames` for the day, and the
+  // `activities.runType_*` keys everything else in the app uses for the type.
+  const dayLabel = workout ? (tc.raw('dayNames') as string[])[workout.dayOfWeek] : undefined;
+  const label = workout?.type ? `${dayLabel} · ${workoutTypeLabel(workout.type)}` : dayLabel;
 
   return (
     <AttendanceRSVP

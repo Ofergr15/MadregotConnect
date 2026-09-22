@@ -127,6 +127,11 @@ export function FeedbackThread({ feedbackId, viewerEmail, seed }: { feedbackId: 
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={t('placeholder')}
+          // A placeholder is not a name: it disappears the moment there is text,
+          // and assistive tech is not required to read it at all. There is no
+          // visible label to point at here (the composer sits under the thread
+          // with no caption), so the accessible name is the placeholder's own copy.
+          aria-label={t('placeholder')}
           rows={1}
           // `text-base`, not `text-sm`: iOS Safari zooms the whole page in when a
           // field under 16px takes focus, and it does not zoom back out — so a 14px
