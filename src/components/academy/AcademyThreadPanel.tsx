@@ -27,6 +27,25 @@ import type { SegmentVerdict } from '@/lib/academy/segments';
 // So Stream is used as the transport only: watch the channel, read `state.messages`,
 // send text. Which is also why the same token route serves both screens.
 
+/**
+ * Why the route's own `error` is never rendered.
+ *
+ * `POST /api/academy/threads` answers `{ error }` in six places and every one of
+ * them is English: 'forbidden', 'not found', 'athleteId required', the Postgres
+ * message off a failed select, and — on an unhandled throw — `String(err)`, i.e.
+ * a raw JS exception. This panel used to print that string straight into the
+ * trainee's screen, so a bad minute on Stream showed an academy runner
+ * "chat_unavailable" in the middle of a Hebrew page, and a server fault showed
+ * them the inside of the server. The thrown message is still logged; what the
+ * trainee reads is Hebrew, and vague on purpose — none of those codes is
+ * something they can act on.
+ */
+const THREAD_ERROR_HE: Record<string, string> = {
+  not_academy: 'השרשור נפתח לחניכי האקדמיה בלבד.',
+  forbidden: 'אין לך הרשאה לשרשור הזה.',
+};
+const THREAD_ERROR_FALLBACK = 'לא הצלחנו לפתוח את השרשור. נסו לרענן בעוד רגע.';
+
 /** What the open-thread route hands back. */
 interface OpenedThread {
   athleteId: string;
@@ -66,13 +85,22 @@ export function AcademyThreadPanel({
       body: JSON.stringify(athleteId ? { athleteId } : {}),
     })
       .then(async (response) => {
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error || 'לא הצלחנו לפתוח את השרשור');
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          console.error('POST /api/academy/threads', response.status, body?.error);
+          throw new Error(THREAD_ERROR_HE[body?.code] || THREAD_ERROR_FALLBACK);
+        }
         return body as OpenedThread;
       })
       .then((body) => { if (!cancelled) setThread(body); })
       .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        // A network throw has an English message too ("Load failed", "Failed to
+        // fetch") — the same defect by a different road, so nothing from the
+        // exception reaches the screen either.
+        if (!cancelled) {
+          if (!(e instanceof Error && /[֐-׿]/.test(e.message))) console.error('academy thread', e);
+          setError(e instanceof Error && /[֐-׿]/.test(e.message) ? e.message : THREAD_ERROR_FALLBACK);
+        }
       });
     return () => { cancelled = true; };
   }, [supabaseToken, athleteId]);
@@ -179,13 +207,18 @@ function ConnectedAcademyThread({
         body: JSON.stringify({ athleteId: thread.athleteId, text }),
       });
       if (!res.ok) {
+        // The route's `error` is English in all six of its branches, `String(err)`
+        // included — logged, never shown. See THREAD_ERROR_HE above.
         const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.error || 'ההודעה לא נשלחה');
+        console.error('POST /api/academy/threads/messages', res.status, payload?.error);
+        throw new Error('ההודעה לא נשלחה');
       }
     } catch (e: unknown) {
       // Surfaced, because `ThreadTranscript` clears the composer optimistically — a
-      // silent failure here loses what the person just wrote.
-      setError(e instanceof Error ? e.message : 'ההודעה לא נשלחה');
+      // silent failure here loses what the person just wrote. Hebrew only: a network
+      // throw's message ("Load failed") is English and belongs in the console.
+      if (!(e instanceof Error && /[֐-׿]/.test(e.message))) console.error('academy thread send', e);
+      setError(e instanceof Error && /[֐-׿]/.test(e.message) ? e.message : 'ההודעה לא נשלחה');
     } finally {
       setSending(false);
     }

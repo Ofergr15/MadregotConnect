@@ -192,10 +192,24 @@ export function AcademyMyView({ athleteId }: {
                   <div className="text-sm font-medium text-ink-700 truncate">{w.name}</div>
                   {w.completed ? (
                     <div className="mt-0.5 text-xs text-ink-400 tabular-nums">
-                      {km(w.distance.actual)} / {km(w.distance.plannedMin)} {t('kmUnit')}
+                      {/* Both "done / planned" pairs are ISOLATED, and measured rather
+                          than assumed: on this RTL line a slash with spaces around it
+                          is a neutral between two separate number runs, so the runs
+                          get laid out right-to-left and the fraction renders mirrored.
+                          Measured in WebKit at 393px: 8.1 done out of a 9.0 plan put
+                          9.0 to the LEFT of 8.1, i.e. the row read "9.0 / 8.1" — the
+                          plan presented as the result and the result as the plan, on
+                          every completed session of the week. `<bdi dir="ltr">` opens
+                          an isolate, so the pair keeps its own order. Same defect the
+                          shoe mileage had; the difference here is that BOTH numbers
+                          are real and swapping them is plausible, so nothing on the
+                          screen gives the mistake away. */}
+                      <bdi dir="ltr">{km(w.distance.actual)} / {km(w.distance.plannedMin)}</bdi> {t('kmUnit')}
                       {' · '}
-                      {mins(w.duration.actual)}
-                      {!w.duration.estimated && ` / ${mins(w.duration.planned)}`} {t('minUnit')}
+                      {w.duration.estimated
+                        ? mins(w.duration.actual)
+                        : <bdi dir="ltr">{mins(w.duration.actual)} / {mins(w.duration.planned)}</bdi>}
+                      {' '}{t('minUnit')}
                       {w.pace.actual != null && ` · ${formatPace(w.pace.actual)}`}
                     </div>
                   ) : (
@@ -254,7 +268,13 @@ export function AcademyMyView({ athleteId }: {
                 <AthleteLink
                   athleteId={r.isMe ? null : r.athleteId}
                   name={r.name}
-                  className="flex min-w-0 flex-1 items-center gap-3"
+                  // `-my-2 py-2` grows the hit area into the row's own padding
+                  // without moving a pixel: the link wrapped the 36px avatar line
+                  // only, inside a 60px row, so the target was 36px tall against a
+                  // 44px floor — measured at 197×36 on a 375px phone. The negative
+                  // margin cancels the padding, so the extra 16px is reachable
+                  // thumb area that costs no layout.
+                  className="flex min-w-0 flex-1 items-center gap-3 -my-2 py-2"
                 >
                   {r.avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
