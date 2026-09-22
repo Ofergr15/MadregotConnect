@@ -408,8 +408,11 @@ export default function ActivitiesPage() {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-3">
+            {/* Icon-only, so the label is the whole accessible name — the audit
+                found both of these chevrons with none at all. */}
             <button
               onClick={() => setWeekOffset(o => o - 1)}
+              aria-label={t('previousWeek')}
               className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all"
             >
               <ChevronLeft className="h-5 w-5 rtl:rotate-180" />
@@ -424,6 +427,7 @@ export default function ActivitiesPage() {
 
             <button
               onClick={() => setWeekOffset(o => Math.min(o + 1, 0))}
+              aria-label={t('nextWeek')}
               className={cn(
                 "flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg transition-all",
                 weekOffset >= 0 ? "text-ink-900 cursor-not-allowed" : "text-ink-400 hover:text-ink-900 hover:bg-page active:scale-[0.92]"

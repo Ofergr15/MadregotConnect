@@ -58,9 +58,17 @@ export function UpcomingEvents() {
       <div className="flex items-center gap-2 mb-3">
         <CalendarDays className="h-4 w-4 text-brand-600" />
         <h2 className="text-sm font-semibold text-ink-700 uppercase tracking-wider">{t('title')}</h2>
+        {/* 36×16px measured, which is under WCAG's 24px floor as well as
+            Apple's 44 — this is the only way from the feed into the calendar.
+            The padding buys 52×47 out of the card's own p-4 and the 12px under
+            the header, and the negative end margin puts the glyphs back exactly
+            where they were. 16px a side and not 14: the line box is 15px, so the
+            smaller figure measured 41.5 — the arithmetic has to start from the
+            line the browser gives, not from the font size. Nothing else in this row is a control, so the halo
+            has nothing to steal from. */}
         <Link
           href="/dashboard/calendar"
-          className="ms-auto flex items-center gap-0.5 text-2xs font-semibold text-brand-600"
+          className="ms-auto -me-2 flex items-center gap-0.5 px-2 py-4 -my-4 text-2xs font-semibold text-brand-600"
         >
           {t('seeAll')}
           <ChevronRight className="h-3 w-3 rtl:rotate-180" />

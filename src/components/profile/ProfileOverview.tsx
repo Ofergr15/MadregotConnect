@@ -217,14 +217,21 @@ export function ProfileOverview({
           {/* The frame draws a bare avatar, but this badge is the only way to
               change a photo anywhere in the app — so it stays, smaller. It is a
               real button now: when a photo exists the circle behind it enlarges
-              instead of uploading, so the badge has to carry the upload itself. */}
+              instead of uploading, so the badge has to carry the upload itself.
+
+              24px and not 20: the audit measured 20×20, under WCAG 2.5.8's floor.
+              It cannot reach Apple's 44 and that is geometry, not neglect — two
+              controls share a 55px circle, and a 44px halo on this one would
+              cover the avatar button's own centre point, so the bigger target
+              would break the target underneath it. 24 is the largest size that
+              leaves the circle behind it tappable. */}
           <button
             type="button"
             onClick={onPhotoClick}
             aria-label={t('changePhoto')}
-            className="absolute bottom-0 end-0 flex h-5 w-5 items-center justify-center rounded-full bg-card shadow-sm"
+            className="absolute bottom-0 end-0 flex h-6 w-6 items-center justify-center rounded-full bg-card shadow-sm"
           >
-            {uploadingPhoto ? <Loader2 className="h-3 w-3 animate-spin text-brand-600" /> : <Camera className="h-3 w-3 text-ink-500" />}
+            {uploadingPhoto ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-600" /> : <Camera className="h-3.5 w-3.5 text-ink-500" />}
           </button>
         </div>
         <div className="min-w-0 flex-1 text-start">
@@ -386,7 +393,12 @@ export function ProfileOverview({
               />
             ))}
           </div>
-          <Link href="/dashboard/program" className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-brand-600">
+          {/* 115×20px measured. Same trick as the records link: the old `mt-3`
+              becomes 14px of top padding less 2px of margin, so the text does not
+              move, and `-mb-3.5` pulls the rest back into the card's own p-4.
+              `-my-3.5` would lose to `mt-*` in Tailwind's property order and push
+              the row down. */}
+          <Link href="/dashboard/program" className="inline-flex items-center gap-1 py-3.5 -mt-0.5 -mb-3.5 text-sm font-bold text-brand-600">
             {t('fullProgram')}
             <ChevronLeft className="h-4 w-4" />
           </Link>

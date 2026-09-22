@@ -112,7 +112,12 @@ export function AuthorRow({ item }: { item: FeedItem }) {
 
 function likeSummary(likers: FeedLiker[], total: number, t: Translate): string {
   const firstNames = likers.map(l => (l.name || '').split(' ')[0]).filter(Boolean);
-  if (firstNames.length === 0) return String(total);
+  // A SENTENCE, not the bare number this used to return. When the preview has no
+  // names — every liker with a blank name, or a count that arrived without a
+  // preview — the button that opens the likes sheet was the string "2": six
+  // pixels wide, the smallest tap target the audit has ever measured here, and
+  // a digit on its own line that says nothing about what it counts.
+  if (firstNames.length === 0) return t('likeCountOnly', { count: total });
 
   const rest = total - firstNames.length;
   if (rest > 0) return t('namesAndMore', { names: firstNames.join(', '), count: rest });
@@ -181,21 +186,33 @@ function CommentPreview({
 
   return (
     <div className="pt-1.5 space-y-1">
-      {/* `py-1 -my-1` on the button below buys the 24px WCAG 2.5.8 minimum out of
-          a 16px text line without moving anything. Not 44: this is a secondary
-          way into the sheet — the comment bubble in the action row is the 44px
-          one — and a 44px band here would push two comments of preview off the
-          card, which is the whole reason the preview exists. */}
+      {/* `py-1.5 -my-1.5` on the button below buys the 24px WCAG 2.5.8 minimum
+          out of a text line without moving anything. It was `py-1`, written for
+          a 16px line box — the audit then measured the button at 22, because the
+          line is 14, not 16. Three pixels a side and not two: the arithmetic has
+          to hold for the line box the browser actually gives it. Not 44: this is
+          a secondary way into the sheet — the comment bubble in the action row is
+          the 44px one — and a 44px band here would push two comments of preview
+          off the card, which is the whole reason the preview exists.
+          The 6px reaches 2px past the 4px `space-y-1` gap into the first comment
+          row below. That row's only control is the name link at its start, which
+          is 18px tall, so it loses 2px off an edge and keeps its own centre. */}
       {commentCount > comments.length && (
         <button
           onClick={onOpen}
-          className="block text-xs font-medium text-ink-400 hover:text-ink-500 transition-colors py-1 -my-1"
+          className="block text-xs font-medium text-ink-400 hover:text-ink-500 transition-colors py-1.5 -my-1.5"
         >
           {t('viewAllComments', { count: commentCount })}
         </button>
       )}
       {comments.map(c => (
         <p key={c.id} className="text-xs text-ink-500 leading-relaxed line-clamp-2">
+          {/* The audit measures this name at 19.6×18 and it stays that way. It is
+              a link INSIDE a sentence, which is the one case WCAG 2.5.8 exempts
+              by name: padding it out to 24 would push the words of the comment
+              apart, and the first line of a two-line preview would collide with
+              the second. The comment thread itself lists every author on a row
+              of its own, at a full target size — that is the door for a thumb. */}
           <AthleteLink
             athleteId={c.author.athleteId}
             name={c.author.name}
@@ -273,7 +290,18 @@ export function ActionRow({
         <div className="pt-2">
           <button
             onClick={() => setSheetOpen(true)}
-            className="group relative flex items-center gap-1.5 max-w-full text-start min-h-6"
+            // `py-2 -my-2` buys 16px of tap height out of the 8px above and the
+            // 4px below without moving a pixel — the same trick as
+            // CommentPreview's button. Asymmetric, and measured rather than
+            // assumed: 8px is all there is above, and BELOW there are exactly 4,
+            // because the action row's `pt-1` is the only gap between this button
+            // and 44px of primary controls (like, comment, share). A symmetric
+            // `py-2` was tried first and the audit caught it stealing 4px off the
+            // top of the like button — this button is `relative`, so it paints
+            // over its static siblings and wins every pixel it overlaps. 26px of
+            // height clears WCAG 2.5.8; taking the other 18 would cost the like
+            // button its own floor, which is the worse trade.
+            className="group relative flex items-center gap-1.5 max-w-full text-start min-h-6 pt-2 -mt-2 pb-1 -mb-1"
           >
             <LikerStack likers={likers} />
             <span className="text-xs text-ink-400 group-hover:text-ink-500 transition-colors truncate">
@@ -317,8 +345,14 @@ export function ActionRow({
           <Heart className={cn('h-4 w-4', liked && 'fill-accent-red')} />
         </button>
 
+        {/* The label is not decoration here. With comments the button's only text
+            is the count, so VoiceOver announced the bare number "3"; with none it
+            is an icon and nothing else, and the audit found four of these on one
+            feed with no accessible name at all. `aria-label` names the action and
+            the count keeps showing beside it for everyone else. */}
         <button
           onClick={onCommentPress}
+          aria-label={t('comments')}
           className="flex items-center justify-center gap-1.5 min-h-11 min-w-11 px-3 rounded-full text-sm font-medium text-ink-400 hover:text-ink-500 hover:bg-page transition-all active:scale-90"
         >
           <MessageCircle className="h-4 w-4" />

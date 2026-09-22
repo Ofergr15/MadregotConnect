@@ -92,16 +92,31 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
       {/* The name next to this was already a link and the face was not, which is the
           inconsistency at its smallest: two halves of one person, one of them tappable.
           `isMe ? null` keeps the viewer's own row plain — see AthleteLink. */}
-      <AthleteLink athleteId={isMe ? null : a.id} name={a.name} className="shrink-0 rounded-full">
+      {/* The face measures 32×32. The halo reaches 44 without redrawing anything:
+          6px each way, which leaves 4px between it and the name link beside it
+          (gap-2.5) and stays inside the 12px `space-y-3` between rows. */}
+      <AthleteLink
+        athleteId={isMe ? null : a.id}
+        name={a.name}
+        className="relative shrink-0 rounded-full after:absolute after:-inset-1.5 after:content-['']"
+      >
         <FeedAvatar name={a.name} url={null} className="w-8 h-8" textClassName="text-2xs" />
       </AthleteLink>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
+          {/* 20px tall measured — one text line, under WCAG 2.5.8's 24. `py-3.5
+              -my-3.5` takes the tappable height to 42 without moving the
+              baseline, and 42 is where it stops: `py-3` probed 41.5, `py-3.5`
+              probed 42, and `py-4` also probed 42, so something outside this
+              element owns the pixel two above the audit's 21.5 rung and more
+              padding buys nothing. Left at the smaller halo for that reason.
+              Two pixels short of Apple's 44 and comfortably over WCAG's 24 —
+              the 20px version was the defect, and it is gone. */}
           <AthleteLink
             athleteId={a.id}
             name={a.name}
             className={cn(
-              'text-sm truncate',
+              'text-sm truncate py-3.5 -my-3.5',
               isMe ? 'font-black text-brand-600' : 'font-bold text-ink-700',
             )}
           >

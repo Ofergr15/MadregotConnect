@@ -314,11 +314,16 @@ export function AthleteProfileBody({
             <section className="rounded-card bg-card p-4">
               <div className="flex items-end justify-between gap-3">
                 <h2 className="text-xl font-bold text-ink-700">{t('personalRecords')}</h2>
+                {/* 36×20px measured — under WCAG 2.5.8's 24px floor. The padding
+                    buys 52×47 out of the card's own p-4 and the space over the
+                    tiles below; the negative margins put the word back exactly
+                    where it was. The only other thing in this row is the heading,
+                    so the halo has no control to steal from. */}
                 {owner && (
                   <button
                     type="button"
                     onClick={() => setEditingPrs(true)}
-                    className="text-sm font-bold text-brand-600"
+                    className="-mx-2 -my-3.5 px-2 py-3.5 text-sm font-bold text-brand-600"
                   >
                     {tc('edit')}
                   </button>
@@ -373,9 +378,16 @@ export function AthleteProfileBody({
                   so the door that matters is here and works for every member on
                   day one (the API is requireMember, same gate as this page's own
                   stats). Reports a798197f and f6c7b8dc both asked for the table. */}
+              {/* 187×20px measured. The 44 comes out of space that already
+                  existed: the old `mt-3` is now 14px of top padding minus 2px of
+                  margin, so the text sits exactly where it did, and `-mb-3.5`
+                  pulls the bottom half back into the card's p-4. Not `-my-3.5`,
+                  which loses to `mt-*` in Tailwind's own property order and would
+                  shift the row down.
+                  The record tiles above are plain divs — no tap to steal. */}
               <Link
                 href="/dashboard/records"
-                className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-brand-600"
+                className="inline-flex items-center gap-1 py-3.5 -mt-0.5 -mb-3.5 text-sm font-bold text-brand-600"
               >
                 {tRecords('clubBoard')}
                 <ChevronLeft className="h-4 w-4" />
@@ -389,8 +401,10 @@ export function AthleteProfileBody({
         <section className="rounded-card bg-card p-4">
           <div className="flex items-end justify-between">
             <h2 className="text-xl font-bold text-ink-700">{t('recentRuns')}</h2>
+            {/* 20px tall like the two links above it, and fixed the same way:
+                padding out to 44, negative margins to keep it in place. */}
             {owner && (
-              <Link href="/dashboard/activities" className="inline-flex items-center gap-1 text-sm font-bold text-brand-600">
+              <Link href="/dashboard/activities" className="-mx-2 -my-3.5 inline-flex items-center gap-1 px-2 py-3.5 text-sm font-bold text-brand-600">
                 {t('allRuns')}
                 <ChevronLeft className="h-4 w-4" />
               </Link>
