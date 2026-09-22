@@ -124,18 +124,33 @@ export default function ProgramPage() {
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [selectedSession, setSelectedSession] = useState<WorkoutDetailSession | null>(null);
-  // Whether the original training PDF is shown *underneath* the structured week.
-  // Needed because the structured view deliberately preempts the PDF branch below,
-  // which left the uploaded file with no route to it at all once a week had been
-  // parsed — and the parse is known to drop whole pages, so the original is the
-  // only place some of the plan exists.
-  //
-  // Open by default, to match the nutrition tab: there the PDF *is* the view and
-  // nobody has to know to ask for it. Behind a tap it was discoverable in theory
-  // and invisible in practice. So the button below hides rather than reveals, and
-  // the first thing a reader sees on the training tab is the same thing they see
-  // on the nutrition one — the sheet the coach actually sent.
-  const [showTrainingPdf, setShowTrainingPdf] = useState(true);
+  /**
+   * How the selected week is being read: the app's own rendering, or the sheet the
+   * coach uploaded (feedback 757fc57a — "both the training plan and the nutrition
+   * plan should show the PDF view too, so it is convenient").
+   *
+   * The PDF was already reachable on both tabs before this, and that was the
+   * problem: on training it was appended BELOW the whole seven-day climb, and on
+   * nutrition it was a collapsed disclosure below the entire reflowed sheet. Both
+   * are a long scroll to a text button, the two tabs did it differently, and
+   * neither says up front that a PDF exists at all. So it stops being a footer and
+   * becomes a view — one switch, same place on both tabs, directly under the week
+   * it applies to.
+   *
+   * Remembered, like the pace group: someone who prefers the coach's own sheet
+   * should not re-choose it every week.
+   */
+  const [planView, setPlanView] = useState<'app' | 'pdf'>('app');
+  /**
+   * Whether the nutrition sheet read cleanly enough to render as text — reported by
+   * NutritionPlanView, which falls back to the PDF for a scan or an image-only
+   * export. `null` while it is still deciding.
+   *
+   * The switch needs this: offering a choice between "in app" and "PDF" when both
+   * options draw the same PDF is a control that does nothing, and the reader is
+   * left assuming the app view is broken rather than absent.
+   */
+  const [nutritionTextOk, setNutritionTextOk] = useState<boolean | null>(null);
   // Which group's pace is highlighted in the workout-detail sheet — mirrors the
   // dashboard's own remembered pick (localStorage `view_group`) rather than
   // re-deriving it from the athlete's group assignment on this page too.
@@ -147,7 +162,13 @@ export default function ProgramPage() {
     setIsAdmin(adminSession || !!coachEmail);
     const storedGroup = parseInt(localStorage.getItem('view_group') || '', 10);
     if (storedGroup >= 0 && storedGroup <= 2) setViewGroup(storedGroup);
+    if (localStorage.getItem('plan_view') === 'pdf') setPlanView('pdf');
   }, []);
+
+  const pickPlanView = (next: 'app' | 'pdf') => {
+    setPlanView(next);
+    try { localStorage.setItem('plan_view', next); } catch { /* ignore */ }
+  };
 
   const pickViewGroup = (idx: number) => {
     setViewGroup(idx);
@@ -230,6 +251,19 @@ export default function ProgramPage() {
   // rollover, which used to make this page disagree with the dashboard about
   // which week is "current" for a few hours every Saturday evening.
   const isCurrentWeek = selectedStart === thisWeekStart;
+
+  // The uploaded sheet for whichever of the two plan tabs is open, and whether the
+  // app has a rendering of its own to offer against it. Only when BOTH exist is
+  // there a view to switch between; with one of them missing the page simply shows
+  // what it has, which is why the switch is conditional rather than disabled.
+  const planPdfUrl = currentWeek ? getPdfUrl(currentWeek, activeView) : null;
+  const hasAppView = activeView === 'training' ? !!weekPlan?.hasPlan : nutritionTextOk === true;
+  const showViewSwitch = activeView !== 'workout' && !!planPdfUrl && hasAppView;
+
+  // A different week — or the other tab — is a different sheet, so what the last one
+  // extracted says nothing about this one. Without the reset the switch keeps the
+  // previous week's answer and can offer a text view that this week does not have.
+  useEffect(() => { setNutritionTextOk(null); }, [selectedStart, activeView]);
   // Does a program row for the actual current week exist at all?
   const currentWeekExists = weeks.some(w => w.week_start_date === thisWeekStart);
 
@@ -366,6 +400,23 @@ export default function ProgramPage() {
             )}
             <ChevronDown className="h-4 w-4 text-ink-400 shrink-0" />
           </button>
+        )}
+
+        {/* How to read this week — see `planView`. Same control as the tab strip
+            above, deliberately toned down: a recessed track and an ink pill rather
+            than the brand one, because it picks a rendering and not a section. Left
+            visually identical it would read as a second row of tabs, and the page
+            would look like it has six. */}
+        {showViewSwitch && (
+          <SegmentedControl<'app' | 'pdf'>
+            value={planView}
+            onChange={pickPlanView}
+            className="bg-page/70 sm:w-auto sm:min-w-[260px]"
+            options={[
+              { value: 'app', label: t('viewInApp'), icon: activeView === 'training' ? Dumbbell : Utensils, activeBg: 'bg-ink-700' },
+              { value: 'pdf', label: t('viewPdf'), icon: FileText, activeBg: 'bg-ink-700' },
+            ]}
+          />
         )}
       </div>
 
@@ -630,41 +681,21 @@ export default function ProgramPage() {
         <div className="flex items-center justify-center h-40">
           <Loader2 className="h-6 w-6 animate-spin text-brand-600" />
         </div>
+      ) : showViewSwitch && planView === 'pdf' && currentWeek && planPdfUrl ? (
+        /* The coach's own sheet, chosen at the switch above. The app's rendering of
+           a week is usually the better read — but it is a READING: the training
+           parse is known to drop whole pages, and the nutrition text is
+           reconstructed from glyph positions. So the original is a view of equal
+           standing, not a footnote under the derived one. */
+        <PlanPdfViewer
+          url={planPdfUrl}
+          title={`${t(activeView === 'training' ? 'trainingProgram' : 'nutritionPlan')} — ${currentWeek.date_range}`}
+        />
       ) : activeView === 'training' && weekPlan?.hasPlan ? (
-        <>
-          <WeekClimb weekPlan={weekPlan} onSelectSession={setSelectedSession} />
-          {/* The structured week wins the branch on purpose (see
-              api/plans/week/route.ts) — but when a training PDF also exists there
-              was previously no way to open it, and the status row above says
-              "training plan ✅" for either one, so nobody could tell the file was
-              even there.
-
-              Shown expanded, like the nutrition tab. The climb stays on top because
-              it is the better read of a week that parsed cleanly, but the PDF is no
-              longer something you have to suspect exists — it is simply below it,
-              and the button collapses it for anyone who only wants the climb. */}
-          {currentWeek?.training_pdf_url && (
-            <div className="mt-3">
-              <button
-                type="button"
-                onClick={() => setShowTrainingPdf(v => !v)}
-                className="flex items-center gap-2 w-full justify-center h-11 rounded-xl text-xs font-bold text-ink-700 active:bg-page transition-colors"
-              >
-                <FileText className="h-3.5 w-3.5 shrink-0" />
-                {t(showTrainingPdf ? 'hideOriginalPdf' : 'showOriginalPdf')}
-                <ChevronDown
-                  className={cn('h-3.5 w-3.5 shrink-0 transition-transform', showTrainingPdf && 'rotate-180')}
-                />
-              </button>
-              {showTrainingPdf && (
-                <PlanPdfViewer
-                  url={currentWeek.training_pdf_url}
-                  title={`${t('trainingProgram')} — ${currentWeek.date_range}`}
-                />
-              )}
-            </div>
-          )}
-        </>
+        /* The structured week wins over the PDF branch below on purpose (see
+           api/plans/week/route.ts) — the switch above is what keeps the uploaded
+           file reachable when both exist. */
+        <WeekClimb weekPlan={weekPlan} onSelectSession={setSelectedSession} />
       ) : currentWeek && getPdfUrl(currentWeek, activeView) ? (
         /* Was a bare <iframe src={pdf}> — the browser's own viewer, which offers no
            zoom, and which on iOS shows a single static first page. The plan is five
@@ -680,6 +711,7 @@ export default function ProgramPage() {
           <NutritionPlanView
             url={getPdfUrl(currentWeek, activeView)!}
             title={`${t('nutritionPlan')} — ${currentWeek.date_range}`}
+            onTextAvailable={setNutritionTextOk}
           />
         ) : (
         <PlanPdfViewer
