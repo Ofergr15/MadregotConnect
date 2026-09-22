@@ -8,7 +8,7 @@ import { useTranslations, useFormatter, useLocale } from 'next-intl';
 import { toggleLike } from '@/lib/feed-client';
 import { FeedLikesSheet } from '@/components/FeedLikesSheet';
 import { FeedAvatar } from '@/components/FeedAvatar';
-import { FeedShareSheet } from '@/components/FeedShareSheet';
+import { ShareSheet } from '@/components/ShareSheet';
 import { RouteMinimap } from '@/components/RouteMinimap';
 import { FeedBodyText } from '@/components/FeedBodyText';
 import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
@@ -378,7 +378,9 @@ export function ActionRow({
         />
       )}
 
-      {shareOpen && <FeedShareSheet item={item} onClose={() => setShareOpen(false)} />}
+      {shareOpen && (
+        <ShareSheet subject={{ kind: 'workout', item }} onClose={() => setShareOpen(false)} />
+      )}
     </>
   );
 }

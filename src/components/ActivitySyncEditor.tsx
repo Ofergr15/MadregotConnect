@@ -16,7 +16,7 @@ import { fetchPlanMatch } from '@/lib/activities-client';
 import { WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
 import { Sheet, Spinner } from '@/components/ui';
 import { RouteMinimap } from '@/components/RouteMinimap';
-import { FeedShareSheet } from '@/components/FeedShareSheet';
+import { ShareSheet } from '@/components/ShareSheet';
 import type { FeedItem, FeedMedia } from '@/lib/feed/project';
 
 interface PlanMatch { pct: number; actualKm: number; targetKm: number; type: string }
@@ -560,7 +560,7 @@ export function ActivitySyncEditor({
       </div>
     </Sheet>
     {showShare && feedItem && (
-      <FeedShareSheet item={feedItem} onClose={() => setShowShare(false)} />
+      <ShareSheet subject={{ kind: 'workout', item: feedItem }} onClose={() => setShowShare(false)} />
     )}
     </>
   );

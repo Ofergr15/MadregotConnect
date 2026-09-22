@@ -180,32 +180,40 @@ describe('the canvas card', () => {
   });
 });
 
+/**
+ * The sheet is no longer the weekly card's own. It was the better of the two, so
+ * it became the shared one — see `components/ShareSheet.tsx` and the merge tests
+ * in `shareSheetMerge.test.ts`. What is asserted here is only what the WEEK must
+ * still get out of it, unchanged.
+ */
 describe('the sheet', () => {
-  const sheet = read('components/profile/WeekShareSheet.tsx');
+  const sheet = read('components/ShareSheet.tsx');
 
   it('renders a chip per available metric and nothing more', () => {
-    expect(sheet).toMatch(/availableMetrics\(report\)/);
-    expect(sheet).toMatch(/metrics\.map\(/);
+    expect(sheet).toMatch(/chips\.map\(/);
+    // The list itself is `shareChips`, which reads availableMetrics for a week.
+    expect(read('lib/share/sheet-model.ts')).toMatch(/availableMetrics\(subject\.report\)/);
   });
 
   it('cannot be emptied — the last chip stays on', () => {
-    expect(sheet).toMatch(/prev\.length === 1 \? prev : prev\.filter/);
+    expect(read('lib/share/sheet-model.ts')).toMatch(/keys\.length === 1 \? keys : keys\.filter/);
   });
 
   it('offers both card languages and opens in the one being read', () => {
-    expect(sheet).toMatch(/\(\['he', 'en'\] as WeekCardLang\[\]\)/);
-    expect(sheet).toMatch(/useState<WeekCardLang>\(rtl \? 'he' : 'en'\)/);
+    expect(sheet).toMatch(/SHARE_CARD_LANGS\.map/);
+    expect(sheet).toMatch(/useState<ShareCardLang>\(rtl \? 'he' : 'en'\)/);
     expect(sheet).toMatch(/lang: cardLang/);
   });
 
   it('can leave the name off the card', () => {
-    expect(sheet).toMatch(/athleteName: withName \? athleteName : null/);
+    expect(sheet).toMatch(/athleteName: withName \? subject\.athleteName : null/);
     // No toggle to show when there is no name to hide.
-    expect(sheet).toMatch(/\{athleteName && \(/);
+    expect(sheet).toMatch(/subject\.kind === 'week' && !!subject\.athleteName/);
   });
 
   it('hands the blob to the OS share sheet, with the download fallback', () => {
-    expect(sheet).toMatch(/shareCard\(blob, `madregot-week-\$\{report\.to\}\.jpg`\)/);
+    expect(sheet).toMatch(/shareCard\(blob, shareFilename\(subject, transparent\)\)/);
+    expect(read('lib/share/sheet-model.ts')).toMatch(/madregot-week-\$\{subject\.report\.to\}\.jpg/);
     expect(sheet).toMatch(/result === 'downloaded'/);
   });
 });
@@ -214,7 +222,7 @@ describe('the entry point', () => {
   const card = read('components/profile/Last7DaysCard.tsx');
 
   it('is a share button on the profile card', () => {
-    expect(card).toMatch(/<WeekShareSheet report=\{report\}/);
+    expect(card).toMatch(/<ShareSheet\n\s+subject=\{\{ kind: 'week', report, athleteName \}\}/);
     expect(card).toMatch(/setSharing\(true\)/);
   });
 
