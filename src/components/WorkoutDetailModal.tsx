@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { X, Repeat, Check, Copy, Share2 } from 'lucide-react';
+import { X, Repeat, Check, Copy, Link2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { textDir } from '@/lib/bidi';
@@ -229,7 +229,7 @@ function StoryCopy({ session }: { session: WorkoutDetailSession }) {
           onClick={() => (open ? copy() : setOpen(true))}
           className="flex items-center gap-1.5 rounded-lg bg-brand-600/10 px-3 h-8 text-xs font-semibold text-brand-600 transition-colors active:bg-brand-600/20"
         >
-          {copied ? <Check className="h-3.5 w-3.5" /> : <Share2 className="h-3.5 w-3.5" />}
+          {copied ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
           {copied ? t('storyCopied') : t('storyCopy')}
         </button>
         {open && !copied && (
