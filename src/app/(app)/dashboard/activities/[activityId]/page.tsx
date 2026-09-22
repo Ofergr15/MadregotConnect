@@ -108,11 +108,24 @@ export default function ActivityDetailPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Both buttons measured 36×28 on a phone, where their labels are hidden and
+            only the glyph shows. The box cannot grow with padding — it has a visible
+            border and a fill, so more padding is a bigger pill — so the extra reach
+            is an invisible halo: 10px above and below takes 28 to 48, and 6px a side
+            takes 36 to 48.
+            48 and not 44, because a halo measured at exactly 44 comes back 1px short
+            in WebKit — the box lands on a fractional x/y, `elementFromPoint` on the
+            halo's own outer edge answers with what is behind it, and the audit reads
+            41.5×41.5. A couple of px of slack is free here and removes the question.
+            `gap-3` and not `gap-2` for the same reason: 6px a side needs 12px between
+            the two buttons, so the halos meet in the middle of the gap instead of
+            overlapping — the second one would paint over the first and take tappable
+            width back off it. */}
+        <div className="flex items-center gap-3">
           {isMyActivity && (
             <button
               onClick={() => setShowShare(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-ink-300/50 bg-page/30 px-2.5 py-1.5 text-xs font-semibold text-ink-500 transition-colors hover:bg-page/60 hover:text-ink-900"
+              className="relative flex items-center gap-1.5 rounded-lg border border-ink-300/50 bg-page/30 px-2.5 py-1.5 text-xs font-semibold text-ink-500 transition-colors hover:bg-page/60 hover:text-ink-900 after:absolute after:-inset-y-2.5 after:-inset-x-1.5 after:content-['']"
               aria-label="שיתוף בפיד"
               title="שיתוף בפיד"
             >
@@ -122,7 +135,7 @@ export default function ActivityDetailPage() {
           )}
           <button
             onClick={() => router.push(`/dashboard/run-chat/${act.id}`)}
-            className="flex items-center gap-1.5 rounded-lg border border-brand-600/30 bg-brand-600/10 px-2.5 py-1.5 text-xs font-semibold text-brand-600 transition-colors hover:bg-brand-600/20 hover:text-brand-700"
+            className="relative flex items-center gap-1.5 rounded-lg border border-brand-600/30 bg-brand-600/10 px-2.5 py-1.5 text-xs font-semibold text-brand-600 transition-colors hover:bg-brand-600/20 hover:text-brand-700 after:absolute after:-inset-y-2.5 after:-inset-x-1.5 after:content-['']"
             aria-label={runChatLabel}
             title={runChatLabel}
           >

@@ -567,3 +567,37 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
     font-size: 16px !important;
   }
 }
+
+/* ── Leaflet's own zoom buttons, at a size a thumb can hit ──────────────────
+   The audit measured them at 28×31 and 28×30 on both phone widths — leaflet
+   ships a 26px control with a 1px border and has done since long before anyone
+   wrote a touch guideline. They are the only controls on this app that a person
+   presses REPEATEDLY (zoom in, in, in, out) and the only ones sitting on top of
+   a draggable surface, so a miss doesn't do nothing: it pans the map.
+
+   Grown visibly rather than haloed, which is the opposite of the choice made
+   for our own controls next to them (see the chip in RouteMap.tsx). An
+   invisible halo works where the visible box must not move because a neighbour
+   is 4px away; here the control is alone in the corner with the whole map
+   behind it, and the honest fix for a button that is too small to hit is to
+   make the button bigger. 44px is Apple's figure and the same one
+   `.touch-target` above uses.
+
+   `line-height` has to move with `height` or the `+`/`−` glyphs — which leaflet
+   centres by line-height, not by flexbox — end up pinned to the top of the box.
+
+   `!important` is not decoration here: leaflet's stylesheet comes from the CDN
+   and is appended to `<head>` at runtime (`lib/leaflet.ts`), so it is always
+   LATER in the cascade than this file. Without it the rule loses the tie on
+   equal specificity and the control stays at 30px — measured.
+
+   Scoped to coarse pointers: on a mouse the designed 30px is fine and the
+   control should stay the size the library's own CSS expects. */
+@media (pointer: coarse) {
+  .leaflet-touch .leaflet-bar a,
+  .leaflet-bar a {
+    width: 44px !important;
+    height: 44px !important;
+    line-height: 44px !important;
+  }
+}

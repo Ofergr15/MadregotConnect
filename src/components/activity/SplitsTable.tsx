@@ -48,7 +48,14 @@ export function SplitsTable({ splits }: { splits: Split[] }) {
                     style={{ width: `${Math.max(20, pacePos * 100)}%` }}
                   />
                 </div>
-                <span className={cn('font-bold tabular-nums', isFastest ? 'text-accent-600' : isSlowest ? 'text-accent-red' : 'text-ink-700')}>
+                {/* `accent-900`, not `accent-600`. The audit measured the fastest
+                  split's pace at 2.47:1 as 14px text — #16a34a scores 3.30:1 on
+                  white and this row is a 10% wash of the same green, which pulls it
+                  lower still. `accent-900` is the palette's TEXT green and exists
+                  for exactly this (see the note on it in tailwind.config.ts); the
+                  wash behind it does not change. `accent-red` stays: #AD3838
+                  measures 6.18:1 and was never the problem. */}
+              <span className={cn('font-bold tabular-nums', isFastest ? 'text-accent-900' : isSlowest ? 'text-accent-red' : 'text-ink-700')}>
                   {formatPace(split.averagePace)}
                 </span>
               </div>
@@ -63,7 +70,7 @@ export function SplitsTable({ splits }: { splits: Split[] }) {
                 ElevationChart; change one and change the other.
               */}
               <span className="col-span-2 text-ink-400 tabular-nums">
-                {split.elevationGain != null ? <><span className="text-accent-red">+{Math.round(split.elevationGain)}</span>{split.elevationLoss ? <span className="text-accent-600 ms-1">-{Math.round(split.elevationLoss)}</span> : null}</> : '—'}
+                {split.elevationGain != null ? <><span className="text-accent-red">+{Math.round(split.elevationGain)}</span>{split.elevationLoss ? <span className="text-accent-900 ms-1">-{Math.round(split.elevationLoss)}</span> : null}</> : '—'}
               </span>
             </div>
           );

@@ -14,6 +14,7 @@ import {
   BASEMAP_URL_TEMPLATE_DARK,
 } from '@/lib/basemap';
 import { useApi } from '@/lib/api';
+import { loadLeaflet } from '@/lib/leaflet';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { EVENT_KINDS, type EventKind } from '@/lib/events';
@@ -328,16 +329,7 @@ function RaceMapView({ races, dateLocale }: { races: EventRow[]; dateLocale: str
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current || sorted.length === 0) return;
 
-    if (!document.querySelector('link[data-leaflet]')) {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      link.setAttribute('data-leaflet', '1');
-      document.head.appendChild(link);
-    }
-
-    const initMap = () => {
-      const L = (window as any).L;
+    const initMap = (L: any) => {
       if (!L || !mapRef.current || mapInstanceRef.current) return;
 
       const map = L.map(mapRef.current, {
@@ -376,17 +368,13 @@ function RaceMapView({ races, dateLocale }: { races: EventRow[]; dateLocale: str
       mapInstanceRef.current = map;
     };
 
-    if ((window as any).L) initMap();
-    else {
-      let script = document.querySelector<HTMLScriptElement>('script[data-leaflet]');
-      if (!script) {
-        script = document.createElement('script');
-        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-        script.setAttribute('data-leaflet', '1');
-        document.body.appendChild(script);
-      }
-      script.addEventListener('load', initMap);
-    }
+    // The one shared load for the document (`lib/leaflet.ts`). This screen already
+    // guarded against adding a second `<script>` of its own — but the route map did
+    // not, and it appended a tag this selector never saw, so calendar → activity
+    // loaded the library twice and mixed the two instances. Both now go through the
+    // same promise, and `initMap` is handed the instance rather than reading
+    // `window.L` back out.
+    loadLeaflet().then(initMap).catch(() => { /* no map; the race list above is unaffected */ });
 
     return () => {
       if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }

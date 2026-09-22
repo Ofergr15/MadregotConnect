@@ -9,6 +9,7 @@ import {
   BASEMAP_URL_TEMPLATE,
   BASEMAP_URL_TEMPLATE_DEEP,
 } from '@/lib/basemap';
+import { loadLeaflet } from '@/lib/leaflet';
 import { useMapPrefs } from '@/lib/mapPrefs';
 import { cn } from '@/lib/utils';
 import { PACE_COLOR_RAMP, paceSegments } from './format';
@@ -44,6 +45,18 @@ export function RouteMap({
   const [{ paceColors }, setMapPrefs] = useMapPrefs();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
+  /**
+   * The leaflet instance THIS map was built with.
+   *
+   * Every effect below used to re-read `window.L`. That is the same object right up
+   * until a second copy of the library loads and overwrites it — and then a bounds
+   * object from the new instance is an unrecognised shape to the old instance's
+   * `fitBounds`, which throws "Bounds are not valid." and takes the whole screen
+   * down through the error boundary. `lib/leaflet.ts` makes the double load
+   * impossible; holding the instance here makes the mix impossible even if
+   * something else on the page ever loads its own.
+   */
+  const leafletRef = useRef<any>(null);
   const [ready, setReady] = useState(false);
 
   // Route and per-km paces, pinned to their contents. `points` is up to a few
@@ -64,16 +77,7 @@ export function RouteMap({
     if (!mapRef.current || mapInstance.current) return;
     let cancelled = false;
 
-    if (!document.getElementById('leaflet-css')) {
-      const link = document.createElement('link');
-      link.id = 'leaflet-css';
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-    }
-
-    const initMap = () => {
-      const L = (window as any).L;
+    const initMap = (L: any) => {
       if (cancelled || !L || !mapRef.current || mapInstance.current) return;
 
       const map = L.map(mapRef.current, {
@@ -139,18 +143,16 @@ export function RouteMap({
       // The detail page mounts this inside a container that is still settling.
       setTimeout(() => map.invalidateSize(), 100);
 
+      leafletRef.current = L;
       mapInstance.current = map;
       setReady(true);
     };
 
-    if ((window as any).L) {
-      initMap();
-    } else {
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.onload = initMap;
-      document.head.appendChild(script);
-    }
+    // One shared load for the whole document — see `lib/leaflet.ts`. This used to
+    // append its own `<script>` whenever `window.L` was not set yet, which under
+    // React's development double-mount is twice on one page, and once more for
+    // every visit to the calendar's own map.
+    loadLeaflet().then(initMap).catch(() => { /* no map; the page is still fine */ });
 
     return () => {
       cancelled = true;
@@ -158,6 +160,7 @@ export function RouteMap({
         mapInstance.current.remove();
         mapInstance.current = null;
       }
+      leafletRef.current = null;
       setReady(false);
     };
   }, []);
@@ -167,7 +170,7 @@ export function RouteMap({
   // undo the reader's own zoom every time they tapped the toggle.
   useEffect(() => {
     const map = mapInstance.current;
-    const L = (window as any).L;
+    const L = leafletRef.current;
     if (!ready || !map || !L || stablePoints.length < 2) return;
     // 14px, down from 20. With `zoomSnap: 0` the padding is now the *only* thing
     // standing between the route and the edge of the map, so it stops being a
@@ -182,7 +185,7 @@ export function RouteMap({
   // ── Draw the route, recoloured in place ────────────────────────────────────
   useEffect(() => {
     const map = mapInstance.current;
-    const L = (window as any).L;
+    const L = leafletRef.current;
     if (!ready || !map || !L || stablePoints.length < 2) return;
 
     const layer = L.layerGroup().addTo(map);
@@ -248,7 +251,14 @@ export function RouteMap({
           onClick={() => setMapPrefs({ paceColors: !paceColors })}
           aria-pressed={showPaceColors}
           className={cn(
+            // 36 tall measured, 44 needed. The visible chip keeps its height —
+            // growing it would eat more of the map, and it is already the widest
+            // thing floating over the trace — so the extra 4px a side is an
+            // invisible `after:` halo. The chip is `absolute`, which is its own
+            // positioning context, and nothing sits within 4px of it: the zoom
+            // control is physical top-LEFT and the legend is bottom-left.
             'absolute top-3 right-3 z-[1000] min-h-[36px] px-3 rounded-lg text-xs font-semibold transition-all shadow-lg',
+            "after:absolute after:-inset-y-1.5 after:inset-x-0 after:content-['']",
             showPaceColors
               ? 'bg-white text-ink-900'
               : 'bg-card/90 text-ink-500 hover:text-ink-900 border border-ink-300',
