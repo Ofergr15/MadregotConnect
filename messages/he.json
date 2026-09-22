@@ -884,7 +884,14 @@
     "mergeNone": "עומד בפני עצמו",
     "archive": "לארכיון",
     "restore": "להחזיר",
-    "verifiedByReporter": "אושר"
+    "verifiedByReporter": "אושר",
+    "viewSignals": "אותות",
+    "detectorFound": "נמצא אוטומטית",
+    "detectorShort": "גלאי",
+    "detectorUnknown": "מה שהגלאי לא יודע",
+    "affectedPeople": "{count} נפגעו",
+    "weakSignal": "אות חלש · בלי התראה",
+    "firstSeenIn": "התחיל ב-{version}"
   },
   "badgeManager": {
     "existingBadges": "תגים קיימים",

@@ -884,7 +884,14 @@
     "mergeNone": "On its own",
     "archive": "Archive",
     "restore": "Restore",
-    "verifiedByReporter": "Confirmed"
+    "verifiedByReporter": "Confirmed",
+    "viewSignals": "Signals",
+    "detectorFound": "Found automatically",
+    "detectorShort": "Detector",
+    "detectorUnknown": "What the detector cannot tell you",
+    "affectedPeople": "{count} affected",
+    "weakSignal": "Weak signal · no alert",
+    "firstSeenIn": "started in {version}"
   },
   "badgeManager": {
     "existingBadges": "Existing Badges",

@@ -287,6 +287,31 @@ export async function PATCH(request: Request) {
       }
     }
 
+    // ── Migration 117: "not a bug" is counted against the detector, in the open ──
+    // A detector that was wrong three times out of four has to LOOK wrong on the
+    // board, because the damage a noisy detector does is not the alerts — it is
+    // that the accurate ones stop being believed too. So a denial of a finding is
+    // recorded on the detector rather than only on the row, and the whole block
+    // is best-effort: rejecting a finding must never fail because of bookkeeping.
+    if (status === 'denied') {
+      const { data: finding } = await supabase
+        .from('feedback').select('source, detector').eq('id', id).maybeSingle<{
+          source: string | null; detector: string | null;
+        }>();
+      if (finding?.source === 'detector' && finding.detector) {
+        const { data: state } = await supabase
+          .from('bug_detectors').select('false_positive_count').eq('key', finding.detector)
+          .maybeSingle<{ false_positive_count: number | null }>();
+        await supabase.from('bug_detectors').upsert(
+          {
+            key: finding.detector,
+            false_positive_count: (state?.false_positive_count || 0) + 1,
+          },
+          { onConflict: 'key' },
+        );
+      }
+    }
+
     // Close the loop: the reporter did unpaid work for us, and the only thing
     // that makes anyone report a second bug is finding out the first one led
     // somewhere. Awaited rather than fired-and-forgotten — on a serverless

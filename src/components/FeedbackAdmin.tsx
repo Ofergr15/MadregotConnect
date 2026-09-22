@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   Loader2, MessageSquare, Trash2, Bug, Lightbulb, Dumbbell, MessageCircle, Search,
-  Smartphone, Archive, ArchiveRestore, GitBranch, Sparkles, Users,
+  Smartphone, Archive, ArchiveRestore, GitBranch, Radar, Sparkles, Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
@@ -84,6 +84,21 @@ export interface FeedbackItem {
   duplicate_of?: string | null;
   verified_at?: string | null;
   archived_at?: string | null;
+  // ── Migration 117. The automatic detectors — see lib/bugs/detectors.ts. ──
+  /** 'detector' for an automatic finding; null or 'human' for a person. */
+  source?: string | null;
+  detector?: string | null;
+  /** How many PEOPLE, which is what the board ranks by. */
+  affected_count?: number | null;
+  /** 'weak' when the detector could not name anyone affected. Its own drawer. */
+  signal_strength?: string | null;
+  first_seen_version?: string | null;
+  evidence?: {
+    how?: string;
+    unknown?: string;
+    athleteIds?: string[];
+    facts?: Record<string, string | number>;
+  } | null;
 }
 
 // `labelKey` into the `settings` namespace, which has had all four of these
@@ -330,6 +345,65 @@ export function FeedbackAdmin() {
                 <span className="text-2xs font-semibold text-ink-400">
                   {t('reportedByCount', { count: selectedIssue.reporterCount })}
                 </span>
+              </div>
+            )}
+
+            {/* ── The detector's evidence ──
+                A finding that shows a conclusion without showing how it got
+                there is a black box nobody can argue with, and arguing with it
+                is the single most important thing this screen has to support.
+                So: the reasoning, the countable specifics, and — separately —
+                what the query genuinely cannot tell you. */}
+            {selected.source === 'detector' && (
+              <div className="mb-4 rounded-lg border border-dashed border-brand-600/40 bg-brand-600/5 p-3">
+                <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-brand-600/15 px-2 py-0.5 text-3xs font-bold text-brand-700">
+                    <Radar className="h-3 w-3" />
+                    {t('detectorFound')}
+                  </span>
+                  {selected.detector && (
+                    <span className="rounded-full bg-page px-2 py-0.5 font-mono text-3xs text-ink-500" dir="ltr">
+                      {selected.detector}
+                    </span>
+                  )}
+                  {!!selected.affected_count && (
+                    <span className="rounded-full bg-accent-red/10 px-2 py-0.5 text-3xs font-bold text-accent-red">
+                      {t('affectedPeople', { count: selected.affected_count })}
+                    </span>
+                  )}
+                  {selected.signal_strength === 'weak' && (
+                    <span className="rounded-full bg-page px-2 py-0.5 text-3xs font-semibold text-ink-400">
+                      {t('weakSignal')}
+                    </span>
+                  )}
+                  {selected.first_seen_version && (
+                    <span className="rounded-full bg-page px-2 py-0.5 font-mono text-3xs text-ink-500" dir="ltr">
+                      {t('firstSeenIn', { version: selected.first_seen_version })}
+                    </span>
+                  )}
+                </div>
+                {selected.evidence?.how && (
+                  <p className="text-13 leading-relaxed text-ink-700" dir="auto">{selected.evidence.how}</p>
+                )}
+                {selected.evidence?.facts && Object.keys(selected.evidence.facts).length > 0 && (
+                  <dl className="mt-2.5 space-y-1 border-t border-dashed border-brand-600/30 pt-2.5">
+                    {Object.entries(selected.evidence.facts).map(([k, v]) => (
+                      <div key={k} className="flex items-baseline justify-between gap-3">
+                        <dt className="shrink-0 text-3xs font-semibold text-ink-400" dir="auto">{k}</dt>
+                        <dd className="text-end text-3xs text-ink-700" dir="auto">{String(v)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+                {selected.evidence?.unknown && (
+                  // Kept visually apart from the reasoning: this is the part the
+                  // detector is telling you it CANNOT settle, and folding it in
+                  // with the evidence is how a heuristic gets read as a fact.
+                  <div className="mt-2.5 rounded-md bg-card p-2">
+                    <p className="mb-0.5 text-3xs font-bold text-ink-400">{t('detectorUnknown')}</p>
+                    <p className="text-3xs leading-relaxed text-ink-600" dir="auto">{selected.evidence.unknown}</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -791,6 +865,21 @@ export function FeedbackAdmin() {
                         {item.verified_at && (
                           <span className="shrink-0 rounded border border-accent-600/30 bg-accent-600/15 px-1.5 py-0.5 text-3xs font-bold text-accent-900">
                             {t('verifiedByReporter')}
+                          </span>
+                        )}
+                        {/* Filed by a query, not by a person. On the row because
+                            the reader's first question about an unfamiliar report
+                            is who is telling them this — and the second is how
+                            many people it hit, which is what the board sorts by. */}
+                        {item.source === 'detector' && (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded border border-brand-600/25 bg-brand-600/10 px-1.5 py-0.5 text-3xs font-bold text-brand-700">
+                            <Radar className="h-2.5 w-2.5" />
+                            {t('detectorShort')}
+                          </span>
+                        )}
+                        {!!item.affected_count && item.affected_count > 0 && (
+                          <span className="shrink-0 rounded border border-accent-red/25 bg-accent-red/10 px-1.5 py-0.5 text-3xs font-bold text-accent-red">
+                            {t('affectedPeople', { count: item.affected_count })}
                           </span>
                         )}
                         {item.has_image && <Smartphone className="w-2.5 h-2.5 shrink-0 text-ink-400" />}

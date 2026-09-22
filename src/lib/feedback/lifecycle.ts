@@ -29,9 +29,11 @@ import { normalizeStatus, type FeedbackStatus } from './status';
  * these are "what do I do with this screen today", and one report is in exactly
  * one of them.
  */
-export type FeedbackView = 'inbox' | 'flight' | 'shipped' | 'archive' | 'ideas';
+export type FeedbackView = 'inbox' | 'flight' | 'shipped' | 'archive' | 'ideas' | 'signals';
 
-export const FEEDBACK_VIEWS: FeedbackView[] = ['inbox', 'flight', 'shipped', 'archive', 'ideas'];
+export const FEEDBACK_VIEWS: FeedbackView[] = [
+  'inbox', 'flight', 'shipped', 'archive', 'ideas', 'signals',
+];
 
 /** next-intl keys in the `settings` namespace. */
 export const VIEW_LABEL_KEY: Record<FeedbackView, string> = {
@@ -40,6 +42,7 @@ export const VIEW_LABEL_KEY: Record<FeedbackView, string> = {
   shipped: 'viewShipped',
   archive: 'viewArchive',
   ideas: 'viewIdeas',
+  signals: 'viewSignals',
 };
 
 /** The subset of a feedback row the lifecycle rules read. */
@@ -51,6 +54,14 @@ export interface LifecycleRow {
   verified_at?: string | null;
   archived_at?: string | null;
   fixed_in_version?: string | null;
+  /** Migration 117. 'detector' for an automatic finding, null or 'human' for a person. */
+  source?: string | null;
+  /**
+   * Migration 117. 'weak' means the detector could not name the people affected,
+   * which is the whole basis on which it gets its own drawer and never alerts —
+   * see `lib/bugs/detectors.ts`, rule 2.
+   */
+  signal_strength?: string | null;
   /** Migration 093's diagnostics; only the app version matters here. Named the
    *  way ReviewContext names it, so a real row is assignable without a cast. */
   context?: { appVersion?: string | null } | null;
@@ -69,6 +80,10 @@ export interface LifecycleRow {
  */
 export function feedbackView(row: LifecycleRow): FeedbackView {
   if (row.archived_at) return 'archive';
+  // A weak signal is not a lighter bug, it is a different kind of thing: nobody
+  // can be named as affected, so it cannot be triaged the way a report can. Its
+  // own drawer, above `status`, and it never counts towards the inbox.
+  if (row.signal_strength === 'weak') return 'signals';
   // A duplicate is not a row you decide anything about — the primary carries it.
   if (row.duplicate_of) return 'archive';
 
@@ -85,7 +100,7 @@ export function feedbackView(row: LifecycleRow): FeedbackView {
  *  the others and makes the row jump every time a report changes state. */
 export function viewCounts(rows: LifecycleRow[]): Record<FeedbackView, number> {
   const counts: Record<FeedbackView, number> = {
-    inbox: 0, flight: 0, shipped: 0, archive: 0, ideas: 0,
+    inbox: 0, flight: 0, shipped: 0, archive: 0, ideas: 0, signals: 0,
   };
   for (const row of rows) counts[feedbackView(row)] += 1;
   return counts;

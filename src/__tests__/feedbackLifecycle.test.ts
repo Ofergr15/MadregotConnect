@@ -40,6 +40,18 @@ describe('which drawer a report is in', () => {
     expect(feedbackView(row({ status: 'new', duplicate_of: 'r0' }))).toBe('archive');
   });
 
+  it('puts a weak signal in its own drawer, never in the bug inbox', () => {
+    // It cannot name anyone affected, so there is nothing to triage and nothing
+    // to alert about — a weak signal in the inbox is the inbox becoming a feed.
+    expect(feedbackView(row({ status: 'new', signal_strength: 'weak' }))).toBe('signals');
+    expect(feedbackView(row({ status: 'new', signal_strength: 'finding' }))).toBe('inbox');
+  });
+
+  it('still files an archived weak signal as archived', () => {
+    expect(feedbackView(row({ signal_strength: 'weak', archived_at: '2026-09-01T00:00:00Z' })))
+      .toBe('archive');
+  });
+
   it('lets an explicit archive beat every other reading', () => {
     expect(feedbackView(row({ status: 'new', archived_at: '2026-09-01T00:00:00Z' }))).toBe('archive');
   });
