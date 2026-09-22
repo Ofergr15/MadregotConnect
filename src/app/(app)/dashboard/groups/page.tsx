@@ -303,7 +303,7 @@ export default function GroupsPage() {
 
       {/* Leaderboard Section */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <Medal className="h-5 w-5 text-band-3" />
             <h2 className="text-xl font-bold">{t('weeklyLeaderboard')}</h2>
@@ -315,7 +315,14 @@ export default function GroupsPage() {
               { value: 'members', label: t('byGroup') },
               { value: 'leaderboard', label: t('overall') },
             ]}
-            className="w-fit"
+            /* Its own line on a phone, beside the heading from `sm` up. "לפי קבוצה"
+               measured 45px shown against the 63px it needs, and the cause is not the
+               heading stealing width — `w-fit` cannot work on this component at all:
+               its segments are `flex-1 basis-0`, so the track's fit-content width
+               collapses towards nothing no matter what sits next to it. Width has to
+               come from the parent, and a two-segment track next to a two-line Hebrew
+               heading has no room to get it. */
+            className="w-full sm:w-fit"
           />
         </div>
 
@@ -360,6 +367,7 @@ export default function GroupsPage() {
                             <AthleteLink
                               athleteId={entry.id}
                               name={entry.name}
+                              tapHalo
                               className="flex items-center gap-2 min-h-[36px]"
                             >
                               <span className={cn("w-2 h-2 rounded-full", colors.dot)} />
@@ -421,7 +429,7 @@ export default function GroupsPage() {
                         <div key={entry.id} className="flex items-center justify-between px-4 py-2.5 bg-card/60">
                           <div className="flex items-center gap-3">
                             <span className="text-xs text-ink-400 w-4">{entryIdx + 1}.</span>
-                            <AthleteLink athleteId={entry.id} name={entry.name} className="flex items-center min-h-[36px]">
+                            <AthleteLink athleteId={entry.id} name={entry.name} tapHalo className="flex items-center min-h-[36px]">
                               <span className="text-sm" dir="auto">{entry.name}</span>
                             </AthleteLink>
                           </div>

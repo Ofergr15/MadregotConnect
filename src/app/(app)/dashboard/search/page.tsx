@@ -140,6 +140,9 @@ export default function SearchPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('placeholder')}
+          /* The only name this field had was its placeholder, which vanishes as
+             soon as anyone types into it. */
+          aria-label={t('placeholder')}
           className="w-full bg-page/50 border border-page/50 rounded-xl ps-10 pe-3 h-12 text-sm text-ink-700 placeholder:text-ink-400 focus:outline-none focus:border-brand-600/50"
         />
       </div>
@@ -183,6 +186,14 @@ export default function SearchPage() {
         <div>
           <p className="text-2xs font-bold uppercase tracking-wider text-ink-400 px-1 mb-1.5">{t('members')}</p>
           <div className="space-y-2">
+            {/* `<bdi>` around every result name, and not `dir="auto"` on the span.
+                The two isolate a foreign-script string identically, but `dir` is a
+                property of the ELEMENT: these spans are blockified (`block`, or a
+                flex item), so resolving them to LTR for a Latin name also flipped
+                their text-align — a perk sponsored by "Nike" printed the sponsor
+                line flush against the LEFT edge of an otherwise right-aligned card,
+                under a Hebrew title. `<bdi>` isolates the string and leaves the box
+                alone, so the line stays where the rest of the card is. */}
             {data.members.map((m) => (
               <AthleteLink
                 key={m.id}
@@ -191,7 +202,7 @@ export default function SearchPage() {
                 className="flex items-center gap-3 bg-card/50 rounded-card border border-page/30 px-3 py-2.5"
               >
                 <FeedAvatar name={m.name} url={m.avatarUrl} className="w-9 h-9 shrink-0" />
-                <span className="text-sm font-semibold text-ink-700 truncate" dir="auto">{m.name}</span>
+                <span className="text-sm font-semibold text-ink-700 truncate"><bdi>{m.name}</bdi></span>
               </AthleteLink>
             ))}
           </div>
@@ -214,7 +225,7 @@ export default function SearchPage() {
                     <Icon className="h-4 w-4 text-ink-500" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-ink-700 truncate" dir="auto">{e.name}</span>
+                    <span className="block text-sm font-semibold text-ink-700 truncate"><bdi>{e.name}</bdi></span>
                     <span className="block text-2xs text-ink-400 truncate">{fmtDate(e.date)} · {e.location}</span>
                   </div>
                 </Link>
@@ -243,7 +254,7 @@ export default function SearchPage() {
                   )}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-ink-700 truncate" dir="auto">{locale === 'he' ? p.nameHe : p.nameEn}</span>
+                  <span className="block text-sm font-semibold text-ink-700 truncate"><bdi>{locale === 'he' ? p.nameHe : p.nameEn}</bdi></span>
                   <span className="block text-2xs text-ink-400">{p.price} ₪</span>
                 </div>
               </Link>
@@ -271,8 +282,8 @@ export default function SearchPage() {
                   )}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-ink-700 truncate" dir="auto">{locale === 'he' ? p.titleHe : p.titleEn}</span>
-                  <span className="block text-2xs text-ink-400 truncate" dir="auto">{p.sponsorName}</span>
+                  <span className="block text-sm font-semibold text-ink-700 truncate"><bdi>{locale === 'he' ? p.titleHe : p.titleEn}</bdi></span>
+                  <span className="block text-2xs text-ink-400 truncate"><bdi>{p.sponsorName}</bdi></span>
                 </div>
               </Link>
             ))}

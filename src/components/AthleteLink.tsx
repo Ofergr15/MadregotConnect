@@ -41,9 +41,26 @@ interface Props {
    * suppresses, and a caller can want either without the other.
    */
   onNavigate?: () => void;
+  /**
+   * Add an invisible halo so the link is a 48×48 touch target without its visible
+   * box changing size.
+   *
+   * Opt-in and not the default, deliberately. The audit measured these links at 36
+   * tall on the squad leaderboard, on the team-volume table and in the feed — the
+   * component has no height of its own, it wears whatever className the list gives
+   * it — but the three are not the same case. A roster row is plain text around the
+   * link, so a halo can only take taps away from text. A FEED CARD is itself a
+   * control: the card opens the run, the name inside it opens the person, and a halo
+   * there would quietly hand 6px of the card to the profile. So the callers where
+   * the halo is safe say so, one at a time, instead of every list inheriting it.
+   *
+   * 48 and not 44 for the reason written up on the activity header buttons: a halo
+   * measured at exactly 44 comes back a pixel short in WebKit.
+   */
+  tapHalo?: boolean;
 }
 
-export function AthleteLink({ athleteId, name, className, children, stopPropagation, onNavigate }: Props) {
+export function AthleteLink({ athleteId, name, className, children, stopPropagation, onNavigate, tapHalo }: Props) {
   const tc = useTranslations('common');
   const href = teammateHref(athleteId);
 
@@ -56,7 +73,11 @@ export function AthleteLink({ athleteId, name, className, children, stopPropagat
   return (
     <Link
       href={href}
-      className={cn(ATHLETE_LINK_FOCUS, className)}
+      className={cn(
+        ATHLETE_LINK_FOCUS,
+        tapHalo && "relative after:absolute after:-inset-y-1.5 after:-inset-x-1.5 after:content-['']",
+        className,
+      )}
       aria-label={name ? tc('viewProfileOf', { name }) : undefined}
       onClick={
         stopPropagation || onNavigate

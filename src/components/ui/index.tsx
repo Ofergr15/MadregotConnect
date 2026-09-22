@@ -392,6 +392,13 @@ export function BigStat({
 // the phone and pushed the screen sideways (the feedback inbox's category filter
 // did exactly that). With min-w-0 + truncate the track always fits and a label
 // that can't is clipped instead.
+//
+// ⚠️ Do not pass `w-fit` from a caller. The segments are `flex-1 basis-0`, so the
+// track has almost no fit-content width of its own and `w-fit` collapses it —
+// then min-w-0 + truncate does its job and clips every label. Measured on the
+// team-volume range ("12 שבועות": 63px of the 66 it needs) and on the groups
+// leaderboard toggle ("לפי קבוצה": 45 of 63). Width comes from the parent:
+// `w-full` on a phone, and `sm:w-fit` only if the control is alone on its line.
 export function SegmentedControl<T extends string>({
   value,
   onChange,

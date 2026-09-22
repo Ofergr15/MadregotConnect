@@ -442,7 +442,11 @@ ${inviteLink}`;
                 : athletes.filter((a) => a.status === tab).length
           })`,
         }))}
-        className="w-fit"
+        /* Full width on a phone, natural width from `sm` up. Sharing the row with
+           the 200px-minimum search box left four segments 54px each and "מושהה (1)"
+           needs 65 — the control cannot widen on its own (it clips by design), so
+           what has to give is the row: the search box wraps underneath instead. */
+        className="w-full sm:w-fit"
       />
 
         {/* Search — a roster this size was scroll-only until now. */}
@@ -452,6 +456,10 @@ ${inviteLink}`;
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('searchPlaceholder')}
+            /* The `<label>` around this is a positioning wrapper with no text in it,
+               so the placeholder was the only name this field had — and a placeholder
+               disappears the moment anyone types. */
+            aria-label={t('searchPlaceholder')}
             className="w-full bg-card border border-page rounded-full ps-9 pe-4 py-2.5 min-h-[44px] text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-600"
           />
         </label>

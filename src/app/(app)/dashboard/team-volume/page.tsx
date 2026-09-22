@@ -50,7 +50,13 @@ export default function TeamVolumePage() {
         value={String(range)}
         onChange={(v) => setRange(Number(v))}
         options={[8, 12, 16].map((w) => ({ value: String(w), label: t('weeksOption', { w }) }))}
-        className="mb-4 w-fit"
+        /* `w-full` on a phone and not `w-fit`. The segments carry `truncate`, so
+           their min-content width is nearly nothing and `fit-content` collapsed the
+           whole track to 190px — "12 שבועות" had 63px of the 66 it needs and read
+           "12 שבוע…" on both devices. A full-width track gives each segment ~114px.
+           From `sm` up there is room to spare, so it goes back to its natural width
+           rather than stretching across a desktop. */
+        className="mb-4 w-full sm:w-fit"
       />
 
       {loading ? (
@@ -88,6 +94,7 @@ function VolumeRow({ r, globalMax }: { r: Row; globalMax: number }) {
       <AthleteLink
         athleteId={r.athleteId}
         name={r.name}
+        tapHalo
         className="flex items-center gap-2.5 w-[42%] min-w-0"
       >
         {r.avatarUrl
