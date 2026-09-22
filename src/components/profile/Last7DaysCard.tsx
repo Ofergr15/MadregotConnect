@@ -71,7 +71,7 @@ export function Last7DaysCard({ report, athleteName }: { report: Last7Report; at
           <div dir="ltr" className="mt-3 flex h-[104px] items-end justify-center gap-1.5">
             {report.days.map((d) => (
               <div key={d.date} className="flex h-full min-w-0 flex-1 flex-col items-end justify-end">
-                <span className="mb-1 w-full text-center text-4xs font-bold tabular-nums text-ink-400">
+                <span className="mb-1 w-full text-center text-2xs font-bold tabular-nums text-ink-400">
                   {d.km > 0 ? Math.round(d.km) : ''}
                 </span>
                 <div
@@ -80,7 +80,7 @@ export function Last7DaysCard({ report, athleteName }: { report: Last7Report; at
                   // reads as missing data — the same floor as the ten-week chart.
                   style={{ height: `${Math.max(3, Math.round((d.km / peak) * 68))}px` }}
                 />
-                <span className="mt-1 w-full text-center text-4xs font-light text-ink-400">
+                <span className="mt-1 w-full text-center text-3xs font-light text-ink-400">
                   {dayNames[d.weekday]}
                 </span>
               </div>
@@ -111,7 +111,7 @@ function Total({ value, label }: { value: string; label: string }) {
       <span className="block text-lg font-bold tabular-nums text-ink-700">
         <bdi dir="ltr">{value}</bdi>
       </span>
-      <span className="block text-4xs font-light text-ink-400">{label}</span>
+      <span className="block text-3xs font-light text-ink-400">{label}</span>
     </div>
   );
 }

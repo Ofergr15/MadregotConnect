@@ -141,7 +141,12 @@ function LikerStack({ likers }: { likers: FeedLiker[] }) {
           url={l.avatarUrl}
           maxChars={1}
           className={cn('w-5 h-5 bg-brand-600/10 ring-2 ring-page', i > 0 && '-ms-1.5')}
-          textClassName="text-[8px] text-brand-600"
+          // 10px, not 8. This was the smallest type anywhere in the app, and it
+          // is the fallback initial for a liker with no photo — the only thing
+          // naming that person on the card. 20px of circle holds a 10px letter
+          // with room to spare (see the same geometry in FeedbackAdmin's
+          // duplicate stack); 8px was below the floor the scale now sets.
+          textClassName="text-3xs text-brand-600"
         />
       ))}
     </div>

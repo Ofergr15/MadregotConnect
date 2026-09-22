@@ -18,13 +18,38 @@ const config: Config = {
       // Named small steps to absorb the ~200 arbitrary sub-xs pixel sizes
       // (text-[9px]/[10px]/[11px]) into a consistent scale.
       //
-      // `4xs`/`13`/`28` complete the DESIGN SCALE below: the designer's frames
+      // `13`/`28` complete the DESIGN SCALE below: the designer's frames
       // use exactly 9 · 11 · 12 · 13 · 14 · 16 · 20 · 24 · 28, and Tailwind's
-      // stock scale is missing 9, 13 and 28 (its `3xl` is 30px, not 28).
+      // stock scale is missing 13 and 28 (its `3xl` is 30px, not 28). The 9 is
+      // gone — see the floor rule below for why.
       // Numeric keys for the two plain pixel steps — `text-13` says what it is,
       // where a `xs+`-style name would not.
+      // ── THE FLOOR: 11px for data, 10px for fixed labels, nothing below ──────
+      //
+      // The UI audit kept returning the same finding on screen after screen —
+      // 188 items at 10px and 37 at 9px — and it is one decision, not 225 bugs.
+      // The rule, decided 2026-09-22:
+      //
+      //   `2xs` (11px) is the FLOOR FOR DATA. Anything that renders differently
+      //   each time gets decoded every time it is read: a run name, a year, a
+      //   pace, a distance, a date, a count. That is where small type costs real
+      //   information.
+      //
+      //   `3xs` (10px) is for FIXED LABELS only — copy that is read once and
+      //   afterwards recognised by position and shape: the bottom-nav words, a
+      //   chip's word, a table's column header, a stat caption, a unit suffix.
+      //   Nobody is decoding "פרופיל" on the fifth day.
+      //
+      //   9px is GONE. There is no `4xs` token any more, so a new one cannot be
+      //   added by autocomplete. All 37 sites moved on 2.40.120 by the same
+      //   data/label split. The last nine were the program page's week table,
+      //   which I expected to cost layout — seven day columns across 361px is
+      //   why that table went to 9px in the first place. Measured on the real
+      //   screen at 393px and 375px it costs nothing: no overflow, no
+      //   truncation, and the full page grew 1698px → 1708px. The bar strip is
+      //   the only seven-column structure; the day cards are full-width rows.
+      //   "11.5+" at 11px is ~30px in a 46px column.
       fontSize: {
-        '4xs': ['9px', { lineHeight: '12px' }],
         '3xs': ['10px', { lineHeight: '13px' }],
         '2xs': ['11px', { lineHeight: '14px' }],
         '13': ['13px', { lineHeight: '17px' }],

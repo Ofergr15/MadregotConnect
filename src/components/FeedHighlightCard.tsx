@@ -110,7 +110,7 @@ function WeekBars({ week, label }: { week: HighlightWeek; label: (i: number) => 
                 squinting at it outdoors. Future stays the lightest of the
                 three, so it still reads as "hasn't happened yet". */}
             <span
-              className={`text-4xs ${today ? 'font-bold text-ink-700' : future ? 'text-ink-400' : 'text-ink-500'}`}
+              className={`text-3xs ${today ? 'font-bold text-ink-700' : future ? 'text-ink-400' : 'text-ink-500'}`}
             >
               {label(i)}
             </span>
@@ -189,17 +189,17 @@ function ChallengeRow({ challenge, onHide }: { challenge: HighlightChallenge; on
           </span>
 
           <div className="min-w-0 flex-1">
-            <p className={`text-4xs font-bold ${look.ink}`}>{t('challengeEyebrow')}</p>
+            <p className={`text-3xs font-bold ${look.ink}`}>{t('challengeEyebrow')}</p>
             <p className="mt-0.5 truncate text-sm font-black leading-tight text-ink-900">{name}</p>
           </div>
 
           {done ? (
-            <span className="shrink-0 inline-flex items-center gap-1 rounded-pill bg-accent-600/15 px-2 py-1 text-4xs font-bold text-accent-900">
+            <span className="shrink-0 inline-flex items-center gap-1 rounded-pill bg-accent-600/15 px-2 py-1 text-3xs font-bold text-accent-900">
               <Check className="h-3 w-3" />
               {t('challengeDone')}
             </span>
           ) : (
-            <span className="shrink-0 rounded-pill bg-card px-2 py-1 text-4xs font-bold text-ink-500 tabular-nums">
+            <span className="shrink-0 rounded-pill bg-card px-2 py-1 text-2xs font-bold text-ink-500 tabular-nums">
               {challenge.daysLeft === 0
                 ? t('lastDay')
                 : challenge.daysLeft === 1
@@ -301,7 +301,7 @@ export function FeedHighlightCard() {
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-2xs font-bold text-ink-400">{t('weekEyebrow')}</span>
           <span
-            className={`rounded-pill px-2 py-[2px] text-4xs font-bold ${STATUS_LOOK[status]}`}
+            className={`rounded-pill px-2 py-[2px] text-3xs font-bold ${STATUS_LOOK[status]}`}
           >
             {t(`weekStatus_${status}` as 'weekStatus_met')}
           </span>
@@ -311,7 +311,7 @@ export function FeedHighlightCard() {
               plan target beside it comes from the Sunday plan week. Report
               66cd0d25 was two correct totals 24 km apart with neither screen
               naming its window. */}
-          <span className="text-4xs text-ink-400 tabular-nums whitespace-nowrap">
+          <span className="text-2xs text-ink-400 tabular-nums whitespace-nowrap">
             {formatWeekRange(week.weekStart, locale)}
           </span>
         </div>

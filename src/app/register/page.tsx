@@ -345,7 +345,7 @@ function PoweredBy() {
           so under this page's RTL parent the bidi algorithm moved the "@" to the
           far end and it rendered "MADREGOT AFTER 2KM@". The margins stay ms/me
           because they are symmetric here, so the dir flip costs nothing. */}
-      <span dir="ltr" className="ms-3 me-3 text-4xs font-semibold uppercase tracking-[0.3em] text-white/80">
+      <span dir="ltr" className="ms-3 me-3 text-3xs font-semibold uppercase tracking-[0.3em] text-white/80">
         @Madregot After 2KM
       </span>
       <span className="h-px flex-1 max-w-[52px] bg-white/25" aria-hidden="true" />
@@ -657,7 +657,7 @@ export default function RegisterPage() {
                       {groupLabel(g)}
                     </span>
                     {g.marathonGoal && (
-                      <span dir="ltr" className="block text-4xs leading-tight text-white/80">{g.marathonGoal}</span>
+                      <span dir="ltr" className="block text-2xs leading-tight text-white/80">{g.marathonGoal}</span>
                     )}
                   </span>
                   {/* The dial, last so RTL puts it on the left of the label. A

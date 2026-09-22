@@ -145,7 +145,7 @@ export function SetupNudgeCard() {
               tapping it leaves the feed. */}
           <span className="mt-1 inline-flex items-center gap-1 rounded-pill bg-brand-600/10 px-1.5 py-0.5">
             <ChevronLeft className="h-3 w-3 text-brand-600" />
-            <span className="text-4xs font-bold text-brand-600">{t(TASK_DEST_LABEL_KEY[task.key])}</span>
+            <span className="text-3xs font-bold text-brand-600">{t(TASK_DEST_LABEL_KEY[task.key])}</span>
           </span>
         </span>
         <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />

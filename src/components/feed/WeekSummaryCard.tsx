@@ -154,7 +154,7 @@ function Total({ value, label }: { value: string; label: string }) {
       <span className="block text-lg font-bold tabular-nums">
         <bdi dir="ltr">{value}</bdi>
       </span>
-      <span className="block text-4xs font-light text-white/60">{label}</span>
+      <span className="block text-3xs font-light text-white/60">{label}</span>
     </div>
   );
 }

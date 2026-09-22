@@ -367,7 +367,7 @@ function RailCell({
       )}
       <span
         className={cn(
-          'mt-0.5 block truncate text-4xs font-bold',
+          'mt-0.5 block truncate text-3xs font-bold',
           state === 'now' ? 'text-brand-600'
             : state === 'done' ? 'text-accent-600'
             : state === 'flag' ? 'text-accent-red-ink'
@@ -520,7 +520,7 @@ function DayScreen(props: DayScreenProps) {
                           </span>
                         )}
                         <span
-                          className="rounded-pill px-2 py-0.5 text-4xs font-bold"
+                          className="rounded-pill px-2 py-0.5 text-3xs font-bold"
                           style={{
                             background: `${WORKOUT_TYPE_COLORS[classifyWorkout(w)]}22`,
                             color: WORKOUT_TYPE_TEXT_COLORS[classifyWorkout(w)],
@@ -529,10 +529,10 @@ function DayScreen(props: DayScreenProps) {
                           {props.typeLabel(w)}
                         </span>
                         {props.kindLabel(w) && (
-                          <span className="text-4xs font-bold text-ink-400">{props.kindLabel(w)}</span>
+                          <span className="text-3xs font-bold text-ink-400">{props.kindLabel(w)}</span>
                         )}
                         {w.optional && (
-                          <span className="rounded-pill bg-ink-900/[0.06] px-2 py-0.5 text-4xs font-bold text-ink-500">
+                          <span className="rounded-pill bg-ink-900/[0.06] px-2 py-0.5 text-3xs font-bold text-ink-500">
                             {tp('sessionOptional')}
                           </span>
                         )}
@@ -857,7 +857,7 @@ function WeekScreen({
       {/* seven days × three groups — the shape the program is written in */}
       <div className="overflow-hidden rounded-card bg-card">
         <div className="grid grid-cols-[minmax(150px,1fr)_1fr_1fr_1fr] items-center border-b border-page bg-page/50">
-          <span className="px-3 py-2 text-4xs font-bold uppercase tracking-[0.08em] text-ink-400">
+          <span className="px-3 py-2 text-3xs font-bold uppercase tracking-[0.08em] text-ink-400">
             {t('colDay')}
           </span>
           {GROUPS.map((g) => (
@@ -895,7 +895,7 @@ function WeekScreen({
                       {day.sessions.map((s) => sessionHeadline(s.workout.steps, units)).filter(Boolean).join(' + ')}
                     </bdi>
                     {day.sessions.some((s) => s.workout.optional) && (
-                      <span className="ms-1 rounded-pill bg-card px-1.5 py-0.5 text-4xs text-ink-400">
+                      <span className="ms-1 rounded-pill bg-card px-1.5 py-0.5 text-3xs text-ink-400">
                         {tp('sessionOptional')}
                       </span>
                     )}
@@ -911,7 +911,7 @@ function WeekScreen({
                   </span>
                   <span
                     className={cn(
-                      'mt-1 inline-block rounded-pill px-1.5 py-0.5 text-4xs font-bold',
+                      'mt-1 inline-block rounded-pill px-1.5 py-0.5 text-3xs font-bold',
                       day.check === 'match' ? 'bg-accent-500/[0.16] text-accent-900'
                         : day.check === 'unchecked' ? 'bg-ink-900/[0.05] text-ink-500'
                         : 'bg-accent-red/[0.12] text-accent-red-ink',

@@ -172,7 +172,7 @@ export function NextSessionCard() {
         className="flex w-full items-center gap-3 rounded-card bg-card p-3 text-start transition-colors active:bg-page/40"
       >
         <span
-          className="flex h-9 w-9 flex-none items-center justify-center rounded-xl text-4xs font-bold"
+          className="flex h-9 w-9 flex-none items-center justify-center rounded-xl text-2xs font-bold"
           style={{ background: `${fill}22`, color: ink }}
         >
           {/* The type's own colour, as a block — the card carries no other colour,
@@ -192,7 +192,7 @@ export function NextSessionCard() {
 
         {part && (
           <span
-            className={`flex flex-none items-center gap-1 rounded-pill px-2 py-0.5 text-4xs font-bold ${
+            className={`flex flex-none items-center gap-1 rounded-pill px-2 py-0.5 text-3xs font-bold ${
               part === 'morning' ? 'bg-[#FFF0C7] text-[#8A5A00]' : 'bg-[#E9E4FF] text-[#4632B5]'
             }`}
           >

@@ -895,7 +895,12 @@ export function FeedbackAdmin() {
                               <span
                                 key={r.id}
                                 className={cn(
-                                  'flex h-[18px] w-[18px] items-center justify-center rounded-full border border-card bg-brand-600/10 text-[8px] font-bold text-brand-700',
+                                  // 20px and 10px, up from 18px and 8px: these
+                                  // initials are who else reported the same bug,
+                                  // and 8px was below the scale's floor. Two
+                                  // extra pixels of circle keep a two-letter
+                                  // initial from touching the edge.
+                                  'flex h-5 w-5 items-center justify-center rounded-full border border-card bg-brand-600/10 text-3xs font-bold text-brand-700',
                                   i > 0 && '-ms-1.5',
                                 )}
                               >

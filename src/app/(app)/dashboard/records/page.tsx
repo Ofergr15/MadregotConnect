@@ -149,7 +149,12 @@ function RecordRow({ entry, rank, isMe }: { entry: Entry; rank: number; isMe: bo
           is invalid markup React will complain about in the console. */}
       <span className="block min-w-0 flex-1">
         <span className="block truncate text-sm font-bold text-ink-700" dir="auto">{entry.name}</span>
-        <span className="block truncate text-3xs text-ink-400" dir="auto">
+        {/* 11px and not 10: where the record came from is DATA — a different
+            string every row, decoded every time — and it was the smallest type
+            on the screen. The hierarchy that made it small is still intact: the
+            time next to it is 16px extra-bold, so the row still reads
+            time-first. Same reason for the year below. */}
+        <span className="block truncate text-2xs text-ink-400" dir="auto">
           {entry.source === 'manual'
             ? entry.note || t('stated')
             : entry.activityName || t('fromRuns')}
@@ -161,7 +166,7 @@ function RecordRow({ entry, rank, isMe }: { entry: Entry; rank: number; isMe: bo
         <span dir="ltr" className="block text-base font-extrabold tabular-nums text-ink-700">
           {formatTime(entry.seconds)}
         </span>
-        {year && <span className="block text-3xs text-ink-400 tabular-nums">{year}</span>}
+        {year && <span className="block text-2xs text-ink-400 tabular-nums">{year}</span>}
       </span>
     </AthleteLink>
   );

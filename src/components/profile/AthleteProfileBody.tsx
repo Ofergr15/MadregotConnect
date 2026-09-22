@@ -460,7 +460,7 @@ export function AthleteProfileBody({
                         })}
                       </bdi>
                       {w.isCurrent && (
-                        <span className="ms-1.5 rounded-pill bg-band-1/15 px-1.5 py-0.5 text-4xs font-bold text-brand-600">
+                        <span className="ms-1.5 rounded-pill bg-band-1/15 px-1.5 py-0.5 text-3xs font-bold text-brand-600">
                           {t('currentWeek')}
                         </span>
                       )}
@@ -581,7 +581,7 @@ function TenWeekChart({
           <div key={w.weekStart} className="flex h-full min-w-0 flex-1 flex-col items-end justify-end">
             <span
               className={cn(
-                'mb-1 w-full text-center text-4xs font-bold tabular-nums',
+                'mb-1 w-full text-center text-2xs font-bold tabular-nums',
                 w.isCurrent ? 'text-brand-600' : 'text-ink-400',
               )}
             >
@@ -599,7 +599,7 @@ function TenWeekChart({
               // than a gap that reads as missing data.
               style={{ height: `${Math.max(3, Math.round((w.km / peak) * 68))}px` }}
             />
-            <span className="mt-1 w-full text-center text-4xs font-light tabular-nums text-ink-400">
+            <span className="mt-1 w-full text-center text-2xs font-light tabular-nums text-ink-400">
               {w.weekStart.slice(8, 10)}/{w.weekStart.slice(5, 7)}
             </span>
           </div>

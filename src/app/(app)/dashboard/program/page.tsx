@@ -857,7 +857,7 @@ function WeekClimb({
               <span
                 dir="ltr"
                 className={cn(
-                  'mb-1 text-4xs tabular-nums',
+                  'mb-1 text-2xs tabular-nums',
                   col.dayOfWeek === todayIndex ? 'font-bold text-ink-900' : 'text-ink-400',
                 )}
               >
@@ -891,7 +891,7 @@ function WeekClimb({
 
         <div className="mx-0.5 mt-3 flex flex-wrap gap-x-2.5 gap-y-1.5">
           {stats.types.map((type) => (
-            <span key={type} className="inline-flex items-center gap-1 text-4xs text-ink-400">
+            <span key={type} className="inline-flex items-center gap-1 text-3xs text-ink-400">
               <i
                 className="block h-[7px] w-[7px] rounded-pill"
                 style={{ background: WORKOUT_TYPE_COLORS[type] || WORKOUT_TYPE_COLORS.easy }}
@@ -900,7 +900,7 @@ function WeekClimb({
             </span>
           ))}
           {(stats.optionalDays.length > 0 || stats.hasKmlessSession) && (
-            <span className="inline-flex items-center gap-1 text-4xs text-ink-400">
+            <span className="inline-flex items-center gap-1 text-3xs text-ink-400">
               <i className="block h-[7px] w-[7px] rounded-pill bg-ink-300" />
               {t('legendNoKm')}
             </span>
@@ -910,7 +910,7 @@ function WeekClimb({
         {/* What is not compulsory, said out loud — otherwise the week total is
             read as an obligation and this one is 16 km heavier than it is. */}
         {stats.optionalKmMax > 0 && (
-          <p className="mt-2.5 text-center text-4xs text-ink-400">
+          <p className="mt-2.5 text-center text-2xs text-ink-400">
             {t('optionalNote', {
               // Isolated: a bare "15–17" inside a Hebrew sentence renders "17–15".
               km: ltr(kmRange(Math.round(stats.optionalKmMin), Math.round(stats.optionalKmMax))),
@@ -938,11 +938,11 @@ function WeekClimb({
             >
               <span className="flex items-center gap-1.5 text-sm font-bold text-ink-900">
                 {dayNames[day.dayOfWeek]}
-                <span dir="ltr" className="text-4xs font-light text-ink-400 tabular-nums">
+                <span dir="ltr" className="text-2xs font-light text-ink-400 tabular-nums">
                   {Number(date)}.{Number(month)}
                 </span>
                 {isToday && (
-                  <span className="rounded-pill bg-brand-600/[0.14] px-1.5 py-[3px] text-4xs font-bold leading-none text-brand-600">
+                  <span className="rounded-pill bg-brand-600/[0.14] px-1.5 py-[3px] text-3xs font-bold leading-none text-brand-600">
                     {t('todayBadge')}
                   </span>
                 )}
@@ -992,7 +992,7 @@ function WeekClimb({
 
                   <span className="min-w-0 flex-1">
                     <span
-                      className="block text-4xs font-bold"
+                      className="block text-3xs font-bold"
                       style={{ color: WORKOUT_TYPE_TEXT_COLORS[s.type] || WORKOUT_TYPE_TEXT_COLORS.easy }}
                     >
                       {[typeLabel(s.type), kind, s.optional ? tp('sessionOptional') : ''].filter(Boolean).join(' · ')}
@@ -1018,10 +1018,10 @@ function WeekClimb({
                             row lays them out as "23.5 ק״מ" and not "ק״מ 23.5". */}
                         <span className="block text-base font-bold text-ink-900 tabular-nums">
                           <bdi dir="ltr">{kmApprox ? `~${km}` : km}</bdi>
-                          <span className="text-4xs font-light text-ink-400"> {units.km}</span>
+                          <span className="text-3xs font-light text-ink-400"> {units.km}</span>
                         </span>
                         {clock && (
-                          <span dir="ltr" className="mt-px block text-4xs text-ink-400 tabular-nums">{clock}</span>
+                          <span dir="ltr" className="mt-px block text-2xs text-ink-400 tabular-nums">{clock}</span>
                         )}
                       </>
                     ) : (

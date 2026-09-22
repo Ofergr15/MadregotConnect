@@ -78,10 +78,10 @@ export function StepTables({
             <table className="w-full border-collapse">
               <thead>
                 <tr>
-                  <th className="border-b border-page px-2.5 py-1.5 text-start text-4xs font-bold uppercase tracking-[0.07em] text-ink-400">
+                  <th className="border-b border-page px-2.5 py-1.5 text-start text-3xs font-bold uppercase tracking-[0.07em] text-ink-400">
                     {t('colStep')}
                   </th>
-                  <th className="border-b border-page px-2.5 py-1.5 text-start text-4xs font-bold uppercase tracking-[0.07em] text-ink-400">
+                  <th className="border-b border-page px-2.5 py-1.5 text-start text-3xs font-bold uppercase tracking-[0.07em] text-ink-400">
                     {t('colMetric')}
                   </th>
                   {GROUPS.map((g) => (
@@ -95,7 +95,7 @@ export function StepTables({
                       {GROUP_MARKS[g - 1]}
                     </th>
                   ))}
-                  <th className="border-b border-page px-2.5 py-1.5 text-start text-4xs font-bold uppercase tracking-[0.07em] text-ink-400">
+                  <th className="border-b border-page px-2.5 py-1.5 text-start text-3xs font-bold uppercase tracking-[0.07em] text-ink-400">
                     {t('colNote')}
                   </th>
                 </tr>
