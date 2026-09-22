@@ -687,7 +687,7 @@ export default function SettingsPage() {
           <button
             onClick={() => handleApprove(user)}
             disabled={updatingUsers.has(user.id)}
-            className="flex items-center gap-1.5 px-2.5 min-h-[38px] rounded-lg border border-accent-red/30 bg-accent-red/10 text-xs font-semibold text-accent-red transition-colors hover:bg-accent-red/20 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-2.5 min-h-[38px] rounded-lg border border-accent-red/30 bg-accent-red/10 text-xs font-semibold text-accent-red-ink transition-colors hover:bg-accent-red/20 disabled:opacity-50"
           >
             <Unlock className="w-3.5 h-3.5" />
             {t('releaseFromBlock')}

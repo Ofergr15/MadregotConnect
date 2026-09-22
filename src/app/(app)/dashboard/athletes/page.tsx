@@ -334,7 +334,7 @@ ${inviteLink}`;
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-red/20 text-accent-red border border-accent-red/30">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-red/20 text-accent-red-ink border border-accent-red/30">
             <WifiOff className="h-3 w-3" /> {t('disconnected')}
           </span>
         );

@@ -71,7 +71,7 @@ const KIND_HE: Record<string, string> = {
 };
 
 const KIND_COLOR: Record<string, string> = {
-  warmup:   'bg-accent-red/20 text-accent-red',
+  warmup:   'bg-accent-red/20 text-accent-red-ink',
   interval: 'bg-band-2/25 text-band-2-ink',
   recovery: 'bg-ink-300/30 text-ink-500',
   rest:     'bg-ink-300/40 text-ink-500',

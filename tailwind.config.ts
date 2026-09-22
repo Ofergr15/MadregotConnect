@@ -153,12 +153,34 @@ const config: Config = {
         // error copy together. Kept on the frames' hue and saturation.
         'accent-red': '#AD3838', // 6.18:1 on card · 4.64:1 on page
         // TEXT-ON-TINT companion, same role as accent-900 and band-N-ink below.
-        // #AD3838 is correct against a plain surface but not against its OWN
-        // wash: `bg-accent-red/15` over the page tint composites to #D7C6C6 and
-        // drops it to 3.76:1 (4.04:1 at /10), which is every error box and
-        // destructive chip in the app. Use this whenever the same element
-        // carries both `bg-accent-red/1x` and the label. 5.02:1 worst case.
-        'accent-red-ink': '#8F2B2B',
+        //
+        // CORRECTED 2026-09-22 — this comment used to say `bg-accent-red/15` over
+        // the page tint composites to #D7C6C6 and drops #AD3838 to 3.76:1 (4.04:1
+        // at /10), "which is every error box and destructive chip in the app".
+        // That is wrong, and it was about to cost a thirty-file sweep. Measured by
+        // compositing the rgba in a canvas and reading the pixel back, rather than
+        // by hand: /15 over the page tint is #E8D7DA, not #D7C6C6. #D7C6C6 needs
+        // alpha ~0.37 AND a greyer base than `page` (it has G == B, where a real
+        // composite over #F2F4F7 keeps B > G). The 3.76 figure is arithmetically
+        // consistent with #D7C6C6 — it is the composite that was wrong.
+        //
+        // What #AD3838 actually measures as small text:
+        //
+        //            on white card   on page tint
+        //   /10          5.31            4.83
+        //   /12          5.14            4.67
+        //   /15          4.90            4.46  <- fails, by 0.04
+        //   /20          4.52            4.13  <- fails
+        //   no wash      6.18            5.61
+        //
+        // So the error boxes were fine all along. Only `/20` is genuinely exposed,
+        // and note WHY: it clears on a card by 0.02 and fails on the page, so
+        // whether `bg-accent-red/20 text-accent-red` is legal depends on a
+        // container the class string cannot see. The seven `/20` sites use this
+        // companion for that reason — not because red-on-tint is broken, but to
+        // remove a correctness-depends-on-the-parent trap. /10 through /15 keep
+        // the plain token; do not "finish" the sweep.
+        'accent-red-ink': '#8F2B2B', // 6.03:1 on its own /20 over card, 5.51:1 over page
         // The three דבוקה tints on the league table, read off the frame's
         // rgba() row fills. Squad colour still comes from resolveGroup() at
         // runtime; these are the design's reference values.

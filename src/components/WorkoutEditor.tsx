@@ -445,7 +445,7 @@ function StepRow({
         <span className="text-[10px] text-ink-400 w-4 text-end">{index + 1}</span>
         <span className={cn(
           'text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide',
-          step.type === 'interval' ? 'bg-accent-red/20 text-accent-red' :
+          step.type === 'interval' ? 'bg-accent-red/20 text-accent-red-ink' :
           step.type === 'warmup' ? 'bg-band-3/20 text-band-3-ink' :
           step.type === 'cooldown' ? 'bg-band-2/20 text-band-2-ink' :
           step.type === 'rest' ? 'bg-ink-300/20 text-ink-400' :
@@ -884,7 +884,7 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
                 <span className={cn(
                   'text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
                   c.kind === 'added' ? 'bg-accent-600/20 text-accent-900' :
-                  c.kind === 'removed' ? 'bg-accent-red/20 text-accent-red' :
+                  c.kind === 'removed' ? 'bg-accent-red/20 text-accent-red-ink' :
                   'bg-brand-600/20 text-brand-600'
                 )}>
                   {c.kind === 'added' ? t('kindAdded') : c.kind === 'removed' ? t('kindRemoved') : t('kindModified')}
