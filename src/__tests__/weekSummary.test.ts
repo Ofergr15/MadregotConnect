@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nameQualifier, roundKm, weekChart, weekStats } from '@/lib/plans/week-summary';
+import { isPlanNote, nameQualifier, roundKm, weekChart, weekStats } from '@/lib/plans/week-summary';
 import { formatDurationClock } from '@/lib/workout-duration';
 import type { WeekSession } from '@/lib/plans/workout-parsing';
 
@@ -114,6 +114,60 @@ describe('weekChart', () => {
     const [rest] = weekChart([session({ dayOfWeek: 3, kmMax: 10 })], { heightPx: 80 });
     expect(rest.hasWorkout).toBe(false);
     expect(rest.segments).toEqual([]);
+  });
+});
+
+/**
+ * "יום שני לדוגמא אין אימון / הגרף צריך להיות ריק עבור אותו יום" (bd468327).
+ *
+ * The real week of 2026-09-20: Yom Kippur fell on the Monday and the coach wrote
+ * "כיפור – אין אימון מתוכנן" there. The parser has one shape for a published day,
+ * so it arrived as a session — and the screen believed it: a stub bar on the
+ * chart, "8 workouts · 7 days" above it, and a tappable row reading "0 min".
+ */
+const NOTE_WEEK: WeekSession[] = [
+  session({ dayOfWeek: 0, kmMin: 20, kmMax: 21, type: 'intervals', durationSec: 5400 }),
+  session({ dayOfWeek: 1, kmMin: 0, kmMax: 0, durationSec: 0, name: 'שני' }),
+  session({ dayOfWeek: 3, kmMin: 12, kmMax: 14, durationSec: 4200 }),
+];
+
+describe('a day the coach marked as no-workout', () => {
+  it('is not a session: no distance and no time', () => {
+    expect(isPlanNote(NOTE_WEEK[1])).toBe(true);
+    // The distinction that matters — an option with no km still has its minutes.
+    expect(isPlanNote({ kmMax: 0, durationSec: 2100 })).toBe(false);
+    expect(isPlanNote({ kmMax: 13, durationSec: 3600 })).toBe(false);
+  });
+
+  it('leaves the column empty', () => {
+    const columns = weekChart(NOTE_WEEK, { heightPx: 80 });
+    expect(columns[1].segments).toEqual([]);
+    expect(columns[1].hasWorkout).toBe(false);
+    // And the days that DO hold a workout are untouched by it.
+    expect(columns[0].segments).toHaveLength(1);
+    expect(columns[3].segments).toHaveLength(1);
+  });
+
+  it('is not counted as a workout or as a training day', () => {
+    const stats = weekStats(NOTE_WEEK);
+    expect(stats.sessionCount).toBe(2);
+    expect(stats.dayCount).toBe(2);
+    expect(stats.noteDays).toEqual([1]);
+    // It has no distance, so it must not drag the week's total or the legend
+    // with it either — the colour of a bar nobody draws.
+    expect(stats.kmMax).toBe(35);
+    expect(stats.types).toEqual(['intervals', 'easy']);
+    expect(stats.hasKmlessSession).toBe(false);
+  });
+
+  it('still leaves the real kmless evening its stub and its count', () => {
+    // The whole WEEK fixture: Monday's optional evening is a run with no distance
+    // and 35 minutes. It is a session, and this fix may not take it away.
+    const stats = weekStats(WEEK);
+    expect(stats.sessionCount).toBe(9);
+    expect(stats.noteDays).toEqual([]);
+    expect(stats.hasKmlessSession).toBe(true);
+    expect(weekChart(WEEK, { heightPx: 80 })[1].segments).toHaveLength(2);
   });
 });
 

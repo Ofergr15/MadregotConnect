@@ -10,7 +10,7 @@ import { useApi } from '@/lib/api';
 import { getDisplayWeekStart, formatPlanWeekRange, planDayKey } from '@/lib/plans/workout-parsing';
 import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_TEXT_COLORS, type WeekSession } from '@/lib/plans/workout-parsing';
 import { sessionFrame, sessionHeadline, type FrameLabels } from '@/lib/plans/session-summary';
-import { nameQualifier, roundKm, weekChart, weekStats } from '@/lib/plans/week-summary';
+import { isPlanNote, nameQualifier, roundKm, weekChart, weekStats } from '@/lib/plans/week-summary';
 import type { StepUnits } from '@/lib/plans/step-display';
 import { formatDurationClock } from '@/lib/workout-duration';
 import { ltr, textDir } from '@/lib/bidi';
@@ -895,7 +895,14 @@ function WeekClimb({
               >
                 {col.hasWorkout ? `${col.leadKm || ''}${col.multi ? '+' : ''}` || '—' : '—'}
               </span>
-              <span className="flex w-full flex-col justify-end gap-0.5">
+              {/* A track under every day, and the bars drawn inside it. A day
+                  with no workout is then an EMPTY SLOT rather than a gap the eye
+                  skips — the same language the shareable week card uses, and what
+                  bd468327 asked for after Yom Kippur drew a stub bar instead. */}
+              <span
+                className="flex w-full flex-col justify-end gap-0.5 rounded-tile bg-page"
+                style={{ height: CHART_HEIGHT }}
+              >
                 {col.segments.map((seg) => (
                   <i
                     key={seg.key}
@@ -959,6 +966,7 @@ function WeekClimb({
       {days.map((day) => {
         const isToday = day.dateKey === todayKey;
         const [, month, date] = day.dateKey.split('-');
+        const plannedSessions = day.sessions.filter((s) => !isPlanNote(s));
 
         return (
           <div key={day.dayOfWeek} className="mb-2.5 overflow-hidden rounded-card bg-card">
@@ -979,10 +987,14 @@ function WeekClimb({
                   </span>
                 )}
               </span>
+              {/* Counted over the real sessions: a day whose only entry is
+                  "כיפור – אין אימון מתוכנן" is a rest day, and saying so is what
+                  makes the note underneath read as the reason instead of as a
+                  workout with no numbers. */}
               <span className="text-2xs text-ink-400">
-                {day.sessions.length > 1
-                  ? tp('sessionCount', { count: day.sessions.length })
-                  : day.sessions.length === 0
+                {plannedSessions.length > 1
+                  ? tp('sessionCount', { count: plannedSessions.length })
+                  : plannedSessions.length === 0
                     ? t('restDay')
                     : ''}
               </span>
@@ -990,6 +1002,17 @@ function WeekClimb({
 
             {day.sessions.map((s) => {
               const title = sessionTitle(s);
+              // What the coach wrote on a day with no training — printed once, as
+              // prose, and NOT as a tappable session: the row used to carry a "קל"
+              // badge, the same sentence twice (title and frame), "0 דק׳" as its
+              // size, and a chevron into a workout sheet with nothing in it.
+              if (isPlanNote(s)) {
+                return (
+                  <p key={s.key} className="border-t border-page px-3.5 py-2.5 text-2xs text-ink-400">
+                    <bdi dir={textDir(title)}>{title}</bdi>
+                  </p>
+                );
+              }
               const kind = kindLabel(s);
               const sub = sessionFrame(s.steps, frameLabels);
               const km = s.kmMax > 0 ? kmRange(s.kmMin, s.kmMax) : '';
