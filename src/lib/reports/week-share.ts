@@ -86,6 +86,8 @@ export type WeekCardLang = 'he' | 'en';
 export interface WeekCardText {
   title: string;
   labels: Record<WeekMetricKey, string>;
+  /** Title over the per-day bars, when the athlete turns them on. */
+  days: string;
 }
 
 export const WEEK_CARD_TEXT: Record<WeekCardLang, WeekCardText> = {
@@ -95,6 +97,7 @@ export const WEEK_CARD_TEXT: Record<WeekCardLang, WeekCardText> = {
       km: 'ק״מ', time: 'שעות', pace: 'קצב ממוצע', runs: 'אימונים',
       elev: 'טיפוס (מ׳)', cal: 'קלוריות',
     },
+    days: 'ק״מ ליום',
   },
   en: {
     title: 'Last 7 days',
@@ -102,6 +105,7 @@ export const WEEK_CARD_TEXT: Record<WeekCardLang, WeekCardText> = {
       km: 'km', time: 'hours', pace: 'avg pace', runs: 'runs',
       elev: 'elev gain (m)', cal: 'calories',
     },
+    days: 'km per day',
   },
 };
 

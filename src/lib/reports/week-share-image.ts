@@ -1,5 +1,6 @@
 import {
-  STORY_W, STORY_H, drawCover, loadImage, resolveFontStack, roundRectPath,
+  STORY_W, STORY_H, drawCover, drawShareBars, loadImage, resolveFontStack, roundRectPath,
+  type ShareBars,
 } from '@/lib/feed/share-image';
 import type { Last7Report } from './last-7-days';
 import {
@@ -45,6 +46,14 @@ export interface WeekShareOptions {
   metrics: WeekMetricKey[];
   /** The card's language, chosen per share; also decides the panel's direction. */
   lang: WeekCardLang;
+  /**
+   * Add the per-day bars under the rows. OFF unless asked for, and the docblock at
+   * the top of this file is the reason: the rows are what a stranger can read in a
+   * second. The bars are for the athlete who wants to show the SHAPE of the week —
+   * three hard days and four easy ones is a different week from seven the same — so
+   * they are available per share rather than assumed.
+   */
+  bars?: boolean;
 }
 
 const MARGIN = 80;
@@ -63,6 +72,31 @@ export function formatWeekRange(report: Last7Report, rtl: boolean): string {
   return rtl
     ? `${fd(report.to)} – ${fd(report.from)}`
     : `${fd(report.from)} – ${fd(report.to)}`;
+}
+
+/** Title line + bars + the two dates, inside the panel. */
+const WEEK_BARS_H = 230;
+const WEEK_BARS_GAP = 26;
+
+/**
+ * One bar per day of the window, drawn by the same function as a run's splits.
+ *
+ * Kilometres rather than minutes, because that is the number in the row above it and
+ * the two must agree. A rest day is a zero, kept in the sequence: seven slots with
+ * two empty is a true picture of the week, six bars is not.
+ */
+export function weekDayBars(report: Last7Report, lang: WeekCardLang): ShareBars {
+  const values = report.days.map((d) => Math.round(d.km * 10) / 10);
+  let best = 0;
+  values.forEach((v, i) => { if (v > values[best]) best = i; });
+  return {
+    values,
+    highlight: values[best] > 0 ? best : null,
+    axis: [fd(report.from), fd(report.to)],
+    label: WEEK_CARD_TEXT[lang].days,
+    // Taller means more kilometres, which needs no saying; and no `inverted`, so the
+    // scale is zero-based — unlike pace, a week's distances genuinely start at zero.
+  };
 }
 
 export async function renderWeekShareCard(
@@ -124,7 +158,11 @@ export async function renderWeekShareCard(
   const panelW = STORY_W - MARGIN * 2;
   const headerH = 200;
   const rowH = 150;
-  const panelH = headerH + Math.max(rows.length, 1) * rowH + 40;
+  // The bars are inside the panel, so the panel grows for them and the centring
+  // below keeps the whole block clear of the mark.
+  const bars = opts.bars ? weekDayBars(report, opts.lang) : null;
+  const barsBlockH = bars ? WEEK_BARS_GAP + WEEK_BARS_H : 0;
+  const panelH = headerH + Math.max(rows.length, 1) * rowH + barsBlockH + 40;
   const panelX = MARGIN;
   // The logo owns the top of the card, so the panel is centred in what is LEFT
   // rather than in the frame — centring it in the frame would ride up under the
@@ -211,6 +249,22 @@ export async function renderWeekShareCard(
     ctx.font = `800 72px ${font}`;
     ctx.fillText(m.total(report), valueX, baseline);
   });
+
+  // ── The shape of the week ─────────────────────────────────────────────────
+  if (bars) {
+    drawShareBars(
+      ctx,
+      font,
+      bars,
+      {
+        x: panelX + padX,
+        y: panelY + headerH + Math.max(rows.length, 1) * rowH + WEEK_BARS_GAP,
+        w: panelW - padX * 2,
+        h: WEEK_BARS_H,
+      },
+      { rtl, labelPx: 36, axisPx: 26, radius: 10 },
+    );
+  }
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(

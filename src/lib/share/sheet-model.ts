@@ -1,11 +1,12 @@
 import {
-  availableWorkoutMetrics, hasRouteTrace, workoutMetricStat,
-  type ShareI18n, type ShareTemplate, type WorkoutMetricKey,
+  availableWorkoutMetrics, hasRouteTrace, paceBandCount, supportsFooter, workoutMetricStat,
+  type ShareI18n, type ShareTemplate, type ShareVerdict, type WorkoutMetricKey,
 } from '@/lib/feed/share-image';
 import {
   WEEK_CARD_TEXT, availableMetrics, type WeekMetricKey,
 } from '@/lib/reports/week-share';
-import type { ShareCardLang } from './card-text';
+import { DIRECTION_COLOR } from '@/lib/plan-execution/verdict';
+import { VERDICT_TEXT, type ShareCardLang } from './card-text';
 import type { FeedItem } from '@/lib/feed/project';
 import type { Last7Report } from '@/lib/reports/last-7-days';
 
@@ -181,6 +182,117 @@ export function fitChipKeys(subject: ShareSubject, frame: ShareFrame, keys: stri
   const kept = order.filter(k => keys.includes(k)).slice(0, frameCapacity(subject, frame));
   // Never empty: a frame change must not be able to produce a blank card.
   return kept.length ? kept : defaultChipKeys(subject, frame);
+}
+
+/*
+ * ── THE TWO THINGS THAT ARE NOT NUMBERS ─────────────────────────────────────
+ * The bars and the verdict. They sit in the content row with the number chips and
+ * they are deliberately NOT counted against `frameCapacity`: capacity is how many
+ * COLUMNS the stat row has, and neither of these is a column. Turning the bars on
+ * must not cost the athlete their heart rate.
+ */
+
+export type ShareExtraKey = 'bars' | 'verdict';
+
+export interface ShareExtraOption {
+  key: ShareExtraKey;
+  available: boolean;
+  /** One-line reason, printed by the sheet, when this is offered but greyed. */
+  reason?: 'noSplits' | 'needsNumbers';
+  /**
+   * Whether it starts on.
+   *
+   * The bars do over 3 km — they are the differentiator, they cost nothing to
+   * compute from splits the run already carries, and under 3 km there is not enough
+   * of a sequence to be a shape. The verdict NEVER does: somebody who missed the
+   * range should not have to notice a default in order to keep that off a public
+   * story.
+   */
+  defaultOn: boolean;
+}
+
+/** The frame with the vertical room for a footer — see `supportsFooter`. */
+export const FOOTER_FRAME: ShareFrame = 'numbers';
+
+/**
+ * The extras this subject and this frame can draw.
+ *
+ * The verdict is ABSENT from the list, not greyed, when the session had no plan:
+ * greying it would tell every athlete on every unplanned run that there is a
+ * judgement they are missing out on, which is the opposite of what the option is
+ * for. A run WITH a plan on the wrong frame is greyed, because that one is a limit
+ * the athlete can lift with one tap on the frame row above.
+ */
+export function shareExtras(subject: ShareSubject, frame: ShareFrame): ShareExtraOption[] {
+  const roomy = supportsFooter(FRAME_TEMPLATE[frame]);
+  const out: ShareExtraOption[] = [];
+
+  if (subject.kind === 'week') {
+    // The weekly card's panel grows downward, so it has room on every frame.
+    const has = subject.report.days.some(d => d.km > 0);
+    out.push({ key: 'bars', available: has, defaultOn: false });
+    return out;
+  }
+
+  const act = subject.item.activity!;
+  const bands = paceBandCount(act) >= 2;
+  out.push({
+    key: 'bars',
+    available: bands && roomy,
+    reason: !bands ? 'noSplits' : roomy ? undefined : 'needsNumbers',
+    defaultOn: act.distance >= 3000,
+  });
+  if (act.planVerdict) {
+    out.push({
+      key: 'verdict',
+      available: roomy,
+      reason: roomy ? undefined : 'needsNumbers',
+      defaultOn: false,
+    });
+  }
+  return out;
+}
+
+/**
+ * Which extras start on.
+ *
+ * Read against `FOOTER_FRAME` rather than the frame the sheet opens on, because a
+ * routed run opens on `route` — where no footer fits — and "the bars are on by
+ * default over 3 km" has to survive the athlete tapping across to the numbers. The
+ * intent is stored; whether it DRAWS is `shareExtras(subject, frame)`.
+ */
+export function defaultExtraKeys(subject: ShareSubject): ShareExtraKey[] {
+  return shareExtras(subject, FOOTER_FRAME)
+    .filter(e => e.available && e.defaultOn)
+    .map(e => e.key);
+}
+
+/** On, and drawable on this frame. The sheet renders a greyed extra as off. */
+export function extraOn(
+  subject: ShareSubject,
+  frame: ShareFrame,
+  keys: ShareExtraKey[],
+  key: ShareExtraKey,
+): boolean {
+  if (!keys.includes(key)) return false;
+  return !!shareExtras(subject, frame).find(e => e.key === key)?.available;
+}
+
+/**
+ * The verdict as the card draws it: the direction's own words, its own colour.
+ *
+ * Null for anything but a workout with a plan — a week is not graded against one
+ * plan, and a run with no plan has nothing to be right or wrong about.
+ */
+export function shareVerdict(subject: ShareSubject, lang: ShareCardLang): ShareVerdict | null {
+  if (subject.kind !== 'workout') return null;
+  const v = subject.item.activity?.planVerdict;
+  if (!v) return null;
+  return {
+    text: VERDICT_TEXT[lang][v.direction],
+    score: v.score,
+    color: DIRECTION_COLOR[v.direction],
+  };
 }
 
 /** Typed hand-off to each renderer, so neither one takes a string it can't use. */

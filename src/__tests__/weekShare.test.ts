@@ -143,7 +143,7 @@ describe('the canvas card', () => {
   const img = read('lib/reports/week-share-image.ts');
 
   it('is the same 1080×1920 frame as a single activity, using its helpers', () => {
-    expect(img).toMatch(/STORY_W, STORY_H, drawCover, loadImage, resolveFontStack, roundRectPath/);
+    expect(img).toMatch(/STORY_W, STORY_H, drawCover, drawShareBars, loadImage, resolveFontStack, roundRectPath/);
     expect(img).toMatch(/from '@\/lib\/feed\/share-image'/);
     // No second copy of the crop or the font resolution to drift from the original.
     expect(img).not.toMatch(/function drawCover|function resolveFontStack/);

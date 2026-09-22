@@ -95,6 +95,25 @@ export function supportsTransparent(template: ShareTemplate): boolean {
   return template !== 'photo';
 }
 
+/**
+ * Which templates have room under their content for the bars and the verdict.
+ *
+ * Exactly one of them, and the reason is measurable rather than aesthetic. The
+ * frame is 383×681 design units and a story's bottom fifth is covered by
+ * Instagram's own reply bar, so the usable floor is about 590. `route` already draws
+ * its shoe mark down to 581 and `photo` its stats to ~576; `fullStats` ends its grid
+ * at ~430 and has 160 units spare. Lifting the route block to make room would move
+ * a card athletes already recognise, to fit a block they have not asked to see yet.
+ *
+ * The sheet greys the two toggles on the other frames and says this in one line,
+ * rather than accepting the tap and drawing nothing.
+ */
+const FOOTER_CAPABLE: ShareTemplate[] = ['fullStats'];
+
+export function supportsFooter(template: ShareTemplate): boolean {
+  return FOOTER_CAPABLE.includes(template);
+}
+
 /** The views worth offering for this run, in rail order. */
 export function templatesForActivity(act: Pick<FeedActivity, 'routePreview'>): ShareTemplate[] {
   const routed = hasRouteTrace(act);
@@ -146,6 +165,16 @@ export interface ShareI18n {
    */
   hoursShort: string;
   minutesShort: string;
+  /** Title over the per-kilometre bars — "מקטעים" / "Splits". */
+  splits: string;
+  /**
+   * The one thing a reader cannot guess about the pace bars.
+   *
+   * On a chart of kilometres, taller means more. On a chart of PACES, taller has to
+   * mean faster — a bar chart where the best kilometre is the shortest reads as a
+   * bad run. Saying so in four words is cheaper than a second axis.
+   */
+  fastest: string;
 }
 
 export interface ShareCardOptions {
@@ -191,6 +220,69 @@ export interface ShareCardOptions {
    * draw `secondaryStats` and have their own fixed row.
    */
   metrics?: WorkoutMetricKey[];
+  /**
+   * The run of bars along the bottom — per kilometre here, per day on the weekly
+   * card, drawn by the same function. Absent by default.
+   */
+  bars?: ShareBars | null;
+  /**
+   * How the session went against the day's plan. Absent by default, and that is a
+   * decision rather than an oversight — see `ShareVerdict`.
+   */
+  verdict?: ShareVerdict | null;
+}
+
+/**
+ * A run of bars with a scale but no axis.
+ *
+ * ONE function draws these on both cards: per kilometre for a workout, per day for
+ * a week. They are the same picture of the same kind of thing — a sequence with a
+ * shape — and two implementations would drift on bar width, on what a zero looks
+ * like, and on which end the first bar goes.
+ *
+ * There is no gridline and no y-axis, because a story is read in about a second by
+ * somebody who does not know the athlete's normal week. What the reader gets is the
+ * SHAPE, the two ends of the sequence, and one bar picked out; a scale they would
+ * have to study is a scale they will not study.
+ */
+export interface ShareBars {
+  /** In reading order: the first value goes where the eye starts. */
+  values: number[];
+  /** The one bar drawn at full strength — the fastest km, the biggest day. */
+  highlight?: number | null;
+  /** The two ends of the sequence, e.g. ['1', '11'] or ['13.09', '19.09']. */
+  axis: [string, string];
+  /** The metric's own name, printed above the bars. */
+  label: string;
+  /** One short line under the title, where the chart needs a word of warning. */
+  hint?: string;
+  /**
+   * Lower is better, so the tallest bar is the smallest number.
+   *
+   * True for pace and false for distance. It also changes the FLOOR: paces cluster
+   * inside a minute of each other, so a zero-based scale would draw seven bars of
+   * nearly identical height and say nothing — the band is relative, with the
+   * slowest kilometre kept visible rather than flattened to the baseline.
+   */
+  inverted?: boolean;
+}
+
+/**
+ * The plan verdict as the card prints it.
+ *
+ * `color` is passed in rather than derived here so the card cannot invent a fifth
+ * palette: the one table in `lib/plan-execution/verdict.ts` already decides what
+ * every direction looks like on all three surfaces that show it, and a direction
+ * that is blue in the app and orange on the card is worse than no colour at all.
+ *
+ * `text` is the direction in the CARD'S language, not the app's, for the same
+ * reason every other string on the card is — see `lib/share/card-text.ts`.
+ */
+export interface ShareVerdict {
+  text: string;
+  /** 0–100. Null when the session was graded without a score. */
+  score: number | null;
+  color: string;
 }
 
 function formatPace(secPerKm: number): string {
@@ -257,6 +349,107 @@ export function drawCover(
   const w = iw * scale;
   const h = ih * scale;
   ctx.drawImage(img, (STORY_W - w) / 2, (STORY_H - h) / 2, w, h);
+}
+
+/**
+ * THE one bar drawer, used by the workout card and the weekly card.
+ *
+ * Everything that differs between the two is an argument: the values, which end the
+ * eye starts at, and whether taller means more or faster. `box` is the whole block
+ * INCLUDING its title line and the two end labels, so a caller only has to know
+ * where the block starts and how tall it is allowed to be.
+ *
+ * Two details that are easy to get wrong and hard to notice afterwards:
+ *  · every bar gets a faint full-height track behind it, so a rest day reads as an
+ *    empty slot in the week rather than as a missing bar;
+ *  · in RTL the first value is drawn on the RIGHT. The bars are a sequence in time,
+ *    and a Hebrew reader starts a sequence where they start a sentence.
+ */
+export function drawShareBars(
+  ctx: CanvasRenderingContext2D,
+  font: string,
+  bars: ShareBars,
+  box: { x: number; y: number; w: number; h: number },
+  opts: {
+    rtl: boolean;
+    /** Colour of the highlighted bar. The rest are always plain white at 58%. */
+    accent?: string;
+    labelPx: number;
+    axisPx: number;
+    radius: number;
+  },
+) {
+  const { values, axis, label, hint } = bars;
+  const positive = values.filter(v => v > 0);
+  // Two bars is the least that is a shape rather than a fact already on the card.
+  if (values.length < 2 || positive.length === 0) return;
+
+  const { rtl, labelPx, axisPx, radius } = opts;
+  // A drop shadow on a filled rectangle turns the whole block muddy, so the block
+  // is drawn flat regardless of what the layout around it set.
+  ctx.save();
+  ctx.shadowBlur = 0;
+
+  const startEdge = rtl ? box.x + box.w : box.x;
+  const endEdge = rtl ? box.x : box.x + box.w;
+
+  ctx.direction = rtl ? 'rtl' : 'ltr';
+  ctx.textAlign = rtl ? 'right' : 'left';
+  ctx.font = `700 ${labelPx}px ${font}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.fillText(label, startEdge, box.y + labelPx);
+  if (hint) {
+    ctx.textAlign = rtl ? 'left' : 'right';
+    ctx.font = `500 ${axisPx}px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText(hint, endEdge, box.y + labelPx);
+  }
+
+  const bandTop = box.y + labelPx + Math.round(labelPx * 0.55);
+  const bandBottom = box.y + box.h - Math.round(axisPx * 1.9);
+  const bandH = Math.max(0, bandBottom - bandTop);
+
+  const hi = Math.max(...positive);
+  const lo = Math.min(...positive);
+  // See `inverted`: a relative band for paces, a zero-based one for distances.
+  const floor = bars.inverted ? 0.3 : 0;
+  const scoreOf = (v: number) => {
+    if (hi === lo) return 1;
+    return bars.inverted ? (hi - v) / (hi - lo) : v / hi;
+  };
+
+  const pitch = box.w / values.length;
+  // Capped against the BAND as well as the pitch. Seven days across the weekly
+  // panel gives each bar a 115px slot, and a bar wider than it is tall reads as a
+  // box with a fill level rather than as a height to compare — which is the one
+  // thing the block exists to show. One rule for both cards, no per-card width.
+  const barW = Math.max(2, Math.min(pitch * 0.54, bandH * 0.42));
+  values.forEach((v, i) => {
+    const cx = rtl ? box.x + box.w - pitch * (i + 0.5) : box.x + pitch * (i + 0.5);
+    const x = cx - barW / 2;
+    // Faint on purpose: the track is there so a rest day reads as an empty slot
+    // instead of as absence, and anything brighter competes with the bars.
+    roundRectPath(ctx, x, bandTop, barW, bandH, radius);
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fill();
+    if (v <= 0) return;
+    const h = Math.max(radius * 2, (floor + (1 - floor) * scoreOf(v)) * bandH);
+    roundRectPath(ctx, x, bandBottom - h, barW, h, radius);
+    ctx.fillStyle = i === bars.highlight ? (opts.accent ?? '#ffffff') : 'rgba(255,255,255,0.58)';
+    ctx.fill();
+  });
+
+  // Digits only, so the pair reads in the same order in both languages; which end
+  // each one is pinned to is what carries the direction.
+  ctx.direction = 'ltr';
+  ctx.font = `600 ${axisPx}px ${font}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.textAlign = rtl ? 'right' : 'left';
+  ctx.fillText(axis[0], startEdge, box.y + box.h);
+  ctx.textAlign = rtl ? 'left' : 'right';
+  ctx.fillText(axis[1], endEdge, box.y + box.h);
+
+  ctx.restore();
 }
 
 function drawBrandGradient(ctx: CanvasRenderingContext2D) {
@@ -515,6 +708,42 @@ export function workoutStats(
     .filter((s): s is Stat => !!s);
 }
 
+/**
+ * How many WHOLE kilometres this run has a split for.
+ *
+ * Whole ones only. The last split of an 11.4 km run covers 400 m, and its pace is
+ * a different quantity from the eleven before it — a sprint finish over 400 m would
+ * otherwise set the scale for the entire chart and squash every real kilometre into
+ * the bottom third. `paceBands` is also null outright for a run nobody has opened
+ * (it is read from the cached splits) and for an athlete who has hidden their pace,
+ * which is why the chip has to be able to grey out.
+ */
+export function paceBandCount(act: Pick<FeedActivity, 'paceBands' | 'distance'>): number {
+  if (!act.paceBands || act.paceBands.length < 2) return 0;
+  return Math.min(act.paceBands.length, Math.floor(act.distance / 1000));
+}
+
+/** The per-kilometre bars for a run, or null when it has no usable splits. */
+export function workoutPaceBars(act: FeedActivity, i18n: ShareI18n): ShareBars | null {
+  const n = paceBandCount(act);
+  if (n < 2) return null;
+  const values = act.paceBands!.slice(0, n);
+  // The fastest kilometre is the one worth pointing at, and it is the one the
+  // athlete cannot read off the average pace already on the card.
+  let best = 0;
+  values.forEach((v, i) => {
+    if (v > 0 && (values[best] <= 0 || v < values[best])) best = i;
+  });
+  return {
+    values,
+    highlight: best,
+    axis: ['1', String(n)],
+    label: i18n.splits,
+    hint: i18n.fastest,
+    inverted: true,
+  };
+}
+
 /** The default set: distance, pace, time — what every newer view always led with. */
 export const DEFAULT_WORKOUT_METRICS: WorkoutMetricKey[] = ['km', 'pace', 'time'];
 
@@ -548,6 +777,10 @@ interface LayoutCtx {
   showStartTime: boolean;
   /** The chosen numbers, in card order — see WORKOUT_METRICS. */
   metrics: WorkoutMetricKey[];
+  /** The per-kilometre bars, when the athlete turned them on. */
+  bars: ShareBars | null;
+  /** The plan verdict, when the athlete turned it on. Never on by itself. */
+  verdict: ShareVerdict | null;
 }
 
 /**
@@ -754,6 +987,118 @@ function drawStatRow(c: LayoutCtx, stats: Stat[], left: number, right: number, l
   stats.forEach((s, i) =>
     drawStat(c, s, left + colW * (i + 0.5), labelBaseline, 'center', colW - p(8)),
   );
+}
+
+/*
+ * ── The footer: the bars, then the verdict ───────────────────────────────────
+ * Both live below the numbers, in that order, and both are off unless the athlete
+ * turned them on. The order is not arbitrary: the bars are a description of the run
+ * and the verdict is a judgement of it, so the judgement goes last and closest to
+ * the edge of the frame — the only line on any card that says the run was not what
+ * it should have been reads as a footnote rather than as a headline.
+ */
+
+/** Title line + bars + the two end labels, in design units. */
+const BARS_H = 96;
+const FOOTER_GAP = 8;
+const PILL_H = 34;
+
+/**
+ * The verdict, as a pill.
+ *
+ * A pill rather than a line of type because it is the ONE judgement on the card and
+ * it has to be legible as a separate kind of statement from the numbers around it.
+ * The colour dot carries the direction — "62%" alone cannot tell you whether the
+ * session was too fast or too slow, which is the whole point of showing a direction
+ * at all (see `ExecutionDirection`).
+ */
+function drawVerdictPill(c: LayoutCtx, top: number): number {
+  const { ctx, font, verdict } = c;
+  if (!verdict) return 0;
+
+  const h = p(PILL_H);
+  const padX = p(15);
+  const dot = p(11);
+  const gap = p(8);
+  const textPx = p(15);
+
+  // The dot leads and the score trails, in the READING order of the words in the
+  // pill — a Hebrew verdict with its dot on the left is read score-first, which
+  // puts the number the athlete did not ask to lead with at the front of the line.
+  // Same script test as `drawValueWithUnit`, for the same reason.
+  const rtl = /[֐-׿]/.test(verdict.text);
+
+  ctx.save();
+  ctx.shadowBlur = 0;
+  // Measured under the same direction it is drawn under, or the width is wrong by
+  // a hair and the pill sits off-centre.
+  ctx.direction = rtl ? 'rtl' : 'ltr';
+  ctx.textAlign = 'left';
+  ctx.font = `700 ${textPx}px ${font}`;
+  const textW = ctx.measureText(verdict.text).width;
+  const score = verdict.score === null ? null : `${Math.round(verdict.score)}%`;
+  ctx.font = `800 ${textPx}px ${font}`;
+  const scoreW = score ? ctx.measureText(score).width : 0;
+
+  const w = padX * 2 + dot + gap + textW + (score ? gap + scoreW : 0);
+  const x = CX - w / 2;
+  roundRectPath(ctx, x, top, w, h, h / 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.42)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  const lead = rtl ? x + w - padX : x + padX;                    // the reading start
+  const dotX = rtl ? lead - dot : lead;
+  const textX = rtl ? dotX - gap - textW : lead + dot + gap;
+  const scoreX = rtl ? x + padX : x + w - padX - scoreW;
+
+  ctx.beginPath();
+  ctx.arc(dotX + dot / 2, top + h / 2, dot / 2, 0, Math.PI * 2);
+  ctx.fillStyle = verdict.color;
+  ctx.fill();
+
+  const baseline = top + h / 2 + p(5);
+  ctx.font = `700 ${textPx}px ${font}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(verdict.text, textX, baseline);
+  if (score) {
+    // A percentage is digits and a sign: LTR, or the '%' lands on the wrong side.
+    ctx.direction = 'ltr';
+    ctx.font = `800 ${textPx}px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillText(score, scoreX, baseline);
+  }
+  ctx.restore();
+  return h;
+}
+
+/** Draws whichever of the two are on, stacked from `top`. Returns the height used. */
+function drawCardFooter(c: LayoutCtx, top: number): number {
+  const { ctx, font, bars, accent } = c;
+  let y = top;
+  if (bars) {
+    drawShareBars(
+      ctx,
+      font,
+      bars,
+      { x: p(24), y, w: STORY_W - p(48), h: p(BARS_H) },
+      {
+        // Which end the sequence starts at is a property of the LABEL's script, the
+        // same test `drawValueWithUnit` uses for which side a unit goes on — the
+        // card's language is not the app's, so a locale flag would be the wrong one.
+        rtl: /[֐-׿]/.test(bars.label),
+        accent,
+        labelPx: p(14),
+        axisPx: p(11),
+        radius: p(4),
+      },
+    );
+    y += p(BARS_H) + p(FOOTER_GAP);
+  }
+  if (c.verdict) y += drawVerdictPill(c, y) + p(FOOTER_GAP);
+  return y - top;
 }
 
 /** The wordmark, centred. Never accented. Returns its drawn height. */
@@ -1173,6 +1518,11 @@ function layoutFullStats(c: LayoutCtx) {
     drawStat(c, s, cx, p(342) + Math.floor(i / cols) * rowPitch, 'center', colW - p(8));
   });
   ctx.shadowBlur = 0;
+
+  // Under the grid, not at a fixed height: a three-stat card is one row shorter, and
+  // leaving the gap would read as something having failed to draw.
+  const rows = Math.max(1, Math.ceil(stats.length / cols));
+  drawCardFooter(c, p(342) + rows * rowPitch);
 }
 
 /** The stairs mark instead of a route, with the stats stacked beside it. */
@@ -1321,6 +1671,10 @@ export async function renderShareCard(
     showTitle: opts.showTitle ?? true,
     showStartTime: opts.showStartTime ?? true,
     metrics: opts.metrics ?? DEFAULT_WORKOUT_METRICS,
+    // Gated here as well as in the sheet: a template with no room for a footer must
+    // not be able to draw one over its own content, whoever asked.
+    bars: supportsFooter(template) ? opts.bars ?? null : null,
+    verdict: supportsFooter(template) ? opts.verdict ?? null : null,
   });
 
   // JPEG has no alpha channel — a transparent card exported as JPEG comes out with

@@ -6,15 +6,16 @@ import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { Sheet } from '@/components/ui/Sheet';
 import {
-  renderShareCard, shareCard, supportsTransparent,
+  renderShareCard, shareCard, supportsTransparent, workoutPaceBars,
   ACCENT_HEX, SHARE_ACCENT_KEYS, type ShareAccent,
 } from '@/lib/feed/share-image';
 import { renderWeekShareCard } from '@/lib/reports/week-share-image';
 import { SHARE_CARD_LANGS, WORKOUT_CARD_TEXT, type ShareCardLang } from '@/lib/share/card-text';
 import {
-  FRAME_TEMPLATE, SHARE_FRAMES, asWeekMetrics, asWorkoutMetrics, defaultChipKeys, defaultFrame,
-  fitChipKeys, frameCapacity, shareChips, shareFilename, shareFrames, toggleChip,
-  type ShareFrame, type ShareSubject,
+  FRAME_TEMPLATE, SHARE_FRAMES, asWeekMetrics, asWorkoutMetrics, defaultChipKeys, defaultExtraKeys,
+  defaultFrame, extraOn, fitChipKeys, frameCapacity, shareChips, shareExtras, shareFilename,
+  shareFrames, shareVerdict, toggleChip,
+  type ShareExtraKey, type ShareFrame, type ShareSubject,
 } from '@/lib/share/sheet-model';
 
 /**
@@ -43,6 +44,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
   const frames = useMemo(() => shareFrames(subject), [subject]);
   const [frame, setFrame] = useState<ShareFrame>(() => defaultFrame(subject));
   const [keys, setKeys] = useState<string[]>(() => defaultChipKeys(subject, defaultFrame(subject)));
+  const [extras, setExtras] = useState<ShareExtraKey[]>(() => defaultExtraKeys(subject));
   // Opens in the app's own language, which is the one the athlete is reading in.
   const [cardLang, setCardLang] = useState<ShareCardLang>(rtl ? 'he' : 'en');
   const [withName, setWithName] = useState(true);
@@ -61,6 +63,12 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
   const chips = useMemo(() => shareChips(subject, i18n, cardLang), [subject, i18n, cardLang]);
   const capacity = frameCapacity(subject, frame);
   const full = keys.length >= capacity;
+  const extraOpts = useMemo(() => shareExtras(subject, frame), [subject, frame]);
+  // The bars and the verdict keep their state across a frame change and simply stop
+  // drawing on a frame with no room for them, which is what the greyed toggle and
+  // its one line say. Losing the choice would be a worse surprise than not drawing it.
+  const barsOn = extraOn(subject, frame, extras, 'bars');
+  const verdictOn = extraOn(subject, frame, extras, 'verdict');
 
   const template = FRAME_TEMPLATE[frame];
   // The sticker export is a workout thing: the weekly renderer composites its own
@@ -94,6 +102,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
         athleteName: withName ? subject.athleteName : null,
         metrics: asWeekMetrics(keys),
         lang: cardLang,
+        bars: barsOn,
       })
       : renderShareCard(subject.item, i18n, {
         background,
@@ -101,6 +110,8 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
         template,
         accent,
         metrics: asWorkoutMetrics(keys),
+        bars: barsOn ? workoutPaceBars(subject.item.activity!, i18n) : null,
+        verdict: verdictOn ? shareVerdict(subject, cardLang) : null,
       });
 
     render
@@ -121,7 +132,10 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [subject, photo, photoOk, keys, cardLang, withName, i18n, template, transparent, accent, t]);
+  }, [
+    subject, photo, photoOk, keys, cardLang, withName, i18n, template, transparent, accent,
+    barsOn, verdictOn, t,
+  ]);
 
   const handleShare = useCallback(async () => {
     const blob = blobRef.current;
@@ -261,6 +275,43 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
         {full && chips.length > capacity && (
           <p className="mt-1.5 text-3xs text-ink-400" dir="auto">{t('contentFull', { count: capacity })}</p>
         )}
+
+        {/* The two that are not numbers. Square-cornered rather than pill-shaped, so
+            it is visible at a glance that they do not compete for the stat row. */}
+        {extraOpts.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {extraOpts.map(opt => {
+              const on = opt.key === 'bars' ? barsOn : verdictOn;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => opt.available && setExtras(prev => (
+                    prev.includes(opt.key) ? prev.filter(k => k !== opt.key) : [...prev, opt.key]
+                  ))}
+                  disabled={!opt.available}
+                  aria-pressed={on}
+                  className={cn(
+                    'rounded-xl border px-3 py-1.5 text-xs font-bold transition-colors',
+                    !opt.available
+                      ? 'cursor-default border-page bg-page/60 text-ink-300'
+                      : on
+                        ? 'border-brand-600 bg-brand-600/10 text-brand-600'
+                        : 'border-page text-ink-400 hover:text-ink-500',
+                  )}
+                >
+                  {opt.key === 'verdict'
+                    ? t('extraVerdict')
+                    : t(subject.kind === 'week' ? 'extraDays' : 'extraSplits')}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {/* Deduped: both extras go grey for the same reason on a frame with no room,
+            and printing that line twice reads as two different problems. */}
+        {[...new Set(extraOpts.filter(o => !o.available && o.reason).map(o => o.reason!))].map(r => (
+          <p key={r} className="mt-1.5 text-3xs text-ink-400" dir="auto">{t(r)}</p>
+        ))}
 
         {/* ── 3. WORDING. Both of these are about the audience OUTSIDE the club,
                which is why they are a per-share decision and not a setting. ── */}
