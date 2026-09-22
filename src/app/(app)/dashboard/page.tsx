@@ -17,7 +17,8 @@ import { NextWorkoutCard } from '@/components/NextWorkoutCard';
 import { WatchStatus } from '@/components/WatchStatus';
 import { StatTiles } from '@/components/StatTiles';
 import { WeeklyLeaderboardCard } from '@/components/WeeklyLeaderboardCard';
-import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_TEXT_COLORS as typeTextColors, WORKOUT_TYPE_LABELS as typeLabels, planDayKey } from '@/lib/plans/workout-parsing';
+import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_TEXT_COLORS as typeTextColors, planDayKey } from '@/lib/plans/workout-parsing';
+import { useWorkoutTypeLabel } from '@/lib/plans/use-workout-type-label';
 import { teamDayTarget } from '@/lib/plans/team-day';
 import { Spinner, Card, BigStat, EmptyState, Button } from '@/components/ui';
 import { useNavIdentity } from '@/lib/nav-items';
@@ -142,6 +143,7 @@ export default function DashboardPage() {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
   const tm = useTranslations('momentum');
+  const workoutTypeLabel = useWorkoutTypeLabel();
   const router = useRouter();
   const locale = useLocale();
   const dateLocale = locale === 'he' ? 'he-IL' : 'en-US';
@@ -537,7 +539,19 @@ export default function DashboardPage() {
     : null;
   // The title says "today"/"tomorrow" (via AttendanceRSVP's own dayBefore prop);
   // this label just names the workout itself.
-  const rsvpLabel = rsvpWorkout?.type ? `${rsvpWorkout.day} · ${rsvpWorkout.type}` : rsvpWorkout?.day;
+  //
+  // Both halves used to be raw data in English: `day` is `DailyDistance.day`,
+  // which comes off the English `DAY_NAMES` array in workout-parsing.ts, and
+  // `type` is the stored slug — so an RTL Hebrew card read "Fri · easy". The day
+  // day now comes from `common.dayNames`, which is the array ProfileOverview's
+  // own day field already reads, and the type through the same
+  // `activities.runType_*` keys everything else uses. Not `Intl` with
+  // `weekday: 'short'`: that returns "יום ו׳" in he-IL, i.e. the word "day" and
+  // then the letter, which is not how any other label on this screen names a day.
+  const rsvpDayLabel = rsvpWorkout ? (tc.raw('dayNames') as string[])[rsvpWorkout.dayOfWeek] : undefined;
+  const rsvpLabel = rsvpWorkout
+    ? (rsvpWorkout.type ? `${rsvpDayLabel} · ${workoutTypeLabel(rsvpWorkout.type)}` : rsvpDayLabel)
+    : undefined;
   // Time-based greeting, on Israel's clock like every other hour in the app.
   const greetHour = israelNow().hour;
   const greeting = greetHour < 12 ? t('goodMorning') : greetHour < 18 ? t('goodAfternoon') : t('goodEvening');
@@ -689,7 +703,7 @@ export default function DashboardPage() {
         <NextWorkoutCard
           isToday={heroWorkout.showingToday}
           workout={heroWorkout.nextWorkout}
-          typeLabel={typeLabels[heroWorkout.nextWorkout.type] || heroWorkout.nextWorkout.type}
+          typeLabel={workoutTypeLabel(heroWorkout.nextWorkout.type)}
           typeColor={typeColors[heroWorkout.nextWorkout.type] || '#159AFF'}
           typeTextColor={typeTextColors[heroWorkout.nextWorkout.type] || '#0B5285'}
           done={heroWorkout.showingToday && heroWorkout.todayDone}
@@ -744,7 +758,14 @@ export default function DashboardPage() {
           )}
           <Card variant="muted">
             <BigStat
-              value={<>{weeklyRuns}<span className="text-sm font-medium text-ink-400">/ {hasData ? weekly!.trainingDays : 7}</span></>}
+              // `<bdi dir="ltr">` around BOTH numbers, not around one of them: a
+              // slash with a space beside it is a neutral character between two
+              // number runs, so the RTL page laid the runs out right-to-left and
+              // "2 / 5" rendered as "5 / 2" — the athlete read their five planned
+              // days as two done out of… two. The spaced slash is the whole cause
+              // (an unspaced "2/5" is one numeric token and is safe), and the
+              // isolate has to wrap the pair for the pair to keep its order.
+              value={<bdi dir="ltr">{weeklyRuns}<span className="text-sm font-medium text-ink-400">/ {hasData ? weekly!.trainingDays : 7}</span></bdi>}
               label={t('trainingDays')}
             />
             <p className="text-sm text-ink-400 mt-1 text-center">{t('completed')}</p>

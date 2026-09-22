@@ -74,7 +74,14 @@ export function InsetRow({ icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label
           // A muted value ("not set yet") is carried by the italic alone. It used
           // to also be a lighter grey, but that grey is a border value at 1.92:1
           // and this is real text the athlete has to read to know a field is empty.
-          valueMuted ? 'italic text-ink-400' : valueSuccess ? 'font-medium text-accent-600' : 'text-ink-400',
+          // `text-accent-900`, not `600`. This is the last site of the green-text
+          // fix the palette records: #16a34a scores 3.30:1 against a near-white
+          // card, so every "you filled this in" value in the app — the shoe
+          // mileage, the six PersonalInfo fields, the setup checklist's ticks, the
+          // admin flags, the chosen language — failed AA at 15px. See the accent
+          // ramp in tailwind.config.ts: 900 is the value chosen for exactly this,
+          // and it still reads as the success colour.
+          valueMuted ? 'italic text-ink-400' : valueSuccess ? 'font-medium text-accent-900' : 'text-ink-400',
         )}>{value}</span>
       )}
       {trailing ? trailing : interactive && <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />}

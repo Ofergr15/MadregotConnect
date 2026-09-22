@@ -13,7 +13,7 @@ import {
   type FeedHiddenField,
 } from '@/lib/feed-client';
 import { fetchPlanMatch } from '@/lib/activities-client';
-import { WORKOUT_TYPE_LABELS } from '@/lib/plans/workout-parsing';
+import { useWorkoutTypeLabel } from '@/lib/plans/use-workout-type-label';
 import { Sheet, Spinner } from '@/components/ui';
 import { RouteMinimap } from '@/components/RouteMinimap';
 import { ShareSheet } from '@/components/ShareSheet';
@@ -105,6 +105,7 @@ export function ActivitySyncEditor({
 }) {
   const t = useTranslations('feed.syncEditor');
   const tFeed = useTranslations('feed');
+  const workoutTypeLabel = useWorkoutTypeLabel();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(true);
@@ -384,7 +385,7 @@ export function ActivitySyncEditor({
             </div>
             <p className="mt-1.5 text-2xs text-ink-400">
               {t('planMatchSubtitle', { actual: planMatch.actualKm, target: planMatch.targetKm })}
-              {WORKOUT_TYPE_LABELS[planMatch.type] && ` · ${WORKOUT_TYPE_LABELS[planMatch.type]}`}
+              {planMatch.type && ` · ${workoutTypeLabel(planMatch.type)}`}
             </p>
           </div>
         )}

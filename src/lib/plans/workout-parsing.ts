@@ -229,10 +229,12 @@ export const WORKOUT_TYPE_TEXT_COLORS: Record<string, string> = {
   fartlek: '#9D174D', progressive: '#115E59', easy: '#0B5285', rest: '#5F5F5F',
 };
 
-export const WORKOUT_TYPE_LABELS: Record<string, string> = {
-  intervals: 'Intervals', long_run: 'Long Run', tempo: 'Tempo',
-  fartlek: 'Fartlek', progressive: 'Progressive', easy: 'Easy', rest: 'Rest',
-};
+// `WORKOUT_TYPE_LABELS` lived here, beside the colours, and was a hardcoded
+// English map — "Tempo" on the dashboard hero's chip, "Easy" on the profile's
+// upcoming-workout card, both inside a Hebrew RTL screen. The colours belong in
+// this file because a hex value has no language; a LABEL does, and the keys for
+// it already existed under `activities.runType_*` in both locales. See
+// `useWorkoutTypeLabel` in lib/plans/use-workout-type-label.ts.
 
 // `formatRepDuration` lived here — a rep's duration for the old "Nx…" highlight
 // badge, in its own private format ("200m", "8min", "0:15"). The badge is gone:

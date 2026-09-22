@@ -570,8 +570,21 @@ export function Header() {
           </div>
         </div>
 
-        {/* Mobile account menu (no nav — the tab bar owns navigation) */}
+        {/* Mobile account menu (no nav — the tab bar owns navigation)
+
+            `inert` while closed. The menu collapses with `max-h-0 opacity-0`
+            under `overflow-hidden`, which hides it from the eye and from nothing
+            else: its three controls — פרופיל, the EN/עב switch and התנתקות —
+            stayed in the tab order on EVERY screen in the (app) shell, so a
+            keyboard or switch-control user tabbing off the header landed on three
+            invisible stops, one of which signs them out. Neither `aria-hidden`
+            nor `tabIndex={-1}` is enough on its own (the first leaves them
+            focusable, the second leaves them clickable and announced); `inert`
+            removes focus, clicks and the accessibility tree in one attribute, and
+            it is the attribute that pairs with a transition because it can be
+            toggled without unmounting the children mid-animation. */}
         <div
+          inert={!mobileMenuOpen}
           className={cn(
             'md:hidden overflow-hidden transition-all duration-300 ease-in-out',
             mobileMenuOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'

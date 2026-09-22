@@ -7,7 +7,8 @@ import { Camera, ChevronLeft, Loader2, Trophy } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { cn, getPlanWeekStart, israelDateAnchor, israelNow, israelToday } from '@/lib/utils';
 import { GOAL_RACE, goalRaceProgress } from '@/lib/goal-race';
-import { WORKOUT_TYPE_TEXT_COLORS, WORKOUT_TYPE_LABELS, planDayKey } from '@/lib/plans/workout-parsing';
+import { WORKOUT_TYPE_TEXT_COLORS, planDayKey } from '@/lib/plans/workout-parsing';
+import { useWorkoutTypeLabel } from '@/lib/plans/use-workout-type-label';
 import { weekTargetRange, dayTargetLabel, type WeekPlanTotals } from '@/lib/plans/week-target';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
 import { WeekTargetBar } from '@/components/profile/WeekTargetBar';
@@ -87,6 +88,7 @@ export function ProfileOverview({
   const t = useTranslations('profile');
   const td = useTranslations('dashboard');
   const tc = useTranslations('common');
+  const workoutTypeLabel = useWorkoutTypeLabel();
   const locale = useLocale();
 
   // הגרעין — a flag, not a role (migration 091), so it has to be asked for; it
@@ -309,7 +311,7 @@ export function ProfileOverview({
             {location && <Field label={t('colLocation')} value={location} />}
             <Field
               label={t('colType')}
-              value={WORKOUT_TYPE_LABELS[upcoming.workout.type] || upcoming.workout.type}
+              value={workoutTypeLabel(upcoming.workout.type)}
               color={WORKOUT_TYPE_TEXT_COLORS[upcoming.workout.type]}
             />
           </div>

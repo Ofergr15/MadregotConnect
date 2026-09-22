@@ -189,7 +189,14 @@ export function ShoeManager({ athleteId }: { athleteId: string }) {
               iconBg={s.retired ? 'bg-ink-300' : 'bg-brand-600'}
               label={s.name}
               sublabel={s.isActive && !s.retired ? 'פעיל כרגע' : s.retired ? 'בדימוס' : undefined}
-              value={s.distanceLimitKm ? `${s.kmUsed} / ${s.distanceLimitKm} ק״מ` : `${s.kmUsed} ק״מ`}
+              // NO SPACES around the slash. `InsetRow`'s value is `dir="auto"`,
+              // which reads the first STRONG character — digits are weak, so the
+              // "ק״מ" at the end resolved the whole run to RTL, the spaces made
+              // the slash a neutral between two separate number runs, and the two
+              // numbers swapped: a pair with 214.6 km on it read "800 / 214.6",
+              // i.e. the limit as the mileage. Closing the spaces makes the
+              // fraction one numeric token, which bidi never reorders.
+              value={s.distanceLimitKm ? `${s.kmUsed}/${s.distanceLimitKm} ק״מ` : `${s.kmUsed} ק״מ`}
               valueSuccess={!!s.distanceLimitKm && !nearLimit}
               valueMuted={!s.distanceLimitKm}
               onClick={() => openEdit(s)}
