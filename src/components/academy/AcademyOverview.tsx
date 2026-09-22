@@ -358,19 +358,28 @@ function ActionCard({
   label: string;
   onClick: () => void;
 }) {
+  // Fills stay `band-3`; every glyph on top of them is `band-3-ink`, icon included.
+  //
+  // "An icon only needs 3:1, so the squad hue is fine on icons" is true on a white card, where
+  // #FF5315 measures 3.22:1 — and false the moment the icon sits on the hue's own wash. Inside
+  // this chip it is orange on `/20`: 2.53:1, below even the non-text bar. On the `/15` hover
+  // state it is 2.69:1. Only the `/10` card itself clears, and only at 3.02:1.
+  //
+  // So the rule is not "text moves, icons stay" — it is that the surface decides. The `-ink`
+  // companion keeps the chip exactly the colour it was delivered and puts the glyph at 6.75:1.
   return (
     <button
       onClick={onClick}
       className="flex items-center gap-3 rounded-2xl border border-band-3/30 bg-band-3/10 p-3.5 text-start hover:bg-band-3/15 active:scale-[0.99] transition-all min-h-[44px]"
     >
       <span className="w-9 h-9 rounded-xl bg-band-3/20 flex items-center justify-center shrink-0">
-        <Icon className="h-4 w-4 text-band-3" />
+        <Icon className="h-4 w-4 text-band-3-ink" />
       </span>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-bold text-ink-700">{count}</div>
         <div className="text-xs text-band-3-ink truncate">{label}</div>
       </div>
-      <ChevronLeft className="h-4 w-4 text-band-3/70 shrink-0" />
+      <ChevronLeft className="h-4 w-4 text-band-3-ink/70 shrink-0" />
     </button>
   );
 }

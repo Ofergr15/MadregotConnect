@@ -195,6 +195,10 @@ export function ActivityDetailBody({
       </div>
 
       {/* Performance Grid */}
+      {/* The tile icons are a per-metric palette, and `band-2` is the one member of it that
+          cannot be used as a glyph anywhere: #159AFF is 2.95:1 on a card, which misses even the
+          3:1 non-text bar that lets `band-3` (3.22:1) stay as delivered on the two tiles below.
+          Those keep the squad orange; cadence, laps and training effect wear `band-2-ink`. */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {calories ? (
           <StatTile icon={<Flame className="h-3.5 w-3.5 text-band-3" />} label={t('caloriesLabel')}>
@@ -203,7 +207,7 @@ export function ActivityDetailBody({
           </StatTile>
         ) : null}
         {cadence ? (
-          <StatTile icon={<Footprints className="h-3.5 w-3.5 text-band-2" />} label={t('cadence')}>
+          <StatTile icon={<Footprints className="h-3.5 w-3.5 text-band-2-ink" />} label={t('cadence')}>
             <p className="text-2xl font-black text-ink-700 tabular-nums">{Math.round(cadence)}</p>
             <p className="text-3xs text-ink-400 mt-0.5">{t('unitStepsPerMin')}</p>
           </StatTile>
@@ -227,13 +231,13 @@ export function ActivityDetailBody({
           </StatTile>
         ) : null}
         {act.lap_count ? (
-          <StatTile icon={<Activity className="h-3.5 w-3.5 text-band-2" />} label={t('laps')}>
+          <StatTile icon={<Activity className="h-3.5 w-3.5 text-band-2-ink" />} label={t('laps')}>
             <p className="text-2xl font-black text-ink-700 tabular-nums">{act.lap_count}</p>
             <p className="text-3xs text-ink-400 mt-0.5">{t('lapsRecorded')}</p>
           </StatTile>
         ) : null}
         {details?.summary?.trainingEffect ? (
-          <StatTile icon={<Activity className="h-3.5 w-3.5 text-band-2" />} label={t('trainingEffect')}>
+          <StatTile icon={<Activity className="h-3.5 w-3.5 text-band-2-ink" />} label={t('trainingEffect')}>
             <div className="flex items-baseline gap-3">
               <div>
                 <p className="text-xl font-black text-band-2-ink tabular-nums">{details.summary.trainingEffect.toFixed(1)}</p>

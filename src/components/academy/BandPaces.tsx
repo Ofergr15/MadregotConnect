@@ -101,7 +101,7 @@ export function BandPaces({
           unpriced.length > 0 ? 'bg-band-3/20' : 'bg-accent-600/15',
         )}>
           {unpriced.length > 0
-            ? <AlertTriangle className="h-4 w-4 text-band-3" />
+            ? <AlertTriangle className="h-4 w-4 text-band-3-ink" />
             : <Target className="h-4 w-4 text-accent-600" />}
         </span>
         <span className="flex-1 min-w-0">

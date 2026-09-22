@@ -510,7 +510,7 @@ export default function ActivitiesPage() {
             />
           </div>
           <div className="relative overflow-hidden bg-card/50 rounded-card p-5 border border-page/30">
-            <Timer className="h-5 w-5 text-band-2 mb-3" />
+            <Timer className="h-5 w-5 text-band-2-ink mb-3" />
             <BigStat
               className="items-start text-start"
               valueClassName="text-2xl sm:text-4xl text-ink-700"

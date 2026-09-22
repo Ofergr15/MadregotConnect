@@ -72,7 +72,7 @@ export function stopViewAs() {
  */
 export const VIEW_AS_SCENARIOS: Array<{ mode: string; label: string; icon: ComponentType<{ className?: string }>; tone: string }> = [
   { mode: 'runner', label: 'רץ', icon: Footprints, tone: 'text-accent-600' },
-  { mode: 'coach', label: 'מאמן', icon: Megaphone, tone: 'text-band-2' },
+  { mode: 'coach', label: 'מאמן', icon: Megaphone, tone: 'text-band-2-ink' },
   { mode: 'admin', label: 'מנהל', icon: Shield, tone: 'text-violet-700' },
   { mode: 'viewer', label: 'צופה', icon: Glasses, tone: 'text-ink-500' },
   { mode: MAINTENANCE_MODE, label: 'מסך תחזוקה', icon: Construction, tone: 'text-band-3' },

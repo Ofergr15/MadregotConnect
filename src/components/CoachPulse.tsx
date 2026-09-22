@@ -87,7 +87,7 @@ export function CoachPulse() {
                     {reasonLabel(a)}
                   </Link>
                 </div>
-                {a.reasons.includes('wants') && <Bell className="h-3.5 w-3.5 text-band-2 shrink-0" />}
+                {a.reasons.includes('wants') && <Bell className="h-3.5 w-3.5 text-band-2-ink shrink-0" />}
               </div>
             ))}
           </div>

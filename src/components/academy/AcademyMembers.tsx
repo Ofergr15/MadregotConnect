@@ -146,7 +146,7 @@ export function AcademyMembers({
           onClick={() => { setFilter('nocoach'); setCoachId(null); }}
           className="w-full flex items-center gap-2.5 rounded-2xl bg-band-2/10 border border-band-2/25 px-3 py-2.5 text-start hover:bg-band-2/15 active:scale-[0.99] transition-all min-h-[44px]"
         >
-          <AlertTriangle className="h-4 w-4 text-band-2 shrink-0" />
+          <AlertTriangle className="h-4 w-4 text-band-2-ink shrink-0" />
           <span className="flex-1 text-xs font-semibold text-band-2-ink">
             {t('unpairedBanner', { count: unpaired })}
           </span>

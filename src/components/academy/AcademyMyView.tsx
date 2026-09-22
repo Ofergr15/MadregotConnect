@@ -162,7 +162,7 @@ export function AcademyMyView({ athleteId }: {
       {data?.rank && academy && (
         <Card variant="muted" className="flex items-center gap-3">
           <span className="w-10 h-10 rounded-xl bg-band-3/15 flex items-center justify-center shrink-0">
-            <Medal className="h-5 w-5 text-band-3" />
+            <Medal className="h-5 w-5 text-band-3-ink" />
           </span>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-bold text-ink-700">
