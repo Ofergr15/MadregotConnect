@@ -2,11 +2,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { COACH_ID } from '@/lib/constants';
 import { APP_VERSION } from '@/lib/version';
 import {
+  CLIENT_DETECTORS, detectBlankScreen, detectClientError, detectDroppedForm,
   detectDuplicateAthlete, detectGarminSilent, detectParseGap, detectPhantomActivity,
-  detectPushOrphan, keepProvable, LIVE_DETECTORS,
-  type ActivityRow, type AthleteNameRow, type Finding, type PlanRow, type ProviderAthlete,
-  type PushSubscriptionRow,
+  detectPushOrphan, detectServerError, detectStuckVersion, detectSuspiciousPace,
+  keepProvable, LIVE_DETECTORS,
+  type ActivityRow, type AthleteNameRow, type DetectorKey, type Finding, type PlanRow,
+  type ProviderAthlete, type PushSubscriptionRow,
 } from './detectors';
+import type { ClientEventRow } from './client-events';
 
 /**
  * The nightly pass: read the tables, run the pure rules, and file what they
@@ -36,6 +39,15 @@ export interface DetectRunResult {
   refreshed: number;
   /** Detectors skipped because their input table or column isn't there. */
   skipped: string[];
+  /**
+   * Detectors that could not run at all tonight, by name.
+   *
+   * Reported separately from `skipped` (which names TABLES) because this is the
+   * one thing the board must not get wrong: a detector whose table is missing has
+   * not been checked, and "checked, found nothing" is a different statement. Its
+   * state row is left untouched rather than stamped with a zero.
+   */
+  notChecked: DetectorKey[];
   /** True when migration 117 has not been applied, so nothing could be filed. */
   storageMissing: boolean;
 }
@@ -121,12 +133,29 @@ async function gather(supabase: SupabaseClient) {
   const nameRows: AthleteNameRow[] = ((allNames.data || []) as Array<{ id: string; name: string | null }>)
     .map(r => ({ id: r.id, name: r.name, synthetic: syntheticSet.has(r.id) }));
 
+  // The browser's own account of what went wrong (migration 118). Seven days:
+  // the same window the detectors group over, and long enough that a Friday
+  // deploy is still visible on Monday morning.
+  //
+  // `clientEvents === null` means the table isn't there, which is NOT the same as
+  // it being empty — five detectors have to report "not checked" rather than a
+  // reassuring zero, so the distinction is carried rather than flattened to [].
+  const eventsSince = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const evs = await supabase
+    .from('client_events')
+    .select('id, athlete_id, kind, route, message, app_version, created_at')
+    .gte('created_at', eventsSince)
+    .order('created_at', { ascending: false })
+    .limit(5000);
+  if (evs.error) skipped.push('client_events');
+
   return {
     athletes,
     subs: (subs.data || []) as PushSubscriptionRow[],
     plans,
     nameRows,
     activities: (recent.data || []) as ActivityRow[],
+    clientEvents: evs.error ? null : ((evs.data || []) as ClientEventRow[]),
     skipped,
   };
 }
@@ -178,17 +207,26 @@ async function file(
   return error ? 'failed' : 'opened';
 }
 
-/** Record what each detector did tonight, including finding nothing. */
+/**
+ * Record what each detector did tonight, including finding nothing.
+ *
+ * A detector that could not run is LEFT OUT rather than written with a zero. The
+ * board shows `last_run_at` as "checked", and stamping tonight's date on a
+ * detector whose table does not exist would be the board telling a lie about
+ * itself — the exact failure mode these four rules exist to prevent.
+ */
 async function recordState(
   supabase: SupabaseClient,
   counts: Map<string, number>,
+  notChecked: DetectorKey[],
 ): Promise<boolean> {
   const now = new Date().toISOString();
-  const rows = LIVE_DETECTORS.map(key => ({
+  const rows = LIVE_DETECTORS.filter(key => !notChecked.includes(key)).map(key => ({
     key,
     last_run_at: now,
     last_found_count: counts.get(key) || 0,
   }));
+  if (!rows.length) return true;
   const { error } = await supabase.from('bug_detectors').upsert(rows, { onConflict: 'key' });
   return !error;
 }
@@ -203,12 +241,26 @@ export async function runDetectors(supabase: SupabaseClient): Promise<DetectRunR
   const state = await supabase.from('bug_detectors').select('key, muted_at').not('muted_at', 'is', null);
   for (const r of (state.data || []) as Array<{ key: string }>) muted.add(r.key);
 
+  // The five that read the browser cannot run without their table. They are not
+  // silently dropped: they come back in `notChecked`, which is what stops the
+  // board from showing them as checked-and-clean.
+  const events = input.clientEvents;
+  const notChecked: DetectorKey[] = events ? [] : [...CLIENT_DETECTORS];
+
   const all = keepProvable([
     detectGarminSilent(input.athletes, now),
     detectPushOrphan(input.subs, now),
     detectParseGap(input.plans),
     detectDuplicateAthlete(input.nameRows),
     detectPhantomActivity(input.activities),
+    detectSuspiciousPace(input.activities),
+    // The grouped ones return a LIST: three unrelated error shapes in one night
+    // are three facts with three keys, and a count cannot be triaged or closed.
+    ...(events ? detectClientError(events, now) : []),
+    ...(events ? detectBlankScreen(events, now) : []),
+    ...(events ? detectDroppedForm(events, now) : []),
+    ...(events ? detectServerError(events, now) : []),
+    ...(events ? detectStuckVersion(events, APP_VERSION, now) : []),
   ]).filter(f => !muted.has(f.detector));
 
   let opened = 0;
@@ -223,13 +275,14 @@ export async function runDetectors(supabase: SupabaseClient): Promise<DetectRunR
 
   const counts = new Map<string, number>();
   for (const f of all) counts.set(f.detector, (counts.get(f.detector) || 0) + 1);
-  const recorded = await recordState(supabase, counts);
+  const recorded = await recordState(supabase, counts, notChecked);
 
   return {
     findings: all,
     opened,
     refreshed,
     skipped: input.skipped,
+    notChecked,
     // Either nothing could be filed, or the state table isn't there. Both mean
     // the pass ran and told nobody, which the route has to say out loud rather
     // than reporting a cheerful zero.

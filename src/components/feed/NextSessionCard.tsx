@@ -164,6 +164,10 @@ export function NextSessionCard() {
           distance: km ? `${approx}${km} ${units.km}` : '',
           duration: formatDurationClock(s.durationSec),
           steps: s.steps,
+          // The story's own copy of the day and the type, unlocalised: the sheet's
+          // `day` above is Hebrew and the post is English. `km` is the plain
+          // number without a unit, because the story writes its own "(14km)".
+          story: { dayOfWeek: s.dayOfWeek, type: s.type, km },
         })}
         className="flex w-full items-center gap-3 rounded-card bg-card p-3 text-start transition-colors active:bg-page/40"
       >

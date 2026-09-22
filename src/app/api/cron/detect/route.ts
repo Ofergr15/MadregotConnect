@@ -39,6 +39,10 @@ async function run(request: Request) {
       weak: result.findings.filter(f => f.strength === 'weak').length,
       detectors: result.findings.map(f => f.detector),
       skipped: result.skipped,
+      // Which detectors could not run at all — migration 118 unapplied means the
+      // five that read the browser have not been checked, and that is a different
+      // statement from having checked them and found nothing.
+      notChecked: result.notChecked,
       // Says so out loud rather than reporting a cheerful zero: until migration
       // 117 is applied there is nowhere to file a finding, so a pass that found
       // three things and stored none must not look like a quiet night.

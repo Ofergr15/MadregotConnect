@@ -1,11 +1,15 @@
 'use client';
 
-import { X, Repeat } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { X, Repeat, Check, Copy, Share2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { textDir } from '@/lib/bidi';
 import type { WorkoutStep } from '@/lib/ai/types';
 import { groupPaceTokens } from '@/lib/garmin/pace';
+import {
+  DEFAULT_STORY_PLACE, DEFAULT_STORY_TIME, workoutStoryText,
+} from '@/lib/plans/workout-story-text';
 import { PaceTokens } from './PaceTokens';
 import { Sheet } from '@/components/ui';
 
@@ -158,6 +162,124 @@ export interface WorkoutDetailSession {
   distance: string;
   duration: string;
   steps: WorkoutStep[];
+  /**
+   * What the Instagram story needs and the sheet's own labels cannot give it: the
+   * day as a NUMBER and the type as a KEY, because the story is English while
+   * `day` and `name` above are already translated for whoever is reading the app.
+   *
+   * Optional, and the copy panel is simply absent without it — a screen that
+   * opens this sheet from something other than a planned session has no story to
+   * offer, and inventing a day for it would put a wrong date on a public post.
+   */
+  story?: { dayOfWeek: number; type: string; km: string };
+}
+
+/**
+ * Copy the session as the text the club posts to Instagram.
+ *
+ * Collapsed to one line until it is asked for: twenty-four of the twenty-five
+ * people who open this sheet are here to read their workout, and a story composer
+ * above it would be the first thing they see for no reason.
+ *
+ * The time and the place are FIELDS, not constants. The club's standing practice
+ * is 06:00 at Madregot and that is what they open with, but an afternoon session
+ * somewhere else is a normal thing — and a copy button that silently stamps
+ * "06:00am" on it would publish a time nobody wrote. They are remembered, so the
+ * usual case is still one tap.
+ */
+function StoryCopy({ session }: { session: WorkoutDetailSession }) {
+  const t = useTranslations('workoutEditor');
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [time, setTime] = useState(() => {
+    try { return localStorage.getItem('story_time') ?? DEFAULT_STORY_TIME; }
+    catch { return DEFAULT_STORY_TIME; }
+  });
+  const [place, setPlace] = useState(() => {
+    try { return localStorage.getItem('story_place') ?? DEFAULT_STORY_PLACE; }
+    catch { return DEFAULT_STORY_PLACE; }
+  });
+
+  const story = session.story!;
+  const text = useMemo(
+    () => workoutStoryText({ ...story, steps: session.steps || [], time, place }),
+    [story, session.steps, time, place],
+  );
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // No clipboard permission — the text is on screen and selectable, which is
+      // the whole reason the preview is a real textarea rather than a <pre>.
+      setOpen(true);
+    }
+  };
+
+  const remember = (key: string, value: string) => {
+    try { localStorage.setItem(key, value); } catch { /* ignore */ }
+  };
+
+  return (
+    <div className="pb-3 shrink-0">
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => (open ? copy() : setOpen(true))}
+          className="flex items-center gap-1.5 rounded-lg bg-brand-600/10 px-3 h-8 text-xs font-semibold text-brand-600 transition-colors active:bg-brand-600/20"
+        >
+          {copied ? <Check className="h-3.5 w-3.5" /> : <Share2 className="h-3.5 w-3.5" />}
+          {copied ? t('storyCopied') : t('storyCopy')}
+        </button>
+        {open && !copied && (
+          <button
+            onClick={copy}
+            aria-label={t('storyCopy')}
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white transition-opacity active:opacity-80"
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="mt-2 space-y-2">
+          {/* LTR throughout: the text is English and a pace bracket in an RTL box
+              arrives as "((3:35)) 3:15" — the same bidi failure the share cards
+              had, and here it would be copied out of the app that way. */}
+          <textarea
+            dir="ltr"
+            readOnly
+            value={text}
+            rows={Math.min(16, text.split('\n').length + 1)}
+            className="w-full resize-none rounded-lg border border-page bg-card/60 p-2.5 text-xs leading-relaxed text-ink-700 tabular-nums"
+          />
+          {/* The labels are PLACEHOLDERS, not captions beside the inputs: a caption
+              plus a field, twice, does not fit 390px with the sheet's padding — the
+              first mockup had the second field hanging off the edge of the phone. */}
+          <div className="flex items-center gap-2">
+            <input
+              dir="ltr"
+              value={time}
+              aria-label={t('storyTime')}
+              placeholder={t('storyTime')}
+              onChange={(e) => { setTime(e.target.value); remember('story_time', e.target.value); }}
+              className="min-w-0 flex-1 rounded-lg border border-page bg-card/60 px-2.5 h-8 text-xs text-ink-700 placeholder:text-ink-300"
+            />
+            <input
+              dir="ltr"
+              value={place}
+              aria-label={t('storyPlace')}
+              placeholder={t('storyPlace')}
+              onChange={(e) => { setPlace(e.target.value); remember('story_place', e.target.value); }}
+              className="min-w-0 flex-1 rounded-lg border border-page bg-card/60 px-2.5 h-8 text-xs text-ink-700 placeholder:text-ink-300"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }: {
@@ -226,6 +348,8 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
             </div>
           </div>
         )}
+
+        {session.story && <StoryCopy session={session} />}
 
         {/* Compact Workout Structure */}
         <div className="pb-1 space-y-2">
