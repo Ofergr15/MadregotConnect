@@ -694,9 +694,7 @@
     "addedSubStep": "Added sub-step",
     "removedSubStep": "Removed sub-step",
     "storyCopy": "Copy for story",
-    "storyCopied": "Copied",
-    "storyTime": "Time",
-    "storyPlace": "Place"
+    "storyCopied": "Copied"
   },
   "settings": {
     "title": "Settings",

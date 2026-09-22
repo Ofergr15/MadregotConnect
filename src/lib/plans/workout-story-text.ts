@@ -31,6 +31,12 @@ import { joinGroupPaces, stepPaceTokens, type GroupPace } from '@/lib/garmin/pac
  *
  * Any name. It is the session, not somebody's session: the same story goes to
  * every group, which is the whole reason the three pace brackets exist.
+ *
+ * The TIME AND THE PLACE. The reference post carries "⏰06:00am 📍Madregot" and
+ * the first build reproduced them from editable fields — his call to drop them:
+ * "without the 6am madregot — only the training info". Nothing in the app knows
+ * when or where a session meets, so every version of that line was either a guess
+ * or a form to fill in, and the story's own text tool is where it gets typed.
  */
 
 /** Sunday-first, matching `dayOfWeek` everywhere else in the plans code. */
@@ -49,10 +55,6 @@ const TYPE_NAMES: Record<string, string> = {
   rest: 'Rest',
 };
 
-/** The club's standing practice, and the default the sheet opens with. */
-export const DEFAULT_STORY_TIME = '06:00am';
-export const DEFAULT_STORY_PLACE = 'Madregot';
-
 export interface StoryInput {
   /** 0 = Sunday. Out of range simply drops the day from the title. */
   dayOfWeek: number;
@@ -61,9 +63,6 @@ export interface StoryInput {
   /** The session distance, already rounded — "14", or "18–20". */
   km: string;
   steps: WorkoutStep[];
-  /** The footer lines. Blank means the line is left off entirely. */
-  time?: string;
-  place?: string;
 }
 
 /**
@@ -168,9 +167,5 @@ export function workoutStoryText(input: StoryInput): string {
     lastWasBlock = false;
   }
 
-  const footer: string[] = [];
-  if (input.time?.trim()) footer.push(`⏰${input.time.trim()}`);
-  if (input.place?.trim()) footer.push(`📍${input.place.trim()}`);
-
-  return [title, ...body, ...(footer.length ? ['', ...footer] : [])].join('\n');
+  return [title, ...body].join('\n');
 }
