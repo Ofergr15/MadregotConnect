@@ -18,6 +18,11 @@ import { ImpersonationBar } from '@/components/ImpersonationBar';
 // would sit in `waiting` until every tab closed. See src/app/sw.ts:80.
 import { UpdatePrompt } from '@/components/UpdatePrompt';
 import { DevIdentitySwitcher } from '@/components/DevIdentitySwitcher';
+// Watches the browser for the five failures the server cannot see — see
+// migration 118 and lib/bugs/detectors.ts. Mounted at the ROOT rather than inside
+// the app shell so a crash on the way in is still reported; it posts nothing
+// until there is a session, and shows an athlete nothing, ever.
+import { ClientEventReporter } from '@/components/ClientEventReporter';
 import { DevServiceWorkerCleanup } from '@/components/DevServiceWorkerCleanup';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import './globals.css';
@@ -113,6 +118,7 @@ export default async function RootLayout({
         <ImpersonationBar />
         <UpdatePrompt />
         <DevIdentitySwitcher />
+        <ClientEventReporter />
         <SpeedInsights />
       </body>
     </html>
