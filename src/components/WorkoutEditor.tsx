@@ -180,7 +180,7 @@ function PaceInput({
 
   return (
     <div className="flex flex-col">
-      {label && <span className="text-[9px] text-ink-400 mb-0.5">{label}</span>}
+      {label && <span className="text-3xs text-ink-400 mb-0.5">{label}</span>}
       <div className="flex items-stretch">
         <button
           type="button"
@@ -248,7 +248,7 @@ function NumberStepper({
           onChange={(e) => set(parseInt(e.target.value) || 0)}
           className="w-full bg-page border-y border-ink-300 px-2 py-1.5 text-xs text-ink-700 text-center"
         />
-        {suffix && <span className="absolute end-2 top-1/2 -translate-y-1/2 text-[10px] text-ink-400 pointer-events-none">{suffix}</span>}
+        {suffix && <span className="absolute end-2 top-1/2 -translate-y-1/2 text-3xs text-ink-400 pointer-events-none">{suffix}</span>}
       </div>
       <button
         type="button"
@@ -350,7 +350,7 @@ function SubStepEditor({
               <button
                 type="button"
                 onClick={() => onChange({ ...step, targetPaceMaxPerKm: undefined })}
-                className="text-[10px] text-ink-400 hover:text-ink-500 mb-1 shrink-0"
+                className="text-3xs text-ink-400 hover:text-ink-500 mb-1 shrink-0"
               >
                 {t('single')}
               </button>
@@ -359,7 +359,7 @@ function SubStepEditor({
               <button
                 type="button"
                 onClick={() => onChange({ ...step, targetPaceMaxPerKm: (step.targetPaceMinPerKm || 210) + 10 })}
-                className="text-[10px] text-ink-400 hover:text-brand-700 mb-1 shrink-0"
+                className="text-3xs text-ink-400 hover:text-brand-700 mb-1 shrink-0"
               >
                 {t('addRange')}
               </button>
@@ -368,7 +368,7 @@ function SubStepEditor({
               type="button"
               onClick={() => onChange({ ...step, targetType: 'no_target', targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined })}
               title={t('noPace')}
-              className="text-[10px] text-ink-400 hover:text-accent-red active:text-accent-red mb-1 shrink-0"
+              className="text-3xs text-ink-400 hover:text-accent-red active:text-accent-red mb-1 shrink-0"
             >
               {t('noPace')}
             </button>
@@ -377,7 +377,7 @@ function SubStepEditor({
           <button
             type="button"
             onClick={() => onChange({ ...step, targetType: 'pace', targetPaceMinPerKm: 210 })}
-            className="flex items-center gap-1 text-[10px] text-ink-400 hover:text-brand-700 mb-1 shrink-0"
+            className="flex items-center gap-1 text-3xs text-ink-400 hover:text-brand-700 mb-1 shrink-0"
           >
             <Plus className="h-3 w-3" /> {t('addPace')}
           </button>
@@ -442,9 +442,9 @@ function StepRow({
           }
         }}
       >
-        <span className="text-[10px] text-ink-400 w-4 text-end">{index + 1}</span>
+        <span className="text-2xs text-ink-400 w-4 text-end">{index + 1}</span>
         <span className={cn(
-          'text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide',
+          'text-3xs font-bold px-1.5 py-0.5 rounded uppercase tracking-wide',
           step.type === 'interval' ? 'bg-accent-red/20 text-accent-red-ink' :
           step.type === 'warmup' ? 'bg-band-3/20 text-band-3-ink' :
           step.type === 'cooldown' ? 'bg-band-2/20 text-band-2-ink' :
@@ -459,12 +459,12 @@ function StepRow({
           <span dir="ltr" className="text-[11px] text-brand-600 ms-auto me-1 tabular-nums">@{formatBracketPaceTarget(step, t)}</span>
         )}
         {step.repeatCount && (
-          <span className="text-[10px] bg-band-3/20 text-band-3-ink px-1.5 py-0.5 rounded font-bold">
+          <span className="text-2xs bg-band-3/20 text-band-3-ink px-1.5 py-0.5 rounded font-bold">
             {step.repeatCount}x
           </span>
         )}
         {step.notes && (
-          <span className="text-[10px] text-ink-400 truncate max-w-[120px]">{step.notes}</span>
+          <span className="text-2xs text-ink-400 truncate max-w-[120px]">{step.notes}</span>
         )}
         {expanded ? <ChevronDown className="h-3.5 w-3.5 text-ink-400 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-ink-400 shrink-0" />}
       </div>
@@ -476,7 +476,7 @@ function StepRow({
           {!isRepeat && (
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[10px] text-ink-400 uppercase tracking-wide mb-1 block">{t('type')}</label>
+              <label className="text-3xs text-ink-400 uppercase tracking-wide mb-1 block">{t('type')}</label>
               <select
                 value={step.type}
                 onChange={(e) => onChange({ ...step, type: e.target.value as any })}
@@ -488,7 +488,7 @@ function StepRow({
               </select>
             </div>
             <div>
-              <label className="text-[10px] text-ink-400 uppercase tracking-wide mb-1 block">{t('duration')}</label>
+              <label className="text-3xs text-ink-400 uppercase tracking-wide mb-1 block">{t('duration')}</label>
               <SegmentedControl<typeof durationTypes[number]>
                 value={step.durationType}
                 onChange={(v) => onChange({ ...step, durationType: v })}
@@ -500,7 +500,7 @@ function StepRow({
 
           {!isRepeat && step.durationType !== 'open' && (
             <div>
-              <label className="text-[10px] text-ink-400 uppercase tracking-wide mb-1 block">
+              <label className="text-3xs text-ink-400 uppercase tracking-wide mb-1 block">
                 {step.durationType === 'distance' ? t('meters') : t('seconds')}
               </label>
               <NumberStepper
@@ -514,10 +514,10 @@ function StepRow({
 
           {!isRepeat && (
           <div>
-            <label className="text-[10px] text-ink-400 uppercase tracking-wide mb-1 block">{t('target')}</label>
+            <label className="text-3xs text-ink-400 uppercase tracking-wide mb-1 block">{t('target')}</label>
             <div className="grid grid-cols-3 gap-2 items-end">
               <div className="flex flex-col">
-                <span className="text-[9px] text-ink-400 mb-0.5">{t('type')}</span>
+                <span className="text-3xs text-ink-400 mb-0.5">{t('type')}</span>
                 <select
                   value={step.targetZone || (step.targetPaceMinPerKm ? 'custom' : 'no_target')}
                   onChange={(e) => {
@@ -561,7 +561,7 @@ function StepRow({
                       <button
                         type="button"
                         onClick={() => onChange({ ...step, targetPaceMaxPerKm: (step.targetPaceMinPerKm || 210) + 10 })}
-                        className="text-[10px] text-ink-400 hover:text-brand-700 self-end mb-2"
+                        className="text-3xs text-ink-400 hover:text-brand-700 self-end mb-2"
                       >
                         {t('addRange')}
                       </button>
@@ -575,7 +575,7 @@ function StepRow({
 
           {step.repeatCount !== undefined && (
             <div>
-              <label className="text-[10px] text-ink-400 uppercase tracking-wide mb-1 block">{t('repeat')}</label>
+              <label className="text-3xs text-ink-400 uppercase tracking-wide mb-1 block">{t('repeat')}</label>
               <div className="w-28">
                 <NumberStepper
                   value={step.repeatCount || 1}
@@ -591,7 +591,7 @@ function StepRow({
           {/* Sub-steps inside a repeat block (e.g. the interval + its rest) */}
           {step.repeatSteps && step.repeatSteps.length > 0 && (
             <div>
-              <label className="text-[10px] text-ink-400 uppercase tracking-wide mb-1 block">
+              <label className="text-3xs text-ink-400 uppercase tracking-wide mb-1 block">
                 {t('repeatedSteps', { count: step.repeatCount || 1 })}
               </label>
               <div className="space-y-2 ms-2 border-s-2 border-band-3/30 ps-2">
@@ -630,7 +630,7 @@ function StepRow({
           )}
 
           <div>
-            <label className="text-[10px] text-ink-400 uppercase tracking-wide mb-1 block">{t('notes')}</label>
+            <label className="text-3xs text-ink-400 uppercase tracking-wide mb-1 block">{t('notes')}</label>
             <input
               type="text"
               value={step.notes || ''}
@@ -882,7 +882,7 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
             <div key={i} className="bg-card/60 rounded-lg px-3 py-2.5">
               <div className="flex items-center gap-2 mb-1.5">
                 <span className={cn(
-                  'text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
+                  'text-3xs font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
                   c.kind === 'added' ? 'bg-accent-600/20 text-accent-900' :
                   c.kind === 'removed' ? 'bg-accent-red/20 text-accent-red-ink' :
                   'bg-brand-600/20 text-brand-600'

@@ -79,7 +79,7 @@ export default function ClaimExistingAccount() {
         {/* Deliberately does not say whether the address matched anybody: the
             route does not tell this component, and it must not — see its header. */}
         <p className="mt-1.5 text-13 text-ink-500 leading-relaxed">{t('sentBody')}</p>
-        <p className="mt-1.5 text-3xs text-ink-400 leading-relaxed">{t('sentHint')}</p>
+        <p className="mt-1.5 text-2xs text-ink-400 leading-relaxed">{t('sentHint')}</p>
       </div>
     );
   }
@@ -103,7 +103,7 @@ export default function ClaimExistingAccount() {
           {/* The explanation opens WITH the field, not behind another tap: this asks
               for an email address on a screen that already told them to wait, and
               "why are you asking" has to be answered before they type. */}
-          <p className="mt-1 text-3xs text-ink-400 leading-relaxed">{t('promptBody')}</p>
+          <p className="mt-1 text-2xs text-ink-400 leading-relaxed">{t('promptBody')}</p>
           <label htmlFor="claim-email" className="block mt-3 text-3xs font-semibold text-ink-500">
             {t('emailLabel')}
           </label>
@@ -118,7 +118,7 @@ export default function ClaimExistingAccount() {
             placeholder={t('emailPlaceholder')}
             className="mt-1 w-full min-h-[44px] bg-page border border-ink-300 rounded-2xl px-4 py-3 text-base text-ink-700 placeholder-ink-400 text-left focus:outline-none focus:ring-2 focus:ring-brand-600"
           />
-          {error && <p className="mt-2 text-3xs font-semibold text-accent-red-ink">{error}</p>}
+          {error && <p className="mt-2 text-2xs font-semibold text-accent-red-ink">{error}</p>}
           <div className="mt-3 flex items-center gap-2">
             <Button type="submit" disabled={busy || !email} className={cn('flex-1', busy && 'opacity-70')}>
               {busy ? (

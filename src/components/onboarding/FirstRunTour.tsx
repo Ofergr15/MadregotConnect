@@ -274,7 +274,7 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
           className="absolute h-3.5 w-3.5 rotate-45 bg-card"
           style={below ? { top: -7, left: arrowLeft - 18 } : { bottom: -7, left: arrowLeft - 18 }}
         />
-        <p className="text-3xs font-bold tracking-wide text-brand-600">
+        <p className="text-2xs font-bold tracking-wide text-brand-600">
           {t('tourStepOf', { step: index + 1, total: steps.length })}
         </p>
         <h3 className="mt-1 text-[17px] font-bold text-ink-700">{t(step.titleKey)}</h3>

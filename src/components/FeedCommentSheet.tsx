@@ -183,7 +183,7 @@ export function FeedCommentSheet({ item, myAthleteId, onClose }: Props) {
                 </p>
                 <p className="text-sm text-ink-700 leading-snug whitespace-pre-line"><FeedBodyText body={c.body} /></p>
               </div>
-              <p className="text-[10px] text-ink-400 mt-1 ms-1">{format.relativeTime(new Date(c.createdAt), now)}</p>
+              <p className="text-2xs text-ink-400 mt-1 ms-1">{format.relativeTime(new Date(c.createdAt), now)}</p>
             </div>
             {c.canDelete && (
               <button

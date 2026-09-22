@@ -163,12 +163,17 @@ export function RouteMinimap({
           strokeWidth="1.5"
         />
         {/* Required wherever these tiles show. Kept short at this size — the
-            full string is on the detail map, which has room for it. */}
+            full string is on the detail map, which has room for it.
+            10 and not 6: an SVG `fontSize` is invisible to a Tailwind grep, so
+            this one sat three steps under the floor long after the class-based
+            sites were fixed. Attribution is a fixed label, so 10 is its floor.
+            At 10 the string takes ~110px of the 300-wide plate and still sits
+            in the corner. */}
         <text
           x={width - 4}
           y={height - 4}
           textAnchor="end"
-          fontSize="6"
+          fontSize="10"
           fill="#1D1E26"
           opacity="0.55"
         >

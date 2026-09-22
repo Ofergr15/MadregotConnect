@@ -110,7 +110,7 @@ export function WhatsNewSheet({
           </button>
           {/* The recall promise, made where the sheet is being closed — this is the
               sentence that makes a final dismissal safe to offer. */}
-          <p className="mt-2 text-center text-3xs text-ink-400">{t('recall')}</p>
+          <p className="mt-2 text-center text-2xs text-ink-400">{t('recall')}</p>
         </div>
       }
     >
@@ -203,7 +203,7 @@ export function WhatsNewSettingsRow() {
         trailing={
           <span className="flex shrink-0 items-center gap-2">
             {unseen.length > 0 && (
-              <span className="min-w-[22px] rounded-pill bg-brand-600 px-1.5 py-0.5 text-center text-3xs font-bold tabular-nums text-white">
+              <span className="min-w-[22px] rounded-pill bg-brand-600 px-1.5 py-0.5 text-center text-2xs font-bold tabular-nums text-white">
                 {unseen.length}
               </span>
             )}

@@ -93,7 +93,7 @@ export default function AcademyFlowIndex() {
                     {/* A parked step wears one pill, not two: "built, and not on the table" is a
                         single fact about it, and the state it would otherwise show is a detail of
                         something nobody is deciding now. */}
-                    <span className={`flex-none rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                    <span className={`flex-none rounded-full px-2 py-0.5 text-3xs font-semibold ${
                       step.deferred ? 'bg-ink-300/40 text-ink-500' : STATE_CLASS[step.state]
                     }`}>
                       {step.deferred ? 'בתור — לא עכשיו' : STATE_LABEL[step.state]}

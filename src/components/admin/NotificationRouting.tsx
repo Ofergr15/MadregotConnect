@@ -294,7 +294,7 @@ export default function NotificationRouting() {
                 return (
                   <div key={role} className="flex min-h-[44px] items-center gap-2 px-3 py-1.5">
                     <span className="flex-1 text-13 font-medium text-ink-900">{label}</span>
-                    <span className="shrink-0 text-3xs text-ink-400">{count} במועדון</span>
+                    <span className="shrink-0 text-2xs text-ink-400">{count} במועדון</span>
                     <Switch
                       checked={k.roles[role] === true}
                       onChange={next => toggleRoute(k, role, next)}
@@ -324,7 +324,7 @@ export default function NotificationRouting() {
               )}
             </div>
 
-            <p dir="ltr" className="mt-2 text-left text-3xs text-ink-300">{k.source}</p>
+            <p dir="ltr" className="mt-2 text-left text-2xs text-ink-300">{k.source}</p>
           </Card>
         ))}
       </div>
@@ -368,7 +368,7 @@ export default function NotificationRouting() {
         </div>
         {/* Stated where somebody is about to rely on it: the two halves are
             independent, and only one of them is the club's to decide. */}
-        <p className="mt-1.5 px-2 text-3xs leading-relaxed text-ink-400">
+        <p className="mt-1.5 px-2 text-2xs leading-relaxed text-ink-400">
           הניתוב שלמעלה קובע למי ההתראה נשלחת. המתגים כאן הם ההעדפות האישיות של כל אחד — אותם מתגים שהוא רואה אצלו בהגדרות —
           ואם הוא כיבה את ערוץ הניהול, הוא לא יקבל גם אם הוא מנותב.
         </p>
@@ -457,7 +457,7 @@ function PersonRow({
             <span className="shrink-0 rounded border border-ink-300/50 bg-page px-1.5 py-0.5 text-3xs font-bold text-ink-700">
               {ROLE_LABEL[p.role] || p.role}
             </span>
-            <span className="text-3xs text-ink-400">{on} מתוך {rows.length} ערוצים</span>
+            <span className="text-2xs text-ink-400">{on} מתוך {rows.length} ערוצים</span>
             {/* A member with no registered device receives no push at all,
                 whatever these switches say — so it's on the collapsed row. */}
             {p.devices === 0 ? (
@@ -465,7 +465,7 @@ function PersonRow({
                 <BellOff className="h-3 w-3" />ללא מכשיר
               </span>
             ) : (
-              <span className="flex items-center gap-0.5 text-3xs text-ink-400">
+              <span className="flex items-center gap-0.5 text-2xs text-ink-400">
                 <Smartphone className="h-3 w-3" />{p.devices}
               </span>
             )}
@@ -501,7 +501,7 @@ function PersonRow({
           })}
           {/* Where the club-wide half of this person's mail is decided. */}
           {staff && (
-            <p className="flex items-center gap-1.5 px-3.5 py-2 text-3xs text-ink-400">
+            <p className="flex items-center gap-1.5 px-3.5 py-2 text-2xs text-ink-400">
               <Bell className="h-3 w-3 shrink-0" />
               אילו התראות ניהול נשלחות אליו נקבע בניתוב שלמעלה, לפי התפקיד.
             </p>

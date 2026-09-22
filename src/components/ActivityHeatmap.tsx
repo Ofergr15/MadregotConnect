@@ -101,7 +101,7 @@ export function ActivityHeatmap({ athleteId }: { athleteId: string }) {
         <div className="inline-flex flex-col gap-1 min-w-full">
           <div className="flex gap-[3px] h-3">
             {weeks.map((col, i) => (
-              <div key={i} className="w-[11px] shrink-0 text-[9px] text-ink-400 leading-none whitespace-nowrap">
+              <div key={i} className="w-[11px] shrink-0 text-3xs text-ink-400 leading-none whitespace-nowrap">
                 {col[0].monthLabel || ''}
               </div>
             ))}

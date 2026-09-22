@@ -132,15 +132,15 @@ export function SquadStandings() {
             <div className="flex items-center gap-3 shrink-0 text-center">
               <div className="w-12">
                 <div className="text-sm font-black text-ink-700 tabular-nums">{s.volumeKmPerMember}</div>
-                <div className="text-[9px] text-ink-400 leading-none">{t('kmAvg')}</div>
+                <div className="text-3xs text-ink-400 leading-none">{t('kmAvg')}</div>
               </div>
               <div className="w-10">
                 <div className="text-sm font-black text-ink-700 tabular-nums">{s.attendancePerMember}</div>
-                <div className="text-[9px] text-ink-400 leading-none">{t('attendAvg')}</div>
+                <div className="text-3xs text-ink-400 leading-none">{t('attendAvg')}</div>
               </div>
               <div className="w-10">
                 <div className="text-sm font-black text-ink-700 tabular-nums">{s.consistencyPct}%</div>
-                <div className="text-[9px] text-ink-400 leading-none">{t('ranThisWeek')}</div>
+                <div className="text-3xs text-ink-400 leading-none">{t('ranThisWeek')}</div>
               </div>
             </div>
           </button>

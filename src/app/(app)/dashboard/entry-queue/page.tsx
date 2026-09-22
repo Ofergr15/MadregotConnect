@@ -1097,7 +1097,7 @@ function FlowTrack({
             </div>
             <span
               className={cn(
-                'mt-1.5 text-[9px] leading-tight text-center w-full px-0.5',
+                'mt-1.5 text-3xs leading-tight text-center w-full px-0.5',
                 isStuck ? 'font-bold text-accent-red' : passed ? 'font-semibold text-ink-500' : 'text-ink-300',
               )}
             >

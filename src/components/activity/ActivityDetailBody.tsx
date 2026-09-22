@@ -172,7 +172,7 @@ export function ActivityDetailBody({
             <p className="text-xs text-ink-400 mb-1">{t('duration')}</p>
             <p className="text-3xl font-black text-ink-700 tabular-nums">{durationStr}</p>
             {movingStr && movingStr !== durationStr && (
-              <p className="text-3xs text-ink-400 mt-0.5">{movingStr} {t('movingSuffix')}</p>
+              <p className="text-2xs text-ink-400 mt-0.5">{movingStr} {t('movingSuffix')}</p>
             )}
           </div>
           {/* Avg HR and elevation used to be desktop-only here. On a phone — where
@@ -182,7 +182,7 @@ export function ActivityDetailBody({
             <div>
               <p className="text-xs text-ink-400 mb-1">{t('avgHrShort')}</p>
               <p className={cn('text-3xl font-black tabular-nums', hrZone?.color)}>{Math.round(act.average_hr)}</p>
-              {hrZone && <p className="text-3xs text-ink-400 mt-0.5">{t('zone')} {hrZone.zone} · {t(`hrZone${hrZone.zone}` as 'hrZone1')}</p>}
+              {hrZone && <p className="text-2xs text-ink-400 mt-0.5">{t('zone')} {hrZone.zone} · {t(`hrZone${hrZone.zone}` as 'hrZone1')}</p>}
             </div>
           )}
           {act.elevation_gain ? (

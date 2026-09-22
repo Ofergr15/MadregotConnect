@@ -86,7 +86,7 @@ export function BenchmarkLeaderboard() {
                   <Medal className={cn('h-5 w-5 absolute -bottom-1 -end-1', podium[i].text)} />
                 </span>
                 <span className="flex-1 min-w-0">
-                  <span className={cn('block text-[10px] font-bold uppercase tracking-wider', podium[i].text)}>#{r.rank}</span>
+                  <span className={cn('block text-2xs font-bold uppercase tracking-wider', podium[i].text)}>#{r.rank}</span>
                   <span className="block text-sm font-semibold text-ink-700 truncate" dir="auto">{r.athlete_name}</span>
                 </span>
               </AthleteLink>

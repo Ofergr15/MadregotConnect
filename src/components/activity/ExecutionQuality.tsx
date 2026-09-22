@@ -194,13 +194,13 @@ function DeviationAxis({
           className="absolute top-0.5 flex flex-col items-center"
           style={{ left: `${markerPct}%`, transform: 'translateX(-50%)' }}
         >
-          <span className="text-3xs font-bold tabular-nums" style={{ color }}>{formatPace(actual)}</span>
+          <span className="text-2xs font-bold tabular-nums" style={{ color }}>{formatPace(actual)}</span>
           <span className="mt-0.5 h-4 w-1.5 rounded-full" style={{ background: color }} />
         </div>
       </div>
 
       {insideTolerance && noRepOnTarget && (
-        <p className="mt-1.5 flex items-start gap-1.5 text-3xs leading-snug text-ink-500">
+        <p className="mt-1.5 flex items-start gap-1.5 text-2xs leading-snug text-ink-500">
           <Info className="mt-px h-3 w-3 shrink-0 text-ink-400" />
           {t('axisAverageTrap')}
         </p>
@@ -258,11 +258,18 @@ function RepsChart({
       role="img"
       aria-label={t('repsTitle')}
     >
-      {/* Label only — the band rect below already draws the line these mark. */}
+      {/* Label only — the band rect below already draws the line these mark.
+          The three `fontSize` values in this chart are 10, not 11, and that is
+          the same exception ImprovementChart's axis ticks take: an SVG tick is
+          placed absolutely against the thing it labels, so a bigger glyph
+          collides with its neighbour instead of reflowing. Here the two ticks
+          are the band's own edges, which sit a few pixels apart when the band
+          is narrow. 10 is the floor for a fixed label and these are ticks;
+          8 and 9 were under it, which no class-name grep could see. */}
       {ticks.map((tick) => (
         <g key={tick}>
           <line x1={PAD_L - 3} x2={PAD_L} y1={y(tick)} y2={y(tick)} stroke="#C9C9C9" strokeWidth="1" />
-          <text x={PAD_L - 6} y={y(tick) + 3} textAnchor="end" fontSize="8" fill={DIRECTION_COLOR.on_target} className="tabular-nums">
+          <text x={PAD_L - 6} y={y(tick) + 4} textAnchor="end" fontSize="10" fill={DIRECTION_COLOR.on_target} className="tabular-nums">
             {formatPace(tick)}
           </text>
         </g>
@@ -283,7 +290,7 @@ function RepsChart({
         height={Math.max(y(bandMax) - y(bandMin), 1.5)}
         fill={`${DIRECTION_COLOR.on_target}3D`}
       />
-      <text x={CHART_W - PAD_R} y={y(bandMin) - 3} textAnchor="end" fontSize="8" fill={DIRECTION_COLOR.on_target}>
+      <text x={CHART_W - PAD_R} y={y(bandMin) - 4} textAnchor="end" fontSize="10" fill={DIRECTION_COLOR.on_target}>
         {t('targetBand')}
       </text>
 
@@ -301,7 +308,7 @@ function RepsChart({
             <circle cx={x(index)} cy={y(rep.actualPace as number)} r="4.5" fill={color} stroke="#FFFFFF" strokeWidth="1.5" />
             {/* Rep number only. The pace of each dot is on its own row directly
                 below the chart; printing it twice, 20px apart, read as noise. */}
-            <text x={x(index)} y={CHART_H - 4} textAnchor="middle" fontSize="9" fill="#8A8A8A" className="tabular-nums">
+            <text x={x(index)} y={CHART_H - 3} textAnchor="middle" fontSize="10" fill="#8A8A8A" className="tabular-nums">
               {index + 1}
             </text>
           </g>
@@ -321,7 +328,7 @@ function RepRows({ reps }: { reps: ExecutionRep[] }) {
         return (
           <div key={rep.index} className="flex items-center gap-3 py-2">
             <span
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-3xs font-bold tabular-nums"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-2xs font-bold tabular-nums"
               style={{ background: `${color}1F`, color }}
             >
               {index + 1}
@@ -337,7 +344,7 @@ function RepRows({ reps }: { reps: ExecutionRep[] }) {
             <span className="text-sm font-bold tabular-nums" style={{ color }}>
               <Num>{formatPace(rep.actualPace as number)}</Num>
             </span>
-            <span className="w-16 shrink-0 text-end text-3xs font-semibold" style={{ color }}>
+            <span className="w-16 shrink-0 text-end text-2xs font-semibold" style={{ color }}>
               {delta === 0
                 ? t('repInBand')
                 : <><Num>{delta > 0 ? '+' : '−'}{Math.abs(delta)}</Num>{t('unitSec')}</>}
@@ -420,7 +427,7 @@ function MetricRow({ metric, note }: { metric: ExecutionMetric; note?: React.Rea
       {/* Indented under the numbers it qualifies, not in the reason list below the
           table: this one is not a missing measurement, it's what the two numbers on
           this row are measurements OF. */}
-      {note && <p className="mt-1 ps-[4.5rem] text-3xs leading-snug text-ink-400">{note}</p>}
+      {note && <p className="mt-1 ps-[4.5rem] text-2xs leading-snug text-ink-400">{note}</p>}
     </div>
   );
 }
@@ -598,7 +605,7 @@ export function ExecutionQuality({
   const kmChart = showKmChart && splits ? (
     <>
       <PaceChart splits={splits} planned={planned ?? undefined} />
-      <p className="mt-1 text-3xs leading-snug text-ink-400">
+      <p className="mt-1 text-2xs leading-snug text-ink-400">
         {kmTally && kmTally.graded > 0
           ? t('kmSummary', { inBand: kmTally.inBand, graded: kmTally.graded })
           : t('kmChartNote')}
@@ -610,7 +617,7 @@ export function ExecutionQuality({
           count — and without saying it, the ring and the chart directly
           contradict each other with nothing to say which to believe. */}
       {verdict.direction === 'on_target' && kmTally != null && kmTally.inBand < kmTally.graded && (
-        <p className="mt-1.5 flex items-start gap-1.5 text-3xs leading-snug text-ink-500">
+        <p className="mt-1.5 flex items-start gap-1.5 text-2xs leading-snug text-ink-500">
           <Info className="mt-px h-3 w-3 shrink-0 text-ink-400" />
           {t('kmAverageTrap')}
         </p>
@@ -760,11 +767,11 @@ export function ExecutionQuality({
           <div className="mt-5 border-t border-page pt-4">
             <div className="mb-1 flex items-baseline justify-between gap-2">
               <p className="text-xs font-bold text-ink-700">{t('repsTitle')}</p>
-              <p className="text-3xs text-ink-400">
+              <p className="text-2xs text-ink-400">
                 {t('repSummary', { onTarget: workOnTarget, graded: workReps.length })}
               </p>
             </div>
-            <p className="mb-2 text-3xs text-ink-400">
+            <p className="mb-2 text-2xs text-ink-400">
               {t('repsTargetLabel')} <Num>{paceRange(verdict.paceBandMin, verdict.paceBandMax)}</Num> {t('unitPerKm')}
             </p>
             <RepsChart
@@ -782,7 +789,7 @@ export function ExecutionQuality({
           // the same words would be the third label on one graphic.
           <div className="mt-5 border-t border-page pt-4">{kmChart}</div>
         ) : verdict.repsReason ? (
-          <p className="mt-4 flex items-start gap-1.5 border-t border-page pt-4 text-3xs leading-snug text-ink-400">
+          <p className="mt-4 flex items-start gap-1.5 border-t border-page pt-4 text-2xs leading-snug text-ink-400">
             <AlertCircle className="mt-px h-3 w-3 shrink-0" />
             {t('repsUnavailable')}
           </p>
@@ -811,7 +818,7 @@ export function ExecutionQuality({
               {verdict.metrics
                 .filter((metric) => metric.reason)
                 .map((metric) => (
-                  <li key={metric.key} className="flex items-start gap-1.5 text-3xs leading-snug text-ink-400">
+                  <li key={metric.key} className="flex items-start gap-1.5 text-2xs leading-snug text-ink-400">
                     <Info className="mt-px h-3 w-3 shrink-0" />
                     <span>
                       <span className="font-semibold">{t(`metric_${metric.key}` as 'metric_distance')}</span>
@@ -823,7 +830,7 @@ export function ExecutionQuality({
             </ul>
           )}
           {verdict.basis && (
-            <p className="mt-3 rounded-xl bg-page/70 px-3 py-2 text-3xs leading-snug text-ink-500">
+            <p className="mt-3 rounded-xl bg-page/70 px-3 py-2 text-2xs leading-snug text-ink-500">
               {/* The two `efforts` strings quote the count, because "the reps were
                   found in the run" is a claim the athlete should be able to check.
                   `effortCounts` is non-null exactly when the basis is one of them;

@@ -456,7 +456,7 @@ export default function ProgramPage() {
                     href={`https://drive.google.com/file/d/${currentExercise.id}/view`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="absolute top-2 end-2 bg-black/70 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 z-10 sm:hidden"
+                    className="absolute top-2 end-2 bg-black/70 text-white text-3xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 z-10 sm:hidden"
                   >
                     <Play className="h-3 w-3" />
                     Open
@@ -508,14 +508,14 @@ export default function ProgramPage() {
               </div>
               <p className="text-xs text-ink-400 mt-1 line-clamp-2">{currentExercise.desc}</p>
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-band-3/20 text-band-3-ink border border-band-3/30 font-bold">
+                <span className="text-3xs px-2 py-0.5 rounded-full bg-band-3/20 text-band-3-ink border border-band-3/30 font-bold">
                   {currentExercise.sets}
                 </span>
                 {currentExercise.tags.map((tag) => (
                   <span
                     key={tag}
                     className={cn(
-                      'text-[10px] px-1.5 py-0.5 rounded-full border font-medium',
+                      'text-3xs px-1.5 py-0.5 rounded-full border font-medium',
                       getTagColor(tag)
                     )}
                   >
@@ -580,7 +580,7 @@ export default function ProgramPage() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                     {isSelected && (
-                      <div className="absolute top-1.5 end-1.5 bg-band-3 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                      <div className="absolute top-1.5 end-1.5 bg-band-3 text-white text-3xs font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
                         <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                         Live
                       </div>
@@ -592,7 +592,7 @@ export default function ProgramPage() {
                         </div>
                       </div>
                     )}
-                    <div className="absolute bottom-1 start-1 bg-black/70 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                    <div className="absolute bottom-1 start-1 bg-black/70 text-white text-2xs font-bold px-1.5 py-0.5 rounded">
                       {video.sets}
                     </div>
                   </div>
@@ -612,7 +612,7 @@ export default function ProgramPage() {
                         <span
                           key={tag}
                           className={cn(
-                            'text-[9px] px-1.5 py-0.5 rounded border font-medium',
+                            'text-3xs px-1.5 py-0.5 rounded border font-medium',
                             getTagColor(tag)
                           )}
                         >

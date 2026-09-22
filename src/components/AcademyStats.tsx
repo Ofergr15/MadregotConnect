@@ -102,7 +102,7 @@ export function AcademyStats() {
                   </AthleteLink>
                   <div className="text-end shrink-0">
                     <div className="text-lg font-bold text-ink-700 tabular-nums">{km.toFixed(1)}</div>
-                    <div className="text-[10px] text-ink-400 -mt-0.5">ק&quot;מ</div>
+                    <div className="text-3xs text-ink-400 -mt-0.5">ק&quot;מ</div>
                   </div>
                 </div>
                 {/* km bar */}

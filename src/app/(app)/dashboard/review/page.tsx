@@ -408,7 +408,7 @@ export default function ReviewPage() {
                       <Icon className={cn('h-4 w-4', c.tint)} />
                     </span>
                     <span className="text-13 font-bold leading-tight text-ink-900">{t(c.labelKey as any)}</span>
-                    <span className="text-3xs leading-snug text-ink-400">{t(c.hintKey as any)}</span>
+                    <span className="text-2xs leading-snug text-ink-400">{t(c.hintKey as any)}</span>
                   </button>
                 );
               })}
@@ -460,7 +460,7 @@ export default function ReviewPage() {
                       they just picked was shrunk and will actually arrive. */}
                   {/* dir="auto" — inside the RTL page "184 KB" otherwise renders
                       as "KB 184", the unit leading the number. */}
-                  <p className="text-3xs text-ink-400" dir="auto">{formatBytes(imageBytes)}</p>
+                  <p className="text-2xs text-ink-400" dir="auto">{formatBytes(imageBytes)}</p>
                   <button onClick={() => setPickerOpen(true)} className="mt-1 text-3xs font-bold text-brand-600">
                     {t('changeScreenshot')}
                   </button>
@@ -482,7 +482,7 @@ export default function ReviewPage() {
                 <Camera className="h-4 w-4 shrink-0 text-ink-400" />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-ink-900">{t('attachScreenshot')}</span>
-                  <span className="block text-3xs text-ink-400">{t('attachHint')}</span>
+                  <span className="block text-2xs text-ink-400">{t('attachHint')}</span>
                 </span>
               </button>
             )}
@@ -503,10 +503,10 @@ export default function ReviewPage() {
               </button>
               {showContext && (
                 <div className="border-t border-page px-4 py-3">
-                  <p className="mb-2 text-3xs leading-relaxed text-ink-400">{t('contextHint')}</p>
+                  <p className="mb-2 text-2xs leading-relaxed text-ink-400">{t('contextHint')}</p>
                   <dl className="space-y-1.5">
                     {contextRows.map(r => (
-                      <div key={r.label} className="flex items-baseline gap-2 text-3xs">
+                      <div key={r.label} className="flex items-baseline gap-2 text-2xs">
                         <dt className="w-20 shrink-0 text-ink-400">{r.label}</dt>
                         <dd className="min-w-0 flex-1 truncate font-medium text-ink-700" dir="auto">{r.value}</dd>
                       </div>
@@ -529,7 +529,7 @@ export default function ReviewPage() {
               {sending ? <Spinner size={16} /> : <Send className="h-4 w-4" />}
               {t('send')}
             </Button>
-            <p className="text-center text-3xs text-ink-400">
+            <p className="text-center text-2xs text-ink-400">
               <span className="font-medium text-ink-500">{athleteName || t('anonymous')}</span>
               {groupName && <span> · {groupName}</span>}
             </p>
@@ -558,7 +558,7 @@ export default function ReviewPage() {
                       <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-3xs font-bold', STATUS_PILL[status])}>
                         {t(STATUS_LABEL_KEY[status] as any)}
                       </span>
-                      <span className="text-3xs text-ink-400">
+                      <span className="text-2xs text-ink-400">
                         {new Date(r.created_at).toLocaleDateString(locale === 'he' ? 'he-IL' : 'en-GB', { day: 'numeric', month: 'short' })}
                       </span>
                     </div>
@@ -576,7 +576,7 @@ export default function ReviewPage() {
                       ) : (
                         <div className="mt-2">
                           {r.fixed_in_version && compareAppVersions(APP_VERSION, r.fixed_in_version) < 0 && (
-                            <p className="mb-1.5 text-3xs leading-relaxed text-ink-400" dir="auto">
+                            <p className="mb-1.5 text-2xs leading-relaxed text-ink-400" dir="auto">
                               {t('fixedInReload', { version: r.fixed_in_version })}
                             </p>
                           )}
@@ -601,7 +601,7 @@ export default function ReviewPage() {
                 <SectionCaption>{t('myReports')}</SectionCaption>
                 {open.length > 0 ? (
                   <>
-                    <p className="-mt-1 mb-1.5 px-4 text-3xs text-ink-400">
+                    <p className="-mt-1 mb-1.5 px-4 text-2xs text-ink-400">
                       {t('myReportsOpen', { count: open.length })}
                     </p>
                     {rows(open)}
@@ -638,10 +638,10 @@ export default function ReviewPage() {
           <Inbox className="h-4 w-4 shrink-0 text-brand-600" />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold text-ink-900">{t('adminInbox')}</span>
-            <span className="block text-3xs text-ink-400">{t('adminInboxHint')}</span>
+            <span className="block text-2xs text-ink-400">{t('adminInboxHint')}</span>
           </span>
           {typeof counts?.new === 'number' && counts.new > 0 && (
-            <span className="shrink-0 rounded-full bg-accent-red/15 px-2 py-0.5 text-3xs font-bold text-accent-red-ink">
+            <span className="shrink-0 rounded-full bg-accent-red/15 px-2 py-0.5 text-2xs font-bold text-accent-red-ink">
               {counts.new}
             </span>
           )}

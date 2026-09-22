@@ -383,7 +383,7 @@ export function AcademyCompliance() {
                         under the number: 81% over 3 of her 5 sessions is not a
                         verdict on her week, and unqualified it reads like one. */}
                     <div
-                      className="text-[10px] text-ink-400 -mt-0.5"
+                      className="text-2xs text-ink-400 -mt-0.5"
                       title={w.gradedCount != null && w.gradedCount < w.completedCount
                         ? `נמדד על ${w.gradedCount} מתוך ${w.completedCount} האימונים שבוצעו`
                         : undefined}
@@ -406,7 +406,7 @@ export function AcademyCompliance() {
                         return (
                           <div key={i} className="p-4 flex items-start gap-3">
                             <div className="shrink-0 w-10 text-center">
-                              <div className="text-[10px] text-ink-400 font-medium">{DAY_LABELS[dayIdx]}</div>
+                              <div className="text-3xs text-ink-400 font-medium">{DAY_LABELS[dayIdx]}</div>
                               {wk.completed
                                 ? <CheckCircle2 className="h-5 w-5 text-accent-600 mx-auto mt-1" />
                                 : <XCircle className="h-5 w-5 text-ink-400 mx-auto mt-1" />}
@@ -446,7 +446,7 @@ export function AcademyCompliance() {
                                       it about someone else was being addressed as if
                                       they had run it. */}
                                   {wk.completed && wk.execution && (
-                                    <div className="text-[10px] text-ink-400 leading-tight truncate">
+                                    <div className="text-3xs text-ink-400 leading-tight truncate">
                                       {t(`dirShort_${wk.execution.direction}` as 'dirShort_unknown')}
                                     </div>
                                   )}
@@ -458,7 +458,7 @@ export function AcademyCompliance() {
                                       two of the five weren't measured. */}
                                   {wk.completed && !wk.execution && (
                                     <div
-                                      className="text-[10px] text-ink-300 leading-tight truncate"
+                                      className="text-3xs text-ink-300 leading-tight truncate"
                                       title={t('ungradedBody')}
                                     >
                                       אין ציון {t('accuracyShort')}
@@ -587,7 +587,7 @@ function Stat({ label, value, color, note }: {
     <div className="flex-1 min-w-0">
       <div className="text-[11px] font-semibold text-ink-500">{label}</div>
       <div className={cn('text-2xl font-black tabular-nums leading-tight mt-0.5', color)}>{value}</div>
-      <div className="text-[10px] text-ink-400 mt-0.5 leading-snug">{note}</div>
+      <div className="text-2xs text-ink-400 mt-0.5 leading-snug">{note}</div>
     </div>
   );
 }

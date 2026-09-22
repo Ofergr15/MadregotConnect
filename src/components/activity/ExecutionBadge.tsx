@@ -58,7 +58,7 @@ export function ExecutionBadge({
           {t(`dir_${summary.direction}` as 'dir_on_target')}
         </p>
         {summary.workoutName && (
-          <p className="truncate text-3xs text-ink-400">{summary.workoutName}</p>
+          <p className="truncate text-2xs text-ink-400">{summary.workoutName}</p>
         )}
       </div>
       {showChevron && <ChevronRight className="h-4 w-4 shrink-0 text-ink-300 rtl:rotate-180" />}

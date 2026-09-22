@@ -108,7 +108,7 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
             <span dir="auto">{a.name}</span>
           </AthleteLink>
           {a.runs > 0 && (
-            <span className="text-3xs text-ink-400 shrink-0">{t('runsCount', { count: a.runs })}</span>
+            <span className="text-2xs text-ink-400 shrink-0">{t('runsCount', { count: a.runs })}</span>
           )}
           {/* dir="ltr" so the unit stays to the right of its number instead of
               bidi parking it on the far side of the row. */}

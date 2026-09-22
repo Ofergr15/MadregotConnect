@@ -349,19 +349,19 @@ export function ActivitySyncEditor({
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-page/50 rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-ink-400 font-medium mb-0.5">{tFeed('statDistance')}</p>
+            <p className="text-3xs text-ink-400 font-medium mb-0.5">{tFeed('statDistance')}</p>
             <p className="text-base font-black text-ink-700 tabular-nums">
-              {distKm}<span className="text-[10px] text-ink-400 ms-0.5">{tFeed('km')}</span>
+              {distKm}<span className="text-3xs text-ink-400 ms-0.5">{tFeed('km')}</span>
             </p>
           </div>
           <div className="bg-page/50 rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-ink-400 font-medium mb-0.5">{tFeed('statPace')}</p>
+            <p className="text-3xs text-ink-400 font-medium mb-0.5">{tFeed('statPace')}</p>
             <p className="text-base font-black text-ink-700 tabular-nums">
-              {paceStr || '—'}<span className="text-[10px] text-ink-400 ms-0.5">{tFeed('perKm')}</span>
+              {paceStr || '—'}<span className="text-3xs text-ink-400 ms-0.5">{tFeed('perKm')}</span>
             </p>
           </div>
           <div className="bg-page/50 rounded-xl p-2.5 text-center">
-            <p className="text-[10px] text-ink-400 font-medium mb-0.5">{tFeed('statTime')}</p>
+            <p className="text-3xs text-ink-400 font-medium mb-0.5">{tFeed('statTime')}</p>
             <p className="text-base font-black text-ink-700 tabular-nums">{durationStr}</p>
           </div>
         </div>
@@ -516,7 +516,7 @@ export function ActivitySyncEditor({
                   className="flex-1 flex flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-ink-400 cursor-not-allowed min-h-[40px]"
                 >
                   <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> {t('audienceFollowers')}</span>
-                  <span className="text-[9px] text-ink-900">{t('audienceComingSoon')}</span>
+                  <span className="text-3xs text-ink-900">{t('audienceComingSoon')}</span>
                 </button>
                 <button
                   onClick={() => setVisibility('private')}

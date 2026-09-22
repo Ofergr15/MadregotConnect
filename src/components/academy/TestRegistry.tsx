@@ -197,7 +197,7 @@ export function RegistryList({
       {byBand.length > 1 && (
         <div className="rounded-card bg-card p-3.5 space-y-2">
           <h3 className="text-xs font-bold text-ink-900">לפי דבוקה</h3>
-          <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-1 text-[10px] font-semibold text-ink-400">
+          <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-1 text-3xs font-semibold text-ink-400">
             <span>דבוקה</span><span className="text-end">מתאמנים</span><span className="text-end">שיפור ממוצע</span>
           </div>
           {byBand.map(band => (

@@ -334,7 +334,7 @@ export function FeedbackAdmin() {
                     <span
                       key={r.id}
                       className={cn(
-                        'flex h-6 w-6 items-center justify-center rounded-full border-2 border-card bg-brand-600/10 text-3xs font-bold text-brand-600',
+                        'flex h-6 w-6 items-center justify-center rounded-full border-2 border-card bg-brand-600/10 text-2xs font-bold text-brand-600',
                         i > 0 && '-ms-2',
                       )}
                     >
@@ -362,12 +362,12 @@ export function FeedbackAdmin() {
                     {t('detectorFound')}
                   </span>
                   {selected.detector && (
-                    <span className="rounded-full bg-page px-2 py-0.5 font-mono text-3xs text-ink-500" dir="ltr">
+                    <span className="rounded-full bg-page px-2 py-0.5 font-mono text-2xs text-ink-500" dir="ltr">
                       {selected.detector}
                     </span>
                   )}
                   {!!selected.affected_count && (
-                    <span className="rounded-full bg-accent-red/10 px-2 py-0.5 text-3xs font-bold text-accent-red">
+                    <span className="rounded-full bg-accent-red/10 px-2 py-0.5 text-2xs font-bold text-accent-red">
                       {t('affectedPeople', { count: selected.affected_count })}
                     </span>
                   )}
@@ -377,7 +377,7 @@ export function FeedbackAdmin() {
                     </span>
                   )}
                   {selected.first_seen_version && (
-                    <span className="rounded-full bg-page px-2 py-0.5 font-mono text-3xs text-ink-500" dir="ltr">
+                    <span className="rounded-full bg-page px-2 py-0.5 font-mono text-2xs text-ink-500" dir="ltr">
                       {t('firstSeenIn', { version: selected.first_seen_version })}
                     </span>
                   )}
@@ -389,8 +389,8 @@ export function FeedbackAdmin() {
                   <dl className="mt-2.5 space-y-1 border-t border-dashed border-brand-600/30 pt-2.5">
                     {Object.entries(selected.evidence.facts).map(([k, v]) => (
                       <div key={k} className="flex items-baseline justify-between gap-3">
-                        <dt className="shrink-0 text-3xs font-semibold text-ink-400" dir="auto">{k}</dt>
-                        <dd className="text-end text-3xs text-ink-700" dir="auto">{String(v)}</dd>
+                        <dt className="shrink-0 text-2xs font-semibold text-ink-400" dir="auto">{k}</dt>
+                        <dd className="text-end text-2xs text-ink-700" dir="auto">{String(v)}</dd>
                       </div>
                     ))}
                   </dl>
@@ -401,7 +401,7 @@ export function FeedbackAdmin() {
                   // with the evidence is how a heuristic gets read as a fact.
                   <div className="mt-2.5 rounded-md bg-card p-2">
                     <p className="mb-0.5 text-3xs font-bold text-ink-400">{t('detectorUnknown')}</p>
-                    <p className="text-3xs leading-relaxed text-ink-600" dir="auto">{selected.evidence.unknown}</p>
+                    <p className="text-2xs leading-relaxed text-ink-600" dir="auto">{selected.evidence.unknown}</p>
                   </div>
                 )}
               </div>
@@ -519,12 +519,12 @@ export function FeedbackAdmin() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className={cn('text-xs font-bold', s.pending ? 'text-ink-400' : 'text-ink-700')}>{s.label}</p>
-                        {s.detail && <p className="mt-0.5 text-3xs leading-relaxed text-ink-400" dir="auto">{s.detail}</p>}
+                        {s.detail && <p className="mt-0.5 text-2xs leading-relaxed text-ink-400" dir="auto">{s.detail}</p>}
                         {/* Its own left-aligned row: a branch name or a sha alone
                             in an RTL line is dragged to the far edge, away from
                             the label it belongs to. */}
                         {s.mono && (
-                          <p className="mt-0.5 break-all font-mono text-3xs text-ink-400" dir="ltr" style={{ textAlign: 'left' }}>
+                          <p className="mt-0.5 break-all font-mono text-2xs text-ink-400" dir="ltr" style={{ textAlign: 'left' }}>
                             {s.mono}
                           </p>
                         )}
@@ -542,7 +542,7 @@ export function FeedbackAdmin() {
               <div className="mb-5 rounded-xl border border-brand-600/15 bg-brand-600/5 px-3 py-2.5">
                 <div className="mb-1 flex items-center gap-1.5">
                   <Sparkles className="h-3 w-3 shrink-0 text-brand-600" />
-                  <span className="text-3xs font-bold text-brand-700">
+                  <span className="text-2xs font-bold text-brand-700">
                     {t('triageBy', { by: selected.triaged_by || 'cron' })}
                   </span>
                 </div>
@@ -673,7 +673,7 @@ export function FeedbackAdmin() {
                   </button>
                 </div>
                 {selected.admin_notes && adminNotes !== selected.admin_notes && (
-                  <p className="text-3xs text-ink-400 mt-1.5">{t('currentNote', { note: selected.admin_notes })}</p>
+                  <p className="text-2xs text-ink-400 mt-1.5">{t('currentNote', { note: selected.admin_notes })}</p>
                 )}
               </div>
 
@@ -740,7 +740,7 @@ export function FeedbackAdmin() {
                 {t(VIEW_LABEL_KEY[v])}
                 <span
                   className={cn(
-                    'rounded-full px-1.5 text-3xs font-bold tabular-nums',
+                    'rounded-full px-1.5 text-2xs font-bold tabular-nums',
                     on ? 'bg-white/25 text-white'
                       : alert ? 'bg-accent-red/15 text-accent-red-ink' : 'bg-page text-ink-400',
                   )}
@@ -858,7 +858,7 @@ export function FeedbackAdmin() {
                             the chip whose absence made a fixed bug look untouched.
                             dir="ltr" so "2.40.35" isn't reordered inside Hebrew. */}
                         {item.fixed_in_version && (
-                          <span className="shrink-0 rounded border border-brand-600/25 bg-brand-600/10 px-1.5 py-0.5 font-mono text-3xs font-bold text-brand-700" dir="ltr">
+                          <span className="shrink-0 rounded border border-brand-600/25 bg-brand-600/10 px-1.5 py-0.5 font-mono text-2xs font-bold text-brand-700" dir="ltr">
                             {item.fixed_in_version}
                           </span>
                         )}
@@ -878,7 +878,7 @@ export function FeedbackAdmin() {
                           </span>
                         )}
                         {!!item.affected_count && item.affected_count > 0 && (
-                          <span className="shrink-0 rounded border border-accent-red/25 bg-accent-red/10 px-1.5 py-0.5 text-3xs font-bold text-accent-red">
+                          <span className="shrink-0 rounded border border-accent-red/25 bg-accent-red/10 px-1.5 py-0.5 text-2xs font-bold text-accent-red">
                             {t('affectedPeople', { count: item.affected_count })}
                           </span>
                         )}
@@ -908,28 +908,28 @@ export function FeedbackAdmin() {
                               </span>
                             ))}
                           </div>
-                          <span className="text-3xs font-semibold text-ink-400">
+                          <span className="text-2xs font-semibold text-ink-400">
                             {t('reportedByCount', { count: reporterCount })}
                           </span>
                         </div>
                       )}
                       <div className="flex items-center justify-between gap-2">
-                        <span className="min-w-0 truncate text-3xs text-ink-400 font-medium">
+                        <span className="min-w-0 truncate text-2xs text-ink-400 font-medium">
                           {item.athlete_name.split(' ')[0]}
                           {where && <span className="text-ink-400/80"> · {where}</span>}
                         </span>
-                        <span className="shrink-0 text-3xs text-ink-400">{timeAgo}</span>
+                        <span className="shrink-0 text-2xs text-ink-400">{timeAgo}</span>
                       </div>
                       {/* The night's verdict, clipped to one line on the row: the
                           point of the morning pass is accept-or-reject, and that
                           needs the reasoning visible without opening anything. */}
                       {item.triage_note && (
-                        <p className="mt-1.5 line-clamp-2 rounded-lg bg-brand-600/5 px-2 py-1 text-3xs leading-relaxed text-brand-700 break-words" dir="auto">
+                        <p className="mt-1.5 line-clamp-2 rounded-lg bg-brand-600/5 px-2 py-1 text-2xs leading-relaxed text-brand-700 break-words" dir="auto">
                           {item.triage_note}
                         </p>
                       )}
                       {item.admin_notes && (
-                        <p className="text-3xs text-ink-400 italic mt-1 border-t border-page/30 pt-1 break-words" dir="auto">{item.admin_notes}</p>
+                        <p className="text-2xs text-ink-400 italic mt-1 border-t border-page/30 pt-1 break-words" dir="auto">{item.admin_notes}</p>
                       )}
                     </button>
                   );

@@ -361,7 +361,7 @@ function RailCell({
         {label}
       </span>
       {km && unit && (
-        <span className="block truncate text-3xs text-ink-400">
+        <span className="block truncate text-2xs text-ink-400">
           <bdi dir="ltr">{formatKm(km)} {unit}</bdi>
         </span>
       )}
@@ -515,7 +515,7 @@ function DayScreen(props: DayScreenProps) {
                     >
                       <span className="flex flex-wrap items-center gap-2">
                         {day.sessions.length > 1 && (
-                          <span className="text-3xs font-bold text-ink-400">
+                          <span className="text-2xs font-bold text-ink-400">
                             {t('sessionOf', { n: position + 1, count: day.sessions.length })}
                           </span>
                         )}
@@ -646,19 +646,19 @@ function DayScreen(props: DayScreenProps) {
                     <p className="text-2xs text-ink-400">{t('previewUnavailable')}</p>
                   )}
                 </div>
-                <p className="mt-2 text-3xs text-ink-400">{t('imageNote')}</p>
+                <p className="mt-2 text-2xs text-ink-400">{t('imageNote')}</p>
               </>
             ) : (
               <>
                 <pre
                   dir="ltr"
-                  className="mt-3 max-h-[380px] overflow-auto whitespace-pre-wrap rounded-2xl bg-page/60 p-3 text-start font-mono text-3xs leading-[1.8] text-ink-500"
+                  className="mt-3 max-h-[380px] overflow-auto whitespace-pre-wrap rounded-2xl bg-page/60 p-3 text-start font-mono text-2xs leading-[1.8] text-ink-500"
                 >
                   {props.previewText
                     || grouped[`group${group}`].workouts[index]?.clipboardText
                     || t('rendering')}
                 </pre>
-                <p className="mt-2 text-3xs text-ink-400">{t('textNote')}</p>
+                <p className="mt-2 text-2xs text-ink-400">{t('textNote')}</p>
               </>
             )}
           </div>
@@ -746,7 +746,7 @@ function GroupCells({ day, grouped }: { day: DayReview; grouped: GroupedWeeklyPl
 
   if (new Set(columns).size === 1) {
     return (
-      <div className="col-span-3 border-s border-page/70 px-3 py-2.5 text-3xs text-ink-500">
+      <div className="col-span-3 border-s border-page/70 px-3 py-2.5 text-2xs text-ink-500">
         {columns[0] ? (
           <>
             <b className="font-bold tabular-nums text-ink-700"><bdi dir="ltr">{columns[0]}</bdi></b>
@@ -765,7 +765,7 @@ function GroupCells({ day, grouped }: { day: DayReview; grouped: GroupedWeeklyPl
         <div
           key={i}
           className={cn(
-            'border-s border-page/70 px-3 py-2.5 text-3xs font-bold tabular-nums',
+            'border-s border-page/70 px-3 py-2.5 text-2xs font-bold tabular-nums',
             GROUP_TEXT[i],
           )}
         >
@@ -890,7 +890,7 @@ function WeekScreen({
                 <span className="block text-3xs text-ink-400">{t('dayRest')}</span>
               ) : (
                 <>
-                  <span className="block truncate text-3xs text-ink-500">
+                  <span className="block truncate text-2xs text-ink-500">
                     <bdi dir="ltr">
                       {day.sessions.map((s) => sessionHeadline(s.workout.steps, units)).filter(Boolean).join(' + ')}
                     </bdi>
@@ -903,7 +903,7 @@ function WeekScreen({
                   {/* One figure, not two: on a day whose header carries km the
                       published number IS the header, and printing it twice reads
                       as a check having been done. The label says which it is. */}
-                  <span className="block text-3xs tabular-nums text-ink-500">
+                  <span className="block text-2xs tabular-nums text-ink-500">
                     {day.publishFrom === 'derived' ? t('fromDerived') : t('ledgerHeader')}{' '}
                     <b className="font-bold text-ink-900">
                       <bdi dir="ltr">{formatKm(day.publishKm) || '—'} {units.km}</bdi>

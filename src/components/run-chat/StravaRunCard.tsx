@@ -173,19 +173,19 @@ export function StravaRunCard({ attachment }: { attachment: StravaRunAttachment 
                   <strong className="block text-sm font-bold text-slate-50">
                     {distanceKm.toFixed(2)} {t('km')}
                   </strong>
-                  <span className="mt-1 block text-[10px] text-slate-400">{t('distance')}</span>
+                  <span className="mt-1 block text-3xs text-slate-400">{t('distance')}</span>
                 </div>
                 <div className="border-x border-[#294057]/70 text-center">
                   <strong className="block text-sm font-bold text-slate-50">
                     {run.pace?.replace('/km', '') || '—'} {t('perKm')}
                   </strong>
-                  <span className="mt-1 block text-[10px] text-slate-400">{t('averagePace')}</span>
+                  <span className="mt-1 block text-3xs text-slate-400">{t('averagePace')}</span>
                 </div>
                 <div className="text-center">
                   <strong className="block text-sm font-bold text-slate-50">
                     {durationText(Number(run.duration_s) || 0)}
                   </strong>
-                  <span className="mt-1 block text-[10px] text-slate-400">{t('totalTime')}</span>
+                  <span className="mt-1 block text-3xs text-slate-400">{t('totalTime')}</span>
                 </div>
               </div>
 

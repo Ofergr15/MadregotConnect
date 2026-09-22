@@ -124,7 +124,7 @@ export function WeekTargetBar({
         )}
       </div>
 
-      <p className="mt-1.5 flex items-center gap-1.5 text-3xs text-ink-400">
+      <p className="mt-1.5 flex items-center gap-1.5 text-2xs text-ink-400">
         <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-tile bg-accent-500/25 ring-1 ring-accent-900/25" />
         <span>
           {t('weekTargetLegend')}

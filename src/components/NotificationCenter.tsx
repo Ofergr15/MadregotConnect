@@ -480,8 +480,8 @@ export function NotificationCenter() {
           <img src={previewImageUrl || '/images/icon-192.png'} alt="" className="w-9 h-9 rounded-[10px] shrink-0 object-cover" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2 mb-0.5">
-              <span className="text-[10px] font-bold text-ink-400 uppercase tracking-wide">Madregot</span>
-              <span className="text-[10px] text-ink-400">עכשיו</span>
+              <span className="text-3xs font-bold text-ink-400 uppercase tracking-wide">Madregot</span>
+              <span className="text-3xs text-ink-400">עכשיו</span>
             </div>
             <p className="text-[13px] font-bold text-ink-900 truncate" dir="auto">{previewTitle}</p>
             <p className="text-[13px] text-ink-900 line-clamp-2" dir="auto">{previewBody}</p>
@@ -593,7 +593,7 @@ export function NotificationCenter() {
                       </div>
                     ))}
                   </div>
-                  <p className="text-3xs text-ink-400 mt-2">{s.totalResponses} תשובות</p>
+                  <p className="text-2xs text-ink-400 mt-2">{s.totalResponses} תשובות</p>
                 </div>
               );
             })}

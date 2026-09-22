@@ -95,7 +95,7 @@ export default function ClaimPage() {
             <Link2 className="h-10 w-10 mx-auto text-ink-400" aria-hidden="true" />
             <h1 className="mt-3 text-lg font-extrabold text-ink-900">{t('confirmTitle')}</h1>
             <p className="mt-2 text-13 text-ink-500 leading-relaxed">{t('confirmBody')}</p>
-            {error && <p className="mt-3 text-3xs font-semibold text-accent-red-ink leading-relaxed">{error}</p>}
+            {error && <p className="mt-3 text-2xs font-semibold text-accent-red-ink leading-relaxed">{error}</p>}
             <Button onClick={confirm} disabled={state === 'working'} className="mt-5 w-full">
               {state === 'working' ? (
                 <span className="flex items-center justify-center gap-2">

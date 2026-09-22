@@ -380,7 +380,7 @@ export function Header() {
                 {viewMode && (
                   <span className="absolute -top-0.5 -end-0.5 h-2.5 w-2.5 rounded-full bg-accent-red ring-2 ring-page" />
                 )}
-                <span className="absolute -bottom-8 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 px-2 py-1 bg-card border border-ink-300 text-ink-700 text-[10px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
+                <span className="absolute -bottom-8 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 px-2 py-1 bg-card border border-ink-300 text-ink-700 text-3xs font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50">
                   {viewMode ? th('exitViewAs') : th('viewAsUser')}
                 </span>
               </button>
@@ -407,7 +407,7 @@ export function Header() {
               >
                 <Bell className="h-4.5 w-4.5" />
                 {badge > 0 && (
-                  <span className="absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-accent-red text-white text-[10px] font-bold flex items-center justify-center">
+                  <span className="absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-accent-red text-white text-2xs font-bold flex items-center justify-center">
                     {badge}
                   </span>
                 )}
@@ -541,7 +541,7 @@ export function Header() {
                     above: that badge opens a sheet containing the benchmark queue,
                     this one opens /dashboard/notifications, which doesn't. */}
                 {unreadInbox > 0 && (
-                  <span className="absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-accent-red text-white text-[10px] font-bold flex items-center justify-center">
+                  <span className="absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full bg-accent-red text-white text-2xs font-bold flex items-center justify-center">
                     {unreadInbox}
                   </span>
                 )}

@@ -1205,7 +1205,7 @@ function ProfileContent() {
                     </button>
                   )}
                 </div>
-                <p className="mt-2 text-3xs text-ink-400">{t('stravaDisconnectKeepsHistory')}</p>
+                <p className="mt-2 text-2xs text-ink-400">{t('stravaDisconnectKeepsHistory')}</p>
               </div>
             )}
           </div>

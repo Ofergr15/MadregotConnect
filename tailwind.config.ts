@@ -49,6 +49,27 @@ const config: Config = {
       //   truncation, and the full page grew 1698px → 1708px. The bar strip is
       //   the only seven-column structure; the day cards are full-width rows.
       //   "11.5+" at 11px is ~30px in a 46px column.
+      //
+      //   A FLOOR WRITTEN IN CLASS NAMES IS ONLY HALF A FLOOR. Three kinds of
+      //   site never show up in a `text-4xs`/`text-3xs` grep, and all three were
+      //   breaching it on 2.40.121:
+      //     (a) arbitrary values — `text-[9px]`, `text-[8px]`. 24 of them, i.e.
+      //         more than half again as many as the 37 the token grep found.
+      //     (b) ARITHMETIC. ExecutionRing sizes its `%` at half the score's
+      //         size, so a 48px ring printed it at SEVEN — the smallest type in
+      //         the app. Its caption floored at `Math.max(8, …)`. Both now floor
+      //         at 10.
+      //     (c) SVG `fontSize` attributes. RouteMinimap's map attribution was 6;
+      //         ExecutionQuality's chart labels were 8, 8 and 9.
+      //   The audit catches all three, because it measures rendered pixels and
+      //   does not read class names. Grep for `text-\[[0-9]` and `fontSize` when
+      //   checking this rule, not just for the tokens.
+      //
+      //   TWO DELIBERATE EXCEPTIONS, both at 10px for content that is data:
+      //   ImprovementChart's and ExecutionQuality's SVG ticks. An SVG tick is
+      //   placed absolutely against the line or dot it labels, so a bigger glyph
+      //   collides with its neighbour instead of reflowing. /register's
+      //   `short:text-3xs` is not an exception — see the height breakpoint above.
       fontSize: {
         '3xs': ['10px', { lineHeight: '13px' }],
         '2xs': ['11px', { lineHeight: '14px' }],

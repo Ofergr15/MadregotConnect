@@ -77,11 +77,11 @@ function LegList({ legs, units, showPaces }: { legs: WorkoutStep[]; units: StepU
         const qualifier = stepQualifier(leg);
         return (
           <span key={j} className="flex items-center gap-x-1.5 min-w-0">
-            {j > 0 && <span className="text-[10px] text-ink-300">/</span>}
+            {j > 0 && <span className="text-3xs text-ink-300">/</span>}
             <span className={cn('text-[11px]', isRestStep(leg) ? 'text-ink-400' : 'text-ink-700 font-medium')}>
               {stepMetric(leg, units)}
             </span>
-            {qualifier && <span className="text-[10px] text-ink-400 truncate">{qualifier}</span>}
+            {qualifier && <span className="text-2xs text-ink-400 truncate">{qualifier}</span>}
             {showPaces && <StepPace step={leg} />}
           </span>
         );
@@ -116,24 +116,24 @@ function LadderLine({ steps, units }: { steps: WorkoutStep[]; units: StepUnits }
           // A ladder of SETS — "3 × [2 × 2 ק״מ / 3 דק׳ ג׳וג]". The inner count
           // stays visible: three sets of two reps is not the same as six reps.
           <span className="flex flex-wrap items-center gap-x-1.5 min-w-0 rounded border border-ink-300/40 px-1.5">
-            <span dir="ltr" className="text-[10px] text-ink-500 font-bold">{first.repeatCount} ×</span>
+            <span dir="ltr" className="text-2xs text-ink-500 font-bold">{first.repeatCount} ×</span>
             <LegList legs={first.repeatSteps} units={units} showPaces={false} />
           </span>
         ) : (
           <>
             <span className="text-[11px] text-ink-700 font-medium">{stepMetric(first, units)}</span>
             {stepQualifier(first) && (
-              <span className="text-[10px] text-ink-400 truncate">{stepQualifier(first)}</span>
+              <span className="text-2xs text-ink-400 truncate">{stepQualifier(first)}</span>
             )}
           </>
         )}
-        {climbs && <span className="text-[10px] text-ink-400 shrink-0">{tp('paceLadder')}</span>}
+        {climbs && <span className="text-3xs text-ink-400 shrink-0">{tp('paceLadder')}</span>}
         <span className="ms-auto flex items-center gap-1 shrink-0" dir="ltr">
           {climbs ? (
             paces.map((pace, i) => (
               <span
                 key={i}
-                className="rounded bg-accent-red/12 px-1 text-[10px] font-bold text-accent-red tabular-nums"
+                className="rounded bg-accent-red/12 px-1 text-2xs font-bold text-accent-red tabular-nums"
               >
                 {pace}
               </span>
@@ -141,7 +141,7 @@ function LadderLine({ steps, units }: { steps: WorkoutStep[]; units: StepUnits }
           ) : carrier ? (
             <StepPace step={carrier} />
           ) : null}
-          {total && <span className="text-[10px] text-ink-400 tabular-nums">{total}</span>}
+          {total && <span className="text-2xs text-ink-400 tabular-nums">{total}</span>}
         </span>
       </div>
     </div>
@@ -178,7 +178,7 @@ function StepLine({ step, units }: { step: WorkoutStep; units: StepUnits }) {
               morning — no screen showed it before. */}
           <span className="ms-auto flex items-center gap-1.5 shrink-0">
             {!inlinePaces && lead && <StepPace step={lead} />}
-            {total && <span className="text-[10px] text-ink-400 tabular-nums">{total}</span>}
+            {total && <span className="text-2xs text-ink-400 tabular-nums">{total}</span>}
           </span>
         </div>
       </div>
@@ -199,14 +199,14 @@ function StepLine({ step, units }: { step: WorkoutStep; units: StepUnits }) {
       {metric && (
         <span className="text-[11px] text-ink-700 truncate min-w-0 font-medium">{metric}</span>
       )}
-      {zone && <span className="text-[10px] text-ink-400 shrink-0">{zone}</span>}
+      {zone && <span className="text-2xs text-ink-400 shrink-0">{zone}</span>}
       {/* An open step has no metric to lead with, so its note IS the workout and
           gets the metric's own weight — Wednesday ("70-80 דק׳ ריצת שחרור קלה")
           and Monday evening used to render as the single word "סבב". */}
       {qualifier && (
         <span className={cn(
           'min-w-0',
-          metric ? 'text-[10px] text-ink-400 truncate' : 'text-[11px] text-ink-700 font-medium flex-1',
+          metric ? 'text-2xs text-ink-400 truncate' : 'text-[11px] text-ink-700 font-medium flex-1',
         )}>
           {qualifier}
         </span>
@@ -273,12 +273,12 @@ function SessionBadge({ workout, compact }: { workout: ParsedWorkout; compact?: 
 
   return (
     <div className={cn('flex items-center gap-1.5 flex-wrap', compact ? 'mb-1' : 'mb-1')}>
-      <span className="inline-flex items-center gap-1 rounded-full bg-brand-600/12 px-2 py-0.5 text-[10px] font-bold text-brand-600">
+      <span className="inline-flex items-center gap-1 rounded-full bg-brand-600/12 px-2 py-0.5 text-3xs font-bold text-brand-600">
         {kind === 'morning' ? <Sunrise className="h-2.5 w-2.5" /> : kind === 'evening' ? <Moon className="h-2.5 w-2.5" /> : null}
         {label}
       </span>
       {workout.optional && (
-        <span className="inline-flex items-center rounded-full bg-ink-300/15 px-2 py-0.5 text-[10px] font-bold text-ink-400">
+        <span className="inline-flex items-center rounded-full bg-ink-300/15 px-2 py-0.5 text-3xs font-bold text-ink-400">
           {tp('sessionOptional')}
         </span>
       )}
@@ -316,12 +316,12 @@ export function WorkoutPreview({ workout, compact = false, className }: WorkoutP
           <p className="text-[11px] font-semibold text-ink-700 truncate">{workout.name}</p>
           <div className="flex items-center gap-2 mt-1.5">
             {totalDist > 0 && (
-              <span className="text-[10px] text-ink-400">
+              <span className="text-2xs text-ink-400">
                 {totalDist >= 1000 ? `${(totalDist / 1000).toFixed(1)}km` : `${totalDist}m`}
               </span>
             )}
             {totalTime > 0 && (
-              <span className="text-[10px] text-ink-400">{formatDurationShort(totalTime)}</span>
+              <span className="text-2xs text-ink-400">{formatDurationShort(totalTime)}</span>
             )}
           </div>
         </div>
@@ -356,7 +356,7 @@ export function WorkoutPreview({ workout, compact = false, className }: WorkoutP
         <SessionBadge workout={workout} />
         <h3 className="font-semibold text-[12px] text-ink-700 leading-snug truncate">{workout.name}</h3>
         {workout.description && (
-          <p className="text-[10px] text-ink-400 mt-0.5 truncate">{workout.description}</p>
+          <p className="text-2xs text-ink-400 mt-0.5 truncate">{workout.description}</p>
         )}
       </div>
 
@@ -367,7 +367,7 @@ export function WorkoutPreview({ workout, compact = false, className }: WorkoutP
         {sections.map((section) => (
           <div key={section.kind} className="space-y-0.5 [&:not(:first-child)]:mt-1.5">
             {showSectionLabels && (
-              <p className="px-1 text-[9px] font-black uppercase tracking-[0.08em] text-ink-400">
+              <p className="px-1 text-3xs font-black uppercase tracking-[0.08em] text-ink-400">
                 {sectionLabels[section.kind]}
               </p>
             )}
@@ -384,19 +384,19 @@ export function WorkoutPreview({ workout, compact = false, className }: WorkoutP
       {(totalDist > 0 || totalTime > 0) && (
         <div className="border-t border-page/30 px-3 py-1.5 flex items-center gap-3 bg-page/30">
           {totalDist > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-ink-400">
+            <span className="flex items-center gap-1 text-2xs text-ink-400">
               <Route className="h-2.5 w-2.5" />
               {totalDist >= 1000 ? `${(totalDist / 1000).toFixed(1)}km` : `${totalDist}m`}
             </span>
           )}
           {totalTime > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-ink-400">
+            <span className="flex items-center gap-1 text-2xs text-ink-400">
               <Timer className="h-2.5 w-2.5" />
               {formatDurationShort(totalTime)}
             </span>
           )}
           {sets > 0 && (
-            <span className="text-[10px] text-ink-400">
+            <span className="text-2xs text-ink-400">
               {sets === 1 ? tp('setsOne') : tp('setsCount', { count: sets })}
             </span>
           )}

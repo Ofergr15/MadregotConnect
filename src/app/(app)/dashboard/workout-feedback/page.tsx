@@ -190,7 +190,7 @@ function MissingCard({ m }: { m: MissingEntry }) {
                   ships for exactly this (`accent-900` / `band-2-ink` /
                   `band-3-ink`), so the squad still reads as its own colour. Same
                   change in FeedbackCard below — the two cards are twins. */}
-              {rg && <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', rg.colors.chip.bg, rg.colors.chip.text)}>{m.squad}</span>}
+              {rg && <span className={cn('text-2xs font-bold px-1.5 py-0.5 rounded', rg.colors.chip.bg, rg.colors.chip.text)}>{m.squad}</span>}
             </span>
             <span className="block text-xs text-ink-400 truncate">
               {m.activityName || 'אימון'}{km ? ` · ${km} ק״מ` : ''}{dateStr ? ` · ${dateStr}` : ''}
@@ -235,7 +235,7 @@ function FeedbackCard({ it }: { it: FeedbackItem }) {
             <span className="flex items-center gap-2">
               <span className="text-sm font-bold text-ink-700 truncate" dir="auto">{it.name}</span>
               {/* Same chip, same reason as MissingCard's — see the note there. */}
-              {rg && <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded', rg.colors.chip.bg, rg.colors.chip.text)}>{it.squad}</span>}
+              {rg && <span className={cn('text-2xs font-bold px-1.5 py-0.5 rounded', rg.colors.chip.bg, rg.colors.chip.text)}>{it.squad}</span>}
             </span>
             <span className="block text-xs text-ink-400 truncate">
               {it.activityName || 'אימון'}{km ? ` · ${km} ק״מ` : ''}{dateStr ? ` · ${dateStr}` : ''}

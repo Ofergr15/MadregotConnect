@@ -185,7 +185,7 @@ export function AcademyResults() {
                     plain text, so the chip and the tappability agree. */}
                 <div className="font-medium text-ink-700 text-sm truncate flex items-center gap-2" dir="auto">
                   <AthleteLink athleteId={r.athlete_id} name={r.athlete_name} className="truncate">{r.athlete_name}</AthleteLink>
-                  {r.athlete_id && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-900">מקושר</span>}
+                  {r.athlete_id && <span className="text-3xs px-1.5 py-0.5 rounded bg-accent-600/15 text-accent-900">מקושר</span>}
                 </div>
                 {r.notes && <div className="text-xs text-ink-400 truncate" dir="auto">{r.notes}</div>}
               </div>

@@ -115,7 +115,7 @@ function CompactRunner({ item, onOpen }: { item: FeedItem; onOpen: () => void })
           name={item.author.name}
           url={item.author.avatarUrl}
           className="w-7 h-7"
-          textClassName="text-[10px]"
+          textClassName="text-3xs"
         />
         <span className="min-w-0 flex-1 text-13 font-semibold text-ink-700 truncate" dir="auto">
           {item.author.name}

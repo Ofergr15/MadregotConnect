@@ -171,7 +171,7 @@ export default function CoreRunnersManager() {
         {/* The additive rule, stated where somebody is about to rely on it. It is
             the non-obvious half of the design: the גרעין's tabs are added to the
             person's own role, they do not replace it. */}
-        <p className="mt-1.5 px-2 text-3xs leading-relaxed text-ink-400">
+        <p className="mt-1.5 px-2 text-2xs leading-relaxed text-ink-400">
           המסכים שמסומנים ל-<span dir="ltr">core_runner</span> ב-Tab Manager נוספים למה שהתפקיד של האתלט כבר מרשה — הם לא מחליפים אותו.
           כך מאמן שנמצא בגרעין מקבל את שניהם.
         </p>
@@ -296,13 +296,13 @@ function AthleteRow({
             {ROLE_LABEL[a.role] || a.role}
           </span>
           {group && (
-            <span className="flex shrink-0 items-center gap-1 text-3xs text-ink-400">
+            <span className="flex shrink-0 items-center gap-1 text-2xs text-ink-400">
               <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: group.hex }} aria-hidden="true" />
               {group.name}
             </span>
           )}
           {a.name && (
-            <span dir="ltr" className="truncate text-3xs text-ink-400">{a.email}</span>
+            <span dir="ltr" className="truncate text-2xs text-ink-400">{a.email}</span>
           )}
         </span>
       </div>

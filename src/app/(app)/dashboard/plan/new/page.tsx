@@ -1807,7 +1807,7 @@ export default function WeeklyPlannerPage() {
                             </span>
                             {match && (
                               <span className={cn(
-                                'rounded-full px-2 py-0.5 text-[9px] font-bold uppercase',
+                                'rounded-full px-2 py-0.5 text-3xs font-bold uppercase',
                                 match.match_method === 'manual'
                                   ? 'bg-purple-500/15 text-purple-800'
                                   : match.match_method === 'garmin_workout'
@@ -2047,7 +2047,7 @@ export default function WeeklyPlannerPage() {
                         );
                       })}
                     </div>
-                    <p className="text-3xs text-ink-400 mt-2">
+                    <p className="text-2xs text-ink-400 mt-2">
                       {t('sendingWorkouts', { count: selectedDayCount })}
                       {pushDays !== null && selectedDayCount === 0 && t('selectAtLeastOneDay')}
                     </p>

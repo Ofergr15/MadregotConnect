@@ -157,7 +157,7 @@ function DevBar() {
         data-testid="dev-toolbar-actions"
       >
         <FlaskConical className="h-3.5 w-3.5 text-yellow-400 shrink-0" />
-        <span className="text-[10px] font-semibold text-yellow-400 uppercase tracking-wide">Dev</span>
+        <span className="text-3xs font-semibold text-yellow-400 uppercase tracking-wide">Dev</span>
         {TEST_ACCOUNTS.map(({ label, email }) => (
           <button
             key={email}
@@ -287,7 +287,7 @@ function DevBar() {
           : <ChevronUp className="h-4 w-4" />}
       </button>
       {error && (
-        <p className="text-[10px] text-red-400 bg-slate-900/90 rounded-lg px-2 py-1 max-w-xs">{error}</p>
+        <p className="text-2xs text-red-400 bg-slate-900/90 rounded-lg px-2 py-1 max-w-xs">{error}</p>
       )}
     </div>
   );

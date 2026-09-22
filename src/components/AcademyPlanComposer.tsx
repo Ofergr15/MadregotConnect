@@ -617,7 +617,7 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
                   <span
                     key={i}
                     className={cn(
-                      'w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold',
+                      'w-5 h-5 rounded-md flex items-center justify-center text-3xs font-bold',
                       primaryInputs.availableDays.includes(i)
                         ? 'bg-brand-600/20 text-brand-600'
                         // ink-400 (4.79:1 on page) and NOT ink-300. The palette labels ink-300
@@ -1017,7 +1017,7 @@ function TraineePicker({
                 </span>
               </span>
               <span className={cn(
-                'text-[10px] font-bold rounded-full px-2 py-0.5 shrink-0',
+                'text-3xs font-bold rounded-full px-2 py-0.5 shrink-0',
                 off ? 'bg-brand-600/12 text-brand-600' : 'bg-band-3/12 text-band-3-ink',
               )}>
                 {off || 'אין קצב'}
@@ -1257,7 +1257,7 @@ function SourcePicker({
               <span className="block text-xs text-ink-400">{s.note}</span>
             </span>
             {s.count !== null && (
-              <span className="text-[10px] font-bold rounded-full px-2 py-0.5 shrink-0 bg-page text-ink-500 tabular-nums">
+              <span className="text-2xs font-bold rounded-full px-2 py-0.5 shrink-0 bg-page text-ink-500 tabular-nums">
                 {s.count}
               </span>
             )}
@@ -1340,7 +1340,7 @@ function BookPicker({
                 are different acts — and the canon is what the trainee's coach would expect
                 to see in their week. */}
             <span className={cn(
-              'text-[10px] font-bold rounded-full px-2 py-0.5 shrink-0',
+              'text-3xs font-bold rounded-full px-2 py-0.5 shrink-0',
               entry.scope === 'academy' ? 'bg-brand-600/12 text-brand-600' : 'bg-page text-ink-500',
             )}>
               {entry.scope === 'academy' ? 'האקדמיה' : 'שלי'}

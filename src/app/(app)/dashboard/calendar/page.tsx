@@ -257,7 +257,7 @@ export default function CalendarPage() {
                   {kinds.slice(0, 3).map((k) => (
                     <span key={k} className={cn('w-1.5 h-1.5 rounded-full', KIND_COLOR[k])} />
                   ))}
-                  {kinds.length > 3 && <span className="text-[9px] text-ink-400 leading-none">+{kinds.length - 3}</span>}
+                  {kinds.length > 3 && <span className="text-2xs text-ink-400 leading-none">+{kinds.length - 3}</span>}
                 </span>
               )}
             </button>
@@ -452,7 +452,7 @@ function RaceMapView({ races, dateLocale }: { races: EventRow[]; dateLocale: str
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-                        <span className="text-3xs text-ink-400">{dateLabel}</span>
+                        <span className="text-2xs text-ink-400">{dateLabel}</span>
                       </div>
                       <p className="text-sm font-bold text-ink-700 truncate" dir="auto">{race.name}</p>
                       <div className="flex items-center gap-1.5 mt-1">

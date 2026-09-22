@@ -126,7 +126,7 @@ export function BottomTabBar() {
         )}
       >
         <Icon className="h-6 w-6" strokeWidth={1.75} />
-        <span className="text-[10px] leading-none font-medium truncate max-w-full px-0.5">{label}</span>
+        <span className="text-3xs leading-none font-medium truncate max-w-full px-0.5">{label}</span>
       </Link>
     );
   };
@@ -187,7 +187,7 @@ export function BottomTabBar() {
           )}
         >
           <Menu className="h-6 w-6" strokeWidth={1.75} />
-          <span className="text-[10px] leading-none font-medium">{t('more' as any)}</span>
+          <span className="text-3xs leading-none font-medium">{t('more' as any)}</span>
         </button>
       </nav>
 

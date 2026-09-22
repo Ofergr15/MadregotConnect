@@ -147,7 +147,7 @@ export function WorkoutCard({ plannedText, plannedWorkout, laps }: Props) {
             return (
               <div key={i} className="px-4 py-2 flex items-center gap-3">
                 <span className={cn(
-                  'shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
+                  'shrink-0 text-3xs font-semibold px-1.5 py-0.5 rounded-full',
                   KIND_COLOR[seg.kind] ?? 'bg-ink-300 text-ink-500',
                 )}>
                   {KIND_HE[seg.kind] ?? seg.kind}

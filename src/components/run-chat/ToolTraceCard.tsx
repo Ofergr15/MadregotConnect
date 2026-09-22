@@ -86,8 +86,8 @@ function ToolStep({ step }: { step: ToolTraceStep }) {
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-400">{label}</p>
-      <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-page p-2 text-[10px] leading-relaxed text-ink-500">
+      <p className="mb-1 text-3xs font-semibold uppercase tracking-wide text-ink-400">{label}</p>
+      <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-page p-2 text-2xs leading-relaxed text-ink-500">
         {value}
       </pre>
     </div>

@@ -214,7 +214,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
         </div>
         {/* A control that silently disappears teaches nobody anything. */}
         {frames.filter(f => !f.available && f.reason).map(f => (
-          <p key={f.key} className="mt-1.5 text-3xs text-ink-400" dir="auto">{t(f.reason!)}</p>
+          <p key={f.key} className="mt-1.5 text-2xs text-ink-400" dir="auto">{t(f.reason!)}</p>
         ))}
 
         {accentOk && (
@@ -273,7 +273,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
           })}
         </div>
         {full && chips.length > capacity && (
-          <p className="mt-1.5 text-3xs text-ink-400" dir="auto">{t('contentFull', { count: capacity })}</p>
+          <p className="mt-1.5 text-2xs text-ink-400" dir="auto">{t('contentFull', { count: capacity })}</p>
         )}
 
         {/* The two that are not numbers. Square-cornered rather than pill-shaped, so
@@ -310,7 +310,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
         {/* Deduped: both extras go grey for the same reason on a frame with no room,
             and printing that line twice reads as two different problems. */}
         {[...new Set(extraOpts.filter(o => !o.available && o.reason).map(o => o.reason!))].map(r => (
-          <p key={r} className="mt-1.5 text-3xs text-ink-400" dir="auto">{t(r)}</p>
+          <p key={r} className="mt-1.5 text-2xs text-ink-400" dir="auto">{t(r)}</p>
         ))}
 
         {/* ── 3. WORDING. Both of these are about the audience OUTSIDE the club,

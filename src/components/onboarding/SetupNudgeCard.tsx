@@ -191,7 +191,7 @@ export function SetupNudgeCard() {
 
       {/* Says the deal out loud, because a skip that quietly leaves something
           behind in the header would read as the card not having gone away. */}
-      <p className="mt-2 text-center text-3xs font-light text-ink-400">{t('nudgeSkipNote')}</p>
+      <p className="mt-2 text-center text-2xs font-light text-ink-400">{t('nudgeSkipNote')}</p>
     </div>
   );
 }

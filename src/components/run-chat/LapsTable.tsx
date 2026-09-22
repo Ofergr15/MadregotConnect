@@ -126,7 +126,7 @@ function RepeatLapRow({
           {rep + 1}
           {stepCount > 1 && <span className="text-orange-300">{stepLetter(step)}</span>}
         </span>
-        <span className="ms-1 hidden text-[9px] text-blue-100/50 sm:inline">#{lapNumber}</span>
+        <span className="ms-1 hidden text-2xs text-blue-100/50 sm:inline">#{lapNumber}</span>
       </TableCell>
       <TableCell className={cn(CELL, 'font-semibold text-slate-100')}>{formatLapDistance(lap.distance)}</TableCell>
       <TableCell className={cn(CELL, 'text-slate-100')}>{formatDuration(lap.moving_time)}</TableCell>
@@ -196,10 +196,10 @@ function RepeatRows({
               {block.reps}×
             </span>
             <span className="min-w-0">
-              <span dir="rtl" className="block text-left text-[10px] font-medium text-slate-400 sm:text-[11px]">
+              <span dir="rtl" className="block text-left text-2xs font-medium text-slate-400">
                 {t('repeatLaps', { from: block.fromLap, to: block.toLap })}
               </span>
-              <span className="block truncate text-[10px] font-medium tabular-nums text-slate-400 sm:text-[11px]">
+              <span className="block truncate text-2xs font-medium tabular-nums text-slate-400">
                 {subtitle}
               </span>
             </span>
@@ -283,11 +283,11 @@ export function LapsTableView({ laps }: { laps: StravaLap[] }) {
         </colgroup>
         <TableHeader>
           <TableRow className="border-[#294057] bg-[#071628] hover:bg-[#071628]">
-            <TableHead className="h-8 w-9 px-1 text-center text-[9px] font-bold text-slate-400">#</TableHead>
-            <TableHead className="h-8 px-1 text-center text-[9px] font-bold text-slate-400">{t('distance')}</TableHead>
-            <TableHead className="h-8 px-1 text-center text-[9px] font-bold text-slate-400">{t('time')}</TableHead>
-            <TableHead className="h-8 px-1 text-center text-[9px] font-bold text-slate-400">{t('pacePerKm')}</TableHead>
-            <TableHead className="h-8 px-1 text-center text-[9px] font-bold text-slate-400">{t('averageHr')}</TableHead>
+            <TableHead className="h-8 w-9 px-1 text-center text-3xs font-bold text-slate-400">#</TableHead>
+            <TableHead className="h-8 px-1 text-center text-3xs font-bold text-slate-400">{t('distance')}</TableHead>
+            <TableHead className="h-8 px-1 text-center text-3xs font-bold text-slate-400">{t('time')}</TableHead>
+            <TableHead className="h-8 px-1 text-center text-3xs font-bold text-slate-400">{t('pacePerKm')}</TableHead>
+            <TableHead className="h-8 px-1 text-center text-3xs font-bold text-slate-400">{t('averageHr')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

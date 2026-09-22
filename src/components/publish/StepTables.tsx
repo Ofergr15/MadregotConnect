@@ -69,7 +69,7 @@ export function StepTables({
                 {sectionName(section.kind)}
               </span>
               {km > 0 && (
-                <span className="ms-auto text-3xs text-ink-400">
+                <span className="ms-auto text-2xs text-ink-400">
                   <bdi dir="ltr">{km} {units.km}</bdi>
                 </span>
               )}

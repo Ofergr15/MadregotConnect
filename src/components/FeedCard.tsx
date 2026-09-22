@@ -288,7 +288,7 @@ export function ActionRow({
                   </span>
                 ))}
                 {likeCount > likers.length && (
-                  <span className="block text-[10px] text-ink-400 leading-relaxed">
+                  <span className="block text-2xs text-ink-400 leading-relaxed">
                     {t('andMore', { count: likeCount - likers.length })}
                   </span>
                 )}
@@ -419,22 +419,22 @@ export function ActivityStatTiles({ act }: { act: NonNullable<FeedItem['activity
   return (
     <div className="grid grid-cols-3 gap-2 mb-3">
       <div className="bg-page rounded-xl p-2.5 text-center">
-        <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statDistance')}</p>
+        <p className="text-3xs text-ink-400 font-medium mb-0.5">{t('statDistance')}</p>
         <p className="text-base font-black text-ink-700 tabular-nums">
-          {distKm}<span className="text-[10px] text-ink-400 ms-0.5">{t('km')}</span>
+          {distKm}<span className="text-3xs text-ink-400 ms-0.5">{t('km')}</span>
         </p>
       </div>
       <div className="bg-page rounded-xl p-2.5 text-center">
-        <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statPace')}</p>
+        <p className="text-3xs text-ink-400 font-medium mb-0.5">{t('statPace')}</p>
         <p className="text-base font-black text-ink-700 tabular-nums">
-          {paceStr || '—'}<span className="text-[10px] text-ink-400 ms-0.5">{t('perKm')}</span>
+          {paceStr || '—'}<span className="text-3xs text-ink-400 ms-0.5">{t('perKm')}</span>
         </p>
       </div>
       <div className="bg-page rounded-xl p-2.5 text-center">
-        <p className="text-[10px] text-ink-400 font-medium mb-0.5">{t('statTime')}</p>
+        <p className="text-3xs text-ink-400 font-medium mb-0.5">{t('statTime')}</p>
         <p className="text-base font-black text-ink-700 tabular-nums">{durationStr}</p>
         {showMoving && (
-          <p className="text-[10px] text-ink-400 tabular-nums mt-0.5">{movingStr} {t('statMoving')}</p>
+          <p className="text-2xs text-ink-400 tabular-nums mt-0.5">{movingStr} {t('statMoving')}</p>
         )}
       </div>
     </div>

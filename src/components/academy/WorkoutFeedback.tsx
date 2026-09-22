@@ -186,7 +186,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
     <div className="mt-2 space-y-3">
       {/* ── plan vs execution, commentable in place ── */}
       <div className="space-y-1">
-        <div className="flex items-center gap-1.5 px-2.5 text-[10px] font-semibold text-ink-400">
+        <div className="flex items-center gap-1.5 px-2.5 text-3xs font-semibold text-ink-400">
           <span className="flex-1">מקטע</span>
           <span className="w-[68px] text-center">{metric === 'hr' ? 'דופק יעד' : 'יעד'}</span>
           <span className="w-[42px] text-center">בפועל</span>
@@ -302,7 +302,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
           <div>
             <div className="flex items-baseline justify-between">
               <span className="text-[11px] font-semibold text-ink-400">הערה כללית</span>
-              <span className="text-[10px] text-ink-400 tabular-nums" dir="ltr">
+              <span className="text-2xs text-ink-400 tabular-nums" dir="ltr">
                 {fb.note.length}/{NOTE_MAX}
               </span>
             </div>
@@ -366,7 +366,7 @@ function Chips({ title, hint, labels, selected, onToggle, suggested = [] }: {
     <div>
       <div className="flex items-baseline gap-2">
         <span className="text-[11px] font-semibold text-ink-400">{title}</span>
-        {hint && <span className="text-[10px] text-ink-400">{hint}</span>}
+        {hint && <span className="text-2xs text-ink-400">{hint}</span>}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         {Object.entries(labels).map(([tag, label]) => {

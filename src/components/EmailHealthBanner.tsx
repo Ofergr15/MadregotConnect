@@ -72,13 +72,13 @@ export default function EmailHealthBanner() {
             <p className={cn('text-13 font-bold leading-snug', blocked ? 'text-accent-red-ink' : 'text-ink-900')}>
               {blocked ? health.title : `${failed} מיילים לא הגיעו ליעד`}
             </p>
-            <p className="mt-1 text-3xs text-ink-500 leading-relaxed">
+            <p className="mt-1 text-2xs text-ink-500 leading-relaxed">
               {blocked ? health.detail : 'האישורים עצמם עברו — המיילים נדחו או חזרו. אפשר לשלוח את הקישורים ידנית מהטאב "אושרו".'}
             </p>
             {/* The fix, verbatim and copyable. A banner that says "misconfigured"
                 without saying what to set is a banner that gets ignored. */}
             {blocked && health.fix && (
-              <p className="mt-2 text-3xs font-semibold text-ink-900 leading-relaxed">
+              <p className="mt-2 text-2xs font-semibold text-ink-900 leading-relaxed">
                 <span className="text-ink-500">התיקון: </span>
                 <span dir="ltr" className="select-all">{health.fix}</span>
               </p>
@@ -89,7 +89,7 @@ export default function EmailHealthBanner() {
         {(failures.length > 0 || data?.logged === false) && (
           <button
             onClick={() => setOpen(v => !v)}
-            className="mt-2.5 flex items-center gap-1 text-3xs font-semibold text-ink-500 min-h-[32px]"
+            className="mt-2.5 flex items-center gap-1 text-2xs font-semibold text-ink-500 min-h-[32px]"
           >
             {open ? 'סגירה' : `פירוט (${failures.length})`}
             <ChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} />
@@ -100,7 +100,7 @@ export default function EmailHealthBanner() {
       {open && (
         <div className="border-t border-ink-300/30 bg-card/60">
           {data?.logged === false && (
-            <p className="px-3.5 py-2.5 text-3xs text-ink-500 leading-relaxed">
+            <p className="px-3.5 py-2.5 text-2xs text-ink-500 leading-relaxed">
               אין היסטוריה — צריך להריץ את <code dir="ltr">supabase/migrations/096_email_log.sql</code> ב-Supabase SQL editor.
               עד אז לא נשמר תיעוד של שליחות.
             </p>
@@ -108,13 +108,13 @@ export default function EmailHealthBanner() {
           {failures.map(f => (
             <div key={f.id} className="px-3.5 py-2 border-b border-page last:border-0">
               <div className="flex items-center justify-between gap-2">
-                <span dir="ltr" className="text-3xs font-semibold text-ink-900 truncate">{f.to.join(', ')}</span>
-                <span className="text-3xs font-bold text-accent-red shrink-0">{f.status}</span>
+                <span dir="ltr" className="text-2xs font-semibold text-ink-900 truncate">{f.to.join(', ')}</span>
+                <span className="text-2xs font-bold text-accent-red shrink-0">{f.status}</span>
               </div>
               {/* Resend's own words. Ours would be a paraphrase of an error we have
                   never seen, and this is the string that names the actual cause. */}
               {f.message && (
-                <p dir="ltr" className="mt-0.5 text-3xs text-ink-400 leading-relaxed text-left">{f.message}</p>
+                <p dir="ltr" className="mt-0.5 text-2xs text-ink-400 leading-relaxed text-left">{f.message}</p>
               )}
             </div>
           ))}

@@ -109,7 +109,7 @@ function ScrollableSegmentedControl<T extends string>({
                 opening the tab that holds it. */}
             {!!opt.badge && (
               <span className={cn(
-                'ms-0.5 min-w-[18px] px-1 rounded-full text-3xs font-bold tabular-nums',
+                'ms-0.5 min-w-[18px] px-1 rounded-full text-2xs font-bold tabular-nums',
                 active ? 'bg-page text-ink-700' : 'bg-band-3/20 text-band-3-ink',
               )}>
                 {opt.badge}
@@ -466,7 +466,7 @@ export default function AcademyPage() {
                     <div className="text-xs text-ink-400 truncate">{a.email}</div>
                   </div>
                   {a.groupName && gs && (
-                    <span className={cn('text-3xs font-bold px-2 py-0.5 rounded-md border', gs.bg, gs.text, gs.border)}>
+                    <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-md border', gs.bg, gs.text, gs.border)}>
                       {a.groupName}
                     </span>
                   )}

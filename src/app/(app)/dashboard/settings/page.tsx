@@ -609,7 +609,7 @@ export default function SettingsPage() {
             {/* A real address if there is one; otherwise say how they signed in
                 rather than printing a synthetic mailbox nobody can write to. */}
             <span className="text-xs text-ink-400 truncate">{realAddress(user.email) || t('stravaSignIn')}</span>
-            <span className={cn('text-3xs font-medium', lastSeenColor)}>{lastSeenLabel}</span>
+            <span className={cn('text-2xs font-medium', lastSeenColor)}>{lastSeenLabel}</span>
             {/* Credentials, not onboarding_status — that column still said
                 garmin_authed for people whose credential had been cleared. */}
             {user.hasWatch && <StateChip tone="ok" icon={Watch} label={t('watchConnected')} />}
@@ -1092,7 +1092,7 @@ export default function SettingsPage() {
                 trailing={
                   <span className="flex items-center gap-2 shrink-0">
                     {!!pendingRegistrations && (
-                      <span className="min-w-[22px] px-1.5 py-0.5 rounded-pill bg-accent-red text-white text-3xs font-bold text-center tabular-nums">
+                      <span className="min-w-[22px] px-1.5 py-0.5 rounded-pill bg-accent-red text-white text-2xs font-bold text-center tabular-nums">
                         {pendingRegistrations}
                       </span>
                     )}

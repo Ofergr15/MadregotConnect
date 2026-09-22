@@ -43,7 +43,7 @@ function RequiredTag({ show }: { show: boolean }) {
   const t = useTranslations('workoutFeedback');
   if (!show) return null;
   return (
-    <span className="text-[10px] font-bold text-band-3-ink bg-band-3/15 px-1.5 py-0.5 rounded-full">
+    <span className="text-3xs font-bold text-band-3-ink bg-band-3/15 px-1.5 py-0.5 rounded-full">
       {t('required')}
     </span>
   );

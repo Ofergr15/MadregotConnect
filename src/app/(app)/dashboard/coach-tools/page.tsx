@@ -89,7 +89,7 @@ export default function CoachToolsPage() {
     n > 0 ? (
       <span className="flex items-center gap-2 shrink-0">
         <span
-          className={`min-w-[22px] px-1.5 py-0.5 rounded-pill text-3xs font-bold text-center tabular-nums text-white ${
+          className={`min-w-[22px] px-1.5 py-0.5 rounded-pill text-2xs font-bold text-center tabular-nums text-white ${
             tone === 'bad' ? 'bg-accent-red' : 'bg-band-3'
           }`}
         >

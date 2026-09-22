@@ -143,7 +143,7 @@ function TrendLine({ points }: { points: TrendPoint[] }) {
             />
             <text
               x={PAD.left - 6} y={toY(pace) + 3} textAnchor="end"
-              className="fill-ink-400 text-[10px] tabular-nums"
+              className="fill-ink-400 text-3xs tabular-nums"
             >
               {formatPace(pace)}
             </text>
@@ -172,7 +172,7 @@ function TrendLine({ points }: { points: TrendPoint[] }) {
               key={point.testId}
               x={x} y={HEIGHT - 6}
               textAnchor={i === 0 ? 'start' : i === coords.length - 1 ? 'end' : 'middle'}
-              className="fill-ink-400 text-[10px]"
+              className="fill-ink-400 text-3xs"
             >
               {monthLabel(point.date)}
             </text>
@@ -240,7 +240,7 @@ export function ImprovementChart({
       {/* The table under the graph. The graph shows the shape; this is where the coach
           reads the actual numbers, and the mockup asks for both. */}
       <div className="space-y-1">
-        <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 px-1 text-[10px] font-semibold text-ink-400">
+        <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 px-1 text-3xs font-semibold text-ink-400">
           {/* The unit is on the header, because the cell is `6.42` and the form that
               produced it asked for METRES. A coach who typed 6420 and reads a bare 6.42
               next to a pace in minutes per kilometre has to guess which one changed. */}

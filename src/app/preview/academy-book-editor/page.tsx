@@ -107,7 +107,7 @@ function Editor({
         onCancel={() => setSaved(null)}
       />
       {saved && (
-        <pre className="overflow-x-auto rounded-card bg-card p-2 text-[10px] text-ink-500" dir="ltr">
+        <pre className="overflow-x-auto rounded-card bg-card p-2 text-2xs text-ink-500" dir="ltr">
           {JSON.stringify(saved, null, 1)}
         </pre>
       )}

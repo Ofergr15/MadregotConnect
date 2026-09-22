@@ -198,7 +198,7 @@ function StorePageContent() {
           >
             <ShoppingCart className="h-5 w-5" />
             {cartCount > 0 && (
-              <span className="absolute -top-1.5 -end-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-brand-600 text-white text-3xs font-bold flex items-center justify-center">
+              <span className="absolute -top-1.5 -end-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-brand-600 text-white text-2xs font-bold flex items-center justify-center">
                 {cartCount}
               </span>
             )}

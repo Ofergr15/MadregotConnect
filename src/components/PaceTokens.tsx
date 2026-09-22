@@ -18,7 +18,7 @@ import { stepPaceTokens, type PacedStep } from '@/lib/garmin/pace';
 
 const SIZES = {
   /** Week cards and other dense grids. */
-  xs: { lead: 'text-[11px]', other: 'text-[10px]', gap: 'gap-1' },
+  xs: { lead: 'text-[11px]', other: 'text-2xs', gap: 'gap-1' },
   /** Detail sheets, where the pace is the reason the sheet is open. */
   sm: { lead: 'text-sm', other: 'text-xs', gap: 'gap-1' },
 } as const;

@@ -100,7 +100,7 @@ export default function ClubRecordsPage() {
           {/* Said plainly rather than hidden: the board is a snapshot, so a run
               from this morning may not be on it yet, and a member comparing it
               with their own profile deserves to know why. */}
-          <p className="mt-3 px-1 text-3xs text-ink-400">{t('derivedNote')}</p>
+          <p className="mt-3 px-1 text-2xs text-ink-400">{t('derivedNote')}</p>
         </>
       )}
     </div>

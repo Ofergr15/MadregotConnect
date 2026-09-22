@@ -163,12 +163,12 @@ function ChatPanel({
             <p className="truncate text-sm font-semibold text-ink-700">
               {activity.activity_name || 'ריצה'}
             </p>
-            <span className="inline-flex shrink-0 items-center rounded-full border border-violet-400/30 bg-violet-400/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-violet-300">
+            <span className="inline-flex shrink-0 items-center rounded-full border border-violet-400/30 bg-violet-400/10 px-1.5 py-0.5 text-3xs font-bold uppercase tracking-wider text-violet-300">
               Beta
             </span>
             {viewerLabel && (
               <span
-                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent-600/20 bg-accent-600/10 px-2 py-0.5 text-[10px] font-medium text-accent-600"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent-600/20 bg-accent-600/10 px-2 py-0.5 text-3xs font-medium text-accent-600"
                 data-testid="demo-viewer-label"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-accent-600" />

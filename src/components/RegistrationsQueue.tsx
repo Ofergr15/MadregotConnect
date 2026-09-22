@@ -722,7 +722,7 @@ export default function RegistrationsQueue() {
               <span className="flex-1 text-13 font-medium text-ink-900">
                 {allSelected ? 'בטל את הבחירה' : 'בחר הכל'}
               </span>
-              <span className="text-3xs text-ink-400">{selectedRows.length} מתוך {pending.length} נבחרו</span>
+              <span className="text-2xs text-ink-400">{selectedRows.length} מתוך {pending.length} נבחרו</span>
             </button>
           </div>
         </div>
@@ -754,7 +754,7 @@ export default function RegistrationsQueue() {
                       a tint (getGroupColors), so this stays readable. */}
                   <span
                     className={cn(
-                      'text-3xs font-bold px-1.5 py-0.5 rounded-md border shrink-0',
+                      'text-2xs font-bold px-1.5 py-0.5 rounded-md border shrink-0',
                       s.chip ? [s.chip.bg, s.chip.text, s.chip.border] : 'bg-page text-ink-500 border-page',
                     )}
                   >
@@ -792,7 +792,7 @@ export default function RegistrationsQueue() {
               </div>
             </div>
           ))}
-          <p className="px-2 text-3xs text-ink-400 leading-relaxed">
+          <p className="px-2 text-2xs text-ink-400 leading-relaxed">
             אישור שולח מייל עם קישור להשלמת ההרשמה. עד שלוחצים על הקישור אף אחד לא נכנס לאפליקציה.
           </p>
         </div>
@@ -810,13 +810,13 @@ export default function RegistrationsQueue() {
               <div className="px-2 mb-1.5">
                 <div className="flex items-center gap-2">
                   <span className="text-13 font-bold text-ink-900">{s.label}</span>
-                  <span className="text-3xs font-bold px-1.5 py-0.5 rounded-md bg-page text-ink-500 shrink-0">
+                  <span className="text-2xs font-bold px-1.5 py-0.5 rounded-md bg-page text-ink-500 shrink-0">
                     {s.rows.length}
                   </span>
                 </div>
                 {/* The hint is the section's whole justification — the label alone
                     ("בוצע חיבור") does not say that those people are stuck. */}
-                <p className="mt-0.5 text-3xs text-ink-400 leading-relaxed">{s.hint}</p>
+                <p className="mt-0.5 text-2xs text-ink-400 leading-relaxed">{s.hint}</p>
               </div>
               <div className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
                 {s.rows.map((r, i) => (
@@ -842,7 +842,7 @@ export default function RegistrationsQueue() {
               </div>
             </div>
           ))}
-          <p className="px-2 text-3xs text-ink-400 leading-relaxed">
+          <p className="px-2 text-2xs text-ink-400 leading-relaxed">
             Strava הוא הדלת היחידה לאפליקציה — מי שלא חיבר אותו לא נכנס, גם אם מילא את כל הפרטים.
           </p>
         </div>
@@ -907,7 +907,7 @@ export default function RegistrationsQueue() {
 
           {blockedRows.length > 0 && !bulk && (
             <>
-              <p className="mt-1 flex items-center gap-1.5 text-3xs font-semibold text-ink-900">
+              <p className="mt-1 flex items-center gap-1.5 text-2xs font-semibold text-ink-900">
                 <span className="w-1.5 h-1.5 rounded-full bg-ink-900" aria-hidden="true" />
                 {blockedRows.length} מהנבחרים ללא דבוקה — לא ניתן לאשר
               </p>
@@ -1128,7 +1128,7 @@ function QueueRow({
                 disabled={busy}
                 aria-label={`דבוקה ${band.number} — החלפת דבוקה`}
                 className={cn(
-                  'flex items-center gap-1 text-3xs font-bold px-2 py-0.5 rounded-md border shrink-0 whitespace-nowrap',
+                  'flex items-center gap-1 text-2xs font-bold px-2 py-0.5 rounded-md border shrink-0 whitespace-nowrap',
                   band.chip.bg, band.chip.text, band.chip.border,
                   'disabled:opacity-50',
                 )}
@@ -1162,7 +1162,7 @@ function QueueRow({
                         aria-label={`דבוקה ${g.band}`}
                         aria-pressed={on}
                         className={cn(
-                          'w-[26px] h-[26px] rounded-lg text-3xs font-bold flex items-center justify-center border',
+                          'w-[26px] h-[26px] rounded-lg text-2xs font-bold flex items-center justify-center border',
                           on ? [chip.bg, chip.text, 'border-current'] : 'bg-page text-ink-500 border-transparent active:bg-ink-300/40',
                         )}
                       >
@@ -1187,7 +1187,7 @@ function QueueRow({
             {!showPicker && (
               <>
                 <span className="text-3xs text-ink-300 shrink-0" aria-hidden="true">·</span>
-                <span className="text-3xs text-ink-400 shrink-0 truncate">{waitingFor(r.createdAt)}</span>
+                <span className="text-2xs text-ink-400 shrink-0 truncate">{waitingFor(r.createdAt)}</span>
               </>
             )}
           </div>
@@ -1212,7 +1212,7 @@ function QueueRow({
             >
               {stage ? STAGE_FACE[stage].label : r.status === 'rejected' ? 'נדחה' : 'כבר חבר'}
             </span>
-            <span className="text-3xs text-ink-400 truncate">
+            <span className="text-2xs text-ink-400 truncate">
               {/* The name once they have typed one at /join. Only from 'connected'
                   on: before that the athlete row still carries
                   placeholderNameFromEmail(), so showing it would be the address
@@ -1276,7 +1276,7 @@ function QueueRow({
       <div dir="rtl" className="px-3.5 pb-2.5 -mt-1">
         {r.matchCandidates.length > 0 ? (
           <>
-            <span className="flex items-center gap-1.5 text-3xs text-ink-500">
+            <span className="flex items-center gap-1.5 text-2xs text-ink-500">
               <Users className="h-3.5 w-3.5 shrink-0 text-ink-400" aria-hidden="true" />
               <span>{r.matchCandidates.length > 1 ? 'אחד מאלה כבר בקבוצה?' : 'זה מישהו שכבר בקבוצה?'}</span>
             </span>
@@ -1291,7 +1291,7 @@ function QueueRow({
                   onClick={() => onLink?.(c)}
                   disabled={busy}
                   className={cn(
-                    'h-9 px-3 rounded-pill text-3xs font-semibold flex items-center gap-1.5 border active:bg-page disabled:opacity-40 shrink-0 max-w-full',
+                    'h-9 px-3 rounded-pill text-2xs font-semibold flex items-center gap-1.5 border active:bg-page disabled:opacity-40 shrink-0 max-w-full',
                     // The strong bands read as the suggested action; a weak one is
                     // greyed to match what it is worth, so a shared surname does not
                     // look as confident as a matching skeleton.
@@ -1316,7 +1316,7 @@ function QueueRow({
              worth a line: the address on the row is one the app invented, so there
              is no other clue on screen that approving here creates a brand-new
              member rather than letting a known one in. */
-          <span className="flex items-start gap-1.5 text-3xs text-ink-400">
+          <span className="flex items-start gap-1.5 text-2xs text-ink-400">
             <Users className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />
             <span>התחברות דרך Strava שאין לה שם דומה בקבוצה — אישור ייצור חבר חדש.</span>
           </span>

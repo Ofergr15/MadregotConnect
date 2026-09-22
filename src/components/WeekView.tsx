@@ -198,7 +198,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
             <Route className="h-3.5 w-3.5 text-brand-600" />
             <span className="font-bold text-ink-700 tabular-nums">
               {totalDist >= 1000 ? `${(totalDist / 1000).toFixed(1)}` : totalDist}
-              <span className="text-[10px] text-ink-400 ms-0.5">{totalDist >= 1000 ? t('km') : 'm'}</span>
+              <span className="text-3xs text-ink-400 ms-0.5">{totalDist >= 1000 ? t('km') : 'm'}</span>
             </span>
           </div>
         )}
@@ -211,7 +211,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
         <div className="flex items-center gap-1.5">
           <Zap className="h-3.5 w-3.5 text-band-3" />
           <span className="font-bold text-ink-700 tabular-nums">
-            {trainingDays}<span className="text-[10px] text-ink-400 ms-0.5">{t('days')}</span>
+            {trainingDays}<span className="text-3xs text-ink-400 ms-0.5">{t('days')}</span>
           </span>
         </div>
       </div>
@@ -251,7 +251,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                       thing it was counting; now it just says how many, and
                       both sessions are on screen. */}
                   {hasMultiple && (
-                    <span className="rounded-full bg-brand-600/12 px-2 py-0.5 text-[10px] font-bold text-brand-600 shrink-0">
+                    <span className="rounded-full bg-brand-600/12 px-2 py-0.5 text-2xs font-bold text-brand-600 shrink-0">
                       {tp('sessionCount', { count: dayWorkouts.length })}
                     </span>
                   )}

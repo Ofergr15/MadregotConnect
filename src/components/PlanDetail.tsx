@@ -287,7 +287,7 @@ export function PlanDetail({ planId, weekStartDate, onRepush }: PlanDetailProps)
                                   that answers it: an activity came back carrying
                                   this workout's Garmin id. */}
                               {delivery.device_confirmed_at && (
-                                <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-accent-600/10 px-2 py-1 text-[10px] text-accent-900">
+                                <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-accent-600/10 px-2 py-1 text-2xs text-accent-900">
                                   <Watch className="h-3 w-3" />
                                   {t('ranOnWatchOn', {
                                     date: new Date(delivery.device_confirmed_at).toLocaleDateString(locale, {

@@ -100,13 +100,22 @@ export function ExecutionRing({
         ) : (
           <span className="font-bold tabular-nums" style={{ fontSize, color }}>
             {score}
-            <span style={{ fontSize: Math.round(fontSize * 0.5) }}>%</span>
+            {/* Floored at 10px. Half of the score's size is a good proportion on
+                the big ring and stops being a size on the small one: at size=48
+                the score is 14px, so the sign rendered at SEVEN — the smallest
+                type anywhere in the app, and the thing that says the 81 is a
+                percentage and not a pace or a place. A unit suffix is a fixed
+                label, so 10px is its floor, not 11. */}
+            <span style={{ fontSize: Math.max(10, Math.round(fontSize * 0.5)) }}>%</span>
           </span>
         )}
         {caption && (
           <span
             className="mt-0.5 font-bold uppercase tracking-wide text-ink-400"
-            style={{ fontSize: Math.max(8, Math.round(size * 0.09)) }}
+            // Same floor, raised from 8: the caption is the word that says what
+            // the ring measured, and every ring under 112px was printing it
+            // below the scale's smallest step.
+            style={{ fontSize: Math.max(10, Math.round(size * 0.09)) }}
           >
             {caption}
           </span>

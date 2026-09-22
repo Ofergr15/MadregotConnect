@@ -139,7 +139,7 @@ export function BandPaces({
                     )}>
                       {typeof offset === 'number' ? fmtOffsetSec(offset) : '—'}
                     </div>
-                    <div className="text-3xs text-ink-400 -mt-0.5">
+                    <div className="text-2xs text-ink-400 -mt-0.5">
                       {t('traineesShort', { count: b.trainees ?? 0 })}
                     </div>
                   </div>
