@@ -308,9 +308,15 @@ function Row({
         {/* The name in its own `truncate` span and not on the flex row: an ellipsis needs a
             block to clip, and a bare text node beside an icon is an anonymous flex item that
             simply overflows instead. */}
-        <p className="flex items-center gap-1 text-sm font-bold text-ink-900">
-          <span className="truncate" dir="auto">{entry.name}</span>
-          {onEdit && <Pencil className="h-3 w-3 shrink-0 text-ink-400" aria-hidden />}
+        {/* TWO lines, not one. `truncate` cut "קצרים לפני תחרות — שבוע ההתחדדות האחרון" at 166px
+            of the 275 it wants, and the half it dropped is the half that says WHICH taper week.
+            A library is chosen from by name, so a second line costs less than an ellipsis;
+            `line-clamp-2` still puts a ceiling on it, so a pasted paragraph cannot push the row
+            open. `items-start` keeps the pencil on the first line instead of centring it against
+            a two-line block. */}
+        <p className="flex items-start gap-1 text-sm font-bold text-ink-900">
+          <span className="line-clamp-2" dir="auto">{entry.name}</span>
+          {onEdit && <Pencil className="mt-1 h-3 w-3 shrink-0 text-ink-400" aria-hidden />}
         </p>
         {/* One measure of size, not two. A session written in minutes is a session whose
             kilometres are its warmup — the mockup's own heart-rate row prints no distance at

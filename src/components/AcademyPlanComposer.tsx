@@ -620,7 +620,12 @@ export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }
                       'w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold',
                       primaryInputs.availableDays.includes(i)
                         ? 'bg-brand-600/20 text-brand-600'
-                        : 'text-ink-300',
+                        // ink-400 (4.79:1 on page) and NOT ink-300. The palette labels ink-300
+                        // "1.92:1, borders only", and on this card's page-tinted backdrop it
+                        // measured 1.44:1 at 10px — the audit called it invisible, correctly.
+                        // The offered/not distinction does not need the text to disappear: it is
+                        // carried by the filled brand chip, so the dim day can stay readable.
+                        : 'text-ink-400',
                     )}
                     // All seven, with the days they did not offer dimmed rather than absent: the
                     // useful comparison is against the whole week, which is what the grid below is.

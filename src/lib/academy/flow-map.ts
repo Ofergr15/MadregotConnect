@@ -278,11 +278,16 @@ export const FLOW_STEPS: FlowStep[] = [
  *
  * Kept apart on purpose: attaching "which numbers are guesses" to a single step would bury it,
  * and these are the ones that change how the whole thing behaves.
+ *
+ * One item LEFT this list rather than being answered by Ofer: "type 6.42 instead of 6420 and see
+ * that the warning appears and the save stays open". It was here because the rule was unit-tested
+ * while the rendered consequence was not, and only a browser can settle that. It is now asserted
+ * in the UI audit harness (`academy-test-entry` / `-units`), verified in both directions, so it is
+ * a test and not a decision. A question anyone can close without Ofer does not belong here.
  */
 export const CROSS_CUTTING_QUESTIONS: string[] = [
   'כל המספרים שניחשתי מסומנים במקום אחד בכל קובץ, ומחכים למספרים שלך.',
   'רק ספורטאי אחד מסומן כאקדמיה, כך שכל מה שקורה לכמה אנשים נבדק מול נתוני דמה בלבד.',
-  'בדיקה שלא הרצת: להקליד 6.42 במקום 6420 ולראות שהאזהרה הכתומה מופיעה ושהשמירה נשארת פתוחה.',
   'שתי התזכורות לטסט נשלחות מעצמן מעכשיו. אף אחת לא יצאה עוד לטלפון אמיתי, כי אין הזמנה אמיתית — יצירת הראשונה היא שלך.',
 ];
 
