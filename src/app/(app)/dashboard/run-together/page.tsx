@@ -101,12 +101,22 @@ export default function RunTogetherPage() {
                   <FeedAvatar name={m.hostName} url={null} className="h-10 w-10" textClassName="text-sm" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
+                      {/* The name measured 20px tall, which is the height of 14px text
+                          and nothing else. It gets a real 24px box (WCAG 2.5.8) rather
+                          than a `tapHalo`: this link CLIPS — `truncate` puts
+                          `overflow:hidden` on it — and an `after:` halo inside a
+                          clipping box is clipped away, so it adds no reach at all while
+                          still counting towards `scrollWidth` and making the link look
+                          6px truncated to anything that measures it. So the clipping
+                          moves inward to the text and the link itself is the target.
+                          24 and not 44: 44 would need 12px above, which is the card's
+                          own top padding and the avatar. Same trade as the feed. */}
                       <AthleteLink
                         athleteId={m.hostAthleteId}
                         name={m.hostName}
-                        className="truncate text-sm font-bold text-ink-700"
+                        className="inline-flex min-h-[24px] min-w-0 items-center text-sm font-bold text-ink-700"
                       >
-                        <span dir="auto">{m.hostName}</span>
+                        <bdi className="truncate">{m.hostName}</bdi>
                       </AthleteLink>
                       {m.isHost && (
                         <span className="shrink-0 rounded-full bg-page px-2 py-0.5 text-2xs font-semibold text-ink-400">
@@ -162,12 +172,24 @@ export default function RunTogetherPage() {
                 )}
 
                 {m.accepted.length > 0 && (
-                  <p className="mt-2 flex flex-wrap items-center gap-1 text-2xs text-ink-400">
+                  /* Every name here is its own link, and they sit side by side — so a
+                     halo is the wrong tool: two adjacent halos overlap and the second
+                     one paints over the first. The box itself grows instead, to a real
+                     24×24 minimum (WCAG 2.5.8) with 8px between neighbours, which is
+                     the most this line can give without becoming a list of rows. 10px
+                     text in a wrapped sentence cannot reach Apple's 44 in any layout
+                     that still reads as a sentence. */
+                  <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-ink-400">
                     <Users className="h-3 w-3" />
                     {t('going')}:{' '}
                     {m.accepted.map(a => (
-                      <AthleteLink key={a.athleteId} athleteId={a.athleteId} name={a.name} className="font-semibold text-ink-700">
-                        <span dir="auto">{a.name}</span>
+                      <AthleteLink
+                        key={a.athleteId}
+                        athleteId={a.athleteId}
+                        name={a.name}
+                        className="inline-flex min-h-[24px] min-w-[24px] shrink-0 items-center justify-center font-semibold text-ink-700"
+                      >
+                        <bdi>{a.name}</bdi>
                       </AthleteLink>
                     ))}
                   </p>
@@ -191,7 +213,12 @@ export default function RunTogetherPage() {
                               body: JSON.stringify({ requestId: p.requestId, status: 'accepted' }),
                             })
                           }
-                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-card disabled:opacity-50"
+                          /* 44 and not 32. These two are the only destructive/
+                             constructive pair in the app that sit 8px apart, and a
+                             mis-tap here either lets somebody into a run or turns them
+                             away. Grown visibly rather than haloed: two halos this
+                             close would overlap, and the row has the width. */
+                          className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-600 text-card disabled:opacity-50"
                         >
                           <Check className="h-4 w-4" />
                         </button>
@@ -205,7 +232,7 @@ export default function RunTogetherPage() {
                               body: JSON.stringify({ requestId: p.requestId, status: 'declined' }),
                             })
                           }
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-page text-ink-400 disabled:opacity-50"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg border border-page text-ink-400 disabled:opacity-50"
                         >
                           <X className="h-4 w-4" />
                         </button>
@@ -215,7 +242,10 @@ export default function RunTogetherPage() {
                       type="button"
                       disabled={!!pending}
                       onClick={() => send(`/api/runs/meetups?id=${encodeURIComponent(m.id)}`, { method: 'DELETE' })}
-                      className="text-2xs font-semibold text-accent-red-ink disabled:opacity-50"
+                      /* 16px tall measured — the height of 10px text. The box has no
+                         border and no fill, so growing it to 44 is invisible, and it is
+                         last in the stack so nothing moves under it. */
+                      className="inline-flex min-h-[44px] items-center px-1 text-2xs font-semibold text-accent-red-ink disabled:opacity-50"
                     >
                       {t('cancelRun')}
                     </button>
@@ -238,7 +268,9 @@ export default function RunTogetherPage() {
                           onClick={() =>
                             send(`/api/runs/meetups/requests?meetupId=${encodeURIComponent(m.id)}`, { method: 'DELETE' })
                           }
-                          className="text-2xs font-semibold text-ink-400 disabled:opacity-50"
+                          /* Same as the host's cancel button: invisible growth to 44
+                             on a text-only box, next to a line of plain text. */
+                          className="inline-flex min-h-[44px] items-center px-1 text-2xs font-semibold text-ink-400 disabled:opacity-50"
                         >
                           {t('withdraw')}
                         </button>

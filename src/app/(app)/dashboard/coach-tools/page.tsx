@@ -90,7 +90,13 @@ export default function CoachToolsPage() {
       <span className="flex items-center gap-2 shrink-0">
         <span
           className={`min-w-[22px] px-1.5 py-0.5 rounded-pill text-2xs font-bold text-center tabular-nums text-white ${
-            tone === 'bad' ? 'bg-accent-red' : 'bg-band-3'
+            // `band-3-ink` and not `band-3` as the WARN fill: white on #FF5315
+            // measured 3.23:1 at 11px, and this is a bold count somebody reads at
+            // arm's length to decide whether to open the queue. The ink companion
+            // takes it to ~10:1 on the same hue. Only this pill changes — the
+            // `iconBg` tiles below carry an ICON, which is a 3:1 graphic and not
+            // text, so they keep the designer's colour.
+            tone === 'bad' ? 'bg-accent-red' : 'bg-band-3-ink'
           }`}
         >
           {n}

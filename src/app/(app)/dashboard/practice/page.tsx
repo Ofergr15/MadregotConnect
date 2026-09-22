@@ -53,6 +53,16 @@ export default function PracticePage() {
 
   const filtered = filter === 'All' ? videos : videos.filter(v => v.category === filter);
 
+  // The category as the READER sees it. `video.category` is the stored value and
+  // the stored value is English — it is what the filter compares on and what the
+  // editor writes — so printing it straight onto the card put "Strength" and
+  // "Recovery" on a Hebrew screen, seven badges' worth. The filter track above was
+  // already translating the same list; the card was the half that never did.
+  // Falls back to the raw value for a category somebody typed by hand and that has
+  // no key, which is better than an empty badge.
+  const categoryLabel = (cat: string) =>
+    editableCategories.includes(cat) ? t(cat.toLowerCase() as 'strength') : cat;
+
   if (editing) {
     return <VideoEditor initial={videos} onDone={(next) => { if (next) setVideos(next); setEditing(false); }} t={t} />;
   }
@@ -120,7 +130,7 @@ export default function PracticePage() {
                 {video.duration}
               </span>
               <span className="absolute top-2 end-2 text-xs font-medium px-2 py-1 rounded bg-brand-600/80 text-white">
-                {video.category}
+                {categoryLabel(video.category)}
               </span>
             </div>
 

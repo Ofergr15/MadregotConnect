@@ -114,8 +114,17 @@ function BenefitsPageContent() {
                   )}
                 </div>
                 <div className="p-2.5 flex-1 flex flex-col">
-                  <p className="text-sm font-semibold text-ink-700 truncate" dir="auto">{title(p)}</p>
-                  <p className="text-xs text-ink-400 truncate mt-0.5" dir="auto">{p.sponsorName}</p>
+                  {/* Two lines, not one. Every real perk title is a sentence — the six
+                      in the catalogue measured 151–267px against the 146 a tile has —
+                      so `truncate` clipped all six and the grid became a column of
+                      openings with no subjects. The card already grows: it is a flex
+                      column in an `h-full` cell, so the second line costs nothing.
+                      `<bdi>` rather than `dir="auto"` on both lines: these are blocks,
+                      and resolving a block to LTR for a Latin sponsor also flips its
+                      text-align, which printed "Nike" against the left edge of an
+                      otherwise right-aligned Hebrew card. */}
+                  <p className="text-sm font-semibold text-ink-700 line-clamp-2"><bdi>{title(p)}</bdi></p>
+                  <p className="text-xs text-ink-400 truncate mt-0.5"><bdi>{p.sponsorName}</bdi></p>
                   {p.tier === 'core_runner' && (
                     <span className="inline-flex items-center gap-1 self-start mt-1.5 text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-900">
                       {/* The same 🌰 as the banner above and the profile name, so
@@ -143,7 +152,7 @@ function BenefitsPageContent() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold text-brand-600" dir="auto">{perk.sponsorName}</p>
+              <p className="text-sm font-semibold text-brand-600"><bdi>{perk.sponsorName}</bdi></p>
               {perk.tier === 'core_runner' && (
                 <span className="inline-flex items-center gap-1 text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-900">
                   <CoreRunnerBadge />
@@ -158,7 +167,13 @@ function BenefitsPageContent() {
                 <label className="block text-xs font-semibold text-ink-400 mb-1.5">{t('discountCode')}</label>
                 <button
                   onClick={copyCode}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-sm font-bold tabular-nums text-ink-700"
+                  /* 39.5 tall measured. This is the one thing the sheet exists to do —
+                     copy the code — and it is full-width, so the extra px are free.
+                     48 and not 44: at 44 the probe read 41.5 back and at 46 it still
+                     read 41.5 — the box lands on a fractional y, so `elementFromPoint`
+                     on the outermost rung answers with what is behind it. 48 leaves
+                     enough slack that the rung lands inside the box either way. */
+                  className="w-full flex items-center justify-between px-3 py-2.5 min-h-[48px] rounded-xl bg-page/50 border border-page/50 text-sm font-bold tabular-nums text-ink-700"
                   dir="ltr"
                 >
                   {perk.discountCode}

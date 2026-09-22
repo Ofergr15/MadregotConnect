@@ -56,6 +56,13 @@ interface Props {
    *
    * 48 and not 44 for the reason written up on the activity header buttons: a halo
    * measured at exactly 44 comes back a pixel short in WebKit.
+   *
+   * ⚠️ Useless on a link that CLIPS. `truncate` (or any `overflow-hidden`) on the
+   * same element clips the `after:` box away, so the halo adds no reach — and it
+   * still counts towards `scrollWidth`, which makes the link measure as 6px
+   * truncated when it is not. On a clipping link, move the clipping inward to a
+   * child and give the link a real `min-h`/`inline-flex` box instead (see the host
+   * name on the run-meetup board).
    */
   tapHalo?: boolean;
 }
