@@ -218,17 +218,18 @@ export default function CoreRunnersManager() {
       {/* ── EVERYONE ELSE ── */}
       <div className="mt-4">
         <SectionCaption>{query ? 'תוצאות החיפוש' : 'להוספה'}</SectionCaption>
-        <div className="mb-2 flex h-10 items-center gap-2 rounded-2xl bg-page px-3">
+        <div className="mb-2 flex h-11 items-center gap-2 rounded-2xl bg-page ps-3">
           <Search className="h-4 w-4 shrink-0 text-ink-400" />
+          {/* h-full: the whole 44px pill is the field, not its 24px text line. */}
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="חיפוש לפי שם או אימייל"
             aria-label="חיפוש לפי שם או אימייל"
-            className="flex-1 border-0 bg-transparent p-0 text-right text-sm text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-0"
+            className="h-full flex-1 border-0 bg-transparent p-0 pe-3 text-right text-sm text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-0"
           />
           {query && (
-            <button onClick={() => setQuery('')} className="shrink-0 text-ink-400" aria-label="ניקוי החיפוש">
+            <button onClick={() => setQuery('')} className="flex h-11 w-11 shrink-0 items-center justify-center text-ink-400" aria-label="ניקוי החיפוש">
               <X className="h-4 w-4" />
             </button>
           )}
@@ -286,7 +287,7 @@ function AthleteRow({
             still flips 🌰. `a.name || a.email` because a member who has not claimed
             an account yet has only an address, and that is still a person to open. */}
         <span className="flex items-center gap-1.5">
-          <AthleteLink athleteId={a.id} name={a.name || a.email} className="min-w-0">
+          <AthleteLink athleteId={a.id} name={a.name || a.email} className="inline-flex min-h-[24px] min-w-0 items-center">
             <span className="block truncate text-sm font-semibold text-ink-900" dir="auto">{a.name || a.email}</span>
           </AthleteLink>
           {a.isCoreRunner && <CoreRunnerBadge />}
@@ -309,26 +310,32 @@ function AthleteRow({
 
       {/* An iOS switch, not a checkbox and not an "אשר" button: this is a
           persistent yes/no about a person, which is exactly what a switch means.
-          44px tall hit area even though the track is 28. */}
+          The button is the 44px hit area and the 30px track is drawn inside it.
+          This comment used to promise that while the button WAS the track, and
+          measured 50x30. */}
       <button
         onClick={onToggle}
         disabled={busy || disabled}
         role="switch"
         aria-checked={a.isCoreRunner}
         aria-label={`${a.name || a.email} — רץ גרעין`}
-        className={cn(
-          'relative h-[30px] w-[50px] shrink-0 rounded-pill transition-colors disabled:opacity-40',
-          a.isCoreRunner ? 'bg-ink-900' : 'bg-ink-300/50',
-        )}
+        className="-me-1.5 flex h-11 w-[62px] shrink-0 items-center justify-center disabled:opacity-40"
       >
         <span
           className={cn(
-            'absolute top-[3px] h-6 w-6 rounded-full bg-card shadow-sm transition-all',
-            // Logical insets, so this mirrors with the document: in this RTL app
-            // "on" lands the knob at the LEFT edge, which is what iOS does in RTL.
-            a.isCoreRunner ? 'end-[3px]' : 'start-[3px]',
+            'relative h-[30px] w-[50px] rounded-pill transition-colors',
+            a.isCoreRunner ? 'bg-ink-900' : 'bg-ink-300/50',
           )}
-        />
+        >
+          <span
+            className={cn(
+              'absolute top-[3px] h-6 w-6 rounded-full bg-card shadow-sm transition-all',
+              // Logical insets, so this mirrors with the document: in this RTL app
+              // "on" lands the knob at the LEFT edge, which is what iOS does in RTL.
+              a.isCoreRunner ? 'end-[3px]' : 'start-[3px]',
+            )}
+          />
+        </span>
       </button>
     </div>
   );

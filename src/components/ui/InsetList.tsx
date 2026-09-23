@@ -54,6 +54,12 @@ interface RowProps {
    * body under a short label wants only the sublabel to wrap.
    */
   labelClamp?: boolean;
+  /**
+   * A line of chips under the sublabel (status, tier, what's missing). They used
+   * to go in `trailing`, where three of them left a perk's title 58px on a 375
+   * phone; under the text they cost a line of height instead of the title.
+   */
+  meta?: React.ReactNode;
   value?: string;       // trailing muted value (e.g. "08:00")
   valueMuted?: boolean; // dims + italicizes `value` — an unset-field placeholder (e.g. "Not set") rather than real data
   valueSuccess?: boolean; // shows `value` in green — a field the user has actually filled in
@@ -65,7 +71,7 @@ interface RowProps {
 
 // One row. If href/onClick given → navigable (chevron). If `trailing` given
 // (e.g. a toggle) → no chevron. Otherwise a static info row.
-export function InsetRow({ icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label, sublabel, sublabelClamp, labelClamp, value, valueMuted, valueSuccess, href, onClick, trailing, danger }: RowProps) {
+export function InsetRow({ icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label, sublabel, sublabelClamp, labelClamp, meta, value, valueMuted, valueSuccess, href, onClick, trailing, danger }: RowProps) {
   const press = 'active:bg-page/60';
   const interactive = !!href || !!onClick;
   const inner = (
@@ -97,6 +103,7 @@ export function InsetRow({ icon: Icon, iconBg = 'bg-brand-600', avatarUrl, label
             {sublabel}
           </span>
         )}
+        {meta && <span className="mt-1 flex flex-wrap items-center gap-1.5">{meta}</span>}
       </span>
       {/* dir="auto" so a value made only of digits and punctuation isn't
           bidi-reordered by the RTL page around it. A date range ("06.09 –

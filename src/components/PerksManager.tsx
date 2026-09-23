@@ -185,7 +185,7 @@ export function PerksManager() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-ink-700">{t('existingPerks')}</h2>
-        <Button size="sm" onClick={openNew}>
+        <Button onClick={openNew}>
           <Plus className="h-4 w-4" />
           {t('newPerk')}
         </Button>
@@ -199,10 +199,13 @@ export function PerksManager() {
             <InsetRow
               key={p.id}
               label={p.titleHe}
+              labelClamp
               sublabel={p.sponsorName}
               onClick={() => setActionsTarget(p)}
-              trailing={
-                <div className="flex items-center gap-2.5 shrink-0">
+              // Under the text, not trailing: three chips beside the title left it
+              // 58px on a 375 phone ("טיפול ר…").
+              meta={
+                <>
                   {/*
                     What this row is still MISSING, named on the row itself.
                     All thirteen live perks were saved with no discount code and no
@@ -225,7 +228,7 @@ export function PerksManager() {
                   <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', p.active ? 'bg-accent-600/15 text-accent-900' : 'bg-page text-ink-400')}>
                     {p.active ? t('active') : t('inactive')}
                   </span>
-                </div>
+                </>
               }
             />
           ))}

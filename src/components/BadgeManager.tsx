@@ -69,6 +69,7 @@ export function BadgeManager() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Badge | null>(null);
+  const [actionsTarget, setActionsTarget] = useState<Badge | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const fetchBadges = () => {
@@ -194,7 +195,7 @@ export function BadgeManager() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-ink-700">{t('existingBadges')}</h2>
-        <Button size="sm" onClick={openNew}>
+        <Button onClick={openNew}>
           <Plus className="h-4 w-4" />
           {t('newBadge')}
         </Button>
@@ -210,40 +211,32 @@ export function BadgeManager() {
         <EmptyState icon={Award} title={t('noBadges')} />
       ) : (
         <InsetSection>
+            {/* The row opens an Edit / Delete sheet, as the perks list does. The two
+                inline icon buttons were 36px, and with the status chip beside them they
+                left the title 117-133px on a 375 phone, so every name was cut. */}
           {badges.map(b => {
             const label = metricLabel(b);
             return (
               <InsetRow
                 key={b.id}
                 label={b.name_he}
+                labelClamp
                 sublabel={label ? `${b.name_en} · ${label}` : b.name_en}
+                sublabelClamp
+                onClick={() => setActionsTarget(b)}
+                meta={
+                  <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', b.active ? 'bg-accent-600/15 text-accent-900' : 'bg-page text-ink-400')}>
+                    {b.active ? t('active') : t('inactive')}
+                  </span>
+                }
                 trailing={
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-full', b.active ? 'bg-accent-600/15 text-accent-900' : 'bg-page text-ink-400')}>
-                      {b.active ? t('active') : t('inactive')}
-                    </span>
-                    <button
-                      onClick={() => openEdit(b)}
-                      className="p-2 min-h-[36px] min-w-[36px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page"
-                      aria-label={t('edit')}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget(b)}
-                      className="p-2 min-h-[36px] min-w-[36px] rounded-lg text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10"
-                      aria-label={t('delete')}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                    <div className="w-9 h-9 rounded-full bg-page/60 border border-page/50 flex items-center justify-center overflow-hidden">
-                      {b.icon_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={b.icon_url} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-base">{b.icon}</span>
-                      )}
-                    </div>
+                  <div className="w-9 h-9 shrink-0 rounded-full bg-page/60 border border-page/50 flex items-center justify-center overflow-hidden">
+                    {b.icon_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={b.icon_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-base">{b.icon}</span>
+                    )}
                   </div>
                 }
               />
@@ -251,6 +244,21 @@ export function BadgeManager() {
           })}
         </InsetSection>
       )}
+
+      <Sheet open={!!actionsTarget} onOpenChange={(o) => !o && setActionsTarget(null)} title={actionsTarget?.name_he || ''}>
+        {actionsTarget && (
+          <InsetSection>
+            <InsetRow icon={Pencil} iconBg="bg-brand-600/15" label={t('edit')} onClick={() => { const target = actionsTarget; setActionsTarget(null); openEdit(target); }} />
+            <InsetRow
+              icon={Trash2}
+              iconBg="bg-accent-red/15"
+              label={t('delete')}
+              danger
+              onClick={() => { setDeleteTarget(actionsTarget); setActionsTarget(null); }}
+            />
+          </InsetSection>
+        )}
+      </Sheet>
 
       <Sheet open={sheetOpen} onOpenChange={o => { setSheetOpen(o); if (!o) resetForm(); }} title={editingId ? t('editBadge') : t('newBadge')}>
         <div className="space-y-4 pb-2">

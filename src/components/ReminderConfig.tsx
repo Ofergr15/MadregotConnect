@@ -119,8 +119,12 @@ export function ReminderConfig() {
           icon={MapPin}
           iconBg="bg-teal-500"
           label={t('teamWorkoutLocation')}
-          value={cfg.location?.trim() || t('notSet')}
-          valueMuted={!cfg.location?.trim()}
+          // A set venue goes under the label, not in `value`: the value never
+          // shrinks, so a real place name squeezed the label to 12px on a 393 phone.
+          sublabel={cfg.location?.trim() || undefined}
+          sublabelClamp
+          value={cfg.location?.trim() ? undefined : t('notSet')}
+          valueMuted
           onClick={() => setLocDraft(cfg.location || '')}
         />
         <StageRow label={t('reminderDayBefore')} stage="dayBefore" />
