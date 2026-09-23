@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import {
   GraduationCap, Plus, Search, Users, ClipboardCheck, CalendarPlus,
   BarChart3, Trophy, Settings as SettingsIcon, UserPlus, LayoutDashboard,
-  MessagesSquare, Watch, TrendingUp, UserRoundSearch, Banknote,
+  MessagesSquare, Watch, TrendingUp, UserRoundSearch, Banknote, ChevronDown,
 } from 'lucide-react';
 import { cn, getGroupChip } from '@/lib/utils';
 import { Sheet, Spinner, SkeletonList } from '@/components/ui';
@@ -73,51 +73,142 @@ function initialsOf(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
 }
 
-// Local scrollable variant of the shared SegmentedControl (src/components/ui):
-// same track + pill visual language, but segments are `shrink-0` and the
-// track scrolls horizontally instead of splitting into equal `flex-1` slots —
-// SegmentedControl can't fit 8 options on a single row. Kept local to this
-// page rather than changing the shared primitive.
-function ScrollableSegmentedControl<T extends string>({
+type SectionGroup = 'people' | 'training' | 'progress' | 'manage';
+const SECTION_GROUPS: SectionGroup[] = ['people', 'training', 'progress', 'manage'];
+
+/** Which stage of the work each section belongs to — the order the sheet reads in. */
+const GROUP_OF: Record<Tab, SectionGroup> = {
+  overview: 'people', threads: 'people', funnel: 'people', members: 'people', registrations: 'people',
+  plans: 'training', book: 'training', dispatch: 'training',
+  compliance: 'progress', tests: 'progress', stats: 'progress', results: 'progress',
+  payments: 'manage', settings: 'manage',
+};
+
+type SectionOption<T extends string> = {
+  value: T; label: string; icon?: React.ComponentType<{ className?: string }>; badge?: number;
+};
+
+function CountBadge({ n, onDark }: { n?: number; onDark?: boolean }) {
+  if (!n) return null;
+  return (
+    <span className={cn(
+      'min-w-[18px] px-1 rounded-full text-2xs font-bold tabular-nums text-center',
+      onDark ? 'bg-page text-ink-700' : 'bg-band-3/20 text-band-3-ink',
+    )}>
+      {n}
+    </span>
+  );
+}
+
+/**
+ * The academy's section switcher (#72: "the menu needs scrolling, very
+ * impractical"). It was one horizontally scrolling strip of up to 14 tabs, so on
+ * a phone four were visible and the other ten were a guess — nothing on screen
+ * said there was more to the right.
+ *
+ * Phone: one full-width button naming the section you're in, and a sheet with
+ * every section on one screen, grouped by stage of the work, in a two-column
+ * grid. Nothing scrolls sideways and nothing is hidden. The button carries the
+ * total of the pending counts, so work waiting in another section still shows.
+ * Wider screens: the same tabs, wrapping onto a second row instead of scrolling.
+ */
+function AcademySectionNav<T extends string>({
   value,
   onChange,
   options,
+  groupOf,
   className,
 }: {
   value: T;
   onChange: (v: T) => void;
-  options: Array<{ value: T; label: string; icon?: React.ComponentType<{ className?: string }>; badge?: number }>;
+  options: Array<SectionOption<T>>;
+  groupOf: (v: T) => SectionGroup;
   className?: string;
 }) {
+  const t = useTranslations('academy');
+  const [open, setOpen] = useState(false);
+  const current = options.find(o => o.value === value) ?? options[0];
+  const CurrentIcon = current?.icon;
+  const pendingElsewhere = options.filter(o => o.value !== value).reduce((n, o) => n + (o.badge || 0), 0);
+  const choose = (v: T) => {
+    setOpen(false);
+    if (v !== value) { try { navigator.vibrate?.(6); } catch { /* no-op */ } onChange(v); }
+  };
+
   return (
-    <div className={cn('flex gap-0.5 overflow-x-auto scrollbar-hide rounded-xl bg-card p-1 border border-page', className)}>
-      {options.map((opt) => {
-        const Icon = opt.icon;
-        const active = opt.value === value;
-        return (
-          <button
-            key={opt.value}
-            onClick={() => { if (!active) { try { navigator.vibrate?.(6); } catch { /* no-op */ } onChange(opt.value); } }}
-            className={cn(
-              'shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors min-h-[44px]',
-              active ? 'bg-brand-600 text-white shadow-sm' : 'text-ink-400 hover:text-ink-900'
-            )}
-          >
-            {Icon && <Icon className="h-4 w-4" />}
-            {opt.label}
-            {/* A count on the tab itself, so pending work is visible without
-                opening the tab that holds it. */}
-            {!!opt.badge && (
-              <span className={cn(
-                'ms-0.5 min-w-[18px] px-1 rounded-full text-2xs font-bold tabular-nums',
-                active ? 'bg-page text-ink-700' : 'bg-band-3/20 text-band-3-ink',
-              )}>
-                {opt.badge}
-              </span>
-            )}
-          </button>
-        );
-      })}
+    <div className={className}>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        className="sm:hidden flex w-full items-center gap-2 rounded-xl border border-page bg-card px-3 min-h-[48px] text-start"
+      >
+        {CurrentIcon && <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-white"><CurrentIcon className="h-4 w-4" /></span>}
+        <span className="flex-1 text-[15px] font-bold text-ink-700">{current?.label}</span>
+        <CountBadge n={pendingElsewhere} />
+        <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600">
+          {t('allSections')}
+          <ChevronDown className="h-4 w-4" />
+        </span>
+      </button>
+
+      <div className="hidden sm:flex flex-wrap gap-1 rounded-xl bg-card p-1 border border-page">
+        {options.map(opt => {
+          const Icon = opt.icon;
+          const active = opt.value === value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => choose(opt.value)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors min-h-[44px]',
+                active ? 'bg-brand-600 text-white shadow-sm' : 'text-ink-400 hover:text-ink-900',
+              )}
+            >
+              {Icon && <Icon className="h-4 w-4" />}
+              {opt.label}
+              <CountBadge n={opt.badge} onDark={active} />
+            </button>
+          );
+        })}
+      </div>
+
+      <Sheet open={open} onOpenChange={setOpen} title={t('allSections')}>
+        <div className="space-y-3 pb-2">
+          {SECTION_GROUPS.map(g => {
+            const items = options.filter(o => groupOf(o.value) === g);
+            if (!items.length) return null;
+            return (
+              <section key={g}>
+                <p className="mb-1.5 px-1 text-2xs font-bold uppercase tracking-wider text-ink-400">{t(`sectionGroup_${g}` as never)}</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {items.map(opt => {
+                    const Icon = opt.icon;
+                    const active = opt.value === value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => choose(opt.value)}
+                        aria-current={active ? 'page' : undefined}
+                        className={cn(
+                          'flex items-center gap-2 rounded-xl px-3 min-h-[46px] text-start text-sm font-semibold',
+                          active ? 'bg-brand-600 text-white' : 'bg-page/60 text-ink-700',
+                        )}
+                      >
+                        {Icon && <Icon className="h-4 w-4 shrink-0" />}
+                        <span className="flex-1 min-w-0 truncate">{opt.label}</span>
+                        <CountBadge n={opt.badge} onDark={active} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </Sheet>
     </div>
   );
 }
@@ -350,11 +441,12 @@ export default function AcademyPage() {
         </div>
       </div>
 
-      <ScrollableSegmentedControl
+      <AcademySectionNav
         value={view}
         onChange={setView}
         options={tabs}
-        className="-mx-4 px-4 sm:mx-0 sm:px-0 mb-6"
+        groupOf={(v) => GROUP_OF[v]}
+        className="mb-6"
       />
 
       {view === 'overview' ? (

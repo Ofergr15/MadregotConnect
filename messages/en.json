@@ -1245,7 +1245,12 @@
     "pairingError": "Could not save. Try again.",
     "benchmarkTitle": "Time trial · {test}",
     "benchmarkHideBoard": "Hide the full board",
-    "benchmarkShowAll": "Show all {count}"
+    "benchmarkShowAll": "Show all {count}",
+    "allSections": "All sections",
+    "sectionGroup_people": "People",
+    "sectionGroup_training": "Training",
+    "sectionGroup_progress": "Progress",
+    "sectionGroup_manage": "Management"
   },
   "records": {
     "title": "Club Records",

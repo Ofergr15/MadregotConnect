@@ -1245,7 +1245,12 @@
     "pairingError": "השמירה נכשלה. נסו שוב.",
     "benchmarkTitle": "מבחן זמן · {test}",
     "benchmarkHideBoard": "הסתרת הטבלה המלאה",
-    "benchmarkShowAll": "הצגת כל {count}"
+    "benchmarkShowAll": "הצגת כל {count}",
+    "allSections": "כל האזורים",
+    "sectionGroup_people": "אנשים",
+    "sectionGroup_training": "אימונים",
+    "sectionGroup_progress": "התקדמות",
+    "sectionGroup_manage": "ניהול"
   },
   "records": {
     "title": "שיאי המועדון",
