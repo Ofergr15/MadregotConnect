@@ -37,6 +37,15 @@ export interface NotificationStatusRow {
 
 export type StatusIconKind = 'sent' | 'cancelled' | 'recurring' | 'scheduled';
 
+// Hebrew counts one and two with their own words — "every 1 weeks" is how the
+// weekly row used to read. Three and up take the number and the plural.
+function recurrenceText(interval: number | null, unit: string | null): string {
+  const week = unit === 'week';
+  if (interval == null || interval <= 1) return week ? 'כל שבוע' : 'כל יום';
+  if (interval === 2) return week ? 'כל שבועיים' : 'כל יומיים';
+  return `כל ${interval} ${week ? 'שבועות' : 'ימים'}`;
+}
+
 // Human status/audience text + icon/color for one admin notification row —
 // pure string/enum computation over the row's own fields, no DB or Date.now()
 // dependency (next_run_at is a stored timestamp string, just formatted here).
@@ -48,7 +57,7 @@ export function describeNotificationRow(n: NotificationStatusRow): {
 } {
   const statusText = n.status === 'sent' ? `נשלח (${n.sent_count})`
     : n.status === 'cancelled' ? 'בוטל'
-    : n.schedule_type === 'recurring' ? `כל ${n.recur_interval} ${n.recur_unit === 'week' ? 'שבועות' : 'ימים'}`
+    : n.schedule_type === 'recurring' ? recurrenceText(n.recur_interval, n.recur_unit)
     : n.next_run_at ? new Date(n.next_run_at).toLocaleString('he-IL') : 'מתוזמן';
   const audienceText = n.audience_type === 'all' ? 'הכל' : n.audience_type === 'group' ? 'קבוצה' : 'אדם';
   const iconKind: StatusIconKind = n.status === 'sent' ? 'sent' : n.status === 'cancelled' ? 'cancelled' : n.schedule_type === 'recurring' ? 'recurring' : 'scheduled';

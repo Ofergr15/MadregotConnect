@@ -292,7 +292,10 @@ export default function NotificationRouting() {
                 const cell = `${k.kind}:${role}`;
                 const label = ROLE_LABEL[role] || role;
                 return (
-                  <div key={role} className="flex min-h-[44px] items-center gap-2 px-3 py-1.5">
+                  // 52, the InsetRow height the Switch's 48px halo is sized for —
+                  // at 44 the next row painted over the halo's edge and left each
+                  // switch a 40px target.
+                  <div key={role} className="flex min-h-[52px] items-center gap-2 px-3 py-1.5">
                     <span className="flex-1 text-13 font-medium text-ink-900">{label}</span>
                     <span className="shrink-0 text-2xs text-ink-400">{count} במועדון</span>
                     <Switch
@@ -300,7 +303,6 @@ export default function NotificationRouting() {
                       onChange={next => toggleRoute(k, role, next)}
                       disabled={locked || busyCell === cell}
                       loading={busyCell === cell}
-                      size="sm"
                       activeColor="bg-accent-600"
                       ariaLabel={`${k.label} — ${label}`}
                     />
@@ -324,7 +326,7 @@ export default function NotificationRouting() {
               )}
             </div>
 
-            <p dir="ltr" className="mt-2 text-left text-2xs text-ink-300">{k.source}</p>
+            <p dir="ltr" className="mt-2 text-left text-2xs text-ink-400">{k.source}</p>
           </Card>
         ))}
       </div>
@@ -332,17 +334,19 @@ export default function NotificationRouting() {
       {/* ── WHAT EACH PERSON RECEIVES ── */}
       <div className="mt-5">
         <SectionCaption>מה כל אחד מקבל</SectionCaption>
-        <div className="mb-2 flex h-10 items-center gap-2 rounded-2xl bg-page px-3">
+        {/* The input fills the 44px bar instead of being its 24px line of text,
+            so a tap anywhere on the bar focuses it. */}
+        <div className="mb-2 flex h-11 items-center gap-2 rounded-2xl bg-page ps-3">
           <Search className="h-4 w-4 shrink-0 text-ink-400" />
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="חיפוש לפי שם או תפקיד"
             aria-label="חיפוש לפי שם או תפקיד"
-            className="flex-1 border-0 bg-transparent p-0 text-right text-sm text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-0"
+            className="h-full flex-1 border-0 bg-transparent p-0 pe-3 text-right text-sm text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-0"
           />
           {query && (
-            <button onClick={() => setQuery('')} className="shrink-0 text-ink-400" aria-label="ניקוי החיפוש">
+            <button onClick={() => setQuery('')} className="flex h-11 w-11 shrink-0 items-center justify-center text-ink-400" aria-label="ניקוי החיפוש">
               <X className="h-4 w-4" />
             </button>
           )}
@@ -450,8 +454,10 @@ function PersonRow({
               switches on click and on Enter/Space, so without it the name would
               navigate AND leave an accordion open behind you. `p.id` is the
               athlete id — it is what the toggle POSTs as `athleteId`. */}
-          <AthleteLink athleteId={p.id} name={p.name} className="block min-w-0" stopPropagation>
-            <span className="block truncate text-sm font-semibold text-ink-900" dir="auto">{p.name}</span>
+          {/* 24px, the WCAG floor rather than 44: the whole row around it is the
+              60px target that opens the switches, and a taller link would eat it. */}
+          <AthleteLink athleteId={p.id} name={p.name} className="flex min-h-[24px] min-w-0 items-center" stopPropagation>
+            <span className="block min-w-0 truncate text-sm font-semibold text-ink-900" dir="auto">{p.name}</span>
           </AthleteLink>
           <span className="mt-1 flex items-center gap-1.5">
             <span className="shrink-0 rounded border border-ink-300/50 bg-page px-1.5 py-0.5 text-3xs font-bold text-ink-700">

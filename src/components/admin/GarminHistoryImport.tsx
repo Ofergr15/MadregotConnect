@@ -311,7 +311,7 @@ export function GarminHistoryImport() {
           {busy && (
             <button
               onClick={() => { stopRef.current = true; }}
-              className="px-4 min-h-[44px] rounded-xl border border-accent-red/30 text-accent-red text-sm font-semibold"
+              className="px-4 min-h-[44px] rounded-xl border border-accent-red/30 text-accent-red-ink text-sm font-semibold"
             >
               {t('garminHistoryStop')}
             </button>
@@ -319,7 +319,7 @@ export function GarminHistoryImport() {
         </div>
 
         {totalImported > 0 && (
-          <p className="mt-3 text-xs font-semibold text-accent-600" dir="auto">
+          <p className="mt-3 text-xs font-semibold text-accent-900" dir="auto">
             {t('garminHistoryTotal', { count: totalImported })}
           </p>
         )}
@@ -361,7 +361,7 @@ export function GarminHistoryImport() {
                       onClick={() => runOne(a.id)}
                       disabled={busy}
                       className={cn(
-                        'shrink-0 px-3 min-h-[38px] rounded-lg text-xs font-semibold transition-colors',
+                        'shrink-0 px-3 min-h-[44px] min-w-[44px] rounded-lg text-xs font-semibold transition-colors',
                         busy ? 'bg-page text-ink-400' : 'bg-page text-brand-600 hover:bg-brand-600/10',
                       )}
                     >

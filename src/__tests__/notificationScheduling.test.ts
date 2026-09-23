@@ -85,13 +85,15 @@ describe('describeNotificationRow', () => {
 
   it('a recurring, not-yet-sent notification shows the interval in weeks', () => {
     const result = describeNotificationRow({ ...base, schedule_type: 'recurring', recur_interval: 2, recur_unit: 'week' });
-    expect(result.statusText).toBe('כל 2 שבועות');
+    expect(result.statusText).toBe('כל שבועיים');
     expect(result.iconKind).toBe('recurring');
   });
 
   it('a recurring notification with recur_unit "day" shows ימים, not שבועות', () => {
     const result = describeNotificationRow({ ...base, schedule_type: 'recurring', recur_interval: 3, recur_unit: 'day' });
     expect(result.statusText).toBe('כל 3 ימים');
+    expect(describeNotificationRow({ ...base, schedule_type: 'recurring', recur_interval: 1, recur_unit: 'week' }).statusText).toBe('כל שבוע');
+    expect(describeNotificationRow({ ...base, schedule_type: 'recurring', recur_interval: 1, recur_unit: 'day' }).statusText).toBe('כל יום');
   });
 
   it('a one-off scheduled notification with a next_run_at shows the formatted date', () => {

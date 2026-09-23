@@ -89,8 +89,12 @@ function NotificationRowView({ n, onCancel, onRemove }: {
         icon={Icon}
         iconBg={iconBg}
         label={n.title_he}
+        labelClamp
         sublabel={n.body_he}
-        value={`${statusText} · ${audienceText}`}
+        sublabelClamp
+        // Under the text, not as the row's value: the value never shrinks, so
+        // "every week · everyone" left a long title 119px on a 375 phone.
+        meta={<span className="text-xs text-ink-500">{statusText} · {audienceText}</span>}
         onClick={() => setActionsOpen(true)}
       />
 
@@ -507,7 +511,7 @@ export function NotificationCenter() {
           navigation hierarchy or title bar. */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-bold text-ink-700">התראות</h3>
-        <Button size="sm" onClick={() => { reset(); setComposeOpen(true); }}>
+        <Button onClick={() => { reset(); setComposeOpen(true); }}>
           <Plus className="w-4 h-4" />
           שליחת התראה
         </Button>
