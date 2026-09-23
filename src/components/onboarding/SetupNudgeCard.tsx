@@ -165,7 +165,7 @@ export function SetupNudgeCard() {
           type="button"
           onClick={skip}
           aria-label={t('nudgeSkip')}
-          className="-me-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-400 active:bg-page"
+          className="-me-2.5 -mt-2.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-400 active:bg-page"
         >
           <X className="h-4 w-4" />
         </button>
@@ -176,14 +176,14 @@ export function SetupNudgeCard() {
       <div className="mt-3 flex items-center gap-2">
         <Link
           href={SETUP_CHECKLIST_HREF}
-          className="flex min-h-[42px] flex-1 items-center justify-center rounded-pill bg-brand-600 text-sm font-bold text-white active:bg-brand-700"
+          className="flex min-h-[44px] flex-1 items-center justify-center rounded-pill bg-brand-600 text-sm font-bold text-white active:bg-brand-700"
         >
           {t('nudgeCta')}
         </Link>
         <button
           type="button"
           onClick={skip}
-          className="flex min-h-[42px] items-center justify-center rounded-pill border border-ink-300 px-5 text-sm font-bold text-ink-400 active:bg-page"
+          className="flex min-h-[44px] items-center justify-center rounded-pill border border-ink-300 px-5 text-sm font-bold text-ink-400 active:bg-page"
         >
           {t('nudgeSkip')}
         </button>

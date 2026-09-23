@@ -104,7 +104,9 @@ export function AuthorRow({ item }: { item: FeedItem }) {
   }
 
   return (
-    <AthleteLink athleteId={item.author.athleteId} name={item.author.name} className="flex items-center gap-3">
+    // `py-[5px] -my-[5px]`: the row measured 34 (a two-line name block beside a
+    // 34px face) — 5px each way reaches 44 without moving the card's layout.
+    <AthleteLink athleteId={item.author.athleteId} name={item.author.name} className="flex items-center gap-3 py-[5px] -my-[5px]">
       {identity}
     </AthleteLink>
   );
@@ -484,6 +486,7 @@ export function ActivityStatTiles({ act }: { act: NonNullable<FeedItem['activity
  */
 export function ActivityChips({ act }: { act: NonNullable<FeedItem['activity']> }) {
   const t = useTranslations('feed');
+  const tc = useTranslations('common');
   const showElevation = (act.elevationGain ?? 0) > 5;
   const anything =
     act.averageHr || act.maxHr || act.calories || act.perceivedRpe != null ||
@@ -497,7 +500,7 @@ export function ActivityChips({ act }: { act: NonNullable<FeedItem['activity']> 
           <Heart className="h-3 w-3 text-accent-red" />
           {/* Rounded here as well as at ingest: rows synced from Strava before
               that fix still hold the raw float. */}
-          {Math.round(act.averageHr)} bpm
+          {Math.round(act.averageHr)} {tc('bpm')}
           {act.maxHr ? <span className="text-ink-400">· {t('statMaxHr')} {Math.round(act.maxHr)}</span> : null}
         </span>
       )}

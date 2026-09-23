@@ -96,8 +96,13 @@ function SquadChip({
       // shrink-0: the row scrolls horizontally, so a chip must keep its own width
       // rather than being squeezed into an ellipsis by its neighbours.
       className={cn(
-        'shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors',
-        Icon && 'inline-flex items-center gap-1',
+        // Drawn at 32 and hit at 48: the halo adds 8px above and below. The two
+        // chip rows sit 16px apart, so the halos meet without overlapping. 6px
+        // halos 12px apart met exactly and the audit probed 41.5 — the shared
+        // edge pixel went to the other row. A 44px chip would make the two rows a
+        // third of the first screen.
+        'shrink-0 rounded-full px-3.5 text-xs font-semibold transition-colors relative inline-flex h-8 items-center after:absolute after:inset-x-0 after:-inset-y-2 after:content-[""]',
+        Icon && 'gap-1',
         active
           ? hex
             ? 'text-card'
@@ -558,14 +563,15 @@ export default function FeedPage() {
           "I just want to see the runs" and "did I miss an announcement?" are the
           two ways people actually read this screen, and both used to mean
           scrolling past the other one. */}
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-4 flex items-center gap-2">
         {FILTERS.map(f => (
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
             aria-pressed={filter === f.key}
             className={cn(
-              'px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors',
+              // Same 32-drawn / 44-hit geometry as SquadChip above.
+              'px-3.5 rounded-full text-xs font-semibold transition-colors relative inline-flex h-8 items-center after:absolute after:inset-x-0 after:-inset-y-2 after:content-[""]',
               filter === f.key
                 ? 'bg-ink-700 text-card'
                 : 'bg-card border border-page text-ink-400 hover:text-ink-500',
@@ -582,7 +588,10 @@ export default function FeedPage() {
           index (1/2/3) rather than by the roster's creation order, so the chips
           read in the order the club names its squads. */}
       {squadChips.length > 0 && (
-        <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-0.5">
+        <div className="-mt-2 mb-2 flex items-center gap-2 overflow-x-auto py-2">
+          {/* overflow-x-auto clips on both axes, so the chips' 8px halos need room
+              inside the scroll box: `py-2` makes it, `-mt-2 mb-2` puts the row
+              back where it was. */}
           <SquadChip active={squad === null} onClick={() => setSquad(null)} label={t('filterSquadAll')} />
           {squadChips.map(chip => (
             <SquadChip

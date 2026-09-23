@@ -42,7 +42,10 @@ export function SetupPill({ className }: { className?: string }) {
       href={SETUP_CHECKLIST_HREF}
       aria-label={t('pillAria', { done: data.doneCount, total: data.totalCount })}
       className={cn(
-        'animate-setup-pulse flex h-8 items-center gap-1.5 rounded-pill bg-accent-red ps-2 pe-2.5',
+        // Drawn at 32 to sit smaller than the header's 44px round buttons; the
+        // 6px halo makes it the same 44 to a thumb.
+        'animate-setup-pulse relative flex h-8 items-center gap-1.5 rounded-pill bg-accent-red ps-2 pe-2.5',
+        'after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-[""]',
         'text-white active:scale-95 transition-transform',
         className,
       )}
