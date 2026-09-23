@@ -95,7 +95,9 @@
     "statusWaiting": "מחכים שנאשר",
     "statusWaitingSub": "אישור אחד פותח גם את התחזוקה",
     "statusStuck": "אושרו ולא נכנסו",
-    "statusStuckSub": "אפשר לשלוח להם תזכורת"
+    "statusStuckSub": "אפשר לשלוח להם תזכורת",
+    "packStories": "סטוריז לדבוקות",
+    "packStoriesSub": "סטורי לכל דבוקה מהאימון, לאינסטגרם"
   },
   "header": {
     "coach": "מאמן",
