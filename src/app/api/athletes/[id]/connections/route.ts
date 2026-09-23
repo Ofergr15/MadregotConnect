@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { seesPending } from '@/lib/auth/pending-athletes';
 import { buildConnectionsResult, type FollowAthleteRow } from '@/lib/follows/shape';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/athletes/[id]/connections?viewerId=<optional athlete id>
+// GET /api/athletes/[id]/connections
+//
+// Members only. The viewer — whose follow state comes back — is the signed-in
+// caller; it used to be a `?viewerId=` anyone could set to anyone. The param is
+// still sent by old clients and ignored. Runners still waiting for approval are
+// left out of both lists, and their own lists read as not there (#77, #86),
+// except to themselves and to staff.
 //
 // Two lookups (not a PostgREST embed) on purpose: `athlete_follows` has TWO
 // FKs into `athletes` (follower_id, followee_id), so `.select('athletes(...)')`
@@ -17,10 +25,16 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const { searchParams } = new URL(request.url);
-    const viewerId = searchParams.get('viewerId');
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    const viewerId = caller.athleteId;
 
     const supabase = createServerClient();
+
+    const { data: target } = await supabase.from('athletes').select('approved').eq('id', id).maybeSingle();
+    if ((target as { approved?: boolean | null } | null)?.approved === false && !seesPending(caller, id)) {
+      return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
+    }
 
     const [followerLinks, followingLinks] = await Promise.all([
       supabase.from('athlete_follows').select('follower_id').eq('followee_id', id),
@@ -38,10 +52,12 @@ export async function GET(
     if (allIds.length > 0) {
       const { data, error } = await supabase
         .from('athletes')
-        .select('id, name, avatar_url')
+        .select('id, name, avatar_url, approved')
         .in('id', allIds);
       if (error) throw error;
-      athleteRows = data || [];
+      athleteRows = ((data || []) as Array<FollowAthleteRow & { approved?: boolean | null }>)
+        .filter(row => row.approved !== false || seesPending(caller, row.id))
+        .map(({ approved: _approved, ...row }) => row);
     }
 
     const athleteById = new Map(athleteRows.map((row) => [row.id, row]));

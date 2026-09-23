@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { seesPending } from '@/lib/auth/pending-athletes';
 import {
   buildPublicProfile,
   type PublicProfileAthleteRow,
@@ -15,24 +17,30 @@ export const dynamic = 'force-dynamic';
 // that route selects email/onboarding_status/garmin_auth/strava_auth, which
 // must never be exposed to a peer viewing someone else's profile). Only
 // selects the columns that are safe for any other club member to see.
+//
+// Members only. It used to answer anyone with an id, signed in or not — and a
+// runner still waiting for approval came back to the whole club (#77, #86).
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
     const supabase = createServerClient();
 
     const { data: athlete, error } = await supabase
       .from('athletes')
       .select(
-        'id, name, avatar_url, group_id, created_at, role, is_core_runner, is_academy, academy_band_id, academy_coach_id',
+        'id, name, avatar_url, group_id, created_at, role, is_core_runner, is_academy, academy_band_id, academy_coach_id, approved',
       )
       .eq('id', id)
       .maybeSingle();
 
     if (error) throw error;
-    if (!athlete) {
+    // A pending runner reads as not there, except to themselves and to staff.
+    if (!athlete || (athlete.approved === false && !seesPending(caller, id))) {
       return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
     }
 
