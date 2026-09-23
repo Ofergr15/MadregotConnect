@@ -829,8 +829,11 @@ export function coachReplyCopy(
  */
 export function reviewResolvedCopy(
   locale: NotificationLocale,
-  p: { preview: string | null | undefined; fixedInVersion?: string | null },
+  p: { preview: string | null | undefined; fixedInVersion?: string | null; ticketNo?: number | null },
 ): PushCopy {
+  // The number the reporter was given when they filed it (migration 120), so
+  // "fixed" can be matched to the report they are thinking of.
+  const ticket = p.ticketNo ? ` #${p.ticketNo}` : '';
   const raw = (p.preview || '').trim().replace(/\s+/g, ' ');
   // Shorter clip when a version line follows it, so the reload instruction isn't
   // the part iOS truncates — it is the only actionable sentence in the message.
@@ -842,11 +845,11 @@ export function reviewResolvedCopy(
     // RTL line lands on the left edge, which reads correctly; the same digits mid
     // sentence drag the punctuation after them to the wrong side.
     const reload = p.fixedInVersion ? ` · פתחו מחדש את האפליקציה לגרסה ${p.fixedInVersion}` : '';
-    return { title: '✅ הדיווח שלך טופל', body: `${clipped || fallback}${reload}` };
+    return { title: ticket ? `✅ דיווח${ticket} טופל` : '✅ הדיווח שלך טופל', body: `${clipped || fallback}${reload}` };
   }
   const fallback = 'Thanks for reporting it — it’s been fixed.';
   const reload = p.fixedInVersion ? ` · reopen the app to get ${p.fixedInVersion}` : '';
-  return { title: '✅ Your report is fixed', body: `${clipped || fallback}${reload}` };
+  return { title: ticket ? `✅ Report${ticket} is fixed` : '✅ Your report is fixed', body: `${clipped || fallback}${reload}` };
 }
 
 /** Sponsor name and deal title are admin-authored; only the header translates. */
