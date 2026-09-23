@@ -12,8 +12,7 @@
 name: Daily release
 
 on:
-  schedule:
-    - cron: '0 2 * * *'
+  # Schedule off until the owner's approval gate ships: nothing goes out unapproved.
   workflow_dispatch:
 
 permissions:
