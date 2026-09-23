@@ -36,7 +36,8 @@ const STATE_LABEL: Record<FlowStep['state'], string> = {
  * so the squad hue stays exactly as delivered in the fills and only the text darkens.
  */
 const STATE_CLASS: Record<FlowStep['state'], string> = {
-  inApp: 'bg-brand-600/15 text-brand-600',
+  // brand-700 text: brand-600 on its own 15% tint measured 4.45:1 at 11px, just under AA.
+  inApp: 'bg-brand-600/15 text-brand-700',
   partly: 'bg-band-3/15 text-band-3-ink',
   outsideApp: 'bg-ink-300/40 text-ink-500',
 };
@@ -53,10 +54,10 @@ export default function AcademyFlowIndex() {
           <h1 className="text-xl font-bold text-ink-900">האקדמיה — התהליך והמסכים</h1>
           <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
             חמישה-עשר השלבים כפי שתיארת אותם, ומה שיש עכשיו לכל אחד. ליד כל שלב מופיעה ההחלטה
-            שממתינה לך, אם יש כזו. שום דבר מזה עוד לא במערכת החיה.
+            שממתינה לך, אם יש כזו. המסכים כאן רצים על נתוני דמה; המסכים האמיתיים כבר באוויר.
           </p>
           <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-medium">
-            <span className="rounded-full bg-brand-600/15 px-2 py-1 text-brand-600">
+            <span className="rounded-full bg-brand-600/15 px-2 py-1 text-brand-700">
               <bdi dir="ltr">{counts.inApp}</bdi> שלבים במערכת
             </span>
             <span className="rounded-full bg-band-3/15 px-2 py-1 text-band-3-ink">
@@ -75,8 +76,11 @@ export default function AcademyFlowIndex() {
             )}
           </div>
           <p className="mt-2.5 text-[11px] leading-relaxed text-ink-400">
-            גרסה <bdi dir="ltr">{APP_VERSION}</bdi> · הכל יושב על ענף נפרד ולא על הראשי, כך
-            שהמערכת החיה לא השתנתה. המיגרציות כבר הורצו, ומה שנותר הוא החלטה אחת: למזג ולפרסם.
+            {/* Was "everything sits on a separate branch; what is left is to merge". True until
+                2026-09-23, when the branch went to main — after which the page's one factual
+                sentence about itself was the wrong one. What is left now is opening the door. */}
+            גרסה <bdi dir="ltr">{APP_VERSION}</bdi> · הכל כבר באוויר ב-madregot.app והמיגרציות הורצו.
+            מה שנותר הוא לפתוח את הדלת: דף ההרשמה של המועדון עדיין אומר שהרשמת האקדמיה תיפתח בקרוב.
           </p>
         </header>
 
@@ -93,7 +97,7 @@ export default function AcademyFlowIndex() {
                     {/* A parked step wears one pill, not two: "built, and not on the table" is a
                         single fact about it, and the state it would otherwise show is a detail of
                         something nobody is deciding now. */}
-                    <span className={`flex-none rounded-full px-2 py-0.5 text-3xs font-semibold ${
+                    <span className={`flex-none rounded-full px-2 py-0.5 text-2xs font-semibold ${
                       step.deferred ? 'bg-ink-300/40 text-ink-500' : STATE_CLASS[step.state]
                     }`}>
                       {step.deferred ? 'בתור — לא עכשיו' : STATE_LABEL[step.state]}
