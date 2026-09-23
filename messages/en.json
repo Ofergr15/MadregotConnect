@@ -95,7 +95,9 @@
     "statusWaiting": "Waiting on us",
     "statusWaitingSub": "One approval opens the maintenance block too",
     "statusStuck": "Approved, never came in",
-    "statusStuckSub": "You can send them a reminder"
+    "statusStuckSub": "You can send them a reminder",
+    "packStories": "Pack stories",
+    "packStoriesSub": "One Instagram story per pack from the session"
   },
   "header": {
     "coach": "Coach",

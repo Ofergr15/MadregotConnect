@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck } from 'lucide-react';
+import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { flowGroup, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
@@ -183,6 +183,11 @@ export default function CoachToolsPage() {
       <InsetSection header={t('insights')}>
         <InsetRow icon={BarChart3} iconBg="bg-violet-500" label={tn('teamVolume')} href="/dashboard/team-volume" />
         <InsetRow icon={CalendarDays} iconBg="bg-accent-red" label={tn('calendar')} href="/dashboard/calendar" />
+        {/* The super user's alone while it is tried out — not in the nav, since
+            every admin gets every nav item. The API behind it says 403 to anyone else. */}
+        {!previewRole && isSuperUser(email) && (
+          <InsetRow icon={Images} iconBg="bg-pink-600" label={t('packStories')} sublabel={t('packStoriesSub')} href="/dashboard/pack-stories" />
+        )}
       </InsetSection>
 
       <InsetSection header={ts('management')}>
