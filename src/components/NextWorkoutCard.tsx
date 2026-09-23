@@ -93,7 +93,7 @@ export function NextWorkoutCard({
             {distanceLabel}
             <span className="text-sm font-medium text-ink-400 ms-1">{tc('km')}</span>
             {!!doneKm && doneKm > 0 && (
-              <span className="text-xs font-semibold text-accent-600 ms-2">
+              <span className="text-xs font-semibold text-accent-900 ms-2">
                 {Math.round(doneKm * 10) / 10} {t('doneSuffix')}
               </span>
             )}

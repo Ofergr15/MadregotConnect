@@ -1100,7 +1100,7 @@ function GroupPlanPicker({
                 אין דבוקה למתאמן/ת, ולכן אין ברירת מחדל — צריך לבחור קצב.
               </p>
             ) : lane === suggested ? (
-              <p className="text-xs text-accent-600 leading-relaxed">
+              <p className="text-xs text-accent-900 leading-relaxed">
                 נבחר אוטומטית לפי {band?.name}.
               </p>
             ) : null}

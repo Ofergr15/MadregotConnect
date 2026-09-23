@@ -672,7 +672,7 @@ export default function DashboardPage() {
             {weekly?.weekDelta !== 0 && weekly?.weekDelta !== undefined && (
               <div className="flex items-center justify-center gap-1 mt-2">
                 {weekly.weekDelta > 0 ? <TrendingUp className="h-3.5 w-3.5 text-accent-600" /> : <TrendingDown className="h-3.5 w-3.5 text-band-3" />}
-                <span className={cn('text-sm font-semibold', weekly.weekDelta > 0 ? 'text-accent-600' : 'text-band-3-ink')}>
+                <span className={cn('text-sm font-semibold', weekly.weekDelta > 0 ? 'text-accent-900' : 'text-band-3-ink')}>
                   {weekly.weekDelta > 0 ? '+' : ''}{weekly.weekDelta}%
                 </span>
               </div>

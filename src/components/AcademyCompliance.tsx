@@ -97,13 +97,13 @@ function initialsOf(name: string) {
 }
 
 function scoreColor(rate: number): string {
-  if (rate >= 0.8) return 'text-accent-600';
+  if (rate >= 0.8) return 'text-accent-900';
   if (rate >= 0.5) return 'text-band-3-ink';
   return 'text-accent-red';
 }
 
 const metricStyle: Record<MetricStatus | PaceStatus, string> = {
-  on_target: 'text-accent-600',
+  on_target: 'text-accent-900',
   under: 'text-band-3-ink',
   over: 'text-band-3-ink',
   slower: 'text-band-3-ink',
@@ -185,7 +185,7 @@ function ComplianceLegend({ tolerances }: { tolerances: AdherenceTolerances }) {
             <div className="font-semibold text-ink-700">שילובים שכדאי להכיר</div>
             <div className="text-ink-500">
               <span className="text-band-3-ink font-semibold">מרחק מתחת</span> +{' '}
-              <span className="text-accent-600 font-semibold">קצב בטווח</span> — בוצע רק חלק
+              <span className="text-accent-900 font-semibold">קצב בטווח</span> — בוצע רק חלק
               מהאימון, אבל מה שבוצע היה בקצב שנקבע.
             </div>
             <div className="text-ink-500">
@@ -390,7 +390,7 @@ export function AcademyCompliance() {
                     >
                       {t('accuracyShort')}
                       {w.gradedCount != null && w.completedCount > 0 && w.gradedCount < w.completedCount && (
-                        <span className="text-ink-300"> <Num>{w.gradedCount}/{w.completedCount}</Num></span>
+                        <span className="text-ink-400"> <Num>{w.gradedCount}/{w.completedCount}</Num></span>
                       )}
                     </div>
                   </div>
@@ -458,7 +458,7 @@ export function AcademyCompliance() {
                                       two of the five weren't measured. */}
                                   {wk.completed && !wk.execution && (
                                     <div
-                                      className="text-3xs text-ink-300 leading-tight truncate"
+                                      className="text-3xs text-ink-400 leading-tight truncate"
                                       title={t('ungradedBody')}
                                     >
                                       אין ציון {t('accuracyShort')}
@@ -637,7 +637,7 @@ function Metric({ label, plan, actual, status, hint }: { label: string; plan: st
 // The headline. `partial` is built from the numbers instead — it's the case that
 // needs both of them, and the split between them is the whole point.
 const effortHeadline: Record<'confirmed' | 'missed', { text: string; style: string }> = {
-  confirmed: { text: 'העבודה בוצעה — כל החזרות בקצב היעד', style: 'text-accent-600' },
+  confirmed: { text: 'העבודה בוצעה — כל החזרות בקצב היעד', style: 'text-accent-900' },
   missed: { text: 'לא נמצאה אף חזרה מהמתוכננות', style: 'text-accent-red' },
 };
 
@@ -719,7 +719,7 @@ function SegmentsPanel({ athleteId, date, workoutName }: { athleteId: string; da
                     {r.paces.map(p => formatPace(p)).join(' · ') || '—'}
                   </span>
                   <span className={cn('font-semibold w-14 text-end',
-                    r.found >= r.needed ? 'text-accent-600' : r.attempted > 0 ? 'text-band-3-ink' : 'text-accent-red')}>
+                    r.found >= r.needed ? 'text-accent-900' : r.attempted > 0 ? 'text-band-3-ink' : 'text-accent-red')}>
                     {r.found}/{r.needed}
                   </span>
                 </div>

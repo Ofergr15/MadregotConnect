@@ -343,7 +343,7 @@ export function WorkoutFeedbackPanel({ athleteId, date, activityId, workoutName,
               {saved ? 'עדכון הפידבק' : 'שליחת הפידבק'}
             </button>
             {saved?.sentAt && (
-              <span className="flex items-center gap-1 text-[11px] text-accent-600">
+              <span className="flex items-center gap-1 text-[11px] text-accent-900">
                 <Check className="h-3.5 w-3.5" /> נשלח
               </span>
             )}

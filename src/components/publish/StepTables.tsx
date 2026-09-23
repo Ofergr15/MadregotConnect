@@ -154,7 +154,7 @@ export function StepTables({
                         <bdi dir="ltr">{stepMetric(step, units) || te('stepOpen')}</bdi>
                       </td>
                       {!pace1 ? (
-                        <td colSpan={3} className="px-2.5 py-1.5 text-center text-3xs text-ink-300">—</td>
+                        <td colSpan={3} className="px-2.5 py-1.5 text-center text-3xs text-ink-400">—</td>
                       ) : differ ? (
                         tokens.map((token, groupIndex) => (
                           <td

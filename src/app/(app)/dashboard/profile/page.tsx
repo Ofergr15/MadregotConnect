@@ -863,7 +863,7 @@ function ProfileContent() {
               <h2 className="font-semibold text-ink-700">{t('paceGroup')}</h2>
             </div>
             {saved && (
-              <div className="flex items-center gap-1.5 text-accent-600">
+              <div className="flex items-center gap-1.5 text-accent-900">
                 <CheckCircle2 className="h-4 w-4" />
                 <span className="text-xs font-medium">{t('saved')}</span>
               </div>
@@ -1316,7 +1316,7 @@ function ProfileContent() {
                 )}
               </button>
               {syncResult && (
-                <p className={cn('text-xs mt-2 text-center', syncResult.includes(t('syncFailed')) ? 'text-accent-red' : 'text-accent-600')}>
+                <p className={cn('text-xs mt-2 text-center', syncResult.includes(t('syncFailed')) ? 'text-accent-red' : 'text-accent-900')}>
                   {syncResult}
                 </p>
               )}

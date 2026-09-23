@@ -897,7 +897,7 @@ export function WorkoutEditorPanel({ workout, dayName, onChange, onClose }: Work
                     {f.label && <span className="text-ink-400 min-w-[70px]">{f.label}</span>}
                     {f.from !== undefined && <span className="text-accent-red/80 line-through">{f.from}</span>}
                     {f.from !== undefined && f.to !== undefined && <span className="text-ink-400">→</span>}
-                    {f.to !== undefined && <span className="text-accent-600">{f.to}</span>}
+                    {f.to !== undefined && <span className="text-accent-900">{f.to}</span>}
                   </div>
                 ))}
               </div>

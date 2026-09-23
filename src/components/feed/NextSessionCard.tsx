@@ -222,7 +222,7 @@ export function NextSessionCard() {
             title={onWatch ? tw('onWatch') : tw('notOnWatch')}
             aria-label={onWatch ? tw('onWatch') : tw('notOnWatch')}
             className={`flex flex-none items-center gap-0.5 rounded-lg px-1.5 py-1 ${
-              onWatch ? 'bg-accent-600/10 text-accent-600' : 'bg-accent-red/10 text-accent-red'
+              onWatch ? 'bg-accent-600/10 text-accent-900' : 'bg-accent-red/10 text-accent-red'
             }`}
           >
             <Watch className="h-3.5 w-3.5" />

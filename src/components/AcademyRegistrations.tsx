@@ -166,7 +166,7 @@ export function AcademyRegistrations() {
                     </div>
                   </div>
                   {r.approved ? (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-accent-600 shrink-0">
+                    <span className="flex items-center gap-1 text-xs font-semibold text-accent-900 shrink-0">
                       <CheckCircle2 className="h-4 w-4" /> {r.hasGarmin ? 'פעיל/ה' : 'אושר'}
                     </span>
                   ) : (

@@ -486,7 +486,7 @@ export function AthleteProfileBody({
                     </td>
                     <td className="py-2 text-end">
                       {w.deltaPct == null ? (
-                        <span className="text-ink-300">—</span>
+                        <span className="text-ink-400">—</span>
                       ) : (
                         // "+7%" renders as "7%+" in Hebrew flow without this.
                         <bdi

@@ -252,7 +252,7 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
       </InsetSection>
 
       {saved && (
-        <p className="flex items-center gap-1.5 text-accent-600 px-1 -mt-2 mb-2">
+        <p className="flex items-center gap-1.5 text-accent-900 px-1 -mt-2 mb-2">
           <CheckCircle2 className="h-3.5 w-3.5" />
           <span className="text-xs font-medium">{t('saved')}</span>
         </p>

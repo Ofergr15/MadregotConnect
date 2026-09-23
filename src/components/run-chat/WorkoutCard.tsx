@@ -76,7 +76,7 @@ const KIND_COLOR: Record<string, string> = {
   recovery: 'bg-ink-300/30 text-ink-500',
   rest:     'bg-ink-300/40 text-ink-500',
   cooldown: 'bg-accent-red/15 text-accent-red',
-  easy:     'bg-accent-600/20 text-accent-600',
+  easy:     'bg-accent-600/20 text-accent-900',
   repeat:   'bg-ink-300/20 text-ink-400',
 };
 
@@ -93,7 +93,7 @@ const KIND_BAR: Record<string, string> = {
 function paceColor(actualSecPerKm: number, targetSecPerKm: number): string {
   const diff = actualSecPerKm - targetSecPerKm;
   if (diff < -5) return 'text-band-3-ink';
-  if (diff < 10) return 'text-accent-600';
+  if (diff < 10) return 'text-accent-900';
   if (diff < 25) return 'text-band-3-ink';
   return 'text-accent-red';
 }

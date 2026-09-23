@@ -115,7 +115,7 @@ export function ProfileBest({ athleteId, athleteName }: { athleteId: string; ath
         )}
       </div>
 
-      {msg && <p className="text-xs text-accent-600 mb-3">{msg}</p>}
+      {msg && <p className="text-xs text-accent-900 mb-3">{msg}</p>}
 
       {results.length === 0 && pending.length === 0 ? (
         <p className="text-sm text-ink-400">{t('noResultsYet')}</p>

@@ -89,6 +89,10 @@ export function LeaderboardsScreen({ athleteId, groupId }: { athleteId: string; 
 
   return (
     <div className="space-y-4">
+      {/* Five segments share 343px, so a label gets ~60px. "ק"מ שבועי" and
+          "ק"מ חודשי" both truncated to "ק"מ ש…" / "ק"מ ח…" — cutting off the one
+          word that told them apart. Every row already prints its unit, so the
+          labels carry only the period. */}
       <SegmentedControl<Metric>
         value={metric}
         onChange={setMetric}
@@ -101,7 +105,7 @@ export function LeaderboardsScreen({ athleteId, groupId }: { athleteId: string; 
         ]}
       />
 
-      <div className="flex flex-wrap gap-2">
+      <div className="space-y-2">
         {groupId && (
           <SegmentedControl<'all' | 'group'>
             value={scope}
@@ -110,7 +114,7 @@ export function LeaderboardsScreen({ athleteId, groupId }: { athleteId: string; 
               { value: 'all', label: t('leaderboardAllAthletes') },
               { value: 'group', label: t('leaderboardMyGroup') },
             ]}
-            className="w-fit"
+            className="w-full"
           />
         )}
         <SegmentedControl<'all' | 'male' | 'female'>
@@ -121,7 +125,7 @@ export function LeaderboardsScreen({ athleteId, groupId }: { athleteId: string; 
             { value: 'male', label: ts('genderMale') },
             { value: 'female', label: ts('genderFemale') },
           ]}
-          className="w-fit"
+          className="w-full"
         />
       </div>
 
@@ -164,7 +168,7 @@ export function LeaderboardsScreen({ athleteId, groupId }: { athleteId: string; 
                     <AthleteLink
                       athleteId={isMe ? null : entry.id}
                       name={entry.name}
-                      className="flex items-center gap-2 min-h-[36px]"
+                      className="flex items-center gap-2 min-h-[44px]"
                     >
                       <span className={cn('w-2 h-2 rounded-full shrink-0', dotColor)} />
                       <span className={cn('font-medium text-sm', isMe ? 'text-brand-600' : 'text-ink-700')} dir="auto">

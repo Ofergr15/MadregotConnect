@@ -1602,7 +1602,7 @@ export default function WeeklyPlannerPage() {
                   bdi + dir="ltr" because m:ss is a Latin-ordered token inside an
                   RTL paragraph — without it the digits swap around the colon. */}
               {!savingAfterParse && (
-                <p className="text-xs text-ink-300">
+                <p className="text-xs text-ink-400">
                   {t('parsingTakesAWhile')}
                   {' · '}
                   <bdi dir="ltr">
@@ -2009,7 +2009,7 @@ export default function WeeklyPlannerPage() {
             {pushResults ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-2 text-accent-600">
+                  <div className="flex items-center gap-2 text-accent-900">
                     <CheckCircle className="h-5 w-5" />
                     <span className="font-medium">
                       {pushResults.filter((r) => r.status === 'success').length} {t('succeeded')}
@@ -2365,7 +2365,7 @@ export default function WeeklyPlannerPage() {
                                           label={a.name}
                                           trailing={
                                             a.hasGarmin ? (
-                                              <span className="flex items-center gap-1 text-2xs text-accent-600">
+                                              <span className="flex items-center gap-1 text-2xs text-accent-900">
                                                 <CheckCircle className="h-3.5 w-3.5" /> {t('garmin')}
                                               </span>
                                             ) : (

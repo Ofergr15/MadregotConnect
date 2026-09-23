@@ -257,7 +257,7 @@ function VideoEditor({ initial, onDone, t }: { initial: Video[]; onDone: (next: 
                 placeholder={t('duration')}
                 className="w-24 bg-page/50 border border-page rounded-lg px-3 py-2 text-sm text-ink-700 placeholder-ink-400"
               />
-              {!isPlaceholder(r.driveId) && <span className="flex items-center text-xs text-accent-600 gap-1"><Check className="h-3.5 w-3.5" /> Drive</span>}
+              {!isPlaceholder(r.driveId) && <span className="flex items-center text-xs text-accent-900 gap-1"><Check className="h-3.5 w-3.5" /> Drive</span>}
             </div>
             <textarea
               value={r.description} onChange={e => setRow(i, { description: e.target.value })}

@@ -227,9 +227,9 @@ export function AttendanceRSVP({ workoutLabel, weekStart: weekStartProp, day: da
           <div className="rounded-xl border border-accent-600/40 bg-accent-600/10 p-3 flex items-center gap-2.5" dir="rtl">
             <CheckCircle2 className="h-5 w-5 text-accent-600 shrink-0" />
             <div>
-              <p className="text-sm font-bold text-accent-600">{dayBefore ? t('confirmedTomorrow') : t('confirmed')}</p>
+              <p className="text-sm font-bold text-accent-900">{dayBefore ? t('confirmedTomorrow') : t('confirmed')}</p>
               {(workoutLabel || workoutHour != null) && (
-                <p className="text-xs text-accent-600/80 mt-0.5">
+                <p className="text-xs text-accent-900/80 mt-0.5">
                   {[workoutLabel, workoutHour != null ? `${String(workoutHour).padStart(2, '0')}:00` : null].filter(Boolean).join(' · ')}
                 </p>
               )}

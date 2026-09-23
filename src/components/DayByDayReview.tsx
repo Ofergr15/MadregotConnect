@@ -369,7 +369,7 @@ function RailCell({
         className={cn(
           'mt-0.5 block truncate text-3xs font-bold',
           state === 'now' ? 'text-brand-600'
-            : state === 'done' ? 'text-accent-600'
+            : state === 'done' ? 'text-accent-900'
             : state === 'flag' ? 'text-accent-red-ink'
             : 'text-ink-400',
         )}
@@ -736,7 +736,7 @@ function GroupCells({ day, grouped }: { day: DayReview; grouped: GroupedWeeklyPl
   const t = useTranslations('publishReview');
 
   if (day.sessions.length === 0) {
-    return <div className="col-span-3 border-s border-page/70 px-3 py-2.5 text-3xs text-ink-300">—</div>;
+    return <div className="col-span-3 border-s border-page/70 px-3 py-2.5 text-3xs text-ink-400">—</div>;
   }
 
   const columns = GROUPS.map((g) => day.sessions
@@ -753,7 +753,7 @@ function GroupCells({ day, grouped }: { day: DayReview; grouped: GroupedWeeklyPl
             {' · '}{t('allGroupsSame')}
           </>
         ) : (
-          <span className="text-ink-300">{t('noPaceOnDay')}</span>
+          <span className="text-ink-400">{t('noPaceOnDay')}</span>
         )}
       </div>
     );

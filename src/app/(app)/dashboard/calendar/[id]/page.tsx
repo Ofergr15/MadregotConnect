@@ -416,7 +416,7 @@ export default function EventDetailPage() {
           <div className="mt-4 pt-3 border-t border-page/40">
             {myStatus === 'registered' && (
               <div className="flex items-center justify-between gap-3 rounded-xl border border-accent-600/30 bg-accent-600/10 px-3 py-2.5">
-                <span className="flex items-center gap-1.5 text-sm font-bold text-accent-600">
+                <span className="flex items-center gap-1.5 text-sm font-bold text-accent-900">
                   <CheckCircle2 className="h-4 w-4" /> {t('youAreRegistered')}
                 </span>
                 <Button variant="ghost" size="sm" onClick={handleCancel} disabled={actionPending}>

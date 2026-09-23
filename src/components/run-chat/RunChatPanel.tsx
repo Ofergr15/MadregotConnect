@@ -168,7 +168,7 @@ function ChatPanel({
             </span>
             {viewerLabel && (
               <span
-                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent-600/20 bg-accent-600/10 px-2 py-0.5 text-3xs font-medium text-accent-600"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent-600/20 bg-accent-600/10 px-2 py-0.5 text-3xs font-medium text-accent-900"
                 data-testid="demo-viewer-label"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-accent-600" />

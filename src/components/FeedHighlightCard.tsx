@@ -61,7 +61,7 @@ function challengeKey(c: HighlightChallenge): string {
 
 /** The status pill's colour. `behind` is deliberately not red — see below. */
 const STATUS_LOOK: Record<WeekStatus, string> = {
-  met: 'bg-accent-600/10 text-accent-600',
+  met: 'bg-accent-600/10 text-accent-900',
   onTrack: 'bg-brand-600/10 text-brand-600',
   // Muted ink, not accent-red. Being 8 km short on a Tuesday is the normal state of
   // a training week, not an error, and a red badge on the app's landing page every

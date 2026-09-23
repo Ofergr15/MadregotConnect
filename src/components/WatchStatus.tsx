@@ -64,7 +64,7 @@ export function WatchStatus({ date }: { date: string }) {
 
   if (onWatch) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-accent-600 bg-accent-600/10">
+      <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-accent-900 bg-accent-600/10">
         <Check className="h-3.5 w-3.5" /> {t('onWatch')}
       </span>
     );

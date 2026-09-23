@@ -133,7 +133,7 @@ export function AcademySettingsPanel() {
         <Button onClick={save} disabled={saving}>
           {saving ? <Spinner size={16} /> : <Save className="h-4 w-4" />} שמירת הגדרות
         </Button>
-        {saved && <span className="flex items-center gap-1.5 text-sm text-accent-600"><CheckCircle2 className="h-4 w-4" /> נשמר</span>}
+        {saved && <span className="flex items-center gap-1.5 text-sm text-accent-900"><CheckCircle2 className="h-4 w-4" /> נשמר</span>}
       </div>
     </div>
   );

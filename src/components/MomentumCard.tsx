@@ -28,7 +28,7 @@ export function MomentumCard({ athleteId }: { athleteId: string }) {
 
   const deltaKm = Math.round((s.thisWeek.km - s.lastWeek.km) * 10) / 10;
   const TrendIcon = deltaKm > 0.05 ? TrendingUp : deltaKm < -0.05 ? TrendingDown : Minus;
-  const trendColor = deltaKm > 0.05 ? 'text-accent-600' : deltaKm < -0.05 ? 'text-band-3-ink' : 'text-ink-400';
+  const trendColor = deltaKm > 0.05 ? 'text-accent-900' : deltaKm < -0.05 ? 'text-band-3-ink' : 'text-ink-400';
 
   // Biggest week ever. If this week IS the peak (and it's a real week, ≥2 runs so
   // a single long run doesn't spuriously "win"), celebrate a new record.
