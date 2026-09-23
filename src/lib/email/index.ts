@@ -1,4 +1,5 @@
 import { APP_URL, APPROVER_EMAILS } from '@/lib/constants';
+import { openInAppHref } from '@/lib/open-in-app';
 import { renderEmail, renderSetupProgress, esc, type SetupProgressRow } from './template';
 import { gapNames } from '@/lib/notifications/copy';
 import { sendEmail, type SendResult } from './send';
@@ -51,7 +52,7 @@ export async function notifyAdminNewUser(user: {
       dir: 'ltr',
       title: 'New user registration',
       rows: [['Name', user.name], ['Email', user.email], ['Auth', authStatus], ['Status', user.onboardingStatus]],
-      cta: { label: 'Review & approve →', href: `${APP_URL}/dashboard/settings` },
+      cta: { label: 'Review & approve →', href: openInAppHref(APP_URL, '/dashboard/settings') },
     }),
   });
 }
@@ -135,7 +136,7 @@ export async function notifyAdminNewSignupRequest(req: {
       // The entry queue, which is now the only place anybody is let in. This used
       // to open the הרשמות list while every in-app path opened the entry queue, so
       // tapping the mail showed the approver a different screen than browsing did.
-      cta: { label: 'Review & approve →', href: `${APP_URL}/dashboard/entry-queue?at=mine` },
+      cta: { label: 'Review & approve →', href: openInAppHref(APP_URL, '/dashboard/entry-queue?at=mine') },
       notes: ['They cannot enter the app until someone approves this.'],
     }),
   });
@@ -386,7 +387,7 @@ export async function notifyAdminNewAcademyRegistration(user: {
           ? [['Existing member', 'Yes — this address is already on the roster, so the account was not changed. Link it from the academy funnel if this is them.'] as [string, string]]
           : []),
       ],
-      cta: { label: 'Review & approve →', href: `${APP_URL}/dashboard/settings` },
+      cta: { label: 'Review & approve →', href: openInAppHref(APP_URL, '/dashboard/settings') },
     }),
   });
 }
@@ -486,7 +487,7 @@ export async function sendAcademyWeeklyReport(params: {
           </thead>
           <tbody>${tableRows}</tbody>
         </table>`,
-      cta: { label: 'Open Academy →', href: `${APP_URL}/dashboard/academy` },
+      cta: { label: 'Open Academy →', href: openInAppHref(APP_URL, '/dashboard/academy') },
       notes: ['"On-plan" = average share of distance/time/pace targets hit on completed sessions.'],
     }),
   });
