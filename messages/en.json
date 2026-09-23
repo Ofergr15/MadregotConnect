@@ -218,7 +218,17 @@
     "off": "Off",
     "syncedLast24h": "Arrived in the last 24h",
     "syncedValue": "{n} activities",
-    "syncedNone": "Worth checking the sync"
+    "syncedNone": "Worth checking the sync",
+    "weekTitle": "The club this week",
+    "ranThisWeek": "Ran this week",
+    "clubKm": "Club km",
+    "runsThisWeek": "Runs",
+    "openedApp": "Opened the app",
+    "silent7d": "No run in 7 days",
+    "silent7dHint": "Tap to see who",
+    "deliveryHint": "Workouts to watches",
+    "vsLastWeek": "vs last week",
+    "sameAsLastWeek": "Same as last week"
   },
   "adminAccount": {
     "title": "Account",

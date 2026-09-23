@@ -124,7 +124,19 @@ export interface NavResolutionInput {
    * sections to offer.
    */
   fallback?: boolean;
+  /**
+   * The account's OWN role is `admin` and no preview is on (#70/#71) — the
+   * "Madregot Admin" operator account, which manages the club and does not train.
+   * Not `effectiveRole === 'admin'`: the super-user renders as admin too, and he
+   * runs. An operator gets no member feed, no training profile (the account
+   * screen instead) and no separate control-room tab, since its home IS the
+   * control room.
+   */
+  isOperator?: boolean;
 }
+
+/** Member-only destinations an operator account has no use for. */
+const OPERATOR_HIDDEN_TABS = ['feed', 'control-room'];
 
 /**
  * Which pages this user can reach, in nav order. The single source of truth for
@@ -160,6 +172,7 @@ export function resolveNavItems({
   isAcademyMember = false,
   isCoreRunner = false,
   fallback = false,
+  isOperator = false,
 }: NavResolutionInput): NavItem[] {
   if (!effectiveRole) return [];
   const isAdmin = effectiveRole === 'admin';
@@ -179,7 +192,7 @@ export function resolveNavItems({
   // out of the editor that grants it, and now no cell in the admin column can lock
   // anything.
   const items = isAdmin
-    ? [...ALL_NAV_ITEMS]
+    ? ALL_NAV_ITEMS.filter(i => !isOperator || !OPERATOR_HIDDEN_TABS.includes(i.tab))
     // Filtered last, so this also sees the גרעין union above.
     : ALL_NAV_ITEMS.filter(i => enabled.includes(i.tab));
 
@@ -188,7 +201,7 @@ export function resolveNavItems({
   // PREVIEW, where the point is to see the staff nav and the previewer's own athlete
   // row isn't the previewed account's.
   const previewingStaff = !!previewRole && STAFF_ROLES.includes(previewRole);
-  if (!previewingStaff && (isAthlete || previewRole)) {
+  if (!isOperator && !previewingStaff && (isAthlete || previewRole)) {
     if (!items.some(i => i.tab === 'profile')) items.push(PROFILE_ITEM);
   }
   // An admin with no athlete row has no training profile to show, and this is the
@@ -265,6 +278,8 @@ export function useNavIdentity() {
   const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
   const baseRole = isSuper ? 'admin' : meData?.role || null;
   const effectiveRole = previewRole || baseRole;
+  // The account's own role, not the rendered one — see NavResolutionInput.isOperator.
+  const isOperator = meData?.role === 'admin' && !previewRole;
 
   return {
     permissions,
@@ -279,6 +294,9 @@ export function useNavIdentity() {
     isAthlete,
     isAcademyMember: !!meData?.isAcademy,
     isCoreRunner: !!meData?.isCoreRunner,
+    isOperator,
+    /** /api/auth/me has answered, so `isOperator` is final rather than "not yet". */
+    accountKnown: !!meData,
     ready: !permsLoading && !!effectiveRole,
     isStaffView: effectiveRole ? STAFF_ROLES.includes(effectiveRole) : false,
   };

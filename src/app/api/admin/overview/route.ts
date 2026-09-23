@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaff } from '@/lib/auth/self-or-staff';
 import { COACH_ID } from '@/lib/constants';
-import { getPlanWeekStart, israelDateAnchor, toISODate } from '@/lib/utils';
+import { getPlanWeekStart, israelDateAnchor, israelToday, toISODate, weekStartOn } from '@/lib/utils';
+import { REPORT_RUN_TYPES, israelDateOf } from '@/lib/reports/last-7-days';
+import { summariseClubWeek } from '@/lib/admin/club-week';
+import { fetchAppOpens } from '@/lib/analytics/posthog-server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -32,6 +35,13 @@ export const revalidate = 0;
 // missing column must not blank the whole screen. The UI hides a null row.
 // ═════════════════════════════════════════════════════════════════════════════
 
+/**
+ * The admin account is not a member (#70): it doesn't run, so counting it made
+ * "active members" and "unfinished setup" each one too high, forever. `.or` and
+ * not `.neq`, because `neq` drops rows whose role is NULL.
+ */
+const NOT_ADMIN = 'role.is.null,role.neq.admin';
+
 /** '42P01' = undefined_table, '42703' = undefined_column. Both mean "not migrated yet". */
 function notMigrated(code?: string) {
   return code === '42P01' || code === '42703' || code === 'PGRST204';
@@ -56,6 +66,13 @@ export async function GET(request: Request) {
 
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
+    // The club's own week for the number tiles: the Sunday calendar week, not the
+    // plan week above (which rolls forward on Saturday evening). 15 days back
+    // covers this week plus the same stretch of last week in any timezone.
+    const today = israelToday();
+    const clubWeekStart = weekStartOn(israelDateAnchor(), 0);
+    const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+
     const [
       registrations,
       reports,
@@ -67,6 +84,8 @@ export async function GET(request: Request) {
       deliveriesOk,
       settings,
       syncedToday,
+      recentRuns,
+      appOpens,
     ] = await Promise.all([
       // Migration 083. Oldest-first ordering doesn't matter for a count.
       supabase.from('signup_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -83,6 +102,7 @@ export async function GET(request: Request) {
         .select('id', { count: 'exact', head: true })
         .eq('coach_id', COACH_ID)
         .eq('status', 'active')
+        .or(NOT_ADMIN)
         .is('onboarding_completed_at', null),
 
       // `status = 'pushed'` is what "published to the club" means here, same as
@@ -94,11 +114,14 @@ export async function GET(request: Request) {
         .eq('week_start_date', nextWeekStart)
         .eq('status', 'pushed'),
 
+      // Ids rather than a head count: the week tiles divide by this same list,
+      // so "19 of 24" and the member count can't disagree.
       supabase
         .from('athletes')
-        .select('id', { count: 'exact', head: true })
+        .select('id')
         .eq('coach_id', COACH_ID)
-        .eq('status', 'active'),
+        .eq('status', 'active')
+        .or(NOT_ADMIN),
 
       supabase.from('groups').select('id', { count: 'exact', head: true }).eq('coach_id', COACH_ID),
 
@@ -117,10 +140,30 @@ export async function GET(request: Request) {
         .from('athlete_activities')
         .select('id', { count: 'exact', head: true })
         .gte('created_at', dayAgo),
+
+      supabase
+        .from('athlete_activities')
+        .select('athlete_id, start_time, distance')
+        .in('activity_type', REPORT_RUN_TYPES)
+        .gte('start_time', fifteenDaysAgo)
+        .limit(5000),
+
+      fetchAppOpens(15),
     ]);
 
     const count = (r: { count: number | null; error: { code?: string } | null }) =>
       r.error ? (notMigrated(r.error.code) ? null : 0) : (r.count ?? 0);
+
+    const memberIds = ((athletes.data || []) as { id: string }[]).map(r => r.id);
+    const week = summariseClubWeek({
+      weekStart: clubWeekStart,
+      today,
+      memberIds,
+      runs: ((recentRuns.data || []) as { athlete_id: string; start_time: string; distance: number | null }[])
+        .filter(r => (r.distance ?? 0) > 0)
+        .map(r => ({ athleteId: r.athlete_id, day: israelDateOf(r.start_time), km: (r.distance ?? 0) / 1000 })),
+      opens: appOpens,
+    });
 
     const total = count(deliveriesTotal) ?? 0;
     const ok = count(deliveriesOk) ?? 0;
@@ -137,10 +180,11 @@ export async function GET(request: Request) {
         nextWeekPublished: (count(nextPlan) ?? 0) > 0,
       },
       club: {
-        athleteCount: count(athletes) ?? 0,
+        athleteCount: memberIds.length,
         groupCount: count(groups) ?? 0,
         deliverySuccessRate: total > 0 ? Math.round((ok / total) * 100) : null,
       },
+      week,
       system: {
         maintenance: (settings.data || []).some(
           (r: { key: string; value: string }) => r.key === 'maintenance_mode' && r.value === 'on',

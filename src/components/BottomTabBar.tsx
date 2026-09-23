@@ -39,6 +39,9 @@ import { Sheet } from '@/components/ui';
 // "More" whenever the first four are all enabled.
 const ATHLETE_PRIMARY_ORDER = ['feed', 'dashboard', 'program', 'profile'];
 const STAFF_PRIMARY_ORDER = ['feed', 'dashboard', 'athletes', 'workout-feedback', 'coach-tools'];
+// The operator account (#71): home is the control room, then the people, the
+// club's content (Settings holds challenges, badges, notifications) and the tools.
+const OPERATOR_PRIMARY_ORDER = ['dashboard', 'athletes', 'settings', 'coach-tools'];
 
 export function BottomTabBar() {
   const pathname = usePathname();
@@ -58,7 +61,9 @@ export function BottomTabBar() {
 
   // Split into up-to-4 primary tabs + overflow, using the role-appropriate
   // preferred order. "More" is added as a 5th slot whenever there are leftovers.
-  const primaryOrder = isStaffView ? STAFF_PRIMARY_ORDER : ATHLETE_PRIMARY_ORDER;
+  const primaryOrder = identity.isOperator
+    ? OPERATOR_PRIMARY_ORDER
+    : isStaffView ? STAFF_PRIMARY_ORDER : ATHLETE_PRIMARY_ORDER;
   const byTab = new Map(navItems.map(i => [i.tab, i]));
   const primary: NavItem[] = [];
   for (const tab of primaryOrder) {

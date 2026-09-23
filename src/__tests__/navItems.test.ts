@@ -357,3 +357,24 @@ describe('the empty cases', () => {
     }
   });
 });
+
+describe('the operator account (#71)', () => {
+  const nav = (over: Partial<Parameters<typeof resolveNavItems>[0]>) =>
+    resolveNavItems({ permissions, effectiveRole: 'admin', isAthlete: true, ...over });
+
+  it('has no member feed, no control-room duplicate, and the account screen for a profile', () => {
+    const items = nav({ isOperator: true });
+    const tabs = items.map(i => i.tab);
+    expect(tabs).not.toContain('feed');
+    expect(tabs).not.toContain('control-room');
+    expect(tabs).toContain('dashboard');
+    expect(tabs).toContain('athletes');
+    expect(items.find(i => i.tab === 'profile')?.labelKey).toBe('account');
+  });
+
+  it('leaves an admin who trains (the super-user) with their feed and training profile', () => {
+    const items = nav({ isOperator: false });
+    expect(items.map(i => i.tab)).toContain('feed');
+    expect(items.find(i => i.tab === 'profile')?.labelKey).toBe('profile');
+  });
+});

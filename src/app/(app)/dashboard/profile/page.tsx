@@ -108,7 +108,7 @@ function Spinning() {
  * training screen appear and then be replaced.
  */
 function ProfileGate() {
-  const { effectiveRole, isAthlete, ready } = useNavIdentity();
+  const { effectiveRole, isAthlete, isOperator, accountKnown, ready } = useNavIdentity();
   // `isAthlete` is read from localStorage in the hook's own mount effect, so it is
   // false on the very first render — and `ready` can be true there already when SWR
   // answers both requests from cache. Waiting one tick costs nothing and is the
@@ -117,7 +117,12 @@ function ProfileGate() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!ready || !mounted) return <Spinning />;
-  if (effectiveRole === 'admin' && !isAthlete) return <AdminAccount />;
+  const isAdmin = effectiveRole === 'admin';
+  // An admin view with an athlete row is either a member who administers (the
+  // super-user: training profile) or the operator account (#71: account screen).
+  // Only /api/auth/me tells them apart, so wait for it rather than flash one.
+  if (isAdmin && isAthlete && !accountKnown) return <Spinning />;
+  if (isAdmin && (!isAthlete || isOperator)) return <AdminAccount />;
   return <ProfileContent />;
 }
 

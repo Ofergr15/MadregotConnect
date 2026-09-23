@@ -7,6 +7,7 @@ import { PenSquare, MessageSquare, AlertCircle, LogIn, Star, X } from 'lucide-re
 import { getSupabase } from '@/lib/supabase/client';
 import { useTranslations, useFormatter } from 'next-intl';
 import { cn, dayKeyRelation, dayKeyToDate, feedDayKey, resolveGroup } from '@/lib/utils';
+import { useNavIdentity } from '@/lib/nav-items';
 import { useApi } from '@/lib/api';
 import { fetchFeed, deletePost, fetchFeedItem, fetchFeedItemByActivity } from '@/lib/feed-client';
 import { feedFocusFromParams } from '@/lib/feed/deep-link';
@@ -193,6 +194,13 @@ export default function FeedPage() {
   // holds both readings; see lib/feed/deep-link.
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // The operator account has no member feed (#71) — but every sign-in path
+  // lands on /feed, so this is the one place that sends it home instead.
+  const { isOperator } = useNavIdentity();
+  useEffect(() => {
+    if (isOperator) router.replace('/dashboard');
+  }, [isOperator, router]);
   const focus = feedFocusFromParams(searchParams);
   const focusBy = focus?.by ?? null;
   const focusId = focus?.id ?? null;

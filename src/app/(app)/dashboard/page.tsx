@@ -161,7 +161,7 @@ export default function DashboardPage() {
   //
   // The same role resolution the nav uses, so a super-user "viewing as runner"
   // gets the runner home — `effectiveRole` already has the preview role applied.
-  const { effectiveRole, isAthlete, ready: identityReady } = useNavIdentity();
+  const { effectiveRole, isAthlete, isOperator, accountKnown, ready: identityReady } = useNavIdentity();
   // `isAthlete` comes out of localStorage in the hook's own mount effect, so it is
   // false on the very first render even when SWR answers the role from cache. The
   // spinner below waits for this rather than trusting it early — the difference
@@ -170,14 +170,17 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const isAdminView = identityReady && effectiveRole === 'admin';
-  const controlRoomView = isAdminView && mounted && !isAthlete;
+  // …or the operator account (#71), which HAS an athlete row but doesn't train:
+  // its home is the control room too. Its role comes from /api/auth/me, so an
+  // admin-view account with an athlete row also waits for that answer below.
+  const controlRoomView = isAdminView && mounted && (!isAthlete || isOperator);
   // "Which of the two homes is this" — the question everything below is gated on.
   // Only an ADMIN has to wait for `mounted` to answer it, which is why this is not
   // simply `identityReady && mounted`: for every other role the answer is "the
   // athlete home" from the first render, and making the club's most-visited screen
   // start its main request a frame later to spare the admin a flash would be paying
   // the wrong account.
-  const homeKnown = identityReady && (!isAdminView || mounted);
+  const homeKnown = identityReady && (!isAdminView || (mounted && (!isAthlete || accountKnown)));
   // Held back until then, and skipped entirely for the control room: nothing on it
   // is built from this, and it is the request the athlete home waits on. Firing it
   // and throwing the answer away would put a second server-side week computation on

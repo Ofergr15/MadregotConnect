@@ -6,6 +6,7 @@ import { useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { SkeletonList } from '@/components/ui';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
+import type { ClubWeek } from '@/lib/admin/club-week';
 
 /**
  * דורש טיפול — the things a human has to act on, and nothing else.
@@ -43,6 +44,8 @@ export interface AdminOverview {
     nextWeekPublished: boolean;
   };
   club: { athleteCount: number; groupCount: number; deliverySuccessRate: number | null };
+  /** The number tiles on the admin home; absent from a server older than 2.41.4. */
+  week?: ClubWeek;
   system: { maintenance: boolean; syncedLast24h: number };
 }
 

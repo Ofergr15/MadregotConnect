@@ -160,6 +160,7 @@ export function Header() {
         isAthlete,
         isAcademyMember,
         isCoreRunner,
+        isOperator: userRole === 'admin' && !previewRole,
         // An empty header nav would leave a signed-in user with nowhere to go.
         fallback: true,
       })

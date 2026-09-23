@@ -4,11 +4,11 @@ import { ChevronLeft, Wrench, RefreshCw, BellRing } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { Card, BigStat } from '@/components/ui';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { AttendanceRoster } from '@/components/AttendanceRoster';
 import { AdminAttention, type AdminOverview } from '@/components/admin/AdminAttention';
 import { CoachPulse } from '@/components/CoachPulse';
+import { ClubWeekTiles } from '@/components/admin/ClubWeekTiles';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE ADMIN'S HOME — a control room, not a training log.
@@ -73,32 +73,15 @@ export function AdminControlRoom({
           {greeting}
           {firstName ? ` ${firstName}` : ''} 👋
         </p>
-        <h1 className="mt-0.5 text-3xl font-extrabold tracking-tight text-ink-700">{t('title')}</h1>
+        <h1 className="mt-0.5 text-3xl font-extrabold tracking-tight text-ink-700">{t('weekTitle')}</h1>
       </div>
 
-      <AdminAttention />
+      {/* Numbers first, then what needs doing (#71 option B, picked 2026-09-23):
+          the admin opens this screen to see how the club is doing this week, and
+          the to-do list is one short scroll below. */}
+      <ClubWeekTiles week={data?.week} deliverySuccessRate={data?.club.deliverySuccessRate} />
 
-      <section className="grid grid-cols-3 gap-3">
-        <Card variant="muted" className="p-3 sm:p-4">
-          <BigStat value={data?.club.athleteCount ?? '—'} label={t('athletes')} />
-        </Card>
-        <Card variant="muted" className="p-3 sm:p-4">
-          <BigStat value={data?.club.groupCount ?? '—'} label={t('groups')} />
-        </Card>
-        <Card variant="muted" className="p-3 sm:p-4">
-          <BigStat
-            // A club with no deliveries at all has no rate — "0%" would read as
-            // a total failure rather than as nothing having been sent yet.
-            value={data?.club.deliverySuccessRate == null ? '—' : <>{data.club.deliverySuccessRate}%</>}
-            label={t('delivery')}
-            valueClassName={
-              data?.club.deliverySuccessRate != null && data.club.deliverySuccessRate < 90
-                ? 'text-accent-red'
-                : undefined
-            }
-          />
-        </Card>
-      </section>
+      <AdminAttention />
 
       {/* Both kept from the coach home on purpose: they are about the athletes,
           not about this account's own training. */}
