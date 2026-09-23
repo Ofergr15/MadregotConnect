@@ -77,7 +77,8 @@ function LegList({ legs, units, showPaces }: { legs: WorkoutStep[]; units: StepU
         const qualifier = stepQualifier(leg);
         return (
           <span key={j} className="flex items-center gap-x-1.5 min-w-0">
-            {j > 0 && <span className="text-3xs text-ink-300">/</span>}
+            {/* ink-400: ink-300 is the border grey, 1.66:1 as text. */}
+            {j > 0 && <span className="text-3xs text-ink-400">/</span>}
             <span className={cn('text-[11px]', isRestStep(leg) ? 'text-ink-400' : 'text-ink-700 font-medium')}>
               {stepMetric(leg, units)}
             </span>

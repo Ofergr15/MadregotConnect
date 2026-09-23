@@ -1475,6 +1475,7 @@ export default function WeeklyPlannerPage() {
                 onChange={(e) => setInputText(e.target.value)}
                 onPaste={handlePaste}
                 placeholder={t('pasteYourPlan')}
+                aria-label={t('pastePlanLabel')}
                 rows={7}
                 className="w-full resize-none text-base leading-relaxed bg-page/60 border border-page/50 rounded-xl px-4 py-3 text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600/50"
               />
@@ -1659,6 +1660,9 @@ export default function WeeklyPlannerPage() {
                   onClick={syncFromProgram}
                   title={t('syncFromProgram')}
                   aria-label={t('syncFromProgram')}
+                  // size="sm" is 36; these three are the plan's whole toolbar and
+                  // sit alone on their row, so they take the full 44.
+                  className="min-h-[44px]"
                 >
                   <RefreshCw className="h-4 w-4" />
                   {t('sync')}
@@ -1669,7 +1673,7 @@ export default function WeeklyPlannerPage() {
                   onClick={() => setEditMode(!editMode)}
                   title={editMode ? t('done') : t('edit')}
                   aria-label={editMode ? t('done') : t('edit')}
-                  className={cn(editMode && 'ring-1 ring-brand-600')}
+                  className={cn('min-h-[44px]', editMode && 'ring-1 ring-brand-600')}
                 >
                   <Edit3 className="h-4 w-4" />
                   {editMode ? t('done') : t('edit')}
@@ -1681,7 +1685,7 @@ export default function WeeklyPlannerPage() {
                   disabled={deleting}
                   title={t('remove')}
                   aria-label={t('remove')}
-                  className="text-accent-red hover:text-accent-red active:text-accent-red"
+                  className="min-h-[44px] text-accent-red hover:text-accent-red active:text-accent-red"
                 >
                   <Trash2 className="h-4 w-4" />
                   {t('remove')}
@@ -1705,7 +1709,11 @@ export default function WeeklyPlannerPage() {
 
           {/* Bottom action bar */}
           <div className="border-t border-page bg-page/80 backdrop-blur px-6 py-4 sticky bottom-0">
-            <div className="flex items-center justify-between">
+            {/* On a phone the saved line goes on top and the two actions share a
+                full-width row with short labels. Side by side with the saved
+                time at 375px, "בדיקה ופרסום לאפליקציה" wrapped to three lines
+                and "שלח לשעוני Garmin" to two. */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 {editMode && (
                   <Button variant="secondary" size="sm" onClick={saveDraft} disabled={saving}>
@@ -1724,9 +1732,11 @@ export default function WeeklyPlannerPage() {
                 <Button
                   variant="secondary"
                   onClick={() => { setError(null); setShowPush(true); }}
+                  className="flex-1 whitespace-nowrap sm:flex-none"
                 >
                   <Watch className="h-4 w-4" />
-                  {t('pushToAthletes')}
+                  <span className="sm:hidden">{t('pushToAthletesShort')}</span>
+                  <span className="hidden sm:inline">{t('pushToAthletes')}</span>
                 </Button>
                 <Button
                   onClick={() => {
@@ -1734,10 +1744,11 @@ export default function WeeklyPlannerPage() {
                     setClipboardWorkoutIndex(0);
                     setShowClipboardReview(true);
                   }}
-                  className="px-6"
+                  className="flex-1 whitespace-nowrap sm:flex-none sm:px-6"
                 >
                   <ClipboardList className="h-4 w-4" />
-                  {t('reviewAndPublish')}
+                  <span className="sm:hidden">{t('reviewAndPublishShort')}</span>
+                  <span className="hidden sm:inline">{t('reviewAndPublish')}</span>
                 </Button>
               </div>
             </div>
@@ -2057,13 +2068,15 @@ export default function WeeklyPlannerPage() {
                 {/* Which days to send — whole week (default) or specific days */}
                 {planDays.length > 0 && (
                   <div className="mt-4 pb-4 border-b border-page">
-                    <div className="flex items-center justify-between mb-2">
+                    {/* The two quick picks were 16px-tall text; they are 44 now, with
+                        the row's margin trimmed so the header does not grow by it all. */}
+                    <div className="flex items-center justify-between -my-1.5 mb-0.5">
                       <span className="text-xs font-medium text-ink-400">{t('workoutsToSend')}</span>
-                      <div className="flex items-center gap-2">
+                      <div className="-me-2 flex items-center">
                         {planDays.includes(new Date().getDay()) && (
                           <button
                             onClick={() => setPushDays([new Date().getDay()])}
-                            className="text-2xs text-brand-600 hover:text-brand-700"
+                            className="inline-flex min-h-[44px] items-center px-2 text-2xs text-brand-600 hover:text-brand-700"
                           >
                             {t('todayOnly')}
                           </button>
@@ -2071,7 +2084,7 @@ export default function WeeklyPlannerPage() {
                         <button
                           onClick={() => setPushDays(null)}
                           className={cn(
-                            'text-2xs',
+                            'inline-flex min-h-[44px] items-center px-2 text-2xs',
                             pushDays === null ? 'text-brand-600 font-medium' : 'text-ink-400 hover:text-ink-500'
                           )}
                         >
@@ -2097,7 +2110,9 @@ export default function WeeklyPlannerPage() {
                               });
                             }}
                             className={cn(
-                              'px-2.5 py-1 rounded-md text-2xs font-medium border transition-colors',
+                              // 44 square at the least (were 28-36 × 24). Seven of
+                              // them plus gaps are 344px, and the row wraps below that.
+                              'inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2.5 rounded-md text-2xs font-medium border transition-colors',
                               selected
                                 ? 'bg-brand-600/15 border-brand-600/50 text-brand-600'
                                 : 'border-page text-ink-400 hover:border-ink-300',
@@ -2140,12 +2155,12 @@ export default function WeeklyPlannerPage() {
                     {/* CUSTOM WEEKS — one athlete's session on a different day.
                         Above the roster on purpose: it changes what is sent, not
                         who it is sent to. */}
-                    <div className="mt-3 pt-3 border-t border-page">
+                    <div className="mt-3 pt-1.5 border-t border-page">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-medium text-ink-400">{t('customWeekTitle')}</span>
                         <button
                           onClick={() => { setCustomOpen((o) => !o); setCustomAthleteId(null); }}
-                          className="text-2xs font-medium text-brand-600 hover:text-brand-700"
+                          className="-me-2 inline-flex min-h-[44px] items-center px-2 text-2xs font-medium text-brand-600 hover:text-brand-700"
                         >
                           {customOpen ? t('done') : t('customWeekAdd')}
                         </button>
@@ -2282,7 +2297,7 @@ export default function WeeklyPlannerPage() {
                   value={pushTab}
                   onChange={setPushTab}
                   options={[
-                    { value: 'all', icon: Users, label: t('allAthletes') },
+                    { value: 'all', icon: Users, label: t('allAthletesShort') },
                     { value: 'groups', icon: Layers, label: t('byGroup') },
                     { value: 'athletes', icon: UserCheck, label: t('specific') },
                   ]}
