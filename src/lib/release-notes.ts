@@ -5,13 +5,16 @@
  * - Notes live in src/content/release-notes.json, newest first, one per change,
  *   written with the change itself. The file is append-only, so every build
  *   carries the notes of every release before it.
- * - Production deploys the `production` branch, which a GitHub workflow moves to
- *   `main` every morning at 05:00 Israel time (.github/workflows/daily-release.yml).
+ * - Production deploys the `production` branch. NOTHING reaches it without the
+ *   owner's approval: he approves a release in /dashboard/whats-new, which pins
+ *   the exact main commit he was looking at (`release_approvals`, migration 122),
+ *   and the 05:00 workflow (.github/workflows/daily-release.yml) moves
+ *   `production` to that commit — not to whatever main has become since. No
+ *   approval, no release.
  * - The first request a new release deploy serves records a `releases` row: its
  *   APP_VERSION and the note ids not in any earlier release (migration 121).
  * - The owner's picks (`release_note_picks`) say which notes get the big card in
- *   the sheet, with optional rewording. Features are featured until he says
- *   otherwise; fixes are counted, not shown.
+ *   the sheet, with optional rewording. Nothing is featured until he stars it.
  * - The featured notes of the releases this bundle has become entries of the
  *   existing "What's new" sheet (components/whats-new), and so live by ITS
  *   rules: once per entry, never to a device newer than the entry, three rows
@@ -63,9 +66,31 @@ export const BUNDLED_NOTES = notesJson as ReleaseNote[];
 /** The branch production deploys. Only a deploy of it records a release. */
 export const RELEASE_BRANCH = 'production';
 
-/** Where the admin reads tomorrow's notes from: the repo is public. */
-export const MAIN_NOTES_URL =
-  'https://raw.githubusercontent.com/Ofergr15/MadregotConnect/main/src/content/release-notes.json';
+/** The repo is public, so main's head and its notes are read without a token. */
+export const GITHUB_REPO = 'Ofergr15/MadregotConnect';
+export const MAIN_SHA_URL = `https://api.github.com/repos/${GITHUB_REPO}/commits/main`;
+export const notesUrlAt = (ref: string) =>
+  `https://raw.githubusercontent.com/${GITHUB_REPO}/${ref}/src/content/release-notes.json`;
+export const isSha = (s: unknown): s is string => typeof s === 'string' && /^[0-9a-f]{40}$/.test(s);
+
+/** One approval: the commit that may go out, and the notes it carries. */
+export interface ApprovalRow {
+  id: number;
+  sha: string;
+  note_ids: string[];
+  approved_at: string;
+}
+
+/**
+ * Split the waiting notes by the standing approval: those it covers go out at
+ * 05:00; anything that reached main after it waits for the next approval.
+ */
+export function splitByApproval<T extends { id: string }>(
+  pending: T[], approval: Pick<ApprovalRow, 'note_ids'> | null,
+): { approved: T[]; waiting: T[] } {
+  const ok = new Set(approval?.note_ids ?? []);
+  return { approved: pending.filter(n => ok.has(n.id)), waiting: pending.filter(n => !ok.has(n.id)) };
+}
 
 export function releasedIds(releases: Pick<ReleaseRow, 'note_ids'>[]): Set<string> {
   return new Set(releases.flatMap(r => r.note_ids));
@@ -82,7 +107,7 @@ export function applyPick(note: ReleaseNote, pick: NotePick | undefined): ShownN
     ...note,
     title: pick?.title?.trim() || note.title,
     body: pick?.body?.trim() || note.body,
-    featured: pick ? pick.featured : note.kind === 'feature',
+    featured: pick ? pick.featured : false,
     edited: !!(pick?.title?.trim() || pick?.body?.trim()),
   };
 }

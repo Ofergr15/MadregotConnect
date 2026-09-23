@@ -2930,10 +2930,9 @@
     "onboardLead": "Two things worth knowing before your first session.",
     "onboardPromise": "Every new feature shows up like this — once, on your feed.",
     "allChanges": "All changes",
-    "pageLead": "One release goes out every morning. Here is what each one carried.",
-    "tomorrow": "Going out tomorrow at 05:00",
+    "pageLead": "A new release goes out at most once a day, in the morning. Here is what each one carried.",
     "nothingPending": "Nothing in tomorrow's release yet.",
-    "pickHint": "⭐ = goes in the What's new card (3 rows at most, newest first). No star = history only. ✏️ changes the wording.",
+    "pickHint": "⭐ = shown in What's new (3 rows at most). No star = not shown, history only. Nothing is starred until you star it. ✏️ changes the wording.",
     "noReleases": "No release yet.",
     "latest": "Latest",
     "andFixes": "Plus {count, plural, one {one fix} other {# fixes}}",
@@ -2944,7 +2943,14 @@
     "editTitle": "Wording in What's new",
     "fieldTitle": "Title",
     "fieldBody": "Line",
-    "save": "Save"
+    "save": "Save",
+    "nextRelease": "Next release",
+    "notApproved": "Not approved — nothing goes out at 05:00.",
+    "approvedAt": "Approved at {time} — goes out at 05:00, exactly what is listed here.",
+    "withdraw": "Withdraw",
+    "afterApproval": "Arrived after your approval — waiting for you",
+    "approve": "Approve for 05:00 ({count, plural, one {one change} other {# changes}})",
+    "approveAgain": "Approve again with these ({count, plural, one {one change} other {# changes}})"
   },
   "shareSheet": {
     "titleWorkout": "Share your run",

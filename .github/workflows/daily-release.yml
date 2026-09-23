@@ -1,18 +1,18 @@
 # The daily release train. Production deploys the `production` branch (Vercel →
-# Settings → Git → Production Branch), and this moves it to `main` once a day,
-# at 05:00 Israel time — before the morning sessions. Everything merged to main
-# during the day goes out together; the first request the new deploy serves
-# records the release and its notes (src/lib/release-notes.ts).
+# Settings → Environments → Production → Branch Tracking).
 #
-# A day with nothing new pushes the same commit, which Vercel does not redeploy.
-# Hotfix: cherry-pick onto `production` and push it; the fix must also be on main,
-# because the next morning's move replaces `production` with main.
+# NOTHING goes out without the owner's approval. He approves a release in the
+# app (/dashboard/whats-new); that pins the exact main commit he reviewed. At
+# 05:00 Israel time this moves `production` to THAT commit — never to whatever
+# main has become since. No approval, or an approval already shipped: nothing
+# happens. See src/lib/release-notes.ts.
 #
 # The cron is UTC. 02:00 UTC is 05:00 in summer (IDT) and 04:00 in winter (IST).
 name: Daily release
 
 on:
-  # Schedule off until the owner's approval gate ships: nothing goes out unapproved.
+  schedule:
+    - cron: '0 2 * * *'
   workflow_dispatch:
 
 permissions:
@@ -30,12 +30,21 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Move production to main
+      - name: Ship the approved commit
         run: |
-          git fetch origin production || true
-          if [ "$(git rev-parse origin/main)" = "$(git rev-parse origin/production 2>/dev/null)" ]; then
-            echo "Nothing new on main since the last release."
+          SHA=$(curl -fsS https://www.madregot.app/api/release/approved | jq -r '.sha // empty')
+          if [ -z "$SHA" ]; then
+            echo "No approved release — nothing goes out."
             exit 0
           fi
-          git push origin origin/main:refs/heads/production --force
-          echo "production → $(git rev-parse --short origin/main)"
+          git fetch origin production
+          if [ "$SHA" = "$(git rev-parse origin/production)" ]; then
+            echo "Approved commit $SHA is already live."
+            exit 0
+          fi
+          if ! git merge-base --is-ancestor "$SHA" origin/main; then
+            echo "Approved commit $SHA is not on main — refusing."
+            exit 1
+          fi
+          git push origin "$SHA:refs/heads/production" --force
+          echo "production → $SHA"

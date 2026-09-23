@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  BUNDLED_NOTES, applyPick, releaseEntries, shownNotes, unreleased,
+  BUNDLED_NOTES, applyPick, isSha, releaseEntries, shownNotes, splitByApproval, unreleased,
   type ReleaseNote, type WhatsNewRelease,
 } from '@/lib/release-notes';
 import { initLedger, readWhatsNewLedger, unseenEntries } from '@/lib/whats-new/ledger';
@@ -32,9 +32,10 @@ describe('unreleased', () => {
 });
 
 describe('applyPick', () => {
-  it('features features and counts fixes until the owner says otherwise', () => {
-    expect(applyPick(note('a'), undefined).featured).toBe(true);
+  it('nothing is featured until the owner stars it — features included', () => {
+    expect(applyPick(note('a'), undefined).featured).toBe(false);
     expect(applyPick(note('a', { kind: 'fix' }), undefined).featured).toBe(false);
+    expect(applyPick(note('a'), { note_id: 'a', featured: true, title: null, body: null }).featured).toBe(true);
   });
 
   it('takes the owner\'s wording, and blank wording falls back', () => {
@@ -83,5 +84,29 @@ describe('releaseEntries → the What\'s new sheet', () => {
     const returning = initLedger(readWhatsNewLedger(null), '2026-09-24', true);
     expect(unseenEntries(entries, returning).map(x => x.slug)).toEqual(['release:x', 'release:y']);
     expect(unseenEntries(entries, { ...returning, seen: ['release:x', 'release:y'] })).toEqual([]);
+  });
+});
+
+describe('the approval gate', () => {
+  it('splits waiting notes into approved and arrived-after', () => {
+    const pending = [note('a'), note('b'), note('c')];
+    expect(splitByApproval(pending, null)).toEqual({ approved: [], waiting: pending });
+    const s = splitByApproval(pending, { note_ids: ['a', 'c'] });
+    expect(s.approved.map(n => n.id)).toEqual(['a', 'c']);
+    expect(s.waiting.map(n => n.id)).toEqual(['b']);
+  });
+
+  it('only a full commit hash is approvable', () => {
+    expect(isSha('f3210b02')).toBe(false);
+    expect(isSha('main')).toBe(false);
+    expect(isSha('73defbd9e2f820523b0b4a46558dfc55e94cc91d')).toBe(true);
+  });
+
+  it('the 05:00 workflow ships only the approved commit', async () => {
+    const { readFileSync } = await import('node:fs');
+    const wf = readFileSync(join(__dirname, '../../.github/workflows/daily-release.yml'), 'utf8');
+    expect(wf).toMatch(/api\/release\/approved/);
+    expect(wf).toMatch(/git push origin "\$SHA:refs\/heads\/production"/);
+    expect(wf).not.toMatch(/origin\/main:refs/);
   });
 });

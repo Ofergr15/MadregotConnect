@@ -3,19 +3,22 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireStaffCaller, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { APP_VERSION } from '@/lib/version';
 import {
-  BUNDLED_NOTES, MAIN_NOTES_URL, RELEASE_BRANCH,
-  shownNotes, unreleased, type NotePick, type ReleaseNote, type ReleaseRow,
+  BUNDLED_NOTES, isSha, shownNotes, unreleased,
+  type NotePick, type ReleaseNote, type ReleaseRow,
 } from '@/lib/release-notes';
+import { activeApproval, deployedSha, mainHead, markShipped, notesAt, onProduction } from '@/lib/release-server';
 
 export const dynamic = 'force-dynamic';
 
 // "What's new" — see src/lib/release-notes.ts for how the pieces fit.
 //
 // GET   any member: the recent releases, each with its notes as shown.
-//       staff also get `pending`: what tomorrow's 05:00 release will carry,
-//       read from main (the repo is public), so the day's picks can be made
-//       before it goes out.
+//       staff also get `pending` (every note on main no release has carried),
+//       `mainSha`, and `approval`: the commit he approved, which is the only
+//       thing the 05:00 run will ship.
 // PATCH staff: { note_id, featured?, title?, body? } — one pick.
+// POST  staff: { sha } — approve that main commit as the next release.
+// DELETE staff: withdraw the standing approval; nothing goes out.
 //
 // Until migration 121 is applied both tables are missing (42P01); GET then
 // answers with nothing, which the sheet reads as "nothing to show".
@@ -28,7 +31,7 @@ const MISSING = '42P01';
  * must not announce anything.
  */
 async function recordThisRelease(supabase: ReturnType<typeof createServerClient>, releases: ReleaseRow[]) {
-  if (process.env.VERCEL_GIT_COMMIT_REF !== RELEASE_BRANCH) return null;
+  if (!onProduction()) return null;
   if (releases.some(r => r.app_version === APP_VERSION)) return null;
   const ids = unreleased(BUNDLED_NOTES, releases).map(n => n.id);
   const { data } = await supabase
@@ -37,17 +40,6 @@ async function recordThisRelease(supabase: ReturnType<typeof createServerClient>
     .select('id, released_at, app_version, note_ids')
     .maybeSingle();
   return (data as ReleaseRow | null) ?? null;
-}
-
-async function mainNotes(): Promise<ReleaseNote[]> {
-  try {
-    const res = await fetch(MAIN_NOTES_URL, { next: { revalidate: 60 } });
-    if (!res.ok) return BUNDLED_NOTES;
-    const json = await res.json();
-    return Array.isArray(json) ? (json as ReleaseNote[]) : BUNDLED_NOTES;
-  } catch {
-    return BUNDLED_NOTES;
-  }
 }
 
 export async function GET(request: Request) {
@@ -66,15 +58,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: rel.error.message }, { status: 500 });
   }
   let releases = (rel.data ?? []) as ReleaseRow[];
+  await markShipped(supabase);
   const recorded = await recordThisRelease(supabase, releases);
   if (recorded) releases = [recorded, ...releases];
 
   const picksRes = await supabase.from('release_note_picks').select('note_id, featured, title, body');
   const picks = (picksRes.data ?? []) as NotePick[];
 
-  // Notes come from main for staff: a pick made on a note that exists only
-  // there yet still has to render once it ships.
-  const notes = staff ? await mainNotes() : BUNDLED_NOTES;
+  // Staff read main at a pinned commit, the same one an approval would pin, so
+  // what he approves is exactly what he was shown.
+  const mainSha = staff ? await mainHead() : null;
+  const notes = (mainSha && await notesAt(mainSha)) || BUNDLED_NOTES;
+  const approval = staff ? await activeApproval(supabase) : null;
   const all = [...new Map([...BUNDLED_NOTES, ...notes].map(n => [n.id, n])).values()];
 
   const body = {
@@ -89,6 +84,9 @@ export async function GET(request: Request) {
     pending: staff
       ? shownNotes(unreleased(notes, releases).map(n => n.id), all, picks, { staff: true })
       : [],
+    mainSha,
+    deployedSha: staff ? deployedSha() : null,
+    approval,
   };
   return NextResponse.json(body);
 }
@@ -106,14 +104,37 @@ export async function PATCH(request: Request) {
   if (b.body !== undefined) row.body = typeof b.body === 'string' && b.body.trim() ? b.body.trim().slice(0, 300) : null;
 
   const supabase = createServerClient();
-  // A first pick on a note has to carry the note's current default, or an
-  // edit of the wording alone would un-feature a feature.
+  // The column defaults to true; a first pick that only rewords a note must not
+  // star it — nothing is featured unless he stars it.
   const { data: existing } = await supabase.from('release_note_picks').select('note_id').eq('note_id', b.note_id).maybeSingle();
-  if (!existing && row.featured === undefined) {
-    const note = [...BUNDLED_NOTES, ...(await mainNotes())].find(n => n.id === b.note_id);
-    row.featured = note?.kind === 'feature';
-  }
+  if (!existing && row.featured === undefined) row.featured = false;
   const { error } = await supabase.from('release_note_picks').upsert(row, { onConflict: 'note_id' });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
+}
+
+export async function POST(request: Request) {
+  const { denied, caller } = await requireStaffCaller(request);
+  if (denied) return denied;
+  const b = await request.json().catch(() => null) as { sha?: unknown } | null;
+  if (!isSha(b?.sha)) return NextResponse.json({ error: 'sha required' }, { status: 400 });
+  const notes = await notesAt(b.sha);
+  if (!notes) return NextResponse.json({ error: 'commit not readable' }, { status: 400 });
+
+  const supabase = createServerClient();
+  const rel = await supabase.from('releases').select('note_ids');
+  const ids = unreleased(notes, (rel.data ?? []) as Pick<ReleaseRow, 'note_ids'>[]).map(n => n.id);
+  const { error } = await supabase.from('release_approvals')
+    .insert({ sha: b.sha, note_ids: ids, approved_by: caller.athleteId });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
+}
+
+export async function DELETE(request: Request) {
+  const { denied } = await requireStaffCaller(request);
+  if (denied) return denied;
+  const supabase = createServerClient();
+  const { error } = await supabase.from('release_approvals').delete().is('shipped_at', null);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }
