@@ -10,11 +10,15 @@ const SRC = fileURLToPath(new URL('../', import.meta.url));
 /**
  * THE INSTAGRAM STORY, AS THE CLUB ACTUALLY POSTS IT.
  *
- * The reference is a real posted story (feedback 3502fd8f): a title band, the
- * structure typed out with a blank line between blocks, and a footer band with
- * the time and the place. The first test reproduces that post character for
- * character, because "in this style" is the entire requirement and prose cannot
- * pin a layout.
+ * The reference is a real posted story (feedback 3502fd8f): a title band and the
+ * structure typed out with a blank line between blocks. The first test reproduces
+ * that post character for character, because "in this style" is the entire
+ * requirement and prose cannot pin a layout.
+ *
+ * The post also carries a footer band — "⏰06:00am 📍Madregot" — and this does
+ * NOT reproduce it, on his call: "without the 6am madregot, only the training
+ * info". The test below that pins its absence is there so nobody helpfully adds
+ * it back.
  */
 
 const secs = (v: number, g1: number, g2: number, g3: number): WorkoutStep => ({
@@ -35,8 +39,6 @@ describe('the story the club posts', () => {
       dayOfWeek: 3,
       type: 'fartlek',
       km: '14',
-      time: '06:00am',
-      place: 'Madregot',
       steps: [
         { order: 0, type: 'warmup', durationType: 'open', targetType: 'no_target' },
         rep(2, [secs(90, p(3, 15), p(3, 25), p(3, 35)), secs(90, p(3, 50), p(4, 0), p(4, 10))]),
@@ -66,9 +68,6 @@ describe('the story the club posts', () => {
       '15sec @ 2:55 (3:05) ((3:15))',
       '15sec @ 3:50 (4:00) ((4:10))',
       'Cool-down',
-      '',
-      '⏰06:00am',
-      '📍Madregot',
     ].join('\n'));
   });
 });
@@ -162,12 +161,16 @@ describe('what the story leaves out', () => {
     expect(text.match(/Warm-up/g)).toHaveLength(1);
   });
 
-  it('leaves a footer line off entirely rather than printing an empty icon', () => {
+  it('carries no time and no place — his call, only the training info', () => {
+    // The reference post has "⏰06:00am 📍Madregot" on it and this deliberately
+    // does not: nothing in the app knows when or where a session meets, so every
+    // version of that line was either a guess or a form to fill in.
     const text = workoutStoryText({
-      dayOfWeek: 2, type: 'intervals', km: '8', steps: [], time: '', place: 'Madregot',
+      dayOfWeek: 2, type: 'intervals', km: '8',
+      steps: [secs(60, p(3, 10), p(3, 20), p(3, 30))],
     });
-    expect(text).not.toContain('⏰');
-    expect(text).toContain('📍Madregot');
+    expect(text).not.toMatch(/⏰|📍|Madregot|06:00/);
+    expect(text.trimEnd()).toBe(text);
   });
 
   it('carries no athlete name — the same story goes to all three groups', () => {

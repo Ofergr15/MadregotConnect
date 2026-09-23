@@ -7,9 +7,7 @@ import { cn } from '@/lib/utils';
 import { textDir } from '@/lib/bidi';
 import type { WorkoutStep } from '@/lib/ai/types';
 import { groupPaceTokens } from '@/lib/garmin/pace';
-import {
-  DEFAULT_STORY_PLACE, DEFAULT_STORY_TIME, workoutStoryText,
-} from '@/lib/plans/workout-story-text';
+import { workoutStoryText } from '@/lib/plans/workout-story-text';
 import { PaceTokens } from './PaceTokens';
 import { Sheet } from '@/components/ui';
 
@@ -181,29 +179,21 @@ export interface WorkoutDetailSession {
  * people who open this sheet are here to read their workout, and a story composer
  * above it would be the first thing they see for no reason.
  *
- * The time and the place are FIELDS, not constants. The club's standing practice
- * is 06:00 at Madregot and that is what they open with, but an afternoon session
- * somewhere else is a normal thing — and a copy button that silently stamps
- * "06:00am" on it would publish a time nobody wrote. They are remembered, so the
- * usual case is still one tap.
+ * The TIME AND PLACE are not here, on his call: "without the 6am madregot — only
+ * the training info". The first build had them as editable fields defaulting to
+ * the club's standing practice, which was one field too many for a button whose
+ * whole job is to hand over a string — the story's own text tool is where a time
+ * gets typed, and it is where it was always being typed anyway.
  */
 function StoryCopy({ session }: { session: WorkoutDetailSession }) {
   const t = useTranslations('workoutEditor');
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [time, setTime] = useState(() => {
-    try { return localStorage.getItem('story_time') ?? DEFAULT_STORY_TIME; }
-    catch { return DEFAULT_STORY_TIME; }
-  });
-  const [place, setPlace] = useState(() => {
-    try { return localStorage.getItem('story_place') ?? DEFAULT_STORY_PLACE; }
-    catch { return DEFAULT_STORY_PLACE; }
-  });
 
   const story = session.story!;
   const text = useMemo(
-    () => workoutStoryText({ ...story, steps: session.steps || [], time, place }),
-    [story, session.steps, time, place],
+    () => workoutStoryText({ ...story, steps: session.steps || [] }),
+    [story, session.steps],
   );
 
   const copy = async () => {
@@ -216,10 +206,6 @@ function StoryCopy({ session }: { session: WorkoutDetailSession }) {
       // the whole reason the preview is a real textarea rather than a <pre>.
       setOpen(true);
     }
-  };
-
-  const remember = (key: string, value: string) => {
-    try { localStorage.setItem(key, value); } catch { /* ignore */ }
   };
 
   return (
@@ -255,27 +241,6 @@ function StoryCopy({ session }: { session: WorkoutDetailSession }) {
             rows={Math.min(16, text.split('\n').length + 1)}
             className="w-full resize-none rounded-lg border border-page bg-card/60 p-2.5 text-xs leading-relaxed text-ink-700 tabular-nums"
           />
-          {/* The labels are PLACEHOLDERS, not captions beside the inputs: a caption
-              plus a field, twice, does not fit 390px with the sheet's padding — the
-              first mockup had the second field hanging off the edge of the phone. */}
-          <div className="flex items-center gap-2">
-            <input
-              dir="ltr"
-              value={time}
-              aria-label={t('storyTime')}
-              placeholder={t('storyTime')}
-              onChange={(e) => { setTime(e.target.value); remember('story_time', e.target.value); }}
-              className="min-w-0 flex-1 rounded-lg border border-page bg-card/60 px-2.5 h-8 text-xs text-ink-700 placeholder:text-ink-300"
-            />
-            <input
-              dir="ltr"
-              value={place}
-              aria-label={t('storyPlace')}
-              placeholder={t('storyPlace')}
-              onChange={(e) => { setPlace(e.target.value); remember('story_place', e.target.value); }}
-              className="min-w-0 flex-1 rounded-lg border border-page bg-card/60 px-2.5 h-8 text-xs text-ink-700 placeholder:text-ink-300"
-            />
-          </div>
         </div>
       )}
     </div>

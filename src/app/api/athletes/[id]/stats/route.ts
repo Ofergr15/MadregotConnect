@@ -13,7 +13,8 @@ import {
   computeLikeForLikeTrend,
   pickWeek,
 } from '@/lib/athletes/profile-stats';
-import { getActivityWeekStart, israelDateAnchor, israelToday } from '@/lib/utils';
+import { israelDateAnchor, israelToday, weekStartOn } from '@/lib/utils';
+import { readWeekStartDay } from '@/lib/athletes/week-pref';
 import { buildLast7Report } from '@/lib/reports/last-7-days';
 
 export const dynamic = 'force-dynamic';
@@ -86,9 +87,13 @@ export async function GET(
     // 03:00 Israel time a raw `new Date()` still reads as yesterday, which on a
     // Sunday puts "this week" a whole week behind.
     const anchor = israelDateAnchor();
-    const currentWeekStart = getActivityWeekStart(anchor);
+    // THIS athlete's week, not the viewer's — see readWeekStartDay. Everything
+    // weekly on the payload is cut with it so the chart, the "this week" tile and
+    // the trend badge on one profile can't be measuring three different windows.
+    const startDay = await readWeekStartDay(supabase, id);
+    const currentWeekStart = weekStartOn(anchor, startDay);
 
-    const weekTable = buildKmTable(acts, { limit: weeks, currentWeekStart });
+    const weekTable = buildKmTable(acts, { limit: weeks, currentWeekStart, startDay });
 
     // Laps are pulled separately and only for the runs long enough to hold a PR
     // segment — see attach-laps.ts for why they don't ride along with the select
@@ -104,10 +109,14 @@ export async function GET(
     return NextResponse.json({
       ...buildAllTimeTotals(acts),
       currentWeekStart,
+      // Echoed so the screen can SAY which week it drew. A total the reader can't
+      // reconcile is the original complaint; two legal windows with no label on
+      // either would just move it.
+      weekStartDay: startDay,
       thisWeek: pickWeek(weekTable, currentWeekStart),
       // This week so far against the same slice of last week — not against last
       // week's total, which reads as a collapse every Monday.
-      weekTrendPct: computeLikeForLikeTrend(acts, anchor),
+      weekTrendPct: computeLikeForLikeTrend(acts, anchor, startDay),
       weeks: weekTable,
       // The rolling seven days behind the profile card and the Saturday 18:00
       // push. Folded from the SAME `acts` this payload is already built from, so

@@ -1,6 +1,6 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import { filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
-import { activityWeekStart, toISODate } from '@/lib/utils';
+import { activityWeekStart, MONDAY_WEEK, toISODate, type WeekStartDay } from '@/lib/utils';
 
 /**
  * Weekly km per athlete, bucketed from the activities themselves.
@@ -71,8 +71,18 @@ export function weekAxis(currentWeekStart: string, weeks: number): string[] {
 
 export async function fetchWeeklyVolume(
   supabase: ReturnType<typeof createServerClient>,
-  opts: { athleteIds: string[]; weeks: number; currentWeekStart: string },
+  opts: {
+    athleteIds: string[]; weeks: number; currentWeekStart: string;
+    /**
+     * The week boundary to bucket on — one athlete's own preference
+     * (migration 119), and only ever passed when the caller is drawing ONE
+     * athlete's own history. Multi-athlete callers (the coach's volume screen)
+     * leave it alone: a chart with a column per member has to use one window.
+     */
+    startDay?: WeekStartDay;
+  },
 ): Promise<{ weeks: string[]; byAthlete: Map<string, WeekBucket[]> }> {
+  const startDay = opts.startDay ?? MONDAY_WEEK;
   const axis = weekAxis(opts.currentWeekStart, opts.weeks);
   const byAthlete = new Map<string, WeekBucket[]>();
   const blank = () => axis.map((weekStart) => ({ weekStart, meters: 0, runs: 0, seconds: 0 }));
@@ -102,7 +112,7 @@ export async function fetchWeeklyVolume(
       // The week key comes from the date STRING, never from an instant:
       // `start_time` is wall clock stored as UTC, so reading it as an instant
       // pushes a 21:30 Saturday run into the next week.
-      const i = index.get(activityWeekStart(r.start_time));
+      const i = index.get(activityWeekStart(r.start_time, startDay));
       if (i == null) continue; // a run in the current week but after the axis ends
       const bucket = byAthlete.get(r.athlete_id);
       if (!bucket) continue;

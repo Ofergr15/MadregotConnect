@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { getActivityWeekStart, activityWeekStart, activityLocalDateStr, computeWeekStreak, israelDateAnchor, toISODate } from '@/lib/utils';
+import { activityWeekStart, activityLocalDateStr, computeWeekStreak, israelDateAnchor, toISODate, weekStartOn } from '@/lib/utils';
+import { readWeekStartDay } from '@/lib/athletes/week-pref';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 
 export const dynamic = 'force-dynamic';
@@ -84,18 +85,21 @@ export async function GET(request: Request) {
       if (activityLocalDateStr(r.start_time) >= monthStartKey) thisMonthRuns += 1;
     }
 
-    // Bucket runs by activity-week (Monday-based ISO date).
+    // TOTALS are bucketed on the member's own week (athletes.week_start_day,
+    // migration 119); the STREAK below is not, and deliberately — see there.
+    const startDay = await readWeekStartDay(supabase, athleteId);
+
     const byWeek = new Map<string, { km: number; runs: number }>();
     for (const r of runs) {
-      const wk = activityWeekStart(r.start_time);
+      const wk = activityWeekStart(r.start_time, startDay);
       const b = byWeek.get(wk) || { km: 0, runs: 0 };
       b.km += r.distance / 1000;
       b.runs += 1;
       byWeek.set(wk, b);
     }
 
-    const thisWeekKey = getActivityWeekStart(today);
-    const lastWeekKey = getActivityWeekStart(new Date(today.getTime() - 7 * 86400_000));
+    const thisWeekKey = weekStartOn(today, startDay);
+    const lastWeekKey = weekStartOn(new Date(today.getTime() - 7 * 86400_000), startDay);
     const round1 = (n: number) => Math.round(n * 10) / 10;
     const thisWeek = { km: round1(byWeek.get(thisWeekKey)?.km || 0), runs: byWeek.get(thisWeekKey)?.runs || 0 };
     const lastWeek = { km: round1(byWeek.get(lastWeekKey)?.km || 0), runs: byWeek.get(lastWeekKey)?.runs || 0 };
@@ -111,11 +115,20 @@ export async function GET(request: Request) {
 
     // Week streak: consecutive activity-weeks with ≥1 run — see computeWeekStreak
     // in lib/utils (shared with the streak leaderboard so the math stays in sync).
-    const streak = computeWeekStreak(new Set(byWeek.keys()), now);
+    //
+    // MONDAY-anchored even for a Sunday-week member, and re-bucketed here to make
+    // that explicit. The streak is a RANKED metric: the same number is printed on
+    // this card and in the streak leaderboard, and a profile that claims 9 while
+    // the table that ranks it says 8 is a bug report waiting to happen. The week
+    // preference moves totals, not standings.
+    const mondayWeeks = new Set(runs.map((r) => activityWeekStart(r.start_time)));
+    const streak = computeWeekStreak(mondayWeeks, now);
 
     // Longest streak ever: walk all active weeks in chronological order,
     // extending a run while consecutive weeks are exactly 7 days apart.
-    const sortedWeekTimes = Array.from(byWeek.keys())
+    // Off `mondayWeeks`, for the same reason the current streak is: one streak
+    // number per athlete, whatever window their totals are drawn on.
+    const sortedWeekTimes = Array.from(mondayWeeks)
       .map((wk) => new Date(`${wk}T12:00:00Z`).getTime())
       .sort((a, b) => a - b);
     let longestStreak = 0;
@@ -133,7 +146,7 @@ export async function GET(request: Request) {
     if (sortedWeekTimes.length > 0) {
       const weeksSinceFirst = Math.min(52, Math.floor((now.getTime() - sortedWeekTimes[0]) / (7 * 86400_000)) + 1);
       let active = 0;
-      const cursor = new Date(getActivityWeekStart(today));
+      const cursor = new Date(weekStartOn(today, startDay));
       for (let i = 0; i < weeksSinceFirst; i++) {
         const key = cursor.toISOString().split('T')[0];
         if (byWeek.has(key)) active += 1;

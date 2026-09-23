@@ -3,7 +3,8 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join } from 'path';
 import {
-  EVENING_LOOKAHEAD_HOUR, SESSION_MIN_KM, pickNextSession, sessionsDone,
+  DOUBLE_EVENING_HOUR, EVENING_LOOKAHEAD_HOUR, SESSION_MIN_KM, pickNextSession,
+  sessionsDone,
 } from '@/lib/plans/next-session';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
@@ -86,6 +87,42 @@ describe('a double day', () => {
   it('is finished when both halves are', () => {
     expect(pick({ [TODAY]: [S(10), S(8)] }, 17, { [TODAY]: [10.1, 8.2] })).toBeNull();
   });
+
+  it('skips to the EVENING one from noon even with the morning unlogged', () => {
+    // His rule: "from 12:00 show the evening". The morning half of a double is the
+    // 06:00 club run — by noon it has happened or been missed, and a Garmin that
+    // never synced is the common case. Nothing logged at all here.
+    const next = pick({ [TODAY]: [S(10), S(8)] }, DOUBLE_EVENING_HOUR);
+    expect(next?.session.kmMin).toBe(8);
+    expect(next?.index).toBe(2);
+    expect(next?.total).toBe(2);
+  });
+
+  it('still names the MORNING one before noon', () => {
+    const next = pick({ [TODAY]: [S(10), S(8)] }, DOUBLE_EVENING_HOUR - 1);
+    expect(next?.session.kmMin).toBe(10);
+    expect(next?.index).toBe(1);
+  });
+
+  it('carries tomorrow alongside it, as a second row', () => {
+    const next = pick({ [TODAY]: [S(10), S(8)], [TOMORROW]: [S(14), S(6)] }, 13);
+    expect(next?.date).toBe(TODAY);
+    expect(next?.tomorrow?.date).toBe(TOMORROW);
+    // Tomorrow's FIRST session, same as the 20:00 rollover picks.
+    expect(next?.tomorrow?.session.kmMin).toBe(14);
+  });
+
+  it('carries nothing extra when tomorrow is a rest day', () => {
+    expect(pick({ [TODAY]: [S(10), S(8)] }, 13)?.tomorrow).toBeUndefined();
+  });
+
+  it('never carries tomorrow on a SINGLE-session day', () => {
+    // One card is the normal case; a 12:00 skip on a single day would also throw
+    // away the day's only session with eight hours left to run it.
+    const next = pick({ [TODAY]: [S(12)], [TOMORROW]: [S(14)] }, 13);
+    expect(next?.session.kmMin).toBe(12);
+    expect(next?.tomorrow).toBeUndefined();
+  });
 });
 
 describe('from 20:00', () => {
@@ -148,7 +185,11 @@ describe('the feed box', () => {
 
   it('opens the same sheet the Program page opens, from the same session', () => {
     expect(card).toMatch(/<WorkoutDetailModal/);
-    expect(card).toMatch(/steps: s\.steps/);
+    expect(card).toMatch(/steps: x\.steps/);
+    // One builder for both rows, so the chip opens the real session rather than
+    // a second description of it.
+    expect(card).toMatch(/setDetail\(detailFor\(s\)\)/);
+    expect(card).toMatch(/setDetail\(detailFor\(nextDay\)\)/);
   });
 
   it('shares the timing rules rather than restating them', () => {
@@ -161,6 +202,13 @@ describe('the feed box', () => {
     const feed = read('app/(app)/feed/page.tsx');
     expect(feed).toMatch(/empty:mb-0">\s*<NextSessionCard \/>/);
     expect(feed.indexOf('<NextSessionCard />')).toBeLessThan(feed.indexOf('<WeekSummaryCard />'));
+  });
+
+  it('draws the tomorrow chip only when the selector hands one over', () => {
+    expect(card).toMatch(/const nextDay = next\.tomorrow\?\.session;/);
+    expect(card).toMatch(/\{nextDay && \(/);
+    // And it carries the same link icon, because it offers the same thing.
+    expect(card.slice(card.indexOf('{nextDay && ('))).toMatch(/<Link2 /);
   });
 
   it('has its watch labels in both languages', () => {

@@ -42,9 +42,53 @@ export function toISODate(d: Date): string {
  * Returns a YYYY-MM-DD string for the Monday on/before `date`.
  */
 export function getActivityWeekStart(date: Date): string {
+  return weekStartOn(date, MONDAY_WEEK);
+}
+
+/**
+ * The day a week begins on, as `Date.getDay()` gives it: 0 = Sunday, 1 = Monday.
+ * Only these two — see migration 119 for why a Wednesday week is not a feature.
+ */
+export type WeekStartDay = 0 | 1;
+
+/** Garmin's week, and this app's default. */
+export const MONDAY_WEEK: WeekStartDay = 1;
+/** Israel's week, and the club's plan week. */
+export const SUNDAY_WEEK: WeekStartDay = 0;
+
+/**
+ * The start of the seven-day window containing `date`, for a week that begins on
+ * `startDay` — YYYY-MM-DD.
+ *
+ * The generalisation of `getActivityWeekStart`, added for feedback 75cb7ec7: the
+ * app anchors activity weeks on Monday because that is what a watch reports, and
+ * the club reads its calendar starting Sunday. Both are right, so a member picks
+ * (`athletes.week_start_day`) and that choice moves the numbers on their OWN
+ * screens only.
+ *
+ * NOT for anything that ranks people against each other. The leaderboard and the
+ * pack war call `getActivityWeekStart` directly and always will: twenty-five
+ * people measured over twenty-five different seven-day windows is not a table,
+ * and the fix for a total that looks wrong there is the label saying which week it
+ * is — not a per-reader window.
+ */
+export function weekStartOn(date: Date, startDay: WeekStartDay): string {
   const d = new Date(date);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // getDay() 0=Sun → Sun is 6 days into the week
+  // ((getDay() - startDay) + 7) % 7 = how many days INTO the week `date` is.
+  d.setDate(d.getDate() - ((d.getDay() - startDay + 7) % 7));
   return toISODate(d);
+}
+
+/**
+ * `week_start_day` off an athlete row, narrowed to the two legal values.
+ *
+ * A null, an absent column (the row was selected before migration 119 landed) and
+ * anything the CHECK would have rejected all fall back to Monday — which is what
+ * every member saw before the preference existed, so a missing value can never
+ * silently re-cut somebody's weekly km.
+ */
+export function weekStartDayOf(value: unknown): WeekStartDay {
+  return value === 0 || value === '0' ? SUNDAY_WEEK : MONDAY_WEEK;
 }
 
 /**
@@ -304,14 +348,16 @@ export function activityLocalDateStr(startTime: string): string {
  * the WRONG WEEK. All arithmetic here stays in UTC parts, which makes it give
  * the same answer on the server and in any viewer's timezone.
  *
- * Monday because this is the watch's week — see `getActivityWeekStart`. Never
+ * Monday by default because this is the watch's week — see `getActivityWeekStart`.
+ * `startDay` exists for the member's own screens only (`athletes.week_start_day`,
+ * migration 119); pass nothing anywhere numbers from two people meet. Never
  * compare the result against a PLAN week (`getPlanWeekStart`, `planWeekStartOf`,
  * `weekly_plans.week_start_date`): they are different Mondays/Sundays and the
  * equality just never holds.
  */
-export function activityWeekStart(startTime: string): string {
+export function activityWeekStart(startTime: string, startDay: WeekStartDay = MONDAY_WEEK): string {
   const d = parseActivityInstant(startTime);
-  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() - startDay + 7) % 7));
   return d.toISOString().split('T')[0];
 }
 

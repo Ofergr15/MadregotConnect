@@ -1,15 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { ChevronDown, FileText, Loader2 } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useEffect, useRef, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { pageToLines, type Glyph, type TextLine } from '@/lib/pdf/rtl-text';
 import { nutritionOutline, type NutritionOutline } from '@/lib/pdf/nutrition-outline';
 import { PlanPdfViewer } from '@/components/PlanPdfViewer';
 
 /**
- * The week's nutrition sheet as text that reflows, with the PDF one tap below it.
+ * The week's nutrition sheet as text that reflows. The PDF itself is a sibling view,
+ * chosen on the program page's own switch rather than from inside here.
  *
  * The report was "the nutrition plan isn't readable enough", and measured it is
  * arithmetic rather than taste: the sheets are A4 PORTRAIT set in 12pt, so
@@ -31,6 +31,13 @@ interface Props {
   url: string;
   /** For the PDF fallback's own canvas/iframe title. */
   title: string;
+  /**
+   * Whether this sheet reconstructed into readable text — `false` for a scan or an
+   * image-only export, where this component shows the PDF instead of a confident
+   * guess. The program page needs it to decide whether its "in app / PDF" switch has
+   * two real options to offer, or whether the PDF is the only thing there is.
+   */
+  onTextAvailable?: (ok: boolean) => void;
 }
 
 /**
@@ -57,17 +64,19 @@ function toGlyphs(items: Array<Record<string, unknown>>): Glyph[] {
   return glyphs;
 }
 
-export function NutritionPlanView({ url, title }: Props) {
-  const t = useTranslations('program');
+export function NutritionPlanView({ url, title, onTextAvailable }: Props) {
   const [state, setState] = useState<'loading' | 'text' | 'pdf'>('loading');
   const [outline, setOutline] = useState<NutritionOutline | null>(null);
-  const [showPdf, setShowPdf] = useState(false);
+
+  // Held in a ref so a parent that passes an inline arrow does not re-run the whole
+  // extraction on every render of the page above.
+  const report = useRef(onTextAvailable);
+  report.current = onTextAvailable;
 
   useEffect(() => {
     let cancelled = false;
     setState('loading');
     setOutline(null);
-    setShowPdf(false);
 
     (async () => {
       try {
@@ -89,8 +98,11 @@ export function NutritionPlanView({ url, title }: Props) {
         const built = nutritionOutline(lines);
         setOutline(built);
         setState(built ? 'text' : 'pdf');
+        report.current?.(!!built);
       } catch {
-        if (!cancelled) setState('pdf');
+        if (cancelled) return;
+        setState('pdf');
+        report.current?.(false);
       }
     })();
 
@@ -140,22 +152,10 @@ export function NutritionPlanView({ url, title }: Props) {
           </div>
         </div>
       ))}
-
-      {/* The sheet itself, one tap away — the same affordance the training tab has.
-          The text above is a reading of the PDF, so the PDF stays reachable for
-          anyone who wants to check it, or for anything the extraction dropped. */}
-      <div>
-        <button
-          type="button"
-          onClick={() => setShowPdf(v => !v)}
-          className="flex items-center gap-2 w-full justify-center h-11 rounded-xl text-xs font-bold text-ink-700 active:bg-page transition-colors"
-        >
-          <FileText className="h-3.5 w-3.5 shrink-0" />
-          {t(showPdf ? 'hideOriginalPdf' : 'showOriginalPdf')}
-          <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', showPdf && 'rotate-180')} />
-        </button>
-        {showPdf && <PlanPdfViewer url={url} title={title} />}
-      </div>
+      {/* No "show the original" button at the bottom any more: the PDF is a view of
+          its own on the switch at the top of the page (feedback 757fc57a). A second
+          route to it down here would be the same file behind two different controls,
+          and the one down here was the one nobody scrolled far enough to find. */}
     </div>
   );
 }

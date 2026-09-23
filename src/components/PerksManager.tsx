@@ -23,6 +23,21 @@ interface Perk {
 }
 
 /**
+ * The optional-but-wanted fields this perk has not been given yet.
+ *
+ * Only the three the member's screen actually reacts to: a logo, a code to copy,
+ * a link to follow. Titles and descriptions are required to save, so they can
+ * never be missing, and the tier always has a value.
+ */
+function missingOn(p: Perk, t: (key: string) => string): string[] {
+  const out: string[] = [];
+  if (!p.imageUrl) out.push(t('missingLogo'));
+  if (!p.discountCode) out.push(t('missingCode'));
+  if (!p.redeemUrl) out.push(t('missingLink'));
+  return out;
+}
+
+/**
  * Settings > Management > Perks Manager (roadmap #5). Sponsor-perk CRUD,
  * mirroring Store Manager's pattern — no cart/checkout here, just a list a
  * member reads and redeems directly with the sponsor (a code, a link, or
@@ -188,6 +203,20 @@ export function PerksManager() {
               onClick={() => setActionsTarget(p)}
               trailing={
                 <div className="flex items-center gap-2.5 shrink-0">
+                  {/*
+                    What this row is still MISSING, named on the row itself.
+                    All thirteen live perks were saved with no discount code and no
+                    sponsor link, and one with no logo — the athlete page renders
+                    all three the moment they exist, so nothing was broken except
+                    that a half-filled perk looked exactly like a finished one in
+                    this list. An amber chip is the cheapest possible fix for that:
+                    the manager now says which rows still need a visit.
+                  */}
+                  {missingOn(p, t).length > 0 && (
+                    <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-band-3/15 text-band-3-ink">
+                      {t('missingPrefix')} {missingOn(p, t).join(' · ')}
+                    </span>
+                  )}
                   {p.tier === 'core_runner' && (
                     <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-accent-600/15 text-accent-900">
                       {t('tierCoreRunner')}

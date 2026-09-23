@@ -14,6 +14,17 @@
  *  - A double day is two sessions, not one. Run the first and the box switches to
  *    the second instead of vanishing, which is the whole reason it counts sessions
  *    rather than asking "did they run today".
+ *  - And on a double day, from 12:00 the box moves to the EVENING one whether or
+ *    not the morning was logged ("from 12:00 show the evening"). The morning
+ *    session of a double is a 06:00 club run: by noon it has either happened or
+ *    been missed, and a Garmin that never synced is the common case rather than
+ *    the rare one. Pointing somebody at a session that is twelve hours behind them
+ *    is worse than pointing them at the one they are about to do — and the count
+ *    still says "2/2", so nothing is hidden.
+ *  - A second, quieter chip for TOMORROW rides along with that ("also new chip
+ *    with tomorrow workout"). Once the box is talking about tonight, tomorrow is
+ *    the next thing to prepare for, and on a double day it is the evening session
+ *    that pushes the 20:00 rollover past the hour anybody is still looking.
  *
  * Pure, and generic over the session type: the caller passes Israel's date/hour,
  * a lookup from date to that day's sessions, and the day's logged kilometres. So
@@ -38,6 +49,15 @@ export interface NextSession<S extends SessionLike> {
   /** 1-based position within the day, and how many the day has: "2 of 2" on a double. */
   index: number;
   total: number;
+  /**
+   * Tomorrow's first session, when the box is showing the evening half of a
+   * double. A SECOND row on the feed rather than a replacement for this one: at
+   * 12:40 both are real, and the 20:00 rollover would otherwise hand tomorrow
+   * over at an hour when the club has stopped scrolling.
+   *
+   * Absent on every other day, which is the point — one card is the normal case.
+   */
+  tomorrow?: { date: string; session: S };
 }
 
 /**
@@ -54,6 +74,16 @@ export const SESSION_MIN_KM = 1;
 
 /** From this Israel hour, "next" means tomorrow. Same constant the dashboard uses. */
 export const EVENING_LOOKAHEAD_HOUR = 20;
+
+/**
+ * On a DOUBLE day only, from this hour the box skips to the evening session.
+ *
+ * Noon and not 14:00 or 10:00 because it is the line the club already thinks in:
+ * the morning session is the 06:00 one, the other is "ערב". Deliberately scoped to
+ * doubles — on a single-session day a 12:00 skip would throw away the day's only
+ * session while there are still eight hours to run it.
+ */
+export const DOUBLE_EVENING_HOUR = 12;
 
 /**
  * How many of the day's sessions the athlete has already done.
@@ -111,6 +141,23 @@ export function pickNextSession<S extends SessionLike>({
     // Nothing tomorrow. A session still owed TODAY is the only thing left worth
     // saying, and only until midnight.
     return remainingToday > 0 ? owedToday() : null;
+  }
+
+  // A double day, past noon, and the evening half not yet run: show THAT one, and
+  // carry tomorrow alongside it. `doneToday` is still respected at the top end —
+  // once both halves are done there is nothing to point at.
+  if (
+    todaySessions.length > 1
+    && hour >= DOUBLE_EVENING_HOUR
+    && doneToday < todaySessions.length
+  ) {
+    const last = todaySessions.length - 1;
+    const tomorrowFirst = sessionsFor(tomorrowKey)[0];
+    return {
+      date: todayKey, isToday: true, session: todaySessions[last],
+      index: todaySessions.length, total: todaySessions.length,
+      ...(tomorrowFirst ? { tomorrow: { date: tomorrowKey, session: tomorrowFirst } } : {}),
+    };
   }
 
   if (remainingToday > 0) return owedToday();

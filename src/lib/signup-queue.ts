@@ -7,8 +7,9 @@ import { signupAlertName } from '@/lib/signup';
 /**
  * Put a person in the approval queue, and tell the coaches they are standing there.
  *
- * The queue at /dashboard/settings?tab=registrations reads `signup_requests`. An
- * `athletes` row that is merely un-approved appears on NO screen — which is how a
+ * `signup_requests` is what both admin screens read: the entry queue (where anybody
+ * is let in) and the submission log behind it. An `athletes` row that is merely
+ * un-approved used to appear on NO screen — which is how a
  * Strava sign-in could leave somebody pending and unreachable at the same time:
  * blocked by the shell, invisible to the only control that could unblock them, with
  * no link and no email in play. The row here is what makes "waiting for approval" a
@@ -98,7 +99,10 @@ export async function queuePendingStravaSignup(input: {
     // coach is already holding.
     await notifyStaff({
       kind: 'signup_request',
-      url: '/dashboard/settings?tab=registrations',
+      // One destination for "somebody is waiting", same as the email and the home
+      // alert card: the entry queue, where the approve button and the duplicate
+      // warning now both live.
+      url: '/dashboard/entry-queue?at=mine',
       // Per-person tag: two people waiting are two facts, one person signing in
       // twice must not stack. The synthetic address is fine HERE — a tag is an
       // identity key the browser collapses on, never a string anybody reads.

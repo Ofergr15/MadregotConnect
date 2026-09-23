@@ -21,6 +21,39 @@ interface Perk {
   tier?: 'all' | 'core_runner';
 }
 
+/**
+ * The sponsor's logo, or its NAME set as a wordmark when there isn't one.
+ *
+ * It used to fall back to a generic gift icon, and with twelve real logos on the
+ * grid the thirteenth card read as broken rather than as a sponsor — which is
+ * exactly the report ("I'd put the Wellness logo into partnerships"): וולנס is
+ * the one sponsor with no `image_url`, and the gift icon is what he was looking
+ * at. A wordmark is what a brand with no mark to hand looks like on purpose, and
+ * it needs no asset to be right.
+ *
+ * `dir="auto"` because these names are both Latin (HOKA, SAYSKY) and Hebrew
+ * (וולנס), and `break-words` because a long one must wrap inside the tile rather
+ * than push out of it.
+ */
+function SponsorMark({ name, logo, alt, size }: {
+  name: string; logo: string | null; alt: string; size: 'card' | 'sheet';
+}) {
+  if (logo) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={logo} alt={alt} className="max-w-full max-h-full object-contain" />;
+  }
+  return (
+    <span
+      dir="auto"
+      className={`px-2 text-center font-extrabold uppercase leading-tight tracking-tight break-words text-ink-700 ${
+        size === 'card' ? 'text-base' : 'text-2xl'
+      }`}
+    >
+      {name}
+    </span>
+  );
+}
+
 export default function BenefitsPage() {
   return (
     <Suspense fallback={<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mx-auto mt-20"></div>}>
@@ -106,12 +139,7 @@ function BenefitsPageContent() {
             <button key={p.id} onClick={() => openPerk(p)} className="text-start">
               <Card variant="solid" className="!p-0 overflow-hidden h-full flex flex-col">
                 <div className="aspect-[4/3] bg-white flex items-center justify-center p-3">
-                  {p.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.imageUrl} alt={title(p)} className="max-w-full max-h-full object-contain" />
-                  ) : (
-                    <Gift className="h-9 w-9 text-ink-500" />
-                  )}
+                  <SponsorMark name={p.sponsorName} logo={p.imageUrl} alt={title(p)} size="card" />
                 </div>
                 <div className="p-2.5 flex-1 flex flex-col">
                   {/* Two lines, not one. Every real perk title is a sentence — the six
@@ -144,12 +172,7 @@ function BenefitsPageContent() {
         {perk && (
           <div className="space-y-3 pb-2">
             <div className="aspect-[16/9] rounded-xl bg-white flex items-center justify-center overflow-hidden p-4">
-              {perk.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={perk.imageUrl} alt={title(perk)} className="max-w-full max-h-full object-contain" />
-              ) : (
-                <Gift className="h-10 w-10 text-ink-500" />
-              )}
+              <SponsorMark name={perk.sponsorName} logo={perk.imageUrl} alt={title(perk)} size="sheet" />
             </div>
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-brand-600"><bdi>{perk.sponsorName}</bdi></p>

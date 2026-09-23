@@ -42,6 +42,16 @@ import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from
 import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
 import { undoAutoFixes } from '@/lib/plans/auto-fix';
 import { paceGroupMap, sortByPaceGroup } from '@/lib/plans/pace-group';
+import {
+  planDaysOf,
+  selectedDayCountOf,
+  selectedSessions,
+  selectedWorkoutCount as countSelectedWorkouts,
+  sessionSlot,
+  remapForAthlete,
+  dayMapChanges,
+  type DayMap,
+} from '@/lib/plans/push-selection';
 import { cn, activityLocalDay, formatActivityTime, formatWeekRange, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -242,6 +252,15 @@ export default function WeeklyPlannerPage() {
   const [pushTab, setPushTab] = useState<PushTab>('all');
   // Which days to send. null = whole week (default); an array = only those days.
   const [pushDays, setPushDays] = useState<number[] | null>(null);
+  // Custom weeks: athlete id → which weekday each session lands on for THEM.
+  // Only exceptions are stored, and only for this sheet — reopening the planner
+  // starts from the plan's own week again, deliberately, because a remembered
+  // shift nobody can see is how somebody quietly stops getting Tuesdays.
+  const [dayMaps, setDayMaps] = useState<Record<string, DayMap>>({});
+  /** Whose custom week is open in the editor. */
+  const [customAthleteId, setCustomAthleteId] = useState<string | null>(null);
+  /** Whether the "pick an athlete" row is showing. */
+  const [customOpen, setCustomOpen] = useState(false);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loadingAthletes, setLoadingAthletes] = useState(false);
@@ -266,6 +285,12 @@ export default function WeeklyPlannerPage() {
   const activeAthletes = useMemo(
     () => athletes.filter((a) => a.status === 'active'),
     [athletes]
+  );
+
+  /** Whose week can be bent at all: a custom day is a scheduled Garmin date. */
+  const garminAthletes = useMemo(
+    () => activeAthletes.filter((a) => a.hasGarmin),
+    [activeAthletes]
   );
 
   const filteredAthletes = useMemo(() => {
@@ -1026,6 +1051,61 @@ export default function WeeklyPlannerPage() {
     }
   };
 
+  /**
+   * Send the current selection to exactly these athletes.
+   *
+   * Batched by PACE GROUP, because the three group variants differ in paces and
+   * an athlete must get their own. Anybody with a custom week (dayMaps) is peeled
+   * out and sent on their own instead: the batch is one payload for many people,
+   * and their payload is a different week.
+   *
+   * Shared with the retry, which used to build its own request from
+   * `groupedPlans.group1` for every failed athlete regardless of their group — so
+   * a group-3 athlete whose first delivery failed was retried with group-1 paces.
+   */
+  const pushToAthletes = async (athletes: Athlete[]): Promise<PushResultItem[]> => {
+    if (!groupedPlans || !savedPlanId) return [];
+    const groupLevelMap = paceGroupMap(groups) as Record<string, keyof GroupedWeeklyPlans>;
+    const planFor = (a: Athlete) =>
+      groupedPlans[(a.group_id ? groupLevelMap[a.group_id] : undefined) || 'group2'];
+
+    const results: PushResultItem[] = [];
+    const send = async (workouts: ParsedWorkout[], athleteIds: string[]) => {
+      if (workouts.length === 0 || athleteIds.length === 0) return;
+      const res = await fetch('/api/garmin/push-workouts', {
+        method: 'POST',
+        headers: await bearerHeaders(),
+        body: JSON.stringify({ planId: savedPlanId, workouts, athleteIds, weekStartDate }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || t('errors.failedToPushWorkouts'));
+      }
+      const data = await res.json();
+      results.push(...(data.results || []));
+    };
+
+    // Their own week, their own request — one athlete each.
+    for (const a of athletes.filter((x) => hasCustomWeek(x.id))) {
+      const sessions = selectedSessions(planFor(a).workouts, pushDays) as ParsedWorkout[];
+      await send(remapForAthlete(sessions, dayMaps[a.id]), [a.id]);
+    }
+
+    // Everyone else, grouped so one request carries a whole pace group.
+    const batches: Record<string, string[]> = { group1: [], group2: [], group3: [] };
+    for (const a of athletes.filter((x) => !hasCustomWeek(x.id))) {
+      const paceGroup = (a.group_id ? groupLevelMap[a.group_id] : undefined) || 'group2';
+      batches[paceGroup].push(a.id);
+    }
+    for (const [paceGroup, ids] of Object.entries(batches)) {
+      if (ids.length === 0) continue;
+      const plan = groupedPlans[paceGroup as keyof GroupedWeeklyPlans];
+      await send(selectedSessions(plan.workouts, pushDays) as ParsedWorkout[], ids);
+    }
+
+    return results;
+  };
+
   const executePush = async () => {
     if (!groupedPlans || !savedPlanId) return;
     setPushing(true);
@@ -1051,48 +1131,11 @@ export default function WeeklyPlannerPage() {
         throw new Error(t('errors.noGarminSelected'));
       }
 
-      // The fastest-group-first rule now lives in lib/plans/pace-group.ts, because
-      // the athlete's own one-tap push (POST /api/my-watch) has to reach the same
+      // The fastest-group-first rule lives in lib/plans/pace-group.ts, because the
+      // athlete's own one-tap push (POST /api/my-watch) has to reach the same
       // answer — a second copy that disagreed by one index would put the wrong
-      // paces on somebody's watch.
-      const groupLevelMap = paceGroupMap(groups) as Record<string, keyof GroupedWeeklyPlans>;
-
-      const allResults: PushResultItem[] = [];
-      const athletesByPaceGroup: Record<string, string[]> = { group1: [], group2: [], group3: [] };
-
-      for (const athlete of targetAthletes) {
-        const paceGroup = athlete.group_id ? (groupLevelMap[athlete.group_id] || 'group2') : 'group2';
-        athletesByPaceGroup[paceGroup].push(athlete.id);
-      }
-
-      for (const [paceGroup, ids] of Object.entries(athletesByPaceGroup)) {
-        if (ids.length === 0) continue;
-        const plan = groupedPlans[paceGroup as keyof GroupedWeeklyPlans];
-        // Send only the selected days (null = whole week).
-        const workoutsToSend = pushDays
-          ? plan.workouts.filter((w) => pushDays.includes(w.dayOfWeek))
-          : plan.workouts;
-        if (workoutsToSend.length === 0) continue;
-
-        const res = await fetch('/api/garmin/push-workouts', {
-          method: 'POST',
-          headers: await bearerHeaders(),
-          body: JSON.stringify({
-            planId: savedPlanId,
-            workouts: workoutsToSend,
-            athleteIds: ids,
-            weekStartDate,
-          }),
-        });
-
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || t('errors.failedToPushWorkouts'));
-        }
-
-        const data = await res.json();
-        allResults.push(...(data.results || []));
-      }
+      // paces on somebody's watch. pushToAthletes applies it.
+      const allResults = await pushToAthletes(targetAthletes);
 
       setPushResults(allResults);
 
@@ -1128,26 +1171,11 @@ export default function WeeklyPlannerPage() {
     setError(null);
 
     try {
-      const res = await fetch('/api/garmin/push-workouts', {
-        method: 'POST',
-        headers: await bearerHeaders(),
-        body: JSON.stringify({
-          planId: savedPlanId,
-          workouts: pushDays
-            ? groupedPlans.group1.workouts.filter((w) => pushDays.includes(w.dayOfWeek))
-            : groupedPlans.group1.workouts,
-          athleteIds: failedIds,
-          weekStartDate,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || t('errors.retryFailedErr'));
-      }
-
-      const data = await res.json();
-      const retryResults: PushResultItem[] = data.results || [];
+      // Through the same batching as the first attempt, which is the point: a
+      // retry has to reproduce the delivery, not approximate it.
+      const retryResults = await pushToAthletes(
+        activeAthletes.filter((a) => failedIds.includes(a.id))
+      );
 
       const merged = pushResults.map((prev) => {
         if (prev.status === 'success') return prev;
@@ -1168,15 +1196,50 @@ export default function WeeklyPlannerPage() {
   // the number Garmin will receive, which is per session.
   const workoutCount = parsedPlan ? parsedPlan.workouts.length : 0;
 
-  // Days that actually have a workout (from the base plan) — for the per-day
-  // push selector. Sorted Sunday→Saturday.
-  const planDays = useMemo(() => {
-    const src = groupedPlans?.group1.workouts || parsedPlan?.workouts || [];
-    return Array.from(new Set(src.map((w) => w.dayOfWeek))).sort((a, b) => a - b);
-  }, [groupedPlans, parsedPlan]);
+  // The one workout list every count on the push sheet is measured against. The
+  // group plans win when they exist because that is what executePush actually
+  // sends; they share the base plan's day structure, differing only in paces.
+  const pushSource = useMemo(
+    () => groupedPlans?.group1.workouts || parsedPlan?.workouts || [],
+    [groupedPlans, parsedPlan]
+  );
 
-  // How many workouts the current day selection will send (per athlete).
-  const selectedDayCount = pushDays === null ? planDays.length : pushDays.length;
+  /** Chips to offer — days that actually hold a session, Sunday→Saturday. */
+  const planDays = useMemo(() => planDaysOf(pushSource), [pushSource]);
+
+  // What ONE athlete's watch receives, which is the number allowed next to the
+  // word "workouts". Not `workoutCount` above: that is the size of the parsed
+  // plan, so a sheet with only Sunday picked announced "will receive 8 workouts"
+  // while its own day-picker line nine lines up said "sending 1 workout per
+  // athlete" — both on screen at once, labelled the same way (feedback 52320d01).
+  const selectedWorkoutCount = useMemo(
+    () => countSelectedWorkouts(pushSource, pushDays),
+    [pushSource, pushDays]
+  );
+
+  // Days, for the button ("שלח 2 ימים") and the "pick at least one" guard — both
+  // of which are about the chips, not about what lands on the watch.
+  const selectedDayCount = useMemo(
+    () => selectedDayCountOf(pushSource, pushDays),
+    [pushSource, pushDays]
+  );
+
+  // WHICH sessions, not just how many — the sheet names them now.
+  const sessionsToSend = useMemo(() => selectedSessions(pushSource, pushDays), [pushSource, pushDays]);
+
+  // The whole week, for the custom-week editor: moving Wednesday's session to
+  // Monday is a reason to look at a day the chips have not selected.
+  const allSessions = useMemo(() => selectedSessions(pushSource, null), [pushSource]);
+
+  /** Somebody with at least one session moved or dropped for them alone. */
+  const hasCustomWeek = useCallback(
+    (athleteId: string) => Object.keys(dayMaps[athleteId] || {}).length > 0,
+    [dayMaps]
+  );
+  const customAthleteIds = useMemo(
+    () => Object.keys(dayMaps).filter((id) => Object.keys(dayMaps[id] || {}).length > 0),
+    [dayMaps]
+  );
 
   // ─────────────────────────────────────────────
   // RENDER
@@ -2048,9 +2111,170 @@ export default function WeeklyPlannerPage() {
                       })}
                     </div>
                     <p className="text-2xs text-ink-400 mt-2">
-                      {t('sendingWorkouts', { count: selectedDayCount })}
+                      {pushDays === null
+                        ? t('sendingWholeWeek', { count: selectedWorkoutCount })
+                        : t('sendingWorkouts', { count: selectedWorkoutCount })}
                       {pushDays !== null && selectedDayCount === 0 && t('selectAtLeastOneDay')}
                     </p>
+
+                    {/* WHICH workouts, named. A count alone made the coach hold the
+                        week in their head while writing to 16 people's watches. */}
+                    {sessionsToSend.length > 0 && (
+                      <ul className="mt-2 space-y-1">
+                        {sessionsToSend.map((w, i) => (
+                          <li key={sessionSlot(w, i)} className="flex items-start gap-1.5">
+                            <span className="shrink-0 min-w-[24px] rounded bg-page px-1 py-0.5 text-center text-3xs font-bold text-ink-400">
+                              {DAY_LABELS[w.dayOfWeek]}
+                            </span>
+                            <span className="min-w-0 flex-1 text-2xs text-ink-700 leading-5" dir="auto">
+                              {w.name?.trim() || t('unnamedWorkout')}
+                              {(w.partCount ?? 1) > 1 && (
+                                <span className="text-ink-400"> · {w.partIndex ?? 1}/{w.partCount}</span>
+                              )}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {/* CUSTOM WEEKS — one athlete's session on a different day.
+                        Above the roster on purpose: it changes what is sent, not
+                        who it is sent to. */}
+                    <div className="mt-3 pt-3 border-t border-page">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-ink-400">{t('customWeekTitle')}</span>
+                        <button
+                          onClick={() => { setCustomOpen((o) => !o); setCustomAthleteId(null); }}
+                          className="text-2xs font-medium text-brand-600 hover:text-brand-700"
+                        >
+                          {customOpen ? t('done') : t('customWeekAdd')}
+                        </button>
+                      </div>
+
+                      {customAthleteIds.length === 0 && !customOpen && (
+                        <p className="text-3xs text-ink-400 mt-1 leading-relaxed">{t('customWeekHint')}</p>
+                      )}
+
+                      {/* Who is already on their own week, and what moved. */}
+                      {customAthleteIds.map((id) => {
+                        const a = athletes.find((x) => x.id === id);
+                        const changes = dayMapChanges(pushSource, dayMaps[id]);
+                        return (
+                          <div key={id} className="mt-2 rounded-lg bg-brand-600/10 px-2.5 py-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xs font-bold text-brand-700 min-w-0 flex-1 truncate" dir="auto">
+                                {a?.name || id}
+                              </span>
+                              <button
+                                onClick={() => setCustomAthleteId(customAthleteId === id ? null : id)}
+                                className="text-3xs font-medium text-brand-600 shrink-0"
+                              >
+                                {t('customWeekEdit')}
+                              </button>
+                              <button
+                                onClick={() => setDayMaps((prev) => {
+                                  const next = { ...prev };
+                                  delete next[id];
+                                  return next;
+                                })}
+                                className="text-3xs font-medium text-ink-400 shrink-0"
+                              >
+                                {t('customWeekClear')}
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {changes.map((c) => (
+                                <span key={c.slot} className="rounded bg-card px-1.5 py-0.5 text-3xs font-semibold text-ink-700">
+                                  <bdi dir="ltr">
+                                    {DAY_LABELS[c.from]} → {c.to === null ? t('customWeekSkip') : DAY_LABELS[c.to]}
+                                  </bdi>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Pick whose week to bend. Garmin-connected only — there is
+                          nothing to schedule for anybody else. */}
+                      {customOpen && (
+                        garminAthletes.length === 0 ? (
+                          <p className="text-3xs text-ink-400 mt-2">{t('customWeekNoGarmin')}</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {garminAthletes.map((a) => (
+                              <button
+                                key={a.id}
+                                onClick={() => setCustomAthleteId(customAthleteId === a.id ? null : a.id)}
+                                className={cn(
+                                  'px-2 py-1 rounded-md text-2xs font-medium border transition-colors',
+                                  customAthleteId === a.id || hasCustomWeek(a.id)
+                                    ? 'bg-brand-600/15 border-brand-600/50 text-brand-600'
+                                    : 'border-page text-ink-400 hover:border-ink-300'
+                                )}
+                                dir="auto"
+                              >
+                                {a.name}
+                              </button>
+                            ))}
+                          </div>
+                        )
+                      )}
+
+                      {/* The editor: every session in the plan, and the day it
+                          lands on for this one person. */}
+                      {customAthleteId && (
+                        <div className="mt-2.5 rounded-xl bg-card p-2.5">
+                          <p className="text-2xs font-bold text-ink-700 mb-2" dir="auto">
+                            {t('customWeekFor', {
+                              name: athletes.find((x) => x.id === customAthleteId)?.name || '',
+                            })}
+                          </p>
+                          <div className="space-y-1.5">
+                            {allSessions.map((w, i) => {
+                              const slot = sessionSlot(w, i);
+                              const mapped = dayMaps[customAthleteId]?.[slot];
+                              const value = mapped === undefined ? w.dayOfWeek : mapped;
+                              return (
+                                <div key={slot} className="flex items-center gap-2">
+                                  <span className="shrink-0 min-w-[24px] rounded bg-page px-1 py-0.5 text-center text-3xs font-bold text-ink-400">
+                                    {DAY_LABELS[w.dayOfWeek]}
+                                  </span>
+                                  <span className="min-w-0 flex-1 truncate text-2xs text-ink-700" dir="auto">
+                                    {w.name?.trim() || t('unnamedWorkout')}
+                                  </span>
+                                  <select
+                                    value={value === null ? 'skip' : String(value)}
+                                    onChange={(e) => {
+                                      const raw = e.target.value;
+                                      setDayMaps((prev) => {
+                                        const mine = { ...(prev[customAthleteId] || {}) };
+                                        // Back to the plan's own day = no exception
+                                        // to store, so the athlete drops out of the
+                                        // custom list once nothing differs.
+                                        if (raw === String(w.dayOfWeek)) delete mine[slot];
+                                        else mine[slot] = raw === 'skip' ? null : Number(raw);
+                                        const next = { ...prev };
+                                        if (Object.keys(mine).length === 0) delete next[customAthleteId];
+                                        else next[customAthleteId] = mine;
+                                        return next;
+                                      });
+                                    }}
+                                    className="shrink-0 rounded-md border border-page bg-page px-1.5 py-1 text-2xs font-semibold text-ink-700 min-h-[30px]"
+                                  >
+                                    {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+                                      <option key={d} value={String(d)}>{DAY_LABELS[d]}</option>
+                                    ))}
+                                    <option value="skip">{t('customWeekSkip')}</option>
+                                  </select>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <p className="text-3xs text-ink-400 mt-2 leading-relaxed">{t('customWeekEditorHint')}</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -2082,7 +2306,7 @@ export default function WeeklyPlannerPage() {
                                   {t('activeAthletesCount', { count: activeAthletes.length })}
                                 </p>
                                 <p className="text-sm text-ink-400 mt-0.5">
-                                  {t('garminWillReceive', { ready: readyCount, count: workoutCount })}
+                                  {t('garminWillReceive', { ready: readyCount, count: selectedWorkoutCount })}
                                 </p>
                               </div>
                             );
@@ -2257,6 +2481,11 @@ export default function WeeklyPlannerPage() {
                 <div className="flex items-center justify-between pt-4 border-t border-page">
                   <span className="text-sm text-ink-400">
                     {t('athletesSelected', { count: pushTargetCount })}
+                    {customAthleteIds.length > 0 && (
+                      <span className="block text-3xs text-brand-600 font-medium">
+                        {t('customWeekFooter', { count: customAthleteIds.length })}
+                      </span>
+                    )}
                   </span>
                   <Button
                     onClick={executePush}

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Check, ChevronLeft, ChevronRight, Moon, Sun, Watch } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Link2, Moon, Sun, Watch } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { addDaysToDateStr, israelNow, israelToday } from '@/lib/utils';
 import { fetchActivities } from '@/lib/activities-client';
@@ -151,24 +151,40 @@ export function NextSessionCard() {
   const watchKnown = !!watch && watch.garminConnected && watch.hasPlan;
   const onWatch = watchKnown && watch.onWatch.includes(next.date);
 
-  const title = [sessionHeadline(s.steps, units), nameQualifier(s.name, dayNames)]
-    .filter(Boolean).join(' · ') || s.name;
   const Chevron = rtl ? ChevronLeft : ChevronRight;
+
+  /**
+   * One session as the detail sheet wants it. Shared by the main card and the
+   * tomorrow chip so the two rows cannot describe the same sheet differently —
+   * the chip opens the real session, not a summary of it.
+   */
+  const detailFor = (x: WeekSession): WorkoutDetailSession => {
+    const xMin = roundKm(x.kmMin);
+    const xMax = roundKm(x.kmMax);
+    const xKm = xMin !== xMax ? `${xMin}–${xMax}` : `${xMax}`;
+    const xKind = x.kind === 'morning' || x.kind === 'evening'
+      ? tp(x.kind === 'morning' ? 'sessionMorning' : 'sessionEvening') : '';
+    return {
+      name: [sessionHeadline(x.steps, units), nameQualifier(x.name, dayNames)]
+        .filter(Boolean).join(' · ') || x.name,
+      day: [dayNames[x.dayOfWeek], xKind].filter(Boolean).join(' · '),
+      distance: xKm ? `${isEstimate(x.kmFrom) ? '~' : ''}${xKm} ${units.km}` : '',
+      duration: formatDurationClock(x.durationSec),
+      steps: x.steps,
+      // The story's own copy of the day and the type, unlocalised: the sheet's
+      // `day` above is Hebrew and the post is English. `km` is the plain
+      // number without a unit, because the story writes its own "(14km)".
+      story: { dayOfWeek: x.dayOfWeek, type: x.type, km: xKm },
+    };
+  };
+
+  // Tomorrow, when today is a double and it is past noon — see next-session.ts.
+  const nextDay = next.tomorrow?.session;
 
   return (
     <>
       <button
-        onClick={() => setDetail({
-          name: title,
-          day: [dayNames[s.dayOfWeek], kindLabel].filter(Boolean).join(' · '),
-          distance: km ? `${approx}${km} ${units.km}` : '',
-          duration: formatDurationClock(s.durationSec),
-          steps: s.steps,
-          // The story's own copy of the day and the type, unlocalised: the sheet's
-          // `day` above is Hebrew and the post is English. `km` is the plain
-          // number without a unit, because the story writes its own "(14km)".
-          story: { dayOfWeek: s.dayOfWeek, type: s.type, km },
-        })}
+        onClick={() => setDetail(detailFor(s))}
         className="flex w-full items-center gap-3 rounded-card bg-card p-3 text-start transition-colors active:bg-page/40"
       >
         <span
@@ -214,8 +230,45 @@ export function NextSessionCard() {
           </span>
         )}
 
+        {/* The card's only advertisement of the copy. Nobody taps a row to find out
+            what it does, so the affordance has to be ON the row — this is the same
+            icon the sheet's copy button carries, which is what makes the tap and
+            what it opens read as one thing. */}
+        <span className="flex h-6 w-6 flex-none items-center justify-center rounded-lg bg-brand-600/10 text-brand-600">
+          <Link2 className="h-3.5 w-3.5" />
+        </span>
+
         <Chevron className="h-4 w-4 flex-none text-ink-300" />
       </button>
+
+      {nextDay && (
+        // Quieter than the card above it on purpose: tonight is the thing to do,
+        // tomorrow is the thing to read. Same tap, same sheet, same 🔗 — so the
+        // coach can copy tomorrow's story the afternoon before, which is when the
+        // club's stories actually get posted.
+        <button
+          onClick={() => setDetail(detailFor(nextDay))}
+          className="mt-2 flex w-full items-center gap-2.5 rounded-card border border-brand-600/10 bg-card/60 px-3 py-2 text-start transition-colors active:bg-page/40"
+        >
+          <span className="flex-none rounded-pill bg-brand-600/10 px-2 py-0.5 text-4xs font-bold text-brand-600">
+            {t('tomorrow')}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink-700">
+            {ta(`runType_${nextDay.type}` as 'runType_easy')}
+            <span className="font-light text-ink-400">
+              {' · '}<bdi dir="ltr">{isEstimate(nextDay.kmFrom) ? '~' : ''}{
+                roundKm(nextDay.kmMin) !== roundKm(nextDay.kmMax)
+                  ? `${roundKm(nextDay.kmMin)}–${roundKm(nextDay.kmMax)}`
+                  : `${roundKm(nextDay.kmMax)}`
+              }</bdi> {units.km}
+            </span>
+          </span>
+          <span className="flex h-6 w-6 flex-none items-center justify-center rounded-lg bg-brand-600/10 text-brand-600">
+            <Link2 className="h-3.5 w-3.5" />
+          </span>
+          <Chevron className="h-4 w-4 flex-none text-ink-300" />
+        </button>
+      )}
 
       {detail && (
         <WorkoutDetailModal

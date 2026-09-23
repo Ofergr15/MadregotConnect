@@ -85,7 +85,10 @@ export function AdminAttention({ compact = false }: { compact?: boolean }) {
           iconBg="bg-accent-red"
           label={t('pendingRegistrations')}
           sublabel={t('pendingRegistrationsHint')}
-          href="/dashboard/settings?tab=registrations"
+          // Was the הרשמות list while the Settings row two taps away opened the
+          // entry queue — the same count, two different screens, whichever you
+          // happened to tap. The entry queue is the destination now.
+          href="/dashboard/entry-queue?at=mine"
           trailing={<CountBadge n={a.pendingRegistrations} tone="urgent" />}
         />,
       );

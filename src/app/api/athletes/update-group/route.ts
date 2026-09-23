@@ -32,7 +32,7 @@ async function gateEstablishedMember(req: Request, athleteId: string): Promise<R
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, groupId } = await req.json();
+    const { email, groupId, weekStartDay } = await req.json();
 
     if (!email) {
       return NextResponse.json({ error: 'email is required' }, { status: 400 });
@@ -63,6 +63,13 @@ export async function POST(req: NextRequest) {
     const updates: Record<string, any> = {};
     if (athlete.approved !== false) updates.status = 'active';
     if (groupId) updates.group_id = groupId;
+    // The member's own week boundary, chosen on the same sign-up screen as the
+    // pace group (migration 119). Written here rather than left to a later visit to
+    // the profile, because it decides how every weekly number they are shown from
+    // now on is cut. Checked against 0/1 rather than coerced, so a junk body leaves
+    // the column alone instead of writing a day nobody picked. Not a new surface:
+    // same row, same gate.
+    if (weekStartDay === 0 || weekStartDay === 1) updates.week_start_day = weekStartDay;
 
     const { data: updated, error: updateError } = await supabase
       .from('athletes')

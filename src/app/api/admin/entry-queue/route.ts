@@ -12,6 +12,11 @@ import {
   type EntryQueueMember,
   type PendingSignupRequest,
 } from '@/lib/admin/entry-queue';
+import {
+  isSyntheticAuthEmail,
+  rankAthleteCandidates,
+  type IdentityRow,
+} from '@/lib/auth/athlete-identity';
 import { KIT_SIZE_COLUMNS_100, kitSizeSetupInput } from '@/lib/kit-sizes';
 
 export const dynamic = 'force-dynamic';
@@ -37,7 +42,10 @@ export const revalidate = 0;
 
 const SETUP_COLUMNS =
   'garmin_auth, strava_auth, data_source, avatar_url, phone, birth_date, gender, shirt_size, shoe_size, group_id';
-const BASE_COLUMNS = `id, name, email, status, created_at, ${SETUP_COLUMNS}`;
+// `role` and `strava_athlete_id` are here for rankAthleteCandidates' tie-breaks
+// (see the duplicate-warning block below), not for the flow itself. Both predate
+// every migration this route degrades past, so they are safe in the BASE row.
+const BASE_COLUMNS = `id, name, email, status, role, strava_athlete_id, created_at, ${SETUP_COLUMNS}`;
 const PRE_100_COLUMNS = `${BASE_COLUMNS}, approved, approved_at, last_seen_at, active_shoe_id`;
 // Stepped separately from PRE_100 for the same reason as /api/onboarding: falling
 // straight to BASE would also drop `approved`, and this route reads a missing
@@ -167,6 +175,13 @@ export async function GET(request: Request) {
     // The login evidence. Null = we couldn't look; see readAuthFacts.
     const authFacts = await readAuthFacts(supabase);
 
+    // ── "ISN'T THIS SOMEBODY WE ALREADY HAVE?" ────────────────────────────────
+    //
+    // The whole roster, as the identity matcher wants it. Ranked per unplaced row
+    // below rather than once, because the answer depends on the name being matched.
+    // 25 members against 25 members is nothing; do not let this grow a round trip.
+    const roster = athletes as unknown as IdentityRow[];
+
     const members: EntryQueueMember[] = athletes.map((a) => {
       const id = a.id as string;
       const email = (a.email as string) || null;
@@ -198,6 +213,10 @@ export async function GET(request: Request) {
       // shell's `strava_<id>@strava.madregot.local` is the email its GoTrue user
       // carries, so stripping it first would lose the login of every Strava member.
       const auth = authFacts?.get(String(a.email || '').toLowerCase().trim()) || null;
+      // Only for somebody still waiting on a decision: once they are approved the
+      // duplicate either happened or didn't, and a permanent warning on a member who
+      // has been in the club for a month is noise that trains you to ignore it.
+      const unplaced = !approved && isSyntheticAuthEmail(email);
       return {
         id,
         name: (a.name as string) || realEmail(email) || '—',
@@ -226,6 +245,15 @@ export async function GET(request: Request) {
         // rows to offer "put them back", which is the whole reason the removal is
         // soft. A removal nobody can find again is a delete with extra steps.
         removed: isRemoved(a as { status?: string | null }),
+        unplaced,
+        // Excludes the shell itself, or it suggests the person to themselves.
+        matchCandidates: unplaced
+          ? rankAthleteCandidates(roster.filter((r) => r.id !== id), (a.name as string) || null).map((c) => ({
+              id: c.row.id,
+              name: c.row.name ?? null,
+              confidence: c.confidence,
+            }))
+          : [],
       };
     });
 

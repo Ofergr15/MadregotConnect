@@ -18,6 +18,26 @@ const round1 = roundKm;
  */
 const LEGEND_ORDER = ['long_run', 'intervals', 'tempo', 'fartlek', 'progressive', 'easy', 'rest'];
 
+/**
+ * A day the coach wrote a NOTE on instead of a session — "כיפור – אין אימון מתוכנן".
+ *
+ * It arrives from the parser shaped exactly like a workout (one open step, the
+ * sentence in its notes) because that is the only shape a published week has. But
+ * it prescribes no distance and no time, and feedback bd468327 is what that costs
+ * when nothing tells the two apart: Yom Kippur drew a stub bar on the week chart,
+ * counted itself into "8 workouts · 7 days", and printed "0 min" on a row you
+ * could tap into an empty workout sheet. "יום שני לדוגמא אין אימון / הגרף צריך
+ * להיות ריק עבור אותו יום."
+ *
+ * No distance AND no time is the whole test, and it is deliberately not a text
+ * match: a real kmless session ("option: 30–40 min easy") still has its minutes,
+ * so it keeps its stub and its row. Nothing that prescribes anything is caught
+ * here.
+ */
+export function isPlanNote(s: Pick<WeekSession, 'kmMax' | 'durationSec'>): boolean {
+  return s.kmMax <= 0 && s.durationSec <= 0;
+}
+
 export interface WeekStats {
   kmMin: number;
   kmMax: number;
@@ -34,6 +54,8 @@ export interface WeekStats {
   types: string[];
   /** A session with no distance at all (a "30-40 min easy or strength" evening). */
   hasKmlessSession: boolean;
+  /** Days the coach marked as no-workout — see `isPlanNote`. Not training days. */
+  noteDays: number[];
 }
 
 /**
@@ -53,11 +75,21 @@ export function weekStats(sessions: WeekSession[]): WeekStats {
   let optionalKmMin = 0;
   let optionalKmMax = 0;
   let hasKmlessSession = false;
+  let noteCount = 0;
   const optionalDays: number[] = [];
+  const noteDays: number[] = [];
   const days = new Set<number>();
   const types: string[] = [];
 
   for (const s of sessions) {
+    // A no-workout note is not a session: counting it said "8 workouts · 7 days"
+    // for a week with seven of each, and put its colour in the legend for a bar
+    // that isn't drawn.
+    if (isPlanNote(s)) {
+      noteCount++;
+      if (!noteDays.includes(s.dayOfWeek)) noteDays.push(s.dayOfWeek);
+      continue;
+    }
     kmMin += s.kmMin;
     kmMax += s.kmMax;
     days.add(s.dayOfWeek);
@@ -77,7 +109,7 @@ export function weekStats(sessions: WeekSession[]): WeekStats {
   return {
     kmMin: round1(kmMin),
     kmMax: round1(kmMax),
-    sessionCount: sessions.length,
+    sessionCount: sessions.length - noteCount,
     dayCount: days.size,
     longestKm: round1(longestKm),
     longestDayOfWeek,
@@ -86,6 +118,7 @@ export function weekStats(sessions: WeekSession[]): WeekStats {
     optionalDays,
     types: types.sort((a, b) => LEGEND_ORDER.indexOf(a) - LEGEND_ORDER.indexOf(b)),
     hasKmlessSession,
+    noteDays,
   };
 }
 
@@ -126,6 +159,10 @@ export function weekChart(sessions: WeekSession[], opts: ChartOptions): ChartCol
   const { heightPx, minBarPx = 6, kmlessBarPx = 5 } = opts;
   const byDay = new Map<number, WeekSession[]>();
   for (const s of sessions) {
+    // A no-workout note has nothing to plot, so it gets no segment: the column
+    // is the empty one the day actually is (bd468327). It stays in the session
+    // list below the chart, where the coach's sentence is the whole point.
+    if (isPlanNote(s)) continue;
     const list = byDay.get(s.dayOfWeek);
     if (list) list.push(s);
     else byDay.set(s.dayOfWeek, [s]);

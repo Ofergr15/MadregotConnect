@@ -88,6 +88,28 @@ export interface EntryQueueMember {
    * like on this screen.
    */
   removed?: boolean;
+  /**
+   * This row is a Strava sign-in the app could NOT place on the roster by itself —
+   * its athlete row is keyed on a synthetic address and nobody has approved it yet.
+   *
+   * Approving one creates a SECOND row for somebody who may already be in the club:
+   * no group, no history, role 'runner'. It has happened six times. The warning used
+   * to live only on the retired הרשמות list, which is where the approve button used
+   * to be; now that this screen is the only place anybody is let in, the warning has
+   * to be here or it is nowhere.
+   *
+   * Deliberately separate from having a candidate, exactly as on the old screen: an
+   * unplaced sign-in with NOTHING resembling it is the case the card most needs to
+   * say out loud, because it looks identical to an ordinary stranger.
+   */
+  unplaced?: boolean;
+  /**
+   * "Isn't this somebody we already have?" — the roster rows this sign-in resembles,
+   * likeliest first, at most three. DISPLAY ONLY: ranked by `rankAthleteCandidates`
+   * without the four-consonant floor the automatic matchers apply, so a short name
+   * like "Roy Roth" appears here even though nothing would ever merge on it.
+   */
+  matchCandidates?: Array<{ id: string; name: string | null; confidence: 'exact' | 'near' | 'weak' }>;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

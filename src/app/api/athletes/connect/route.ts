@@ -48,7 +48,7 @@ async function gateEstablishedMember(req: Request, athleteId: string): Promise<R
 
 export async function POST(req: NextRequest) {
   try {
-    const { inviteToken, garminAuth, name, email, groupId } = await req.json();
+    const { inviteToken, garminAuth, name, email, groupId, weekStartDay } = await req.json();
 
     const supabase = createServerClient();
     const encryptedAuth = garminAuth
@@ -92,6 +92,13 @@ export async function POST(req: NextRequest) {
       if (name) updateData.name = name;
       if (email) updateData.email = email.toLowerCase().trim();
       if (groupId) updateData.group_id = groupId;
+      // The member's own week boundary, chosen on the same sign-up screen as the
+      // pace group (migration 119). Written here rather than left to a later visit to
+      // the profile, because it decides how every weekly number they are shown from
+      // now on is cut. Checked against 0/1 rather than coerced, so a junk body leaves
+      // the column alone instead of writing a day nobody picked. Not a new surface:
+      // same row, same gate.
+      if (weekStartDay === 0 || weekStartDay === 1) updateData.week_start_day = weekStartDay;
 
       const { data: updated, error: updateError } = await supabase
         .from('athletes')
@@ -143,6 +150,7 @@ export async function POST(req: NextRequest) {
         // signing in again must not be demoted to 'google_authed'.
         onboarding_status: encryptedAuth || existing.garmin_auth ? 'garmin_authed' : 'google_authed',
         ...(groupId ? { group_id: groupId } : {}),
+        ...(weekStartDay === 0 || weekStartDay === 1 ? { week_start_day: weekStartDay } : {}),
       };
       // Self-onboarding must not activate an unapproved user — coach approval
       // owns the active flip. Legacy rows (approved null) keep going active.
@@ -187,6 +195,7 @@ export async function POST(req: NextRequest) {
       approved: false,
       onboarding_status: encryptedAuth ? 'garmin_authed' : 'google_authed',
       ...(groupId ? { group_id: groupId } : {}),
+      ...(weekStartDay === 0 || weekStartDay === 1 ? { week_start_day: weekStartDay } : {}),
     };
     if (encryptedAuth) {
       insertPayload.garmin_auth = encryptedAuth;

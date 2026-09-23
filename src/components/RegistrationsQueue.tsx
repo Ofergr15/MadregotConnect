@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Check, ChevronDown, Copy, MessageCircle, Send, X, Clock, Mail, RefreshCw, Search, ShieldAlert, Users } from 'lucide-react';
+import Link from 'next/link';
+import { Check, ChevronDown, Copy, DoorOpen, MessageCircle, Send, X, Clock, Mail, RefreshCw, Search, ShieldAlert, Users } from 'lucide-react';
 import { Card, LoadingBlock, ConfirmSheet, SegmentedControl } from '@/components/ui';
 import { AthleteLink } from '@/components/AthleteLink';
 import EmailHealthBanner from '@/components/EmailHealthBanner';
@@ -10,12 +11,21 @@ import { cn, resolveGroup } from '@/lib/utils';
 import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
 
 /**
- * The public /register approval queue — "who is waiting, and should they be in?".
+ * יומן ההרשמות — the /register submission log, and NOT a second approval queue.
  *
- * Lives here rather than in a page of its own because its home is
- * Settings → הרשמות (`/dashboard/settings?tab=registrations`), and the
- * standalone /dashboard/registrations URL (which the admin notification email
- * still links to) just redirects there. One surface, one implementation.
+ * ── IT STOPPED BEING A DESTINATION ──────────────────────────────────────────
+ * It used to be the other answer to "who is waiting for me to let them in", and
+ * which of the two screens an approver got depended only on how they arrived:
+ * browsing (Settings landing, Coach Tools, the athletes list) opened the entry
+ * queue, while every ALERT — the admin email, both push notifications, the home
+ * "pending registrations" card — opened this one. That is the report this fixed.
+ *
+ * So all of those now go to /dashboard/entry-queue, the duplicate-name warning
+ * below has a counterpart on the entry-queue card (the approve button lives there
+ * now, and a warning has to sit next to the button it is warning about), and this
+ * screen is reached by one labelled link from the bottom of the entry queue, for
+ * the three things it alone holds: the whole log including rejections, re-sending
+ * a join link, and merging a Strava sign-in into the member it belongs to.
  *
  * ── BUILT FOR THIRTY-PLUS AT ONCE ───────────────────────────────────────────
  * This used to be one tall card per person, which is fine for three and unusable
@@ -614,7 +624,12 @@ export default function RegistrationsQueue() {
           "how many are waiting" is why anyone opens this tab. */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-[22px] font-extrabold text-ink-900 leading-tight">בקשות הרשמה</h2>
+          {/* "יומן ההרשמות", not "בקשות הרשמה". The old title named this the queue
+              of people waiting — which is what the entry queue is — and two screens
+              with the same name and the same count is how an approver ended up on a
+              different one depending on whether they tapped a notification or
+              navigated here themselves. This is the log. */}
+          <h2 className="text-[22px] font-extrabold text-ink-900 leading-tight">יומן ההרשמות</h2>
           {/* The subline answers the question the open tab is asking. On ממתינות
               that is "how many are waiting"; on אושרו it is the one nobody was being
               told — approved, mailed, and still not in the app. */}
@@ -642,6 +657,20 @@ export default function RegistrationsQueue() {
           <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
         </button>
       </div>
+
+      {/* Where the decision is actually made, said on the screen that is no longer
+          where it is made. Anybody who still arrives here — an old bookmark, the
+          Coach Tools row, a mail from before this shipped — gets told in one line
+          rather than approving from a screen that cannot show them how far anybody
+          got, which was the whole reason the two screens were merged. */}
+      <Link
+        href="/dashboard/entry-queue?at=mine"
+        className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-brand-600"
+        dir="rtl"
+      >
+        <DoorOpen className="h-3.5 w-3.5 shrink-0" />
+        <span>לאישור ולמעקב — מחכים להיכנס</span>
+      </Link>
 
       {/* Above the tabs, not below: whether mail works at all decides what approving
           even means on this screen, and it renders nothing when mail is healthy. */}
