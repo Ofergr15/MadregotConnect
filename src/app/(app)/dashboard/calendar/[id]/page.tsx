@@ -297,13 +297,13 @@ export default function EventDetailPage() {
             installed, which is a dead end on the morning of a race. Both are shown
             only when the event actually has coordinates. */}
         {(waze || maps) && (
-          <div className="mt-4 flex flex-wrap items-center gap-4">
+          <div className="mt-2 flex flex-wrap items-center gap-x-4">
             {waze && (
               <a
                 href={waze}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors"
+                className="inline-flex min-h-[44px] items-center gap-2 text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors"
               >
                 <Navigation className="h-4 w-4" />
                 {t('openInWaze')}
@@ -314,7 +314,7 @@ export default function EventDetailPage() {
                 href={maps}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors"
+                className="inline-flex min-h-[44px] items-center gap-2 text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors"
               >
                 <MapPin className="h-4 w-4" />
                 {t('openInMaps')}
@@ -366,14 +366,16 @@ export default function EventDetailPage() {
           <EmptyState title={t('noParticipants')} className="py-4" />
         ) : (
           <>
-            <div className="flex items-center -space-x-2 rtl:space-x-reverse mb-2">
-              {/* "Who else is coming to this race" — eight faces, and the reason
-                  anybody looks at them is to find out who. The title attribute was
-                  the only answer, and a title never appears on a phone. */}
-              {registeredParticipants.slice(0, 8).map((p) => (
-                <div key={p.athleteId} title={p.name} className="ring-2 ring-page rounded-full">
+            <div className="flex items-center gap-1 mb-2">
+              {/* "Who else is coming to this race" — the reason anybody looks at
+                  these faces is to find out who, so each one is a link. Six 44px
+                  faces side by side, not eight overlapping 32s: the overlap left
+                  every face but the last a 24px sliver to tap, and six is what fits
+                  the 375 card. The count below still says how many in total. */}
+              {registeredParticipants.slice(0, 6).map((p) => (
+                <div key={p.athleteId} title={p.name} className="rounded-full">
                   <AthleteLink athleteId={p.athleteId} name={p.name} className="block rounded-full">
-                    <FeedAvatar name={p.name} url={p.avatarUrl} className="w-8 h-8" />
+                    <FeedAvatar name={p.name} url={p.avatarUrl} className="w-11 h-11" />
                   </AthleteLink>
                 </div>
               ))}

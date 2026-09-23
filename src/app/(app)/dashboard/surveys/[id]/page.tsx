@@ -103,7 +103,10 @@ export default function SurveyPage() {
                   className={cn(
                     'w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-start min-h-[48px] transition-colors disabled:opacity-60',
                     mine
-                      ? 'bg-brand-600/15 border-brand-600 text-white font-semibold'
+                      // ink-900, not white: the fill is a 15% tint, so white text on
+                      // it measured 1.32:1 and the answer you picked was the one
+                      // you couldn't read.
+                      ? 'bg-brand-600/15 border-brand-600 text-ink-900 font-semibold'
                       : 'bg-card/60 border-page text-ink-700 hover:border-ink-300',
                   )}
                 >

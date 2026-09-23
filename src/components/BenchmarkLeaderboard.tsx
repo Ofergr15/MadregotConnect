@@ -100,7 +100,7 @@ export function BenchmarkLeaderboard() {
           <>
             <button
               onClick={() => setExpanded(e => !e)}
-              className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-ink-400 hover:text-ink-900"
+              className="mt-1 flex min-h-[44px] items-center gap-1.5 text-xs font-semibold text-ink-400 hover:text-ink-900"
             >
               {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               {expanded ? t('benchmarkHideBoard') : t('benchmarkShowAll', { count: shown.length })}

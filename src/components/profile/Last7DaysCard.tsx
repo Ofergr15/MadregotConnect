@@ -49,7 +49,9 @@ export function Last7DaysCard({ report, athleteName }: { report: Last7Report; at
             <button
               onClick={() => setSharing(true)}
               aria-label={t('weekShareAction')}
-              className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-page hover:text-brand-600"
+              // 44 to tap, 28 in the layout — the negative margin keeps the header row
+              // exactly as it was.
+              className="-m-2 flex h-11 w-11 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-page hover:text-brand-600"
             >
               <Share2 className="h-4 w-4" />
             </button>
