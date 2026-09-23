@@ -103,7 +103,7 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
         <FeedAvatar name={a.name} url={null} className="w-8 h-8" textClassName="text-2xs" />
       </AthleteLink>
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2">
+        <div className="flex">
           {/* 20px tall measured — one text line, under WCAG 2.5.8's 24. `py-3.5
               -my-3.5` takes the tappable height to 42 without moving the
               baseline, and 42 is where it stops: `py-3` probed 41.5, `py-3.5`
@@ -122,26 +122,38 @@ export function WeeklyLeaderboardCard({ athleteId }: Props) {
           >
             <span dir="auto">{a.name}</span>
           </AthleteLink>
-          {a.runs > 0 && (
-            <span className="text-2xs text-ink-400 shrink-0">{t('runsCount', { count: a.runs })}</span>
-          )}
+        </div>
+        {/* The run count and the km used to share the name's line, which left a
+            three-word name 98px of a 153px need at 375 — it printed as
+            "אלכסנדרה בן…". Moving only the run count got it to 139. Both live
+            beside the bar now, where the line had nothing else to say, so the
+            name has its line to itself. */}
+        <div className="mt-1.5 flex items-center gap-2">
+          <div className="h-1.5 flex-1 rounded-full bg-page overflow-hidden">
+            <div
+              className={cn('h-full rounded-full transition-all', isMe ? 'bg-brand-600' : 'bg-[#fc5200]')}
+              style={{
+                width: `${Math.max(4, Math.min(100, (a.distanceKm / leaderKm) * 100))}%`,
+                // The leader is the reference, so only they get the full-strength
+                // fill; everyone else reads as a share of it.
+                opacity: isMe || a.distanceKm === leaderKm ? 1 : 0.55,
+              }}
+            />
+          </div>
+          {/* A fixed-width column, not content-width: the bars are read against
+              each other, so every track has to be the same length, and "5 ריצות
+              58.3" is wider than "4 ריצות 51". */}
+          <div className="flex w-28 shrink-0 items-center justify-between gap-2">
+          {a.runs > 0 ? (
+            <span className="text-2xs text-ink-400 shrink-0 leading-none">{t('runsCount', { count: a.runs })}</span>
+          ) : <span />}
           {/* dir="ltr" so the unit stays to the right of its number instead of
               bidi parking it on the far side of the row. */}
-          <span dir="ltr" className="ms-auto shrink-0 text-sm font-black text-ink-700 tabular-nums">
+          <span dir="ltr" className="shrink-0 text-sm font-black leading-none text-ink-700 tabular-nums">
             {a.distanceKm}
             <span className="ms-1 text-3xs font-bold text-ink-400">{tc('km')}</span>
           </span>
-        </div>
-        <div className="mt-1.5 h-1.5 rounded-full bg-page overflow-hidden">
-          <div
-            className={cn('h-full rounded-full transition-all', isMe ? 'bg-brand-600' : 'bg-[#fc5200]')}
-            style={{
-              width: `${Math.max(4, Math.min(100, (a.distanceKm / leaderKm) * 100))}%`,
-              // The leader is the reference, so only they get the full-strength
-              // fill; everyone else reads as a share of it.
-              opacity: isMe || a.distanceKm === leaderKm ? 1 : 0.55,
-            }}
-          />
+          </div>
         </div>
       </div>
     </li>

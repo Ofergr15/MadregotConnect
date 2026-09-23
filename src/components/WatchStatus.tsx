@@ -64,7 +64,7 @@ export function WatchStatus({ date }: { date: string }) {
 
   if (onWatch) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-accent-900 bg-accent-600/10">
+      <span className="inline-flex min-h-[44px] items-center gap-1.5 px-3 rounded-xl text-xs font-bold text-accent-900 bg-accent-600/10">
         <Check className="h-3.5 w-3.5" /> {t('onWatch')}
       </span>
     );
@@ -74,7 +74,7 @@ export function WatchStatus({ date }: { date: string }) {
     <button
       onClick={push}
       disabled={pushing}
-      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-ink-500 hover:text-ink-900 bg-page/50 hover:bg-ink-300/40 transition-colors disabled:opacity-60"
+      className="inline-flex min-h-[44px] items-center gap-1.5 px-3 rounded-xl text-xs font-bold text-ink-500 hover:text-ink-900 bg-page/50 hover:bg-ink-300/40 transition-colors disabled:opacity-60"
     >
       {pushing ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin" />

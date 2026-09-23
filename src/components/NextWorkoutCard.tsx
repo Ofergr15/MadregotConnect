@@ -107,7 +107,7 @@ export function NextWorkoutCard({
             href={calendarHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-ink-500 hover:text-ink-900 bg-page/50 hover:bg-ink-300/40 transition-colors"
+            className="inline-flex min-h-[44px] items-center gap-1.5 px-3 rounded-xl text-xs font-bold text-ink-500 hover:text-ink-900 bg-page/50 hover:bg-ink-300/40 transition-colors"
           >
             <CalendarPlus className="h-3.5 w-3.5" /> {t('addToCalendar')}
           </a>
