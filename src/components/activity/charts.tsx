@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Footprints, Heart, Mountain, Timer, Zap } from 'lucide-react';
+import { Activity, Footprints, Heart, Mountain, Timer, Zap } from 'lucide-react';
 import { PlannedKmPoint } from '@/lib/academy/segments';
 import { catmullRom, formatPace, getHRZone } from './format';
 import { useChartWidth } from '@/components/charts/useChartWidth';
@@ -418,6 +418,100 @@ export function SplitMetricChart({ splits, metric }: { splits: Split[]; metric: 
         <line x1={pad.left} x2={pad.left} y1={pad.top} y2={pad.top + chartH} stroke="#BBBBBB" strokeWidth="1" />
         {yLabels.map((l, i) => (
           <text key={i} x={pad.left - 8} y={l.y + 4} textAnchor="end" className="fill-ink-400" fontSize="11">{l.v}</text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+// ─── Performance Condition per KM ────────────────────────────────────────────
+// Garmin's -20..+20 against the runner's own baseline, drawn as bars off a zero
+// line: above is better than usual, below is worse. The first kilometres are
+// usually empty — the watch needs 6-20 minutes before it has a reading — and
+// stay as gaps rather than zeros. Green/red follow the pace colours on this page
+// (accent-600 = better, accent-red = worse).
+
+const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
+
+export const hasPerformanceCondition = (splits: Split[]) =>
+  splits.filter(s => s.performanceCondition != null).length >= 2;
+
+export function PerformanceConditionChart({ splits }: { splits: Split[] }) {
+  const t = useTranslations('activities');
+  const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
+  const { boxRef, width } = useChartWidth();
+
+  if (splits.length < 2 || !hasPerformanceCondition(splits)) return null;
+
+  const height = 170;
+  const pad = PAD;
+  const chartW = width - pad.left - pad.right;
+  const chartH = height - pad.top - pad.bottom;
+  const values = splits.map(s => s.performanceCondition ?? null);
+  const present = values.filter((v): v is number => v != null);
+  const span = Math.max(3, ...present.map(Math.abs));
+  const zeroY = pad.top + chartH / 2;
+  const toY = (v: number) => zeroY - (v / span) * (chartH / 2);
+  const slot = chartW / splits.length;
+  const barW = Math.max(4, Math.min(18, slot * 0.6));
+  const toX = (i: number) => pad.left + slot * (i + 0.5);
+  const xInterval = splits.length > 20 ? 5 : splits.length > 10 ? 2 : 1;
+  const first = present[0];
+  const last = present[present.length - 1];
+  const hovered = hoverIdx != null ? values[hoverIdx] : null;
+
+  return (
+    <div ref={boxRef}>
+      <h4 className="text-3xs font-bold uppercase text-ink-400 mb-2 flex items-center gap-1.5">
+        <Activity className="h-3 w-3" /> {t('chartPerformanceCondition')}
+        {/* `bdi`, not `dir` on the flex item: in an RTL row that flips which side
+            ms-auto pushes to, and the signs still reorder without isolation. */}
+        <span className="ms-auto font-semibold normal-case tabular-nums text-ink-500">
+          <bdi dir="ltr">{signed(first)} → {signed(last)}</bdi>
+        </span>
+      </h4>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        width={width}
+        height={height}
+        direction="ltr"
+        className="max-w-full"
+        onMouseMove={e => handleMouseMove(e, chartW)}
+        onMouseLeave={handleMouseLeave}
+      >
+        {[span, -span].map(v => (
+          <line key={v} x1={pad.left} x2={width - pad.right} y1={toY(v)} y2={toY(v)} stroke="#DFDFDF" strokeWidth="0.5" strokeDasharray="4 4" />
+        ))}
+        {values.map((v, i) => v == null || v === 0 ? null : (
+          <rect
+            key={i}
+            x={toX(i) - barW / 2}
+            y={Math.min(zeroY, toY(v))}
+            width={barW}
+            height={Math.abs(toY(v) - zeroY)}
+            rx="2"
+            fill={v > 0 ? '#16a34a' : '#AD3838'}
+            opacity={hoverIdx === null || hoverIdx === i ? 1 : 0.5}
+          />
+        ))}
+        {values.map((v, i) => v === 0 ? (
+          <rect key={`z${i}`} x={toX(i) - barW / 2} y={zeroY - 1.5} width={barW} height="3" rx="1.5" fill="#9ca3af" />
+        ) : null)}
+        <line x1={pad.left} x2={width - pad.right} y1={zeroY} y2={zeroY} stroke="#BBBBBB" strokeWidth="1" />
+        {hoverIdx !== null && hovered != null && (
+          <g>
+            <rect x={toX(hoverIdx) - 30} y={pad.top - 18} width="60" height="20" rx="4" fill="#1D1E26" />
+            <text x={toX(hoverIdx)} y={pad.top - 4} textAnchor="middle" className="fill-white" fontSize="12" fontWeight="700">{signed(hovered)}</text>
+          </g>
+        )}
+        {splits.map((_, i) => {
+          const km = i + 1;
+          if (km % xInterval !== 0 && km !== splits.length) return null;
+          return <text key={i} x={toX(i)} y={height - 12} textAnchor="middle" className="fill-ink-400" fontSize="11" fontWeight="500">{km}</text>;
+        })}
+        {[span, 0, -span].map(v => (
+          <text key={v} x={pad.left - 8} y={toY(v) + 4} textAnchor="end" className="fill-ink-400" fontSize="11">{signed(v)}</text>
         ))}
       </svg>
     </div>

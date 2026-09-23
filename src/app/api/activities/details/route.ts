@@ -22,6 +22,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
 import { displaySplits } from '@/lib/activities/km-splits';
+import { perKmFromStream } from '@/lib/activities/stream-per-km';
+import { loadActivityStream } from '@/lib/garmin/stream-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,6 +92,21 @@ export async function GET(request: Request) {
     // "0 of 31 kilometres inside the target band" said about a 15 km run whose
     // laps were all there.
     const splits = displaySplits(r.splits, r.laps);
+
+    // Power and performance condition live only in the per-sample trace (#74).
+    // Laps already carrying power (Strava with a meter) keep their own number.
+    if (splits.length && r.source === 'garmin') {
+      const stream = await loadActivityStream(supabase, r.id);
+      const series = stream?.series;
+      if (series?.pc || series?.pw) {
+        const pc = perKmFromStream(splits, series.d, series.pc);
+        const pw = perKmFromStream(splits, series.d, series.pw, { skipZero: true });
+        splits.forEach((s, i) => {
+          if (series.pc) s.performanceCondition = pc[i];
+          if (s.averagePower == null) s.averagePower = pw[i];
+        });
+      }
+    }
 
     // The summary row, shaped like the list endpoint's rows so the detail UI can
     // take either one. `gps_points`/`laps`/`splits` are dropped from it — they're

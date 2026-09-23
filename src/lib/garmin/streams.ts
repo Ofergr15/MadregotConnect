@@ -36,6 +36,14 @@ export interface ActivityStream {
   cad?: number[];
   /** Elevation, metres. */
   elev?: number[];
+  /** Power, watts — only from a watch or pod that measures it. */
+  pw?: number[];
+  /**
+   * Garmin's performance condition, -20..+20 against the runner's baseline.
+   * Null until the watch has one: it takes 6-20 minutes of running to appear,
+   * and a null there is "not yet", which is not the same claim as 0.
+   */
+  pc?: (number | null)[];
 }
 
 export interface ParsedStream {
@@ -133,12 +141,14 @@ export function parseActivityStream(details: any, expectedDistanceM?: number): P
   const hr = descriptor(descriptors, ['directHeartRate'], null);
   const cad = descriptor(descriptors, ['directDoubleCadence', 'directRunCadence'], null);
   const elev = descriptor(descriptors, ['directElevation'], DISTANCE_TO_M, 1);
+  const pow = descriptor(descriptors, ['directPower'], null);
+  const cond = descriptor(descriptors, ['directPerformanceCondition'], null);
 
   // Read first, round later. The unit sanity check below compares the distance axis
   // against the activity's own total, and a payload reporting kilometres in a field
   // labelled metres carries values like 0.0033 — rounding those to integers first
   // zeroes the axis and destroys the very evidence the check needs.
-  interface Raw { s: number; m: number; v: number; hr: number; cad: number; elev: number }
+  interface Raw { s: number; m: number; v: number; hr: number; cad: number; elev: number; pw: number; pc: number | null }
   const raw: Raw[] = [];
   let t0: number | null = null;
 
@@ -170,6 +180,8 @@ export function parseActivityStream(details: any, expectedDistanceM?: number): P
       hr: hr ? (vals[hr.index] ?? 0) : 0,
       cad: cad ? (vals[cad.index] ?? 0) : 0,
       elev: elev ? (vals[elev.index] ?? 0) : 0,
+      pw: pow ? (vals[pow.index] ?? 0) : 0,
+      pc: cond && vals[cond.index] != null ? vals[cond.index] : null,
     });
   }
   if (raw.length < 2) return null;
@@ -198,6 +210,8 @@ export function parseActivityStream(details: any, expectedDistanceM?: number): P
   const hrs: number[] = [];
   const cads: number[] = [];
   const elevs: number[] = [];
+  const pws: number[] = [];
+  const pcs: (number | null)[] = [];
   let lastT = -Infinity;
   let lastD = 0;
 
@@ -219,6 +233,8 @@ export function parseActivityStream(details: any, expectedDistanceM?: number): P
     if (hr) hrs.push(Math.round(r.hr));
     if (cad) cads.push(Math.round(r.cad));
     if (elev) elevs.push(Math.round(r.elev));
+    if (pow) pws.push(Math.max(0, Math.round(r.pw)));
+    if (cond) pcs.push(r.pc == null ? null : Math.round(r.pc));
   }
 
   if (t.length < 2) return null;
@@ -229,6 +245,10 @@ export function parseActivityStream(details: any, expectedDistanceM?: number): P
   if (hr && hrs.length === t.length) { series.hr = hrs; metrics.push('hr'); }
   if (cad && cads.length === t.length) { series.cad = cads; metrics.push('cad'); }
   if (elev && elevs.length === t.length) { series.elev = elevs; metrics.push('elev'); }
+  // Kept only when there is something in them: an all-zero power channel is a
+  // watch without a sensor, and an all-null condition is a run too short for one.
+  if (pow && pws.length === t.length && pws.some(x => x > 0)) { series.pw = pws; metrics.push('pw'); }
+  if (cond && pcs.length === t.length && pcs.some(x => x != null)) { series.pc = pcs; metrics.push('pc'); }
 
   return {
     series,

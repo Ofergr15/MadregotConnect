@@ -35,6 +35,8 @@ export interface KmSplit {
   /** Steps per minute and watts, weighted by distance like HR. Null when no lap in the kilometre had them. */
   averageCadence: number | null;
   averagePower: number | null;
+  /** Garmin's performance condition for the kilometre, from the trace — set by the details route only. */
+  performanceCondition?: number | null;
 }
 
 const BIN_METERS = 1000;

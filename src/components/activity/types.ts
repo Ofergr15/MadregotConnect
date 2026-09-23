@@ -15,6 +15,8 @@ export interface Split {
   averageCadence?: number | null;
   /** Watts, per kilometre — only when a power meter measured it. */
   averagePower?: number | null;
+  /** Garmin's performance condition, -20..+20. From the trace, so Garmin runs only. */
+  performanceCondition?: number | null;
 }
 
 export interface ActivityEntry {

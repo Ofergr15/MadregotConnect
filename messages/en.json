@@ -1787,6 +1787,7 @@
     "chartHrPerKm": "Heart rate per km",
     "chartCadencePerKm": "Cadence per km",
     "chartPowerPerKm": "Power per km",
+    "chartPerformanceCondition": "Performance condition",
     "unitSpm": "spm",
     "unitWatts": "W",
     "chartElevationPerKm": "Elevation per km",
