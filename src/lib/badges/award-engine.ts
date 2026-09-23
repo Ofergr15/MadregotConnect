@@ -302,6 +302,8 @@ export async function checkAndAwardBadges(
   const toEvaluate = candidates.filter((b) => !alreadyAwarded.has(b.id));
   if (toEvaluate.length === 0) return { awarded: [] };
 
+  const earned: { badge: BadgeRow; context: Record<string, unknown> }[] = [];
+
   // Lazily computed per-athlete data, shared across every badge of the same
   // rule_type (e.g. vol_100km/500km/1000km all reuse one `totalKm`).
   let qualifyingRuns: RunActivityRow[] | null = null;
@@ -422,8 +424,14 @@ export async function checkAndAwardBadges(
     }
 
     if (!result.awarded) continue;
+    earned.push({ badge, context: result.context });
+  }
 
-    const grantedAward = await awardBadge(supabase, athleteId, badge, result.context);
+  // Decided over the whole pass, not per badge: a pass that earns five badges is
+  // a history catch-up however each one looks on its own (#85).
+  const quiet = isCatchUp(earned.length, await isNewMember(supabase, athleteId));
+  for (const { badge, context } of earned) {
+    const grantedAward = await awardBadge(supabase, athleteId, badge, context, { quiet });
     if (grantedAward) awarded.push({ code: badge.code, nameEn: badge.name_en });
   }
 
@@ -431,7 +439,42 @@ export async function checkAndAwardBadges(
 }
 
 /**
+ * When an award is news and when it is only the record catching up (#85).
+ *
+ * A member who joins with two years of runs earns first-5K, first-10K, 100 km,
+ * 500 km, the streaks and the month's challenge in their first sync. Measured on
+ * prod on 2026-09-23: nine achievement posts from one new member in 35 minutes,
+ * and 9 to 11 per person on the days new badges were introduced. None of it is
+ * something anyone did that day. So those awards are still written (the badge is
+ * true and shows on the profile) but post nothing and push nothing.
+ *
+ *  - a member whose account is younger than NEW_MEMBER_QUIET_DAYS: their first
+ *    syncs, and the Garmin history walk after them, are all catch-up;
+ *  - any single pass that earns more than BURST_LIMIT badges at once: a new
+ *    badge rule, or history arriving late, for somebody who is not new.
+ *
+ * An existing member whose new run earns a badge still gets the post.
+ */
+export const NEW_MEMBER_QUIET_DAYS = 7;
+export const BURST_LIMIT = 2;
+
+export const isCatchUp = (earnedInPass: number, newMember: boolean) =>
+  newMember || earnedInPass > BURST_LIMIT;
+
+export function joinedRecently(createdAt: string | null | undefined, now: Date = new Date()): boolean {
+  if (!createdAt) return false;
+  const t = Date.parse(createdAt);
+  return Number.isFinite(t) && now.getTime() - t < NEW_MEMBER_QUIET_DAYS * 86_400_000;
+}
+
+export async function isNewMember(supabase: SupabaseServer, athleteId: string): Promise<boolean> {
+  const { data } = await supabase.from('athletes').select('created_at').eq('id', athleteId).maybeSingle();
+  return joinedRecently((data as { created_at?: string | null } | null)?.created_at);
+}
+
+/**
  * Inserts the athlete_badges row + the feed achievement post + the push.
+ * With `quiet`, only the row: see isCatchUp.
  * Returns false (no-op) if another concurrent call already awarded this
  * badge (unique_violation on athlete_id+badge_id) — the athlete_badges
  * UNIQUE constraint is the actual source of truth for "already earned".
@@ -445,6 +488,7 @@ export async function awardBadge(
   athleteId: string,
   badge: BadgeRow,
   context: Record<string, unknown>,
+  opts: { quiet?: boolean } = {},
 ): Promise<boolean> {
   const { error: insertError } = await supabase.from('athlete_badges').insert({
     athlete_id: athleteId,
@@ -457,6 +501,7 @@ export async function awardBadge(
     if ((insertError as { code?: string }).code === '23505') return false;
     throw insertError;
   }
+  if (opts.quiet) return true;
 
   // Feed post — EXACT payload contract (a separate task builds the
   // feed-rendering UI against this shape; do not change field names here).
