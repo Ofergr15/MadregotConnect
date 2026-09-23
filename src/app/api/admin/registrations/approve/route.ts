@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
-import { APP_URL, canApprove, COACH_ID } from '@/lib/constants';
+import { APP_URL, COACH_ID } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
 import { notifyRegistrationApproved } from '@/lib/email';
 import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
@@ -36,8 +36,10 @@ export async function POST(request: Request) {
     if (!auth.ok) return authError(auth);
 
     // Authoritative gate. The UI also hides the buttons, but that is cosmetic.
+    // Off the session (which also counts `is_approver`, migration 084), not
+    // recomputed from the address — see the GET beside this for what that cost.
     const approverEmail = auth.user.email;
-    if (!canApprove(approverEmail)) {
+    if (!auth.user.canApprove) {
       return NextResponse.json({ error: 'You are not authorized to approve registrations.' }, { status: 403 });
     }
 

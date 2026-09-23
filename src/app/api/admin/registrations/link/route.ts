@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
-import { canApprove } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
 import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
 import { mergeAthleteRows } from '@/lib/auth/merge-athletes';
@@ -41,7 +40,7 @@ export async function POST(request: Request) {
   try {
     const auth = await requireSession(request);
     if (!auth.ok) return authError(auth);
-    if (!canApprove(auth.user.email)) {
+    if (!auth.user.canApprove) {
       return NextResponse.json({ error: 'You are not authorized to approve registrations.' }, { status: 403 });
     }
 

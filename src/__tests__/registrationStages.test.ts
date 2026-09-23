@@ -99,10 +99,14 @@ const { POST: resend } = await import('@/app/api/admin/registrations/resend/rout
 
 const APPROVER = 'grosfeldofer@gmail.com';
 
-const session = (email = APPROVER) => ({
+// canApprove mirrors the session (address list OR is_approver), which is what
+// the routes now read. Passing it separately is what lets the test below hold an
+// approver whose address is not on the list.
+const session = (email = APPROVER, canApprove = email === APPROVER) => ({
   ok: true as const,
   user: {
     email,
+    canApprove,
     athleteId: 'athlete-approver',
     name: 'Approver',
     role: 'admin',
@@ -207,6 +211,15 @@ describe('GET /api/admin/registrations — where did they get to', () => {
     requireSession.mockResolvedValue(session('runner@gmail.com'));
     const res = await list(new Request('https://example.test/api/admin/registrations?status=all'));
     expect(res.status).toBe(403);
+  });
+
+  it('opens to an approver flagged by is_approver whose address is not on the list (#82)', async () => {
+    // A Strava sign-in has a synthetic address; the session still says canApprove.
+    // This route used to recompute from the address and answered 403, and the
+    // screen read that as an empty log.
+    requireSession.mockResolvedValue(session('strava_1@strava.madregot.local', true));
+    const res = await list(new Request('https://example.test/api/admin/registrations?status=all'));
+    expect(res.status).toBe(200);
   });
 });
 

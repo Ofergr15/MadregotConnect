@@ -54,7 +54,7 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/auth-session', () => ({
   requireSession: async () => ({
     ok: true as const,
-    user: { email: 'grosfeldofer@gmail.com', athleteId: 'admin-1', role: 'admin' },
+    user: { email: 'grosfeldofer@gmail.com', athleteId: 'admin-1', role: 'admin', canApprove: true },
   }),
   authError: (r: { status: number; error: string }) =>
     new Response(JSON.stringify({ error: r.error }), { status: r.status }),

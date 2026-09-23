@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { canApprove } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
 import { groupDisplayName } from '@/lib/utils';
 import {
@@ -22,7 +21,10 @@ export const revalidate = 0;
  * nothing to do to it. It shows up under `all`, which is what the screen's second
  * tab asks for, so no filtering change was needed here.
  *
- * Gated on canApprove(), not merely on having a session. This returns a list of
+ * Gated on the session's canApprove, not merely on having a session — and not on
+ * canApprove(email) either, which misses an approver flagged by `is_approver`
+ * (migration 084): /api/auth/me said yes, this said 403, and the log showed an
+ * approver an empty list (#82). This returns a list of
  * strangers' email addresses; any signed-in member could otherwise read it, and
  * "who applied to the club and was turned down" is not club-wide information.
  */
@@ -30,7 +32,7 @@ export async function GET(request: Request) {
   try {
     const auth = await requireSession(request);
     if (!auth.ok) return authError(auth);
-    if (!canApprove(auth.user.email)) {
+    if (!auth.user.canApprove) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 

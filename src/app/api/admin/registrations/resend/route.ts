@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
-import { APP_URL, canApprove } from '@/lib/constants';
+import { APP_URL } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
 import { notifyRegistrationApproved } from '@/lib/email';
 import { groupDisplayName } from '@/lib/utils';
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   try {
     const auth = await requireSession(request);
     if (!auth.ok) return authError(auth);
-    if (!canApprove(auth.user.email)) {
+    if (!auth.user.canApprove) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 

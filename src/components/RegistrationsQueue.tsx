@@ -2,13 +2,18 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Check, ChevronDown, Copy, DoorOpen, MessageCircle, Send, X, Clock, Mail, RefreshCw, Search, ShieldAlert, Users } from 'lucide-react';
-import { Card, LoadingBlock, ConfirmSheet, SegmentedControl } from '@/components/ui';
-import { AthleteLink } from '@/components/AthleteLink';
+import { Check, ChevronLeft, Copy, DoorOpen, MessageCircle, RefreshCw, Search, Send, ShieldAlert, X } from 'lucide-react';
+import { Card, ConfirmSheet, EmptyState, LoadingBlock, Sheet, Skeleton } from '@/components/ui';
 import EmailHealthBanner from '@/components/EmailHealthBanner';
 import { apiHeaders, useApi } from '@/lib/api';
-import { cn, resolveGroup } from '@/lib/utils';
+import { cn, groupDisplayName, resolveGroup } from '@/lib/utils';
 import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
+import { teammateHref } from '@/lib/athletes/profile-link';
+import { israelDateOf } from '@/lib/reports/last-7-days';
+import {
+  LOG_FILTERS, initialLogFilter, logCounts, logLoadErrorText, logState, matchesLogFilter, sortForLogFilter,
+  type LogFilter, type LogState, type RegistrationStage,
+} from '@/lib/admin/registrations-log';
 
 /**
  * יומן ההרשמות — the /register submission log, and NOT a second approval queue.
@@ -27,17 +32,18 @@ import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
  * the three things it alone holds: the whole log including rejections, re-sending
  * a join link, and merging a Strava sign-in into the member it belongs to.
  *
- * ── BUILT FOR THIRTY-PLUS AT ONCE ───────────────────────────────────────────
- * This used to be one tall card per person, which is fine for three and unusable
- * for thirty — and thirty is the real number, because the whole club signs up in
- * the day after the link goes out. So: fixed-height rows in one grouped card,
- * multi-select with a bulk approve, and a search box, all sized so a screenful is
- * eight or nine people instead of two. If you add anything to a row, take the
- * height back out somewhere else.
+ * ── THE PEOPLE SCREEN'S SHAPE (#82) ─────────────────────────────────────────
+ * "יומן ההרשמות משתמש עדיין בעיצובים של פעם". It was the last admin list still
+ * in the old grouped-card look, with a checkbox, three group chips and two
+ * buttons on every row. Now it is the People screen: filter pills with counts,
+ * one flat list with ONE state pill per row, and a tap opens the person's card,
+ * which holds every action for that row and nothing for the others. The bulk
+ * approve went with the checkboxes — the whole club is already in, and one
+ * approve per person, from their card, is where the group gets decided anyway.
  *
- * Reject is still behind a confirm sheet — a mis-tap there is not recoverable
- * from this screen — but approve is not, because approving is the expected
- * outcome and confirming thirty of them individually is the thing we just fixed.
+ * Reject and merge are behind a confirm sheet — a mis-tap there is not
+ * recoverable from this screen — but approve is not, because approving is the
+ * expected outcome.
  */
 
 interface Registration {
@@ -122,17 +128,8 @@ const CONFIDENCE_WARNING: Record<MatchCandidate['confidence'], string> = {
   weak: ' רק חלק מהשם דומה — חובה לוודא שזה אותו אדם לפני החיבור.',
 };
 
-/** The three states an approved person passes through. Ordered, and that order is
- *  what the אושרו tab is sorted by. */
-type Stage = 'emailed' | 'connected' | 'done';
-
-const STAGES: Array<{ key: Stage; label: string; hint: string }> = [
-  // The one that needs chasing, first. "Approved and nothing happened" is either a
-  // mail that never arrived or a person who needs a nudge, and both are actions.
-  { key: 'emailed', label: 'מייל נשלח', hint: 'קיבלו קישור ועוד לא נגעו בו' },
-  { key: 'connected', label: 'בוצע חיבור', hint: 'התחילו — חסר להם Strava, ובלעדיו אין כניסה' },
-  { key: 'done', label: 'סיימו חיבור', hint: 'בפנים, אפשר לשכוח מהם' },
-];
+/** The three states an approved person passes through. */
+type Stage = RegistrationStage;
 
 interface GroupOption {
   id: string;
@@ -199,45 +196,75 @@ function mailFailureText(reason?: string | null): string {
   return `שליחת המייל נכשלה${reason ? ` (${reason})` : ''}.`;
 }
 
-/** The small grey caption above a grouped card — the iOS section-header idiom. */
-function SectionCaption({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <p className={cn('px-2 mb-1.5 text-3xs font-semibold uppercase tracking-[0.09em] text-ink-400', className)}>
-      {children}
-    </p>
-  );
+/** The pill on a row and on the card, in the People screen's colours: red is
+ *  "you have to act", amber "stuck on the way in", green "in", grey "a record". */
+const PILL: Record<LogState, { label: string; cls: string }> = {
+  pending: { label: 'ממתין לאישור', cls: 'bg-accent-red/20 text-accent-red-ink' },
+  emailed: { label: 'מייל נשלח', cls: 'bg-band-3/15 text-band-3-ink' },
+  connected: { label: 'התחיל', cls: 'bg-band-3/15 text-band-3-ink' },
+  done: { label: 'בפנים', cls: 'bg-accent-600/15 text-accent-900' },
+  rejected: { label: 'נדחה', cls: 'bg-page text-ink-500' },
+  member: { label: 'כבר חבר', cls: 'bg-page text-ink-500' },
+};
+
+const FILTER_LABEL: Record<LogFilter, string> = {
+  pending: 'ממתינים',
+  stuck: 'אושרו ולא נכנסו',
+  in: 'בפנים',
+  all: 'הכל',
+};
+
+/**
+ * Who the row is. A Strava sign-in queues under an address the app invented, so its
+ * Strava display name is the only real identity it has. Anybody else is their
+ * address until they have typed a name at /join — before that the athlete row
+ * carries a placeholder derived from the address, which would be it twice.
+ */
+function identity(r: Registration): { text: string; isName: boolean } {
+  if (isSyntheticAuthEmail(r.email)) return { text: r.athleteName || 'התחברות דרך Strava', isName: true };
+  if ((r.stage === 'connected' || r.stage === 'done') && r.athleteName) return { text: r.athleteName, isName: true };
+  return { text: r.email, isName: false };
+}
+
+function initials(r: Registration): string {
+  const id = identity(r);
+  if (!id.isName) return (r.email[0] ?? '?').toUpperCase();
+  return id.text.trim().split(/\s+/).slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase() || '?';
+}
+
+/** dd.MM.yy on the Israel calendar. */
+function shortDate(iso: string): string {
+  const [y, m, d] = israelDateOf(iso).split('-');
+  return `${d}.${m}.${y.slice(2)}`;
 }
 
 export default function RegistrationsQueue() {
-  const [tab, setTab] = useState<'pending' | 'approved' | 'all'>('pending');
+  /** null until the reader picks one: the log opens on the first filter with anybody
+   *  in it (initialLogFilter), which is only knowable once the list has loaded. */
+  const [filter, setFilter] = useState<LogFilter | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [confirmReject, setConfirmReject] = useState<Registration | null>(null);
   /** The row about to be folded into an existing member, AND which member — the
-   *  queue now offers several, so the chosen one has to travel with it rather than
-   *  being re-derived. Confirmed, because it moves an account rather than creating
-   *  one. */
+   *  log offers several, so the chosen one has to travel with it rather than being
+   *  re-derived. Confirmed, because it moves an account rather than creating one. */
   const [confirmLink, setConfirmLink] = useState<{ request: Registration; candidate: MatchCandidate } | null>(null);
   /** The row whose link was just copied, for a two-second "הועתק". */
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  // Progress of a bulk run, so thirty sequential requests are not a frozen
-  // screen. null when nothing is running.
-  const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
   // Group choices the approver has made but not yet committed, keyed by request
   // id. Applied by Approve, so changing the group and approving is one action
   // rather than two round trips.
   const [override, setOverride] = useState<Record<string, string>>({});
 
-  // Server-verified, unlike the old localStorage canApprove() guess: the same
-  // /api/auth/me the rest of the admin UI reads, so it can't be faked by
-  // editing localStorage, and it matches what the two routes below enforce.
+  // Server-verified: the same /api/auth/me the rest of the admin UI reads, and the
+  // same session flag (auth.user.canApprove) the routes below enforce since #82.
   const { data: meData, isLoading: meLoading } = useApi<{ canApprove?: boolean }>('/api/auth/me');
   const allowed = !!meData?.canApprove;
 
-  const { data, isLoading, mutate } = useApi<{
+  const { data, error: loadError, isLoading, mutate } = useApi<{
     requests?: Registration[];
     migrated?: boolean;
     error?: string;
@@ -258,118 +285,25 @@ export default function RegistrationsQueue() {
     [groupsData],
   );
 
-  // Memoised for the `visible` filter below: a fresh `|| []` every render makes
-  // that useMemo recompute on every keystroke anywhere in the tree.
   const requests = useMemo(() => data?.requests || [], [data]);
+  const counts = useMemo(() => logCounts(requests), [requests]);
+  const active = filter ?? initialLogFilter(requests);
+
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const hit = (r: Registration) =>
+      !q || r.email.toLowerCase().includes(q) || (r.athleteName || '').toLowerCase().includes(q);
+    return sortForLogFilter(requests.filter(r => matchesLogFilter(r, active) && hit(r)), active);
+  }, [requests, active, query]);
+
+  const open = requests.find(r => r.id === openId) ?? null;
 
   /** The group that WOULD be sent for this row: the approver's pick if they made
    *  one, otherwise what the applicant submitted. '' means none, which is the
    *  state the approve route rejects. */
   const effectiveGroup = (r: Registration) => (r.id in override ? override[r.id] : r.groupId || '');
 
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return requests;
-    // Name as well as address, now that approved rows carry one: after /join the
-    // approver knows these people as "דנה" and not as an email local part.
-    return requests.filter(
-      r => r.email.toLowerCase().includes(q) || (r.athleteName || '').toLowerCase().includes(q),
-    );
-  }, [requests, query]);
-
-  // One fetch serves three tabs, so the order is decided here rather than in SQL:
-  // a worklist reads oldest-first (who has waited longest), a history reads
-  // newest-first (what just happened).
-  const pending = useMemo(
-    () => visible.filter(r => r.status === 'pending')
-      .slice()
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-    [visible],
-  );
-  const history = useMemo(
-    () => visible.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [visible],
-  );
-  const approved = useMemo(
-    () => history.filter(r => r.status === 'approved'),
-    [history],
-  );
-  const pendingCount = requests.filter(r => r.status === 'pending').length;
-  const approvedCount = requests.filter(r => r.status === 'approved').length;
-  // The headline number of the אושרו tab: approved, mailed, and not in yet. It is
-  // the only count on this screen that represents unfinished business nobody is
-  // being reminded about.
-  const stuckCount = requests.filter(r => r.status === 'approved' && r.stage !== 'done').length;
-  const missingGroupCount = requests.filter(r => r.status === 'pending' && !effectiveGroup(r)).length;
-
-  /** The approved rows, bucketed by how far they got, in stage order. Empty
-   *  buckets are dropped — an empty "בוצע חיבור" card says nothing. */
-  const approvedSections = useMemo(
-    () => STAGES
-      .map(s => ({ ...s, rows: approved.filter(r => r.stage === s.key) }))
-      .filter(s => s.rows.length > 0),
-    [approved],
-  );
-
-  /**
-   * The pending list, split by דבוקה, with the ones that still need one first.
-   *
-   * ⚠️ This is the readability fix, and the reason it is sections and not sorting:
-   * the backfill (migration 090) put the whole club in here at once, and 25 rows of
-   * identical grey — each carrying a truncated address, a timestamp, a status chip
-   * and three group buttons — was unreadable. Ofer's words: "מאוד קשה להבין מה
-   * קורה". Grouping is what makes the screen answer a question ("nine in דבוקה 2,
-   * four still unassigned") rather than present a wall.
-   *
-   * 'none' leads because it is the only actionable section: approval is blocked
-   * without a group, so those rows are the ones holding up a bulk run.
-   */
-  const pendingSections = useMemo(() => {
-    const byGroup = new Map<string, Registration[]>();
-    for (const r of pending) {
-      const key = effectiveGroup(r) || 'none';
-      const list = byGroup.get(key);
-      if (list) list.push(r); else byGroup.set(key, [r]);
-    }
-    const sections: Array<{
-      key: string; label: string; band: number | null; hex: string | null;
-      chip: { bg: string; text: string; border: string } | null; rows: Registration[];
-    }> = [];
-    const none = byGroup.get('none');
-    if (none?.length) sections.push({ key: 'none', label: 'בלי דבוקה', band: null, hex: null, chip: null, rows: none });
-    for (const g of groups) {
-      const rows = byGroup.get(g.id);
-      if (rows?.length) {
-        const resolved = resolveGroup(g.name);
-        sections.push({ key: g.id, label: `דבוקה ${g.band}`, band: g.band, hex: resolved.hex, chip: resolved.colors.chip, rows });
-      }
-    }
-    // A group that is no longer in /api/groups — a stale id on an old row. Kept
-    // visible rather than silently dropped from a list of people.
-    for (const [key, rows] of byGroup) {
-      if (key !== 'none' && !groups.some(g => g.id === key)) {
-        sections.push({ key, label: 'דבוקה לא מזוהה', band: null, hex: null, chip: null, rows });
-      }
-    }
-    return sections;
-  }, [pending, groups, override]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const selectedRows = pending.filter(r => selected.has(r.id));
-  const blockedRows = selectedRows.filter(r => !effectiveGroup(r));
-  const allSelected = pending.length > 0 && selectedRows.length === pending.length;
-
-  const toggle = (id: string) =>
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (!next.delete(id)) next.add(id);
-      return next;
-    });
-
-  const toggleAll = () =>
-    setSelected(allSelected ? new Set() : new Set(pending.map(r => r.id)));
-
-  /** One approve/reject round trip. Returns whether the mail went out, so the
-   *  bulk caller can report on the whole run instead of per row. */
+  /** One approve/reject round trip. */
   const call = async (
     r: Registration,
     action: 'approve' | 'reject',
@@ -406,19 +340,15 @@ export default function RegistrationsQueue() {
       const { emailed, emailReason, activated } = await call(r, action);
       // activated:true — they signed in with Strava and were waiting on the blocked
       // screen, so this approval put them straight in and pushed them a notification.
-      // There is no link to chase and nothing failed, which is the opposite of what
-      // the note below would have said (it keys off the mail, and there is no address
-      // to mail).
+      // There is no link to chase and nothing failed.
       if (action === 'approve' && activated) {
         setNote(`${r.athleteName || r.email} בפנים — נשלחה התראה לאפליקציה. אין צורך בקישור.`);
       } else if (action === 'approve' && !emailed) {
-        // emailed:false means the approval went through but Resend didn't — the
-        // person is approved and does NOT know it. Worth saying out loud, with the
-        // reason, because the fix is a human one: the אושרו tab now carries their
-        // link, so it is "copy this and send it" rather than "something failed".
-        setNote(`אושר — אבל המייל לא נשלח. ${mailFailureText(emailReason)} הקישור שלהם מחכה בטאב "אושרו" — אפשר להעתיק ולשלוח בוואטסאפ.`);
+        // The approval went through but Resend didn't — the person is approved and
+        // does NOT know it. Said out loud with the reason, because the fix is a
+        // human one: their card now carries the link to copy and send.
+        setNote(`אושר — אבל המייל לא נשלח. ${mailFailureText(emailReason)} הקישור שלהם בכרטיס — אפשר להעתיק ולשלוח בוואטסאפ.`);
       }
-      setSelected(prev => { const n = new Set(prev); n.delete(r.id); return n; });
       await mutate();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'הפעולה נכשלה');
@@ -427,57 +357,12 @@ export default function RegistrationsQueue() {
     }
   };
 
-  /**
-   * Bulk approve, one request at a time on purpose.
-   *
-   * Every approval sends an email, so thirty of them in a Promise.all is thirty
-   * concurrent Resend calls — rate-limited somewhere in the middle, leaving a
-   * run half-done with no record of where it stopped. Sequential is slower and
-   * survivable: it stops at the first failure with everything before it
-   * committed, and the queue reloads to show exactly that.
-   */
-  const approveSelected = async () => {
-    const targets = selectedRows;
-    if (!targets.length || blockedRows.length) return;
-    setError(null);
-    setNote(null);
-    setBulk({ done: 0, total: targets.length });
-    let failedAt: string | null = null;
-    const noMail: string[] = [];
-    for (let i = 0; i < targets.length; i++) {
-      try {
-        const { emailed, activated } = await call(targets[i], 'approve');
-        // An activated row is in, notified, and has nothing to chase — counting it
-        // as a mail failure would send the approver looking for thirty links that
-        // nobody needs.
-        if (!emailed && !activated) noMail.push(targets[i].email);
-        setBulk({ done: i + 1, total: targets.length });
-      } catch (err) {
-        failedAt = err instanceof Error ? err.message : 'הפעולה נכשלה';
-        setError(`${failedAt} — נעצר אחרי ${i} מתוך ${targets.length}.`);
-        break;
-      }
-    }
-    if (noMail.length) {
-      setNote(
-        `${noMail.length} אושרו אבל המייל אליהם נכשל. הם בפנים ולא יודעים על זה — צריך לשלוח להם את הקישור ידנית: ${noMail.join(', ')}`,
-      );
-    }
-    setBulk(null);
-    setSelected(new Set());
-    await mutate();
-  };
-
   // ── THE LINK, IN HUMAN HANDS ────────────────────────────────────────────────
   //
-  // Approval's whole payload is one URL, and until now it existed only inside an
-  // email nobody could confirm had arrived. On 2026-09-06 an approval sent no mail
-  // and said nothing about it (Resend's SDK resolves with `{ error }` instead of
-  // throwing, so the route's `emailed` was always true) — leaving a person
-  // approved, waiting, and unreachable from every screen in the app.
-  //
-  // So the link is on the screen now, in the two forms that actually get used:
-  // copied, and sent over WhatsApp, which is where this club talks anyway.
+  // Approval's whole payload is one URL, and on 2026-09-06 an approval sent no
+  // mail and said nothing about it — leaving a person approved, waiting, and
+  // unreachable from every screen in the app. So the link is on the card, in the
+  // two forms that actually get used: copied, and sent over WhatsApp.
   const joinUrl = (r: Registration) =>
     r.inviteToken ? `${window.location.origin}/join/${r.inviteToken}` : null;
 
@@ -504,14 +389,10 @@ export default function RegistrationsQueue() {
 
   // ── "זה מישהו שכבר יש לנו" ───────────────────────────────────────────────────
   //
-  // The other answer to a pending row. Approve says "welcome, you're new"; this
-  // says the sign-in belongs to a member who is already here, and folds the two
-  // rows into one — their group, their history and their role come back, and the
-  // duplicate is gone rather than sitting in the roster looking like a person.
-  //
-  // Behind a confirmation, unlike approve: approving the wrong row leaves an extra
-  // member to clean up, and linking the wrong row moves one person's account onto
-  // another's. The two are not symmetric, so they are not one tap each.
+  // The other answer to a pending Strava sign-in: it belongs to a member who is
+  // already here, and the two rows fold into one — their group, their history and
+  // their role come back. Behind a confirmation, unlike approve: linking the wrong
+  // row moves one person's account onto another's.
   const linkToMember = async (r: Registration, candidate: MatchCandidate) => {
     setBusyId(r.id);
     setError(null);
@@ -525,7 +406,6 @@ export default function RegistrationsQueue() {
       const out = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(errorText(out.error));
       setNote(`חובר ל-${out.athleteName || candidate.name} — ההיסטוריה, הדבוקה והתפקיד שלו חזרו אליו.`);
-      setSelected(prev => { const n = new Set(prev); n.delete(r.id); return n; });
       await mutate();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'החיבור נכשל');
@@ -557,15 +437,6 @@ export default function RegistrationsQueue() {
     }
   };
 
-  /** Assign one group to everything currently selected, in local state only —
-   *  committed by the approve that follows. */
-  const assignAllSelected = (groupId: string) =>
-    setOverride(prev => {
-      const next = { ...prev };
-      for (const r of selectedRows) next[r.id] = groupId;
-      return next;
-    });
-
   if (meLoading) return <LoadingBlock tone="ink" />;
 
   if (!allowed) {
@@ -578,8 +449,24 @@ export default function RegistrationsQueue() {
     );
   }
 
+  /** The list could not be fetched at all. See logLoadErrorText for why this is
+   *  its own state and not the empty one. */
+  const failed = !!loadError && !data?.requests;
+  const failure = failed ? logLoadErrorText((loadError as { status?: number }).status) : null;
+
+  /** Said where the reader is looking: on the card when one is open, since the
+   *  sheet covers the page. */
+  const messages = (
+    <>
+      {error && <p className="text-sm text-accent-red leading-relaxed" dir="auto">{error}</p>}
+      {/* Kept loud: this is the one outcome where the screen says "done" and a
+          person is left stranded. */}
+      {note && <p className="text-sm font-semibold text-accent-red leading-relaxed">{note}</p>}
+    </>
+  );
+
   return (
-    <div dir="rtl">
+    <div dir="rtl" className="space-y-3 pb-6">
       <ConfirmSheet
         open={!!confirmReject}
         onOpenChange={(o) => { if (!o) setConfirmReject(null); }}
@@ -620,778 +507,376 @@ export default function RegistrationsQueue() {
         }}
       />
 
-      {/* Large-title header, iOS nav-bar shaped: the count is the headline, because
-          "how many are waiting" is why anyone opens this tab. */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          {/* "יומן ההרשמות", not "בקשות הרשמה". The old title named this the queue
-              of people waiting — which is what the entry queue is — and two screens
-              with the same name and the same count is how an approver ended up on a
-              different one depending on whether they tapped a notification or
-              navigated here themselves. This is the log. */}
-          <h2 className="text-[22px] font-extrabold text-ink-900 leading-tight">יומן ההרשמות</h2>
-          {/* The subline answers the question the open tab is asking. On ממתינות
-              that is "how many are waiting"; on אושרו it is the one nobody was being
-              told — approved, mailed, and still not in the app. */}
-          {tab === 'approved' ? (
-            <p className="mt-0.5 text-xs">
-              <span className="font-semibold text-ink-900">
-                {stuckCount === 0 ? 'כולם השלימו את החיבור' : `${stuckCount} אושרו ועוד לא נכנסו`}
-              </span>
-              <span className="text-ink-400"> · {approvedCount} אושרו בסך הכל</span>
-            </p>
-          ) : (
-            <p className="mt-0.5 text-xs">
-              <span className="font-semibold text-ink-900">
-                {pendingCount === 0 ? 'אין הרשמות שממתינות' : `${pendingCount} ממתינות לאישור`}
-              </span>
-              {missingGroupCount > 0 && <span className="text-ink-400"> · {missingGroupCount} ללא דבוקה</span>}
-            </p>
-          )}
-        </div>
+      <div className="flex items-center justify-between gap-3">
+        {/* "יומן ההרשמות", not "בקשות הרשמה": this is the log, and the queue of
+            people waiting is the entry queue, linked right below. */}
+        <h1 className="text-[28px] font-black text-ink-700">יומן ההרשמות</h1>
         <button
           onClick={() => mutate()}
-          className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-ink-400 active:bg-page/60"
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full text-ink-400 active:bg-page/60"
           aria-label="רענון"
         >
           <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
         </button>
       </div>
 
-      {/* Where the decision is actually made, said on the screen that is no longer
-          where it is made. Anybody who still arrives here — an old bookmark, the
-          Coach Tools row, a mail from before this shipped — gets told in one line
-          rather than approving from a screen that cannot show them how far anybody
-          got, which was the whole reason the two screens were merged. */}
+      {/* Where the decision is usually made. Anybody who arrives here from an old
+          bookmark or a mail from before the merge is told in one line. */}
       <Link
         href="/dashboard/entry-queue?at=mine"
-        className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-brand-600"
-        dir="rtl"
+        className="flex min-h-[44px] items-center gap-1.5 text-xs font-semibold text-brand-600"
       >
         <DoorOpen className="h-3.5 w-3.5 shrink-0" />
         <span>לאישור ולמעקב — מחכים להיכנס</span>
       </Link>
 
-      {/* Above the tabs, not below: whether mail works at all decides what approving
-          even means on this screen, and it renders nothing when mail is healthy. */}
+      {/* Whether mail works at all decides what approving even means here, and it
+          renders nothing when mail is healthy. */}
       <EmailHealthBanner />
 
-      {/* activeBg overridden to ink: this screen is mono, and the default brand
-          blue would be the only colour on it. */}
-      <SegmentedControl
-        className="mt-3"
-        value={tab}
-        onChange={(v) => { setTab(v); setSelected(new Set()); }}
-        options={[
-          { value: 'pending' as const, label: `ממתינות · ${pendingCount}`, icon: Clock, activeBg: 'bg-ink-900' },
-          { value: 'approved' as const, label: `אושרו · ${approvedCount}`, icon: Check, activeBg: 'bg-ink-900' },
-          { value: 'all' as const, label: 'הכל', icon: Users, activeBg: 'bg-ink-900' },
-        ]}
-      />
-
-      <div className="mt-2.5 flex items-center gap-2 h-10 px-3 rounded-2xl bg-page">
-        <Search className="h-4 w-4 shrink-0 text-ink-400" />
-        <input
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          dir="ltr"
-          inputMode="email"
-          placeholder="חיפוש לפי אימייל או שם"
-          aria-label="חיפוש לפי אימייל או שם"
-          className="flex-1 bg-transparent border-0 p-0 text-sm text-ink-900 placeholder-ink-400 text-right focus:outline-none focus:ring-0 placeholder:text-right"
-        />
-        {query && (
-          <button onClick={() => setQuery('')} className="text-ink-400 shrink-0" aria-label="ניקוי החיפוש">
-            <X className="h-4 w-4" />
+      {failure ? (
+        <div className="rounded-card border-2 border-accent-red/35 bg-card p-4">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="h-5 w-5 shrink-0 text-accent-red mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-[15px] font-bold text-accent-red">{failure.title}</p>
+              <p className="mt-0.5 text-xs text-ink-500 leading-relaxed">{failure.hint}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => mutate()}
+            className="mt-3 w-full min-h-[44px] rounded-full bg-page text-sm font-semibold text-ink-700 active:bg-ink-300/40"
+          >
+            נסה שוב
           </button>
-        )}
-      </div>
-
-      {/* Migrations here are applied by hand, so "the table isn't there yet" is a
-          real state a reader of this screen can hit — and it is not an error they
-          should have to decode from an empty list. */}
-      {data?.migrated === false && (
-        <Card className="mt-3 p-4">
-          <p className="text-sm text-ink-900 font-semibold">הטבלה עוד לא נוצרה</p>
-          <p className="text-ink-400 text-xs mt-1 leading-relaxed">
-            צריך להריץ את <code dir="ltr">supabase/migrations/083_signup_requests.sql</code> ב-Supabase SQL editor.
-          </p>
-        </Card>
-      )}
-
-      {error && <p className="mt-3 text-sm text-accent-red leading-relaxed">{error}</p>}
-      {/* Kept loud and specific: this is the one outcome where the screen says
-          "done" and a person is left stranded. */}
-      {note && <p className="mt-3 text-sm font-semibold text-accent-red leading-relaxed">{note}</p>}
-
-      {isLoading && requests.length === 0 && <LoadingBlock tone="ink" />}
-
-      {!isLoading && requests.length === 0 && data?.migrated !== false && (
-        <Card className="mt-3 p-6 text-center">
-          <Mail className="h-9 w-9 text-ink-400 mx-auto mb-2" />
-          <p className="text-sm text-ink-500">אין כאן כלום כרגע.</p>
-          <p className="text-ink-400 text-xs mt-1">
-            הקישור לשיתוף: <code dir="ltr">/register</code>
-          </p>
-        </Card>
-      )}
-
-      {!isLoading && requests.length > 0 && visible.length === 0 && (
-        <p className="mt-4 text-center text-sm text-ink-500">אין תוצאות ל-<span dir="ltr">{query}</span></p>
-      )}
-
-      {/* Pending tab only: the other two tabs have no selectable rows, so a
-          "בחר הכל" over them selected nothing and said "0 מתוך 0". */}
-      {tab === 'pending' && pending.length > 0 && (
-        <div className="mt-4">
-          <SectionCaption>בחירה</SectionCaption>
-          <div className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-            <button onClick={toggleAll} className="w-full flex items-center gap-2.5 h-12 px-4 text-right active:bg-page/40">
-              <SelectMark state={allSelected ? 'on' : selectedRows.length ? 'some' : 'off'} />
-              <span className="flex-1 text-13 font-medium text-ink-900">
-                {allSelected ? 'בטל את הבחירה' : 'בחר הכל'}
-              </span>
-              <span className="text-2xs text-ink-400">{selectedRows.length} מתוך {pending.length} נבחרו</span>
-            </button>
-          </div>
         </div>
-      )}
-
-      {/* THE PENDING TAB — one card per דבוקה. See pendingSections above for why. */}
-      {tab === 'pending' && pending.length > 0 && (
-        <div className="mt-4 space-y-4">
-          {pendingSections.map(s => (
-            <div key={s.key}>
-              {/* The header is deliberately BIG — 13px bold ink, not the 3xs grey
-                  uppercase caption used elsewhere on this screen. It is the thing
-                  that has to be legible while scrolling past twenty-five rows, and
-                  as a caption it was quieter than the rows it was labelling. */}
-              <div className="flex items-center justify-between gap-2 px-2 mb-1.5">
-                <span className="flex items-center gap-2 min-w-0">
-                  {/* The colour, once, at the head of the section — the same band
-                      hue the rest of the app uses for that דבוקה (resolveGroup, so
-                      it cannot drift). */}
-                  <span
-                    className={cn('w-2.5 h-2.5 rounded-full shrink-0', !s.hex && 'bg-ink-300')}
-                    style={s.hex ? { backgroundColor: s.hex } : undefined}
-                    aria-hidden="true"
-                  />
-                  <span className="text-13 font-bold text-ink-900 truncate">{s.label}</span>
-                  {/* The count in the band's own chip colours rather than grey text:
-                      "nine in דבוקה 2" is the fact this screen exists to show, and
-                      the -ink text tones are the ones picked for small bold type on
-                      a tint (getGroupColors), so this stays readable. */}
-                  <span
-                    className={cn(
-                      'text-2xs font-bold px-1.5 py-0.5 rounded-md border shrink-0',
-                      s.chip ? [s.chip.bg, s.chip.text, s.chip.border] : 'bg-page text-ink-500 border-page',
-                    )}
-                  >
-                    {s.rows.length}
-                  </span>
-                </span>
-                {/* Said on the section that it applies to, instead of once at the
-                    top of a list where the blocked rows were 20 rows further down. */}
-                {!s.band && <span className="text-3xs font-semibold text-ink-900 shrink-0">האישור חסום</span>}
-              </div>
-              {/* A 3px stripe down the card's leading edge in the band colour, so
-                  the colour survives past the header once the header has scrolled
-                  off. Colour sections only: the "בלי דבוקה" card marks its rows
-                  individually in black, and stacking both would read as 6px. */}
-              <div
-                className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]"
-                style={s.hex ? { borderInlineStartWidth: 3, borderInlineStartStyle: 'solid', borderInlineStartColor: s.hex } : undefined}
+      ) : (
+        <>
+          <label className="relative block">
+            <Search className="absolute top-1/2 -translate-y-1/2 start-3 h-4 w-4 text-ink-400 pointer-events-none" />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="חיפוש לפי שם או אימייל"
+              aria-label="חיפוש לפי שם או אימייל"
+              className="w-full bg-card border border-page rounded-full ps-9 pe-10 py-2.5 min-h-[44px] text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-600"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                className="absolute top-1/2 -translate-y-1/2 end-1 grid h-10 w-10 place-items-center text-ink-400"
+                aria-label="ניקוי החיפוש"
               >
-                {s.rows.map((r, i) => (
-                  <QueueRow
-                    key={r.id}
-                    r={r}
-                    groups={groups}
-                    last={i === s.rows.length - 1}
-                    selected={selected.has(r.id)}
-                    busy={busyId === r.id || !!bulk}
-                    groupId={effectiveGroup(r)}
-                    onToggle={() => toggle(r.id)}
-                    onPickGroup={(gid) => setOverride(prev => ({ ...prev, [r.id]: gid }))}
-                    onApprove={() => act(r, 'approve')}
-                    onReject={() => setConfirmReject(r)}
-                    onLink={(candidate) => setConfirmLink({ request: r, candidate })}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-          <p className="px-2 text-2xs text-ink-400 leading-relaxed">
-            אישור שולח מייל עם קישור להשלמת ההרשמה. עד שלוחצים על הקישור אף אחד לא נכנס לאפליקציה.
-          </p>
-        </div>
-      )}
-
-      {/* ── THE אושרו TAB ─────────────────────────────────────────────────────────
-          One card per stage, in the order the stages happen, because "אישרתי אותם —
-          איפה הם עומדים?" is a question with three different answers and three
-          different follow-ups: chase the first, help the second, ignore the third.
-          A single flat "approved" list answered none of them. */}
-      {tab === 'approved' && approved.length > 0 && (
-        <div className="mt-4 space-y-4">
-          {approvedSections.map(s => (
-            <div key={s.key}>
-              <div className="px-2 mb-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-13 font-bold text-ink-900">{s.label}</span>
-                  <span className="text-2xs font-bold px-1.5 py-0.5 rounded-md bg-page text-ink-500 shrink-0">
-                    {s.rows.length}
-                  </span>
-                </div>
-                {/* The hint is the section's whole justification — the label alone
-                    ("בוצע חיבור") does not say that those people are stuck. */}
-                <p className="mt-0.5 text-2xs text-ink-400 leading-relaxed">{s.hint}</p>
-              </div>
-              <div className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-                {s.rows.map((r, i) => (
-                  <QueueRow
-                    key={r.id}
-                    r={r}
-                    groups={groups}
-                    last={i === s.rows.length - 1}
-                    selected={false}
-                    busy={busyId === r.id || !!bulk}
-                    groupId={effectiveGroup(r)}
-                    copied={copiedId === r.id}
-                    onToggle={() => toggle(r.id)}
-                    onPickGroup={(gid) => setOverride(prev => ({ ...prev, [r.id]: gid }))}
-                    onApprove={() => act(r, 'approve')}
-                    onReject={() => setConfirmReject(r)}
-                    onLink={(candidate) => setConfirmLink({ request: r, candidate })}
-                    onCopy={() => copyLink(r)}
-                    onShare={() => shareWhatsApp(r)}
-                    onResend={() => resend(r)}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-          <p className="px-2 text-2xs text-ink-400 leading-relaxed">
-            Strava הוא הדלת היחידה לאפליקציה — מי שלא חיבר אותו לא נכנס, גם אם מילא את כל הפרטים.
-          </p>
-        </div>
-      )}
-
-      {tab === 'approved' && approved.length === 0 && requests.length > 0 && (
-        <p className="mt-6 text-center text-sm text-ink-500">עוד לא אישרת אף אחד.</p>
-      )}
-
-      {/* THE "הכל" TAB — one flat card, because it is a history and not a worklist:
-          it mixes statuses, so splitting it by דבוקה would group things that are not
-          comparable. Newest first, for the same reason. */}
-      {tab === 'all' && history.length > 0 && (
-        <div className="mt-4">
-          <SectionCaption>כל ההרשמות · {history.length}</SectionCaption>
-          <div className="rounded-card bg-card overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-            {history.map((r, i) => (
-              <QueueRow
-                key={r.id}
-                r={r}
-                groups={groups}
-                last={i === history.length - 1}
-                selected={selected.has(r.id)}
-                busy={busyId === r.id || !!bulk}
-                groupId={effectiveGroup(r)}
-                copied={copiedId === r.id}
-                onToggle={() => toggle(r.id)}
-                onPickGroup={(gid) => setOverride(prev => ({ ...prev, [r.id]: gid }))}
-                onApprove={() => act(r, 'approve')}
-                onReject={() => setConfirmReject(r)}
-                onLink={(candidate) => setConfirmLink({ request: r, candidate })}
-                onCopy={() => copyLink(r)}
-                onShare={() => shareWhatsApp(r)}
-                onResend={() => resend(r)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* The bulk bar, iOS bottom-action shaped. Sticky so it stays reachable
-          however far down the list the reader has scrolled — with thirty rows the
-          selection is usually made well below the fold.
-
-          Offset by the BottomTabBar's 72px (plus the home-indicator inset), not
-          `bottom-0`: this screen lives inside the (app) shell, whose tab bar is
-          `fixed`, so a bar flush to the viewport bottom put the approve button
-          UNDERNEATH it — selectable rows, visible count, unreachable action. Same
-          72px convention as PushOptIn. On md the tab bar is gone, so it isn't. */}
-      {selectedRows.length > 0 && (
-        <div className="sticky bottom-[calc(72px+env(safe-area-inset-bottom))] md:bottom-0 z-20 mt-4 -mx-1 px-4 pt-3 pb-4 rounded-t-card bg-card/95 backdrop-blur border-t border-page">
-          <div className="flex items-center justify-between">
-            <span className="text-13 font-semibold text-ink-900">
-              {bulk ? `מאשר… ${bulk.done} מתוך ${bulk.total}` : `${selectedRows.length} נבחרו`}
-            </span>
-            {!bulk && (
-              <button onClick={() => setSelected(new Set())} className="text-3xs text-ink-400">
-                ביטול בחירה
+                <X className="h-4 w-4" />
               </button>
             )}
+          </label>
+
+          <div className="flex flex-wrap gap-2">
+            {LOG_FILTERS.map(f => {
+              const on = active === f;
+              return (
+                <button
+                  key={f}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setFilter(f)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full border px-3 min-h-[44px] text-xs font-semibold transition-colors',
+                    on ? 'bg-ink-700 border-ink-700 text-white' : 'bg-card border-page text-ink-500',
+                  )}
+                >
+                  {FILTER_LABEL[f]}
+                  {data && <span className={cn('tabular-nums', on ? 'text-white/70' : 'text-ink-400')}>{counts[f]}</span>}
+                </button>
+              );
+            })}
           </div>
 
-          {blockedRows.length > 0 && !bulk && (
-            <>
-              <p className="mt-1 flex items-center gap-1.5 text-2xs font-semibold text-ink-900">
-                <span className="w-1.5 h-1.5 rounded-full bg-ink-900" aria-hidden="true" />
-                {blockedRows.length} מהנבחרים ללא דבוקה — לא ניתן לאשר
+          {/* Migrations here are applied by hand, so "the table isn't there yet" is
+              a real state, and not one to decode from an empty list. */}
+          {data?.migrated === false && (
+            <Card className="p-4">
+              <p className="text-sm text-ink-900 font-semibold">הטבלה עוד לא נוצרה</p>
+              <p className="text-ink-400 text-xs mt-1 leading-relaxed">
+                צריך להריץ את <code dir="ltr">supabase/migrations/083_signup_requests.sql</code> ב-Supabase SQL editor.
               </p>
-              <div className="mt-2.5 flex items-center gap-2 flex-wrap">
-                <span className="text-3xs text-ink-500 shrink-0">שייך את כל הנבחרים ל…</span>
-                {groups.map(g => (
-                  <button
-                    key={g.id}
-                    onClick={() => assignAllSelected(g.id)}
-                    className="h-[30px] min-w-[38px] px-2.5 rounded-pill bg-card border border-ink-900/20 text-13 font-semibold text-ink-900 active:bg-page"
-                  >
-                    דבוקה {g.band}
-                  </button>
-                ))}
-              </div>
-            </>
+            </Card>
           )}
 
-          <div className="mt-3 flex items-center gap-2">
-            <button
-              onClick={() => { const first = selectedRows[0]; if (first) setConfirmReject(first); }}
-              disabled={!!bulk}
-              className="w-11 h-11 shrink-0 rounded-full bg-card border border-ink-300/60 text-accent-red flex items-center justify-center disabled:opacity-40"
-              aria-label="דחייה"
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <button
-              onClick={approveSelected}
-              disabled={!!bulk || blockedRows.length > 0}
-              className={cn(
-                'flex-1 h-11 rounded-pill text-sm font-semibold transition-colors',
-                blockedRows.length > 0 || bulk
-                  ? 'bg-page text-ink-400'
-                  : 'bg-ink-900 text-white active:bg-ink-700',
-              )}
-            >
-              {bulk
-                ? `מאשר… ${bulk.done}/${bulk.total}`
-                : `אישור ${selectedRows.length} בקשות ושליחת קישור במייל`}
-            </button>
-          </div>
-        </div>
+          {!open && messages}
+
+          {isLoading && !data ? (
+            <div className="space-y-2">{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-16 rounded-card" />)}</div>
+          ) : shown.length === 0 ? (
+            <EmptyState
+              title={query ? 'אין תוצאות לחיפוש' : active === 'pending' ? 'אין הרשמות שממתינות' : active === 'stuck' ? 'כל מי שאושר כבר בפנים' : 'אין כאן כלום כרגע'}
+            />
+          ) : (
+            <ul className="overflow-hidden rounded-card bg-card divide-y divide-page">
+              {shown.map(r => {
+                const state = logState(r);
+                const id = identity(r);
+                return (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      onClick={() => { setError(null); setNote(null); setOpenId(r.id); }}
+                      className="flex w-full items-center gap-3 px-4 py-3 min-h-[60px] text-start active:bg-page/60"
+                    >
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-600 text-xs font-extrabold text-white">
+                        {initials(r)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        {/* An address is LTR and a Strava name is usually Hebrew, so
+                            the line takes its direction from what it holds. */}
+                        <span dir={id.isName ? 'auto' : 'ltr'} className="block truncate text-[15px] font-bold text-ink-700 text-start">
+                          {id.text}
+                        </span>
+                        <span className="block truncate text-xs text-ink-400">
+                          {[
+                            r.status === 'member' ? 'יש לו כבר חשבון' : r.groupName ? groupDisplayName(r.groupName) : 'ללא דבוקה',
+                            waitingFor(r.createdAt),
+                          ].join(' · ')}
+                        </span>
+                      </span>
+                      <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-2xs font-bold', PILL[state].cls)}>
+                        {PILL[state].label}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
       )}
+
+      <Sheet open={!!open} onOpenChange={(o) => { if (!o) setOpenId(null); }}>
+        {open && (
+          <RegistrationCard
+            r={open}
+            groups={groups}
+            groupId={effectiveGroup(open)}
+            busy={busyId === open.id}
+            copied={copiedId === open.id}
+            messages={messages}
+            onPickGroup={(gid) => setOverride(prev => ({ ...prev, [open.id]: gid }))}
+            onApprove={() => act(open, 'approve')}
+            onReject={() => { setOpenId(null); setConfirmReject(open); }}
+            onLink={(candidate) => { setOpenId(null); setConfirmLink({ request: open, candidate }); }}
+            onCopy={() => copyLink(open)}
+            onShare={() => shareWhatsApp(open)}
+            onResend={() => resend(open)}
+          />
+        )}
+      </Sheet>
     </div>
   );
 }
 
-/** iOS-style selection mark: a hollow circle, a filled tick, or a dash for
- *  "some but not all" — a full tick at 4-of-33 would be a lie. */
-function SelectMark({ state }: { state: 'on' | 'off' | 'some' }) {
+function KV({ label, value, ltr }: { label: string; value: React.ReactNode; ltr?: boolean }) {
   return (
-    <span
-      className={cn(
-        'w-[22px] h-[22px] shrink-0 rounded-full border flex items-center justify-center',
-        state === 'on' ? 'bg-ink-900 border-ink-900 text-white' : 'border-ink-300 text-ink-900',
-      )}
-      aria-hidden="true"
-    >
-      {state === 'on' && <Check className="h-3 w-3" strokeWidth={3.5} />}
-      {state === 'some' && <span className="w-2 h-[1.5px] bg-ink-900 rounded-full" />}
-    </span>
+    <div className="flex items-center justify-between gap-3 py-2.5 text-sm">
+      <span className="shrink-0 text-ink-500">{label}</span>
+      <span dir={ltr ? 'ltr' : undefined} className="min-w-0 truncate text-end font-semibold text-ink-700">{value}</span>
+    </div>
   );
 }
 
-/** The three approved stages, as a chip. Ordered light → solid, so the row reads
- *  as progress: grey = nothing happened, tinted = started, black = in. */
-const STAGE_FACE: Record<Stage, { label: string; cls: string }> = {
-  emailed: { label: 'מייל נשלח', cls: 'bg-page text-ink-500' },
-  connected: { label: 'בוצע חיבור', cls: 'bg-ink-900/10 text-ink-900' },
-  done: { label: 'סיימו חיבור', cls: 'bg-ink-900 text-white' },
-};
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <p className="mb-1.5 px-1 text-2xs font-bold uppercase tracking-wider text-ink-400">{children}</p>;
+}
+
+/** One tappable line in an actions card, the People card's ActionRow as a button. */
+function ActionButton({
+  icon: Icon, label, onClick, disabled, tone = 'ink',
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  tone?: 'ink' | 'red';
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        'flex w-full min-h-[48px] items-center gap-3 py-2 text-start text-[15px] font-semibold disabled:opacity-40',
+        tone === 'red' ? 'text-accent-red' : 'text-ink-700',
+      )}
+    >
+      <Icon className={cn('h-4 w-4 shrink-0', tone === 'red' ? 'text-accent-red' : 'text-ink-400')} />
+      {label}
+    </button>
+  );
+}
 
 /**
- * One request. Fixed height and a single line of identity, because thirty of
- * these have to be scannable: email + how long they've waited on top, the group
- * chips and the actions underneath.
- *
- * The name is on it when there is one — the public form never asks, so it only
- * exists after /join. Until then the email IS the person, which is why the
- * address never gives up its line.
+ * One registration, opened. The alert on top is the row's pill spelled out with
+ * what to do about it; the actions are only the ones that change an outcome for
+ * this row — approve/reject/merge while it waits, the link while an approved
+ * person is not in yet, the profile once they are.
  */
-function QueueRow({
-  r, groups, last, selected, busy, groupId, copied, onToggle, onPickGroup, onApprove, onReject,
-  onLink, onCopy, onShare, onResend,
+function RegistrationCard({
+  r, groups, groupId, busy, copied, messages, onPickGroup, onApprove, onReject, onLink, onCopy, onShare, onResend,
 }: {
   r: Registration;
   groups: GroupOption[];
-  last: boolean;
-  selected: boolean;
-  busy: boolean;
   groupId: string;
-  copied?: boolean;
-  onToggle: () => void;
+  busy: boolean;
+  copied: boolean;
+  messages: React.ReactNode;
   onPickGroup: (groupId: string) => void;
   onApprove: () => void;
   onReject: () => void;
-  /** Fold this sign-in into the member the approver picked, instead of approving it
-   *  as a new one. Takes the candidate because the row now offers up to three. */
-  onLink?: (candidate: MatchCandidate) => void;
-  onCopy?: () => void;
-  onShare?: () => void;
-  onResend?: () => void;
+  onLink: (candidate: MatchCandidate) => void;
+  onCopy: () => void;
+  onShare: () => void;
+  onResend: () => void;
 }) {
-  const isPending = r.status === 'pending';
-  const stage = r.status === 'approved' ? (r.stage as Stage) : null;
-  /** The invite-link controls, on the rows where they change an outcome: approved,
-   *  has a token, and not in yet. On a 'done' row there is nobody to send it to. */
-  const showLinkActions = !!(stage && stage !== 'done' && r.inviteToken && onCopy);
+  const state = logState(r);
+  const id = identity(r);
+  const isPending = state === 'pending';
   const needsGroup = isPending && !groupId;
-  /** The row is a Strava sign-in the app could not place. Pending only: once it has
-   *  been approved the second row exists and this is no longer the fix.
-   *
-   *  Note what this no longer checks — that there IS a candidate. A sign-in with no
-   *  resemblance to anybody still gets the strip, saying so. Going quiet on exactly
-   *  the rows that are ambiguous is what this whole block is here to stop. */
-  const showMatch = !!(isPending && r.unplaced && onLink);
-  /** True when the address on this row is one the app invented — see line one below. */
-  const identifiedByName = isSyntheticAuthEmail(r.email);
-  /** The row's דבוקה, resolved to its number and its brand colours. null when the
-   *  row has no group, or an id that /api/groups no longer knows. */
-  const band = useMemo(() => {
-    const g = groups.find(x => x.id === groupId);
-    if (!g) return null;
-    return { number: g.band, chip: resolveGroup(g.name).colors.chip };
-  }, [groups, groupId]);
+  const showLinkActions = (state === 'emailed' || state === 'connected') && !!r.inviteToken;
+  const profile = state === 'done' ? teammateHref(r.athleteId) : null;
 
-  /**
-   * Whether this row is showing the picker for a group it ALREADY has.
-   *
-   * Requested directly ("אני רוצה שיהיה אופציה במסך של הpending לשנות דבוקה
-   * לאתלט"). It reverses an earlier call of mine to show the picker only where a
-   * group was missing — which did clean up the list, and also made the one number
-   * that matters here unchangeable. Behind a tap rather than always-on, so the
-   * twenty-five rows stay scannable and a mis-tap while scrolling cannot silently
-   * re-band somebody: opening the picker is one deliberate tap, and the change is
-   * still only local state until Approve commits it.
-   *
-   * ⚠️ For a backfilled row the athlete ALREADY has a group and approving
-   * OVERWRITES it (see migration 090) — so this control is the real thing, not a
-   * queue-only annotation.
-   */
-  const [editing, setEditing] = useState(false);
-  const showPicker = isPending && (needsGroup || editing);
+  const alert: { title: string; hint: string; tone: 'red' | 'amber' } | null =
+    isPending && r.unplaced ? {
+      title: r.matchCandidates.length > 0
+        ? (r.matchCandidates.length > 1 ? 'אחד מאלה כבר בקבוצה?' : 'זה מישהו שכבר בקבוצה?')
+        : 'התחברות דרך Strava בלי שם דומה בקבוצה',
+      hint: r.matchCandidates.length > 0
+        ? 'אישור ייצור חבר חדש וכפול. אם זה אותו אדם, חברו אותו לחשבון הקיים.'
+        : 'אישור ייצור חבר חדש.',
+      tone: 'red',
+    }
+    : isPending ? { title: 'ממתין לאישור', hint: 'אישור שולח מייל עם קישור להשלמת ההרשמה.', tone: 'red' }
+    : state === 'emailed' ? { title: 'אושר ועוד לא נגע בקישור', hint: 'אם המייל לא הגיע, העתיקו את הקישור ושלחו בוואטסאפ.', tone: 'amber' }
+    : state === 'connected' ? { title: 'התחיל ולא סיים', hint: 'חסר לו Strava, ובלעדיו אין כניסה לאפליקציה.', tone: 'amber' }
+    : null;
 
   return (
-    <div
-      className={cn(
-        !last && 'border-b border-page',
-        selected && 'bg-page/40',
-      )}
-    >
-    <div
-      className={cn(
-        // Taller than the 62px it was: the address moved up to 14px and the badge
-        // sits under it, and cramming both into 62 is what made the old row read as
-        // a single grey smudge.
-        'flex items-center gap-2.5 px-3.5 py-2.5 min-h-[70px]',
-      )}
-    >
-      {isPending ? (
-        <button onClick={onToggle} className="shrink-0 -my-2 py-2" aria-label={selected ? 'ביטול בחירה' : 'בחירה'}>
-          <SelectMark state={selected ? 'on' : 'off'} />
-        </button>
-      ) : (
-        <span className="w-[22px] shrink-0" aria-hidden="true" />
-      )}
-
-      <div className="flex-1 min-w-0">
-        {/* THE ADDRESS IS THE ROW. It is the only thing here that identifies a
-            person, and it was the thing being squeezed: at 13px with a timestamp,
-            a status chip and three buttons on the same line, every address was
-            truncated mid-domain ("grosfeldofe…"), which is unreadable and, worse,
-            ambiguous between two people. It now owns line one at 14px, with
-            everything else demoted to line two. */}
-        {/* …unless there is no address. A Strava sign-in queues itself under
-            `strava_1234@strava.madregot.local` — a synthetic address the app
-            invented, which identifies nobody and is not theirs to be shown as
-            such. Their Strava display name is the only real thing on the row, so
-            it takes line one instead. dir=auto because that name is usually
-            Hebrew, and forcing LTR on it flips its punctuation to the wrong end. */}
-        {/* Linked only on the name branch, and the asymmetry is deliberate: when
-            line one is an ADDRESS it is there to be read and copied (hence
-            select-all), and a link would swallow the click that selects it. When
-            line one is a person's Strava display name there is nothing to copy and
-            the name is the person. `r.athleteId` is null until a row has an athlete
-            row at all, which AthleteLink already renders as plain text. */}
-        <AthleteLink
-          athleteId={identifiedByName ? r.athleteId : null}
-          name={r.athleteName ?? undefined}
-          className="block min-w-0"
-        >
-          <span
-            dir={identifiedByName ? 'auto' : 'ltr'}
-            title={r.email}
-            className="block text-sm font-semibold text-ink-900 truncate text-left select-all"
-          >
-            {identifiedByName ? r.athleteName || 'התחברות דרך Strava' : r.email}
-          </span>
-        </AthleteLink>
-
-        {/* dir=ltr on the SECOND line too, and it matters: the address above is an
-            LTR block, so it sits hard against the left edge, while an RTL line
-            underneath starts hard against the RIGHT. That split the row into two
-            unrelated columns — the badge for a person was 250px away from their
-            address. Both lines now begin at the same left edge, so a row reads as
-            one thing. The Hebrew inside each chip still renders RTL by itself. */}
-        {isPending ? (
-          <div dir="ltr" className="mt-1 flex items-center gap-1.5">
-            {/* The band badge Ofer asked for, in that דבוקה's own colour (via
-                resolveGroup, so it matches the league table and the athletes list
-                and cannot drift). On a row that HAS a group this replaces the three
-                buttons entirely — which is most rows after the backfill, and the
-                other half of why this list was so hard to read. */}
-            {band && !editing && (
-              <button
-                onClick={() => setEditing(true)}
-                disabled={busy}
-                aria-label={`דבוקה ${band.number} — החלפת דבוקה`}
-                className={cn(
-                  'flex items-center gap-1 text-2xs font-bold px-2 py-0.5 rounded-md border shrink-0 whitespace-nowrap',
-                  band.chip.bg, band.chip.text, band.chip.border,
-                  'disabled:opacity-50',
-                )}
-              >
-                דבוקה {band.number}
-                {/* A tiny caret is the whole affordance. Anything more (a pencil, a
-                    "שינוי" label) is 25 copies of a control nobody uses on most
-                    rows, which is what made this list unreadable in the first place. */}
-                <ChevronDown className="h-2.5 w-2.5 opacity-60" strokeWidth={3} aria-hidden="true" />
-              </button>
-            )}
-            {showPicker && (
-              <>
-                {needsGroup && (
-                  <span className="text-3xs font-bold text-ink-900 shrink-0 whitespace-nowrap">בחר דבוקה</span>
-                )}
-                {/* Three chips instead of a <select>: at this density a native
-                    picker is two taps and a modal per person, and the whole point
-                    is to get through thirty of them. The one currently set is
-                    filled in its own band colour, so the row still answers "which
-                    דבוקה is this?" while the picker is open. */}
-                <span className="flex gap-1 shrink-0">
-                  {groups.map(g => {
-                    const on = g.id === groupId;
-                    const chip = resolveGroup(g.name).colors.chip;
-                    return (
-                      <button
-                        key={g.id}
-                        onClick={() => { onPickGroup(g.id); setEditing(false); }}
-                        disabled={busy}
-                        aria-label={`דבוקה ${g.band}`}
-                        aria-pressed={on}
-                        className={cn(
-                          'w-[26px] h-[26px] rounded-lg text-2xs font-bold flex items-center justify-center border',
-                          on ? [chip.bg, chip.text, 'border-current'] : 'bg-page text-ink-500 border-transparent active:bg-ink-300/40',
-                        )}
-                      >
-                        {g.band}
-                      </button>
-                    );
-                  })}
-                </span>
-                {/* Only when a group already existed: closing an empty picker would
-                    hide the one control the row needs. */}
-                {editing && !needsGroup && (
-                  <button
-                    onClick={() => setEditing(false)}
-                    aria-label="סגירה"
-                    className="w-[26px] h-[26px] rounded-lg text-ink-400 flex items-center justify-center shrink-0 active:bg-page"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-              </>
-            )}
-            {!showPicker && (
-              <>
-                <span className="text-3xs text-ink-300 shrink-0" aria-hidden="true">·</span>
-                <span className="text-2xs text-ink-400 shrink-0 truncate">{waitingFor(r.createdAt)}</span>
-              </>
-            )}
-          </div>
-        ) : (
-          <div dir="ltr" className="mt-1 flex items-center gap-1.5">
-            {/* Three faces, not two. 'member' is deliberately the quiet one — a
-                flat grey chip rather than the black "אושר" or the red "נדחה":
-                nobody did anything and nobody has to. It reads as a note in the
-                margin, which is what it is. */}
-            {/* An approved row says its STAGE, not "אושר". "אושר" was true and
-                useless: it is the one thing the reader already knows, and it looked
-                identical whether the mail bounced or the person finished an hour
-                ago. 'member' stays deliberately the quiet one — a flat grey chip:
-                nobody did anything and nobody has to. */}
-            <span
-              className={cn(
-                'text-3xs font-bold px-1.5 py-0.5 rounded shrink-0',
-                stage ? STAGE_FACE[stage].cls : '',
-                r.status === 'rejected' && 'bg-accent-red/15 text-accent-red-ink',
-                r.status === 'member' && 'bg-page text-ink-400',
-              )}
-            >
-              {stage ? STAGE_FACE[stage].label : r.status === 'rejected' ? 'נדחה' : 'כבר חבר'}
-            </span>
-            <span className="text-2xs text-ink-400 truncate">
-              {/* The name once they have typed one at /join. Only from 'connected'
-                  on: before that the athlete row still carries
-                  placeholderNameFromEmail(), so showing it would be the address
-                  twice, dressed up as a name. */}
-              {stage && stage !== 'emailed' && r.athleteName ? `${r.athleteName} · ` : ''}
-              {r.status === 'member' ? 'נרשם מהקישור, יש לו כבר חשבון' : r.groupName || 'ללא דבוקה'}
-              {r.status === 'rejected' && r.rejectedBy && ` · ${r.rejectedBy}`}
-            </span>
-          </div>
-        )}
+    <div dir="rtl" className="space-y-4 pb-4">
+      <div className="flex items-center gap-3">
+        <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-brand-600 text-lg font-extrabold text-white">
+          {initials(r)}
+        </span>
+        <div className="min-w-0">
+          <p dir={id.isName ? 'auto' : 'ltr'} className="truncate text-xl font-black text-ink-700 text-start">{id.text}</p>
+          <p className="text-xs text-ink-400">נרשם {shortDate(r.createdAt)} · {waitingFor(r.createdAt)}</p>
+        </div>
       </div>
 
-      {isPending && (
-        <div className="flex items-center gap-1 shrink-0">
-          {/* ⚠️ BOTH OF THESE WERE UNDER 30px. "גם האישור שם לא ממש נוח" — and it
-              was not a matter of taste: a 28×28 circle beside a 28px pill, on a
-              70px row, is two adjacent sub-minimum targets where one of them is
-              irreversible. Now 40px tall with a 44px touch box (the -my-2/py-2
-              trick, so the target grows without the row growing), and the reject
-              X is pushed to the edge with a gap between them. */}
-          <button
-            onClick={onReject}
-            disabled={busy}
-            className="w-10 h-10 -my-1 rounded-full text-ink-400 flex items-center justify-center disabled:opacity-40 active:bg-page"
-            aria-label="דחייה"
-          >
-            <X className="h-4 w-4" />
-          </button>
-          {/* Outlined, not filled: thirty solid black pills down a white card is a
-              wall, and the only filled button on the screen should be the bulk
-              one. Disabled is the real state here, not a decoration — the route
-              400s on a missing group, so the row must not offer the tap. */}
-          <button
-            onClick={onApprove}
-            disabled={busy || needsGroup}
-            title={needsGroup ? 'צריך לשייך דבוקה לפני אישור' : undefined}
-            className={cn(
-              'h-10 min-w-[64px] px-4 rounded-pill text-13 font-semibold transition-colors',
-              needsGroup
-                ? 'bg-page/70 text-ink-300 border border-page'
-                : 'bg-card border border-ink-900/25 text-ink-900 active:bg-page',
-              busy && !needsGroup && 'opacity-50',
-            )}
-          >
-            אשר
-          </button>
-        </div>
-      )}
-    </div>
-
-    {/* ── "רגע, זה לא מישהו שכבר יש לנו?" ───────────────────────────────────────
-        The row's own warning, said before the irreversible tap rather than after
-        it. A Strava sign-in cannot be recognised from its address — the address is
-        one the app invented — so on these rows Approve looks exactly as ordinary as
-        it does on a stranger, and pressing it is how the club got six duplicate
-        members, three of them coaches signed in as runners.
-
-        RTL here, unlike the ltr identity lines above: this is a sentence, not a
-        row of chips beside an email address, and it is Hebrew. */}
-    {showMatch && (
-      <div dir="rtl" className="px-3.5 pb-2.5 -mt-1">
-        {r.matchCandidates.length > 0 ? (
-          <>
-            <span className="flex items-center gap-1.5 text-2xs text-ink-500">
-              <Users className="h-3.5 w-3.5 shrink-0 text-ink-400" aria-hidden="true" />
-              <span>{r.matchCandidates.length > 1 ? 'אחד מאלה כבר בקבוצה?' : 'זה מישהו שכבר בקבוצה?'}</span>
-            </span>
-            {/* One button PER candidate, each naming the person it would merge into.
-                The alternative — one button plus a picker — hides the name behind a
-                tap, and the name is the entire decision. Three at most, so the row
-                stays a row. */}
-            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+      {alert && (
+        <div className={cn('rounded-card border-2 bg-card p-3.5', alert.tone === 'red' ? 'border-accent-red/35' : 'border-band-3/40')}>
+          <p className={cn('text-[15px] font-bold', alert.tone === 'red' ? 'text-accent-red' : 'text-band-3-ink')}>{alert.title}</p>
+          <p className="mt-0.5 text-xs text-ink-500">{alert.hint}</p>
+          {/* One button PER candidate, each naming the person it would merge into:
+              the name is the entire decision, so it is never behind a picker. */}
+          {isPending && r.unplaced && r.matchCandidates.length > 0 && (
+            <div className="mt-2.5 flex flex-wrap gap-2">
               {r.matchCandidates.map(c => (
                 <button
                   key={c.id}
-                  onClick={() => onLink?.(c)}
+                  onClick={() => onLink(c)}
                   disabled={busy}
                   className={cn(
-                    'h-9 px-3 rounded-pill text-2xs font-semibold flex items-center gap-1.5 border active:bg-page disabled:opacity-40 shrink-0 max-w-full',
-                    // The strong bands read as the suggested action; a weak one is
-                    // greyed to match what it is worth, so a shared surname does not
-                    // look as confident as a matching skeleton.
-                    c.confidence === 'weak'
-                      ? 'bg-card text-ink-500 border-page'
-                      : 'bg-card text-ink-900 border-ink-900/25',
+                    'min-h-[44px] max-w-full px-3 rounded-full text-xs font-semibold flex items-center gap-1.5 border active:bg-page disabled:opacity-40',
+                    c.confidence === 'weak' ? 'bg-card text-ink-500 border-page' : 'bg-card text-ink-900 border-ink-900/25',
                   )}
                 >
-                  {/* NOT an AthleteLink, on purpose: this name is the LABEL of a
-                      merge action, not a person to go and look at, and it lives
-                      inside a <button> — an <a> in there is invalid markup that
-                      would cost the merge its click. */}
                   <span className="text-ink-400 shrink-0">{CONFIDENCE_LABEL[c.confidence]}</span>
                   <b className="font-bold truncate">{c.name}</b>
                 </button>
               ))}
             </div>
-          </>
-        ) : (
-          /* NOTHING resembles this sign-in — the case that produced the last
-             duplicate is the case where this strip used to be blank. It is still
-             worth a line: the address on the row is one the app invented, so there
-             is no other clue on screen that approving here creates a brand-new
-             member rather than letting a known one in. */
-          <span className="flex items-start gap-1.5 text-2xs text-ink-400">
-            <Users className="h-3.5 w-3.5 shrink-0 mt-px" aria-hidden="true" />
-            <span>התחברות דרך Strava שאין לה שם דומה בקבוצה — אישור ייצור חבר חדש.</span>
-          </span>
-        )}
-      </div>
-    )}
-
-    {/* ── THE LINK, WHERE A PERSON CAN REACH IT ────────────────────────────────
-        Its own strip under the identity rather than three more icons on the right:
-        at 44px each they do not fit beside an email address on a phone, and these
-        are the actions that get taken when a mail did not arrive — which is the
-        common case until RESEND_FROM_EMAIL is set on a verified domain. Copy first,
-        because it is the one that always works; WhatsApp second, because that is
-        where this club actually talks; re-send last, since it is the one that can
-        fail again for the same reason. */}
-    {showLinkActions && (
-      <div className="flex items-center gap-2 px-3.5 pb-2.5 -mt-1">
-        <button
-          onClick={onCopy}
-          disabled={busy}
-          className={cn(
-            'h-9 px-3 rounded-pill text-3xs font-semibold flex items-center gap-1.5 border transition-colors disabled:opacity-40',
-            copied ? 'bg-ink-900 text-white border-ink-900' : 'bg-card text-ink-700 border-ink-900/20 active:bg-page',
           )}
-        >
-          {copied ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : <Copy className="h-3.5 w-3.5" />}
-          {copied ? 'הועתק' : 'העתקת קישור'}
-        </button>
-        <button
-          onClick={onShare}
-          disabled={busy}
-          className="h-9 px-3 rounded-pill text-3xs font-semibold flex items-center gap-1.5 bg-card text-ink-700 border border-ink-900/20 active:bg-page disabled:opacity-40"
-        >
-          <MessageCircle className="h-3.5 w-3.5" />
-          וואטסאפ
-        </button>
-        <button
-          onClick={onResend}
-          disabled={busy}
-          className="h-9 px-3 rounded-pill text-3xs font-semibold flex items-center gap-1.5 text-ink-400 active:bg-page disabled:opacity-40"
-        >
-          <Send className="h-3.5 w-3.5" />
-          שליחה מחדש
-        </button>
-      </div>
-    )}
+        </div>
+      )}
+
+      {messages}
+
+      <section>
+        <SectionTitle>פרטים</SectionTitle>
+        <div className="rounded-card bg-card px-4 divide-y divide-page">
+          <KV label="מצב" value={PILL[state].label} />
+          {!isSyntheticAuthEmail(r.email) && <KV label="אימייל" value={r.email} ltr />}
+          {r.status !== 'member' && <KV label="דבוקה" value={r.groupName ? groupDisplayName(r.groupName) : 'ללא דבוקה'} />}
+          {r.approvedAt && <KV label="אושר" value={`${shortDate(r.approvedAt)}${r.approvedBy ? ` · ${r.approvedBy}` : ''}`} />}
+          {r.rejectedAt && <KV label="נדחה" value={`${shortDate(r.rejectedAt)}${r.rejectedBy ? ` · ${r.rejectedBy}` : ''}`} />}
+          {r.status === 'approved' && (
+            <KV label="חיבורים" value={[r.hasStrava && 'Strava', r.hasGarmin && 'Garmin'].filter(Boolean).join(' · ') || 'אין עדיין'} />
+          )}
+        </div>
+      </section>
+
+      {/* The group is decided here, before the approve that commits it. For a
+          backfilled row approving OVERWRITES the member's current group (migration
+          090), so the chip that is on is the one that will be written. */}
+      {isPending && (
+        <section>
+          <SectionTitle>{needsGroup ? 'צריך לבחור דבוקה לפני אישור' : 'דבוקה'}</SectionTitle>
+          <div className="flex gap-2">
+            {groups.map(g => {
+              const on = g.id === groupId;
+              const chip = resolveGroup(g.name).colors.chip;
+              return (
+                <button
+                  key={g.id}
+                  onClick={() => onPickGroup(g.id)}
+                  disabled={busy}
+                  aria-pressed={on}
+                  className={cn(
+                    'flex-1 min-h-[44px] rounded-full border text-sm font-bold',
+                    on ? [chip.bg, chip.text, 'border-current'] : 'bg-card text-ink-500 border-page active:bg-page',
+                  )}
+                >
+                  דבוקה {g.band}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            onClick={onApprove}
+            disabled={busy || needsGroup}
+            className={cn(
+              'mt-3 w-full min-h-[48px] rounded-full text-[15px] font-bold transition-colors',
+              busy || needsGroup ? 'bg-page text-ink-400' : 'bg-ink-700 text-white active:bg-ink-900',
+            )}
+          >
+            {busy ? 'מאשר…' : 'אישור ושליחת קישור במייל'}
+          </button>
+        </section>
+      )}
+
+      {(isPending || showLinkActions || profile) && (
+        <section>
+          <SectionTitle>פעולות</SectionTitle>
+          <div className="rounded-card bg-card px-4 divide-y divide-page">
+            {/* Copy first, because it is the one that always works; WhatsApp second,
+                because that is where the club talks; re-send last, since it can fail
+                again for the same reason. */}
+            {showLinkActions && (
+              <>
+                <ActionButton icon={copied ? Check : Copy} label={copied ? 'הועתק' : 'העתקת הקישור האישי'} onClick={onCopy} disabled={busy} />
+                <ActionButton icon={MessageCircle} label="שליחת הקישור בוואטסאפ" onClick={onShare} disabled={busy} />
+                <ActionButton icon={Send} label="שליחת המייל מחדש" onClick={onResend} disabled={busy} />
+              </>
+            )}
+            {profile && (
+              <Link href={profile} className="flex min-h-[48px] items-center justify-between py-2 text-[15px] font-semibold text-ink-700">
+                פרופיל
+                <ChevronLeft className="h-4 w-4 text-ink-400" />
+              </Link>
+            )}
+            {isPending && <ActionButton icon={X} label="דחיית ההרשמה" onClick={onReject} disabled={busy} tone="red" />}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
