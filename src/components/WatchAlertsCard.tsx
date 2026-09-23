@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import { Volume2, Vibrate, X, ChevronDown, ChevronUp } from 'lucide-react';
 
 const DISMISS_KEY = 'watch_alerts_card_dismissed';
@@ -10,8 +11,12 @@ const DISMISS_KEY = 'watch_alerts_card_dismissed';
  * each step on the watch, and how to turn on Garmin Audio Prompts for spoken
  * pace/lap cues. This is the "A" of the A+B audio work — no watch integration
  * needed, just guidance. Dismissible and remembered in localStorage.
+ *
+ * Copy lives in messages/*.json under `watchAlerts` — it was hard-coded English,
+ * the only English card on the Hebrew settings screen.
  */
 export function WatchAlertsCard() {
+  const t = useTranslations('watchAlerts');
   const [dismissed, setDismissed] = useState(true); // default hidden until we read storage
   const [expanded, setExpanded] = useState(false);
 
@@ -20,6 +25,8 @@ export function WatchAlertsCard() {
   }, []);
 
   if (dismissed) return null;
+
+  const strong = (chunks: ReactNode) => <span className="text-ink-700 font-medium">{chunks}</span>;
 
   const dismiss = () => {
     localStorage.setItem(DISMISS_KEY, '1');
@@ -34,22 +41,23 @@ export function WatchAlertsCard() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-bold text-ink-700">Alerts & voice on your watch</h3>
-            <button onClick={dismiss} className="text-ink-400 hover:text-ink-900 shrink-0" aria-label="Dismiss">
+            <h3 className="text-sm font-bold text-ink-700">{t('title')}</h3>
+            {/* A 44px box around the 16px glyph, pulled into the corner so the
+                title row keeps its height. */}
+            <button onClick={dismiss} className="-m-3 flex h-11 w-11 shrink-0 items-center justify-center text-ink-400 hover:text-ink-900" aria-label={t('dismiss')}>
               <X className="h-4 w-4" />
             </button>
           </div>
           <p className="text-xs text-ink-400 mt-1">
-            Your watch <span className="text-ink-700 font-medium">beeps and vibrates</span> at every
-            step of the workout — including rest intervals — and shows your target pace on screen.
+            {t.rich('body', { b: strong })}
           </p>
 
           <button
             onClick={() => setExpanded((v) => !v)}
-            className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 mt-2"
+            className="-mb-2 flex min-h-[44px] items-center gap-1 text-xs text-brand-600 hover:text-brand-700"
           >
             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-            Want spoken cues too?
+            {t('moreToggle')}
           </button>
 
           {expanded && (
@@ -57,14 +65,13 @@ export function WatchAlertsCard() {
               <p className="flex items-start gap-2">
                 <Vibrate className="h-3.5 w-3.5 text-ink-400 mt-0.5 shrink-0" />
                 <span>
-                  Step beeps &amp; vibration work automatically — no setup needed.
+                  {t('autoStep')}
                 </span>
               </p>
               <p className="flex items-start gap-2">
                 <Volume2 className="h-3.5 w-3.5 text-ink-400 mt-0.5 shrink-0" />
                 <span>
-                  For spoken pace &amp; lap announcements, enable <span className="text-ink-700 font-medium">Audio Prompts</span> on
-                  your Garmin (Settings → System → Audio Prompts) and connect Bluetooth headphones or your phone.
+                  {t.rich('audioPrompts', { b: strong })}
                 </span>
               </p>
             </div>

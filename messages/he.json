@@ -910,7 +910,9 @@
     "affectedPeople": "{count} נפגעו",
     "weakSignal": "אות חלש · בלי התראה",
     "firstSeenIn": "התחיל ב-{version}",
-    "registrationLog": "יומן ההרשמות"
+    "registrationLog": "יומן ההרשמות",
+    "roleAcademyCoach": "מאמן אקדמיה",
+    "roleAcademyUser": "אקדמיה"
   },
   "badgeManager": {
     "existingBadges": "תגים קיימים",
@@ -2933,5 +2935,13 @@
     "accentOrange": "כתום",
     "addPhoto": "＋ להוסיף תמונה משלי",
     "changePhoto": "החלפת התמונה"
+  },
+  "watchAlerts": {
+    "title": "התראות וקול בשעון",
+    "dismiss": "סגירה",
+    "body": "השעון <b>מצפצף ורוטט</b> בכל שלב של האימון, כולל מנוחות, ומציג את קצב היעד על המסך.",
+    "moreToggle": "רוצים גם הכרזות קוליות?",
+    "autoStep": "צפצופים ורטט בין שלבים עובדים אוטומטית, בלי שום הגדרה.",
+    "audioPrompts": "להכרזות קוליות של קצב והקפות, הפעילו <b>Audio Prompts</b> בשעון ה-Garmin (Settings ← System ← Audio Prompts) וחברו אוזניות Bluetooth או את הטלפון."
   }
 }

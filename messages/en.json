@@ -910,7 +910,9 @@
     "affectedPeople": "{count} affected",
     "weakSignal": "Weak signal · no alert",
     "firstSeenIn": "started in {version}",
-    "registrationLog": "Registration log"
+    "registrationLog": "Registration log",
+    "roleAcademyCoach": "Academy Coach",
+    "roleAcademyUser": "Academy"
   },
   "badgeManager": {
     "existingBadges": "Existing Badges",
@@ -2933,5 +2935,13 @@
     "accentOrange": "Orange",
     "addPhoto": "＋ Add my own photo",
     "changePhoto": "Change photo"
+  },
+  "watchAlerts": {
+    "title": "Alerts & voice on your watch",
+    "dismiss": "Dismiss",
+    "body": "Your watch <b>beeps and vibrates</b> at every step of the workout — including rest intervals — and shows your target pace on screen.",
+    "moreToggle": "Want spoken cues too?",
+    "autoStep": "Step beeps & vibration work automatically — no setup needed.",
+    "audioPrompts": "For spoken pace & lap announcements, enable <b>Audio Prompts</b> on your Garmin (Settings → System → Audio Prompts) and connect Bluetooth headphones or your phone."
   }
 }

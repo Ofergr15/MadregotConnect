@@ -407,6 +407,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
               // four things it actually covers before anyone will trust it enough
               // to leave it on.
               sublabel={staffOnly ? t('managementHint') : undefined}
+              sublabelClamp
               trailing={<Switch checked={on} onChange={() => toggle(key)} disabled={saving === key} activeColor="bg-accent-600" ariaLabel={label} />}
             />
           );

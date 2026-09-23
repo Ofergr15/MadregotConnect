@@ -24,6 +24,7 @@ export function MapPrefsRow() {
       iconBg="bg-band-3"
       label={t('mapPaceColors')}
       sublabel={t('mapPaceColorsDesc')}
+      sublabelClamp
       trailing={
         <Switch
           checked={paceColors}

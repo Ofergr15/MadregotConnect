@@ -61,15 +61,17 @@ interface GroupOption {
 }
 
 // Single source of truth for a role's display label — 'core_runner' has its
-// own settings-namespace key; 'academy_coach'/'academy_user' have none (they
-// only ever had a roleConfig label), so both must be special-cased here.
+// own settings-namespace key, and so do 'academy_coach'/'academy_user'
+// (roleAcademyCoach / roleAcademyUser — until 2.40.131 they fell back to the
+// English roleConfig label, so a Hebrew roster said "Academy Coach").
 // Duplicating this per-component is exactly how it drifted before: the
 // RoleDropdown picker had this special-casing, ConfirmDialog didn't, so
 // confirming a change TO or FROM an academy role showed the raw
 // "settings.academy_user" translation key instead of "Academy".
 function getRoleLabel(role: Role, t: TFunc): string {
   if (role === 'core_runner') return t('coreRunner');
-  if (role === 'academy_coach' || role === 'academy_user') return roleConfig[role].label;
+  if (role === 'academy_coach') return t('roleAcademyCoach');
+  if (role === 'academy_user') return t('roleAcademyUser');
   return t(role);
 }
 
@@ -112,7 +114,8 @@ function StateChip({ tone, icon: Icon, label }: {
   const tones: Record<string, string> = {
     ok: 'bg-accent-600/15 text-accent-900 border-accent-600/25',
     warn: 'bg-band-3/20 text-band-3-ink border-band-3/30',
-    bad: 'bg-accent-red/15 text-accent-red border-accent-red/25',
+    // -ink, not accent-red: at 10px on its own tint the plain red was 4.09:1.
+    bad: 'bg-accent-red/15 text-accent-red-ink border-accent-red/25',
     muted: 'bg-page text-ink-400 border-page',
   };
   return (
@@ -172,7 +175,7 @@ function GroupDropdown({ value, groups, onChange, disabled, t }: {
         onClick={() => !disabled && setOpen(true)}
         disabled={disabled}
         className={cn(
-          'flex items-center gap-1.5 px-2.5 min-h-[38px] rounded-lg border border-page text-xs font-semibold text-ink-500 bg-page/60 transition-colors',
+          'flex items-center gap-1.5 px-2.5 min-h-[44px] rounded-lg border border-page text-xs font-semibold text-ink-500 bg-page/60 transition-colors',
           disabled ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-95 cursor-pointer'
         )}
       >
@@ -218,9 +221,9 @@ function RoleDropdown({ value, onChange, disabled, canGrantAdmin, t }: { value: 
         onClick={() => !disabled && setOpen(true)}
         disabled={disabled}
         className={cn(
-          // min-h-[38px] rather than py-1.5: at 30px these were under any
-          // reasonable thumb target, and they are the point of this screen.
-          'flex items-center gap-2 px-3 min-h-[38px] rounded-lg border text-xs font-semibold transition-colors',
+          // 44, not 38 (or the 30 of the old py-1.5): these are the point of
+          // this screen, and three still fit one line of a 375 card.
+          'flex items-center gap-2 px-3 min-h-[44px] rounded-lg border text-xs font-semibold transition-colors',
           config.bg, config.text, config.border,
           disabled ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-125 cursor-pointer'
         )}
@@ -271,7 +274,7 @@ function FilterPickerButton<T extends string>({ value, onChange, options, title,
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-3 h-9 rounded-lg bg-page border border-page text-sm text-ink-700 hover:border-ink-300 transition-colors"
+        className="flex items-center gap-1.5 px-3 h-11 rounded-lg bg-page border border-page text-sm text-ink-700 hover:border-ink-300 transition-colors"
       >
         <span className="truncate max-w-[110px]">{current?.label ?? label}</span>
         <ChevronDown className="h-3.5 w-3.5 text-ink-400 shrink-0" />
@@ -370,6 +373,13 @@ const allMobileTabs = [
   { key: 'settings', label: 'Settings' },
 ];
 
+// Each tab's name in the nav namespace, so the permissions matrix reads in the
+// app's language — it printed the English `label` above on a Hebrew screen.
+const TAB_NAV_KEY: Record<string, string> = {
+  'control-room': 'controlRoom', 'plan/new': 'planner', 'practice-attendance': 'practiceAttendance',
+  'workout-feedback': 'workoutFeedback', 'team-volume': 'teamVolume',
+};
+
 const allRoles: Role[] = ['admin', 'coach', 'academy_coach', 'runner', 'core_runner', 'academy_user', 'viewer'];
 
 type SettingsTab = 'users' | 'tabs' | 'feedback' | 'notifications' | 'notifRouting' | 'reminders' | 'notifprefs' | 'personalInfo' | 'badges' | 'challenges' | 'store' | 'perks' | 'registrations' | 'coreRunners' | 'garminHistory';
@@ -415,6 +425,7 @@ const settingsTabs = [
 
 export default function SettingsPage() {
   const t = useTranslations('settings');
+  const tNav = useTranslations('nav');
   const tc = useTranslations('common');
 
   // null = the Settings landing (iOS-style list); a value = a detail screen
@@ -566,11 +577,12 @@ export default function SettingsPage() {
   const renderUserRow = (user: User) => {
     const isAdmin = user.role === 'admin';
     let lastSeenLabel = t('never');
+    // accent-900, not accent-600: the green at 11px on the grey card was 2.7:1.
     let lastSeenColor = 'text-ink-400';
     if (user.lastSeenAt) {
       const hoursAgo = (Date.now() - new Date(user.lastSeenAt).getTime()) / 3600000;
-      if (hoursAgo < 1) { lastSeenLabel = t('online'); lastSeenColor = 'text-accent-600'; }
-      else if (hoursAgo < 24) { lastSeenLabel = t('hoursAgo', { hours: Math.floor(hoursAgo) }); lastSeenColor = 'text-accent-600'; }
+      if (hoursAgo < 1) { lastSeenLabel = t('online'); lastSeenColor = 'text-accent-900'; }
+      else if (hoursAgo < 24) { lastSeenLabel = t('hoursAgo', { hours: Math.floor(hoursAgo) }); lastSeenColor = 'text-accent-900'; }
       else { lastSeenLabel = t('daysAgo', { days: Math.floor(hoursAgo / 24) }); lastSeenColor = hoursAgo < 72 ? 'text-ink-400' : 'text-ink-400'; }
     }
     return (
@@ -590,7 +602,7 @@ export default function SettingsPage() {
             second line carries chips and the block sits beside a delete button;
             keeping the target on the face and the name leaves every control in
             this row exactly as tappable as it was. */}
-        <AthleteLink athleteId={user.id} name={user.name} className={cn('w-10 h-10 rounded-full flex items-center justify-center shrink-0', isAdmin ? 'bg-purple-500/20' : 'bg-page/50')}>
+        <AthleteLink athleteId={user.id} name={user.name} className={cn('w-11 h-11 rounded-full flex items-center justify-center shrink-0', isAdmin ? 'bg-purple-500/20' : 'bg-page/50')}>
           {isAdmin ? (
             <Shield className="w-4.5 h-4.5 text-purple-600" />
           ) : (
@@ -599,7 +611,8 @@ export default function SettingsPage() {
         </AthleteLink>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <AthleteLink athleteId={user.id} name={user.name} className="min-w-0">
+            {/* The WCAG 24 floor, not 44: the 44px face beside it is the same link. */}
+            <AthleteLink athleteId={user.id} name={user.name} className="inline-flex min-h-[24px] min-w-0 items-center">
               <p className="text-sm font-semibold text-ink-700 truncate" dir="auto">{user.name}</p>
             </AthleteLink>
             {/* No role badge here: the role control two lines below already says
@@ -632,6 +645,7 @@ export default function SettingsPage() {
               disabled={updatingUsers.has(user.id)}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50"
               title={t('deleteUser')}
+              aria-label={t('deleteUser')}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -654,7 +668,7 @@ export default function SettingsPage() {
           three controls sitting on one line. */}
       <div className="mt-2.5 flex items-center gap-2 flex-wrap">
         {isAdmin ? (
-          <span className={cn('flex items-center gap-1.5 px-2.5 min-h-[38px] rounded-lg border text-xs font-semibold', roleConfig.admin.bg, roleConfig.admin.text, roleConfig.admin.border)}>
+          <span className={cn('flex items-center gap-1.5 px-2.5 min-h-[44px] rounded-lg border text-xs font-semibold', roleConfig.admin.bg, roleConfig.admin.text, roleConfig.admin.border)}>
             <span className={cn('w-1.5 h-1.5 rounded-full', roleConfig.admin.dot)} />
             {getRoleLabel('admin', t)}
           </span>
@@ -673,7 +687,7 @@ export default function SettingsPage() {
           disabled={updatingUsers.has(user.id)}
           aria-pressed={!!user.isCoreRunner}
           className={cn(
-            'flex items-center gap-1.5 px-2.5 min-h-[38px] rounded-lg border text-xs font-semibold transition-colors disabled:opacity-50',
+            'flex items-center gap-1.5 px-2.5 min-h-[44px] rounded-lg border text-xs font-semibold transition-colors disabled:opacity-50',
             user.isCoreRunner
               ? 'bg-accent-600/15 text-accent-900 border-accent-600/30'
               : 'bg-page/60 text-ink-400 border-page'
@@ -689,7 +703,7 @@ export default function SettingsPage() {
           <button
             onClick={() => handleApprove(user)}
             disabled={updatingUsers.has(user.id)}
-            className="flex items-center gap-1.5 px-2.5 min-h-[38px] rounded-lg border border-accent-red/30 bg-accent-red/10 text-xs font-semibold text-accent-red-ink transition-colors hover:bg-accent-red/20 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-2.5 min-h-[44px] rounded-lg border border-accent-red/30 bg-accent-red/10 text-xs font-semibold text-accent-red-ink transition-colors hover:bg-accent-red/20 disabled:opacity-50"
           >
             <Unlock className="w-3.5 h-3.5" />
             {t('releaseFromBlock')}
@@ -1250,7 +1264,7 @@ export default function SettingsPage() {
             <div className="rounded-2xl border border-band-3/20 bg-band-3/5 p-4">
               <button
                 onClick={() => toggleSection('pending')}
-                className="w-full flex items-center gap-2 mb-3"
+                className="w-full flex items-center gap-2 min-h-[44px] -mt-2 mb-1"
               >
                 {pendOpen ? <ChevronDown className="w-4 h-4 text-band-3" /> : <ChevronRight className="w-4 h-4 text-band-3" />}
                 <Clock className="w-4 h-4 text-band-3" />
@@ -1297,6 +1311,7 @@ export default function SettingsPage() {
                         onClick={() => setPendingDelete(user)}
                         disabled={updatingUsers.has(user.id)}
                         className="min-h-[44px] min-w-[44px] flex items-center justify-center text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                        aria-label={t('deleteUser')}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1337,7 +1352,8 @@ export default function SettingsPage() {
                   value={uSearch}
                   onChange={e => setUSearch(e.target.value)}
                   placeholder={t('searchNameOrEmail')}
-                  className="w-full bg-page border border-page rounded-lg ps-9 pe-3 h-9 text-sm text-ink-700 placeholder:text-ink-400 focus:outline-none focus:border-brand-600"
+                  aria-label={t('searchNameOrEmail')}
+                  className="w-full bg-page border border-page rounded-lg ps-9 pe-3 h-11 text-sm text-ink-700 placeholder:text-ink-400 focus:outline-none focus:border-brand-600"
                 />
               </div>
               <FilterPickerButton<'all' | Role>
@@ -1347,7 +1363,7 @@ export default function SettingsPage() {
                 label={t('allRoles')}
                 options={[
                   { value: 'all', label: t('allRoles') },
-                  ...allRoles.map(r => ({ value: r, label: roleConfig[r]?.label || r })),
+                  ...allRoles.map(r => ({ value: r, label: getRoleLabel(r, t) })),
                 ]}
               />
               <FilterPickerButton<'all' | '0' | '1' | '2' | 'none'>
@@ -1363,7 +1379,10 @@ export default function SettingsPage() {
                   { value: 'none', label: t('noGroup') },
                 ]}
               />
+              {/* Its own full row: squeezed in after the two pickers each segment
+                  got 55px and "בלי Garmin" was cut to "בלי ...in". */}
               <SegmentedControl<'all' | 'with' | 'without'>
+                className="w-full"
                 value={uGarmin}
                 onChange={setUGarmin}
                 options={[
@@ -1375,7 +1394,7 @@ export default function SettingsPage() {
               {uFiltersActive && (
                 <button
                   onClick={() => { setUSearch(''); setURole('all'); setUGroup('all'); setUGarmin('all'); }}
-                  className="flex items-center gap-1 px-2.5 h-9 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page text-xs font-semibold"
+                  className="flex items-center gap-1 px-2.5 h-11 rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page text-xs font-semibold"
                 >
                   <X className="h-3.5 w-3.5" /> {t('clear')}
                 </button>
@@ -1404,10 +1423,10 @@ export default function SettingsPage() {
                     if (hasGroups) {
                       [0, 1, 2].forEach(idx => {
                         const list = members.filter(u => u.groupId && resolveGroup(groupsById[u.groupId]).index === idx);
-                        if (list.length) buckets.push({ key: idx, label: `Group ${idx + 1}`, hex: resolveGroup(`group ${idx + 1}`).hex, list });
+                        if (list.length) buckets.push({ key: idx, label: t(`group${idx + 1}` as 'group1'), hex: resolveGroup(`group ${idx + 1}`).hex, list });
                       });
                       const none = members.filter(u => !u.groupId || resolveGroup(groupsById[u.groupId]).index < 0);
-                      if (none.length) buckets.push({ key: 99, label: 'No group', hex: '#969696', list: none });
+                      if (none.length) buckets.push({ key: 99, label: t('noGroup'), hex: '#969696', list: none });
                     }
                     return (
                       <div key={role}>
@@ -1418,7 +1437,7 @@ export default function SettingsPage() {
                         >
                           {roleOpen ? <ChevronDown className="w-4 h-4 text-ink-400" /> : <ChevronRight className="w-4 h-4 text-ink-400" />}
                           <span className={cn('w-2 h-2 rounded-full', rc?.dot || 'bg-ink-300')} />
-                          <span className="text-sm font-semibold text-ink-700">{rc?.label || role}</span>
+                          <span className="text-sm font-semibold text-ink-700">{getRoleLabel(role, t)}</span>
                           <span className="text-xs text-ink-400">({members.length})</span>
                         </button>
 
@@ -1489,14 +1508,15 @@ export default function SettingsPage() {
           ) : (
             <div className="p-5 space-y-5">
               {allRoles.map(role => {
-                const rc = roleConfig[role];
                 const combinedTabs = [...new Set([...allTabs.map(t => t.key), ...allMobileTabs.map(t => t.key)])];
                 const tabLabels: Record<string, string> = {};
-                allTabs.forEach(t => { tabLabels[t.key] = t.label; });
-                allMobileTabs.forEach(t => { tabLabels[t.key] = t.label; });
+                [...allTabs, ...allMobileTabs].forEach(tab => {
+                  const navKey = TAB_NAV_KEY[tab.key] ?? tab.key;
+                  tabLabels[tab.key] = tNav.has(navKey) ? tNav(navKey) : tab.label;
+                });
 
                 return (
-                  <InsetSection key={role} header={rc.label}>
+                  <InsetSection key={role} header={getRoleLabel(role, t)}>
                     {combinedTabs.map(tabKey => {
                       const webEnabled = isTabEnabled(role, tabKey);
                       const mobileEnabled = isMobileTabEnabled(role, tabKey);

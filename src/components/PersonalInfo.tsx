@@ -236,6 +236,9 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
         <InsetRow
           label={t('discoverable')}
           sublabel={t('discoverableHint')}
+          // Two lines: the hint is the whole scope of the switch, and at one line
+          // it was cut before it said what stays visible.
+          sublabelClamp
           trailing={
             <Switch
               checked={discoverable}
