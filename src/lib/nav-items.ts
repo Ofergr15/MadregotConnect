@@ -5,6 +5,7 @@ import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Bug, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
   BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift, ShieldCheck, Gauge, Trophy,
+  UsersRound, Megaphone,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
@@ -47,6 +48,11 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   // it is staff-gated server-side, so it is also safe to grant a coach from the
   // permissions matrix — ungranted, it is admin-only by construction.
   { href: '/dashboard/control-room', tab: 'control-room', labelKey: 'controlRoom', icon: Gauge },
+  // The admin's People list and Content hub (#71 phase 2). Listed, so `admin` gets
+  // them by rule 1; no matrix row exists for either, so every other role doesn't.
+  // Both read staff-gated routes, so granting one to a coach later is safe.
+  { href: '/dashboard/people', tab: 'people', labelKey: 'people', icon: UsersRound },
+  { href: '/dashboard/content', tab: 'content', labelKey: 'contentHub', icon: Megaphone },
   // A beetle, not a speech bubble: this is the "something is broken" channel,
   // and a message icon read as one more place to talk to the coach.
   { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: Bug },

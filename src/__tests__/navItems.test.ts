@@ -172,7 +172,7 @@ describe('staff', () => {
     // still reach the page from the records section of their profile, which is the
     // door that feature actually ships behind.
     expect(staff('admin').filter((t) => !staff('coach').includes(t)))
-      .toEqual(['control-room', 'practice', 'records', 'profile']);
+      .toEqual(['control-room', 'people', 'content', 'practice', 'records', 'profile']);
     expect(staff('coach').filter((t) => !staff('admin').includes(t))).toEqual([]);
   });
 
@@ -369,7 +369,15 @@ describe('the operator account (#71)', () => {
     expect(tabs).not.toContain('control-room');
     expect(tabs).toContain('dashboard');
     expect(tabs).toContain('athletes');
+    expect(tabs).toContain('people');
+    expect(tabs).toContain('content');
     expect(items.find(i => i.tab === 'profile')?.labelKey).toBe('account');
+  });
+
+  it('keeps People and Content away from every role the matrix has no row for', () => {
+    const coach = resolveNavItems({ permissions, effectiveRole: 'coach', isAthlete: true }).map(i => i.tab);
+    expect(coach).not.toContain('people');
+    expect(coach).not.toContain('content');
   });
 
   it('leaves an admin who trains (the super-user) with their feed and training profile', () => {

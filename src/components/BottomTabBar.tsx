@@ -39,9 +39,9 @@ import { Sheet } from '@/components/ui';
 // "More" whenever the first four are all enabled.
 const ATHLETE_PRIMARY_ORDER = ['feed', 'dashboard', 'program', 'profile'];
 const STAFF_PRIMARY_ORDER = ['feed', 'dashboard', 'athletes', 'workout-feedback', 'coach-tools'];
-// The operator account (#71): home is the control room, then the people, the
-// club's content (Settings holds challenges, badges, notifications) and the tools.
-const OPERATOR_PRIMARY_ORDER = ['dashboard', 'athletes', 'settings', 'coach-tools'];
+// The operator account (#71): home is the control room, then People, Content and
+// the tools.
+const OPERATOR_PRIMARY_ORDER = ['dashboard', 'people', 'content', 'coach-tools'];
 
 export function BottomTabBar() {
   const pathname = usePathname();
