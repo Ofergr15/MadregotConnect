@@ -111,8 +111,8 @@ const serwist = new Serwist({
   // report, and the update banner appearing was the symptom of the takeover rather
   // than a prompt before it.
   //
-  // With `false` the new worker waits. `UpdatePrompt` shows the banner off
-  // `registration.waiting` and the tap sends `SKIP_WAITING` — which only exists as
+  // With `false` the new worker waits. `UpdatePrompt` sees it in
+  // `registration.waiting` and, at a safe moment (lib/update-timing.ts), sends `SKIP_WAITING` — which only exists as
   // a message listener in Serwist's `else` branch (`if (skipWaiting)
   // self.skipWaiting(); else self.addEventListener("message", …)`), so with `true`
   // that postMessage had nothing listening and every tap fell through to the

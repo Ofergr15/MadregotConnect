@@ -1,23 +1,24 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { useEffect } from 'react';
 import { askBuildId, isNewerBuild } from '@/lib/sw-build-id';
+import { AWAY_MS, canApplyUpdate } from '@/lib/update-timing';
 
-// "New version available — tap to refresh" banner.
+// Applies a new deploy on its own, at a moment when the reload costs nothing
+// (see lib/update-timing.ts). It used to be a "new version available — tap to
+// refresh" banner, shown on every deploy; with several deploys a day that was
+// a banner most days for a one-line fix, so it is gone and nothing renders.
 //
 // The installed PWA and web tabs cache the app shell via the service worker, so
 // after a deploy people keep running the OLD bundle until a full reload. sw.ts is
 // `skipWaiting: false`, so the new worker INSTALLS AND WAITS rather than seizing a
 // page that is still executing the previous build's JS. That makes this component
-// the only way an update is ever accepted: no tap, no new version, until every tab
-// for the app closes.
+// the only way an update is ever accepted short of every tab for the app closing,
+// which an installed iOS PWA almost never does.
 //
 // It watches the existing registration (no re-register — serwist already did that)
 // for a worker that reaches `waiting`/`installed`, and polls on mount and whenever
-// the tab regains focus so the banner shows promptly rather than only on the next
-// cold start. Mounted globally in the root layout; z above the maintenance gate
-// (200) so even a blocked user sees it.
+// the tab regains focus. Mounted globally in the root layout.
 //
 // Note on `controllerchange` below, which used to be the main reason this banner
 // appeared: under the old `skipWaiting: true` it fired on every deploy the instant
@@ -32,33 +33,69 @@ import { askBuildId, isNewerBuild } from '@/lib/sw-build-id';
 // doesn't go away after the version updates, it's back on every launch" report,
 // filed from a phone whose reported app version was the newest one. So no signal
 // is trusted on its own any more: each one only names a CANDIDATE worker, and the
-// banner appears once that candidate says it belongs to a different deploy than
+// update is taken once that candidate says it belongs to a different deploy than
 // the worker that served this page (askBuildId above, MC_BUILD_ID in sw.ts).
 export function UpdatePrompt() {
-  const [ready, setReady] = useState(false);
-  const [applying, setApplying] = useState(false);
-  // The build that was serving this page when it loaded — i.e. the version the
-  // JS currently executing came from. Every candidate is compared against it.
-  // null = it wouldn't say (a worker older than sw.ts's handler), which makes
-  // every comparison inconclusive and so falls through to showing the banner.
-  const loadedBuild = useRef<string | null>(null);
-
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
     let reg: ServiceWorkerRegistration | null = null;
     let disposed = false;
+    // Start of the current quiet stretch: the load, or a return after being away.
+    let quietSince = Date.now();
+    let interacted = false;
+    let hiddenAt: number | null = null;
+    let pending = false; // a newer build is installed and waiting for a safe moment
+    let applying = false;
+    // The build that was serving this page when it loaded — i.e. the version the
+    // JS currently executing came from. Every candidate is compared against it.
+    // null = it wouldn't say (a worker older than sw.ts's handler), which makes
+    // every comparison inconclusive and so counts as newer.
+    let loadedBuild: string | null = null;
 
     // Was a SW already controlling this page WHEN IT LOADED? If not, this is a
     // first install (or a hard reload with no controller) — the initial worker
-    // installing then is NOT an update, so we must not show the prompt for it.
-    // Only a worker that installs LATER, while we already had a controller,
-    // is a genuine new version.
+    // installing then is NOT an update. Only a worker that installs LATER, while
+    // we already had a controller, is a genuine new version.
     const hadControllerAtLoad = !!navigator.serviceWorker.controller;
     // Asked once, immediately, and remembered: by the time a candidate appears
     // the controller may already have been replaced by it.
     const loadedBuildReady = hadControllerAtLoad
-      ? askBuildId(navigator.serviceWorker.controller).then((id) => { loadedBuild.current = id; })
+      ? askBuildId(navigator.serviceWorker.controller).then((id) => { loadedBuild = id; })
       : Promise.resolve();
+
+    const apply = async () => {
+      if (applying) return;
+      applying = true;
+      // Reload only AFTER the new worker takes control — otherwise the reload can
+      // fetch the shell while the OLD worker is still controlling and re-serve
+      // stale chunks.
+      let reloaded = false;
+      const go = () => { if (!reloaded) { reloaded = true; window.location.reload(); } };
+      navigator.serviceWorker.addEventListener('controllerchange', go, { once: true });
+      const r = await navigator.serviceWorker.getRegistration().catch(() => undefined);
+      const next = r?.waiting ?? r?.installing;
+      next?.postMessage({ type: 'SKIP_WAITING' });
+      // b80f50a6: on an installed PWA the handover sometimes never comes, and a
+      // plain reload keeps the page on the OLD worker (a reload does not activate
+      // a waiting one). If the takeover hasn't come, drop the registration: the
+      // reload then goes to the network for the new build, and SerwistProvider
+      // registers the newest worker on that load.
+      setTimeout(async () => {
+        if (reloaded) return;
+        try { await r?.unregister(); } catch { /* reload anyway */ }
+        go();
+      }, next ? 3000 : 0);
+    };
+
+    const tryApply = (awayMs = 0) => {
+      if (!pending || disposed) return;
+      if (canApplyUpdate({
+        sinceLoadMs: Date.now() - quietSince,
+        interacted,
+        visible: document.visibilityState === 'visible',
+        awayMs,
+      })) apply();
+    };
 
     // `candidate` is the worker claiming to be the new version. Everything below
     // routes through here, because the signals it routes (a waiting worker, an
@@ -69,8 +106,9 @@ export function UpdatePrompt() {
       if (disposed || !hadControllerAtLoad) return;
       await loadedBuildReady;
       const theirs = await askBuildId(candidate);
-      if (disposed || !isNewerBuild(loadedBuild.current, theirs)) return;
-      setReady(true);
+      if (disposed || !isNewerBuild(loadedBuild, theirs)) return;
+      pending = true;
+      tryApply();
     };
 
     const watchWorker = (w: ServiceWorker | null) => {
@@ -83,70 +121,41 @@ export function UpdatePrompt() {
     navigator.serviceWorker.getRegistration().then((r) => {
       if (!r || disposed) return;
       reg = r;
-      // A worker already waiting means a new version is ready right now.
       if (r.waiting) markReady(r.waiting);
       watchWorker(r.installing);
       r.addEventListener('updatefound', () => watchWorker(r!.installing));
       r.update().catch(() => {}); // check for a fresh build now
     });
 
-    // The most reliable "new version is now controlling" signal — and the
-    // candidate to ask is the new controller itself, since by now it has taken
-    // the page over from whatever was serving it at load.
+    // Another tab accepted an update, so this page is now served by a worker
+    // whose build it is not running.
     const onControllerChange = () => markReady(navigator.serviceWorker.controller);
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 
-    // Re-check when the tab regains focus (cheap; catches deploys since last view).
+    const onInteract = () => { interacted = true; };
+    window.addEventListener('pointerdown', onInteract, { capture: true });
+    window.addEventListener('keydown', onInteract, { capture: true });
+
     const onVisible = () => {
-      if (document.visibilityState === 'visible') reg?.update().catch(() => {});
+      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+      const away = hiddenAt === null ? 0 : Date.now() - hiddenAt;
+      hiddenAt = null;
+      // Back after a long time away is a fresh start: a build that finishes
+      // downloading in the next few seconds may still apply before the first tap.
+      if (away >= AWAY_MS) { quietSince = Date.now(); interacted = false; }
+      tryApply(away);
+      reg?.update().catch(() => {}); // catches deploys since the last view
     };
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       disposed = true;
       document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pointerdown', onInteract, { capture: true });
+      window.removeEventListener('keydown', onInteract, { capture: true });
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
     };
   }, []);
 
-  if (!ready) return null;
-
-  const refresh = async () => {
-    if (applying) return;
-    setApplying(true);
-    // Reload only AFTER the new worker takes control — otherwise the reload can
-    // fetch the shell while the OLD worker is still controlling and re-serve
-    // stale chunks (the exact loop this prompt exists to fix).
-    let reloaded = false;
-    const go = () => { if (!reloaded) { reloaded = true; window.location.reload(); } };
-    navigator.serviceWorker.addEventListener('controllerchange', go, { once: true });
-    const r = await navigator.serviceWorker.getRegistration().catch(() => undefined);
-    const next = r?.waiting ?? r?.installing;
-    next?.postMessage({ type: 'SKIP_WAITING' });
-    // "I tap it and nothing happens" (b80f50a6, an installed PWA): the handover
-    // never came, and the old fallback — a plain reload — keeps the page on the
-    // OLD worker, since a waiting worker is not activated by a reload. So the
-    // banner was back the moment the page returned. If the takeover hasn't come,
-    // drop the registration instead: the reload then goes to the network for the
-    // new build, and SerwistProvider registers the newest worker on that load
-    // (with no controller at load, which this banner never fires for).
-    setTimeout(async () => {
-      if (reloaded) return;
-      try { await r?.unregister(); } catch { /* reload anyway */ }
-      go();
-    }, next ? 3000 : 0);
-  };
-
-  return (
-    <button
-      onClick={refresh}
-      disabled={applying}
-      dir="rtl"
-      className="fixed left-1/2 -translate-x-1/2 z-[310] flex items-center gap-2.5 px-4 py-2.5 rounded-full text-white text-sm font-bold shadow-xl safe-bottom animate-bounce-gentle"
-      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 16px)', background: 'linear-gradient(90deg,#1525FF,#159AFF)' }}
-    >
-      <RefreshCw className={`h-4 w-4 ${applying ? 'animate-spin' : ''}`} />
-      {applying ? 'מעדכן…' : 'גרסה חדשה זמינה — הקישו לרענון'}
-    </button>
-  );
+  return null;
 }
