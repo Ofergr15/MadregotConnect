@@ -165,7 +165,7 @@ describe('the sheet component', () => {
 
   it('never opens on a cold paint — the feed decides when it has painted', () => {
     expect(sheet).toMatch(/\{ ready \}: \{ ready: boolean \}/);
-    expect(sheet).toMatch(/if \(!ready \|\| entries\) return;/);
+    expect(sheet).toMatch(/if \(!ready \|\| !all \|\| entries\) return;/);
     const feed = read('app/(app)/feed/page.tsx');
     expect(feed).toMatch(/<WhatsNewAutoSheet ready=\{!loading && !error && items\.length > 0\} \/>/);
   });
@@ -197,7 +197,7 @@ describe('the sheet component', () => {
   });
 
   it('keeps the timing rules in the ledger rather than restating them', () => {
-    expect(sheet).toMatch(/unseenEntries\(WHATS_NEW, ledger\)/);
+    expect(sheet).toMatch(/unseenEntries\(all, ledger\)/);
     expect(sheet).not.toMatch(/MAX_ROWS =|EPOCH =|setTimeout/);
   });
 

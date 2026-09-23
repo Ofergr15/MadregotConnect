@@ -7,6 +7,9 @@ import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { Sheet } from '@/components/ui/Sheet';
 import { InsetRow } from '@/components/ui/InsetList';
 import { israelToday } from '@/lib/utils';
+import { useApi } from '@/lib/api';
+import { APP_VERSION } from '@/lib/version';
+import { releaseEntries, type WhatsNewRelease } from '@/lib/release-notes';
 import {
   WHATS_NEW, type WhatsNewEntry, type WhatsNewLang,
 } from '@/lib/whats-new/entries';
@@ -58,7 +61,13 @@ function EntryRow({
       onClick={onOpen}
       className="flex w-full items-center gap-3 py-3 text-start active:opacity-70"
     >
-      <WhatsNewArt art={entry.art} lang={lang} />
+      {entry.art ? (
+        <WhatsNewArt art={entry.art} lang={lang} />
+      ) : (
+        <span className="flex h-[53px] w-[84px] shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-2xl">
+          {entry.icon}
+        </span>
+      )}
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
           <span className="text-sm font-bold text-ink-900">{copy.title}</span>
@@ -110,7 +119,12 @@ export function WhatsNewSheet({
           </button>
           {/* The recall promise, made where the sheet is being closed — this is the
               sentence that makes a final dismissal safe to offer. */}
-          <p className="mt-2 text-center text-2xs text-ink-400">{t('recall')}</p>
+          <p className="mt-2 text-center text-2xs text-ink-400">
+            {t('recall')} ·{' '}
+            <Link href="/dashboard/whats-new" onClick={() => onOpenChange(false)} className="font-semibold text-brand-600">
+              {t('allChanges')}
+            </Link>
+          </p>
         </div>
       }
     >
@@ -131,17 +145,30 @@ export function WhatsNewSheet({
 }
 
 /**
+ * The hand-written entries plus what the owner featured in the daily releases
+ * (lib/release-notes.ts). `null` until the releases have loaded, so the feed
+ * never spends a ledger on half the list.
+ */
+function useEntries(): WhatsNewEntry[] | null {
+  const { data, error } = useApi<{ releases: WhatsNewRelease[] }>('/api/whats-new', { revalidateOnFocus: false });
+  if (error) return WHATS_NEW;
+  if (!data) return null;
+  return [...WHATS_NEW, ...releaseEntries(data.releases ?? [], APP_VERSION)];
+}
+
+/**
  * The auto-open on the feed. Renders nothing of its own.
  *
  * `ready` is the feed's own "I have painted" signal; see the sheet's docblock for
  * why it is a prop rather than a timer.
  */
 export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
+  const all = useEntries();
   const [entries, setEntries] = useState<WhatsNewEntry[] | null>(null);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (!ready || entries) return;
+    if (!ready || !all || entries) return;
     const stored = readWhatsNewLedger(localStorage.getItem(WHATS_NEW_KEY));
     // Stamping `since` is what decides whether anything is news to this device at
     // all, so it happens on the first ready feed whether or not a sheet follows.
@@ -150,7 +177,7 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
     );
     if (ledger !== stored) localStorage.setItem(WHATS_NEW_KEY, JSON.stringify(ledger));
 
-    const next = unseenEntries(WHATS_NEW, ledger);
+    const next = unseenEntries(all, ledger);
     if (next.length === 0) return;
     // Spent at OPEN, not at close: a sheet that only counted as shown once it was
     // dismissed would re-announce itself forever to anyone who closes the tab, and
@@ -160,7 +187,7 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
     );
     setEntries(next);
     setOpen(true);
-  }, [ready, entries]);
+  }, [ready, all, entries]);
 
   if (!entries) return null;
   return (
@@ -181,15 +208,17 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
  */
 export function WhatsNewSettingsRow() {
   const t = useTranslations('whatsNew');
+  const all = useEntries();
   const [open, setOpen] = useState(false);
   const [unseen, setUnseen] = useState<string[]>([]);
   const [entries, setEntries] = useState<WhatsNewEntry[]>([]);
 
   useEffect(() => {
+    if (!all) return;
     const ledger = readWhatsNewLedger(localStorage.getItem(WHATS_NEW_KEY));
-    setEntries(visibleEntries(WHATS_NEW, ledger));
-    setUnseen(unseenEntries(WHATS_NEW, ledger).map((e) => e.slug));
-  }, []);
+    setEntries(visibleEntries(all, ledger));
+    setUnseen(unseenEntries(all, ledger).map((e) => e.slug));
+  }, [all]);
 
   if (entries.length === 0) return null;
 

@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { mutate as globalMutate } from 'swr';
@@ -1423,7 +1425,10 @@ function ProfileContent() {
         </div>
       )}
 
-      <p className="text-center text-xs text-ink-400 mt-6 mb-2">מדרגות · גרסה {APP_VERSION}</p>
+      {/* The version line doubles as the way into "What's new" — the release history. */}
+      <Link href="/dashboard/whats-new" className="mx-auto mt-6 mb-2 flex min-h-[44px] w-fit items-center px-3 text-center text-xs text-ink-400 active:text-brand-600">
+        מדרגות · גרסה {APP_VERSION} · <span className="ms-1 font-semibold text-brand-600">מה חדש</span>
+      </Link>
     </div>
   );
 }

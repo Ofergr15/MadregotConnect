@@ -923,7 +923,8 @@
     "queueTop": "To top",
     "queueUp": "Up",
     "queueDown": "Down",
-    "copyNumber": "Copy number"
+    "copyNumber": "Copy number",
+    "whatsNew": "What's new — the daily release"
   },
   "badgeManager": {
     "existingBadges": "Existing Badges",
@@ -2926,7 +2927,23 @@
     "recall": "Always here: Settings → What's new",
     "onboardTitle": "What's inside",
     "onboardLead": "Two things worth knowing before your first session.",
-    "onboardPromise": "Every new feature shows up like this — once, on your feed."
+    "onboardPromise": "Every new feature shows up like this — once, on your feed.",
+    "allChanges": "All changes",
+    "pageLead": "One release goes out every morning. Here is what each one carried.",
+    "tomorrow": "Going out tomorrow at 05:00",
+    "nothingPending": "Nothing in tomorrow's release yet.",
+    "pickHint": "⭐ = goes in the What's new card (3 rows at most, newest first). No star = history only. ✏️ changes the wording.",
+    "noReleases": "No release yet.",
+    "latest": "Latest",
+    "andFixes": "Plus {count, plural, one {one fix} other {# fixes}}",
+    "fix": "Fix",
+    "staffOnly": "Staff",
+    "edit": "Edit wording",
+    "feature": "Show in What's new",
+    "editTitle": "Wording in What's new",
+    "fieldTitle": "Title",
+    "fieldBody": "Line",
+    "save": "Save"
   },
   "shareSheet": {
     "titleWorkout": "Share your run",

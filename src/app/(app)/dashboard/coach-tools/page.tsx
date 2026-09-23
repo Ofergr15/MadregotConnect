@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images } from 'lucide-react';
+import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { flowGroup, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
@@ -213,6 +213,8 @@ export default function CoachToolsPage() {
             people file from), so this row points at it directly instead of at a
             tab inside Settings. */}
         <InsetRow icon={MessageSquare} iconBg="bg-teal-500" label={ts('feedback')} href="/dashboard/review/all" />
+        {/* Tomorrow's 05:00 release and the day's pick of what the What's new sheet features. */}
+        <InsetRow icon={Sparkles} iconBg="bg-brand-600" label={ts('whatsNew')} href="/dashboard/whats-new" />
         <InsetRow icon={Bell} iconBg="bg-accent-red" label={ts('notificationCenter')} href="/dashboard/settings?tab=notifications" />
         {/* Directly under it: that row SENDS one, this one decides who receives
             the club's automatic alerts (bug report, pain flag, sign-up, the

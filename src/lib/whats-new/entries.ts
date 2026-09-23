@@ -34,7 +34,10 @@ export interface WhatsNewEntry {
   slug: string;
   /** `YYYY-MM-DD`, the day it reached prod. */
   publishedAt: string;
-  art: WhatsNewArt;
+  /** The drawn thumbnail. A release note has none and shows `icon` instead. */
+  art?: WhatsNewArt;
+  /** An emoji tile, for the entries the daily release adds (lib/release-notes.ts). */
+  icon?: string;
   /**
    * Where the row goes — and it must be a REAL route, i.e. a directory under
    * `src/app/(app)/`. `/program` was written here first and there is no such
