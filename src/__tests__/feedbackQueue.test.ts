@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { moveInQueue, sortQueue, ticketQuery, type QueueRow } from '@/lib/feedback/queue';
+import { moveInQueue, parsePriority, sortQueue, ticketQuery, type QueueRow } from '@/lib/feedback/queue';
 
 const row = (id: string, created: string, extra: Partial<QueueRow> = {}): QueueRow => ({
   id, created_at: `2026-09-${created}T08:00:00Z`, status: 'new', category: 'bug_report', ...extra,
@@ -85,5 +85,31 @@ describe('ticketQuery', () => {
     expect(ticketQuery(' #84 ')).toBe(84);
     expect(ticketQuery('84 km')).toBeNull();
     expect(ticketQuery('login')).toBeNull();
+  });
+});
+
+describe('four priorities', () => {
+  it('critical comes before urgent, and an unknown value reads as normal', () => {
+    const q = sortQueue([
+      row('odd', '19', { priority: 'normal' }),
+      row('low', '19', { priority: 'low' }),
+      row('urgent', '20', { priority: 'high' }),
+      row('fire', '22', { priority: 'critical' }),
+      row('plain', '18'),
+    ]);
+    expect(q.map(r => r.id)).toEqual(['fire', 'urgent', 'plain', 'odd', 'low']);
+  });
+
+  it('only the four levels pass the wire check', () => {
+    expect(parsePriority('critical')).toBe('critical');
+    expect(parsePriority('medium')).toBe('medium');
+    expect(parsePriority('normal')).toBeNull();
+    expect(parsePriority(undefined)).toBeNull();
+  });
+
+  it('dragging to the very top of a critical queue makes it critical', () => {
+    const q = sortQueue([row('a', '19', { priority: 'critical' }), row('b', '20')]);
+    const u = moveInQueue(q, 'b', 0);
+    expect(u.find(x => x.id === 'b')?.priority).toBe('critical');
   });
 });

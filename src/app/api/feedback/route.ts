@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { DEFAULT_PRIORITY, parsePriority } from '@/lib/feedback/queue';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireStaff, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { notifyAthlete } from '@/lib/push';
@@ -14,7 +15,7 @@ import { notifyReportResolved } from '@/lib/feedback-notify';
 // and a DELETE/PATCH with an id was enough to wipe or rewrite any of it.
 export async function POST(request: Request) {
   try {
-    const { message, category, image, context } = await request.json();
+    const { message, category, image, context, priority } = await request.json();
 
     if (!message?.trim()) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -60,6 +61,8 @@ export async function POST(request: Request) {
       group_name: groupName,
       message: message.trim(),
       category: category || 'general',
+      // The reporter's own read of how urgent it is; anything else is filed as normal.
+      priority: parsePriority(priority) ?? DEFAULT_PRIORITY,
       image_url: image || null,
     };
 
@@ -243,7 +246,7 @@ export async function PATCH(request: Request) {
       const supabase = createServerClient();
       const valid = (body.order as { id?: unknown; sort_order?: unknown; priority?: unknown }[])
         .filter(u => typeof u.id === 'string' && Number.isInteger(u.sort_order)
-          && ['high', 'medium', 'low'].includes(u.priority as string))
+          && parsePriority(u.priority) !== null)
         .slice(0, 200);
       const results = await Promise.all(valid.map(u => supabase
         .from('feedback')
@@ -263,7 +266,10 @@ export async function PATCH(request: Request) {
     const supabase = createServerClient();
     const updateData: any = {};
     if (status !== undefined) updateData.status = status;
-    if (priority !== undefined) updateData.priority = priority;
+    if (priority !== undefined) {
+      if (parsePriority(priority) === null) return NextResponse.json({ error: 'bad priority' }, { status: 400 });
+      updateData.priority = priority;
+    }
     if (admin_notes !== undefined) updateData.admin_notes = admin_notes;
     if (sort_order !== undefined) updateData.sort_order = sort_order;
 

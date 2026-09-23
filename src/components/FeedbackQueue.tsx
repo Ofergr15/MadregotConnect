@@ -42,9 +42,10 @@ interface Props<T extends QueueItem> {
 }
 
 const PRIORITY_DOT: Record<QueuePriority, string> = {
-  high: 'bg-accent-red',
-  medium: 'bg-band-3',
-  low: 'bg-band-2',
+  critical: 'bg-accent-red',
+  high: 'bg-band-3',
+  medium: 'bg-band-2',
+  low: 'bg-ink-300',
 };
 
 const EDGE = 72; // px from the viewport edge where holding a row scrolls the list

@@ -22,7 +22,7 @@ import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, Spinne
 import { InsetSection } from '@/components/ui/InsetList';
 import { FeedbackQueue } from '@/components/FeedbackQueue';
 import {
-  inQueue, moveInQueue, queuePriority, sortQueue, ticketLabel, ticketQuery,
+  QUEUE_PRIORITIES, inQueue, moveInQueue, queuePriority, sortQueue, ticketLabel, ticketQuery,
   type QueuePriority, type QueueUpdate,
 } from '@/lib/feedback/queue';
 
@@ -59,7 +59,7 @@ import {
  */
 
 type FeedbackCategory = 'feature_request' | 'bug_report' | 'training_feedback' | 'general';
-type FeedbackPriority = 'low' | 'medium' | 'high';
+type FeedbackPriority = QueuePriority;
 
 export interface FeedbackItem {
   id: string;
@@ -121,9 +121,10 @@ const categoryConfig = {
 } as const;
 
 const priorityConfig = {
-  low: { label: 'Low', bg: 'bg-band-2/15', text: 'text-band-2-ink', border: 'border-band-2/30' },
-  medium: { label: 'Medium', bg: 'bg-band-3/15', text: 'text-band-3-ink', border: 'border-band-3/30' },
-  high: { label: 'High', bg: 'bg-accent-red/15', text: 'text-accent-red-ink', border: 'border-accent-red/30' },
+  low: { label: 'Low', bg: 'bg-page', text: 'text-ink-500', border: 'border-ink-300/30' },
+  medium: { label: 'Medium', bg: 'bg-band-2/15', text: 'text-band-2-ink', border: 'border-band-2/30' },
+  high: { label: 'High', bg: 'bg-band-3/15', text: 'text-band-3-ink', border: 'border-band-3/30' },
+  critical: { label: 'Critical', bg: 'bg-accent-red/15', text: 'text-accent-red-ink', border: 'border-accent-red/30' },
 };
 
 /** Initials for a duplicate's face. Two letters, upper case in either script. */
@@ -638,7 +639,7 @@ export function FeedbackAdmin() {
                 <SegmentedControl<FeedbackPriority>
                   value={queuePriority(selected.priority)}
                   onChange={(priority) => setPriority(selected, priority)}
-                  options={(['high', 'medium', 'low'] as FeedbackPriority[]).map(priority => ({ value: priority, label: t(priority) }))}
+                  options={QUEUE_PRIORITIES.map(priority => ({ value: priority, label: t(priority) }))}
                 />
               </div>
               {/* Its place in the work order, and the three moves you make from
@@ -951,7 +952,7 @@ export function FeedbackAdmin() {
                 {rows.map(({ primary: item, duplicates, reporterCount }) => {
                   const catCfg = categoryConfig[item.category || 'general'];
                   const CatIcon = catCfg.icon;
-                  const priCfg = priorityConfig[item.priority || 'medium'];
+                  const priCfg = priorityConfig[queuePriority(item.priority)];
                   const date = new Date(item.created_at);
                   const timeAgo = (() => {
                     const h = (Date.now() - date.getTime()) / 3600000;
@@ -992,7 +993,7 @@ export function FeedbackAdmin() {
                           <span className="truncate">{catLabel(item.category || 'general')}</span>
                         </span>
                         <span className={cn('shrink-0 text-3xs font-semibold px-1.5 py-0.5 rounded border', priCfg.bg, priCfg.border, priCfg.text)}>
-                          {t(item.priority || 'medium')}
+                          {t(queuePriority(item.priority))}
                         </span>
                         {/* The release that carries the fix, on the row — this is
                             the chip whose absence made a fixed bug look untouched.

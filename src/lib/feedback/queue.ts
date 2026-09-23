@@ -5,8 +5,8 @@
  * The panel listed reports newest-first, and the only other signal was a
  * priority pill that sorted nothing. So "which bug next" was answered by
  * whoever was looking — and the answer drifted to the newest row, which is the
- * one thing recency is not. The owner now sets it: a priority (urgent / normal
- * / low) and a hand order inside it, dragged on the phone.
+ * one thing recency is not. The owner now sets it: a priority (critical / urgent
+ * / normal / low — the reporter picks one, the owner can change it) and a hand order inside it, dragged on the phone.
  *
  * The order key is (priority, sort_order, created_at). `sort_order` is the
  * column migration 012 added and nothing ever wrote; every move renumbers the
@@ -21,9 +21,16 @@
 
 import { feedbackView, type LifecycleRow } from './lifecycle';
 
-export type QueuePriority = 'high' | 'medium' | 'low';
+export type QueuePriority = 'critical' | 'high' | 'medium' | 'low';
 
-export const QUEUE_PRIORITIES: QueuePriority[] = ['high', 'medium', 'low'];
+export const QUEUE_PRIORITIES: QueuePriority[] = ['critical', 'high', 'medium', 'low'];
+
+/** What a report is filed at when nobody says otherwise. */
+export const DEFAULT_PRIORITY: QueuePriority = 'medium';
+
+/** A priority from the wire, or null when it isn't one of the four. */
+export const parsePriority = (p: unknown): QueuePriority | null =>
+  QUEUE_PRIORITIES.includes(p as QueuePriority) ? (p as QueuePriority) : null;
 
 export interface QueueRow extends LifecycleRow {
   priority?: string | null;
@@ -32,8 +39,8 @@ export interface QueueRow extends LifecycleRow {
 }
 
 const rank = (p: string | null | undefined) => {
-  const i = QUEUE_PRIORITIES.indexOf((p || 'medium') as QueuePriority);
-  return i < 0 ? 1 : i;
+  const i = QUEUE_PRIORITIES.indexOf(p as QueuePriority);
+  return i < 0 ? QUEUE_PRIORITIES.indexOf(DEFAULT_PRIORITY) : i;
 };
 
 export const queuePriority = (p: string | null | undefined): QueuePriority =>

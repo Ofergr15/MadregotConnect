@@ -22,6 +22,16 @@ import {
 } from '@/lib/feedback/status';
 import { compareAppVersions } from '@/lib/feedback/lifecycle';
 import { APP_VERSION } from '@/lib/version';
+import { DEFAULT_PRIORITY, QUEUE_PRIORITIES, type QueuePriority } from '@/lib/feedback/queue';
+
+// The reporter's urgency, most urgent first. The dot is the same colour the
+// admin's work-order groups use, so both ends read the level the same way.
+const URGENCY_DOT: Record<QueuePriority, string> = {
+  critical: 'bg-accent-red',
+  high: 'bg-band-3',
+  medium: 'bg-band-2',
+  low: 'bg-ink-300',
+};
 
 /**
  * /dashboard/review — the club's "something isn't working" channel.
@@ -90,6 +100,7 @@ export default function ReviewPage() {
   const router = useRouter();
 
   const [category, setCategory] = useState<FeedbackCategory>('bug_report');
+  const [urgency, setUrgency] = useState<QueuePriority>(DEFAULT_PRIORITY);
   const [message, setMessage] = useState('');
   const [page, setPage] = useState<string | null>(null);
   const [pageAuto, setPageAuto] = useState(false);
@@ -295,6 +306,8 @@ export default function ReviewPage() {
         body: JSON.stringify({
           message: message.trim(),
           category,
+          // Only a bug is asked how urgent it is; the rest are filed as normal.
+          priority: category === 'bug_report' ? urgency : DEFAULT_PRIORITY,
           image: imagePreview || undefined,
           // Re-collected at send time rather than reused from state: viewport and
           // timestamp should describe the moment the report was filed.
@@ -314,6 +327,7 @@ export default function ReviewPage() {
       // told the athlete which had happened.
       setSent(true);
       setMessage('');
+      setUrgency(DEFAULT_PRIORITY);
       setImagePreview(null);
       setDraftRestored(false);
       try { localStorage.removeItem(REVIEW_DRAFT_KEY); } catch { /* ignore */ }
@@ -451,6 +465,38 @@ export default function ReviewPage() {
               })}
             </div>
           </div>
+
+          {/* ── 1b. How urgent (bug only) ── */}
+          {category === 'bug_report' && (
+            <div>
+              <SectionCaption>{t('urgencyQuestion')}</SectionCaption>
+              <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label={t('urgencyQuestion')}>
+                {QUEUE_PRIORITIES.map((p) => {
+                  const active = urgency === p;
+                  return (
+                    <button
+                      key={p}
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => {
+                        if (active) return;
+                        try { navigator.vibrate?.(6); } catch { /* no-op */ }
+                        setUrgency(p);
+                      }}
+                      className={cn(
+                        'flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-card bg-card px-1 py-2 text-center transition-all active:scale-[0.97]',
+                        active && 'ring-2 ring-brand-600',
+                      )}
+                    >
+                      <span className={cn('h-2.5 w-2.5 rounded-full', URGENCY_DOT[p])} />
+                      <span className="text-13 font-bold leading-tight text-ink-900">{t(`urgency_${p}` as any)}</span>
+                      <span className="text-3xs leading-snug text-ink-400">{t(`urgencyHint_${p}` as any)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* ── 2. Which screen (bug / idea only) ── */}
           {asksWhere && (
