@@ -13,7 +13,7 @@
  * sweep: nothing changes for a challenge between one athlete's activity syncs.
  */
 import { createServerClient } from '@/lib/supabase/server';
-import { awardBadge, type BadgeRow } from '@/lib/badges/award-engine';
+import { awardBadge, isNewMember, type BadgeRow } from '@/lib/badges/award-engine';
 import { filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
 
 export type ChallengeMetric = 'distance_km' | 'workout_count' | 'elevation_m';
@@ -205,7 +205,10 @@ export async function checkAndAwardChallenges(athleteId: string): Promise<{ awar
       // no-op via athlete_badges' unique constraint inside awardBadge).
       const toAward = challenge.scope === 'individual' ? [athleteId] : participantIds;
       for (const memberId of toAward) {
-        const grantedAward = await awardBadge(supabase, memberId, badge, context);
+        // A member who just joined finished it with runs from before they were
+        // here: recorded, not posted (#85, see isCatchUp).
+        const quiet = await isNewMember(supabase, memberId);
+        const grantedAward = await awardBadge(supabase, memberId, badge, context, { quiet });
         if (grantedAward && memberId === athleteId) awarded.push(badge.code);
       }
     } catch {
