@@ -163,7 +163,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
       trailingAction={
         <button
           onClick={onClose}
-          className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-page hover:text-ink-900"
+          className="grid min-h-[44px] min-w-[44px] place-items-center rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-page hover:text-ink-900"
           aria-label={tc('close')}
         >
           <X className="h-5 w-5" />
@@ -201,7 +201,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
                 disabled={!opt.available}
                 aria-pressed={on}
                 className={cn(
-                  'flex-1 rounded-xl border py-2 text-xs font-bold transition-colors',
+                  'flex-1 min-h-[44px] rounded-xl border py-2 text-xs font-bold transition-colors',
                   !opt.available
                     ? 'cursor-default border-page bg-page/60 text-ink-300'
                     : on
@@ -228,7 +228,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
                 onClick={() => setAccent(a)}
                 aria-pressed={accent === a}
                 className={cn(
-                  'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                  'flex min-h-[44px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
                   accent === a
                     ? 'border-brand-600 bg-brand-600/10 text-brand-600'
                     : 'border-page text-ink-400 hover:text-ink-500',
@@ -256,7 +256,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
                 onClick={() => setLogo(p)}
                 aria-pressed={logo === p}
                 className={cn(
-                  'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                  'min-h-[44px] rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
                   logo === p
                     ? 'border-brand-600 bg-brand-600/10 text-brand-600'
                     : 'border-page text-ink-400 hover:text-ink-500',
@@ -280,8 +280,11 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
                 onClick={() => setKeys(prev => toggleChip(prev, chip.key, capacity))}
                 disabled={blocked}
                 aria-pressed={on}
+                // An English chip laid out right-to-left put the unit before the
+                // number ("km 12.43"); it reads the way the English card prints it.
+                dir={cardLang === 'en' ? 'ltr' : undefined}
                 className={cn(
-                  'rounded-full border px-3 py-1.5 text-start transition-colors',
+                  'min-h-[44px] rounded-full border px-3 py-1.5 text-start transition-colors',
                   on
                     ? 'border-brand-600 bg-brand-600/10 text-brand-600'
                     : blocked
@@ -317,7 +320,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
                   disabled={!opt.available}
                   aria-pressed={on}
                   className={cn(
-                    'rounded-xl border px-3 py-1.5 text-xs font-bold transition-colors',
+                    'min-h-[44px] rounded-xl border px-3 py-1.5 text-xs font-bold transition-colors',
                     !opt.available
                       ? 'cursor-default border-page bg-page/60 text-ink-300'
                       : on
@@ -350,7 +353,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
                 onClick={() => setCardLang(l)}
                 aria-pressed={cardLang === l}
                 className={cn(
-                  'rounded-full px-3 py-1 text-xs font-bold transition-colors',
+                  'min-h-[44px] rounded-full px-3 py-1 text-xs font-bold transition-colors',
                   cardLang === l ? 'bg-card text-ink-700 shadow-sm' : 'text-ink-400',
                 )}
               >
@@ -378,7 +381,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
               onClick={() => setSticker(v => !v)}
               aria-pressed={sticker}
               className={cn(
-                'rounded-full border px-3 py-1.5 text-xs font-bold transition-colors',
+                'min-h-[44px] rounded-full border px-3 py-1.5 text-xs font-bold transition-colors',
                 sticker
                   ? 'border-brand-600 bg-brand-600/10 text-brand-600'
                   : 'border-page text-ink-400 hover:text-ink-500',
