@@ -36,6 +36,7 @@ import { askBuildId, isNewerBuild } from '@/lib/sw-build-id';
 // the worker that served this page (askBuildId above, MC_BUILD_ID in sw.ts).
 export function UpdatePrompt() {
   const [ready, setReady] = useState(false);
+  const [applying, setApplying] = useState(false);
   // The build that was serving this page when it loaded — i.e. the version the
   // JS currently executing came from. Every candidate is compared against it.
   // null = it wouldn't say (a worker older than sw.ts's handler), which makes
@@ -110,29 +111,42 @@ export function UpdatePrompt() {
 
   if (!ready) return null;
 
-  const refresh = () => {
+  const refresh = async () => {
+    if (applying) return;
+    setApplying(true);
     // Reload only AFTER the new worker takes control — otherwise the reload can
     // fetch the shell while the OLD worker is still controlling and re-serve
-    // stale chunks (the exact loop this prompt exists to fix). Fall back to an
-    // unconditional reload if controllerchange doesn't fire promptly.
+    // stale chunks (the exact loop this prompt exists to fix).
     let reloaded = false;
     const go = () => { if (!reloaded) { reloaded = true; window.location.reload(); } };
     navigator.serviceWorker.addEventListener('controllerchange', go, { once: true });
-    setTimeout(go, 2000);
-    navigator.serviceWorker.getRegistration()
-      .then((r) => { r?.waiting?.postMessage({ type: 'SKIP_WAITING' }); })
-      .catch(() => {});
+    const r = await navigator.serviceWorker.getRegistration().catch(() => undefined);
+    const next = r?.waiting ?? r?.installing;
+    next?.postMessage({ type: 'SKIP_WAITING' });
+    // "I tap it and nothing happens" (b80f50a6, an installed PWA): the handover
+    // never came, and the old fallback — a plain reload — keeps the page on the
+    // OLD worker, since a waiting worker is not activated by a reload. So the
+    // banner was back the moment the page returned. If the takeover hasn't come,
+    // drop the registration instead: the reload then goes to the network for the
+    // new build, and SerwistProvider registers the newest worker on that load
+    // (with no controller at load, which this banner never fires for).
+    setTimeout(async () => {
+      if (reloaded) return;
+      try { await r?.unregister(); } catch { /* reload anyway */ }
+      go();
+    }, next ? 3000 : 0);
   };
 
   return (
     <button
       onClick={refresh}
+      disabled={applying}
       dir="rtl"
       className="fixed left-1/2 -translate-x-1/2 z-[310] flex items-center gap-2.5 px-4 py-2.5 rounded-full text-white text-sm font-bold shadow-xl safe-bottom animate-bounce-gentle"
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 16px)', background: 'linear-gradient(90deg,#1525FF,#159AFF)' }}
     >
-      <RefreshCw className="h-4 w-4" />
-      גרסה חדשה זמינה — הקישו לרענון
+      <RefreshCw className={`h-4 w-4 ${applying ? 'animate-spin' : ''}`} />
+      {applying ? 'מעדכן…' : 'גרסה חדשה זמינה — הקישו לרענון'}
     </button>
   );
 }
