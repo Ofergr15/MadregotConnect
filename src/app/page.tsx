@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Trophy, Users, Zap, Heart, Camera, Loader2, Shield, Route, Activity, Clock } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 import { getSupabase } from '@/lib/supabase/client';
+import { loginErrorText, type LoginErrorText } from '@/lib/auth/login-error';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { Figure } from '@/components/Figure';
 import { Sheet, Button, LoadingBlock, BigStat } from '@/components/ui';
@@ -121,21 +122,16 @@ export default function HomePage() {
   // ?strava=error&reason=... — previously never read at all, so a failed
   // login just silently dropped the user back on the landing page with the
   // spinner gone and zero explanation of what happened or what to do next.
-  const [resolveError, setResolveError] = useState<string | null>(null);
+  // Each reason has its own words since #83; see lib/auth/login-error.
+  const [resolveError, setResolveError] = useState<LoginErrorText | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('strava') !== 'error') return;
-    const reason = params.get('reason');
-    setResolveError(
-      reason === 'not_configured'
-        ? 'ההתחברות דרך Strava עדיין לא מוגדרת. פנו למאמן.'
-        : reason === 'no_athlete'
-          ? 'לא נמצא חשבון מתאים להתחברות הזו.'
-          : 'ההתחברות נכשלה. נסו שוב.',
-    );
+    setResolveError(loginErrorText(params.get('reason'), params.get('debug')));
     window.history.replaceState({}, '', '/');
   }, []);
-  const displayError = resolveError || stravaError;
+  const displayError = resolveError?.text || stravaError;
+  const displayDebug = resolveError ? resolveError.debug : null;
 
   // A member who is already in the app must never be shown the login screen.
   // Supabase sessions expire routinely — and iOS evicts them from a standalone
@@ -351,6 +347,20 @@ export default function HomePage() {
           </div>
         </nav>
 
+        {/* The sign-in error, right under the bar (#83). It used to sit under the
+            big button further down, which at 375 is below the fold: a member who
+            came back from Strava saw the hero and no reason. */}
+        {displayError && (
+          <div role="alert" dir="rtl" className="relative z-10 mx-4 mt-4 rounded-card border border-accent-red/20 bg-accent-red/5 px-4 py-3 sm:mx-8 lg:mx-20">
+            <p className="text-sm font-semibold text-accent-red">{displayError}</p>
+            {displayDebug && (
+              <p className="mt-1 text-2xs text-ink-400">
+                קוד לדיווח: <bdi dir="ltr">{displayDebug}</bdi>
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Admin Login Sheet (triggered from footer) */}
         <Sheet open={showAdminLogin} onOpenChange={setShowAdminLogin} title={th('adminLogin')}>
           <form onSubmit={handleAdminLogin} className="space-y-3 pb-2">
@@ -423,9 +433,6 @@ export default function HomePage() {
                     </>
                   )}
                 </button>
-                {displayError && (
-                  <p className="text-sm text-accent-red text-center" dir="rtl">{displayError}</p>
-                )}
               </div>
             </div>
 

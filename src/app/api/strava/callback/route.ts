@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { callbackQueryShape } from '@/lib/auth/login-error';
 import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
@@ -97,16 +98,28 @@ export async function GET(request: Request) {
     ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).host
     : 'missing';
 
+  // `state` is logged by its kind only: it can carry an invite token.
+  const query = callbackQueryShape(searchParams);
   console.info(`[auth-debug:${debugId}] callback:start`, {
-    state,
+    stateKind: joinToken ? 'join' : challenge ? 'login:pwa' : isLogin ? 'login' : state ? 'link' : null,
     hasCode: !!code,
+    queryKeys: query.keys,
+    stravaError: query.error,
+    userAgent: (request.headers.get('user-agent') || '').slice(0, 160),
     origin,
     supabaseHost,
   });
 
+  // Strava sends the member back with ?error=access_denied when they press
+  // Cancel on its authorize page. That is a choice, not a failure (#83).
+  if (query.error) {
+    console.info(`[auth-debug:${debugId}] callback:strava_error`, { error: query.error });
+    const reason = query.error === 'access_denied' ? 'denied' : 'missing_params';
+    return NextResponse.redirect(new URL(`/?strava=error&reason=${reason}&debug=${debugId}`, origin));
+  }
   if (!code || !state) {
     console.error(`[auth-debug:${debugId}] callback:missing_params`);
-    return NextResponse.redirect(new URL('/?strava=error&reason=missing_params', origin));
+    return NextResponse.redirect(new URL(`/?strava=error&reason=missing_params&debug=${debugId}`, origin));
   }
   if (!process.env.STRAVA_CLIENT_ID || !process.env.STRAVA_CLIENT_SECRET) {
     console.error(`[auth-debug:${debugId}] callback:not_configured`);
