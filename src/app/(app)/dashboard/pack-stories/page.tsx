@@ -23,12 +23,13 @@ import './pack-stories.css';
 // super user sees, and GET /api/pack-stories answers 403 to everybody else. Hidden while
 // viewing as someone else, so view-as shows what they would see.
 //
-// Four steps, the picture last: session → numbers → design → picture. The design
-// is ~/.cache/madregot/mockups/pack-stories-v2 (the canvas still follows
+// Two steps: pick the session, then the picture, where the numbers, the design and
+// the caption are changed in sheets over it. The design is
+// ~/.cache/madregot/mockups/pack-stories-v3-options, option A (the canvas still follows
 // pack-stories-proto); the pure selection rules are lib/pack-stories/model.ts, the canvas is render.ts.
 
 const DAYS_BACK = 8;
-const STEPS = ['אימון', 'מספרים', 'עיצוב', 'תמונה'];
+const STEPS = ['אימון', 'תמונה'];
 const VARIANT_FILE: Record<Variant, string> = { full: 'full', noMap: 'nomap', splits: 'splits' };
 
 /** Today and the days before it, as Israel calendar dates. */
@@ -49,7 +50,7 @@ const loadImage = (src: string) => new Promise<HTMLImageElement | null>(res => {
   i.src = src;
 });
 
-type Sheet = null | { kind: 'slot'; i: number } | { kind: 'chart' } | { kind: 'export' };
+type Sheet = null | { kind: 'slot'; i: number } | { kind: 'chart' } | { kind: 'export' } | { kind: 'numbers' | 'design' | 'caption' };
 
 export default function PackStoriesPage() {
   const isSuper = useIsSuperUser();
@@ -92,6 +93,7 @@ export default function PackStoriesPage() {
 
   const rootRef = useRef<HTMLDivElement>(null);
   const cvRef = useRef<HTMLCanvasElement>(null);
+  const thRef = useRef<HTMLCanvasElement>(null);
   const xthRefs = useRef<Partial<Record<Variant, HTMLCanvasElement | null>>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -102,6 +104,7 @@ export default function PackStoriesPage() {
   useEffect(() => {
     if (!scene) return;
     if (cvRef.current) drawStory(cvRef.current, scene, p);
+    if (thRef.current) drawStory(thRef.current, scene, p);
   });
 
   useEffect(() => {
@@ -227,14 +230,14 @@ export default function PackStoriesPage() {
         <h3>דבוקה {p} · הריצה המוצגת</h3>
         <div className="pick">
           {rs.filter(summ ? r => !!r.route : r => r.laps.length > 0).map(r => (
-            <button key={r.id} className={fr && r.id === fr.id ? 'on' : ''} onClick={() => { up(s => { s.packs[p].chartRun = r.id; }); setSheet(null); }}>
+            <button key={r.id} className={fr && r.id === fr.id ? 'on' : ''} onClick={() => { up(s => { s.packs[p].chartRun = r.id; }); setSheet({ kind: 'numbers' }); }}>
               <span>{r.name}</span>
               <span>{summ ? `${fmtPace(r.pace)} · ${fmtKm(r.dist)}` : `${r.laps.length} laps · ${fmtKm(r.dist)}`}</span>
             </button>
           ))}
         </div>
         <div className="src">{summ ? 'המסלול, המרחק, הקצב והזמן בסטורי נלקחים מהריצה הזו.' : 'ברירת מחדל: הריצה עם הכי הרבה הקפות — זו ששמרה את מבנה האימון.'}</div>
-        <div className="seg" style={{ marginTop: 14 }}><button className="on" onClick={() => setSheet(null)}>סגירה</button></div>
+        <div className="seg" style={{ marginTop: 14 }}><button className="on" onClick={() => setSheet({ kind: 'numbers' })}>חזרה</button></div>
       </>
     );
   } else if (sheet?.kind === 'slot' && sl[sheet.i]) {
@@ -296,12 +299,148 @@ export default function PackStoriesPage() {
 
   const firstNames = (n: Pack) => runsFor(S, sess, n).map(r => r.name.split(' ')[0]).join(', ');
   const rankedOn = cfg.metrics[S.layout].filter(k => METRICS[k].rank).length;
-  const stepFoot = (next: string) => (
-    <div className="stepfoot">
-      {step > 0 && <button className="btn back" onClick={() => go(step - 1)}>חזרה</button>}
-      <button className="btn b1" onClick={() => go(step + 1)}>{next}</button>
-    </div>
+
+  const numbersBody = (
+    <>
+      <div className="sec">סוג הסטורי · לכל הדבוקות</div>
+      <div className="seg">
+        {(Object.keys(LAYOUTS) as Array<keyof typeof LAYOUTS>).map(k => (
+          <button key={k} className={`lay ${S.layout === k ? 'on' : ''}`} onClick={() => up(s => { s.layout = k; })}>
+            <span className="mini">{k === 'chart' ? <><b className="a" /><b className="b" /></> : <><b className="r" /><b className="s" /></>}</span>
+            {LAYOUTS[k].name}
+            <small>{k === 'chart' ? 'מספר גדול והקפות' : 'מסלול ושורת מספרים'}</small>
+          </button>
+        ))}
+      </div>
+
+      <div className="sec">מה ייכתב על הסטורי · לכל שלוש הדבוקות</div>
+      <div className="card">
+        {METRIC_ORDER[S.layout].map(k => {
+          const on = cfg.metrics[S.layout].includes(k);
+          const dis = !on && !PACKS.some(n => metricAvailable(S, sess, n, k));
+          return (
+            <button key={k} className={`opt ${on ? 'on' : ''}`} disabled={dis} onClick={() => toggleMetric(k)}>
+              <span className="ck">{on ? '✓' : ''}</span>
+              <span className="tx">
+                <span className="tt">{METRICS[k].title}</span>
+                <span className="ds" style={{ display: 'block' }}>{METRICS[k].desc}</span>
+                <span className="vals">
+                  {PACKS.map(n => (
+                    <span key={n}><i style={{ background: GROUP_HEX[n - 1] }} /><bdi dir="ltr">{metricPreview(S, sess, n, k)}</bdi></span>
+                  ))}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="sec">{summ ? 'המסלול' : 'הגרף'}</div>
+      <div className="card">
+        <button className={`opt ${cfg.chart ? 'on' : ''}`} onClick={toggleChart}>
+          <span className="ck">{cfg.chart ? '✓' : ''}</span>
+          <span className="tx">
+            <span className="tt">{summ ? 'מסלול הריצה' : 'גרף ניתוח אימון'}</span>
+            <span className="ds" style={{ display: 'block' }}>
+              {summ ? 'המסלול של רץ אחד מהדבוקה, מה-GPS.' : 'ההקפות של רץ אחד מהדבוקה. ברירת המחדל: מי ששמר הכי הרבה הקפות.'}
+            </span>
+          </span>
+        </button>
+        {cfg.chart && PACKS.map(n => {
+          const r = chartRun(S, sess, n);
+          return (
+            <button key={n} className="fr" disabled={!r} onClick={() => { up(s => { s.pack = n; }); setSheet({ kind: 'chart' }); }}>
+              <span className="dot" style={{ background: GROUP_HEX[n - 1] }} />
+              <span className="nm">{r ? <><bdi dir="ltr">{r.name}</bdi> · {summ ? <><bdi dir="ltr">{fmtKm(r.dist)}</bdi> ק״מ</> : <>{r.laps.length} הקפות</>}</> : (summ ? 'אין מסלול' : 'אין הקפות')}</span>
+              {r && <span className="x">החלפה ‹</span>}
+            </button>
+          );
+        })}
+      </div>
+      <div className="lim">
+        {summ
+          ? `נכנסים עד ${max} מספרים, בשורה אחת מתחת ללוגו. מרחק, קצב וזמן הם של הריצה שהמסלול שלה מוצג.`
+          : `נכנסים עד ${max} מספרים: הראשון גדול, השני קטן מתחתיו.`}
+      </div>
+      {rankedOn >= 2 && (
+        <button className={`tg ${S.nextInLine ? 'on' : ''}`} style={{ marginTop: 8 }} onClick={() => up(s => { s.nextInLine = !s.nextInLine; })}>
+          <span>אם אותו רץ זוכה בשניהם, השני עובר לבא בתור</span><i />
+        </button>
+      )}
+    </>
   );
+
+  const designBody = (
+    <>
+      <div className="sec">רקע</div>
+      <div className="seg">
+        <button className={S.bg === 'club' ? 'on' : ''} onClick={() => up(s => { s.bg = 'club'; })}>תמונת המועדון</button>
+        <button className={S.bg === 'mine' ? 'on' : ''} onClick={() => fileRef.current?.click()}>{assets.myBg ? 'התמונה שלי' : 'תמונה שלי…'}</button>
+        <button className={S.bg === 'clear' ? 'on' : ''} onClick={() => up(s => { s.bg = 'clear'; })}>שקוף</button>
+      </div>
+
+      <div className="sec">לוגו</div>
+      <div className="logos">
+        {(Object.keys(LOGO_KINDS) as LogoKind[]).map(k => (
+          <button key={k} className={`lgo ${S.logo.kind === k ? 'on' : ''}`} onClick={() => up(s => { s.logo.kind = k; })}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {LOGO_KINDS[k].src ? <img src={LOGO_KINDS[k].src} alt="" className={S.logo.color} /> : <span className="nolg">✕</span>}
+            <small>{LOGO_KINDS[k].name}</small>
+          </button>
+        ))}
+      </div>
+      {S.logo.kind !== 'none' && (
+        <div className="seg" style={{ marginTop: 8 }}>
+          <button className={S.logo.color === 'white' ? 'on' : ''} onClick={() => up(s => { s.logo.color = 'white'; })}>לוגו לבן</button>
+          <button className={S.logo.color === 'black' ? 'on' : ''} onClick={() => up(s => { s.logo.color = 'black'; })}>לוגו שחור</button>
+        </div>
+      )}
+
+      <div className="sec">מה רואים על התמונה</div>
+      <div className="card">
+        {SHOW.map(([k, n]) => (
+          <button key={k} className={`tg sw ${S.show[k] ? 'on' : ''}`} onClick={() => up(s => { s.show[k] = !s.show[k]; })}>
+            <span>{n}</span><i />
+          </button>
+        ))}
+      </div>
+    </>
+  );
+
+  const captionBody = (
+    <>
+      <div className="sec">כיתוב לכל דבוקה (לא חובה)</div>
+      {PACKS.map(n => (
+        <div key={n} className="capin">
+          <span className="dot" style={{ background: GROUP_HEX[n - 1] }} />
+          <input className="inp" aria-label={`כיתוב לדבוקה ${n}`} placeholder={`דבוקה ${n}`} value={S.packs[n].caption}
+            onChange={e => { const v = e.target.value; up(s => { s.packs[n].caption = v; }); }} />
+        </div>
+      ))}
+    </>
+  );
+
+  // Settings open as a sheet over the picture, with a live copy of the story at its
+  // top so every tap shows what it changed.
+  if (sheet?.kind === 'numbers' || sheet?.kind === 'design' || sheet?.kind === 'caption') {
+    sheetBody = (
+      <>
+        <div className="shead">
+          <canvas ref={thRef} className="lth" width={STORY_W} height={STORY_H} />
+          <div>
+            <h3>{sheet.kind === 'numbers' ? 'מספרים' : sheet.kind === 'design' ? 'עיצוב' : 'כיתוב'}</h3>
+            <div className="src">דבוקה {p} · מתעדכן תוך כדי</div>
+          </div>
+        </div>
+        {sheet.kind === 'numbers' ? numbersBody : sheet.kind === 'design' ? designBody : captionBody}
+        <button className="btn b1 done" onClick={() => setSheet(null)}>סיום</button>
+      </>
+    );
+  }
+
+  const on = cfg.metrics[S.layout];
+  const numbersChip = on.length ? `${METRICS[on[0]].title}${on.length > 1 ? ` +${on.length - 1}` : ''}` : 'בלי';
+  const bgName = S.bg === 'club' ? 'תמונת המועדון' : S.bg === 'mine' ? 'התמונה שלי' : 'שקוף';
 
   let body: React.ReactNode;
   if (step === 0) {
@@ -338,127 +477,9 @@ export default function PackStoriesPage() {
         <div className="hint">
           נספרות רק ריצות הבוקר, שהתחילו לפני <bdi dir="ltr">{SESSION_ENDS}</bdi>.
           {du.length > 0 && <> הוסתרו {du.length} ריצות כפולות (אותה ריצה על שני פרופילים).</>}
+          {' '}המספרים והעיצוב משתנים על התמונה עצמה.
         </div>
-        {stepFoot('המשך: מספרים')}
-      </>
-    );
-  } else if (step === 1) {
-    body = (
-      <>
-        <div className="sec">סוג הסטורי · לכל הדבוקות</div>
-        <div className="seg">
-          {(Object.keys(LAYOUTS) as Array<keyof typeof LAYOUTS>).map(k => (
-            <button key={k} className={`lay ${S.layout === k ? 'on' : ''}`} onClick={() => up(s => { s.layout = k; })}>
-              <span className="mini">{k === 'chart' ? <><b className="a" /><b className="b" /></> : <><b className="r" /><b className="s" /></>}</span>
-              {LAYOUTS[k].name}
-              <small>{k === 'chart' ? 'מספר גדול והקפות' : 'מסלול ושורת מספרים'}</small>
-            </button>
-          ))}
-        </div>
-
-        <div className="sec">מה ייכתב על הסטורי · לכל שלוש הדבוקות</div>
-        <div className="card">
-          {METRIC_ORDER[S.layout].map(k => {
-            const on = cfg.metrics[S.layout].includes(k);
-            const dis = !on && !PACKS.some(n => metricAvailable(S, sess, n, k));
-            return (
-              <button key={k} className={`opt ${on ? 'on' : ''}`} disabled={dis} onClick={() => toggleMetric(k)}>
-                <span className="ck">{on ? '✓' : ''}</span>
-                <span className="tx">
-                  <span className="tt">{METRICS[k].title}</span>
-                  <span className="ds" style={{ display: 'block' }}>{METRICS[k].desc}</span>
-                  <span className="vals">
-                    {PACKS.map(n => (
-                      <span key={n}><i style={{ background: GROUP_HEX[n - 1] }} /><bdi dir="ltr">{metricPreview(S, sess, n, k)}</bdi></span>
-                    ))}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="sec">{summ ? 'המסלול' : 'הגרף'}</div>
-        <div className="card">
-          <button className={`opt ${cfg.chart ? 'on' : ''}`} onClick={toggleChart}>
-            <span className="ck">{cfg.chart ? '✓' : ''}</span>
-            <span className="tx">
-              <span className="tt">{summ ? 'מסלול הריצה' : 'גרף ניתוח אימון'}</span>
-              <span className="ds" style={{ display: 'block' }}>
-                {summ ? 'המסלול של רץ אחד מהדבוקה, מה-GPS.' : 'ההקפות של רץ אחד מהדבוקה. ברירת המחדל: מי ששמר הכי הרבה הקפות.'}
-              </span>
-            </span>
-          </button>
-          {cfg.chart && PACKS.map(n => {
-            const r = chartRun(S, sess, n);
-            return (
-              <button key={n} className="fr" disabled={!r} onClick={() => { up(s => { s.pack = n; }); setSheet({ kind: 'chart' }); }}>
-                <span className="dot" style={{ background: GROUP_HEX[n - 1] }} />
-                <span className="nm">{r ? <><bdi dir="ltr">{r.name}</bdi> · {summ ? <><bdi dir="ltr">{fmtKm(r.dist)}</bdi> ק״מ</> : <>{r.laps.length} הקפות</>}</> : (summ ? 'אין מסלול' : 'אין הקפות')}</span>
-                {r && <span className="x">החלפה ‹</span>}
-              </button>
-            );
-          })}
-        </div>
-        <div className="lim">
-          {summ
-            ? `נכנסים עד ${max} מספרים, בשורה אחת מתחת ללוגו. מרחק, קצב וזמן הם של הריצה שהמסלול שלה מוצג.`
-            : `נכנסים עד ${max} מספרים: הראשון גדול, השני קטן מתחתיו.`}
-        </div>
-        {rankedOn >= 2 && (
-          <button className={`tg ${S.nextInLine ? 'on' : ''}`} style={{ marginTop: 8 }} onClick={() => up(s => { s.nextInLine = !s.nextInLine; })}>
-            <span>אם אותו רץ זוכה בשניהם, השני עובר לבא בתור</span><i />
-          </button>
-        )}
-        {stepFoot('המשך: עיצוב')}
-      </>
-    );
-  } else if (step === 2) {
-    body = (
-      <>
-        <div className="sec">רקע</div>
-        <div className="seg">
-          <button className={S.bg === 'club' ? 'on' : ''} onClick={() => up(s => { s.bg = 'club'; })}>תמונת המועדון</button>
-          <button className={S.bg === 'mine' ? 'on' : ''} onClick={() => fileRef.current?.click()}>{assets.myBg ? 'התמונה שלי' : 'תמונה שלי…'}</button>
-          <button className={S.bg === 'clear' ? 'on' : ''} onClick={() => up(s => { s.bg = 'clear'; })}>שקוף</button>
-        </div>
-        <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
-
-        <div className="sec">לוגו</div>
-        <div className="logos">
-          {(Object.keys(LOGO_KINDS) as LogoKind[]).map(k => (
-            <button key={k} className={`lgo ${S.logo.kind === k ? 'on' : ''}`} onClick={() => up(s => { s.logo.kind = k; })}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {LOGO_KINDS[k].src ? <img src={LOGO_KINDS[k].src} alt="" className={S.logo.color} /> : <span className="nolg">✕</span>}
-              <small>{LOGO_KINDS[k].name}</small>
-            </button>
-          ))}
-        </div>
-        {S.logo.kind !== 'none' && (
-          <div className="seg" style={{ marginTop: 8 }}>
-            <button className={S.logo.color === 'white' ? 'on' : ''} onClick={() => up(s => { s.logo.color = 'white'; })}>לוגו לבן</button>
-            <button className={S.logo.color === 'black' ? 'on' : ''} onClick={() => up(s => { s.logo.color = 'black'; })}>לוגו שחור</button>
-          </div>
-        )}
-
-        <div className="sec">מה רואים על התמונה</div>
-        <div className="card">
-          {SHOW.map(([k, n]) => (
-            <button key={k} className={`tg sw ${S.show[k] ? 'on' : ''}`} onClick={() => up(s => { s.show[k] = !s.show[k]; })}>
-              <span>{n}</span><i />
-            </button>
-          ))}
-        </div>
-
-        <div className="sec">כיתוב (לא חובה)</div>
-        {PACKS.map(n => (
-          <div key={n} className="capin">
-            <span className="dot" style={{ background: GROUP_HEX[n - 1] }} />
-            <input className="inp" aria-label={`כיתוב לדבוקה ${n}`} placeholder={`דבוקה ${n}`} value={S.packs[n].caption}
-              onChange={e => { const v = e.target.value; up(s => { s.packs[n].caption = v; }); }} />
-          </div>
-        ))}
-        {stepFoot('הצגת התמונה')}
+        <div className="stepfoot"><button className="btn b1" onClick={() => go(1)}>יצירת התמונה</button></div>
       </>
     );
   } else {
@@ -475,10 +496,11 @@ export default function PackStoriesPage() {
           {!rs.length && <div className="hint">אין ריצות בוקר בדבוקה הזו.</div>}
           <div className="canvasBox"><canvas ref={cvRef} width={STORY_W} height={STORY_H} /></div>
         </div>
-        <div className="edits">
-          <button onClick={() => go(1)}>‹ מספרים</button>
-          <button onClick={() => go(2)}>‹ עיצוב</button>
-          {sl.map((s, i) => <button key={s.key} onClick={() => setSheet({ kind: 'slot', i })}>עריכת {s.title}</button>)}
+        <div className="chips">
+          <button onClick={() => setSheet({ kind: 'numbers' })}>מספרים: <b>{numbersChip}</b> ‹</button>
+          <button onClick={() => setSheet({ kind: 'design' })}>עיצוב: <b>{LAYOUTS[S.layout].name} · {bgName}</b> ‹</button>
+          <button onClick={() => setSheet({ kind: 'caption' })}>כיתוב: <b>{cfg.caption || 'בלי'}</b> ‹</button>
+          {sl.map((s, i) => <button key={s.key} onClick={() => setSheet({ kind: 'slot', i })}>עריכת {s.title} ‹</button>)}
         </div>
         <div className="stepfoot">
           <button className="btn back" onClick={() => { setX(x => ({ ...x, all: true })); setSheet({ kind: 'export' }); }}>כל השלוש</button>
@@ -499,6 +521,7 @@ export default function PackStoriesPage() {
         ))}
       </div>
       {body}
+      <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
 
       {/* On <body>, not in the page: the app's content column is transformed, which
           would pin `position: fixed` to the column instead of the screen. */}
