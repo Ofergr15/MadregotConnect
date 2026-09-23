@@ -61,7 +61,10 @@ export default function PracticeAttendancePage() {
           { value: 'calendar', label: 'לוח שנה', icon: CalendarRange },
           { value: 'day', label: 'יום בודד', icon: List },
         ]}
-        className="mb-5 w-fit"
+        /* Not `w-fit`: the segments are `flex-1 basis-0`, so the track has no
+           fit-content width of its own and "לוח שנה" was clipped to "לוח ש…".
+           Full width on a phone, a fixed 320 from `sm` up. */
+        className="mb-5 w-full sm:w-80"
       />
 
       {view === 'calendar' ? (
@@ -122,14 +125,14 @@ function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
     <div>
       {/* Month header */}
       <div className="flex items-center justify-between mb-3">
-        <button onClick={() => shiftMonth(-1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
+        <button onClick={() => shiftMonth(-1)} aria-label="החודש הקודם" className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
           <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
         </button>
         <div className="text-center">
           <div className="text-lg font-bold text-ink-700">{MONTHS_HE[month]} {year}</div>
           {!loading && <div className="text-2xs text-ink-400 tabular-nums">{monthTotal} הגעות החודש</div>}
         </div>
-        <button onClick={() => shiftMonth(1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
+        <button onClick={() => shiftMonth(1)} aria-label="החודש הבא" className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
           <ChevronRight className="h-4 w-4 rtl:rotate-180" />
         </button>
       </div>
@@ -163,7 +166,9 @@ function CalendarView({ onPickDay }: { onPickDay: (isoDate: string) => void }) {
             >
               <span className={`text-sm font-semibold ${clickable ? 'text-ink-700' : 'text-ink-400'}`}>{cell.dom}</span>
               {hasData ? (
-                <span className="text-2xs font-bold leading-none mt-0.5" style={{ color: '#22c55e' }}>
+                /* Was a literal #22c55e — green on its own green (or amber) wash,
+                   1.40–1.61:1. The text-on-tint green clears every heat band. */
+                <span className="text-2xs font-bold leading-none mt-0.5 text-accent-900">
                   {c!.going}
                 </span>
               ) : isTeamDay ? (
@@ -229,7 +234,7 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
     <div>
       {/* Date picker */}
       <div className="flex items-center gap-2 mb-2">
-        <button onClick={() => shiftDay(-1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
+        <button onClick={() => shiftDay(-1)} aria-label="היום הקודם" className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
           <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
         </button>
         <div className="relative flex-1">
@@ -238,10 +243,11 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
+            aria-label="תאריך האימון"
             className="w-full bg-card border border-page rounded-lg ps-3 pe-9 py-2.5 text-sm text-ink-700 focus:outline-none focus:ring-2 focus:ring-brand-600/50"
           />
         </div>
-        <button onClick={() => shiftDay(1)} className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
+        <button onClick={() => shiftDay(1)} aria-label="היום הבא" className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg bg-card border border-page text-ink-500 hover:text-ink-900 hover:bg-page active:scale-[0.92] transition-all">
           <ChevronRight className="h-4 w-4 rtl:rotate-180" />
         </button>
       </div>
@@ -277,7 +283,7 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
                     <div className="flex items-center gap-2 px-4 py-2.5 border-b border-page/60">
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: rg.hex }} />
                       <span className="text-sm font-bold text-ink-700">{group}</span>
-                      <span className="ms-auto text-xs font-bold text-accent-600 tabular-nums">{members.length}</span>
+                      <span className="ms-auto text-xs font-bold text-accent-900 tabular-nums">{members.length}</span>
                     </div>
                     <div className="p-3 flex flex-wrap gap-1.5">
                       {members.map((m) => <PersonChip key={m.athleteId} row={m} />)}
@@ -312,7 +318,7 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
                   <AthleteLink
                     athleteId={m.athleteId}
                     name={m.name}
-                    className="flex flex-1 min-w-0 items-center gap-3"
+                    className="flex flex-1 min-w-0 min-h-[44px] items-center gap-3"
                   >
                     <Avatar row={m} />
                     <span className="flex-1 min-w-0">
@@ -332,13 +338,17 @@ function DayView({ date, setDate }: { date: string; setDate: (d: string) => void
 }
 
 function CountCard({ value, label, tone, active, onClick }: { value: number; label: string; tone: string; active: boolean; onClick: () => void; }) {
-  const toneCls: Record<string, string> = { green: 'text-accent-600', red: 'text-accent-red', slate: 'text-ink-700', slate2: 'text-ink-500' };
+  // Green is 700, not 600: this is 30px text (3:1 needed) and 600 measured 2.95:1
+  // on the card. On the selected card's blue wash even 700 is 2.91:1, so a
+  // selected green takes the text-on-tint 900.
+  const toneCls: Record<string, string> = { green: 'text-accent-700', red: 'text-accent-red', slate: 'text-ink-700', slate2: 'text-ink-500' };
   return (
     <button
       onClick={onClick}
       className={`rounded-xl border p-3 text-center transition-colors ${active ? 'border-brand-600/60 bg-brand-600/15' : 'border-page bg-card/60 hover:border-ink-300'}`}
     >
-      <BigStat value={value} label={label} valueClassName={toneCls[tone]} />
+      {/* ink-400 is 3.71:1 on the selected card's wash, so the label darkens with it. */}
+      <BigStat value={value} label={label} valueClassName={active && tone === 'green' ? 'text-accent-900' : toneCls[tone]} labelClassName={active ? 'text-ink-500' : undefined} />
     </button>
   );
 }
@@ -346,7 +356,7 @@ function CountCard({ value, label, tone, active, onClick }: { value: number; lab
 function Avatar({ row }: { row: RosterRow }) {
   return row.avatarUrl
     ? <img src={row.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
-    : <span className="w-8 h-8 rounded-full bg-brand-600/25 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">{(row.name[0] || '?').toUpperCase()}</span>;
+    : <span className="w-8 h-8 rounded-full bg-brand-600/25 flex items-center justify-center text-xs font-bold text-brand-700 shrink-0">{(row.name[0] || '?').toUpperCase()}</span>;
 }
 
 // The דבוקה chips — this is the screen and these are the chips the report came
@@ -361,7 +371,7 @@ function PersonChip({ row, muted }: { row: RosterRow; muted?: boolean }) {
     <AthleteLink
       athleteId={row.athleteId}
       name={row.name}
-      className={`inline-flex items-center gap-1.5 rounded-full ps-1 pe-2.5 py-1 min-h-[40px] transition-colors ${muted ? 'bg-page/40 hover:bg-page/70' : 'bg-page/60 hover:bg-page'}`}
+      className={`inline-flex items-center gap-1.5 rounded-full ps-1 pe-2.5 py-1 min-h-[44px] transition-colors ${muted ? 'bg-page/40 hover:bg-page/70' : 'bg-page/60 hover:bg-page'}`}
     >
       <Avatar row={row} />
       <span className={`text-xs ${muted ? 'text-ink-400' : 'text-ink-700'}`} dir="auto">{row.name.split(' ')[0]}</span>
@@ -375,7 +385,7 @@ function PersonChip({ row, muted }: { row: RosterRow; muted?: boolean }) {
 function StatusPill({ row }: { row: RosterRow }) {
   if (row.attending === true) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-bold text-accent-600">
+      <span className="inline-flex items-center gap-1 text-xs font-bold text-accent-900">
         <Check className="h-3.5 w-3.5" /> מגיע
         {row.confirmed && (
           <BadgeCheck className="h-3.5 w-3.5 text-accent-600" aria-label="אומת ע״י ריצה בפועל" />

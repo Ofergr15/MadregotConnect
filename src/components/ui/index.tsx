@@ -367,16 +367,18 @@ export function BigStat({
   label,
   className,
   valueClassName,
+  labelClassName,
 }: {
   value: React.ReactNode;
   label: string;
   className?: string;
   valueClassName?: string;
+  labelClassName?: string;
 }) {
   return (
     <div className={cn('flex flex-col items-center text-center', className)}>
       <span className={cn('text-3xl font-black tabular-nums leading-none text-brand-600', valueClassName)}>{value}</span>
-      <span className="mt-1.5 text-xs font-medium text-ink-400">{label}</span>
+      <span className={cn('mt-1.5 text-xs font-medium text-ink-400', labelClassName)}>{label}</span>
     </div>
   );
 }
