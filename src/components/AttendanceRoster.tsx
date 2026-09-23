@@ -62,7 +62,8 @@ export function AttendanceRoster({ weekStart: weekStartProp, day: dayProp }: { w
         <Users className="h-4 w-4 text-brand-600" />
         <h3 className="text-sm font-bold text-ink-700" dir="rtl">{t('title')}</h3>
         {!loading && (
-          <span className="ms-auto text-xs font-bold text-accent-600 tabular-nums">
+          // accent-900, the TEXT green — accent-600 is the fill and measured 2.95:1 here.
+          <span className="ms-auto text-xs font-bold text-accent-900 tabular-nums">
             {going.length} {t('goingCount')}
           </span>
         )}
@@ -80,18 +81,20 @@ export function AttendanceRoster({ weekStart: weekStartProp, day: dayProp }: { w
               <div className="flex flex-wrap gap-1.5">
                 {/* Same דבוקה chip as the attendance admin screen, and dead for
                     the same reason — it just lived in a second file. The chip is
-                    5px-avatar small, so min-h-[36px] buys the WCAG 2.5.8 target
-                    out of the padding without changing how the row looks. */}
+                    5px-avatar small. min-h-[44px] now, not 36: the chips wrap with
+                    a 6px gap and nothing else in the row is a control, so the full
+                    target fits without any chip reaching into another. The initial is
+                    brand-700 on its tint: white measured 2.10:1, brand-600 3.64. */}
                 {members.map(m => (
                   <AthleteLink
                     key={m.athleteId}
                     athleteId={m.athleteId}
                     name={m.name}
-                    className="inline-flex items-center gap-1.5 bg-page/50 hover:bg-page rounded-full ps-1 pe-2.5 py-1 min-h-[36px] transition-colors"
+                    className="inline-flex items-center gap-1.5 bg-page/50 hover:bg-page rounded-full ps-1 pe-2.5 py-1 min-h-[44px] transition-colors"
                   >
                     {m.avatarUrl
                       ? <img src={m.avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
-                      : <span className="w-5 h-5 rounded-full bg-brand-600/30 flex items-center justify-center text-3xs font-bold text-white">{(m.name[0] || '?').toUpperCase()}</span>}
+                      : <span className="w-5 h-5 rounded-full bg-brand-600/30 flex items-center justify-center text-3xs font-bold text-brand-700">{(m.name[0] || '?').toUpperCase()}</span>}
                     <span className="text-xs text-ink-700" dir="auto">{m.name.split(' ')[0]}</span>
                   </AthleteLink>
                 ))}

@@ -66,25 +66,35 @@ export function CoachPulse() {
                 reason line beside it keeps the route to the feedback. */}
             {attention.slice(0, 5).map((a) => (
               <div key={a.athleteId} className="flex items-center gap-3 bg-page/50 rounded-2xl p-2.5">
-                <AthleteLink athleteId={a.athleteId} name={a.name} className="shrink-0">
+                {/* An 8px halo turns the 32px face into a 48px target (halos built
+                    to exactly 44 measure 41.5). It stays inside the row's 10px
+                    padding and 4px short of the name link across the 12px gap. */}
+                <AthleteLink athleteId={a.athleteId} name={a.name} className="relative shrink-0 after:absolute after:-inset-2 after:content-['']">
                   <Avatar url={a.avatarUrl} name={a.name} />
                 </AthleteLink>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
+                    {/* Two stacked links in one row can't both be 44 without
+                        doubling it, so both sit at the WCAG 2.5.8 floor of 24 (they
+                        measured 20 and 16). The clipping lives on the inner <bdi>:
+                        `truncate` on the link itself would clip its own box. */}
                     <AthleteLink
                       athleteId={a.athleteId}
                       name={a.name}
-                      className="text-sm font-semibold text-ink-700 truncate hover:underline"
+                      className="inline-flex min-h-[24px] min-w-0 items-center text-sm font-semibold text-ink-700 hover:underline"
                     >
-                      <span dir="auto">{a.name}</span>
+                      <bdi className="truncate">{a.name}</bdi>
                     </AthleteLink>
                     {a.squad && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: a.squadColor || '#159AFF' }} />}
                   </div>
                   <Link
                     href="/dashboard/workout-feedback"
-                    className="block text-xs text-band-3-ink truncate rounded hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
+                    className="flex min-h-[24px] items-center text-xs text-band-3-ink rounded hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
                   >
-                    {reasonLabel(a)}
+                    {/* Two lines, not one: the pain detail ("כאב בגיד אכילס…") is
+                        what the coach opens this for, and one line cut it at 215 of
+                        250px on a 375 phone. */}
+                    <span className="line-clamp-2">{reasonLabel(a)}</span>
                   </Link>
                 </div>
                 {a.reasons.includes('wants') && <Bell className="h-3.5 w-3.5 text-band-2-ink shrink-0" />}
@@ -106,7 +116,9 @@ export function CoachPulse() {
                 <AthleteLink
                   athleteId={c.athleteId}
                   name={c.name}
-                  className="flex min-w-0 flex-1 items-center gap-3"
+                  // 44 tall inside the row's padding: -my-1 lends back the 8px it
+                  // grows by, so the row stays the height it was (it measured 36).
+                  className="-my-1 flex min-h-[44px] min-w-0 flex-1 items-center gap-3"
                 >
                   <Avatar url={c.avatarUrl} name={c.name} />
                   <span className="min-w-0 flex-1">

@@ -27,7 +27,9 @@ export default function AllReportsPage() {
   return (
     <div className="mx-auto max-w-2xl" dir="rtl">
       <div className="mb-4">
-        <Link href="/dashboard/review" className="mb-2 inline-flex items-center gap-1 text-xs font-bold text-brand-600">
+        {/* A real 44px box: as bare text it measured 51×18. `-ms-2 px-2` keeps the
+            chevron on the page's edge line while the box grows around it. */}
+        <Link href="/dashboard/review" className="-ms-2 mb-1 inline-flex min-h-[44px] items-center gap-1 px-2 text-xs font-bold text-brand-600">
           <ChevronRight className="h-3.5 w-3.5" />
           {tr('title')}
         </Link>

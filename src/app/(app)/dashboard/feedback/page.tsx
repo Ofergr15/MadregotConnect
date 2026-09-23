@@ -210,7 +210,9 @@ function FeedbackForm() {
             </p>
             {/* Makes explicit that this pre-fill isn't final — the numbers/face
                 below are real inputs, not a locked read-only summary. */}
-            <p className="flex items-center gap-1 text-ink-400 mt-1">
+            {/* ink-500, not ink-400: this sits on the effort colour's own tint, and
+                at RPE 7 (the orange) ink-400 measured 4.35:1 — under AA at 12px. */}
+            <p className="flex items-center gap-1 text-ink-500 mt-1">
               <Pencil className="h-3 w-3" /> {t('watchEditableHint')}
             </p>
           </div>
@@ -247,12 +249,17 @@ function FeedbackForm() {
         <p className="text-sm font-semibold text-ink-700">{t('howFeel')}</p>
         <RequiredTag show={feel == null} />
       </div>
+      {/* A fixed 48px box per face. The size used to come from the glyph — a
+          30px emoji plus p-1.5 — which measured 41.5 wide on both phones, so four
+          of the five faces were under the 44px floor. Five 48s are 240px, well
+          inside the narrowest supported card. */}
       <div className="flex justify-between">
         {FEEL_FACES.map((f, i) => (
           <button
             key={i}
             onClick={() => setFeel(i)}
-            className={cn('text-3xl rounded-full transition p-1.5', feel === i ? 'scale-110' : 'opacity-50')}
+            aria-pressed={feel === i}
+            className={cn('flex h-12 w-12 items-center justify-center text-3xl rounded-full transition', feel === i ? 'scale-110' : 'opacity-50')}
             style={feel === i ? { background: `${FEEL_COLOR[i]}2A`, boxShadow: `0 0 0 2px ${FEEL_COLOR[i]}` } : undefined}
           >
             {f}
@@ -275,6 +282,7 @@ function FeedbackForm() {
       </div>
       {pain === true && (
         <input value={painDetail} onChange={e => setPainDetail(e.target.value)} placeholder={t('painDetail')}
+          aria-label={`${highEffort ? t('painAfterHard') : t('pain')} ${t('painDetail')}`}
           className="w-full mt-2 bg-page/50 border border-page rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600" />
       )}
 
@@ -296,6 +304,7 @@ function FeedbackForm() {
       <p className="text-sm font-semibold text-ink-700 mt-5 mb-2">{t('comment')}</p>
       <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3}
         placeholder={t('commentPlaceholder')}
+        aria-label={t('comment')}
         className="w-full bg-page/50 border border-page rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600" />
 
       {submitError && <p className="mt-4 text-sm text-accent-red text-center" dir="rtl">{t('submitError')}</p>}

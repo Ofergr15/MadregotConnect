@@ -530,7 +530,13 @@ export default function EntryQueuePage() {
       {counts.all > 0 && (
         <Card variant="solid">
           <p className="text-xs font-semibold text-ink-500" dir="rtl">{t('flowTitle', { total: counts.all })}</p>
-          <div className="mt-3 space-y-1.5" dir="rtl">
+          {/* Each row is a button — it filters the list to the people stuck at that
+              step — and each one measured 311×12 on a phone: the height of its
+              text. `min-h-[36px]` with the gap folded into it rather than a 44px
+              row: the chips below open the same filters at a full 44, so these are
+              the second route, and six 44s would double the card. Full-width at
+              36 is a comfortable reach, not a miss. */}
+          <div className="mt-2" dir="rtl">
             {FLOW_STEPS.map((step) => {
               const Icon = STEP_ICON[step];
               const n = funnel[step];
@@ -540,7 +546,7 @@ export default function EntryQueuePage() {
                   key={step}
                   type="button"
                   onClick={() => setFilter(GROUP_OF_STEP[step])}
-                  className="w-full flex items-center gap-2 text-start group"
+                  className="w-full min-h-[36px] flex items-center gap-2 text-start group"
                 >
                   <Icon className="h-3.5 w-3.5 shrink-0 text-ink-400" />
                   <span className="w-[86px] shrink-0 text-2xs font-semibold text-ink-500 truncate">
@@ -577,12 +583,15 @@ export default function EntryQueuePage() {
               type="button"
               onClick={() => setFilter(g)}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border px-3 py-2 min-h-[36px] text-xs font-semibold transition-colors',
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-2 min-h-[44px] text-xs font-semibold transition-colors',
                 on ? 'bg-brand-600 border-brand-600 text-white' : 'bg-card border-page text-ink-500',
               )}
             >
               {t(`group_${g}` as never)}
-              <span className={cn('tabular-nums', on ? 'text-white/70' : 'text-ink-300')}>{counts[g]}</span>
+              {/* ink-400: ink-300 is the hairline grey (1.92:1, "borders only" in
+                  tailwind.config.ts) and the count is the part that says which
+                  group needs you. */}
+              <span className={cn('tabular-nums', on ? 'text-white/70' : 'text-ink-400')}>{counts[g]}</span>
             </button>
           );
         })}
@@ -594,6 +603,7 @@ export default function EntryQueuePage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('searchPlaceholder')}
+          aria-label={t('searchPlaceholder')}
           className="w-full bg-card border border-page rounded-full ps-9 pe-4 py-2.5 min-h-[44px] text-[15px] focus:outline-none focus:ring-2 focus:ring-brand-600"
         />
       </label>
@@ -646,7 +656,10 @@ export default function EntryQueuePage() {
                     <UserPlus className="h-4 w-4 text-brand-600" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[15px] font-semibold text-ink-700 truncate" dir="ltr">{r.email}</p>
+                    {/* Wraps instead of truncating. For an applicant with no athlete row the
+                        address IS the identity, and an ellipsis took the domain —
+                        the part that tells gmail from a typo. */}
+                    <p className="text-[15px] font-semibold text-ink-700 break-all" dir="ltr">{r.email}</p>
                     <p className="text-xs text-ink-400 mt-0.5" dir="rtl">
                       {t('orphanLine', { date: dateOnly(r.createdAt) || '—' })}
                     </p>
@@ -678,7 +691,9 @@ export default function EntryQueuePage() {
                       type="button"
                       onClick={() => setOrphanGroup((prev) => ({ ...prev, [r.id]: g.id }))}
                       className={cn(
-                        'rounded-full border px-3 py-1.5 text-xs font-semibold',
+                        // 44 tall: approval is refused without a דבוקה, so this is
+                        // the control the approve button waits on. It was 28.
+                        'inline-flex min-h-[44px] items-center rounded-full border px-3 text-xs font-semibold',
                         chosen === g.id ? 'bg-brand-600 border-brand-600 text-white' : 'bg-card border-page text-ink-500',
                       )}
                     >
@@ -746,7 +761,7 @@ export default function EntryQueuePage() {
                     </span>
                     <span className="min-w-0">
                       <span className="block text-[15px] font-semibold text-ink-500 truncate" dir="auto">{m.name}</span>
-                      {m.email && <span className="block text-xs text-ink-300 truncate">{m.email}</span>}
+                      {m.email && <span className="block text-xs text-ink-400 truncate">{m.email}</span>}
                     </span>
                   </AthleteLink>
                   {canRemove && (
@@ -791,13 +806,14 @@ export default function EntryQueuePage() {
                       not finished walking the flow — a half-onboarded member is
                       still the person the coach is about to phone. The דבוקה chip
                       beside it stays outside the link. */}
-                  <AthleteLink athleteId={m.id} name={m.name} className="flex items-start gap-3 min-w-0">
+                  {/* min-h-[44px]: the name + address block measured 36–38 tall. */}
+                  <AthleteLink athleteId={m.id} name={m.name} className="flex min-h-[44px] items-start gap-3 min-w-0">
                     <span className="shrink-0 w-9 h-9 rounded-full bg-brand-600/20 flex items-center justify-center">
                       <span className="text-brand-600 font-semibold text-xs">{initials}</span>
                     </span>
                     <span className="min-w-0">
                       <span className="block text-[15px] font-semibold text-ink-700 truncate" dir="auto">{m.name}</span>
-                      {m.email && <span className="block text-xs text-ink-300 truncate">{m.email}</span>}
+                      {m.email && <span className="block text-xs text-ink-400 truncate">{m.email}</span>}
                     </span>
                   </AthleteLink>
                   {/* דבוקה — the first thing asked about anybody in this queue, and
@@ -1098,7 +1114,10 @@ function FlowTrack({
             <span
               className={cn(
                 'mt-1.5 text-3xs leading-tight text-center w-full px-0.5',
-                isStuck ? 'font-bold text-accent-red' : passed ? 'font-semibold text-ink-500' : 'text-ink-300',
+                // Steps not reached yet were ink-300, the hairline grey — 1.92:1 at
+                // 9px. Now the text grey; "not yet" is still carried by the weight
+                // (regular vs semibold) and by the empty dot above the label.
+                isStuck ? 'font-bold text-accent-red' : passed ? 'font-semibold text-ink-500' : 'text-ink-400',
               )}
             >
               {label(step)}

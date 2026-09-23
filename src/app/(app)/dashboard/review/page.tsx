@@ -445,6 +445,9 @@ export default function ReviewPage() {
               value={message}
               onChange={e => setMessage(e.target.value)}
               placeholder={placeholder}
+              // The placeholder was the field's only name, and it is gone the moment
+              // somebody starts typing. The same question, kept as the real name.
+              aria-label={placeholder}
               rows={6}
               className="w-full resize-none rounded-card bg-card px-4 py-3.5 text-sm leading-relaxed text-ink-900 placeholder-ink-400 transition-all focus:outline-none focus:ring-2 focus:ring-brand-600/40"
             />
@@ -583,7 +586,9 @@ export default function ReviewPage() {
                           <button
                             onClick={() => confirmFixed(r.id)}
                             disabled={confirming === r.id}
-                            className="min-h-[36px] rounded-lg border border-accent-600/30 bg-accent-600/15 px-3 text-3xs font-bold text-accent-900 transition-colors active:bg-accent-600/25 disabled:opacity-50"
+                            // 44, not 36: this is the one action the whole fixed-report
+                            // loop waits on, and it measured 110×36 on both phones.
+                            className="min-h-[44px] rounded-lg border border-accent-600/30 bg-accent-600/15 px-3 text-3xs font-bold text-accent-900 transition-colors active:bg-accent-600/25 disabled:opacity-50"
                           >
                             {confirming === r.id ? t('verifyingNow') : t('verifyItWorks')}
                           </button>

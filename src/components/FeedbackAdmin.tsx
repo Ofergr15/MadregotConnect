@@ -733,7 +733,10 @@ export function FeedbackAdmin() {
                 key={v}
                 onClick={() => { setView(v); setQuery(''); }}
                 className={cn(
-                  'flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors',
+                  // h-11: these are the inbox's drawers, and at h-9 all six measured
+                  // 36 tall on both phones. The row scrolls sideways, so the extra
+                  // height costs 8px of page and no width.
+                  'flex h-11 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors',
                   on ? 'border-transparent bg-brand-600 text-white' : 'border-page/60 bg-card text-ink-400',
                 )}
               >
@@ -760,6 +763,7 @@ export function FeedbackAdmin() {
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder={t('feedbackSearch')}
+          aria-label={t('feedbackSearch')}
           className="w-full rounded-xl bg-card border border-page/50 ps-9 pe-3 min-h-[44px] text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-1 focus:ring-brand-600/50"
         />
         {needle && (
