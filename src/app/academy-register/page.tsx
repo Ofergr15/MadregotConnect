@@ -80,6 +80,9 @@ const FIELDS: Field[] = [
 // advertised there. Flip to false to fully close registration.
 const REGISTRATION_OPEN = true;
 
+const isTyped = (f: Field) =>
+  f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number' || f.type === 'textarea';
+
 export default function AcademyRegisterPage() {
   const [values, setValues] = useState<Record<string, any>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -174,30 +177,44 @@ export default function AcademyRegisterPage() {
         <form onSubmit={submit} className="space-y-3">
           {FIELDS.map(f => (
             <Card key={f.key} variant="plain">
-              <label className="block text-sm font-medium text-ink-700 mb-2">
-                {f.label} {f.required && <span className="text-accent-red">*</span>}
-              </label>
+              {/* A real <label for> on the typed fields and a group heading on the
+                  choice fields — the audit found every input named only by its
+                  placeholder ("Daniel", "התשובה שלך"), which a screen reader reads
+                  as the answer and not the question. */}
+              {isTyped(f) ? (
+                <label htmlFor={`ar-${f.key}`} className="block text-sm font-medium text-ink-700 mb-2">
+                  {f.label} {f.required && <span className="text-accent-red">*</span>}
+                </label>
+              ) : (
+                <p id={`ar-${f.key}-q`} className="block text-sm font-medium text-ink-700 mb-2">
+                  {f.label} {f.required && <span className="text-accent-red">*</span>}
+                </p>
+              )}
 
               {(f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number') && (
                 <input
-                  type={f.type} value={values[f.key] || ''} placeholder={(f as any).placeholder || 'התשובה שלך'}
+                  id={`ar-${f.key}`} type={f.type} value={values[f.key] || ''} placeholder={(f as any).placeholder || 'התשובה שלך'}
                   onChange={e => set(f.key, e.target.value)}
-                  className="w-full bg-page border border-ink-300 rounded-lg px-3 py-2.5 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                  // text-base, not text-sm: under 16px iOS Safari zooms the page on
+                  // every focus, and this form is opened from Instagram on a phone.
+                  className="w-full bg-page border border-ink-300 rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
                 />
               )}
 
               {f.type === 'textarea' && (
                 <textarea
-                  value={values[f.key] || ''} rows={3} placeholder="התשובה שלך"
+                  id={`ar-${f.key}`} value={values[f.key] || ''} rows={3} placeholder="התשובה שלך"
                   onChange={e => set(f.key, e.target.value)}
-                  className="w-full bg-page border border-ink-300 rounded-lg px-3 py-2.5 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600 resize-y"
+                  className="w-full bg-page border border-ink-300 rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600 resize-y"
                 />
               )}
 
               {f.type === 'radio' && (
-                <div className="space-y-1.5">
+                // Rows at 44, not the 32 that `p-1.5` around a 20px line gave. The
+                // gap goes to zero because the rows' own height now spaces them.
+                <div role="radiogroup" aria-labelledby={`ar-${f.key}-q`}>
                   {f.options.map(opt => (
-                    <label key={opt} className="flex items-center gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-page/40">
+                    <label key={opt} className="flex min-h-[44px] items-center gap-2.5 cursor-pointer px-1.5 rounded-lg hover:bg-page/40">
                       <input type="radio" name={f.key} checked={values[f.key] === opt} onChange={() => set(f.key, opt)}
                         className="accent-brand-600 w-4 h-4" />
                       <span className="text-sm text-ink-500">{opt}</span>
@@ -207,7 +224,7 @@ export default function AcademyRegisterPage() {
               )}
 
               {f.type === 'chips' && (
-                <div className="flex flex-wrap gap-1.5">
+                <div role="group" aria-labelledby={`ar-${f.key}-q`} className="flex flex-wrap gap-1.5">
                   {f.options.map(opt => {
                     const isSelected = values[f.key] === opt;
                     return (
@@ -217,7 +234,7 @@ export default function AcademyRegisterPage() {
                         onClick={() => set(f.key, opt)}
                         aria-pressed={isSelected}
                         className={
-                          'min-w-[52px] h-10 px-3 rounded-pill text-sm font-semibold border transition-colors ' +
+                          'min-w-[52px] h-11 px-3 rounded-pill text-sm font-semibold border transition-colors ' +
                           (isSelected
                             ? 'bg-brand-600 text-white border-brand-600'
                             : 'bg-card text-ink-500 border-page hover:bg-page/40')
@@ -231,9 +248,9 @@ export default function AcademyRegisterPage() {
               )}
 
               {f.type === 'checkboxes' && (
-                <div className="space-y-1.5">
+                <div role="group" aria-labelledby={`ar-${f.key}-q`}>
                   {f.options.map(opt => (
-                    <label key={opt} className="flex items-center gap-2.5 cursor-pointer p-1.5 rounded-lg hover:bg-page/40">
+                    <label key={opt} className="flex min-h-[44px] items-center gap-2.5 cursor-pointer px-1.5 rounded-lg hover:bg-page/40">
                       <input type="checkbox" checked={(values[f.key] || []).includes(opt)} onChange={() => toggle(f.key, opt)}
                         className="accent-brand-600 w-4 h-4" />
                       <span className="text-sm text-ink-500">{opt}</span>

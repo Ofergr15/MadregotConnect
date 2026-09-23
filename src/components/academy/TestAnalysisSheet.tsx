@@ -331,7 +331,7 @@ export function TestAnalysisSheet({
                   <button
                     type="button"
                     onClick={() => setEditing(v => !v)}
-                    className="flex min-h-[44px] items-center gap-1 text-[11px] font-semibold text-brand-600"
+                    className="flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 text-[11px] font-semibold text-brand-600"
                   >
                     <Pencil className="h-3 w-3" />
                     {editing ? 'סיום עריכה' : 'ערוך'}
@@ -411,7 +411,7 @@ export function TestAnalysisSheet({
                       onClick={() => setBandId(band.id === bandId ? null : band.id)}
                       aria-pressed={band.id === bandId}
                       className={cn(
-                        'min-h-[44px] rounded-pill px-3 text-xs font-semibold',
+                        'min-h-[44px] min-w-[44px] rounded-pill px-3 text-xs font-semibold',
                         band.id === bandId ? 'bg-brand-600 text-white' : 'bg-page text-ink-700',
                       )}
                     >

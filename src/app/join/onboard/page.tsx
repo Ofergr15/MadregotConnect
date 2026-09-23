@@ -322,8 +322,8 @@ function OnboardContent() {
         {step === 'info' && (
           <form onSubmit={handleInfoSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-ink-500 mb-1">{t('yourName')}</label>
-              <Input
+              <label htmlFor="jo-yourName" className="block text-sm font-medium text-ink-500 mb-1">{t('yourName')}</label>
+              <Input id="jo-yourName"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -332,8 +332,8 @@ function OnboardContent() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink-500 mb-1">{t('emailLabel')}</label>
-              <Input
+              <label htmlFor="jo-emailLabel" className="block text-sm font-medium text-ink-500 mb-1">{t('emailLabel')}</label>
+              <Input id="jo-emailLabel"
                 type="email"
                 value={email}
                 readOnly
@@ -407,8 +407,8 @@ function OnboardContent() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-ink-500 mb-1">{t('garminEmail')}</label>
-              <Input
+              <label htmlFor="jo-garminEmail" className="block text-sm font-medium text-ink-500 mb-1">{t('garminEmail')}</label>
+              <Input id="jo-garminEmail"
                 type="email"
                 value={garminEmail}
                 onChange={(e) => setGarminEmail(e.target.value)}
@@ -418,9 +418,9 @@ function OnboardContent() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-ink-500 mb-1">{t('garminPassword')}</label>
+              <label htmlFor="jo-garminPassword" className="block text-sm font-medium text-ink-500 mb-1">{t('garminPassword')}</label>
               <div className="relative">
-                <Input
+                <Input id="jo-garminPassword"
                   type={showPassword ? 'text' : 'password'}
                   value={garminPassword}
                   onChange={(e) => setGarminPassword(e.target.value)}
@@ -516,10 +516,10 @@ function OnboardContent() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-ink-500 mb-1">
+              <label htmlFor="jo-verificationCode" className="block text-sm font-medium text-ink-500 mb-1">
                 {t('verificationCode')}
               </label>
-              <Input
+              <Input id="jo-verificationCode"
                 type="text"
                 value={mfaCode}
                 onChange={(e) => setMfaCode(e.target.value)}

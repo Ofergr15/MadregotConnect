@@ -122,13 +122,15 @@ export default function AcademyJoinPage() {
         {step === 'garmin' && (
           <form onSubmit={submitGarmin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-ink-500 mb-1">{t('garminEmailLabel')}</label>
-              <Input type="email" value={garminEmail} onChange={e => setGarminEmail(e.target.value)} required
+              {/* htmlFor/id: the label sat above its input but named nothing, so
+                  the field announced as its placeholder, "your@email.com". */}
+              <label htmlFor="ja-garmin-email" className="block text-sm font-medium text-ink-500 mb-1">{t('garminEmailLabel')}</label>
+              <Input id="ja-garmin-email" autoComplete="username" type="email" value={garminEmail} onChange={e => setGarminEmail(e.target.value)} required
                 placeholder="your@email.com" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink-500 mb-1">{t('garminPasswordLabel')}</label>
-              <Input type="password" value={garminPassword} onChange={e => setGarminPassword(e.target.value)} required />
+              <label htmlFor="ja-garmin-password" className="block text-sm font-medium text-ink-500 mb-1">{t('garminPasswordLabel')}</label>
+              <Input id="ja-garmin-password" autoComplete="current-password" type="password" value={garminPassword} onChange={e => setGarminPassword(e.target.value)} required />
             </div>
             {error && <p className="text-sm text-accent-red">{error}</p>}
             <Button type="submit" variant="primary" size="lg" className="w-full">
@@ -142,8 +144,8 @@ export default function AcademyJoinPage() {
 
         {step === 'mfa' && (
           <form onSubmit={submitMfa} className="space-y-4">
-            <p className="text-sm text-ink-500">{t('mfaPrompt')}</p>
-            <Input type="text" inputMode="numeric" value={mfaCode} onChange={e => setMfaCode(e.target.value)} required
+            <p id="ja-mfa-prompt" className="text-sm text-ink-500">{t('mfaPrompt')}</p>
+            <Input aria-labelledby="ja-mfa-prompt" autoComplete="one-time-code" type="text" inputMode="numeric" value={mfaCode} onChange={e => setMfaCode(e.target.value)} required
               placeholder="123456" className="text-center tracking-widest" />
             {error && <p className="text-sm text-accent-red">{error}</p>}
             <Button type="submit" variant="primary" size="lg" className="w-full">{t('verifyButton')}</Button>

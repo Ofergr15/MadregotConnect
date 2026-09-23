@@ -439,10 +439,10 @@ export default function JoinPage() {
         {step === 'info' && (
           <form onSubmit={handleInfoSubmit} className="space-y-4 animate-fade-in">
             <div>
-              <label className="block text-sm font-medium text-ink-500 mb-1">
+              <label htmlFor="jt-yourName" className="block text-sm font-medium text-ink-500 mb-1">
                 {to('yourName')}
               </label>
-              <Input
+              <Input id="jt-yourName"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -451,10 +451,10 @@ export default function JoinPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-ink-500 mb-1">
+              <label htmlFor="jt-emailLabel" className="block text-sm font-medium text-ink-500 mb-1">
                 {to('emailLabel')}
               </label>
-              <Input
+              <Input id="jt-emailLabel"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -622,10 +622,10 @@ export default function JoinPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-ink-500 mb-1">
+              <label htmlFor="jt-garminEmail" className="block text-sm font-medium text-ink-500 mb-1">
                 {to('garminEmail')}
               </label>
-              <Input
+              <Input id="jt-garminEmail"
                 type="email"
                 value={garminEmail}
                 onChange={(e) => setGarminEmail(e.target.value)}
@@ -635,11 +635,11 @@ export default function JoinPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-ink-500 mb-1">
+              <label htmlFor="jt-garminPassword" className="block text-sm font-medium text-ink-500 mb-1">
                 {to('garminPassword')}
               </label>
               <div className="relative">
-                <Input
+                <Input id="jt-garminPassword"
                   type={showPassword ? 'text' : 'password'}
                   value={garminPassword}
                   onChange={(e) => setGarminPassword(e.target.value)}
@@ -712,10 +712,10 @@ export default function JoinPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-ink-500 mb-1">
+              <label htmlFor="jt-verificationCode" className="block text-sm font-medium text-ink-500 mb-1">
                 {to('verificationCode')}
               </label>
-              <Input
+              <Input id="jt-verificationCode"
                 type="text"
                 value={mfaCode}
                 onChange={(e) => setMfaCode(e.target.value)}
