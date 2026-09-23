@@ -16,7 +16,7 @@ import {
  * no row. `availableMetrics` therefore gates on the athlete's own week, which is
  * also why the chip list is shorter for some athletes than others.
  */
-export type WeekMetricKey = 'km' | 'time' | 'pace' | 'runs' | 'elev' | 'cal';
+export type WeekMetricKey = 'km' | 'time' | 'pace' | 'runs' | 'elev' | 'cal' | 'sleep' | 'rhr';
 
 export interface WeekMetric {
   key: WeekMetricKey;
@@ -67,6 +67,21 @@ export const WEEK_METRICS: WeekMetric[] = [
     has: (r) => r.calories > 0,
     total: (r) => String(Math.round(r.calories)),
   },
+  // The two numbers about the rest of the week (#69). On by default when the
+  // watch recorded them — they are what was missing — and simply absent for a
+  // Strava-only or watchless runner, like elevation is.
+  {
+    key: 'sleep',
+    defaultOn: true,
+    has: (r) => !!r.sleepSeconds,
+    total: (r) => formatReportHours(r.sleepSeconds || 0),
+  },
+  {
+    key: 'rhr',
+    defaultOn: true,
+    has: (r) => !!r.restingHr,
+    total: (r) => String(r.restingHr ?? '–'),
+  },
 ];
 
 /**
@@ -96,6 +111,7 @@ export const WEEK_CARD_TEXT: Record<WeekCardLang, WeekCardText> = {
     labels: {
       km: 'ק״מ', time: 'שעות', pace: 'קצב ממוצע', runs: 'אימונים',
       elev: 'טיפוס (מ׳)', cal: 'קלוריות',
+      sleep: 'שינה ממוצעת', rhr: 'דופק במנוחה',
     },
     days: 'ק״מ ליום',
   },
@@ -104,6 +120,7 @@ export const WEEK_CARD_TEXT: Record<WeekCardLang, WeekCardText> = {
     labels: {
       km: 'km', time: 'hours', pace: 'avg pace', runs: 'runs',
       elev: 'elev gain (m)', cal: 'calories',
+      sleep: 'avg sleep', rhr: 'resting HR',
     },
     days: 'km per day',
   },

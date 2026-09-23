@@ -13,6 +13,8 @@ import { parseActivityStream, polylineFromDetails, type ParsedStream } from './s
 export class GarminClient {
   private gc: GarminConnect;
   private auth: GarminAuth;
+  /** getWellness is called once per night in a row; loading the stored token each time re-refreshes it each time. */
+  private wellnessSession = false;
 
   constructor(auth: GarminAuth | string) {
     if (typeof auth === 'string') {
@@ -45,6 +47,29 @@ export class GarminClient {
         this.gc.loadToken(oauth1, oauth2);
       }
     }
+  }
+
+  /**
+   * Last night's sleep and resting heart rate, for the morning of `date`
+   * (YYYY-MM-DD — Garmin files a night under the day you wake up).
+   *
+   * One request: the daily-sleep payload carries the resting HR too. Null for a
+   * value the watch didn't record (no watch worn, or the phone hasn't synced
+   * yet) — never zero, since a zero would average into the week as a real night.
+   */
+  async getWellness(date: string): Promise<{ sleepSeconds: number | null; restingHr: number | null }> {
+    if (!this.wellnessSession) {
+      await this.restoreSession();
+      this.wellnessSession = true;
+    }
+    // Noon UTC, so the library's local-date formatting lands on `date` in any server timezone.
+    const data = (await this.gc.getSleepData(new Date(`${date}T12:00:00Z`))) as any;
+    const sleep = Number(data?.dailySleepDTO?.sleepTimeSeconds);
+    const rhr = Number(data?.restingHeartRate);
+    return {
+      sleepSeconds: Number.isFinite(sleep) && sleep > 0 ? Math.round(sleep) : null,
+      restingHr: Number.isFinite(rhr) && rhr > 0 ? Math.round(rhr) : null,
+    };
   }
 
   /**

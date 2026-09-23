@@ -16,7 +16,8 @@ import {
 } from '@/lib/athletes/profile-stats';
 import { israelDateAnchor, israelToday, weekStartOn } from '@/lib/utils';
 import { readWeekStartDay } from '@/lib/athletes/week-pref';
-import { buildLast7Report } from '@/lib/reports/last-7-days';
+import { buildLast7Report, withWellness } from '@/lib/reports/last-7-days';
+import { readWellnessNights } from '@/lib/wellness/read';
 
 export const dynamic = 'force-dynamic';
 
@@ -130,7 +131,11 @@ export async function GET(
       // it needs no request of its own and cannot disagree with the week table
       // beside it about a run. See lib/reports/last-7-days.ts for why the window
       // rolls instead of following the Mon–Sun activity week.
-      last7: buildLast7Report(acts, israelToday()),
+      // Sleep and resting HR are health data: folded in for the athlete's own
+      // profile only, never for a teammate or a coach browsing it (#69).
+      last7: caller.athleteId === id
+        ? withWellness(buildLast7Report(acts, israelToday()), await readWellnessNights(supabase, id))
+        : buildLast7Report(acts, israelToday()),
       recentRuns: buildRecentRuns(acts, runLimit),
       // Same bucket math as /api/athletes/prs and the badge award engine, so a
       // PR shown here is the one a "first 10K" badge fired on.

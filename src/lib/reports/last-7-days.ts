@@ -55,6 +55,33 @@ export interface Last7Report {
   calories: number;
   /** Distance-weighted seconds per km — null when nothing was run. */
   paceSeconds: number | null;
+  /** Average sleep per recorded night in the window (#69). Absent without a watch. */
+  sleepSeconds?: number | null;
+  /** Average resting heart rate over the window's recorded mornings, bpm. */
+  restingHr?: number | null;
+}
+
+export interface WellnessNight {
+  date: string;
+  sleep_seconds: number | null;
+  resting_hr: number | null;
+}
+
+/**
+ * The report with the week's nights folded in: the AVERAGE over the nights the
+ * watch recorded, never a sum and never dividing by seven — a runner who took the
+ * watch off twice did not sleep five hours a night.
+ */
+export function withWellness(report: Last7Report, nights: WellnessNight[]): Last7Report {
+  const inWindow = nights.filter(n => n.date >= report.from && n.date <= report.to);
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  const sleep = avg(inWindow.flatMap(n => (n.sleep_seconds ? [n.sleep_seconds] : [])));
+  const rhr = avg(inWindow.flatMap(n => (n.resting_hr ? [n.resting_hr] : [])));
+  return {
+    ...report,
+    sleepSeconds: sleep === null ? null : Math.round(sleep),
+    restingHr: rhr === null ? null : Math.round(rhr),
+  };
 }
 
 /**

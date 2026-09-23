@@ -230,7 +230,7 @@ describe('the card is on the profile and its labels exist in both languages', ()
     // route already performs, so it costs nothing and cannot disagree with the
     // week table beside it.
     const route = read('app/api/athletes/[id]/stats/route.ts');
-    expect(route).toMatch(/last7: buildLast7Report\(acts, israelToday\(\)\)/);
+    expect(route).toMatch(/last7: caller\.athleteId === id[\s\S]*buildLast7Report\(acts, israelToday\(\)\)/);
   });
 
   it('has every key in he and en', () => {

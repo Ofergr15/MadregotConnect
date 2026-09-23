@@ -1651,6 +1651,8 @@
     "last7Hours": "hours",
     "last7Pace": "avg pace",
     "last7Runs": "runs",
+    "last7Sleep": "Sleep",
+    "last7RestingHr": "Resting HR",
     "weekShareTitle": "Share your week",
     "weekShareAction": "Share",
     "weekShareWhat": "What goes on the card",

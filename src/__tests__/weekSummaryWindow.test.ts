@@ -83,7 +83,8 @@ describe('the feed card', () => {
 
   it('reads the activities the feed can already ask for, adding no endpoint', () => {
     expect(card).toMatch(/fetchActivities\(\{ selfOnly: true, sinceDays: 8 \}\)/);
-    expect(card).not.toMatch(/fetch\('\/api\//);
+    // The one other read is the nights (#69) — sleep isn't in the activities table.
+    expect(card.match(/fetch\('\/api\/[^']*'/g)).toEqual(["fetch('/api/wellness?days=9'"]);
   });
 
   it('keys the X to the Saturday', () => {

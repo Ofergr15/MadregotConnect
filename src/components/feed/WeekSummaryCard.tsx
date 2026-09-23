@@ -6,9 +6,10 @@ import { useTranslations } from 'next-intl';
 import { israelNow, israelToday } from '@/lib/utils';
 import { fetchActivities } from '@/lib/activities-client';
 import {
-  buildLast7Report, formatReportHours, formatReportPace,
-  type Last7Report, type ReportActivity,
+  buildLast7Report, formatReportHours, formatReportPace, withWellness,
+  type Last7Report, type ReportActivity, type WellnessNight,
 } from '@/lib/reports/last-7-days';
+import { apiHeaders } from '@/lib/api';
 import {
   isWeekSummaryWindow, weekSummaryAnchor, weekSummaryDismissKey,
 } from '@/lib/reports/week-summary-window';
@@ -61,13 +62,20 @@ export function WeekSummaryCard() {
       try {
         // Eight days, not seven: `since` is a date-only floor, so a day of slack
         // keeps the oldest day whole whichever side of midnight we are on.
-        const res = await fetchActivities({ selfOnly: true, sinceDays: 8 });
+        const [res, nights] = await Promise.all([
+          fetchActivities({ selfOnly: true, sinceDays: 8 }),
+          // Sleep + resting HR (#69). Optional: a failure is a week without them.
+          fetch('/api/wellness?days=9', { headers: await apiHeaders() })
+            .then(r => (r.ok ? r.json() : { nights: [] }))
+            .then(d => (d.nights || []) as WellnessNight[])
+            .catch(() => [] as WellnessNight[]),
+        ]);
         if (!res.ok || cancelled) return;
         const data = await res.json();
         const acts = (data.activities || []) as ReportActivity[];
         // The report ends on the Saturday even when it is read on Sunday
         // morning: the week being summarised is the one that just closed.
-        const built = buildLast7Report(acts, anchor);
+        const built = withWellness(buildLast7Report(acts, anchor), nights);
         if (!cancelled && built.runs > 0) setReport(built);
       } catch {}
     })();
@@ -128,6 +136,21 @@ export function WeekSummaryCard() {
         />
         <Total value={String(report.runs)} label={t('last7Runs')} />
       </div>
+
+      {(report.sleepSeconds || report.restingHr) && (
+        <div className="relative mt-2 flex items-center justify-center gap-5 text-xs text-white/75">
+          {report.sleepSeconds ? (
+            <span>
+              {t('last7Sleep')} <bdi dir="ltr" className="font-bold tabular-nums text-white">{formatReportHours(report.sleepSeconds)}</bdi>
+            </span>
+          ) : null}
+          {report.restingHr ? (
+            <span>
+              {t('last7RestingHr')} <bdi dir="ltr" className="font-bold tabular-nums text-white">{report.restingHr}</bdi>
+            </span>
+          ) : null}
+        </div>
+      )}
 
       <button
         onClick={() => setSharing(true)}
