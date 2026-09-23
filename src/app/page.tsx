@@ -326,7 +326,11 @@ export default function HomePage() {
               </span>
               <div className="flex flex-col leading-none">
                 <span className="text-sm sm:text-base font-black uppercase tracking-tight">{t('madregot')}</span>
-                <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-400 mt-0.5">{t('after2km')}</span>
+                {/* 11px, up from 9. It wraps to two lines ("מועדון ריצה" / "AFTER 2KM") as it
+                    always did — at 375 this bar also holds the Strava button and the locale
+                    switch, and forcing one line pushes the button off the screen. The
+                    tracking came down from 0.14em, which at 11px broke it into four rows. */}
+                <span className="text-2xs font-semibold uppercase tracking-[0.02em] text-ink-400 mt-0.5">{t('after2km')}</span>
               </div>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">

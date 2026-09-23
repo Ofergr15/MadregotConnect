@@ -390,7 +390,8 @@ function OnboardContent() {
                 await signOutEverywhere();
                 window.location.href = '/';
               }}
-              className="block w-full text-center text-sm text-ink-400 hover:text-ink-500 transition-colors mt-3"
+              // A full-width 44px row: as bare text it measured 20 tall.
+              className="flex min-h-[44px] w-full items-center justify-center text-sm text-ink-500 hover:text-ink-700 transition-colors mt-1"
             >
               {t('backToHome')}
             </button>

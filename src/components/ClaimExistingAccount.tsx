@@ -89,12 +89,14 @@ export default function ClaimExistingAccount() {
       {!open ? (
         <button
           onClick={() => setOpen(true)}
-          className="flex items-start gap-2 text-start w-full active:opacity-70"
+          // min-h 44: two short lines measured 34 tall, and this is the one way
+          // out of the waiting room for somebody who already has an account.
+          className="flex min-h-[44px] items-start gap-2 py-0.5 text-start w-full active:opacity-70"
         >
           <Link2 className="h-4 w-4 shrink-0 mt-0.5 text-ink-400" aria-hidden="true" />
           <span>
             <span className="block text-sm font-bold text-ink-900">{t('prompt')}</span>
-            <span className="block mt-0.5 text-3xs text-ink-400">{t('start')} →</span>
+            <span className="block mt-0.5 text-xs font-semibold text-brand-600">{t('start')} →</span>
           </span>
         </button>
       ) : (
