@@ -32,10 +32,6 @@
 .psx .inp:focus{outline:none;border:2px solid var(--brand)}
 .psx .row2{display:flex;gap:8px;align-items:center}
 .psx .row2 .inp{flex:1;direction:ltr;text-align:center}
-.psx .un{border:1px dashed #f0b3a0;background:#fff7f4;border-radius:12px;padding:8px 10px;margin-top:8px;font-size:12px}
-.psx .un .r{display:flex;align-items:center;gap:6px;margin-top:6px}
-.psx .un .r span{flex:1;font-weight:700}
-.psx .un .r button{width:36px;height:36px;border-radius:10px;border:1px solid #ddd;font-weight:800;font-size:13px}
 .psx .btn{flex:1;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px}
 .psx .b1{background:var(--brand);color:#fff}
 .psx .b2{border:1.5px solid var(--brand);color:var(--brand)}
@@ -74,12 +70,6 @@
 .psx .prev .label{font-size:12px;font-weight:800;color:var(--ink500)}
 .psx .canvasBox{width:360px;height:640px;border-radius:20px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.18); background:repeating-conic-gradient(#6b6b6b 0 25%,#7a7a7a 0 50%) 0 0/20px 20px}
 .psx .canvasBox canvas{width:100%;height:100%;display:block}
-.psx .thumbs{display:flex;gap:10px}
-.psx .thumbs button{width:84px;height:149px;border-radius:10px;overflow:hidden;border:2px solid transparent;background:repeating-conic-gradient(#6b6b6b 0 25%,#7a7a7a 0 50%) 0 0/10px 10px}
-.psx .thumbs button.on{border-color:var(--brand)}
-.psx .thumbs canvas{width:100%;height:100%;display:block}
-.psx .win{display:flex;gap:8px;align-items:center;font-size:12px;margin-top:8px}
-.psx .win input{min-height:40px;border:1px solid #ccc;border-radius:10px;padding:0 8px;font:inherit;font-size:13px;direction:ltr}
 .psx .tg{display:flex;align-items:center;justify-content:space-between;min-height:44px;font-size:13px;font-weight:600;width:100%}
 .psx .tg i{width:44px;height:26px;border-radius:99px;background:#ddd;position:relative;flex:0 0 auto}
 .psx .tg i::after{content:'';position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:.15s}
@@ -91,7 +81,6 @@
 .psx .dim{position:fixed;z-index:60;inset:0}
 .psx .edit{position:fixed;z-index:61;max-width:520px;margin:0 auto;padding-bottom:calc(20px + env(safe-area-inset-bottom))}
 .psx .toast{position:fixed;z-index:62;bottom:calc(96px + env(safe-area-inset-bottom))}
-.psx .layout{display:flex;flex-direction:column;gap:8px}
 .psx .prev{padding:4px 0 8px}
 .psx .canvasBox{width:min(100%,360px);height:auto;aspect-ratio:9/16}
 .psx .days{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
@@ -99,8 +88,55 @@
 .psx .days button.on{border:1.5px solid var(--brand);background:var(--tint);color:var(--brand)}
 .psx .foot{margin-top:4px;display:flex;width:min(100%,360px)}
 .psx .empty{font-size:13px;color:var(--ink500);text-align:center;padding:24px 0}
-@media (min-width:900px){
-  .psx .layout{flex-direction:row-reverse;align-items:flex-start;gap:28px}
-  .psx .prev{position:sticky;top:16px}
-  .psx .ctl{flex:1;max-width:420px}
-}
+/* The four steps: session → numbers → design → picture. */
+.psx .steps{display:flex;gap:4px;margin:10px 0 2px}
+.psx .steps button{flex:1;min-height:36px;display:flex;flex-direction:column;align-items:stretch;gap:5px;font-size:11px;font-weight:700;color:var(--ink400);text-align:center}
+.psx .steps button i{display:block;height:4px;border-radius:2px;background:#d7dbe2}
+.psx .steps button.done{color:var(--ink500)}
+.psx .steps button.done i{background:#9aa3ff}
+.psx .steps button.on{color:var(--brand)}
+.psx .steps button.on i{background:var(--brand)}
+.psx .card{background:#fff;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden}
+.psx .pk{display:flex;align-items:center;gap:10px;padding:11px 13px;border-bottom:1px solid #e5e7eb}
+.psx .pk:last-child,.psx .un:last-child,.psx .opt:last-child,.psx .sw:last-child{border-bottom:0}
+.psx .dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto;display:inline-block}
+.psx .pk .n{font-weight:800;font-size:15px;flex:0 0 auto}
+.psx .pk .who{flex:1;min-width:0;font-size:12px;color:var(--ink500);line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.psx .pk .c{font-weight:900;font-size:15px;font-variant-numeric:tabular-nums}
+.psx .un{display:flex;align-items:center;gap:8px;padding:9px 13px;border-bottom:1px solid #e5e7eb;font-size:13.5px}
+.psx .un .nm{flex:1;min-width:0;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.psx .un .km{color:var(--ink500);font-size:12px;flex:0 0 auto}
+.psx .un button{width:44px;height:44px;border-radius:12px;border:1.5px solid currentColor;background:#fff;font-weight:900;font-size:15px;flex:0 0 auto}
+.psx .opt{display:flex;align-items:flex-start;gap:11px;padding:12px 13px;border-bottom:1px solid #e5e7eb;width:100%;text-align:right}
+.psx .opt:disabled{opacity:.45}
+.psx .ck{width:24px;height:24px;border-radius:7px;border:2px solid #cfd4dc;flex:0 0 auto;margin-top:1px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:900}
+.psx .opt.on .ck{background:var(--brand);border-color:var(--brand)}
+.psx .opt .tx{flex:1;min-width:0}
+.psx .opt .tt{font-weight:800;font-size:14.5px}
+.psx .opt .ds{font-size:12px;color:var(--ink500);margin-top:3px;line-height:1.45}
+.psx .vals{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+.psx .vals span{font-size:12px;font-weight:800;padding:3px 8px;border-radius:8px;background:#f3f4f6;display:inline-flex;align-items:center;gap:5px;font-variant-numeric:tabular-nums}
+.psx .vals span i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.psx .fr{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 13px;border-top:1px solid #f0f1f3;width:100%;font-size:12.5px;text-align:right}
+.psx .fr .nm{flex:1;min-width:0;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.psx .fr .x{color:var(--brand);font-weight:700;flex:0 0 auto}
+.psx .lim{font-size:11.5px;font-weight:700;color:var(--brand);background:var(--tint);border-radius:10px;padding:8px 11px;margin-top:8px;line-height:1.5}
+.psx .seg button.lay{flex-direction:column;padding:10px 6px;gap:2px;min-height:0}
+.psx .seg button.lay small{font-size:10.5px;font-weight:600;color:var(--ink500);opacity:1}
+.psx .mini{width:40px;height:64px;border-radius:7px;margin-bottom:6px;background:linear-gradient(#6b7280,#9ca3af);position:relative;overflow:hidden;display:block}
+.psx .mini b{position:absolute;background:#fff}
+.psx .mini .a{left:8px;right:8px;top:11px;height:8px;border-radius:3px}
+.psx .mini .b{left:6px;right:6px;bottom:6px;height:18px;border-radius:4px}
+.psx .mini .r{left:10px;right:10px;top:9px;height:20px;background:none;border:2.5px solid #fff;border-radius:40% 60% 50% 30%}
+.psx .mini .s{left:6px;right:6px;bottom:12px;height:6px;border-radius:2px}
+.psx .sw{border-bottom:1px solid #e5e7eb;padding:0 13px;font-size:14px;font-weight:700}
+.psx .capin{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.psx .ptabs{display:flex;gap:6px;margin:12px 0 12px}
+.psx .ptabs button{flex:1;min-height:44px;border-radius:12px;font-weight:800;font-size:13px;background:#fff;border:1px solid #e5e7eb;display:flex;gap:6px;justify-content:center;align-items:center}
+.psx .ptabs button.on{border:1.5px solid var(--brand);background:var(--tint);color:var(--brand)}
+.psx .ptabs small{font-weight:600;opacity:.7;font-size:11px}
+.psx .edits{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.psx .edits button{min-height:40px;font-size:12.5px;font-weight:700;color:var(--brand);background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:0 12px}
+.psx .stepfoot{display:flex;gap:8px;margin-top:22px}
+.psx .stepfoot .back{flex:0 0 96px;border:1px solid #e5e7eb;background:#fff;color:var(--ink700)}
+.psx .stepfoot .btn:disabled{opacity:.4}

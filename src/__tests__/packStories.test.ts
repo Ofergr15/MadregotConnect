@@ -29,12 +29,12 @@ describe('fastestKm', () => {
 });
 
 describe('slots', () => {
-  const a = run({ id: 'a', pace: 270, dist: 12000 });
-  const b = run({ id: 'b', pace: 280, dist: 10000 });
+  const a = run({ id: 'a', dist: 12000, laps: [[1000, 250], [1000, 260]] });
+  const b = run({ id: 'b', dist: 10000, laps: [[1000, 265], [1000, 270]] });
 
   it('gives the second record to the next in line when one runner wins both', () => {
     const S = initialState();
-    S.packs[1].metrics.chart = ['fastest', 'longest'];
+    S.packs[1].metrics.chart = ['fastKm', 'longest'];
     const [first, second] = slots(S, session([a, b]), 1);
     expect(first.run?.id).toBe('a');
     expect(second.run?.id).toBe('b');
@@ -43,13 +43,13 @@ describe('slots', () => {
   it('lets the same runner win both when next-in-line is off', () => {
     const S = initialState();
     S.nextInLine = false;
-    S.packs[1].metrics.chart = ['fastest', 'longest'];
+    S.packs[1].metrics.chart = ['fastKm', 'longest'];
     expect(slots(S, session([a, b]), 1).map(s => s.run?.id)).toEqual(['a', 'a']);
   });
 
   it('a hand-picked runner wins over next-in-line, and a typed value over the data', () => {
     const S = initialState();
-    S.packs[1].metrics.chart = ['fastest', 'longest'];
+    S.packs[1].metrics.chart = ['fastKm', 'longest'];
     S.packs[1].edits.longest = { runId: 'a', value: '13.00' };
     const second = slots(S, session([a, b]), 1)[1];
     expect(second.run?.id).toBe('a');
@@ -59,16 +59,31 @@ describe('slots', () => {
   });
 });
 
+describe('pack pace', () => {
+  it('is all the time over all the distance, so a long run weighs more', () => {
+    const S = initialState();
+    const sess = session([run({ id: 'a', dist: 10000, dur: 3000 }), run({ id: 'b', dist: 5000, dur: 1800 })]);
+    // (3000 + 1800) s over 15 km = 320 s/km; a plain average of 5:00 and 6:00 would say 5:30.
+    expect(slots(S, sess, 1)[0].value).toBe('5:20');
+  });
+});
+
 describe('selection', () => {
-  it('keeps runs outside the time window and duplicates out of the pack', () => {
+  it('starts with the pack pace alone on the graph story', () => {
+    expect(initialState().packs[1].metrics.chart).toEqual(['avgPace']);
+  });
+
+  it('keeps afternoon/evening runs and duplicates out of the pack', () => {
     const S = initialState();
     const sess = session([
       run({ id: 'in' }),
       run({ id: 'late', start: '18:30' }),
+      run({ id: 'noon', start: '12:00' }),
+      run({ id: 'late-morning', start: '11:59' }),
       run({ id: 'twin', dup: true }),
       run({ id: 'lost', pack: 0, src: 'none' }),
     ]);
-    expect(runsFor(S, sess, 1).map(r => r.id)).toEqual(['in']);
+    expect(runsFor(S, sess, 1).map(r => r.id)).toEqual(['in', 'late-morning']);
     expect(unassigned(S, sess).map(r => r.id)).toEqual(['lost']);
     S.assign.lost = 2;
     expect(runsFor(S, sess, 2).map(r => r.id)).toEqual(['lost']);
