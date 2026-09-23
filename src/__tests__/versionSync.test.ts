@@ -16,4 +16,10 @@ describe('APP_VERSION', () => {
     const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
     expect(APP_VERSION).toBe(pkg.version);
   });
+
+  // Two blank strings are equal too: 2.41.6 exists because a scripted bump wrote
+  // '' into both files and this suite stayed green.
+  it('is a real major.minor.patch', () => {
+    expect(APP_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+  });
 });
