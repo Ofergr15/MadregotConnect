@@ -49,10 +49,28 @@ export async function POST(request: Request) {
     // Reuse an existing row for this email if present (re-registration), else insert.
     const { data: existing } = await supabase
       .from('athletes')
-      .select('id, approved, invite_token')
+      .select('id, approved, invite_token, onboarding_status')
       .eq('coach_id', COACH_ID)
       .eq('email', normEmail)
       .maybeSingle();
+
+    // Only a row that is ITSELF a pending academy application may be rewritten from here.
+    // This endpoint is public and unauthenticated, and the row below sets approved:false,
+    // role 'academy_user' and status 'invited' — applied to anybody else's row it logged a
+    // club member out to the waiting room and stripped a coach's staff role (`role` is what
+    // requireStaff reads), for whoever typed that member's address into the form. An existing
+    // member who really wants the academy is a real case, and it is the coach's to act on:
+    // the row stays exactly as it is, the coach gets the same email marked as an existing
+    // member, and the funnel's link action is what flags them. The answer is the same
+    // success either way, so the form cannot be used to learn whose address is on the roster.
+    if (existing && existing.onboarding_status !== 'academy_pending') {
+      try {
+        await notifyAdminNewAcademyRegistration({ name: fullName, email: normEmail, phone, existingMember: true });
+      } catch (e) {
+        console.error('Academy registration email failed:', e);
+      }
+      return NextResponse.json({ success: true });
+    }
 
     const token = existing?.invite_token || randomBytes(16).toString('hex');
 

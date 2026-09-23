@@ -368,6 +368,8 @@ export async function notifyAdminNewAcademyRegistration(user: {
   name: string;
   email: string;
   phone?: string;
+  /** The address already belongs to a roster row, which the form left untouched. */
+  existingMember?: boolean;
 }): Promise<SendResult> {
   return sendEmail({
     template: 'admin_new_academy_registration',
@@ -376,7 +378,14 @@ export async function notifyAdminNewAcademyRegistration(user: {
     html: renderEmail({
       dir: 'ltr',
       title: 'New academy registration',
-      rows: [['Name', user.name], ['Email', user.email], ['Phone', user.phone || '—']],
+      rows: [
+        ['Name', user.name],
+        ['Email', user.email],
+        ['Phone', user.phone || '—'],
+        ...(user.existingMember
+          ? [['Existing member', 'Yes — this address is already on the roster, so the account was not changed. Link it from the academy funnel if this is them.'] as [string, string]]
+          : []),
+      ],
       cta: { label: 'Review & approve →', href: `${APP_URL}/dashboard/settings` },
     }),
   });
