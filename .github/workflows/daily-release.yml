@@ -1,12 +1,12 @@
-# The daily release train. Production deploys the `release` branch (Vercel →
+# The daily release train. Production deploys the `production` branch (Vercel →
 # Settings → Git → Production Branch), and this moves it to `main` once a day,
 # at 05:00 Israel time — before the morning sessions. Everything merged to main
 # during the day goes out together; the first request the new deploy serves
 # records the release and its notes (src/lib/release-notes.ts).
 #
 # A day with nothing new pushes the same commit, which Vercel does not redeploy.
-# Hotfix: cherry-pick onto `release` and push it; the fix must also be on main,
-# because the next morning's move replaces `release` with main.
+# Hotfix: cherry-pick onto `production` and push it; the fix must also be on main,
+# because the next morning's move replaces `production` with main.
 #
 # The cron is UTC. 02:00 UTC is 05:00 in summer (IDT) and 04:00 in winter (IST).
 name: Daily release
@@ -31,12 +31,12 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Move release to main
+      - name: Move production to main
         run: |
-          git fetch origin release || true
-          if [ "$(git rev-parse origin/main)" = "$(git rev-parse origin/release 2>/dev/null)" ]; then
+          git fetch origin production || true
+          if [ "$(git rev-parse origin/main)" = "$(git rev-parse origin/production 2>/dev/null)" ]; then
             echo "Nothing new on main since the last release."
             exit 0
           fi
-          git push origin origin/main:refs/heads/release --force
-          echo "release → $(git rev-parse --short origin/main)"
+          git push origin origin/main:refs/heads/production --force
+          echo "production → $(git rev-parse --short origin/main)"

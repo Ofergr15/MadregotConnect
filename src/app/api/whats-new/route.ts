@@ -24,7 +24,7 @@ const MISSING = '42P01';
 
 /**
  * The first request a release deploy serves writes its row. Only a deploy of
- * the release branch does: a preview of main, or local dev, sharing this DB
+ * the production branch does: a preview of main, or local dev, sharing this DB
  * must not announce anything.
  */
 async function recordThisRelease(supabase: ReturnType<typeof createServerClient>, releases: ReleaseRow[]) {

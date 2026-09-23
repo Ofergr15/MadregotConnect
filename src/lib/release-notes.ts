@@ -5,7 +5,7 @@
  * - Notes live in src/content/release-notes.json, newest first, one per change,
  *   written with the change itself. The file is append-only, so every build
  *   carries the notes of every release before it.
- * - Production deploys the `release` branch, which a GitHub workflow moves to
+ * - Production deploys the `production` branch, which a GitHub workflow moves to
  *   `main` every morning at 05:00 Israel time (.github/workflows/daily-release.yml).
  * - The first request a new release deploy serves records a `releases` row: its
  *   APP_VERSION and the note ids not in any earlier release (migration 121).
@@ -61,7 +61,7 @@ export interface ShownNote extends ReleaseNote {
 export const BUNDLED_NOTES = notesJson as ReleaseNote[];
 
 /** The branch production deploys. Only a deploy of it records a release. */
-export const RELEASE_BRANCH = 'release';
+export const RELEASE_BRANCH = 'production';
 
 /** Where the admin reads tomorrow's notes from: the repo is public. */
 export const MAIN_NOTES_URL =
