@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import {
   Loader2, MessageSquare, Trash2, Bug, Lightbulb, Dumbbell, MessageCircle, Search,
   Smartphone, Archive, ArchiveRestore, GitBranch, Radar, Sparkles, Users,
+  ChevronUp, ChevronDown, ChevronsUp, Copy, Check, ListOrdered,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
@@ -19,6 +20,11 @@ import {
 } from '@/lib/feedback/lifecycle';
 import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, Spinner } from '@/components/ui';
 import { InsetSection } from '@/components/ui/InsetList';
+import { FeedbackQueue } from '@/components/FeedbackQueue';
+import {
+  inQueue, moveInQueue, queuePriority, sortQueue, ticketLabel, ticketQuery,
+  type QueuePriority, type QueueUpdate,
+} from '@/lib/feedback/queue';
 
 /**
  * The staff side of /dashboard/review: every report the club has filed, and the
@@ -57,6 +63,8 @@ type FeedbackPriority = 'low' | 'medium' | 'high';
 
 export interface FeedbackItem {
   id: string;
+  /** Migration 120: the short shareable number ("#84"). Undefined until applied. */
+  ticket_no?: number | null;
   athlete_name: string;
   athlete_email: string | null;
   group_name: string | null;
@@ -144,7 +152,10 @@ export function FeedbackAdmin() {
   // Opens on the inbox — the only view that needs a decision today. The five
   // status sections used to be stacked on one scroll, so the outstanding work and
   // the year's closed pile looked like one undifferentiated list (2d076a9c).
-  const [view, setView] = useState<FeedbackView>('inbox');
+  // 'queue' is the owner's work order and the default: it is the answer to
+  // "which bug next", and the drawers below it are where a report's state lives.
+  const [view, setView] = useState<FeedbackView | 'queue'>('queue');
+  const [copied, setCopied] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [updating, setUpdating] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
@@ -250,9 +261,13 @@ export function FeedbackAdmin() {
   // answering it inside the current drawer is how "I reported this months ago"
   // came back as nothing.
   const needle = query.trim().toLowerCase();
+  const ticket = ticketQuery(query);
   const matches = (item: FeedbackItem) => {
     if (filterCategory !== 'all' && (item.category || 'general') !== filterCategory) return false;
     if (!needle) return feedbackView(item) === view;
+    // "84" or "#84" is the number someone sent over WhatsApp — the exact row,
+    // not every report that happens to contain the digits.
+    if (ticket !== null && items.some(i => i.ticket_no === ticket)) return item.ticket_no === ticket;
     return [item.message, item.athlete_name, item.athlete_email, item.group_name, item.fix_branch, item.fixed_in_version]
       .some(v => (v || '').toLowerCase().includes(needle));
   };
@@ -268,6 +283,51 @@ export function FeedbackAdmin() {
 
   const selectedIssue = selected ? issues.find(i => i.primary.id === selected.id) : undefined;
 
+  // The queue is over issues, not rows — a merged copy is carried by its primary.
+  const queue = useMemo(() => sortQueue(issues.map(i => i.primary)), [issues]);
+
+  /** Write a reorder: optimistic, one request, refetched if it didn't land. */
+  const applyOrder = async (updates: QueueUpdate[]) => {
+    if (updates.length === 0) return;
+    const byId = new Map(updates.map(u => [u.id, u]));
+    const merge = (f: FeedbackItem) => {
+      const u = byId.get(f.id);
+      return u ? { ...f, sort_order: u.sort_order, priority: u.priority } : f;
+    };
+    setItems(prev => prev.map(merge));
+    setSelected(prev => (prev ? merge(prev) : prev));
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'PATCH',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ order: updates }),
+      });
+      if (!res.ok) await fetchFeedback();
+    } catch {
+      await fetchFeedback();
+    }
+  };
+
+  const moveTo = (id: string, toIndex: number) => applyOrder(moveInQueue(queue, id, toIndex));
+
+  /** A priority change on a queued report moves it to the end of its new group. */
+  const setPriority = (item: FeedbackItem, priority: QueuePriority) => {
+    if (inQueue(item)) applyOrder(moveInQueue(queue, item.id, 0, priority));
+    else patch(item.id, { priority });
+  };
+
+  const copyTicket = async (item: FeedbackItem) => {
+    const label = ticketLabel(item.ticket_no);
+    if (!label) return;
+    try {
+      await navigator.clipboard.writeText(label);
+      setCopied(item.id);
+      setTimeout(() => setCopied(c => (c === item.id ? null : c)), 1500);
+    } catch {
+      /* no clipboard permission: the number is on screen to read out */
+    }
+  };
+
   return (
     <>
       {selected && (
@@ -276,8 +336,8 @@ export function FeedbackAdmin() {
               unbreakable word, and a synthetic Strava one
               (strava_106828158@strava.madregot.local) is long enough to widen the
               sheet past the screen on its own. */}
-          <div className="pb-4 mb-1 border-b border-page/50 flex items-center">
-            <div className="flex min-w-0 items-center gap-3">
+          <div className="pb-4 mb-1 border-b border-page/50 flex items-center gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               <div className="w-11 h-11 shrink-0 rounded-full bg-brand-600/15 flex items-center justify-center">
                 <span className="text-sm font-bold text-brand-600">{initials(selected.athlete_name)}</span>
               </div>
@@ -289,6 +349,18 @@ export function FeedbackAdmin() {
                 </div>
               </div>
             </div>
+            {/* The number, with a copy button: it is the thing that gets pasted
+                into WhatsApp ("84 is back"), so it has to be one tap away. */}
+            {ticketLabel(selected.ticket_no) && (
+              <button
+                onClick={() => copyTicket(selected)}
+                aria-label={t('copyNumber')}
+                className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl border border-page px-3 text-brand-700 active:bg-page/50"
+              >
+                <span className="font-mono text-lg font-extrabold" dir="ltr">{ticketLabel(selected.ticket_no)}</span>
+                {copied === selected.id ? <Check className="h-4 w-4 text-accent-900" /> : <Copy className="h-4 w-4" />}
+              </button>
+            )}
           </div>
           <div className="pt-4">
             {/* flex-wrap, because the chip plus a full "Wednesday, September 3,
@@ -564,11 +636,37 @@ export function FeedbackAdmin() {
               <div className={cn(updating === selected.id && 'opacity-50 pointer-events-none')}>
                 <label className="text-xs font-semibold text-ink-400 mb-2 block">{t('priority')}</label>
                 <SegmentedControl<FeedbackPriority>
-                  value={selected.priority || 'medium'}
-                  onChange={(priority) => patch(selected.id, { priority })}
-                  options={(['low', 'medium', 'high'] as FeedbackPriority[]).map(priority => ({ value: priority, label: t(priority) }))}
+                  value={queuePriority(selected.priority)}
+                  onChange={(priority) => setPriority(selected, priority)}
+                  options={(['high', 'medium', 'low'] as FeedbackPriority[]).map(priority => ({ value: priority, label: t(priority) }))}
                 />
               </div>
+              {/* Its place in the work order, and the three moves you make from
+                  inside a report without going back to drag it. */}
+              {(() => {
+                const pos = queue.findIndex(r => r.id === selected.id);
+                if (pos < 0) return null;
+                const btn = 'flex h-11 min-w-[44px] items-center justify-center gap-1 rounded-xl border border-page px-2.5 text-xs font-bold text-ink-600 active:bg-page/50 disabled:opacity-30';
+                return (
+                  <div>
+                    <label className="text-xs font-semibold text-ink-400 mb-2 block">{t('queuePlace')}</label>
+                    <div className="flex items-center gap-2">
+                      <p className="min-w-0 flex-1 text-sm font-bold text-ink-700">
+                        {t('queuePosition', { pos: pos + 1, total: queue.length })}
+                      </p>
+                      <button className={cn(btn, 'border-brand-600/30 bg-brand-600/10 text-brand-700')} disabled={pos === 0} onClick={() => moveTo(selected.id, 0)}>
+                        <ChevronsUp className="h-4 w-4" />{t('queueTop')}
+                      </button>
+                      <button className={btn} disabled={pos === 0} aria-label={t('queueUp')} onClick={() => moveTo(selected.id, pos - 1)}>
+                        <ChevronUp className="h-4 w-4" />
+                      </button>
+                      <button className={btn} disabled={pos === queue.length - 1} aria-label={t('queueDown')} onClick={() => moveTo(selected.id, pos + 1)}>
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
               {updating === selected.id && (
                 <div className="flex items-center gap-2 text-xs text-ink-400">
                   <Loader2 className="w-3 h-3 animate-spin" />
@@ -725,6 +823,19 @@ export function FeedbackAdmin() {
           reason — untriaged reports are the one number that means "today". */}
       <div className="-mx-4 mb-3 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex w-max gap-1.5">
+          <button
+            onClick={() => { setView('queue'); setQuery(''); }}
+            className={cn(
+              'flex h-11 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors',
+              view === 'queue' && !needle ? 'border-transparent bg-brand-600 text-white' : 'border-page/60 bg-card text-ink-400',
+            )}
+          >
+            <ListOrdered className="h-3.5 w-3.5" />
+            {t('viewQueue')}
+            <span className={cn('rounded-full px-1.5 text-2xs font-bold tabular-nums', view === 'queue' && !needle ? 'bg-white/25 text-white' : 'bg-page text-ink-400')}>
+              {queue.length}
+            </span>
+          </button>
           {FEEDBACK_VIEWS.map(v => {
             const on = view === v && !needle;
             const alert = v === 'inbox' && counts.inbox > 0;
@@ -779,7 +890,9 @@ export function FeedbackAdmin() {
           categories are their icons (named to a screen reader, and each report
           carries the same coloured icon in the list, so the mapping is on screen);
           "All" keeps its word, because that one isn't guessable from a glyph. */}
-      <div className="mb-4">
+      {/* Not in the work order: it is one list in one order, and a filtered
+          slice of it would make a drag land somewhere other than where it shows. */}
+      {(view !== 'queue' || needle) && <div className="mb-4">
         <SegmentedControl<FeedbackCategory | 'all'>
           value={filterCategory}
           onChange={setFilterCategory}
@@ -796,7 +909,7 @@ export function FeedbackAdmin() {
           // question a silent filter causes.
           <p className="mt-1.5 text-center text-3xs font-semibold text-ink-400">{catLabel(filterCategory)}</p>
         )}
-      </div>
+      </div>}
 
       {/* Grouped by status inside the drawer. The drag-and-drop Kanban board this
           replaced didn't work at all on a phone: native HTML5 dragstart/drop
@@ -806,6 +919,24 @@ export function FeedbackAdmin() {
         <LoadingBlock />
       ) : items.length === 0 ? (
         <EmptyState icon={MessageSquare} title={t('noFeedback')} />
+      ) : view === 'queue' && !needle ? (
+        queue.length === 0 ? (
+          <EmptyState icon={ListOrdered} title={t('viewEmpty')} />
+        ) : (
+          <FeedbackQueue
+            rows={queue}
+            onOpen={openReport}
+            onMove={moveTo}
+            priorityLabel={p => t(p)}
+            dateLabel={dateLabel}
+            dragHint={t('queueDragHint')}
+            statusChip={row => normalizeStatus(row.status) === 'sprint' ? (
+              <span className={cn('shrink-0 rounded-full px-1.5 py-0.5 text-3xs font-bold', STATUS_PILL.sprint)}>
+                {statusLabel('sprint')}
+              </span>
+            ) : null}
+          />
+        )
       ) : visible.length === 0 ? (
         // Distinct from "no feedback": there ARE reports, this drawer or search
         // just doesn't match any, and saying "no feedback" there would be a lie.
@@ -844,6 +975,11 @@ export function FeedbackAdmin() {
                           card has nothing to give — it's inside the inset list's
                           px-4. Wrapping is the only honest answer. */}
                       <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                        {ticketLabel(item.ticket_no) && (
+                          <span className="shrink-0 rounded bg-brand-600/10 px-1.5 py-0.5 font-mono text-2xs font-bold text-brand-700" dir="ltr">
+                            {ticketLabel(item.ticket_no)}
+                          </span>
+                        )}
                         {/* The state on the ROW too, not only on the section header
                             above it. A row read mid-scroll — or after a search, where
                             the matches come from several sections — otherwise says

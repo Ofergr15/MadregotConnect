@@ -760,8 +760,8 @@
     "sprint": "ספרינט",
     "denied": "נדחה",
     "low": "נמוך",
-    "medium": "בינוני",
-    "high": "גבוה",
+    "medium": "רגיל",
+    "high": "דחוף",
     "priority": "עדיפות",
     "adminNotes": "הערות מנהל",
     "addTagOrNote": "הוסף תגית או הערה...",
@@ -914,7 +914,15 @@
     "firstSeenIn": "התחיל ב-{version}",
     "registrationLog": "יומן ההרשמות",
     "roleAcademyCoach": "מאמן אקדמיה",
-    "roleAcademyUser": "אקדמיה"
+    "roleAcademyUser": "אקדמיה",
+    "viewQueue": "סדר עבודה",
+    "queueDragHint": "גוררים בידית בצד השורה כדי לשנות את הסדר. העבודה נעשית מלמעלה למטה.",
+    "queuePlace": "מקום בתור",
+    "queuePosition": "{pos} מתוך {total}",
+    "queueTop": "לראש",
+    "queueUp": "למעלה",
+    "queueDown": "למטה",
+    "copyNumber": "העתקת מספר"
   },
   "badgeManager": {
     "existingBadges": "תגים קיימים",
@@ -1309,7 +1317,12 @@
     "verifyItWorks": "עובד עכשיו — תודה",
     "verifyingNow": "שומר…",
     "verifiedThanks": "✓ אישרתם שזה תוקן",
-    "fixedInReload": "תוקן בגרסה {version}. סגרו את האפליקציה לגמרי ופתחו אותה מחדש כדי לקבל את התיקון."
+    "fixedInReload": "תוקן בגרסה {version}. סגרו את האפליקציה לגמרי ופתחו אותה מחדש כדי לקבל את התיקון.",
+    "sentTicket": "מספר הדיווח",
+    "sentCopy": "העתקה",
+    "sentShare": "שיתוף",
+    "sentCopied": "הועתק",
+    "ticketShareText": "דיווח {ticket} במדרגות"
   },
   "setup": {
     "title": "השלמת הפרופיל",

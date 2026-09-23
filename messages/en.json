@@ -760,8 +760,8 @@
     "sprint": "Sprint",
     "denied": "Denied",
     "low": "Low",
-    "medium": "Medium",
-    "high": "High",
+    "medium": "Normal",
+    "high": "Urgent",
     "priority": "Priority",
     "adminNotes": "Admin Notes",
     "addTagOrNote": "Add a tag or note...",
@@ -914,7 +914,15 @@
     "firstSeenIn": "started in {version}",
     "registrationLog": "Registration log",
     "roleAcademyCoach": "Academy Coach",
-    "roleAcademyUser": "Academy"
+    "roleAcademyUser": "Academy",
+    "viewQueue": "Work order",
+    "queueDragHint": "Drag the handle at the row's edge to reorder. Work goes top to bottom.",
+    "queuePlace": "Place in the queue",
+    "queuePosition": "{pos} of {total}",
+    "queueTop": "To top",
+    "queueUp": "Up",
+    "queueDown": "Down",
+    "copyNumber": "Copy number"
   },
   "badgeManager": {
     "existingBadges": "Existing Badges",
@@ -1309,7 +1317,12 @@
     "verifyItWorks": "It works now — thanks",
     "verifyingNow": "Saving…",
     "verifiedThanks": "✓ You confirmed this is fixed",
-    "fixedInReload": "Fixed in {version}. Close the app fully and reopen it to get the fix."
+    "fixedInReload": "Fixed in {version}. Close the app fully and reopen it to get the fix.",
+    "sentTicket": "Report number",
+    "sentCopy": "Copy",
+    "sentShare": "Share",
+    "sentCopied": "Copied",
+    "ticketShareText": "Madregot report {ticket}"
   },
   "setup": {
     "title": "Finish your profile",

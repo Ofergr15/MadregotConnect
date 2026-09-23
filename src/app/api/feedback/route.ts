@@ -68,12 +68,21 @@ export async function POST(request: Request) {
     // column that doesn't exist yet must not cost us the report itself: on
     // 42703 (undefined_column) the insert is retried without it. Losing the
     // diagnostics is a downgrade; losing a bug report is a bug.
-    let { error } = await supabase.from('feedback').insert({ ...row, context: context ?? null });
+    let { data: inserted, error } = await supabase.from('feedback').insert({ ...row, context: context ?? null }).select('id').single();
     if (error && (error as { code?: string }).code === '42703') {
-      ({ error } = await supabase.from('feedback').insert(row));
+      ({ data: inserted, error } = await supabase.from('feedback').insert(row).select('id').single());
     }
 
     if (error) throw error;
+
+    // The shareable number (migration 120), read back on its own so a missing
+    // column costs the reporter the "#84" line and nothing else — the report is
+    // already saved by now.
+    let ticketNo: number | null = null;
+    if (inserted?.id) {
+      const { data: numbered } = await supabase.from('feedback').select('ticket_no').eq('id', inserted.id).maybeSingle();
+      ticketNo = (numbered as { ticket_no?: number | null } | null)?.ticket_no ?? null;
+    }
 
     // Tell the staff. Nothing surfaced a report until somebody thought to open
     // the review screen, which for a "something is broken" channel is exactly
@@ -92,7 +101,7 @@ export async function POST(request: Request) {
       copy: (locale) => problemReportCopy(locale, { athleteName: athleteName, preview: row.message }),
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, ticket_no: ticketNo });
   } catch (error: any) {
     console.error('Feedback submit error:', error);
     return NextResponse.json({ error: error.message || 'Failed to submit' }, { status: 500 });
@@ -126,7 +135,12 @@ export async function GET(request: Request) {
       // working — without the confirm button, which is the honest degrade — until
       // the migration is applied. `context` is NOT selected: it is a diagnostics
       // blob the reporter has already seen once and the list doesn't render.
-      let { data, error } = await mine('id, message, category, status, created_at, fixed_in_version, verified_at');
+      // `ticket_no` is migration 120, tried first and dropped on its own 42703 so
+      // an unapplied 120 doesn't also cost the confirm button 116 brings.
+      let { data, error } = await mine('id, ticket_no, message, category, status, created_at, fixed_in_version, verified_at');
+      if (error && (error as { code?: string }).code === '42703') {
+        ({ data, error } = await mine('id, message, category, status, created_at, fixed_in_version, verified_at'));
+      }
       if (error && (error as { code?: string }).code === '42703') {
         ({ data, error } = await mine('id, message, category, status, created_at'));
       }
@@ -220,6 +234,26 @@ export async function PATCH(request: Request) {
     if (denied) return denied;
 
     const body = await request.json();
+
+    // ── The work queue, reordered ──
+    // One drag renumbers the whole queue (see lib/feedback/queue.ts), so it
+    // arrives as one request rather than a PATCH per row: a dozen racing writes
+    // could land half an order if the phone dropped off mid-way.
+    if (Array.isArray(body.order)) {
+      const supabase = createServerClient();
+      const valid = (body.order as { id?: unknown; sort_order?: unknown; priority?: unknown }[])
+        .filter(u => typeof u.id === 'string' && Number.isInteger(u.sort_order)
+          && ['high', 'medium', 'low'].includes(u.priority as string))
+        .slice(0, 200);
+      const results = await Promise.all(valid.map(u => supabase
+        .from('feedback')
+        .update({ sort_order: u.sort_order, priority: u.priority })
+        .eq('id', u.id as string)));
+      const failed = results.find(r => r.error);
+      if (failed?.error) throw failed.error;
+      return NextResponse.json({ success: true, updated: valid.length });
+    }
+
     const { id, status, priority, admin_notes, sort_order } = body;
 
     if (!id) {

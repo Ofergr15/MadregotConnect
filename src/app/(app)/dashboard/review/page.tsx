@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import {
   Send, CheckCircle2, Bug, Lightbulb, Dumbbell, MessageCircle, Camera, Images, X,
-  ChevronDown, ChevronLeft, ChevronRight, Info, MapPin, RotateCcw, Inbox,
+  ChevronDown, ChevronLeft, ChevronRight, Info, MapPin, RotateCcw, Inbox, Copy, Check, Share2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -71,6 +71,8 @@ const ASKS_WHERE: FeedbackCategory[] = ['bug_report', 'feature_request'];
 
 interface MyReport {
   id: string;
+  /** Migration 120: the shareable "#84". Absent until it is applied. */
+  ticket_no?: number | null;
   message: string;
   category: FeedbackCategory;
   status: string | null;
@@ -98,6 +100,9 @@ export default function ReviewPage() {
 
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  /** The number the server gave the report just sent, when migration 120 has. */
+  const [sentTicket, setSentTicket] = useState<number | null>(null);
+  const [ticketCopied, setTicketCopied] = useState(false);
   const [error, setError] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [showContext, setShowContext] = useState(false);
@@ -301,6 +306,9 @@ export default function ReviewPage() {
         }),
       });
       if (!res.ok) { setError(true); return; }
+      const saved = await res.json().catch(() => ({}));
+      setSentTicket(typeof saved?.ticket_no === 'number' ? saved.ticket_no : null);
+      setTicketCopied(false);
       // Only clear on success. A failed send used to be indistinguishable from a
       // successful one for the text: both left the box as it was, but nothing
       // told the athlete which had happened.
@@ -349,6 +357,35 @@ export default function ReviewPage() {
           </span>
           <p className="text-base font-bold text-ink-700">{t('sentTitle')}</p>
           <p className="mx-auto mt-1.5 max-w-[300px] text-sm leading-relaxed text-ink-400">{t('sentBody')}</p>
+          {/* The report's number, to quote back ("84 is still broken") instead
+              of describing the bug a second time. Copy and share, because the
+              place it goes next is a WhatsApp chat. */}
+          {sentTicket !== null && (
+            <div className="mx-auto mt-4 max-w-[260px] rounded-2xl border border-dashed border-brand-600/40 px-4 py-3">
+              <p className="text-2xs font-bold text-ink-400">{t('sentTicket')}</p>
+              <p className="mt-0.5 font-mono text-4xl font-extrabold text-brand-600" dir="ltr">#{sentTicket}</p>
+              <div className="mt-2.5 flex gap-2">
+                <button
+                  onClick={async () => {
+                    try { await navigator.clipboard.writeText(`#${sentTicket}`); setTicketCopied(true); } catch { /* read it off the screen */ }
+                  }}
+                  className="flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-page text-13 font-bold text-brand-600 active:bg-page/50"
+                >
+                  {ticketCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {ticketCopied ? t('sentCopied') : t('sentCopy')}
+                </button>
+                {typeof navigator !== 'undefined' && 'share' in navigator && (
+                  <button
+                    onClick={() => navigator.share({ text: t('ticketShareText', { ticket: `#${sentTicket}` }) }).catch(() => {})}
+                    className="flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-page text-13 font-bold text-brand-600 active:bg-page/50"
+                  >
+                    <Share2 className="h-4 w-4" />
+                    {t('sentShare')}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
           <div className="mt-5 flex justify-center gap-2">
             <Button variant="secondary" onClick={() => { setSent(false); setCategory('bug_report'); }}>
               {t('sendAnother')}
@@ -558,6 +595,11 @@ export default function ReviewPage() {
                 return (
                   <div key={r.id} className={cn('px-4 py-3', i < list.length - 1 && 'border-b border-page')}>
                     <div className="flex items-center gap-2">
+                      {r.ticket_no && (
+                        <span className="shrink-0 rounded bg-brand-600/10 px-1.5 py-0.5 font-mono text-2xs font-bold text-brand-700" dir="ltr">
+                          #{r.ticket_no}
+                        </span>
+                      )}
                       <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-3xs font-bold', STATUS_PILL[status])}>
                         {t(STATUS_LABEL_KEY[status] as any)}
                       </span>
