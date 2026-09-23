@@ -12,11 +12,12 @@ import {
   type FeedHighlight,
   type HighlightChallenge,
 } from '@/lib/feed/highlight';
+import { readWeekStartDay } from '@/lib/athletes/week-pref';
 import {
   activityLocalDateStr,
   addDaysToDateStr,
-  getActivityWeekStart,
   getPlanWeekStart,
+  weekStartOn,
   israelDateAnchor,
   israelToday,
 } from '@/lib/utils';
@@ -46,8 +47,8 @@ export const dynamic = 'force-dynamic';
  *
  * ── Which week ───────────────────────────────────────────────────────────────
  * Two of them, and which is which matters. The kilometres, the day strip and the
- * dismiss key are the ACTIVITY week (`getActivityWeekStart`, Monday) — this card's
- * headline is a distance and it has to be the distance the athlete's watch shows,
+ * dismiss key are the ACTIVITY week (`weekStartOn` on the athlete's own
+ * `week_start_day`, Monday by default) — this card's headline is a distance and it has to be the distance the athlete's watch shows,
  * which is what every other km in the app now uses. The target it is measured
  * against is read for the PLAN week (`getPlanWeekStart`, Sunday), because that is
  * what `weekly_plans.week_start_date` is keyed on. They were one window between
@@ -102,7 +103,14 @@ export async function GET(request: Request) {
     // of seven days; a weekly volume target is a range, so measuring Mon–Sun km
     // against the Sun–Sat plan's ceiling is a day's worth of slack, and worth it to
     // stop this card disagreeing with every other km on the app.
-    const weekStart = getActivityWeekStart(anchor);
+    //
+    // Cut on the athlete's own week-start preference (`athletes.week_start_day`),
+    // not a hard-coded Monday. Feedback #84: a member set to Sunday–Saturday saw
+    // their profile in Sunday weeks and this card, above it on the feed, still in
+    // Monday weeks. This card is about one person's own week, which is exactly
+    // what the preference covers; the leaderboard and pack war stay Monday.
+    // For a Sunday member the two windows coincide, so the target is exact.
+    const weekStart = weekStartOn(anchor, await readWeekStartDay(supabase, athleteId));
     const planWeek = getPlanWeekStart(anchor);
     const daysElapsed = dayKeyDiff(weekStart, todayKey) + 1;
 
@@ -139,7 +147,7 @@ export async function GET(request: Request) {
 
     const runs = filterQualifyingRuns((acts || []) as ActivityRow[]);
 
-    // This week's kilometres, per day, Monday first. Read as the athlete's local
+    // This week's kilometres, per day, from `weekStart` (Monday or Sunday). Read as the athlete's local
     // day — these timestamps are wall-clock-stored-as-UTC (see lib/utils.ts).
     const dailyKm = new Array<number>(WEEK_DAYS).fill(0);
     for (const r of runs) {

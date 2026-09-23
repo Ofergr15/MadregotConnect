@@ -18,7 +18,7 @@
  * naturally in Hebrew and English and a server-built string can't.
  */
 
-/** The one week the card talks about — the activity week, Monday–Sunday. */
+/** The one week the card talks about — the athlete's own week (Monday or Sunday start, `week_start_day`). */
 export const WEEK_DAYS = 7;
 
 export type ChallengeMetricKind = 'distance_km' | 'workout_count' | 'elevation_m';

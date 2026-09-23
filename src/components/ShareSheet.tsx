@@ -9,7 +9,7 @@ import {
   renderShareCard, shareCard, supportsTransparent, workoutPaceBars,
   ACCENT_HEX, SHARE_ACCENT_KEYS, type ShareAccent,
 } from '@/lib/feed/share-image';
-import { renderWeekShareCard } from '@/lib/reports/week-share-image';
+import { renderWeekShareCard, WEEK_LOGO_PLACEMENTS, type WeekLogoPlacement } from '@/lib/reports/week-share-image';
 import { SHARE_CARD_LANGS, WORKOUT_CARD_TEXT, type ShareCardLang } from '@/lib/share/card-text';
 import {
   FRAME_TEMPLATE, SHARE_FRAMES, asWeekMetrics, asWorkoutMetrics, defaultChipKeys, defaultExtraKeys,
@@ -49,6 +49,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
   const [cardLang, setCardLang] = useState<ShareCardLang>(rtl ? 'he' : 'en');
   const [withName, setWithName] = useState(true);
   const [accent, setAccent] = useState<ShareAccent>('white');
+  const [logo, setLogo] = useState<WeekLogoPlacement>('above');
   const [sticker, setSticker] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -103,6 +104,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
         metrics: asWeekMetrics(keys),
         lang: cardLang,
         bars: barsOn,
+        logo,
       })
       : renderShareCard(subject.item, i18n, {
         background,
@@ -134,7 +136,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
     };
   }, [
     subject, photo, photoOk, keys, cardLang, withName, i18n, template, transparent, accent,
-    barsOn, verdictOn, t,
+    barsOn, verdictOn, logo, t,
   ]);
 
   const handleShare = useCallback(async () => {
@@ -237,6 +239,30 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
                   style={{ backgroundColor: ACCENT_HEX[a] }}
                 />
                 {t(a === 'white' ? 'accentWhite' : 'accentOrange')}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* The weekly card's two placements of the club mark (feedback #69). A
+            layout choice, so it sits with the frame; the workout card places its
+            mark per frame template and has nothing to choose here. */}
+        {subject.kind === 'week' && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-xs font-light text-ink-400">{t('logoTitle')}</span>
+            {WEEK_LOGO_PLACEMENTS.map(p => (
+              <button
+                key={p}
+                onClick={() => setLogo(p)}
+                aria-pressed={logo === p}
+                className={cn(
+                  'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                  logo === p
+                    ? 'border-brand-600 bg-brand-600/10 text-brand-600'
+                    : 'border-page text-ink-400 hover:text-ink-500',
+                )}
+              >
+                {t(p === 'above' ? 'logoAbove' : 'logoInside')}
               </button>
             ))}
           </div>

@@ -2958,6 +2958,9 @@
     "accentTitle": "Route colour",
     "accentWhite": "White",
     "accentOrange": "Orange",
+    "logoTitle": "Logo",
+    "logoAbove": "Above the card",
+    "logoInside": "Inside the card",
     "addPhoto": "＋ Add my own photo",
     "changePhoto": "Change photo"
   },

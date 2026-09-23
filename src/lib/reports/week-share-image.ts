@@ -54,12 +54,25 @@ export interface WeekShareOptions {
    * they are available per share rather than assumed.
    */
   bars?: boolean;
+  /**
+   * Where the club mark goes. `above` (the default) is the big mark floating over
+   * the photo with the panel under it; `inside` puts a smaller mark at the top of
+   * the panel itself, so the card is one block and more of the photo shows. Both
+   * were asked for side by side (feedback #69) and the athlete picks per share.
+   */
+  logo?: WeekLogoPlacement;
 }
+
+export type WeekLogoPlacement = 'above' | 'inside';
+export const WEEK_LOGO_PLACEMENTS: WeekLogoPlacement[] = ['above', 'inside'];
 
 const MARGIN = 80;
 const PANEL_RADIUS = 56;
 /** Nearly a third of the width: the club mark is the point of posting this. */
 const LOGO_SIZE = 260;
+/** The mark inside the panel: smaller, because it shares the panel with the numbers. */
+const INSIDE_LOGO_SIZE = 150;
+const INSIDE_LOGO_TOP = 56;
 
 const fd = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 
@@ -162,13 +175,19 @@ export async function renderWeekShareCard(
   // below keeps the whole block clear of the mark.
   const bars = opts.bars ? weekDayBars(report, opts.lang) : null;
   const barsBlockH = bars ? WEEK_BARS_GAP + WEEK_BARS_H : 0;
-  const panelH = headerH + Math.max(rows.length, 1) * rowH + barsBlockH + 40;
+  const inside = opts.logo === 'inside';
+  // Everything in the panel is laid out from `bodyY`; with the mark inside, the
+  // mark takes the top of the panel and the header starts under it.
+  const logoBlockH = inside ? INSIDE_LOGO_TOP + INSIDE_LOGO_SIZE : 0;
+  const panelH = logoBlockH + headerH + Math.max(rows.length, 1) * rowH + barsBlockH + 40;
   const panelX = MARGIN;
-  // The logo owns the top of the card, so the panel is centred in what is LEFT
-  // rather than in the frame — centring it in the frame would ride up under the
-  // mark on a six-row card.
-  const logoBottom = MARGIN + 40 + LOGO_SIZE;
+  // Above: the logo owns the top of the card, so the panel is centred in what is
+  // LEFT rather than in the frame — centring it in the frame would ride up under
+  // the mark on a six-row card. Inside: nothing is above it, so it is centred in
+  // the frame.
+  const logoBottom = inside ? 0 : MARGIN + 40 + LOGO_SIZE;
   const panelY = Math.round(logoBottom + Math.max(0, STORY_H - logoBottom - panelH) / 2);
+  const bodyY = panelY + logoBlockH;
 
   // Frost: the photo again, blurred, clipped to the panel.
   if (bg) {
@@ -202,7 +221,7 @@ export async function renderWeekShareCard(
 
   ctx.fillStyle = '#ffffff';
   ctx.font = `800 54px ${font}`;
-  ctx.fillText(text.title, textX, panelY + 90);
+  ctx.fillText(text.title, textX, bodyY + 90);
 
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
   ctx.font = `600 32px ${font}`;
@@ -210,7 +229,7 @@ export async function renderWeekShareCard(
   // stray separator behind it.
   const sub = [opts.athleteName?.trim(), formatWeekRange(report, rtl)]
     .filter(Boolean).join(' · ');
-  ctx.fillText(sub, textX, panelY + 140);
+  ctx.fillText(sub, textX, bodyY + 140);
 
   // ── The club mark ─────────────────────────────────────────────────────────
   // Big, and centred above the panel rather than tucked in its corner: this card
@@ -218,15 +237,16 @@ export async function renderWeekShareCard(
   // is branding that gets cropped out of a re-share.
   const logo = await loadImage(LOGO_SRC).catch(() => null);
   if (logo) {
-    const h = LOGO_SIZE;
+    const h = inside ? INSIDE_LOGO_SIZE : LOGO_SIZE;
     const w = (logo.width / logo.height) * h;
-    ctx.drawImage(logo, Math.round((STORY_W - w) / 2), MARGIN + 40, w, h);
+    const y = inside ? panelY + INSIDE_LOGO_TOP : MARGIN + 40;
+    ctx.drawImage(logo, Math.round((STORY_W - w) / 2), y, w, h);
   }
 
   // ── One row per metric ────────────────────────────────────────────────────
   const valueX = rtl ? panelX + padX : panelX + panelW - padX;
   rows.forEach((m, i) => {
-    const top = panelY + headerH + i * rowH;
+    const top = bodyY + headerH + i * rowH;
     if (i > 0) {
       ctx.strokeStyle = 'rgba(255,255,255,0.13)';
       ctx.lineWidth = 2;
@@ -258,7 +278,7 @@ export async function renderWeekShareCard(
       bars,
       {
         x: panelX + padX,
-        y: panelY + headerH + Math.max(rows.length, 1) * rowH + WEEK_BARS_GAP,
+        y: bodyY + headerH + Math.max(rows.length, 1) * rowH + WEEK_BARS_GAP,
         w: panelW - padX * 2,
         h: WEEK_BARS_H,
       },
