@@ -5,6 +5,7 @@ import { COACH_ID } from '@/lib/constants';
 import { israelToday } from '@/lib/utils';
 import { REPORT_RUN_TYPES, israelDateOf } from '@/lib/reports/last-7-days';
 import type { Person } from '@/lib/admin/people';
+import { REMOVED_STATUS } from '@/lib/admin/entry-queue';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -55,7 +56,6 @@ export async function GET(request: Request) {
         .from('athletes')
         .select('id, name, role, group_id, status, approved, garmin_auth, strava_auth, last_seen_at, created_at, onboarding_completed_at')
         .eq('coach_id', COACH_ID)
-        .neq('status', 'removed')
         .or(NOT_ADMIN)
         .order('name'),
       supabase.from('groups').select('id, name').eq('coach_id', COACH_ID),
@@ -88,7 +88,14 @@ export async function GET(request: Request) {
       push.set(s.athlete_id, cur);
     }
 
-    const people: Person[] = ((athletes.data || []) as AthleteRow[]).map(a => ({
+    // Removed members are dropped HERE, not in the query. Prod's athlete_status
+    // enum is active | invited | disconnected — `.neq('status', 'removed')`
+    // made Postgres reject the whole read (22P02), so the screen was a 500 for
+    // everybody. A string compare can't fail that way, and still does the right
+    // thing once the enum gains the value.
+    const people: Person[] = ((athletes.data || []) as AthleteRow[])
+      .filter(a => a.status !== REMOVED_STATUS)
+      .map(a => ({
       id: a.id,
       name: a.name || '',
       role: a.role || 'runner',

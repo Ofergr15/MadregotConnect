@@ -2553,7 +2553,13 @@
     "close": "Close",
     "runnerView": "Runner view",
     "coachView": "Coach view",
-    "liveDemo": "Live demo"
+    "liveDemo": "Live demo",
+    "opening": "Opening the chat…",
+    "openSlow": "This is taking longer than usual.",
+    "openFailed": "Couldn't open the chat.",
+    "noSession": "Your sign-in has expired. Close the app and open it again.",
+    "retry": "Try again",
+    "back": "Back"
   },
   "teammate": {
     "notFound": "Athlete not found",

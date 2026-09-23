@@ -19,9 +19,23 @@ export interface StreamTokenData {
 
 /** Fetches a Stream user token. Returns null until ready. */
 export function useStreamToken(supabaseToken: string | null): StreamTokenData | null {
+  return useStreamTokenState(supabaseToken).data;
+}
+
+/**
+ * Same as useStreamToken, plus whether the mint FAILED — so a screen can say so
+ * instead of treating "no token yet" and "no token ever" as the same spinner.
+ * `attempt` re-runs the request when it changes (a retry button).
+ */
+export function useStreamTokenState(
+  supabaseToken: string | null,
+  attempt = 0,
+): { data: StreamTokenData | null; failed: boolean } {
   const [tokenData, setTokenData] = useState<StreamTokenData | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    setFailed(false);
     if (!supabaseToken) {
       setTokenData(null);
       return;
@@ -33,13 +47,18 @@ export function useStreamToken(supabaseToken: string | null): StreamTokenData | 
     })
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
-        if (!cancelled && d?.token && d?.apiKey && d?.userId) setTokenData(d);
+        if (cancelled) return;
+        if (d?.token && d?.apiKey && d?.userId) setTokenData(d);
+        else setFailed(true);
       })
-      .catch(console.error);
+      .catch((error) => {
+        console.error(error);
+        if (!cancelled) setFailed(true);
+      });
     return () => { cancelled = true; };
-  }, [supabaseToken]);
+  }, [supabaseToken, attempt]);
 
-  return tokenData;
+  return { data: tokenData, failed };
 }
 
 /**

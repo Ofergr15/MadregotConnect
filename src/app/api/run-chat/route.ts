@@ -282,12 +282,6 @@ export async function POST(request: Request) {
 
     let chat = existingChat;
 
-    const matched = await ensureMatchedWorkout(
-      supabase,
-      activityId,
-      activity.athlete_id,
-    );
-
     if (!chat) {
       const { data: created, error: insertErr } = await supabase
         .from('run_chats')
@@ -296,8 +290,6 @@ export async function POST(request: Request) {
           athlete_id: activity.athlete_id,
           coach_id: coachAthleteId,
           stream_channel_id: `${CHANNEL_TYPE}:${chId}`,
-          planned_text: matched?.plannedText || null,
-          planned_workout: matched?.plannedWorkout || null,
         })
         .select('*')
         .single();
@@ -314,17 +306,33 @@ export async function POST(request: Request) {
       if (updated) chat = updated;
     }
 
-    const seeded = await ensureChatSeeded({
-      supabase,
-      channel,
-      chat,
-      weeklyPlanText: matched?.plannedText || null,
-      structuredWorkout: matched?.plannedWorkout || null,
-      publishedImageUrl: matched?.clipboardImageUrl || null,
+    // #73: the plan match, the clipboard render, the laps artifact and the seed
+    // messages used to run BEFORE this response, so the opener watched a spinner
+    // for most of the 60s budget — and a run with no matching plan (a free run,
+    // any Sunday) stays "unresolved" and came back through here on every open,
+    // not only the first. The channel and its members exist by now, which is all
+    // the client needs to watch it; the seed messages land in the open chat live
+    // over Stream a few seconds later. ensureChatSeeded dedupes concurrent calls
+    // per chat, so two quick opens still seed once.
+    const seedChat = chat;
+    after(async () => {
+      try {
+        const matched = await ensureMatchedWorkout(supabase, activityId, activity.athlete_id);
+        await ensureChatSeeded({
+          supabase,
+          channel,
+          chat: seedChat,
+          weeklyPlanText: matched?.plannedText || null,
+          structuredWorkout: matched?.plannedWorkout || null,
+          publishedImageUrl: matched?.clipboardImageUrl || null,
+        });
+      } catch (seedError) {
+        console.error('Run-chat background seeding failed:', seedError);
+      }
     });
 
     return NextResponse.json({
-      chat: seeded,
+      chat,
       activity: activityPayload,
       coach: resolvedCoach
         ? {
@@ -333,15 +341,7 @@ export async function POST(request: Request) {
             image: resolvedCoach.image,
           }
         : null,
-      planMatch: matched
-        ? {
-            weeklyPlanId: matched.weeklyPlanId,
-            workoutKey: matched.workoutKey,
-            groupNumber: matched.groupNumber,
-            matchMethod: matched.matchMethod,
-            score: matched.score,
-          }
-        : null,
+      planMatch: null,
     });
   } catch (err: unknown) {
     console.error('POST /api/run-chat error:', err);

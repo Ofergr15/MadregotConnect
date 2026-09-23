@@ -61,8 +61,11 @@ export function invalidateBearerToken(): void {
 
 /**
  * The token to send, from cache when it's safely live and from auth-js otherwise.
+ * Exported for callers that need the raw token (Stream's token route, the run
+ * chat) rather than headers — so they get the same silent re-auth instead of a
+ * bare getSession() that answers null for a member whose session lapsed.
  */
-async function accessToken(): Promise<string | null> {
+export async function accessToken(): Promise<string | null> {
   trackSessionChanges();
   if (cached && cached.expiresAtMs - Date.now() > EXPIRY_MARGIN_MS) return cached.token;
 
