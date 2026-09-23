@@ -1341,6 +1341,7 @@
     "nextUp": "Next:",
     "doneOfTotal": "{done} of {total} tasks done",
     "backToProfile": "Profile",
+    "notApplicable": "Nothing to set up on this account.",
     "sectionRemaining": "Still to do",
     "sectionFinished": "Already done",
     "sectionNotCounted": "Not counted in the percentage",

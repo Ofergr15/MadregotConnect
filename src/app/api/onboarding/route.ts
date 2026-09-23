@@ -46,6 +46,14 @@ export async function GET(request: Request) {
     if (!auth.user.athleteId) {
       return NextResponse.json({ applicable: false });
     }
+    // The admin account is not a member. It has an athlete row only so the app can
+    // be driven with it, runs nothing, wears no kit and connects no watch, so a
+    // setup score on it can never reach the end and nagged forever (feedback #70:
+    // "1/4 to complete" in the admin's header). No score, no card, no tour.
+    // Coaches stay in: they train, and the club asks for their sizes too.
+    if (auth.user.role === 'admin') {
+      return NextResponse.json({ applicable: false });
+    }
 
     const supabase = createServerClient();
 
@@ -110,11 +118,6 @@ export async function GET(request: Request) {
       pushSubscriptions: pushCount ?? 0,
       groupName,
       hasActiveShoe: !!athlete.active_shoe_id,
-    }, {
-      // Admins only, not all staff: a coach wears the club kit like everybody else
-      // and still needs to be asked for their sizes. The admin is the person
-      // COLLECTING the order (e7951e14).
-      skipSizes: auth.user.role === 'admin',
     });
 
     // Before 078 lands: nobody has been marked, so everyone reads as new and the

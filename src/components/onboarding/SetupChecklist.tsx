@@ -61,6 +61,17 @@ export function SetupChecklist({
     return undefined;
   };
 
+  // Resolved and not applicable (the admin account, #70): say so rather than
+  // leaving the spinner below running forever.
+  if (data && !data.applicable) {
+    return (
+      <div className="space-y-5">
+        <BackNav label={t('backToProfile')} onBack={onBack} />
+        <p className="py-10 text-center text-sm text-ink-500">{t('notApplicable')}</p>
+      </div>
+    );
+  }
+
   if (!data || !data.applicable) {
     return (
       <div className="space-y-5">

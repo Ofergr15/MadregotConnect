@@ -1341,6 +1341,7 @@
     "nextUp": "הבא:",
     "doneOfTotal": "{done} מתוך {total} משימות הושלמו",
     "backToProfile": "פרופיל",
+    "notApplicable": "אין מה להשלים בחשבון הזה.",
     "sectionRemaining": "מה שנשאר",
     "sectionFinished": "כבר סיימת",
     "sectionNotCounted": "לא נספר באחוזים",
