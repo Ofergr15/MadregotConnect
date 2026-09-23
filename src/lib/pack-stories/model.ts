@@ -36,7 +36,7 @@ export interface PackSession {
 
 export type Layout = 'chart' | 'summary';
 export type MetricKey =
-  | 'longest' | 'fastest' | 'fastKm' | 'avgPace' | 'count' | 'totalKm'
+  | 'longest' | 'fastKm' | 'avgPace' | 'count' | 'totalKm'
   | 'runDist' | 'runPace' | 'runTime';
 export type LogoKind = 'badge' | 'stairs' | 'wordmark' | 'none';
 export type LogoColor = 'white' | 'black';
@@ -55,8 +55,6 @@ export interface PackConfig {
 }
 
 export interface StoryState {
-  from: string;
-  to: string;
   pack: Pack;
   bg: Background;
   nextInLine: boolean;
@@ -70,14 +68,14 @@ export interface StoryState {
 
 export function newPack(): PackConfig {
   return {
-    metrics: { chart: ['fastest', 'avgPace'], summary: ['runDist', 'runPace', 'runTime'] },
+    metrics: { chart: ['avgPace'], summary: ['runDist', 'runPace', 'runTime'] },
     chart: true, chartRun: null, caption: '', edits: {},
   };
 }
 
 export function initialState(): StoryState {
   return {
-    from: '04:00', to: '09:00', pack: 1, bg: 'club', nextInLine: true, layout: 'chart',
+    pack: 1, bg: 'club', nextInLine: true, layout: 'chart',
     show: { pill: true, date: true, title: true, name: false, chartName: false },
     logo: { kind: 'badge', color: 'white' },
     assign: {},
@@ -119,6 +117,8 @@ export function fastestKm(laps: Array<[number, number]>): number | null {
 interface MetricDef {
   title: string;
   unit: string;
+  /** One line on the picker: what the number is, in plain words. */
+  desc: string;
   /** Picks a runner: lower rank wins. */
   rank?: (r: PackRun) => number;
   val?: (r: PackRun) => string;
@@ -134,24 +134,29 @@ const packPace = (rs: PackRun[]) => rs.reduce((a, r) => a + r.dur, 0) / (rs.redu
 
 // "לק״מ", never "/ק״מ": a slash next to Hebrew gets flipped by the bidi algorithm.
 export const METRICS: Record<MetricKey, MetricDef> = {
-  longest: { title: 'הכי רחוק', unit: 'ק״מ', rank: r => -r.dist, val: r => fmtKm(r.dist) },
-  fastest: { title: 'הכי מהיר', unit: 'לק״מ', rank: r => r.pace || 1e9, val: r => fmtPace(r.pace) },
-  fastKm: { title: 'ק״מ הכי מהיר', unit: 'לק״מ', rank: r => fk(r) || 1e9, val: r => fmtPace(fk(r)), needs: r => !!fk(r) },
-  avgPace: { title: 'קצב הדבוקה', unit: 'לק״מ', agg: rs => fmtPace(packPace(rs)) },
-  count: { title: 'רצו היום', unit: 'רצים', agg: rs => String(rs.length) },
-  totalKm: { title: 'ק״מ ביחד', unit: 'ק״מ', agg: rs => String(Math.round(rs.reduce((a, r) => a + r.dist, 0) / 1000)) },
-  runDist: { title: 'מרחק', unit: 'ק״מ', fval: r => fmtKm(r.dist) },
-  runPace: { title: 'קצב ממוצע', unit: 'לק״מ', fval: r => fmtPace(r.pace) },
-  runTime: { title: 'זמן', unit: '', fval: r => fmtDur(r.dur) },
+  avgPace: { title: 'קצב ממוצע של הדבוקה', unit: 'לק״מ', desc: 'כל הזמן של רצי הדבוקה ÷ כל הק״מ שלהם. כולל חימום ושחרור, כך שריצה ארוכה שוקלת יותר.', agg: rs => fmtPace(packPace(rs)) },
+  longest: { title: 'הכי רחוק', unit: 'ק״מ', desc: 'הריצה הארוכה בדבוקה, עם שם הרץ.', rank: r => -r.dist, val: r => fmtKm(r.dist) },
+  fastKm: { title: 'ק״מ הכי מהיר', unit: 'לק״מ', desc: 'הקילומטר המהיר ביותר בדבוקה, מתוך ההקפות בשעון.', rank: r => fk(r) || 1e9, val: r => fmtPace(fk(r)), needs: r => !!fk(r) },
+  totalKm: { title: 'ק״מ ביחד', unit: 'ק״מ', desc: 'סך הק״מ של כל רצי הדבוקה.', agg: rs => String(Math.round(rs.reduce((a, r) => a + r.dist, 0) / 1000)) },
+  count: { title: 'רצו היום', unit: 'רצים', desc: 'כמה רצים בדבוקה.', agg: rs => String(rs.length) },
+  runDist: { title: 'מרחק', unit: 'ק״מ', desc: 'המרחק של הריצה שהמסלול שלה מוצג.', fval: r => fmtKm(r.dist) },
+  runPace: { title: 'קצב ממוצע', unit: 'לק״מ', desc: 'הקצב הממוצע של הריצה שהמסלול שלה מוצג.', fval: r => fmtPace(r.pace) },
+  runTime: { title: 'זמן', unit: '', desc: 'משך הריצה שהמסלול שלה מוצג.', fval: r => fmtDur(r.dur) },
 };
-export const METRIC_ORDER: MetricKey[] = ['runDist', 'runPace', 'runTime', 'longest', 'fastest', 'fastKm', 'avgPace', 'count', 'totalKm'];
+/** The options each layout offers, in picker order. */
+export const METRIC_ORDER: Record<Layout, MetricKey[]> = {
+  chart: ['avgPace', 'longest', 'fastKm', 'totalKm', 'count'],
+  summary: ['runDist', 'runPace', 'runTime', 'avgPace', 'longest', 'totalKm', 'count'],
+};
 export const LAYOUTS: Record<Layout, { name: string; max: number }> = {
   chart: { name: 'גרף מפורט', max: 2 },
   summary: { name: 'סיכום רגיל', max: 3 },
 };
 
 // ── selection ───────────────────────────────────────────────────────────
-const inWindow = (S: StoryState, r: PackRun) => r.start >= S.from && r.start < S.to;
+// The club runs in the morning; the same people's evening runs are not the session.
+export const SESSION_ENDS = '12:00';
+const inWindow = (_S: StoryState, r: PackRun) => r.start < SESSION_ENDS;
 export const packOf = (S: StoryState, r: PackRun): 0 | Pack => S.assign[r.id] ?? r.pack;
 export const runsFor = (S: StoryState, sess: PackSession, p: Pack) =>
   sess.runs.filter(r => !r.dup && inWindow(S, r) && packOf(S, r) === p);

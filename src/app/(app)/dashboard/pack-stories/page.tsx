@@ -8,7 +8,7 @@ import { GROUP_HEX } from '@/lib/utils';
 import {
   PACKS, LAYOUTS, METRICS, METRIC_ORDER,
   initialState, newPack, runsFor, unassigned, dups, ranked, chartRun, slots,
-  metricPreview, metricAvailable, sessionLabel, fmtKm, fmtPace,
+  metricPreview, metricAvailable, sessionLabel, fmtKm, fmtPace, SESSION_ENDS,
   type Pack, type PackSession, type StoryState, type MetricKey, type LogoKind, type Variant,
 } from '@/lib/pack-stories/model';
 import {
@@ -23,10 +23,12 @@ import './pack-stories.css';
 // super user sees, and GET /api/pack-stories answers 403 to everybody else. Hidden while
 // viewing as someone else, so view-as shows what they would see.
 //
-// The design is the prototype in ~/.cache/madregot/mockups/pack-stories-proto;
-// the pure selection rules are lib/pack-stories/model.ts, the canvas is render.ts.
+// Four steps, the picture last: session → numbers → design → picture. The design
+// is ~/.cache/madregot/mockups/pack-stories-v2 (the canvas still follows
+// pack-stories-proto); the pure selection rules are lib/pack-stories/model.ts, the canvas is render.ts.
 
 const DAYS_BACK = 8;
+const STEPS = ['אימון', 'מספרים', 'עיצוב', 'תמונה'];
 const VARIANT_FILE: Record<Variant, string> = { full: 'full', noMap: 'nomap', splits: 'splits' };
 
 /** Today and the days before it, as Israel calendar dates. */
@@ -88,18 +90,18 @@ export default function PackStoriesPage() {
     toastTimer.current = setTimeout(() => setToastMsg(''), 2200);
   };
 
+  const rootRef = useRef<HTMLDivElement>(null);
   const cvRef = useRef<HTMLCanvasElement>(null);
-  const thumbRefs = useRef<Array<HTMLCanvasElement | null>>([]);
   const xthRefs = useRef<Partial<Record<Variant, HTMLCanvasElement | null>>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [step, setStep] = useState(0);
   const scene: StoryScene | null = sess && ready ? { S, sess, assets } : null;
   const p = S.pack;
 
   useEffect(() => {
     if (!scene) return;
     if (cvRef.current) drawStory(cvRef.current, scene, p);
-    PACKS.forEach((n, i) => { const c = thumbRefs.current[i]; if (c) drawStory(c, scene, n); });
   });
 
   useEffect(() => {
@@ -124,10 +126,12 @@ export default function PackStoriesPage() {
     up(s => { s.assign = {}; s.packs = { 1: newPack(), 2: newPack(), 3: newPack() }; });
   };
 
-  const header = (
+  // The app scrolls an inner column, not the window, so bring the page's own top back.
+  const go = (n: number) => { setStep(n); rootRef.current?.scrollIntoView({ block: 'start' }); };
+  const title = <h1 className="text-3xl font-extrabold text-ink-700 tracking-tight" dir="rtl">סטוריז לדבוקות</h1>;
+  const days = (
     <>
-      <h1 className="text-3xl font-extrabold text-ink-700 tracking-tight" dir="rtl">סטוריז לדבוקות</h1>
-      <div className="sec">אימון</div>
+      <div className="sec">איזה אימון?</div>
       <div className="days">
         {dates.map(d => (
           <button key={d} className={d === date ? 'on' : ''} onClick={() => pickDate(d)}>{sessionLabel(d).replace('אימון ', '')}</button>
@@ -139,7 +143,8 @@ export default function PackStoriesPage() {
   if (!sess) {
     return (
       <div className="psx" dir="rtl">
-        {header}
+        {title}
+        {days}
         <div className="empty">{error ? 'הטעינה נכשלה.' : isLoading ? 'טוען…' : ''}</div>
       </div>
     );
@@ -149,21 +154,22 @@ export default function PackStoriesPage() {
   const summ = S.layout === 'summary', fr = chartRun(S, sess, p), max = LAYOUTS[S.layout].max;
   const counts = PACKS.map(n => runsFor(S, sess, n).length);
   const SHOW: Array<[keyof StoryState['show'], string]> = [
-    ['pill', summ ? 'דבוקה' : 'דבוקה ותאריך'],
+    ['pill', summ ? 'דבוקה למעלה' : 'דבוקה ותאריך למעלה'],
     ...(summ ? [['date', 'תאריך'] as [keyof StoryState['show'], string]] : []),
-    ['title', 'כותרות (הכי מהיר…)'],
-    ['name', 'שמות הרצים'],
-    ...(summ ? [] : [['chartName', 'שם על הגרף'] as [keyof StoryState['show'], string]]),
+    ['title', 'כותרת ליד כל מספר'],
+    ['name', 'שם הרץ ליד שיא'],
+    ...(summ ? [] : [['chartName', 'שם הרץ על הגרף'] as [keyof StoryState['show'], string]]),
   ];
 
+  // The numbers and the graph are one choice for all three stories, so the three
+  // packs read the same; hand edits stay per pack.
   const toggleMetric = (k: MetricKey) => {
     const list = cfg.metrics[S.layout];
-    if (!list.includes(k) && list.length >= max) { toast(`נכנסים רק ${max} מספרים — כבו אחד קודם`); return; }
-    up(s => {
-      const c = s.packs[p], l = c.metrics[s.layout], i = l.indexOf(k);
-      if (i >= 0) { l.splice(i, 1); delete c.edits[k]; } else l.push(k);
-    });
+    if (!list.includes(k) && list.length >= max) { toast(`נכנסים עד ${max} מספרים. בטלו אחד קודם`); return; }
+    const next = list.includes(k) ? list.filter(x => x !== k) : [...list, k];
+    up(s => PACKS.forEach(n => { s.packs[n].metrics[s.layout] = [...next]; delete s.packs[n].edits[k]; }));
   };
+  const toggleChart = () => up(s => { const on = !s.packs[p].chart; PACKS.forEach(n => { s.packs[n].chart = on; }); });
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -288,134 +294,211 @@ export default function PackStoriesPage() {
     );
   }
 
-  return (
-    <div className="psx" dir="rtl">
-      {header}
-      <div className="win">
-        ריצות שהתחילו בין
-        <input type="time" value={S.from} onChange={e => up(s => { s.from = e.target.value; })} />
-        ל-
-        <input type="time" value={S.to} onChange={e => up(s => { s.to = e.target.value; })} />
-      </div>
+  const firstNames = (n: Pack) => runsFor(S, sess, n).map(r => r.name.split(' ')[0]).join(', ');
+  const rankedOn = cfg.metrics[S.layout].filter(k => METRICS[k].rank).length;
+  const stepFoot = (next: string) => (
+    <div className="stepfoot">
+      {step > 0 && <button className="btn back" onClick={() => go(step - 1)}>חזרה</button>}
+      <button className="btn b1" onClick={() => go(step + 1)}>{next}</button>
+    </div>
+  );
 
-      <div className="layout">
-        <div className="prev">
-          <div className="label">סטורי · דבוקה {p} · {rs.length} רצים</div>
-          <div className="canvasBox"><canvas ref={cvRef} width={STORY_W} height={STORY_H} /></div>
-          <div className="thumbs">
-            {PACKS.map((n, i) => (
-              <button key={n} className={n === p ? 'on' : ''} aria-label={`דבוקה ${n}`} onClick={() => up(s => { s.pack = n; })}>
-                <canvas ref={el => { thumbRefs.current[i] = el; }} width={STORY_W / 4} height={STORY_H / 4} />
-              </button>
-            ))}
-          </div>
-          <div className="foot"><button className="btn b1" onClick={() => setSheet({ kind: 'export' })}>שיתוף והעתקה</button></div>
+  let body: React.ReactNode;
+  if (step === 0) {
+    body = (
+      <>
+        {days}
+        <div className="sec">מי רץ בכל דבוקה</div>
+        <div className="card">
+          {PACKS.map((n, i) => (
+            <div key={n} className="pk">
+              <span className="dot" style={{ background: GROUP_HEX[n - 1] }} />
+              <span className="n">דבוקה {n}</span>
+              <span className="who" dir="ltr">{firstNames(n)}</span>
+              <span className="c">{counts[i]}</span>
+            </div>
+          ))}
         </div>
-
-        <div className="ctl">
-          <div className="sec">דבוקה · כל אחת = סטורי</div>
-          <div className="seg">
-            {PACKS.map((n, i) => (
-              <button key={n} className={n === p ? 'on' : ''} onClick={() => up(s => { s.pack = n; })}>
-                <i style={{ background: GROUP_HEX[n - 1] }} />דבוקה {n} <small>{counts[i]}</small>
-              </button>
-            ))}
-          </div>
-          {un.length > 0 && (
-            <div className="un">
-              <b>{un.length} רצו ולא משובצים לדבוקה</b> — בחרו לאן:
+        {un.length > 0 && (
+          <>
+            <div className="sec">{un.length} רצו ולא ידוע לאיזו דבוקה. הקישו מספר</div>
+            <div className="card">
               {un.map(r => (
-                <div key={r.id} className="r">
-                  <span>{r.name} · <bdi dir="ltr">{fmtKm(r.dist)}</bdi> ק״מ</span>
+                <div key={r.id} className="un">
+                  <span className="nm" dir="ltr">{r.name}</span>
+                  <span className="km"><bdi dir="ltr">{fmtKm(r.dist)}</bdi> ק״מ</span>
                   {PACKS.map(n => (
-                    <button key={n} style={{ color: GROUP_HEX[n - 1] }} onClick={() => up(s => { s.assign[r.id] = n; })}>{n}</button>
+                    <button key={n} style={{ color: GROUP_HEX[n - 1] }} aria-label={`${r.name} לדבוקה ${n}`} onClick={() => up(s => { s.assign[r.id] = n; })}>{n}</button>
                   ))}
                 </div>
               ))}
             </div>
-          )}
-          {du.length > 0 && <div className="hint">הוסתרו {du.length} ריצות כפולות (אותה ריצה על שני פרופילים): {du.map(r => r.name).join(', ')}</div>}
-
-          <div className="sec">סוג הסטורי · לכל הסטוריז</div>
-          <div className="seg">
-            {(Object.keys(LAYOUTS) as Array<keyof typeof LAYOUTS>).map(k => (
-              <button key={k} className={S.layout === k ? 'on' : ''} onClick={() => up(s => { s.layout = k; })}>{LAYOUTS[k].name}</button>
-            ))}
-          </div>
-
-          <div className="sec">מה ייכנס לסטורי</div>
-          <div className="chips">
-            {METRIC_ORDER.map(k => {
-              const on = cfg.metrics[S.layout].includes(k), dis = !metricAvailable(S, sess, p, k);
-              return (
-                <button key={k} className={`chip ${on ? 'on' : ''} ${dis ? 'off' : ''}`} disabled={dis} onClick={() => toggleMetric(k)}>
-                  {METRICS[k].title}<b dir="ltr">{metricPreview(S, sess, p, k)}</b>
-                </button>
-              );
-            })}
-            <button className={`chip ${cfg.chart ? 'on' : ''}`} onClick={() => up(s => { s.packs[p].chart = !s.packs[p].chart; })}>
-              {summ ? 'מסלול' : 'ניתוח אימון'}
-              <b>{summ ? (fr ? 'GPS' : 'אין מסלול') : fr ? `${fr.laps.length} הקפות` : 'אין הקפות'}</b>
-            </button>
-          </div>
-          <div className="hint">נכנסים {max} מספרים + {summ ? 'המסלול' : 'הגרף'}. כבו אחד כדי להחליף. מרחק/קצב/זמן = של הריצה המוצגת.</div>
-
-          <div className="sec">מה רואים על התמונה · לכל הסטוריז</div>
-          <div className="chips">
-            {SHOW.map(([k, n]) => (
-              <button key={k} className={`chip ${S.show[k] ? 'on' : ''}`} onClick={() => up(s => { s.show[k] = !s.show[k]; })}>{S.show[k] ? '✓ ' : ''}{n}</button>
-            ))}
-          </div>
-
-          <div className="sec">לוגו</div>
-          <div className="logos">
-            {(Object.keys(LOGO_KINDS) as LogoKind[]).map(k => (
-              <button key={k} className={`lgo ${S.logo.kind === k ? 'on' : ''}`} onClick={() => up(s => { s.logo.kind = k; })}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                {LOGO_KINDS[k].src ? <img src={LOGO_KINDS[k].src} alt="" className={S.logo.color} /> : <span className="nolg">✕</span>}
-                <small>{LOGO_KINDS[k].name}</small>
-              </button>
-            ))}
-          </div>
-          {S.logo.kind !== 'none' && (
-            <div className="seg" style={{ marginTop: 8 }}>
-              <button className={S.logo.color === 'white' ? 'on' : ''} onClick={() => up(s => { s.logo.color = 'white'; })}>לבן</button>
-              <button className={S.logo.color === 'black' ? 'on' : ''} onClick={() => up(s => { s.logo.color = 'black'; })}>שחור</button>
-            </div>
-          )}
-
-          <div className="sec">דבוקה {p} · לחיצה = עריכה <a onClick={() => up(s => { s.packs[p] = newPack(); })}>איפוס</a></div>
-          {!rs.length && <div className="hint">אין ריצות בדבוקה הזו בחלון הזמן שנבחר.</div>}
-          {sl.map((s, i) => (
-            <button key={s.key} className={`hl ${s.edited ? 'ed' : ''}`} onClick={() => setSheet({ kind: 'slot', i })}>
-              <span className="k">{s.title}</span>
-              <span className="n">{s.who}</span>
-              <span className="v"><bdi dir="ltr">{s.value} {s.unit}</bdi></span>
-              <span className="e">‹</span>
+          </>
+        )}
+        <div className="hint">
+          נספרות רק ריצות הבוקר, שהתחילו לפני <bdi dir="ltr">{SESSION_ENDS}</bdi>.
+          {du.length > 0 && <> הוסתרו {du.length} ריצות כפולות (אותה ריצה על שני פרופילים).</>}
+        </div>
+        {stepFoot('המשך: מספרים')}
+      </>
+    );
+  } else if (step === 1) {
+    body = (
+      <>
+        <div className="sec">סוג הסטורי · לכל הדבוקות</div>
+        <div className="seg">
+          {(Object.keys(LAYOUTS) as Array<keyof typeof LAYOUTS>).map(k => (
+            <button key={k} className={`lay ${S.layout === k ? 'on' : ''}`} onClick={() => up(s => { s.layout = k; })}>
+              <span className="mini">{k === 'chart' ? <><b className="a" /><b className="b" /></> : <><b className="r" /><b className="s" /></>}</span>
+              {LAYOUTS[k].name}
+              <small>{k === 'chart' ? 'מספר גדול והקפות' : 'מסלול ושורת מספרים'}</small>
             </button>
           ))}
-          <button className={`hl ${cfg.chartRun != null ? 'ed' : ''}`} onClick={() => setSheet({ kind: 'chart' })}>
-            <span className="k">הריצה המוצגת</span>
-            <span className="n">{fr ? fr.name : '—'}</span>
-            <span className="v">{fr ? (summ ? `${fmtKm(fr.dist)} km` : `${fr.laps.length} laps`) : ''}</span>
-            <span className="e">‹</span>
-          </button>
-          <button className={`tg ${S.nextInLine ? 'on' : ''}`} onClick={() => up(s => { s.nextInLine = !s.nextInLine; })}>
-            <span>אם אותו רץ זוכה בשניהם — השני עובר לבא בתור</span><i />
-          </button>
-
-          <div className="sec">כיתוב</div>
-          <input className="inp" placeholder="אפשר להשאיר ריק" value={cfg.caption} onChange={e => { const v = e.target.value; up(s => { s.packs[p].caption = v; }); }} />
-
-          <div className="sec">רקע · לכל הסטוריז</div>
-          <div className="seg">
-            <button className={S.bg === 'mine' ? 'on' : ''} onClick={() => fileRef.current?.click()}>{assets.myBg ? 'התמונה שלי' : 'תמונה שלי…'}</button>
-            <button className={S.bg === 'club' ? 'on' : ''} onClick={() => up(s => { s.bg = 'club'; })}>תמונת המועדון</button>
-            <button className={S.bg === 'clear' ? 'on' : ''} onClick={() => up(s => { s.bg = 'clear'; })}>מדבקה שקופה</button>
-          </div>
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
         </div>
+
+        <div className="sec">מה ייכתב על הסטורי · לכל שלוש הדבוקות</div>
+        <div className="card">
+          {METRIC_ORDER[S.layout].map(k => {
+            const on = cfg.metrics[S.layout].includes(k);
+            const dis = !on && !PACKS.some(n => metricAvailable(S, sess, n, k));
+            return (
+              <button key={k} className={`opt ${on ? 'on' : ''}`} disabled={dis} onClick={() => toggleMetric(k)}>
+                <span className="ck">{on ? '✓' : ''}</span>
+                <span className="tx">
+                  <span className="tt">{METRICS[k].title}</span>
+                  <span className="ds" style={{ display: 'block' }}>{METRICS[k].desc}</span>
+                  <span className="vals">
+                    {PACKS.map(n => (
+                      <span key={n}><i style={{ background: GROUP_HEX[n - 1] }} /><bdi dir="ltr">{metricPreview(S, sess, n, k)}</bdi></span>
+                    ))}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="sec">{summ ? 'המסלול' : 'הגרף'}</div>
+        <div className="card">
+          <button className={`opt ${cfg.chart ? 'on' : ''}`} onClick={toggleChart}>
+            <span className="ck">{cfg.chart ? '✓' : ''}</span>
+            <span className="tx">
+              <span className="tt">{summ ? 'מסלול הריצה' : 'גרף ניתוח אימון'}</span>
+              <span className="ds" style={{ display: 'block' }}>
+                {summ ? 'המסלול של רץ אחד מהדבוקה, מה-GPS.' : 'ההקפות של רץ אחד מהדבוקה. ברירת המחדל: מי ששמר הכי הרבה הקפות.'}
+              </span>
+            </span>
+          </button>
+          {cfg.chart && PACKS.map(n => {
+            const r = chartRun(S, sess, n);
+            return (
+              <button key={n} className="fr" disabled={!r} onClick={() => { up(s => { s.pack = n; }); setSheet({ kind: 'chart' }); }}>
+                <span className="dot" style={{ background: GROUP_HEX[n - 1] }} />
+                <span className="nm">{r ? <><bdi dir="ltr">{r.name}</bdi> · {summ ? <><bdi dir="ltr">{fmtKm(r.dist)}</bdi> ק״מ</> : <>{r.laps.length} הקפות</>}</> : (summ ? 'אין מסלול' : 'אין הקפות')}</span>
+                {r && <span className="x">החלפה ‹</span>}
+              </button>
+            );
+          })}
+        </div>
+        <div className="lim">
+          {summ
+            ? `נכנסים עד ${max} מספרים, בשורה אחת מתחת ללוגו. מרחק, קצב וזמן הם של הריצה שהמסלול שלה מוצג.`
+            : `נכנסים עד ${max} מספרים: הראשון גדול, השני קטן מתחתיו.`}
+        </div>
+        {rankedOn >= 2 && (
+          <button className={`tg ${S.nextInLine ? 'on' : ''}`} style={{ marginTop: 8 }} onClick={() => up(s => { s.nextInLine = !s.nextInLine; })}>
+            <span>אם אותו רץ זוכה בשניהם, השני עובר לבא בתור</span><i />
+          </button>
+        )}
+        {stepFoot('המשך: עיצוב')}
+      </>
+    );
+  } else if (step === 2) {
+    body = (
+      <>
+        <div className="sec">רקע</div>
+        <div className="seg">
+          <button className={S.bg === 'club' ? 'on' : ''} onClick={() => up(s => { s.bg = 'club'; })}>תמונת המועדון</button>
+          <button className={S.bg === 'mine' ? 'on' : ''} onClick={() => fileRef.current?.click()}>{assets.myBg ? 'התמונה שלי' : 'תמונה שלי…'}</button>
+          <button className={S.bg === 'clear' ? 'on' : ''} onClick={() => up(s => { s.bg = 'clear'; })}>שקוף</button>
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
+
+        <div className="sec">לוגו</div>
+        <div className="logos">
+          {(Object.keys(LOGO_KINDS) as LogoKind[]).map(k => (
+            <button key={k} className={`lgo ${S.logo.kind === k ? 'on' : ''}`} onClick={() => up(s => { s.logo.kind = k; })}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {LOGO_KINDS[k].src ? <img src={LOGO_KINDS[k].src} alt="" className={S.logo.color} /> : <span className="nolg">✕</span>}
+              <small>{LOGO_KINDS[k].name}</small>
+            </button>
+          ))}
+        </div>
+        {S.logo.kind !== 'none' && (
+          <div className="seg" style={{ marginTop: 8 }}>
+            <button className={S.logo.color === 'white' ? 'on' : ''} onClick={() => up(s => { s.logo.color = 'white'; })}>לוגו לבן</button>
+            <button className={S.logo.color === 'black' ? 'on' : ''} onClick={() => up(s => { s.logo.color = 'black'; })}>לוגו שחור</button>
+          </div>
+        )}
+
+        <div className="sec">מה רואים על התמונה</div>
+        <div className="card">
+          {SHOW.map(([k, n]) => (
+            <button key={k} className={`tg sw ${S.show[k] ? 'on' : ''}`} onClick={() => up(s => { s.show[k] = !s.show[k]; })}>
+              <span>{n}</span><i />
+            </button>
+          ))}
+        </div>
+
+        <div className="sec">כיתוב (לא חובה)</div>
+        {PACKS.map(n => (
+          <div key={n} className="capin">
+            <span className="dot" style={{ background: GROUP_HEX[n - 1] }} />
+            <input className="inp" aria-label={`כיתוב לדבוקה ${n}`} placeholder={`דבוקה ${n}`} value={S.packs[n].caption}
+              onChange={e => { const v = e.target.value; up(s => { s.packs[n].caption = v; }); }} />
+          </div>
+        ))}
+        {stepFoot('הצגת התמונה')}
+      </>
+    );
+  } else {
+    body = (
+      <>
+        <div className="ptabs">
+          {PACKS.map((n, i) => (
+            <button key={n} className={n === p ? 'on' : ''} onClick={() => up(s => { s.pack = n; })}>
+              <span className="dot" style={{ background: GROUP_HEX[n - 1] }} />דבוקה {n} <small>{counts[i]}</small>
+            </button>
+          ))}
+        </div>
+        <div className="prev">
+          {!rs.length && <div className="hint">אין ריצות בוקר בדבוקה הזו.</div>}
+          <div className="canvasBox"><canvas ref={cvRef} width={STORY_W} height={STORY_H} /></div>
+        </div>
+        <div className="edits">
+          <button onClick={() => go(1)}>‹ מספרים</button>
+          <button onClick={() => go(2)}>‹ עיצוב</button>
+          {sl.map((s, i) => <button key={s.key} onClick={() => setSheet({ kind: 'slot', i })}>עריכת {s.title}</button>)}
+        </div>
+        <div className="stepfoot">
+          <button className="btn back" onClick={() => { setX(x => ({ ...x, all: true })); setSheet({ kind: 'export' }); }}>כל השלוש</button>
+          <button className="btn b1" onClick={() => { setX(x => ({ ...x, all: false })); setSheet({ kind: 'export' }); }}>שיתוף / העתקה</button>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="psx" dir="rtl" ref={rootRef}>
+      {title}
+      <div className="steps">
+        {STEPS.map((t, i) => (
+          <button key={t} className={i === step ? 'on' : i < step ? 'done' : ''} onClick={() => go(i)}>
+            <i />{i + 1} · {t}
+          </button>
+        ))}
       </div>
+      {body}
 
       {/* On <body>, not in the page: the app's content column is transformed, which
           would pin `position: fixed` to the column instead of the screen. */}
