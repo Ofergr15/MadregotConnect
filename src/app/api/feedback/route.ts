@@ -304,9 +304,9 @@ export async function PATCH(request: Request) {
     // changed" — see shouldNotifyReporter for why the difference matters.
     const { data: before } = await supabase
       .from('feedback')
-      .select('athlete_id, status, message')
+      .select('athlete_id, status, message, ticket_no')
       .eq('id', id)
-      .maybeSingle<{ athlete_id: string | null; status: ResolutionStatus; message: string | null }>();
+      .maybeSingle<{ athlete_id: string | null; status: ResolutionStatus; message: string | null; ticket_no: number | null }>();
 
     const { error } = await supabase
       .from('feedback')
@@ -371,6 +371,7 @@ export async function PATCH(request: Request) {
           id,
           athlete_id: before.athlete_id,
           message: before.message,
+          ticket_no: before.ticket_no,
           // Straight off this request, not re-read: the version the coach typed in
           // the same save is the one that fixed it.
           fixed_in_version: lifecycleSaved ? (body.fixed_in_version ?? null) : null,

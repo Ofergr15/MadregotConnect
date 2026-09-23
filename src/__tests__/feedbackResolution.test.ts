@@ -64,4 +64,9 @@ describe('reviewResolvedCopy', () => {
     expect(reviewResolvedCopy('he', { preview: '   ' }).body).toBe('תודה שדיווחתם — זה תוקן.');
     expect(reviewResolvedCopy('en', { preview: null }).body).toBe('Thanks for reporting it — it’s been fixed.');
   });
+  it('numbers the title with the ticket the reporter was given', () => {
+    expect(reviewResolvedCopy('he', { preview: 'x', ticketNo: 84 }).title).toBe('✅ דיווח #84 טופל');
+    expect(reviewResolvedCopy('en', { preview: 'x', ticketNo: 84 }).title).toBe('✅ Report #84 is fixed');
+    expect(reviewResolvedCopy('en', { preview: 'x', ticketNo: null }).title).toBe('✅ Your report is fixed');
+  });
 });

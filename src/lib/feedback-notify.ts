@@ -75,6 +75,8 @@ export interface ResolvedReportRow {
    *  before anybody recorded a fix version — in both cases the message simply
    *  doesn't name one, rather than naming a wrong one. */
   fixed_in_version?: string | null;
+  /** Migration 120. Absent on the narrow retry; the title then just doesn't number it. */
+  ticket_no?: number | null;
 }
 
 export type ResolvedNotifyResult = 'sent' | 'already' | 'no-reporter';
@@ -114,6 +116,7 @@ export async function notifyReportResolved(
       // showing the bug, so "it's fixed" without a version is a message that reads
       // as a lie to the one person who did us a favour.
       fixedInVersion: report.fixed_in_version ?? null,
+      ticketNo: report.ticket_no ?? null,
     }),
   });
 
@@ -155,7 +158,7 @@ export async function reconcileResolvedReports(
   // Migration 116 adds `fixed_in_version`. Asking for a column that isn't there is
   // a 42703 on the whole query, so the narrow select is retried — losing the
   // version from the push is a downgrade, losing the push is a regression.
-  let { data, error } = await pass('id, athlete_id, message, fixed_in_version');
+  let { data, error } = await pass('id, athlete_id, message, fixed_in_version, ticket_no');
   if (error && (error as { code?: string }).code === '42703') {
     ({ data, error } = await pass('id, athlete_id, message'));
   }
