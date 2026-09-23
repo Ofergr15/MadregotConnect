@@ -77,3 +77,15 @@ describe('POST /api/academy/register', () => {
     expect(ops.some(o => o.patch && ('role' in o.patch || 'approved' in o.patch || 'name' in o.patch))).toBe(false);
   });
 });
+
+describe('the academy door during maintenance', () => {
+  it('stays open, like /register', async () => {
+    // The Instagram auto-reply links here; behind the gate a lead meets "we're rebuilding"
+    // and is lost silently. isPublicPath is module-private, so this reads its list.
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync('src/components/MaintenanceGate.tsx', 'utf8');
+    const list = /const PUBLIC_PATHS = \[([^\]]*)\]/.exec(src)?.[1] ?? '';
+    expect(list).toContain("'/academy-register'");
+    expect(list).toContain("'/join'");
+  });
+});
