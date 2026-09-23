@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, authError } from '@/lib/auth-session';
 import { FEED_SELECT, projectFeedItem, type FeedItem } from '@/lib/feed/project';
 import { clampFeedLimit, parseFeedCursor } from '@/lib/feed/pagination';
+import { pendingAthleteIds, withoutPendingAuthors } from '@/lib/auth/pending-athletes';
 import { loadFeedContext } from '@/lib/feed/context';
 import { parseSquadParam } from '@/lib/feed/squad-filter';
 
@@ -111,8 +112,14 @@ export async function GET(request: Request) {
     const { data: rows, error } = await query;
     if (error) throw error;
 
-    const page = (rows || []).slice(0, limit);
+    const raw = (rows || []).slice(0, limit);
     const hasMore = (rows || []).length > limit;
+    // A runner the club hasn't approved yet stays out of everyone's feed but
+    // their own (#77). Filtered after the slice so the cursor still walks the
+    // raw order — a page may come back short, never skipped.
+    const pending = await pendingAthleteIds(supabase);
+    if (auth.user.athleteId) pending.delete(auth.user.athleteId);
+    const page = withoutPendingAuthors(raw as { author_athlete_id?: string | null }[], pending) as typeof raw;
 
     // Likes, comment previews and plan verdicts for the whole page — see
     // lib/feed/context.ts, which the single-item route uses too so a card opened
@@ -124,7 +131,7 @@ export async function GET(request: Request) {
 
     const items: FeedItem[] = page.map((row) => projectFeedItem(row, ctx));
 
-    const last = page[page.length - 1] as { occurred_at: string; id: string } | undefined;
+    const last = raw[raw.length - 1] as { occurred_at: string; id: string } | undefined;
     const nextCursor = hasMore && last ? `${last.occurred_at},${last.id}` : null;
 
     return NextResponse.json({ items, nextCursor });

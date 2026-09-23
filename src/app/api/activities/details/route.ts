@@ -19,7 +19,8 @@
  */
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { requireMember } from '@/lib/auth/self-or-staff';
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
 import { displaySplits } from '@/lib/activities/km-splits';
 
 export const dynamic = 'force-dynamic';
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'activityId required' }, { status: 400 });
     }
 
-    const denied = await requireMember(request);
+    const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
 
     const supabase = createServerClient();
@@ -77,6 +78,10 @@ export async function GET(request: Request) {
     }
 
     const r = row as any;
+    // A pending runner's activity reads as not there to the rest of the club (#77).
+    if (r.athlete_id && !seesPending(caller, r.athlete_id) && (await isPendingAthlete(supabase, r.athlete_id))) {
+      return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
+    }
     // The splits the UI draws, on the kilometre grid it labels them with — from
     // whichever column is the finer record of the run (see `displaySplits`). The
     // old fallback read Strava's `moving_time` off Garmin laps and binned nothing,

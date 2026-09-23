@@ -467,9 +467,11 @@ export function joinedRecently(createdAt: string | null | undefined, now: Date =
   return Number.isFinite(t) && now.getTime() - t < NEW_MEMBER_QUIET_DAYS * 86_400_000;
 }
 
+/** New in the club, or not let in yet (#77) — either way their awards post nothing. */
 export async function isNewMember(supabase: SupabaseServer, athleteId: string): Promise<boolean> {
-  const { data } = await supabase.from('athletes').select('created_at').eq('id', athleteId).maybeSingle();
-  return joinedRecently((data as { created_at?: string | null } | null)?.created_at);
+  const { data } = await supabase.from('athletes').select('created_at, approved').eq('id', athleteId).maybeSingle();
+  const row = data as { created_at?: string | null; approved?: boolean | null } | null;
+  return row?.approved === false || joinedRecently(row?.created_at);
 }
 
 /**

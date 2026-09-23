@@ -773,10 +773,12 @@ export async function notifyTeammatesOfActivity(activity: {
   const supabase = createServerClient();
   const { data: athlete } = await supabase
     .from('athletes')
-    .select('name, gender, avatar_url')
+    .select('name, gender, avatar_url, approved')
     .eq('id', activity.athleteId)
     .maybeSingle();
   if (!athlete) return 0;
+  // Not approved yet (#77): the club doesn't hear about their runs until they're in.
+  if ((athlete as { approved?: boolean | null }).approved === false) return 0;
 
   const { data: followerLinks } = await supabase
     .from('athlete_follows')

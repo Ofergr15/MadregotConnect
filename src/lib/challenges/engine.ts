@@ -82,7 +82,12 @@ async function resolveParticipantIds(
   const { data: self } = await supabase.from('athletes').select('group_id').eq('id', athleteId).maybeSingle();
   const groupId = (self as { group_id?: string | null } | null)?.group_id;
   if (!groupId) return [];
-  const { data: members } = await supabase.from('athletes').select('id').eq('group_id', groupId);
+  // Runners not approved yet don't count toward the group's total (#77).
+  const { data: members } = await supabase
+    .from('athletes')
+    .select('id')
+    .eq('group_id', groupId)
+    .or('approved.is.null,approved.eq.true');
   return (members || []).map((m: { id: string }) => m.id);
 }
 

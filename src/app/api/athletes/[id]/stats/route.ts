@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { requireMember } from '@/lib/auth/self-or-staff';
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
 import { computeDistanceBests, filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
 import { attachLapsForPrs } from '@/lib/prs/attach-laps';
 import { applyPrOverrides } from '@/lib/prs/overrides';
@@ -48,14 +49,20 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const denied = await requireMember(request);
+    const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
+
+    const supabase = createServerClient();
+    // A runner the club hasn't approved yet: their PRs and runs are theirs and
+    // staff's to see, nobody else's (#77).
+    if (!seesPending(caller, id) && (await isPendingAthlete(supabase, id))) {
+      return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
+    }
 
     const { searchParams } = new URL(request.url);
     const weeks = Math.min(Math.max(Number(searchParams.get('weeks')) || 10, 1), 52);
     const runLimit = Math.min(Math.max(Number(searchParams.get('runs')) || 5, 1), 30);
 
-    const supabase = createServerClient();
 
     // ONE read. Everything below is derived from the same set of activities, so
     // the totals, the weekly table, the trend badge and the PR grid cannot
