@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Heart, Mountain, Timer } from 'lucide-react';
+import { Footprints, Heart, Mountain, Timer, Zap } from 'lucide-react';
 import { PlannedKmPoint } from '@/lib/academy/segments';
 import { catmullRom, formatPace, getHRZone } from './format';
 import { useChartWidth } from '@/components/charts/useChartWidth';
@@ -306,6 +306,118 @@ export function HRChart({ splits, maxHR = 190 }: { splits: Split[]; maxHR?: numb
         <line x1={pad.left} x2={pad.left} y1={pad.top} y2={pad.top + chartH} stroke="#BBBBBB" strokeWidth="1" />
         {yLabels.map((l, i) => (
           <text key={i} x={pad.left - 8} y={l.y + 4} textAnchor="end" className="fill-ink-400" fontSize="11">{l.hr}</text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+// ─── Full-Width Cadence / Power Chart ─────────────────────────────────────────
+// One line per kilometre, drawn like the HR chart but without zones: neither
+// cadence nor power has a scale the club agrees on. A kilometre with no reading
+// is a gap in the line, not a zero — a dropped pod is not a standstill.
+
+const METRICS = {
+  cadence: { pick: (s: Split) => s.averageCadence, color: '#159AFF', title: 'chartCadencePerKm', unit: 'unitSpm', Icon: Footprints },
+  power: { pick: (s: Split) => s.averagePower, color: '#7C3AED', title: 'chartPowerPerKm', unit: 'unitWatts', Icon: Zap },
+} as const;
+
+export type SplitMetric = keyof typeof METRICS;
+
+/** Whether a run has enough of a metric to draw — the same test the chart applies. */
+export const hasSplitMetric = (splits: Split[], metric: SplitMetric) =>
+  splits.filter(s => (METRICS[metric].pick(s) ?? 0) > 0).length >= 2;
+
+export function SplitMetricChart({ splits, metric }: { splits: Split[]; metric: SplitMetric }) {
+  const t = useTranslations('activities');
+  const { hoverIdx, svgRef, handleMouseMove, handleMouseLeave } = useChartHover(splits.length);
+  const { boxRef, width } = useChartWidth();
+  const m = METRICS[metric];
+
+  if (splits.length < 2 || !hasSplitMetric(splits, metric)) return null;
+
+  const height = 180;
+  const pad = PAD;
+  const chartW = width - pad.left - pad.right;
+  const chartH = height - pad.top - pad.bottom;
+
+  const values = splits.map(s => { const v = m.pick(s); return v && v > 0 ? v : null; });
+  const present = values.filter((v): v is number => v != null);
+  const maxVal = Math.max(...present);
+  const minVal = Math.min(...present);
+  const padding = Math.max((maxVal - minVal) * 0.15, 5);
+  const viewMin = Math.max(0, minVal - padding);
+  const viewMax = maxVal + padding;
+
+  const toX = (km: number) => pad.left + ((km - 1) / (splits.length - 1)) * chartW;
+  const toY = (v: number) => pad.top + chartH - ((v - viewMin) / (viewMax - viewMin)) * chartH;
+
+  // Runs of consecutive readings, each its own path, so a gap stays a gap.
+  const runs: { x: number; y: number }[][] = [];
+  values.forEach((v, i) => {
+    if (v == null) { runs.push([]); return; }
+    if (!runs.length) runs.push([]);
+    runs[runs.length - 1].push({ x: toX(i + 1), y: toY(v) });
+  });
+
+  const ySteps = 4;
+  const yLabels = Array.from({ length: ySteps }, (_, i) => {
+    const v = viewMin + (viewMax - viewMin) * (i / (ySteps - 1));
+    return { v: Math.round(v), y: toY(v) };
+  }).reverse();
+  const xInterval = splits.length > 20 ? 5 : splits.length > 10 ? 2 : 1;
+  const hovered = hoverIdx != null ? values[hoverIdx] : null;
+
+  return (
+    <div ref={boxRef}>
+      <h4 className="text-3xs font-bold uppercase text-ink-400 mb-2 flex items-center gap-1.5">
+        <m.Icon className="h-3 w-3" /> {t(m.title)}
+        <span className="ms-auto font-semibold normal-case tabular-nums text-ink-500">
+          {Math.round(present.reduce((a, b) => a + b, 0) / present.length)} {t(m.unit)}
+        </span>
+      </h4>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        width={width}
+        height={height}
+        direction="ltr"
+        className="max-w-full"
+        onMouseMove={e => handleMouseMove(e, chartW)}
+        onMouseLeave={handleMouseLeave}
+      >
+        {yLabels.map((l, i) => (
+          <line key={i} x1={pad.left} x2={width - pad.right} y1={l.y} y2={l.y} stroke="#DFDFDF" strokeWidth="0.5" strokeDasharray="4 4" />
+        ))}
+        {runs.filter(r => r.length).map((r, i) => (
+          r.length > 1
+            ? <path key={i} d={catmullRom(r)} fill="none" stroke={m.color} strokeWidth="3" strokeLinecap="round" />
+            : null
+        ))}
+        {values.map((v, i) => v == null ? null : (
+          <circle key={i} cx={toX(i + 1)} cy={toY(v)} r={hoverIdx === i ? 6 : 3.5} fill={m.color} stroke="#FFFFFF" strokeWidth="2" className="transition-all" />
+        ))}
+        {hoverIdx !== null && hovered != null && (
+          <g>
+            <line x1={toX(hoverIdx + 1)} x2={toX(hoverIdx + 1)} y1={pad.top} y2={pad.top + chartH} stroke={m.color} strokeWidth="1" opacity={0.4} strokeDasharray="3 3" />
+            <rect x={toX(hoverIdx + 1) - 42} y={toY(hovered) - 28} width="84" height="22" rx="4" fill="#1D1E26" stroke={m.color} strokeWidth="1" />
+            <text x={toX(hoverIdx + 1)} y={toY(hovered) - 14} textAnchor="middle" className="fill-white" fontSize="12" fontWeight="700">
+              {hovered} {t(m.unit)}
+            </text>
+            <text x={toX(hoverIdx + 1)} y={pad.top + chartH + 14} textAnchor="middle" className="fill-ink-500" fontSize="10" fontWeight="600">
+              {t('kmNumber', { n: hoverIdx + 1 })}
+            </text>
+          </g>
+        )}
+        <line x1={pad.left} x2={width - pad.right} y1={pad.top + chartH} y2={pad.top + chartH} stroke="#BBBBBB" strokeWidth="1" />
+        {splits.map((_, i) => {
+          const km = i + 1;
+          if (km % xInterval !== 0 && km !== splits.length) return null;
+          return <text key={i} x={toX(km)} y={height - 12} textAnchor="middle" className="fill-ink-400" fontSize="11" fontWeight="500">{km}</text>;
+        })}
+        <line x1={pad.left} x2={pad.left} y1={pad.top} y2={pad.top + chartH} stroke="#BBBBBB" strokeWidth="1" />
+        {yLabels.map((l, i) => (
+          <text key={i} x={pad.left - 8} y={l.y + 4} textAnchor="end" className="fill-ink-400" fontSize="11">{l.v}</text>
         ))}
       </svg>
     </div>

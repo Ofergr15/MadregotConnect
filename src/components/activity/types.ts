@@ -11,6 +11,10 @@ export interface Split {
   averageHR: number | null;
   elevationGain: number | null;
   elevationLoss?: number | null;
+  /** Steps per minute, per kilometre. Garmin laps only. */
+  averageCadence?: number | null;
+  /** Watts, per kilometre — only when a power meter measured it. */
+  averagePower?: number | null;
 }
 
 export interface ActivityEntry {

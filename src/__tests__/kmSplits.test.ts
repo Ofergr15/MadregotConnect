@@ -29,8 +29,8 @@ describe('kmSplitsFromLaps — the kilometre grid the UI says it draws', () => {
       { distance: 1000, duration: 310, averagePace: 310, averageHR: 145, maxHR: null, elevationGain: 1, elevationLoss: 8 },
     ];
     expect(kmSplitsFromLaps(laps)).toEqual([
-      { distance: 1000, duration: 300, averagePace: 300, averageHR: 140, elevationGain: 5, elevationLoss: 2 },
-      { distance: 1000, duration: 310, averagePace: 310, averageHR: 145, elevationGain: 1, elevationLoss: 8 },
+      { distance: 1000, duration: 300, averagePace: 300, averageHR: 140, elevationGain: 5, elevationLoss: 2, averageCadence: null, averagePower: null },
+      { distance: 1000, duration: 310, averagePace: 310, averageHR: 145, elevationGain: 1, elevationLoss: 8, averageCadence: null, averagePower: null },
     ]);
   });
 
@@ -65,8 +65,8 @@ describe('kmSplitsFromLaps — the kilometre grid the UI says it draws', () => {
     // One 2 km lap at 5:00 is two kilometres at 5:00, not one 10-minute one.
     const splits = kmSplitsFromLaps(normalizeStoredLaps([{ distance: 2000, duration: 600, averagePace: 300 }]));
     expect(splits).toEqual([
-      { distance: 1000, duration: 300, averagePace: 300, averageHR: null, elevationGain: null, elevationLoss: null },
-      { distance: 1000, duration: 300, averagePace: 300, averageHR: null, elevationGain: null, elevationLoss: null },
+      { distance: 1000, duration: 300, averagePace: 300, averageHR: null, elevationGain: null, elevationLoss: null, averageCadence: null, averagePower: null },
+      { distance: 1000, duration: 300, averagePace: 300, averageHR: null, elevationGain: null, elevationLoss: null, averageCadence: null, averagePower: null },
     ]);
   });
 
@@ -141,3 +141,26 @@ describe('displaySplits — which column the kilometres come from', () => {
 // The lap reader and writer themselves are pinned in `storedLaps.test.ts`, next to
 // the module they belong to. What is read here is only what these bins are built
 // from: the shapes both providers store, through the one normalizer.
+
+describe('cadence and power per km (#74)', () => {
+  it('weights both by distance, like HR, and leaves a km with no reading null', () => {
+    const splits = kmSplitsFromLaps([
+      { distance: 500, duration: 150, averagePace: 300, averageHR: 150, maxHR: null, averageCadence: 170, averagePower: 250 },
+      { distance: 500, duration: 150, averagePace: 300, averageHR: 150, maxHR: null, averageCadence: 180, averagePower: 270 },
+      { distance: 1000, duration: 300, averagePace: 300, averageHR: 150, maxHR: null },
+    ]);
+    expect(splits.map(s => s.averageCadence)).toEqual([175, null]);
+    expect(splits.map(s => s.averagePower)).toEqual([260, null]);
+  });
+
+  it('keeps Strava estimated watts out and takes a power meter', () => {
+    const estimated = displaySplits(null, [
+      { distance: 1000, moving_time: 300, average_watts: 240, device_watts: false },
+    ]);
+    const measured = displaySplits(null, [
+      { distance: 1000, moving_time: 300, average_watts: 240, device_watts: true },
+    ]);
+    expect(estimated[0].averagePower).toBeNull();
+    expect(measured[0].averagePower).toBe(240);
+  });
+});

@@ -32,6 +32,9 @@ export interface KmSplit {
   averageHR: number | null;
   elevationGain: number | null;
   elevationLoss: number | null;
+  /** Steps per minute and watts, weighted by distance like HR. Null when no lap in the kilometre had them. */
+  averageCadence: number | null;
+  averagePower: number | null;
 }
 
 const BIN_METERS = 1000;
@@ -53,11 +56,21 @@ interface Bin {
    *  left out of both, so one unmonitored lap doesn't drag the average down. */
   hrSum: number;
   hrDistance: number;
+  /** The same weighting for cadence and power. */
+  cadSum: number;
+  cadDistance: number;
+  powSum: number;
+  powDistance: number;
 }
 
 function emptyBin(): Bin {
-  return { distance: 0, duration: 0, elevationGain: null, elevationLoss: null, hrSum: 0, hrDistance: 0 };
+  return {
+    distance: 0, duration: 0, elevationGain: null, elevationLoss: null,
+    hrSum: 0, hrDistance: 0, cadSum: 0, cadDistance: 0, powSum: 0, powDistance: 0,
+  };
 }
+
+const weighted = (sum: number, distance: number) => (distance > 0 ? Math.round(sum / distance) : null);
 
 /** Adds a share of one lap — `meters` of it — to a bin, pro rata. */
 function pour(bin: Bin, lap: StoredLap, meters: number): void {
@@ -69,6 +82,14 @@ function pour(bin: Bin, lap: StoredLap, meters: number): void {
   if (lap.averageHR != null) {
     bin.hrSum += lap.averageHR * meters;
     bin.hrDistance += meters;
+  }
+  if (lap.averageCadence != null) {
+    bin.cadSum += lap.averageCadence * meters;
+    bin.cadDistance += meters;
+  }
+  if (lap.averagePower != null) {
+    bin.powSum += lap.averagePower * meters;
+    bin.powDistance += meters;
   }
 }
 
@@ -82,6 +103,8 @@ function seal(bin: Bin): KmSplit {
     averageHR: bin.hrDistance > 0 ? Math.round(bin.hrSum / bin.hrDistance) : null,
     elevationGain: bin.elevationGain == null ? null : Math.round(bin.elevationGain),
     elevationLoss: bin.elevationLoss == null ? null : Math.round(bin.elevationLoss),
+    averageCadence: weighted(bin.cadSum, bin.cadDistance),
+    averagePower: weighted(bin.powSum, bin.powDistance),
   };
 }
 
@@ -91,6 +114,10 @@ function foldInto(previous: KmSplit, tail: Bin): KmSplit {
   const duration = previous.duration + tail.duration;
   const hrDistance = (previous.averageHR != null ? previous.distance : 0) + tail.hrDistance;
   const hrSum = (previous.averageHR != null ? previous.averageHR * previous.distance : 0) + tail.hrSum;
+  const cadDistance = (previous.averageCadence != null ? previous.distance : 0) + tail.cadDistance;
+  const cadSum = (previous.averageCadence != null ? previous.averageCadence * previous.distance : 0) + tail.cadSum;
+  const powDistance = (previous.averagePower != null ? previous.distance : 0) + tail.powDistance;
+  const powSum = (previous.averagePower != null ? previous.averagePower * previous.distance : 0) + tail.powSum;
   return {
     distance: Math.round(distance),
     duration: Math.round(duration),
@@ -98,6 +125,8 @@ function foldInto(previous: KmSplit, tail: Bin): KmSplit {
     averageHR: hrDistance > 0 ? Math.round(hrSum / hrDistance) : null,
     elevationGain: sum(previous.elevationGain, tail.elevationGain),
     elevationLoss: sum(previous.elevationLoss, tail.elevationLoss),
+    averageCadence: weighted(cadSum, cadDistance),
+    averagePower: weighted(powSum, powDistance),
   };
 }
 

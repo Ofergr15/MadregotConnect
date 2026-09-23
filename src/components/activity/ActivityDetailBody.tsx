@@ -10,7 +10,7 @@ import { displaySplits } from '@/lib/activities/km-splits';
 import type { ExecutionVerdict } from '@/lib/plan-execution/verdict';
 import { cn } from '@/lib/utils';
 import { RunFeedback } from '@/components/academy/RunFeedback';
-import { ElevationChart, HRChart, PaceChart } from './charts';
+import { ElevationChart, HRChart, PaceChart, SplitMetricChart, hasSplitMetric } from './charts';
 import { ExecutionQuality, executionTakesPaceChart } from './ExecutionQuality';
 import { DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone } from './format';
 import { RouteMap } from './RouteMap';
@@ -293,6 +293,11 @@ export function ActivityDetailBody({
               <HRChart splits={splits} maxHR={maxHR} />
             </div>
           )}
+          {(['cadence', 'power'] as const).map(metric => hasSplitMetric(splits, metric) && (
+            <div key={metric} className="bg-page/40 rounded-xl p-4 border border-page/20">
+              <SplitMetricChart splits={splits} metric={metric} />
+            </div>
+          ))}
           {/* Same test the chart itself applies — otherwise a run with no
               elevation on its laps leaves an empty bordered box behind. */}
           {splits.some(s => s.elevationGain != null || s.elevationLoss != null) && (

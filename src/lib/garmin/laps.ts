@@ -52,6 +52,8 @@ export interface StoredLap {
   gradeAdjustedPace?: number;
   /** Steps per minute (Garmin's `averageRunCadence`, both legs). */
   averageCadence?: number;
+  /** Watts, from a watch or pod that measures running power. Absent otherwise. */
+  averagePower?: number;
   elevationGain?: number;
   elevationLoss?: number;
   /** Time actually moving, when it differs from `duration` (auto-pause, walk breaks). */
@@ -72,6 +74,12 @@ const num = (v: unknown, round = true): number | undefined => {
  * deliberately does NOT go through here: a flat kilometre really is 0.
  */
 const bpm = (v: unknown): number | undefined => {
+  const n = num(v);
+  return n != null && n > 0 ? n : undefined;
+};
+
+/** Power, or nothing — like HR, a lap the pod dropped comes back 0. */
+const watts = (v: unknown): number | undefined => {
   const n = num(v);
   return n != null && n > 0 ? n : undefined;
 };
@@ -113,6 +121,7 @@ export function narrowLaps(lapDTOs: unknown): StoredLap[] {
       intensityType: typeof l?.intensityType === 'string' ? l.intensityType : undefined,
       gradeAdjustedPace: distance > 0 ? paceFromSpeed(l?.avgGradeAdjustedSpeed) : undefined,
       averageCadence: num(l?.averageRunCadence),
+      averagePower: watts(l?.averagePower),
       elevationGain: num(l?.elevationGain),
       elevationLoss: num(l?.elevationLoss),
       movingDuration: moving != null && moving !== Math.round(duration) ? moving : undefined,
@@ -165,6 +174,9 @@ export function normalizeStoredLaps(raw: unknown): StoredLap[] {
       // Strava's `average_cadence` for a run is one leg per minute against Garmin's
       // two, and a number whose unit depends on the provider is worse than no number.
       averageCadence: num(l.averageCadence ?? l.averageRunCadence),
+      // Strava estimates watts for every run from pace and weight; only
+      // `device_watts` means a power meter actually measured them.
+      averagePower: watts(l.averagePower ?? (l.device_watts === true ? l.average_watts : undefined)),
       elevationGain: num(l.elevationGain ?? l.total_elevation_gain),
       elevationLoss: num(l.elevationLoss),
       movingDuration: num(l.movingDuration ?? (l.moving_time != null && l.elapsed_time != null
