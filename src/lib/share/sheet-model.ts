@@ -1,5 +1,5 @@
 import {
-  availableWorkoutMetrics, hasRouteTrace, paceBandCount, supportsFooter, workoutMetricStat,
+  availableWorkoutMetrics, hasRouteTrace, paceBandCount, requiresRoute, supportsFooter, workoutMetricStat,
   type ShareI18n, type ShareTemplate, type ShareVerdict, type WorkoutMetricKey,
 } from '@/lib/feed/share-image';
 import {
@@ -51,6 +51,85 @@ export const FRAME_TEMPLATE: Record<ShareFrame, ShareTemplate> = {
   route: 'route',
   numbers: 'fullStats',
 };
+
+/*
+ * ── THE TEN, BACK ON THE WORKOUT SHEET ──────────────────────────────────────
+ * The frame row above cost the workout card seven of its ten views: the gallery
+ * the athlete was shown had ten, and the sheet they got could reach three. The
+ * frame stays for the WEEK, whose renderer really does have only a photo and a
+ * numbers panel. A workout picks a view, and everything the frame used to decide
+ * — how many numbers, whether a photo, a line colour or a footer fits — is read
+ * off the view instead.
+ */
+
+/** Gallery order: the route family, the numbers family, then the photo family. */
+export const WORKOUT_TEMPLATES: ShareTemplate[] = [
+  'route', 'routeOnly', 'bigNumbers', 'statsBar', 'fullStats',
+  'sideBySide', 'photo', 'classic', 'card', 'minimal',
+];
+
+/** Either a frame or a view; `numbers` is the one frame name that is not a view. */
+export type ShareLook = ShareFrame | ShareTemplate;
+
+export function lookTemplate(look: ShareLook): ShareTemplate {
+  return look === 'numbers' ? FRAME_TEMPLATE.numbers : look;
+}
+
+export interface TemplateOption {
+  key: ShareTemplate;
+  available: boolean;
+  reason?: 'noRoute';
+}
+
+/** All ten, always, in gallery order — the ones a run cannot draw greyed with why. */
+export function shareTemplates(subject: ShareSubject): TemplateOption[] {
+  const act = subject.kind === 'workout' ? subject.item.activity : null;
+  const routed = !!act && hasRouteTrace(act);
+  return WORKOUT_TEMPLATES.map(key => {
+    const ok = routed || !requiresRoute(key);
+    return { key, available: ok, reason: ok ? undefined : 'noRoute' };
+  });
+}
+
+/**
+ * The views whose numbers are not the athlete's to choose.
+ *
+ * `routeOnly` prints none at all; the three originals print the fixed set they
+ * always printed (`secondaryStats`). The chip row stays visible on these and goes
+ * grey with one line, and the selection is kept, so tapping back to a view that
+ * does read the chips finds them as they were left.
+ */
+const FIXED_NUMBERS: Partial<Record<ShareTemplate, 'noNumbers' | 'fixedNumbers'>> = {
+  routeOnly: 'noNumbers',
+  classic: 'fixedNumbers',
+  card: 'fixedNumbers',
+  minimal: 'fixedNumbers',
+};
+
+export function fixedNumbersReason(
+  subject: ShareSubject,
+  look: ShareLook,
+): 'noNumbers' | 'fixedNumbers' | undefined {
+  return subject.kind === 'workout' ? FIXED_NUMBERS[lookTemplate(look)] : undefined;
+}
+
+/**
+ * Where the line colour means anything: the views that draw the run's line, plus
+ * `sideBySide`, whose stairs mark stands in for it. The two originals draw a route
+ * only when there is one, so without GPS the swatch would change nothing.
+ */
+export function supportsAccent(subject: ShareSubject, look: ShareLook): boolean {
+  if (subject.kind !== 'workout') return false;
+  const t = lookTemplate(look);
+  if (t === 'route' || t === 'routeOnly' || t === 'bigNumbers' || t === 'sideBySide') return true;
+  const act = subject.item.activity;
+  return (t === 'classic' || t === 'card') && !!act && hasRouteTrace(act);
+}
+
+/** What a workout opens on — the same answer as `defaultFrame`, as a view. */
+export function defaultTemplate(subject: ShareSubject): ShareTemplate {
+  return FRAME_TEMPLATE[defaultFrame(subject)];
+}
 
 export type ShareSubject =
   | { kind: 'workout'; item: FeedItem }
@@ -121,9 +200,11 @@ export function defaultFrame(subject: ShareSubject): ShareFrame {
  * The weekly card draws one ROW per metric and grows downward, so its own limit is
  * simply how many metrics exist.
  */
-export function frameCapacity(subject: ShareSubject, frame: ShareFrame): number {
+export function frameCapacity(subject: ShareSubject, frame: ShareLook): number {
   if (subject.kind === 'week') return availableMetrics(subject.report).length;
-  return frame === 'numbers' ? 6 : 3;
+  const t = lookTemplate(frame);
+  if (FIXED_NUMBERS[t]) return 0;
+  return t === 'fullStats' ? 6 : 3;
 }
 
 /** The numbers this subject can print at all, in card order. */
@@ -158,8 +239,9 @@ export function shareChips(subject: ShareSubject, i18n: ShareI18n, lang: ShareCa
 }
 
 /** What the content row opens with: as much as the frame can print, in card order. */
-export function defaultChipKeys(subject: ShareSubject, frame: ShareFrame): string[] {
-  return availableChipKeys(subject).slice(0, frameCapacity(subject, frame));
+export function defaultChipKeys(subject: ShareSubject, frame: ShareLook): string[] {
+  // A view with fixed numbers still needs a selection to hand to the next one.
+  return availableChipKeys(subject).slice(0, frameCapacity(subject, frame) || 3);
 }
 
 /**
@@ -177,7 +259,9 @@ export function toggleChip(keys: string[], key: string, capacity: number): strin
 }
 
 /** Trim a selection to what a newly chosen frame can print, keeping card order. */
-export function fitChipKeys(subject: ShareSubject, frame: ShareFrame, keys: string[]): string[] {
+export function fitChipKeys(subject: ShareSubject, frame: ShareLook, keys: string[]): string[] {
+  // A view that ignores the chips keeps them untouched rather than trimming to zero.
+  if (frameCapacity(subject, frame) === 0) return keys;
   const order = availableChipKeys(subject);
   const kept = order.filter(k => keys.includes(k)).slice(0, frameCapacity(subject, frame));
   // Never empty: a frame change must not be able to produce a blank card.
@@ -223,8 +307,8 @@ export const FOOTER_FRAME: ShareFrame = 'numbers';
  * for. A run WITH a plan on the wrong frame is greyed, because that one is a limit
  * the athlete can lift with one tap on the frame row above.
  */
-export function shareExtras(subject: ShareSubject, frame: ShareFrame): ShareExtraOption[] {
-  const roomy = supportsFooter(FRAME_TEMPLATE[frame]);
+export function shareExtras(subject: ShareSubject, frame: ShareLook): ShareExtraOption[] {
+  const roomy = supportsFooter(lookTemplate(frame));
   const out: ShareExtraOption[] = [];
 
   if (subject.kind === 'week') {
@@ -270,7 +354,7 @@ export function defaultExtraKeys(subject: ShareSubject): ShareExtraKey[] {
 /** On, and drawable on this frame. The sheet renders a greyed extra as off. */
 export function extraOn(
   subject: ShareSubject,
-  frame: ShareFrame,
+  frame: ShareLook,
   keys: ShareExtraKey[],
   key: ShareExtraKey,
 ): boolean {

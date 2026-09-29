@@ -79,6 +79,11 @@ const ROUTE_REQUIRED: ShareTemplate[] = ['route', 'routeOnly', 'bigNumbers'];
 /** Views that can sit on the athlete's own photo. */
 const PHOTO_CAPABLE: ShareTemplate[] = ['classic', 'card', 'minimal', 'photo'];
 
+/** A view with nothing to draw without GPS — the sheet greys it and says so. */
+export function requiresRoute(template: ShareTemplate): boolean {
+  return ROUTE_REQUIRED.includes(template);
+}
+
 export function hasRouteTrace(act: Pick<FeedActivity, 'routePreview'>): boolean {
   return !!act.routePreview && act.routePreview.length > 2;
 }
