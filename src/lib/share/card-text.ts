@@ -35,6 +35,7 @@ export const WORKOUT_CARD_TEXT: Record<ShareCardLang, ShareI18n> = {
     hoursShort: 'ש׳',
     minutesShort: 'דק׳',
     splits: 'ק״מ אחרי ק״מ',
+    segments: 'מקטעים',
     fastest: 'הגבוה = המהיר',
   },
   en: {
@@ -51,6 +52,7 @@ export const WORKOUT_CARD_TEXT: Record<ShareCardLang, ShareI18n> = {
     hoursShort: 'h',
     minutesShort: 'min',
     splits: 'KM Splits',
+    segments: 'Splits',
     fastest: 'tallest = fastest',
   },
 };

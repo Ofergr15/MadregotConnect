@@ -15,7 +15,7 @@ const I18N = {
   // Only the newer views print these, but the type is shared.
   distance: 'Distance', elevation: 'Elevation', calories: 'Calories', metres: 'm', hoursShort: 'h', minutesShort: 'min',
   // Only the bars print these.
-  splits: 'Kilometre by kilometre', fastest: 'tallest = fastest',
+  splits: 'Kilometre by kilometre', segments: 'Splits', fastest: 'tallest = fastest',
 };
 
 function activity(over: Partial<FeedActivity> = {}): FeedActivity {

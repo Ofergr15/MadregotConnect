@@ -1,7 +1,7 @@
 import {
   availableWorkoutMetrics, hasRouteTrace, paceBandCount, requiresRoute, requiresSplits, supportsFooter,
   workoutMetricStat,
-  type ShareI18n, type ShareTemplate, type ShareVerdict, type WorkoutMetricKey,
+  type ShareBrand, type ShareI18n, type ShareTemplate, type ShareVerdict, type WorkoutMetricKey,
 } from '@/lib/feed/share-image';
 import {
   WEEK_CARD_TEXT, availableMetrics, type WeekMetricKey,
@@ -89,6 +89,28 @@ export function drawnTemplate(
   if (view === 'route' && opts.routeOnly) return 'routeOnly';
   if (view === 'statsBar' && opts.withPhoto) return 'photo';
   return view;
+}
+
+/**
+ * Each view's own logo — what the renderer draws when the athlete picks none, and
+ * what the sheet's logo picker marks as "the view's own". Picking a logo is per
+ * share and per view: switching views goes back to the new view's own.
+ */
+export function viewBrand(view: ShareTemplate): ShareBrand {
+  if (view === 'splits') return 'stairs';
+  if (view === 'classic' || view === 'card' || view === 'minimal') return 'badge';
+  return 'wordmark';
+}
+
+/** Whether the KM Splits view can chart laps instead of kilometres for this run. */
+export function canSegment(subject: ShareSubject): boolean {
+  return subject.kind === 'workout' && (subject.item.activity?.lapBands?.length ?? 0) >= 2;
+}
+
+/** Whether the segments chart has heart rate to draw behind its bars. */
+export function canHrLine(subject: ShareSubject): boolean {
+  if (subject.kind !== 'workout' || !canSegment(subject)) return false;
+  return (subject.item.activity?.lapBands ?? []).filter(l => l.hr != null).length >= 2;
 }
 
 /** Either a frame or a view; `numbers` is the one frame name that is not a view. */

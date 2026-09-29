@@ -152,6 +152,17 @@ export const SPLITS_MAX_ROWS = 50;
  */
 export type ShareAccent = 'white' | 'orange';
 
+/**
+ * Which of the club's three marks a card carries: the round badge, the MADREGOT
+ * lettering, or the stairs. Every view has always had exactly one, fixed — the
+ * badge on classic/card/minimal, the lettering on route and the stats bar, the
+ * stairs on KM Splits — and that stays the default. Choosing one only swaps what
+ * is drawn IN that view's slot: the slot keeps its place and its box, and the mark
+ * is fitted inside it, so no layout moves when the athlete changes the logo.
+ */
+export type ShareBrand = 'badge' | 'wordmark' | 'stairs';
+export const SHARE_BRAND_KEYS: ShareBrand[] = ['badge', 'wordmark', 'stairs'];
+
 export const SHARE_ACCENT_KEYS: ShareAccent[] = ['white', 'orange'];
 
 export const ACCENT_HEX: Record<ShareAccent, string> = {
@@ -190,8 +201,10 @@ export interface ShareI18n {
    */
   hoursShort: string;
   minutesShort: string;
-  /** Title over the per-kilometre bars — "מקטעים" / "Splits". */
+  /** Title over the per-kilometre bars — "ק״מ אחרי ק״מ" / "KM Splits". */
   splits: string;
+  /** Title over the lap chart — "מקטעים" / "Splits". */
+  segments: string;
   /**
    * The one thing a reader cannot guess about the pace bars.
    *
@@ -241,6 +254,18 @@ export interface ShareCardOptions {
    * defaults to on there — the list of kilometres is otherwise undated.
    */
   showDate?: boolean;
+  /** The logo to draw in the view's logo slot; the view's own when absent. */
+  brand?: ShareBrand;
+  /** KM Splits / segments: a dashed line at the run's average pace across the bars. */
+  avgLine?: boolean;
+  /** Segments: the laps' heart rate as a grey area behind the bars, as Strava draws it. */
+  hrLine?: boolean;
+  /**
+   * What the KM Splits view charts: each kilometre (the default), or each lap the
+   * watch pressed (`segments`). Falls back to kilometres when the run has no
+   * `lapBands`.
+   */
+  splitMode?: 'km' | 'segments';
   /**
    * Which numbers go on the card, chosen by the athlete in the sheet.
    *
@@ -798,6 +823,11 @@ interface LayoutCtx {
   /** Wordmark and stairs mark; null if either failed to load. */
   wordmark: HTMLImageElement | null;
   stairs: HTMLImageElement | null;
+  /** The athlete's pick for the logo slot, loaded; null keeps each view's own. */
+  brand: HTMLImageElement | null;
+  avgLine: boolean;
+  hrLine: boolean;
+  splitMode: 'km' | 'segments';
   shadow: string;
   shadowBlur: number;
   /** Resolved accent hex — route line only. */
@@ -1132,15 +1162,49 @@ function drawCardFooter(c: LayoutCtx, top: number): number {
   return y - top;
 }
 
-/** The wordmark, centred. Never accented. Returns its drawn height. */
-function drawWordmark(c: LayoutCtx, top: number, width: number, cx = CX): number {
-  const { ctx, wordmark } = c;
-  if (!wordmark) return 0;
-  const h = (wordmark.height / wordmark.width) * width;
-  ctx.globalAlpha = 0.95;
-  ctx.drawImage(wordmark, cx - width / 2, top, width, h);
+/**
+ * Draw `img` as large as fits in the w×h box, anchored at `ax` (0 = the box's left
+ * edge, .5 its centre, 1 its right edge) and at the box's `ay` (0 top, 1 bottom).
+ * Returns the size it drew, so a slot built for one shape can hold another.
+ */
+function drawFitted(
+  ctx: CanvasRenderingContext2D, img: HTMLImageElement,
+  box: { x: number; y: number; w: number; h: number }, ax: number, ay: number, alpha: number,
+): { w: number; h: number } {
+  const scale = Math.min(box.w / img.width, box.h / img.height);
+  const w = img.width * scale;
+  const h = img.height * scale;
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(img, box.x + (box.w - w) * ax, box.y + (box.h - h) * ay, w, h);
   ctx.globalAlpha = 1;
-  return h;
+  return { w, h };
+}
+
+/**
+ * The lettering slot, centred at `cx`: the wordmark's own box at `width`, holding
+ * whichever mark was picked. Never accented. Returns the drawn size.
+ */
+function drawWordmarkSlot(
+  c: LayoutCtx, top: number, width: number, cx = CX, badgeSide = width * 0.7,
+): { w: number; h: number } {
+  const img = c.brand ?? c.wordmark;
+  if (!img) return { w: 0, h: 0 };
+  const boxH = c.wordmark ? (c.wordmark.height / c.wordmark.width) * width : width * 0.38;
+  if (img === c.logo) {
+    // The badge is round, with fine type inside: fitted into the lettering's flat
+    // box it came out a third of the lettering's width and unreadable. It gets a
+    // square (70% of the slot's width unless the layout asks for less) instead, grown evenly about the slot's
+    // middle, and reports the slot's own height so nothing under it moves.
+    const side = badgeSide;
+    const d = drawFitted(c.ctx, img, { x: cx - side / 2, y: top + boxH / 2 - side / 2, w: side, h: side }, 0.5, 0.5, 0.95);
+    return { w: d.w, h: boxH };
+  }
+  return drawFitted(c.ctx, img, { x: cx - width / 2, y: top, w: width, h: boxH }, 0.5, 0.5, 0.95);
+}
+
+/** The lettering slot's drawn height, for the layouts that only stack under it. */
+function drawWordmark(c: LayoutCtx, top: number, width: number, cx = CX): number {
+  return drawWordmarkSlot(c, top, width, cx).h;
 }
 
 /**
@@ -1174,7 +1238,7 @@ function drawShoe(ctx: CanvasRenderingContext2D, x: number, y: number, size: num
  * omits the route rather than leaving a hole.
  */
 function layoutClassic({
-  ctx, font, act, logo, shadow, shadowBlur, accent, i18n, showTitle, showStartTime,
+  ctx, font, act, logo, brand, shadow, shadowBlur, accent, i18n, showTitle, showStartTime,
 }: LayoutCtx) {
   const right = STORY_W - MARGIN;
   // ONE centred column. The title and the distance used to be flush right while the
@@ -1186,14 +1250,11 @@ function layoutClassic({
   const cx = STORY_W / 2;
   let y = STORY_H - MARGIN;
 
-  if (logo) {
+  const mark = brand ?? logo;
+  if (mark) {
     // The logo is a square badge with fine internal type ("EST. 2022"), not a
     // wordmark — below ~140px on a 1080-wide canvas that inner text turns to mush.
-    const logoH = 178;
-    const logoW = (logo.width / logo.height) * logoH;
-    ctx.globalAlpha = 0.95;
-    ctx.drawImage(logo, (STORY_W - logoW) / 2, y - logoH, logoW, logoH);
-    ctx.globalAlpha = 1;
+    const logoH = drawFitted(ctx, mark, { x: (STORY_W - 480) / 2, y: y - 230, w: 480, h: 230 }, 0.5, 1, 0.95).h;
     // The date used to sit between the logo and the divider; without it the gap
     // is set here instead so the rule doesn't crowd the badge.
     y -= logoH + 120;
@@ -1273,14 +1334,15 @@ function layoutClassic({
  * pairing with `transparent`.
  */
 function layoutCard({
-  ctx, font, act, logo, shadow, shadowBlur, accent, i18n, showTitle, showStartTime,
+  ctx, font, act, logo, brand, shadow, shadowBlur, accent, i18n, showTitle, showStartTime,
 }: LayoutCtx) {
   const hasRoute = !!act.routePreview && act.routePreview.length > 2;
 
   const PAD = 56;
   const cardX = 70;
   const cardW = STORY_W - cardX * 2;
-  const logoH = logo ? 112 : 0;
+  const mark = brand ?? logo;
+  const logoH = mark ? (mark === logo ? 150 : 112) : 0;
   const routeH = hasRoute ? 380 : 0;
   const titleH = act.activityName && showTitle ? 62 : 0;
 
@@ -1321,11 +1383,8 @@ function layoutCard({
   let y = cardY + PAD;
 
   // Logo, top-right inside the panel.
-  if (logo) {
-    const logoW = (logo.width / logo.height) * logoH;
-    ctx.globalAlpha = 0.95;
-    ctx.drawImage(logo, right - logoW, y, logoW, logoH);
-    ctx.globalAlpha = 1;
+  if (mark) {
+    drawFitted(ctx, mark, { x: right - 360, y, w: 360, h: logoH }, 1, 0, 0.95);
     y += logoH;
   }
 
@@ -1396,7 +1455,7 @@ function layoutCard({
 }
 
 /** Just the number. Centred, lots of air — the best pairing with a strong photo. */
-function layoutMinimal({ ctx, font, act, logo, shadow, shadowBlur, i18n }: LayoutCtx) {
+function layoutMinimal({ ctx, font, act, logo, brand, shadow, shadowBlur, i18n }: LayoutCtx) {
   const cx = STORY_W / 2;
 
   ctx.textBaseline = 'alphabetic';
@@ -1432,12 +1491,9 @@ function layoutMinimal({ ctx, font, act, logo, shadow, shadowBlur, i18n }: Layou
   ctx.fillText(line, cx, heroBaseline + 220);
   ctx.shadowBlur = 0;
 
-  if (logo) {
-    const logoH = 148;
-    const logoW = (logo.width / logo.height) * logoH;
-    ctx.globalAlpha = 0.9;
-    ctx.drawImage(logo, cx - logoW / 2, STORY_H - MARGIN - logoH, logoW, logoH);
-    ctx.globalAlpha = 1;
+  const mark = brand ?? logo;
+  if (mark) {
+    drawFitted(ctx, mark, { x: cx - 210, y: STORY_H - MARGIN - 200, w: 420, h: 200 }, 0.5, 1, 0.9);
   }
 }
 
@@ -1460,8 +1516,9 @@ function layoutPhoto(c: LayoutCtx) {
 
   const wmW = p(124);
   const wmTop = p(478);
-  const wmH = drawWordmark(c, wmTop, wmW);
-  drawShoe(ctx, CX - wmW / 2 - p(9) - p(36), wmTop + (wmH - p(36)) / 2, p(36));
+  const wm = drawWordmarkSlot(c, wmTop, wmW);
+  const slotH = c.wordmark ? (c.wordmark.height / c.wordmark.width) * wmW : wm.h;
+  drawShoe(ctx, CX - wm.w / 2 - p(9) - p(36), wmTop + (slotH - p(36)) / 2, p(36));
 
   drawStatRow(c, pickedStats(c, 3), p(22), STORY_W - p(22), p(552));
   ctx.shadowBlur = 0;
@@ -1517,8 +1574,9 @@ function layoutStatsBar(c: LayoutCtx) {
   drawTitle(c, p(265));
   const wmW = p(140);
   const wmTop = p(292);
-  drawWordmark(c, wmTop, wmW);
-  drawShoe(ctx, CX - wmW / 2 - p(48), wmTop + p(9), p(36));
+  // Title above and numbers below sit close here: the badge gets a smaller square.
+  const wm = drawWordmarkSlot(c, wmTop, wmW, CX, p(76));
+  drawShoe(ctx, CX - wm.w / 2 - p(48), wmTop + p(9), p(36));
 
   drawStatRow(c, pickedStats(c, 3), p(18), STORY_W - p(18), p(368));
   ctx.shadowBlur = 0;
@@ -1651,6 +1709,10 @@ function shortDate(startTime: string): string | null {
  * the same script test the footer bars use, for the same reason.
  */
 function layoutSplits(c: LayoutCtx) {
+  if (c.splitMode === 'segments' && (c.act.lapBands?.length ?? 0) >= 2) {
+    layoutSegments(c);
+    return;
+  }
   const { ctx, font, act, stairs, accent, shadow, shadowBlur, i18n } = c;
   const rows = splitRows(act);
   if (!rows.length) return;
@@ -1714,10 +1776,12 @@ function layoutSplits(c: LayoutCtx) {
   ctx.font = `800 ${p(16)}px ${font}`;
   ctx.fillStyle = '#ffffff';
   ctx.fillText(i18n.splits, start, y + p(20));
-  if (stairs) {
-    const sh = p(26);
-    const sw = (stairs.width / stairs.height) * sh;
-    ctx.drawImage(stairs, rtl ? x0 : x1 - sw, y + p(20) - sh + p(3), sw, sh);
+  const mark = c.brand ?? stairs;
+  if (mark) {
+    // A box the stairs fill exactly (p(26) tall), wide enough for the lettering.
+    const bw = p(64);
+    const bh = mark === c.logo ? p(46) : p(26);
+    drawFitted(ctx, mark, { x: rtl ? x0 : x1 - bw, y: y + p(23) - bh, w: bw, h: bh }, rtl ? 0 : 1, 1, 1);
   }
   y += headH;
 
@@ -1750,6 +1814,215 @@ function layoutSplits(c: LayoutCtx) {
     ctx.fill();
     ctx.shadowBlur = saved;
     y += rowH;
+  }
+  ctx.shadowBlur = 0;
+
+  if (c.avgLine && slow > fast) {
+    // Where a bar at the run's average pace would end: every bar reaching past it
+    // was a faster-than-average kilometre. Same scale as the bars, so it can't lie.
+    const own = act.averagePace;
+    const avg = own != null && Number.isFinite(own) && own > 0
+      ? own : paces.reduce((a, b) => a + b, 0) / paces.length;
+    const share = Math.min(1, Math.max(0.2, 0.2 + (0.8 * (slow - avg)) / (slow - fast)));
+    const ax = trackStart + dir * trackW * share;
+    const rowsTop = y - rows.length * rowH;
+    ctx.save();
+    ctx.setLineDash([p(2.5), p(2)]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = p(0.9);
+    ctx.beginPath();
+    ctx.moveTo(ax, rowsTop - p(1));
+    ctx.lineTo(ax, y);
+    ctx.stroke();
+    ctx.restore();
+    ctx.direction = 'ltr';
+    ctx.textAlign = 'center';
+    ctx.font = `700 ${p(7)}px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillText(`avg ${formatPace(avg)}`, ax, rowsTop - p(3));
+  }
+}
+
+/**
+ * The KM Splits view's other chart: every lap the watch pressed, the way Strava's
+ * workout analysis draws them. Asked for on a workout run, where a lap is a STEP —
+ * a 400 m rep, a 90 s float — and binning it into kilometres averages the workout
+ * away.
+ *
+ * A bar's WIDTH is the lap's distance and its HEIGHT its speed, so a long easy lap
+ * is a wide low block and a short rep a narrow tall one; speed rather than pace
+ * because taller has to mean faster. The fastest third of the range is in the
+ * accent, the rest white fading with slowness, which is what makes the reps read
+ * as reps. Time runs in the card's reading direction: right to left on a Hebrew
+ * card, like its every other line.
+ */
+function layoutSegments(c: LayoutCtx) {
+  const { ctx, font, act, stairs, accent, shadow, shadowBlur, i18n } = c;
+  const laps = act.lapBands ?? [];
+  const rtl = /[\u0590-\u05FF]/.test(i18n.segments);
+
+  const x0 = p(22);
+  const w = STORY_W - p(44);
+  const x1 = x0 + w;
+  const start = rtl ? x1 : x0;
+  const dir = rtl ? -1 : 1;
+  const chartH = p(170);
+  const bottom = p(600);
+  const chartTop = bottom - chartH;
+
+  const title = c.showTitle && act.activityName ? act.activityName : null;
+  const date = c.showDate ? shortDate(act.startTime) : null;
+  const headH = p(34);
+  const metaH = title || date ? p(18) : 0;
+  let y = chartTop - p(14) - headH - metaH;
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = shadow;
+  ctx.shadowBlur = shadowBlur;
+
+  if (metaH) {
+    const base = y + p(12);
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.textAlign = rtl ? 'right' : 'left';
+    let cursor = start;
+    if (title) {
+      ctx.direction = rtl ? 'rtl' : 'ltr';
+      ctx.font = `700 ${p(10)}px ${font}`;
+      const room = w - p(80) - (date ? p(58) : 0);
+      ctx.fillText(title, cursor, base, room);
+      cursor += dir * Math.min(room, ctx.measureText(title).width);
+    }
+    if (date) {
+      ctx.direction = 'ltr';
+      ctx.font = `500 ${p(10)}px ${font}`;
+      ctx.fillText(title ? (rtl ? `${date} · ` : ` · ${date}`) : date, cursor, base);
+    }
+    y += metaH;
+  }
+
+  ctx.direction = rtl ? 'rtl' : 'ltr';
+  ctx.textAlign = rtl ? 'right' : 'left';
+  ctx.font = `800 ${p(16)}px ${font}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(i18n.segments, start, y + p(20));
+  const mark = c.brand ?? stairs;
+  if (mark) {
+    const bw = p(64);
+    const bh = mark === c.logo ? p(46) : p(26);
+    drawFitted(ctx, mark, { x: rtl ? x0 : x1 - bw, y: y + p(23) - bh, w: bw, h: bh }, rtl ? 0 : 1, 1, 1);
+  }
+
+  const paces = laps.map(l => l.pace);
+  const fast = Math.min(...paces);
+  const slow = Math.max(...paces);
+  const total = laps.reduce((a, l) => a + l.m, 0);
+  // Speed, floored at 80% of the slowest lap's, so the slowest bar still stands.
+  const speed = (pace: number) => 1000 / pace;
+  const vMin = speed(slow) * 0.8;
+  const vMax = speed(fast);
+  const yOf = (pace: number) => bottom - ((speed(pace) - vMin) / (vMax - vMin || 1)) * chartH;
+
+  // The pace scale takes a gutter on the reading-start side.
+  const gutter = p(26);
+  const barsW = w - gutter;
+  const barsStart = start + dir * gutter;
+  const gap = p(1.2);
+
+  ctx.shadowBlur = 0;
+
+  // Heart rate behind the bars: one step per lap, since a lap's average is all we
+  // keep. Its own scale, filled behind the bars and outlined over them, so the
+  // curve still reads where a slow lap's pale bar covers it.
+  const hrs = laps.map(l => l.hr).filter((h): h is number => h != null);
+  const hrPath = c.hrLine && hrs.length >= 2 ? new Path2D() : null;
+  const hrFill = hrPath ? new Path2D() : null;
+  if (hrPath && hrFill) {
+    const hLo = Math.min(...hrs) - 6;
+    const hHi = Math.max(...hrs) + 2;
+    const hY = (h: number) => bottom - ((h - hLo) / (hHi - hLo)) * chartH * 0.9;
+    hrFill.moveTo(barsStart, bottom);
+    let hx = barsStart;
+    let last = hrs[0];
+    laps.forEach((l, i) => {
+      const h = l.hr ?? last;
+      last = h;
+      const nx = hx + dir * (l.m / total) * barsW;
+      if (i === 0) hrPath.moveTo(hx, hY(h));
+      else hrPath.lineTo(hx, hY(h));
+      hrPath.lineTo(nx, hY(h));
+      hrFill.lineTo(hx, hY(h));
+      hrFill.lineTo(nx, hY(h));
+      hx = nx;
+    });
+    hrFill.lineTo(hx, bottom);
+    hrFill.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fill(hrFill);
+  }
+
+  let cursor = barsStart;
+  for (const l of laps) {
+    const bw = (l.m / total) * barsW;
+    const top = yOf(l.pace);
+    const t = slow === fast ? 0 : (l.pace - fast) / (slow - fast);
+    ctx.fillStyle = t < 0.35 ? accent : `rgba(255,255,255,${(0.85 - 0.5 * t).toFixed(3)})`;
+    const drawW = Math.max(bw - gap, p(0.8));
+    const r = Math.max(0, Math.min(drawW / 2, p(4)));
+    const left = rtl ? cursor - bw + gap / 2 : cursor + gap / 2;
+    ctx.beginPath();
+    ctx.roundRect(left, top, drawW, bottom - top, [r, r, 0, 0]);
+    ctx.fill();
+    cursor += dir * bw;
+  }
+
+  if (hrPath) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(200,205,220,0.9)';
+    ctx.lineWidth = p(1.1);
+    ctx.lineJoin = 'round';
+    ctx.stroke(hrPath);
+    ctx.restore();
+    ctx.shadowBlur = shadowBlur;
+    ctx.direction = 'ltr';
+    ctx.textAlign = rtl ? 'left' : 'right';
+    ctx.font = `600 ${p(8.5)}px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillText(`♥ ${Math.min(...hrs)}–${Math.max(...hrs)}`, rtl ? x0 : x1, bottom + p(13));
+    ctx.shadowBlur = 0;
+  }
+
+  const avg = act.averagePace != null && Number.isFinite(act.averagePace) && act.averagePace > 0
+    ? act.averagePace
+    : laps.reduce((a, l) => a + l.pace * l.m, 0) / total;
+  const ay = yOf(avg);
+  const showAvg = c.avgLine && ay >= chartTop && ay <= bottom;
+
+  ctx.shadowBlur = shadowBlur;
+  ctx.direction = 'ltr';
+  ctx.textAlign = rtl ? 'right' : 'left';
+  ctx.font = `600 ${p(8.5)}px ${font}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  // Whole-minute-ish ticks across the range, skipped where the avg label sits.
+  const step = slow - fast > 90 ? 60 : 30;
+  for (let pc = Math.ceil(fast / step) * step; pc <= slow / 0.8; pc += step) {
+    const ty = yOf(pc);
+    if (ty < chartTop - p(2) || ty > bottom - p(4)) continue;
+    if (showAvg && Math.abs(ty - ay) < p(10)) continue;
+    ctx.fillText(formatPace(pc), start, ty + p(3));
+  }
+
+  if (showAvg) {
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.setLineDash([p(4), p(3)]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = p(1);
+    ctx.beginPath();
+    ctx.moveTo(barsStart, ay);
+    ctx.lineTo(rtl ? x0 : x1, ay);
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillText(`avg ${formatPace(avg)}`, start, ay - p(4));
   }
   ctx.shadowBlur = 0;
 }
@@ -1820,11 +2093,13 @@ export async function renderShareCard(
   // The badge is only needed by the original three, the wordmark and stairs only
   // by the newer ones — but a failed load must never fail the share, so all three
   // resolve to null instead of throwing.
+  const wantStairs = template === 'sideBySide' || template === 'splits' || opts.brand === 'stairs';
   const [logo, wordmark, stairs] = await Promise.all([
     loadImage(LOGO_SRC).catch(() => null),
     loadImage(WORDMARK_SRC).catch(() => null),
-    template === 'sideBySide' || template === 'splits' ? loadImage(STAIRS_SRC).catch(() => null) : Promise.resolve(null),
+    wantStairs ? loadImage(STAIRS_SRC).catch(() => null) : Promise.resolve(null),
   ]);
+  const brand = opts.brand === 'badge' ? logo : opts.brand === 'wordmark' ? wordmark : opts.brand === 'stairs' ? stairs : null;
 
   // Over an unknown background the only thing keeping white text readable is the
   // shadow, so the transparent variant leans on it harder.
@@ -1835,6 +2110,10 @@ export async function renderShareCard(
     logo,
     wordmark,
     stairs,
+    brand,
+    avgLine: opts.avgLine ?? false,
+    hrLine: opts.hrLine ?? false,
+    splitMode: opts.splitMode ?? 'km',
     shadow: transparent ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.45)',
     shadowBlur: transparent ? 28 : 16,
     accent: ACCENT_HEX[opts.accent ?? 'white'],

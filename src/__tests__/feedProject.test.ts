@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { projectFeedItem, projectLike, toAchievementPayload } from '@/lib/feed/project';
+import { projectFeedItem, projectLike, toAchievementPayload, toLapBands } from '@/lib/feed/project';
 
 const baseRow = {
   id: 'feed-1',
@@ -382,5 +382,53 @@ describe('toAchievementPayload', () => {
 
   it('returns null for an unrelated payload shape (e.g. a plan-week payload read as an achievement)', () => {
     expect(toAchievementPayload({ weekNumber: 3, planId: 'abc' })).toBeNull();
+  });
+});
+
+// The KM Splits view's segments chart draws the laps as the watch pressed them,
+// which is the only way a workout's reps survive: binned into kilometres, a
+// 400 m rep and the float after it average into one unremarkable number.
+describe('feed projection — lapBands for the segments chart', () => {
+  const lap = (distance: number, duration: number) => ({ distance, duration });
+
+  it('ships each lap as metres and sec/km', () => {
+    expect(toLapBands([lap(2000, 600), lap(400, 76), lap(200, 70), lap(1000, 300)])).toEqual([
+      { m: 2000, pace: 300 }, { m: 400, pace: 190 }, { m: 200, pace: 350 }, { m: 1000, pace: 300 },
+    ]);
+  });
+
+  it('is null on an auto-lapped run, whose segments are its kilometres', () => {
+    expect(toLapBands([lap(1000, 300), lap(1004, 298), lap(996, 301), lap(560, 170)])).toBeNull();
+  });
+
+  it('drops a double press of the lap button, and needs two laps to draw', () => {
+    expect(toLapBands([lap(5000, 1500), lap(4, 2)])).toBeNull();
+    expect(toLapBands(null)).toBeNull();
+  });
+
+  it('goes with pace when the athlete hides it', () => {
+    const row = (hiddenFields: string[]) => projectFeedItem({
+      ...baseRow, type: 'activity', payload: { hiddenFields },
+      athlete_activities: {
+        id: 'act-1', athlete_id: 'athlete-1', start_time: '2026-08-09T06:00:00.000Z', distance: 2600,
+        duration: 746, average_pace: 287, route_preview: null, has_polyline: false, splits: null,
+        laps: [lap(2000, 600), lap(400, 76), lap(200, 70)],
+      },
+    }, context).activity!;
+    expect(row([]).lapBands).toHaveLength(3);
+    expect(row(['pace']).lapBands).toBeNull();
+  });
+
+  it('carries each lap\'s heart rate, and drops it alone when heart rate is hidden', () => {
+    const laps = [{ ...lap(2000, 600), averageHR: 142 }, { ...lap(400, 76), averageHR: 171 }, { ...lap(200, 70), averageHR: 0 }];
+    expect(toLapBands(laps)).toEqual([{ m: 2000, pace: 300, hr: 142 }, { m: 400, pace: 190, hr: 171 }, { m: 200, pace: 350 }]);
+    const act = projectFeedItem({
+      ...baseRow, type: 'activity', payload: { hiddenFields: ['heart_rate'] },
+      athlete_activities: {
+        id: 'act-1', athlete_id: 'athlete-1', start_time: '2026-08-09T06:00:00.000Z', distance: 2600,
+        duration: 746, average_pace: 287, route_preview: null, has_polyline: false, splits: null, laps,
+      },
+    }, context).activity!;
+    expect(act.lapBands).toEqual([{ m: 2000, pace: 300 }, { m: 400, pace: 190 }, { m: 200, pace: 350 }]);
   });
 });

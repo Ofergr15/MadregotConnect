@@ -5,7 +5,7 @@ import { join } from 'path';
 import { SHARE_TEMPLATE_KEYS, SPLITS_MAX_ROWS, splitRows, supportsPhoto, supportsTransparent } from '@/lib/feed/share-image';
 import {
   WORKOUT_TEMPLATES, defaultTemplate, drawnTemplate, fitChipKeys, fixedNumbersReason, frameCapacity,
-  shareTemplates, supportsAccent, type ShareSubject,
+  shareTemplates, supportsAccent, canSegment, canHrLine, viewBrand, type ShareSubject,
 } from '@/lib/share/sheet-model';
 import { localizeDefaultName } from '@/lib/share/default-name';
 import { buildLast7Report } from '@/lib/reports/last-7-days';
@@ -124,11 +124,13 @@ describe('the kilometre list', () => {
     expect(splitRows({ paceBands: null, distance: 5000 })).toEqual([]);
   });
 
-  it('carries the stairs mark as its only logo', () => {
+  // The stairs until the athlete picks another logo — then the pick, in the same
+  // spot beside the heading. It never gains a second logo.
+  it('carries the stairs mark by default, and the picked logo instead of it', () => {
     const body = RENDER.slice(RENDER.indexOf('function layoutSplits'), RENDER.indexOf('const LAYOUTS'));
-    expect(body).toMatch(/drawImage\(stairs/);
-    expect(body).not.toMatch(/drawWordmark|logo/);
-    expect(RENDER).toMatch(/template === 'sideBySide' \|\| template === 'splits' \? loadImage\(STAIRS_SRC\)/);
+    expect(body).toMatch(/const mark = c\.brand \?\? stairs;/);
+    expect(body).not.toMatch(/drawWordmark/);
+    expect(RENDER).toMatch(/template === 'sideBySide' \|\| template === 'splits' \|\| opts\.brand === 'stairs'/);
   });
 });
 
@@ -199,5 +201,37 @@ describe('renaming the run on its own page (#92)', () => {
       expect(HE.activities[k], k).toBeTruthy();
       expect(EN.activities[k], k).toBeTruthy();
     }
+  });
+});
+
+// Every view keeps the logo it always had unless the athlete picks another, and
+// KM Splits offers segments only when the run was lapped by something other than
+// the kilometre (#share-logo-picker, 2026-09-29).
+describe('logo picker and segments', () => {
+  it('each view names its own logo', () => {
+    expect(WORKOUT_TEMPLATES.map(viewBrand)).toEqual(['stairs', 'wordmark', 'wordmark', 'badge', 'badge', 'badge']);
+  });
+
+  it('offers segments only on a run with lap bands', () => {
+    expect(canSegment(workout())).toBe(false);
+    expect(canSegment(workout({ lapBands: [{ m: 2000, pace: 300 }, { m: 400, pace: 190 }] }))).toBe(true);
+  });
+
+  it('offers the heart-rate backdrop only when two laps carry heart rate', () => {
+    expect(canHrLine(workout({ lapBands: [{ m: 2000, pace: 300 }, { m: 400, pace: 190, hr: 170 }] }))).toBe(false);
+    expect(canHrLine(workout({ lapBands: [{ m: 2000, pace: 300, hr: 141 }, { m: 400, pace: 190, hr: 170 }] }))).toBe(true);
+  });
+
+  it('the sheet resets the logo when the view changes, and has the three tabs in both languages', () => {
+    expect(SHEET).toMatch(/setTemplate\(next\);\s*setBrand\(null\);/);
+    for (const k of ['tabDesign', 'tabData', 'tabText', 'splitKm', 'splitSegments', 'avgLine', 'hrLine', 'brandOwn']) {
+      expect(HE.shareSheet[k]).toBeTruthy();
+      expect(EN.shareSheet[k]).toBeTruthy();
+    }
+  });
+
+  it('the renderer draws the laps on a Hebrew card right to left', () => {
+    expect(RENDER).toContain('function layoutSegments');
+    expect(RENDER).toMatch(/const rtl = \/\[\\u0590-\\u05FF\]\/\.test\(i18n\.segments\)/);
   });
 });

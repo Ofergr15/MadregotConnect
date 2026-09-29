@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { Sheet } from '@/components/ui/Sheet';
 import {
   renderShareCard, shareCard, supportsPhoto, supportsTransparent, workoutPaceBars,
-  ACCENT_HEX, SHARE_ACCENT_KEYS, type ShareAccent, type ShareTemplate,
+  ACCENT_HEX, SHARE_ACCENT_KEYS, SHARE_BRAND_KEYS, type ShareAccent, type ShareBrand, type ShareTemplate,
 } from '@/lib/feed/share-image';
 import { renderWeekShareCard, WEEK_LOGO_PLACEMENTS, type WeekLogoPlacement } from '@/lib/reports/week-share-image';
 import { SHARE_CARD_LANGS, WORKOUT_CARD_TEXT, type ShareCardLang } from '@/lib/share/card-text';
@@ -15,7 +15,7 @@ import { localizeDefaultName } from '@/lib/share/default-name';
 import {
   FRAME_TEMPLATE, SHARE_FRAMES, asWeekMetrics, asWorkoutMetrics, defaultChipKeys, defaultExtraKeys,
   defaultTemplate, drawnTemplate, extraOn, fitChipKeys, fixedNumbersReason, frameCapacity, shareChips, shareExtras,
-  shareFilename, shareFrames, shareTemplates, shareVerdict, supportsAccent, toggleChip,
+  shareFilename, shareFrames, shareTemplates, shareVerdict, supportsAccent, toggleChip, canSegment, canHrLine, viewBrand,
   type ShareExtraKey, type ShareSubject,
 } from '@/lib/share/sheet-model';
 
@@ -49,6 +49,13 @@ function cardItem<T extends { activity?: { activityName?: string | null } | null
   if (!item.activity || item.activity.activityName === title) return item;
   return { ...item, activity: { ...item.activity, activityName: title.trim() } };
 }
+
+/** The white logos, for the picker's own buttons: the same files the card draws. */
+const BRAND_SRC: Record<ShareBrand, string> = {
+  badge: '/images/logo-white.png',
+  wordmark: '/images/wordmark-white.png',
+  stairs: '/images/stairs-white.png',
+};
 
 const VIEW_LABEL: Record<ShareTemplate, string> = {
   splits: 'viewSplits',
@@ -96,6 +103,15 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
   const [bg, setBg] = useState<WorkoutBackground>('club');
   const [accent, setAccent] = useState<ShareAccent>('white');
   const [logo, setLogo] = useState<WeekLogoPlacement>('above');
+  const [tab, setTab] = useState<'design' | 'data' | 'text'>('design');
+  // Null = the view's own logo (`viewBrand`); a pick lasts until the view changes.
+  const [brand, setBrand] = useState<ShareBrand | null>(null);
+  const segmentOk = canSegment(subject);
+  // A workout with steps opens on its laps; a plain run on its kilometres.
+  const [splitMode, setSplitMode] = useState<'km' | 'segments'>(() => (canSegment(subject) ? 'segments' : 'km'));
+  const [avgLine, setAvgLine] = useState(true);
+  const hrOk = canHrLine(subject);
+  const [hrLine, setHrLine] = useState(true);
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [rendering, setRendering] = useState(true);
@@ -136,8 +152,11 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
   // Only the two originals print a start time; the newer views have no slot for it.
   const startOk = subject.kind === 'workout' && (template === 'classic' || template === 'card');
 
+  const shownBrand = brand ?? viewBrand(template);
+
   const pickTemplate = useCallback((next: ShareTemplate) => {
     setTemplate(next);
+    setBrand(null);
     // How many numbers fit is a property of the view, so the selection follows it
     // rather than staying oversized and being silently truncated by the renderer.
     setKeys(prev => fitChipKeys(subject, next, prev));
@@ -156,6 +175,9 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
           const blob = await renderShareCard(cardItem(subject.item, titleText), i18n, {
             template: v.key,
             metrics: asWorkoutMetrics(defaultChipKeys(subject, v.key)),
+            splitMode: canSegment(subject) ? 'segments' : 'km',
+            avgLine: true,
+            hrLine: true,
           });
           if (cancelled) return;
           const url = URL.createObjectURL(blob);
@@ -198,6 +220,10 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
         showTitle: showTitle && titleText.trim().length > 0,
         showStartTime: startOk && showStartTime,
         showDate,
+        brand: brand ?? undefined,
+        splitMode: segmentOk ? splitMode : 'km',
+        avgLine,
+        hrLine,
         metrics: asWorkoutMetrics(keys),
         bars: barsOn ? workoutPaceBars(subject.item.activity!, i18n) : null,
         verdict: verdictOn ? shareVerdict(subject, cardLang) : null,
@@ -223,7 +249,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
     };
   }, [
     subject, photo, photoOk, keys, cardLang, withName, showTitle, titleText, showStartTime, startOk, i18n,
-    drawn, showDate, transparent, accent, barsOn, verdictOn, logo, t,
+    drawn, showDate, transparent, accent, barsOn, verdictOn, logo, brand, splitMode, segmentOk, avgLine, hrLine, t,
   ]);
 
   const handleShare = useCallback(async () => {
@@ -304,6 +330,26 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
           )}
         </div>
 
+        {/* Three tabs, one short group each, so the card above never scrolls away:
+            how it looks, what it shows, what it says. */}
+        <div className="mb-4 flex rounded-xl bg-page p-0.5">
+          {(['design', 'data', 'text'] as const).map(k => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              aria-pressed={tab === k}
+              className={cn(
+                'min-h-[44px] flex-1 rounded-lg text-sm font-bold transition-colors',
+                tab === k ? 'bg-card text-ink-900 shadow-sm' : 'text-ink-400',
+              )}
+            >
+              {t(k === 'design' ? 'tabDesign' : k === 'data' ? 'tabData' : 'tabText')}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'design' && (
+          <>
         {/* ── 1. VIEW. The one choice no chip can express. ──────────────────── */}
         <p className="mb-2 text-xs font-light text-ink-400">{t('frameTitle')}</p>
         {subject.kind === 'workout' ? (
@@ -460,8 +506,137 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
           </div>
         )}
 
+
+        {/* The logo, as the three logos themselves. No "automatic": the view's own
+            is simply the one selected when the view is picked, and says so. */}
+        {workout && (
+          <>
+            <p className="mb-2 mt-4 text-xs font-light text-ink-400">{t('logoTitle')}</p>
+            <div className="flex gap-2 pb-4">
+              {SHARE_BRAND_KEYS.map(b => {
+                const on = shownBrand === b;
+                return (
+                  <button
+                    key={b}
+                    onClick={() => setBrand(b)}
+                    aria-pressed={on}
+                    aria-label={t(b === 'badge' ? 'brandBadge' : b === 'wordmark' ? 'brandWordmark' : 'brandStairs')}
+                    className="relative flex h-14 flex-1 items-center justify-center rounded-xl bg-[#1b2140] transition-shadow"
+                    style={{ boxShadow: on ? '0 0 0 2px #fff, 0 0 0 4px #FF5315' : '0 0 0 1px rgba(0,0,0,0.06)' }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={BRAND_SRC[b]} alt="" className="max-h-9 max-w-[78%] object-contain" />
+                    {b === viewBrand(template) && (
+                      <span className="absolute -bottom-4 text-3xs font-bold text-ink-400">{t('brandOwn')}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+        {workout && (
+          <>
+            <p className="mb-2 mt-4 text-xs font-light text-ink-400">{t('backgroundTitle')}</p>
+            <div className="flex flex-wrap gap-2">
+              {(['photo', 'club', 'sticker'] as const).map(key => {
+                // "My photo" before a photo exists opens the picker; choosing a file
+                // is what switches the background, so the card never goes blank.
+                const on = bg === key && (key !== 'photo' || !!photo);
+                return (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      if (key === 'photo' && (!photo || bg === 'photo')) fileRef.current?.click();
+                      else setBg(key);
+                    }}
+                    aria-pressed={on}
+                    className={cn(
+                      'flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition-colors',
+                      on
+                        ? 'border-brand-600 bg-brand-600/10 text-brand-600'
+                        : 'border-page text-ink-400 hover:text-ink-500',
+                    )}
+                  >
+                    {key === 'photo' && <ImagePlus className="h-3.5 w-3.5" />}
+                    {key === 'photo'
+                      ? (photo && bg === 'photo' ? t('changePhoto') : t('bgPhoto'))
+                      : t(key === 'club' ? 'bgClub' : 'sticker')}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+        {!workout && photoOk && (
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-page py-2.5 text-sm font-medium text-ink-500 transition-colors hover:bg-ink-300/40"
+          >
+            <ImagePlus className="h-4 w-4" />
+            {photo ? t('changePhoto') : t('addPhoto')}
+          </button>
+        )}
+
+          </>
+        )}
+
+        {tab === 'data' && (
+          <>
+        {/* KM Splits' two questions, which no other view has. */}
+        {workout && template === 'splits' && (
+          <>
+            {segmentOk && (
+              <>
+                <p className="mb-2 text-xs font-light text-ink-400">{t('splitTitle')}</p>
+                <div className="flex rounded-full bg-page p-0.5">
+                  {(['km', 'segments'] as const).map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setSplitMode(m)}
+                      aria-pressed={splitMode === m}
+                      className={cn(
+                        'min-h-[44px] flex-1 rounded-full px-3 py-1 text-xs font-bold transition-colors',
+                        splitMode === m ? 'bg-card text-ink-700 shadow-sm' : 'text-ink-400',
+                      )}
+                    >
+                      {t(m === 'km' ? 'splitKm' : 'splitSegments')}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            <button
+              onClick={() => setAvgLine(v => !v)}
+              aria-pressed={avgLine}
+              className={cn(
+                'flex min-h-[44px] w-full items-center justify-between rounded-xl border border-page bg-card px-3 text-sm font-bold text-ink-700',
+                segmentOk && 'mt-2',
+              )}
+            >
+              {t('avgLine')}
+              <span className={cn('relative h-6 w-10 rounded-full transition-colors', avgLine ? 'bg-[#FF5315]' : 'bg-ink-300/60')}>
+                <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', avgLine ? 'end-0.5' : 'start-0.5')} />
+              </span>
+            </button>
+            {hrOk && splitMode === 'segments' && (
+              <button
+                onClick={() => setHrLine(v => !v)}
+                aria-pressed={hrLine}
+                className="mt-2 flex min-h-[44px] w-full items-center justify-between rounded-xl border border-page bg-card px-3 text-sm font-bold text-ink-700"
+              >
+                {t('hrLine')}
+                <span className={cn('relative h-6 w-10 rounded-full transition-colors', hrLine ? 'bg-[#FF5315]' : 'bg-ink-300/60')}>
+                  <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', hrLine ? 'end-0.5' : 'start-0.5')} />
+                </span>
+              </button>
+            )}
+          </>
+        )}
         {/* ── 2. CONTENT. Each chip carries its own real value. ─────────────── */}
-        <p className="mb-2 mt-4 text-xs font-light text-ink-400">{t('contentTitle')}</p>
+        {!(workout && template === 'splits') && (
+          <>
+        <p className="mb-2 text-xs font-light text-ink-400">{t('contentTitle')}</p>
         <div className="flex flex-wrap gap-2">
           {chips.map(chip => {
             const on = !fixed && keys.includes(chip.key);
@@ -500,6 +675,8 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
           <p className="mt-1.5 text-2xs text-ink-400" dir="auto">{t('contentFull', { count: capacity })}</p>
         )}
 
+          </>
+        )}
         {/* The two that are not numbers. Square-cornered rather than pill-shaped, so
             it is visible at a glance that they do not compete for the stat row. */}
         {!workout && extraOpts.length > 0 && (
@@ -539,9 +716,14 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
           </p>
         ))}
 
+          </>
+        )}
+
+        {tab === 'text' && (
+          <>
         {/* ── 3. WORDING. Both of these are about the audience OUTSIDE the club,
                which is why they are a per-share decision and not a setting. ── */}
-        <p className="mb-2 mt-4 text-xs font-light text-ink-400">{t('wordingTitle')}</p>
+        <p className="mb-2 text-xs font-light text-ink-400">{t('wordingTitle')}</p>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-full bg-page p-0.5">
             {SHARE_CARD_LANGS.map(l => (
@@ -642,6 +824,9 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
           </div>
         )}
 
+          </>
+        )}
+
         {/* ── 4. PHOTO. Last, because it is the only one that opens a file picker,
                and offered only on the frame that can composite one. ────────── */}
         <input
@@ -658,49 +843,6 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
             e.target.value = '';
           }}
         />
-        {workout && (
-          <>
-            <p className="mb-2 mt-4 text-xs font-light text-ink-400">{t('backgroundTitle')}</p>
-            <div className="flex flex-wrap gap-2">
-              {(['photo', 'club', 'sticker'] as const).map(key => {
-                // "My photo" before a photo exists opens the picker; choosing a file
-                // is what switches the background, so the card never goes blank.
-                const on = bg === key && (key !== 'photo' || !!photo);
-                return (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      if (key === 'photo' && (!photo || bg === 'photo')) fileRef.current?.click();
-                      else setBg(key);
-                    }}
-                    aria-pressed={on}
-                    className={cn(
-                      'flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition-colors',
-                      on
-                        ? 'border-brand-600 bg-brand-600/10 text-brand-600'
-                        : 'border-page text-ink-400 hover:text-ink-500',
-                    )}
-                  >
-                    {key === 'photo' && <ImagePlus className="h-3.5 w-3.5" />}
-                    {key === 'photo'
-                      ? (photo && bg === 'photo' ? t('changePhoto') : t('bgPhoto'))
-                      : t(key === 'club' ? 'bgClub' : 'sticker')}
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
-        {!workout && photoOk && (
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-page py-2.5 text-sm font-medium text-ink-500 transition-colors hover:bg-ink-300/40"
-          >
-            <ImagePlus className="h-4 w-4" />
-            {photo ? t('changePhoto') : t('addPhoto')}
-          </button>
-        )}
-
         {transparent && (
           <p className="mt-4 text-center text-xs leading-relaxed text-ink-400">{t('stickerHint')}</p>
         )}

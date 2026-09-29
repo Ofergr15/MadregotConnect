@@ -15,6 +15,7 @@
  */
 
 import { displaySplits } from '@/lib/activities/km-splits';
+import { normalizeStoredLaps } from '@/lib/garmin/laps';
 import type { FeedComment } from '@/lib/feed/comments';
 import type { FeedPlanVerdict } from '@/lib/feed/plan-verdicts';
 
@@ -51,6 +52,16 @@ export interface FeedActivity {
    * athlete has hidden their pace.
    */
   paceBands: number[] | null;
+  /**
+   * The run's laps as the watch pressed them — metres and seconds/km each — for the
+   * share card's segments chart. Null unless there are two or more and they are
+   * not all kilometres (an auto-lapped run's segments ARE its kilometres, and the
+   * km view already draws those). Blanked with `averagePace` like `paceBands`.
+   * `hr` is the lap's average heart rate, for the grey curve behind the bars;
+   * absent when the strap had none, stripped when heart rate is hidden.
+   * Optional so the many hand-built activities in tests and previews stay valid.
+   */
+  lapBands?: Array<{ m: number; pace: number; hr?: number }> | null;
   /**
    * How closely this run matched the day's plan, resolved server-side by
    * `loadFeedPlanVerdicts`. Null when the day had no plan, when nothing in it was
@@ -237,6 +248,33 @@ function toPaceBands(v: unknown, laps?: unknown): number[] | null {
   return paces.length === v.length && paces.length > 1 ? paces : null;
 }
 
+/**
+ * A lap within this of 1000 m is a kilometre lap. Garmin's auto-lap lands a few
+ * metres either side of the mark, and the last lap of any run is whatever was left.
+ */
+const KM_LAP_TOLERANCE = 30;
+
+/**
+ * The laps for the segments chart: distance, pace and average heart rate, nothing
+ * else. A lap under 10 m is a double press of the lap button, not a segment anyone ran.
+ */
+export function toLapBands(laps: unknown): Array<{ m: number; pace: number; hr?: number }> | null {
+  const bands = normalizeStoredLaps(laps)
+    .filter(l => l.distance >= 10)
+    .map(l => {
+      const band: { m: number; pace: number; hr?: number } = {
+        m: Math.round(l.distance),
+        pace: Math.round(l.duration / (l.distance / 1000)),
+      };
+      if (l.averageHR != null && l.averageHR > 0) band.hr = Math.round(l.averageHR);
+      return band;
+    })
+    .filter(b => Number.isFinite(b.pace) && b.pace > 0);
+  if (bands.length < 2) return null;
+  const allKm = bands.slice(0, -1).every(b => Math.abs(b.m - 1000) <= KM_LAP_TOLERANCE);
+  return allKm ? null : bands;
+}
+
 function toMedia(v: unknown): FeedMedia[] {
   if (!Array.isArray(v)) return [];
   return v
@@ -276,6 +314,7 @@ function projectActivity(row: RawActivityRow, planVerdict: FeedPlanVerdict | nul
     routePreview: route,
     hasRoute: !!route || !!row.has_polyline,
     paceBands: toPaceBands(row.splits, row.laps),
+    lapBands: toLapBands(row.laps),
     planVerdict,
   };
 }
@@ -326,6 +365,11 @@ function maskHiddenStats(activity: FeedActivity, hidden: Set<HiddenFieldKey>): F
     // would let anyone read off a hidden average from the card's own heat map
     // (and, colours aside, straight out of the JSON).
     paceBands: hidden.has('pace') ? null : activity.paceBands,
+    lapBands: hidden.has('pace')
+      ? null
+      : hidden.has('heart_rate')
+        ? activity.lapBands?.map(({ m, pace }) => ({ m, pace })) ?? activity.lapBands
+        : activity.lapBands,
     // The plan badge is a statement about pace among other things — "slower than
     // the target band" is a pace disclosure, coarser but the same kind. Hiding
     // pace hides the badge outright rather than shipping a version of it computed
@@ -437,10 +481,11 @@ export function projectLike(value: unknown): { itemId: string; liker: FeedLiker 
 /**
  * Columns /api/feed selects. Kept next to the projection so the two can't drift.
  *
- * `laps` is read for the plan badge, not for the card: `loadFeedPlanVerdicts` grades
- * each planned block over its own stretch of the run, and the laps are the distance/
- * time axis it needs. It never reaches the client — `projectFeedItem` doesn't emit it
- * — so this costs the page a wider server-side read and nothing on the wire.
+ * `laps` is read for the plan badge first: `loadFeedPlanVerdicts` grades each
+ * planned block over its own stretch of the run, and the laps are the distance/time
+ * axis it needs. The raw laps never reach the client. What does is `lapBands` —
+ * metres and pace per lap, for the share card's segments chart — and only on a run
+ * lapped by something other than the kilometre.
  */
 export const FEED_SELECT = `
   id, type, author_athlete_id, body, media, payload, occurred_at,
