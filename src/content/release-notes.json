@@ -1,5 +1,13 @@
 [
   {
+    "id": "share-km-splits-en",
+    "date": "2026-09-29",
+    "kind": "feature",
+    "icon": "🔤",
+    "title": "״KM Splits״ בכרטיס באנגלית",
+    "body": "בכרטיס שיתוף באנגלית, הכותרת של תצוגת ק״מ אחרי ק״מ היא עכשיו KM Splits — השם שרצים מכירים מ-Strava וגרמין."
+  },
+  {
     "id": "share-splits-from-laps",
     "date": "2026-09-29",
     "kind": "fix",

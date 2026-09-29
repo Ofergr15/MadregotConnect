@@ -50,7 +50,7 @@ export const WORKOUT_CARD_TEXT: Record<ShareCardLang, ShareI18n> = {
     metres: 'm',
     hoursShort: 'h',
     minutesShort: 'min',
-    splits: 'Kilometre by kilometre',
+    splits: 'KM Splits',
     fastest: 'tallest = fastest',
   },
 };
