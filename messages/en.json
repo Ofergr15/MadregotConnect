@@ -1902,7 +1902,9 @@
     "planRepsRun": "{attempted} of {needed} reps were run, {found} of them at target pace",
     "planRepsNoLaps": "The watch recorded the run as a single lap, so the individual reps can't be identified.",
     "planRepsCoarse": "The laps the watch recorded (about {meters} m) don't line up with the planned reps, so they can't be identified — this doesn't mean the workout wasn't done.",
-    "planLevelAbove": "Above plan"
+    "planLevelAbove": "Above plan",
+    "renameAction": "Rename this run",
+    "renameError": "Could not save the name. Try again."
   },
   "connectPrompt": {
     "title": "Connect Your Training Data",
@@ -3010,6 +3012,7 @@
     "nameOff": "No name",
     "titleOn": "With the run's name",
     "titleOff": "Without the run's name",
+    "titleEdit": "A different name for the card",
     "sticker": "Transparent sticker",
     "accentTitle": "Route colour",
     "accentWhite": "White",
@@ -3034,7 +3037,17 @@
     "fixedNumbers": "This style always prints the same numbers — pick another style to choose them.",
     "noNumbers": "This style carries no numbers, just the route.",
     "startOn": "With start time",
-    "startOff": "Without start time"
+    "startOff": "Without start time",
+    "viewSplits": "Km by km",
+    "noSplitsView": "This run has no per-kilometre splits saved, so it has no km-by-km view.",
+    "splitsNumbers": "In this style the chart is the numbers — for distance and pace, pick Route or Stats bar.",
+    "routeWithStats": "Route + stats",
+    "dateOn": "With the date",
+    "dateOff": "Without the date",
+    "titleReset": "Back to the original name",
+    "backgroundTitle": "Background",
+    "bgPhoto": "My photo",
+    "bgClub": "Club background"
   },
   "watchAlerts": {
     "title": "Alerts & voice on your watch",

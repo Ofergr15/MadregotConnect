@@ -1,5 +1,6 @@
 import {
-  availableWorkoutMetrics, hasRouteTrace, paceBandCount, requiresRoute, supportsFooter, workoutMetricStat,
+  availableWorkoutMetrics, hasRouteTrace, paceBandCount, requiresRoute, requiresSplits, supportsFooter,
+  workoutMetricStat,
   type ShareI18n, type ShareTemplate, type ShareVerdict, type WorkoutMetricKey,
 } from '@/lib/feed/share-image';
 import {
@@ -62,11 +63,33 @@ export const FRAME_TEMPLATE: Record<ShareFrame, ShareTemplate> = {
  * off the view instead.
  */
 
-/** Gallery order: the route family, the numbers family, then the photo family. */
+/*
+ * ── SIX, NOT ELEVEN ─────────────────────────────────────────────────────────
+ * Ten views plus the new kilometre list was "too much" on one screen. The six he
+ * kept are below; the other five are folded in rather than lost where they had a
+ * real job: `routeOnly` is the route view's "route only" switch, and `photo` is
+ * what the stats bar draws over the athlete's own picture (`drawnTemplate`).
+ * `bigNumbers`, `fullStats` and `sideBySide` are still drawn by the renderer, and
+ * the week still uses `fullStats`, but a workout no longer offers them.
+ */
+
+/** Grid order, three by two: the two new-style views first, then the originals. */
 export const WORKOUT_TEMPLATES: ShareTemplate[] = [
-  'route', 'routeOnly', 'bigNumbers', 'statsBar', 'fullStats',
-  'sideBySide', 'photo', 'classic', 'card', 'minimal',
+  'splits', 'route', 'statsBar', 'classic', 'card', 'minimal',
 ];
+
+/**
+ * What the renderer draws for a chosen view. The sheet's view is a choice of LOOK;
+ * two of those looks have a variant that is a different template underneath.
+ */
+export function drawnTemplate(
+  view: ShareTemplate,
+  opts: { routeOnly?: boolean; withPhoto?: boolean },
+): ShareTemplate {
+  if (view === 'route' && opts.routeOnly) return 'routeOnly';
+  if (view === 'statsBar' && opts.withPhoto) return 'photo';
+  return view;
+}
 
 /** Either a frame or a view; `numbers` is the one frame name that is not a view. */
 export type ShareLook = ShareFrame | ShareTemplate;
@@ -78,16 +101,18 @@ export function lookTemplate(look: ShareLook): ShareTemplate {
 export interface TemplateOption {
   key: ShareTemplate;
   available: boolean;
-  reason?: 'noRoute';
+  reason?: 'noRoute' | 'noSplits';
 }
 
-/** All ten, always, in gallery order — the ones a run cannot draw greyed with why. */
+/** All six, always, in grid order — the ones a run cannot draw greyed with why. */
 export function shareTemplates(subject: ShareSubject): TemplateOption[] {
   const act = subject.kind === 'workout' ? subject.item.activity : null;
   const routed = !!act && hasRouteTrace(act);
+  const split = !!act && paceBandCount(act) >= 2;
   return WORKOUT_TEMPLATES.map(key => {
-    const ok = routed || !requiresRoute(key);
-    return { key, available: ok, reason: ok ? undefined : 'noRoute' };
+    if (requiresRoute(key) && !routed) return { key, available: false, reason: 'noRoute' };
+    if (requiresSplits(key) && !split) return { key, available: false, reason: 'noSplits' };
+    return { key, available: true };
   });
 }
 
@@ -99,8 +124,9 @@ export function shareTemplates(subject: ShareSubject): TemplateOption[] {
  * grey with one line, and the selection is kept, so tapping back to a view that
  * does read the chips finds them as they were left.
  */
-const FIXED_NUMBERS: Partial<Record<ShareTemplate, 'noNumbers' | 'fixedNumbers'>> = {
+const FIXED_NUMBERS: Partial<Record<ShareTemplate, 'noNumbers' | 'fixedNumbers' | 'splitsNumbers'>> = {
   routeOnly: 'noNumbers',
+  splits: 'splitsNumbers',
   classic: 'fixedNumbers',
   card: 'fixedNumbers',
   minimal: 'fixedNumbers',
@@ -109,7 +135,7 @@ const FIXED_NUMBERS: Partial<Record<ShareTemplate, 'noNumbers' | 'fixedNumbers'>
 export function fixedNumbersReason(
   subject: ShareSubject,
   look: ShareLook,
-): 'noNumbers' | 'fixedNumbers' | undefined {
+): 'noNumbers' | 'fixedNumbers' | 'splitsNumbers' | undefined {
   return subject.kind === 'workout' ? FIXED_NUMBERS[lookTemplate(look)] : undefined;
 }
 
@@ -121,14 +147,22 @@ export function fixedNumbersReason(
 export function supportsAccent(subject: ShareSubject, look: ShareLook): boolean {
   if (subject.kind !== 'workout') return false;
   const t = lookTemplate(look);
-  if (t === 'route' || t === 'routeOnly' || t === 'bigNumbers' || t === 'sideBySide') return true;
+  if (t === 'route' || t === 'routeOnly' || t === 'bigNumbers' || t === 'sideBySide' || t === 'splits') {
+    return true;
+  }
   const act = subject.item.activity;
   return (t === 'classic' || t === 'card') && !!act && hasRouteTrace(act);
 }
 
-/** What a workout opens on — the same answer as `defaultFrame`, as a view. */
+/**
+ * What the sheet opens on: a workout on its own shape when it has one, then its
+ * kilometres, then the stats bar, which every run can draw. The week keeps
+ * `defaultFrame`, since it still picks a frame rather than a view.
+ */
 export function defaultTemplate(subject: ShareSubject): ShareTemplate {
-  return FRAME_TEMPLATE[defaultFrame(subject)];
+  if (subject.kind === 'week') return FRAME_TEMPLATE[defaultFrame(subject)];
+  const ok = new Set(shareTemplates(subject).filter(v => v.available).map(v => v.key));
+  return ok.has('route') ? 'route' : ok.has('splits') ? 'splits' : 'statsBar';
 }
 
 export type ShareSubject =

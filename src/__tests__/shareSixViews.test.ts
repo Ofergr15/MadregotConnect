@@ -1,0 +1,201 @@
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { join } from 'path';
+import { SHARE_TEMPLATE_KEYS, SPLITS_MAX_ROWS, splitRows, supportsPhoto, supportsTransparent } from '@/lib/feed/share-image';
+import {
+  WORKOUT_TEMPLATES, defaultTemplate, drawnTemplate, fitChipKeys, fixedNumbersReason, frameCapacity,
+  shareTemplates, supportsAccent, type ShareSubject,
+} from '@/lib/share/sheet-model';
+import { localizeDefaultName } from '@/lib/share/default-name';
+import { buildLast7Report } from '@/lib/reports/last-7-days';
+import type { FeedActivity, FeedItem } from '@/lib/feed/project';
+
+const SRC = fileURLToPath(new URL('../', import.meta.url));
+const SHEET = readFileSync(join(SRC, 'components/ShareSheet.tsx'), 'utf8');
+const PAGE = readFileSync(join(SRC, 'app/(app)/dashboard/activities/[activityId]/page.tsx'), 'utf8');
+const NAME = readFileSync(join(SRC, 'components/activity/ActivityName.tsx'), 'utf8');
+const RENDER = readFileSync(join(SRC, 'lib/feed/share-image.ts'), 'utf8');
+const HE = JSON.parse(readFileSync(join(SRC, '../messages/he.json'), 'utf8'));
+const EN = JSON.parse(readFileSync(join(SRC, '../messages/en.json'), 'utf8'));
+
+/**
+ * SIX VIEWS ON THE WORKOUT SHEET.
+ *
+ * Ten views plus a new kilometre list was "too much" for one screen, and he picked
+ * the six to keep: card, classic, minimal, the stats bar ("with a photo or without,
+ * in the settings"), km by km, and the route ("with an option to show only the
+ * route"). The other views are folded into those two switches rather than lost.
+ */
+
+const ROUTE = [{ lat: 32, lng: 34 }, { lat: 32.1, lng: 34.1 }, { lat: 32.2, lng: 34.2 }];
+const BANDS = [270, 265, 258, 249, 244];
+
+const workout = (over: Partial<FeedActivity> = {}): ShareSubject => ({
+  kind: 'workout',
+  item: {
+    id: 'feed-item-1234567890',
+    activity: {
+      id: 'a1', startTime: '2026-09-19 06:01:40', distance: 11400, duration: 2921,
+      averagePace: 256, averageHr: 171, calories: 812, elevationGain: 94,
+      activityName: 'Intervals', routePreview: ROUTE, paceBands: BANDS, ...over,
+    } as FeedActivity,
+  } as FeedItem,
+});
+const noRoute = { routePreview: null } as Partial<FeedActivity>;
+const noSplits = { paceBands: null } as Partial<FeedActivity>;
+
+describe('the six', () => {
+  it('are the six he kept, in grid order, and all drawable by the renderer', () => {
+    expect(WORKOUT_TEMPLATES).toEqual(['splits', 'route', 'statsBar', 'classic', 'card', 'minimal']);
+    for (const t of WORKOUT_TEMPLATES) expect(SHARE_TEMPLATE_KEYS).toContain(t);
+    expect(shareTemplates(workout()).every(v => v.available)).toBe(true);
+  });
+
+  it('greys a view it cannot draw and says why, never hides it', () => {
+    const views = shareTemplates(workout({ ...noRoute, ...noSplits }));
+    expect(views).toHaveLength(6);
+    expect(views.find(v => v.key === 'route')).toMatchObject({ available: false, reason: 'noRoute' });
+    expect(views.find(v => v.key === 'splits')).toMatchObject({ available: false, reason: 'noSplits' });
+  });
+
+  it('opens on the route, then the kilometres, then the stats bar', () => {
+    expect(defaultTemplate(workout())).toBe('route');
+    expect(defaultTemplate(workout(noRoute))).toBe('splits');
+    expect(defaultTemplate(workout({ ...noRoute, ...noSplits }))).toBe('statsBar');
+  });
+});
+
+describe('the two switches that replaced four views', () => {
+  it('draws route-only from the route view', () => {
+    expect(drawnTemplate('route', { routeOnly: true })).toBe('routeOnly');
+    expect(drawnTemplate('route', { routeOnly: false })).toBe('route');
+    // The switch belongs to the route view; elsewhere it changes nothing.
+    expect(drawnTemplate('statsBar', { routeOnly: true })).toBe('statsBar');
+  });
+
+  it('draws the stats bar over a photo as the photo view', () => {
+    expect(drawnTemplate('statsBar', { withPhoto: true })).toBe('photo');
+    expect(drawnTemplate('statsBar', { withPhoto: false })).toBe('statsBar');
+  });
+
+  it('offers every background on every view', () => {
+    for (const v of WORKOUT_TEMPLATES) {
+      expect(supportsPhoto(drawnTemplate(v, { withPhoto: true })), v).toBe(true);
+      expect(supportsTransparent(drawnTemplate(v, { withPhoto: false })), v).toBe(true);
+    }
+  });
+});
+
+describe('the kilometre list', () => {
+  it('prints no summary numbers, and the chips say so', () => {
+    const s = workout();
+    expect(frameCapacity(s, 'splits')).toBe(0);
+    expect(fixedNumbersReason(s, 'splits')).toBe('splitsNumbers');
+    expect(frameCapacity(s, 'routeOnly')).toBe(0);
+    expect(frameCapacity(s, 'route')).toBe(3);
+  });
+
+  it('keeps the chip selection across a view that ignores it', () => {
+    const six = ['km', 'pace', 'time', 'elev', 'cal', 'hr'];
+    expect(fitChipKeys(workout(), 'splits', six)).toEqual(six);
+    expect(fitChipKeys(workout(), 'statsBar', six)).toHaveLength(3);
+  });
+
+  it('colours its bars with the accent', () => {
+    expect(supportsAccent(workout(), 'splits')).toBe(true);
+    expect(supportsAccent(workout(), 'statsBar')).toBe(false);
+    const week: ShareSubject = { kind: 'week', report: buildLast7Report([], '2026-09-20') };
+    expect(supportsAccent(week, 'route')).toBe(false);
+  });
+
+  it('has one row per kilometre, and pairs them above 21 so a marathon fits', () => {
+    expect(splitRows({ paceBands: BANDS, distance: 5200 }).map(r => r.km)).toEqual([1, 2, 3, 4, 5]);
+    const long = Array.from({ length: 42 }, (_, i) => 300 + i);
+    const rows = splitRows({ paceBands: long, distance: 42195 });
+    expect(rows).toHaveLength(21);
+    expect(rows[0]).toEqual({ km: 2, pace: 300.5 });
+    expect(rows.at(-1)!.km).toBe(42);
+    const odd = splitRows({ paceBands: long.slice(0, 23), distance: 23100 });
+    expect(odd.at(-1)).toEqual({ km: 23, pace: 322 });
+    expect(splitRows({ paceBands: long.slice(0, SPLITS_MAX_ROWS), distance: 21100 })).toHaveLength(21);
+    expect(splitRows({ paceBands: null, distance: 5000 })).toEqual([]);
+  });
+
+  it('carries the stairs mark as its only logo', () => {
+    const body = RENDER.slice(RENDER.indexOf('function layoutSplits'), RENDER.indexOf('const LAYOUTS'));
+    expect(body).toMatch(/drawImage\(stairs/);
+    expect(body).not.toMatch(/drawWordmark|logo/);
+    expect(RENDER).toMatch(/template === 'sideBySide' \|\| template === 'splits' \? loadImage\(STAIRS_SRC\)/);
+  });
+});
+
+describe('the watch\'s name, in the card\'s language (#93)', () => {
+  it('translates the names Garmin and Strava generate', () => {
+    expect(localizeDefaultName('Berlin ריצה', 'en')).toBe('Berlin Running');
+    expect(localizeDefaultName('Berlin Running', 'he')).toBe('Berlin ריצה');
+    expect(localizeDefaultName('ריצה', 'en')).toBe('Running');
+    expect(localizeDefaultName('Treadmill Running', 'he')).toBe('ריצה בהליכון');
+    expect(localizeDefaultName('ריצה בשביל', 'en')).toBe('Trail Running');
+    expect(localizeDefaultName('Morning Run', 'he')).toBe('ריצת בוקר');
+    expect(localizeDefaultName('City of Westminster Running', 'he')).toBe('City of Westminster ריצה');
+  });
+
+  it('leaves a name the athlete chose alone', () => {
+    for (const n of ['Intervals 6×1000', 'ריצה עם יוסי', 'Long run', 'Running with Dana', 'Meliteieoi ריצה קלה']) {
+      expect(localizeDefaultName(n, 'en')).toBe(n);
+      expect(localizeDefaultName(n, 'he')).toBe(n);
+    }
+  });
+
+  it('follows the language toggle until the athlete types', () => {
+    expect(SHEET).toMatch(/const titleText = typedTitle \?\? localizeDefaultName\(originalTitle, cardLang\)/);
+    expect(SHEET).toMatch(/onClick=\{\(\) => setTypedTitle\(null\)\}/);
+  });
+});
+
+describe('the sheet', () => {
+  it('shows the six as a three-by-two grid, never a rail that scrolls', () => {
+    expect(SHEET).toMatch(/grid grid-cols-3/);
+    expect(SHEET).toMatch(/views\.map\(v =>/);
+    expect(SHEET).not.toMatch(/overflow-x-auto/);
+  });
+
+  it('reads photo, accent and capacity off what is actually drawn', () => {
+    expect(SHEET).toMatch(/drawnTemplate\(template, \{ routeOnly, withPhoto: bg === 'photo' && !!photo \}\)/);
+    expect(SHEET).toMatch(/const accentOk = supportsAccent\(subject, drawn\)/);
+    expect(SHEET).toMatch(/frameCapacity\(subject, drawn\)/);
+    expect(SHEET).toMatch(/template: drawn,/);
+  });
+
+  it('has one background row in place of a photo button and a sticker toggle', () => {
+    expect(SHEET).toMatch(/\['photo', 'club', 'sticker'\] as const/);
+    expect(SHEET).not.toMatch(/setSticker/);
+  });
+
+  it('has every label in both languages', () => {
+    for (const k of ['viewSplits', 'viewRoute', 'viewRouteOnly', 'viewStatsBar', 'viewClassic', 'viewCard',
+      'viewMinimal', 'routeWithStats', 'noRouteViews', 'noSplitsView', 'splitsNumbers', 'fixedNumbers',
+      'noNumbers', 'startOn', 'startOff', 'dateOn', 'dateOff', 'titleEdit', 'titleReset', 'backgroundTitle',
+      'bgPhoto', 'bgClub', 'sticker', 'changePhoto']) {
+      expect(HE.shareSheet[k], k).toBeTruthy();
+      expect(EN.shareSheet[k], k).toBeTruthy();
+    }
+  });
+});
+
+describe('renaming the run on its own page (#92)', () => {
+  it('shows the name in the header, with a pencil for its owner only', () => {
+    expect(PAGE).toMatch(/<ActivityName activityId=\{act\.id\} name=\{act\.activity_name\} editable=\{isMyActivity\} \/>/);
+  });
+
+  it('saves through the existing author-checked feed PATCH, not a new endpoint', () => {
+    expect(NAME).toMatch(/fetchFeedItemByActivity\(activityId\)/);
+    expect(NAME).toMatch(/updateFeedItem\(item\.id, \{ activityName: next \}\)/);
+    expect(NAME).not.toMatch(/fetch\(['`]\/api/);
+    for (const k of ['renameAction', 'renameError']) {
+      expect(HE.activities[k], k).toBeTruthy();
+      expect(EN.activities[k], k).toBeTruthy();
+    }
+  });
+});

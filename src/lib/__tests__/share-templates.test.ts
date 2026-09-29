@@ -30,8 +30,8 @@ const treadmill = { routePreview: null };
 
 describe('the share template set', () => {
   it('is the two bands and nothing else, with no duplicates', () => {
-    expect(SHARE_TEMPLATE_KEYS).toHaveLength(10);
-    expect(new Set(SHARE_TEMPLATE_KEYS).size).toBe(10);
+    expect(SHARE_TEMPLATE_KEYS).toHaveLength(11);
+    expect(new Set(SHARE_TEMPLATE_KEYS).size).toBe(11);
     expect(SHARE_TEMPLATE_KEYS).toEqual([...NEW_TEMPLATE_KEYS, ...LEGACY_TEMPLATE_KEYS]);
   });
 
@@ -59,9 +59,9 @@ describe('templatesForActivity', () => {
     expect(templatesForActivity(withRoute)).toEqual(SHARE_TEMPLATE_KEYS);
   });
 
-  it('drops only the three route views for a treadmill run, keeping seven', () => {
+  it('drops only the three route views for a treadmill run, keeping eight', () => {
     const left = templatesForActivity(treadmill);
-    expect(left).toHaveLength(7);
+    expect(left).toHaveLength(8);
     for (const gone of ['route', 'routeOnly', 'bigNumbers']) expect(left).not.toContain(gone);
   });
 
@@ -78,8 +78,13 @@ describe('templatesForActivity', () => {
 
 describe('background capability', () => {
   it('lets the photo views take a photo, and only those', () => {
+    // The route and the kilometre list joined in the six-view sheet, whose one
+    // background row ("my photo / club / sticker") is offered on every view.
     expect(SHARE_TEMPLATE_KEYS.filter(supportsPhoto)).toEqual([
       'photo',
+      'route',
+      'routeOnly',
+      'splits',
       'classic',
       'card',
       'minimal',
@@ -88,7 +93,7 @@ describe('background capability', () => {
 
   it('has no transparent variant of the one view that is defined by its background', () => {
     expect(supportsTransparent('photo')).toBe(false);
-    expect(SHARE_TEMPLATE_KEYS.filter(supportsTransparent)).toHaveLength(9);
+    expect(SHARE_TEMPLATE_KEYS.filter(supportsTransparent)).toHaveLength(10);
   });
 });
 

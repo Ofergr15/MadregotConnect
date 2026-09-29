@@ -26,7 +26,10 @@ const BRAND = '#1525FF';
 const LOGO_SRC = '/images/logo-white.png';
 /** The MADREGOT wordmark. Used by the seven newer views in place of the badge. */
 const WORDMARK_SRC = '/images/wordmark-white.png';
-/** The club's stairs mark — `sideBySide` uses it where the other views use a route. */
+/**
+ * The club's stairs mark — `sideBySide` uses it where the other views use a route,
+ * and `splits` as its only logo, beside the heading.
+ */
 const STAIRS_SRC = '/images/stairs-white.png';
 
 /**
@@ -46,7 +49,8 @@ export type ShareTemplate =
   | 'statsBar'
   | 'fullStats'
   | 'sideBySide'
-  | 'bigNumbers';
+  | 'bigNumbers'
+  | 'splits';
 
 /** The three that shipped first, drawn exactly as they always were. */
 export const LEGACY_TEMPLATE_KEYS: ShareTemplate[] = ['classic', 'card', 'minimal'];
@@ -60,6 +64,7 @@ export const NEW_TEMPLATE_KEYS: ShareTemplate[] = [
   'fullStats',
   'sideBySide',
   'bigNumbers',
+  'splits',
 ];
 
 /** Rail order: the new band first, then the originals. */
@@ -77,11 +82,18 @@ export const DEFAULT_SHARE_TEMPLATE: ShareTemplate = 'route';
 const ROUTE_REQUIRED: ShareTemplate[] = ['route', 'routeOnly', 'bigNumbers'];
 
 /** Views that can sit on the athlete's own photo. */
-const PHOTO_CAPABLE: ShareTemplate[] = ['classic', 'card', 'minimal', 'photo'];
+const PHOTO_CAPABLE: ShareTemplate[] = [
+  'classic', 'card', 'minimal', 'photo', 'route', 'routeOnly', 'splits',
+];
 
 /** A view with nothing to draw without GPS — the sheet greys it and says so. */
 export function requiresRoute(template: ShareTemplate): boolean {
   return ROUTE_REQUIRED.includes(template);
+}
+
+/** `splits` IS the per-kilometre chart, so without two splits it has nothing to draw. */
+export function requiresSplits(template: ShareTemplate): boolean {
+  return template === 'splits';
 }
 
 export function hasRouteTrace(act: Pick<FeedActivity, 'routePreview'>): boolean {
@@ -124,6 +136,9 @@ export function templatesForActivity(act: Pick<FeedActivity, 'routePreview'>): S
   const routed = hasRouteTrace(act);
   return SHARE_TEMPLATE_KEYS.filter(t => routed || !ROUTE_REQUIRED.includes(t));
 }
+
+/** The two-kilometre rows start above this many kilometres. */
+export const SPLITS_MAX_ROWS = 21;
 
 /**
  * The accent applies to **the run's own line and nothing else** — the route, or the
@@ -216,6 +231,11 @@ export interface ShareCardOptions {
    * point is the bare number.
    */
   showStartTime?: boolean;
+  /**
+   * Print the run's date beside its name. Only `splits` has a line for it, and it
+   * defaults to on there — the list of kilometres is otherwise undated.
+   */
+  showDate?: boolean;
   /**
    * Which numbers go on the card, chosen by the athlete in the sheet.
    *
@@ -780,6 +800,7 @@ interface LayoutCtx {
   i18n: ShareI18n;
   showTitle: boolean;
   showStartTime: boolean;
+  showDate: boolean;
   /** The chosen numbers, in card order — see WORKOUT_METRICS. */
   metrics: WorkoutMetricKey[];
   /** The per-kilometre bars, when the athlete turned them on. */
@@ -1589,6 +1610,140 @@ function layoutBigNumbers(c: LayoutCtx) {
   drawWordmark(c, p(522), p(190));
 }
 
+/**
+ * The rows of the `splits` list: one per kilometre up to SPLITS_MAX_ROWS, and one
+ * per two kilometres above it, so a marathon still fits the frame. A pair's pace is
+ * the mean of its two; `km` is the kilometre the row ENDS on.
+ */
+export function splitRows(act: Pick<FeedActivity, 'paceBands' | 'distance'>): { km: number; pace: number }[] {
+  const n = paceBandCount(act);
+  if (n < 2) return [];
+  const paces = act.paceBands!.slice(0, n);
+  if (n <= SPLITS_MAX_ROWS) return paces.map((pace, i) => ({ km: i + 1, pace }));
+  const rows: { km: number; pace: number }[] = [];
+  for (let i = 0; i < n; i += 2) {
+    const pair = paces.slice(i, i + 2);
+    rows.push({ km: i + pair.length, pace: pair.reduce((a, b) => a + b, 0) / pair.length });
+  }
+  return rows;
+}
+
+/** "23.09.26" from the stored "2026-09-23 06:01:40" — its own parts, no timezone. */
+function shortDate(startTime: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(startTime);
+  return m ? `${m[3]}.${m[2]}.${m[1].slice(2)}` : null;
+}
+
+/**
+ * Kilometre by kilometre, and nothing else: no route and no summary numbers.
+ *
+ * Requested against a Strava story that pasted its own splits list beside our card,
+ * because we had no view like it. So this is ONLY the list, with the stairs mark as
+ * its one logo, beside the heading. The longest bar is the fastest kilometre; the
+ * slowest keeps a fifth of the track so it never reads as missing.
+ *
+ * The panel sits on the reading-start side, which follows the CARD's language —
+ * the same script test the footer bars use, for the same reason.
+ */
+function layoutSplits(c: LayoutCtx) {
+  const { ctx, font, act, stairs, accent, shadow, shadowBlur, i18n } = c;
+  const rows = splitRows(act);
+  if (!rows.length) return;
+  const rtl = /[\u0590-\u05FF]/.test(i18n.splits);
+
+  const w = p(214);
+  const x0 = rtl ? STORY_W - p(22) - w : p(22);
+  const x1 = x0 + w;
+  const start = rtl ? x1 : x0;
+  const dir = rtl ? -1 : 1;
+  const rowH = p(13.5);
+  const bottom = p(600);
+
+  const kmW = p(15);
+  const paceW = p(29);
+  const gap = p(4);
+  const trackH = p(6);
+
+  const title = c.showTitle && act.activityName ? act.activityName : null;
+  const date = c.showDate ? shortDate(act.startTime) : null;
+  const headH = p(34);
+  const metaH = title || date ? p(18) : 0;
+  let y = bottom - rows.length * rowH - headH - metaH;
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = shadow;
+  ctx.shadowBlur = shadowBlur;
+
+  if (metaH) {
+    // Name and date as two runs, never one string: a Hebrew name followed by
+    // digits is exactly the mixed-direction line the bidi algorithm reorders.
+    // Name, then date, in reading order — as two runs, never one string: a Hebrew
+    // name followed by digits is the mixed-direction line bidi reorders.
+    const base = y + p(12);
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.textAlign = rtl ? 'right' : 'left';
+    let cursor = start;
+    if (title) {
+      ctx.direction = rtl ? 'rtl' : 'ltr';
+      ctx.font = `700 ${p(10)}px ${font}`;
+      const room = w - (date ? p(58) : 0);
+      ctx.fillText(title, cursor, base, room);
+      cursor += dir * Math.min(room, ctx.measureText(title).width);
+    }
+    if (date) {
+      ctx.direction = 'ltr';
+      ctx.font = `500 ${p(10)}px ${font}`;
+      ctx.fillText(title ? (rtl ? `${date} · ` : ` · ${date}`) : date, cursor, base);
+    }
+    y += metaH;
+  }
+
+  // The heading, and the stairs at the far end of the same line.
+  ctx.direction = rtl ? 'rtl' : 'ltr';
+  ctx.textAlign = rtl ? 'right' : 'left';
+  ctx.font = `800 ${p(16)}px ${font}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(i18n.splits, start, y + p(20));
+  if (stairs) {
+    const sh = p(26);
+    const sw = (stairs.width / stairs.height) * sh;
+    ctx.drawImage(stairs, rtl ? x0 : x1 - sw, y + p(20) - sh + p(3), sw, sh);
+  }
+  y += headH;
+
+  const paces = rows.map(r => r.pace);
+  const fast = Math.min(...paces);
+  const slow = Math.max(...paces);
+  const trackW = w - kmW - paceW - gap * 2;
+  const trackStart = start + dir * (kmW + gap);
+
+  for (const r of rows) {
+    const mid = y + rowH / 2;
+    ctx.direction = 'ltr';
+    ctx.font = `600 ${p(9.5)}px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.textAlign = rtl ? 'right' : 'left';
+    ctx.fillText(String(r.km), start, mid + p(3.4));
+    ctx.textAlign = rtl ? 'left' : 'right';
+    ctx.fillText(formatPace(r.pace), rtl ? x0 : x1, mid + p(3.4));
+
+    const saved = ctx.shadowBlur;
+    ctx.shadowBlur = 0;
+    const tx = rtl ? trackStart - trackW : trackStart;
+    roundRectPath(ctx, tx, mid - trackH / 2, trackW, trackH, trackH / 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fill();
+    const share = slow === fast ? 1 : 0.2 + (0.8 * (slow - r.pace)) / (slow - fast);
+    const bw = Math.max(trackH, trackW * share);
+    roundRectPath(ctx, rtl ? trackStart - bw : trackStart, mid - trackH / 2, bw, trackH, trackH / 2);
+    ctx.fillStyle = accent;
+    ctx.fill();
+    ctx.shadowBlur = saved;
+    y += rowH;
+  }
+  ctx.shadowBlur = 0;
+}
+
 const LAYOUTS: Record<ShareTemplate, (c: LayoutCtx) => void> = {
   classic: layoutClassic,
   card: layoutCard,
@@ -1600,6 +1755,7 @@ const LAYOUTS: Record<ShareTemplate, (c: LayoutCtx) => void> = {
   fullStats: layoutFullStats,
   sideBySide: layoutSideBySide,
   bigNumbers: layoutBigNumbers,
+  splits: layoutSplits,
 };
 
 /** Renders the card and returns a blob ready for navigator.share(). */
@@ -1657,7 +1813,7 @@ export async function renderShareCard(
   const [logo, wordmark, stairs] = await Promise.all([
     loadImage(LOGO_SRC).catch(() => null),
     loadImage(WORDMARK_SRC).catch(() => null),
-    template === 'sideBySide' ? loadImage(STAIRS_SRC).catch(() => null) : Promise.resolve(null),
+    template === 'sideBySide' || template === 'splits' ? loadImage(STAIRS_SRC).catch(() => null) : Promise.resolve(null),
   ]);
 
   // Over an unknown background the only thing keeping white text readable is the
@@ -1675,6 +1831,7 @@ export async function renderShareCard(
     i18n,
     showTitle: opts.showTitle ?? true,
     showStartTime: opts.showStartTime ?? true,
+    showDate: opts.showDate ?? true,
     metrics: opts.metrics ?? DEFAULT_WORKOUT_METRICS,
     // Gated here as well as in the sheet: a template with no room for a footer must
     // not be able to draw one over its own content, whoever asked.

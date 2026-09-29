@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { X, Share2, ImagePlus, Loader2, Eye, EyeOff } from 'lucide-react';
+import { X, Share2, ImagePlus, Loader2, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { Sheet } from '@/components/ui/Sheet';
@@ -11,9 +11,10 @@ import {
 } from '@/lib/feed/share-image';
 import { renderWeekShareCard, WEEK_LOGO_PLACEMENTS, type WeekLogoPlacement } from '@/lib/reports/week-share-image';
 import { SHARE_CARD_LANGS, WORKOUT_CARD_TEXT, type ShareCardLang } from '@/lib/share/card-text';
+import { localizeDefaultName } from '@/lib/share/default-name';
 import {
   FRAME_TEMPLATE, SHARE_FRAMES, asWeekMetrics, asWorkoutMetrics, defaultChipKeys, defaultExtraKeys,
-  defaultTemplate, extraOn, fitChipKeys, fixedNumbersReason, frameCapacity, shareChips, shareExtras,
+  defaultTemplate, drawnTemplate, extraOn, fitChipKeys, fixedNumbersReason, frameCapacity, shareChips, shareExtras,
   shareFilename, shareFrames, shareTemplates, shareVerdict, supportsAccent, toggleChip,
   type ShareExtraKey, type ShareSubject,
 } from '@/lib/share/sheet-model';
@@ -35,12 +36,22 @@ import {
  *    quietly reopen a bug somebody reported in words.
  *  · a route frame with no GPS. It greys out and says why, like everything else.
  *
- * THE WORKOUT PICKS ONE OF TEN VIEWS, THE WEEK ONE OF THREE FRAMES. The weekly
- * renderer really has only a photo and a numbers panel; the workout renderer has
- * ten views, and the frame row had hidden seven of them. Each view is a thumbnail
- * of the athlete's own run, rendered once when the sheet opens.
+ * THE WORKOUT PICKS ONE OF SIX VIEWS, THE WEEK ONE OF THREE FRAMES. The weekly
+ * renderer really has only a photo and a numbers panel. Each workout view is a
+ * thumbnail of the athlete's own run, rendered once when the sheet opens; the
+ * route view's "route only" switch and the background row pick the variant that
+ * is actually drawn (`drawnTemplate`).
  */
+type WorkoutBackground = 'photo' | 'club' | 'sticker';
+
+/** The item with the athlete's own title for this card; the stored activity is untouched. */
+function cardItem<T extends { activity?: { activityName?: string | null } | null }>(item: T, title: string): T {
+  if (!item.activity || item.activity.activityName === title) return item;
+  return { ...item, activity: { ...item.activity, activityName: title.trim() } };
+}
+
 const VIEW_LABEL: Record<ShareTemplate, string> = {
+  splits: 'viewSplits',
   route: 'viewRoute',
   routeOnly: 'viewRouteOnly',
   bigNumbers: 'viewBigNumbers',
@@ -74,9 +85,17 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
   // card has carried the name since, whether the athlete wanted it or not.
   const [showTitle, setShowTitle] = useState(true);
   const [showStartTime, setShowStartTime] = useState(false);
+  const [showDate, setShowDate] = useState(true);
+  // What the card calls the run. Until the athlete types, it is the watch's own name
+  // in the CARD's language (#93: "Berlin ריצה" on an English card), so it follows
+  // the language toggle; once they type, it is theirs and stays put. Either way it is
+  // this one card only — renaming the run itself lives on the activity page (#92).
+  const originalTitle = subject.kind === 'workout' ? subject.item.activity?.activityName ?? '' : '';
+  const [typedTitle, setTypedTitle] = useState<string | null>(null);
+  const [routeOnly, setRouteOnly] = useState(false);
+  const [bg, setBg] = useState<WorkoutBackground>('club');
   const [accent, setAccent] = useState<ShareAccent>('white');
   const [logo, setLogo] = useState<WeekLogoPlacement>('above');
-  const [sticker, setSticker] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [rendering, setRendering] = useState(true);
@@ -87,27 +106,33 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
   const blobRef = useRef<Blob | null>(null);
 
   const i18n = WORKOUT_CARD_TEXT[cardLang];
+  const titleText = typedTitle ?? localizeDefaultName(originalTitle, cardLang);
+  const workout = subject.kind === 'workout';
+  // The template the renderer draws: the view, or its route-only / own-photo variant.
+  const drawn = workout
+    ? drawnTemplate(template, { routeOnly, withPhoto: bg === 'photo' && !!photo })
+    : template;
   const chips = useMemo(() => shareChips(subject, i18n, cardLang), [subject, i18n, cardLang]);
-  const capacity = frameCapacity(subject, template);
-  const fixed = fixedNumbersReason(subject, template);
+  const capacity = frameCapacity(subject, drawn);
+  const fixed = fixedNumbersReason(subject, drawn);
   const full = !fixed && keys.length >= capacity;
-  const extraOpts = useMemo(() => shareExtras(subject, template), [subject, template]);
-  // The bars and the verdict keep their state across a frame change and simply stop
-  // drawing on a frame with no room for them, which is what the greyed toggle and
-  // its one line say. Losing the choice would be a worse surprise than not drawing it.
-  const barsOn = extraOn(subject, template, extras, 'bars');
-  const verdictOn = extraOn(subject, template, extras, 'verdict');
+  // Only the week has a footer now: on a workout the kilometre bars ARE a view.
+  const extraOpts = useMemo(() => (workout ? [] : shareExtras(subject, template)), [workout, subject, template]);
+  // The bars keep their state across a frame change and simply stop drawing on a
+  // frame with no room for them, which is what the greyed toggle and its line say.
+  const barsOn = extraOn(subject, drawn, extras, 'bars');
+  const verdictOn = extraOn(subject, drawn, extras, 'verdict');
 
   // The sticker export is a workout thing: the weekly renderer composites its own
-  // panel and has no transparent variant, and `photo` is defined by its background.
-  const stickerOk = subject.kind === 'workout' && supportsTransparent(template);
-  const transparent = sticker && stickerOk;
+  // panel and has no transparent variant.
+  const transparent = workout && bg === 'sticker' && supportsTransparent(drawn);
   // The accent is the run's own line and nothing else, so it is offered where there
   // is a line to colour and nowhere else.
-  const accentOk = supportsAccent(subject, template);
-  const photoOk = supportsPhoto(template);
+  const accentOk = supportsAccent(subject, drawn);
+  const photoOk = workout ? bg === 'photo' && supportsPhoto(drawn) : supportsPhoto(template);
   const nameOk = subject.kind === 'week' && !!subject.athleteName;
-  const titleOk = subject.kind === 'workout' && !!subject.item.activity?.activityName;
+  const titleOk = workout && !!originalTitle;
+  const dateOk = workout && template === 'splits';
   // Only the two originals print a start time; the newer views have no slot for it.
   const startOk = subject.kind === 'workout' && (template === 'classic' || template === 'card');
 
@@ -128,7 +153,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
       for (const v of views) {
         if (!v.available) continue;
         try {
-          const blob = await renderShareCard(subject.item, i18n, {
+          const blob = await renderShareCard(cardItem(subject.item, titleText), i18n, {
             template: v.key,
             metrics: asWorkoutMetrics(defaultChipKeys(subject, v.key)),
           });
@@ -145,6 +170,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
       cancelled = true;
       urls.forEach(u => URL.revokeObjectURL(u));
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a thumbnail is not redrawn per keystroke
   }, [subject, views, i18n]);
 
   useEffect(() => {
@@ -164,13 +190,14 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
         bars: barsOn,
         logo,
       })
-      : renderShareCard(subject.item, i18n, {
+      : renderShareCard(cardItem(subject.item, titleText), i18n, {
         background,
         transparent,
-        template,
+        template: drawn,
         accent,
-        showTitle,
+        showTitle: showTitle && titleText.trim().length > 0,
         showStartTime: startOk && showStartTime,
+        showDate,
         metrics: asWorkoutMetrics(keys),
         bars: barsOn ? workoutPaceBars(subject.item.activity!, i18n) : null,
         verdict: verdictOn ? shareVerdict(subject, cardLang) : null,
@@ -195,8 +222,8 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [
-    subject, photo, photoOk, keys, cardLang, withName, showTitle, showStartTime, startOk, i18n,
-    template, transparent, accent, barsOn, verdictOn, logo, t,
+    subject, photo, photoOk, keys, cardLang, withName, showTitle, titleText, showStartTime, startOk, i18n,
+    drawn, showDate, transparent, accent, barsOn, verdictOn, logo, t,
   ]);
 
   const handleShare = useCallback(async () => {
@@ -281,9 +308,9 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
         <p className="mb-2 text-xs font-light text-ink-400">{t('frameTitle')}</p>
         {subject.kind === 'workout' ? (
           <>
-            {/* All ten at once, five by two: a rail that scrolls hides whatever is
-                past its edge, which is how seven of these went missing before. */}
-            <div className="grid grid-cols-5 gap-1.5">
+            {/* All six at once, three by two: a rail that scrolls hides whatever is
+                past its edge, which is how seven views went missing before. */}
+            <div className="grid grid-cols-3 gap-2">
               {views.map(v => {
                 const on = template === v.key;
                 return (
@@ -314,8 +341,30 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
                 );
               })}
             </div>
-            {views.some(v => !v.available) && (
-              <p className="mt-1.5 text-2xs text-ink-400" dir="auto">{t('noRouteViews')}</p>
+            {[...new Set(views.filter(v => !v.available && v.reason).map(v => v.reason!))].map(r => (
+              <p key={r} className="mt-1.5 text-2xs text-ink-400" dir="auto">
+                {t(r === 'noRoute' ? 'noRouteViews' : 'noSplitsView')}
+              </p>
+            ))}
+            {template === 'route' && (
+              <div className="mt-3 flex rounded-full bg-page p-0.5">
+                {[false, true].map(only => (
+                  <button
+                    key={String(only)}
+                    onClick={() => {
+                      setRouteOnly(only);
+                      setKeys(prev => fitChipKeys(subject, only ? 'routeOnly' : 'route', prev));
+                    }}
+                    aria-pressed={routeOnly === only}
+                    className={cn(
+                      'min-h-[44px] flex-1 rounded-full px-3 py-1 text-xs font-bold transition-colors',
+                      routeOnly === only ? 'bg-card text-ink-700 shadow-sm' : 'text-ink-400',
+                    )}
+                  >
+                    {t(only ? 'viewRouteOnly' : 'routeWithStats')}
+                  </button>
+                ))}
+              </div>
             )}
           </>
         ) : (
@@ -442,7 +491,7 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
 
         {/* The two that are not numbers. Square-cornered rather than pill-shaped, so
             it is visible at a glance that they do not compete for the stat row. */}
-        {extraOpts.length > 0 && (
+        {!workout && extraOpts.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
             {extraOpts.map(opt => {
               const on = opt.key === 'bars' ? barsOn : verdictOn;
@@ -543,21 +592,44 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
               {showStartTime ? t('startOn') : t('startOff')}
             </button>
           )}
-          {stickerOk && (
+          {dateOk && (
             <button
-              onClick={() => setSticker(v => !v)}
-              aria-pressed={sticker}
+              onClick={() => setShowDate(v => !v)}
+              aria-pressed={showDate}
               className={cn(
-                'min-h-[44px] rounded-full border px-3 py-1.5 text-xs font-bold transition-colors',
-                sticker
+                'flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition-colors',
+                showDate
                   ? 'border-brand-600 bg-brand-600/10 text-brand-600'
                   : 'border-page text-ink-400 hover:text-ink-500',
               )}
             >
-              {t('sticker')}
+              {showDate ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+              {showDate ? t('dateOn') : t('dateOff')}
             </button>
           )}
         </div>
+
+        {titleOk && showTitle && (
+          <div className="mt-2 flex items-center gap-2 rounded-xl border border-page bg-card px-3 focus-within:border-brand-600">
+            <input
+              value={titleText}
+              onChange={e => setTypedTitle(e.target.value.slice(0, 60))}
+              aria-label={t('titleEdit')}
+              placeholder={t('titleEdit')}
+              dir="auto"
+              className="min-h-[44px] min-w-0 flex-1 bg-transparent text-sm text-ink-700 outline-none"
+            />
+            {typedTitle !== null && (
+              <button
+                onClick={() => setTypedTitle(null)}
+                aria-label={t('titleReset')}
+                className="grid min-h-[44px] min-w-[44px] place-items-center text-ink-400 hover:text-ink-700"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* ── 4. PHOTO. Last, because it is the only one that opens a file picker,
                and offered only on the frame that can composite one. ────────── */}
@@ -568,11 +640,47 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
           className="hidden"
           onChange={e => {
             const f = e.target.files?.[0];
-            if (f) setPhoto(f);
+            if (f) {
+              setPhoto(f);
+              setBg('photo');
+            }
             e.target.value = '';
           }}
         />
-        {photoOk && (
+        {workout && (
+          <>
+            <p className="mb-2 mt-4 text-xs font-light text-ink-400">{t('backgroundTitle')}</p>
+            <div className="flex flex-wrap gap-2">
+              {(['photo', 'club', 'sticker'] as const).map(key => {
+                // "My photo" before a photo exists opens the picker; choosing a file
+                // is what switches the background, so the card never goes blank.
+                const on = bg === key && (key !== 'photo' || !!photo);
+                return (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      if (key === 'photo' && (!photo || bg === 'photo')) fileRef.current?.click();
+                      else setBg(key);
+                    }}
+                    aria-pressed={on}
+                    className={cn(
+                      'flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition-colors',
+                      on
+                        ? 'border-brand-600 bg-brand-600/10 text-brand-600'
+                        : 'border-page text-ink-400 hover:text-ink-500',
+                    )}
+                  >
+                    {key === 'photo' && <ImagePlus className="h-3.5 w-3.5" />}
+                    {key === 'photo'
+                      ? (photo && bg === 'photo' ? t('changePhoto') : t('bgPhoto'))
+                      : t(key === 'club' ? 'bgClub' : 'sticker')}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+        {!workout && photoOk && (
           <button
             onClick={() => fileRef.current?.click()}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-page py-2.5 text-sm font-medium text-ink-500 transition-colors hover:bg-ink-300/40"

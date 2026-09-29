@@ -18,6 +18,7 @@ import { AlertCircle, MessageCircle, Route, Share2 } from 'lucide-react';
 import { BackNav, Button, EmptyState, LoadingBlock } from '@/components/ui';
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 import { ActivityDetailBody } from '@/components/activity/ActivityDetailBody';
+import { ActivityName } from '@/components/activity/ActivityName';
 import { getTimeLabel, resolveRunTypeBadge } from '@/components/activity/format';
 import { useActivityDetails } from '@/components/activity/useActivityDetails';
 import { AthleteLink } from '@/components/AthleteLink';
@@ -90,6 +91,8 @@ export default function ActivityDetailPage() {
                 {runType.label}
               </span>
             </div>
+            {/* The run's own name, and its owner's pencil (#92). */}
+            <ActivityName activityId={act.id} name={act.activity_name} editable={isMyActivity} />
             <p className="text-xs text-ink-400">
               {/* Only the name is the link, not the whole meta line — the date and
                   the clock time next to it belong to the run, not to the person. */}

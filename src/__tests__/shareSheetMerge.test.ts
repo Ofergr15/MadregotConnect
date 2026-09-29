@@ -84,7 +84,7 @@ describe('there is one sheet', () => {
     // ACTIVE locale — so a Hebrew athlete could not post an English card.
     const sheet = read('components/ShareSheet.tsx');
     expect(sheet).toMatch(/WORKOUT_CARD_TEXT\[cardLang\]/);
-    expect(sheet).toMatch(/renderShareCard\(subject\.item, i18n/);
+    expect(sheet).toMatch(/renderShareCard\(cardItem\(subject\.item, titleText\), i18n/);
   });
 
   it('but NOT a name, which is a decision somebody already reported in words', () => {
