@@ -1141,7 +1141,15 @@ export default function WeeklyPlannerPage() {
 
       const allSuccess = allResults.every((r) => r.status === 'success');
       const anySuccess = allResults.some((r) => r.status === 'success');
-      const newStatus = allSuccess ? 'pushed' : anySuccess ? 'partial' : 'draft';
+      // A push of some DAYS is a partial week even when every request succeeded
+      // (feedback 55ce8f11). On 19.09 only Sunday was sent to the whole club, the plan
+      // said "pushed" ✓, and Monday to Saturday never reached a single watch, because
+      // nothing on screen said there was anything left to send. `pushDays === null` is
+      // the whole week; any explicit selection is not, and stays "partial" until the
+      // coach sends the whole week — pessimistic for day-by-day sending, but a false
+      // "partial" costs one look and a false "pushed" cost a week of sessions.
+      const wholeWeek = pushDays === null;
+      const newStatus = allSuccess && wholeWeek ? 'pushed' : anySuccess ? 'partial' : 'draft';
 
       await fetch('/api/plans', {
         method: 'PUT',
