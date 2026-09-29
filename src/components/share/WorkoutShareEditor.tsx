@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Share2, ImagePlus, Loader2, RotateCcw } from 'lucide-react';
+import { X, Share2, ImagePlus, Loader2, RotateCcw, Pencil, Check } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import {
@@ -31,8 +31,9 @@ import type { FeedItem } from '@/lib/feed/project';
  *  · a row of tabs named after the parts of the card (look, logo, text, the
  *    chart or the numbers, background) swaps the strip for that part's options,
  *    and outlines the part on the card so it is plain what they change;
- *  · every part is outlined and labelled on the card itself, and the label is a
- *    button that opens the part; so is a tap anywhere on the part;
+ *  · the card shows clean, as it will be shared; Edit (or opening any part) outlines
+ *    and labels every part on the card, each label a button that opens the part,
+ *    and Done takes them off again; a tap anywhere on a part opens it too;
  *  · the big bottom button always shares, from whichever tab is open.
  *
  * Where each part sits is read off the drawing (`lib/share/hit-map.ts`), so the tap
@@ -139,6 +140,9 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   const [photo, setPhoto] = useState<File | null>(null);
 
   const [mode, setMode] = useState<Mode>('looks');
+  // The labels over the card show only while editing, so the card can be seen the
+  // way it will be shared (feedback 2026-09-29).
+  const [editing, setEditing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [hitMap, setHitMap] = useState<ShareHitMap>({});
   const [slideUrls, setSlideUrls] = useState<Partial<Record<ShareTemplate, string>>>({});
@@ -198,6 +202,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   }, [subject]);
 
   const openPart = useCallback((next: Mode) => {
+    if (next !== 'looks') setEditing(true);
     setMode(next);
   }, []);
   const back = useCallback(() => {
@@ -805,7 +810,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
       dir={rtl ? 'rtl' : 'ltr'}
       className="fixed inset-0 z-[310] flex select-none flex-col bg-[#0b0d1d] pt-[env(safe-area-inset-top)] text-white"
     >
-      <div className="flex h-14 flex-none items-center justify-between px-3 [@media(max-height:699px)]:h-11">
+      <div className="relative flex h-14 flex-none items-center justify-between px-3 [@media(max-height:699px)]:h-11">
         <button
           onClick={onClose}
           aria-label={tc('close')}
@@ -813,8 +818,19 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
         >
           <X className="h-5 w-5" />
         </button>
-        <span className="text-base font-extrabold">{inPart ? partName(mode) : t('titleWorkout')}</span>
-        <span className="min-w-[44px]" />
+        {/* Centred on the screen, not between two buttons of different widths. */}
+        <span className="pointer-events-none absolute inset-x-24 truncate text-center text-base font-extrabold">{inPart ? partName(mode) : t('titleWorkout')}</span>
+        <button
+          onClick={() => { if (editing) { setEditing(false); back(); } else setEditing(true); }}
+          aria-pressed={editing}
+          className={cn(
+            'flex min-h-[36px] min-w-[44px] items-center gap-1.5 rounded-full px-3.5 text-sm font-extrabold transition-colors',
+            editing ? 'bg-white text-ink-900' : 'bg-white/[0.12] text-white',
+          )}
+        >
+          {editing ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+          {editing ? tc('done') : tc('edit')}
+        </button>
       </div>
 
       <div
@@ -863,7 +879,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
                 )}
                 {own && !rendering && (
                   <>
-                    {labelled.filter(p => p !== mode).flatMap(p => (
+                    {editing && labelled.filter(p => p !== mode).flatMap(p => (
                       p === 'logo' && hitMap.logoPieces ? hitMap.logoPieces.map((b, i) => outline(p, b, false, i)) : [outline(p, hitMap[p]!, false)]
                     ))}
                     {inPart && mode !== 'background' && hitMap[mode] && (
@@ -876,7 +892,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
                     )}
                     {/* The labels are buttons, over everything, so a part drawn small (the
                         logo) still has a target it can be opened from. */}
-                    {[...labelled, 'background' as const].map(p => {
+                    {editing && [...labelled, 'background' as const].map(p => {
                       const r = labels[p];
                       if (!r) return null;
                       const on = mode === p;

@@ -181,10 +181,15 @@ describe('the editor', () => {
     // A look with nothing to change there says so when tapped, rather than opening an empty tab.
     expect(EDITOR).toMatch(/if \(part === 'data' && !dataOk\) \{ setNotice\(t\(fixed!\)\); return; \}/);
     expect(EDITOR).toMatch(/role="tab"\s+aria-selected=\{mode === p\}\s+onClick=\{\(\) => openPart\(p\)\}/);
-    // The labels over the card are buttons now (they were pictures of buttons), always
-    // on, and placed so none lies on another.
+    // The labels over the card are buttons now (they were pictures of buttons), placed
+    // so none lies on another.
     expect(EDITOR).toMatch(/<button\s+key=\{`label-\$\{p\}`\}\s+type="button"\s+aria-pressed=\{on\}\s+onClick=\{e => \{ e\.stopPropagation\(\); openPart\(p\); \}\}/);
     expect(EDITOR).toMatch(/const labels = placeLabels\(/);
+    // They show only while editing; the card is otherwise seen as it will be shared.
+    expect(EDITOR).toMatch(/\{editing && \[\.\.\.labelled, 'background' as const\]\.map/);
+    expect(EDITOR).toMatch(/\{editing && labelled\.filter/);
+    expect(EDITOR).toMatch(/if \(editing\) \{ setEditing\(false\); back\(\); \} else setEditing\(true\);/);
+    expect(EDITOR).toMatch(/if \(next !== 'looks'\) setEditing\(true\);/);
     expect(EDITOR).not.toMatch(/showAll|showParts/);
   });
 
