@@ -197,10 +197,24 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
     setMode('looks');
   }, []);
 
+  // Every picture on screen is a blob URL. One is let go only when its replacement
+  // is handed over, never when a re-render starts: the old picture is still showing
+  // then, and a revoked URL under a live <img> is a broken image.
+  const liveUrls = useRef(new Map<string, string>());
+  const swapUrl = useCallback((slot: string, url: string) => {
+    const old = liveUrls.current.get(slot);
+    liveUrls.current.set(slot, url);
+    if (old) setTimeout(() => URL.revokeObjectURL(old), 1000);
+    return url;
+  }, []);
+  useEffect(() => {
+    const live = liveUrls.current;
+    return () => { live.forEach(u => URL.revokeObjectURL(u)); live.clear(); };
+  }, []);
+
   // The strip: each view once, with the opening choices.
   useEffect(() => {
     let cancelled = false;
-    const urls: string[] = [];
     (async () => {
       for (const v of views) {
         try {
@@ -212,19 +226,15 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
             hrLine: true,
           });
           if (cancelled) return;
-          const url = URL.createObjectURL(blob);
-          urls.push(url);
+          const url = swapUrl(`thumb:${v.key}`, URL.createObjectURL(blob));
           setThumbs(prev => ({ ...prev, [v.key]: url }));
         } catch {
           // A missing thumbnail leaves the label; the view itself still works.
         }
       }
     })();
-    return () => {
-      cancelled = true;
-      urls.forEach(u => URL.revokeObjectURL(u));
-    };
-  }, [item, subject, views, rtl]);
+    return () => { cancelled = true; };
+  }, [item, subject, views, rtl, swapUrl]);
 
   const renderOpts = useCallback((view: ShareTemplate, own: boolean) => {
     const d = drawnTemplate(view, { routeOnly, withPhoto: bg === 'photo' && !!photo });
@@ -248,7 +258,6 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   // The card being edited, with its tap areas.
   useEffect(() => {
     let cancelled = false;
-    let objectUrl: string | null = null;
     setRendering(true);
     setError(null);
     setNotice(null);
@@ -259,8 +268,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
       .then(blob => {
         if (cancelled) return;
         blobRef.current = blob;
-        objectUrl = URL.createObjectURL(blob);
-        setPreviewUrl(objectUrl);
+        setPreviewUrl(swapUrl('preview', URL.createObjectURL(blob)));
         setRendering(false);
       })
       .catch(() => {
@@ -268,11 +276,8 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
         setError(t('renderError'));
         setRendering(false);
       });
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [item, titleText, i18n, template, renderOpts, t]);
+    return () => { cancelled = true; };
+  }, [item, titleText, i18n, template, renderOpts, swapUrl, t]);
 
   // The neighbours, once the card itself is up: nearest first, so the one a swipe
   // reaches is the one that is ready. They are what a swipe will land on, so they
@@ -280,7 +285,6 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   useEffect(() => {
     if (rendering) return;
     let cancelled = false;
-    const urls: string[] = [];
     const timer = setTimeout(async () => {
       const at = views.findIndex(v => v.key === template);
       const order = views.filter(v => v.key !== template)
@@ -289,8 +293,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
         try {
           const blob = await renderShareCard(cardItem(item, titleText), i18n, renderOpts(v.key, false));
           if (cancelled) return;
-          const url = URL.createObjectURL(blob);
-          urls.push(url);
+          const url = swapUrl(`slide:${v.key}`, URL.createObjectURL(blob));
           setSlideUrls(prev => ({ ...prev, [v.key]: url }));
         } catch { /* the strip's thumbnail stands in */ }
       }
@@ -298,10 +301,8 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      // Revoked a beat later: the old picture stays on screen until its replacement arrives.
-      setTimeout(() => urls.forEach(u => URL.revokeObjectURL(u)), 4000);
     };
-  }, [rendering, views, template, item, titleText, i18n, renderOpts]);
+  }, [rendering, views, template, item, titleText, i18n, renderOpts, swapUrl]);
 
   // ── Carousel geometry ──────────────────────────────────────────────────────
   const [stage, setStage] = useState({ w: 0, h: 0 });

@@ -2075,14 +2075,29 @@ const LAYOUTS: Record<ShareTemplate, (c: LayoutCtx) => void> = {
   splits: layoutSplits,
 };
 
+/**
+ * A Hebrew title keeps its numbers in the order they were typed.
+ *
+ * "10×400 בפארק" came out of the canvas as "400×10 בפארק": in a right-to-left line
+ * the × between two numbers takes the line's direction, so the two numbers swap
+ * sides. Each run that starts and ends with a digit or a Latin letter is wrapped
+ * in a left-to-right embedding (LRE … PDF), which every canvas honours; a title
+ * with no Hebrew in it is left alone.
+ */
+export function isolateLtrRuns(text: string): string {
+  if (!/[\u0590-\u05FF]/.test(text)) return text;
+  return text.replace(/[0-9A-Za-z](?:[0-9A-Za-z×x*\/:.,+\- ]*[0-9A-Za-z])?/g, run => `\u202A${run}\u202C`);
+}
+
 /** Renders the card and returns a blob ready for navigator.share(). */
 export async function renderShareCard(
   item: FeedItem,
   i18n: ShareI18n,
   opts: ShareCardOptions = {},
 ): Promise<Blob> {
-  const act = item.activity;
-  if (!act) throw new Error('Share card requires an activity');
+  const raw = item.activity;
+  if (!raw) throw new Error('Share card requires an activity');
+  const act = raw.activityName ? { ...raw, activityName: isolateLtrRuns(raw.activityName) } : raw;
 
   // Otherwise the first paint uses a fallback face and the text is subtly wrong.
   await document.fonts.ready;
@@ -2210,6 +2225,7 @@ export async function shareCard(blob: Blob, filename: string): Promise<'shared' 
   a.href = url;
   a.download = filename;
   a.click();
-  URL.revokeObjectURL(url);
+  // Safari reads the file after click() returns; revoking at once fails the save.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
   return 'downloaded';
 }

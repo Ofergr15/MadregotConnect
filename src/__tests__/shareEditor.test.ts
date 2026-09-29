@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join } from 'path';
 import { isTextPart, partAt, recordHitMap, unionBox } from '@/lib/share/hit-map';
+import { isolateLtrRuns } from '@/lib/feed/share-image';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
 const EDITOR = readFileSync(join(SRC, 'components/share/WorkoutShareEditor.tsx'), 'utf8');
@@ -94,6 +95,10 @@ describe('the hit map', () => {
     expect(unionBox(undefined, { x0: 1, y0: 2, x1: 3, y1: 4 })).toEqual({ x0: 1, y0: 2, x1: 3, y1: 4 });
   });
 
+  it('still knows the title when the renderer wrapped its numbers in bidi marks', () => {
+    expect(isTextPart('\u202A10×400\u202C בפארק', { title: '10×400 בפארק', date: null })).toBe(true);
+  });
+
   it('is asked for by the renderer only when the editor wants it', () => {
     expect(RENDER).toMatch(/const stopHitMap = opts\.onHitMap\s*\?\s*recordHitMap\(ctx/);
     expect(RENDER).toMatch(/if \(stopHitMap\) opts\.onHitMap!\(stopHitMap\(\)\)/);
@@ -134,5 +139,20 @@ describe('the editor', () => {
       expect(HE.shareSheet[k], k).toBeTruthy();
       expect(EN.shareSheet[k], k).toBeTruthy();
     }
+  });
+});
+
+describe('a Hebrew title with numbers in it', () => {
+  it('keeps "10×400" reading left to right inside the Hebrew line', () => {
+    expect(isolateLtrRuns('10×400 בפארק')).toBe('\u202A10×400\u202C בפארק');
+    expect(isolateLtrRuns('5 ק״מ 4:30/ק״מ')).toBe('\u202A5\u202C ק״מ \u202A4:30\u202C/ק״מ');
+  });
+
+  it('leaves a title with no Hebrew alone', () => {
+    expect(isolateLtrRuns('10x400 in the park')).toBe('10x400 in the park');
+  });
+
+  it('is applied to the title before the card is drawn', () => {
+    expect(RENDER).toMatch(/activityName: isolateLtrRuns\(raw\.activityName\)/);
   });
 });

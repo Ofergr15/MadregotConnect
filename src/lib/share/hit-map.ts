@@ -41,8 +41,12 @@ export function unionBox(a: ShareBox | undefined, b: ShareBox): ShareBox {
   return { x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1) };
 }
 
+/** The bidi marks the renderer wraps numbers in, which the known title may or may not carry. */
+const BIDI_MARKS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+
 export function isTextPart(text: string, known: Pick<HitMapKnown, 'title' | 'date'>): boolean {
-  const title = known.title?.trim();
+  text = text.replace(BIDI_MARKS, '');
+  const title = known.title?.replace(BIDI_MARKS, '').trim();
   return (!!title && text.includes(title)) || (!!known.date && text.includes(known.date));
 }
 
