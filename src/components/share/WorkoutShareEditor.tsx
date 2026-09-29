@@ -457,16 +457,16 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   const [draggingChip, setDraggingChip] = useState<string | null>(null);
   const chipDragged = useRef(false);
   const startChipDrag = (key: string, e: React.PointerEvent) => {
-    const x0 = e.clientX;
+    const x0 = e.clientX, y0 = e.clientY;
     chipDragged.current = false;
     const move = (ev: PointerEvent) => {
-      if (!chipDragged.current && Math.abs(ev.clientX - x0) < 6) return;
+      if (!chipDragged.current && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
       chipDragged.current = true;
       setDraggingChip(key);
       const over = pickedRef.current
         ? [...pickedRef.current.querySelectorAll<HTMLElement>('[data-chip]')].find(el => {
           const r = el.getBoundingClientRect();
-          return ev.clientX >= r.left && ev.clientX <= r.right;
+          return ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
         })
         : undefined;
       const target = over?.dataset.chip;
@@ -526,44 +526,37 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
           )}
           {!fixed && (
             <>
-              {/* Left to right in both languages, because that is how the card lays the numbers out. */}
-              <div ref={pickedRef} className="mb-2 flex gap-1.5" dir="ltr">
-                {keys.map(k => chips.find(c => c.key === k)).filter(c => !!c).map(chip => (
-                  <button
-                    key={chip.key}
-                    data-chip={chip.key}
-                    onPointerDown={e => startChipDrag(chip.key, e)}
-                    onClick={() => { if (!chipDragged.current) setKeys(prev => toggleChip(prev, chip.key, capacity)); }}
-                    aria-pressed
-                    className={cn(
-                      'min-h-[48px] min-w-0 flex-1 touch-none rounded-xl bg-[#FF5315] px-2 py-1 text-start text-white transition-transform',
-                      draggingChip === chip.key && 'z-10 scale-105 shadow-lg ring-2 ring-white',
-                    )}
-                  >
-                    <span className="block truncate text-3xs font-medium leading-tight opacity-80">{chip.label}</span>
-                    {/* Laid out as the card draws it: the Hebrew unit to the left of the number,
-                        the English one to the right, each piece left-to-right so "/km" keeps its slash in front. */}
-                    <span dir="ltr" className={cn('flex gap-1 truncate text-xs font-bold leading-tight', cardLang === 'en' ? 'justify-start' : 'flex-row-reverse justify-end')}>
-                      <bdi dir="ltr">{chip.value}</bdi>
-                      {chip.unit && <bdi dir="ltr">{chip.unit}</bdi>}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {chips.filter(c => !keys.includes(c.key)).map(chip => (
-                  <button
-                    key={chip.key}
-                    onClick={() => setKeys(prev => toggleChip(prev, chip.key, capacity))}
-                    disabled={full}
-                    className={cn(
-                      'min-h-[40px] rounded-full px-3 text-xs font-bold',
-                      full ? 'bg-white/[0.05] text-white/30' : 'bg-white/[0.08] text-white/80',
-                    )}
-                  >
-                    + {chip.label}
-                  </button>
-                ))}
+              {/* Every number is its own tile, as in the sheet: the picked ones first, in the
+                  order the card prints them (left to right in both languages, like the card),
+                  and those can be dragged; a tap turns any tile on or off. */}
+              <div ref={pickedRef} className="grid grid-cols-4 gap-1.5" dir="ltr">
+                {[...keys.map(k => chips.find(c => c.key === k)).filter(c => !!c), ...chips.filter(c => !keys.includes(c.key))].map(chip => {
+                  const on = keys.includes(chip.key);
+                  const blocked = !on && full;
+                  return (
+                    <button
+                      key={chip.key}
+                      data-chip={on ? chip.key : undefined}
+                      onPointerDown={on ? e => startChipDrag(chip.key, e) : undefined}
+                      onClick={() => { if (!chipDragged.current) setKeys(prev => toggleChip(prev, chip.key, capacity)); }}
+                      disabled={blocked}
+                      aria-pressed={on}
+                      className={cn(
+                        'min-h-[52px] min-w-0 rounded-xl px-2 py-1 text-start transition-transform',
+                        on ? 'touch-none bg-[#FF5315] text-white' : blocked ? 'bg-white/[0.05] text-white/30' : 'bg-white/[0.08] text-white/85',
+                        draggingChip === chip.key && 'z-10 scale-105 shadow-lg ring-2 ring-white',
+                      )}
+                    >
+                      <span className="block truncate text-3xs font-medium leading-tight opacity-80">{chip.label}</span>
+                      {/* Laid out as the card draws it: the Hebrew unit to the left of the number,
+                          the English one to the right, each piece left-to-right so "/km" keeps its slash in front. */}
+                      <span dir="ltr" className={cn('flex gap-1 truncate text-xs font-bold leading-tight', cardLang === 'en' ? 'justify-start' : 'flex-row-reverse justify-end')}>
+                        <bdi dir="ltr">{chip.value}</bdi>
+                        {chip.unit && <bdi dir="ltr">{chip.unit}</bdi>}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
               {keys.length > 1 && <p className="mt-1.5 text-center text-3xs text-white/45">{t('dragHint')}</p>}
               {full && chips.length > capacity && (

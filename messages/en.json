@@ -3070,7 +3070,7 @@
     "partTitle": "Title",
     "partDate": "Date",
     "partStart": "Start time",
-    "dragHint": "Drag to reorder · tap to remove"
+    "dragHint": "Drag an orange tile to reorder · tap any tile to add or remove"
   },
   "watchAlerts": {
     "title": "Alerts & voice on your watch",
