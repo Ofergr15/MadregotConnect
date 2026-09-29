@@ -12,7 +12,7 @@ import {
 } from '@/lib/feed/share-image';
 import { SHARE_CARD_LANGS, WORKOUT_CARD_TEXT, type ShareCardLang } from '@/lib/share/card-text';
 import { localizeDefaultName } from '@/lib/share/default-name';
-import { partAt, type ShareBox, type ShareHitMap, type SharePart } from '@/lib/share/hit-map';
+import { partAt, placeLabels, type ShareBox, type ShareHitMap, type SharePart } from '@/lib/share/hit-map';
 import {
   asWorkoutMetrics, canHrLine, canSegment, defaultChipKeys, defaultTemplate, drawnTemplate, fitChipKeys,
   fixedNumbersReason, frameCapacity, shareChips, shareFilename, shareTemplates, supportsAccent, toggleChip, viewBrand,
@@ -31,7 +31,8 @@ import type { FeedItem } from '@/lib/feed/project';
  *  · a row of tabs named after the parts of the card (look, logo, text, the
  *    chart or the numbers, background) swaps the strip for that part's options,
  *    and outlines the part on the card so it is plain what they change;
- *  · tapping a part of the card is the shortcut to the same tab;
+ *  · every part is outlined and labelled on the card itself, and the label is a
+ *    button that opens the part; so is a tap anywhere on the part;
  *  · the big bottom button always shares, from whichever tab is open.
  *
  * Where each part sits is read off the drawing (`lib/share/hit-map.ts`), so the tap
@@ -59,8 +60,13 @@ const VIEW_LABEL: Partial<Record<ShareTemplate, string>> = {
   minimal: 'viewMinimal',
 };
 
-/** Seen once, the pulsing dots that say the card can be tapped stay away. */
-const HINT_KEY = 'mc-share-parts-seen';
+/** The labels over the card: one line of 10px type in a pill. */
+const LABEL_H = 20;
+/** How far, in card pixels, an outline stands off the part it rings. */
+const OUTLINE_PAD = 14;
+function labelWidth(text: string): number {
+  return Math.round(text.length * 6.4 + 18);
+}
 
 function cardItem(item: FeedItem, title: string): FeedItem {
   if (!item.activity || item.activity.activityName === title) return item;
@@ -133,7 +139,6 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   const [photo, setPhoto] = useState<File | null>(null);
 
   const [mode, setMode] = useState<Mode>('looks');
-  const [hints, setHints] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [hitMap, setHitMap] = useState<ShareHitMap>({});
   const [slideUrls, setSlideUrls] = useState<Partial<Record<ShareTemplate, string>>>({});
@@ -155,6 +160,11 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   const capacity = frameCapacity(subject, drawn);
   const fixed = fixedNumbersReason(subject, drawn);
   const full = !fixed && keys.length >= capacity;
+  // The splits chart and the route keep their own options when their numbers are
+  // fixed (km or splits, the average line; route with or without numbers), so their
+  // tab stays. Hiding it on 'fixed' alone locked them out, and "route only" had no
+  // way back.
+  const dataOk = !fixed || template === 'splits' || template === 'route';
   const transparent = bg === 'sticker' && supportsTransparent(drawn);
   const accentOk = supportsAccent(subject, drawn);
   const photoOk = bg === 'photo' && supportsPhoto(drawn);
@@ -167,7 +177,6 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
 
   useEffect(() => {
     setMounted(true);
-    try { setHints(!localStorage.getItem(HINT_KEY)); } catch { setHints(true); }
     // The card is the whole screen; the feed under it must not scroll along.
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -189,8 +198,6 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   }, [subject]);
 
   const openPart = useCallback((next: Mode) => {
-    setHints(false);
-    try { localStorage.setItem(HINT_KEY, '1'); } catch { /* private mode */ }
     setMode(next);
   }, []);
   const back = useCallback(() => {
@@ -399,7 +406,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
     const r = imgRef.current?.getBoundingClientRect();
     if (!r) return;
     const part = partAt(hitMap, ((e.clientX - r.left) / r.width) * STORY_W, ((e.clientY - r.top) / r.height) * STORY_H);
-    if (part === 'data' && fixed) { setNotice(t(fixed)); return; }
+    if (part === 'data' && !dataOk) { setNotice(t(fixed!)); return; }
     openPart(part);
   };
 
@@ -441,14 +448,14 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   };
   useLayoutEffect(checkMore);
 
-  const tabs: Mode[] = fixed ? ['looks', 'logo', 'text', 'background'] : ['looks', 'logo', 'text', 'data', 'background'];
+  const tabs: Mode[] = dataOk ? ['looks', 'logo', 'text', 'data', 'background'] : ['looks', 'logo', 'text', 'background'];
   const tabName = (p: Mode): string => {
     if (p === 'looks') return t('looksTitle');
     if (p === 'logo') return t('logoTitle');
     return partName(p);
   };
   const outline = (p: SharePart, box: ShareBox, on: boolean, piece = 0) => {
-    const pad = 14;
+    const pad = OUTLINE_PAD;
     return (
       <div
         key={`${p}-${piece}`}
@@ -462,6 +469,37 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
       />
     );
   };
+
+  // The labels over the card. The route card's logo is a wordmark and a shoe with
+  // the numbers between them, so its label goes on the bigger piece.
+  const labelled = (['logo', 'text', 'data'] as const).filter(p => hitMap[p] && (p !== 'data' || dataOk));
+  const labelBox = (p: SharePart): ShareBox => {
+    const pieces = p === 'logo' ? hitMap.logoPieces : undefined;
+    if (!pieces?.length) return hitMap[p]!;
+    return pieces.reduce((a, b) => ((b.x1 - b.x0) * (b.y1 - b.y0) > (a.x1 - a.x0) * (a.y1 - a.y0) ? b : a));
+  };
+  const toScreen = (b: ShareBox) => ({
+    x: (b.x0 - OUTLINE_PAD) * scale, y: (b.y0 - OUTLINE_PAD) * scale,
+    w: (b.x1 - b.x0 + 2 * OUTLINE_PAD) * scale, h: (b.y1 - b.y0 + 2 * OUTLINE_PAD) * scale,
+  });
+  const labels = placeLabels(
+    [
+      ...labelled.map(p => {
+        const b = labelBox(p);
+        return {
+          key: p,
+          box: toScreen(b),
+          w: labelWidth(tabName(p)),
+        };
+      }),
+      // The background's label sits on the card's bottom edge.
+      { key: 'background', box: { x: 6, y: slideH - 6 - 26, w: slideW - 12, h: 26 }, w: labelWidth(tabName('background')) },
+    ],
+    { w: slideW, h: slideH },
+    // Every piece of the logo is in the way of the other labels, not just the one
+    // its own label sits on.
+    { h: LABEL_H, gap: 6, rtl, obstacles: (hitMap.logoPieces ?? []).map(toScreen) },
+  );
 
   const photoView = supportsPhoto(drawnTemplate(template, { routeOnly, withPhoto: true }));
   const stickerView = supportsTransparent(drawnTemplate(template, { routeOnly }));
@@ -825,26 +863,39 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
                 )}
                 {own && !rendering && (
                   <>
-                    {(['logo', 'text', 'data'] as const).map(p => {
-                      const box = hitMap[p];
-                      if (!box || mode !== p) return null;
-                      if (p === 'logo' && hitMap.logoPieces) return hitMap.logoPieces.map((b, i) => outline(p, b, true, i));
-                      return outline(p, box, true);
-                    })}
+                    {labelled.filter(p => p !== mode).flatMap(p => (
+                      p === 'logo' && hitMap.logoPieces ? hitMap.logoPieces.map((b, i) => outline(p, b, false, i)) : [outline(p, hitMap[p]!, false)]
+                    ))}
+                    {inPart && mode !== 'background' && hitMap[mode] && (
+                      mode === 'logo' && hitMap.logoPieces
+                        ? hitMap.logoPieces.map((b, i) => outline('logo', b, true, i))
+                        : outline(mode, hitMap[mode]!, true)
+                    )}
                     {mode === 'background' && (
                       <div className="pointer-events-none absolute inset-1.5 rounded-xl border-[2.5px] border-[#FF5315]" />
                     )}
-                    {hints && !inPart && (['logo', 'text', 'data'] as const).map(p => {
-                      const box = hitMap[p];
-                      if (!box) return null;
+                    {/* The labels are buttons, over everything, so a part drawn small (the
+                        logo) still has a target it can be opened from. */}
+                    {[...labelled, 'background' as const].map(p => {
+                      const r = labels[p];
+                      if (!r) return null;
+                      const on = mode === p;
                       return (
-                        <span
-                          key={`pulse-${p}`}
-                          className="pointer-events-none absolute -ms-2 -mt-2 h-4 w-4 animate-ping rounded-full bg-white/90"
-                          // The data box runs from the route down to the numbers, so its middle is
-                          // often the title; its pulse sits low, on the numbers.
-                          style={{ left: ((box.x0 + box.x1) / 2) * scale, top: (p === 'data' ? box.y0 + (box.y1 - box.y0) * 0.8 : (box.y0 + box.y1) / 2) * scale }}
-                        />
+                        <button
+                          key={`label-${p}`}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={e => { e.stopPropagation(); openPart(p); }}
+                          className={cn(
+                            'absolute whitespace-nowrap rounded-full text-center text-3xs font-extrabold shadow-[0_2px_6px_rgba(0,0,0,0.45)] transition-colors',
+                            // The pill is drawn small; its target is not.
+                            "after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-['']",
+                            on ? 'bg-[#FF5315] text-white' : 'bg-white text-ink-900',
+                          )}
+                          style={{ left: r.x, top: r.y, width: r.w, height: r.h, lineHeight: `${r.h}px` }}
+                        >
+                          {tabName(p)}
+                        </button>
                       );
                     })}
                   </>

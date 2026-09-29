@@ -163,3 +163,53 @@ export function recordHitMap(ctx: CanvasRenderingContext2D, known: HitMapKnown):
     return map;
   };
 }
+
+export interface LabelRect { x: number; y: number; w: number; h: number }
+
+const overlaps = (a: LabelRect, b: LabelRect, gap = 0) =>
+  !(a.x + a.w + gap <= b.x || b.x + b.w + gap <= a.x || a.y + a.h + gap <= b.y || b.y + b.h + gap <= a.y);
+const contains = (o: LabelRect, i: LabelRect) =>
+  o.x <= i.x && o.y <= i.y && o.x + o.w >= i.x + i.w && o.y + o.h >= i.y + i.h;
+
+/**
+ * Where each part's label goes over the card, in screen pixels. A label sits just
+ * outside its outline (above, beside, then below it), at the reading-start corner
+ * first, and not on a label already placed, not on another part, and not past the
+ * card's edge. The labels are the buttons that open the parts, so two of them
+ * sharing a spot, or one lying over the title, would hide a part behind another
+ * (feedback 2026-09-29). An outline that holds this part inside it (the route box
+ * holds the title) is no obstacle: nothing near the title would be clear of it.
+ * When no spot is clear of the parts, being clear of the other labels is enough.
+ */
+export function placeLabels(
+  items: { key: string; box: LabelRect; w: number }[],
+  card: { w: number; h: number },
+  opts: { h: number; gap: number; rtl: boolean; obstacles?: LabelRect[] },
+): Record<string, LabelRect> {
+  const { h, gap, rtl } = opts;
+  const placed: Record<string, LabelRect> = {};
+  const taken: LabelRect[] = [];
+  const inCard = (r: LabelRect) => r.x >= 2 && r.y >= 2 && r.x + r.w <= card.w - 2 && r.y + r.h <= card.h - 2;
+  const fit = (r: LabelRect) => ({ ...r, x: Math.min(Math.max(r.x, 2), card.w - 2 - r.w) });
+  for (const { key, box, w } of items) {
+    const walls = [...items.map(i => i.box), ...(opts.obstacles ?? [])].filter(o => o !== box && !contains(o, box));
+    const start = rtl ? box.x + box.w - w : box.x;
+    const end = rtl ? box.x : box.x + box.w - w;
+    const mid = box.x + (box.w - w) / 2;
+    const midY = box.y + (box.h - h) / 2;
+    const row = (y: number) => [start, end, mid].map(x => ({ x, y, w, h }));
+    const tries = [
+      ...row(box.y - h - 3),
+      ...(rtl ? [box.x + box.w + 4, box.x - w - 4] : [box.x - w - 4, box.x + box.w + 4]).map(x => ({ x, y: midY, w, h })),
+      ...row(box.y + box.h + 3),
+      { x: start, y: box.y + 4, w, h },
+    ];
+    const freeOfLabels = (r: LabelRect) => inCard(r) && taken.every(o => !overlaps(r, o, gap));
+    const free = (r: LabelRect) => freeOfLabels(r) && walls.every(o => !overlaps(r, o));
+    const pick = tries.find(free) ?? tries.map(fit).find(free)
+      ?? tries.find(freeOfLabels) ?? tries.map(fit).find(freeOfLabels) ?? fit(tries[0]!);
+    placed[key] = pick;
+    taken.push(pick);
+  }
+  return placed;
+}

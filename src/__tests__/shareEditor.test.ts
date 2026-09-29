@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join } from 'path';
-import { isTextPart, markLogo, partAt, recordHitMap, unionBox } from '@/lib/share/hit-map';
+import { isTextPart, markLogo, partAt, placeLabels, recordHitMap, unionBox } from '@/lib/share/hit-map';
 import { isolateLtrRuns } from '@/lib/feed/share-image';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
@@ -120,6 +120,29 @@ describe('the hit map', () => {
     markLogo(ctx, 0, 0, 10, 10); // no recorder: nothing, and no throw
   });
 
+  it('places the labels over the card apart from each other and inside it', () => {
+    const card = { w: 300, h: 530 };
+    // Two parts one on top of the other: the second label cannot take the first one's spot.
+    const got = placeLabels([
+      { key: 'text', box: { x: 20, y: 200, w: 260, h: 30 }, w: 60 },
+      { key: 'logo', box: { x: 20, y: 226, w: 100, h: 40 }, w: 50 },
+      { key: 'edge', box: { x: 280, y: 0, w: 20, h: 20 }, w: 60 },
+    ], card, { h: 20, gap: 6, rtl: false });
+    const all = Object.values(got);
+    for (const a of all) {
+      expect(a.x).toBeGreaterThanOrEqual(2);
+      expect(a.y).toBeGreaterThanOrEqual(2);
+      expect(a.x + a.w).toBeLessThanOrEqual(card.w - 2);
+      for (const b of all) {
+        if (a === b) continue;
+        const apart = a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y;
+        expect(apart).toBe(true);
+      }
+    }
+    expect(got.text).toEqual({ x: 20, y: 177, w: 60, h: 20 }); // above, at the start
+    expect(placeLabels([{ key: 't', box: { x: 20, y: 200, w: 260, h: 30 }, w: 60 }], card, { h: 20, gap: 6, rtl: true }).t!.x).toBe(220);
+  });
+
   it('is asked for by the renderer only when the editor wants it', () => {
     expect(RENDER).toMatch(/const stopHitMap = opts\.onHitMap\s*\?\s*recordHitMap\(ctx/);
     expect(RENDER).toMatch(/if \(stopHitMap\) opts\.onHitMap!\(stopHitMap\(\)\)/);
@@ -151,11 +174,17 @@ describe('the editor', () => {
   });
 
   it('names every part in a row of real buttons, so no option hangs on a small tap target', () => {
-    expect(EDITOR).toMatch(/const tabs: Mode\[\] = fixed \? \['looks', 'logo', 'text', 'background'\] : \['looks', 'logo', 'text', 'data', 'background'\]/);
-    // A look whose numbers are fixed says so when they are tapped, rather than opening an empty tab.
-    expect(EDITOR).toMatch(/if \(part === 'data' && fixed\) \{ setNotice\(t\(fixed\)\); return; \}/);
+    expect(EDITOR).toMatch(/const tabs: Mode\[\] = dataOk \? \['looks', 'logo', 'text', 'data', 'background'\] : \['looks', 'logo', 'text', 'background'\]/);
+    // The splits chart and the route have options of their own even when their numbers
+    // are fixed; hiding their tab on 'fixed' alone locked the chart options away.
+    expect(EDITOR).toMatch(/const dataOk = !fixed \|\| template === 'splits' \|\| template === 'route';/);
+    // A look with nothing to change there says so when tapped, rather than opening an empty tab.
+    expect(EDITOR).toMatch(/if \(part === 'data' && !dataOk\) \{ setNotice\(t\(fixed!\)\); return; \}/);
     expect(EDITOR).toMatch(/role="tab"\s+aria-selected=\{mode === p\}\s+onClick=\{\(\) => openPart\(p\)\}/);
-    // The labels over the card were pictures of buttons; they are gone.
+    // The labels over the card are buttons now (they were pictures of buttons), always
+    // on, and placed so none lies on another.
+    expect(EDITOR).toMatch(/<button\s+key=\{`label-\$\{p\}`\}\s+type="button"\s+aria-pressed=\{on\}\s+onClick=\{e => \{ e\.stopPropagation\(\); openPart\(p\); \}\}/);
+    expect(EDITOR).toMatch(/const labels = placeLabels\(/);
     expect(EDITOR).not.toMatch(/showAll|showParts/);
   });
 
