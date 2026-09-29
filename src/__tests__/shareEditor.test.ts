@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join } from 'path';
-import { isTextPart, partAt, recordHitMap, unionBox } from '@/lib/share/hit-map';
+import { isTextPart, markLogo, partAt, recordHitMap, unionBox } from '@/lib/share/hit-map';
 import { isolateLtrRuns } from '@/lib/feed/share-image';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
@@ -99,6 +99,27 @@ describe('the hit map', () => {
     expect(isTextPart('\u202A10×400\u202C בפארק', { title: '10×400 בפארק', date: null })).toBe(true);
   });
 
+  it('keeps the logo\'s pieces apart, so the numbers between them stay the numbers', () => {
+    const ctx = fakeCtx();
+    const stop = recordHitMap(ctx, known);
+    ctx.drawImage(MARK as never, 440, 1100, 200, 100); // the wordmark, above the numbers
+    ctx.fillText('9.78 km', 100, 1300);
+    markLogo(ctx, 520, 1450, 36, 36); // the shoe, under them
+    const map = stop();
+    expect(map.logoPieces).toHaveLength(2);
+    expect(partAt(map, 540, 1150)).toBe('logo');
+    expect(partAt(map, 538, 1468)).toBe('logo');
+    expect(partAt(map, 200, 1280)).toBe('data');
+  });
+
+  it('counts a mark drawn as paths (the shoe) as the logo', () => {
+    const ctx = fakeCtx();
+    const stop = recordHitMap(ctx, known);
+    markLogo(ctx, 300, 900, 36, 36);
+    expect(stop().logo).toEqual({ x0: 300, y0: 900, x1: 336, y1: 936 });
+    markLogo(ctx, 0, 0, 10, 10); // no recorder: nothing, and no throw
+  });
+
   it('is asked for by the renderer only when the editor wants it', () => {
     expect(RENDER).toMatch(/const stopHitMap = opts\.onHitMap\s*\?\s*recordHitMap\(ctx/);
     expect(RENDER).toMatch(/if \(stopHitMap\) opts\.onHitMap!\(stopHitMap\(\)\)/);
@@ -125,13 +146,29 @@ describe('the editor', () => {
   });
 
   it('shows all the looks at once, without a scrolling rail', () => {
+    expect(EDITOR).toMatch(/views\.map\(v => \{\s*const on = template === v\.key;/);
     expect(EDITOR).toMatch(/className=\{cn\('min-w-0 flex-1 text-center'/);
   });
 
-  it('has a way back where the thumb is, and on the card, and on Enter', () => {
-    expect(EDITOR).toMatch(/if \(inPart\) \{ back\(\); return; \}/);
+  it('names every part in a row of real buttons, so no option hangs on a small tap target', () => {
+    expect(EDITOR).toMatch(/const tabs: Mode\[\] = fixed \? \['looks', 'logo', 'text', 'background'\] : \['looks', 'logo', 'text', 'data', 'background'\]/);
+    // A look whose numbers are fixed says so when they are tapped, rather than opening an empty tab.
+    expect(EDITOR).toMatch(/if \(part === 'data' && fixed\) \{ setNotice\(t\(fixed\)\); return; \}/);
+    expect(EDITOR).toMatch(/role="tab"\s+aria-selected=\{mode === p\}\s+onClick=\{\(\) => openPart\(p\)\}/);
+    // The labels over the card were pictures of buttons; they are gone.
+    expect(EDITOR).not.toMatch(/showAll|showParts/);
+  });
+
+  it('always shares from the big button, and Enter in the title goes back to the looks', () => {
     expect(EDITOR).toMatch(/if \(e\.key === 'Enter'\) back\(\)/);
-    expect(EDITOR).toMatch(/inPart \? t\('done'\) : t\('action'\)/);
+    expect(EDITOR).not.toMatch(/t\('done'\)/);
+    expect(EDITOR).toMatch(/onClick=\{handleShare\}/);
+  });
+
+  it('can take the shoe off, on the views that draw one', () => {
+    expect(EDITOR).toMatch(/supportsShoe\(drawn\) && \(/);
+    expect(RENDER.match(/if \(c\.showShoe\) drawShoe\(/g)?.length).toBe(4);
+    expect(RENDER.match(/\n  drawShoe\(/g)).toBeNull();
   });
 
   it('has every new word in both languages', () => {

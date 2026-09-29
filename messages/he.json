@@ -3063,14 +3063,14 @@
     "partChart": "גרף",
     "partLogoAccent": "לוגו וצבע",
     "looksTitle": "לוק",
-    "showParts": "✎ מה אפשר לשנות",
     "done": "סיום",
-    "bgTapHint": "רקע",
     "noPhotoView": "בלוק הזה אין רקע תמונה",
     "partTitle": "כותרת",
     "partDate": "תאריך",
     "partStart": "שעת התחלה",
-    "dragHint": "גוררים משבצת כתומה כדי לסדר · לחיצה מוסיפה או מסירה"
+    "dragHint": "גוררים משבצת כתומה כדי לסדר · לחיצה מוסיפה או מסירה",
+    "showShoe": "נעל ליד הלוגו",
+    "editTabs": "מה לערוך"
   },
   "watchAlerts": {
     "title": "התראות וקול בשעון",

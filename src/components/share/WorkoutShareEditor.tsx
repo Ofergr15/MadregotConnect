@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Share2, ImagePlus, Loader2, RotateCcw, Check } from 'lucide-react';
+import { X, Share2, ImagePlus, Loader2, RotateCcw } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import {
-  renderShareCard, shareCard, supportsPhoto, supportsTransparent,
+  renderShareCard, shareCard, supportsPhoto, supportsShoe, supportsTransparent,
   ACCENT_HEX, SHARE_ACCENT_KEYS, SHARE_BRAND_KEYS, STORY_H, STORY_W,
   type ShareAccent, type ShareBrand, type ShareTemplate,
 } from '@/lib/feed/share-image';
@@ -28,10 +28,11 @@ import type { FeedItem } from '@/lib/feed/project';
  * card to change anything (feedback 2026-09-29). Here the card fills the screen:
  *
  *  · the six views are a carousel — swipe, or tap a look in the strip under it;
- *  · tapping a part of the card (the chart, the logo, the title, an empty spot)
- *    swaps the strip for that part's options and nothing else;
- *  · the big bottom button is Share while browsing and Done inside a part, so the
- *    way back is where the thumb already is; a tap on the card goes back too.
+ *  · a row of tabs named after the parts of the card (look, logo, text, the
+ *    chart or the numbers, background) swaps the strip for that part's options,
+ *    and outlines the part on the card so it is plain what they change;
+ *  · tapping a part of the card is the shortcut to the same tab;
+ *  · the big bottom button always shares, from whichever tab is open.
  *
  * Where each part sits is read off the drawing (`lib/share/hit-map.ts`), so the tap
  * areas follow the card when a view moves its parts around.
@@ -92,7 +93,7 @@ function Segmented<T extends string>({ items, value, onChange }: {
           onClick={() => onChange(k)}
           aria-pressed={value === k}
           className={cn(
-            'min-h-[44px] flex-1 rounded-full px-3 text-xs font-bold transition-colors',
+            'min-h-[40px] flex-1 rounded-full px-3 text-xs font-bold transition-colors',
             value === k ? 'bg-white text-ink-900' : 'text-white/60',
           )}
         >
@@ -117,6 +118,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   const [showTitle, setShowTitle] = useState(true);
   const [showStartTime, setShowStartTime] = useState(false);
   const [showDate, setShowDate] = useState(true);
+  const [showShoe, setShowShoe] = useState(true);
   const originalTitle = item.activity?.activityName ?? '';
   const [typedTitle, setTypedTitle] = useState<string | null>(null);
   const [routeOnly, setRouteOnly] = useState(false);
@@ -131,7 +133,6 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   const [photo, setPhoto] = useState<File | null>(null);
 
   const [mode, setMode] = useState<Mode>('looks');
-  const [showAll, setShowAll] = useState(false);
   const [hints, setHints] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [hitMap, setHitMap] = useState<ShareHitMap>({});
@@ -157,7 +158,8 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   const transparent = bg === 'sticker' && supportsTransparent(drawn);
   const accentOk = supportsAccent(subject, drawn);
   const photoOk = bg === 'photo' && supportsPhoto(drawn);
-  const titleOk = !!originalTitle;
+  // 'minimal' has never drawn a title, so it offers none to edit.
+  const titleOk = !!originalTitle && template !== 'minimal';
   const dateOk = template === 'splits';
   const startOk = template === 'classic' || template === 'card';
   const shownBrand = brand ?? viewBrand(template);
@@ -187,10 +189,9 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   }, [subject]);
 
   const openPart = useCallback((next: Mode) => {
-    setShowAll(false);
     setHints(false);
     try { localStorage.setItem(HINT_KEY, '1'); } catch { /* private mode */ }
-    setMode(cur => (cur === next ? 'looks' : next));
+    setMode(next);
   }, []);
   const back = useCallback(() => {
     (document.activeElement as HTMLElement | null)?.blur?.();
@@ -246,6 +247,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
       showTitle: showTitle && titleText.trim().length > 0,
       showStartTime: (view === 'classic' || view === 'card') && showStartTime,
       showDate,
+      showShoe,
       // A neighbour shows the logo it will have when swiped to: its own.
       brand: own ? brand ?? undefined : undefined,
       splitMode: segmentOk ? splitMode : 'km' as const,
@@ -253,7 +255,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
       hrLine,
       metrics: asWorkoutMetrics(own ? keys : fitChipKeys(subject, view, keys)),
     };
-  }, [routeOnly, bg, photo, accent, showTitle, titleText, showStartTime, showDate, brand, segmentOk, splitMode, avgLine, hrLine, keys, subject]);
+  }, [routeOnly, bg, photo, accent, showTitle, titleText, showStartTime, showDate, showShoe, brand, segmentOk, splitMode, avgLine, hrLine, keys, subject]);
 
   // The card being edited, with its tap areas.
   useEffect(() => {
@@ -394,15 +396,14 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   const onSlideClick = (v: ShareTemplate, e: React.MouseEvent) => {
     if (justDragged.current) return;
     if (v !== template) { pickTemplate(v); return; }
-    if (inPart) { back(); return; }
     const r = imgRef.current?.getBoundingClientRect();
     if (!r) return;
     const part = partAt(hitMap, ((e.clientX - r.left) / r.width) * STORY_W, ((e.clientY - r.top) / r.height) * STORY_H);
+    if (part === 'data' && fixed) { setNotice(t(fixed)); return; }
     openPart(part);
   };
 
   const handleShare = async () => {
-    if (inPart) { back(); return; }
     const blob = blobRef.current;
     if (!blob || busy) return;
     setBusy(true);
@@ -427,11 +428,30 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
     if (p === 'data') return template === 'splits' ? t('partChart') : template === 'route' ? t('viewRoute') : t('frameNumbers');
     return t('titleWorkout');
   };
-  const outline = (p: SharePart, box: ShareBox, on: boolean) => {
+  // The tabs name the parts of the card, so every option is one visible tap away
+  // however small the part is drawn: a tap target on the card is only as big as
+  // the logo, and the labels over it were pictures, not buttons (feedback
+  // 2026-09-29, "tapping the logo does not let me edit it").
+  // A panel taller than its box fades at the bottom, so a small phone shows there is more.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState(false);
+  const checkMore = () => {
+    const el = panelRef.current;
+    setMore(!!el && el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+  };
+  useLayoutEffect(checkMore);
+
+  const tabs: Mode[] = fixed ? ['looks', 'logo', 'text', 'background'] : ['looks', 'logo', 'text', 'data', 'background'];
+  const tabName = (p: Mode): string => {
+    if (p === 'looks') return t('looksTitle');
+    if (p === 'logo') return t('logoTitle');
+    return partName(p);
+  };
+  const outline = (p: SharePart, box: ShareBox, on: boolean, piece = 0) => {
     const pad = 14;
     return (
       <div
-        key={p}
+        key={`${p}-${piece}`}
         className={cn('pointer-events-none absolute rounded-[10px]', on
           ? 'border-[2.5px] border-[#FF5315] shadow-[0_0_0_999px_rgba(5,6,18,0.5),0_0_0_5px_rgba(255,83,21,0.3)]'
           : 'border-[1.5px] border-dashed border-white/80')}
@@ -439,12 +459,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
           left: (box.x0 - pad) * scale, top: (box.y0 - pad) * scale,
           width: (box.x1 - box.x0 + 2 * pad) * scale, height: (box.y1 - box.y0 + 2 * pad) * scale,
         }}
-      >
-        <span className={cn(
-          'absolute -top-[22px] start-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-3xs font-extrabold shadow',
-          on ? 'bg-[#FF5315] text-white' : 'bg-white text-ink-900',
-        )}>{partName(p)}</span>
-      </div>
+      />
     );
   };
 
@@ -543,7 +558,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
                       disabled={blocked}
                       aria-pressed={on}
                       className={cn(
-                        'min-h-[52px] min-w-0 rounded-xl px-2 py-1 text-start transition-transform',
+                        'min-h-[44px] min-w-0 rounded-xl px-2 py-0.5 text-start transition-transform',
                         on ? 'touch-none bg-[#FF5315] text-white' : blocked ? 'bg-white/[0.05] text-white/30' : 'bg-white/[0.08] text-white/85',
                         draggingChip === chip.key && 'z-10 scale-105 shadow-lg ring-2 ring-white',
                       )}
@@ -559,7 +574,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
                   );
                 })}
               </div>
-              {keys.length > 1 && <p className="mt-1.5 text-center text-3xs text-white/45">{t('dragHint')}</p>}
+              {keys.length > 1 && <p className="mt-1 text-center text-3xs text-white/45">{t('dragHint')}</p>}
               {full && chips.length > capacity && (
                 <p className="mt-0.5 text-center text-3xs text-white/45" dir="auto">{t('contentFull', { count: capacity })}</p>
               )}
@@ -580,7 +595,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
                 aria-pressed={shownBrand === b}
                 aria-label={t(b === 'badge' ? 'brandBadge' : b === 'wordmark' ? 'brandWordmark' : 'brandStairs')}
                 className={cn(
-                  'flex h-16 flex-1 flex-col items-center justify-center gap-1 rounded-xl border-2 bg-white/[0.08]',
+                  'flex h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 bg-white/[0.08]',
                   shownBrand === b ? 'border-[#FF5315]' : 'border-transparent',
                 )}
               >
@@ -590,6 +605,11 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
               </button>
             ))}
           </div>
+          {supportsShoe(drawn) && (
+            <div className="mt-2">
+              <Toggle label={t('showShoe')} on={showShoe} onClick={() => setShowShoe(v => !v)} />
+            </div>
+          )}
           {accentOk && (
             <div className="mt-3 flex items-center gap-3">
               <span className="text-xs font-bold text-white/55">{t('accentTitle')}</span>
@@ -648,16 +668,25 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
               )}
             </div>
           )}
-          <div className="mb-2 flex flex-wrap gap-1.5">
+          {/* The language shares the row with the chips: on a small phone a row of its
+              own pushed it below the fold. */}
+          <div className="flex flex-wrap items-center gap-1.5">
             {titleOk && chip(t('partTitle'), showTitle, () => setShowTitle(v => !v))}
             {dateOk && chip(t('partDate'), showDate, () => setShowDate(v => !v))}
             {startOk && chip(t('partStart'), showStartTime, () => setShowStartTime(v => !v))}
+            <div className="ms-auto flex rounded-full bg-white/[0.08] p-0.5">
+              {SHARE_CARD_LANGS.map(l => (
+                <button
+                  key={l}
+                  onClick={() => setCardLang(l)}
+                  aria-pressed={cardLang === l}
+                  className={cn('min-h-[38px] rounded-full px-3 text-xs font-bold', cardLang === l ? 'bg-white text-ink-900' : 'text-white/60')}
+                >
+                  {l === 'he' ? 'עברית' : 'English'}
+                </button>
+              ))}
+            </div>
           </div>
-          <Segmented
-            items={SHARE_CARD_LANGS.map(l => [l, l === 'he' ? 'עברית' : 'English'] as [ShareCardLang, string])}
-            value={cardLang}
-            onChange={setCardLang}
-          />
         </>
       );
     }
@@ -703,19 +732,6 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
     // past its edge, which is how seven views once went missing.
     return (
       <>
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-bold text-white/55">{t('looksTitle')}</span>
-          <button
-            onClick={() => { setShowAll(v => !v); setHints(false); }}
-            aria-pressed={showAll}
-            className={cn(
-              'min-h-[32px] rounded-full border px-3 text-2xs font-extrabold',
-              showAll ? 'border-[#FF5315] bg-[#FF5315] text-white' : 'border-white/20 text-white/85',
-            )}
-          >
-            {t('showParts')}
-          </button>
-        </div>
         <div className="flex gap-1.5">
           {views.map(v => {
             const on = template === v.key;
@@ -751,7 +767,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
       dir={rtl ? 'rtl' : 'ltr'}
       className="fixed inset-0 z-[310] flex select-none flex-col bg-[#0b0d1d] pt-[env(safe-area-inset-top)] text-white"
     >
-      <div className="flex h-14 flex-none items-center justify-between px-3">
+      <div className="flex h-14 flex-none items-center justify-between px-3 [@media(max-height:699px)]:h-11">
         <button
           onClick={onClose}
           aria-label={tc('close')}
@@ -811,21 +827,14 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
                   <>
                     {(['logo', 'text', 'data'] as const).map(p => {
                       const box = hitMap[p];
-                      if (!box || !(mode === p || showAll)) return null;
-                      return outline(p, box, mode === p);
+                      if (!box || mode !== p) return null;
+                      if (p === 'logo' && hitMap.logoPieces) return hitMap.logoPieces.map((b, i) => outline(p, b, true, i));
+                      return outline(p, box, true);
                     })}
-                    {(mode === 'background' || showAll) && (
-                      <div className={cn(
-                        'pointer-events-none absolute inset-1.5 rounded-xl',
-                        mode === 'background' ? 'border-[2.5px] border-[#FF5315]' : 'border-[1.5px] border-dashed border-white/50',
-                      )}>
-                        <span className={cn(
-                          'absolute bottom-2 start-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-3xs font-extrabold rtl:translate-x-1/2',
-                          mode === 'background' ? 'bg-[#FF5315] text-white' : 'bg-white text-ink-900',
-                        )}>{t('bgTapHint')}</span>
-                      </div>
+                    {mode === 'background' && (
+                      <div className="pointer-events-none absolute inset-1.5 rounded-xl border-[2.5px] border-[#FF5315]" />
                     )}
-                    {hints && !inPart && !showAll && (['logo', 'text', 'data'] as const).map(p => {
+                    {hints && !inPart && (['logo', 'text', 'data'] as const).map(p => {
                       const box = hitMap[p];
                       if (!box) return null;
                       return (
@@ -847,26 +856,50 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
         <span className="flex-none" style={{ width: spacer, height: 1 }} />
       </div>
 
-      <div className={cn('flex h-4 flex-none items-center justify-center gap-1.5', inPart && 'invisible')}>
+      <div className={cn('flex h-4 flex-none items-center justify-center gap-1.5 [@media(max-height:699px)]:hidden', inPart && 'invisible')}>
         {views.map(v => (
           <i key={v.key} className={cn('h-1.5 rounded-full transition-all', centred === v.key ? 'w-[18px] bg-white' : 'w-1.5 bg-white/35')} />
         ))}
       </div>
 
       <div className="mt-2 flex-none rounded-t-3xl bg-[#10132b] px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-3.5">
-        <div className="h-[178px] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{tray}</div>
+        <div role="tablist" aria-label={t('editTabs')} className="mb-3 flex gap-1 rounded-2xl bg-white/[0.06] p-1 [@media(max-height:699px)]:mb-2">
+          {tabs.map(p => (
+            <button
+              key={p}
+              role="tab"
+              aria-selected={mode === p}
+              onClick={() => openPart(p)}
+              className={cn(
+                'min-h-[40px] min-w-0 flex-1 truncate rounded-xl px-1 text-2xs font-extrabold transition-colors [@media(max-height:699px)]:min-h-[34px]',
+                mode === p ? 'bg-white text-ink-900' : 'text-white/75',
+              )}
+            >
+              {tabName(p)}
+            </button>
+          ))}
+        </div>
+        <div
+          ref={panelRef}
+          role="tabpanel"
+          onScroll={checkMore}
+          style={more ? { maskImage: 'linear-gradient(to bottom, #000 80%, transparent)', WebkitMaskImage: 'linear-gradient(to bottom, #000 80%, transparent)' } : undefined}
+          className="h-[124px] overflow-y-auto [scrollbar-width:none] [@media(min-height:700px)_and_(max-height:799px)]:h-[150px] [@media(min-height:800px)]:h-[178px] [&::-webkit-scrollbar]:hidden"
+        >
+          {tray}
+        </div>
         {notice && <p className="mb-1.5 text-center text-2xs text-white/70">{notice}</p>}
         {error && <p className="mb-1.5 text-center text-2xs text-accent-red">{error}</p>}
         <button
           onClick={handleShare}
-          disabled={!inPart && (rendering || busy || !previewUrl)}
+          disabled={rendering || busy || !previewUrl}
           className={cn(
-            'mt-2 flex min-h-[50px] w-full items-center justify-center gap-2 rounded-2xl text-base font-extrabold transition-all active:scale-[0.98]',
-            inPart ? 'bg-white text-ink-900' : rendering || busy || !previewUrl ? 'bg-white/10 text-white/40' : 'bg-brand-600 text-white',
+            'mt-2 flex min-h-[50px] w-full items-center [@media(max-height:699px)]:min-h-[44px] justify-center gap-2 rounded-2xl text-base font-extrabold transition-all active:scale-[0.98]',
+            rendering || busy || !previewUrl ? 'bg-white/10 text-white/40' : 'bg-brand-600 text-white',
           )}
         >
-          {inPart ? <Check className="h-5 w-5" /> : busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
-          {inPart ? t('done') : t('action')}
+          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
+          {t('action')}
         </button>
       </div>
 

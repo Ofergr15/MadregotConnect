@@ -16,7 +16,7 @@
 
 import { formatActivityTime } from '@/lib/utils';
 import type { FeedItem, FeedActivity } from './project';
-import { recordHitMap, type ShareHitMap } from '@/lib/share/hit-map';
+import { markLogo, recordHitMap, type ShareHitMap } from '@/lib/share/hit-map';
 
 export const STORY_W = 1080;
 export const STORY_H = 1920;
@@ -111,6 +111,11 @@ export function supportsPhoto(template: ShareTemplate): boolean {
  */
 export function supportsTransparent(template: ShareTemplate): boolean {
   return template !== 'photo';
+}
+
+/** The views that draw the club's shoe beside the logo, the ones it can be taken off. */
+export function supportsShoe(template: ShareTemplate): boolean {
+  return template === 'photo' || template === 'route' || template === 'statsBar' || template === 'fullStats';
 }
 
 /**
@@ -257,6 +262,8 @@ export interface ShareCardOptions {
   showDate?: boolean;
   /** The logo to draw in the view's logo slot; the view's own when absent. */
   brand?: ShareBrand;
+  /** The shoe beside the logo on the views that have one (`supportsShoe`). Defaults to on. */
+  showShoe?: boolean;
   /** KM Splits / segments: a dashed line at the run's average pace across the bars. */
   avgLine?: boolean;
   /** Segments: the laps' heart rate as a grey area behind the bars, as Strava draws it. */
@@ -854,6 +861,7 @@ interface LayoutCtx {
   showTitle: boolean;
   showStartTime: boolean;
   showDate: boolean;
+  showShoe: boolean;
   /** The chosen numbers, in card order — see WORKOUT_METRICS. */
   metrics: WorkoutMetricKey[];
   /** The per-kilometre bars, when the athlete turned them on. */
@@ -1239,6 +1247,7 @@ const SHOE_PATHS = [
 
 function drawShoe(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
   if (typeof Path2D === 'undefined') return;
+  markLogo(ctx, x, y, size, size);
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(size / 24, size / 24);
@@ -1536,7 +1545,7 @@ function layoutPhoto(c: LayoutCtx) {
   const wmTop = p(478);
   const wm = drawWordmarkSlot(c, wmTop, wmW);
   const slotH = c.wordmark ? (c.wordmark.height / c.wordmark.width) * wmW : wm.h;
-  drawShoe(ctx, CX - wm.w / 2 - p(9) - p(36), wmTop + (slotH - p(36)) / 2, p(36));
+  if (c.showShoe) drawShoe(ctx, CX - wm.w / 2 - p(9) - p(36), wmTop + (slotH - p(36)) / 2, p(36));
 
   drawStatRow(c, pickedStats(c, 3), p(22), STORY_W - p(22), p(552));
   ctx.shadowBlur = 0;
@@ -1558,7 +1567,7 @@ function layoutRoute(c: LayoutCtx) {
   drawWordmark(c, p(412), p(132));
   drawStatRow(c, pickedStats(c, 3), p(22), STORY_W - p(22), p(488));
   ctx.shadowBlur = 0;
-  drawShoe(ctx, CX - p(18), p(545), p(36));
+  if (c.showShoe) drawShoe(ctx, CX - p(18), p(545), p(36));
 }
 
 /** Just the shape and the mark, no numbers. The quietest sticker in the set. */
@@ -1594,7 +1603,7 @@ function layoutStatsBar(c: LayoutCtx) {
   const wmTop = p(292);
   // Title above and numbers below sit close here: the badge gets a smaller square.
   const wm = drawWordmarkSlot(c, wmTop, wmW, CX, p(76));
-  drawShoe(ctx, CX - wm.w / 2 - p(48), wmTop + p(9), p(36));
+  if (c.showShoe) drawShoe(ctx, CX - wm.w / 2 - p(48), wmTop + p(9), p(36));
 
   drawStatRow(c, pickedStats(c, 3), p(18), STORY_W - p(18), p(368));
   ctx.shadowBlur = 0;
@@ -1612,7 +1621,7 @@ function layoutFullStats(c: LayoutCtx) {
   const wmW = p(140);
   const wmTop = p(264);
   drawWordmark(c, wmTop, wmW);
-  drawShoe(ctx, CX - wmW / 2 - p(48), wmTop + p(9), p(36));
+  if (c.showShoe) drawShoe(ctx, CX - wmW / 2 - p(48), wmTop + p(9), p(36));
 
   const stats = pickedStats(c, 6);
   const left = p(18);
@@ -2181,6 +2190,7 @@ export async function renderShareCard(
     showTitle: opts.showTitle ?? true,
     showStartTime: opts.showStartTime ?? true,
     showDate: opts.showDate ?? true,
+    showShoe: opts.showShoe ?? true,
     metrics: opts.metrics ?? DEFAULT_WORKOUT_METRICS,
     // Gated here as well as in the sheet: a template with no room for a footer must
     // not be able to draw one over its own content, whoever asked.

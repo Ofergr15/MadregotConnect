@@ -3063,14 +3063,14 @@
     "partChart": "Chart",
     "partLogoAccent": "Logo & colour",
     "looksTitle": "Look",
-    "showParts": "✎ What can I change",
     "done": "Done",
-    "bgTapHint": "Background",
     "noPhotoView": "This look has no photo background",
     "partTitle": "Title",
     "partDate": "Date",
     "partStart": "Start time",
-    "dragHint": "Drag an orange tile to reorder · tap any tile to add or remove"
+    "dragHint": "Drag an orange tile to reorder · tap any tile to add or remove",
+    "showShoe": "Shoe beside the logo",
+    "editTabs": "What to edit"
   },
   "watchAlerts": {
     "title": "Alerts & voice on your watch",

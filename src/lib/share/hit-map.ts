@@ -23,7 +23,14 @@
 
 export type SharePart = 'logo' | 'text' | 'data';
 export interface ShareBox { x0: number; y0: number; x1: number; y1: number }
-export type ShareHitMap = Partial<Record<SharePart, ShareBox>>;
+export type ShareHitMap = Partial<Record<SharePart, ShareBox>> & {
+  /**
+   * The logo's pieces one by one. On the route card the shoe sits under the
+   * numbers, so the union of the marks covers the numbers too: outlining that, or
+   * testing a tap against it, would hand the numbers to the logo.
+   */
+  logoPieces?: ShareBox[];
+};
 
 export interface HitMapKnown {
   isMark: (src: unknown) => boolean;
@@ -56,14 +63,25 @@ export function isTextPart(text: string, known: Pick<HitMapKnown, 'title' | 'dat
  * is between the route and the numbers); anything else is the background.
  */
 export function partAt(map: ShareHitMap, x: number, y: number, pad = 26): SharePart | 'background' {
+  const hit = (b: ShareBox | undefined) => !!b && x >= b.x0 - pad && x <= b.x1 + pad && y >= b.y0 - pad && y <= b.y1 + pad;
   for (const k of ['logo', 'text', 'data'] as const) {
-    const b = map[k];
-    if (b && x >= b.x0 - pad && x <= b.x1 + pad && y >= b.y0 - pad && y <= b.y1 + pad) return k;
+    if (k === 'logo' && map.logoPieces) { if (map.logoPieces.some(hit)) return k; continue; }
+    if (hit(map[k])) return k;
   }
   return 'background';
 }
 
 type Pt = [number, number];
+
+/**
+ * A mark drawn as vector paths (the shoe) leaves no image call to recognise, so
+ * its drawer names its own square as part of the logo through this slot. It is
+ * there only while a recorder is running.
+ */
+export const LOGO_SLOT = Symbol('share-logo-slot');
+export function markLogo(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+  (ctx as unknown as Record<symbol, ((x: number, y: number, w: number, h: number) => void) | undefined>)[LOGO_SLOT]?.(x, y, w, h);
+}
 
 /** Starts watching `ctx`; the returned function stops and hands back the boxes. */
 export function recordHitMap(ctx: CanvasRenderingContext2D, known: HitMapKnown): () => ShareHitMap {
@@ -87,6 +105,7 @@ export function recordHitMap(ctx: CanvasRenderingContext2D, known: HitMapKnown):
     const area = (box.x1 - box.x0) * (box.y1 - box.y0);
     if (area > limit) return;
     map[part] = unionBox(map[part], box);
+    if (part === 'logo') (map.logoPieces ??= []).push(box);
   };
   const rectPts = (x: number, y: number, w: number, h: number): Pt[] =>
     [toCard(x, y), toCard(x + w, y), toCard(x, y + h), toCard(x + w, y + h)];
@@ -135,7 +154,11 @@ export function recordHitMap(ctx: CanvasRenderingContext2D, known: HitMapKnown):
     grow(known.isMark(img) ? 'logo' : 'data', boxOf(rectPts(x, y, w, h)));
   });
 
+  const slots = ctx as unknown as Record<symbol, unknown>;
+  slots[LOGO_SLOT] = (x: number, y: number, w: number, h: number) => grow('logo', boxOf(rectPts(x, y, w, h)));
+
   return () => {
+    delete slots[LOGO_SLOT];
     for (const name of patched) delete own[name];
     return map;
   };
