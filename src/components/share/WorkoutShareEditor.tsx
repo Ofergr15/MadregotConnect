@@ -31,9 +31,10 @@ import type { FeedItem } from '@/lib/feed/project';
  *  · a row of tabs named after the parts of the card (look, logo, text, the
  *    chart or the numbers, background) swaps the strip for that part's options,
  *    and outlines the part on the card so it is plain what they change;
- *  · the card shows clean, as it will be shared; Edit (or opening any part) outlines
- *    and labels every part on the card, each label a button that opens the part,
- *    and Done takes them off again; a tap anywhere on a part opens it too;
+ *  · the card shows clean, as it will be shared, with only Share under it; Edit (or
+ *    a tap on any part) brings up the looks and the part tabs and outlines and
+ *    labels every part on the card, each label a button that opens the part, and
+ *    Done puts all of it away again;
  *  · the big bottom button always shares, from whichever tab is open.
  *
  * Where each part sits is read off the drawing (`lib/share/hit-map.ts`), so the tap
@@ -929,32 +930,41 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
         ))}
       </div>
 
-      <div className="mt-2 flex-none rounded-t-3xl bg-[#10132b] px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-3.5">
-        <div role="tablist" aria-label={t('editTabs')} className="mb-3 flex gap-1 rounded-2xl bg-white/[0.06] p-1 [@media(max-height:699px)]:mb-2">
-          {tabs.map(p => (
-            <button
-              key={p}
-              role="tab"
-              aria-selected={mode === p}
-              onClick={() => openPart(p)}
-              className={cn(
-                'min-h-[40px] min-w-0 flex-1 truncate rounded-xl px-1 text-2xs font-extrabold transition-colors [@media(max-height:699px)]:min-h-[34px]',
-                mode === p ? 'bg-white text-ink-900' : 'text-white/75',
-              )}
+      {/* The looks and the part options come up only while editing; Done puts them
+          away and the card takes the room back (feedback 2026-09-29). */}
+      <div className={cn(
+        'mt-2 flex-none px-4 pb-[max(16px,env(safe-area-inset-bottom))]',
+        editing && 'rounded-t-3xl bg-[#10132b] pt-3.5',
+      )}>
+        {editing && (
+          <>
+            <div role="tablist" aria-label={t('editTabs')} className="mb-3 flex gap-1 rounded-2xl bg-white/[0.06] p-1 [@media(max-height:699px)]:mb-2">
+              {tabs.map(p => (
+                <button
+                  key={p}
+                  role="tab"
+                  aria-selected={mode === p}
+                  onClick={() => openPart(p)}
+                  className={cn(
+                    'min-h-[40px] min-w-0 flex-1 truncate rounded-xl px-1 text-2xs font-extrabold transition-colors [@media(max-height:699px)]:min-h-[34px]',
+                    mode === p ? 'bg-white text-ink-900' : 'text-white/75',
+                  )}
+                >
+                  {tabName(p)}
+                </button>
+              ))}
+            </div>
+            <div
+              ref={panelRef}
+              role="tabpanel"
+              onScroll={checkMore}
+              style={more ? { maskImage: 'linear-gradient(to bottom, #000 80%, transparent)', WebkitMaskImage: 'linear-gradient(to bottom, #000 80%, transparent)' } : undefined}
+              className="h-[124px] overflow-y-auto [scrollbar-width:none] [@media(min-height:700px)_and_(max-height:799px)]:h-[150px] [@media(min-height:800px)]:h-[178px] [&::-webkit-scrollbar]:hidden"
             >
-              {tabName(p)}
-            </button>
-          ))}
-        </div>
-        <div
-          ref={panelRef}
-          role="tabpanel"
-          onScroll={checkMore}
-          style={more ? { maskImage: 'linear-gradient(to bottom, #000 80%, transparent)', WebkitMaskImage: 'linear-gradient(to bottom, #000 80%, transparent)' } : undefined}
-          className="h-[124px] overflow-y-auto [scrollbar-width:none] [@media(min-height:700px)_and_(max-height:799px)]:h-[150px] [@media(min-height:800px)]:h-[178px] [&::-webkit-scrollbar]:hidden"
-        >
-          {tray}
-        </div>
+              {tray}
+            </div>
+          </>
+        )}
         {notice && <p className="mb-1.5 text-center text-2xs text-white/70">{notice}</p>}
         {error && <p className="mb-1.5 text-center text-2xs text-accent-red">{error}</p>}
         <button

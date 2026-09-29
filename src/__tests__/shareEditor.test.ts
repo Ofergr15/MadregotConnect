@@ -190,6 +190,8 @@ describe('the editor', () => {
     expect(EDITOR).toMatch(/\{editing && labelled\.filter/);
     expect(EDITOR).toMatch(/if \(editing\) \{ setEditing\(false\); back\(\); \} else setEditing\(true\);/);
     expect(EDITOR).toMatch(/if \(next !== 'looks'\) setEditing\(true\);/);
+    // The looks and the part options are part of editing too.
+    expect(EDITOR).toMatch(/editing && 'rounded-t-3xl bg-\[#10132b\] pt-3\.5',\s*\)\}>\s*\{editing && \(\s*<>\s*<div role="tablist"/);
     expect(EDITOR).not.toMatch(/showAll|showParts/);
   });
 
