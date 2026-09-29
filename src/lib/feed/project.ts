@@ -14,6 +14,7 @@
  * can draw the pace heat map — and it is masked alongside `averagePace`.
  */
 
+import { displaySplits } from '@/lib/activities/km-splits';
 import type { FeedComment } from '@/lib/feed/comments';
 import type { FeedPlanVerdict } from '@/lib/feed/plan-verdicts';
 
@@ -46,7 +47,7 @@ export interface FeedActivity {
   hasRoute: boolean;
   /**
    * Average pace per kilometre, seconds/km, for the thumbnail's pace heat map.
-   * Null when the run has no cached splits. Blanked with `averagePace` when the
+   * Null when the run has neither splits nor laps. Blanked with `averagePace` when the
    * athlete has hidden their pace.
    */
   paceBands: number[] | null;
@@ -185,6 +186,7 @@ interface RawActivityRow {
   route_preview: unknown;
   has_polyline: boolean | null;
   splits: unknown;
+  laps?: unknown;
 }
 
 function toNumber(v: unknown): number | null {
@@ -213,12 +215,21 @@ function toRoute(v: unknown): Array<{ lat: number; lng: number }> | null {
  * Just the paces: distance, duration and HR per split stay off the wire. Two
  * splits minimum, because a single number is not a heat map.
  *
- * Often `null`, and that's expected — `splits` is populated when a run is synced
- * from Strava or the first time someone opens its detail page, so older runs
- * nobody has opened have none. A card with no bands just draws its usual single
- * colour.
+ * Read the way the run's own page reads them, through `displaySplits`: the finer
+ * of `splits` and `laps`, binned into real kilometres. Reading `splits` alone was
+ * the km-by-km share view greyed out on a 25.56 km run whose page drew every
+ * kilometre, because nothing writes `splits` any more (589 of the club's last 595
+ * runs have none) while every synced run has its laps. The bare-pace branch below
+ * stays for old `splits` rows that carry only `averagePace`.
+ *
+ * Still `null` for a run with neither, and a card with no bands just draws its
+ * usual single colour.
  */
-function toPaceBands(v: unknown): number[] | null {
+function toPaceBands(v: unknown, laps?: unknown): number[] | null {
+  const km = displaySplits(v, laps)
+    .map((s) => s.averagePace)
+    .filter((p) => Number.isFinite(p) && p > 0);
+  if (km.length >= 2) return km;
   if (!Array.isArray(v) || v.length < 2) return null;
   const paces = v
     .map((s) => toNumber((s as { averagePace?: unknown })?.averagePace))
@@ -264,7 +275,7 @@ function projectActivity(row: RawActivityRow, planVerdict: FeedPlanVerdict | nul
     perceivedFeel: toNumber(row.perceived_feel),
     routePreview: route,
     hasRoute: !!route || !!row.has_polyline,
-    paceBands: toPaceBands(row.splits),
+    paceBands: toPaceBands(row.splits, row.laps),
     planVerdict,
   };
 }

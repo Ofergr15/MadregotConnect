@@ -344,6 +344,22 @@ describe('feed projection — paceBands', () => {
     expect(bands('splits')).toBeNull();
     expect(bands({ averagePace: 300 })).toBeNull();
   });
+  // Feedback 2026-09-29: km-by-km was greyed out on a 25.56 km run whose own page
+  // drew every kilometre. Nothing writes `splits` any more; the laps are there.
+  it('builds the kilometres from the laps when splits is empty, as the run page does', () => {
+    const laps = Array.from({ length: 25 }, (_, i) => ({ distance: 1000, duration: 250 + i }));
+    laps.push({ distance: 560, duration: 140 });
+    const withLaps = { ...row(null), athlete_activities: { ...row(null).athlete_activities, distance: 25560, laps } };
+    const got = projectFeedItem(withLaps, context).activity!.paceBands!;
+    expect(got.slice(0, 3)).toEqual([250, 251, 252]);
+    expect(got.length).toBeGreaterThanOrEqual(25);
+  });
+
+  it('bins lap-per-step laps into real kilometres instead of one band per lap', () => {
+    const laps = Array.from({ length: 20 }, () => ({ distance: 250, duration: 75 }));
+    const withLaps = { ...row([]), athlete_activities: { ...row([]).athlete_activities, laps } };
+    expect(projectFeedItem(withLaps, context).activity!.paceBands).toEqual([300, 300, 300, 300, 300]);
+  });
 });
 
 describe('toAchievementPayload', () => {

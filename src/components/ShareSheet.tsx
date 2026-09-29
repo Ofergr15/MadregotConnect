@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { X, Share2, ImagePlus, Loader2, Eye, EyeOff, RotateCcw } from 'lucide-react';
+import { X, Share2, ImagePlus, Loader2, Eye, EyeOff, RotateCcw, Check } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { Sheet } from '@/components/ui/Sheet';
@@ -320,14 +320,20 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
                     disabled={!v.available}
                     aria-pressed={on}
                     className={cn(
-                      'flex flex-col items-center gap-1 rounded-lg p-0.5 transition-colors',
-                      !v.available ? 'cursor-default opacity-40' : on ? 'text-brand-600' : 'text-ink-400',
+                      'flex flex-col items-center gap-1.5 rounded-lg p-1.5 transition-colors',
+                      !v.available ? 'cursor-default opacity-40' : on ? 'text-ink-900' : 'text-ink-400',
                     )}
                   >
+                    {/* The card being edited has to read at a glance from the tiles
+                        alone: a 2px blue edge on a blue thumbnail vanished (feedback
+                        2026-09-29), so the chosen one gets the card's own orange, thick
+                        and offset from the picture, and a tick in its corner. */}
                     <span
                       className={cn(
-                        'block w-full overflow-hidden rounded-md border-2 bg-page',
-                        on ? 'border-brand-600' : 'border-transparent',
+                        'relative block w-full overflow-hidden rounded-md bg-page transition-shadow',
+                        on
+                          ? 'shadow-[0_0_0_2px_#fff,0_0_0_5px_#FF5315]'
+                          : 'shadow-[0_0_0_1px_rgba(0,0,0,0.06)]',
                       )}
                       style={{ aspectRatio: '9 / 16' }}
                     >
@@ -335,8 +341,13 @@ export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={thumbs[v.key]} alt="" className="h-full w-full object-cover" />
                       )}
+                      {on && (
+                        <span className="absolute end-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#FF5315] text-white shadow">
+                          <Check size={13} strokeWidth={3} aria-hidden />
+                        </span>
+                      )}
                     </span>
-                    <span className="text-3xs font-bold leading-tight">{t(VIEW_LABEL[v.key])}</span>
+                    <span className={cn('text-3xs font-bold leading-tight', on && 'text-ink-900')}>{t(VIEW_LABEL[v.key])}</span>
                   </button>
                 );
               })}
