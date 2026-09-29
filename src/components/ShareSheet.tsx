@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { Sheet } from '@/components/ui/Sheet';
 import { WorkoutShareEditor } from '@/components/share/WorkoutShareEditor';
+import { useIsSuperUser } from '@/lib/impersonation';
 import {
   renderShareCard, shareCard, supportsPhoto, supportsTransparent, workoutPaceBars,
   ACCENT_HEX, SHARE_ACCENT_KEYS, SHARE_BRAND_KEYS, type ShareAccent, type ShareBrand, type ShareTemplate,
@@ -78,8 +79,13 @@ const VIEW_LABEL: Record<ShareTemplate, string> = {
  * workout branch stays below, unreached, until the editor has been out a while:
  * it is the way back if the editor has to be pulled.
  */
+/**
+ * The full-screen editor is on for the super user only while it is tried out on
+ * real runs; everyone else keeps this sheet, whose workout branch is unchanged.
+ */
 export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClose: () => void }) {
-  if (subject.kind === 'workout') return <WorkoutShareEditor item={subject.item} onClose={onClose} />;
+  const editor = useIsSuperUser();
+  if (subject.kind === 'workout' && editor) return <WorkoutShareEditor item={subject.item} onClose={onClose} />;
   return <ClassicShareSheet subject={subject} onClose={onClose} />;
 }
 

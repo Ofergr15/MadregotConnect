@@ -106,8 +106,9 @@ describe('the hit map', () => {
 });
 
 describe('the editor', () => {
-  it('opens for the workout; the week keeps the sheet', () => {
-    expect(SHEET).toMatch(/subject\.kind === 'workout'\) return <WorkoutShareEditor/);
+  it('opens for the workout, for the super user only; everyone else and the week keep the sheet', () => {
+    expect(SHEET).toMatch(/const editor = useIsSuperUser\(\);/);
+    expect(SHEET).toMatch(/subject\.kind === 'workout' && editor\) return <WorkoutShareEditor/);
     expect(SHEET).toMatch(/return <ClassicShareSheet subject=\{subject\}/);
   });
 
