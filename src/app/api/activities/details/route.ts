@@ -16,6 +16,10 @@
  * run: where someone lives and when they were out. That is club-visible now by
  * product decision, so it stays behind `requireMember` (logged in AND has an
  * athletes/coaches row) and must never become public.
+ *
+ * `include=hr` adds `hrTrace`, the watch's heart rate thinned to ~240 points, for
+ * the share card's lap chart. To the run's OWN athlete only: teammates see a
+ * lap's average heart rate and nothing finer, and this does not change that.
  */
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
@@ -24,6 +28,7 @@ import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
 import { displaySplits } from '@/lib/activities/km-splits';
 import { perKmFromStream } from '@/lib/activities/stream-per-km';
 import { loadActivityStream } from '@/lib/garmin/stream-store';
+import { thinHrTrace, type HrTrace } from '@/lib/share/hr-trace';
 
 export const dynamic = 'force-dynamic';
 
@@ -108,6 +113,12 @@ export async function GET(request: Request) {
       }
     }
 
+    let hrTrace: HrTrace | undefined;
+    if (searchParams.get('include') === 'hr' && caller.athleteId && caller.athleteId === r.athlete_id) {
+      const series = (await loadActivityStream(supabase, r.id))?.series;
+      hrTrace = series ? thinHrTrace(series.d, series.hr) : [];
+    }
+
     // The summary row, shaped like the list endpoint's rows so the detail UI can
     // take either one. `gps_points`/`laps`/`splits` are dropped from it — they're
     // already the top-level `gpsPoints`/`splits`, and repeating a 60KB trace
@@ -125,6 +136,7 @@ export async function GET(request: Request) {
       hasPolyline: !!r.has_polyline,
       source: r.source || 'strava',
       activity,
+      ...(hrTrace ? { hrTrace } : {}),
     });
   } catch (error: any) {
     console.error('Activity details error:', error);

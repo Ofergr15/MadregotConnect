@@ -88,9 +88,11 @@ export function fetchPlanMatch(activityId: string): Promise<Response> {
 export async function fetchActivityDetails(
   activityId: number | string,
   athleteId?: string | null,
+  include?: 'hr',
 ): Promise<Response> {
   const params = new URLSearchParams({ activityId: String(activityId) });
   if (athleteId) params.set('athleteId', athleteId);
+  if (include) params.set('include', include);
   return fetch(`/api/activities/details?${params.toString()}`, {
     headers: await apiHeaders(),
   });

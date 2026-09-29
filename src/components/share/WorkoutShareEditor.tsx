@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Share2, ImagePlus, Loader2, RotateCcw, Pencil, Check } from 'lucide-react';
+import { X, Share2, ImagePlus, Loader2, RotateCcw, Pencil, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import {
@@ -19,6 +19,8 @@ import {
   type ShareSubject,
 } from '@/lib/share/sheet-model';
 import type { FeedItem } from '@/lib/feed/project';
+import { fetchActivityDetails } from '@/lib/activities-client';
+import type { HrTrace } from '@/lib/share/hr-trace';
 
 /**
  * THE WORKOUT SHARE EDITOR: THE CARD IS THE CONTROL PANEL.
@@ -28,13 +30,13 @@ import type { FeedItem } from '@/lib/feed/project';
  * card to change anything (feedback 2026-09-29). Here the card fills the screen:
  *
  *  · the six views are a carousel — swipe, or tap a look in the strip under it;
- *  · a row of tabs named after the parts of the card (look, logo, text, the
- *    chart or the numbers, background) swaps the strip for that part's options,
- *    and outlines the part on the card so it is plain what they change;
  *  · the card shows clean, as it will be shared, with only Share under it; Edit (or
- *    a tap on any part) brings up the looks and the part tabs and outlines and
- *    labels every part on the card, each label a button that opens the part, and
- *    Done puts all of it away again;
+ *    a tap on any part) brings up the looks and outlines and labels every part on
+ *    the card, each label a button that swaps the strip for that part's options,
+ *    and Done puts all of it away again;
+ *  · there is no row of tabs as well: the labels already name the parts, and
+ *    three ways to open the same options were two too many (feedback
+ *    2026-09-29). Inside a part, "All looks" (or its label again) goes back;
  *  · the big bottom button always shares, from whichever tab is open.
  *
  * Where each part sits is read off the drawing (`lib/share/hit-map.ts`), so the tap
@@ -112,7 +114,28 @@ function Segmented<T extends string>({ items, value, onChange }: {
   );
 }
 
-export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose: () => void }) {
+export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; onClose: () => void }) {
+  // The watch's heart rate, for the lap chart, fetched for the run's own athlete
+  // (the route answers nobody else). Until it comes, or when there is none, the
+  // chart draws the laps' averages.
+  const [hrTrace, setHrTrace] = useState<HrTrace | null>(null);
+  const hrWanted = canHrLine({ kind: 'workout', item: given });
+  const givenId = given.activity?.id;
+  useEffect(() => {
+    if (!hrWanted || !givenId) return;
+    let cancelled = false;
+    fetchActivityDetails(givenId, null, 'hr')
+      .then(r => (r.ok ? r.json() : null))
+      .then((body: { hrTrace?: HrTrace } | null) => {
+        if (!cancelled && body?.hrTrace && body.hrTrace.length >= 10) setHrTrace(body.hrTrace);
+      })
+      .catch(() => { /* the laps' averages stand in */ });
+    return () => { cancelled = true; };
+  }, [hrWanted, givenId]);
+  const item = useMemo<FeedItem>(
+    () => (hrTrace && given.activity ? { ...given, activity: { ...given.activity, hrTrace } } : given),
+    [given, hrTrace],
+  );
   const t = useTranslations('shareSheet');
   const tc = useTranslations('common');
   const locale = useLocale();
@@ -238,6 +261,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
             splitMode: canSegment(subject) ? 'segments' : 'km',
             avgLine: true,
             hrLine: true,
+            editorChart: true,
           });
           if (cancelled) return;
           const url = swapUrl(`thumb:${v.key}`, URL.createObjectURL(blob));
@@ -266,6 +290,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
       splitMode: segmentOk ? splitMode : 'km' as const,
       avgLine,
       hrLine,
+      editorChart: true,
       metrics: asWorkoutMetrics(own ? keys : fitChipKeys(subject, view, keys)),
     };
   }, [routeOnly, bg, photo, accent, showTitle, titleText, showStartTime, showDate, showShoe, brand, segmentOk, splitMode, avgLine, hrLine, keys, subject]);
@@ -441,10 +466,6 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
     if (p === 'data') return template === 'splits' ? t('partChart') : template === 'route' ? t('viewRoute') : t('frameNumbers');
     return t('titleWorkout');
   };
-  // The tabs name the parts of the card, so every option is one visible tap away
-  // however small the part is drawn: a tap target on the card is only as big as
-  // the logo, and the labels over it were pictures, not buttons (feedback
-  // 2026-09-29, "tapping the logo does not let me edit it").
   // A panel taller than its box fades at the bottom, so a small phone shows there is more.
   const panelRef = useRef<HTMLDivElement>(null);
   const [more, setMore] = useState(false);
@@ -454,9 +475,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
   };
   useLayoutEffect(checkMore);
 
-  const tabs: Mode[] = dataOk ? ['looks', 'logo', 'text', 'data', 'background'] : ['looks', 'logo', 'text', 'background'];
-  const tabName = (p: Mode): string => {
-    if (p === 'looks') return t('looksTitle');
+  const labelName = (p: Mode): string => {
     if (p === 'logo') return t('logoTitle');
     return partName(p);
   };
@@ -495,11 +514,11 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
         return {
           key: p,
           box: toScreen(b),
-          w: labelWidth(tabName(p)),
+          w: labelWidth(labelName(p)),
         };
       }),
       // The background's label sits on the card's bottom edge.
-      { key: 'background', box: { x: 6, y: slideH - 6 - 26, w: slideW - 12, h: 26 }, w: labelWidth(tabName('background')) },
+      { key: 'background', box: { x: 6, y: slideH - 6 - 26, w: slideW - 12, h: 26 }, w: labelWidth(labelName('background')) },
     ],
     { w: slideW, h: slideH },
     // Every piece of the logo is in the way of the other labels, not just the one
@@ -902,7 +921,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
                           key={`label-${p}`}
                           type="button"
                           aria-pressed={on}
-                          onClick={e => { e.stopPropagation(); openPart(p); }}
+                          onClick={e => { e.stopPropagation(); if (on) back(); else openPart(p); }}
                           className={cn(
                             'absolute whitespace-nowrap rounded-full text-center text-3xs font-extrabold shadow-[0_2px_6px_rgba(0,0,0,0.45)] transition-colors',
                             // The pill is drawn small; its target is not.
@@ -911,7 +930,7 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
                           )}
                           style={{ left: r.x, top: r.y, width: r.w, height: r.h, lineHeight: `${r.h}px` }}
                         >
-                          {tabName(p)}
+                          {labelName(p)}
                         </button>
                       );
                     })}
@@ -938,26 +957,25 @@ export function WorkoutShareEditor({ item, onClose }: { item: FeedItem; onClose:
       )}>
         {editing && (
           <>
-            <div role="tablist" aria-label={t('editTabs')} className="mb-3 flex gap-1 rounded-2xl bg-white/[0.06] p-1 [@media(max-height:699px)]:mb-2">
-              {tabs.map(p => (
-                <button
-                  key={p}
-                  role="tab"
-                  aria-selected={mode === p}
-                  onClick={() => openPart(p)}
-                  className={cn(
-                    'min-h-[40px] min-w-0 flex-1 truncate rounded-xl px-1 text-2xs font-extrabold transition-colors [@media(max-height:699px)]:min-h-[34px]',
-                    mode === p ? 'bg-white text-ink-900' : 'text-white/75',
-                  )}
-                >
-                  {tabName(p)}
-                </button>
-              ))}
-            </div>
+            {/* Its row is kept on the looks too, so opening a part does not shrink the card
+                under the finger. */}
+            <button
+              type="button"
+              onClick={back}
+              tabIndex={inPart ? undefined : -1}
+              aria-hidden={!inPart || undefined}
+              className={cn(
+                '-ms-1 mb-1 flex min-h-[32px] items-center gap-0.5 rounded-lg px-1 text-xs font-extrabold text-white/75',
+                !inPart && 'invisible',
+              )}
+            >
+              {rtl ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+              {t('allLooks')}
+            </button>
             <div
               ref={panelRef}
-              role="tabpanel"
-              onScroll={checkMore}
+              data-share-panel
+                            onScroll={checkMore}
               style={more ? { maskImage: 'linear-gradient(to bottom, #000 80%, transparent)', WebkitMaskImage: 'linear-gradient(to bottom, #000 80%, transparent)' } : undefined}
               className="h-[124px] overflow-y-auto [scrollbar-width:none] [@media(min-height:700px)_and_(max-height:799px)]:h-[150px] [@media(min-height:800px)]:h-[178px] [&::-webkit-scrollbar]:hidden"
             >

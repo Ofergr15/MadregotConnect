@@ -269,6 +269,14 @@ export interface ShareCardOptions {
   /** Segments: the laps' heart rate as a grey area behind the bars, as Strava draws it. */
   hrLine?: boolean;
   /**
+   * Segments: the chart as the share editor draws it — the watch's heart rate
+   * (`hrTrace`) or lagged lap plateaus in place of the round curve, and a pace
+   * scale that labels the fastest lap and steps in half minutes. Only the editor
+   * asks for it, and the editor is super-user only, so the club keeps the chart
+   * it has until this is rolled out (feedback 2026-09-29).
+   */
+  editorChart?: boolean;
+  /**
    * Handed where the logo, the text and the data were drawn, in card pixels, so the
    * share editor can open each part's options when that part is tapped
    * (`lib/share/hit-map.ts`). Nothing is recorded when it is absent.
@@ -852,6 +860,7 @@ interface LayoutCtx {
   brand: HTMLImageElement | null;
   avgLine: boolean;
   hrLine: boolean;
+  editorChart: boolean;
   splitMode: 'km' | 'segments';
   shadow: string;
   shadowBlur: number;
@@ -1963,35 +1972,66 @@ function layoutSegments(c: LayoutCtx) {
 
   ctx.shadowBlur = 0;
 
-  // Heart rate behind the bars, as a smooth curve through each lap's middle: a
-  // lap's average is all we keep, and drawn as steps it boxed in every bar.
+  // Heart rate behind the bars. From the watch's own trace when the editor has it:
+  // a curve through each lap's average was too round next to Strava's (feedback
+  // 2026-09-29), with none of the climb inside a rep or the drop in the rest after
+  // it. The trace is drawn in straight steps with only a three-point mean, which is
+  // how Strava's reads. Without one, each lap holds its average from a third of
+  // the way in to its end: heart rate lags the effort, so a rep's climb starts
+  // late and runs into the rest after it. Through the laps' middles, as a curve it
+  // was too round and as straight lines a row of spikes.
   const hrs = laps.map(l => l.hr).filter((h): h is number => h != null);
+  const trace = c.editorChart && act.hrTrace && act.hrTrace.length >= 10 ? act.hrTrace : null;
   let hrLine: Path2D | null = null;
   if (c.hrLine && hrs.length >= 2) {
-    const hLo = Math.min(...hrs) - 6;
-    const hHi = Math.max(...hrs) + 2;
-    const hY = (h: number) => bottom - ((h - hLo) / (hHi - hLo)) * chartH * 0.9;
     const pts: Array<[number, number]> = [];
     let hx = barsStart;
-    let last = hrs[0];
-    for (const l of laps) {
-      const bw = (l.m / total) * barsW;
-      last = l.hr ?? last;
-      // A 20 m pause is a hairline on the chart; as a curve point it is a cliff.
-      if (l.m >= total * 0.015) pts.push([hx + (dir * bw) / 2, hY(last)]);
-      hx += dir * bw;
+    const end = barsStart + dir * barsW;
+    if (trace) {
+      const bpm = trace.map((_, i) => {
+        const near = trace.slice(Math.max(0, i - 1), i + 2);
+        return near.reduce((a, q) => a + q[1], 0) / near.length;
+      });
+      // The warm-up's first minute sits far under the rest; letting it set the floor
+      // would flatten the whole session into the top of the chart.
+      const sorted = [...bpm].sort((a, b) => a - b);
+      const hLo = sorted[Math.floor(sorted.length * 0.05)]! - 6;
+      const hHi = sorted[sorted.length - 1]! + 2;
+      const hY = (h: number) => Math.min(bottom, bottom - ((h - hLo) / (hHi - hLo || 1)) * chartH * 0.9);
+      trace.forEach(([m], i) => pts.push([barsStart + dir * Math.min(1, m / total) * barsW, hY(bpm[i]!)]));
+      hx = end;
+    } else {
+      const hLo = Math.min(...hrs) - 6;
+      const hHi = Math.max(...hrs) + 2;
+      const hY = (h: number) => bottom - ((h - hLo) / (hHi - hLo)) * chartH * 0.9;
+      let last = hrs[0];
+      for (const l of laps) {
+        const bw = (l.m / total) * barsW;
+        last = l.hr ?? last;
+        // A 20 m pause is a hairline on the chart; as a line point it is a cliff.
+        if (l.m >= total * 0.015) {
+          if (c.editorChart) pts.push([hx + (dir * bw) / 3, hY(last)], [hx + dir * bw, hY(last)]);
+          else pts.push([hx + (dir * bw) / 2, hY(last)]);
+        }
+        hx += dir * bw;
+      }
+      if (pts.length === 0) pts.push([barsStart + (dir * barsW) / 2, hY(last)]);
     }
-    if (pts.length === 0) pts.push([barsStart + (dir * barsW) / 2, hY(last)]);
     pts.unshift([barsStart, pts[0][1]]);
     pts.push([hx, pts[pts.length - 1][1]]);
     hrLine = new Path2D();
     hrLine.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length - 1; i++) {
-      const mx = (pts[i][0] + pts[i + 1][0]) / 2;
-      const my = (pts[i][1] + pts[i + 1][1]) / 2;
-      hrLine.quadraticCurveTo(pts[i][0], pts[i][1], mx, my);
+    if (c.editorChart) {
+      for (let i = 1; i < pts.length; i++) hrLine.lineTo(pts[i][0], pts[i][1]);
+    } else {
+      // The club's chart until the editor's is rolled out: a curve through the middles.
+      for (let i = 1; i < pts.length - 1; i++) {
+        const mx = (pts[i][0] + pts[i + 1][0]) / 2;
+        const my = (pts[i][1] + pts[i + 1][1]) / 2;
+        hrLine.quadraticCurveTo(pts[i][0], pts[i][1], mx, my);
+      }
+      hrLine.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
     }
-    hrLine.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
     const fill = new Path2D(hrLine);
     fill.lineTo(hx, bottom);
     fill.lineTo(barsStart, bottom);
@@ -2045,7 +2085,18 @@ function layoutSegments(c: LayoutCtx) {
   // Whole-minute-ish ticks across the range, skipped where the avg label sits.
   // A label needs its own line: none within p(11) of another, nor of the avg label.
   const taken: number[] = showAvg ? [ay - p(4)] : [];
-  const step = floorPace - fast > 150 ? 60 : 30;
+  // The fastest lap is the top of the scale, and it is the number the chart is
+  // shared for, so it is labelled first; the round values fill in under it. It
+  // used to start at the first round value, so a 3:42 rep's top read "4:00".
+  const topY = yOf(fast) + p(3);
+  if (c.editorChart && !taken.some(y => Math.abs(y - topY) < p(11))) {
+    ctx.fillText(formatPace(fast), start, topY);
+    taken.push(topY);
+  }
+  // Half-minute steps unless the range is wide: at whole minutes a session of
+  // 3:40 reps under a 3:05 stride had no label between 3:05 and 4:00, right where
+  // the reps are. Labels that would crowd each other are skipped below anyway.
+  const step = floorPace - fast > (c.editorChart ? 330 : 150) ? 60 : 30;
   for (let pc = Math.ceil(fast / step) * step; pc <= floorPace; pc += step) {
     const ty = yOf(pc);
     if (ty < chartTop - p(2) || ty > bottom - p(4)) continue;
@@ -2182,6 +2233,7 @@ export async function renderShareCard(
     brand,
     avgLine: opts.avgLine ?? false,
     hrLine: opts.hrLine ?? false,
+    editorChart: opts.editorChart ?? false,
     splitMode: opts.splitMode ?? 'km',
     shadow: transparent ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.45)',
     shadowBlur: transparent ? 28 : 16,

@@ -4,11 +4,13 @@ import { fileURLToPath } from 'url';
 import { join } from 'path';
 import { isTextPart, markLogo, partAt, placeLabels, recordHitMap, unionBox } from '@/lib/share/hit-map';
 import { isolateLtrRuns } from '@/lib/feed/share-image';
+import { thinHrTrace } from '@/lib/share/hr-trace';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
 const EDITOR = readFileSync(join(SRC, 'components/share/WorkoutShareEditor.tsx'), 'utf8');
 const SHEET = readFileSync(join(SRC, 'components/ShareSheet.tsx'), 'utf8');
 const RENDER = readFileSync(join(SRC, 'lib/feed/share-image.ts'), 'utf8');
+const DETAILS = readFileSync(join(SRC, 'app/api/activities/details/route.ts'), 'utf8');
 const HE = JSON.parse(readFileSync(join(SRC, '../messages/he.json'), 'utf8'));
 const EN = JSON.parse(readFileSync(join(SRC, '../messages/en.json'), 'utf8'));
 
@@ -173,17 +175,21 @@ describe('the editor', () => {
     expect(EDITOR).toMatch(/className=\{cn\('min-w-0 flex-1 text-center'/);
   });
 
-  it('names every part in a row of real buttons, so no option hangs on a small tap target', () => {
-    expect(EDITOR).toMatch(/const tabs: Mode\[\] = dataOk \? \['looks', 'logo', 'text', 'data', 'background'\] : \['looks', 'logo', 'text', 'background'\]/);
+  it('names every part on the card with a real button, so no option hangs on a small tap target', () => {
+    // No row of tabs as well: the labels name the parts, and three ways into the
+    // same options were two too many (feedback 2026-09-29).
+    expect(EDITOR).not.toMatch(/role="tab"|role="tablist"/);
     // The splits chart and the route have options of their own even when their numbers
     // are fixed; hiding their tab on 'fixed' alone locked the chart options away.
     expect(EDITOR).toMatch(/const dataOk = !fixed \|\| template === 'splits' \|\| template === 'route';/);
     // A look with nothing to change there says so when tapped, rather than opening an empty tab.
     expect(EDITOR).toMatch(/if \(part === 'data' && !dataOk\) \{ setNotice\(t\(fixed!\)\); return; \}/);
-    expect(EDITOR).toMatch(/role="tab"\s+aria-selected=\{mode === p\}\s+onClick=\{\(\) => openPart\(p\)\}/);
+    // Inside a part, "All looks" (or the same label again) goes back to the looks.
+    expect(EDITOR).toMatch(/<button\s+type="button"\s+onClick=\{back\}\s+tabIndex=\{inPart \? undefined : -1\}/);
+    expect(EDITOR).toMatch(/!inPart && 'invisible',/);
     // The labels over the card are buttons now (they were pictures of buttons), placed
     // so none lies on another.
-    expect(EDITOR).toMatch(/<button\s+key=\{`label-\$\{p\}`\}\s+type="button"\s+aria-pressed=\{on\}\s+onClick=\{e => \{ e\.stopPropagation\(\); openPart\(p\); \}\}/);
+    expect(EDITOR).toMatch(/<button\s+key=\{`label-\$\{p\}`\}\s+type="button"\s+aria-pressed=\{on\}\s+onClick=\{e => \{ e\.stopPropagation\(\); if \(on\) back\(\); else openPart\(p\); \}\}/);
     expect(EDITOR).toMatch(/const labels = placeLabels\(/);
     // They show only while editing; the card is otherwise seen as it will be shared.
     expect(EDITOR).toMatch(/\{editing && \[\.\.\.labelled, 'background' as const\]\.map/);
@@ -191,7 +197,7 @@ describe('the editor', () => {
     expect(EDITOR).toMatch(/if \(editing\) \{ setEditing\(false\); back\(\); \} else setEditing\(true\);/);
     expect(EDITOR).toMatch(/if \(next !== 'looks'\) setEditing\(true\);/);
     // The looks and the part options are part of editing too.
-    expect(EDITOR).toMatch(/editing && 'rounded-t-3xl bg-\[#10132b\] pt-3\.5',\s*\)\}>\s*\{editing && \(\s*<>\s*<div role="tablist"/);
+    expect(EDITOR).toMatch(/editing && 'rounded-t-3xl bg-\[#10132b\] pt-3\.5',\s*\)\}>\s*\{editing && \(\s*<>\s*\{\/\* Its row is kept/);
     expect(EDITOR).not.toMatch(/showAll|showParts/);
   });
 
@@ -228,5 +234,34 @@ describe('a Hebrew title with numbers in it', () => {
 
   it('is applied to the title before the card is drawn', () => {
     expect(RENDER).toMatch(/activityName: isolateLtrRuns\(raw\.activityName\)/);
+  });
+});
+
+describe('the lap chart in the editor', () => {
+  it('thins the watch\'s heart rate into equal stretches of distance, skipping dropouts', () => {
+    const d = Array.from({ length: 1000 }, (_, i) => i * 5);
+    const hr = d.map((_, i) => (i % 100 === 0 ? 0 : i < 500 ? 140 : 170));
+    const got = thinHrTrace(d, hr, 10);
+    expect(got).toHaveLength(10);
+    expect(got[0]).toEqual([250, 140]);
+    expect(got[9]![1]).toBe(170);
+    expect(thinHrTrace(d, undefined)).toEqual([]);
+    expect(thinHrTrace([0, 0], [150, 150])).toEqual([]);
+  });
+
+  it('hands the trace to the run\'s own athlete only, and only when asked', () => {
+    expect(DETAILS).toMatch(/searchParams\.get\('include'\) === 'hr' && caller\.athleteId && caller\.athleteId === r\.athlete_id/);
+  });
+
+  it('asks for it only when the laps carry heart rate, so hidden heart rate stays hidden', () => {
+    expect(EDITOR).toMatch(/const hrWanted = canHrLine\(\{ kind: 'workout', item: given \}\);/);
+    expect(EDITOR).toMatch(/fetchActivityDetails\(givenId, null, 'hr'\)/);
+  });
+
+  it('is the editor\'s alone until rollout: the club\'s sheet keeps its chart', () => {
+    expect(EDITOR.match(/editorChart: true/g)).toHaveLength(2);
+    expect(SHEET).not.toMatch(/editorChart/);
+    expect(RENDER).toMatch(/const trace = c\.editorChart && act\.hrTrace/);
+    expect(RENDER).toMatch(/if \(c\.editorChart && !taken\.some\(y => Math\.abs\(y - topY\) < p\(11\)\)\) \{\s*ctx\.fillText\(formatPace\(fast\), start, topY\);/);
   });
 });

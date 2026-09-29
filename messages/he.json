@@ -3062,7 +3062,6 @@
     "bgClub": "רקע המועדון",
     "partChart": "גרף",
     "partLogoAccent": "לוגו וצבע",
-    "looksTitle": "לוק",
     "done": "סיום",
     "noPhotoView": "בלוק הזה אין רקע תמונה",
     "partTitle": "כותרת",
@@ -3070,7 +3069,7 @@
     "partStart": "שעת התחלה",
     "dragHint": "גוררים משבצת כתומה כדי לסדר · לחיצה מוסיפה או מסירה",
     "showShoe": "נעל ליד הלוגו",
-    "editTabs": "מה לערוך"
+    "allLooks": "כל הלוקים"
   },
   "watchAlerts": {
     "title": "התראות וקול בשעון",

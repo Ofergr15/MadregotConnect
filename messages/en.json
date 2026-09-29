@@ -3062,7 +3062,6 @@
     "bgClub": "Club background",
     "partChart": "Chart",
     "partLogoAccent": "Logo & colour",
-    "looksTitle": "Look",
     "done": "Done",
     "noPhotoView": "This look has no photo background",
     "partTitle": "Title",
@@ -3070,7 +3069,7 @@
     "partStart": "Start time",
     "dragHint": "Drag an orange tile to reorder · tap any tile to add or remove",
     "showShoe": "Shoe beside the logo",
-    "editTabs": "What to edit"
+    "allLooks": "All looks"
   },
   "watchAlerts": {
     "title": "Alerts & voice on your watch",

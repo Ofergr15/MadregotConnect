@@ -63,6 +63,13 @@ export interface FeedActivity {
    */
   lapBands?: Array<{ m: number; pace: number; hr?: number }> | null;
   /**
+   * The watch's heart rate as [metres, bpm], thinned (`lib/share/hr-trace.ts`).
+   * Never sent with the feed: the share editor asks for it for the athlete's own
+   * run, and only when `lapBands` carries heart rate (so hidden heart rate stays
+   * hidden). The lap chart draws it in place of the laps' averages.
+   */
+  hrTrace?: Array<[number, number]> | null;
+  /**
    * How closely this run matched the day's plan, resolved server-side by
    * `loadFeedPlanVerdicts`. Null when the day had no plan, when nothing in it was
    * gradeable, when the athlete has hidden their pace — or when the run is not the
