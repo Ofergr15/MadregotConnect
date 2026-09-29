@@ -1916,11 +1916,17 @@ function layoutSegments(c: LayoutCtx) {
   const fast = Math.min(...paces);
   const slow = Math.max(...paces);
   const total = laps.reduce((a, l) => a + l.m, 0);
-  // Speed, floored at 80% of the slowest lap's, so the slowest bar still stands.
+  // Speed, floored at 80% of the slowest lap's so the slowest bar still stands, but
+  // never below half the fastest: a standing rest is 18:00/km, and letting it set
+  // the floor squashed every running lap into the top of the chart and stacked a
+  // dozen pace labels on top of each other. A lap slower than the floor keeps a stub.
   const speed = (pace: number) => 1000 / pace;
-  const vMin = speed(slow) * 0.8;
   const vMax = speed(fast);
-  const yOf = (pace: number) => bottom - ((speed(pace) - vMin) / (vMax - vMin || 1)) * chartH;
+  const vMin = Math.max(speed(slow) * 0.8, vMax * 0.5);
+  const floorPace = 1000 / vMin;
+  const yOf = (pace: number) =>
+    Math.min(bottom - p(3), bottom - ((speed(pace) - vMin) / (vMax - vMin || 1)) * chartH);
+  const slowSeen = Math.min(slow, floorPace);
 
   // The pace scale takes a gutter on the reading-start side.
   const gutter = p(26);
@@ -1930,41 +1936,48 @@ function layoutSegments(c: LayoutCtx) {
 
   ctx.shadowBlur = 0;
 
-  // Heart rate behind the bars: one step per lap, since a lap's average is all we
-  // keep. Its own scale, filled behind the bars and outlined over them, so the
-  // curve still reads where a slow lap's pale bar covers it.
+  // Heart rate behind the bars, as a smooth curve through each lap's middle: a
+  // lap's average is all we keep, and drawn as steps it boxed in every bar.
   const hrs = laps.map(l => l.hr).filter((h): h is number => h != null);
-  const hrPath = c.hrLine && hrs.length >= 2 ? new Path2D() : null;
-  const hrFill = hrPath ? new Path2D() : null;
-  if (hrPath && hrFill) {
+  let hrLine: Path2D | null = null;
+  if (c.hrLine && hrs.length >= 2) {
     const hLo = Math.min(...hrs) - 6;
     const hHi = Math.max(...hrs) + 2;
     const hY = (h: number) => bottom - ((h - hLo) / (hHi - hLo)) * chartH * 0.9;
-    hrFill.moveTo(barsStart, bottom);
+    const pts: Array<[number, number]> = [];
     let hx = barsStart;
     let last = hrs[0];
-    laps.forEach((l, i) => {
-      const h = l.hr ?? last;
-      last = h;
-      const nx = hx + dir * (l.m / total) * barsW;
-      if (i === 0) hrPath.moveTo(hx, hY(h));
-      else hrPath.lineTo(hx, hY(h));
-      hrPath.lineTo(nx, hY(h));
-      hrFill.lineTo(hx, hY(h));
-      hrFill.lineTo(nx, hY(h));
-      hx = nx;
-    });
-    hrFill.lineTo(hx, bottom);
-    hrFill.closePath();
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
-    ctx.fill(hrFill);
+    for (const l of laps) {
+      const bw = (l.m / total) * barsW;
+      last = l.hr ?? last;
+      // A 20 m pause is a hairline on the chart; as a curve point it is a cliff.
+      if (l.m >= total * 0.015) pts.push([hx + (dir * bw) / 2, hY(last)]);
+      hx += dir * bw;
+    }
+    if (pts.length === 0) pts.push([barsStart + (dir * barsW) / 2, hY(last)]);
+    pts.unshift([barsStart, pts[0][1]]);
+    pts.push([hx, pts[pts.length - 1][1]]);
+    hrLine = new Path2D();
+    hrLine.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length - 1; i++) {
+      const mx = (pts[i][0] + pts[i + 1][0]) / 2;
+      const my = (pts[i][1] + pts[i + 1][1]) / 2;
+      hrLine.quadraticCurveTo(pts[i][0], pts[i][1], mx, my);
+    }
+    hrLine.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+    const fill = new Path2D(hrLine);
+    fill.lineTo(hx, bottom);
+    fill.lineTo(barsStart, bottom);
+    fill.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fill(fill);
   }
 
   let cursor = barsStart;
   for (const l of laps) {
     const bw = (l.m / total) * barsW;
     const top = yOf(l.pace);
-    const t = slow === fast ? 0 : (l.pace - fast) / (slow - fast);
+    const t = slowSeen === fast ? 0 : Math.min(1, (l.pace - fast) / (slowSeen - fast));
     ctx.fillStyle = t < 0.35 ? accent : `rgba(255,255,255,${(0.85 - 0.5 * t).toFixed(3)})`;
     const drawW = Math.max(bw - gap, p(0.8));
     const r = Math.max(0, Math.min(drawW / 2, p(4)));
@@ -1975,12 +1988,12 @@ function layoutSegments(c: LayoutCtx) {
     cursor += dir * bw;
   }
 
-  if (hrPath) {
+  if (hrLine) {
     ctx.save();
-    ctx.strokeStyle = 'rgba(200,205,220,0.9)';
-    ctx.lineWidth = p(1.1);
+    ctx.strokeStyle = 'rgba(210,215,230,0.7)';
+    ctx.lineWidth = p(1);
     ctx.lineJoin = 'round';
-    ctx.stroke(hrPath);
+    ctx.stroke(hrLine);
     ctx.restore();
     ctx.shadowBlur = shadowBlur;
     ctx.direction = 'ltr';
@@ -2003,12 +2016,15 @@ function layoutSegments(c: LayoutCtx) {
   ctx.font = `600 ${p(8.5)}px ${font}`;
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
   // Whole-minute-ish ticks across the range, skipped where the avg label sits.
-  const step = slow - fast > 90 ? 60 : 30;
-  for (let pc = Math.ceil(fast / step) * step; pc <= slow / 0.8; pc += step) {
+  // A label needs its own line: none within p(11) of another, nor of the avg label.
+  const taken: number[] = showAvg ? [ay - p(4)] : [];
+  const step = floorPace - fast > 150 ? 60 : 30;
+  for (let pc = Math.ceil(fast / step) * step; pc <= floorPace; pc += step) {
     const ty = yOf(pc);
     if (ty < chartTop - p(2) || ty > bottom - p(4)) continue;
-    if (showAvg && Math.abs(ty - ay) < p(10)) continue;
+    if (taken.some(y => Math.abs(y - (ty + p(3))) < p(11))) continue;
     ctx.fillText(formatPace(pc), start, ty + p(3));
+    taken.push(ty + p(3));
   }
 
   if (showAvg) {

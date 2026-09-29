@@ -234,4 +234,9 @@ describe('logo picker and segments', () => {
     expect(RENDER).toContain('function layoutSegments');
     expect(RENDER).toMatch(/const rtl = \/\[\\u0590-\\u05FF\]\/\.test\(i18n\.segments\)/);
   });
+
+  it('a standing rest does not set the pace floor, and no two pace labels share a line', () => {
+    expect(RENDER).toContain('const vMin = Math.max(speed(slow) * 0.8, vMax * 0.5);');
+    expect(RENDER).toMatch(/taken\.some\(y => Math\.abs\(y - \(ty \+ p\(3\)\)\) < p\(11\)\)/);
+  });
 });
