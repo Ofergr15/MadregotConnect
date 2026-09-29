@@ -109,16 +109,18 @@ describe('the kilometre list', () => {
     expect(supportsAccent(week, 'route')).toBe(false);
   });
 
-  it('has one row per kilometre, and pairs them above 21 so a marathon fits', () => {
+  it('has one row per kilometre through a marathon, and pairs them only for an ultra', () => {
     expect(splitRows({ paceBands: BANDS, distance: 5200 }).map(r => r.km)).toEqual([1, 2, 3, 4, 5]);
-    const long = Array.from({ length: 42 }, (_, i) => 300 + i);
-    const rows = splitRows({ paceBands: long, distance: 42195 });
-    expect(rows).toHaveLength(21);
-    expect(rows[0]).toEqual({ km: 2, pace: 300.5 });
-    expect(rows.at(-1)!.km).toBe(42);
-    const odd = splitRows({ paceBands: long.slice(0, 23), distance: 23100 });
-    expect(odd.at(-1)).toEqual({ km: 23, pace: 322 });
-    expect(splitRows({ paceBands: long.slice(0, SPLITS_MAX_ROWS), distance: 21100 })).toHaveLength(21);
+    const long = Array.from({ length: 60 }, (_, i) => 300 + i);
+    // Feedback 2026-09-29: a 25 km run read 2, 4, 6, 8.
+    expect(splitRows({ paceBands: long.slice(0, 25), distance: 25560 }).map(r => r.km))
+      .toEqual(Array.from({ length: 25 }, (_, i) => i + 1));
+    expect(splitRows({ paceBands: long.slice(0, 42), distance: 42195 })).toHaveLength(42);
+    const ultra = splitRows({ paceBands: long.slice(0, 55), distance: 55100 });
+    expect(ultra).toHaveLength(28);
+    expect(ultra[0]).toEqual({ km: 2, pace: 300.5 });
+    expect(ultra.at(-1)).toEqual({ km: 55, pace: 354 });
+    expect(splitRows({ paceBands: long.slice(0, SPLITS_MAX_ROWS), distance: 50100 })).toHaveLength(50);
     expect(splitRows({ paceBands: null, distance: 5000 })).toEqual([]);
   });
 

@@ -137,8 +137,13 @@ export function templatesForActivity(act: Pick<FeedActivity, 'routePreview'>): S
   return SHARE_TEMPLATE_KEYS.filter(t => routed || !ROUTE_REQUIRED.includes(t));
 }
 
-/** The two-kilometre rows start above this many kilometres. */
-export const SPLITS_MAX_ROWS = 21;
+/**
+ * Every kilometre gets its own row up to this many; the rows shrink to fit instead.
+ * It was 21, with pairs above it, and a 25 km run came out as 2, 4, 6, 8 — the
+ * athlete read that as rows hidden (feedback 2026-09-29), and they were right. 50
+ * covers a marathon and then some; only an ultra falls back to pairs.
+ */
+export const SPLITS_MAX_ROWS = 50;
 
 /**
  * The accent applies to **the run's own line and nothing else** — the route, or the
@@ -1612,7 +1617,7 @@ function layoutBigNumbers(c: LayoutCtx) {
 
 /**
  * The rows of the `splits` list: one per kilometre up to SPLITS_MAX_ROWS, and one
- * per two kilometres above it, so a marathon still fits the frame. A pair's pace is
+ * per two kilometres above it, so an ultra still fits the frame. A pair's pace is
  * the mean of its two; `km` is the kilometre the row ENDS on.
  */
 export function splitRows(act: Pick<FeedActivity, 'paceBands' | 'distance'>): { km: number; pace: number }[] {
@@ -1656,18 +1661,23 @@ function layoutSplits(c: LayoutCtx) {
   const x1 = x0 + w;
   const start = rtl ? x1 : x0;
   const dir = rtl ? -1 : 1;
-  const rowH = p(13.5);
   const bottom = p(600);
-
-  const kmW = p(15);
-  const paceW = p(29);
-  const gap = p(4);
-  const trackH = p(6);
+  const top = p(56);
 
   const title = c.showTitle && act.activityName ? act.activityName : null;
   const date = c.showDate ? shortDate(act.startTime) : null;
   const headH = p(34);
   const metaH = title || date ? p(18) : 0;
+
+  // Full size up to ~30 rows; past that every row shrinks alike, text and bar
+  // together, so a marathon's 42 still sit between the heading and the bottom.
+  const rowH = Math.min(p(13.5), (bottom - top - headH - metaH) / rows.length);
+  const k = rowH / p(13.5);
+  const kmW = p(15);
+  const paceW = p(29);
+  const gap = p(4);
+  const trackH = Math.max(p(3.5), p(6) * k);
+  const rowFont = Math.max(p(7.5), p(9.5) * k);
   let y = bottom - rows.length * rowH - headH - metaH;
 
   ctx.textBaseline = 'alphabetic';
@@ -1720,12 +1730,12 @@ function layoutSplits(c: LayoutCtx) {
   for (const r of rows) {
     const mid = y + rowH / 2;
     ctx.direction = 'ltr';
-    ctx.font = `600 ${p(9.5)}px ${font}`;
+    ctx.font = `600 ${rowFont}px ${font}`;
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.textAlign = rtl ? 'right' : 'left';
-    ctx.fillText(String(r.km), start, mid + p(3.4));
+    ctx.fillText(String(r.km), start, mid + rowFont * 0.36);
     ctx.textAlign = rtl ? 'left' : 'right';
-    ctx.fillText(formatPace(r.pace), rtl ? x0 : x1, mid + p(3.4));
+    ctx.fillText(formatPace(r.pace), rtl ? x0 : x1, mid + rowFont * 0.36);
 
     const saved = ctx.shadowBlur;
     ctx.shadowBlur = 0;
