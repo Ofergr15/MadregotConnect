@@ -314,12 +314,16 @@ export function toggleChip(keys: string[], key: string, capacity: number): strin
   return keys.length >= capacity ? keys : [...keys, key];
 }
 
-/** Trim a selection to what a newly chosen frame can print, keeping card order. */
+/**
+ * Trim a selection to what a newly chosen frame can print. The workout keeps the
+ * athlete's own order (they drag it; see `workoutStats`); the week keeps card order.
+ */
 export function fitChipKeys(subject: ShareSubject, frame: ShareLook, keys: string[]): string[] {
   // A view that ignores the chips keeps them untouched rather than trimming to zero.
   if (frameCapacity(subject, frame) === 0) return keys;
   const order = availableChipKeys(subject);
-  const kept = order.filter(k => keys.includes(k)).slice(0, frameCapacity(subject, frame));
+  const ranked = subject.kind === 'workout' ? keys.filter(k => order.includes(k)) : order.filter(k => keys.includes(k));
+  const kept = ranked.slice(0, frameCapacity(subject, frame));
   // Never empty: a frame change must not be able to produce a blank card.
   return kept.length ? kept : defaultChipKeys(subject, frame);
 }

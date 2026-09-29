@@ -5,6 +5,7 @@ import { X, Share2, ImagePlus, Loader2, Eye, EyeOff, RotateCcw, Check } from 'lu
 import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { Sheet } from '@/components/ui/Sheet';
+import { WorkoutShareEditor } from '@/components/share/WorkoutShareEditor';
 import {
   renderShareCard, shareCard, supportsPhoto, supportsTransparent, workoutPaceBars,
   ACCENT_HEX, SHARE_ACCENT_KEYS, SHARE_BRAND_KEYS, type ShareAccent, type ShareBrand, type ShareTemplate,
@@ -71,7 +72,18 @@ const VIEW_LABEL: Record<ShareTemplate, string> = {
   minimal: 'viewMinimal',
 };
 
+/**
+ * The workout opens the full-screen editor, where the card itself is the control
+ * panel (`share/WorkoutShareEditor.tsx`); the week keeps this sheet. The sheet's
+ * workout branch stays below, unreached, until the editor has been out a while:
+ * it is the way back if the editor has to be pulled.
+ */
 export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClose: () => void }) {
+  if (subject.kind === 'workout') return <WorkoutShareEditor item={subject.item} onClose={onClose} />;
+  return <ClassicShareSheet subject={subject} onClose={onClose} />;
+}
+
+function ClassicShareSheet({ subject, onClose }: { subject: ShareSubject; onClose: () => void }) {
   const t = useTranslations('shareSheet');
   const tc = useTranslations('common');
   const locale = useLocale();

@@ -16,6 +16,7 @@
 
 import { formatActivityTime } from '@/lib/utils';
 import type { FeedItem, FeedActivity } from './project';
+import { recordHitMap, type ShareHitMap } from '@/lib/share/hit-map';
 
 export const STORY_W = 1080;
 export const STORY_H = 1920;
@@ -260,6 +261,12 @@ export interface ShareCardOptions {
   avgLine?: boolean;
   /** Segments: the laps' heart rate as a grey area behind the bars, as Strava draws it. */
   hrLine?: boolean;
+  /**
+   * Handed where the logo, the text and the data were drawn, in card pixels, so the
+   * share editor can open each part's options when that part is tapped
+   * (`lib/share/hit-map.ts`). Nothing is recorded when it is absent.
+   */
+  onHitMap?: (map: ShareHitMap) => void;
   /**
    * What the KM Splits view charts: each kilometre (the default), or each lap the
    * watch pressed (`segments`). Falls back to kilometres when the run has no
@@ -542,9 +549,13 @@ function drawScrim(ctx: CanvasRenderingContext2D) {
  * The club marks ship as white artwork only and the orange is derived here, so
  * there is never a second set of files to keep in step with the first.
  */
+// The recoloured copies are still the club's marks, for the hit map's purposes.
+const TINTED = new WeakSet<object>();
+
 function tint(img: HTMLImageElement, color: string): CanvasImageSource {
   if (color.toLowerCase() === '#ffffff') return img;
   const off = document.createElement('canvas');
+  TINTED.add(off);
   off.width = img.width;
   off.height = img.height;
   const g = off.getContext('2d');
@@ -751,14 +762,21 @@ export function workoutMetricStat(
   return WORKOUT_METRICS[key].has(act) ? WORKOUT_METRICS[key].stat(act, i18n) : null;
 }
 
-/** The chosen metrics, in card order, skipping any this run doesn't carry. */
+/**
+ * The chosen metrics in the athlete's order, skipping any this run doesn't carry.
+ *
+ * The order used to be fixed (card order, whatever order the chips were tapped),
+ * because the sheet never showed an order. The editor lists the picked numbers in
+ * a row that can be dragged, so the order is now the athlete's: what they see in
+ * that row is what the card prints, left to right.
+ */
 export function workoutStats(
   act: FeedActivity,
   i18n: ShareI18n,
   keys: WorkoutMetricKey[],
 ): Stat[] {
-  return WORKOUT_METRIC_KEYS
-    .filter(key => keys.includes(key))
+  return keys
+    .filter((key, i) => WORKOUT_METRIC_KEYS.includes(key) && keys.indexOf(key) === i)
     .map(key => workoutMetricStat(act, i18n, key))
     .filter((s): s is Stat => !!s);
 }
@@ -2117,6 +2135,17 @@ export async function renderShareCard(
   ]);
   const brand = opts.brand === 'badge' ? logo : opts.brand === 'wordmark' ? wordmark : opts.brand === 'stairs' ? stairs : null;
 
+  const marks = new Set<unknown>([logo, wordmark, stairs].filter(Boolean));
+  const stopHitMap = opts.onHitMap
+    ? recordHitMap(ctx, {
+      isMark: src => marks.has(src) || (typeof src === 'object' && src !== null && TINTED.has(src)),
+      title: (opts.showTitle ?? true) && act.activityName ? act.activityName : null,
+      date: (opts.showDate ?? true) ? shortDate(act.startTime) : null,
+      width: STORY_W,
+      height: STORY_H,
+    })
+    : null;
+
   // Over an unknown background the only thing keeping white text readable is the
   // shadow, so the transparent variant leans on it harder.
   LAYOUTS[template]({
@@ -2143,6 +2172,7 @@ export async function renderShareCard(
     bars: supportsFooter(template) ? opts.bars ?? null : null,
     verdict: supportsFooter(template) ? opts.verdict ?? null : null,
   });
+  if (stopHitMap) opts.onHitMap!(stopHitMap());
 
   // JPEG has no alpha channel — a transparent card exported as JPEG comes out with
   // a black background, so the variant dictates the format.

@@ -183,10 +183,10 @@ describe('the content row cannot produce a card the frame will not draw', () => 
     expect(toggleChip(['km', 'pace'], 'km', 3)).toEqual(['pace']);
   });
 
-  it('trims to card order when the frame shrinks, and never to nothing', () => {
+  it('trims from the end when the frame shrinks, keeps the dragged order, and never empties', () => {
     const six = ['km', 'pace', 'time', 'elev', 'cal', 'hr'];
     expect(fitChipKeys(workout(), 'route', six)).toEqual(['km', 'pace', 'time']);
-    expect(fitChipKeys(workout(), 'numbers', ['hr', 'km'])).toEqual(['km', 'hr']);
+    expect(fitChipKeys(workout(), 'numbers', ['hr', 'km'])).toEqual(['hr', 'km']);
     expect(fitChipKeys(workout(), 'route', []).length).toBeGreaterThan(0);
   });
 
@@ -196,8 +196,9 @@ describe('the content row cannot produce a card the frame will not draw', () => 
 });
 
 describe('the renderer draws the chosen numbers and nothing else', () => {
-  it('in card order rather than the order the chips were tapped', () => {
-    expect(workoutStats(activity(), I18N, ['hr', 'km']).map(s => s.label)).toEqual(['Distance', 'HR']);
+  it('in the order the athlete arranged them in the editor', () => {
+    expect(workoutStats(activity(), I18N, ['hr', 'km']).map(s => s.label)).toEqual(['HR', 'Distance']);
+    expect(workoutStats(activity(), I18N, ['km', 'hr']).map(s => s.label)).toEqual(['Distance', 'HR']);
   });
 
   it('skips a key this run cannot print, instead of drawing a dash', () => {

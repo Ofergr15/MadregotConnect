@@ -3059,7 +3059,18 @@
     "titleReset": "Back to the original name",
     "backgroundTitle": "Background",
     "bgPhoto": "My photo",
-    "bgClub": "Club background"
+    "bgClub": "Club background",
+    "partChart": "Chart",
+    "partLogoAccent": "Logo & colour",
+    "looksTitle": "Look",
+    "showParts": "✎ What can I change",
+    "done": "Done",
+    "bgTapHint": "Background",
+    "noPhotoView": "This look has no photo background",
+    "partTitle": "Title",
+    "partDate": "Date",
+    "partStart": "Start time",
+    "dragHint": "Drag to reorder · tap to remove"
   },
   "watchAlerts": {
     "title": "Alerts & voice on your watch",
