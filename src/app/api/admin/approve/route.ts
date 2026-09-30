@@ -47,11 +47,11 @@ export async function POST(req: NextRequest) {
     let athlete: any = null;
     const primary = await supabase
       .from('athletes')
-      .select('id, name, email, approved, is_academy, garmin_auth, invite_token')
+      .select('id, name, email, approved, is_academy, garmin_auth, invite_token, group_id')
       .eq('id', athleteId)
       .single();
     if (primary.error) {
-      const fb = await supabase.from('athletes').select('id, name, email, approved').eq('id', athleteId).single();
+      const fb = await supabase.from('athletes').select('id, name, email, approved, group_id').eq('id', athleteId).single();
       athlete = fb.data;
     } else {
       athlete = primary.data;
@@ -59,6 +59,14 @@ export async function POST(req: NextRequest) {
 
     if (!athlete) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // A club runner is let in to a pack, never to none: the pack decides the plan,
+    // the feed and the roster they appear on. Academy applicants are exempt — they
+    // are admitted from the academy, and their training runs on the band, not a pack.
+    // Checked first, so a refused approve changes nothing (not even the release).
+    if (!athlete.approved && !athlete.is_academy && !athlete.group_id) {
+      return NextResponse.json({ error: 'group_required', message: 'Pick a pack before approving.' }, { status: 400 });
     }
 
     // Let them through the maintenance window too, BEFORE the approval bookkeeping

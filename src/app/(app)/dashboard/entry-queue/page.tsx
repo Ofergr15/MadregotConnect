@@ -949,6 +949,15 @@ export default function EntryQueuePage() {
                         {t('openAcademy')}
                       </Button>
                     </Link>
+                  ) : mine && canApprove && !m.approved && !m.groupName ? (
+                    // No pack, no approve (the server refuses it: group_required). The
+                    // pack is picked on the approvals card in Settings → Users.
+                    <Link href="/dashboard/settings?tab=users" className="flex-1">
+                      <Button variant="secondary" className="w-full">
+                        <UsersIcon className="h-4 w-4" />
+                        {t('pickPackFirst')}
+                      </Button>
+                    </Link>
                   ) : mine && canApprove ? (
                     <Button variant="primary" className="flex-1" onClick={() => letIn(m)} disabled={busy}>
                       <Unlock className="h-4 w-4" />

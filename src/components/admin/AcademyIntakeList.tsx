@@ -21,13 +21,21 @@ export interface AcademyApplicant {
   createdAt?: string | null;
 }
 
-type Candidate = CandidateRow & { email?: string | null };
+type Candidate = CandidateRow & { email?: string | null; invitedAt?: string | null };
 
 const OWNER_LABEL: Record<StageOwner, string> = {
   manager: 'מנהל',
   coach: 'מאמן',
   trainee: 'המתאמן',
 };
+
+/** "נרשם דרך" for an academy applicant: always the form, and how they reached it. */
+export function academyDoor(c: { source?: string | null; invitedAt?: string | null } | null | undefined): string {
+  if (!c) return 'טופס האקדמיה';
+  if (c.invitedAt) return 'טופס האקדמיה · הזמנה אישית';
+  if (c.source === 'instagram') return 'טופס האקדמיה · מאינסטגרם';
+  return 'טופס האקדמיה · קישור לטופס';
+}
 
 function daysAgo(iso: string | null | undefined): string | null {
   if (!iso) return null;
@@ -75,6 +83,7 @@ export function AcademyIntakeList({ applicants }: { applicants: AcademyApplicant
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-ink-700 truncate" dir="auto">{a.name}</p>
                   <p className="text-xs text-ink-400 truncate">{daysAgo(c?.createdAt || a.createdAt)}</p>
+                  <p className="text-3xs text-ink-400 truncate">נרשם דרך: {academyDoor(c)}</p>
                 </div>
                 <Link
                   href="/dashboard/academy?tab=funnel"

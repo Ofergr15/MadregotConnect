@@ -95,7 +95,7 @@ const approve = (athleteId: string) =>
 
 beforeEach(() => {
   settings = { mode: 'on', allow: 'admin-1,coach@madregot.club' };
-  athlete = { id: 'dana-1', name: 'דנה', email: 'dana@example.com', approved: false };
+  athlete = { id: 'dana-1', name: 'דנה', email: 'dana@example.com', approved: false, group_id: 'g3' };
   updated = null;
   allowWritten = null;
   canApprove = true;
@@ -131,7 +131,7 @@ describe('POST /api/admin/approve during a maintenance window', () => {
   });
 
   it('writes the id, never the synthetic Strava address', async () => {
-    athlete = { id: 'ron-1', email: 'strava_37085164@strava.madregot.local', approved: false };
+    athlete = { id: 'ron-1', email: 'strava_37085164@strava.madregot.local', approved: false, group_id: 'g3' };
     await approve('ron-1');
     const allow = allowWritten!.split(',');
     expect(allow).toContain('ron-1');
@@ -161,5 +161,30 @@ describe('POST /api/admin/approve during a maintenance window', () => {
     expect(res.status).toBe(403);
     expect(updated).toBeNull();
     expect(allowWritten).toBeNull();
+  });
+});
+
+describe('POST /api/admin/approve needs a pack', () => {
+  it('refuses a club runner with no pack, and changes nothing', async () => {
+    athlete = { id: 'yoav-1', email: 'yoav@example.com', approved: false, group_id: null };
+    const res = await approve('yoav-1');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: 'group_required' });
+    expect(updated).toBeNull();
+    expect(allowWritten).toBeNull();
+  });
+
+  it('lets an academy applicant through without one — they run on a band', async () => {
+    athlete = { id: 'michal-1', email: 'michal@example.com', approved: false, is_academy: true, garmin_auth: null, group_id: null };
+    const res = await approve('michal-1');
+    expect(res.status).toBe(200);
+    expect(updated).toMatchObject({ approved: true });
+  });
+
+  it('still releases an already-approved member with no pack', async () => {
+    athlete = { id: 'old-1', email: 'old@example.com', approved: true, group_id: null };
+    const res = await approve('old-1');
+    expect(res.status).toBe(200);
+    expect(allowWritten!.split(',')).toContain('old-1');
   });
 });

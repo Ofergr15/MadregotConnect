@@ -888,7 +888,7 @@ export default function SettingsPage() {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || data.message || 'Failed to approve');
+        throw new Error(data.error === 'group_required' ? t('pickPackFirst') : data.error || data.message || 'Failed to approve');
       }
       const result = await response.json().catch(() => ({}));
       await fetchUsers();
@@ -1300,7 +1300,8 @@ export default function SettingsPage() {
                       {canApproveHere ? (
                         <button
                           onClick={() => handleApprove(user)}
-                          disabled={updatingUsers.has(user.id)}
+                          // No pack, no approve: the server refuses it too (group_required).
+                          disabled={updatingUsers.has(user.id) || !user.groupId}
                           className="flex items-center gap-1.5 px-3 min-h-[44px] text-xs font-semibold text-white bg-accent-700 hover:opacity-90 rounded-lg transition-colors disabled:opacity-50 shrink-0"
                         >
                           {updatingUsers.has(user.id) ? (
@@ -1339,6 +1340,9 @@ export default function SettingsPage() {
                         t={t}
                         warnEmpty
                       />
+                      {!user.groupId && canApproveHere && (
+                        <span className="text-3xs font-semibold text-band-3-ink">{t('pickPackFirst')}</span>
+                      )}
                       <StateChip tone={user.hasWatch ? 'ok' : 'muted'} icon={Watch}
                         label={user.hasWatch ? t('watchConnected') : t('noWatchYet')} />
                       {maintenanceOn && (
@@ -1349,7 +1353,13 @@ export default function SettingsPage() {
                     {/* Who this is before letting them in: which door, and an address. */}
                     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 mt-2 pt-2 border-t border-page/50 text-xs">
                       <dt className="text-ink-400">{t('signedUpVia')}</dt>
-                      <dd className="font-semibold text-ink-700">{realAddress(user.email) ? 'Google' : 'Strava'}</dd>
+                      <dd className="font-semibold text-ink-700">
+                        {/* The best the row can tell: a Strava login leaves a synthetic address, and
+                            the sign-up form records a Garmin connect in onboarding_status. */}
+                        {!realAddress(user.email) || user.onboardingStatus === 'strava_authed'
+                          ? 'Strava'
+                          : user.onboardingStatus === 'garmin_authed' ? 'Garmin' : 'Google'}
+                      </dd>
                       <dt className="text-ink-400">{t('emailLabel')}</dt>
                       <dd className="font-semibold text-ink-700 truncate" dir="ltr" style={{ textAlign: 'right' }}>
                         {realAddress(user.email) || t('noEmailStrava')}
