@@ -3032,7 +3032,10 @@
     "afterApproval": "Arrived after your approval — waiting for you",
     "approve": "Approve for 05:00 ({count, plural, one {one change} other {# changes}})",
     "approveAgain": "Approve again with these ({count, plural, one {one change} other {# changes}})",
-    "rehearse": "▶ Rehearse: how tonight will look"
+    "rehearse": "▶ Rehearse: how tonight will look",
+    "leadHeadlines": "{count, plural, =1 {One new thing in this version.} =2 {Two new things in this version.} other {# new things in this version.}}",
+    "more": "And {count, plural, one {one more change} other {# more changes and fixes}}",
+    "fewer": "Less"
   },
   "shareSheet": {
     "titleWorkout": "Share your run",
@@ -3275,5 +3278,12 @@
       "wn": "What's new",
       "after": "After"
     }
+  },
+  "sharePage": {
+    "noRun": "No run to share yet",
+    "noRunBody": "Once your next run comes in from the watch, this button opens it here.",
+    "noWeek": "No runs in the last 7 days",
+    "noWeekBody": "One run and your week is ready to share.",
+    "toFeed": "To the feed"
   }
 }

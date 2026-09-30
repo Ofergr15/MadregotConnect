@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Share2, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { addDaysToDateStr, israelNow, israelToday } from '@/lib/utils';
-import { useIsSuperUser } from '@/lib/impersonation';
+import { useEveningRelease } from '@/lib/use-evening-release';
 import { fetchActivities } from '@/lib/activities-client';
 import {
   buildLast7Report, formatReportHours, formatReportPace, withWellness,
@@ -44,11 +44,12 @@ import { ShareSheet } from '@/components/ShareSheet';
 // THE SUPER USER'S TRIAL (2.41.34): the new weekly story editor opens from this
 // card, with the week before it for the "body" look's comparison. Since 2.41.66
 // the card keeps the same weekend window as everyone else's; it was on every day
-// while the editor was tried out.
+// while the editor was tried out. It follows the editor out with the evening
+// release (lib/whats-new/evening.ts).
 export function WeekSummaryCard() {
   const t = useTranslations('profile');
   const tc = useTranslations('common');
-  const trial = useIsSuperUser();
+  const trial = useEveningRelease();
   const [report, setReport] = useState<Last7Report | null>(null);
   const [previous, setPrevious] = useState<Last7Report | null>(null);
   const [nights, setNights] = useState<WellnessNight[]>([]);

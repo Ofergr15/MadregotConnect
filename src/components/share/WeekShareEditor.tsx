@@ -14,6 +14,7 @@ import {
   type WeekBackground, type WeekLook, type WeekNumberKey, type WeekStoryState,
 } from '@/lib/reports/week-story';
 import { BRAND_SRC, renderWeekStory } from '@/lib/reports/week-story-image';
+import { EVENING_OPEN } from '@/lib/whats-new/evening';
 
 /**
  * THE WEEKLY STORY EDITOR: THE CARD IS THE CONTROL PANEL, AS IN THE WORKOUT'S.
@@ -676,7 +677,7 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
         )}
         <span className="pointer-events-none absolute inset-x-24 text-center">
           <span className="block truncate text-base font-extrabold">{inPart ? partName(mode) : t('title')}</span>
-          {!inPart && <span className="block text-3xs font-bold text-[#FF8A5B]">{t('trial')}</span>}
+          {!inPart && !EVENING_OPEN && <span className="block text-3xs font-bold text-[#FF8A5B]">{t('trial')}</span>}
         </span>
         <button
           type="button"

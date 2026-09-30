@@ -76,7 +76,7 @@ describe('the feed card', () => {
     // Everyone, the super user included: the trial no longer shows it daily.
     expect(card).toMatch(/if \(!inWindow\) return;/);
     expect(card).not.toMatch(/!inWindow && !trial/);
-    expect(card).toMatch(/const trial = useIsSuperUser\(\);/);
+    expect(card).toMatch(/const trial = useEveningRelease\(\);/);
     expect(card).toMatch(/if \(dismissed \|\| !report\) return null;/);
   });
 

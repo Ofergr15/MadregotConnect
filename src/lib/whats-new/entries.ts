@@ -27,6 +27,19 @@ export interface WhatsNewCopy {
   title: string;
   /** One sentence: what you can do, and where. Two lines on a phone, at most. */
   body: string;
+  /** A headline card's button. Only the entries that carry `cards` have one. */
+  cta?: string;
+}
+
+/**
+ * One frame of a headline card's art: a real render of that view, drawn by the
+ * app's own card renderer into `public/whats-new/<key>.<lang>.jpg`, with the
+ * view's name under it.
+ */
+export interface WhatsNewCardFrame {
+  key: string;
+  he: string;
+  en: string;
 }
 
 export interface WhatsNewEntry {
@@ -36,6 +49,11 @@ export interface WhatsNewEntry {
   publishedAt: string;
   /** The drawn thumbnail. A release note has none and shows `icon` instead. */
   art?: WhatsNewArt;
+  /**
+   * A HEADLINE instead of a row: a bordered card whose art cycles through these
+   * frames, with a button (`cta`) that goes to `href`. See lib/whats-new/evening.ts.
+   */
+  cards?: WhatsNewCardFrame[];
   /** An emoji tile, for the entries the daily release adds (lib/release-notes.ts). */
   icon?: string;
   /**

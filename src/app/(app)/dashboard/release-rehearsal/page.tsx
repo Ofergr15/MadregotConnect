@@ -9,7 +9,8 @@ import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { useIsSuperUser } from '@/lib/impersonation';
 import { APP_VERSION } from '@/lib/version';
-import { releaseEntries, type ShownNote } from '@/lib/release-notes';
+import type { ShownNote, WhatsNewRelease } from '@/lib/release-notes';
+import { composeWhatsNew } from '@/lib/whats-new/evening';
 import { STAGE } from '@/lib/update-flow';
 import { UpdateSheet } from '@/components/update/UpdateSheet';
 import { UpdateSplash } from '@/components/update/UpdateSplash';
@@ -22,9 +23,9 @@ import { WhatsNewSheet } from '@/components/whats-new/WhatsNewSheet';
 // The real feed runs in a frame underneath (lib/framed.ts keeps its own update
 // check and What's new from running in there), and the steps are the real
 // components on top of it: the alert, the app opening, "New version · Update
-// now", the update's splash, the "updated" toast, and What's new with the notes
-// starred for tonight — `pending` from /api/whats-new, the same list the approval
-// page stars. A row tapped in What's new opens its page in the frame.
+// now", the update's splash, the "updated" toast, and What's new as the evening
+// release composes it (lib/whats-new/evening.ts), with tonight's `pending` notes
+// in it. A row tapped in What's new opens its page in the frame.
 //
 // Nothing is sent, applied or marked seen: the sheet's button only moves to the
 // next step, and the ledger is never touched.
@@ -47,7 +48,7 @@ export default function ReleaseRehearsalPage() {
   const tu = useTranslations('update');
   const locale = useLocale();
   const isSuper = useIsSuperUser();
-  const { data } = useApi<{ pending: ShownNote[] }>(isSuper ? '/api/whats-new' : null);
+  const { data } = useApi<{ pending: ShownNote[]; releases: WhatsNewRelease[] }>(isSuper ? '/api/whats-new' : null);
   const [closed, setClosed] = useState(false);
   const [i, setI] = useState(0);
   const [frameSrc, setFrameSrc] = useState('/feed');
@@ -68,13 +69,16 @@ export default function ReleaseRehearsalPage() {
   const steps = useMemo(() => STEPS.filter(s => !(closed && ONLY_IF_OPEN.includes(s))), [closed]);
   const step: Step = steps[Math.min(i, steps.length - 1)];
 
-  // Tonight's What's new: the pending notes a member can see, only the starred.
-  const entries = useMemo(() => {
-    const notes = (data?.pending ?? []).filter(n => n.audience !== 'staff');
-    return releaseEntries(
-      [{ id: -1, released_at: new Date().toISOString(), app_version: version, notes }], version,
-    );
-  }, [data, version]);
+  // Tonight's What's new, as the evening composes it for a member: the two
+  // headlines, then everything since the last one, tonight's pending notes on top.
+  const { entries, more } = useMemo(() => composeWhatsNew(
+    [
+      { id: -1, released_at: new Date().toISOString(), app_version: version, notes: data?.pending ?? [] },
+      ...(data?.releases ?? []),
+    ],
+    version,
+    true,
+  ), [data, version]);
 
   const go = (to: number) => setI(Math.max(0, Math.min(steps.length - 1, to)));
   const next = () => go(steps.indexOf(step) + 1);
@@ -185,6 +189,7 @@ export default function ReleaseRehearsalPage() {
           onOpenChange={(o) => { if (!o && !onBar.current) next(); }}
           entries={entries}
           newSlugs={entries.map(e => e.slug)}
+          more={more}
         />
       )}
       {step === 'wn' && data && entries.length === 0 && (

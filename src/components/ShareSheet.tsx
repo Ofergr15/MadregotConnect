@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { Sheet } from '@/components/ui/Sheet';
 import { WorkoutShareEditor } from '@/components/share/WorkoutShareEditor';
 import { WeekShareEditor } from '@/components/share/WeekShareEditor';
-import { useIsSuperUser } from '@/lib/impersonation';
+import { useEveningRelease } from '@/lib/use-evening-release';
 import {
   renderShareCard, shareCard, supportsPhoto, supportsTransparent, workoutPaceBars,
   ACCENT_HEX, SHARE_ACCENT_KEYS, SHARE_BRAND_KEYS, type ShareAccent, type ShareBrand, type ShareTemplate,
@@ -81,11 +81,12 @@ const VIEW_LABEL: Record<ShareTemplate, string> = {
  * it is the way back if the editor has to be pulled.
  */
 /**
- * The full-screen editor is on for the super user only while it is tried out on
- * real runs; everyone else keeps this sheet, whose workout branch is unchanged.
+ * The full-screen editors are the evening release's (lib/whats-new/evening.ts):
+ * the super user's until the switch, then everyone's. Before it, everyone else
+ * keeps this sheet, whose workout branch is unchanged.
  */
 export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClose: () => void }) {
-  const editor = useIsSuperUser();
+  const editor = useEveningRelease();
   if (subject.kind === 'workout' && editor) return <WorkoutShareEditor item={subject.item} onClose={onClose} />;
   if (subject.kind === 'week' && editor) {
     return (
