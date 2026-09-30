@@ -56,6 +56,17 @@ export interface OutboundEmail {
   signupRequestId?: string | null;
   /** The academy funnel card this mail was about (migration 126). */
   candidateId?: string | null;
+  /** A display name to send under instead of the configured one. The ADDRESS is
+   *  always the configured sender — only a verified domain may send. */
+  fromName?: string | null;
+}
+
+/** `Name <addr>` with the configured address and another display name. */
+export function senderWithName(from: string, name?: string | null): string {
+  const clean = (name || '').replace(/["<>\r\n]/g, '').trim();
+  if (!clean) return from;
+  const address = from.match(/<([^>]+)>/)?.[1] ?? from.trim();
+  return `${clean} <${address}>`;
 }
 
 /**
@@ -118,6 +129,7 @@ async function writeLog(row: Record<string, unknown>): Promise<string | null> {
 
 export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
   const cfg = readEmailConfig();
+  const from = senderWithName(cfg.from, msg.fromName);
   const asked = recipients(msg.to);
   const to = asked.filter(a => !isSynthetic(a));
 
@@ -125,7 +137,7 @@ export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
     template: msg.template,
     recipients: to,
     subject: msg.subject,
-    from_address: cfg.from,
+    from_address: from,
     athlete_id: msg.athleteId ?? null,
     signup_request_id: msg.signupRequestId ?? null,
     ...(msg.candidateId ? { candidate_id: msg.candidateId } : {}),
@@ -170,7 +182,7 @@ export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
 
   try {
     const { data, error } = await new Resend(process.env.RESEND_API_KEY!).emails.send({
-      from: cfg.from,
+      from,
       to,
       subject: msg.subject,
       html: msg.html,

@@ -264,3 +264,16 @@ describe('diagnoseEmail — the state that was invisible', () => {
     expect(readEmailConfig().fromAddress).toBe('noreply@madregot.app');
   });
 });
+
+describe('sendEmail — a display name of its own', () => {
+  it('sends under the given name from the configured address', async () => {
+    await sendEmail({ ...msg, fromName: 'האקדמיה של מדרגות' });
+    expect((sendSpy.mock.calls[0][0] as { from: string }).from).toBe('האקדמיה של מדרגות <noreply@madregot.app>');
+    expect(logged[0]).toMatchObject({ from_address: 'האקדמיה של מדרגות <noreply@madregot.app>' });
+  });
+
+  it('keeps the configured sender when no name is given', async () => {
+    await sendEmail(msg);
+    expect((sendSpy.mock.calls[0][0] as { from: string }).from).toBe('Madregot <noreply@madregot.app>');
+  });
+});

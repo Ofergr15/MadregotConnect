@@ -3,6 +3,7 @@ import { openInAppHref } from '@/lib/open-in-app';
 import { renderEmail, renderSetupProgress, esc, type SetupProgressRow } from './template';
 import { gapNames } from '@/lib/notifications/copy';
 import { sendEmail, type SendResult } from './send';
+import { renderAcademyFormReceived } from './academy-form-received';
 
 /**
  * Every email this app sends, one function each.
@@ -410,6 +411,9 @@ export async function notifyAdminNewAcademyRegistration(user: {
  */
 export interface BuiltEmail { subject: string; html: string }
 
+/** The display name the applicant's first mail arrives under; the address stays the club's. */
+export const ACADEMY_SENDER = 'האקדמיה של מדרגות';
+
 const firstName = (name?: string | null) => (name || '').trim().split(/\s+/)[0] || '';
 
 export function academyInviteEmail(p: { name?: string | null; url: string; note?: string | null; senderName?: string | null }): BuiltEmail {
@@ -442,24 +446,15 @@ export async function notifyAcademyInvite(p: {
 export function academyFormReceivedEmail(p: { name?: string | null }): BuiltEmail {
   const who = firstName(p.name);
   return {
-    subject: '✅ קיבלנו את הטופס שלך — האקדמיה של מדרגות',
-    html: renderEmail({
-      eyebrow: 'האקדמיה של מדרגות',
-      title: who ? `תודה ${who}, קיבלנו!` : 'תודה, קיבלנו!',
-      preheader: 'נחזור אליך בימים הקרובים לשיחת היכרות.',
-      paragraphs: [
-        'הטופס שלך הגיע אלינו. בימים הקרובים נחזור אליך לשיחת היכרות קצרה, כדי להבין מה המטרה שלך ואיך נכון להתחיל.',
-        'אין צורך לעשות שום דבר נוסף בינתיים.',
-      ],
-      notes: ['לא מילאת טופס? אפשר פשוט להתעלם מהמייל הזה.'],
-    }),
+    subject: who ? `קיבלנו, ${who}. המדרגה הראשונה מאחוריך 🎉` : 'קיבלנו! המדרגה הראשונה מאחוריך 🎉',
+    html: renderAcademyFormReceived({ firstName: who }),
   };
 }
 
 export async function notifyAcademyFormReceived(p: { email: string; name?: string | null; candidateId?: string | null; athleteId?: string | null }): Promise<SendResult> {
   const built = academyFormReceivedEmail(p);
   return sendEmail({
-    template: 'academy_form_received', to: p.email,
+    template: 'academy_form_received', to: p.email, fromName: ACADEMY_SENDER,
     candidateId: p.candidateId ?? null, athleteId: p.athleteId ?? null, ...built,
   });
 }
