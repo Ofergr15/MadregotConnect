@@ -3,7 +3,7 @@
 import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { PenSquare, MessageSquare, AlertCircle, LogIn, Star, X } from 'lucide-react';
+import { PenSquare, MessageSquare, AlertCircle, LogIn, Star, User, X } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useTranslations, useFormatter } from 'next-intl';
 import { cn, dayKeyRelation, dayKeyToDate, feedDayKey, resolveGroup } from '@/lib/utils';
@@ -11,7 +11,8 @@ import { useNavIdentity } from '@/lib/nav-items';
 import { useApi } from '@/lib/api';
 import { fetchFeed, deletePost, fetchFeedItem, fetchFeedItemByActivity } from '@/lib/feed-client';
 import { feedFocusFromParams } from '@/lib/feed/deep-link';
-import { FAVORITES_SQUAD } from '@/lib/feed/squad-filter';
+import { FAVORITES_SQUAD, MINE_SQUAD } from '@/lib/feed/squad-filter';
+import { useIsSuperUser } from '@/lib/impersonation';
 import { FeedCard } from '@/components/FeedCard';
 import { FeedCommentSheet } from '@/components/FeedCommentSheet';
 import { FeedComposer } from '@/components/FeedComposer';
@@ -86,7 +87,7 @@ function SquadChip({
   onClick: () => void;
   label: string;
   hex?: string;
-  /** Only the favourites chip uses one — see the chip row below. */
+  /** Only the favourites and "mine" chips use one — see the chip row below. */
   icon?: React.ComponentType<{ className?: string }>;
 }) {
   return (
@@ -170,6 +171,8 @@ export default function FeedPage() {
   const [filter, setFilter] = useState<FilterKey>('all');
   /** A group id, `ACADEMY_CHIP`, or null for the whole club. */
   const [squad, setSquad] = useState<string | null>(null);
+  /** "Only my workouts" (Sahar), for the super user until rollout. */
+  const showMine = useIsSuperUser();
   const { data: groupsData } = useApi<{
     groups?: { id: string; name: string }[];
     academyCount?: number | null;
@@ -601,6 +604,16 @@ export default function FeedPage() {
               inside the scroll box: `py-2` makes it, `-mt-2 mb-2` puts the row
               back where it was. */}
           <SquadChip active={squad === null} onClick={() => setSquad(null)} label={t('filterSquadAll')} />
+          {/* Beside "everyone" rather than at the end: it is the other end of
+              the same question, the whole club or just me. */}
+          {showMine && (
+            <SquadChip
+              active={squad === MINE_SQUAD}
+              onClick={() => setSquad(MINE_SQUAD)}
+              label={t('filterMine')}
+              icon={User}
+            />
+          )}
           {squadChips.map(chip => (
             <SquadChip
               key={chip.id}

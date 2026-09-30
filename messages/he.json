@@ -2414,6 +2414,7 @@
     "groupRunShared": "מסלול משותף {pct}%",
     "groupRunLongest": "הארוכה: {km} ק״מ",
     "groupRunShowAll": "הצגת {count} הרצים הנוספים",
+    "filterMine": "שלי",
     "filterFavorites": "מועדפים",
     "emptyFavoritesTitle": "אין עדיין מועדפים",
     "emptyFavoritesBody": "היכנסו לפרופיל של חבר קבוצה ולחצו על הכוכב כדי לראות את הריצות שלו כאן."

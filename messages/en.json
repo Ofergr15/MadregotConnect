@@ -2414,6 +2414,7 @@
     "groupRunShared": "{pct}% shared route",
     "groupRunLongest": "Longest: {km} km",
     "groupRunShowAll": "Show {count} more runners",
+    "filterMine": "Mine",
     "filterFavorites": "Favorites",
     "emptyFavoritesTitle": "No favorites yet",
     "emptyFavoritesBody": "Open a teammate’s profile and tap the star to follow their runs here."

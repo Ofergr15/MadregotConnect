@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 const FILTERABLE_TYPES = ['activity', 'post', 'achievement', 'announcement', 'new_plan'];
 
 /**
- * GET /api/feed?cursor=<occurredAt>,<id>&limit=20&types=announcement,post&squad=<groupId|academy|favorites>
+ * GET /api/feed?cursor=<occurredAt>,<id>&limit=20&types=announcement,post&squad=<groupId|academy|favorites|mine>
  *
  * The club feed: runs and member posts interleaved, newest first.
  *
@@ -64,7 +64,11 @@ export async function GET(request: Request) {
     // case. Two dozen ids is a cheap `in`.
     const squad = parseSquadParam(searchParams.get('squad'));
     let squadAuthorIds: string[] | null = null;
-    if (squad?.kind === 'favorites') {
+    if (squad?.kind === 'mine') {
+      // From the session, like favourites: only ever the caller themselves.
+      if (!auth.user.athleteId) return NextResponse.json({ items: [], nextCursor: null });
+      squadAuthorIds = [auth.user.athleteId];
+    } else if (squad?.kind === 'favorites') {
       // ff8d932e. Resolved from the SESSION, never from the query string: the
       // same `?squad=favorites` means a different set of athletes for every
       // caller, and the list is private to its owner. A caller with no athlete

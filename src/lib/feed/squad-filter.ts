@@ -34,10 +34,18 @@ export const ACADEMY_SQUAD = 'academy';
  */
 export const FAVORITES_SQUAD = 'favorites';
 
+/**
+ * The caller's own runs and posts ("see only my workouts", Sahar). Relative to the
+ * caller like favourites, and resolved from the session the same way, so it can
+ * only ever narrow the feed to what the member already sees of themselves.
+ */
+export const MINE_SQUAD = 'mine';
+
 export type SquadSelector =
   | { kind: 'group'; groupId: string }
   | { kind: 'academy' }
-  | { kind: 'favorites' };
+  | { kind: 'favorites' }
+  | { kind: 'mine' };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -56,5 +64,6 @@ export function parseSquadParam(raw: string | null | undefined): SquadSelector |
   if (!value) return null;
   if (value === ACADEMY_SQUAD) return { kind: 'academy' };
   if (value === FAVORITES_SQUAD) return { kind: 'favorites' };
+  if (value === MINE_SQUAD) return { kind: 'mine' };
   return UUID_RE.test(value) ? { kind: 'group', groupId: value } : null;
 }
