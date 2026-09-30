@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { notifyAdminNewAcademyRegistration, notifyAcademyFormReceived } from '@/lib/email';
-import { nameProblem, normalizeDisplayName } from '@/lib/names/latin';
+import { formNameProblem, normalizeDisplayName } from '@/lib/names/latin';
 import { clientIp, createRateLimiter, isBotSubmit } from '@/lib/academy/intake';
 import { invitePrefill, recordFormCandidate } from '@/lib/academy/intake-server';
 
@@ -63,14 +63,10 @@ export async function POST(request: Request) {
     if (!name?.trim() || !email?.trim()) {
       return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
     }
-    // The form asks for the name in English and checks it before submitting; this
-    // is the same rule on the server, because the form is a public endpoint and
-    // this row becomes a roster row. See src/lib/names/latin.ts.
-    if (nameProblem(name) === 'not-latin') {
-      return NextResponse.json(
-        { error: 'Please write your name in English letters', code: 'not-latin' },
-        { status: 400 },
-      );
+    // Hebrew or English (formNameProblem): the Strava connection at /join puts the
+    // Latin name on the roster later. Only a name with no letters at all is refused.
+    if (formNameProblem(name)) {
+      return NextResponse.json({ error: 'Please write your name', code: 'no-letters' }, { status: 400 });
     }
     const fullName = normalizeDisplayName(name);
 

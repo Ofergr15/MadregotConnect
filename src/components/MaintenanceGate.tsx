@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { isPublicPath } from '@/lib/public-paths';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, LogIn, Wrench } from 'lucide-react';
@@ -40,9 +41,7 @@ import { apiHeaders, useApi } from '@/lib/api';
 // rather than resolveVerifiedCaller, so it is one of the few routes NOT 503'd
 // during a window.) Nothing on the page is club content — it is a spinner, a claim
 // form and install instructions.
-const PUBLIC_PATHS = ['/', '/login', '/auth', '/garmin-callback', '/join', '/register', '/academy', '/academy-register', '/claim', '/pending-approval'];
-const isPublicPath = (p: string) =>
-  PUBLIC_PATHS.some((pub) => p === pub || p.startsWith(pub + '/'));
+// The list itself lives in lib/public-paths.ts, shared with UpdatePrompt.
 
 // Full-screen "under renovation" gate. Mounted in the root layout so it covers
 // the whole app (landing + dashboard). Shows the overlay when the server says

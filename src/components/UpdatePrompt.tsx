@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { apiFetcher } from '@/lib/api';
 import { useIsSuperUser } from '@/lib/impersonation';
 import { askBuildId, isNewerBuild } from '@/lib/sw-build-id';
 import { AWAY_MS, canApplyUpdate } from '@/lib/update-timing';
 import { APP_VERSION } from '@/lib/version';
+import { isPublicPath } from '@/lib/public-paths';
 import type { WhatsNewRelease } from '@/lib/release-notes';
 import { WHATS_NEW_KEY, markSeen, readWhatsNewLedger } from '@/lib/whats-new/ledger';
 import {
@@ -89,6 +91,12 @@ export function UpdatePrompt() {
     { phase: 'boot', target: STAGE.handover },
   );
   const [toast, setToast] = useState<string | null>(null);
+
+  // Leaving a public page for the app is when a held-back sheet may ask.
+  const pathname = usePathname();
+  useEffect(() => {
+    if (superRef.current) askRef.current();
+  }, [pathname]);
 
   useEffect(() => {
     superRef.current = isSuper;
@@ -189,8 +197,13 @@ export function UpdatePrompt() {
     // Set when the server knows nothing newer than this bundle: the swap is then
     // the worker's only, and goes the quiet way (lib/update-flow.ts onlyTheWorkerIsOld).
     let quiet = false;
+    // Read at the moment, not at mount: the layout persists across client
+    // navigation, so a pending update waits here and asks once they are in the app.
+    const onPublicPage = () => isPublicPath(window.location.pathname);
+
     const ask = async () => {
       if (!pending || disposed || applying || asking || asked) return;
+      if (onPublicPage()) return;
       if (document.visibilityState !== 'visible') return;
       if (isMidTyping(document.activeElement as HTMLInputElement | null)) {
         document.addEventListener('focusout', () => setTimeout(() => { void ask(); }, 300), { once: true });
@@ -212,6 +225,8 @@ export function UpdatePrompt() {
 
     const tryApply = (awayMs = 0) => {
       if (!pending || disposed) return;
+      // No update of any kind on a stranger's page (lib/public-paths.ts).
+      if (onPublicPage()) return;
       if (superRef.current && !quiet) { void ask(); return; }
       if (canApplyUpdate({
         sinceLoadMs: Date.now() - quietSince,
