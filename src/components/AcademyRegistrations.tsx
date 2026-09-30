@@ -27,7 +27,8 @@ const LABELS: Record<string, string> = {
   lastName: 'שם משפחה',
   focus: 'מה מדבר אליך יותר',
   age: 'גיל',
-  weight: 'משקל',
+  birthDate: 'תאריך לידה',
+  weight: 'משקל (ק״ג)',
   height: 'גובה (ס״מ)',
   city: 'מקום מגורים',
   goal: 'מטרת ההשתתפות',
@@ -49,6 +50,16 @@ const LABELS: Record<string, string> = {
 // Questions the form no longer asks. Older registrations still carry the answer
 // in their intake blob; it is not shown.
 const RETIRED_KEYS = new Set(['maritalStatus']);
+
+/** "1990-03-12" → "12.03.1990 (36)". Anything else is shown as it came. */
+export function birthDateLabel(v: unknown, now = new Date()): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v ?? ''));
+  if (!m) return String(v || '—');
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  let age = now.getFullYear() - y;
+  if (now.getMonth() + 1 < mo || (now.getMonth() + 1 === mo && now.getDate() < d)) age--;
+  return `${m[3]}.${m[2]}.${m[1]} (${age})`;
+}
 
 function initialsOf(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
@@ -190,7 +201,7 @@ export function AcademyRegistrations() {
                     {Object.entries(r.intake).filter(([k]) => !RETIRED_KEYS.has(k)).map(([k, v]) => (
                       <div key={k} className="text-sm">
                         <span className="text-ink-400">{LABELS[k] || k}: </span>
-                        <span className="text-ink-700">{Array.isArray(v) ? v.join(', ') : String(v || '—')}</span>
+                        <span className="text-ink-700">{k === 'birthDate' ? <bdi dir="ltr">{birthDateLabel(v)}</bdi> : Array.isArray(v) ? v.join(', ') : String(v || '—')}</span>
                       </div>
                     ))}
                   </div>

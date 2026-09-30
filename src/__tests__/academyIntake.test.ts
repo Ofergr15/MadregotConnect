@@ -203,7 +203,7 @@ describe('the form on a phone', () => {
   it('opens the number keyboard for age, weight and height, and no longer asks marital status', async () => {
     const { readFileSync } = await import('node:fs');
     const page = readFileSync('src/app/academy-register/page.tsx', 'utf8');
-    for (const key of ['age', 'weight', 'height']) {
+    for (const key of ['weight', 'height']) {
       expect(page).toMatch(new RegExp(`key: '${key}'[^\\n]*inputMode: '(numeric|decimal)'`));
     }
     expect(page).toContain("label: 'גובה (בס״מ)'");
@@ -256,5 +256,35 @@ describe('the form: medical details', () => {
   it('opens only once something other than "healthy" is ticked', () => {
     const page = require('node:fs').readFileSync('src/app/academy-register/page.tsx', 'utf8') as string;
     expect(page).toContain("medicalDetails: { on: 'medicalHistory', when: a => Array.isArray(a) && a.some(x => x !== HEALTHY) }");
+  });
+});
+
+describe('academy link previews', () => {
+  it('say "academy", not the club line inherited from the root layout', async () => {
+    const reg = (await import('@/app/academy-register/layout')).metadata as any;
+    const land = (await import('@/app/academy/page')).metadata as any;
+    for (const m of [reg, land]) {
+      expect(m.openGraph.title).toContain('אקדמיית מדרגות');
+      expect(m.openGraph.description).not.toContain("Israel's leading running community");
+      expect(m.openGraph.siteName).toBe('Madregot Academy');
+    }
+  });
+});
+
+describe('the form: birth date and units', () => {
+  const page = () => require('node:fs').readFileSync('src/app/academy-register/page.tsx', 'utf8') as string;
+
+  it('asks the birth date instead of the age, and says weight is in kg', () => {
+    expect(page()).toContain("{ key: 'birthDate', label: 'תאריך לידה', type: 'date', required: true }");
+    expect(page()).not.toMatch(/key: 'age'/);
+    expect(page()).toContain("label: 'משקל (בק״ג)'");
+  });
+
+  it('shows the birth date on the registrations screen with the age next to it', async () => {
+    const { birthDateLabel } = await import('@/components/AcademyRegistrations');
+    const now = new Date('2026-09-30T12:00:00');
+    expect(birthDateLabel('1990-03-12', now)).toBe('12.03.1990 (36)');
+    expect(birthDateLabel('1990-10-01', now)).toBe('01.10.1990 (35)');
+    expect(birthDateLabel('', now)).toBe('—');
   });
 });

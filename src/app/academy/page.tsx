@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { GraduationCap } from 'lucide-react';
+import { academyShareMetadata } from '@/lib/academy/share-metadata';
 
 /**
  * /academy — the page the Instagram bio links to (door B; see lib/academy/intake.ts).
@@ -9,10 +10,10 @@ import { GraduationCap } from 'lucide-react';
  * it goes, and "start". No login, no install. The button carries `src` on to the
  * form, which is how the card it creates says where the person came from.
  */
-export const metadata = {
-  title: 'אקדמיית מדרגות',
-  description: 'מאמן אישי, תוכנית שלך. ליווי 1:1 בריצה.',
-};
+export const metadata = academyShareMetadata(
+  'אקדמיית מדרגות · Madregot Academy',
+  'מאמן אישי, תוכנית שלך. ליווי 1:1 בריצה.',
+);
 
 const HOW = [
   'טופס קצר · 5 דקות',

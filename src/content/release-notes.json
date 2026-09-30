@@ -1,5 +1,13 @@
 [
   {
+    "id": "academy-link-preview-birthdate",
+    "date": "2026-09-30",
+    "kind": "fix",
+    "icon": "🎓",
+    "title": "קישור האקדמיה אומר ״אקדמיה״",
+    "body": "קישור לטופס או לעמוד האקדמיה מציג עכשיו בוואטסאפ ״אקדמיית מדרגות״. בטופס: תאריך לידה במקום גיל, ומשקל בק״ג."
+  },
+  {
     "id": "academy-form-medical-details-conditional",
     "date": "2026-09-30",
     "kind": "fix",

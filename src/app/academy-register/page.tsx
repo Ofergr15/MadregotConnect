@@ -15,7 +15,7 @@ type Field =
   // `inputMode` is what picks the phone keyboard. A number field is rendered as a
   // text input with inputMode + pattern: that is what gets iOS to open the big
   // keypad the phone field gets, where type="number" gives a row of small keys.
-  | { key: string; label: string; type: 'text' | 'email' | 'tel' | 'number'; required?: boolean; placeholder?: string; inputMode?: 'numeric' | 'decimal' }
+  | { key: string; label: string; type: 'text' | 'email' | 'tel' | 'number' | 'date'; required?: boolean; placeholder?: string; inputMode?: 'numeric' | 'decimal' }
   | { key: string; label: string; type: 'textarea'; required?: boolean; placeholder?: string }
   | { key: string; label: string; type: 'radio' | 'select'; required?: boolean; options: string[] }
   // Same data as a radio, laid out as a wrapping row of pills. Added for the kit
@@ -46,8 +46,9 @@ const FIELDS: Field[] = [
     'שילוב של תכנית און ליין עם מפגשים פיזיים',
     'רק תכנית אימון און ליין ומעקב',
   ] },
-  { key: 'age', label: 'גיל', type: 'number', required: true, inputMode: 'numeric' },
-  { key: 'weight', label: 'משקל', type: 'number', inputMode: 'decimal' },
+  // A birth date rather than an age: an age is stale a year after the form.
+  { key: 'birthDate', label: 'תאריך לידה', type: 'date', required: true },
+  { key: 'weight', label: 'משקל (בק״ג)', type: 'number', inputMode: 'decimal' },
   { key: 'height', label: 'גובה (בס״מ)', type: 'number', required: true, inputMode: 'numeric' },
   { key: 'city', label: 'מקום מגורים', type: 'text', required: true },
   { key: 'goal', label: 'מה מטרתך מההשתתפות בקבוצת הריצה', type: 'radio', required: true, options: [
@@ -94,14 +95,14 @@ const REGISTRATION_OPEN = true;
 // Instagram link. Four short pages, each checked before the next, same questions.
 const STEPS: { title: string; keys: string[] }[] = [
   { title: 'הפרטים שלך', keys: ['firstName', 'lastName', 'email', 'phone'] },
-  { title: 'קצת עליך', keys: ['focus', 'age', 'weight', 'height', 'city'] },
+  { title: 'קצת עליך', keys: ['focus', 'birthDate', 'weight', 'height', 'city'] },
   { title: 'הריצה שלך', keys: ['goal', 'group', 'runningHistory', 'achievements', 'hearAbout', 'hearAboutOther'] },
   { title: 'בריאות ומידות', keys: ['medicalHistory', 'medicalDetails', 'shirtSize', 'pantsSize', 'tightsSize', 'socksSize'] },
 ];
 const FIELD_BY_KEY = new Map(FIELDS.map(f => [f.key, f]));
 
 const isTyped = (f: Field) =>
-  f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number' || f.type === 'textarea';
+  f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number' || f.type === 'date' || f.type === 'textarea';
 
 export default function AcademyRegisterPage() {
   const [values, setValues] = useState<Record<string, any>>({});
@@ -293,16 +294,19 @@ export default function AcademyRegisterPage() {
                 </p>
               )}
 
-              {(f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number') && (
+              {(f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number' || f.type === 'date') && (
                 <input
                   id={`ar-${f.key}`} type={f.type === 'number' ? 'text' : f.type} value={values[f.key] || ''} placeholder={(f as any).placeholder || 'התשובה שלך'}
                   inputMode={(f as any).inputMode}
                   pattern={f.type === 'number' ? ((f as any).inputMode === 'decimal' ? '[0-9]*[.,]?[0-9]*' : '[0-9]*') : undefined}
-                  autoComplete={f.type === 'number' ? 'off' : undefined}
+                  autoComplete={f.type === 'number' ? 'off' : f.type === 'date' ? 'bday' : undefined}
+                  // iOS opens its date wheel for type="date"; the bounds keep it on a real birth year.
+                  min={f.type === 'date' ? '1930-01-01' : undefined}
+                  max={f.type === 'date' ? new Date().toISOString().slice(0, 10) : undefined}
                   onChange={e => set(f.key, f.type === 'number' ? numberOnly(e.target.value, (f as any).inputMode === 'decimal') : e.target.value)}
                   // text-base, not text-sm: under 16px iOS Safari zooms the page on
                   // every focus, and this form is opened from Instagram on a phone.
-                  className="w-full bg-page border border-ink-300 rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                  className="w-full min-h-[46px] bg-page border border-ink-300 rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
                 />
               )}
 
