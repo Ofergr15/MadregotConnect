@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { ChevronDown, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Play, Sparkles } from 'lucide-react';
 import { Sheet } from '@/components/ui/Sheet';
 import { InsetRow } from '@/components/ui/InsetList';
 import { cn, israelToday } from '@/lib/utils';
@@ -21,6 +21,7 @@ import {
   unseenEntries, visibleEntries,
 } from '@/lib/whats-new/ledger';
 import { WhatsNewArt } from './WhatsNewArt';
+import { WhatsNewStory } from './WhatsNewStory';
 
 /**
  * WHAT'S NEW — the digest sheet.
@@ -88,7 +89,8 @@ function EntryRow({
 }
 
 /**
- * A headline (an entry with `cards`): version B of the showcase mockup. The art
+ * A headline (an entry with `cards`) in the sheet: version B of the showcase
+ * mockup, which Settings keeps; the evening's first showing is the tour. The art
  * steps through real renders of each view, the way the mockup's cycled; the
  * button is the row's door, a real <Link> for the reason EntryRow gives.
  */
@@ -195,7 +197,7 @@ function MoreList({ notes }: { notes: ShownNote[] }) {
 }
 
 export function WhatsNewSheet({
-  open, onOpenChange, entries, newSlugs = [], more = [],
+  open, onOpenChange, entries, newSlugs = [], more = [], onReplay,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -204,6 +206,8 @@ export function WhatsNewSheet({
   newSlugs?: string[];
   /** The "and N more" list under the headlines (lib/whats-new/evening.ts). */
   more?: ShownNote[];
+  /** Settings' way back into the tour (WhatsNewStory), under the headlines. */
+  onReplay?: () => void;
 }) {
   const t = useTranslations('whatsNew');
   const lang = localeLang(useLocale());
@@ -266,6 +270,15 @@ export function WhatsNewSheet({
         ))}
       </div>
       <MoreList notes={more} />
+      {onReplay && headlines.length > 0 && (
+        <button
+          type="button"
+          onClick={onReplay}
+          className="mt-1 flex min-h-[44px] w-full items-center justify-center gap-1.5 text-xs font-bold text-brand-600 active:opacity-70"
+        >
+          <Play className="h-3.5 w-3.5" /> {t('tourReplay')}
+        </button>
+      )}
     </Sheet>
   );
 }
@@ -328,6 +341,13 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
   }, [ready, all, entries]);
 
   if (!entries) return null;
+  // The evening's headlines come as the full-screen tour (version A); the plain
+  // rows keep the sheet.
+  if (entries.some((e) => e.cards?.length)) {
+    return open ? (
+      <WhatsNewStory entries={entries} more={withHeadline(entries, content)} version={APP_VERSION} onClose={() => setOpen(false)} />
+    ) : null;
+  }
   return (
     <WhatsNewSheet
       open={open}
@@ -350,6 +370,7 @@ export function WhatsNewSettingsRow() {
   const content = useContent(useEveningRelease());
   const all = content?.entries ?? null;
   const [open, setOpen] = useState(false);
+  const [tour, setTour] = useState(false);
   const [unseen, setUnseen] = useState<string[]>([]);
   const [entries, setEntries] = useState<WhatsNewEntry[]>([]);
 
@@ -386,7 +407,11 @@ export function WhatsNewSettingsRow() {
         entries={entries}
         newSlugs={unseen}
         more={withHeadline(entries, content)}
+        onReplay={() => { setOpen(false); setTour(true); }}
       />
+      {tour && (
+        <WhatsNewStory entries={entries} more={withHeadline(entries, content)} version={APP_VERSION} onClose={() => setTour(false)} />
+      )}
     </>
   );
 }

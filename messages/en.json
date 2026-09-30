@@ -3035,7 +3035,13 @@
     "rehearse": "▶ Rehearse: how tonight will look",
     "leadHeadlines": "{count, plural, =1 {One new thing in this version.} =2 {Two new things in this version.} other {# new things in this version.}}",
     "more": "And {count, plural, one {one more change} other {# more changes and fixes}}",
-    "fewer": "Less"
+    "fewer": "Less",
+    "tourClose": "Close",
+    "tourBack": "Back",
+    "tourNext": "Next",
+    "tourDone": "To the feed",
+    "tourRestKicker": "And from the last few weeks",
+    "tourReplay": "Watch the tour again"
   },
   "shareSheet": {
     "titleWorkout": "Share your run",

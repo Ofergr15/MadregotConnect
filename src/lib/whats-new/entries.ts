@@ -29,6 +29,9 @@ export interface WhatsNewCopy {
   body: string;
   /** A headline card's button. Only the entries that carry `cards` have one. */
   cta?: string;
+  /** The tour's small line over the title, and its "where you will find it" under the body. Headlines only. */
+  kicker?: string;
+  where?: string;
 }
 
 /**

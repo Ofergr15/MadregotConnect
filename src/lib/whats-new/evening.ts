@@ -1,11 +1,12 @@
 // ═════════════════════════════════════════════════════════════════════════════
 // THE EVENING RELEASE — the two share editors, for everyone, with a What's new
 //
-// The approved mockup is version B of ~/.cache/madregot/mockups/whats-new-showcase.html:
-// two headline cards on top (the workout share card and the weekly summary), each
-// with its art cycling through the real views and a button that opens the editor
-// on the reader's own run or week, and under them everything else that shipped
-// since the last What's new, as one expandable "and N more" row.
+// The approved mockup is version A (the full-screen tour) of ~/.cache/madregot/mockups/whats-new-showcase.html:
+// a page for each headline (the workout share card, then the weekly summary),
+// its art cycling through the real views and a button that opens the editor on
+// the reader's own run or week, and a last page with everything else that
+// shipped since the last What's new. Settings keeps version B's sheet, with a
+// way to watch the tour again.
 //
 // ONE SWITCH. Until `EVENING_OPEN` is true, everything here is the super user's
 // only: the two editors (ShareSheet), the week-before comparison on the weekend
@@ -56,11 +57,15 @@ export const EVENING_ENTRIES: WhatsNewEntry[] = [
       title: 'כרטיס לכל ריצה, בשש תצוגות',
       body: 'ק״מ אחרי ק״מ, מסלול, שורת נתונים ועוד. בוחרים אילו מספרים נכנסים, לוגו ורקע, ושולחים לסטורי.',
       cta: 'לנסות על הריצה האחרונה',
+      kicker: 'חדש · שיתוף אימון',
+      where: 'בכל ריצה: הכפתור "שיתוף"',
     },
     en: {
       title: 'A card for every run, six ways',
       body: 'KM splits, route, a stats bar and more. Pick the numbers, the logo and the background, then send it to your story.',
       cta: 'Try it on your last run',
+      kicker: 'New · Share a run',
+      where: 'On every run: the "Share" button',
     },
   },
   {
@@ -78,11 +83,15 @@ export const EVENING_ENTRIES: WhatsNewEntry[] = [
       title: 'השבוע שלך, מוכן לשיתוף',
       body: 'ק״מ, שינה ודופק מנוחה מול שבוע שעבר, בחמישה לוקים. אתם בוחרים מה נכנס ובאיזה סדר.',
       cta: 'לשתף את השבוע שלי',
+      kicker: 'חדש · סיכום שבועי',
+      where: 'בכל מוצאי שבת, בראש הפיד',
     },
     en: {
       title: 'Your week, ready to share',
       body: 'Distance, sleep and resting heart rate against last week, in five looks. You pick what goes on and in what order.',
       cta: 'Share my week',
+      kicker: 'New · Weekly summary',
+      where: 'Every Saturday evening, at the top of your feed',
     },
   },
 ];

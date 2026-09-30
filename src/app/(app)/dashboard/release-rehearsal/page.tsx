@@ -15,6 +15,7 @@ import { STAGE } from '@/lib/update-flow';
 import { UpdateSheet } from '@/components/update/UpdateSheet';
 import { UpdateSplash } from '@/components/update/UpdateSplash';
 import { WhatsNewSheet } from '@/components/whats-new/WhatsNewSheet';
+import { WhatsNewStory } from '@/components/whats-new/WhatsNewStory';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE RELEASE REHEARSAL — the evening's release as a member will live it, before
@@ -24,8 +25,8 @@ import { WhatsNewSheet } from '@/components/whats-new/WhatsNewSheet';
 // check and What's new from running in there), and the steps are the real
 // components on top of it: the alert, the app opening, "New version · Update
 // now", the update's splash, the "updated" toast, and What's new as the evening
-// release composes it (lib/whats-new/evening.ts), with tonight's `pending` notes
-// in it. A row tapped in What's new opens its page in the frame.
+// release composes it (lib/whats-new/evening.ts): the full-screen tour, with
+// tonight's `pending` notes in it. A button tapped in it opens its page in the frame.
 //
 // Nothing is sent, applied or marked seen: the sheet's button only moves to the
 // next step, and the ledger is never touched.
@@ -183,7 +184,11 @@ export default function ReleaseRehearsalPage() {
           <span>{tu('updated', { version })}</span>
         </div>
       )}
-      {step === 'wn' && entries.length > 0 && (
+      {step === 'wn' && entries.some(e => e.cards?.length) && (
+        // Under the bar, which keeps the top 56px.
+        <WhatsNewStory entries={entries} more={more} version={version} onClose={next} offsetTop={56} />
+      )}
+      {step === 'wn' && entries.length > 0 && !entries.some(e => e.cards?.length) && (
         <WhatsNewSheet
           open
           onOpenChange={(o) => { if (!o && !onBar.current) next(); }}

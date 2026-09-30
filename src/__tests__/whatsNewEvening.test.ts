@@ -65,7 +65,7 @@ describe('the headline entries', () => {
   it('are complete in both languages, button included, with no Hebrew in the English', () => {
     for (const e of EVENING_ENTRIES) {
       for (const lang of WHATS_NEW_LANGS) {
-        expect(e[lang].title && e[lang].body && e[lang].cta, `${e.slug}.${lang}`).toBeTruthy();
+        expect(e[lang].title && e[lang].body && e[lang].cta && e[lang].kicker && e[lang].where, `${e.slug}.${lang}`).toBeTruthy();
       }
       expect(/[֐-׿]/.test(JSON.stringify(e.en) + e.cards!.map(f => f.en).join('')), e.slug).toBe(false);
     }
@@ -104,8 +104,23 @@ describe('the switch', () => {
     expect(read('components/feed/WeekSummaryCard.tsx')).toMatch(/const trial = useEveningRelease\(\);/);
   });
 
-  it('shows the rehearsal what the evening composes', () => {
-    expect(read('app/(app)/dashboard/release-rehearsal/page.tsx')).toMatch(/composeWhatsNew\(/);
+  it('shows the rehearsal what the evening composes, as the tour', () => {
+    const page = read('app/(app)/dashboard/release-rehearsal/page.tsx');
+    expect(page).toMatch(/composeWhatsNew\(/);
+    expect(page).toMatch(/<WhatsNewStory /);
+  });
+
+  it('opens the headlines as the full-screen tour, and Settings can replay it', () => {
+    const sheet = read('components/whats-new/WhatsNewSheet.tsx');
+    const auto = sheet.slice(sheet.indexOf('export function WhatsNewAutoSheet'), sheet.indexOf('export function WhatsNewSettingsRow'));
+    expect(auto).toMatch(/<WhatsNewStory /);
+    expect(sheet.slice(sheet.indexOf('export function WhatsNewSettingsRow'))).toMatch(/onReplay=/);
+  });
+
+  it('keeps the tour’s buttons real links inside a dialog, which the rehearsal catches', () => {
+    const story = read('components/whats-new/WhatsNewStory.tsx');
+    expect(story).toMatch(/role="dialog"/);
+    expect(story).toMatch(/<Link\s+href=\{entry\.href\}/);
   });
 });
 

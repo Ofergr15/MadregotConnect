@@ -3035,7 +3035,13 @@
     "rehearse": "▶ חזרה גנרלית: איך זה ייראה הערב",
     "leadHeadlines": "{count, plural, =1 {דבר אחד חדש בגרסה הזאת.} =2 {שני דברים חדשים בגרסה הזאת.} other {# דברים חדשים בגרסה הזאת.}}",
     "more": "ועוד {count, plural, one {שינוי אחד} other {# חידושים ותיקונים}}",
-    "fewer": "פחות"
+    "fewer": "פחות",
+    "tourClose": "סגירה",
+    "tourBack": "הקודם",
+    "tourNext": "הבא",
+    "tourDone": "לפיד",
+    "tourRestKicker": "ועוד, מהשבועות האחרונים",
+    "tourReplay": "לראות שוב את הסיור"
   },
   "shareSheet": {
     "titleWorkout": "שיתוף האימון",
