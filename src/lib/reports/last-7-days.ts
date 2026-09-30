@@ -19,6 +19,8 @@ import { israelToday, addDaysToDateStr } from '@/lib/utils';
 
 /** The activity shape this needs — a subset of what the stats route already reads. */
 export interface ReportActivity {
+  /** Present on the stats route's rows; lets a day open its run (#94). */
+  id?: string;
   activity_type?: string | null;
   start_time: string;
   distance: number | null;
@@ -39,6 +41,12 @@ export interface ReportDay {
   /** Metres climbed. Summed, not averaged — a week's climbing is a total. */
   elevation: number;
   calories: number;
+  /**
+   * The day's runs, longest first, so a tap on the day opens the run done on it
+   * (feedback #94: "tap today, Tuesday, and get into the run — like Garmin").
+   * Only runs whose row carried an id; empty on a rest day.
+   */
+  activities: Array<{ id: string; km: number }>;
 }
 
 export interface Last7Report {
@@ -111,7 +119,7 @@ export function buildLast7Report(acts: ReportActivity[], today: string): Last7Re
     // Noon so the weekday cannot be dragged over a boundary by a timezone offset.
     const day: ReportDay = {
       date, weekday: new Date(`${date}T12:00:00Z`).getUTCDay(),
-      km: 0, seconds: 0, runs: 0, elevation: 0, calories: 0,
+      km: 0, seconds: 0, runs: 0, elevation: 0, calories: 0, activities: [],
     };
     days.push(day);
     byDate.set(date, day);
@@ -127,7 +135,9 @@ export function buildLast7Report(acts: ReportActivity[], today: string): Last7Re
     day.runs += 1;
     day.elevation += Number(a.elevation_gain) || 0;
     day.calories += Number(a.calories) || 0;
+    if (a.id) day.activities.push({ id: a.id, km: Number(a.distance) / 1000 });
   }
+  for (const d of days) d.activities.sort((x, y) => y.km - x.km);
 
   const km = days.reduce((a, d) => a + d.km, 0);
   const seconds = days.reduce((a, d) => a + d.seconds, 0);

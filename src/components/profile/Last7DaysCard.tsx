@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Share2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
@@ -9,6 +10,7 @@ import {
   type Last7Report,
 } from '@/lib/reports/last-7-days';
 import { ShareSheet } from '@/components/ShareSheet';
+import { useIsSuperUser } from '@/lib/impersonation';
 
 /**
  * The seven-day report card — the screen behind the Saturday 18:00 push.
@@ -31,6 +33,8 @@ export function Last7DaysCard({ report, athleteName }: { report: Last7Report; at
   const tc = useTranslations('common');
   const dayNames = tc.raw('dayNamesShort') as string[];
   const [sharing, setSharing] = useState(false);
+  // A day with a run opens it (#94), for the super user until rollout.
+  const opensRuns = useIsSuperUser();
 
   const peak = Math.max(...report.days.map((d) => d.km), 1);
   const fd = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
@@ -71,22 +75,38 @@ export function Last7DaysCard({ report, athleteName }: { report: Last7Report; at
       ) : (
         <>
           <div dir="ltr" className="mt-3 flex h-[104px] items-end justify-center gap-1.5">
-            {report.days.map((d) => (
-              <div key={d.date} className="flex h-full min-w-0 flex-1 flex-col items-end justify-end">
-                <span className="mb-1 w-full text-center text-2xs font-bold tabular-nums text-ink-400">
-                  {d.km > 0 ? Math.round(d.km) : ''}
-                </span>
-                <div
-                  className={cn('w-full rounded-t-[3px]', d.km > 0 ? 'bg-brand-600' : 'bg-ink-300/40')}
-                  // Floor of 3px so a rest day is a baseline tick, not a hole that
-                  // reads as missing data — the same floor as the ten-week chart.
-                  style={{ height: `${Math.max(3, Math.round((d.km / peak) * 68))}px` }}
-                />
-                <span className="mt-1 w-full text-center text-3xs font-light text-ink-400">
-                  {dayNames[d.weekday]}
-                </span>
-              </div>
-            ))}
+            {report.days.map((d) => {
+              const run = opensRuns ? d.activities?.[0] : undefined;
+              const column = 'flex h-full min-w-0 flex-1 flex-col items-end justify-end';
+              const inner = (
+                <>
+                  <span className="mb-1 w-full text-center text-2xs font-bold tabular-nums text-ink-400">
+                    {d.km > 0 ? Math.round(d.km) : ''}
+                  </span>
+                  <div
+                    className={cn('w-full rounded-t-[3px]', d.km > 0 ? 'bg-brand-600' : 'bg-ink-300/40')}
+                    // Floor of 3px so a rest day is a baseline tick, not a hole that
+                    // reads as missing data — the same floor as the ten-week chart.
+                    style={{ height: `${Math.max(3, Math.round((d.km / peak) * 68))}px` }}
+                  />
+                  <span className={cn('mt-1 w-full text-center text-3xs font-light', run ? 'font-bold text-brand-600' : 'text-ink-400')}>
+                    {dayNames[d.weekday]}
+                  </span>
+                </>
+              );
+              return run ? (
+                <Link
+                  key={d.date}
+                  href={`/dashboard/activities/${run.id}`}
+                  aria-label={t('openDayRun', { day: dayNames[d.weekday] })}
+                  className={cn(column, 'rounded-md active:bg-page')}
+                >
+                  {inner}
+                </Link>
+              ) : (
+                <div key={d.date} className={column}>{inner}</div>
+              );
+            })}
           </div>
 
           {/* The four totals the push also quotes, in the push's own order. */}

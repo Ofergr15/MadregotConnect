@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { Camera, ChevronLeft, Loader2, Trophy } from 'lucide-react';
+import { Camera, Check, ChevronLeft, Loader2, Trophy } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { cn, getPlanWeekStart, israelDateAnchor, israelNow, israelToday } from '@/lib/utils';
 import { GOAL_RACE, goalRaceProgress } from '@/lib/goal-race';
@@ -16,6 +16,8 @@ import CoreRunnerBadge from '@/components/CoreRunnerBadge';
 import { SetupProgressCard } from '@/components/onboarding/SetupProgressCard';
 import { PhotoLightbox } from '@/components/PhotoLightbox';
 import type { FeedItem } from '@/lib/feed/project';
+import type { Last7Report } from '@/lib/reports/last-7-days';
+import { useIsSuperUser } from '@/lib/impersonation';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The Profile screen exactly as the designer drew it (Figma frame "Home",
@@ -109,6 +111,14 @@ export function ProfileOverview({
   // Two, not one: the deck shows the newest announcement and peeks a second
   // card behind it only when there IS a second one.
   const { data: updates } = useApi<{ items: FeedItem[] }>('/api/feed?types=announcement&limit=2');
+  // The runs behind the week strip (#94): the same stats request the profile body
+  // below makes, key for key, so SWR answers both with one fetch. The super
+  // user's only until rollout.
+  const opensRuns = useIsSuperUser();
+  const { data: stats } = useApi<{ last7?: Last7Report }>(
+    opensRuns && athleteId ? `/api/athletes/${athleteId}/stats` : null,
+  );
+  const runsByDate = new Map((stats?.last7?.days ?? []).map((d) => [d.date, d] as const));
 
   const greetHour = israelNow().hour;
   const greeting = greetHour < 12 ? td('goodMorning') : greetHour < 18 ? td('goodAfternoon') : td('goodEvening');
@@ -372,9 +382,13 @@ export function ProfileOverview({
               shows five and clips the rest. `-mx-4 px-4` lets it bleed to the
               screen edge inside the page's padded main. */}
           <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {days.map((d) => (
+            {days.map((d) => {
+              const done = weekly?.currentWeekStart ? runsByDate.get(planDayKey(weekly.currentWeekStart, d.dayOfWeek)) : undefined;
+              return (
               <DayTile
                 key={d.dayOfWeek}
+                run={done?.activities?.[0] ? { id: done.activities[0].id, km: done.km, count: done.activities.length } : null}
+                openLabel={t('openDayRun', { day: (tc.raw('dayNames') as string[])[d.dayOfWeek] })}
                 letter={(tc.raw('dayNamesShort') as string[])[d.dayOfWeek]}
                 date={weekly?.currentWeekStart ? dayOfWeekDate(weekly.currentWeekStart, d.dayOfWeek) : null}
                 // Prescribed kilometres only, rounded on the way in — same rule
@@ -391,7 +405,8 @@ export function ProfileOverview({
                 isTeamDay={teamDays.includes(d.dayOfWeek)}
                 kmUnit={tc('km')}
               />
-            ))}
+              );
+            })}
           </div>
           {/* 115×20px measured. Same trick as the records link: the old `mt-3`
               becomes 14px of top padding less 2px of margin, so the text does not
@@ -427,8 +442,11 @@ function Field({ label, value, color }: { label: string; value: string; color?: 
 }
 
 function DayTile({
-  letter, date, km, hasOptional, hasKm, locale, isToday, isTeamDay, kmUnit,
+  letter, date, km, hasOptional, hasKm, locale, isToday, isTeamDay, kmUnit, run = null, openLabel,
 }: {
+  /** The run done that day, when there is one: the tile opens it (#94). */
+  run?: { id: string; km: number; count: number } | null;
+  openLabel?: string;
   letter: string;
   date: Date | null;
   /** Pre-formatted, so a day whose plan is a RANGE reads the same here as on the
@@ -447,13 +465,19 @@ function DayTile({
   // were previously invisible to the decision that had to fit them.
   const lineLength = km.length + (hasOptional ? 1 : 0) + kmUnit.length;
 
-  return (
-    <div
-      className={cn(
-        'relative flex h-[88px] w-[74px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-card bg-card',
-        isToday && 'border border-brand-600',
+  const tile = cn(
+    'relative flex h-[88px] w-[74px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-card bg-card',
+    isToday && 'border border-brand-600',
+    run && 'bg-brand-600/10 active:bg-brand-600/20',
+  );
+  const body = (
+    <>
+      {/* A run was done that day: a tick in the corner, and the tile opens it (#94). */}
+      {run && (
+        <span className="absolute top-1.5 end-1.5 grid h-4 w-4 place-items-center rounded-full bg-brand-600 text-white" aria-hidden>
+          <Check className="h-2.5 w-2.5" strokeWidth={3} />
+        </span>
       )}
-    >
       <span className="text-sm font-light text-ink-500">{letter}</span>
       {date && (
         // Day number + short month assembled separately rather than via one
@@ -506,7 +530,14 @@ function DayTile({
       </span>
       {/* The frame's blue dots mark the club's team-workout days. */}
       {isTeamDay && <span className="absolute bottom-2 h-1.5 w-1.5 rounded-full bg-brand-600" />}
-    </div>
+    </>
+  );
+  return run ? (
+    <Link href={`/dashboard/activities/${run.id}`} aria-label={openLabel} className={tile}>
+      {body}
+    </Link>
+  ) : (
+    <div className={tile}>{body}</div>
   );
 }
 

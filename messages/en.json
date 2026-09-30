@@ -1745,7 +1745,8 @@
     "prErrorFormat": "Write the time like 41:58 or 3:12:40.",
     "prErrorTooFast": "That time is too fast for this distance — check the digits.",
     "prErrorTooSlow": "That time is too slow for this distance — check the digits.",
-    "prErrorNotReady": "Editing records is not enabled yet. Try again later."
+    "prErrorNotReady": "Editing records is not enabled yet. Try again later.",
+    "openDayRun": "Open the run from {day}"
   },
   "profileBest": {
     "title": "Your Best",
