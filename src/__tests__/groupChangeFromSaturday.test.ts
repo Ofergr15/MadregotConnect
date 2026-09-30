@@ -54,8 +54,10 @@ describe('the change', () => {
   it('says the new group shows on Saturday, before saving and while it waits', () => {
     expect(PAGE).toMatch(/\{changesFromSaturday && hasChanges && !groupLocked && \(\s*<p[^>]*>\s*\{t\('groupChangeShowsSat'/);
     expect(PAGE).toMatch(/t\('groupChangePendingNote', \{ current:/);
+    expect(PAGE).toMatch(/\{changesFromSaturday && !groupLocked && \(\s*<div[^>]*>\s*<CalendarClock[\s\S]*?t\('groupChangeRuleTitle'\)[\s\S]*?t\('groupChangeRuleBody'\)/);
     const he = JSON.parse(readFileSync('messages/he.json', 'utf8')).profile;
     const en = JSON.parse(readFileSync('messages/en.json', 'utf8')).profile;
+    for (const k of ['groupChangeRuleTitle', 'groupChangeRuleBody']) { expect(he[k], k).toMatch(/שבת/); expect(en[k], k).toMatch(/Saturday/); }
     for (const k of ['groupChangeShowsSat', 'groupChangePendingNote']) {
       expect(he[k], k).toMatch(k === 'groupChangeShowsSat' ? /\{date\}/ : /\{current\}/);
       expect(en[k], k).toMatch(k === 'groupChangeShowsSat' ? /\{date\}/ : /\{current\}/);

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { mutate as globalMutate } from 'swr';
-import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
+import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X, CalendarClock } from 'lucide-react';
 import { cn, israelToday, MONDAY_WEEK, type WeekStartDay } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { useTranslations, useFormatter } from 'next-intl';
@@ -912,6 +912,17 @@ function ProfileContent() {
           {/* iOS Settings-style single-select list — checkmark on the selected
               row, matching the InsetRow list one screen earlier instead of a
               differently-styled stack of card buttons. */}
+          {/* The rule itself, always on screen: a move never lands mid-week. */}
+          {changesFromSaturday && !groupLocked && (
+            <div className="mb-3 flex items-start gap-2.5 rounded-xl bg-band-3/10 px-3.5 py-3">
+              <CalendarClock className="mt-0.5 h-4.5 w-4.5 shrink-0 text-band-3-ink" />
+              <div>
+                <p className="text-sm font-bold text-ink-700">{t('groupChangeRuleTitle')}</p>
+                <p className="mt-0.5 text-xs text-ink-500">{t('groupChangeRuleBody')}</p>
+              </div>
+            </div>
+          )}
+
           {/* The move waiting for Saturday, and the way to take it back. */}
           {changesFromSaturday && pendingGroup && (
             <div className="mb-3 flex items-center justify-between gap-3 rounded-xl bg-brand-600/10 px-3.5 py-2.5">
