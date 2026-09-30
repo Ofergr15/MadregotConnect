@@ -28,9 +28,8 @@ const LABELS: Record<string, string> = {
   focus: 'מה מדבר אליך יותר',
   age: 'גיל',
   weight: 'משקל',
-  height: 'גובה',
+  height: 'גובה (ס״מ)',
   city: 'מקום מגורים',
-  maritalStatus: 'סטטוס משפחתי',
   goal: 'מטרת ההשתתפות',
   group: 'דבוקה',
   runningHistory: 'עבר ריצה (שנה אחרונה)',
@@ -45,6 +44,10 @@ const LABELS: Record<string, string> = {
   tightsSize: 'מידת טייץ',
   socksSize: 'מידת גרביים',
 };
+
+// Questions the form no longer asks. Older registrations still carry the answer
+// in their intake blob; it is not shown.
+const RETIRED_KEYS = new Set(['maritalStatus']);
 
 function initialsOf(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
@@ -183,7 +186,7 @@ export function AcademyRegistrations() {
 
                 {open && r.intake && (
                   <div className="border-t border-page/50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
-                    {Object.entries(r.intake).map(([k, v]) => (
+                    {Object.entries(r.intake).filter(([k]) => !RETIRED_KEYS.has(k)).map(([k, v]) => (
                       <div key={k} className="text-sm">
                         <span className="text-ink-400">{LABELS[k] || k}: </span>
                         <span className="text-ink-700">{Array.isArray(v) ? v.join(', ') : String(v || '—')}</span>

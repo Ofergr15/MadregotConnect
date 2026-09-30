@@ -210,3 +210,13 @@ describe('the form on a phone', () => {
     expect(page).not.toContain('maritalStatus');
   });
 });
+
+describe('the registrations screen', () => {
+  it('does not show marital status, even on registrations that answered it', async () => {
+    const { readFileSync } = await import('node:fs');
+    const screen = readFileSync('src/components/AcademyRegistrations.tsx', 'utf8');
+    expect(screen).not.toContain('סטטוס משפחתי');
+    expect(screen).toContain("RETIRED_KEYS = new Set(['maritalStatus'])");
+    expect(screen).toContain('.filter(([k]) => !RETIRED_KEYS.has(k))');
+  });
+});

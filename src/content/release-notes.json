@@ -1,5 +1,13 @@
 [
   {
+    "id": "academy-registrations-no-marital",
+    "date": "2026-09-30",
+    "kind": "fix",
+    "icon": "🧹",
+    "title": "נרשמים לאקדמיה: בלי סטטוס משפחתי",
+    "body": "מסך הנרשמים כבר לא מציג סטטוס משפחתי, גם בהרשמות ישנות שענו עליו."
+  },
+  {
     "id": "academy-form-number-keyboard",
     "date": "2026-09-30",
     "kind": "fix",
