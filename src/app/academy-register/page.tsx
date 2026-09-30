@@ -24,6 +24,11 @@ type Field =
   | { key: string; label: string; type: 'chips'; required?: boolean; options: string[] }
   | { key: string; label: string; type: 'checkboxes'; required?: boolean; options: string[] };
 
+/** A follow-up that only shows (and is only checked) while another answer is picked. */
+const SHOWN_WHEN: Record<string, { key: string; equals: string }> = {
+  hearAboutOther: { key: 'hearAbout', equals: 'אחר' },
+};
+
 const FIELDS: Field[] = [
   // Hebrew or English, whichever the applicant writes (lib/names/latin.ts
   // formNameProblem). The roster's Latin name arrives with Strava at /join.
@@ -55,7 +60,6 @@ const FIELDS: Field[] = [
   ] },
   { key: 'runningHistory', label: 'עבר הריצה שלך בשנה האחרונה', type: 'textarea', required: true },
   { key: 'achievements', label: 'במידה ויש הישגים בתחום הריצה אנא פרט/י', type: 'textarea' },
-  { key: 'strava', label: 'במידה ויש לך חשבון סטראבה אנא כתוב את השם', type: 'text' },
   { key: 'medicalHistory', label: 'עבר רפואי', type: 'checkboxes', required: true, options: [
     'בריא לחלוטין',
     'יש בעיה רפואית כרונית',
@@ -63,8 +67,8 @@ const FIELDS: Field[] = [
     'היו בעיות עבר שאינן כרגע',
   ] },
   { key: 'medicalDetails', label: 'במידה ולא ענית בריא לחלוטין בשאלה הקודמת אנא פרט', type: 'textarea' },
-  { key: 'hearAbout', label: 'איך שמעת על קבוצת הריצה', type: 'text' },
-  { key: 'instagram', label: 'תוכל לשתף את עמוד האינסטגרם שלך במידה ויש', type: 'text', required: true },
+  { key: 'hearAbout', label: 'איך שמעת על קבוצת הריצה', type: 'radio', options: ['אינסטגרם', 'פייסבוק', 'חברים', 'אחר'] },
+  { key: 'hearAboutOther', label: 'ספרו לנו איך', type: 'text', required: true },
   // ── Kit sizes, together and last ────────────────────────────────────────────
   // Shirt size was the only one collected, so ordering anything else meant asking
   // twenty people one at a time in WhatsApp. Grouped and rendered as pills so the
@@ -85,7 +89,7 @@ const REGISTRATION_OPEN = true;
 const STEPS: { title: string; keys: string[] }[] = [
   { title: 'הפרטים שלך', keys: ['firstName', 'lastName', 'email', 'phone'] },
   { title: 'קצת עליך', keys: ['focus', 'age', 'weight', 'height', 'city'] },
-  { title: 'הריצה שלך', keys: ['goal', 'group', 'runningHistory', 'achievements', 'strava', 'hearAbout', 'instagram'] },
+  { title: 'הריצה שלך', keys: ['goal', 'group', 'runningHistory', 'achievements', 'hearAbout', 'hearAboutOther'] },
   { title: 'בריאות ומידות', keys: ['medicalHistory', 'medicalDetails', 'shirtSize', 'pantsSize', 'tightsSize', 'socksSize'] },
 ];
 const FIELD_BY_KEY = new Map(FIELDS.map(f => [f.key, f]));
@@ -131,7 +135,18 @@ export default function AcademyRegisterPage() {
       .catch(() => {});
   }, []);
 
-  const set = (k: string, v: any) => setValues(prev => ({ ...prev, [k]: v }));
+  const set = (k: string, v: any) => setValues(prev => {
+    const next = { ...prev, [k]: v };
+    // Moving off "אחר" drops what was typed under it, so a stale answer is not sent.
+    for (const [child, when] of Object.entries(SHOWN_WHEN)) {
+      if (when.key === k && v !== when.equals) delete next[child];
+    }
+    return next;
+  });
+  const isShown = (key: string) => {
+    const when = SHOWN_WHEN[key];
+    return !when || values[when.key] === when.equals;
+  };
   const toggle = (k: string, opt: string) => {
     const cur: string[] = values[k] || [];
     set(k, cur.includes(opt) ? cur.filter(x => x !== opt) : [...cur, opt]);
@@ -141,7 +156,7 @@ export default function AcademyRegisterPage() {
   const problemOn = (index: number): string | null => {
     for (const key of STEPS[index].keys) {
       const f = FIELD_BY_KEY.get(key);
-      if (!f?.required) continue;
+      if (!f?.required || !isShown(key)) continue;
       const v = values[f.key];
       const empty = f.type === 'checkboxes' ? !(v && v.length) : !(v && String(v).trim());
       if (empty) return `אנא מלא/י: ${f.label}`;
@@ -256,7 +271,7 @@ export default function AcademyRegisterPage() {
               value={honeypot} onChange={e => setHoneypot(e.target.value)} />
           </div>
 
-          {STEPS[step].keys.map(k => FIELD_BY_KEY.get(k)!).map(f => (
+          {STEPS[step].keys.filter(isShown).map(k => FIELD_BY_KEY.get(k)!).map(f => (
             <Card key={f.key} variant="plain">
               {/* A real <label for> on the typed fields and a group heading on the
                   choice fields — the audit found every input named only by its

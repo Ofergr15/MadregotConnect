@@ -220,3 +220,17 @@ describe('the registrations screen', () => {
     expect(screen).toContain('.filter(([k]) => !RETIRED_KEYS.has(k))');
   });
 });
+
+describe('the form: how did you hear about us', () => {
+  const page = () => require('node:fs').readFileSync('src/app/academy-register/page.tsx', 'utf8') as string;
+
+  it('is a choice of four, and "other" opens a line to type in', () => {
+    expect(page()).toContain("key: 'hearAbout', label: 'איך שמעת על קבוצת הריצה', type: 'radio', options: ['אינסטגרם', 'פייסבוק', 'חברים', 'אחר']");
+    expect(page()).toContain("hearAboutOther: { key: 'hearAbout', equals: 'אחר' }");
+  });
+
+  it('no longer asks for the Strava name or the Instagram page', () => {
+    expect(page()).not.toMatch(/key: 'strava'/);
+    expect(page()).not.toMatch(/key: 'instagram'/);
+  });
+});

@@ -38,6 +38,7 @@ const LABELS: Record<string, string> = {
   medicalHistory: 'עבר רפואי',
   medicalDetails: 'פירוט רפואי',
   hearAbout: 'איך שמע/ה עלינו',
+  hearAboutOther: 'איך שמע/ה עלינו (אחר)',
   instagram: 'אינסטגרם',
   shirtSize: 'מידת חולצה',
   pantsSize: 'מידת מכנסיים',
