@@ -93,7 +93,7 @@ export async function GET(request: Request) {
     const { data: a, error: athleteError } = await supabase
       .from('athletes')
       // `role` for the mute rule below — see countsTowardBadge in push.ts.
-      .select('group_id, role, last_seen_at, notification_prefs')
+      .select('group_id, role, is_academy, last_seen_at, notification_prefs')
       .eq('id', athleteId)
       .maybeSingle();
     if (athleteError) throw athleteError;
@@ -102,6 +102,7 @@ export async function GET(request: Request) {
     const orClause = [
       'audience_type.eq.all',
       a.group_id ? `and(audience_type.eq.group,audience_id.eq.${a.group_id})` : null,
+      a.is_academy ? 'audience_type.eq.academy' : null,
       `and(audience_type.eq.athlete,audience_id.eq.${athleteId})`,
     ].filter(Boolean).join(',');
 

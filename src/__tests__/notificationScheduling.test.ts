@@ -112,5 +112,6 @@ describe('describeNotificationRow', () => {
     expect(describeNotificationRow({ ...base, audience_type: 'all' }).audienceText).toBe('הכל');
     expect(describeNotificationRow({ ...base, audience_type: 'group' }).audienceText).toBe('קבוצה');
     expect(describeNotificationRow({ ...base, audience_type: 'athlete' }).audienceText).toBe('אדם');
+    expect(describeNotificationRow({ ...base, audience_type: 'academy' }).audienceText).toBe('אקדמיה');
   });
 });

@@ -75,6 +75,13 @@ describe('matchesAudience', () => {
     expect(matchesAudience({ audience_type: 'all', audience_id: null, last_sent_at: after }, athlete, 'a1', since)).toBe(true);
   });
 
+  it('an academy broadcast matches academy members only', () => {
+    const n = { audience_type: 'academy', audience_id: null, last_sent_at: after };
+    expect(matchesAudience(n, { group_id: 'group-a', is_academy: true }, 'a1', since)).toBe(true);
+    expect(matchesAudience(n, { group_id: 'group-a', is_academy: false }, 'a1', since)).toBe(false);
+    expect(matchesAudience(n, athlete, 'a1', since)).toBe(false);
+  });
+
   it('a group notification matches only an athlete in that exact group', () => {
     expect(matchesAudience({ audience_type: 'group', audience_id: 'group-a', last_sent_at: after }, athlete, 'a1', since)).toBe(true);
     expect(matchesAudience({ audience_type: 'group', audience_id: 'group-b', last_sent_at: after }, athlete, 'a1', since)).toBe(false);

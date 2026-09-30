@@ -18,6 +18,10 @@ import { defaultViewFor, newlyGranted, rolePreview } from '@/lib/role-views';
 // just "admin". What is switched on here is exactly what the person's top-bar view
 // switcher will offer them. The server decides who may save (admins), and who may
 // touch admin itself (the club account and the super user).
+//
+// "רץ אקדמיה" sits beside them but is not a role column: it is the academy
+// membership flag (`is_academy`), the same one "accept" on the applicants board
+// turns on. See the route.
 
 const ROLE_LABEL: Record<GrantableRole, string> = {
   coach: 'מאמן',
@@ -40,13 +44,14 @@ const BADGE_TONE: Record<GrantableRole, string> = {
   admin: 'bg-ink-700 text-white',
 };
 
-type Filter = 'any' | 'coaches' | 'academy' | 'admin';
+type Filter = 'any' | 'academyRunners' | 'coaches' | 'academy' | 'admin';
 
-const FILTERS: Array<{ key: Filter; label: string; test: (r: GrantableRole[]) => boolean }> = [
-  { key: 'any', label: 'עם תפקיד', test: r => r.length > 0 },
-  { key: 'coaches', label: 'מאמנים', test: r => r.includes('coach') || r.includes('academy_coach') },
-  { key: 'academy', label: 'אקדמיה', test: r => r.includes('academy_coach') || r.includes('academy_manager') },
-  { key: 'admin', label: 'אדמין', test: r => r.includes('admin') },
+const FILTERS: Array<{ key: Filter; label: string; test: (p: RolePerson) => boolean }> = [
+  { key: 'any', label: 'עם תפקיד', test: p => p.roles.length > 0 || !!p.academy },
+  { key: 'academyRunners', label: 'רצי אקדמיה', test: p => !!p.academy },
+  { key: 'coaches', label: 'מאמנים', test: p => p.roles.includes('coach') || p.roles.includes('academy_coach') },
+  { key: 'academy', label: 'צוות אקדמיה', test: p => p.roles.includes('academy_coach') || p.roles.includes('academy_manager') },
+  { key: 'admin', label: 'אדמין', test: p => p.roles.includes('admin') },
 ];
 
 function initials(name: string, email: string) {
@@ -94,12 +99,15 @@ async function resendRolePush(athleteId: string): Promise<string | null> {
   }
 }
 
-function RoleBadges({ roles }: { roles: GrantableRole[] }) {
-  if (!roles.length) {
+function RoleBadges({ roles, academy }: { roles: GrantableRole[]; academy?: boolean }) {
+  if (!roles.length && !academy) {
     return <span className="inline-flex h-[22px] items-center rounded-[7px] bg-[#F1F1F3] px-2 text-2xs font-bold text-ink-400">רץ</span>;
   }
   return (
     <span className="flex max-w-[128px] flex-wrap justify-end gap-1">
+      {academy && (
+        <span className="inline-flex h-[22px] items-center rounded-[7px] bg-[#E6F4EC] px-2 text-2xs font-bold text-[#0B6B35]">רץ אקדמיה</span>
+      )}
       {roles.map(r => (
         <span key={r} className={cn('inline-flex h-[22px] items-center rounded-[7px] px-2 text-2xs font-bold', BADGE_TONE[r])}>
           {ROLE_LABEL[r]}
@@ -131,7 +139,7 @@ export default function RolesPage() {
   };
 
   const people = useMemo(() => data?.people ?? [], [data]);
-  const withRole = people.filter(p => p.roles.length > 0).length;
+  const withRole = people.filter(FILTERS[0].test).length;
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -139,7 +147,7 @@ export default function RolesPage() {
     // give a role to is the reason to search.
     if (q) return people.filter(p => p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q));
     const f = FILTERS.find(x => x.key === filter)!;
-    return people.filter(p => f.test(p.roles));
+    return people.filter(f.test);
   }, [people, query, filter]);
 
   const forbidden = (error as { status?: number } | undefined)?.status === 403;
@@ -176,7 +184,7 @@ export default function RolesPage() {
       {!query.trim() && (
         <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
           {FILTERS.map(f => {
-            const n = people.filter(p => f.test(p.roles)).length;
+            const n = people.filter(f.test).length;
             const on = f.key === filter;
             return (
               <button
@@ -218,7 +226,7 @@ export default function RolesPage() {
                   <span className="block truncate text-[15px] font-bold text-ink-700">{p.name || p.email}</span>
                   <span className="block truncate text-xs text-ink-400" dir="ltr" style={{ textAlign: 'right' }}>{p.email}</span>
                 </span>
-                <RoleBadges roles={p.roles} />
+                <RoleBadges roles={p.roles} academy={p.academy} />
               </button>
               <button
                 type="button"
@@ -253,7 +261,7 @@ export default function RolesPage() {
         onSaved={async (notified) => {
           const who = editing?.name || editing?.email || '';
           setEditing(null);
-          if (notified) flash(`נשמר, ונשלחה התראה ל${who}`);
+          flash(notified ? `נשמר, ונשלחה התראה ל${who}` : 'נשמר');
           await mutate();
         }}
         onResent={async (failed) => {
@@ -298,12 +306,14 @@ function EditRolesSheet({
   person: RolePerson | null;
   canGrantAdmin: boolean;
   onClose: () => void;
-  /** `notified` — the save switched a role on and its push went out. */
+  /** `notified` — the save switched a role (or the academy) on and its push went out. */
   onSaved: (notified: boolean) => void | Promise<void>;
   onResent: (failed: string | null) => void | Promise<void>;
 }) {
   const [resending, setResending] = useState(false);
   const [draft, setDraft] = useState<GrantableRole[]>([]);
+  const [academy, setAcademy] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const [forId, setForId] = useState<string | null>(null);
   const [confirmAdmin, setConfirmAdmin] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -313,6 +323,7 @@ function EditRolesSheet({
   if (person && person.id !== forId) {
     setForId(person.id);
     setDraft(person.roles);
+    setAcademy(!!person.academy);
     setFailed(null);
   }
 
@@ -330,7 +341,7 @@ function EditRolesSheet({
       const res = await fetch('/api/admin/roles', {
         method: 'PUT',
         headers: await apiHeaders(true),
-        body: JSON.stringify({ athleteId: person.id, roles: draft }),
+        body: JSON.stringify({ athleteId: person.id, roles: draft, academy }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -344,7 +355,7 @@ function EditRolesSheet({
         return;
       }
       const body = await res.json().catch(() => ({}));
-      await onSaved(!!body.notified);
+      await onSaved(!!body.notified || !!body.academyNotified);
     } catch {
       setFailed('השמירה נכשלה. נסה שוב.');
     } finally {
@@ -355,7 +366,17 @@ function EditRolesSheet({
   // The chip they will see on opening the app: their new primary role's view.
   const chipView = defaultViewFor(rolesToColumns(draft, 'runner').role);
   const preview = rolePreview(draft, chipView);
-  const changed = !!person && (draft.length !== person.roles.length || draft.some(r => !person.roles.includes(r)));
+  const joining = !!person && academy && !person.academy;
+  const changed = !!person && (
+    academy !== !!person.academy || draft.length !== person.roles.length || draft.some(r => !person.roles.includes(r))
+  );
+  const first = person?.name?.split(' ')[0] || 'חשבון';
+  const grantNote = person
+    ? [
+        joining ? 'על הכניסה לאקדמיה' : null,
+        newlyGranted(person.roles, draft).length > 0 ? 'על התפקיד החדש' : null,
+      ].filter(Boolean)
+    : [];
 
   return (
     <>
@@ -370,8 +391,22 @@ function EditRolesSheet({
               </div>
             </div>
 
+            <div>
+              <p className="mb-1.5 px-1 text-2xs font-extrabold tracking-wide text-ink-400">רץ</p>
+              <div className="overflow-hidden rounded-2xl bg-page/60">
+                <RoleRow title="רץ מועדון" description="כל חשבון הוא קודם כול רץ" locked />
+                <RoleRow
+                  title="רץ אקדמיה"
+                  description="לשונית אקדמיה, יעדי קצב בשעון, הפיד של האקדמיה"
+                  checked={academy}
+                  onChange={on => (on ? setAcademy(true) : person.academy ? setConfirmLeave(true) : setAcademy(false))}
+                />
+              </div>
+            </div>
+
+            <div>
+            <p className="mb-1.5 px-1 text-2xs font-extrabold tracking-wide text-ink-400">צוות</p>
             <div className="overflow-hidden rounded-2xl bg-page/60">
-              <RoleRow title="רץ" description="כל חשבון הוא קודם כול רץ" locked />
               {ROLE_ROWS.map(r => (
                 <RoleRow
                   key={r.role}
@@ -383,6 +418,7 @@ function EditRolesSheet({
                 />
               ))}
             </div>
+            </div>
 
             <div className="flex items-center gap-2 rounded-2xl bg-page/60 px-3 py-2.5 text-sm text-ink-500">
               <span className="shrink-0">בראש המסך יראה:</span>
@@ -390,10 +426,10 @@ function EditRolesSheet({
               <span className="min-w-0">{preview.text}</span>
             </div>
 
-            {newlyGranted(person.roles, draft).length > 0 && (
+            {grantNote.length > 0 && (
               <div className="flex items-center gap-2 rounded-2xl bg-[#E6F4EC] px-3 py-2.5 text-sm font-semibold text-[#0B6B35]">
                 <Bell className="h-4 w-4 shrink-0" />
-                בשמירה תישלח ל{person.name?.split(' ')[0] || 'חשבון'} התראה על התפקיד החדש
+                בשמירה תישלח ל{first} התראה {grantNote.join(' ו')}
               </div>
             )}
 
@@ -431,6 +467,29 @@ function EditRolesSheet({
             </button>
           </div>
         )}
+      </Sheet>
+
+      <Sheet open={confirmLeave} onOpenChange={setConfirmLeave}>
+        <div className="space-y-4 pb-2 text-center" dir="rtl">
+          <p className="text-lg font-bold text-ink-700">להוציא את {person?.name || 'החשבון הזה'} מהאקדמיה?</p>
+          <p className="text-sm leading-relaxed text-ink-500">
+            לשונית האקדמיה ויעדי הקצב בשעון ייעלמו לו, והוא ינותק מהמאמן שלו באקדמיה. ההיסטוריה שלו נשמרת.
+          </p>
+          <button
+            type="button"
+            onClick={() => { setAcademy(false); setConfirmLeave(false); }}
+            className="h-12 w-full rounded-pill bg-accent-red text-base font-bold text-white active:scale-[0.98]"
+          >
+            כן, להוציא מהאקדמיה
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmLeave(false)}
+            className="h-12 w-full rounded-pill bg-page text-base font-semibold text-ink-700 active:scale-[0.98]"
+          >
+            ביטול
+          </button>
+        </div>
       </Sheet>
 
       <Sheet open={confirmAdmin} onOpenChange={setConfirmAdmin}>

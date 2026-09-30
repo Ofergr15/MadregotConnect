@@ -19,6 +19,8 @@ export interface RolePerson {
   email: string;
   avatarUrl: string | null;
   roles: GrantableRole[];
+  /** "רץ אקדמיה": `athletes.is_academy`, the academy membership flag. */
+  academy?: boolean;
   /** When the "קיבלת תפקיד חדש" push last went to them; null when it never did. */
   lastNotifiedAt?: string | null;
 }

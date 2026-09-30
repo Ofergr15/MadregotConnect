@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { addedTabs, newlyGranted, pendingWelcome, viewForRole, welcomeRoleOf } from '@/lib/role-views';
-import { roleGrantedCopy } from '@/lib/notifications/copy';
+import { academyJoinedCopy, roleGrantedCopy } from '@/lib/notifications/copy';
 
 /**
  * "קיבלת תפקיד חדש" — the push the roles screen sends when a role is switched on,
@@ -16,6 +16,11 @@ vi.mock('@/lib/auth/self-or-staff', () => ({
 
 const notifyAthlete = vi.fn(async (_opts: unknown) => {});
 vi.mock('@/lib/push', () => ({ notifyAthlete: (opts: unknown) => notifyAthlete(opts) }));
+
+const applyAcademyMembership = vi.fn(async (..._a: unknown[]) => {});
+vi.mock('@/lib/academy/membership-server', () => ({
+  applyAcademyMembership: (...a: unknown[]) => applyAcademyMembership(...a),
+}));
 
 type Row = Record<string, unknown>;
 const db: { athletes: Row[]; scheduled_notifications: Row[] } = { athletes: [], scheduled_notifications: [] };
@@ -52,11 +57,13 @@ function req(method: string, body: unknown) {
 beforeEach(() => {
   db.athletes = [
     { id: 'boss', name: 'Ofer Gros', role: 'admin', extra_roles: [], status: 'active' },
-    { id: 'shahar', name: 'Shahar Levi', role: 'runner', extra_roles: [], status: 'active' },
+    { id: 'shahar', name: 'Shahar Levi', role: 'runner', extra_roles: [], status: 'active', is_academy: false },
+    { id: 'maya', name: 'Maya Katz', role: 'runner', extra_roles: [], status: 'active', is_academy: true },
     { id: 'dan', name: 'Dan Ron', role: 'coach', extra_roles: ['academy_coach'], status: 'active' },
   ];
   db.scheduled_notifications = [];
   notifyAthlete.mockClear();
+  applyAcademyMembership.mockClear();
   resolveVerifiedCaller.mockResolvedValue({ denied: null, caller: ADMIN });
 });
 
@@ -121,6 +128,46 @@ describe('PUT /api/admin/roles', () => {
     const res = await PUT(req('PUT', { athleteId: 'dan', roles: ['coach'] }));
     expect((await res.json()).notified).toBeNull();
     expect(notifyAthlete).not.toHaveBeenCalled();
+  });
+});
+
+describe('the "רץ אקדמיה" switch', () => {
+  it('lists who is in the academy', async () => {
+    const { GET } = await import('@/app/api/admin/roles/route');
+    const body = await (await GET(req('GET', undefined) as never)).json();
+    const byId = Object.fromEntries(body.people.map((p: { id: string; academy: boolean }) => [p.id, p.academy]));
+    expect(byId).toMatchObject({ shahar: false, maya: true });
+  });
+
+  it('writes is_academy, stamps the join, and says "נכנסת לאקדמיה"', async () => {
+    const { PUT } = await import('@/app/api/admin/roles/route');
+    const body = await (await PUT(req('PUT', { athleteId: 'shahar', roles: [], academy: true }))).json();
+    expect(body).toMatchObject({ academy: true, academyNotified: true, notified: null });
+    expect(db.athletes.find(a => a.id === 'shahar')!.is_academy).toBe(true);
+    expect(applyAcademyMembership).toHaveBeenCalledWith(expect.anything(), 'shahar', true);
+    expect(notifyAthlete.mock.calls[0][0]).toMatchObject({ url: '/dashboard/academy', kind: 'academy_joined' });
+  });
+
+  it('taking somebody out ends the pairing and sends nothing', async () => {
+    const { PUT } = await import('@/app/api/admin/roles/route');
+    const body = await (await PUT(req('PUT', { athleteId: 'maya', roles: [], academy: false }))).json();
+    expect(body.academyNotified).toBe(false);
+    expect(db.athletes.find(a => a.id === 'maya')!.is_academy).toBe(false);
+    expect(applyAcademyMembership).toHaveBeenCalledWith(expect.anything(), 'maya', false);
+    expect(notifyAthlete).not.toHaveBeenCalled();
+  });
+
+  it('leaves the flag alone when the save does not mention it', async () => {
+    const { PUT } = await import('@/app/api/admin/roles/route');
+    await PUT(req('PUT', { athleteId: 'maya', roles: ['coach'] }));
+    expect(db.athletes.find(a => a.id === 'maya')!.is_academy).toBe(true);
+    expect(applyAcademyMembership).not.toHaveBeenCalled();
+  });
+
+  it('has copy in both languages', () => {
+    expect(academyJoinedCopy('he', { by: 'Ofer Gros' }).title).toBe('🎓 נכנסת לאקדמיה');
+    expect(academyJoinedCopy('he', { by: 'Ofer Gros' }).body).toContain('Ofer הוסיף אותך');
+    expect(academyJoinedCopy('en', {}).body).not.toContain('undefined');
   });
 });
 

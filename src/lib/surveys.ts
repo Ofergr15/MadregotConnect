@@ -30,7 +30,7 @@ export async function createAndSendSurvey(opts: {
       options_he: cleanOptionsHe,
       options_en: (opts.optionsEn || []).map((o) => o.trim()).filter(Boolean) || null,
       audience_type: opts.audienceType || 'all',
-      audience_id: opts.audienceType === 'all' ? null : opts.audienceId || null,
+      audience_id: opts.audienceType === 'all' || opts.audienceType === 'academy' ? null : opts.audienceId || null,
       created_by: opts.createdBy || null,
     })
     .select()
@@ -48,7 +48,7 @@ export async function createAndSendSurvey(opts: {
       body_en: opts.questionEn?.trim() ? 'Tap to answer the survey' : null,
       url: `/dashboard/surveys/${survey.id}`,
       audience_type: opts.audienceType || 'all',
-      audience_id: opts.audienceType === 'all' ? null : opts.audienceId || null,
+      audience_id: opts.audienceType === 'all' || opts.audienceType === 'academy' ? null : opts.audienceId || null,
       schedule_type: 'now',
       next_run_at: new Date().toISOString(),
       status: 'scheduled',
@@ -122,6 +122,9 @@ export async function notifySurveyNonResponders(opts: {
     candidateIds = [opts.audienceId];
   } else if (opts.audienceType === 'group' && opts.audienceId) {
     const { data } = await supabase.from('athletes').select('id').eq('group_id', opts.audienceId);
+    candidateIds = (data || []).map((a: { id: string }) => a.id);
+  } else if (opts.audienceType === 'academy') {
+    const { data } = await supabase.from('athletes').select('id').eq('is_academy', true);
     candidateIds = (data || []).map((a: { id: string }) => a.id);
   } else {
     candidateIds = await allAthleteIds();

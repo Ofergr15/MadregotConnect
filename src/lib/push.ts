@@ -189,14 +189,14 @@ async function filterByCategory(subs: SubRow[], category?: NotificationCategory)
 /**
  * Does this sent notification count toward this athlete's unread total? True
  * when it was sent after `since` AND targets them — broadcast to everyone, to
- * their group specifically, or to them by id. Pure — the single audience-
+ * their group specifically, to the academy when they are in it, or to them by id. Pure — the single audience-
  * matching rule shared by the badge count and the inbox history, so a bug
  * here can't silently leak a group's notifications to the wrong group (or
  * hide real ones) in just one of the two call sites.
  */
 export function matchesAudience(
   notif: { audience_type: string; audience_id: string | null; last_sent_at: string },
-  athlete: { group_id: string | null },
+  athlete: { group_id: string | null; is_academy?: boolean | null },
   athleteId: string,
   since: string,
 ): boolean {
@@ -204,6 +204,7 @@ export function matchesAudience(
   return (
     notif.audience_type === 'all' ||
     (notif.audience_type === 'group' && notif.audience_id === athlete.group_id) ||
+    (notif.audience_type === 'academy' && athlete.is_academy === true) ||
     (notif.audience_type === 'athlete' && notif.audience_id === athleteId)
   );
 }
@@ -239,7 +240,7 @@ export const STREAM_OWNED_KINDS: readonly string[] = ['academy_message', 'academ
  */
 export function countsTowardBadge(
   notif: { kind: string; url?: string | null; audience_type: string; audience_id: string | null; last_sent_at: string },
-  athlete: { group_id: string | null; role?: string | null },
+  athlete: { group_id: string | null; role?: string | null; is_academy?: boolean | null },
   athleteId: string,
   since: string,
   prefs?: Record<string, boolean> | null,
@@ -368,9 +369,9 @@ async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string,
   const { data: athletesData } = await supabase
     .from('athletes')
     // `role` for the mute rule — see countsTowardBadge.
-    .select('id, group_id, role, last_seen_at')
+    .select('id, group_id, role, is_academy, last_seen_at')
     .in('id', athleteIds);
-  const athleteById = new Map((athletesData || []).map((a: { id: string; group_id: string | null; role: string | null; last_seen_at: string | null }) => [a.id, a]));
+  const athleteById = new Map((athletesData || []).map((a: { id: string; group_id: string | null; role: string | null; is_academy: boolean | null; last_seen_at: string | null }) => [a.id, a]));
   const prefsById = await prefsByAthlete(athleteIds);
   // Chat unread, in one batched call. The badge is one number to the person looking
   // at their home screen, so it has to include the thread — otherwise a trainee with
@@ -417,7 +418,7 @@ export async function unreadCountForAthlete(athleteId: string): Promise<number> 
   const { data: a } = await supabase
     .from('athletes')
     // `role` for the mute rule — see countsTowardBadge.
-    .select('group_id, role, last_seen_at')
+    .select('group_id, role, is_academy, last_seen_at')
     .eq('id', athleteId)
     .maybeSingle();
   if (!a) return 0;
@@ -425,6 +426,7 @@ export async function unreadCountForAthlete(athleteId: string): Promise<number> 
   const orClause = [
     'audience_type.eq.all',
     a.group_id ? `and(audience_type.eq.group,audience_id.eq.${a.group_id})` : null,
+    a.is_academy ? 'audience_type.eq.academy' : null,
     `and(audience_type.eq.athlete,audience_id.eq.${athleteId})`,
   ].filter(Boolean).join(',');
   // Was a head-only `count: 'exact'`, which is why this drifted from the inbox:
@@ -573,7 +575,7 @@ export async function sendPushDetailed(
 /**
  * Resolve an audience descriptor to the set of push subscriptions to send to.
  * 'all' = every athlete of the club; 'group' = athletes in a group;
- * 'athlete' = a single athlete. Returns [] on unknown input.
+ * 'academy' = academy members (`is_academy`); 'athlete' = a single athlete. Returns [] on unknown input.
  */
 export async function resolveAudience(
   audienceType: string,
@@ -586,6 +588,9 @@ export async function resolveAudience(
     athleteIds = [audienceId];
   } else if (audienceType === 'group' && audienceId) {
     const { data } = await supabase.from('athletes').select('id').eq('group_id', audienceId);
+    athleteIds = (data || []).map((a) => a.id);
+  } else if (audienceType === 'academy') {
+    const { data } = await supabase.from('athletes').select('id').eq('coach_id', COACH_ID).eq('is_academy', true);
     athleteIds = (data || []).map((a) => a.id);
   } else if (audienceType === 'all') {
     const { data } = await supabase.from('athletes').select('id').eq('coach_id', COACH_ID);

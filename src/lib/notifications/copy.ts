@@ -626,6 +626,26 @@ export function roleGrantedCopy(
 }
 
 /**
+ * "נכנסת לאקדמיה" — the roles screen's "רץ אקדמיה" switch turned on. Opens the
+ * academy tab, which the flag is what adds.
+ */
+export function academyJoinedCopy(
+  locale: NotificationLocale,
+  p: { by?: string | null },
+): PushCopy {
+  const who = (p.by || '').trim().split(/\s+/)[0] || '';
+  return locale === 'he'
+    ? {
+        title: '🎓 נכנסת לאקדמיה',
+        body: `${who ? `${who} הוסיף אותך. ` : ''}לחיצה פותחת את לשונית האקדמיה, עם יעדי הקצב שלך.`,
+      }
+    : {
+        title: '🎓 You joined the academy',
+        body: `${who ? `${who} added you. ` : ''}Tap to open the academy tab, with your pace targets.`,
+      };
+}
+
+/**
  * The nudge for somebody who was approved and never came in.
  *
  * Its own copy rather than a second approvalCopy: "you're approved!" is wrong the

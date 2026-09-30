@@ -4,7 +4,8 @@ import { canGrantAdmin } from '@/lib/constants';
 import { resolveVerifiedCaller, type VerifiedCaller } from '@/lib/auth/self-or-staff';
 import { GRANTABLE_ROLES, grantedRoles, hasRole, rolesToColumns, type GrantableRole, type RolePerson } from '@/lib/auth/roles';
 import { notifyAthlete } from '@/lib/push';
-import { roleGrantedCopy } from '@/lib/notifications/copy';
+import { academyJoinedCopy, roleGrantedCopy } from '@/lib/notifications/copy';
+import { applyAcademyMembership } from '@/lib/academy/membership-server';
 import { newlyGranted, welcomeRoleOf, WELCOME_PARAM } from '@/lib/role-views';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,12 @@ export const revalidate = 0;
 /** Postgres "column does not exist" — migration 127 not pasted in yet. */
 const UNDEFINED_COLUMN = '42703';
 
-const BASE = 'id, name, email, avatar_url, role, status';
+const BASE = 'id, name, email, avatar_url, role, status, is_academy';
+
+// "רץ אקדמיה" is not a role column. It is `athletes.is_academy`, the flag that
+// "accept" on the applicants board turns on and everything academy reads (the
+// academy tab, watch pace targets, the academy feed). The switch here writes
+// that same flag, so the two doors can never disagree.
 
 async function requireRoleAdmin(request: Request) {
   const { denied, caller } = await resolveVerifiedCaller(request);
@@ -65,6 +71,35 @@ async function sendRoleGranted(
     return false;
   }
 }
+
+/** "נכנסת לאקדמיה", opening the academy tab. Best-effort, like the role push. */
+async function sendAcademyJoined(
+  supabase: ReturnType<typeof createServerClient>,
+  athleteId: string,
+  caller: Pick<VerifiedCaller, 'athleteId'>,
+): Promise<boolean> {
+  try {
+    let by: string | null = null;
+    if (caller.athleteId && caller.athleteId !== athleteId) {
+      const me = await supabase.from('athletes').select('name').eq('id', caller.athleteId).maybeSingle();
+      by = (me.data as { name?: string | null } | null)?.name || null;
+    }
+    await notifyAthlete({
+      athleteId,
+      kind: ACADEMY_JOINED_KIND,
+      actorAthleteId: caller.athleteId,
+      copy: locale => academyJoinedCopy(locale, { by }),
+      url: '/dashboard/academy',
+      tag: 'academy-joined',
+    });
+    return true;
+  } catch (err) {
+    console.error('Roles: academy-joined push failed:', err);
+    return false;
+  }
+}
+
+const ACADEMY_JOINED_KIND = 'academy_joined';
 
 /** Newest role_granted notification per person — the sheet's "נשלחה" line. */
 async function lastNotified(supabase: ReturnType<typeof createServerClient>): Promise<Map<string, string>> {
@@ -115,6 +150,7 @@ export async function GET(request: Request) {
         email: a.email || '',
         avatarUrl: a.avatar_url || null,
         roles: grantedRoles(a.role, a.extra_roles),
+        academy: a.is_academy === true,
         lastNotifiedAt: notified.get(a.id) ?? null,
       }));
 
@@ -130,9 +166,9 @@ export async function PUT(request: Request) {
     const { denied, caller } = await requireRoleAdmin(request);
     if (denied) return denied;
 
-    const body = (await request.json().catch(() => ({}))) as { athleteId?: unknown; roles?: unknown };
+    const body = (await request.json().catch(() => ({}))) as { athleteId?: unknown; roles?: unknown; academy?: unknown };
     const athleteId = typeof body.athleteId === 'string' ? body.athleteId : '';
-    if (!athleteId || !Array.isArray(body.roles)) {
+    if (!athleteId || !Array.isArray(body.roles) || (body.academy !== undefined && typeof body.academy !== 'boolean')) {
       return NextResponse.json({ error: 'athleteId and roles are required' }, { status: 400 });
     }
     if (body.roles.some(r => !(GRANTABLE_ROLES as readonly unknown[]).includes(r))) {
@@ -142,14 +178,16 @@ export async function PUT(request: Request) {
 
     const supabase = createServerClient();
     let migrated = true;
-    let found = await supabase.from('athletes').select('id, role, extra_roles').eq('id', athleteId).maybeSingle();
+    let found = await supabase.from('athletes').select('id, role, extra_roles, is_academy').eq('id', athleteId).maybeSingle();
     if (found.error?.code === UNDEFINED_COLUMN) {
       migrated = false;
-      found = await supabase.from('athletes').select('id, role').eq('id', athleteId).maybeSingle() as typeof found;
+      found = await supabase.from('athletes').select('id, role, is_academy').eq('id', athleteId).maybeSingle() as typeof found;
     }
     if (found.error) throw found.error;
-    const athlete = found.data as { id: string; role: string | null; extra_roles?: string[] | null } | null;
+    const athlete = found.data as { id: string; role: string | null; extra_roles?: string[] | null; is_academy?: boolean | null } | null;
     if (!athlete) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    const wasAcademy = athlete.is_academy === true;
+    const academy = typeof body.academy === 'boolean' ? body.academy : wasAcademy;
 
     const before = grantedRoles(athlete.role, athlete.extra_roles);
     if (before.includes('admin') !== wanted.includes('admin') && !mayGrantAdmin(caller)) {
@@ -171,16 +209,19 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'migration_127_required' }, { status: 409 });
     }
 
-    const update = migrated ? { role: next.role, extra_roles: next.extra_roles } : { role: next.role };
+    const update: Record<string, unknown> = migrated ? { role: next.role, extra_roles: next.extra_roles } : { role: next.role };
+    if (academy !== wasAcademy) update.is_academy = academy;
     const { error } = await supabase.from('athletes').update(update).eq('id', athlete.id);
     if (error) throw error;
+    if (academy !== wasAcademy) await applyAcademyMembership(supabase, athlete.id, academy);
 
     const roles = grantedRoles(next.role, next.extra_roles);
     // Only a role switched ON is news to them. Taking one away sends nothing.
     const added = newlyGranted(before, roles)[0] ?? null;
     const notified = added ? await sendRoleGranted(supabase, athlete.id, added, caller) : false;
+    const academyNotified = academy && !wasAcademy ? await sendAcademyJoined(supabase, athlete.id, caller) : false;
 
-    return NextResponse.json({ success: true, roles, notified: notified ? added : null });
+    return NextResponse.json({ success: true, roles, academy, notified: notified ? added : null, academyNotified });
   } catch (error) {
     console.error('Failed to update roles:', error);
     return NextResponse.json({ error: 'Failed to update roles' }, { status: 500 });

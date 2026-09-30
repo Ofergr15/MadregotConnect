@@ -59,7 +59,7 @@ export function describeNotificationRow(n: NotificationStatusRow): {
     : n.status === 'cancelled' ? 'בוטל'
     : n.schedule_type === 'recurring' ? recurrenceText(n.recur_interval, n.recur_unit)
     : n.next_run_at ? new Date(n.next_run_at).toLocaleString('he-IL') : 'מתוזמן';
-  const audienceText = n.audience_type === 'all' ? 'הכל' : n.audience_type === 'group' ? 'קבוצה' : 'אדם';
+  const audienceText = n.audience_type === 'all' ? 'הכל' : n.audience_type === 'group' ? 'קבוצה' : n.audience_type === 'academy' ? 'אקדמיה' : 'אדם';
   const iconKind: StatusIconKind = n.status === 'sent' ? 'sent' : n.status === 'cancelled' ? 'cancelled' : n.schedule_type === 'recurring' ? 'recurring' : 'scheduled';
   // Light-system fills for the row's icon tile: sent = the accent green, still
   // pending = the designer's one warning colour (band 3), cancelled = a grey that

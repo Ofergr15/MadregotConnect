@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, User, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Gift, Camera, Pencil, Footprints, ImagePlus } from 'lucide-react';
+import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Gift, Camera, Pencil, Footprints, ImagePlus } from 'lucide-react';
 import { cn, getPlanWeekStart, israelToday } from '@/lib/utils';
 import { planDayKey } from '@/lib/plans/workout-parsing';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -11,7 +11,7 @@ import { InsetRow, InsetSection } from '@/components/ui/InsetList';
 import { dateOffsetStr, minutesToHHMM, roundToStep, describeNotificationRow, SCHEDULE_STEP_MIN, type StatusIconKind } from '@/lib/notifications/scheduling';
 
 interface Group { id: string; name: string; }
-interface Athlete { id: string; name: string; email: string; }
+interface Athlete { id: string; name: string; email: string; isAcademy?: boolean; }
 interface RecurringTemplate {
   id: string; day_of_week: number;
   question_he: string; question_en: string | null;
@@ -179,7 +179,7 @@ export function NotificationCenter() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const imageFileRef = useRef<HTMLInputElement>(null);
-  const [audienceType, setAudienceType] = useState<'all' | 'group' | 'athlete'>('all');
+  const [audienceType, setAudienceType] = useState<'all' | 'academy' | 'group' | 'athlete'>('all');
   const [audienceId, setAudienceId] = useState('');
   const [scheduleType, setScheduleType] = useState<'now' | 'once_at' | 'recurring'>('now');
   const [scheduledAt, setScheduledAt] = useState('');
@@ -288,7 +288,7 @@ export function NotificationCenter() {
 
   useEffect(() => {
     apiHeaders().then(h => fetch('/api/admin/users', { headers: h })).then(r => r.ok ? r.json() : null).then(d => {
-      if (d?.users) setAthletes(d.users.map((u: any) => ({ id: u.id, name: u.name, email: u.email })));
+      if (d?.users) setAthletes(d.users.map((u: any) => ({ id: u.id, name: u.name, email: u.email, isAcademy: u.isAcademy === true })));
     }).catch(() => {});
     // This week's upcoming workouts (from the plan) for one-tap reminders.
     const DN = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
@@ -356,7 +356,7 @@ export function NotificationCenter() {
     const cleanOptionsHe = surveyOptionsHe.map((o) => o.trim()).filter(Boolean);
     if (!surveyQuestionHe.trim()) { setMsg('שאלה בעברית נדרשת'); return; }
     if (cleanOptionsHe.length < 2) { setMsg('נדרשות לפחות 2 תשובות אפשריות'); return; }
-    if (audienceType !== 'all' && !audienceId) { setMsg('בחרו קהל יעד'); return; }
+    if ((audienceType === 'group' || audienceType === 'athlete') && !audienceId) { setMsg('בחרו קהל יעד'); return; }
 
     setSending(true); setMsg(null);
     try {
@@ -369,7 +369,7 @@ export function NotificationCenter() {
           options_he: cleanOptionsHe,
           options_en: surveyOptionsEn.map((o) => o.trim()).filter(Boolean),
           audience_type: audienceType,
-          audience_id: audienceType === 'all' ? null : audienceId,
+          audience_id: audienceType === 'all' || audienceType === 'academy' ? null : audienceId,
         }),
       });
       const data = await res.json();
@@ -387,7 +387,7 @@ export function NotificationCenter() {
   const submit = async () => {
     if (composeMode === 'survey') { await submitSurvey(); return; }
     if (!titleHe.trim() || !bodyHe.trim()) { setMsg('כותרת ותוכן בעברית נדרשים'); return; }
-    if (audienceType !== 'all' && !audienceId) { setMsg('בחרו קהל יעד'); return; }
+    if ((audienceType === 'group' || audienceType === 'athlete') && !audienceId) { setMsg('בחרו קהל יעד'); return; }
     if ((scheduleType === 'once_at' || scheduleType === 'recurring') && !scheduledAt) {
       setMsg('בחרו תאריך ושעה'); return;
     }
@@ -401,7 +401,7 @@ export function NotificationCenter() {
           title_en: titleEn || null, body_en: bodyEn || null,
           image_url: imageUrl || null,
           audience_type: audienceType,
-          audience_id: audienceType === 'all' ? null : audienceId,
+          audience_id: audienceType === 'all' || audienceType === 'academy' ? null : audienceId,
           schedule_type: scheduleType,
           scheduled_at: scheduleType === 'now' ? null : new Date(scheduledAt).toISOString(),
           recur_interval: scheduleType === 'recurring' ? recurInterval : null,
@@ -436,6 +436,7 @@ export function NotificationCenter() {
   const inputCls = 'w-full bg-page/50 border border-page rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600';
 
   const selectedAthlete = athletes.find(a => a.id === audienceId);
+  const academyCount = athletes.filter(a => a.isAcademy).length;
   const selectedAthleteName = selectedAthlete?.name;
   const filteredAthletes = athletes.filter(a => !athleteSearch.trim() || a.name.toLowerCase().includes(athleteSearch.trim().toLowerCase()));
 
@@ -446,6 +447,7 @@ export function NotificationCenter() {
 
   const audienceSummary =
     audienceType === 'all' ? 'כל הרצים'
+    : audienceType === 'academy' ? 'רצי האקדמיה'
     : audienceType === 'group' ? (groups.find(g => g.id === audienceId)?.name ? `דבוקת "${groups.find(g => g.id === audienceId)?.name}"` : 'הדבוקה שנבחרה')
     : (selectedAthleteName || 'הנמען שנבחר');
   const confirmDescription = composeMode === 'survey'
@@ -786,11 +788,18 @@ export function NotificationCenter() {
               value={audienceType}
               onChange={(v) => { setAudienceType(v); setAudienceId(''); }}
               options={[
-                { value: 'all', icon: Users, label: 'כל הרצים' },
-                { value: 'group', icon: Users, label: 'דבוקה' },
-                { value: 'athlete', icon: User, label: 'אדם' },
+                // Four segments on a phone: words only, the icons pushed "כל הרצים" out.
+                { value: 'all', label: 'כל הרצים' },
+                { value: 'academy', label: 'אקדמיה' },
+                { value: 'group', label: 'דבוקה' },
+                { value: 'athlete', label: 'אדם' },
               ]}
             />
+            {audienceType === 'academy' && (
+              <span className="text-xs font-semibold text-[#0B6B35] mt-2 block" dir="rtl">
+                {academyCount > 0 ? `👥 ${academyCount} רצי אקדמיה יקבלו את זה` : 'אין עדיין רצי אקדמיה'}
+              </span>
+            )}
             {audienceType === 'group' && (
               groups.length > 0 ? (
                 <SegmentedControl
