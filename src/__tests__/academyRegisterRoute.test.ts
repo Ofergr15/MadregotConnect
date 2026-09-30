@@ -11,8 +11,19 @@ type Op = { table: string; op: string; patch?: Record<string, unknown> };
 let ops: Op[];
 let existing: Record<string, unknown> | null;
 const notify = vi.fn();
+const received = vi.fn();
+const recordCard = vi.fn();
 
-vi.mock('@/lib/email', () => ({ notifyAdminNewAcademyRegistration: (u: unknown) => notify(u) }));
+vi.mock('@/lib/email', () => ({
+  notifyAdminNewAcademyRegistration: (u: unknown) => notify(u),
+  notifyAcademyFormReceived: (u: unknown) => received(u),
+}));
+// The funnel card is its own module with its own tests (academyIntake.test.ts); here it
+// only matters WHICH athlete the route hands it.
+vi.mock('@/lib/academy/intake-server', () => ({
+  recordFormCandidate: (_s: unknown, p: unknown) => { recordCard(p); return Promise.resolve('cand-1'); },
+  invitePrefill: () => Promise.resolve(null),
+}));
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({
     from(table: string) {
@@ -25,8 +36,9 @@ vi.mock('@/lib/supabase/server', () => ({
           record.op = 'update'; record.patch = patch; ops.push(record); return chain;
         },
         insert: (patch: Record<string, unknown>) => {
-          record.op = 'insert'; record.patch = patch; ops.push(record); return Promise.resolve({ error: null });
+          record.op = 'insert'; record.patch = patch; ops.push(record); return chain;
         },
+        single: () => Promise.resolve({ data: { id: 'new-1' }, error: null }),
         then: (resolve: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(resolve),
       };
       return chain;
@@ -36,13 +48,19 @@ vi.mock('@/lib/supabase/server', () => ({
 
 const { POST } = await import('@/app/api/academy/register/route');
 
-const post = (payload: Record<string, unknown>) =>
+// A fresh address per call unless one is given: the route rate-limits per IP, and these
+// cases are not about that.
+let ipSeq = 0;
+const post = (payload: Record<string, unknown>, ip = `10.0.0.${++ipSeq}`) =>
   POST(new Request('https://example.test/api/academy/register', {
     method: 'POST',
+    headers: { 'x-forwarded-for': ip },
     body: JSON.stringify({ name: 'Daniel Levi', email: 'Daniel@Example.com', phone: '0500000000', ...payload }),
   }));
 
-beforeEach(() => { ops = []; existing = null; notify.mockReset(); });
+const athleteWrites = () => ops.filter(o => o.table === 'athletes' && (o.op === 'update' || o.op === 'insert'));
+
+beforeEach(() => { ops = []; existing = null; notify.mockReset(); received.mockReset(); recordCard.mockReset(); });
 
 describe('POST /api/academy/register', () => {
   it('creates a new applicant as a pending academy row', async () => {
@@ -67,7 +85,7 @@ describe('POST /api/academy/register', () => {
     const res = await post({});
     // Same answer as a new sign-up: the public form must not reveal who is on the roster.
     expect(await res.json()).toEqual({ success: true });
-    expect(ops.filter(o => o.op === 'update' || o.op === 'insert')).toHaveLength(0);
+    expect(athleteWrites()).toHaveLength(0);
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ existingMember: true, email: 'daniel@example.com' }));
   });
 
@@ -87,5 +105,34 @@ describe('the academy door during maintenance', () => {
     const list = /const PUBLIC_PATHS = \[([^\]]*)\]/.exec(src)?.[1] ?? '';
     expect(list).toContain("'/academy-register'");
     expect(list).toContain("'/join'");
+  });
+
+  it('puts a new applicant on the funnel, linked to the row it just made, and tells them it arrived', async () => {
+    await post({ inviteToken: 'a'.repeat(32), src: 'ig' });
+    expect(recordCard).toHaveBeenCalledWith(expect.objectContaining({
+      athleteId: 'new-1', email: 'daniel@example.com', inviteToken: 'a'.repeat(32), src: 'ig',
+    }));
+    expect(received).toHaveBeenCalledWith(expect.objectContaining({ email: 'daniel@example.com', candidateId: 'cand-1' }));
+  });
+
+  it('gives an existing member a card but never links it to their account', async () => {
+    existing = { id: 'm1', approved: true, invite_token: 'tok-m', onboarding_status: 'complete' };
+    await post({});
+    expect(recordCard).toHaveBeenCalledWith(expect.objectContaining({ athleteId: null }));
+  });
+
+  it('answers a filled honeypot like a success and writes nothing', async () => {
+    const res = await post({ website: 'http://spam.example' });
+    expect(await res.json()).toEqual({ success: true });
+    expect(ops.filter(o => o.op !== 'select')).toHaveLength(0);
+    expect(notify).not.toHaveBeenCalled();
+    expect(received).not.toHaveBeenCalled();
+  });
+
+  it('turns away the sixth submit in a minute from one address', async () => {
+    const codes: number[] = [];
+    for (let i = 0; i < 6; i++) codes.push((await post({}, '192.0.2.9')).status);
+    expect(codes.slice(0, 5)).toEqual([200, 200, 200, 200, 200]);
+    expect(codes[5]).toBe(429);
   });
 });

@@ -35,16 +35,19 @@ vi.mock('resend', () => ({
 let logged: Array<Record<string, unknown>>;
 /** Forced failure from the log insert, to prove logging can't break a send. */
 let logError: { code: string; message: string } | null;
+/** One-shot failures, consumed in order before `logError` applies. */
+let logErrorQueue: Array<{ code: string; message: string }>;
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({
     from: () => ({
       insert: (row: Record<string, unknown>) => {
         logged.push(row);
+        const err = logErrorQueue.shift() ?? logError;
         return {
           select: () => ({
             single: () => Promise.resolve(
-              logError ? { data: null, error: logError } : { data: { id: 'log-1' }, error: null },
+              err ? { data: null, error: err } : { data: { id: 'log-1' }, error: null },
             ),
           }),
         };
@@ -63,6 +66,7 @@ const msg = { template: 'test_mail', to: 'dana@gmail.com', subject: 'נושא', 
 beforeEach(() => {
   logged = [];
   logError = null;
+  logErrorQueue = [];
   resendThrows = null;
   resendResponse = { data: { id: 'resend-abc' }, error: null };
   sendSpy.mockClear();
@@ -199,6 +203,18 @@ describe('sendEmail — the audit trail', () => {
   it('links the row to the person it is about', async () => {
     await sendEmail({ ...msg, athleteId: 'athlete-1', signupRequestId: 'req-1' });
     expect(logged[0]).toMatchObject({ athlete_id: 'athlete-1', signup_request_id: 'req-1' });
+  });
+
+  it('keeps the log row when the candidate_id column is not there yet', async () => {
+    // Migration 126 is pasted by hand; until then the link is lost, not the row.
+    logErrorQueue = [{ code: 'PGRST204', message: "Could not find the 'candidate_id' column of 'email_log'" }];
+    const result = await sendEmail({ ...msg, candidateId: 'cand-1' });
+    expect(result.ok).toBe(true);
+    expect(logged).toHaveLength(2);
+    expect(logged[0].candidate_id).toBe('cand-1');
+    expect(logged[1]).not.toHaveProperty('candidate_id');
+    if (!result.ok) throw new Error('unreachable');
+    expect(result.logId).toBe('log-1');
   });
 
   it('splits a comma-joined recipient list', async () => {

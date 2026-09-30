@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { GraduationCap, CheckCircle2 } from 'lucide-react';
 import { Card, Button, LoadingBlock } from '@/components/ui';
 import { CLOTHING_SIZES, SOCK_SIZES } from '@/lib/kit-sizes';
 import { nameProblem, normalizeDisplayName } from '@/lib/names/latin';
+import { HONEYPOT_FIELD, looksLikeToken, splitName } from '@/lib/academy/intake';
 
 // Mirrors the current Google Form "שאלון אישי להצטרפות אל Madregot Academy".
 // Structured name/email/phone are lifted into columns; everything else is stored
@@ -80,6 +81,16 @@ const FIELDS: Field[] = [
 // advertised there. Flip to false to fully close registration.
 const REGISTRATION_OPEN = true;
 
+// Twenty-three questions on one phone screen is a scroll nobody finishes from an
+// Instagram link. Four short pages, each checked before the next, same questions.
+const STEPS: { title: string; keys: string[] }[] = [
+  { title: 'הפרטים שלך', keys: ['firstName', 'lastName', 'email', 'phone'] },
+  { title: 'קצת עליך', keys: ['focus', 'age', 'weight', 'height', 'city', 'maritalStatus'] },
+  { title: 'הריצה שלך', keys: ['goal', 'group', 'runningHistory', 'achievements', 'strava', 'hearAbout', 'instagram'] },
+  { title: 'בריאות ומידות', keys: ['medicalHistory', 'medicalDetails', 'shirtSize', 'pantsSize', 'tightsSize', 'socksSize'] },
+];
+const FIELD_BY_KEY = new Map(FIELDS.map(f => [f.key, f]));
+
 const isTyped = (f: Field) =>
   f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number' || f.type === 'textarea';
 
@@ -88,6 +99,38 @@ export default function AcademyRegisterPage() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState(0);
+  // Door A's personal link (?i=) and door B's source (?src=ig). Read from the URL
+  // on mount rather than useSearchParams, which would need a Suspense boundary for
+  // a page that is otherwise fully static.
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [src, setSrc] = useState<string | null>(null);
+  const [prefilled, setPrefilled] = useState(false);
+  const [honeypot, setHoneypot] = useState('');
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const i = q.get('i');
+    setSrc(q.get('src'));
+    if (!looksLikeToken(i)) return;
+    setInviteToken(i);
+    fetch(`/api/academy/register?i=${i}`)
+      .then(r => r.json())
+      .then(({ prefill }) => {
+        if (!prefill) return;
+        const { firstName, lastName } = splitName(prefill.name);
+        // Only into empty fields: a slow response must not overwrite what was typed.
+        setValues(prev => ({
+          ...prev,
+          firstName: prev.firstName || firstName,
+          lastName: prev.lastName || lastName,
+          email: prev.email || prefill.email,
+          phone: prev.phone || prefill.phone,
+        }));
+        setPrefilled(true);
+      })
+      .catch(() => {});
+  }, []);
 
   const set = (k: string, v: any) => setValues(prev => ({ ...prev, [k]: v }));
   const toggle = (k: string, opt: string) => {
@@ -95,22 +138,40 @@ export default function AcademyRegisterPage() {
     set(k, cur.includes(opt) ? cur.filter(x => x !== opt) : [...cur, opt]);
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // Required validation.
-    for (const f of FIELDS) {
-      if (!f.required) continue;
+  /** The first problem on one page, or null. */
+  const problemOn = (index: number): string | null => {
+    for (const key of STEPS[index].keys) {
+      const f = FIELD_BY_KEY.get(key);
+      if (!f?.required) continue;
       const v = values[f.key];
       const empty = f.type === 'checkboxes' ? !(v && v.length) : !(v && String(v).trim());
-      if (empty) { setError(`אנא מלא/י: ${f.label}`); return; }
+      if (empty) return `אנא מלא/י: ${f.label}`;
     }
-    // Same rule the server enforces, said here so it is a correction and not a
-    // rejection: nobody should fill in twenty fields and then be told no.
-    for (const key of ['firstName', 'lastName'] as const) {
-      if (nameProblem(values[key]) === 'not-latin') {
-        setError('אנא כתבו את השם באותיות אנגליות');
-        return;
+    // Same rule the server enforces, said on the FIRST page so it is a correction
+    // and not a rejection: nobody should fill in twenty fields and then be told no.
+    if (STEPS[index].keys.includes('firstName')) {
+      for (const key of ['firstName', 'lastName'] as const) {
+        if (nameProblem(values[key]) === 'not-latin') return 'אנא כתבו את השם באותיות אנגליות';
       }
+    }
+    return null;
+  };
+
+  const next = () => {
+    const problem = problemOn(step);
+    if (problem) { setError(problem); return; }
+    setError(null);
+    setStep(s => Math.min(s + 1, STEPS.length - 1));
+    window.scrollTo({ top: 0 });
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Enter on an early page moves on rather than submitting half a form.
+    if (step < STEPS.length - 1) { next(); return; }
+    for (let i = 0; i < STEPS.length; i++) {
+      const problem = problemOn(i);
+      if (problem) { setStep(i); setError(problem); return; }
     }
     setSubmitting(true);
     setError(null);
@@ -122,7 +183,7 @@ export default function AcademyRegisterPage() {
       const intake = { firstName: normalizeDisplayName(firstName), lastName: normalizeDisplayName(lastName), ...rest };
       const res = await fetch('/api/academy/register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, phone, intake }),
+        body: JSON.stringify({ name, email, phone, intake, inviteToken, src, [HONEYPOT_FIELD]: honeypot }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error || 'ההרשמה נכשלה');
@@ -153,10 +214,10 @@ export default function AcademyRegisterPage() {
       <div className="min-h-screen bg-page flex items-center justify-center p-4" dir="rtl">
         <Card className="w-full max-w-md p-6 sm:p-8 text-center">
           <CheckCircle2 className="h-12 w-12 text-accent-600 mx-auto mb-3" />
-          <h2 className="text-lg font-bold text-ink-700">ההרשמה התקבלה!</h2>
+          <h2 className="text-lg font-bold text-ink-700">הטופס התקבל!</h2>
           <p className="text-ink-400 text-sm mt-2 leading-relaxed">
-            תודה שפנית לאקדמיית הריצה של מדרגות. המאמן יעבור על הפרטים שלך ולאחר אישור
-            תקבל/י מייל עם קישור לחיבור השעון והצטרפות לפלטפורמה.
+            תודה שפנית לאקדמיית הריצה של מדרגות. שלחנו לך מייל אישור, ובימים הקרובים
+            נחזור אליך לשיחת היכרות קצרה. אין צורך לעשות שום דבר נוסף בינתיים.
           </p>
         </Card>
       </div>
@@ -171,11 +232,32 @@ export default function AcademyRegisterPage() {
             <GraduationCap className="h-7 w-7 text-brand-600" />
           </div>
           <h1 className="text-xl font-bold text-ink-700">שאלון הצטרפות · Madregot Academy</h1>
-          <p className="text-ink-400 mt-2 text-sm">מלא/י את הפרטים כדי שנבנה לך פרופיל מתאמן</p>
+          <p className="text-ink-400 mt-2 text-sm">
+            {prefilled ? 'הפרטים שלך כבר מולאו — נשאר רק לספר לנו עליך' : 'מלא/י את הפרטים כדי שנבנה לך פרופיל מתאמן'}
+          </p>
+        </div>
+
+        <div className="mb-4" aria-live="polite">
+          <div className="flex items-center justify-between text-sm font-bold text-ink-700 mb-2">
+            <span>{STEPS[step].title}</span>
+            <span className="text-ink-400 font-medium"><bdi dir="ltr">{step + 1}/{STEPS.length}</bdi></span>
+          </div>
+          <div className="flex gap-1.5" aria-hidden="true">
+            {STEPS.map((_, i) => (
+              <div key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? 'bg-brand-600' : 'bg-ink-300'}`} />
+            ))}
+          </div>
         </div>
 
         <form onSubmit={submit} className="space-y-3">
-          {FIELDS.map(f => (
+          {/* The honeypot. Off-screen rather than display:none, which some bots skip. */}
+          <div aria-hidden="true" style={{ position: 'absolute', left: '-10000px', width: 1, height: 1, overflow: 'hidden' }}>
+            <label htmlFor="ar-website">Website</label>
+            <input id="ar-website" name={HONEYPOT_FIELD} type="text" tabIndex={-1} autoComplete="off"
+              value={honeypot} onChange={e => setHoneypot(e.target.value)} />
+          </div>
+
+          {STEPS[step].keys.map(k => FIELD_BY_KEY.get(k)!).map(f => (
             <Card key={f.key} variant="plain">
               {/* A real <label for> on the typed fields and a group heading on the
                   choice fields — the audit found every input named only by its
@@ -263,10 +345,18 @@ export default function AcademyRegisterPage() {
 
           {error && <p className="text-sm text-accent-red text-center">{error}</p>}
 
-          <Button type="submit" size="lg" disabled={submitting} className="w-full">
-            {submitting && <LoadingBlock size={20} className="py-0" />}
-            {submitting ? 'שולח…' : 'שליחה'}
-          </Button>
+          <div className="flex gap-2">
+            {step > 0 && (
+              <Button type="button" variant="ghost" size="lg" disabled={submitting} className="flex-1"
+                onClick={() => { setError(null); setStep(s => s - 1); window.scrollTo({ top: 0 }); }}>
+                חזרה
+              </Button>
+            )}
+            <Button type="submit" size="lg" disabled={submitting} className="flex-[2]">
+              {submitting && <LoadingBlock size={20} className="py-0" />}
+              {step < STEPS.length - 1 ? 'המשך' : submitting ? 'שולח…' : 'שליחה'}
+            </Button>
+          </div>
         </form>
       </div>
     </div>

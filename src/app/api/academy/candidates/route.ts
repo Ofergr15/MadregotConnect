@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { isMissingTable } from '@/lib/supabase/schema-drift';
+import { isMissingColumn, isMissingTable } from '@/lib/supabase/schema-drift';
 import { STAGES, type CandidateEvent, type CandidateRow } from '@/lib/academy/funnel';
+import { COACH_ID } from '@/lib/constants';
+import { isStaffRole } from '@/lib/auth/self-or-staff';
+import { canAdmitToAcademy, isAcademyManager } from '@/lib/academy/pairing-server';
+import { acceptAction, inviteAction } from '@/lib/academy/admit-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,7 +74,55 @@ function toEvent(row: any): CandidateEvent {
  * is exactly the screenshot nobody should be able to take. The card asks for them explicitly.
  */
 function contactOf(row: any) {
-  return { email: row.email ?? null, phone: row.phone ?? null };
+  return {
+    email: row.email ?? null,
+    phone: row.phone ?? null,
+    invitedAt: row.invited_at ?? null,
+    acceptedAt: row.accepted_at ?? null,
+  };
+}
+
+/** Migration 126's columns. Read when present; the board works without them. */
+const INVITE_COLUMNS = ', invited_at, accepted_at';
+
+/**
+ * Every mail about each card, newest first: the ones tagged with the card itself
+ * (invite, form received, accepted), plus those to its linked athlete (an approval
+ * from the approvals list). Empty, never an error, before 096 or 126.
+ */
+async function emailsByCandidate(supabase: any, rows: any[]) {
+  const out: Record<string, Array<{ id: string; template: string; status: string; createdAt: string; error: string | null }>> = {};
+  const ids = rows.map(r => String(r.id));
+  if (!ids.length) return out;
+  const byAthlete = new Map<string, string>();
+  for (const r of rows) if (r.athlete_id) byAthlete.set(String(r.athlete_id), String(r.id));
+
+  const cols = 'id, template, status, created_at, error_message, candidate_id, athlete_id';
+  const seen = new Set<string>();
+  const push = (row: any, candidateId: string | undefined) => {
+    if (!candidateId || seen.has(row.id)) return;
+    seen.add(row.id);
+    (out[candidateId] ||= []).push({
+      id: String(row.id),
+      template: String(row.template || ''),
+      status: String(row.status || ''),
+      createdAt: String(row.created_at || ''),
+      error: row.error_message ?? null,
+    });
+  };
+  const tagged = await supabase.from('email_log').select(cols).in('candidate_id', ids).order('created_at', { ascending: false }).limit(500);
+  if (!tagged.error) for (const row of tagged.data || []) push(row, String(row.candidate_id));
+  if (byAthlete.size) {
+    const linked = await supabase
+      .from('email_log')
+      .select(cols.replace(', candidate_id', ''))
+      .in('athlete_id', [...byAthlete.keys()])
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (!linked.error) for (const row of linked.data || []) push(row, byAthlete.get(String(row.athlete_id)));
+  }
+  for (const list of Object.values(out)) list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return out;
 }
 
 async function staffOnly(request: Request) {
@@ -88,10 +140,16 @@ export async function GET(request: Request) {
     if (gate.denied) return gate.denied;
 
     const supabase = createServerClient();
-    const { data: rows, error } = await supabase
+    let { data: rows, error }: { data: any[] | null; error: any } = await supabase
       .from('academy_candidates')
-      .select(CANDIDATE_COLUMNS)
+      .select(CANDIDATE_COLUMNS + INVITE_COLUMNS)
       .order('created_at', { ascending: true });
+    if (error && isMissingColumn(error)) {
+      ({ data: rows, error } = await supabase
+        .from('academy_candidates')
+        .select(CANDIDATE_COLUMNS)
+        .order('created_at', { ascending: true }));
+    }
 
     if (error) {
       if (isMissingTable(error)) return NextResponse.json(NOT_SET_UP);
@@ -108,9 +166,26 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to read the funnel' }, { status: 500 });
     }
 
+    const caller = gate.caller!;
+    const canAdmit = canAdmitToAcademy(caller);
+    const emails = await emailsByCandidate(supabase, rows || []).catch(() => ({}));
+    // The accept sheet's coach picker. Only the manager picks; a coach accepts for
+    // themselves, so they get just their own entry.
+    let coaches: Array<{ id: string; name: string }> = [];
+    if (canAdmit) {
+      const { data: staff } = await supabase.from('athletes').select('id, name, role').eq('coach_id', COACH_ID);
+      coaches = (staff || [])
+        .filter((a: any) => isStaffRole(a.role))
+        .filter((a: any) => isAcademyManager(caller) || a.id === caller.athleteId)
+        .map((a: any) => ({ id: String(a.id), name: String(a.name || '') }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
     return NextResponse.json({
-      candidates: (rows || []).map(r => ({ ...toCandidate(r), ...contactOf(r) })),
+      candidates: (rows || []).map(r => ({ ...toCandidate(r), ...contactOf(r), emails: (emails as any)[String((r as any).id)] || [] })),
       events: (eventRows || []).map(toEvent),
+      me: { canAdmit, isManager: isAcademyManager(caller), athleteId: caller.athleteId ?? null },
+      coaches,
     });
   } catch {
     return NextResponse.json({ error: 'Failed to read the funnel' }, { status: 500 });
@@ -182,6 +257,8 @@ export async function POST(request: Request) {
  *   { id, action: 'restore' }
  *   { id, action: 'link',    athleteId }
  *   { id, action: 'unlink' }
+ *   { id, action: 'invite',  note?, send?, preview? }   → admit-server.ts
+ *   { id, action: 'accept',  coachId?, preview? }       → admit-server.ts
  */
 export async function PATCH(request: Request) {
   try {
@@ -207,6 +284,17 @@ export async function PATCH(request: Request) {
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const touch = { updated_at: new Date().toISOString() };
+
+    if (action === 'invite' || action === 'accept') {
+      // Narrower than the rest of the board: a club coach may keep the funnel's notes,
+      // but writing to strangers and letting them in is the academy's own staff.
+      if (!canAdmitToAcademy(gate.caller!)) {
+        return NextResponse.json({ error: 'Only the academy manager or an academy coach can do this' }, { status: 403 });
+      }
+      return action === 'invite'
+        ? inviteAction(id, gate.caller!, body)
+        : acceptAction(id, gate.caller!, body);
+    }
 
     if (action === 'step') {
       const stage = String(body?.stage || '');
