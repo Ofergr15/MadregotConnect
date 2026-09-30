@@ -10,6 +10,7 @@ import {
   routingMatrix,
   type RoutableRole,
 } from '@/lib/notifications/routing';
+import { hasRole } from '@/lib/auth/roles';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -45,7 +46,7 @@ const UNDEFINED_TABLE = '42P01';
 async function requireAdmin(request: Request) {
   const { denied, caller } = await resolveVerifiedCaller(request);
   if (denied) return { denied, caller };
-  if (!caller.isSuperUser && caller.role !== 'admin') {
+  if (!caller.isSuperUser && !hasRole(caller, 'admin')) {
     return { denied: NextResponse.json({ error: 'Admin access required' }, { status: 403 }), caller };
   }
   return { denied: null, caller };

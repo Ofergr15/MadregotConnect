@@ -14,6 +14,7 @@ import {
   type RegistrySummary,
   type TestRow,
 } from '@/lib/academy/tests';
+import { isAcademyManager } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -115,7 +116,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const protocol = url.searchParams.get('protocol') || DEFAULT_PROTOCOL;
     const athleteId = url.searchParams.get('athleteId');
-    const isManager = caller.isSuperUser || caller.role === 'admin';
+    const isManager = isAcademyManager(caller);
     const isStaff = caller.isSuperUser || caller.isStaff;
 
     // An athlete asking for their own graph is the trainee-facing case and is allowed.
@@ -297,7 +298,7 @@ export async function POST(request: Request) {
     const supabase = createServerClient();
 
     // A coach may only record for their own trainees; the manager for anyone in the academy.
-    const isManager = caller.isSuperUser || caller.role === 'admin';
+    const isManager = isAcademyManager(caller);
     const { data: target } = await supabase
       .from('athletes')
       .select('id, is_academy, academy_coach_id')
@@ -461,7 +462,7 @@ export async function PATCH(request: Request) {
     }
 
     const supabase = createServerClient();
-    const isManager = caller.isSuperUser || caller.role === 'admin';
+    const isManager = isAcademyManager(caller);
 
     const result = await roster(supabase, caller.athleteId, isManager);
     if (result.error) return NextResponse.json({ error: 'Failed to read the roster' }, { status: 500 });

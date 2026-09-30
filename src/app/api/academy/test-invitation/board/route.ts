@@ -8,6 +8,7 @@ import {
   submittedAtFor,
 } from '@/lib/academy/settle-invitation-server';
 import type { BoardRow } from '@/lib/academy/testBoard';
+import { isAcademyManager } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
     }
 
-    const isManager = caller.isSuperUser || caller.role === 'admin';
+    const isManager = isAcademyManager(caller);
     const supabase = createServerClient();
 
     // `name` is the only athlete field read. A board needs to say who, and nothing else here

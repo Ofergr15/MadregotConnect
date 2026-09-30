@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { clearMaintenanceCache, readMaintenance } from '@/lib/maintenance';
 import { REMOVED_STATUS, entryHandles } from '@/lib/admin/entry-queue';
+import { hasRole } from '@/lib/auth/roles';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
   try {
     const { denied, caller } = await requireStaffCaller(request);
     if (denied) return denied;
-    if (!caller.isSuperUser && caller.role !== 'admin') {
+    if (!caller.isSuperUser && !hasRole(caller, 'admin')) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 

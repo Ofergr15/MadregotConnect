@@ -68,7 +68,7 @@ export function AcademyOverview({
   // Last week, for the arrows on the numbers. Same route and same cache key shape
   // as the week picker uses, so stepping back a week is usually already loaded.
   const { data: prev } = useApi<AcademyMembersResponse>(
-    data ? `/api/academy/members?weekStart=${shiftWeek(weekStart, -1)}` : null,
+    data ? `/api/academy/members?weekStart=${shiftWeek(weekStart, -1)}${data.scope === 'coach' ? '&scope=coach' : ''}` : null,
   );
 
   // The joining board is the manager's; a coach's home is their own caseload.

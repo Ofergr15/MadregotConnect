@@ -5,6 +5,7 @@ import { COACH_ID } from '@/lib/constants';
 import { isMissingColumn, isMissingTable } from '@/lib/supabase/schema-drift';
 import { getStreamServerClient } from '@/lib/stream/server';
 import { postAcademyTestSummary } from '@/lib/academy/thread-server';
+import { isAcademyManager } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
     if (!testId) return NextResponse.json({ error: 'testId is required' }, { status: 400 });
 
     const supabase = createServerClient();
-    const isManager = caller.isSuperUser || caller.role === 'admin';
+    const isManager = isAcademyManager(caller);
 
     const { data: analysis, error: readError } = await supabase
       .from('academy_test_analyses')

@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { resolveVerifiedCaller, type VerifiedCaller } from '@/lib/auth/self-or-staff';
 import { israelToday } from '@/lib/utils';
+import { hasRole } from '@/lib/auth/roles';
 
 // The gates the 1:1 pairing endpoints share.
 //
@@ -19,8 +20,11 @@ import { israelToday } from '@/lib/utils';
  * are both staff, and neither runs the academy. Kept as a function of the role
  * the session already carries, so no extra lookup.
  */
-export function isAcademyManager(caller: Pick<VerifiedCaller, 'isSuperUser' | 'role'>): boolean {
-  return caller.isSuperUser || caller.role === 'admin';
+type RoleCaller = { isSuperUser: boolean; role?: string | null; roles?: string[] };
+
+export function isAcademyManager(caller: RoleCaller): boolean {
+  // `academy_manager` (migration 127) is the manager without the rest of admin.
+  return caller.isSuperUser || hasRole(caller, 'admin') || hasRole(caller, 'academy_manager');
 }
 
 /**
@@ -28,8 +32,8 @@ export function isAcademyManager(caller: Pick<VerifiedCaller, 'isSuperUser' | 'r
  * invite, accept them? The manager, and the academy's own coaches, who pick the
  * trainees they will run. A club `coach` is staff but not academy staff.
  */
-export function canAdmitToAcademy(caller: Pick<VerifiedCaller, 'isSuperUser' | 'role'>): boolean {
-  return isAcademyManager(caller) || caller.role === 'academy_coach';
+export function canAdmitToAcademy(caller: RoleCaller): boolean {
+  return isAcademyManager(caller) || hasRole(caller, 'academy_coach');
 }
 
 export async function requireAcademyManager(

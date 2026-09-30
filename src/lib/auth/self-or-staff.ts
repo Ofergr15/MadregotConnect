@@ -52,6 +52,11 @@ export interface VerifiedCaller {
    */
   role: string;
   /**
+   * Every role held — `role` plus migration 127's extra roles. Optional so the
+   * many hand-built callers in tests stay valid; ask `hasRole(caller, …)`.
+   */
+  roles?: string[];
+  /**
    * In the club's core squad (הגרעין) — the premium perk tier. A FLAG, not a
    * role: a coach can be in the גרעין, which `role` alone cannot express. See
    * src/lib/core-runner.ts and migration 091. It already accounts for the legacy
@@ -129,6 +134,7 @@ export async function resolveVerifiedCaller(
       isStaff: auth.user.isStaff,
       athleteId: auth.user.athleteId,
       role: auth.user.role,
+      roles: auth.user.roles ?? [auth.user.role],
       isCoreRunner: auth.user.isCoreRunner,
     },
   };

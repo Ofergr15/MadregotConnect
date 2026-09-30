@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { canApprove, isSuperUser, STAFF_ROLES } from '@/lib/constants';
 import { isCoreRunner } from '@/lib/core-runner';
 import { pickAthleteRow, stravaIdFromAuthEmail } from '@/lib/auth/athlete-identity';
+import { heldRoles, holdsStaffRole } from '@/lib/auth/roles';
 import { membershipFor, type Membership } from '@/lib/auth/membership';
 import { blockedFromApp, pathnameOf, requiresApproval } from '@/lib/auth/approval-gate';
 import {
@@ -33,6 +34,12 @@ export interface SessionUser {
   athleteId: string | null;
   name: string;
   role: string;
+  /**
+   * Every role the account holds — `role` first, then `athletes.extra_roles`
+   * (migration 127). Optional so a hand-built session (tests, the coaches-only
+   * fallback before this existed) still type-checks; read it through `hasRole`.
+   */
+  roles?: string[];
   groupId: string | null;
   athleteStatus: string | null;
   /**
@@ -85,6 +92,12 @@ const ATHLETE_FLAG_COLUMNS = 'is_super_user, is_approver, is_core_runner';
  * privilege flag this one decides whether anybody gets in at all.
  */
 const ATHLETE_APPROVAL_COLUMN = 'approved';
+/**
+ * Migration 127's extra roles. Tried first and dropped on its own when it is
+ * missing, so an unapplied 127 costs the extra roles and nothing else — folding
+ * it into the flag group would have taken the super-user flag down with it.
+ */
+const ATHLETE_ROLES_COLUMN = 'extra_roles';
 /** Postgres "column does not exist" — i.e. 084/091 not applied here yet. */
 const UNDEFINED_COLUMN = '42703';
 
@@ -100,6 +113,7 @@ interface AthleteRow {
   is_super_user?: boolean | null;
   is_approver?: boolean | null;
   is_core_runner?: boolean | null;
+  extra_roles?: string[] | null;
 }
 
 /**
@@ -150,7 +164,15 @@ async function fetchAthleteRows(
   // outlives the privilege flags, because losing it means the approval gate stops
   // being enforceable while losing a flag only costs somebody a menu.
   const attempts: Array<{ columns: string; approvalKnown: boolean; warn?: string }> = [
-    { columns: `${ATHLETE_BASE_COLUMNS}, ${ATHLETE_APPROVAL_COLUMN}, ${ATHLETE_FLAG_COLUMNS}`, approvalKnown: true },
+    {
+      columns: `${ATHLETE_BASE_COLUMNS}, ${ATHLETE_APPROVAL_COLUMN}, ${ATHLETE_FLAG_COLUMNS}, ${ATHLETE_ROLES_COLUMN}`,
+      approvalKnown: true,
+    },
+    {
+      columns: `${ATHLETE_BASE_COLUMNS}, ${ATHLETE_APPROVAL_COLUMN}, ${ATHLETE_FLAG_COLUMNS}`,
+      approvalKnown: true,
+      warn: '[auth] migration 127 not applied; athletes.extra_roles unavailable',
+    },
     {
       columns: `${ATHLETE_BASE_COLUMNS}, ${ATHLETE_APPROVAL_COLUMN}`,
       approvalKnown: true,
@@ -292,6 +314,7 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
 
   if (athlete) {
     const role = athlete.role || 'runner';
+    const roles = heldRoles(role, athlete.extra_roles);
     return {
       ok: true,
       user: {
@@ -300,6 +323,7 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
         athleteId: athlete.id,
         name: athlete.name || '',
         role,
+        roles,
         groupId: athlete.group_id || null,
         athleteStatus: athlete.status || null,
         // The same predicate /api/auth/me sends and the layout blocks on, resolved
@@ -307,7 +331,9 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
         // 'active' when the column could not be read: a database with no `approved`
         // has no approval to enforce, and guessing "unapproved" locks out the club.
         membership: approvalKnown ? membershipFor(athlete) : 'active',
-        isStaff: STAFF_ROLES.includes(role),
+        // Any held role, not just the primary one: an academy manager's primary
+        // role is still `runner` (the enum has no manager value).
+        isStaff: STAFF_ROLES.includes(role) || holdsStaffRole(roles),
         // Either source is enough. The row flag exists for accounts whose email
         // can never match a literal (Strava signups); the literal stays so this
         // is purely additive and nobody loses access if a flag is unset.
@@ -341,6 +367,7 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
         athleteId: null,
         name: coach.name || '',
         role,
+        roles: [role],
         groupId: null,
         athleteStatus: null,
         // A legacy `coaches` record is staff by definition; there is no athlete row

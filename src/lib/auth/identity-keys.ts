@@ -20,6 +20,10 @@ export const IDENTITY_KEYS = [
   // Elevated state. Stale values here grant the next user UI they shouldn't see.
   'admin_session',
   'view_as_role',
+  // The account's own view switch (src/lib/role-views.ts) — the next account
+  // to sign in on this device must not inherit a coach's view.
+  'active_view',
+  'active_view_role',
   // Per-identity remembered state — harmless to lose, wrong to inherit.
   'view_group',
   'garmin_ticket',

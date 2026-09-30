@@ -46,6 +46,9 @@ export async function GET(request: Request) {
     // below: it is a FLAG, not a role, so the client cannot derive the 🌰 badge
     // from `role` alone (migration 091). Free here — requireSession resolved it.
     const isCore = auth.user.isCoreRunner === true;
+    // Every role held (migration 127) — what the top bar's view switcher offers.
+    // The primary `role` stays beside it for every reader that knows only one.
+    const roles = auth.user.roles?.length ? auth.user.roles : [auth.user.role || 'runner'];
 
     // ── May this person be inside the app at all? ───────────────────────────
     //
@@ -58,7 +61,7 @@ export async function GET(request: Request) {
     // before this existed, a revoked account got the whole signed-in shell and
     // every card inside it failed on its own with a raw English 403.
     if (!auth.user.athleteId) {
-      return NextResponse.json({ role: auth.user.role || 'coach', membership: 'active', isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
+      return NextResponse.json({ role: auth.user.role || 'coach', roles, membership: 'active', isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
     }
 
     const supabase = createServerClient();
@@ -115,7 +118,7 @@ export async function GET(request: Request) {
       }
     } catch { /* not migrated yet — the snapshot stage stays a no-op */ }
 
-    return NextResponse.json({ role: auth.user.role || 'runner', membership, isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
+    return NextResponse.json({ role: auth.user.role || 'runner', roles, membership, isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
   } catch (error) {
     console.error('Failed to resolve user role:', error);
     return NextResponse.json({ error: 'Failed to resolve role' }, { status: 500 });

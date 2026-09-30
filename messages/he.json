@@ -731,6 +731,8 @@
     "title": "הגדרות",
     "subtitle": "ניהול משתמשים והרשאות",
     "userManager": "ניהול משתמשים",
+    "rolesManager": "תפקידים",
+    "rolesManagerSub": "מי מאמן, מי מנהל ומי אדמין",
     "registrations": "הרשמות",
     "registrationsWaiting": "{count} ממתינות לאישור",
     "registrationsNoneWaiting": "אין הרשמות שממתינות",

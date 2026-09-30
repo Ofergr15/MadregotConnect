@@ -9,6 +9,7 @@ import {
   type LibraryEntry,
   type LibraryStep,
 } from '@/lib/academy/library';
+import { isAcademyManager } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -117,7 +118,7 @@ export async function GET(request: Request) {
       entries,
       viewer: {
         athleteId: caller.athleteId ?? null,
-        isManager: caller.isSuperUser || caller.role === 'admin',
+        isManager: isAcademyManager(caller),
       },
     });
   } catch {
@@ -144,7 +145,7 @@ export async function POST(request: Request) {
     if (!isLibraryKind(body?.kind)) return NextResponse.json({ error: 'Unknown workout kind' }, { status: 400 });
 
     const scope = isLibraryScope(body?.scope) ? body.scope : 'mine';
-    const isManager = caller.isSuperUser || caller.role === 'admin';
+    const isManager = isAcademyManager(caller);
     if (scope === 'academy' && !isManager) {
       return NextResponse.json({ error: 'Only a manager may write to the academy book' }, { status: 403 });
     }
@@ -220,7 +221,7 @@ export async function PATCH(request: Request) {
     }
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    const isManager = caller.isSuperUser || caller.role === 'admin';
+    const isManager = isAcademyManager(caller);
     const isOwn = !!caller.athleteId && existing.owner_id === caller.athleteId;
 
     if (action === 'used') {

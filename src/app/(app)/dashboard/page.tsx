@@ -12,6 +12,7 @@ import {
 import { fetchActivities } from '@/lib/activities-client';
 import { apiHeaders, useApi } from '@/lib/api';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
+import { getActiveViewRole } from '@/lib/role-views';
 import { AttendanceRSVP, type AttendanceStatus } from '@/components/AttendanceRSVP';
 import { NextWorkoutCard } from '@/components/NextWorkoutCard';
 import { WatchStatus } from '@/components/WatchStatus';
@@ -279,7 +280,10 @@ export default function DashboardPage() {
     // wins; otherwise fall back to whether this is a real coach account.
     const viewMode = getViewMode();
     const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
-    setIsCoach(previewRole ? STAFF_ROLES.includes(previewRole) : !!coachEmail);
+    // The account's own view switch counts the same way (role-views.ts) — but
+    // it is not a preview, so the sync below stays on for it.
+    const asRole = previewRole || getActiveViewRole();
+    setIsCoach(asRole ? STAFF_ROLES.includes(asRole) : !!coachEmail);
     setAthleteId(storedAthleteId);
     setAthleteName(name);
   }, []);

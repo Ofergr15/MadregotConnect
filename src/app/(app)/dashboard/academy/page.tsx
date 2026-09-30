@@ -33,6 +33,7 @@ import { useApi } from '@/lib/api';
 import { useAthleteId } from '@/lib/use-athlete-id';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
+import { getActiveViewRole, getStoredView } from '@/lib/role-views';
 
 // The academy centre. Three audiences, three lenses off the same route:
 //
@@ -235,8 +236,13 @@ export default function AcademyPage() {
   const { data: meData, isLoading: roleLoading } = useApi<{ role?: string }>(
     !previewRole && email ? '/api/auth/me' : null,
   );
-  const role = previewRole || (isSuperUser(email) ? 'admin' : meData?.role) || null;
-  const isManager = role === 'admin';
+  // The account's own view switch (role-views.ts). Not a preview: identity and
+  // /api/auth/me stay on. "Manager" is the academy's manager whatever the nav
+  // borrows for it; "coach" on a manager's account narrows the payload to their
+  // own trainees (the server honours that — it only ever narrows).
+  const activeView = previewRole ? null : getStoredView();
+  const role = previewRole || getActiveViewRole() || (isSuperUser(email) ? 'admin' : meData?.role) || null;
+  const isManager = activeView === 'manager' || (role === 'admin' && activeView !== 'coach');
   // Plain `coach` is included because the route serves them, and since migration
   // 077 it serves them a *scoped* payload: any staff caller who isn't the manager
   // sees only the trainees dedicated to them. A club coach with no academy
@@ -277,7 +283,7 @@ export default function AcademyPage() {
   // ── The one staff payload. Overview and the directory are the same data seen
   //    two ways, so they share a fetch and can't disagree. ────────────────────
   const { data: members, isLoading: membersLoading, mutate: refreshMembers } = useApi<AcademyMembersResponse>(
-    isStaff ? `/api/academy/members?weekStart=${weekStart}` : null,
+    isStaff ? `/api/academy/members?weekStart=${weekStart}${activeView === 'coach' ? '&scope=coach' : ''}` : null,
   );
 
   const selected = useMemo(

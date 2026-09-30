@@ -10,6 +10,7 @@ import {
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
 import { getViewMode, useIsSuperUser, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
+import { activeNavRole } from '@/lib/role-views';
 
 // Shared "which pages can this signed-in user reach" resolution. FOUR places
 // need the same answer: the desktop Header nav, the mobile BottomTabBar, the
@@ -257,7 +258,7 @@ export function useNavIdentity() {
   );
   const permissions = permsData?.permissions || [];
 
-  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean; isSuper?: boolean; isCoreRunner?: boolean }>(
+  const { data: meData } = useApi<{ role?: string; roles?: string[]; isAcademy?: boolean; isSuper?: boolean; isCoreRunner?: boolean }>(
     hasEmail ? '/api/auth/me' : null,
   );
   const isSuper = localSuper || !!meData?.isSuper;
@@ -283,9 +284,14 @@ export function useNavIdentity() {
   const viewMode = typeof window !== 'undefined' ? getViewMode() : null;
   const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
   const baseRole = isSuper ? 'admin' : meData?.role || null;
-  const effectiveRole = previewRole || baseRole;
+  // The account's own view switch — see src/lib/role-views.ts. Under the preview.
+  const activeRole = !previewRole && typeof window !== 'undefined'
+    ? activeNavRole(meData?.roles, meData?.role, isSuper)
+    : null;
+  const effectiveRole = previewRole || activeRole || baseRole;
   // The account's own role, not the rendered one — see NavResolutionInput.isOperator.
-  const isOperator = meData?.role === 'admin' && !previewRole;
+  // An admin who switched to another view is not operating as admin.
+  const isOperator = meData?.role === 'admin' && !previewRole && (!activeRole || activeRole === 'admin');
 
   return {
     permissions,

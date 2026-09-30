@@ -5,6 +5,7 @@ import { getStreamServerClient, CHANNEL_TYPE } from '@/lib/stream/server';
 import { academyChannelId } from '@/lib/academy/thread';
 import { notifyAthlete } from '@/lib/push';
 import { academyThreadMessageCopy } from '@/lib/notifications/copy';
+import { isAcademyManager } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
     // The same three-way gate as POST /api/academy/threads, deliberately repeated
     // rather than trusting that the caller opened the thread first: opening and
     // posting are separate requests, and this one writes.
-    const isManager = caller.isSuperUser || caller.role === 'admin';
+    const isManager = isAcademyManager(caller);
     const isSelf = caller.athleteId === trainee.id;
     const isMentor = caller.athleteId === trainee.academy_coach_id;
     if (!isManager && !isSelf && !isMentor) {

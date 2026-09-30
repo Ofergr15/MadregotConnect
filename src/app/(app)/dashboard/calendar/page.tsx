@@ -17,6 +17,7 @@ import { useApi } from '@/lib/api';
 import { loadLeaflet } from '@/lib/leaflet';
 import { authedFetch } from '@/lib/auth/authed-fetch';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
+import { getActiveViewRole } from '@/lib/role-views';
 import { EVENT_KINDS, type EventKind } from '@/lib/events';
 import { EventSheet, KIND_COLOR, KIND_ICON } from '@/components/events/EventSheet';
 import { Button, EmptyState, Sheet, SkeletonCard, SegmentedControl, InsetSection, InsetRow } from '@/components/ui';
@@ -107,7 +108,9 @@ export default function CalendarPage() {
     const coachEmail = localStorage.getItem('coach_email');
     const viewMode = getViewMode();
     const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
-    setIsStaff(previewRole ? STAFF_ROLES.includes(previewRole) : !!coachEmail);
+    // The account's own view switch counts the same way (role-views.ts).
+    const asRole = previewRole || getActiveViewRole();
+    setIsStaff(asRole ? STAFF_ROLES.includes(asRole) : !!coachEmail);
   }, []);
 
   const year = anchor.getFullYear();

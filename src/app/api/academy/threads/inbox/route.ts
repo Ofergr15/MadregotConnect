@@ -9,6 +9,7 @@ import {
   snapshotFromMessages,
   type ThreadSnapshot,
 } from '@/lib/academy/thread';
+import { isAcademyManager } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
     if (!caller.isSuperUser && !caller.isStaff) {
       return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
     }
-    const isManager = caller.isSuperUser || caller.role === 'admin';
+    const isManager = isAcademyManager(caller);
 
     const supabase = createServerClient();
     const { data: rows, error } = await supabase

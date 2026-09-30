@@ -7,6 +7,7 @@ import { MIN_PACE_SEC_PER_KM, MAX_PACE_SEC_PER_KM } from '@/lib/academy/repace';
 import { analyzeTest, draftSummary, recommendBand } from '@/lib/academy/testAnalysis';
 import { thresholdPaceSec } from '@/lib/academy/tests';
 import type { AcademyBand } from '@/lib/academy/bands';
+import { isAcademyManager } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -177,7 +178,7 @@ export async function GET(request: Request) {
     if (!testId) return NextResponse.json({ error: 'testId is required' }, { status: 400 });
 
     const supabase = createServerClient();
-    const isManager = caller.isSuperUser || caller.role === 'admin';
+    const isManager = isAcademyManager(caller);
     const found = await loadTest(supabase, testId, caller.athleteId, isManager);
     if (found.denied) return found.denied;
     const { test, athlete } = found;
@@ -285,7 +286,7 @@ export async function POST(request: Request) {
     const approving = body?.status === 'approved';
 
     const supabase = createServerClient();
-    const isManager = caller.isSuperUser || caller.role === 'admin';
+    const isManager = isAcademyManager(caller);
     const found = await loadTest(supabase, testId, caller.athleteId, isManager);
     if (found.denied) return found.denied;
     const { test, athlete } = found;

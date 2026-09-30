@@ -11,6 +11,7 @@ import {
   type DeliveryRow,
   type DispatchAthlete,
 } from '@/lib/academy/dispatch';
+import { isAcademyManager } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
     if (!caller.isSuperUser && !caller.isStaff) {
       return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
     }
-    const isManager = caller.isSuperUser || caller.role === 'admin';
+    const isManager = isAcademyManager(caller);
 
     const url = new URL(request.url);
     const weekStart = url.searchParams.get('weekStart') || '';

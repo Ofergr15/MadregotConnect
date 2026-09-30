@@ -4,6 +4,7 @@ import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { COACH_ID } from '@/lib/constants';
 import { isMissingTable } from '@/lib/supabase/schema-drift';
 import type { RoundOutcome } from '@/lib/academy/testRound';
+import { isAcademyManager } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
       .eq('coach_id', COACH_ID);
     if (rosterError) return NextResponse.json({ error: 'Failed to read the roster' }, { status: 500 });
 
-    const isManager = caller.isSuperUser || caller.role === 'admin';
+    const isManager = isAcademyManager(caller);
     const allowed = new Set(
       (people || [])
         .filter(p => p.is_academy && (isManager || p.academy_coach_id === caller.athleteId))

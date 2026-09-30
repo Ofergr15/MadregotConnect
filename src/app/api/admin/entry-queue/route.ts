@@ -18,6 +18,7 @@ import {
   type IdentityRow,
 } from '@/lib/auth/athlete-identity';
 import { KIT_SIZE_COLUMNS_100, kitSizeSetupInput } from '@/lib/kit-sizes';
+import { hasRole } from '@/lib/auth/roles';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -285,7 +286,7 @@ export async function GET(request: Request) {
       // Ending a membership is admin-only, unlike every other action here — see the
       // header of the remove route. The client hides the button on this; the route
       // enforces it, because a hidden button is not a permission.
-      canRemove: caller.isSuperUser || caller.role === 'admin',
+      canRemove: caller.isSuperUser || hasRole(caller, 'admin'),
       // Furthest-behind first: the flow's own order, so the top of the list is
       // the club's oldest failure rather than its newest signup.
       members: sortByFlow(members),

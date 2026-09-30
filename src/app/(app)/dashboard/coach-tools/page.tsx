@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles } from 'lucide-react';
+import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { flowGroup, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
+import { getActiveViewRole } from '@/lib/role-views';
 
 // Coach Tools hub (roadmap: native-iOS redesign, Batch 0) — the staff
 // equivalent of the bottom tab bar's 4th slot. Staff have too many tools
@@ -59,7 +60,8 @@ export default function CoachToolsPage() {
   const { data, isLoading: roleLoading } = useApi<{ role?: string }>(
     !previewRole && email ? '/api/auth/me' : null,
   );
-  const role = previewRole || (isSuperUser(email) ? 'admin' : data?.role) || null;
+  // The account's own view switch sits under a preview — see role-views.ts.
+  const role = previewRole || getActiveViewRole() || (isSuperUser(email) ? 'admin' : data?.role) || null;
   const showAcademy = role === 'academy_coach' || role === 'admin';
 
   // ── THE STATUS STRIP ───────────────────────────────────────────────────────
@@ -208,6 +210,11 @@ export default function CoachToolsPage() {
             anybody is actually let in. */}
         <InsetRow icon={FileClock} iconBg="bg-ink-700" label={ts('registrationLog')} href="/dashboard/settings?tab=registrations" />
         <InsetRow icon={Users} iconBg="bg-indigo-500" label={ts('userManager')} href="/dashboard/settings?tab=users" />
+        {/* Several roles per person and the academy manager (migration 127). The
+            route is admin-only, so the row is too. */}
+        {role === 'admin' && (
+          <InsetRow icon={UserCog} iconBg="bg-brand-600" label={ts('rolesManager')} sublabel={ts('rolesManagerSub')} href="/dashboard/roles" />
+        )}
         <InsetRow icon={Layout} iconBg="bg-band-3" label={ts('tabManager')} href="/dashboard/settings?tab=tabs" />
         {/* The reports inbox has its own screen now (next to the review screen
             people file from), so this row points at it directly instead of at a

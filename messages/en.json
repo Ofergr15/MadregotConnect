@@ -731,6 +731,8 @@
     "title": "Settings",
     "subtitle": "Manage users and permissions",
     "userManager": "User Manager",
+    "rolesManager": "Roles",
+    "rolesManagerSub": "Who coaches, manages and administers",
     "registrations": "Registrations",
     "registrationsWaiting": "{count} waiting for approval",
     "registrationsNoneWaiting": "Nobody is waiting",

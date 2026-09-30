@@ -101,6 +101,8 @@ describe('requireSession — duplicate emails must not lock anyone out', () => {
       athleteId: 'a1',
       name: 'Runner',
       role: 'runner',
+      // Migration 127: every role held, primary first. No extra_roles here.
+      roles: ['runner'],
       groupId: 'g1',
       athleteStatus: 'active',
       // The server's own copy of "may this account be inside the app". An active

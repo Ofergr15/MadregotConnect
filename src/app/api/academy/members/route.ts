@@ -11,6 +11,7 @@ import {
 } from '@/lib/academy/members';
 import { toBand, type AcademyBand } from '@/lib/academy/bands';
 import { isStaffRole, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { isAcademyManager } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,9 +67,13 @@ export async function GET(request: Request) {
     // them, enforced here rather than in the component, because this payload
     // carries every member's email and approval state: a coach filtering the
     // list client-side would still have been handed the whole academy.
-    const isManager = caller.isSuperUser || caller.role === 'admin';
-
+    //
+    // `?scope=coach` narrows a manager to their own trainees: the top bar's
+    // "coach" view on an account that is also the manager. Narrowing only — no
+    // parameter can widen a coach into the manager's payload.
     const { searchParams } = new URL(request.url);
+    const isManager = isAcademyManager(caller) && searchParams.get('scope') !== 'coach';
+
     // Default to the current PLAN week, but let the caller page back — the
     // overview and the compliance tab must be able to show the same week.
     //

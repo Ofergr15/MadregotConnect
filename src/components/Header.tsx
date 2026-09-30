@@ -11,6 +11,8 @@ import { getSupabase } from '@/lib/supabase/client';
 import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { resolveNavItems, type TabPermission } from '@/lib/nav-items';
 import { getViewMode, stopViewAs, useIsSuperUser, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
+import { activeNavRole } from '@/lib/role-views';
+import { RoleSwitcher } from '@/components/RoleSwitcher';
 import { InsetSection, InsetRow, Sheet, Spinner } from '@/components/ui';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { AthleteLink } from '@/components/AthleteLink';
@@ -58,7 +60,7 @@ export function Header() {
   const permissions = permsData?.permissions || [];
   const permissionsLoaded = !permsLoading;
 
-  const { data: meData } = useApi<{ role?: string; isAcademy?: boolean; isSuper?: boolean; isCoreRunner?: boolean }>(
+  const { data: meData } = useApi<{ role?: string; roles?: string[]; isAcademy?: boolean; isSuper?: boolean; isCoreRunner?: boolean }>(
     userEmail ? '/api/auth/me' : null,
   );
   const userRole = meData?.role || null;
@@ -148,7 +150,12 @@ export function Header() {
   // practice-attendance / workout-feedback are always reachable. A view-as role
   // scenario still overrides this so previews render correctly.
   const baseRole = isSuper ? 'admin' : userRole;
-  const effectiveRole = previewRole || baseRole;
+  // The account's own view switch (RoleSwitcher) sits under the preview: a
+  // preview is somebody else's app, so it wins while it's on.
+  const activeRole = !previewRole && typeof window !== 'undefined'
+    ? activeNavRole(meData?.roles, userRole, isSuper)
+    : null;
+  const effectiveRole = previewRole || activeRole || baseRole;
 
   const navReady = permissionsLoaded && !!effectiveRole;
 
@@ -160,7 +167,7 @@ export function Header() {
         isAthlete,
         isAcademyMember,
         isCoreRunner,
-        isOperator: userRole === 'admin' && !previewRole,
+        isOperator: userRole === 'admin' && !previewRole && (!activeRole || activeRole === 'admin'),
         // An empty header nav would leave a signed-in user with nowhere to go.
         fallback: true,
       })
@@ -222,7 +229,18 @@ export function Header() {
     // opaque, so nothing is lost.
     <header className="sticky top-0 z-40 safe-top bg-page">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-14">
+        <div className="relative flex items-center justify-between h-14">
+          {/* The view switcher, dead centre on a phone — see RoleSwitcher. Not
+              while the super user previews somebody else: that bar owns the
+              "which app am I looking at" question then. */}
+          {!viewMode && (
+            <RoleSwitcher
+              roles={meData?.roles}
+              role={userRole}
+              isSuper={isSuper}
+              className="md:hidden absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10"
+            />
+          )}
           {/* Logo + Review */}
           <div className="flex items-center gap-3 shrink-0">
             {/* `-m-1 p-1` grows the tap area to 44×44 without moving the mark a
@@ -319,6 +337,9 @@ export function Header() {
           {/* Desktop: User */}
           <div className="hidden md:flex items-center gap-2.5 shrink-0">
             <LocaleSwitcher />
+            {!viewMode && (
+              <RoleSwitcher roles={meData?.roles} role={userRole} isSuper={isSuper} showToast={false} />
+            )}
             <span className={cn('text-sm font-medium hidden lg:inline', 'text-ink-500')}>{userName}</span>
 
             {groupName && (

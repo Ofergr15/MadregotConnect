@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import type { EventKind } from '@/lib/events';
 import { googleMapsUrl } from '@/lib/events/map-link';
 import { getViewMode, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
+import { getActiveViewRole } from '@/lib/role-views';
 import { EventSheet } from '@/components/events/EventSheet';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -133,7 +134,9 @@ export default function EventDetailPage() {
     const coachEmail = localStorage.getItem('coach_email');
     const viewMode = getViewMode();
     const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
-    setIsStaff(previewRole ? STAFF_ROLES.includes(previewRole) : !!coachEmail);
+    // The account's own view switch counts the same way (role-views.ts).
+    const asRole = previewRole || getActiveViewRole();
+    setIsStaff(asRole ? STAFF_ROLES.includes(asRole) : !!coachEmail);
   }, []);
 
   const [registrations, setRegistrations] = useState<RegistrationsPayload | null>(null);

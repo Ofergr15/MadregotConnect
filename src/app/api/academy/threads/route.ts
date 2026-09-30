@@ -4,6 +4,7 @@ import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { getStreamServerClient } from '@/lib/stream/server';
 import { ensureAcademyThread } from '@/lib/academy/thread-server';
 import { seatFor } from '@/lib/academy/thread';
+import { isAcademyManager } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!trainee) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
-    const isManager = caller.isSuperUser || caller.role === 'admin';
+    const isManager = isAcademyManager(caller);
     const isSelf = caller.athleteId === trainee.id;
     const isMentor = !!caller.athleteId && caller.athleteId === trainee.academy_coach_id;
     if (!isManager && !isSelf && !isMentor) {

@@ -12,6 +12,7 @@ import {
   reminderIdsFor,
 } from '@/lib/academy/testReminders-server';
 import type { TestInvitation } from '@/lib/academy/testInvite';
+import { isAcademyManager } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -119,7 +120,7 @@ function resolveTarget(
 }
 
 /** The shape `resolveVerifiedCaller` hands back, narrowed to what this route reads. */
-type Caller = { isSuperUser: boolean; isStaff: boolean; role?: string | null; athleteId: string | null };
+type Caller = { isSuperUser: boolean; isStaff: boolean; role?: string | null; roles?: string[]; athleteId: string | null };
 
 /**
  * The athlete has to exist, and a non-manager coach may only act on their own trainee — the same
@@ -142,7 +143,7 @@ async function refuseUnlessTheirTrainee(
   if (error) return NextResponse.json({ error: 'Failed to read the athlete' }, { status: 500 });
   if (!data) return NextResponse.json({ error: 'No such athlete' }, { status: 404 });
 
-  const isManager = caller.isSuperUser || caller.role === 'admin';
+  const isManager = isAcademyManager(caller);
   if (!isManager && data.academy_coach_id !== caller.athleteId) {
     return NextResponse.json({ error: 'Not your trainee' }, { status: 403 });
   }
