@@ -311,6 +311,11 @@ describe('the week editor (feedback 2026-09-30: the same flow as the workout)', 
     expect(WEEK_RENDER).toMatch(/loadImage\(BRAND_SRC\[opts\.brand \?\? 'badge'\]\)/);
   });
 
+  it('opens on the chosen look: the snap settling before the layout is not a swipe', () => {
+    expect(WEEK_EDITOR).toMatch(/scrollTo\(look, placed\.current && centred === look\)/);
+    expect(WEEK_EDITOR).toMatch(/const onScroll = \(\) => \{\s*if \(!placed\.current\) return;/);
+  });
+
   it('has the name chip in both languages', () => {
     expect(HE.shareSheet.partName).toBeTruthy();
     expect(EN.shareSheet.partName).toBe('My name');

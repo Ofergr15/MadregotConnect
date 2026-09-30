@@ -212,14 +212,19 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
     stageRef.current?.querySelector<HTMLElement>(`[data-view="${v}"]`)
       ?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', inline: 'center', block: 'nearest' });
   }, []);
+  // The first placement jumps, and until it has, a scroll is the snap settling on
+  // whatever it found before the layout, not a swipe: it must not pick a look.
+  const placed = useRef(false);
   useEffect(() => {
     if (!slideW) return;
-    if (centredLook() !== look) scrollTo(look, centred === look);
+    if (centredLook() !== look) scrollTo(look, placed.current && centred === look);
     setCentred(look);
+    requestAnimationFrame(() => { placed.current = true; });
   // eslint-disable-next-line react-hooks/exhaustive-deps -- only the look and the geometry move the carousel
   }, [look, slideW]);
 
   const onScroll = () => {
+    if (!placed.current) return;
     const c = centredLook();
     if (c) setCentred(c);
     clearTimeout(settleRef.current);
