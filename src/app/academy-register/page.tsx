@@ -25,9 +25,14 @@ type Field =
   | { key: string; label: string; type: 'chips'; required?: boolean; options: string[] }
   | { key: string; label: string; type: 'checkboxes'; required?: boolean; options: string[] };
 
-/** A follow-up that only shows (and is only checked) while another answer is picked. */
-const SHOWN_WHEN: Record<string, { key: string; equals: string }> = {
-  hearAboutOther: { key: 'hearAbout', equals: 'אחר' },
+const HEALTHY = 'בריא לחלוטין';
+
+/** A follow-up that only shows (and is only checked) while its question has the
+ *  answer that calls for it. `on` is the question it depends on. */
+const SHOWN_WHEN: Record<string, { on: string; when: (answer: any) => boolean }> = {
+  hearAboutOther: { on: 'hearAbout', when: a => a === 'אחר' },
+  // Details only once something other than "healthy" is ticked.
+  medicalDetails: { on: 'medicalHistory', when: a => Array.isArray(a) && a.some(x => x !== HEALTHY) },
 };
 
 const FIELDS: Field[] = [
@@ -62,12 +67,12 @@ const FIELDS: Field[] = [
   { key: 'runningHistory', label: 'עבר הריצה שלך בשנה האחרונה', type: 'textarea', required: true },
   { key: 'achievements', label: 'במידה ויש הישגים בתחום הריצה אנא פרט/י', type: 'textarea' },
   { key: 'medicalHistory', label: 'עבר רפואי', type: 'checkboxes', required: true, options: [
-    'בריא לחלוטין',
+    HEALTHY,
     'יש בעיה רפואית כרונית',
     'נוטל תרופות באופן קבוע',
     'היו בעיות עבר שאינן כרגע',
   ] },
-  { key: 'medicalDetails', label: 'במידה ולא ענית בריא לחלוטין בשאלה הקודמת אנא פרט', type: 'textarea' },
+  { key: 'medicalDetails', label: 'אנא פרט/י', type: 'textarea' },
   { key: 'hearAbout', label: 'איך שמעת על קבוצת הריצה', type: 'radio', options: ['אינסטגרם', 'פייסבוק', 'חברים', 'אחר'] },
   { key: 'hearAboutOther', label: 'ספרו לנו איך', type: 'text', required: true },
   // ── Kit sizes, together and last ────────────────────────────────────────────
@@ -139,14 +144,14 @@ export default function AcademyRegisterPage() {
   const set = (k: string, v: any) => setValues(prev => {
     const next = { ...prev, [k]: v };
     // Moving off "אחר" drops what was typed under it, so a stale answer is not sent.
-    for (const [child, when] of Object.entries(SHOWN_WHEN)) {
-      if (when.key === k && v !== when.equals) delete next[child];
+    for (const [child, rule] of Object.entries(SHOWN_WHEN)) {
+      if (rule.on === k && !rule.when(v)) delete next[child];
     }
     return next;
   });
   const isShown = (key: string) => {
-    const when = SHOWN_WHEN[key];
-    return !when || values[when.key] === when.equals;
+    const rule = SHOWN_WHEN[key];
+    return !rule || rule.when(values[rule.on]);
   };
   const toggle = (k: string, opt: string) => {
     const cur: string[] = values[k] || [];

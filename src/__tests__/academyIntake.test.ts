@@ -226,7 +226,7 @@ describe('the form: how did you hear about us', () => {
 
   it('is a choice of four, and "other" opens a line to type in', () => {
     expect(page()).toContain("key: 'hearAbout', label: 'איך שמעת על קבוצת הריצה', type: 'radio', options: ['אינסטגרם', 'פייסבוק', 'חברים', 'אחר']");
-    expect(page()).toContain("hearAboutOther: { key: 'hearAbout', equals: 'אחר' }");
+    expect(page()).toContain("hearAboutOther: { on: 'hearAbout', when: a => a === 'אחר' }");
   });
 
   it('no longer asks for the Strava name or the Instagram page', () => {
@@ -249,5 +249,12 @@ describe('number fields on the form', () => {
     const page = require('node:fs').readFileSync('src/app/academy-register/page.tsx', 'utf8') as string;
     expect(page).toContain("type={f.type === 'number' ? 'text' : f.type}");
     expect(page).toContain("'[0-9]*'");
+  });
+});
+
+describe('the form: medical details', () => {
+  it('opens only once something other than "healthy" is ticked', () => {
+    const page = require('node:fs').readFileSync('src/app/academy-register/page.tsx', 'utf8') as string;
+    expect(page).toContain("medicalDetails: { on: 'medicalHistory', when: a => Array.isArray(a) && a.some(x => x !== HEALTHY) }");
   });
 });

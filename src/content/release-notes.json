@@ -1,5 +1,13 @@
 [
   {
+    "id": "academy-form-medical-details-conditional",
+    "date": "2026-09-30",
+    "kind": "fix",
+    "icon": "🩺",
+    "title": "טופס האקדמיה: פירוט רפואי רק כשצריך",
+    "body": "שדה הפירוט הרפואי נפתח רק אם סימנו משהו שאינו ״בריא לחלוטין״."
+  },
+  {
     "id": "academy-form-big-keypad",
     "date": "2026-09-30",
     "kind": "fix",
