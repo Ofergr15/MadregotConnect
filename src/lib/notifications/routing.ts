@@ -87,6 +87,12 @@ export const ROUTED_KINDS: RoutedKind[] = [
     source: 'api/public/signup · lib/signup-queue',
   },
   {
+    kind: 'academy_applicant',
+    label: 'מועמד חדש לאקדמיה',
+    hint: 'מישהו מילא את טופס האקדמיה (מנהלי האקדמיה מקבלים תמיד)',
+    source: 'api/academy/register',
+  },
+  {
     kind: 'store_order',
     label: 'הזמנה בחנות',
     hint: 'הזמנה חדשה בחנות המועדון',

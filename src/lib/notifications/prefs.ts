@@ -110,6 +110,7 @@ export const KIND_CATEGORY: Record<string, Category> = {
   // Running the club. Staff-only by construction — nothing sends these to an
   // athlete — so the toggle exists to let a coach turn them DOWN, not up.
   signup_request: 'management',
+  academy_applicant: 'management',
   problem_report: 'management',
   workout_delivery_failed: 'management',
   sync_stalled: 'management',

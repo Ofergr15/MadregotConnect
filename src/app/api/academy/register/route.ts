@@ -6,6 +6,8 @@ import { notifyAdminNewAcademyRegistration, notifyAcademyFormReceived } from '@/
 import { formNameProblem, normalizeDisplayName } from '@/lib/names/latin';
 import { clientIp, createRateLimiter, isBotSubmit } from '@/lib/academy/intake';
 import { invitePrefill, recordFormCandidate } from '@/lib/academy/intake-server';
+import { academyManagerIds, notifyStaff } from '@/lib/notifications/staff';
+import { academyApplicantCopy } from '@/lib/notifications/copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,15 +93,27 @@ export async function POST(request: Request) {
     // member, and the funnel's link action is what flags them. The answer is the same
     // success either way, so the form cannot be used to learn whose address is on the roster.
     const phoneValue = typeof phone === 'string' ? phone.trim() || null : null;
+    const intakeObj = intake && typeof intake === 'object' ? (intake as Record<string, unknown>) : null;
     const afterSave = async (athleteId: string | null, existingMember: boolean) => {
       const candidateId = await recordFormCandidate(supabase as any, {
         name: fullName, email: normEmail, phone: phoneValue, inviteToken, src, athleteId,
       });
       await notifyAdminNewAcademyRegistration({
         name: fullName, email: normEmail, phone, existingMember, candidateId,
-        intake: intake && typeof intake === 'object' ? intake : null,
+        intake: intakeObj,
       });
       await notifyAcademyFormReceived({ email: normEmail, name: fullName, candidateId, athleteId });
+      // The push is the way into the app: on an iPhone the email's button can only
+      // open Safari, but a tapped notification opens the installed app on the card.
+      await notifyStaff({
+        kind: 'academy_applicant',
+        url: `/dashboard/academy?tab=funnel${candidateId ? `&candidate=${encodeURIComponent(candidateId)}` : ''}`,
+        tag: `academy-applicant-${normEmail}`,
+        category: 'management',
+        actorAthleteId: athleteId,
+        extraRecipientIds: await academyManagerIds(),
+        copy: (locale) => academyApplicantCopy(locale, { name: fullName, intake: intakeObj }),
+      });
     };
 
     if (existing && existing.onboarding_status !== 'academy_pending') {

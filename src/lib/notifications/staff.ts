@@ -123,6 +123,12 @@ export async function notifyStaff(opts: {
    * would bury the inbox in the same sentence.
    */
   pushOnly?: boolean;
+  /**
+   * People this one kind reaches on top of the routed list — for a role the
+   * routing table can't name. The academy manager is the case: that role only
+   * ever lives in `extra_roles` (migration 127), and routing matches `role`.
+   */
+  extraRecipientIds?: string[];
 }): Promise<{ recipients: number; sent: number }> {
   try {
     // `null` = this kind isn't in the routing table (migration not applied, or
@@ -130,7 +136,7 @@ export async function notifyStaff(opts: {
     // is a choice the screen allows and this must honour rather than "helpfully"
     // falling back to the admins.
     const routed = await recipientsForKind(opts.kind);
-    const recipients = routed ?? (await staffRecipientIds());
+    const recipients = [...new Set([...(routed ?? (await staffRecipientIds())), ...(opts.extraRecipientIds ?? [])])];
     if (recipients.length === 0) return { recipients: 0, sent: 0 };
 
     const subs = await subscriptionsForAthletes(recipients);
@@ -168,5 +174,23 @@ export async function notifyStaff(opts: {
     return { recipients: recipients.length, sent };
   } catch {
     return { recipients: 0, sent: 0 }; // best-effort
+  }
+}
+
+/**
+ * Everyone holding the academy manager role. It is never an account's primary
+ * `role` (see lib/auth/roles.ts), so it is read from `extra_roles`. Best-effort:
+ * a database without migration 127, or any error, is simply nobody extra.
+ */
+export async function academyManagerIds(): Promise<string[]> {
+  try {
+    const { data, error } = await createServerClient()
+      .from('athletes')
+      .select('id')
+      .contains('extra_roles', ['academy_manager']);
+    if (error) return [];
+    return [...new Set(((data || []) as Array<{ id: string }>).map((r) => r.id))];
+  } catch {
+    return [];
   }
 }

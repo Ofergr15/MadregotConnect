@@ -1,4 +1,5 @@
 import type { NotificationLocale } from './locale';
+import { ageFrom, focusShort } from '@/lib/email/academy-new-applicant';
 import { isHumanName } from '@/lib/signup';
 
 /**
@@ -896,6 +897,23 @@ export function storeOrderCopy(
 // the door, somebody reporting a fault, a workout that never reached a watch,
 // and a sync that stopped. All four go through notifyStaff and all four are
 // governed by the `management` toggle.
+
+/**
+ * A new academy form. Tapping it opens the installed app on the applicant's
+ * card — the one way into the app from outside it on an iPhone, where a link
+ * in the staff email always lands in Safari.
+ */
+export function academyApplicantCopy(
+  locale: NotificationLocale,
+  p: { name: string; intake?: Record<string, unknown> | null },
+): PushCopy {
+  const age = ageFrom(p.intake?.birthDate);
+  const focus = focusShort(p.intake?.focus);
+  if (locale === 'he') {
+    return { title: '🎓 מועמד חדש לאקדמיה', body: [p.name, age ? `גיל ${age}` : '', focus].filter(Boolean).join(' · ') };
+  }
+  return { title: '🎓 New academy applicant', body: [p.name, age ? `age ${age}` : ''].filter(Boolean).join(' · ') };
+}
 
 export function signupRequestCopy(
   locale: NotificationLocale,

@@ -13,10 +13,16 @@ let existing: Record<string, unknown> | null;
 const notify = vi.fn();
 const received = vi.fn();
 const recordCard = vi.fn();
+const staffPush = vi.fn();
 
 vi.mock('@/lib/email', () => ({
   notifyAdminNewAcademyRegistration: (u: unknown) => notify(u),
   notifyAcademyFormReceived: (u: unknown) => received(u),
+}));
+// The staff push — the one way into the installed app on an iPhone (a mail link opens Safari).
+vi.mock('@/lib/notifications/staff', () => ({
+  notifyStaff: (o: unknown) => { staffPush(o); return Promise.resolve({ recipients: 1, sent: 1 }); },
+  academyManagerIds: () => Promise.resolve(['mgr-1']),
 }));
 // The funnel card is its own module with its own tests (academyIntake.test.ts); here it
 // only matters WHICH athlete the route hands it.
@@ -60,7 +66,7 @@ const post = (payload: Record<string, unknown>, ip = `10.0.0.${++ipSeq}`) =>
 
 const athleteWrites = () => ops.filter(o => o.table === 'athletes' && (o.op === 'update' || o.op === 'insert'));
 
-beforeEach(() => { ops = []; existing = null; notify.mockReset(); received.mockReset(); recordCard.mockReset(); });
+beforeEach(() => { ops = []; existing = null; notify.mockReset(); received.mockReset(); recordCard.mockReset(); staffPush.mockReset(); });
 
 describe('POST /api/academy/register', () => {
   it('creates a new applicant as a pending academy row', async () => {
@@ -134,5 +140,21 @@ describe('the academy door during maintenance', () => {
     for (let i = 0; i < 6; i++) codes.push((await post({}, '192.0.2.9')).status);
     expect(codes.slice(0, 5)).toEqual([200, 200, 200, 200, 200]);
     expect(codes[5]).toBe(429);
+  });
+
+  it('pushes the new applicant to staff and the academy managers, opening their card', async () => {
+    await post({ intake: { focus: 'רק תכנית אימון און ליין ומעקב', birthDate: '1990-01-01' } });
+    expect(staffPush).toHaveBeenCalledTimes(1);
+    const o = staffPush.mock.calls[0][0] as {
+      kind: string; url: string; category: string; extraRecipientIds: string[];
+      copy: (l: 'he' | 'en') => { title: string; body: string };
+    };
+    expect(o.kind).toBe('academy_applicant');
+    expect(o.category).toBe('management');
+    expect(o.url).toBe('/dashboard/academy?tab=funnel&candidate=cand-1');
+    expect(o.extraRecipientIds).toEqual(['mgr-1']);
+    const he = o.copy('he');
+    expect(he.title).toBe('🎓 מועמד חדש לאקדמיה');
+    expect(he.body).toMatch(/^Daniel Levi · גיל \d+ · רק און ליין$/);
   });
 });
