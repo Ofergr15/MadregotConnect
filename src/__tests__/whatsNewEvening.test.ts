@@ -82,6 +82,24 @@ describe('the headline entries', () => {
     }
   });
 
+  it('each show their editor at work, on captures that exist, tapped on the screen', () => {
+    for (const e of EVENING_ENTRIES) {
+      const d = e.demo!;
+      expect(d.steps.length, e.slug).toBeGreaterThan(3);
+      for (const key of [d.first, ...d.steps.map(x => x.key)]) {
+        expect(existsSync(join(SRC, '..', 'public/whats-new/edit', `${key}.jpg`)), key).toBe(true);
+      }
+      for (const x of d.steps) {
+        expect(x.x > 0 && x.x < 390 && x.y > 0 && x.y < 844, x.key).toBe(true);
+        expect(x.he && x.en && !/[֐-׿]/.test(x.en), x.key).toBeTruthy();
+      }
+      for (const lang of WHATS_NEW_LANGS) {
+        expect(d[lang].title && d[lang].body && d[lang].cta && d[lang].kicker && d[lang].where, `${e.slug}.demo.${lang}`).toBeTruthy();
+      }
+      expect(/[֐-׿]/.test(JSON.stringify(d.en)), e.slug).toBe(false);
+    }
+  });
+
   it('send their button to a page that exists', () => {
     for (const e of EVENING_ENTRIES) {
       const path = e.href.split('?')[0];
@@ -115,6 +133,13 @@ describe('the switch', () => {
     const auto = sheet.slice(sheet.indexOf('export function WhatsNewAutoSheet'), sheet.indexOf('export function WhatsNewSettingsRow'));
     expect(auto).toMatch(/<WhatsNewStory /);
     expect(sheet.slice(sheet.indexOf('export function WhatsNewSettingsRow'))).toMatch(/onReplay=/);
+  });
+
+  it('turns pages as a story does: two halves of the whole screen, and a hold pauses', () => {
+    const story = read('components/whats-new/WhatsNewStory.tsx');
+    expect(story).toMatch(/zone\(prev, t\('tourBack'\), 'start-0'\)/);
+    expect(story).toMatch(/zone\(next, t\('tourNext'\), 'end-0'\)/);
+    expect(story).toMatch(/if \(!held\.current\) ran \+=/);
   });
 
   it('keeps the tour’s buttons real links inside a dialog, which the rehearsal catches', () => {

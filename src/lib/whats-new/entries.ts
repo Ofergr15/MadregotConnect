@@ -45,6 +45,30 @@ export interface WhatsNewCardFrame {
   en: string;
 }
 
+/**
+ * One tap of a headline's editing demo: the finger goes to (x, y), in points of
+ * the 390x844 screen the editor was captured on, and after the tap the screen
+ * becomes `public/whats-new/edit/<key>.jpg`. `part` lights up the part of the
+ * card being edited.
+ */
+export interface WhatsNewDemoStep {
+  key: string;
+  x: number;
+  y: number;
+  part?: 'numbers' | 'logo' | 'text' | 'background';
+  he: string;
+  en: string;
+}
+
+/** The tour page after a headline that shows its editor at work, on real captures of it. */
+export interface WhatsNewDemo {
+  /** The screen before the first tap. */
+  first: string;
+  steps: WhatsNewDemoStep[];
+  he: WhatsNewCopy;
+  en: WhatsNewCopy;
+}
+
 export interface WhatsNewEntry {
   /** Stable forever — it is the key the "seen" ledger stores. Never reuse one. */
   slug: string;
@@ -57,6 +81,8 @@ export interface WhatsNewEntry {
    * frames, with a button (`cta`) that goes to `href`. See lib/whats-new/evening.ts.
    */
   cards?: WhatsNewCardFrame[];
+  /** The tour's editing page after this headline (components/whats-new/WhatsNewStory). */
+  demo?: WhatsNewDemo;
   /** An emoji tile, for the entries the daily release adds (lib/release-notes.ts). */
   icon?: string;
   /**

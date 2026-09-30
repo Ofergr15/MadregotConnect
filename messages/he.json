@@ -3041,7 +3041,14 @@
     "tourNext": "הבא",
     "tourDone": "לפיד",
     "tourRestKicker": "ועוד, מהשבועות האחרונים",
-    "tourReplay": "לראות שוב את הסיור"
+    "tourReplay": "לראות שוב את הסיור",
+    "demoReady": "מוכן לסטורי ✓",
+    "demoPart": {
+      "numbers": "מספרים",
+      "logo": "לוגו",
+      "text": "טקסט",
+      "background": "רקע"
+    }
   },
   "shareSheet": {
     "titleWorkout": "שיתוף האימון",

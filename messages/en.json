@@ -3041,7 +3041,14 @@
     "tourNext": "Next",
     "tourDone": "To the feed",
     "tourRestKicker": "And from the last few weeks",
-    "tourReplay": "Watch the tour again"
+    "tourReplay": "Watch the tour again",
+    "demoReady": "Ready for your story ✓",
+    "demoPart": {
+      "numbers": "Numbers",
+      "logo": "Logo",
+      "text": "Text",
+      "background": "Background"
+    }
   },
   "shareSheet": {
     "titleWorkout": "Share your run",

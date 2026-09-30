@@ -4,7 +4,8 @@
 // The approved mockup is version A (the full-screen tour) of ~/.cache/madregot/mockups/whats-new-showcase.html:
 // a page for each headline (the workout share card, then the weekly summary),
 // its art cycling through the real views and a button that opens the editor on
-// the reader's own run or week, and a last page with everything else that
+// the reader's own run or week, then a page that shows that editor at work (a
+// finger tapping through real captures of it: tour-v2.html), and a last page with everything else that
 // shipped since the last What's new. Settings keeps version B's sheet, with a
 // way to watch the tour again.
 //
@@ -53,6 +54,37 @@ export const EVENING_ENTRIES: WhatsNewEntry[] = [
       { key: 'share-card', he: 'כרטיס', en: 'Card' },
       { key: 'share-minimal', he: 'מינימלי', en: 'Minimal' },
     ],
+    demo: {
+      first: 'run-00clean',
+      steps: [
+      { key: 'run-01edit', x: 55, y: 28, he: 'לוחצים "עריכה"', en: 'Tap "Edit"' },
+      { key: 'run-02numbers', x: 281, y: 167, part: 'numbers', he: 'נוגעים במספרים שבכרטיס', en: 'Tap the numbers on the card' },
+      { key: 'run-03a-offtime', x: 240, y: 666, part: 'numbers', he: 'מורידים את הזמן…', en: 'Take the time off…' },
+      { key: 'run-03hr', x: 149, y: 716, part: 'numbers', he: '…ומכניסים דופק', en: '…and put heart rate on' },
+      { key: 'run-04logo', x: 271, y: 373, part: 'logo', he: 'נוגעים בלוגו', en: 'Tap the logo' },
+      { key: 'run-05badge', x: 317, y: 620, part: 'logo', he: 'סמל המועדון', en: 'The club badge' },
+      { key: 'run-06orange', x: 240, y: 734, part: 'logo', he: 'בכתום', en: 'In orange' },
+      { key: 'run-07text', x: 225, y: 301, part: 'text', he: 'נוגעים בכותרת', en: 'Tap the title' },
+      { key: 'run-08english', x: 49, y: 665, part: 'text', he: 'באנגלית', en: 'In English' },
+      { key: 'run-09bg', x: 305, y: 501, part: 'background', he: 'נוגעים ברקע', en: 'Tap the background' },
+      { key: 'run-10sticker', x: 73, y: 630, part: 'background', he: 'מדבקה שקופה, לכל תמונה', en: 'A clear sticker, for any photo' },
+      { key: 'run-11done', x: 50, y: 28, he: '"סיום", ומשתפים', en: '"Done", and share' },
+      ],
+      he: {
+        title: 'כל חלק בכרטיס, איך שבא לכם',
+        body: 'לוחצים "עריכה" ונוגעים בחלק שרוצים לשנות: אילו מספרים, איזה לוגו ובאיזה צבע, כותרת ושפה, ורקע או מדבקה שקופה.',
+        cta: 'לערוך את הריצה האחרונה',
+        kicker: 'חדש · עורכים הכול',
+        where: 'בעורך השיתוף: הכפתור "עריכה" למעלה',
+      },
+      en: {
+        title: 'Every part of the card, your way',
+        body: 'Tap "Edit", then the part you want to change: which numbers, which logo and colour, the title and language, the background or a clear sticker.',
+        cta: 'Edit my last run',
+        kicker: 'New · Edit everything',
+        where: 'In the share editor: the "Edit" button at the top',
+      },
+    },
     he: {
       title: 'כרטיס לכל ריצה, בשש תצוגות',
       body: 'ק״מ אחרי ק״מ, מסלול, שורת נתונים ועוד. בוחרים אילו מספרים נכנסים, לוגו ורקע, ושולחים לסטורי.',
@@ -79,6 +111,35 @@ export const EVENING_ENTRIES: WhatsNewEntry[] = [
       { key: 'week-body', he: 'גוף', en: 'Body' },
       { key: 'week-minimal', he: 'מינימלי', en: 'Minimal' },
     ],
+    demo: {
+      first: 'week-00clean',
+      steps: [
+      { key: 'week-01edit', x: 55, y: 28, he: 'לוחצים "עריכה"', en: 'Tap "Edit"' },
+      { key: 'week-02numbers', x: 286, y: 180, part: 'numbers', he: 'נוגעים במספרים', en: 'Tap the numbers' },
+      { key: 'week-02b-offcal', x: 240, y: 673, part: 'numbers', he: 'מורידים את הקלוריות', en: 'Take the calories off' },
+      { key: 'week-03bg', x: 305, y: 501, part: 'background', he: 'נוגעים ברקע', en: 'Tap the background' },
+      { key: 'week-04sunset', x: 267, y: 630, part: 'background', he: 'שקיעה', en: 'Sunset' },
+      { key: 'week-05logo', x: 199, y: 77, part: 'logo', he: 'נוגעים בלוגו', en: 'Tap the logo' },
+      { key: 'week-06badge', x: 317, y: 620, part: 'logo', he: 'סמל המועדון', en: 'The club badge' },
+      { key: 'week-07text', x: 279, y: 171, part: 'text', he: 'נוגעים בכותרת', en: 'Tap the title' },
+      { key: 'week-08marathon', x: 94, y: 664, part: 'text', he: '"בדרך למרתון"', en: '"On the way to the marathon"' },
+      { key: 'week-09done', x: 51, y: 28, he: '"סיום", ומשתפים', en: '"Done", and share' },
+      ],
+      he: {
+        title: 'אתם מחליטים מה נכנס לשבוע',
+        body: 'שמונה מספרים, כולל שינה ודופק מנוחה: נגיעה מורידה או מחזירה, וגרירה מחליפה סדר. ורקע, לוגו וכותרת משלכם.',
+        cta: 'לערוך את השבוע שלי',
+        kicker: 'חדש · עורכים את השבוע',
+        where: 'בכרטיס השבועי: "שיתוף", ואז "עריכה"',
+      },
+      en: {
+        title: 'You decide what goes on your week',
+        body: 'Eight numbers, sleep and resting heart rate included: a tap takes one off or puts it back, a drag swaps the order. And your own background, logo and title.',
+        cta: 'Edit my week',
+        kicker: 'New · Edit your week',
+        where: 'On the weekly card: "Share", then "Edit"',
+      },
+    },
     he: {
       title: 'השבוע שלך, מוכן לשיתוף',
       body: 'ק״מ, שינה ודופק מנוחה מול שבוע שעבר, בחמישה לוקים. אתם בוחרים מה נכנס ובאיזה סדר.',
