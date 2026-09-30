@@ -32,8 +32,8 @@ const HEALTHY = 'בריא לחלוטין';
  *  answer that calls for it. `on` is the question it depends on. */
 const SHOWN_WHEN: Record<string, { on: string; when: (answer: any) => boolean }> = {
   hearAboutOther: { on: 'hearAbout', when: a => a === 'אחר' },
-  // Details only once something other than "healthy" is ticked.
-  medicalDetails: { on: 'medicalHistory', when: a => Array.isArray(a) && a.some(x => x !== HEALTHY) },
+  // Details only once an answer other than "healthy" is picked.
+  medicalDetails: { on: 'medicalHistory', when: a => !!a && a !== HEALTHY },
 };
 
 const FIELDS: Field[] = [
@@ -64,7 +64,8 @@ const FIELDS: Field[] = [
   // goal question (four fixed goals), which said less than a sentence does.
   { key: 'runningHistory', label: 'מה היה הרקע שלך בריצה בשנה האחרונה?', type: 'textarea', required: true },
   { key: 'achievements', label: 'במידה ויש הישגים בתחום הריצה אנא פרט/י', type: 'textarea' },
-  { key: 'medicalHistory', label: 'עבר רפואי', type: 'checkboxes', required: true, options: [
+  // One answer, not several (2.41.63): "healthy" next to "chronic problem" said nothing.
+  { key: 'medicalHistory', label: 'עבר רפואי', type: 'radio', required: true, options: [
     HEALTHY,
     'יש בעיה רפואית כרונית',
     'נוטל תרופות באופן קבוע',

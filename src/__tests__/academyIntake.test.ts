@@ -255,7 +255,8 @@ describe('number fields on the form', () => {
 describe('the form: medical details', () => {
   it('opens only once something other than "healthy" is ticked', () => {
     const page = require('node:fs').readFileSync('src/app/academy-register/page.tsx', 'utf8') as string;
-    expect(page).toContain("medicalDetails: { on: 'medicalHistory', when: a => Array.isArray(a) && a.some(x => x !== HEALTHY) }");
+    expect(page).toContain("medicalDetails: { on: 'medicalHistory', when: a => !!a && a !== HEALTHY }");
+    expect(page).toContain("{ key: 'medicalHistory', label: 'עבר רפואי', type: 'radio', required: true");
   });
 });
 

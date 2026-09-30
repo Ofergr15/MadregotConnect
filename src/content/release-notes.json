@@ -1,5 +1,13 @@
 [
   {
+    "id": "academy-form-medical-single",
+    "date": "2026-09-30",
+    "kind": "fix",
+    "icon": "🩺",
+    "title": "טופס האקדמיה: עבר רפואי – תשובה אחת",
+    "body": "בשאלת העבר הרפואי בוחרים עכשיו תשובה אחת בלבד."
+  },
+  {
     "id": "academy-pages-always-fresh",
     "date": "2026-09-30",
     "kind": "fix",
