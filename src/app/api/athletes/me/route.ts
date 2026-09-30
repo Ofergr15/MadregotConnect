@@ -95,6 +95,20 @@ export async function GET(req: NextRequest) {
     } catch { /* bookkeeping — never fail the profile over it */ }
   }
 
+  // A group change waiting for Saturday (#96, migration 125). Its own read, so a
+  // database before 125 only loses this line and never the profile.
+  let pendingGroup: { groupId: string; from: string } | null = null;
+  try {
+    const { data: p } = await supabase
+      .from('athletes')
+      .select('pending_group_id, pending_group_from')
+      .eq('id', id)
+      .maybeSingle();
+    if (p?.pending_group_id && p.pending_group_from) {
+      pendingGroup = { groupId: p.pending_group_id, from: p.pending_group_from };
+    }
+  } catch { /* before 125 — nothing pending */ }
+
   return NextResponse.json({
     athlete: {
       id: data.id,
@@ -136,6 +150,7 @@ export async function GET(req: NextRequest) {
       // 0/1 on the way out, never null, so the screens can switch on it without
       // each one deciding what an absent value means.
       weekStartDay: weekStartDayOf((data as any).week_start_day),
+      pendingGroup,
     },
   });
 }

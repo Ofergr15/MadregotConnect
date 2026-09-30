@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { mutate as globalMutate } from 'swr';
 import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X } from 'lucide-react';
-import { cn, MONDAY_WEEK, type WeekStartDay } from '@/lib/utils';
+import { cn, israelToday, MONDAY_WEEK, type WeekStartDay } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { useTranslations, useFormatter } from 'next-intl';
 import type { ConnectionState } from '@/lib/providers/health';
@@ -24,7 +24,9 @@ import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { ProfileOverview } from '@/components/profile/ProfileOverview';
 import { SetupChecklist } from '@/components/onboarding/SetupChecklist';
 import { ONBOARDING_KEY } from '@/lib/onboarding/use-onboarding';
-import { Sheet, SegmentedControl, BackNav } from '@/components/ui';
+import { Sheet, SegmentedControl, BackNav, ConfirmSheet } from '@/components/ui';
+import { useIsSuperUser } from '@/lib/impersonation';
+import { groupChangeDate } from '@/lib/groups/pending-change';
 import { WeekStartSetting } from '@/components/profile/WeekStartSetting';
 import { shareTextForDay } from '@/lib/workout-share';
 import { getDisplayWeekStart, formatPlanWeekRange } from '@/lib/plans/workout-parsing';
@@ -154,6 +156,11 @@ function ProfileContent() {
   // Club-global and read-only here, so it's derived straight from the cache
   // rather than copied into state — see the useApi call below.
   const [saving, setSaving] = useState(false);
+  // #96: the member changes their own group, from Saturday. The super user's
+  // until rollout; everyone else keeps the lock once they have runs.
+  const changesFromSaturday = useIsSuperUser();
+  const [pendingGroup, setPendingGroup] = useState<{ groupId: string; from: string } | null>(null);
+  const [confirmGroupChange, setConfirmGroupChange] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dataSource, setDataSource] = useState<'garmin' | 'strava' | null>(null);
   const [hasGarmin, setHasGarmin] = useState(false);
@@ -311,6 +318,7 @@ function ProfileContent() {
       stravaLastSyncAt?: string | null;
       historyImport?: { state: 'none' | 'importing' | 'complete'; oldest: string | null; imported: number };
       weekStartDay?: WeekStartDay;
+      pendingGroup?: { groupId: string; from: string } | null;
     };
   }>(athleteId ? `/api/athletes/me?id=${encodeURIComponent(athleteId)}` : null);
 
@@ -327,6 +335,7 @@ function ProfileContent() {
     setGarminSyncedAt(me.garminLastSyncAt || null);
     setHistoryImport(me.historyImport || { state: 'none', oldest: null });
     setStravaSyncedAt(me.stravaLastSyncAt || null);
+    setPendingGroup(me.pendingGroup || null);
   }, [meData]);
 
   // A failed request used to run `setHasGarmin(true); setDataSource('garmin')`,
@@ -399,7 +408,30 @@ function ProfileContent() {
     }
   }, [athleteId, dataSource, hasGarmin, mutateStravaCheck, mutateMe]);
 
-  const hasChanges = selectedGroupId !== currentGroupId;
+  const hasChanges = selectedGroupId !== currentGroupId && selectedGroupId !== pendingGroup?.groupId;
+  const groupLocked = hasActivities && !changesFromSaturday;
+
+  /** Asks for the change from Saturday, or with `null` takes the waiting one back. */
+  const savePendingGroup = async (groupId: string | null) => {
+    if (!athleteId) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/athletes', {
+        method: 'PUT',
+        headers: await bearerHeaders(),
+        body: JSON.stringify({ id: athleteId, pendingGroupId: groupId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPendingGroup(data.pendingGroup || null);
+        setSelectedGroupId(currentGroupId);
+        mutateMe();
+      }
+    } catch {
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const saveGroup = async () => {
     if (!athleteId || !hasChanges) return;
@@ -880,16 +912,37 @@ function ProfileContent() {
           {/* iOS Settings-style single-select list — checkmark on the selected
               row, matching the InsetRow list one screen earlier instead of a
               differently-styled stack of card buttons. */}
-          <InsetSection className={cn((saving || hasActivities) && 'opacity-60 pointer-events-none')}>
+          {/* The move waiting for Saturday, and the way to take it back. */}
+          {changesFromSaturday && pendingGroup && (
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl bg-brand-600/10 px-3.5 py-2.5">
+              <p className="text-xs font-medium text-ink-700">
+                {t('groupChangePending', {
+                  group: groups.find(g => g.id === pendingGroup.groupId)?.name ?? '',
+                  date: pendingGroup.from.slice(8, 10) + '.' + pendingGroup.from.slice(5, 7),
+                })}
+              </p>
+              <button
+                type="button"
+                onClick={() => savePendingGroup(null)}
+                disabled={saving}
+                className="shrink-0 text-xs font-semibold text-brand-600"
+              >
+                {t('groupChangeCancel')}
+              </button>
+            </div>
+          )}
+
+          <InsetSection className={cn((saving || groupLocked) && 'opacity-60 pointer-events-none')}>
             {groups.map(g => {
               const isSelected = selectedGroupId === g.id;
+              const isPending = changesFromSaturday && pendingGroup?.groupId === g.id;
               return (
                 <InsetRow
                   key={g.id}
                   icon={Users}
                   iconBg={isSelected ? 'bg-brand-600' : 'bg-ink-300'}
                   label={g.name}
-                  value={g.marathonGoal}
+                  value={isPending ? t('groupChangeFromSat') : g.marathonGoal}
                   onClick={() => setSelectedGroupId(g.id)}
                   trailing={isSelected ? <CheckCircle2 className="h-5 w-5 text-brand-600" /> : undefined}
                 />
@@ -897,13 +950,13 @@ function ProfileContent() {
             })}
           </InsetSection>
 
-          {hasActivities && (
+          {groupLocked && (
             <p className="text-xs text-ink-400 mt-3 text-center">{t('groupLocked')}</p>
           )}
 
-          {hasChanges && !hasActivities && (
+          {hasChanges && !groupLocked && (
             <button
-              onClick={saveGroup}
+              onClick={changesFromSaturday ? () => setConfirmGroupChange(true) : saveGroup}
               disabled={saving}
               className="mt-4 w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
@@ -921,6 +974,22 @@ function ProfileContent() {
             </button>
           )}
         </div>
+      )}
+
+      {changesFromSaturday && (
+        <ConfirmSheet
+          open={confirmGroupChange}
+          onOpenChange={setConfirmGroupChange}
+          title={t('groupChangeTitle')}
+          description={t('groupChangeBody', {
+            group: groups.find(g => g.id === selectedGroupId)?.name ?? '',
+            date: (d => d.slice(8, 10) + '.' + d.slice(5, 7))(groupChangeDate(israelToday())),
+          })}
+          confirmLabel={t('groupChangeConfirm')}
+          cancelLabel={t('cancel')}
+          danger={false}
+          onConfirm={() => savePendingGroup(selectedGroupId === currentGroupId ? null : selectedGroupId)}
+        />
       )}
 
       {/* ═══ DETAIL: Data Source - Connect Strava/Garmin ═══ */}

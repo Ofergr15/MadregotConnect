@@ -26,6 +26,7 @@ import {
 } from '@/lib/reports/last-7-days';
 import { APPROVER_EMAILS } from '@/lib/constants';
 import { dispatchDueTestReminders } from '@/lib/academy/testReminders-server';
+import { syncClubFollows } from '@/lib/follows/club-sync';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -101,6 +102,28 @@ async function run(request: Request) {
   const eveningBefore = cfg.eveningBefore || { enabled: true, hour: 18 };
 
   const fired: string[] = [];
+
+  // Pace-group changes a member asked for from their profile, due today (#96,
+  // migration 125). Every tick rather than at one hour, so a missed tick only
+  // delays the move by five minutes. Before 125 the select fails and this is a
+  // no-op.
+  try {
+    const today = israelToday(now);
+    const { data: due } = await supabase
+      .from('athletes')
+      .select('id, pending_group_id')
+      .not('pending_group_id', 'is', null)
+      .lte('pending_group_from', today);
+    for (const a of due || []) {
+      const { error } = await supabase
+        .from('athletes')
+        .update({ group_id: a.pending_group_id, pending_group_id: null, pending_group_from: null })
+        .eq('id', a.id);
+      if (error) continue;
+      fired.push(`groupChange:${a.id}`);
+      try { await syncClubFollows(supabase, a.id); } catch { /* best-effort */ }
+    }
+  } catch { /* never fail the tick over it */ }
 
   // Has this stage already fired for this (day, week)? Ledger = scheduled_notifications.
   const already = async (tag: string): Promise<boolean> => {

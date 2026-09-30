@@ -6,6 +6,7 @@ import { groupDisplayName, israelToday } from '@/lib/utils';
 import { syncClubFollows } from '@/lib/follows/club-sync';
 import { authError, requireSession, type SessionUser } from '@/lib/auth-session';
 import { athleteWriteError, denyAthleteWrite } from '@/lib/auth/athlete-write-scope';
+import { groupChangeDate } from '@/lib/groups/pending-change';
 
 const DEMO_COACH_ID = COACH_ID;
 
@@ -197,6 +198,24 @@ export async function PUT(request: Request) {
         { error: 'Athlete ID is required' },
         { status: 400 }
       );
+    }
+
+    // A member's own group change, waiting for Saturday (#96), for the super user
+    // until rollout. Self only, even for staff: this is the profile's switch, and
+    // a coach moving somebody still does it at once, below. `null` cancels.
+    if (body.pendingGroupId !== undefined) {
+      if (!auth.user.isSuperUser || auth.user.athleteId !== id) {
+        return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+      }
+      const groupId = body.pendingGroupId || null;
+      const from = groupId ? groupChangeDate(israelToday()) : null;
+      const { error } = await supabase
+        .from('athletes')
+        .update({ pending_group_id: groupId, pending_group_from: from })
+        .eq('id', id)
+        .eq('coach_id', DEMO_COACH_ID);
+      if (error) throw error;
+      return NextResponse.json({ pendingGroup: groupId ? { groupId, from } : null });
     }
 
     const requested = Object.entries({ groupId, status, isAcademy })
