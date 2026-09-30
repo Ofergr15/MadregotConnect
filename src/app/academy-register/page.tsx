@@ -311,8 +311,11 @@ export default function AcademyRegisterPage() {
         </div>
 
         <form onSubmit={submit} className="space-y-3">
-          {/* The honeypot. Off-screen rather than display:none, which some bots skip. */}
-          <div aria-hidden="true" style={{ position: 'absolute', left: '-10000px', width: 1, height: 1, overflow: 'hidden' }}>
+          {/* The honeypot. Clipped to nothing rather than display:none, which some bots
+              skip. NOT pushed off-screen with left:-10000px: in an RTL page the left is
+              scrollable, so that made the page 10,390px wide and iOS slid the whole
+              form sideways. */}
+          <div aria-hidden="true" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', clipPath: 'inset(50%)', whiteSpace: 'nowrap' }}>
             <label htmlFor="ar-website">Website</label>
             <input id="ar-website" name={HONEYPOT_FIELD} type="text" tabIndex={-1} autoComplete="off"
               value={honeypot} onChange={e => setHoneypot(e.target.value)} />

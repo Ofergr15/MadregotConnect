@@ -320,3 +320,11 @@ describe('the form: birth date pickers', () => {
     expect(page()).toContain('d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3])');
   });
 });
+
+describe('the form on a phone: width', () => {
+  it('pushes nothing off-screen, which in RTL widens the page and shifts it sideways', () => {
+    const page = require('node:fs').readFileSync('src/app/academy-register/page.tsx', 'utf8') as string;
+    expect(page).not.toMatch(/left:\s*'-\d+px'/);
+    expect(page).toContain("clipPath: 'inset(50%)'");
+  });
+});
