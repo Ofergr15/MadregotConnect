@@ -905,14 +905,18 @@ export function storeOrderCopy(
  */
 export function academyApplicantCopy(
   locale: NotificationLocale,
-  p: { name: string; intake?: Record<string, unknown> | null },
+  p: { name: string; intake?: Record<string, unknown> | null; likelyMember?: string | null },
 ): PushCopy {
   const age = ageFrom(p.intake?.birthDate);
   const focus = focusShort(p.intake?.focus);
+  // The club member the form probably is (a Strava signup the email could not find).
+  const member = p.likelyMember?.trim();
   if (locale === 'he') {
-    return { title: '🎓 מועמד חדש לאקדמיה', body: [p.name, age ? `גיל ${age}` : '', focus].filter(Boolean).join(' · ') };
+    const line = [p.name, age ? `גיל ${age}` : '', focus].filter(Boolean).join(' · ');
+    return { title: '🎓 מועמד חדש לאקדמיה', body: member ? `${line}\nייתכן שזה ${member} מהמועדון` : line };
   }
-  return { title: '🎓 New academy applicant', body: [p.name, age ? `age ${age}` : ''].filter(Boolean).join(' · ') };
+  const line = [p.name, age ? `age ${age}` : ''].filter(Boolean).join(' · ');
+  return { title: '🎓 New academy applicant', body: member ? `${line}\nMaybe ${member} from the club` : line };
 }
 
 export function signupRequestCopy(

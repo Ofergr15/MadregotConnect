@@ -63,7 +63,14 @@ type CardExtras = {
   invitedAt?: string | null;
   acceptedAt?: string | null;
   emails?: CandidateEmail[];
+  /** The card is on the account the form opened, which may really be a club member's duplicate. */
+  linkedFromForm?: boolean;
+  /** The club member this card most likely is (a Strava signup the email could not find). */
+  clubMatch?: ClubMatchHint | null;
 };
+
+/** `lib/academy/link-server.ts` ClubMatch, as the board reads it. */
+type ClubMatchHint = { athleteId: string; name: string; confidence: 'exact' | 'likely'; text: string; hasStrava: boolean };
 
 interface FunnelResponse {
   candidates: (CandidateRow & CardExtras)[];
@@ -119,9 +126,12 @@ function waitLabel(days: number): string {
 function CandidateCard({
   candidate,
   onOpen,
+  likelyMember = false,
 }: {
   candidate: FunnelCandidate;
   onOpen: (id: string) => void;
+  /** Probably somebody already in the club: the card has a match waiting to be confirmed. */
+  likelyMember?: boolean;
 }) {
   // Source and goal are half of what tells the coach who this person is, and the
   // wait is the other half. All three on one line, because the card's whole job
@@ -152,6 +162,11 @@ function CandidateCard({
           {waitLabel(candidate.daysWaiting)}
         </span>
       </span>
+      {likelyMember && (
+        <span className="shrink-0 rounded-full bg-[#FFF4E5] px-2 py-0.5 text-2xs font-bold text-[#8A4B00]">
+          👤 במועדון?
+        </span>
+      )}
       {candidate.stuck && (
         <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-accent-red/10 px-2 py-0.5 text-2xs font-bold text-accent-red">
           <AlertTriangle className="h-3 w-3" />
@@ -169,10 +184,13 @@ export function FunnelBoardView({
   board,
   onOpen,
   onAdd,
+  likelyMembers,
 }: {
   board: FunnelBoard;
   onOpen: (id: string) => void;
   onAdd?: () => void;
+  /** Card ids with a club match waiting on the card. */
+  likelyMembers?: ReadonlySet<string>;
 }) {
   // Collapsed by default, and nothing about it is coloured. The people who left are the one
   // group on this screen that needs no action, so they are reachable and quiet — but they must
@@ -243,7 +261,7 @@ export function FunnelBoardView({
               ) : (
                 <div className="overflow-hidden rounded-card bg-card divide-y divide-page">
                   {column.candidates.map(candidate => (
-                    <CandidateCard key={candidate.id} candidate={candidate} onOpen={onOpen} />
+                    <CandidateCard key={candidate.id} candidate={candidate} onOpen={onOpen} likelyMember={likelyMembers?.has(candidate.id)} />
                   ))}
                 </div>
               )}
@@ -434,6 +452,7 @@ export function CandidateSheet({
   characterizationState = 'empty',
   onLink,
   linkedAthleteName,
+  onConfirmMatch,
   onInvite,
   onAccept,
   busy,
@@ -465,6 +484,8 @@ export function CandidateSheet({
    * mistake on this board. Seeing the name on the card is what makes it findable.
    */
   linkedAthleteName?: string | null;
+  /** "זה הוא, להתאים": link the card to `candidate.clubMatch`. The name on the button is the confirm. */
+  onConfirmMatch?: (athleteId: string) => void;
   /** Send the personal form link. Absent for readers who may not write to candidates. */
   onInvite?: () => void;
   /** Let them in: coach, approval, the "you're in" mail. Same audience as onInvite. */
@@ -514,6 +535,49 @@ export function CandidateSheet({
           <div className="mt-3 rounded-card bg-page px-3 py-2.5 text-xs text-ink-700" dir="auto">
             יצא מהתהליך <bdi dir="ltr">{shortDate(candidate.archivedAt)}</bdi>
             {candidate.archivedReason && ` · ${candidate.archivedReason}`}
+          </div>
+        )}
+
+        {/* A club member who came through the form. Most often a Strava signup, whose
+            placeholder address the form could never recognise, so it opened a second account.
+            The name is the confirm; "מישהו אחר…" is the search over the whole roster. */}
+        {candidate.clubMatch && !candidate.archivedAt && onLink && (
+          <div className="mt-3 rounded-card bg-[#FFF4E5] px-3 py-2.5">
+            <p className="text-[13.5px] font-bold text-[#8A4B00]" dir="auto">👤 נראה שהוא כבר במועדון</p>
+            <div className="mt-2 flex items-center gap-2.5 rounded-card bg-card px-2.5 py-2">
+              <span className="shrink-0 w-9 h-9 rounded-full bg-[#FC4C02] text-white text-2xs font-bold flex items-center justify-center">
+                {initialsOf(candidate.clubMatch.name)}
+              </span>
+              <span className="min-w-0 flex-1">
+                <bdi dir="ltr" className="block truncate text-sm font-bold text-ink-900">{candidate.clubMatch.name}</bdi>
+                <span className="block truncate text-xs text-ink-500" dir="auto">
+                  {[candidate.clubMatch.hasStrava ? 'נרשם עם סטרבה' : '', candidate.clubMatch.text].filter(Boolean).join(' · ')}
+                </span>
+              </span>
+              <span className={cn(
+                'shrink-0 rounded-pill px-2 py-0.5 text-[11px] font-bold text-white',
+                candidate.clubMatch.confidence === 'exact' ? 'bg-accent-700' : 'bg-brand-600',
+              )}>
+                {candidate.clubMatch.confidence === 'exact' ? 'התאמה' : 'כנראה'}
+              </span>
+            </div>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => onConfirmMatch?.(candidate.clubMatch!.athleteId)}
+                disabled={!onConfirmMatch || busy === LINK}
+                className="flex-1 min-h-[44px] rounded-card bg-brand-600 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {busy === LINK ? 'מחבר…' : 'זה הוא, להתאים'}
+              </button>
+              <button
+                type="button"
+                onClick={onLink}
+                className="flex-1 min-h-[44px] rounded-card bg-card text-sm font-bold text-ink-500"
+              >
+                מישהו אחר…
+              </button>
+            </div>
           </div>
         )}
 
@@ -572,7 +636,9 @@ export function CandidateSheet({
               חשבון באפליקציה
             </span>
             <span className="min-w-0 truncate text-xs font-medium text-ink-400" dir="auto">
-              {linkedAthleteName
+              {candidate.linkedFromForm
+                ? 'חשבון חדש מהטופס'
+                : linkedAthleteName
                 // LTR, because a roster name is Latin by rule (`lib/names/latin.ts`) and a
                 // Latin name in an RTL run puts its last word first.
                 ? <bdi dir="ltr">{linkedAthleteName}</bdi>
@@ -924,7 +990,7 @@ export function CandidateFunnel() {
    * The club roster, read once and kept.
    *
    * `GET /api/athletes` already returns exactly what the matcher needs — id, name, email,
-   * `is_academy` and `created_at` — so this needs no route of its own. It returns the whole
+   * `is_academy`, `created_at`, the onboarding status and whether Strava is connected — so this needs no route of its own. It returns the whole
    * roster with email addresses, which is why it is only ever read from inside this staff-only
    * screen and only when the sheet is actually opened.
    */
@@ -943,6 +1009,9 @@ export function CandidateFunnel() {
             name: String(a.name ?? ''),
             email: typeof a.email === 'string' ? a.email : null,
             isAcademy: Boolean(a.isAcademy ?? a.is_academy),
+            onboardingStatus: typeof a.onboardingStatus === 'string' ? a.onboardingStatus
+              : typeof a.onboarding_status === 'string' ? a.onboarding_status : null,
+            hasStrava: Boolean(a.hasStrava),
             createdAt: typeof a.createdAt === 'string' ? a.createdAt
               : typeof a.created_at === 'string' ? a.created_at : null,
           };
@@ -964,6 +1033,11 @@ export function CandidateFunnel() {
     for (const c of data?.candidates ?? []) if (c.athleteId) out[c.athleteId] = c.id;
     return out;
   }, [data]);
+
+  const likelyMembers = useMemo(
+    () => new Set((data?.candidates ?? []).filter(c => c.clubMatch).map(c => c.id)),
+    [data],
+  );
 
   /** The candidate's last event, which is what "registered around then" is measured against. */
   const lastEventAt = useMemo(() => {
@@ -1026,7 +1100,7 @@ export function CandidateFunnel() {
 
   return (
     <>
-      <FunnelBoardView board={board} onOpen={setOpenId} onAdd={() => setAdding(true)} />
+      <FunnelBoardView board={board} onOpen={setOpenId} onAdd={() => setAdding(true)} likelyMembers={likelyMembers} />
       <CandidateSheet
         candidate={open}
         events={data?.events ?? []}
@@ -1051,6 +1125,7 @@ export function CandidateFunnel() {
         linkedAthleteName={
           open?.athleteId ? (roster?.find(a => a.id === open.athleteId)?.name ?? null) : null
         }
+        onConfirmMatch={athleteId => void patch({ action: 'link', athleteId }, LINK)}
         onInvite={data?.me?.canAdmit ? () => setInviting(true) : undefined}
         onAccept={data?.me?.canAdmit ? () => setAccepting(true) : undefined}
         busy={busy}

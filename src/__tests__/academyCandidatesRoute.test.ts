@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
+import { COACH_ID } from '@/lib/constants';
 import { buildFunnel, type CandidateEvent, type CandidateRow } from '@/lib/academy/funnel';
 
 /**
@@ -335,6 +336,26 @@ describe('leaving and coming back', () => {
   });
 });
 
+describe('a club member who came through the form', () => {
+  it('suggests the Strava member by name on the card, and nobody for a stranger', async () => {
+    db.athletes.push({ id: 'm1', coach_id: COACH_ID, name: 'Avi Barak', approved: true, status: 'active', email: 'strava_9@strava.madregot.local', strava_auth: { a: 1 } });
+    await post({ name: 'אבי ברק', formFilled: true });
+    await post({ name: 'זר גמור', formFilled: true });
+    const body = await (await get()).json();
+    const [avi, stranger] = body.candidates;
+    expect(avi.clubMatch).toMatchObject({ athleteId: 'm1', name: 'Avi Barak', hasStrava: true });
+    expect(stranger.clubMatch).toBeNull();
+  });
+
+  it('marks a card that sits on the account the form opened', async () => {
+    db.athletes.push({ id: 'dup', coach_id: COACH_ID, name: 'Avi Barak', approved: false, onboarding_status: 'academy_pending' });
+    await post({ name: 'אבי ברק', formFilled: true });
+    db.academy_candidates[0].athlete_id = 'dup';
+    const body = await (await get()).json();
+    expect(body.candidates[0].linkedFromForm).toBe(true);
+  });
+});
+
 describe('becoming a trainee', () => {
   it('links the athlete row without ending the funnel', async () => {
     // Signup is step 4 of nine. The link is bookkeeping; the test, the analysis, the plan and
@@ -374,21 +395,47 @@ describe('becoming a trainee', () => {
     expect(db.academy_candidates[0].athlete_id).toBeNull();
   });
 
-  it('marks the athlete as academy, because nothing else does', async () => {
-    // `a1` is an existing club member who joined the academy afterwards: their row predates
-    // the academy, so `is_academy` is false and `/api/academy/register` never ran for them.
-    // Without this they would be invisible to every academy screen — tests, bands, threads,
-    // dispatch — with no screen anywhere able to fix it.
+  it('does NOT mark the athlete as academy at link time; accept does', async () => {
+    // The flag opens the Academy tab and changes the watch's pace targets, so a link made during
+    // the intro calls would be felt by the runner. Linking only changes the card.
     const body = await (await post({ name: 'ה' })).json();
     const res = await patch({ id: body.candidate.id, action: 'link', athleteId: 'a1' });
-    expect(await res.json()).toMatchObject({ ok: true, academyFlagged: true });
-    expect(db.athletes.find(a => a.id === 'a1')!.is_academy).toBe(true);
+    expect(await res.json()).toMatchObject({ ok: true, removedDuplicate: false });
+    expect(db.athletes.find(a => a.id === 'a1')!.is_academy).toBe(false);
   });
 
-  it('leaves an athlete who already came through the academy door alone', async () => {
-    const body = await (await post({ name: 'ו' })).json();
-    const res = await patch({ id: body.candidate.id, action: 'link', athleteId: 'a2' });
-    expect(await res.json()).toMatchObject({ ok: true, academyFlagged: true });
+  it('moves a card off the account the form opened, carrying the answers and deleting the duplicate', async () => {
+    // A club member who signed up with Strava has a placeholder address, so the form could not
+    // find them and opened a second account. Staff move the card to the real one.
+    db.athletes.push({ id: 'dup', name: 'Avi Barak', approved: false, onboarding_status: 'academy_pending', academy_intake: { city: 'תל אביב' } });
+    db.athletes.push({ id: 'real', name: 'Avi Barak', approved: true, onboarding_status: 'completed', academy_intake: null, is_academy: false });
+    const body = await (await post({ name: 'אבי ברק' })).json();
+    db.academy_candidates[0].athlete_id = 'dup';
+
+    const res = await patch({ id: body.candidate.id, action: 'link', athleteId: 'real' });
+    expect(await res.json()).toMatchObject({ ok: true, removedDuplicate: true });
+    expect(db.academy_candidates[0].athlete_id).toBe('real');
+    expect(db.athletes.find(a => a.id === 'dup')).toBeUndefined();
+    const real = db.athletes.find(a => a.id === 'real')!;
+    expect(real.academy_intake).toEqual({ city: 'תל אביב' });
+    expect(real.is_academy).toBe(false);
+  });
+
+  it('never deletes a real runner the card is moved off', async () => {
+    db.athletes.push({ id: 'b1', name: 'Other', approved: true, onboarding_status: 'completed' });
+    const body = await (await post({ name: 'ז' })).json();
+    await patch({ id: body.candidate.id, action: 'link', athleteId: 'b1' });
+    const res = await patch({ id: body.candidate.id, action: 'link', athleteId: 'a1' });
+    expect(await res.json()).toMatchObject({ ok: true, removedDuplicate: false });
+    expect(db.athletes.find(a => a.id === 'b1')).toBeDefined();
+  });
+
+  it('keeps answers the account already has', async () => {
+    db.athletes.find(a => a.id === 'a1')!.academy_intake = { city: 'חיפה' };
+    const body = await (await post({ name: 'ח' })).json();
+    db.academy_candidates[0].intake = { city: 'אילת' };
+    await patch({ id: body.candidate.id, action: 'link', athleteId: 'a1' });
+    expect(db.athletes.find(a => a.id === 'a1')!.academy_intake).toEqual({ city: 'חיפה' });
   });
 
   it('takes a mis-link back, and frees the athlete for the right candidate', async () => {
@@ -413,9 +460,9 @@ describe('becoming a trainee', () => {
     // Being an academy trainee is not undone by fixing a clerical error, and clearing the flag
     // would drop a real trainee out of every academy screen as a side effect.
     const body = await (await post({ name: 'ט' })).json();
-    await patch({ id: body.candidate.id, action: 'link', athleteId: 'a1' });
+    await patch({ id: body.candidate.id, action: 'link', athleteId: 'a2' });
     await patch({ id: body.candidate.id, action: 'unlink' });
-    expect(db.athletes.find(a => a.id === 'a1')!.is_academy).toBe(true);
+    expect(db.athletes.find(a => a.id === 'a2')!.is_academy).toBe(true);
   });
 
   it('records no funnel step, in either direction', async () => {

@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_RECENT_SUGGESTIONS,
   RECENT_REGISTRATION_DAYS,
+  clubMatchFor,
   filterAthletes,
+  isFormMadeAccount,
   isSyntheticEmail,
-  needsAcademyFlag,
   normalizeEmail,
   normalizePhone,
   suggestAthleteLinks,
@@ -84,10 +85,16 @@ describe('suggesting who the candidate became', () => {
     expect(out[0]).toMatchObject({ reason: 'phone', confidence: 'exact' });
   });
 
-  it('never matches a Hebrew candidate name against a Latin roster name', () => {
-    // The whole reason this module exists. `אבי ברק` and `Avi Barak` are one person and share
-    // no character, so a name comparison here must decline rather than answer.
+  it('matches a Hebrew candidate name against a Latin roster name, as a suggestion', () => {
+    // `אבי ברק` and `Avi Barak` share no character. The consonant skeletons that join Strava
+    // logins to the roster bridge them — the key for a member whose account carries a
+    // placeholder address that email can never find.
     const out = suggestAthleteLinks(candidate({ name: 'אבי ברק' }), [athlete({ id: 'a1', name: 'Avi Barak' })]);
+    expect(out[0]).toMatchObject({ reason: 'name', confidence: 'likely', text: 'אותו שם, בעברית ובאנגלית' });
+  });
+
+  it('does not match unrelated names across scripts', () => {
+    const out = suggestAthleteLinks(candidate({ name: 'אבי ברק' }), [athlete({ id: 'a1', name: 'Dana Cohen' })]);
     expect(out).toEqual([]);
   });
 
@@ -255,13 +262,33 @@ describe('searching the roster', () => {
   });
 });
 
-describe('the academy flag', () => {
-  it('is needed for a club member who joined the academy later', () => {
-    expect(needsAcademyFlag({ isAcademy: false })).toBe(true);
-    expect(needsAcademyFlag({})).toBe(true);
+describe('the club member a form applicant probably is', () => {
+  const members = [
+    athlete({ id: 'm1', name: 'Avi Barak', email: 'strava_1@strava.madregot.local', hasStrava: true }),
+    athlete({ id: 'm2', name: 'Dana Cohen', email: 'dana@example.com' }),
+  ];
+
+  it('finds the Strava member by name across scripts', () => {
+    expect(clubMatchFor(candidate({ name: 'אבי ברק' }), members)?.athlete.id).toBe('m1');
   });
 
-  it('is already there for somebody who came through the academy door', () => {
-    expect(needsAcademyFlag({ isAcademy: true })).toBe(false);
+  it('prefers the one exact match', () => {
+    expect(clubMatchFor(candidate({ name: 'Someone', email: 'dana@example.com' }), members)?.athlete.id).toBe('m2');
+  });
+
+  it('offers nobody when two members are equally likely', () => {
+    const twins = [athlete({ id: 'x', name: 'Avi Barak' }), athlete({ id: 'y', name: 'Avi Barak' })];
+    expect(clubMatchFor(candidate({ name: 'אבי ברק' }), twins)).toBeNull();
+  });
+
+  it('never offers a member already linked to another card', () => {
+    expect(clubMatchFor(candidate({ id: 'c1', name: 'אבי ברק' }), members, { takenBy: { m1: 'c2' } })).toBeNull();
+  });
+
+  it('never offers an account the form opened', () => {
+    const pending = [athlete({ id: 'p', name: 'Avi Barak', onboardingStatus: 'academy_pending' })];
+    expect(clubMatchFor(candidate({ name: 'אבי ברק' }), pending)).toBeNull();
+    expect(isFormMadeAccount(pending[0])).toBe(true);
+    expect(isFormMadeAccount(members[0])).toBe(false);
   });
 });

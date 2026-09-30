@@ -486,6 +486,11 @@ function unflooredWords(name?: string | null): Set<string> {
 const CONFIDENCE_ORDER: Record<CandidateConfidence, number> = { exact: 3, near: 2, weak: 1 };
 
 /** How alike two names are, or null when they are not alike at all. */
+/** How alike two names are across scripts ("אבי ברק" / "Avi Barak"), or null. A hint for a human, never a match. */
+export function nameMatchConfidence(a?: string | null, b?: string | null): CandidateConfidence | null {
+  return confidenceOf(a, b);
+}
+
 function confidenceOf(a?: string | null, b?: string | null): CandidateConfidence | null {
   const left = unfloored(a);
   const right = unfloored(b);

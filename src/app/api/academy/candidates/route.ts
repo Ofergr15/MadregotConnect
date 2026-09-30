@@ -7,6 +7,7 @@ import { COACH_ID } from '@/lib/constants';
 import { isStaffRole } from '@/lib/auth/self-or-staff';
 import { canAdmitToAcademy, isAcademyManager } from '@/lib/academy/pairing-server';
 import { acceptAction, inviteAction } from '@/lib/academy/admit-server';
+import { clubMatchesFor, readRosterForMatching } from '@/lib/academy/link-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -169,6 +170,11 @@ export async function GET(request: Request) {
     const caller = gate.caller!;
     const canAdmit = canAdmitToAcademy(caller);
     const emails = await emailsByCandidate(supabase, rows || []).catch(() => ({}));
+    // A runner already in the club who came through the form: most often a Strava signup,
+    // whose placeholder address the form could never recognise. Only a suggestion.
+    const matches = await readRosterForMatching(supabase as any)
+      .then(roster => clubMatchesFor((rows || []) as any[], roster))
+      .catch(() => ({} as ReturnType<typeof clubMatchesFor>));
     // The accept sheet's coach picker. Only the manager picks; a coach accepts for
     // themselves, so they get just their own entry.
     let coaches: Array<{ id: string; name: string }> = [];
@@ -182,7 +188,13 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      candidates: (rows || []).map(r => ({ ...toCandidate(r), ...contactOf(r), emails: (emails as any)[String((r as any).id)] || [] })),
+      candidates: (rows || []).map(r => ({
+        ...toCandidate(r),
+        ...contactOf(r),
+        emails: (emails as any)[String((r as any).id)] || [],
+        linkedFromForm: matches[String((r as any).id)]?.linkedFromForm ?? false,
+        clubMatch: matches[String((r as any).id)]?.clubMatch ?? null,
+      })),
       events: (eventRows || []).map(toEvent),
       me: { canAdmit, isManager: isAcademyManager(caller), athleteId: caller.athleteId ?? null },
       coaches,
@@ -409,14 +421,35 @@ export async function PATCH(request: Request) {
       if (!athleteId) return NextResponse.json({ error: 'athleteId is required' }, { status: 400 });
 
       // The athlete has to exist. The foreign key would catch it, but as a 500 — and this
-      // read is needed anyway, for the flag below.
+      // read is needed anyway, for the form's answers below.
       const { data: athlete, error: athleteError } = await supabase
         .from('athletes')
-        .select('id, is_academy')
+        .select('id, academy_intake')
         .eq('id', athleteId)
         .maybeSingle();
       if (athleteError) return NextResponse.json({ error: 'Failed to read the athlete' }, { status: 500 });
       if (!athlete) return NextResponse.json({ error: 'No such athlete' }, { status: 404 });
+
+      // What the card points at now. A form applicant's card points at the account the form
+      // opened; when staff move it to the runner's real account, that one is the duplicate.
+      let { data: card, error: cardError }: { data: any; error: any } = await supabase
+        .from('academy_candidates')
+        .select('id, athlete_id, intake')
+        .eq('id', id)
+        .maybeSingle();
+      if (cardError && isMissingColumn(cardError)) {
+        ({ data: card } = await supabase.from('academy_candidates').select('id, athlete_id').eq('id', id).maybeSingle());
+      }
+      const previousId = card?.athlete_id ? String(card.athlete_id) : null;
+      let previous: any = null;
+      if (previousId && previousId !== athleteId) {
+        const { data } = await supabase
+          .from('athletes')
+          .select('id, approved, onboarding_status, academy_intake')
+          .eq('id', previousId)
+          .maybeSingle();
+        previous = data ?? null;
+      }
 
       const { error } = await supabase
         .from('academy_candidates')
@@ -431,27 +464,29 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: 'Failed to link the candidate' }, { status: 500 });
       }
 
-      // An athlete joined to an academy candidate IS an academy trainee, and this is the only
-      // place that fact gets recorded by staff. `/api/academy/register` already sets the same
-      // flag for whoever arrives through the public door; the case here is the existing club
-      // member who joined the academy afterwards, whose row predates the academy entirely.
-      // Without the flag they are invisible to every academy screen — tests, bands, threads,
-      // dispatch — and no screen anywhere can fix it.
-      //
-      // Reported rather than thrown: the link is the thing that was asked for and it worked.
-      // A failed flag leaves a trainee missing from the academy screens, which is visible and
-      // one tap from fixed; failing the whole request would leave the two rows unjoined, which
-      // is the state nothing can recover from.
-      let academyFlagged = Boolean(athlete.is_academy);
-      if (!academyFlagged) {
-        const { error: flagError } = await supabase
-          .from('athletes')
-          .update({ is_academy: true })
-          .eq('id', athleteId);
-        academyFlagged = !flagError;
+      // The form's answers follow the person. Never over answers the account already has.
+      const answers = card?.intake ?? previous?.academy_intake ?? null;
+      if (answers && !athlete.academy_intake) {
+        await supabase.from('athletes').update({ academy_intake: answers }).eq('id', athleteId);
       }
 
-      return NextResponse.json({ ok: true, academyFlagged });
+      // The account the form opened, when the card is moved off it: never signed in, never
+      // approved, and now nobody's. Only THAT kind of row is removed here — never a runner.
+      // Falls back to marking it removed when something still references it.
+      let removedDuplicate = false;
+      if (previous && previous.approved !== true && previous.onboarding_status === 'academy_pending') {
+        const { error: deleteError } = await supabase.from('athletes').delete().eq('id', previousId);
+        if (!deleteError) removedDuplicate = true;
+        else {
+          const { error: removeError } = await supabase.from('athletes').update({ status: 'removed' }).eq('id', previousId);
+          removedDuplicate = !removeError;
+        }
+      }
+
+      // Deliberately NOT `is_academy`. The flag opens the Academy tab and changes the watch's
+      // pace targets, so a runner would feel a link made during the intro calls. Accept
+      // (admit-server) sets it; until then linking only changes the card.
+      return NextResponse.json({ ok: true, removedDuplicate });
     }
 
     /**

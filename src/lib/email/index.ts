@@ -377,6 +377,8 @@ export async function notifyAdminNewAcademyRegistration(user: {
   candidateId?: string | null;
   /** The address already belongs to a roster row, which the form left untouched. */
   existingMember?: boolean;
+  /** The roster name of the member this probably is, by name (a Strava signup). */
+  likelyMember?: string | null;
 }): Promise<SendResult> {
   // The academy board, not the approvals list: an academy applicant is let in
   // from the academy after the calls, never by the generic approve button.

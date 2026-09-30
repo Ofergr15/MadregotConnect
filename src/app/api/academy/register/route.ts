@@ -8,6 +8,7 @@ import { clientIp, createRateLimiter, isBotSubmit } from '@/lib/academy/intake';
 import { invitePrefill, recordFormCandidate } from '@/lib/academy/intake-server';
 import { academyManagerIds, notifyStaff } from '@/lib/notifications/staff';
 import { academyApplicantCopy } from '@/lib/notifications/copy';
+import { likelyClubMember } from '@/lib/academy/link-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,17 +91,17 @@ export async function POST(request: Request) {
     // requireStaff reads), for whoever typed that member's address into the form. An existing
     // member who really wants the academy is a real case, and it is the coach's to act on:
     // the row stays exactly as it is, the coach gets the same email marked as an existing
-    // member, and the funnel's link action is what flags them. The answer is the same
+    // member, and the card is linked from the funnel and accept is what flags them. The answer is the same
     // success either way, so the form cannot be used to learn whose address is on the roster.
     const phoneValue = typeof phone === 'string' ? phone.trim() || null : null;
     const intakeObj = intake && typeof intake === 'object' ? (intake as Record<string, unknown>) : null;
-    const afterSave = async (athleteId: string | null, existingMember: boolean) => {
+    const afterSave = async (athleteId: string | null, existingMember: boolean, likelyMember: string | null = null) => {
       const candidateId = await recordFormCandidate(supabase as any, {
-        name: fullName, email: normEmail, phone: phoneValue, inviteToken, src, athleteId,
+        name: fullName, email: normEmail, phone: phoneValue, inviteToken, src, athleteId, intake: intakeObj,
       });
       await notifyAdminNewAcademyRegistration({
         name: fullName, email: normEmail, phone, existingMember, candidateId,
-        intake: intakeObj,
+        intake: intakeObj, likelyMember,
       });
       await notifyAcademyFormReceived({ email: normEmail, name: fullName, candidateId, athleteId });
       // The push is the way into the app: on an iPhone the email's button can only
@@ -112,7 +113,7 @@ export async function POST(request: Request) {
         category: 'management',
         actorAthleteId: athleteId,
         extraRecipientIds: await academyManagerIds(),
-        copy: (locale) => academyApplicantCopy(locale, { name: fullName, intake: intakeObj }),
+        copy: (locale) => academyApplicantCopy(locale, { name: fullName, intake: intakeObj, likelyMember }),
       });
     };
 
@@ -158,7 +159,7 @@ export async function POST(request: Request) {
       if (error) throw error;
     }
 
-    await afterSave(athleteId, false);
+    await afterSave(athleteId, false, await likelyClubMember(supabase as any, { name: fullName, email: normEmail, phone: phoneValue, athleteId }));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

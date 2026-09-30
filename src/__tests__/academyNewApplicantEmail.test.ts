@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { academyApplicantCopy } from '@/lib/notifications/copy';
 import { ageFrom, focusShort, newApplicantSubject, renderAcademyNewApplicant, whatsappNumber } from '@/lib/email/academy-new-applicant';
 
 /**
@@ -49,6 +50,12 @@ describe('renderAcademyNewApplicant', () => {
     expect(renderAcademyNewApplicant({ ...applicant, existingMember: true })).toContain('כבר שייך לרץ במועדון');
   });
 
+  it('names the club member the applicant probably is, for a Strava signup', () => {
+    const html = renderAcademyNewApplicant({ ...applicant, likelyMember: 'Avi Barak' });
+    expect(html).toContain('ייתכן שזה <b dir="ltr">Avi Barak</b>');
+    expect(renderAcademyNewApplicant(applicant)).not.toContain('ייתכן שזה');
+  });
+
   it('escapes what the public form typed', () => {
     const h = renderAcademyNewApplicant({ ...applicant, name: '<b>x', intake: { ...intake, runningHistory: '<script>' } });
     expect(h).not.toContain('<b>x');
@@ -78,5 +85,13 @@ describe('helpers', () => {
     expect(whatsappNumber('050-000-0000')).toBe('972500000000');
     expect(whatsappNumber('+972 50 000 0000')).toBe('972500000000');
     expect(whatsappNumber('123')).toBeNull();
+  });
+});
+
+describe('the staff push', () => {
+  it('adds a line naming the likely club member', () => {
+    const copy = academyApplicantCopy('he', { name: 'אבי ברק', likelyMember: 'Avi Barak' });
+    expect(copy.body).toBe('אבי ברק\nייתכן שזה Avi Barak מהמועדון');
+    expect(academyApplicantCopy('he', { name: 'אבי ברק' }).body).toBe('אבי ברק');
   });
 });

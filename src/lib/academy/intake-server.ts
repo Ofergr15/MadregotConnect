@@ -30,6 +30,9 @@ export async function recordFormCandidate(
     /** The pending academy row the form wrote; null for an existing member, whose
      *  row the form must not touch and whose link is the coach's call. */
     athleteId: string | null;
+    /** The form's answers. Kept on the card too, because an existing member's own row is
+     *  not the form's to write, and without this their answers lived only in one email. */
+    intake?: Record<string, unknown> | null;
   },
 ): Promise<string | null> {
   try {
@@ -107,6 +110,12 @@ export async function recordFormCandidate(
           console.error('academy form: card link failed:', linkError.message);
         }
       }
+    }
+
+    // Its own write, so a database without migration 128 loses only this.
+    if (p.intake) {
+      const { error: intakeError } = await supabase.from('academy_candidates').update({ intake: p.intake }).eq('id', card.id);
+      if (intakeError && !isMissingColumn(intakeError)) console.error('academy form: card intake failed:', intakeError.message);
     }
 
     // ignoreDuplicates: a second submit keeps the first date, which is when the form

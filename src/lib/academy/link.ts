@@ -25,8 +25,11 @@
  *
  *   - **email**, normalised. The only field both doors ask for in the same alphabet.
  *   - **phone**, normalised past the four ways an Israeli number gets written.
- *   - **name**, and ONLY when both sides happen to be Latin. Never an exact match, because
- *     a club of 25 has two people called David.
+ *   - **name**, never an exact match, because a club of 25 has two people called David.
+ *     Across scripts too: `אבי ברק` meets `Avi Barak` through the consonant skeletons of
+ *     `lib/auth/athlete-identity.ts`, the matcher that already joins Strava logins to the
+ *     roster. That is the key for a member who signed up with Strava: their row carries a
+ *     made-up address, so email can never find them.
  *   - **recency**, which is not a match at all but is what a human actually uses: the
  *     athlete who registered two days after the characterization call is probably him.
  *
@@ -37,6 +40,8 @@
  * injuries and another person's private `fit` verdict attached to somebody else's account,
  * and a shared family address is enough to cause it.
  */
+
+import { nameMatchConfidence } from '@/lib/auth/athlete-identity';
 
 /** A Strava login with no real email gets a fabricated one. It is not an identity. */
 export const SYNTHETIC_EMAIL_DOMAIN = 'strava.madregot.local';
@@ -73,6 +78,18 @@ export interface LinkableAthlete {
   phone?: string | null;
   isAcademy?: boolean | null;
   createdAt?: string | null;
+  /** `athletes.onboarding_status`. 'academy_pending' is a row the academy form opened. */
+  onboardingStatus?: string | null;
+  hasStrava?: boolean | null;
+}
+
+/**
+ * A row the academy form opened for somebody it did not recognise, and nobody has let in.
+ * That is what the form does for a club member whose account carries a Strava placeholder
+ * address, so a card linked to one of these may really belong to an existing runner.
+ */
+export function isFormMadeAccount(a: Pick<LinkableAthlete, 'onboardingStatus'> | null | undefined): boolean {
+  return a?.onboardingStatus === 'academy_pending';
 }
 
 export interface LinkableCandidate {
@@ -194,6 +211,7 @@ export function suggestAthleteLinks(
   const matches: AthleteMatch[] = [];
   const seen = new Set<string>();
   const recent: { match: AthleteMatch; days: number }[] = [];
+  const named: AthleteMatch[] = [];
 
   for (const athlete of athletes) {
     // The athlete already joined to THIS candidate is not a suggestion — they are the
@@ -230,6 +248,17 @@ export function suggestAthleteLinks(
       continue;
     }
 
+    // The two scripts. Held back and sorted after the loop, so a sure one leads a guess.
+    const alike = latinKey(athlete.name) !== null ? nameMatchConfidence(candidate.name, athlete.name) : null;
+    if (alike) {
+      named.push(alike === 'exact'
+        ? { athlete, reason: 'name', confidence: 'likely', text: 'אותו שם, בעברית ובאנגלית', taken: false }
+        : alike === 'near'
+          ? { athlete, reason: 'name', confidence: 'likely', text: 'שם כמעט זהה', taken: false }
+          : { athlete, reason: 'name', confidence: 'weak', text: 'שם דומה', taken: false });
+      continue;
+    }
+
     if (opts.since && athlete.createdAt) {
       const days = daysApart(opts.since, athlete.createdAt);
       if (days !== null && Math.abs(days) <= RECENT_REGISTRATION_DAYS) {
@@ -261,6 +290,13 @@ export function suggestAthleteLinks(
     return flag !== 0 ? flag : a.days - b.days;
   });
 
+  named.sort((a, b) => Number(b.confidence === 'likely') - Number(a.confidence === 'likely'));
+  for (const match of named) {
+    if (seen.has(match.athlete.id)) continue;
+    seen.add(match.athlete.id);
+    matches.push(match);
+  }
+
   for (const { match } of recent.slice(0, MAX_RECENT_SUGGESTIONS)) {
     if (seen.has(match.athlete.id)) continue;
     seen.add(match.athlete.id);
@@ -288,14 +324,20 @@ export function filterAthletes(athletes: readonly LinkableAthlete[], query: stri
 }
 
 /**
- * Whether linking this athlete also has to flip `is_academy`.
- *
- * It usually does not: `/api/academy/register` sets the flag as it creates the row, so
- * anybody who came through the public academy door already has it. The case this catches is
- * the person who was already a club member and joined the academy afterwards — their row
- * predates the academy entirely, and without the flag they are invisible to every academy
- * screen (tests, bands, threads, dispatch) with no screen anywhere able to fix it.
+ * The one existing club member this candidate most likely is, for the card's "נראה שהוא כבר
+ * במועדון" row and the staff mail. A member is an approved row; the form's own pending rows
+ * and anybody linked to another card are not offered. Only a strong reason counts (email,
+ * phone, the same name in either script), and only when a single member has it: two
+ * "likely" Davids is a question for the search box, not a suggestion.
  */
-export function needsAcademyFlag(athlete: Pick<LinkableAthlete, 'isAcademy'>): boolean {
-  return !athlete.isAcademy;
+export function clubMatchFor(
+  candidate: LinkableCandidate,
+  members: readonly LinkableAthlete[],
+  opts: { takenBy?: Readonly<Record<string, string>> } = {},
+): AthleteMatch | null {
+  const strong = suggestAthleteLinks(candidate, members, { takenBy: opts.takenBy })
+    .filter(m => !m.taken && m.reason !== 'recent' && m.confidence !== 'weak' && !isFormMadeAccount(m.athlete));
+  const exact = strong.filter(m => m.confidence === 'exact');
+  if (exact.length) return exact.length === 1 ? exact[0] : null;
+  return strong.length === 1 ? strong[0] : null;
 }

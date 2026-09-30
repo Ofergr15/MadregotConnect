@@ -21,6 +21,9 @@ export interface NewApplicant {
   /** The form's academy_intake blob, read loosely: older forms lack fields. */
   intake?: Record<string, unknown> | null;
   existingMember?: boolean;
+  /** The roster name of the club member this probably is: a guess by name, for a runner
+   *  whose account carries a Strava placeholder address the email could never match. */
+  likelyMember?: string | null;
   /** Where the button goes — the in-app link to this applicant's card. */
   href: string;
 }
@@ -103,7 +106,9 @@ export function renderAcademyNewApplicant(p: NewApplicant): string {
 
   const existing = p.existingMember
     ? `<div style="margin: 14px 0 0; background: #FFF4E5; border-radius: 12px; padding: 10px 13px; font-size: 13.5px; line-height: 1.55; font-weight: 600; color: #8A4B00;">👤 המייל הזה כבר שייך לרץ במועדון, והחשבון שלו לא שונה. אפשר לקשר מהכרטיס.</div>`
-    : '';
+    : str(p.likelyMember)
+      ? `<div style="margin: 14px 0 0; background: #FFF4E5; border-radius: 12px; padding: 10px 13px; font-size: 13.5px; line-height: 1.55; font-weight: 600; color: #8A4B00;">👤 ייתכן שזה <b dir="ltr">${esc(str(p.likelyMember))}</b>, שכבר רץ במועדון (לפי השם). אפשר לאשר את ההתאמה מהכרטיס.</div>`
+      : '';
 
   const rows: Array<[string, string, boolean?]> = [];
   if (age) rows.push(['גיל', String(age)]);

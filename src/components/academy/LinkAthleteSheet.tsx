@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils';
 import { Sheet } from '@/components/ui';
 import {
   filterAthletes,
+  isFormMadeAccount,
   isSyntheticEmail,
-  needsAcademyFlag,
   suggestAthleteLinks,
   type LinkableAthlete,
   type LinkableCandidate,
@@ -30,12 +30,17 @@ import {
  *    coach nothing. Seeing it also answers a question worth asking: one email across two
  *    candidate rows means there are two rows for one person.
  *
- *  - **The side effect is stated before it happens.** Linking also marks the athlete as an
- *    academy trainee, which is a write on somebody else's row, so the confirm bar says so.
+ *  - **What happens is stated before it happens.** The form's answers move to the chosen
+ *    account, the account the form opened (if the card is on one) is deleted, and the runner's
+ *    app does not change: the academy flag waits for accept.
  *
- *  - **Names are not matched across alphabets, and the sheet does not pretend otherwise.** The
- *    candidate is `אבי ברק` and the roster row is `Avi Barak`; the search box is there because
- *    the coach can do what the matcher cannot.
+ *  - **A card on the account the form opened is still open to linking.** That is what the form
+ *    does for a club member who signed up with Strava (a placeholder address it cannot match),
+ *    so the sheet offers the real account and the whole roster search, not just an unlink.
+ *
+ *  - **Names match across alphabets, as a suggestion only.** `אבי ברק` meets `Avi Barak`
+ *    through the same consonant skeletons that join Strava logins to the roster. The search
+ *    box is still there for whoever the matcher misses.
  */
 
 const ROW = 'flex w-full items-center justify-between gap-3 min-h-[56px] rounded-card px-3.5 text-start';
@@ -97,6 +102,10 @@ export function LinkAthleteSheet({
   // The search results, minus everybody already shown above them: the same person appearing
   // twice in one list reads as two people. The `Set` is built INSIDE the memo — a new one on
   // every render is a new dependency on every render, so the memo would never hold.
+  // The account the form opened is not the runner: the card stays open to a real account.
+  const fromForm = isFormMadeAccount(linkedAthlete);
+  const pinned = linkedAthlete && !fromForm ? linkedAthlete : null;
+
   const results = useMemo(() => {
     if (!query.trim()) return [];
     const suggested = new Set(suggestions.map(s => s.athlete.id));
@@ -108,14 +117,14 @@ export function LinkAthleteSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={`חיבור לחשבון · ${candidate.name}`}>
       <div className="px-4 pb-6">
-        {linkedAthlete ? (
+        {pinned ? (
           <>
             <div className="flex items-center gap-2 rounded-card bg-page px-3.5 py-3">
               <UserCheck className="h-4 w-4 shrink-0 text-accent-700" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-ink-900" dir="auto">{linkedAthlete.name}</p>
-                {contactLine(linkedAthlete) && (
-                  <p className="truncate text-xs text-ink-500"><bdi dir="ltr">{contactLine(linkedAthlete)}</bdi></p>
+                <p className="truncate text-sm font-bold text-ink-900" dir="auto">{pinned.name}</p>
+                {contactLine(pinned) && (
+                  <p className="truncate text-xs text-ink-500"><bdi dir="ltr">{contactLine(pinned)}</bdi></p>
                 )}
               </div>
             </div>
@@ -143,11 +152,16 @@ export function LinkAthleteSheet({
           </p>
         ) : (
           <>
-            <p className="text-xs leading-relaxed text-ink-500" dir="auto">
-              {/* Said plainly, because it is the reason this screen needs a human: the two rows
-                  are the same person written in two alphabets, and no matcher bridges that. */}
-              המועמד נרשם לאפליקציה בעצמו, ושם החשבון באנגלית. ההצעות למטה לפי אימייל, טלפון ותאריך הרשמה.
-            </p>
+            {fromForm ? (
+              <div className="rounded-card bg-page px-3.5 py-3 text-xs leading-relaxed text-ink-500" dir="auto">
+                <p className="text-sm font-bold text-ink-900">כרגע: חשבון חדש שנפתח מהטופס</p>
+                אם הוא כבר רץ אצלנו, בחר את החשבון שלו. הטופס, השלבים וההערות יעברו אליו.
+              </div>
+            ) : (
+              <p className="text-xs leading-relaxed text-ink-500" dir="auto">
+                ההצעות למטה לפי אימייל, טלפון, שם (גם בין עברית לאנגלית) ותאריך הרשמה. תמיד רק הצעה.
+              </p>
+            )}
 
             {suggestions.length > 0 && (
               <ul className="mt-3 space-y-1.5">
@@ -271,7 +285,7 @@ export function LinkAthleteSheet({
       {/* The confirm bar. Named back rather than tapped once: this write attaches one person's
           history to another person's account, and an exact email match is no less capable of
           being the wrong person than a guess is. */}
-      {chosen && !linkedAthlete && (
+      {chosen && !pinned && (
         // Sticky, because the row that was tapped may be at the top of a long roster and a
         // confirm bar below the fold is a tap that appears to have done nothing. The drawer's
         // body is the scroll container, so this sticks to the bottom of what is visible.
@@ -280,12 +294,12 @@ export function LinkAthleteSheet({
             לחבר את <span className="font-bold">{candidate.name}</span> לחשבון{' '}
             <bdi dir="ltr" className="font-bold">{chosen.name}</bdi>?
           </p>
-          {needsAcademyFlag(chosen) && (
-            // A write on somebody else's row, said before it happens.
-            <p className="mt-1 text-[11px] text-ink-500" dir="auto">
-              החשבון הזה יסומן גם כמתאמן אקדמיה.
-            </p>
-          )}
+          {/* What the link does, said before it happens: two of the three are writes. */}
+          <ul className="mt-1 list-disc ps-4 text-[11px] leading-relaxed text-ink-500" dir="auto">
+            <li>התשובות מהטופס עוברות לחשבון שלו</li>
+            {fromForm && <li>החשבון החדש שנפתח מהטופס יימחק</li>}
+            <li>האפליקציה שלו לא משתנה: לשונית האקדמיה נפתחת לו רק ב&quot;קבלה&quot;</li>
+          </ul>
           <div className="mt-2.5 flex gap-2">
             <button
               type="button"
