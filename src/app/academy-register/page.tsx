@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { GraduationCap, CheckCircle2 } from 'lucide-react';
 import { Card, Button, LoadingBlock } from '@/components/ui';
-import { CLOTHING_SIZES, SOCK_SIZES } from '@/lib/kit-sizes';
+import { CLOTHING_SIZES } from '@/lib/kit-sizes';
+import { EU_SHOE_SIZES } from '@/lib/shoe-catalog';
 import { formNameProblem, normalizeDisplayName } from '@/lib/names/latin';
 import { HONEYPOT_FIELD, looksLikeToken, numberOnly, splitName } from '@/lib/academy/intake';
 
@@ -83,7 +84,9 @@ const FIELDS: Field[] = [
   { key: 'shirtSize', label: 'מה מידת החולצה שלך', type: 'chips', required: true, options: [...CLOTHING_SIZES] },
   { key: 'pantsSize', label: 'מה מידת המכנסיים שלך', type: 'chips', required: true, options: [...CLOTHING_SIZES] },
   { key: 'tightsSize', label: 'מה מידת הטייץ שלך', type: 'chips', required: true, options: [...CLOTHING_SIZES] },
-  { key: 'socksSize', label: 'מה מידת הגרביים שלך', type: 'chips', required: true, options: [...SOCK_SIZES] },
+  // Shoe size rather than socks: socks follow from it, and it is the number people
+  // know. Twenty-nine half sizes are too many pills, so it is the native picker.
+  { key: 'shoeSize', label: 'מה מידת הנעליים שלך', type: 'select', required: true, options: EU_SHOE_SIZES },
 ];
 
 // The public form works via direct link; the landing-page "Join the Academy"
@@ -97,7 +100,7 @@ const STEPS: { title: string; keys: string[] }[] = [
   { title: 'הפרטים שלך', keys: ['firstName', 'lastName', 'email', 'phone'] },
   { title: 'קצת עליך', keys: ['focus', 'birthDate', 'weight', 'height', 'city'] },
   { title: 'הריצה שלך', keys: ['goal', 'group', 'runningHistory', 'achievements', 'hearAbout', 'hearAboutOther'] },
-  { title: 'בריאות ומידות', keys: ['medicalHistory', 'medicalDetails', 'shirtSize', 'pantsSize', 'tightsSize', 'socksSize'] },
+  { title: 'בריאות ומידות', keys: ['medicalHistory', 'medicalDetails', 'shirtSize', 'pantsSize', 'tightsSize', 'shoeSize'] },
 ];
 const FIELD_BY_KEY = new Map(FIELDS.map(f => [f.key, f]));
 
@@ -330,6 +333,17 @@ export default function AcademyRegisterPage() {
                     </label>
                   ))}
                 </div>
+              )}
+
+              {f.type === 'select' && (
+                <select
+                  aria-labelledby={`ar-${f.key}-q`} value={values[f.key] || ''}
+                  onChange={e => set(f.key, e.target.value)}
+                  className="w-full min-h-[46px] bg-page border border-ink-300 rounded-lg px-3 py-2.5 text-base text-ink-700 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                >
+                  <option value="" disabled>בחירה</option>
+                  {f.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
               )}
 
               {f.type === 'chips' && (

@@ -36,15 +36,16 @@ function labelKeys(): string[] {
 describe('academy registration kit sizes', () => {
   it('asks for all four kit sizes', () => {
     const keys = formKeys();
-    for (const k of ['shirtSize', 'pantsSize', 'tightsSize', 'socksSize']) {
+    for (const k of ['shirtSize', 'pantsSize', 'tightsSize', 'shoeSize']) {
       expect(keys, `${k} is missing from the form`).toContain(k);
     }
   });
 
-  it('renders the size questions as chips, not four stacked radio lists', () => {
-    // Six sizes x four questions as radios is twenty-four rows, which pushes the
-    // medical and goal questions off the first screen on a phone.
-    expect(fields.match(/type: 'chips'/g)?.length).toBe(4);
+  it('renders the garment sizes as chips, not stacked radio lists', () => {
+    // Six sizes x three questions as radios is eighteen rows, which pushes the
+    // medical and goal questions off the first screen on a phone. The shoe size is
+    // a native picker instead: twenty-nine half sizes are too many pills.
+    expect(fields.match(/type: 'chips'/g)?.length).toBe(3);
     expect(form).toContain("f.type === 'chips'");
   });
 
@@ -55,9 +56,9 @@ describe('academy registration kit sizes', () => {
       expect(line, `${k} is missing`).toBeTruthy();
       expect(line, `${k} spells its options out instead of using CLOTHING_SIZES`).toContain('CLOTHING_SIZES');
     }
-    // Socks are sized off the shoe, so they are deliberately a different list.
-    const socks = form.split('\n').find(l => l.includes("key: 'socksSize'"));
-    expect(socks).toContain('SOCK_SIZES');
+    // The shoe size (it replaced the sock span, 2.41.57) is the EU half-size list.
+    const shoe = form.split('\n').find(l => l.includes("key: 'shoeSize'"));
+    expect(shoe).toContain('EU_SHOE_SIZES');
   });
 
   it("pills are type=button, so picking a size cannot submit the form", () => {

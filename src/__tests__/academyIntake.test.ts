@@ -288,3 +288,12 @@ describe('the form: birth date and units', () => {
     expect(birthDateLabel('', now)).toBe('—');
   });
 });
+
+describe('the form: shoe size', () => {
+  it('asks the shoe size from the EU list instead of the sock span', () => {
+    const page = require('node:fs').readFileSync('src/app/academy-register/page.tsx', 'utf8') as string;
+    expect(page).toContain("{ key: 'shoeSize', label: 'מה מידת הנעליים שלך', type: 'select', required: true, options: EU_SHOE_SIZES }");
+    expect(page).not.toMatch(/key: 'socksSize'/);
+    expect(page).toContain("f.type === 'select' && (");
+  });
+});

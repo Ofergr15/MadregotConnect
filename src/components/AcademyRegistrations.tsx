@@ -45,6 +45,7 @@ const LABELS: Record<string, string> = {
   pantsSize: 'מידת מכנסיים',
   tightsSize: 'מידת טייץ',
   socksSize: 'מידת גרביים',
+  shoeSize: 'מידת נעליים',
 };
 
 // Questions the form no longer asks. Older registrations still carry the answer

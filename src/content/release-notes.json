@@ -1,5 +1,13 @@
 [
   {
+    "id": "academy-form-shoe-size",
+    "date": "2026-09-30",
+    "kind": "fix",
+    "icon": "👟",
+    "title": "טופס האקדמיה: מידת נעליים",
+    "body": "במקום מידת גרביים, הטופס שואל עכשיו מידת נעליים."
+  },
+  {
     "id": "academy-link-preview-birthdate",
     "date": "2026-09-30",
     "kind": "fix",
