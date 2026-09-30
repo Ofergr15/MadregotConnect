@@ -11,12 +11,15 @@ describe('academyFormReceivedEmail', () => {
   const { subject, html } = academyFormReceivedEmail({ name: 'עופר גרוספלד' });
 
   it('greets by first name, in the subject and the header', () => {
-    expect(subject).toBe('קיבלנו, עופר. המדרגה הראשונה מאחוריך 🎉');
-    expect(html).toContain('קיבלנו, עופר.');
+    expect(subject).toBe('היי עופר, קיבלנו את טופס ההרשמה שלך לאקדמיה של מדרגות 🏃');
+    expect(html).toContain('היי עופר,');
+    expect(html).toContain('קיבלנו את טופס ההרשמה שלך');
   });
 
-  it('carries the full club badge', () => {
+  it('carries the full club badge, and the stairs mark in place of the runner emoji', () => {
     expect(html).toMatch(/<img src="[^"]*\/images\/logo-white\.png" width="132"/);
+    expect(html).toMatch(/לאקדמיה של מדרגות <img src="[^"]*\/images\/stairs-white\.png"/);
+    expect(html).not.toContain('🏃');
   });
 
   it('shows the four steps and no test', () => {
@@ -33,8 +36,8 @@ describe('academyFormReceivedEmail', () => {
 
   it('still reads without a name', () => {
     const e = academyFormReceivedEmail({ name: '' });
-    expect(e.subject).toBe('קיבלנו! המדרגה הראשונה מאחוריך 🎉');
-    expect(e.html).toContain('קיבלנו!');
+    expect(e.subject).toBe('היי, קיבלנו את טופס ההרשמה שלך לאקדמיה של מדרגות 🏃');
+    expect(e.html).toContain('היי,');
   });
 });
 

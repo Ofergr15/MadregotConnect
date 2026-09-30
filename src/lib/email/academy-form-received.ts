@@ -17,22 +17,25 @@ import { esc } from './template';
  * the header still carries the greeting as live text.
  */
 
-const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif";
-const LOGO = `${APP_URL}/images/logo-white.png`;
+export const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif";
+export const LOGO = `${APP_URL}/images/logo-white.png`;
+/** The club's stairs mark, white on clear: stands in for the 🏃 of the subject line
+ *  at the end of the header sentence, where an emoji would be the only non-club art. */
+const STAIRS = `${APP_URL}/images/stairs-white.png`;
 
 // Palette "ג · שקיעה על המסלול" from the approved mockup.
-const PAGE = '#FBF1EC';
-const DUSK = '#23208F';
-const SUN = '#F0643C';
-const EYEBROW = '#FFD9C9';
-const HEADER_SUB = '#FFE7DC';
-const TAG = '#C2461F';
-const TAG_BG = '#FFEDE5';
-const MUTED = '#A59C95';
-const MUTED_LINE = '#EDE3DC';
-const BODY = '#3A3B45';
-const SOFT = '#5B5F73';
-const INK = '#1D1E26';
+export const PAGE = '#FBF1EC';
+export const DUSK = '#23208F';
+export const SUN = '#F0643C';
+export const EYEBROW = '#FFD9C9';
+export const HEADER_SUB = '#FFE7DC';
+export const TAG = '#C2461F';
+export const TAG_BG = '#FFEDE5';
+export const MUTED = '#A59C95';
+export const MUTED_LINE = '#EDE3DC';
+export const BODY = '#3A3B45';
+export const SOFT = '#5B5F73';
+export const INK = '#1D1E26';
 
 type StepState = 'done' | 'next' | 'later';
 const STEPS: Array<{ mark: string; label: string; state: StepState }> = [
@@ -77,7 +80,7 @@ function tracker(): string {
 
 export function renderAcademyFormReceived(p: { firstName: string }): string {
   const who = p.firstName.trim();
-  const title = who ? `קיבלנו, ${esc(who)}.` : 'קיבלנו!';
+  const title = who ? `היי ${esc(who)},` : 'היי,';
   const preheader = 'בימים הקרובים נחזור אליך לשיחת היכרות קצרה.';
 
   return `<!DOCTYPE html>
@@ -100,11 +103,11 @@ export function renderAcademyFormReceived(p: { firstName: string }): string {
     <img src="${LOGO}" width="132" height="132" alt="Madregot After 2KM Running Club" style="display: block; width: 132px; height: 132px; border: 0; margin: 0 auto;" />
     <div style="font-family: ${FONT}; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; color: ${EYEBROW}; margin-top: 14px;">האקדמיה של מדרגות</div>
     <div style="font-family: ${FONT}; font-size: 30px; font-weight: 800; color: #ffffff; line-height: 1.25; margin-top: 6px;">${title}</div>
-    <div style="font-family: ${FONT}; font-size: 15px; color: ${HEADER_SUB}; margin-top: 6px;">המדרגה הראשונה מאחוריך</div>
+    <div style="font-family: ${FONT}; font-size: 16px; line-height: 1.55; color: ${HEADER_SUB}; margin-top: 6px;">קיבלנו את טופס ההרשמה שלך<br />לאקדמיה של מדרגות <img src="${STAIRS}" width="20" height="20" alt="" style="display: inline-block; width: 20px; height: 20px; border: 0; vertical-align: -3px;" /></div>
   </td></tr>
 
   <tr><td bgcolor="#ffffff" dir="rtl" align="center" style="background-color: #ffffff; border-radius: 0 0 26px 26px; padding: 28px 22px 30px; text-align: center; font-family: ${FONT};">
-    <p style="font-size: 16px; line-height: 1.8; color: ${BODY}; margin: 0 0 26px;">הטופס שלך הגיע אלינו, ותודה שסיפרת לנו על עצמך.<br />ככה זה ממשיך מכאן:</p>
+    <p style="font-size: 16px; line-height: 1.8; color: ${BODY}; margin: 0 0 26px;">תודה שסיפרת לנו על עצמך.<br />ככה זה ממשיך מכאן:</p>
     ${tracker()}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 26px 0 0;"><tr>
       <td bgcolor="${TAG_BG}" align="center" style="background-color: ${TAG_BG}; border-radius: 18px; padding: 18px 18px 20px; text-align: center;">

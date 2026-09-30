@@ -877,6 +877,16 @@ export function CandidateFunnel() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  // /dashboard/academy?tab=funnel&candidate={id} — the staff "new applicant" mail's
+  // button lands on that one card, not on the board to hunt for it. Once, on the
+  // first load; an archived or unknown id just leaves the board as it is.
+  const [deepLinked, setDeepLinked] = useState(false);
+  useEffect(() => {
+    if (!data || deepLinked) return;
+    setDeepLinked(true);
+    const id = new URLSearchParams(window.location.search).get('candidate');
+    if (id && data.candidates.some(c => c.id === id && !c.archivedAt)) setOpenId(id);
+  }, [data, deepLinked]);
 
   const board = useMemo(
     () => (data ? buildFunnel({ candidates: data.candidates, events: data.events, now }) : null),

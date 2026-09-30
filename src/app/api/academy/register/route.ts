@@ -95,7 +95,10 @@ export async function POST(request: Request) {
       const candidateId = await recordFormCandidate(supabase as any, {
         name: fullName, email: normEmail, phone: phoneValue, inviteToken, src, athleteId,
       });
-      await notifyAdminNewAcademyRegistration({ name: fullName, email: normEmail, phone, existingMember });
+      await notifyAdminNewAcademyRegistration({
+        name: fullName, email: normEmail, phone, existingMember, candidateId,
+        intake: intake && typeof intake === 'object' ? intake : null,
+      });
       await notifyAcademyFormReceived({ email: normEmail, name: fullName, candidateId, athleteId });
     };
 

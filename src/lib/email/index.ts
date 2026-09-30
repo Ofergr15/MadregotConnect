@@ -4,6 +4,7 @@ import { renderEmail, renderSetupProgress, esc, type SetupProgressRow } from './
 import { gapNames } from '@/lib/notifications/copy';
 import { sendEmail, type SendResult } from './send';
 import { renderAcademyFormReceived } from './academy-form-received';
+import { newApplicantSubject, renderAcademyNewApplicant } from './academy-new-applicant';
 
 /**
  * Every email this app sends, one function each.
@@ -370,28 +371,22 @@ export async function notifyAdminNewAcademyRegistration(user: {
   name: string;
   email: string;
   phone?: string;
+  /** The form's academy_intake answers: age, city, focus, pack, background. */
+  intake?: Record<string, unknown> | null;
+  /** The funnel card, so the button opens it rather than the whole board. */
+  candidateId?: string | null;
   /** The address already belongs to a roster row, which the form left untouched. */
   existingMember?: boolean;
 }): Promise<SendResult> {
+  // The academy board, not the approvals list: an academy applicant is let in
+  // from the academy after the calls, never by the generic approve button.
+  const path = `/dashboard/academy?tab=funnel${user.candidateId ? `&candidate=${encodeURIComponent(user.candidateId)}` : ''}`;
   return sendEmail({
     template: 'admin_new_academy_registration',
     to: ADMIN_EMAIL,
-    subject: `🎓 New academy registration: ${user.name}`,
-    html: renderEmail({
-      dir: 'ltr',
-      title: 'New academy registration',
-      rows: [
-        ['Name', user.name],
-        ['Email', user.email],
-        ['Phone', user.phone || '—'],
-        ...(user.existingMember
-          ? [['Existing member', 'Yes — this address is already on the roster, so the account was not changed. Link it from the academy funnel if this is them.'] as [string, string]]
-          : []),
-      ],
-      // The academy board, not the approvals list: an academy applicant is let in
-      // from the academy after the calls, never by the generic approve button.
-      cta: { label: 'Open the academy intake →', href: openInAppHref(APP_URL, '/dashboard/academy?tab=funnel') },
-    }),
+    fromName: ACADEMY_SENDER,
+    subject: newApplicantSubject(user),
+    html: renderAcademyNewApplicant({ ...user, href: openInAppHref(APP_URL, path) }),
   });
 }
 
@@ -446,7 +441,7 @@ export async function notifyAcademyInvite(p: {
 export function academyFormReceivedEmail(p: { name?: string | null }): BuiltEmail {
   const who = firstName(p.name);
   return {
-    subject: who ? `קיבלנו, ${who}. המדרגה הראשונה מאחוריך 🎉` : 'קיבלנו! המדרגה הראשונה מאחוריך 🎉',
+    subject: `היי${who ? ` ${who}` : ''}, קיבלנו את טופס ההרשמה שלך לאקדמיה של מדרגות 🏃`,
     html: renderAcademyFormReceived({ firstName: who }),
   };
 }
