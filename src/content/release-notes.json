@@ -1,5 +1,13 @@
 [
   {
+    "id": "academy-form-hebrew-name-hints",
+    "date": "2026-09-30",
+    "kind": "fix",
+    "icon": "✏️",
+    "title": "טופס האקדמיה: דוגמאות שם בעברית",
+    "body": "הדוגמאות בשדות השם מופיעות עכשיו בעברית בלבד."
+  },
+  {
     "id": "academy-form-centered",
     "date": "2026-09-30",
     "kind": "fix",

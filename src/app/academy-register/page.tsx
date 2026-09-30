@@ -39,8 +39,8 @@ const SHOWN_WHEN: Record<string, { on: string; when: (answer: any) => boolean }>
 const FIELDS: Field[] = [
   // Hebrew or English, whichever the applicant writes (lib/names/latin.ts
   // formNameProblem). The roster's Latin name arrives with Strava at /join.
-  { key: 'firstName', label: 'שם פרטי', type: 'text', required: true, placeholder: 'דניאל / Daniel' },
-  { key: 'lastName', label: 'שם משפחה', type: 'text', required: true, placeholder: 'לוי / Levi' },
+  { key: 'firstName', label: 'שם פרטי', type: 'text', required: true, placeholder: 'דניאל' },
+  { key: 'lastName', label: 'שם משפחה', type: 'text', required: true, placeholder: 'לוי' },
   { key: 'email', label: 'אימייל', type: 'email', required: true },
   { key: 'phone', label: 'מספר נייד', type: 'tel', required: true, placeholder: '050-0000000' },
   { key: 'focus', label: 'מה מדבר אליך יותר', type: 'radio', required: true, options: [
