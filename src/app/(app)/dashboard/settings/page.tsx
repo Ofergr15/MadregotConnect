@@ -31,6 +31,7 @@ import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, BackNa
 import { AthleteLink } from '@/components/AthleteLink';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { WhatsNewSettingsRow } from '@/components/whats-new/WhatsNewSheet';
+import { AcademyIntakeList } from '@/components/admin/AcademyIntakeList';
 
 type TFunc = ReturnType<typeof useTranslations>;
 
@@ -51,6 +52,8 @@ interface User {
   blocked?: boolean;
   /** A watch credential is on file — not `onboardingStatus`, which goes stale. */
   hasWatch?: boolean;
+  /** Came in through the academy form — see AcademyIntakeList. */
+  isAcademy?: boolean;
 }
 
 type Role = 'admin' | 'coach' | 'academy_coach' | 'runner' | 'core_runner' | 'academy_user' | 'viewer';
@@ -158,16 +161,19 @@ function ApprovalOutcome({ outcome, t }: { outcome?: 'released' | 'approved'; t:
  * fix it. `null` is a real choice, not an empty state: a brand-new member has no
  * squad yet and un-assigning one is how you park them.
  */
-function GroupDropdown({ value, groups, onChange, disabled, t }: {
+function GroupDropdown({ value, groups, onChange, disabled, t, warnEmpty = false }: {
   value: string | null | undefined;
   groups: GroupOption[];
   onChange: (groupId: string | null) => void;
   disabled: boolean;
   t: TFunc;
+  /** The approvals card: no pack is something to fix before approving, so say so. */
+  warnEmpty?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const current = groups.find(g => g.id === value);
   const resolved = current ? resolveGroup(current.name) : null;
+  const warn = warnEmpty && !resolved;
 
   return (
     <>
@@ -175,15 +181,16 @@ function GroupDropdown({ value, groups, onChange, disabled, t }: {
         onClick={() => !disabled && setOpen(true)}
         disabled={disabled}
         className={cn(
-          'flex items-center gap-1.5 px-2.5 min-h-[44px] rounded-lg border border-page text-xs font-semibold text-ink-500 bg-page/60 transition-colors',
+          'flex items-center gap-1.5 px-2.5 min-h-[44px] rounded-lg border text-xs font-semibold transition-colors',
+          warn ? 'border-band-3/30 bg-band-3/10 text-band-3-ink' : 'border-page text-ink-500 bg-page/60',
           disabled ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-95 cursor-pointer'
         )}
       >
         <span
-          className="w-1.5 h-1.5 rounded-full shrink-0"
-          style={{ backgroundColor: resolved ? resolved.hex : '#969696' }}
+          className={cn('w-1.5 h-1.5 rounded-full shrink-0', warn && 'bg-band-3')}
+          style={warn ? undefined : { backgroundColor: resolved ? resolved.hex : '#969696' }}
         />
-        {resolved ? resolved.displayName : t('noGroup')}
+        {resolved ? resolved.displayName : warn ? t('noGroupPick') : t('noGroup')}
         <ChevronDown className="h-3 w-3" />
       </button>
 
@@ -1018,9 +1025,12 @@ export default function SettingsPage() {
 
   // Oldest signup first: somebody who has been waiting a week outranks somebody
   // who signed up an hour ago, and the previous order was by email address.
+  // Academy applicants are NOT here: they wait on the academy's calls, not on an
+  // approve tap, and get their own group below (AcademyIntakeList).
   const pendingUsers = users
-    .filter(u => u.approved === false)
+    .filter(u => u.approved === false && !u.isAcademy)
     .sort((a, b) => (a.createdAt || '9999').localeCompare(b.createdAt || '9999'));
+  const academyApplicants = users.filter(u => u.approved === false && u.isAcademy);
   const allActiveUsers = users.filter(u => u.approved !== false);
   // Approved and still shut out — the state that has no other name on any screen.
   const blockedActive = allActiveUsers.filter(u => u.blocked);
@@ -1272,6 +1282,7 @@ export default function SettingsPage() {
               </button>
               {pendOpen && (
               <div className="space-y-2">
+                <p className="text-xs text-ink-400 -mt-1 mb-1">{t('pendingApprovalHint')}</p>
                 {pendingUsers.map(user => (
                   <div key={user.id} className="p-3 rounded-xl bg-card/80 border border-page/50">
                     <div className="flex items-center gap-3">
@@ -1319,6 +1330,15 @@ export default function SettingsPage() {
                     {/* The chips that decide whether approving is enough: a watch
                         on file, and whether the window is also in their way. */}
                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      {/* The pack they will land in, fixable before the approve. */}
+                      <GroupDropdown
+                        value={user.groupId}
+                        groups={groupOptions}
+                        onChange={(groupId) => handleGroupSelect(user, groupId)}
+                        disabled={updatingUsers.has(user.id)}
+                        t={t}
+                        warnEmpty
+                      />
                       <StateChip tone={user.hasWatch ? 'ok' : 'muted'} icon={Watch}
                         label={user.hasWatch ? t('watchConnected') : t('noWatchYet')} />
                       {maintenanceOn && (
@@ -1326,6 +1346,15 @@ export default function SettingsPage() {
                           label={user.blocked ? t('blockedByMaintenance') : t('allowedThrough')} />
                       )}
                     </div>
+                    {/* Who this is before letting them in: which door, and an address. */}
+                    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 mt-2 pt-2 border-t border-page/50 text-xs">
+                      <dt className="text-ink-400">{t('signedUpVia')}</dt>
+                      <dd className="font-semibold text-ink-700">{realAddress(user.email) ? 'Google' : 'Strava'}</dd>
+                      <dt className="text-ink-400">{t('emailLabel')}</dt>
+                      <dd className="font-semibold text-ink-700 truncate" dir="ltr" style={{ textAlign: 'right' }}>
+                        {realAddress(user.email) || t('noEmailStrava')}
+                      </dd>
+                    </dl>
                     <ApprovalOutcome outcome={approveOutcome[user.id]} t={t} />
                   </div>
                 ))}
@@ -1334,6 +1363,8 @@ export default function SettingsPage() {
             </div>
             );
           })()}
+
+          <AcademyIntakeList applicants={academyApplicants} />
 
           {/* Active Users — collapsible section per role, split by group inside */}
           <div className="rounded-card border border-page/50 bg-card/50 overflow-hidden">

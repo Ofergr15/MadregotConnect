@@ -47,7 +47,7 @@ const SETUP_COLUMNS =
 // (see the duplicate-warning block below), not for the flow itself. Both predate
 // every migration this route degrades past, so they are safe in the BASE row.
 const BASE_COLUMNS = `id, name, email, status, role, strava_athlete_id, created_at, ${SETUP_COLUMNS}`;
-const PRE_100_COLUMNS = `${BASE_COLUMNS}, approved, approved_at, last_seen_at, active_shoe_id`;
+const PRE_100_COLUMNS = `${BASE_COLUMNS}, approved, approved_at, last_seen_at, active_shoe_id, is_academy`;
 // Stepped separately from PRE_100 for the same reason as /api/onboarding: falling
 // straight to BASE would also drop `approved`, and this route reads a missing
 // `approved` as "everyone is approved" — a wrong answer on the approval screen.
@@ -236,6 +236,7 @@ export async function GET(request: Request) {
         setupDone: setup.doneCount,
         setupTotal: setup.totalCount,
         stage: entryStage({ approved, blocked, lastSeenAt, hasWatch, hasPush }),
+        academy: a.is_academy === true,
         authAccountAt: auth?.createdAt || null,
         lastSignInAt: auth?.lastSignInAt || null,
         loginKnown: authFacts !== null,

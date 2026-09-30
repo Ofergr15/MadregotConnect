@@ -8,7 +8,7 @@ import {
   Wrench, Search, Lock, Unlock, Bell, BellOff, Watch, Activity,
   CheckCircle2, UserCheck, ChevronLeft, Users as UsersIcon,
   UserPlus, Mail, Smartphone, AlertTriangle, HelpCircle,
-  UserMinus, RotateCcw, Trash2, ShieldAlert, FileClock,
+  UserMinus, RotateCcw, Trash2, ShieldAlert, FileClock, GraduationCap,
 } from 'lucide-react';
 import { cn, getGroupChip, groupDisplayName } from '@/lib/utils';
 import { useApi } from '@/lib/api';
@@ -186,7 +186,7 @@ export default function EntryQueuePage() {
   // the funnel, in the groups and in the headline. Anything less and the screen
   // says "nobody is waiting" while somebody is.
   const counts = useMemo(() => {
-    const out = { mine: 0, login: 0, watch: 0, profile: 0, ready: 0, all: 0, removed: 0 } as Record<Filter, number>;
+    const out = { mine: 0, academy: 0, login: 0, watch: 0, profile: 0, ready: 0, all: 0, removed: 0 } as Record<Filter, number>;
     for (const m of members) out[groupOf.get(m.id)!] += 1;
     out.mine += orphans.length;
     out.all = members.length + orphans.length;
@@ -797,6 +797,9 @@ export default function EntryQueuePage() {
             const groupStyle = getGroupChip(m.groupName);
             const busy = busyId === m.id;
             const mine = groupOf.get(m.id) === 'mine';
+            // In the academy's intake: its calls come first, and access opens from
+            // the academy screen, so no approve and no reminder here.
+            const academy = groupOf.get(m.id) === 'academy';
             const days = stuck ? daysSince(waitingSince(m, stuck)) : null;
             return (
               <Card key={m.id} variant="solid">
@@ -846,7 +849,7 @@ export default function EntryQueuePage() {
                       mine ? 'text-accent-red' : 'text-band-3-ink',
                     )}>
                       <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <span>{stuckLine(m, stuck)}</span>
+                      <span>{academy ? t('whyAcademy') : stuckLine(m, stuck)}</span>
                     </p>
                     {days !== null && (
                       <p className="text-2xs text-ink-400 mt-1 ps-5">
@@ -919,7 +922,7 @@ export default function EntryQueuePage() {
                     inbox. Both were only discoverable by tapping and reading the
                     result — which is a strange way to find out you just sent a
                     stranger's phone a notification about their shirt size. */}
-                {stuck && !mine && canApprove && (
+                {stuck && !mine && !academy && canApprove && (
                   <p className="mt-2.5 text-2xs text-ink-400 leading-relaxed" dir="rtl">
                     {gapList(m).length > 0
                       ? t('reminderWillSay', { items: gapList(m).join(' · ') })
@@ -939,7 +942,14 @@ export default function EntryQueuePage() {
                 {/* One action per card. For anybody the club is holding out, it is
                     the same button whichever door is shut: approve and release. */}
                 <div className="flex items-center gap-2 mt-4">
-                  {mine && canApprove ? (
+                  {academy ? (
+                    <Link href="/dashboard/academy?tab=funnel" className="flex-1">
+                      <Button variant="secondary" className="w-full">
+                        <GraduationCap className="h-4 w-4" />
+                        {t('openAcademy')}
+                      </Button>
+                    </Link>
+                  ) : mine && canApprove ? (
                     <Button variant="primary" className="flex-1" onClick={() => letIn(m)} disabled={busy}>
                       <Unlock className="h-4 w-4" />
                       {busy ? t('saving') : m.approved ? t('releaseEntry') : t('approveEntry')}
@@ -969,7 +979,7 @@ export default function EntryQueuePage() {
                       </Button>
                     </Link>
                   )}
-                  {stuck && !mine && canApprove && (
+                  {stuck && !mine && !academy && canApprove && (
                     <Link href={teammateHref(m.id) ?? '/dashboard/athletes'}>
                       <Button variant="ghost" title={t('openProfile')}>
                         <ChevronLeft className="h-4 w-4" />

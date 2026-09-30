@@ -47,6 +47,11 @@ interface User {
   /** In the גרעין. Read through isCoreRunner(), so the legacy role counts too. */
   isCoreRunner?: boolean;
   /**
+   * Came in through the academy form. An unapproved one is in the academy's intake,
+   * admitted from the academy screen, not from the approvals list.
+   */
+  isAcademy?: boolean;
+  /**
    * Is the maintenance window keeping this person out RIGHT NOW — the same
    * verdict `resolveVerifiedCaller` enforces, resolved here rather than in the
    * browser. Approval is only one of the two doors, so a roster that shows
@@ -85,7 +90,7 @@ export async function GET(request: Request) {
     const CREDENTIALS = 'garmin_auth, strava_auth';
     const withFlag = await supabase
       .from('athletes')
-      .select(`${BASE_COLUMNS}, ${CREDENTIALS}, is_core_runner`)
+      .select(`${BASE_COLUMNS}, ${CREDENTIALS}, is_core_runner, is_academy`)
       .order('email');
 
     const { data: athletes, error } =
@@ -110,6 +115,7 @@ export async function GET(request: Request) {
       lastSeenAt: a.last_seen_at,
       createdAt: a.created_at ?? null,
       isCoreRunner: isCoreRunner(a),
+      isAcademy: a.is_academy === true,
       blocked: isBlockedByMaintenance({ id: a.id, email: a.email }, maintenance),
       hasWatch: !!(a.garmin_auth || a.strava_auth),
     }));

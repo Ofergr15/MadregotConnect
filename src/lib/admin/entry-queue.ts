@@ -58,6 +58,12 @@ export interface EntryQueueMember {
   hasStrava: boolean;
   /** Rows in push_subscriptions: whether they can be told anything. */
   hasPush: boolean;
+  /**
+   * Came in through the academy form (`athletes.is_academy`). An unapproved one is
+   * not waiting on the approve button: the academy's calls come first, and access
+   * opens from the academy screen — see flowGroup.
+   */
+  academy?: boolean;
   setupDone: number;
   setupTotal: number;
   stage: EntryStage;
@@ -346,12 +352,21 @@ export function flowFunnel(members: EntryQueueMember[]): Record<FlowStep, number
  * The list's groups — the buckets a coach works, one per kind of next action.
  *
  * 'mine' is the only one that needs the coach: approve, or release from the
- * window. The rest need a nudge, and 'ready' needs nothing.
+ * window. 'academy' is somebody still in the academy's intake, admitted from the
+ * academy screen. The rest need a nudge, and 'ready' needs nothing.
  */
-export const FLOW_GROUPS = ['mine', 'login', 'watch', 'profile', 'ready'] as const;
+export const FLOW_GROUPS = ['mine', 'academy', 'login', 'watch', 'profile', 'ready'] as const;
 export type FlowGroup = (typeof FLOW_GROUPS)[number];
 
+/** Signed up through the academy form and not admitted yet. */
+export function isAcademyApplicant(m: Pick<EntryQueueMember, 'academy' | 'approved'>): boolean {
+  return !!m.academy && !m.approved;
+}
+
 export function flowGroup(m: EntryQueueMember): FlowGroup {
+  // An academy applicant waits on the academy's process (intro call, characterization
+  // call, pairing), not on this screen's approve button, so it is never 'mine'.
+  if (isAcademyApplicant(m)) return 'academy';
   const { stuckAt } = memberFlow(m);
   if (!stuckAt) return 'ready';
   if (stuckAt === 'approved') return 'mine';

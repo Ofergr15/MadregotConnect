@@ -387,7 +387,9 @@ export async function notifyAdminNewAcademyRegistration(user: {
           ? [['Existing member', 'Yes — this address is already on the roster, so the account was not changed. Link it from the academy funnel if this is them.'] as [string, string]]
           : []),
       ],
-      cta: { label: 'Review & approve →', href: openInAppHref(APP_URL, '/dashboard/settings') },
+      // The academy board, not the approvals list: an academy applicant is let in
+      // from the academy after the calls, never by the generic approve button.
+      cta: { label: 'Open the academy intake →', href: openInAppHref(APP_URL, '/dashboard/academy?tab=funnel') },
     }),
   });
 }
