@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { createServerClient } from '@/lib/supabase/server';
+import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { readEmailConfig } from './config';
 
 /**
@@ -53,6 +54,8 @@ export interface OutboundEmail {
   /** Optional back-references so a person's mail history is one query. */
   athleteId?: string | null;
   signupRequestId?: string | null;
+  /** The academy funnel card this mail was about (migration 126). */
+  candidateId?: string | null;
 }
 
 /**
@@ -92,11 +95,14 @@ function isSynthetic(address: string): boolean {
  *  which is never treated as a failure of the send. */
 async function writeLog(row: Record<string, unknown>): Promise<string | null> {
   try {
-    const { data, error } = await createServerClient()
-      .from('email_log')
-      .insert(row)
-      .select('id')
-      .single();
+    const insert = (r: Record<string, unknown>) =>
+      createServerClient().from('email_log').insert(r).select('id').single();
+    let { data, error } = await insert(row);
+    // Before migration 126 there is no candidate_id column: keep the row, lose the link.
+    if (error && 'candidate_id' in row && isMissingColumn(error, 'candidate_id')) {
+      const { candidate_id: _dropped, ...rest } = row;
+      ({ data, error } = await insert(rest));
+    }
     if (error) {
       // 42P01 = table missing, i.e. migration 096 has not been applied yet. Expected,
       // and not worth shouting about; anything else is a real problem worth a log line.
@@ -122,6 +128,7 @@ export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
     from_address: cfg.from,
     athlete_id: msg.athleteId ?? null,
     signup_request_id: msg.signupRequestId ?? null,
+    ...(msg.candidateId ? { candidate_id: msg.candidateId } : {}),
   };
 
   if (!to.length && asked.length) {

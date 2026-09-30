@@ -22,6 +22,7 @@ import { apiHeaders, useApi } from '@/lib/api';
 // sends, so behind the gate every lead who arrived during a maintenance window met
 // the rebuilding screen and was lost without anyone hearing of it. The page after
 // it, /join/academy/[token], is already covered by '/join'.
+// '/academy' is the Instagram bio link in front of that form (door B), so the same.
 // '/claim' is here for the same reason as '/register': it is a link we MAIL to a
 // person (migration 098 — a member proving that a Strava sign-in is theirs), it is
 // valid for half an hour, and it is single-use. Behind the gate, the one click that
@@ -39,7 +40,7 @@ import { apiHeaders, useApi } from '@/lib/api';
 // rather than resolveVerifiedCaller, so it is one of the few routes NOT 503'd
 // during a window.) Nothing on the page is club content — it is a spinner, a claim
 // form and install instructions.
-const PUBLIC_PATHS = ['/', '/login', '/auth', '/garmin-callback', '/join', '/register', '/academy-register', '/claim', '/pending-approval'];
+const PUBLIC_PATHS = ['/', '/login', '/auth', '/garmin-callback', '/join', '/register', '/academy', '/academy-register', '/claim', '/pending-approval'];
 const isPublicPath = (p: string) =>
   PUBLIC_PATHS.some((pub) => p === pub || p.startsWith(pub + '/'));
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, ClipboardList, Link2, Plus, RotateCcw, Undo2, UserPlus } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ClipboardList, GraduationCap, Link2, Mail, Plus, RotateCcw, Undo2, UserPlus } from 'lucide-react';
 import { apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { EmptyState, LoadingBlock, SegmentedControl, Sheet } from '@/components/ui';
@@ -19,6 +19,7 @@ import type { Characterization } from '@/lib/academy/characterization';
 import type { LinkableAthlete } from '@/lib/academy/link';
 import { CharacterizationSheet } from './CharacterizationForm';
 import { LinkAthleteSheet } from './LinkAthleteSheet';
+import { AcceptSheet, EmailHistory, InviteSheet, type CandidateEmail, type FunnelCoach } from './AdmitSheets';
 import { initialsOf } from './types';
 
 // ── The candidates board ─────────────────────────────────────────────────────
@@ -55,10 +56,22 @@ import { initialsOf } from './types';
 // on every card is "days waiting", which is relative to the reader's own today,
 // and a server-side count would show an Israeli coach yesterday's number at 00:30.
 
+/** What the card knows beyond the pure funnel row: contact, and migration 126's invite trail. */
+type CardExtras = {
+  email?: string | null;
+  phone?: string | null;
+  invitedAt?: string | null;
+  acceptedAt?: string | null;
+  emails?: CandidateEmail[];
+};
+
 interface FunnelResponse {
-  candidates: (CandidateRow & { email?: string | null; phone?: string | null })[];
+  candidates: (CandidateRow & CardExtras)[];
   events: CandidateEvent[];
   tableMissing?: boolean;
+  /** Whether this reader may invite and accept (manager or academy coach). */
+  me?: { canAdmit: boolean; isManager: boolean; athleteId: string | null };
+  coaches?: FunnelCoach[];
 }
 
 /**
@@ -421,9 +434,11 @@ export function CandidateSheet({
   characterizationState = 'empty',
   onLink,
   linkedAthleteName,
+  onInvite,
+  onAccept,
   busy,
 }: {
-  candidate: (CandidateRow & { email?: string | null; phone?: string | null }) | null;
+  candidate: (CandidateRow & CardExtras) | null;
   events: CandidateEvent[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -450,6 +465,10 @@ export function CandidateSheet({
    * mistake on this board. Seeing the name on the card is what makes it findable.
    */
   linkedAthleteName?: string | null;
+  /** Send the personal form link. Absent for readers who may not write to candidates. */
+  onInvite?: () => void;
+  /** Let them in: coach, approval, the "you're in" mail. Same audience as onInvite. */
+  onAccept?: () => void;
   busy?: string | null;
 }) {
   const steps = useMemo(
@@ -561,6 +580,42 @@ export function CandidateSheet({
             </span>
           </button>
         )}
+
+        {/* The two rows that write to the person. Invite is for the stage before the form
+            (it IS the form); accept is for the end of the selection. Both stay visible
+            after use, with the date, because "did we already send it" is the question. */}
+        {onInvite && !candidate.archivedAt && (
+          <button
+            type="button"
+            onClick={onInvite}
+            className="mt-2 flex w-full items-center justify-between gap-2 min-h-[48px] rounded-card bg-page px-3.5 text-sm font-bold text-ink-900"
+          >
+            <span className="flex items-center gap-2" dir="auto">
+              <Mail className="h-4 w-4 text-ink-500" />
+              הזמנה לטופס
+            </span>
+            <span className="text-xs font-medium text-ink-400" dir="auto">
+              {candidate.invitedAt ? <>נשלחה <bdi dir="ltr">{shortDate(candidate.invitedAt)}</bdi></> : 'לא נשלחה'}
+            </span>
+          </button>
+        )}
+        {onAccept && !candidate.archivedAt && (
+          <button
+            type="button"
+            onClick={onAccept}
+            className="mt-2 flex w-full items-center justify-between gap-2 min-h-[48px] rounded-card bg-page px-3.5 text-sm font-bold text-ink-900"
+          >
+            <span className="flex items-center gap-2" dir="auto">
+              <GraduationCap className="h-4 w-4 text-ink-500" />
+              קבלה לאקדמיה
+            </span>
+            <span className="text-xs font-medium text-ink-400" dir="auto">
+              {candidate.acceptedAt ? <>התקבל/ה <bdi dir="ltr">{shortDate(candidate.acceptedAt)}</bdi></> : ''}
+            </span>
+          </button>
+        )}
+
+        <EmailHistory emails={candidate.emails ?? []} />
 
         {/* Leaving, and coming back. Below the timeline and never beside a step: this is the
             one control on the card that takes somebody off the board, and a red row within a
@@ -797,6 +852,8 @@ export function CandidateFunnel() {
   const [linking, setLinking] = useState(false);
   const [roster, setRoster] = useState<LinkableAthlete[] | null>(null);
   const [rosterFailed, setRosterFailed] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [accepting, setAccepting] = useState(false);
 
   // The reader's own today, read once per load rather than per render: a `now`
   // that changes on every render would make every memo below a lie, and nobody
@@ -984,8 +1041,32 @@ export function CandidateFunnel() {
         linkedAthleteName={
           open?.athleteId ? (roster?.find(a => a.id === open.athleteId)?.name ?? null) : null
         }
+        onInvite={data?.me?.canAdmit ? () => setInviting(true) : undefined}
+        onAccept={data?.me?.canAdmit ? () => setAccepting(true) : undefined}
         busy={busy}
       />
+      {open && data?.me?.canAdmit && (
+        <>
+          <InviteSheet
+            open={inviting}
+            onOpenChange={setInviting}
+            candidateId={open.id}
+            candidateName={open.name}
+            onDone={() => void load()}
+          />
+          <AcceptSheet
+            open={accepting}
+            onOpenChange={setAccepting}
+            candidateId={open.id}
+            candidateName={open.name}
+            coaches={data.coaches ?? []}
+            isManager={data.me.isManager}
+            myId={data.me.athleteId}
+            linked={!!open.athleteId}
+            onDone={() => void load()}
+          />
+        </>
+      )}
       {open && (
         <LinkAthleteSheet
           open={linking}

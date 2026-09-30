@@ -392,24 +392,130 @@ export async function notifyAdminNewAcademyRegistration(user: {
   });
 }
 
+/**
+ * The three mails an applicant gets on the way into the academy, in order:
+ *
+ *   academyInviteEmail        staff → a funnel candidate: "here is your form"
+ *   academyFormReceivedEmail  the applicant, right after the form: "we got it"
+ *   academyAcceptedEmail      staff → the chosen trainee: "you're in", to /join/{token}
+ *
+ * Each is a pure builder plus a sender, because the funnel shows the staff member
+ * the mail BEFORE it goes: the preview is the builder's own html, so what they
+ * approve is what arrives, not a picture of it.
+ *
+ * The applicant has no app yet. Every link here opens in a plain mobile browser,
+ * and none of them needs a login.
+ */
+export interface BuiltEmail { subject: string; html: string }
+
+const firstName = (name?: string | null) => (name || '').trim().split(/\s+/)[0] || '';
+
+export function academyInviteEmail(p: { name?: string | null; url: string; note?: string | null; senderName?: string | null }): BuiltEmail {
+  const who = firstName(p.name);
+  const note = (p.note || '').trim();
+  return {
+    subject: '🎓 האקדמיה של מדרגות — הטופס שלך מחכה',
+    html: renderEmail({
+      eyebrow: 'האקדמיה של מדרגות',
+      title: who ? `${who}, שמחים שפנית אלינו` : 'שמחים שפנית אלינו',
+      preheader: 'טופס קצר, כמה דקות, והפרטים שלך כבר מולאו.',
+      paragraphs: [
+        ...(note ? [`${p.senderName ? `${p.senderName}: ` : ''}${note}`] : []),
+        'כדי שנכיר אותך ונבנה לך תוכנית שמתאימה בדיוק לך, נשמח שתמלא/י טופס קצר. השם, המייל והטלפון כבר ממולאים — נשאר רק לספר לנו עליך.',
+        'זה לוקח כמה דקות, ועובד ישר מהטלפון. לא צריך להוריד שום אפליקציה.',
+      ],
+      cta: { label: 'למילוי הטופס →', href: p.url },
+      notes: ['הקישור אישי ובתוקף ל-30 יום.'],
+    }),
+  };
+}
+
+export async function notifyAcademyInvite(p: {
+  email: string; name?: string | null; url: string; note?: string | null; senderName?: string | null; candidateId: string;
+}): Promise<SendResult> {
+  const built = academyInviteEmail(p);
+  return sendEmail({ template: 'academy_invite', to: p.email, candidateId: p.candidateId, ...built });
+}
+
+export function academyFormReceivedEmail(p: { name?: string | null }): BuiltEmail {
+  const who = firstName(p.name);
+  return {
+    subject: '✅ קיבלנו את הטופס שלך — האקדמיה של מדרגות',
+    html: renderEmail({
+      eyebrow: 'האקדמיה של מדרגות',
+      title: who ? `תודה ${who}, קיבלנו!` : 'תודה, קיבלנו!',
+      preheader: 'נחזור אליך בימים הקרובים לשיחת היכרות.',
+      paragraphs: [
+        'הטופס שלך הגיע אלינו. בימים הקרובים נחזור אליך לשיחת היכרות קצרה, כדי להבין מה המטרה שלך ואיך נכון להתחיל.',
+        'אין צורך לעשות שום דבר נוסף בינתיים.',
+      ],
+      notes: ['לא מילאת טופס? אפשר פשוט להתעלם מהמייל הזה.'],
+    }),
+  };
+}
+
+export async function notifyAcademyFormReceived(p: { email: string; name?: string | null; candidateId?: string | null; athleteId?: string | null }): Promise<SendResult> {
+  const built = academyFormReceivedEmail(p);
+  return sendEmail({
+    template: 'academy_form_received', to: p.email,
+    candidateId: p.candidateId ?? null, athleteId: p.athleteId ?? null, ...built,
+  });
+}
+
+/** `token` null = somebody who already has an account (a club member joining the
+ *  academy): there is nothing to set up, so the button opens the app instead. */
+export function academyAcceptedEmail(p: { name?: string | null; token: string | null; coachName?: string | null }): BuiltEmail {
+  const who = firstName(p.name);
+  const coach = (p.coachName || '').trim();
+  return {
+    subject: '🎉 התקבלת לאקדמיה של מדרגות',
+    html: renderEmail({
+      eyebrow: 'האקדמיה של מדרגות',
+      title: who ? `${who}, התקבלת! 🎉` : 'התקבלת! 🎉',
+      preheader: 'שלב אחרון: להתחבר עם Strava — דקה וזה נגמר.',
+      paragraphs: [
+        coach
+          ? `ברוך/ה הבא/ה לאקדמיה. המאמן/ת שלך: ${coach}. מכאן התוכנית, האימונים והמשוב יגיעו אליך ישירות.`
+          : 'ברוך/ה הבא/ה לאקדמיה. מכאן התוכנית, האימונים והמשוב יגיעו אליך ישירות.',
+        ...(p.token
+          ? [
+            'שלב אחרון: להיכנס עם Strava, כדי שהאימונים שלך יגיעו למאמן. יש שעון Garmin? אפשר לחבר גם אותו — או לדלג ולחבר אחר כך.',
+            'הכל עובד מהדפדפן בטלפון. אפשר גם להוסיף את מדרגות למסך הבית, אבל זה לא חובה.',
+          ]
+          : ['החשבון שלך במדרגות כבר קיים — האקדמיה פשוט נוספה אליו. אין שום דבר להגדיר.']),
+      ],
+      cta: p.token
+        ? { label: 'להתחלה →', href: `${APP_URL}/join/${p.token}` }
+        : { label: 'לאפליקציה →', href: `${APP_URL}/dashboard` },
+      notes: p.token ? ['הקישור אישי — אל תעבירו אותו לאף אחד.'] : [],
+    }),
+  };
+}
+
+export async function notifyAcademyAccepted(p: {
+  email: string; name?: string | null; token: string | null; coachName?: string | null; athleteId?: string | null; candidateId?: string | null;
+}): Promise<SendResult> {
+  const built = academyAcceptedEmail(p);
+  return sendEmail({
+    template: 'academy_accepted', to: p.email,
+    athleteId: p.athleteId ?? null, candidateId: p.candidateId ?? null, ...built,
+  });
+}
+
+/**
+ * Approval of a pending academy registration from the approvals list. Used to be an
+ * English "connect Garmin" mail to /join/academy/{token}; it is now the same
+ * "you're in" as the funnel's accept, so a trainee gets one story whichever button
+ * let them in — and Strava first, since that is how everyone signs in.
+ */
 export async function notifyAcademyApproved(user: {
   name: string;
   email: string;
   token: string;
+  athleteId?: string | null;
 }): Promise<SendResult> {
-  return sendEmail({
-    template: 'academy_approved',
-    to: user.email,
-    subject: '✅ You\'re in the Madregot Academy — connect your watch',
-    html: renderEmail({
-      dir: 'ltr',
-      title: `Welcome to the Academy, ${user.name}! 🎉`,
-      paragraphs: [
-        'Your registration was approved. One last step: connect your Garmin watch so your coach can send you workouts and track your progress.',
-      ],
-      cta: { label: 'Connect Garmin →', href: `${APP_URL}/join/academy/${user.token}` },
-    }),
-  });
+  const built = academyAcceptedEmail({ name: user.name, token: user.token });
+  return sendEmail({ template: 'academy_approved', to: user.email, athleteId: user.athleteId ?? null, ...built });
 }
 
 // ── Academy weekly report ────────────────────────────────────────────────────────

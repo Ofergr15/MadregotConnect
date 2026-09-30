@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { israelToday } from '@/lib/utils';
 import { isStaffRole } from '@/lib/auth/self-or-staff';
-import { loadPair, pairLookupError, requireAcademyManager } from '@/lib/academy/pairing-server';
+import { loadPair, pairLookupError, requireAcademyManager, writeCoachPair } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -99,31 +98,8 @@ export async function PUT(request: Request) {
       return NextResponse.json({ athleteId, coachId, coachName, unchanged: true });
     }
 
-    const today = israelToday();
-
-    // 1. The pair itself.
-    const { error: pairErr } = await supabase
-      .from('athletes')
-      .update({ academy_coach_id: coachId })
-      .eq('id', athleteId)
-      .eq('coach_id', COACH_ID);
-    if (pairErr) {
-      console.error('Academy coach assign error:', pairErr);
+    if (!(await writeCoachPair(athleteId, coachId, reason))) {
       return NextResponse.json({ error: 'Failed to assign the coach' }, { status: 500 });
-    }
-
-    // 2. The audit trail.
-    const closed = await supabase
-      .from('academy_coach_history')
-      .update({ ended_on: today })
-      .eq('athlete_id', athleteId)
-      .is('ended_on', null);
-    if (closed.error) console.error('Academy coach history close failed:', closed.error);
-    if (coachId) {
-      const opened = await supabase
-        .from('academy_coach_history')
-        .insert({ athlete_id: athleteId, coach_id: coachId, started_on: today, reason });
-      if (opened.error) console.error('Academy coach history open failed:', opened.error);
     }
 
     return NextResponse.json({ athleteId, coachId, coachName, unchanged: false });

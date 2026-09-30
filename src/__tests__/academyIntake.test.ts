@@ -1,0 +1,200 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+  clientIp, createRateLimiter, inviteUrl, isBotSubmit, isInviteFresh, looksLikeToken,
+  sourceFromParam, splitName, HONEYPOT_FIELD,
+} from '@/lib/academy/intake';
+import { recordFormCandidate, invitePrefill } from '@/lib/academy/intake-server';
+import { academyAcceptedEmail, academyInviteEmail } from '@/lib/email';
+import { canAdmitToAcademy } from '@/lib/academy/pairing-server';
+
+/**
+ * The academy's two doors: a personal link a coach sends (door A) and the Instagram
+ * landing page (door B). What must hold:
+ *
+ *  - a personal link lands on THE card it was sent from, and only while it is fresh
+ *  - a door-B applicant who is already on the board is not added a second time
+ *  - the form never overwrites what staff typed on a card
+ *  - only the manager and academy coaches can let somebody in — a club coach cannot
+ */
+
+const TOKEN = 'a'.repeat(32);
+const NOW = new Date('2026-09-30T10:00:00Z');
+const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86_400_000).toISOString();
+
+describe('intake helpers', () => {
+  it('keeps a personal link fresh for 30 days, then drops it', () => {
+    expect(isInviteFresh(daysAgo(29), NOW)).toBe(true);
+    expect(isInviteFresh(daysAgo(31), NOW)).toBe(false);
+    expect(isInviteFresh(null, NOW)).toBe(false);
+    expect(isInviteFresh('not a date', NOW)).toBe(false);
+  });
+
+  it('accepts only a 32-hex token', () => {
+    expect(looksLikeToken(TOKEN)).toBe(true);
+    expect(looksLikeToken('A'.repeat(32))).toBe(false);
+    expect(looksLikeToken("x' or 1=1")).toBe(false);
+    expect(looksLikeToken(undefined)).toBe(false);
+  });
+
+  it('builds the form link from the token', () => {
+    expect(inviteUrl(TOKEN, 'https://www.madregot.app')).toBe(`https://www.madregot.app/academy-register?i=${TOKEN}`);
+  });
+
+  it('maps the landing source onto the two funnel sources', () => {
+    expect(sourceFromParam('ig')).toBe('instagram');
+    expect(sourceFromParam('instagram')).toBe('instagram');
+    expect(sourceFromParam('tiktok')).toBe('form');
+    expect(sourceFromParam(null)).toBe('form');
+  });
+
+  it('splits a stored name back into the two fields', () => {
+    expect(splitName('Daniel Ben Levi')).toEqual({ firstName: 'Daniel', lastName: 'Ben Levi' });
+    expect(splitName('  Noa  ')).toEqual({ firstName: 'Noa', lastName: '' });
+    expect(splitName(null)).toEqual({ firstName: '', lastName: '' });
+  });
+
+  it('treats a filled honeypot as a bot, and only then', () => {
+    expect(isBotSubmit({ [HONEYPOT_FIELD]: 'http://spam' })).toBe(true);
+    expect(isBotSubmit({ [HONEYPOT_FIELD]: '   ' })).toBe(false);
+    expect(isBotSubmit({})).toBe(false);
+  });
+
+  it('rate-limits per key within a window, and resets after it', () => {
+    const allow = createRateLimiter(2, 1000);
+    expect(allow('ip', 0)).toBe(true);
+    expect(allow('ip', 10)).toBe(true);
+    expect(allow('ip', 20)).toBe(false);
+    expect(allow('other', 20)).toBe(true);
+    expect(allow('ip', 1000)).toBe(true);
+  });
+
+  it('reads the first forwarded address', () => {
+    expect(clientIp(new Headers({ 'x-forwarded-for': '1.2.3.4, 10.0.0.1' }))).toBe('1.2.3.4');
+    expect(clientIp(new Headers({ 'x-real-ip': '5.6.7.8' }))).toBe('5.6.7.8');
+    expect(clientIp(new Headers())).toBe('unknown');
+  });
+});
+
+// ── recordFormCandidate, against a tiny stateful table ────────────────────────
+
+type Row = Record<string, any>;
+
+function fakeDb(cards: Row[]) {
+  const events: Row[] = [];
+  const updates: Array<{ id: string; patch: Row }> = [];
+  let seq = 0;
+  const from = (table: string) => {
+    const filters: Array<(r: Row) => boolean> = [];
+    let inserting: Row | null = null;
+    let patch: Row | null = null;
+    const rows = () => (table === 'academy_candidates' ? cards : events).filter(r => filters.every(f => f(r)));
+    const settle = () => {
+      if (inserting) return { data: [inserting], error: null };
+      if (patch) {
+        for (const r of rows()) { Object.assign(r, patch); updates.push({ id: r.id, patch }); }
+        return { data: null, error: null };
+      }
+      return { data: rows(), error: null };
+    };
+    const q: any = {
+      select: () => q,
+      eq: (c: string, v: unknown) => { filters.push(r => r[c] === v); return q; },
+      order: () => q,
+      limit: () => q,
+      insert: (row: Row) => { inserting = { id: `new-${++seq}`, archived_at: null, ...row }; cards.push(inserting); return q; },
+      update: (p: Row) => { patch = p; return q; },
+      upsert: (row: Row) => {
+        if (!events.some(e => e.candidate_id === row.candidate_id && e.stage === row.stage)) events.push(row);
+        return Promise.resolve({ data: null, error: null });
+      },
+      single: () => Promise.resolve({ ...settle(), data: settle().data?.[0] ?? null }),
+      maybeSingle: () => { const s = settle(); return Promise.resolve({ data: s.data?.[0] ?? null, error: s.error }); },
+      then: (ok: any, bad: any) => Promise.resolve(settle()).then(ok, bad),
+    };
+    return q;
+  };
+  return { client: { from } as any, cards, events, updates };
+}
+
+const base = { name: 'Dana Cohen', email: 'dana@gmail.com', phone: '0501234567', athleteId: 'ath-1' };
+
+describe('recordFormCandidate', () => {
+  it('lands a fresh personal link on its own card, even with a different email', async () => {
+    const db = fakeDb([
+      { id: 'c1', email: 'old@x.com', phone: null, athlete_id: null, archived_at: null, invite_token: TOKEN, invited_at: new Date().toISOString() },
+    ]);
+    const id = await recordFormCandidate(db.client, { ...base, inviteToken: TOKEN });
+    expect(id).toBe('c1');
+    expect(db.cards).toHaveLength(1);
+    // Staff's email stays; the missing phone is filled; the account is linked.
+    expect(db.cards[0]).toMatchObject({ email: 'old@x.com', phone: '0501234567', athlete_id: 'ath-1' });
+    expect(db.events).toEqual([expect.objectContaining({ candidate_id: 'c1', stage: 'form' })]);
+  });
+
+  it('ignores a stale link and falls back to the email match', async () => {
+    const db = fakeDb([
+      { id: 'c1', email: 'other@x.com', phone: null, athlete_id: null, archived_at: null, invite_token: TOKEN, invited_at: '2020-01-01T00:00:00Z' },
+      { id: 'c2', email: 'dana@gmail.com', phone: '0529999999', athlete_id: null, archived_at: null },
+    ]);
+    expect(await recordFormCandidate(db.client, { ...base, inviteToken: TOKEN })).toBe('c2');
+    expect(db.cards.find(c => c.id === 'c2')!.phone).toBe('0529999999');
+  });
+
+  it('brings an archived card back instead of adding a second one', async () => {
+    const db = fakeDb([{ id: 'c3', email: 'dana@gmail.com', phone: null, athlete_id: null, archived_at: '2026-09-01', archived_reason: 'no answer' }]);
+    expect(await recordFormCandidate(db.client, base)).toBe('c3');
+    expect(db.cards).toHaveLength(1);
+    expect(db.cards[0]).toMatchObject({ archived_at: null, archived_reason: null });
+  });
+
+  it('makes a new Instagram card for a stranger, with form already stamped', async () => {
+    const db = fakeDb([]);
+    const id = await recordFormCandidate(db.client, { ...base, src: 'ig' });
+    expect(id).toBe('new-1');
+    expect(db.cards[0]).toMatchObject({ name: 'Dana Cohen', source: 'instagram', athlete_id: 'ath-1' });
+    expect(db.events).toHaveLength(1);
+  });
+
+  it('never throws, so the applicant’s submit cannot fail on it', async () => {
+    const boom = { from: () => { throw new Error('db down'); } } as any;
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(recordFormCandidate(boom, base)).resolves.toBeNull();
+    spy.mockRestore();
+  });
+});
+
+describe('invitePrefill', () => {
+  it('prefills from a fresh link only', async () => {
+    const card = { id: 'c1', name: 'Dana Cohen', email: 'dana@gmail.com', phone: '050', invite_token: TOKEN, invited_at: new Date().toISOString() };
+    expect(await invitePrefill(fakeDb([card]).client, TOKEN)).toEqual({ name: 'Dana Cohen', email: 'dana@gmail.com', phone: '050' });
+    expect(await invitePrefill(fakeDb([{ ...card, invited_at: '2020-01-01' }]).client, TOKEN)).toBeNull();
+    expect(await invitePrefill(fakeDb([card]).client, 'nope')).toBeNull();
+  });
+});
+
+describe('academy mails', () => {
+  it('puts the personal link in the invite and escapes the coach’s note', () => {
+    const { html } = academyInviteEmail({ name: 'Dana', url: `https://x/academy-register?i=${TOKEN}`, note: '<b>hi</b>', senderName: 'Yossi' });
+    expect(html).toContain(`academy-register?i=${TOKEN}`);
+    expect(html).not.toContain('<b>hi</b>');
+    expect(html).toContain('&lt;b&gt;hi&lt;/b&gt;');
+  });
+
+  it('sends a new trainee to /join and an existing member to the app', () => {
+    expect(academyAcceptedEmail({ name: 'Dana', token: TOKEN, coachName: 'Yossi' }).html).toContain(`/join/${TOKEN}`);
+    const member = academyAcceptedEmail({ name: 'Dana', token: null }).html;
+    expect(member).toContain('/dashboard');
+    expect(member).not.toContain('/join/');
+  });
+});
+
+describe('who can let somebody in', () => {
+  it('the manager and academy coaches, not a club coach', () => {
+    expect(canAdmitToAcademy({ isSuperUser: true, role: 'runner' })).toBe(true);
+    expect(canAdmitToAcademy({ isSuperUser: false, role: 'admin' })).toBe(true);
+    expect(canAdmitToAcademy({ isSuperUser: false, role: 'academy_coach' })).toBe(true);
+    expect(canAdmitToAcademy({ isSuperUser: false, role: 'coach' })).toBe(false);
+    expect(canAdmitToAcademy({ isSuperUser: false, role: 'runner' })).toBe(false);
+  });
+});

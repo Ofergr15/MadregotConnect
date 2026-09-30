@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
     const { data: athlete } = await supabase
       .from('athletes')
-      .select('id, coach_id, name, email, group_id, garmin_auth, onboarding_status')
+      .select('id, coach_id, name, email, group_id, garmin_auth, onboarding_status, is_academy')
       .eq('invite_token', token)
       .single();
 
@@ -34,7 +34,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ groups: [] });
     }
 
-    const { data: groups } = await supabase
+    // An academy trainee arrives here from the "you're in" email and is not choosing
+    // a club pace group: their coach places them. No groups = no group step, and the
+    // join screen's "pick a group" check has nothing to demand.
+    const { data: groups } = athlete.is_academy ? { data: [] as any[] } : await supabase
       .from('groups')
       .select('id, name, pace_profile')
       .eq('coach_id', athlete.coach_id)
@@ -83,6 +86,7 @@ export async function GET(req: NextRequest) {
         email,
         groupId: athlete.group_id || null,
         garminConnected: !!athlete.garmin_auth,
+        isAcademy: !!athlete.is_academy,
       },
     });
   } catch {

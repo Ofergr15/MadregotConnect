@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { notifyAdminNewAcademyRegistration } from '@/lib/email';
+import { notifyAdminNewAcademyRegistration, notifyAcademyFormReceived } from '@/lib/email';
 import { nameProblem, normalizeDisplayName } from '@/lib/names/latin';
+import { clientIp, createRateLimiter, isBotSubmit } from '@/lib/academy/intake';
+import { invitePrefill, recordFormCandidate } from '@/lib/academy/intake-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,12 +14,35 @@ export const dynamic = 'force-dynamic';
 // src/app/academy-register/page.tsx. Flip to false to fully close registration.
 const REGISTRATION_OPEN = true;
 
+// Every submit mails the admin and the typed address, so a script hammering this
+// public endpoint is a spam cannon. Five a minute from one address is more than a
+// person correcting a typo ever needs. Best effort per instance: see intake.ts.
+const allowSubmit = createRateLimiter(5, 60_000);
+
+/**
+ * GET /api/academy/register?i={invite token} — the prefill for a personal link.
+ * Name, email and phone of that one card, or `{ prefill: null }` for anything else
+ * (unknown, stale, malformed): the form then simply opens empty.
+ */
+export async function GET(request: Request) {
+  const token = new URL(request.url).searchParams.get('i');
+  try {
+    const prefill = await invitePrefill(createServerClient() as any, token);
+    return NextResponse.json({ prefill });
+  } catch {
+    return NextResponse.json({ prefill: null });
+  }
+}
+
 /**
  * POST /api/academy/register — public academy sign-up.
- * Body: { name, email, phone? }
- * Creates an unapproved academy applicant and emails the coach to review.
- * After approval (existing /api/admin/approve + Settings queue), the applicant
- * gets a link to /join/academy/{token} to connect Garmin.
+ * Body: { name, email, phone?, intake?, inviteToken?, src?, website? }
+ * Creates an unapproved academy applicant, puts them on the funnel board with the
+ * form step done (see recordFormCandidate), emails the coach to review and the
+ * applicant to say it arrived. Staff accept from the funnel card, which mails a
+ * link to /join/{token}.
+ *
+ * `website` is the honeypot (intake.ts): filled means a bot, answered like a success.
  */
 export async function POST(request: Request) {
   try {
@@ -28,7 +53,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, email, phone, intake } = await request.json();
+    if (!allowSubmit(clientIp(request.headers))) {
+      return NextResponse.json({ error: 'Too many attempts, try again in a minute' }, { status: 429 });
+    }
+
+    const body = await request.json().catch(() => null);
+    if (isBotSubmit(body)) return NextResponse.json({ success: true });
+    const { name, email, phone, intake, inviteToken, src } = body || {};
     if (!name?.trim() || !email?.trim()) {
       return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
     }
@@ -63,12 +94,17 @@ export async function POST(request: Request) {
     // the row stays exactly as it is, the coach gets the same email marked as an existing
     // member, and the funnel's link action is what flags them. The answer is the same
     // success either way, so the form cannot be used to learn whose address is on the roster.
+    const phoneValue = typeof phone === 'string' ? phone.trim() || null : null;
+    const afterSave = async (athleteId: string | null, existingMember: boolean) => {
+      const candidateId = await recordFormCandidate(supabase as any, {
+        name: fullName, email: normEmail, phone: phoneValue, inviteToken, src, athleteId,
+      });
+      await notifyAdminNewAcademyRegistration({ name: fullName, email: normEmail, phone, existingMember });
+      await notifyAcademyFormReceived({ email: normEmail, name: fullName, candidateId, athleteId });
+    };
+
     if (existing && existing.onboarding_status !== 'academy_pending') {
-      try {
-        await notifyAdminNewAcademyRegistration({ name: fullName, email: normEmail, phone, existingMember: true });
-      } catch (e) {
-        console.error('Academy registration email failed:', e);
-      }
+      await afterSave(null, true);
       return NextResponse.json({ success: true });
     }
 
@@ -89,24 +125,27 @@ export async function POST(request: Request) {
     };
 
     let error;
+    let athleteId: string | null = existing?.id ?? null;
     if (existing) {
       ({ error } = await supabase.from('athletes').update(row).eq('id', existing.id));
     } else {
-      ({ error } = await supabase.from('athletes').insert(row));
+      let inserted;
+      ({ data: inserted, error } = await supabase.from('athletes').insert(row).select('id').single());
+      if (inserted) athleteId = inserted.id;
     }
     // If some columns don't exist yet (unmigrated), retry with the minimal set.
     if (error) {
       const minimal = { coach_id: COACH_ID, name: fullName, email: normEmail, status: 'invited', invite_token: token };
       if (existing) ({ error } = await supabase.from('athletes').update(minimal).eq('id', existing.id));
-      else ({ error } = await supabase.from('athletes').insert(minimal));
+      else {
+        let inserted;
+        ({ data: inserted, error } = await supabase.from('athletes').insert(minimal).select('id').single());
+        if (inserted) athleteId = inserted.id;
+      }
       if (error) throw error;
     }
 
-    try {
-      await notifyAdminNewAcademyRegistration({ name: fullName, email: normEmail, phone });
-    } catch (e) {
-      console.error('Academy registration email failed:', e);
-    }
+    await afterSave(athleteId, false);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

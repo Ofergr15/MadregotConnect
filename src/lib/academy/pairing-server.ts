@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { resolveVerifiedCaller, type VerifiedCaller } from '@/lib/auth/self-or-staff';
+import { israelToday } from '@/lib/utils';
 
 // The gates the 1:1 pairing endpoints share.
 //
@@ -20,6 +21,15 @@ import { resolveVerifiedCaller, type VerifiedCaller } from '@/lib/auth/self-or-s
  */
 export function isAcademyManager(caller: Pick<VerifiedCaller, 'isSuperUser' | 'role'>): boolean {
   return caller.isSuperUser || caller.role === 'admin';
+}
+
+/**
+ * May this caller let somebody into the academy from the funnel — send the form
+ * invite, accept them? The manager, and the academy's own coaches, who pick the
+ * trainees they will run. A club `coach` is staff but not academy staff.
+ */
+export function canAdmitToAcademy(caller: Pick<VerifiedCaller, 'isSuperUser' | 'role'>): boolean {
+  return isAcademyManager(caller) || caller.role === 'academy_coach';
 }
 
 export async function requireAcademyManager(
@@ -131,4 +141,45 @@ export async function requireTraineeAccess(
     };
   }
   return { denied: null, caller, pair: lookup.pair };
+}
+
+/**
+ * Write a trainee's dedicated coach: the column first, then the audit trail.
+ *
+ * Shared by PUT /api/academy/coach and the funnel's accept, so both doors leave the
+ * same history. The order is the one documented on the coach route: the column is
+ * what every read scopes on, and a failed history row is logged, not fatal.
+ * Returns false only when the column write failed.
+ */
+export async function writeCoachPair(
+  athleteId: string,
+  coachId: string | null,
+  reason: string | null,
+): Promise<boolean> {
+  const supabase = createServerClient();
+  const today = israelToday();
+
+  const { error: pairErr } = await supabase
+    .from('athletes')
+    .update({ academy_coach_id: coachId })
+    .eq('id', athleteId)
+    .eq('coach_id', COACH_ID);
+  if (pairErr) {
+    console.error('Academy coach assign error:', pairErr);
+    return false;
+  }
+
+  const closed = await supabase
+    .from('academy_coach_history')
+    .update({ ended_on: today })
+    .eq('athlete_id', athleteId)
+    .is('ended_on', null);
+  if (closed.error) console.error('Academy coach history close failed:', closed.error);
+  if (coachId) {
+    const opened = await supabase
+      .from('academy_coach_history')
+      .insert({ athlete_id: athleteId, coach_id: coachId, started_on: today, reason });
+    if (opened.error) console.error('Academy coach history open failed:', opened.error);
+  }
+  return true;
 }

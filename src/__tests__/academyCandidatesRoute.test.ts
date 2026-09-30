@@ -24,6 +24,7 @@ import { buildFunnel, type CandidateEvent, type CandidateRow } from '@/lib/acade
 const resolveVerifiedCaller = vi.fn();
 vi.mock('@/lib/auth/self-or-staff', () => ({
   resolveVerifiedCaller: (req: Request) => resolveVerifiedCaller(req),
+  isStaffRole: (role: string | null | undefined) => ['admin', 'coach', 'academy_coach'].includes(role ?? ''),
 }));
 
 type Row = Record<string, unknown>;
@@ -447,5 +448,37 @@ describe('editing the person', () => {
   it('rejects an action it does not know', async () => {
     const body = await (await post({ name: 'רון' })).json();
     expect((await patch({ id: body.candidate.id, action: 'promote' })).status).toBe(400);
+  });
+});
+
+describe('inviting and accepting', () => {
+  // Both write to a stranger's inbox, so they are narrower than the funnel itself:
+  // the manager and academy coaches, never a club coach, and a coach only for themselves.
+  function asClubCoach() {
+    resolveVerifiedCaller.mockResolvedValue({
+      denied: null,
+      caller: { email: 'c@x.com', athleteId: 'staff-2', role: 'coach', isStaff: true, isSuperUser: false },
+    });
+  }
+
+  it('refuses a club coach both actions', async () => {
+    const body = await (await post({ name: 'רון' })).json();
+    asClubCoach();
+    expect((await patch({ id: body.candidate.id, action: 'invite', preview: true })).status).toBe(403);
+    expect((await patch({ id: body.candidate.id, action: 'accept', preview: true })).status).toBe(403);
+  });
+
+  it('will not accept a card that has no account yet', async () => {
+    const body = await (await post({ name: 'רון' })).json();
+    const res = await patch({ id: body.candidate.id, action: 'accept', preview: true });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe('not-linked');
+  });
+
+  it('lets an academy coach accept only for themselves', async () => {
+    const body = await (await post({ name: 'רון' })).json();
+    await patch({ id: body.candidate.id, action: 'link', athleteId: 'a1' });
+    const res = await patch({ id: body.candidate.id, action: 'accept', preview: true, coachId: 'someone-else' });
+    expect(res.status).toBe(403);
   });
 });
