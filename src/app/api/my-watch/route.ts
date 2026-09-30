@@ -191,6 +191,7 @@ export async function POST(request: Request) {
       // card say so. A push notification would be the app telling them something
       // they had just told it.
       notify: false,
+      cleanDayOnce: auth.user.isSuperUser,
     });
 
     if (result.status === 'failed') {

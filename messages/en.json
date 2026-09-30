@@ -520,7 +520,8 @@
       "noGarminSelected": "No athletes with Garmin connected selected",
       "failedToPushWorkouts": "Failed to push workouts",
       "pushFailed": "Push failed",
-      "retryFailedErr": "Retry failed"
+      "retryFailedErr": "Retry failed",
+      "pushContinuesOnServer": "The phone lost the connection, but the send carries on at the server. Check the plan's history in a minute."
     },
     "selectWorkoutTitle": "Select matched workout",
     "restDay": "Rest",

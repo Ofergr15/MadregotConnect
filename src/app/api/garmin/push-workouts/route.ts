@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { ParsedWorkout } from '@/lib/ai/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
@@ -15,6 +15,11 @@ import { pushWeekToAthlete, type PushResult } from '@/lib/garmin/push-week';
 // athlete. Twenty athletes is comfortably past the default ceiling.
 export const maxDuration = 300;
 
+/** Athletes delivered at once on the whole-week path. Each has their own Garmin account. */
+const AT_ONCE = 3;
+
+interface Batch { workouts: ParsedWorkout[]; athleteIds: string[] }
+
 // Staff-only. This writes workouts onto athletes' actual Garmin watches and
 // push-notifies each of them, so an open handler let anyone spam the whole club's
 // devices with arbitrary training.
@@ -30,9 +35,19 @@ export async function POST(req: NextRequest) {
     // below. The academy planner sends false for a trainee whose paces it could
     // not resolve, so an unresolved pace stays information instead of becoming a
     // pace-zone alarm on their watch.
-    const { planId, workouts, athleteIds, weekStartDate, paceAlerts: paceAlertsAllowed } = await req.json();
+    const { planId, workouts, athleteIds, weekStartDate, paceAlerts: paceAlertsAllowed, batches, wholeWeek } = await req.json();
 
-    if (!workouts || !athleteIds || !weekStartDate) {
+    // THE WHOLE WEEK IN ONE REQUEST, for the super user until rollout (feedback
+    // bb7fdd49). The planner sent one request per pace group from the phone, one
+    // after the other, an athlete at a time: about 3.5 minutes for 18 athletes,
+    // and when the screen went off the groups not yet sent were never sent, and
+    // the plan's status was never written. Here every group comes at once, a few
+    // athletes are delivered at a time, the work is kept alive past a phone that
+    // has gone to sleep, and the plan's status is written here, not by the phone.
+    const wholeRequest = auth.user.isSuperUser && Array.isArray(batches);
+    const jobs: Batch[] = wholeRequest ? batches : [{ workouts, athleteIds }];
+
+    if (!weekStartDate || jobs.some((b) => !Array.isArray(b?.workouts) || !Array.isArray(b?.athleteIds))) {
       return NextResponse.json(
         { error: 'workouts, athleteIds, and weekStartDate are required' },
         { status: 400 }
@@ -51,14 +66,14 @@ export async function POST(req: NextRequest) {
     const primary = await supabase
       .from('athletes')
       .select('id, name, email, garmin_auth, is_academy, group_id, groups(pace_profile)')
-      .in('id', athleteIds)
+      .in('id', jobs.flatMap((b) => b.athleteIds))
       .eq('status', 'active');
 
     if (primary.error) {
       const fallback = await supabase
         .from('athletes')
         .select('id, name, email, garmin_auth, group_id, groups(pace_profile)')
-        .in('id', athleteIds)
+        .in('id', jobs.flatMap((b) => b.athleteIds))
         .eq('status', 'active');
       athletes = fallback.data;
       athletesError = fallback.error;
@@ -81,12 +96,16 @@ export async function POST(req: NextRequest) {
     // a plan saved before the write paths normalized, that's no key at all. The
     // keys are deterministic, so normalizing again is a no-op on anything that
     // already has them. See lib/plans/normalize-plan.ts.
-    const plannedWorkouts = normalizeWorkoutParts({ workouts: workouts as ParsedWorkout[] }).workouts;
+    const found = athletes;
+    const tasks = jobs.flatMap((b) => {
+      const plannedWorkouts = normalizeWorkoutParts({ workouts: b.workouts }).workouts;
+      return found.filter((a) => b.athleteIds.includes(a.id)).map((athlete) => ({ athlete, plannedWorkouts }));
+    });
 
     // Academy pace-zone alerts are on by default but coach-toggleable in settings.
     const { paceAlerts } = await loadAcademySettings();
 
-    for (const athlete of athletes) {
+    const deliver = async ({ athlete, plannedWorkouts }: (typeof tasks)[number]) => {
       // Three conditions, all required, and the request can only ever remove
       // one: the athlete is in the academy, the coach hasn't turned alerts off
       // academy-wide, and the caller didn't say the paces in this payload are
@@ -103,6 +122,7 @@ export async function POST(req: NextRequest) {
         weekStartDate,
         planId: planId || null,
         paceTarget,
+        cleanDayOnce: auth.user.isSuperUser,
       });
       results.push(result);
 
@@ -142,31 +162,54 @@ export async function POST(req: NextRequest) {
           // second failure.
         }
       }
-    }
+    };
 
-    // One alert for the whole batch, after the loop rather than inside it. A
-    // Garmin outage or an expired token fails every athlete in the run, and 20
-    // identical pushes say nothing the first one didn't — so this counts the
-    // failures and sends once, naming the total so "3 of 20" and "20 of 20"
-    // read as the different problems they are.
-    //
-    // Push only, no inbox row: this repeats every time a coach retries, and a
-    // durable row per attempt would bury the inbox in the same sentence. The
-    // per-athlete detail is already on the screen the coach is looking at.
-    const failed = results.filter((r) => r.status === 'failed').length;
-    if (failed > 0) {
-      await notifyStaff({
-        kind: 'workout_delivery_failed',
-        url: '/dashboard/program',
-        // Per-week, so a retry replaces the previous alert instead of stacking.
-        tag: `delivery-failed-${weekStartDate}`,
-        category: 'management',
-        pushOnly: true,
-        copy: (locale) => deliveryFailedCopy(locale, { failed, total: results.length }),
-      });
-    }
+    const work = (async () => {
+      if (wholeRequest) {
+        let next = 0;
+        await Promise.all(Array.from({ length: Math.min(AT_ONCE, tasks.length) }, async () => {
+          while (next < tasks.length) await deliver(tasks[next++]!);
+        }));
+      } else {
+        for (const task of tasks) await deliver(task);
+      }
 
-    return NextResponse.json({ results });
+      // One alert for the whole batch, after the loop rather than inside it. A
+      // Garmin outage or an expired token fails every athlete in the run, and 20
+      // identical pushes say nothing the first one didn't — so this counts the
+      // failures and sends once, naming the total so "3 of 20" and "20 of 20"
+      // read as the different problems they are.
+      //
+      // Push only, no inbox row: this repeats every time a coach retries, and a
+      // durable row per attempt would bury the inbox in the same sentence. The
+      // per-athlete detail is already on the screen the coach is looking at.
+      const failed = results.filter((r) => r.status === 'failed').length;
+      if (failed > 0) {
+        await notifyStaff({
+          kind: 'workout_delivery_failed',
+          url: '/dashboard/program',
+          // Per-week, so a retry replaces the previous alert instead of stacking.
+          tag: `delivery-failed-${weekStartDate}`,
+          category: 'management',
+          pushOnly: true,
+          copy: (locale) => deliveryFailedCopy(locale, { failed, total: results.length }),
+        });
+      }
+
+      // The same rule the planner applies: only the whole week, all delivered, is
+      // 'pushed'. Written here because the phone may be asleep by now.
+      if (wholeRequest && planId && results.length > 0) {
+        const ok = results.filter((r) => r.status === 'success').length;
+        const status = ok === results.length && wholeWeek === true ? 'pushed' : ok > 0 ? 'partial' : 'draft';
+        await supabase.from('weekly_plans').update({ status }).eq('id', planId);
+      }
+      return results;
+    })();
+
+    // A phone that sleeps drops the connection; the delivery must not go with it.
+    if (wholeRequest) after(work.then(() => undefined, () => undefined));
+
+    return NextResponse.json({ results: await work });
   } catch (error: any) {
     console.error('Push workouts error:', error);
     return NextResponse.json(

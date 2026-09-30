@@ -55,6 +55,7 @@ import {
 import { cn, activityLocalDay, formatActivityTime, formatWeekRange, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { useIsSuperUser } from '@/lib/impersonation';
 import { Sheet, ConfirmSheet, SegmentedControl, Button, InsetSection, InsetRow } from '@/components/ui';
 
 const HARDCODED_COACH_ID = '30f056a7-c651-490e-8356-615ea9eff097';
@@ -165,6 +166,7 @@ export default function WeeklyPlannerPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const t = useTranslations('planner');
+  const superUser = useIsSuperUser();
   const tDays = useTranslations('activities');
   const locale = useLocale();
   const DAY_LABELS = [
@@ -1070,12 +1072,16 @@ export default function WeeklyPlannerPage() {
       groupedPlans[(a.group_id ? groupLevelMap[a.group_id] : undefined) || 'group2'];
 
     const results: PushResultItem[] = [];
+    const jobs: { workouts: ParsedWorkout[]; athleteIds: string[] }[] = [];
     const send = async (workouts: ParsedWorkout[], athleteIds: string[]) => {
       if (workouts.length === 0 || athleteIds.length === 0) return;
+      jobs.push({ workouts, athleteIds });
+    };
+    const post = async (body: Record<string, unknown>) => {
       const res = await fetch('/api/garmin/push-workouts', {
         method: 'POST',
         headers: await bearerHeaders(),
-        body: JSON.stringify({ planId: savedPlanId, workouts, athleteIds, weekStartDate }),
+        body: JSON.stringify({ planId: savedPlanId, weekStartDate, ...body }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -1101,6 +1107,22 @@ export default function WeeklyPlannerPage() {
       if (ids.length === 0) continue;
       const plan = groupedPlans[paceGroup as keyof GroupedWeeklyPlans];
       await send(selectedSessions(plan.workouts, pushDays) as ParsedWorkout[], ids);
+    }
+
+    // The super user sends the whole week as ONE request, which the server finishes
+    // even if this phone goes to sleep, and which writes the plan's status itself
+    // (feedback bb7fdd49). Everyone else still sends a request per batch.
+    if (jobs.length === 0) return results;
+    if (superUser) {
+      try {
+        await post({ batches: jobs, wholeWeek: pushDays === null });
+      } catch (err) {
+        // A dropped connection, not a refusal: the server carries on without us.
+        if (err instanceof TypeError) throw new Error(t('errors.pushContinuesOnServer'));
+        throw err;
+      }
+    } else {
+      for (const job of jobs) await post(job);
     }
 
     return results;

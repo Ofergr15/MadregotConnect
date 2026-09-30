@@ -47,6 +47,7 @@ export async function pushWeekToAthlete({
   planId,
   paceTarget,
   notify = true,
+  cleanDayOnce = false,
 }: {
   supabase: ReturnType<typeof createServerClient>;
   athlete: PushTargetAthlete;
@@ -60,6 +61,14 @@ export async function pushWeekToAthlete({
    * they are holding the phone that just did it, so telling them is noise.
    */
   notify?: boolean;
+  /**
+   * Clear a day's earlier workouts once, before its first session, instead of
+   * before every session. On a two-a-day the per-session cleanup found the
+   * morning run this same push had just created and deleted it off Garmin, so
+   * only the evening reached the watch while both rows said success (feedback
+   * c2fc7174). True only when the super user sends, until it is rolled out.
+   */
+  cleanDayOnce?: boolean;
 }): Promise<PushResult> {
   try {
     if (!athlete.garmin_auth) {
@@ -82,6 +91,7 @@ export async function pushWeekToAthlete({
     // batch landed before any of it is called a success.
     const deliveredWorkoutIds: string[] = [];
     const deliveryRowIds: string[] = [];
+    const cleanedDays = new Set<string>();
 
     for (const workout of plannedWorkouts) {
       const garminWorkout = convertToGarminWorkout(workout, paceProfile, { paceTarget });
@@ -105,7 +115,8 @@ export async function pushWeekToAthlete({
       // is for rows written before createWorkout started throwing —
       // `.not(... 'is', null)` doesn't exclude '', and deleting id '' asks
       // Garmin to delete a workout that was never created.
-      if (planId) {
+      if (planId && !(cleanDayOnce && cleanedDays.has(dateStr))) {
+        cleanedDays.add(dateStr);
         const { data: prior } = await supabase
           .from('workout_deliveries')
           .select('id, garmin_workout_id')

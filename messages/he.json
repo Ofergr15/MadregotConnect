@@ -520,7 +520,8 @@
       "noGarminSelected": "לא נבחרו ספורטאים המחוברים ל-Garmin",
       "failedToPushWorkouts": "שליחת האימונים נכשלה",
       "pushFailed": "השליחה נכשלה",
-      "retryFailedErr": "הניסיון החוזר נכשל"
+      "retryFailedErr": "הניסיון החוזר נכשל",
+      "pushContinuesOnServer": "החיבור מהטלפון נפל, אבל השליחה ממשיכה בשרת. אפשר לבדוק בהיסטוריית התוכנית בעוד דקה."
     },
     "selectWorkoutTitle": "בחירת אימון מותאם",
     "restDay": "מנוחה",
