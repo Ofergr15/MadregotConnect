@@ -22,6 +22,7 @@ import { ActivityName } from '@/components/activity/ActivityName';
 import { getTimeLabel, resolveRunTypeBadge } from '@/components/activity/format';
 import { useActivityDetails } from '@/components/activity/useActivityDetails';
 import { AthleteLink } from '@/components/AthleteLink';
+import { PrBadge, usePrRuns } from '@/components/PrBadge';
 import { activityLocalDay, cn, formatActivityDate, formatActivityTime } from '@/lib/utils';
 
 const HEBREW_DAYS = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
@@ -50,6 +51,7 @@ export default function ActivityDetailPage() {
   });
 
   const act = details?.activity ?? null;
+  const prRuns = usePrRuns();
 
   if (loading && !act) return <LoadingBlock className="min-h-[60vh]" />;
 
@@ -90,6 +92,7 @@ export default function ActivityDetailPage() {
               <span className={cn('text-3xs font-bold px-2 py-0.5 rounded', runType.bg, runType.color)}>
                 {runType.label}
               </span>
+              <PrBadge buckets={prRuns.get(act.id)} />
             </div>
             {/* The run's own name, and its owner's pencil (#92). */}
             <ActivityName activityId={act.id} name={act.activity_name} editable={isMyActivity} />

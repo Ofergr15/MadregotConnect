@@ -16,6 +16,7 @@ import { toAchievementPayload } from '@/lib/feed/project';
 import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
 import { AthleteLink } from '@/components/AthleteLink';
+import { PrBadge, usePrRuns } from '@/components/PrBadge';
 
 export function formatPace(secPerKm: number): string {
   const min = Math.floor(secPerKm / 60);
@@ -553,6 +554,7 @@ function ActivityCard({
   const t = useTranslations('feed');
   const router = useRouter();
   const act = item.activity!;
+  const prBuckets = usePrRuns().get(act.id);
 
   // The card is a doorway to the full run: route map, per-km splits, pace/HR/
   // elevation charts. It used to be a dead end — the only tap target was the
@@ -568,9 +570,14 @@ function ActivityCard({
           <div className="flex-1 min-w-0">
             <AuthorRow item={item} />
           </div>
-          <div className="w-7 h-7 rounded-full bg-brand-600/10 flex items-center justify-center shrink-0 mt-1">
-            <Route className="h-3.5 w-3.5 text-brand-600" />
-          </div>
+          {/* A record takes the route glyph's corner, the top left in Hebrew (#90). */}
+          {prBuckets ? (
+            <div className="mt-1"><PrBadge buckets={prBuckets} /></div>
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-brand-600/10 flex items-center justify-center shrink-0 mt-1">
+              <Route className="h-3.5 w-3.5 text-brand-600" />
+            </div>
+          )}
         </div>
 
         <div

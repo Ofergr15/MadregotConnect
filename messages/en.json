@@ -1265,7 +1265,9 @@
     "stated": "Stated by the athlete",
     "fromRuns": "From the run history",
     "derivedNote": "Records are taken from everyone's runs, plus times athletes entered themselves. The board is refreshed a few times a day, so a run from this morning may not be on it yet.",
-    "clubBoard": "See everyone's records"
+    "clubBoard": "See everyone's records",
+    "prBadge": "PR",
+    "prBadgeAria": "Personal record at {buckets}"
   },
   "teamVolume": {
     "title": "Team Volume",
