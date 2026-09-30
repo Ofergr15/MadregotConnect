@@ -144,10 +144,15 @@ export function initialStoryState(report: Last7Report, lang: WeekCardLang): Week
   };
 }
 
-/** Tap a tile: on if there is room, off unless it is the last one on the card. */
+/**
+ * Tap a tile: on if there is room, off unless it is the last one on the card. A
+ * look with room for ONE number swaps it instead: there the last one could never be
+ * turned off, so no other could ever be turned on.
+ */
 export function toggleNumber(picks: WeekNumberKey[], key: WeekNumberKey, cap: number): WeekNumberKey[] {
   const i = picks.indexOf(key);
   if (i >= 0) return picks.length > 1 ? picks.filter(k => k !== key) : picks;
+  if (cap === 1) return [key];
   return picks.length < cap ? [...picks, key] : picks;
 }
 

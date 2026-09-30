@@ -2,6 +2,7 @@ import {
   STORY_W, STORY_H, drawCover, loadImage, resolveFontStack, roundRectPath,
   type ShareBrand,
 } from '@/lib/feed/share-image';
+import { recordHitMap, type ShareHitMap } from '@/lib/share/hit-map';
 import type { Last7Report, WellnessNight } from './last-7-days';
 import {
   LOOK_BRAND, WEEK_STORY_TEXT, bodyDelta, nightlySleep, numberValue,
@@ -38,6 +39,8 @@ export interface WeekStoryInput {
   state: WeekStoryState;
   /** Draw a different look with the same state, for the looks strip. */
   look?: WeekLook;
+  /** Where the logo, the text and the numbers were drawn, for the editor's tap areas. */
+  onHitMap?: (map: ShareHitMap) => void;
 }
 
 export async function renderWeekStory(input: WeekStoryInput): Promise<Blob> {
@@ -96,10 +99,11 @@ export async function renderWeekStory(input: WeekStoryInput): Promise<Blob> {
     if (state.dates) { cy += 16 * S; num(range, STORY_W / 2, cy, 500, 11 * S, 0.7); }
     return cy;
   };
+  const who = input.athleteName?.trim();
+  const nameLine = who ? `${who} · madregot.app` : 'madregot.app';
   const drawName = () => {
     if (!state.name) return;
-    const who = input.athleteName?.trim();
-    put(who ? `${who} · madregot.app` : 'madregot.app', STORY_W / 2, STORY_H - PAD_BOTTOM, 500, 10.5 * S, 0.75);
+    put(nameLine, STORY_W / 2, STORY_H - PAD_BOTTOM, 500, 10.5 * S, 0.75);
   };
   // One grid row of number cells; in RTL the first pick sits on the right.
   const cells = (keys: WeekNumberKey[], cols: number, y: number, valueSize: number, width = INNER_W, x0 = PAD_X) => {
@@ -123,6 +127,19 @@ export async function renderWeekStory(input: WeekStoryInput): Promise<Blob> {
       lines.forEach((l, li) => put(l, cx, cy + valueSize * 0.8 + 14 * S + li * 12 * S, 500, 10 * S, 0.72));
     });
   };
+
+  // Everything drawn from here on is a part the editor can open; the background
+  // above is what a tap on an empty spot opens.
+  const stopHitMap = input.onHitMap
+    ? recordHitMap(ctx, {
+      isMark: src => !!logo && src === logo,
+      title: state.title.trim() || null,
+      date: state.dates ? range : null,
+      lines: state.name ? [nameLine] : [],
+      width: STORY_W,
+      height: STORY_H,
+    })
+    : null;
 
   if (look === 'totals') {
     let y = drawLogo(PAD_TOP);
@@ -202,6 +219,7 @@ export async function renderWeekStory(input: WeekStoryInput): Promise<Blob> {
     put(`${text.labels[k]} ${text.thisWeek}`, STORY_W / 2, top + bigSize * 0.95 + 16 * S, 500, 13 * S, 0.8);
     drawLogo(top + bigSize * 0.95 + 20 * S + 22 * S);
   }
+  if (stopHitMap) input.onHitMap!(stopHitMap());
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(

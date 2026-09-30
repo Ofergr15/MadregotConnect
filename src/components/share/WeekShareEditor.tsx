@@ -1,42 +1,103 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Share2, Loader2, ImagePlus } from 'lucide-react';
+import { X, Share2, Loader2, ImagePlus, Pencil, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
-import { SHARE_BRAND_KEYS, shareCard, type ShareBrand } from '@/lib/feed/share-image';
+import { SHARE_BRAND_KEYS, STORY_H, STORY_W, shareCard, type ShareBrand } from '@/lib/feed/share-image';
+import { partAt, placeLabels, type ShareBox, type ShareHitMap, type SharePart } from '@/lib/share/hit-map';
 import type { Last7Report, WellnessNight } from '@/lib/reports/last-7-days';
 import {
   LOOK_BRAND, LOOK_CAP, NUMBER_ORDER, WEEK_BACKGROUNDS, WEEK_STORY_TEXT,
-  availableLooks, availableNumbers, initialStoryState, numberValue, swapNumbers, toggleNumber,
+  availableLooks, availableNumbers, bodyDelta, initialStoryState, numberValue, swapNumbers, toggleNumber,
   type WeekBackground, type WeekLook, type WeekNumberKey, type WeekStoryState,
 } from '@/lib/reports/week-story';
 import { BRAND_SRC, renderWeekStory } from '@/lib/reports/week-story-image';
 
 /**
- * THE WEEKLY STORY EDITOR — version C of the approved mockup.
+ * THE WEEKLY STORY EDITOR: THE CARD IS THE CONTROL PANEL, AS IN THE WORKOUT'S.
  *
- * The card fills the screen and is the picture that will be posted (the preview
- * IS the rendered file). Under it, one row of options and a bar of tabs: look,
- * numbers, logo, text, chart (the day-by-day look only) and background. Swiping
- * the card sideways changes the look.
+ * Version C put one row of options over a bar of six tabs, and the athlete had to
+ * learn which tab held what; the workout editor, which was found easy, has none
+ * (feedback 2026-09-30: "like the workout share"). So this is that editor, with the
+ * week's content:
+ *
+ *  · the five looks are a carousel — swipe, or tap a look in the strip;
+ *  · the card shows clean, as it will be posted, with only Share under it; Edit (or
+ *    a tap on any part) outlines and labels the logo, the text, the numbers and the
+ *    background, each label a button that opens that part's options, and Done puts
+ *    all of it away;
+ *  · inside a part, "‹ Edit" in the close corner, the label again, a tap beside the
+ *    card or Escape goes back to the whole edit;
+ *  · the big bottom button always shares.
+ *
+ * The numbers keep the week's rules (`week-story.ts`): one fixed tray order, a cap
+ * per look, a drag swaps two places. Where each part sits is read off the drawing
+ * (`lib/share/hit-map.ts`), so the tap areas follow the card from look to look.
  *
  * Super user only while it is tried out (ShareSheet decides); everyone else keeps
  * the old weekly sheet.
  */
-type Tab = 'looks' | 'numbers' | 'logo' | 'text' | 'chart' | 'background';
+type Mode = 'looks' | SharePart | 'background';
 
 const BG_SWATCH: Record<WeekBackground, string> = {
   club: 'linear-gradient(160deg,#2f45ff,#1b1150)',
   sunset: 'linear-gradient(160deg,#FF8A3D,#8a1f3d)',
   night: 'linear-gradient(160deg,#23263a,#0b0d1d)',
-  photo: 'linear-gradient(135deg,#7aa0b8,#c9b48a 38%,#6f8f5e 62%,#3b4f3a)',
-  sticker: 'repeating-conic-gradient(#3a3d52 0% 25%,#2a2d40 0% 50%) 50%/12px 12px',
+  photo: 'rgba(255,255,255,0.15)',
+  sticker: 'repeating-conic-gradient(#555 0 25%,#999 0 50%) 0 0/10px 10px',
 };
 const BG_LABEL: Record<WeekBackground, string> = {
   club: 'bgClub', sunset: 'bgSunset', night: 'bgNight', photo: 'bgPhoto', sticker: 'bgSticker',
 };
+
+/** The labels over the card: one line of 10px type in a pill. */
+const LABEL_H = 20;
+/** How far, in card pixels, an outline stands off the part it rings. */
+const OUTLINE_PAD = 14;
+function labelWidth(text: string): number {
+  return Math.round(text.length * 6.4 + 18);
+}
+
+function Toggle({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className="mb-2 flex min-h-[44px] w-full items-center justify-between rounded-xl bg-white/[0.08] px-3 text-sm font-bold text-white"
+    >
+      {label}
+      <span className={cn('relative h-6 w-10 rounded-full transition-colors', on ? 'bg-[#FF5315]' : 'bg-white/25')}>
+        <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', on ? 'end-0.5' : 'start-0.5')} />
+      </span>
+    </button>
+  );
+}
+
+function Segmented<T extends string>({ items, value, onChange }: {
+  items: Array<[T, string]>; value: T; onChange: (v: T) => void;
+}) {
+  return (
+    <div className="mb-2 flex rounded-full bg-white/[0.08] p-0.5">
+      {items.map(([k, label]) => (
+        <button
+          key={k}
+          type="button"
+          onClick={() => onChange(k)}
+          aria-pressed={value === k}
+          className={cn(
+            'min-h-[40px] flex-1 rounded-full px-3 text-xs font-bold transition-colors',
+            value === k ? 'bg-white text-ink-900' : 'text-white/60',
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export interface WeekShareEditorProps {
   report: Last7Report;
@@ -56,9 +117,12 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
   const looks = useMemo(() => availableLooks(report), [report]);
   const avail = useMemo(() => availableNumbers(report), [report]);
   const [state, setState] = useState<WeekStoryState>(() => initialStoryState(report, rtl ? 'he' : 'en'));
-  const [tab, setTab] = useState<Tab>('looks');
   const [photo, setPhoto] = useState<File | null>(null);
+  const [mode, setMode] = useState<Mode>('looks');
+  const [editing, setEditing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [hitMap, setHitMap] = useState<ShareHitMap>({});
+  const [slideUrls, setSlideUrls] = useState<Partial<Record<WeekLook, string>>>({});
   const [thumbs, setThumbs] = useState<Partial<Record<WeekLook, string>>>({});
   const [rendering, setRendering] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -66,22 +130,47 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
   const [mounted, setMounted] = useState(false);
   const blobRef = useRef<Blob | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const text = WEEK_STORY_TEXT[state.lang];
-  const cap = LOOK_CAP[state.look];
-  const picks = state.picks[state.look];
+  const look = state.look;
+  const cap = LOOK_CAP[look];
+  const picks = state.picks[look];
+  const inPart = mode !== 'looks';
   const set = useCallback((patch: Partial<WeekStoryState>) => setState(s => ({ ...s, ...patch })), []);
+  const hasDeltas = look === 'body' && (!!bodyDelta(report, previous, 'sleep') || !!bodyDelta(report, previous, 'rhr'));
 
   useEffect(() => {
     setMounted(true);
+    // The card is the whole screen; the feed under it must not scroll along.
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKey); };
-  }, [onClose]);
+    return () => { document.body.style.overflow = prev; };
+  }, []);
 
-  // The chart tab belongs to one look; leaving that look leaves the tab.
-  useEffect(() => { if (tab === 'chart' && state.look !== 'days') setTab('numbers'); }, [tab, state.look]);
+  const pickLook = useCallback((next: WeekLook) => {
+    setMode('looks');
+    setHitMap({});
+    set({ look: next });
+  }, [set]);
+  const openPart = useCallback((next: Mode) => {
+    if (next !== 'looks') setEditing(true);
+    setMode(next);
+  }, []);
+  const back = useCallback(() => {
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    setMode('looks');
+  }, []);
+
+  // Escape backs out of a part first, and closes only from the whole edit.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (inPart) back(); else onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, inPart, back]);
 
   // One URL per slot, let go only once its replacement is on screen.
   const live = useRef(new Map<string, string>());
@@ -102,60 +191,226 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
     [report, previous, nights, athleteName, photo, state],
   );
 
+  // The card being edited, with its tap areas.
   useEffect(() => {
     let cancelled = false;
     setRendering(true);
+    setNotice(null);
     const timer = setTimeout(async () => {
       try {
-        const blob = await renderWeekStory(input);
+        const blob = await renderWeekStory({ ...input, onHitMap: map => { if (!cancelled) setHitMap(map); } });
         if (cancelled) return;
         blobRef.current = blob;
         setPreviewUrl(swapUrl('preview', blob));
       } catch {
-        if (!cancelled) setNotice(ts('shareError'));
+        if (!cancelled) setNotice(ts('renderError'));
       } finally {
         if (!cancelled) setRendering(false);
       }
-    }, 80);
+    }, 60);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [input, swapUrl, ts]);
 
-  // The looks strip, drawn only while it is showing.
+  // The strip: each look once, as the week opened, so it does not flicker while editing.
   useEffect(() => {
-    if (tab !== 'looks') return;
+    let cancelled = false;
+    (async () => {
+      const opening = initialStoryState(report, rtl ? 'he' : 'en');
+      for (const l of looks) {
+        try {
+          const blob = await renderWeekStory({ report, previous, nights, athleteName, state: opening, look: l });
+          if (cancelled) return;
+          const url = swapUrl(`thumb:${l}`, blob);
+          setThumbs(prev => ({ ...prev, [l]: url }));
+        } catch { /* a missing thumbnail leaves the label */ }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [report, previous, nights, athleteName, looks, rtl, swapUrl]);
+
+  // The neighbours, once the card itself is up: nearest first, so the one a swipe
+  // reaches is the one that is ready, with the same text, logo and background.
+  useEffect(() => {
+    if (rendering) return;
     let cancelled = false;
     const timer = setTimeout(async () => {
-      for (const look of looks) {
+      const at = looks.indexOf(look);
+      const order = looks.filter(l => l !== look).sort((a, b) => Math.abs(looks.indexOf(a) - at) - Math.abs(looks.indexOf(b) - at));
+      for (const l of order) {
         try {
-          const blob = await renderWeekStory({ ...input, look });
+          const blob = await renderWeekStory({ ...input, look: l });
           if (cancelled) return;
-          const url = swapUrl(`thumb-${look}`, blob);
-          setThumbs(prev => ({ ...prev, [look]: url }));
-        } catch {}
+          const url = swapUrl(`slide:${l}`, blob);
+          setSlideUrls(prev => ({ ...prev, [l]: url }));
+        } catch { /* the strip's thumbnail stands in */ }
       }
-    }, 250);
+    }, 350);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [tab, looks, input, swapUrl]);
+  }, [rendering, looks, look, input, swapUrl]);
 
-  const stepLook = (dir: 1 | -1) => {
-    const i = looks.indexOf(state.look);
-    const next = looks[i + dir];
-    if (next) set({ look: next });
+  // ── Carousel geometry ──────────────────────────────────────────────────────
+  const [stage, setStage] = useState({ w: 0, h: 0 });
+  useLayoutEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setStage({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    setStage({ w: el.clientWidth, h: el.clientHeight });
+    return () => ro.disconnect();
+  }, [mounted]);
+  const GAP = 12;
+  let slideH = Math.max(0, stage.h - 16);
+  let slideW = slideH * 9 / 16;
+  if (slideW > stage.w - 72) { slideW = Math.max(0, stage.w - 72); slideH = slideW * 16 / 9; }
+  const spacer = Math.max(0, (stage.w - slideW) / 2 - GAP);
+
+  const [centred, setCentred] = useState<WeekLook>(look);
+  const settleRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const dragRef = useRef<{ x: number; left: number; moved: boolean } | null>(null);
+  const justDragged = useRef(false);
+
+  const centredLook = useCallback((): WeekLook | null => {
+    const el = stageRef.current;
+    if (!el) return null;
+    const mid = el.getBoundingClientRect().left + el.clientWidth / 2;
+    let best: WeekLook | null = null, d = Infinity;
+    el.querySelectorAll<HTMLElement>('[data-look]').forEach(s => {
+      const r = s.getBoundingClientRect();
+      const dd = Math.abs(r.left + r.width / 2 - mid);
+      if (dd < d) { d = dd; best = s.dataset.look as WeekLook; }
+    });
+    return best;
+  }, []);
+
+  const scrollTo = useCallback((l: WeekLook, smooth = true) => {
+    stageRef.current?.querySelector<HTMLElement>(`[data-look="${l}"]`)
+      ?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', inline: 'center', block: 'nearest' });
+  }, []);
+
+  // A pick from the strip brings the card in; a swipe that settled on it already has.
+  // A new card size (the tray opening or closing) keeps the card in the middle.
+  const sizedFor = useRef(0);
+  useEffect(() => {
+    if (!slideW) return;
+    const resized = sizedFor.current !== slideW;
+    sizedFor.current = slideW;
+    if (resized) scrollTo(look, false);
+    else if (centredLook() !== look) scrollTo(look, centred === look);
+    setCentred(look);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only the look and the geometry move the carousel
+  }, [look, slideW]);
+
+  const onScroll = () => {
+    const c = centredLook();
+    if (c) setCentred(c);
+    clearTimeout(settleRef.current);
+    settleRef.current = setTimeout(() => {
+      const l = centredLook();
+      if (!dragRef.current && l && l !== look) pickLook(l);
+    }, 140);
   };
 
-  // Swipe on the card: a sideways drag of 40px changes the look. In RTL the
-  // next look is to the left, where a Hebrew reader's "next" is.
-  const swipe = useRef<{ x: number; y: number } | null>(null);
-  const onCardDown = (e: React.PointerEvent) => { swipe.current = { x: e.clientX, y: e.clientY }; };
-  const onCardUp = (e: React.PointerEvent) => {
-    const s = swipe.current;
-    swipe.current = null;
-    if (!s) return;
-    const dx = e.clientX - s.x;
-    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(e.clientY - s.y)) return;
-    const forward = rtl ? dx > 0 : dx < 0;
-    stepLook(forward ? 1 : -1);
+  // Touch and trackpads scroll natively; a mouse drags.
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'mouse' || inPart || !stageRef.current) return;
+    dragRef.current = { x: e.clientX, left: stageRef.current.scrollLeft, moved: false };
   };
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const d = dragRef.current, el = stageRef.current;
+      if (!d || !el) return;
+      const dx = e.clientX - d.x;
+      if (!d.moved && Math.abs(dx) > 5) { d.moved = true; el.style.scrollSnapType = 'none'; }
+      if (d.moved) el.scrollLeft = d.left - dx;
+    };
+    const up = () => {
+      const d = dragRef.current, el = stageRef.current;
+      dragRef.current = null;
+      if (!d?.moved || !el) return;
+      el.style.scrollSnapType = '';
+      justDragged.current = true;
+      setTimeout(() => { justDragged.current = false; }, 50);
+      const l = centredLook();
+      if (l) { scrollTo(l); if (l !== look) pickLook(l); }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+  }, [centredLook, scrollTo, pickLook, look]);
+
+  // A tap on a neighbour brings it in; on the card it opens the part under the finger.
+  const onSlideClick = (l: WeekLook, e: React.MouseEvent) => {
+    if (justDragged.current) return;
+    if (l !== look) { if (inPart) back(); else pickLook(l); return; }
+    const r = imgRef.current?.getBoundingClientRect();
+    if (!r) return;
+    openPart(partAt(hitMap, ((e.clientX - r.left) / r.width) * STORY_W, ((e.clientY - r.top) / r.height) * STORY_H));
+  };
+
+  const handleShare = async () => {
+    const blob = blobRef.current;
+    if (!blob || busy) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const sticker = state.background === 'sticker';
+      const result = await shareCard(blob, `madregot-week-${report.to}.${sticker ? 'png' : 'jpg'}`);
+      if (result === 'downloaded') setNotice(sticker ? ts('savedSticker') : ts('saved'));
+      else onClose();
+    } catch {
+      setNotice(ts('shareError'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ── The part outlines and labels over the card ──────────────────────────────
+  const scale = slideW / STORY_W;
+  const partName = (p: Mode): string => {
+    if (p === 'logo') return t('tabLogo');
+    if (p === 'text') return t('tabText');
+    if (p === 'background') return t('tabBackground');
+    if (p === 'data') return look === 'days' ? t('partChartNumbers') : t('tabNumbers');
+    return t('title');
+  };
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState(false);
+  const checkMore = () => {
+    const el = panelRef.current;
+    setMore(!!el && el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+  };
+  useLayoutEffect(checkMore);
+
+  const outline = (p: SharePart, box: ShareBox, on: boolean, i = 0) => (
+    <div
+      key={`${p}-${on ? 'on' : 'off'}-${i}`}
+      className={cn('pointer-events-none absolute rounded-[10px]', on
+        ? 'border-[2.5px] border-[#FF5315] shadow-[0_0_0_999px_rgba(5,6,18,0.5),0_0_0_5px_rgba(255,83,21,0.3)]'
+        : 'border-[1.5px] border-dashed border-white/80')}
+      style={{
+        left: (box.x0 - OUTLINE_PAD) * scale, top: (box.y0 - OUTLINE_PAD) * scale,
+        width: (box.x1 - box.x0 + 2 * OUTLINE_PAD) * scale, height: (box.y1 - box.y0 + 2 * OUTLINE_PAD) * scale,
+      }}
+    />
+  );
+  const labelled = (['logo', 'text', 'data'] as const).filter(p => hitMap[p]);
+  // The text is the title block at the top and the name line apart at the bottom:
+  // each gets its own ring, and the label sits on the first.
+  const pieces = (p: SharePart): ShareBox[] =>
+    (p === 'logo' ? hitMap.logoPieces : p === 'text' ? hitMap.textPieces : undefined) ?? [hitMap[p]!];
+  const toScreen = (b: ShareBox) => ({
+    x: (b.x0 - OUTLINE_PAD) * scale, y: (b.y0 - OUTLINE_PAD) * scale,
+    w: (b.x1 - b.x0 + 2 * OUTLINE_PAD) * scale, h: (b.y1 - b.y0 + 2 * OUTLINE_PAD) * scale,
+  });
+  const labels = placeLabels(
+    [
+      ...labelled.map(p => ({ key: p, box: toScreen(pieces(p)[0]), w: labelWidth(partName(p)) })),
+      // The background's label sits on the card's bottom edge.
+      { key: 'background', box: { x: 6, y: slideH - 6 - 26, w: slideW - 12, h: 26 }, w: labelWidth(partName('background')) },
+    ],
+    { w: slideW, h: slideH },
+    { h: LABEL_H, gap: 6, rtl, obstacles: [...(hitMap.logoPieces ?? []), ...(hitMap.textPieces ?? [])].map(toScreen) },
+  );
 
   // ── Numbers: tap toggles, drag one picked tile onto another to swap ────────
   const [dragKey, setDragKey] = useState<WeekNumberKey | null>(null);
@@ -196,73 +451,46 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
     setState(s => ({ ...s, picks: { ...s.picks, [s.look]: toggleNumber(s.picks[s.look], key, LOOK_CAP[s.look]) } }));
   };
 
-  const handleShare = async () => {
-    const blob = blobRef.current;
-    if (!blob || busy) return;
-    setBusy(true);
-    setNotice(null);
-    try {
-      const sticker = state.background === 'sticker';
-      const result = await shareCard(blob, `madregot-week-${report.to}.${sticker ? 'png' : 'jpg'}`);
-      if (result === 'downloaded') setNotice(sticker ? ts('savedSticker') : ts('saved'));
-    } catch {
-      setNotice(ts('shareError'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const pill = (on: boolean, label: string, onClick: () => void) => (
+  const chip = (label: string, on: boolean, onClick: () => void) => (
     <button
+      key={label}
       type="button"
       onClick={onClick}
       aria-pressed={on}
-      className={cn(
-        'min-h-[36px] rounded-full px-3.5 text-xs font-extrabold transition-colors',
-        on ? 'bg-white text-ink-900' : 'bg-white/[0.1] text-white/80',
-      )}
+      className={cn('min-h-[40px] rounded-full px-3.5 text-xs font-bold', on ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/80')}
     >
       {label}
     </button>
   );
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'looks', label: t('tabLooks') },
-    { key: 'numbers', label: t('tabNumbers') },
-    { key: 'logo', label: t('tabLogo') },
-    { key: 'text', label: t('tabText') },
-    ...(state.look === 'days' ? [{ key: 'chart' as const, label: t('tabChart') }] : []),
-    { key: 'background', label: t('tabBackground') },
-  ];
-
-  const row = (() => {
-    if (tab === 'looks') {
-      return (
-        <div className="flex gap-2">
-          {looks.map(look => {
-            const on = state.look === look;
-            return (
-              <button key={look} type="button" onClick={() => set({ look })} aria-pressed={on} className={cn('min-w-0 flex-1 text-center', on ? 'text-white' : 'text-white/55')}>
-                <span className={cn('mx-auto block w-full max-w-[64px] overflow-hidden rounded-lg border-2 bg-white/[0.08]', on ? 'border-[#FF5315]' : 'border-transparent')} style={{ aspectRatio: '9 / 16' }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {thumbs[look] && <img src={thumbs[look]} alt="" className="h-full w-full object-cover" />}
-                </span>
-                <span className="mt-1 block truncate text-3xs font-bold">{text.looks[look]}</span>
-              </button>
-            );
-          })}
-        </div>
-      );
-    }
-    if (tab === 'numbers') {
+  // ── The tray: the looks, or the options of the part that was tapped ──────────
+  const tray = (() => {
+    if (mode === 'data') {
       const full = picks.length >= cap;
       return (
         <>
+          {look === 'days' && (
+            <>
+              <Segmented
+                items={[['km', t('chartKm')], ['time', t('chartTime')]]}
+                value={state.chartMetric}
+                onChange={m => set({ chartMetric: m })}
+              />
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {nights?.length ? chip(t('sleepStrip'), state.sleepStrip, () => set({ sleepStrip: !state.sleepStrip })) : null}
+                {chip(t('avgLine'), state.avgLine, () => set({ avgLine: !state.avgLine }))}
+                {chip(t('barValues'), state.barValues, () => set({ barValues: !state.barValues }))}
+              </div>
+            </>
+          )}
+          {hasDeltas && <Toggle label={t('deltas')} on={state.deltas} onClick={() => set({ deltas: !state.deltas })} />}
+          {/* Every number in ONE fixed order, whatever is picked; the circle is its
+              place on the card, and a drag of one picked tile onto another swaps them. */}
           <div className="grid grid-cols-4 gap-1.5">
             {NUMBER_ORDER.filter(k => avail.includes(k)).map(k => {
               const place = picks.indexOf(k);
               const on = place >= 0;
-              const blocked = !on && full;
+              const blocked = !on && full && cap > 1;
               const health = k === 'sleep' || k === 'rhr';
               return (
                 <button
@@ -280,7 +508,7 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
                     dropKey === k && 'outline outline-2 outline-dashed outline-white',
                   )}
                 >
-                  {on && (
+                  {on && cap > 1 && (
                     <em className="absolute -top-1.5 start-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#FF5315] px-1 text-[10px] font-extrabold not-italic text-white">
                       {place + 1}
                     </em>
@@ -292,91 +520,128 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
             })}
           </div>
           <p className="mt-1.5 text-center text-3xs text-white/55">
-            {full && avail.length > cap ? `${t('numbersFull', { cap })} · ` : ''}{t('numbersHint')}
+            {cap === 1 ? t('numbersOne') : `${full && avail.length > cap ? `${t('numbersFull', { cap })} · ` : ''}${t('numbersHint')}`}
           </p>
         </>
       );
     }
-    if (tab === 'logo') {
-      const shown = state.brand ?? LOOK_BRAND[state.look];
+    if (mode === 'logo') {
+      const shown = state.brand ?? LOOK_BRAND[look];
       return (
         <div className="flex gap-2">
           {SHARE_BRAND_KEYS.map((b: ShareBrand) => (
             <button
               key={b}
               type="button"
-              onClick={() => set({ brand: b === LOOK_BRAND[state.look] ? null : b })}
+              onClick={() => set({ brand: b === LOOK_BRAND[look] ? null : b })}
               aria-pressed={shown === b}
               aria-label={b === 'badge' ? t('brandBadge') : b === 'stairs' ? t('brandStairs') : 'MADREGOT'}
-              className={cn('relative grid h-16 flex-1 place-items-center rounded-xl border-2 bg-white/[0.06]', shown === b ? 'border-[#FF5315]' : 'border-transparent')}
+              className={cn(
+                'flex h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 bg-white/[0.08]',
+                shown === b ? 'border-[#FF5315]' : 'border-transparent',
+              )}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={BRAND_SRC[b]} alt="" className={b === 'wordmark' ? 'h-4' : 'h-9'} />
-              {b === LOOK_BRAND[state.look] && <span className="absolute bottom-0.5 text-[9px] text-white/55">{t('ownLogo')}</span>}
+              <img src={BRAND_SRC[b]} alt="" className="max-h-7 max-w-[78%] object-contain" />
+              {b === LOOK_BRAND[look] && <span className="text-3xs font-bold text-white/55">{t('ownLogo')}</span>}
             </button>
           ))}
         </div>
       );
     }
-    if (tab === 'text') {
+    if (mode === 'text') {
       return (
         <>
-          <input
-            value={state.title}
-            maxLength={24}
-            placeholder={t('titlePlaceholder')}
-            onChange={e => set({ title: e.target.value })}
-            className="h-10 w-full rounded-xl border border-white/15 bg-white/[0.08] px-3 text-base font-bold text-white outline-none placeholder:text-white/35"
-          />
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {text.titles.filter(x => x !== state.title).slice(0, 3).map(x => pill(false, x, () => set({ title: x })))}
-            {pill(state.dates, t('dates'), () => set({ dates: !state.dates }))}
-            {pill(state.name, t('name'), () => set({ name: !state.name }))}
-            {pill(state.lang === 'en', state.lang === 'en' ? 'EN' : 'עב', () => {
-              const lang = state.lang === 'he' ? 'en' : 'he';
-              const titles = WEEK_STORY_TEXT[state.lang].titles;
-              const i = titles.indexOf(state.title);
-              // A preset title follows the language; a typed one is the athlete's and stays.
-              set({ lang, title: i >= 0 ? WEEK_STORY_TEXT[lang].titles[i] : state.title });
+          <div className="mb-2 flex items-center gap-1 rounded-xl bg-white px-3">
+            <input
+              value={state.title}
+              maxLength={24}
+              placeholder={t('titlePlaceholder')}
+              onChange={e => set({ title: e.target.value })}
+              onKeyDown={e => { if (e.key === 'Enter') back(); }}
+              enterKeyHint="done"
+              aria-label={t('titlePlaceholder')}
+              dir="auto"
+              className="min-h-[44px] min-w-0 flex-1 bg-transparent text-sm font-bold text-ink-900 outline-none"
+            />
+          </div>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {text.titles.filter(x => x !== state.title).slice(0, 3).map(x => chip(x, false, () => set({ title: x })))}
+          </div>
+          {/* The language shares the row with the toggles, as in the workout editor. */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {chip(t('dates'), state.dates, () => set({ dates: !state.dates }))}
+            {chip(t('name'), state.name, () => set({ name: !state.name }))}
+            <div className="ms-auto flex rounded-full bg-white/[0.08] p-0.5">
+              {(['he', 'en'] as const).map(l => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => {
+                    if (l === state.lang) return;
+                    const i = WEEK_STORY_TEXT[state.lang].titles.indexOf(state.title);
+                    // A preset title follows the language; a typed one is the athlete's and stays.
+                    set({ lang: l, title: i >= 0 ? WEEK_STORY_TEXT[l].titles[i] : state.title });
+                  }}
+                  aria-pressed={state.lang === l}
+                  className={cn('min-h-[38px] rounded-full px-3 text-xs font-bold', state.lang === l ? 'bg-white text-ink-900' : 'text-white/60')}
+                >
+                  {l === 'he' ? 'עברית' : 'English'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      );
+    }
+    if (mode === 'background') {
+      return (
+        <>
+          <div className="flex gap-2">
+            {WEEK_BACKGROUNDS.map(b => {
+              const on = state.background === b && (b !== 'photo' || !!photo);
+              return (
+                <button
+                  key={b}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => {
+                    // No photo yet: the picker, and choosing a file is what switches it.
+                    if (b === 'photo' && (!photo || state.background === 'photo')) fileRef.current?.click();
+                    else set({ background: b });
+                  }}
+                  className={cn(
+                    'flex h-[76px] min-w-0 flex-1 flex-col items-center justify-center gap-1.5 rounded-xl border-2 bg-white/[0.08] text-2xs font-bold text-white',
+                    on ? 'border-[#FF5315]' : 'border-transparent',
+                  )}
+                >
+                  <span className="grid h-7 w-7 place-items-center rounded-lg" style={{ background: BG_SWATCH[b] }}>
+                    {b === 'photo' && <ImagePlus className="h-4 w-4" />}
+                  </span>
+                  <span className="max-w-full truncate px-0.5">{t(BG_LABEL[b])}</span>
+                </button>
+              );
             })}
           </div>
+          {state.background === 'sticker' && <p className="mt-2 text-center text-2xs leading-relaxed text-white/55">{ts('stickerHint')}</p>}
         </>
       );
     }
-    if (tab === 'chart') {
-      return (
-        <>
-          <div className="flex gap-1 rounded-full bg-white/[0.08] p-1">
-            {(['km', 'time'] as const).map(m => (
-              <button key={m} type="button" onClick={() => set({ chartMetric: m })} aria-pressed={state.chartMetric === m} className={cn('min-h-[34px] flex-1 rounded-full text-xs font-extrabold', state.chartMetric === m ? 'bg-white text-ink-900' : 'text-white/75')}>
-                {m === 'km' ? t('chartKm') : t('chartTime')}
-              </button>
-            ))}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {nights?.length ? pill(state.sleepStrip, t('sleepStrip'), () => set({ sleepStrip: !state.sleepStrip })) : null}
-            {pill(state.avgLine, t('avgLine'), () => set({ avgLine: !state.avgLine }))}
-            {pill(state.barValues, t('barValues'), () => set({ barValues: !state.barValues }))}
-          </div>
-        </>
-      );
-    }
+    // The looks. All five fit across, no scrolling rail.
     return (
-      <div className="flex gap-2">
-        {WEEK_BACKGROUNDS.map(b => (
-          <button
-            key={b}
-            type="button"
-            onClick={() => { if (b === 'photo' && !photo) fileRef.current?.click(); set({ background: b }); }}
-            aria-pressed={state.background === b}
-            className={cn('min-w-0 flex-1 text-center', state.background === b ? 'text-white' : 'text-white/60')}
-          >
-            <i className={cn('mx-auto grid h-12 w-12 place-items-center rounded-xl border-2', state.background === b ? 'border-[#FF5315]' : 'border-white/15')} style={{ background: BG_SWATCH[b] }}>
-              {b === 'photo' && <ImagePlus className="h-4 w-4 text-white/85" />}
-            </i>
-            <span className="mt-1 block truncate text-3xs font-bold">{t(BG_LABEL[b])}</span>
-          </button>
-        ))}
+      <div className="flex gap-1.5">
+        {looks.map(l => {
+          const on = look === l;
+          return (
+            <button key={l} type="button" onClick={() => pickLook(l)} aria-pressed={on} className={cn('min-w-0 flex-1 text-center', on ? 'text-white' : 'text-white/55')}>
+              <span className={cn('block w-full overflow-hidden rounded-lg border-2 bg-white/[0.08]', on ? 'border-[#FF5315]' : 'border-transparent')} style={{ aspectRatio: '9 / 16' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {thumbs[l] && <img src={thumbs[l]} alt="" className="h-full w-full object-cover" />}
+              </span>
+              <span className="mt-1 block truncate text-3xs font-bold">{text.looks[l]}</span>
+            </button>
+          );
+        })}
       </div>
     );
   })();
@@ -391,62 +656,145 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
       className="fixed inset-0 z-[310] flex select-none flex-col bg-[#0b0d1d] pt-[env(safe-area-inset-top)] text-white"
     >
       <div className="relative flex h-14 flex-none items-center justify-between px-3 [@media(max-height:699px)]:h-11">
-        <button onClick={onClose} aria-label={tc('close')} className="grid min-h-[44px] min-w-[44px] place-items-center rounded-lg text-white/85">
-          <X className="h-5 w-5" />
-        </button>
-        <span className="pointer-events-none absolute inset-x-20 text-center">
-          <span className="block truncate text-base font-extrabold">{t('title')}</span>
-          <span className="block text-3xs font-bold text-[#FF8A5B]">{t('trial')}</span>
+        {inPart ? (
+          <button
+            type="button"
+            onClick={back}
+            className="flex min-h-[44px] items-center gap-0.5 rounded-lg pe-2 text-sm font-extrabold text-white"
+          >
+            {rtl ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+            {tc('edit')}
+          </button>
+        ) : (
+          <button type="button" onClick={onClose} aria-label={tc('close')} className="grid min-h-[44px] min-w-[44px] place-items-center rounded-lg text-white/85">
+            <X className="h-5 w-5" />
+          </button>
+        )}
+        <span className="pointer-events-none absolute inset-x-24 text-center">
+          <span className="block truncate text-base font-extrabold">{inPart ? partName(mode) : t('title')}</span>
+          {!inPart && <span className="block text-3xs font-bold text-[#FF8A5B]">{t('trial')}</span>}
         </span>
-        <span className="w-11" />
+        <button
+          type="button"
+          onClick={() => { if (editing) { setEditing(false); back(); } else setEditing(true); }}
+          aria-pressed={editing}
+          className={cn(
+            'flex min-h-[36px] min-w-[44px] items-center gap-1.5 rounded-full px-3.5 text-sm font-extrabold transition-colors',
+            editing ? 'bg-white text-ink-900' : 'bg-white/[0.12] text-white',
+          )}
+        >
+          {editing ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+          {editing ? tc('done') : tc('edit')}
+        </button>
       </div>
 
       <div
-        onPointerDown={onCardDown}
-        onPointerUp={onCardUp}
-        className="flex min-h-0 flex-1 touch-pan-y items-center justify-center px-6"
+        ref={stageRef}
+        onScroll={onScroll}
+        onPointerDown={onPointerDown}
+        onClick={e => { if (inPart && !(e.target as HTMLElement).closest('[data-look]')) back(); }}
+        className={cn(
+          'flex min-h-0 flex-1 items-center overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          inPart ? 'overflow-x-hidden' : 'snap-x snap-mandatory overflow-x-auto',
+        )}
+        style={{ gap: GAP }}
       >
-        <div
-          className="relative h-full max-h-full overflow-hidden rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
-          style={{
-            aspectRatio: '9 / 16',
-            background: state.background === 'sticker'
-              ? 'repeating-conic-gradient(#2a2e48 0 25%, #1b1f36 0 50%) 0 0 / 18px 18px'
-              : 'rgba(255,255,255,0.06)',
-          }}
-        >
-          {previewUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={previewUrl} alt={ts('preview')} draggable={false} className="pointer-events-none h-full w-full" />
-          )}
-          {rendering && <Loader2 className="absolute start-2.5 top-2.5 h-5 w-5 animate-spin text-white/70" />}
-        </div>
-      </div>
-
-      <div className="flex h-5 flex-none items-center justify-center gap-1.5">
-        {looks.map(l => (
-          <i key={l} className={cn('h-1.5 rounded-full transition-all', state.look === l ? 'w-[18px] bg-white' : 'w-1.5 bg-white/35')} />
-        ))}
-        <span className="ms-2 text-3xs text-white/45">{text.looks[state.look]} · {t('swipeHint')}</span>
-      </div>
-
-      <div className="mt-1 flex-none rounded-t-3xl bg-[#10132b] px-4 pb-[max(14px,env(safe-area-inset-bottom))] pt-3">
-        <div className="h-[132px] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{row}</div>
-        <div className="mt-1 flex gap-1 border-t border-white/10 pt-1.5">
-          {tabs.map(x => (
-            <button
-              key={x.key}
-              type="button"
-              onClick={() => setTab(x.key)}
-              aria-pressed={tab === x.key}
-              className={cn('min-h-[36px] flex-1 rounded-lg text-2xs font-extrabold', tab === x.key ? 'bg-white/[0.12] text-white' : 'text-white/55')}
+        <span className="flex-none" style={{ width: spacer, height: 1 }} />
+        {looks.map(l => {
+          const own = l === look;
+          const src = own ? previewUrl : slideUrls[l] ?? thumbs[l];
+          return (
+            <div
+              key={l}
+              data-look={l}
+              onClick={e => onSlideClick(l, e)}
+              className={cn(
+                'relative flex-none snap-center snap-always cursor-pointer transition-[transform,opacity] duration-200',
+                centred === l ? 'opacity-100' : 'scale-90 opacity-45',
+              )}
+              style={{ width: slideW, height: slideH }}
             >
-              {x.label}
-            </button>
-          ))}
-        </div>
-        {notice && <p className="mt-1.5 text-center text-2xs text-white/70">{notice}</p>}
+              <div
+                className="relative h-full w-full overflow-hidden rounded-2xl bg-white/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+                style={state.background === 'sticker' ? {
+                  background: 'repeating-conic-gradient(#2a2e48 0 25%, #1b1f36 0 50%) 0 0 / 18px 18px',
+                } : undefined}
+              >
+                {src && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    ref={own ? imgRef : undefined}
+                    src={src}
+                    alt={own ? ts('preview') : text.looks[l]}
+                    draggable={false}
+                    className="pointer-events-none h-full w-full"
+                  />
+                )}
+                {own && rendering && <Loader2 className="absolute start-2.5 top-2.5 h-5 w-5 animate-spin text-white/70" />}
+                {own && !rendering && (
+                  <>
+                    {editing && labelled.filter(p => p !== mode).flatMap(p => pieces(p).map((b, i) => outline(p, b, false, i)))}
+                    {inPart && mode !== 'background' && hitMap[mode] && pieces(mode).map((b, i) => outline(mode, b, true, i))}
+                    {mode === 'background' && (
+                      <div className="pointer-events-none absolute inset-1.5 rounded-xl border-[2.5px] border-[#FF5315]" />
+                    )}
+                    {editing && [...labelled, 'background' as const].map(p => {
+                      const r = labels[p];
+                      if (!r) return null;
+                      const on = mode === p;
+                      return (
+                        <button
+                          key={`label-${p}`}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={e => { e.stopPropagation(); if (on) back(); else openPart(p); }}
+                          className={cn(
+                            'absolute whitespace-nowrap rounded-full text-center text-3xs font-extrabold shadow-[0_2px_6px_rgba(0,0,0,0.45)] transition-colors',
+                            "after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-['']",
+                            on ? 'bg-[#FF5315] text-white' : 'bg-white text-ink-900',
+                          )}
+                          style={{ left: r.x, top: r.y, width: r.w, height: r.h, lineHeight: `${r.h}px` }}
+                        >
+                          {partName(p)}
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        <span className="flex-none" style={{ width: spacer, height: 1 }} />
+      </div>
+
+      <div className={cn('flex h-4 flex-none items-center justify-center gap-1.5 [@media(max-height:699px)]:hidden', inPart && 'invisible')}>
+        {looks.map(l => (
+          <i key={l} className={cn('h-1.5 rounded-full transition-all', centred === l ? 'w-[18px] bg-white' : 'w-1.5 bg-white/35')} />
+        ))}
+      </div>
+
+      {/* The looks and the part options come up only while editing; Done puts them
+          away and the card takes the room back. */}
+      <div className={cn(
+        'mt-2 flex-none px-4 pb-[max(16px,env(safe-area-inset-bottom))]',
+        editing && 'rounded-t-3xl bg-[#10132b] pt-3.5',
+      )}>
+        {editing && (
+          <div
+            ref={panelRef}
+            data-share-panel
+            onScroll={checkMore}
+            style={more ? { maskImage: 'linear-gradient(to bottom, #000 80%, transparent)', WebkitMaskImage: 'linear-gradient(to bottom, #000 80%, transparent)' } : undefined}
+            className="h-[124px] overflow-y-auto [scrollbar-width:none] [@media(min-height:700px)_and_(max-height:799px)]:h-[150px] [@media(min-height:800px)]:h-[178px] [&::-webkit-scrollbar]:hidden"
+          >
+            {tray}
+          </div>
+        )}
+        {!editing && <p className="text-center text-3xs text-white/45">{text.looks[look]} · {t('swipeHint')}</p>}
+        {notice && <p className="mb-1.5 mt-1 text-center text-2xs text-white/70">{notice}</p>}
         <button
+          type="button"
           onClick={handleShare}
           disabled={rendering || busy || !previewUrl}
           className={cn(

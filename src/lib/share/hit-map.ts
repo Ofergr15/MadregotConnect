@@ -10,7 +10,8 @@
  *
  *  · logo — an image the renderer names as a club mark (the three white files, or
  *           the tinted copy of one).
- *  · text — a line of type that carries the run's title or its date.
+ *  · text — a line of type that carries the run's title or its date (or one of
+ *           the card's other `lines`: the week card's name line).
  *  · data — everything else that is drawn: the route, the bars, the numbers.
  *
  * Nothing that covers most of the card counts (the gradient, the scrim, a photo):
@@ -30,18 +31,28 @@ export type ShareHitMap = Partial<Record<SharePart, ShareBox>> & {
    * testing a tap against it, would hand the numbers to the logo.
    */
   logoPieces?: ShareBox[];
+  /**
+   * The text in blocks of lines that sit together. The week card's title is at
+   * the top and its name line at the bottom: one box round both would take in the
+   * whole chart between them.
+   */
+  textPieces?: ShareBox[];
 };
 
 export interface HitMapKnown {
   isMark: (src: unknown) => boolean;
   title: string | null;
   date: string | null;
+  /** Other lines of type that belong to the text part. */
+  lines?: string[];
   width: number;
   height: number;
 }
 
 /** Anything larger than this share of the card is background, not a part. */
 const BACKGROUND_SHARE = 0.45;
+/** Lines of text closer than this, in card pixels, are one block (a title over its date). */
+const TEXT_BLOCK_GAP = 60;
 
 export function unionBox(a: ShareBox | undefined, b: ShareBox): ShareBox {
   if (!a) return b;
@@ -51,10 +62,11 @@ export function unionBox(a: ShareBox | undefined, b: ShareBox): ShareBox {
 /** The bidi marks the renderer wraps numbers in, which the known title may or may not carry. */
 const BIDI_MARKS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
 
-export function isTextPart(text: string, known: Pick<HitMapKnown, 'title' | 'date'>): boolean {
+export function isTextPart(text: string, known: Pick<HitMapKnown, 'title' | 'date' | 'lines'>): boolean {
   text = text.replace(BIDI_MARKS, '');
   const title = known.title?.replace(BIDI_MARKS, '').trim();
-  return (!!title && text.includes(title)) || (!!known.date && text.includes(known.date));
+  return (!!title && text.includes(title)) || (!!known.date && text.includes(known.date))
+    || (known.lines ?? []).some(l => !!l && text === l);
 }
 
 /**
@@ -66,6 +78,7 @@ export function partAt(map: ShareHitMap, x: number, y: number, pad = 26): ShareP
   const hit = (b: ShareBox | undefined) => !!b && x >= b.x0 - pad && x <= b.x1 + pad && y >= b.y0 - pad && y <= b.y1 + pad;
   for (const k of ['logo', 'text', 'data'] as const) {
     if (k === 'logo' && map.logoPieces) { if (map.logoPieces.some(hit)) return k; continue; }
+    if (k === 'text' && map.textPieces) { if (map.textPieces.some(hit)) return k; continue; }
     if (hit(map[k])) return k;
   }
   return 'background';
@@ -106,6 +119,11 @@ export function recordHitMap(ctx: CanvasRenderingContext2D, known: HitMapKnown):
     if (area > limit) return;
     map[part] = unionBox(map[part], box);
     if (part === 'logo') (map.logoPieces ??= []).push(box);
+    if (part === 'text') {
+      const pieces = (map.textPieces ??= []);
+      const near = pieces.findIndex(p => box.y0 - p.y1 < TEXT_BLOCK_GAP && p.y0 - box.y1 < TEXT_BLOCK_GAP);
+      if (near >= 0) pieces[near] = unionBox(pieces[near], box); else pieces.push(box);
+    }
   };
   const rectPts = (x: number, y: number, w: number, h: number): Pt[] =>
     [toCard(x, y), toCard(x + w, y), toCard(x, y + h), toCard(x + w, y + h)];

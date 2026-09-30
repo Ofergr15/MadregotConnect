@@ -101,6 +101,27 @@ describe('the hit map', () => {
     expect(isTextPart('\u202A10×400\u202C בפארק', { title: '10×400 בפארק', date: null })).toBe(true);
   });
 
+  it('counts the week card\'s name line as text, and only that line', () => {
+    const week = { title: null, date: null, lines: ['Ofer · madregot.app'] };
+    expect(isTextPart('Ofer · madregot.app', week)).toBe(true);
+    expect(isTextPart('42.6', week)).toBe(false);
+    expect(isTextPart('', { title: null, date: null, lines: [''] })).toBe(false);
+  });
+
+  it('keeps a title block and a far name line as two text pieces, so the chart between is not text', () => {
+    const ctx = fakeCtx();
+    const stop = recordHitMap(ctx, { ...known, title: 'My week', date: '21.09 – 27.09', lines: ['Ofer · madregot.app'] });
+    ctx.fillText('My week', 400, 300);
+    ctx.fillText('21.09 – 27.09', 400, 360);
+    ctx.fillText('42.6', 400, 1000);
+    ctx.fillText('Ofer · madregot.app', 300, 1800);
+    const map = stop();
+    expect(map.textPieces).toHaveLength(2);
+    expect(partAt(map, 450, 300)).toBe('text');
+    expect(partAt(map, 450, 1790)).toBe('text');
+    expect(partAt(map, 420, 990)).toBe('data');
+  });
+
   it('keeps the logo\'s pieces apart, so the numbers between them stay the numbers', () => {
     const ctx = fakeCtx();
     const stop = recordHitMap(ctx, known);
