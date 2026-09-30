@@ -11,7 +11,7 @@ import type { WhatsNewRelease } from '@/lib/release-notes';
 import { WHATS_NEW_KEY, markSeen, readWhatsNewLedger } from '@/lib/whats-new/ledger';
 import {
   FORCE_RELOAD_MS, MIN_SPLASH_MS, STAGE, UPDATING_KEY, isMidTyping, landedOnNewBuild,
-  readUpdatingNote, seenSlugs, updateContent, writeUpdatingNote, type UpdateContent,
+  onlyTheWorkerIsOld, readUpdatingNote, seenSlugs, updateContent, writeUpdatingNote, type UpdateContent,
 } from '@/lib/update-flow';
 import { UpdateSheet } from '@/components/update/UpdateSheet';
 import { UpdateSplash } from '@/components/update/UpdateSplash';
@@ -186,6 +186,9 @@ export function UpdatePrompt() {
     // for nobody to be halfway through typing (lib/update-flow.ts isMidTyping).
     let asking = false;
     let asked = false;
+    // Set when the server knows nothing newer than this bundle: the swap is then
+    // the worker's only, and goes the quiet way (lib/update-flow.ts onlyTheWorkerIsOld).
+    let quiet = false;
     const ask = async () => {
       if (!pending || disposed || applying || asking || asked) return;
       if (document.visibilityState !== 'visible') return;
@@ -198,13 +201,18 @@ export function UpdatePrompt() {
       asking = false;
       if (disposed || asked) return;
       asked = true;
+      if (onlyTheWorkerIsOld(releases, APP_VERSION)) {
+        quiet = true;
+        tryApply();
+        return;
+      }
       setContent(updateContent(releases, APP_VERSION));
     };
     askRef.current = () => { void ask(); };
 
     const tryApply = (awayMs = 0) => {
       if (!pending || disposed) return;
-      if (superRef.current) { void ask(); return; }
+      if (superRef.current && !quiet) { void ask(); return; }
       if (canApplyUpdate({
         sinceLoadMs: Date.now() - quietSince,
         interacted,

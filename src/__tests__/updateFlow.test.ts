@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { ShownNote, WhatsNewRelease } from '@/lib/release-notes';
 import {
   STAGE, UPDATE_BOOT_SCRIPT, UPDATING_KEY, UPDATING_TTL_MS, isMidTyping, landedOnNewBuild,
-  readUpdatingNote, seenSlugs, updateContent, writeUpdatingNote,
+  onlyTheWorkerIsOld, readUpdatingNote, seenSlugs, updateContent, writeUpdatingNote,
 } from '@/lib/update-flow';
 
 const note = (id: string, featured = false): ShownNote => ({
@@ -44,6 +44,24 @@ describe('updateContent', () => {
   it('marks the starred rows seen for the digest sheet, by its own slugs', () => {
     const c = updateContent([release('9.9.9', [note('a', true), note('b')])], '1.0.0');
     expect(seenSlugs(c)).toEqual(['release:a']);
+  });
+});
+
+describe('onlyTheWorkerIsOld', () => {
+  it('the first open after a deploy already runs the new bundle: nothing to ask', () => {
+    expect(onlyTheWorkerIsOld([release('2.41.48', []), release('2.41.47', [note('a', true)])], '2.41.48')).toBe(true);
+    expect(onlyTheWorkerIsOld([], '2.41.48')).toBe(true);
+  });
+
+  it('asks when the server knows a newer release, or did not answer', () => {
+    expect(onlyTheWorkerIsOld([release('2.41.49', [])], '2.41.48')).toBe(false);
+    expect(onlyTheWorkerIsOld(null, '2.41.48')).toBe(false);
+  });
+
+  it('the prompt takes that swap the quiet way', () => {
+    const src = readFileSync(join(__dirname, '../components/UpdatePrompt.tsx'), 'utf8');
+    expect(src).toMatch(/if \(onlyTheWorkerIsOld\(releases, APP_VERSION\)\) \{\s*quiet = true;\s*tryApply\(\);/);
+    expect(src).toMatch(/if \(superRef\.current && !quiet\) \{ void ask\(\); return; \}/);
   });
 });
 

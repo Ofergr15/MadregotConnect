@@ -114,6 +114,24 @@ export function updateContent(releases: WhatsNewRelease[] | null | undefined, ap
 }
 
 /**
+ * The page is already the newest build, and only the worker behind it is old.
+ *
+ * The first open after a deploy loads the new HTML and JS from the network while
+ * the previous worker still controls the page, so the new bundle sees the new
+ * worker waiting and would ask. But there is nothing to ask about: the code on
+ * screen IS the new version. The server answered and knows no release newer than
+ * this bundle, so the swap is only the worker's, and it is taken quietly, like
+ * everyone else's. Seen on 2.41.48, the first release carrying the sheet: it
+ * opened with no version and no notes.
+ *
+ * A failed request (null) is not this case: then nobody knows, and the sheet
+ * shows.
+ */
+export function onlyTheWorkerIsOld(releases: WhatsNewRelease[] | null | undefined, appVersion: string): boolean {
+  return releases != null && updateContent(releases, appVersion).version === null;
+}
+
+/**
  * The What's new sheet's slugs for these notes (lib/release-notes.ts
  * releaseEntries). Marked seen on the way into the update, because the person
  * has just read them: the digest sheet opening again after the reload would be
