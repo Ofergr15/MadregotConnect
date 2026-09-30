@@ -9,7 +9,7 @@ import { thinHrTrace } from '@/lib/share/hr-trace';
 const SRC = fileURLToPath(new URL('../', import.meta.url));
 const EDITOR = readFileSync(join(SRC, 'components/share/WorkoutShareEditor.tsx'), 'utf8');
 const WEEK_EDITOR = readFileSync(join(SRC, 'components/share/WeekShareEditor.tsx'), 'utf8');
-const WEEK_RENDER = readFileSync(join(SRC, 'lib/reports/week-share-image.ts'), 'utf8');
+const WEEK_RENDER = readFileSync(join(SRC, 'lib/reports/week-story-image.ts'), 'utf8');
 const SHEET = readFileSync(join(SRC, 'components/ShareSheet.tsx'), 'utf8');
 const RENDER = readFileSync(join(SRC, 'lib/feed/share-image.ts'), 'utf8');
 const DETAILS = readFileSync(join(SRC, 'app/api/activities/details/route.ts'), 'utf8');
@@ -157,7 +157,7 @@ describe('the editor', () => {
   it('opens for the workout and the week, for the super user only; everyone else keeps the sheet', () => {
     expect(SHEET).toMatch(/const editor = useIsSuperUser\(\);/);
     expect(SHEET).toMatch(/subject\.kind === 'workout' && editor\) return <WorkoutShareEditor/);
-    expect(SHEET).toMatch(/subject\.kind === 'week' && editor\) return <WeekShareEditor report=\{subject\.report\}/);
+    expect(SHEET).toMatch(/subject\.kind === 'week' && editor\) \{\s*return \(\s*<WeekShareEditor\s+report=\{subject\.report\}/);
     expect(SHEET).toMatch(/return <ClassicShareSheet subject=\{subject\}/);
   });
 
@@ -286,38 +286,37 @@ describe('the week editor (feedback 2026-09-30: the same flow as the workout)', 
     }
   });
 
-  it('asks the week card for its tap areas, as the workout card does', () => {
-    expect(WEEK_RENDER).toMatch(/const stopHitMap = opts\.onHitMap\s*\?\s*recordHitMap\(ctx/);
-    expect(WEEK_RENDER).toMatch(/if \(stopHitMap\) opts\.onHitMap!\(stopHitMap\(\)\)/);
+  it('asks the week story for its tap areas, as the workout card does', () => {
+    expect(WEEK_RENDER).toMatch(/const stopHitMap = input\.onHitMap\s*\?\s*recordHitMap\(ctx/);
+    expect(WEEK_RENDER).toMatch(/isMark: img => img === logo, title: state\.title, date: range/);
     expect(WEEK_EDITOR).toMatch(/onHitMap: map => \{ if \(!cancelled\) setHitMap\(map\); \}/);
   });
 
-  it('keeps every choice the week sheet had: logo place, mark, title, name, language, numbers, bars, photo', () => {
-    expect(WEEK_EDITOR).toMatch(/WEEK_LOGO_PLACEMENTS\.map/);
+  it('stops watching before the name line, so the text part does not stretch over the card', () => {
+    expect(WEEK_RENDER).toMatch(/const drawName = \(\) => \{\s*finishHitMap\(\);/);
+  });
+
+  it('keeps every choice of the approved story editor: five looks, numbers, logo, text, chart, background', () => {
+    expect(WEEK_EDITOR).toMatch(/availableLooks\(report\)/);
+    expect(WEEK_EDITOR).toMatch(/NUMBER_ORDER\.filter\(k => avail\.includes\(k\)\)/);
+    expect(WEEK_EDITOR).toMatch(/swapNumbers\(s\.picks\[s\.look\], key, to\)/);
+    expect(WEEK_EDITOR).toMatch(/toggleNumber\(s\.picks\[s\.look\], key, LOOK_CAP\[s\.look\]\)/);
     expect(WEEK_EDITOR).toMatch(/SHARE_BRAND_KEYS\.map/);
-    expect(WEEK_EDITOR).toMatch(/onClick=\{\(\) => setTypedTitle\(null\)\}/);
-    expect(WEEK_EDITOR).toMatch(/nameOk && pill\(t\('partName'\), withName/);
-    expect(WEEK_EDITOR).toMatch(/SHARE_CARD_LANGS\.map/);
-    expect(WEEK_EDITOR).toMatch(/toggleChip\(prev, chip\.key, chips\.length\)/);
-    expect(WEEK_EDITOR).toMatch(/t\('extraDays'\)/);
+    expect(WEEK_EDITOR).toMatch(/set\(\{ dates: !state\.dates \}\)/);
+    expect(WEEK_EDITOR).toMatch(/set\(\{ name: !state\.name \}\)/);
+    expect(WEEK_EDITOR).toMatch(/look === 'days' && \(/);
+    expect(WEEK_EDITOR).toMatch(/set\(\{ chartMetric: m \}\)/);
+    expect(WEEK_EDITOR).toMatch(/WEEK_BACKGROUNDS\.map/);
     expect(WEEK_EDITOR).toMatch(/fileRef\.current\?\.click\(\)/);
   });
 
-  it('draws the choices the sheet drew, with the typed title and the mark', () => {
-    expect(WEEK_EDITOR).toMatch(/athleteName: withName && nameOk \? athleteName : null/);
-    expect(WEEK_EDITOR).toMatch(/metrics: asWeekMetrics\(keys\)/);
-    expect(WEEK_EDITOR).toMatch(/title: typedTitle,/);
-    expect(WEEK_RENDER).toMatch(/const title = opts\.title\?\.trim\(\) \|\| text\.title/);
-    expect(WEEK_RENDER).toMatch(/loadImage\(BRAND_SRC\[opts\.brand \?\? 'badge'\]\)/);
+  it('has no tab bar any more: the parts are opened from the card', () => {
+    expect(WEEK_EDITOR).not.toMatch(/setTab\(/);
+    expect(WEEK_EDITOR).toMatch(/\{editing && \(\s*<div\s+ref=\{panelRef\}/);
   });
 
   it('opens on the chosen look: the snap settling before the layout is not a swipe', () => {
     expect(WEEK_EDITOR).toMatch(/scrollTo\(look, placed\.current && centred === look\)/);
     expect(WEEK_EDITOR).toMatch(/const onScroll = \(\) => \{\s*if \(!placed\.current\) return;/);
-  });
-
-  it('has the name chip in both languages', () => {
-    expect(HE.shareSheet.partName).toBeTruthy();
-    expect(EN.shareSheet.partName).toBe('My name');
   });
 });

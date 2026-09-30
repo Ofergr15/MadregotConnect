@@ -77,9 +77,9 @@ const VIEW_LABEL: Record<ShareTemplate, string> = {
 /**
  * The workout opens the full-screen editor, where the card itself is the control
  * panel (`share/WorkoutShareEditor.tsx`), and so does the week, in the same flow
- * (`share/WeekShareEditor.tsx`). The sheet's
- * branches stay below, unreached for them, until the editors have been out a while:
- * it is the way back if the editor has to be pulled.
+ * (`share/WeekShareEditor.tsx`). The sheet's branches stay below, unreached for
+ * them, until the editors have been out a while: they are the way back if an
+ * editor has to be pulled.
  */
 /**
  * The full-screen editor is on for the super user only while it is tried out on
@@ -88,7 +88,17 @@ const VIEW_LABEL: Record<ShareTemplate, string> = {
 export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClose: () => void }) {
   const editor = useIsSuperUser();
   if (subject.kind === 'workout' && editor) return <WorkoutShareEditor item={subject.item} onClose={onClose} />;
-  if (subject.kind === 'week' && editor) return <WeekShareEditor report={subject.report} athleteName={subject.athleteName} onClose={onClose} />;
+  if (subject.kind === 'week' && editor) {
+    return (
+      <WeekShareEditor
+        report={subject.report}
+        previous={subject.previous}
+        nights={subject.nights}
+        athleteName={subject.athleteName ?? null}
+        onClose={onClose}
+      />
+    );
+  }
   return <ClassicShareSheet subject={subject} onClose={onClose} />;
 }
 

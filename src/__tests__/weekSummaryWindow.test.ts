@@ -73,7 +73,9 @@ describe('the feed card', () => {
   const card = read('components/feed/WeekSummaryCard.tsx');
 
   it('renders nothing outside the window', () => {
-    expect(card).toMatch(/if \(!isWeekSummaryWindow\(\{ weekday, hour \}\)\) return;/);
+    // Everyone but the super user, whose trial of the story editor shows it daily.
+    expect(card).toMatch(/if \(!inWindow && !trial\) return;/);
+    expect(card).toMatch(/const trial = useIsSuperUser\(\);/);
     expect(card).toMatch(/if \(dismissed \|\| !report\) return null;/);
   });
 
@@ -82,17 +84,17 @@ describe('the feed card', () => {
   });
 
   it('reads the activities the feed can already ask for, adding no endpoint', () => {
-    expect(card).toMatch(/fetchActivities\(\{ selfOnly: true, sinceDays: 8 \}\)/);
+    expect(card).toMatch(/fetchActivities\(\{ selfOnly: true, sinceDays: trial \? 15 : 8 \}\)/);
     // The one other read is the nights (#69) — sleep isn't in the activities table.
-    expect(card.match(/fetch\('\/api\/[^']*'/g)).toEqual(["fetch('/api/wellness?days=9'"]);
+    expect(card.match(/fetch\(`\/api\/[^`]*`/g)).toEqual(['fetch(`/api/wellness?days=${trial ? 16 : 9}`']);
   });
 
   it('keys the X to the Saturday', () => {
-    expect(card).toMatch(/localStorage\.setItem\(weekSummaryDismissKey\(weekSummaryAnchor\(israelToday\(\), weekday\)\)/);
+    expect(card).toMatch(/isWeekSummaryWindow\(\{ weekday, hour \}\) \? weekSummaryAnchor\(israelToday\(\), weekday\) : israelToday\(\);\n\s+localStorage\.setItem\(weekSummaryDismissKey\(anchor\)/);
   });
 
   it('stays quiet in a week with no runs', () => {
-    expect(card).toMatch(/built\.runs > 0/);
+    expect(card).toMatch(/built\.runs === 0\) return;/);
   });
 
   it('is the one dark block in the feed, on a gradient and not a runner photo', () => {
@@ -102,7 +104,7 @@ describe('the feed card', () => {
   });
 
   it('carries the same share sheet as the profile card', () => {
-    expect(card).toMatch(/<ShareSheet\n\s+subject=\{\{ kind: 'week', report, athleteName \}\}/);
+    expect(card).toMatch(/<ShareSheet\n\s+subject=\{\{ kind: 'week', report, athleteName, previous, nights \}\}/);
   });
 
   it('is mounted at the top of the feed, above the setup nudge', () => {

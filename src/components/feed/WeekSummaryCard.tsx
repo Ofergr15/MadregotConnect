@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { Share2, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { israelNow, israelToday } from '@/lib/utils';
+import { addDaysToDateStr, israelNow, israelToday } from '@/lib/utils';
+import { useIsSuperUser } from '@/lib/impersonation';
 import { fetchActivities } from '@/lib/activities-client';
 import {
   buildLast7Report, formatReportHours, formatReportPace, withWellness,
@@ -40,19 +41,27 @@ import { ShareSheet } from '@/components/ShareSheet';
 // closed at 23:00 come straight back at 08:00.
 // ═════════════════════════════════════════════════════════════════════════════
 
+// THE SUPER USER'S TRIAL (2.41.34): the new weekly story editor opens from this
+// card, and while it is tried out the card is there for them on every day, not
+// only in the weekend window — the rolling seven days ending today, with the week
+// before it for the "body" look's comparison. A close lasts for the day.
 export function WeekSummaryCard() {
   const t = useTranslations('profile');
   const tc = useTranslations('common');
+  const trial = useIsSuperUser();
   const [report, setReport] = useState<Last7Report | null>(null);
+  const [previous, setPrevious] = useState<Last7Report | null>(null);
+  const [nights, setNights] = useState<WellnessNight[]>([]);
   const [athleteName, setAthleteName] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(true);
   const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     const { weekday, hour } = israelNow();
-    if (!isWeekSummaryWindow({ weekday, hour })) return;
+    const inWindow = isWeekSummaryWindow({ weekday, hour });
+    if (!inWindow && !trial) return;
 
-    const anchor = weekSummaryAnchor(israelToday(), weekday);
+    const anchor = inWindow ? weekSummaryAnchor(israelToday(), weekday) : israelToday();
     if (localStorage.getItem(weekSummaryDismissKey(anchor))) return;
     setDismissed(false);
     setAthleteName(localStorage.getItem('athlete_name') || null);
@@ -63,9 +72,10 @@ export function WeekSummaryCard() {
         // Eight days, not seven: `since` is a date-only floor, so a day of slack
         // keeps the oldest day whole whichever side of midnight we are on.
         const [res, nights] = await Promise.all([
-          fetchActivities({ selfOnly: true, sinceDays: 8 }),
+          // The trial also reads the week before, for the comparison.
+          fetchActivities({ selfOnly: true, sinceDays: trial ? 15 : 8 }),
           // Sleep + resting HR (#69). Optional: a failure is a week without them.
-          fetch('/api/wellness?days=9', { headers: await apiHeaders() })
+          fetch(`/api/wellness?days=${trial ? 16 : 9}`, { headers: await apiHeaders() })
             .then(r => (r.ok ? r.json() : { nights: [] }))
             .then(d => (d.nights || []) as WellnessNight[])
             .catch(() => [] as WellnessNight[]),
@@ -76,15 +86,19 @@ export function WeekSummaryCard() {
         // The report ends on the Saturday even when it is read on Sunday
         // morning: the week being summarised is the one that just closed.
         const built = withWellness(buildLast7Report(acts, anchor), nights);
-        if (!cancelled && built.runs > 0) setReport(built);
+        if (cancelled || built.runs === 0) return;
+        setReport(built);
+        setNights(nights);
+        if (trial) setPrevious(withWellness(buildLast7Report(acts, addDaysToDateStr(anchor, -7)), nights));
       } catch {}
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [trial]);
 
   const dismiss = () => {
-    const { weekday } = israelNow();
-    localStorage.setItem(weekSummaryDismissKey(weekSummaryAnchor(israelToday(), weekday)), '1');
+    const { weekday, hour } = israelNow();
+    const anchor = isWeekSummaryWindow({ weekday, hour }) ? weekSummaryAnchor(israelToday(), weekday) : israelToday();
+    localStorage.setItem(weekSummaryDismissKey(anchor), '1');
     setDismissed(true);
   };
 
@@ -162,7 +176,7 @@ export function WeekSummaryCard() {
 
       {sharing && (
         <ShareSheet
-          subject={{ kind: 'week', report, athleteName }}
+          subject={{ kind: 'week', report, athleteName, previous, nights }}
           onClose={() => setSharing(false)}
         />
       )}

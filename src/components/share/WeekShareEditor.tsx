@@ -1,87 +1,95 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Share2, ImagePlus, Loader2, RotateCcw, Pencil, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Share2, Loader2, ImagePlus, Pencil, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
-import { shareCard, SHARE_BRAND_KEYS, STORY_H, STORY_W, type ShareBrand } from '@/lib/feed/share-image';
-import { renderWeekShareCard, WEEK_LOGO_PLACEMENTS, type WeekLogoPlacement } from '@/lib/reports/week-share-image';
-import { WEEK_CARD_TEXT } from '@/lib/reports/week-share';
-import { SHARE_CARD_LANGS, WORKOUT_CARD_TEXT, type ShareCardLang } from '@/lib/share/card-text';
+import { SHARE_BRAND_KEYS, STORY_H, STORY_W, shareCard, type ShareBrand } from '@/lib/feed/share-image';
+import type { Last7Report, WellnessNight } from '@/lib/reports/last-7-days';
+import {
+  LOOK_BRAND, LOOK_CAP, NUMBER_ORDER, WEEK_BACKGROUNDS, WEEK_STORY_TEXT,
+  availableLooks, availableNumbers, initialStoryState, numberValue, swapNumbers, toggleNumber,
+  type WeekBackground, type WeekLook, type WeekNumberKey, type WeekStoryState,
+} from '@/lib/reports/week-story';
+import { BRAND_SRC, renderWeekStory } from '@/lib/reports/week-story-image';
 import { partAt, placeLabels, type ShareBox, type ShareHitMap, type SharePart } from '@/lib/share/hit-map';
-import { asWeekMetrics, defaultChipKeys, defaultTemplate, shareChips, shareFilename, toggleChip, type ShareSubject } from '@/lib/share/sheet-model';
-import type { Last7Report } from '@/lib/reports/last-7-days';
-import { BRAND_SRC, LABEL_H, OUTLINE_PAD, Toggle, labelWidth } from '@/components/share/editor-parts';
+import { LABEL_H, OUTLINE_PAD, Segmented, Toggle, labelWidth } from '@/components/share/editor-parts';
 
 /**
- * THE WEEK'S SHARE EDITOR: THE SAME FLOW AS THE WORKOUT'S.
+ * THE WEEKLY STORY EDITOR, IN THE WORKOUT EDITOR'S FLOW.
  *
- * "The weekly share doesn't have the editing the workout share has, it has to be
- * the same flow" (feedback 2026-09-30). So this is `WorkoutShareEditor`'s shell
- * with the week's card in it: the card fills the screen, the looks are a carousel,
- * Edit (or a tap on the card) labels every part on it, a label opens that part's
- * options, "‹ Edit" or a tap beside the card goes back, and the big button always
- * shares. The two files are kept in step by hand, and what they draw with is
- * shared (`editor-parts.tsx`).
+ * What the week offers is version C of the approved mockup (`week-story.ts`): five
+ * looks, a numbers tray in one fixed order with per-look picks and drag-to-swap,
+ * the logo, the text, the day-by-day chart's options and five backgrounds.
  *
- * What differs is only what the week has:
+ * How it is edited is `WorkoutShareEditor`'s, because "the weekly summary has to
+ * work with the same editing as the workout share" (feedback 2026-09-30): the card
+ * fills the screen and the looks are a carousel; Edit (or a tap on the card)
+ * labels every part on it; a label opens that part's options; "‹ Edit" or a tap
+ * beside the card goes back; the big button always shares. The two files are kept
+ * in step by hand, and what they draw with is shared (`editor-parts.tsx`).
  *
- *  · the looks are the two places for the club mark (feedback #69), above the
- *    panel or inside it;
- *  · logo: which of the three marks;
- *  · text: the title (typed, or the card's own "my week"), the athlete's name on or
- *    off, and the card's language;
- *  · the numbers: which rows, and the day-by-day bars under them;
- *  · background: the club photo or the athlete's own. There is no sticker: the
- *    weekly card composites its own frosted panel over the photo.
+ * The parts are the workout's three plus the background: logo, text (title,
+ * dates, name, card language), numbers (the tray, and on the day-by-day look the
+ * chart's options under it) and background.
  *
- * Unlike the workout editor it does carry a name toggle: the week card has always
- * printed the athlete's name and let them take it off. The workout card never may.
+ * Super user only while it is tried out (ShareSheet decides); everyone else keeps
+ * the old weekly sheet.
  */
-type WeekBackground = 'club' | 'photo';
 type Mode = 'looks' | SharePart | 'background';
 
-export function WeekShareEditor({ report, athleteName, onClose }: {
-  report: Last7Report; athleteName?: string | null; onClose: () => void;
-}) {
-  const t = useTranslations('shareSheet');
+const BG_SWATCH: Record<WeekBackground, string> = {
+  club: 'linear-gradient(160deg,#2f45ff,#1b1150)',
+  sunset: 'linear-gradient(160deg,#FF8A3D,#8a1f3d)',
+  night: 'linear-gradient(160deg,#23263a,#0b0d1d)',
+  photo: 'linear-gradient(135deg,#7aa0b8,#c9b48a 38%,#6f8f5e 62%,#3b4f3a)',
+  sticker: 'repeating-conic-gradient(#3a3d52 0% 25%,#2a2d40 0% 50%) 50%/12px 12px',
+};
+const BG_LABEL: Record<WeekBackground, string> = {
+  club: 'bgClub', sunset: 'bgSunset', night: 'bgNight', photo: 'bgPhoto', sticker: 'bgSticker',
+};
+const CHECKER = 'repeating-conic-gradient(#2a2e48 0 25%, #1b1f36 0 50%) 0 0 / 18px 18px';
+
+export interface WeekShareEditorProps {
+  report: Last7Report;
+  previous?: Last7Report | null;
+  nights?: WellnessNight[];
+  athleteName: string | null;
+  onClose: () => void;
+}
+
+export function WeekShareEditor({ report, previous, nights, athleteName, onClose }: WeekShareEditorProps) {
+  const t = useTranslations('weekEditor');
+  const ts = useTranslations('shareSheet');
   const tc = useTranslations('common');
   const locale = useLocale();
   const rtl = locale !== 'en';
-  const subject = useMemo<ShareSubject>(() => ({ kind: 'week', report, athleteName }), [report, athleteName]);
-  const chipsFrame = defaultTemplate(subject);
 
-  const [look, setLook] = useState<WeekLogoPlacement>('above');
-  const [keys, setKeys] = useState<string[]>(() => defaultChipKeys(subject, chipsFrame));
-  const [cardLang, setCardLang] = useState<ShareCardLang>(rtl ? 'he' : 'en');
-  const [withName, setWithName] = useState(true);
-  const [typedTitle, setTypedTitle] = useState<string | null>(null);
-  const [bars, setBars] = useState(false);
-  const [brand, setBrand] = useState<ShareBrand>('badge');
-  const [bg, setBg] = useState<WeekBackground>('club');
+  const looks = useMemo(() => availableLooks(report), [report]);
+  const avail = useMemo(() => availableNumbers(report), [report]);
+  const [state, setState] = useState<WeekStoryState>(() => initialStoryState(report, rtl ? 'he' : 'en'));
   const [photo, setPhoto] = useState<File | null>(null);
-
   const [mode, setMode] = useState<Mode>('looks');
   const [editing, setEditing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [hitMap, setHitMap] = useState<ShareHitMap>({});
-  const [slideUrls, setSlideUrls] = useState<Partial<Record<WeekLogoPlacement, string>>>({});
+  const [slideUrls, setSlideUrls] = useState<Partial<Record<WeekLook, string>>>({});
   const [rendering, setRendering] = useState(true);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [mounted, setMounted] = useState(false);
   const blobRef = useRef<Blob | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
-  const [mounted, setMounted] = useState(false);
-
-  const cardTitle = WEEK_CARD_TEXT[cardLang].title;
-  const titleText = typedTitle ?? cardTitle;
-  const chips = useMemo(() => shareChips(subject, WORKOUT_CARD_TEXT[cardLang], cardLang), [subject, cardLang]);
-  const nameOk = !!athleteName?.trim();
+  const text = WEEK_STORY_TEXT[state.lang];
+  const look = state.look;
+  const cap = LOOK_CAP[look];
+  const picks = state.picks[look];
   const inPart = mode !== 'looks';
+  const set = useCallback((patch: Partial<WeekStoryState>) => setState(s => ({ ...s, ...patch })), []);
 
   useEffect(() => {
     setMounted(true);
@@ -90,8 +98,8 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  const pickLook = useCallback((next: WeekLogoPlacement) => {
-    setLook(next);
+  const pickLook = useCallback((next: WeekLook) => {
+    setState(s => ({ ...s, look: next }));
     setMode('looks');
     setHitMap({});
   }, []);
@@ -113,67 +121,61 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, inPart, back]);
 
-  // Blob URLs are let go only once their replacement is on screen, as in the workout editor.
-  const liveUrls = useRef(new Map<string, string>());
-  const swapUrl = useCallback((slot: string, url: string) => {
-    const old = liveUrls.current.get(slot);
-    liveUrls.current.set(slot, url);
+  // One URL per slot, let go only once its replacement is on screen.
+  const live = useRef(new Map<string, string>());
+  const swapUrl = useCallback((slot: string, blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    const old = live.current.get(slot);
+    live.current.set(slot, url);
     if (old) setTimeout(() => URL.revokeObjectURL(old), 1000);
     return url;
   }, []);
   useEffect(() => {
-    const live = liveUrls.current;
-    return () => { live.forEach(u => URL.revokeObjectURL(u)); live.clear(); };
+    const urls = live.current;
+    return () => { urls.forEach(u => URL.revokeObjectURL(u)); urls.clear(); };
   }, []);
 
-  const renderOpts = useCallback((placement: WeekLogoPlacement) => ({
-    background: bg === 'photo' ? photo : null,
-    athleteName: withName && nameOk ? athleteName : null,
-    metrics: asWeekMetrics(keys),
-    lang: cardLang,
-    bars,
-    logo: placement,
-    brand,
-    title: typedTitle,
-  }), [bg, photo, withName, nameOk, athleteName, keys, cardLang, bars, brand, typedTitle]);
+  const input = useMemo(
+    () => ({ report, previous, nights, athleteName, photo, state }),
+    [report, previous, nights, athleteName, photo, state],
+  );
 
   // The card being edited, with its tap areas.
   useEffect(() => {
     let cancelled = false;
     setRendering(true);
     setError(null);
-    setNotice(null);
-    renderWeekShareCard(report, { ...renderOpts(look), onHitMap: map => { if (!cancelled) setHitMap(map); } })
-      .then(blob => {
+    const timer = setTimeout(async () => {
+      try {
+        const blob = await renderWeekStory({ ...input, onHitMap: map => { if (!cancelled) setHitMap(map); } });
         if (cancelled) return;
         blobRef.current = blob;
-        setPreviewUrl(swapUrl('preview', URL.createObjectURL(blob)));
-        setRendering(false);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setError(t('renderError'));
-        setRendering(false);
-      });
-    return () => { cancelled = true; };
-  }, [report, look, renderOpts, swapUrl, t]);
+        setPreviewUrl(swapUrl('preview', blob));
+      } catch {
+        if (!cancelled) setError(ts('renderError'));
+      } finally {
+        if (!cancelled) setRendering(false);
+      }
+    }, 80);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [input, swapUrl, ts]);
 
-  // The other look, once the card is up, with the same choices, so a swipe lands on it ready.
+  // The other looks, once the card is up, with the same choices, so a swipe lands on one ready.
   useEffect(() => {
     if (rendering) return;
     let cancelled = false;
     const timer = setTimeout(async () => {
-      for (const p of WEEK_LOGO_PLACEMENTS.filter(p => p !== look)) {
+      for (const l of looks.filter(l => l !== look)) {
         try {
-          const blob = await renderWeekShareCard(report, renderOpts(p));
+          const blob = await renderWeekStory({ ...input, look: l });
           if (cancelled) return;
-          const url = swapUrl(`slide:${p}`, URL.createObjectURL(blob));
-          setSlideUrls(prev => ({ ...prev, [p]: url }));
+          const url = swapUrl(`slide:${l}`, blob);
+          setSlideUrls(prev => ({ ...prev, [l]: url }));
         } catch { /* the slide stays blank until it is picked */ }
       }
     }, 350);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [rendering, look, report, renderOpts, swapUrl]);
+  }, [rendering, look, looks, input, swapUrl]);
 
   // ── Carousel geometry, as in the workout editor ────────────────────────────
   const [stage, setStage] = useState({ w: 0, h: 0 });
@@ -191,24 +193,24 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
   if (slideW > stage.w - 72) { slideW = Math.max(0, stage.w - 72); slideH = slideW * 16 / 9; }
   const spacer = Math.max(0, (stage.w - slideW) / 2 - GAP);
 
-  const [centred, setCentred] = useState<WeekLogoPlacement>(look);
+  const [centred, setCentred] = useState<WeekLook>(look);
   const settleRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const dragRef = useRef<{ x: number; left: number; moved: boolean } | null>(null);
   const justDragged = useRef(false);
 
-  const centredLook = useCallback((): WeekLogoPlacement | null => {
+  const centredLook = useCallback((): WeekLook | null => {
     const el = stageRef.current;
     if (!el) return null;
     const mid = el.getBoundingClientRect().left + el.clientWidth / 2;
-    let best: WeekLogoPlacement | null = null, d = Infinity;
+    let best: WeekLook | null = null, d = Infinity;
     el.querySelectorAll<HTMLElement>('[data-view]').forEach(s => {
       const r = s.getBoundingClientRect();
       const dd = Math.abs(r.left + r.width / 2 - mid);
-      if (dd < d) { d = dd; best = s.dataset.view as WeekLogoPlacement; }
+      if (dd < d) { d = dd; best = s.dataset.view as WeekLook; }
     });
     return best;
   }, []);
-  const scrollTo = useCallback((v: WeekLogoPlacement, smooth = true) => {
+  const scrollTo = useCallback((v: WeekLook, smooth = true) => {
     stageRef.current?.querySelector<HTMLElement>(`[data-view="${v}"]`)
       ?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', inline: 'center', block: 'nearest' });
   }, []);
@@ -260,12 +262,52 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
     return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
   }, [centredLook, scrollTo, pickLook, look]);
 
-  const onSlideClick = (v: WeekLogoPlacement, e: React.MouseEvent) => {
+  const onSlideClick = (v: WeekLook, e: React.MouseEvent) => {
     if (justDragged.current) return;
     if (v !== look) { if (inPart) back(); else pickLook(v); return; }
     const r = imgRef.current?.getBoundingClientRect();
     if (!r) return;
-    openPart(partAt(hitMap, ((e.clientX - r.left) / r.width) * STORY_W, ((e.clientY - r.top) / r.height) * STORY_H));
+    const part = partAt(hitMap, ((e.clientX - r.left) / r.width) * STORY_W, ((e.clientY - r.top) / r.height) * STORY_H);
+    openPart(part);
+  };
+
+  // ── Numbers: tap toggles, drag one picked tile onto another to swap ────────
+  const [dragKey, setDragKey] = useState<WeekNumberKey | null>(null);
+  const [dropKey, setDropKey] = useState<WeekNumberKey | null>(null);
+  const dragged = useRef(false);
+  const startDrag = (key: WeekNumberKey, e: React.PointerEvent) => {
+    if (!picks.includes(key)) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    dragged.current = false;
+    let target: WeekNumberKey | null = null;
+    const move = (ev: PointerEvent) => {
+      if (!dragged.current && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
+      if (!dragged.current) { dragged.current = true; setDragKey(key); }
+      const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>('[data-number-on]');
+      const k = (el?.dataset.numberOn as WeekNumberKey | undefined) ?? null;
+      target = k && k !== key ? k : null;
+      setDropKey(target);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      if (dragged.current && target) {
+        const to = target;
+        setState(s => ({ ...s, picks: { ...s.picks, [s.look]: swapNumbers(s.picks[s.look], key, to) } }));
+      }
+      setDragKey(null);
+      setDropKey(null);
+      setTimeout(() => { dragged.current = false; }, 0);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
+  const tapNumber = (key: WeekNumberKey) => {
+    if (dragged.current) return;
+    setState(s => ({ ...s, picks: { ...s.picks, [s.look]: toggleNumber(s.picks[s.look], key, LOOK_CAP[s.look]) } }));
   };
 
   const handleShare = async () => {
@@ -273,12 +315,14 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
     if (!blob || busy) return;
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
-      const result = await shareCard(blob, shareFilename(subject, false));
-      if (result === 'downloaded') setNotice(t('saved'));
+      const sticker = state.background === 'sticker';
+      const result = await shareCard(blob, `madregot-week-${report.to}.${sticker ? 'png' : 'jpg'}`);
+      if (result === 'downloaded') setNotice(sticker ? ts('savedSticker') : ts('saved'));
       else onClose();
     } catch {
-      setError(t('shareError'));
+      setError(ts('shareError'));
     } finally {
       setBusy(false);
     }
@@ -287,11 +331,11 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
   // ── The part outlines and labels over the card ─────────────────────────────
   const scale = slideW / STORY_W;
   const partName = (p: Mode): string => {
-    if (p === 'logo') return t('logoTitle');
+    if (p === 'logo') return t('tabLogo');
     if (p === 'text') return t('tabText');
-    if (p === 'background') return t('backgroundTitle');
-    if (p === 'data') return t('frameNumbers');
-    return t('titleWeek');
+    if (p === 'background') return t('tabBackground');
+    if (p === 'data') return look === 'days' ? `${t('tabNumbers')} · ${t('tabChart')}` : t('tabNumbers');
+    return t('title');
   };
   const panelRef = useRef<HTMLDivElement>(null);
   const [more, setMore] = useState(false);
@@ -330,6 +374,7 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
   const pill = (label: string, on: boolean, onClick: () => void) => (
     <button
       key={label}
+      type="button"
       onClick={onClick}
       aria-pressed={on}
       className={cn('min-h-[40px] rounded-full px-3.5 text-xs font-bold', on ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/80')}
@@ -341,47 +386,79 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
   // ── The tray: the looks, or the options of the part that was tapped ─────────
   const tray = (() => {
     if (mode === 'data') {
+      const full = picks.length >= cap;
       return (
         <>
-          <div className="grid grid-cols-3 gap-1.5">
-            {chips.map(chip => {
-              const on = keys.includes(chip.key);
+          <div className="grid grid-cols-4 gap-1.5">
+            {NUMBER_ORDER.filter(k => avail.includes(k)).map(k => {
+              const place = picks.indexOf(k);
+              const on = place >= 0;
+              const blocked = !on && full;
+              const health = k === 'sleep' || k === 'rhr';
               return (
                 <button
-                  key={chip.key}
-                  onClick={() => setKeys(prev => toggleChip(prev, chip.key, chips.length))}
+                  key={k}
+                  type="button"
+                  data-number-on={on ? k : undefined}
+                  onPointerDown={e => startDrag(k, e)}
+                  onClick={() => tapNumber(k)}
                   aria-pressed={on}
-                  className={cn('min-h-[44px] min-w-0 rounded-xl px-2 py-0.5 text-start', on ? 'bg-[#FF5315] text-white' : 'bg-white/[0.08] text-white/85')}
+                  className={cn(
+                    'relative min-h-[48px] touch-none rounded-xl border-[1.5px] px-1 py-1.5 text-center transition-colors',
+                    on ? 'border-[#FF5315] bg-[#FF5315]/20' : health ? 'border-[#B7ACFF]/40 bg-white/[0.06]' : 'border-white/15 bg-white/[0.06]',
+                    blocked && 'opacity-40',
+                    dragKey === k && 'opacity-60',
+                    dropKey === k && 'outline outline-2 outline-dashed outline-white',
+                  )}
                 >
-                  <span className="block truncate text-3xs font-medium leading-tight opacity-80">{chip.label}</span>
-                  <bdi dir="ltr" className="block truncate text-xs font-bold leading-tight">{chip.value}</bdi>
+                  {on && (
+                    <em className="absolute -top-1.5 start-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#FF5315] px-1 text-[10px] font-extrabold not-italic text-white">
+                      {place + 1}
+                    </em>
+                  )}
+                  <span className="block truncate text-[10px] font-bold text-white/70">{text.labels[k]}</span>
+                  <b className="block text-sm font-extrabold tabular-nums"><bdi dir="ltr">{numberValue(report, k)}</bdi></b>
                 </button>
               );
             })}
           </div>
-          <div className="mt-2">
-            <Toggle label={t('extraDays')} on={bars} onClick={() => setBars(v => !v)} />
-          </div>
+          <p className="mb-2 mt-1.5 text-center text-3xs text-white/55">
+            {full && avail.length > cap ? `${t('numbersFull', { cap })} · ` : ''}{t('numbersHint')}
+          </p>
+          {look === 'days' && (
+            <>
+              <Segmented
+                items={[['km', t('chartKm')], ['time', t('chartTime')]]}
+                value={state.chartMetric}
+                onChange={m => set({ chartMetric: m })}
+              />
+              {nights?.length ? <Toggle label={t('sleepStrip')} on={state.sleepStrip} onClick={() => set({ sleepStrip: !state.sleepStrip })} /> : null}
+              <Toggle label={t('avgLine')} on={state.avgLine} onClick={() => set({ avgLine: !state.avgLine })} />
+              <Toggle label={t('barValues')} on={state.barValues} onClick={() => set({ barValues: !state.barValues })} />
+            </>
+          )}
         </>
       );
     }
     if (mode === 'logo') {
+      const shown = state.brand ?? LOOK_BRAND[look];
       return (
         <div className="flex gap-2">
-          {SHARE_BRAND_KEYS.map(b => (
+          {SHARE_BRAND_KEYS.map((b: ShareBrand) => (
             <button
               key={b}
-              onClick={() => setBrand(b)}
-              aria-pressed={brand === b}
-              aria-label={t(b === 'badge' ? 'brandBadge' : b === 'wordmark' ? 'brandWordmark' : 'brandStairs')}
+              type="button"
+              onClick={() => set({ brand: b === LOOK_BRAND[look] ? null : b })}
+              aria-pressed={shown === b}
+              aria-label={b === 'badge' ? t('brandBadge') : b === 'stairs' ? t('brandStairs') : 'MADREGOT'}
               className={cn(
                 'flex h-14 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border-2 bg-white/[0.08]',
-                brand === b ? 'border-[#FF5315]' : 'border-transparent',
+                shown === b ? 'border-[#FF5315]' : 'border-transparent',
               )}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={BRAND_SRC[b]} alt="" className="max-h-7 max-w-[78%] object-contain" />
-              {b === 'badge' && <span className="text-3xs font-bold text-white/55">{t('brandOwn')}</span>}
+              {b === LOOK_BRAND[look] && <span className="text-3xs font-bold text-white/55">{t('ownLogo')}</span>}
             </button>
           ))}
         </div>
@@ -390,36 +467,33 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
     if (mode === 'text') {
       return (
         <>
-          <div className="mb-2 flex items-center gap-1 rounded-xl bg-white px-3">
-            <input
-              value={titleText}
-              onChange={e => setTypedTitle(e.target.value.slice(0, 60))}
-              onKeyDown={e => { if (e.key === 'Enter') back(); }}
-              enterKeyHint="done"
-              aria-label={t('titleEdit')}
-              placeholder={cardTitle}
-              dir="auto"
-              className="min-h-[44px] min-w-0 flex-1 bg-transparent text-sm font-bold text-ink-900 outline-none"
-            />
-            {typedTitle !== null && (
-              <button
-                onClick={() => setTypedTitle(null)}
-                aria-label={t('titleReset')}
-                className="grid min-h-[44px] min-w-[44px] place-items-center text-ink-400"
-              >
-                <RotateCcw className="h-4 w-4" />
-              </button>
-            )}
-          </div>
+          <input
+            value={state.title}
+            maxLength={24}
+            placeholder={t('titlePlaceholder')}
+            onChange={e => set({ title: e.target.value })}
+            onKeyDown={e => { if (e.key === 'Enter') back(); }}
+            enterKeyHint="done"
+            dir="auto"
+            className="mb-2 min-h-[44px] w-full rounded-xl bg-white px-3 text-sm font-bold text-ink-900 outline-none placeholder:text-ink-400"
+          />
           <div className="flex flex-wrap items-center gap-1.5">
-            {nameOk && pill(t('partName'), withName, () => setWithName(v => !v))}
+            {text.titles.filter(x => x !== state.title).slice(0, 3).map(x => pill(x, false, () => set({ title: x })))}
+            {pill(t('dates'), state.dates, () => set({ dates: !state.dates }))}
+            {pill(t('name'), state.name, () => set({ name: !state.name }))}
             <div className="ms-auto flex rounded-full bg-white/[0.08] p-0.5">
-              {SHARE_CARD_LANGS.map(l => (
+              {(['he', 'en'] as const).map(l => (
                 <button
                   key={l}
-                  onClick={() => setCardLang(l)}
-                  aria-pressed={cardLang === l}
-                  className={cn('min-h-[38px] rounded-full px-3 text-xs font-bold', cardLang === l ? 'bg-white text-ink-900' : 'text-white/60')}
+                  type="button"
+                  onClick={() => {
+                    if (l === state.lang) return;
+                    const i = WEEK_STORY_TEXT[state.lang].titles.indexOf(state.title);
+                    // A preset title follows the language; a typed one is the athlete's and stays.
+                    set({ lang: l, title: i >= 0 ? WEEK_STORY_TEXT[l].titles[i] : state.title });
+                  }}
+                  aria-pressed={state.lang === l}
+                  className={cn('min-h-[38px] rounded-full px-3 text-xs font-bold', state.lang === l ? 'bg-white text-ink-900' : 'text-white/60')}
                 >
                   {l === 'he' ? 'עברית' : 'English'}
                 </button>
@@ -430,56 +504,56 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
       );
     }
     if (mode === 'background') {
-      const opt = (key: WeekBackground, label: string, swatch: string) => {
-        const on = bg === key && (key !== 'photo' || !!photo);
-        return (
-          <button
-            key={key}
-            aria-pressed={on}
-            onClick={() => {
-              if (key === 'photo' && (!photo || bg === 'photo')) fileRef.current?.click();
-              else setBg(key);
-            }}
-            className={cn(
-              'flex h-[76px] flex-1 flex-col items-center justify-center gap-1.5 rounded-xl border-2 bg-white/[0.08] text-2xs font-bold text-white',
-              on ? 'border-[#FF5315]' : 'border-transparent',
-            )}
-          >
-            <span className={cn('grid h-7 w-7 place-items-center rounded-lg', swatch)}>
-              {key === 'photo' && <ImagePlus className="h-4 w-4" />}
-            </span>
-            {label}
-          </button>
-        );
-      };
       return (
         <div className="flex gap-2">
-          {opt('club', t('bgClub'), "bg-[url('/images/runners-group.jpg')] bg-cover bg-center")}
-          {opt('photo', photo && bg === 'photo' ? t('changePhoto') : t('bgPhoto'), 'bg-white/15')}
+          {WEEK_BACKGROUNDS.map(b => {
+            const on = state.background === b;
+            return (
+              <button
+                key={b}
+                type="button"
+                onClick={() => {
+                  if (b === 'photo' && (!photo || on)) fileRef.current?.click();
+                  set({ background: b });
+                }}
+                aria-pressed={on}
+                className={cn('min-w-0 flex-1 text-center', on ? 'text-white' : 'text-white/60')}
+              >
+                <i
+                  className={cn('mx-auto grid h-12 w-12 place-items-center rounded-xl border-2', on ? 'border-[#FF5315]' : 'border-white/15')}
+                  style={{ background: BG_SWATCH[b] }}
+                >
+                  {b === 'photo' && <ImagePlus className="h-4 w-4 text-white/85" />}
+                </i>
+                <span className="mt-1 block truncate text-3xs font-bold">{t(BG_LABEL[b])}</span>
+              </button>
+            );
+          })}
         </div>
       );
     }
-    // The looks: the two places for the mark, both on screen.
+    // The looks, all of them on screen.
     return (
-      <div className="mx-auto flex max-w-[180px] gap-3">
-        {WEEK_LOGO_PLACEMENTS.map(p => {
-          const on = look === p;
-          const src = on ? previewUrl : slideUrls[p];
+      <div className="flex gap-2">
+        {looks.map(l => {
+          const on = look === l;
+          const src = on ? previewUrl : slideUrls[l];
           return (
             <button
-              key={p}
-              onClick={() => pickLook(p)}
+              key={l}
+              type="button"
+              onClick={() => pickLook(l)}
               aria-pressed={on}
               className={cn('min-w-0 flex-1 text-center', on ? 'text-white' : 'text-white/55')}
             >
               <span
-                className={cn('block w-full overflow-hidden rounded-lg border-2 bg-white/[0.08]', on ? 'border-[#FF5315]' : 'border-transparent')}
+                className={cn('mx-auto block w-full max-w-[64px] overflow-hidden rounded-lg border-2 bg-white/[0.08]', on ? 'border-[#FF5315]' : 'border-transparent')}
                 style={{ aspectRatio: '9 / 16' }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 {src && <img src={src} alt="" className="h-full w-full object-cover" />}
               </span>
-              <span className="mt-1 block truncate text-3xs font-bold">{t(p === 'above' ? 'logoAbove' : 'logoInside')}</span>
+              <span className="mt-1 block truncate text-3xs font-bold">{text.looks[l]}</span>
             </button>
           );
         })}
@@ -492,7 +566,7 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={t('titleWeek')}
+      aria-label={t('title')}
       dir={rtl ? 'rtl' : 'ltr'}
       className="fixed inset-0 z-[310] flex select-none flex-col bg-[#0b0d1d] pt-[env(safe-area-inset-top)] text-white"
     >
@@ -515,7 +589,10 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
             <X className="h-5 w-5" />
           </button>
         )}
-        <span className="pointer-events-none absolute inset-x-24 truncate text-center text-base font-extrabold">{inPart ? partName(mode) : t('titleWeek')}</span>
+        <span className="pointer-events-none absolute inset-x-24 text-center">
+          <span className="block truncate text-base font-extrabold">{inPart ? partName(mode) : t('title')}</span>
+          {!inPart && <span className="block text-3xs font-bold text-[#FF8A5B]">{t('trial')}</span>}
+        </span>
         <button
           onClick={() => { if (editing) { setEditing(false); back(); } else setEditing(true); }}
           aria-pressed={editing}
@@ -541,27 +618,30 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
         style={{ gap: GAP }}
       >
         <span className="flex-none" style={{ width: spacer, height: 1 }} />
-        {WEEK_LOGO_PLACEMENTS.map(p => {
-          const own = p === look;
-          const src = own ? previewUrl : slideUrls[p];
+        {looks.map(l => {
+          const own = l === look;
+          const src = own ? previewUrl : slideUrls[l];
           return (
             <div
-              key={p}
-              data-view={p}
-              onClick={e => onSlideClick(p, e)}
+              key={l}
+              data-view={l}
+              onClick={e => onSlideClick(l, e)}
               className={cn(
                 'relative flex-none snap-center snap-always cursor-pointer transition-[transform,opacity] duration-200',
-                centred === p ? 'opacity-100' : 'scale-90 opacity-45',
+                centred === l ? 'opacity-100' : 'scale-90 opacity-45',
               )}
               style={{ width: slideW, height: slideH }}
             >
-              <div className="relative h-full w-full overflow-hidden rounded-2xl bg-white/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+              <div
+                className="relative h-full w-full overflow-hidden rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+                style={{ background: state.background === 'sticker' ? CHECKER : 'rgba(255,255,255,0.06)' }}
+              >
                 {src && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     ref={own ? imgRef : undefined}
                     src={src}
-                    alt={own ? t('preview') : t(p === 'above' ? 'logoAbove' : 'logoInside')}
+                    alt={own ? ts('preview') : text.looks[l]}
                     draggable={false}
                     className="pointer-events-none h-full w-full"
                   />
@@ -607,9 +687,10 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
       </div>
 
       <div className={cn('flex h-4 flex-none items-center justify-center gap-1.5 [@media(max-height:699px)]:hidden', inPart && 'invisible')}>
-        {WEEK_LOGO_PLACEMENTS.map(p => (
-          <i key={p} className={cn('h-1.5 rounded-full transition-all', centred === p ? 'w-[18px] bg-white' : 'w-1.5 bg-white/35')} />
+        {looks.map(l => (
+          <i key={l} className={cn('h-1.5 rounded-full transition-all', centred === l ? 'w-[18px] bg-white' : 'w-1.5 bg-white/35')} />
         ))}
+        <span className="ms-2 text-3xs text-white/45">{text.looks[centred]} · {t('swipeHint')}</span>
       </div>
 
       <div className={cn(
@@ -638,7 +719,7 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
           )}
         >
           {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
-          {t('action')}
+          {ts('action')}
         </button>
       </div>
 
@@ -649,10 +730,7 @@ export function WeekShareEditor({ report, athleteName, onClose }: {
         className="hidden"
         onChange={e => {
           const f = e.target.files?.[0];
-          if (f) {
-            setPhoto(f);
-            setBg('photo');
-          }
+          if (f) { setPhoto(f); set({ background: 'photo' }); }
           e.target.value = '';
         }}
       />
