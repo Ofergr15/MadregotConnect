@@ -201,7 +201,11 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
         const blob = await renderWeekStory({ ...input, onHitMap: map => { if (!cancelled) setHitMap(map); } });
         if (cancelled) return;
         blobRef.current = blob;
-        setPreviewUrl(swapUrl('preview', blob));
+        // Kept per look, as that look's slide: a swipe must not show the look it left.
+        const drawn = input.state.look;
+        const url = swapUrl(`preview:${drawn}`, blob);
+        setPreviewUrl(url);
+        setSlideUrls(prev => ({ ...prev, [drawn]: url }));
       } catch {
         if (!cancelled) setNotice(ts('renderError'));
       } finally {
@@ -702,7 +706,10 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
         <span className="flex-none" style={{ width: spacer, height: 1 }} />
         {looks.map(l => {
           const own = l === look;
-          const src = own ? previewUrl : slideUrls[l] ?? thumbs[l];
+          // Each slide shows the newest picture of ITS look. The card that a swipe just
+          // centred keeps its neighbour picture until its own render lands; the preview
+          // is still the look that was left, and showing it flashed that look.
+          const src = slideUrls[l] ?? thumbs[l];
           return (
             <div
               key={l}

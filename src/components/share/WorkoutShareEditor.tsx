@@ -313,7 +313,10 @@ export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; o
       .then(blob => {
         if (cancelled) return;
         blobRef.current = blob;
-        setPreviewUrl(swapUrl('preview', URL.createObjectURL(blob)));
+        // Kept per view, as that view's slide: a swipe must not show the view it left.
+        const url = swapUrl(`preview:${template}`, URL.createObjectURL(blob));
+        setPreviewUrl(url);
+        setSlideUrls(prev => ({ ...prev, [template]: url }));
         setRendering(false);
       })
       .catch(() => {
@@ -889,7 +892,8 @@ export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; o
         <span className="flex-none" style={{ width: spacer, height: 1 }} />
         {views.map(v => {
           const own = v.key === template;
-          const src = own ? previewUrl : slideUrls[v.key] ?? thumbs[v.key];
+          // The newest picture of THIS view; the preview may still be the view just left.
+          const src = slideUrls[v.key] ?? thumbs[v.key];
           return (
             <div
               key={v.key}
