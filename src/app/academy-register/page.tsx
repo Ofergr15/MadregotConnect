@@ -12,7 +12,9 @@ import { HONEYPOT_FIELD, looksLikeToken, splitName } from '@/lib/academy/intake'
 // as the academy_intake JSON blob. (Blood-test file upload is intentionally left
 // out of v1 — needs file storage; the coach can request it separately.)
 type Field =
-  | { key: string; label: string; type: 'text' | 'email' | 'tel' | 'number'; required?: boolean; placeholder?: string }
+  // `inputMode` is what picks the phone keyboard: type="number" alone opens the
+  // full keyboard on iOS, so every number field names its own.
+  | { key: string; label: string; type: 'text' | 'email' | 'tel' | 'number'; required?: boolean; placeholder?: string; inputMode?: 'numeric' | 'decimal' }
   | { key: string; label: string; type: 'textarea'; required?: boolean; placeholder?: string }
   | { key: string; label: string; type: 'radio' | 'select'; required?: boolean; options: string[] }
   // Same data as a radio, laid out as a wrapping row of pills. Added for the kit
@@ -33,11 +35,10 @@ const FIELDS: Field[] = [
     'שילוב של תכנית און ליין עם מפגשים פיזיים',
     'רק תכנית אימון און ליין ומעקב',
   ] },
-  { key: 'age', label: 'גיל', type: 'number', required: true },
-  { key: 'weight', label: 'משקל', type: 'number' },
-  { key: 'height', label: 'גובה', type: 'number', required: true },
+  { key: 'age', label: 'גיל', type: 'number', required: true, inputMode: 'numeric' },
+  { key: 'weight', label: 'משקל', type: 'number', inputMode: 'decimal' },
+  { key: 'height', label: 'גובה (בס״מ)', type: 'number', required: true, inputMode: 'numeric' },
   { key: 'city', label: 'מקום מגורים', type: 'text', required: true },
-  { key: 'maritalStatus', label: 'סטטוס משפחתי', type: 'text' },
   { key: 'goal', label: 'מה מטרתך מההשתתפות בקבוצת הריצה', type: 'radio', required: true, options: [
     'מסגרת לאימונים שתוציא אותי לרוץ',
     'מסגרת שתביא אותי להישגים חדשים',
@@ -83,7 +84,7 @@ const REGISTRATION_OPEN = true;
 // Instagram link. Four short pages, each checked before the next, same questions.
 const STEPS: { title: string; keys: string[] }[] = [
   { title: 'הפרטים שלך', keys: ['firstName', 'lastName', 'email', 'phone'] },
-  { title: 'קצת עליך', keys: ['focus', 'age', 'weight', 'height', 'city', 'maritalStatus'] },
+  { title: 'קצת עליך', keys: ['focus', 'age', 'weight', 'height', 'city'] },
   { title: 'הריצה שלך', keys: ['goal', 'group', 'runningHistory', 'achievements', 'strava', 'hearAbout', 'instagram'] },
   { title: 'בריאות ומידות', keys: ['medicalHistory', 'medicalDetails', 'shirtSize', 'pantsSize', 'tightsSize', 'socksSize'] },
 ];
@@ -274,6 +275,7 @@ export default function AcademyRegisterPage() {
               {(f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number') && (
                 <input
                   id={`ar-${f.key}`} type={f.type} value={values[f.key] || ''} placeholder={(f as any).placeholder || 'התשובה שלך'}
+                  inputMode={(f as any).inputMode}
                   onChange={e => set(f.key, e.target.value)}
                   // text-base, not text-sm: under 16px iOS Safari zooms the page on
                   // every focus, and this form is opened from Instagram on a phone.
