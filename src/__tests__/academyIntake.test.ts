@@ -328,3 +328,13 @@ describe('the form on a phone: width', () => {
     expect(page).toContain("clipPath: 'inset(50%)'");
   });
 });
+
+describe('the academy pages and the service worker', () => {
+  it('are always fetched from the network, before any page cache rule', () => {
+    const sw = require('node:fs').readFileSync('src/app/sw.ts', 'utf8') as string;
+    const rule = sw.indexOf("pathname === '/academy' || pathname === '/academy-register'");
+    expect(rule).toBeGreaterThan(-1);
+    expect(sw.indexOf('handler: new NetworkOnly()', rule)).toBeGreaterThan(rule);
+    expect(rule).toBeLessThan(sw.indexOf('handler: pageCache('));
+  });
+});

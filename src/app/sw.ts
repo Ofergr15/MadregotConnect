@@ -166,6 +166,16 @@ const serwist = new Serwist({
         url.hostname === 'unpkg.com' || url.hostname === BASEMAP_HOSTNAME,
       handler: new NetworkOnly(),
     },
+    // 4b) The academy's public pages always come from the network. They are what
+    //    a coach sends to a stranger, and they change by the hour while the form is
+    //    being tuned; a copy kept by an older worker kept showing the previous form
+    //    (off-centre, English name hints) after the fix was live. Offline is worth
+    //    nothing here: the form cannot be sent without the network anyway.
+    {
+      matcher: ({ url: { pathname }, sameOrigin }) =>
+        sameOrigin && (pathname === '/academy' || pathname === '/academy-register'),
+      handler: new NetworkOnly(),
+    },
     // 5) Navigations/documents/RSC payloads. These take the same three
     //    cacheNames defaultCache uses (so we reuse those Cache Storage buckets
     //    rather than orphan them) but add two things it can't express: a network

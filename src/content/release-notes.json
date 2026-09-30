@@ -1,5 +1,13 @@
 [
   {
+    "id": "academy-pages-always-fresh",
+    "date": "2026-09-30",
+    "kind": "fix",
+    "icon": "🔄",
+    "title": "עמודי האקדמיה תמיד בגרסה העדכנית",
+    "body": "עמוד האקדמיה והטופס נטענים תמיד מהרשת, כך שאף אחד לא רואה גרסה ישנה של הטופס."
+  },
+  {
     "id": "academy-form-hebrew-name-hints",
     "date": "2026-09-30",
     "kind": "fix",
