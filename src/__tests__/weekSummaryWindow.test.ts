@@ -73,8 +73,9 @@ describe('the feed card', () => {
   const card = read('components/feed/WeekSummaryCard.tsx');
 
   it('renders nothing outside the window', () => {
-    // Everyone but the super user, whose trial of the story editor shows it daily.
-    expect(card).toMatch(/if \(!inWindow && !trial\) return;/);
+    // Everyone, the super user included: the trial no longer shows it daily.
+    expect(card).toMatch(/if \(!inWindow\) return;/);
+    expect(card).not.toMatch(/!inWindow && !trial/);
     expect(card).toMatch(/const trial = useIsSuperUser\(\);/);
     expect(card).toMatch(/if \(dismissed \|\| !report\) return null;/);
   });

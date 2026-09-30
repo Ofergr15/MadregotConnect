@@ -42,9 +42,9 @@ import { ShareSheet } from '@/components/ShareSheet';
 // ═════════════════════════════════════════════════════════════════════════════
 
 // THE SUPER USER'S TRIAL (2.41.34): the new weekly story editor opens from this
-// card, and while it is tried out the card is there for them on every day, not
-// only in the weekend window — the rolling seven days ending today, with the week
-// before it for the "body" look's comparison. A close lasts for the day.
+// card, with the week before it for the "body" look's comparison. Since 2.41.66
+// the card keeps the same weekend window as everyone else's; it was on every day
+// while the editor was tried out.
 export function WeekSummaryCard() {
   const t = useTranslations('profile');
   const tc = useTranslations('common');
@@ -59,9 +59,9 @@ export function WeekSummaryCard() {
   useEffect(() => {
     const { weekday, hour } = israelNow();
     const inWindow = isWeekSummaryWindow({ weekday, hour });
-    if (!inWindow && !trial) return;
+    if (!inWindow) return;
 
-    const anchor = inWindow ? weekSummaryAnchor(israelToday(), weekday) : israelToday();
+    const anchor = weekSummaryAnchor(israelToday(), weekday);
     if (localStorage.getItem(weekSummaryDismissKey(anchor))) return;
     setDismissed(false);
     setAthleteName(localStorage.getItem('athlete_name') || null);
