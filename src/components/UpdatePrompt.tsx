@@ -1,8 +1,43 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { apiFetcher } from '@/lib/api';
+import { useIsSuperUser } from '@/lib/impersonation';
 import { askBuildId, isNewerBuild } from '@/lib/sw-build-id';
 import { AWAY_MS, canApplyUpdate } from '@/lib/update-timing';
+import { APP_VERSION } from '@/lib/version';
+import type { WhatsNewRelease } from '@/lib/release-notes';
+import { WHATS_NEW_KEY, markSeen, readWhatsNewLedger } from '@/lib/whats-new/ledger';
+import {
+  FORCE_RELOAD_MS, MIN_SPLASH_MS, STAGE, UPDATING_KEY, isMidTyping, landedOnNewBuild,
+  readUpdatingNote, seenSlugs, updateContent, writeUpdatingNote, type UpdateContent,
+} from '@/lib/update-flow';
+import { UpdateSheet } from '@/components/update/UpdateSheet';
+import { UpdateSplash } from '@/components/update/UpdateSplash';
+
+/** The reload's hooks, for the path that shows its progress. */
+interface ApplyHooks {
+  asked: () => void;
+  handover: () => void;
+  /** Awaited just before the reload. */
+  beforeReload: () => Promise<void>;
+}
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** The new server's releases, or null: offline, slow, or refused. */
+async function fetchReleases(): Promise<WhatsNewRelease[] | null> {
+  try {
+    const data = await Promise.race([
+      apiFetcher<{ releases?: WhatsNewRelease[] }>('/api/whats-new'),
+      sleep(4000).then(() => null),
+    ]);
+    return data?.releases ?? null;
+  } catch {
+    return null;
+  }
+}
 
 // Applies a new deploy on its own, at a moment when the reload costs nothing
 // (see lib/update-timing.ts). It used to be a "new version available — tap to
@@ -35,7 +70,59 @@ import { AWAY_MS, canApplyUpdate } from '@/lib/update-timing';
 // is trusted on its own any more: each one only names a CANDIDATE worker, and the
 // update is taken once that candidate says it belongs to a different deploy than
 // the worker that served this page (askBuildId above, MC_BUILD_ID in sw.ts).
+//
+// For the super user, until rollout, it no longer applies anything on its own: a
+// newer build opens the mandatory "New version" sheet (lib/update-flow.ts), and
+// only its button reloads, under the loading splash. Everyone else keeps the
+// silent safe-moment update above, unchanged.
 export function UpdatePrompt() {
+  const t = useTranslations('update');
+  const isSuper = useIsSuperUser();
+  const superRef = useRef(isSuper);
+  // Set by the effect below; the sheet's button and a late super-user answer call in.
+  const askRef = useRef<() => void>(() => {});
+  const applyRef = useRef<(hooks?: ApplyHooks) => void>(() => {});
+  const [content, setContent] = useState<UpdateContent | null>(null);
+  const [busy, setBusy] = useState(false);
+  // 'boot' until this load knows whether it is the second half of an update.
+  const [splash, setSplash] = useState<{ phase: 'boot' | 'on' | 'out' | 'done'; target: number }>(
+    { phase: 'boot', target: STAGE.handover },
+  );
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    superRef.current = isSuper;
+    // A build may have been found before the answer came back.
+    if (isSuper) askRef.current();
+  }, [isSuper]);
+
+  // The second half: this load came from the button's reload. Finish the level,
+  // fade into the app, say which version it is now.
+  useEffect(() => {
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem(UPDATING_KEY);
+      sessionStorage.removeItem(UPDATING_KEY);
+    } catch { /* private mode: no note, no cover */ }
+    const note = readUpdatingNote(raw, Date.now());
+    document.documentElement.classList.remove('mc-updating');
+    if (!note) {
+      setSplash({ phase: 'done', target: STAGE.done });
+      return;
+    }
+    setSplash({ phase: 'on', target: STAGE.done });
+    const timers = [
+      // ~850ms for the level to top out, then the ink and a short hold, as at opening.
+      setTimeout(() => setSplash({ phase: 'out', target: STAGE.done }), 1280),
+      setTimeout(() => {
+        setSplash({ phase: 'done', target: STAGE.done });
+        if (landedOnNewBuild(note, APP_VERSION)) setToast(APP_VERSION);
+      }, 1700),
+      setTimeout(() => setToast(null), 1700 + 3300),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
     let reg: ServiceWorkerRegistration | null = null;
@@ -63,18 +150,25 @@ export function UpdatePrompt() {
       ? askBuildId(navigator.serviceWorker.controller).then((id) => { loadedBuild = id; })
       : Promise.resolve();
 
-    const apply = async () => {
+    const apply = async (hooks?: ApplyHooks) => {
       if (applying) return;
       applying = true;
       // Reload only AFTER the new worker takes control — otherwise the reload can
       // fetch the shell while the OLD worker is still controlling and re-serve
       // stale chunks.
       let reloaded = false;
-      const go = () => { if (!reloaded) { reloaded = true; window.location.reload(); } };
-      navigator.serviceWorker.addEventListener('controllerchange', go, { once: true });
+      const go = async () => {
+        if (reloaded) return;
+        reloaded = true;
+        hooks?.handover();
+        await hooks?.beforeReload();
+        window.location.reload();
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', () => { void go(); }, { once: true });
       const r = await navigator.serviceWorker.getRegistration().catch(() => undefined);
       const next = r?.waiting ?? r?.installing;
       next?.postMessage({ type: 'SKIP_WAITING' });
+      hooks?.asked();
       // b80f50a6: on an installed PWA the handover sometimes never comes, and a
       // plain reload keeps the page on the OLD worker (a reload does not activate
       // a waiting one). If the takeover hasn't come, drop the registration: the
@@ -83,12 +177,34 @@ export function UpdatePrompt() {
       setTimeout(async () => {
         if (reloaded) return;
         try { await r?.unregister(); } catch { /* reload anyway */ }
-        go();
+        void go();
       }, next ? 3000 : 0);
     };
+    applyRef.current = (hooks) => { void apply(hooks); };
+
+    // The super user's path: ask, never apply. Waits only for a visible page and
+    // for nobody to be halfway through typing (lib/update-flow.ts isMidTyping).
+    let asking = false;
+    let asked = false;
+    const ask = async () => {
+      if (!pending || disposed || applying || asking || asked) return;
+      if (document.visibilityState !== 'visible') return;
+      if (isMidTyping(document.activeElement as HTMLInputElement | null)) {
+        document.addEventListener('focusout', () => setTimeout(() => { void ask(); }, 300), { once: true });
+        return;
+      }
+      asking = true;
+      const releases = await fetchReleases();
+      asking = false;
+      if (disposed || asked) return;
+      asked = true;
+      setContent(updateContent(releases, APP_VERSION));
+    };
+    askRef.current = () => { void ask(); };
 
     const tryApply = (awayMs = 0) => {
       if (!pending || disposed) return;
+      if (superRef.current) { void ask(); return; }
       if (canApplyUpdate({
         sinceLoadMs: Date.now() - quietSince,
         interacted,
@@ -103,7 +219,8 @@ export function UpdatePrompt() {
     // build we are already running — see the note in sw.ts. Only a candidate
     // from a DIFFERENT deploy is an update.
     const markReady = async (candidate: ServiceWorker | null | undefined) => {
-      if (disposed || !hadControllerAtLoad) return;
+      // `applying`: our own SKIP_WAITING fires controllerchange too.
+      if (disposed || applying || !hadControllerAtLoad) return;
       await loadedBuildReady;
       const theirs = await askBuildId(candidate);
       if (disposed || !isNewerBuild(loadedBuild, theirs)) return;
@@ -157,5 +274,61 @@ export function UpdatePrompt() {
     };
   }, []);
 
-  return null;
+  const onUpdate = () => {
+    if (busy || !content) return;
+    setBusy(true);
+    // Read just now, so the digest sheet does not open with it again after the reload.
+    try {
+      const ledger = readWhatsNewLedger(localStorage.getItem(WHATS_NEW_KEY));
+      localStorage.setItem(WHATS_NEW_KEY, JSON.stringify(markSeen(ledger, seenSlugs(content))));
+    } catch { /* the digest shows it once more; nothing worse */ }
+    const started = Date.now();
+    let handoverAt = started;
+    setSplash({ phase: 'on', target: STAGE.tapped });
+    // Whatever happens below, the page is not left under the splash.
+    setTimeout(() => window.location.reload(), FORCE_RELOAD_MS);
+    applyRef.current({
+      asked: () => setSplash({ phase: 'on', target: STAGE.asked }),
+      handover: () => {
+        handoverAt = Date.now();
+        setSplash({ phase: 'on', target: STAGE.handover });
+      },
+      beforeReload: async () => {
+        // Let the level visibly reach the handover, and never flash.
+        await sleep(Math.max(MIN_SPLASH_MS - (Date.now() - started), 650 - (Date.now() - handoverAt), 0));
+        try { sessionStorage.setItem(UPDATING_KEY, writeUpdatingNote(APP_VERSION, STAGE.handover, Date.now())); } catch { /* no second half */ }
+      },
+    });
+  };
+
+  const version = content?.version;
+  return (
+    <>
+      {content && splash.phase !== 'on' && splash.phase !== 'out' && (
+        <UpdateSheet content={content} busy={busy} onUpdate={onUpdate} />
+      )}
+      {splash.phase !== 'done' && (
+        <UpdateSplash
+          phase={splash.phase}
+          target={splash.target}
+          // On the second half this bundle IS the new version; on the first, the
+          // server said which one is waiting, or did not.
+          caption={
+            busy
+              ? version ? t('updatingTo', { version }) : t('updating')
+              : t('updatingTo', { version: APP_VERSION })
+          }
+        />
+      )}
+      {toast && (
+        <div
+          role="status"
+          className="mc-update-toast fixed inset-x-3.5 bottom-[calc(22px+env(safe-area-inset-bottom))] z-[430] flex items-center gap-2.5 rounded-2xl bg-ink-900 px-3.5 py-3 text-[13px] text-white shadow-lg"
+        >
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#34c759] text-xs">✓</span>
+          <span>{t('updated', { version: toast })}</span>
+        </div>
+      )}
+    </>
+  );
 }

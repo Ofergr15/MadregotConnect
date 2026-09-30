@@ -2978,6 +2978,17 @@
     "sending": "Sending…",
     "failed": "Didn’t send — try again"
   },
+  "update": {
+    "title": "New version",
+    "lead": "To keep going you need to update. It takes a few seconds, and nothing is lost.",
+    "badge": "New",
+    "more": "And {count, plural, one {one more improvement} other {# more improvements and fixes}}",
+    "cta": "Update now",
+    "mandatory": "Updating is required to keep using the app",
+    "updatingTo": "Updating to version {version}",
+    "updating": "Updating to the new version",
+    "updated": "Updated to version {version} · all set"
+  },
   "whatsNew": {
     "title": "What's new",
     "lead": "What shipped in the app over the last few weeks.",

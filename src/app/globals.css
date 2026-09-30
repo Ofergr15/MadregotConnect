@@ -395,6 +395,46 @@
   .app-splash-out { animation: appOpenReveal 300ms linear forwards; }
 }
 
+/* The mandatory update (components/update, lib/update-flow.ts). The loader is
+   the app-open splash above with its level driven by the update's progress
+   instead of a timer, so it borrows .app-fill-mask and .app-splash-out and only
+   adds what differs. */
+.mc-update-splash { display: flex; }
+/* Rendered on every load, and shown only when the page before the reload left
+   the note: the inline boot script puts .mc-updating on <html> before the first
+   paint, which is what hides the gap until React takes the splash over. */
+.mc-update-splash.mc-update-boot { display: none; }
+html.mc-updating .mc-update-splash.mc-update-boot {
+  display: flex;
+  /* The same failsafe as .app-splash-layer: if the new bundle never runs, the
+     cover must not trap the page under it. */
+  animation: appSplashFailsafe 300ms linear 6000ms forwards;
+}
+.mc-update-fluid {
+  background: linear-gradient(180deg, #656565 0%, #2D2E38 100%);
+}
+.mc-update-fluid::before {
+  content: '';
+  position: absolute; left: 0; right: 0; top: 0; height: 7px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0));
+}
+@keyframes mcUpdateSheetIn {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.mc-update-sheet { animation: mcUpdateSheetIn 380ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+@keyframes mcUpdateToast {
+  0%   { transform: translateY(160%); }
+  12%  { transform: translateY(0); }
+  88%  { transform: translateY(0); }
+  100% { transform: translateY(160%); }
+}
+.mc-update-toast { animation: mcUpdateToast 3200ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .mc-update-sheet { animation: none; }
+  .mc-update-toast { animation: fadeIn 200ms ease-out both; }
+}
+
 .animate-bounce-gentle {
   animation: bounceGentle 1s ease-in-out infinite;
 }

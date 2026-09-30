@@ -17,6 +17,7 @@ import { ImpersonationBar } from '@/components/ImpersonationBar';
 // this is now the only way to accept an update: without it mounted, a new build
 // would sit in `waiting` until every tab closed. See src/app/sw.ts:80.
 import { UpdatePrompt } from '@/components/UpdatePrompt';
+import { UPDATE_BOOT_SCRIPT } from '@/lib/update-flow';
 import { DevIdentitySwitcher } from '@/components/DevIdentitySwitcher';
 // Watches the browser for the five failures the server cannot see — see
 // migration 118 and lib/bugs/detectors.ts. Mounted at the ROOT rather than inside
@@ -96,12 +97,18 @@ export default async function RootLayout({
   preload('/images/logo.png', { as: 'image' });
 
   return (
-    <html lang={locale} dir={dir}>
+    // suppressHydrationWarning: the update boot script below may add a class to
+    // <html> before React hydrates it. It only covers this element's own
+    // attributes, not the tree under it.
+    <html lang={locale} dir={dir} suppressHydrationWarning>
       <head>
         {/* Blocking, inline, and FIRST — it has to have run before any app chunk
             calls one of the methods it adds. See legacy-polyfills.ts for what is
             polyfilled, what deliberately isn't, and why any of it is needed. */}
         <script dangerouslySetInnerHTML={{ __html: LEGACY_POLYFILLS }} />
+        {/* Before the first paint: if this load is the second half of an update,
+            the loading splash is shown from the very first frame (lib/update-flow.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: UPDATE_BOOT_SCRIPT }} />
       </head>
       <body className={`${heebo.variable} ${inter.variable} font-sans`}>
         <SerwistProvider
@@ -110,13 +117,15 @@ export default async function RootLayout({
         >
           <NextIntlClientProvider locale={locale} messages={messages} key={locale}>
             <Providers>{children}</Providers>
+            {/* Inside the intl provider: the mandatory update sheet and its splash
+                have words. */}
+            <UpdatePrompt />
           </NextIntlClientProvider>
         </SerwistProvider>
         {process.env.NODE_ENV === 'development' && <DevServiceWorkerCleanup />}
         <AppSplash />
         <MaintenanceGate />
         <ImpersonationBar />
-        <UpdatePrompt />
         <DevIdentitySwitcher />
         <ClientEventReporter />
         <SpeedInsights />
