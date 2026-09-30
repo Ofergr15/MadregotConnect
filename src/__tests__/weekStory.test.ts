@@ -50,6 +50,11 @@ describe('the tray', () => {
     expect(toggleNumber(['km', 'runs'], 'km', 3)).toEqual(['runs']);
   });
 
+  it('a look with room for one number swaps it on a tap, so another can ever be picked', () => {
+    expect(toggleNumber(['km'], 'runs', 1)).toEqual(['runs']);
+    expect(toggleNumber(['km'], 'km', 1)).toEqual(['km']);
+  });
+
   it('a drag swaps two places and moves nothing else', () => {
     expect(swapNumbers(['km', 'runs', 'time', 'pace'], 'km', 'pace')).toEqual(['pace', 'runs', 'time', 'km']);
     expect(swapNumbers(['km', 'runs'], 'km', 'elev')).toEqual(['km', 'runs']);

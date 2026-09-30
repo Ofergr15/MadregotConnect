@@ -3216,6 +3216,8 @@
     "tabBackground": "Background",
     "numbersHint": "Every number stays in its place · the badge = its spot on the card · drag one onto another to swap",
     "numbersFull": "{cap} fit — turn one off to swap",
+    "partChartNumbers": "Chart & numbers",
+    "numbersOne": "One number fits · tap another to swap it in",
     "titlePlaceholder": "Title",
     "dates": "Dates",
     "name": "My name",

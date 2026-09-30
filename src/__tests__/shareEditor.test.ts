@@ -8,8 +8,6 @@ import { thinHrTrace } from '@/lib/share/hr-trace';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
 const EDITOR = readFileSync(join(SRC, 'components/share/WorkoutShareEditor.tsx'), 'utf8');
-const WEEK_EDITOR = readFileSync(join(SRC, 'components/share/WeekShareEditor.tsx'), 'utf8');
-const WEEK_RENDER = readFileSync(join(SRC, 'lib/reports/week-story-image.ts'), 'utf8');
 const SHEET = readFileSync(join(SRC, 'components/ShareSheet.tsx'), 'utf8');
 const RENDER = readFileSync(join(SRC, 'lib/feed/share-image.ts'), 'utf8');
 const DETAILS = readFileSync(join(SRC, 'app/api/activities/details/route.ts'), 'utf8');
@@ -103,6 +101,27 @@ describe('the hit map', () => {
     expect(isTextPart('\u202A10×400\u202C בפארק', { title: '10×400 בפארק', date: null })).toBe(true);
   });
 
+  it('counts the week card\'s name line as text, and only that line', () => {
+    const week = { title: null, date: null, lines: ['Ofer · madregot.app'] };
+    expect(isTextPart('Ofer · madregot.app', week)).toBe(true);
+    expect(isTextPart('42.6', week)).toBe(false);
+    expect(isTextPart('', { title: null, date: null, lines: [''] })).toBe(false);
+  });
+
+  it('keeps a title block and a far name line as two text pieces, so the chart between is not text', () => {
+    const ctx = fakeCtx();
+    const stop = recordHitMap(ctx, { ...known, title: 'My week', date: '21.09 – 27.09', lines: ['Ofer · madregot.app'] });
+    ctx.fillText('My week', 400, 300);
+    ctx.fillText('21.09 – 27.09', 400, 360);
+    ctx.fillText('42.6', 400, 1000);
+    ctx.fillText('Ofer · madregot.app', 300, 1800);
+    const map = stop();
+    expect(map.textPieces).toHaveLength(2);
+    expect(partAt(map, 450, 300)).toBe('text');
+    expect(partAt(map, 450, 1790)).toBe('text');
+    expect(partAt(map, 420, 990)).toBe('data');
+  });
+
   it('keeps the logo\'s pieces apart, so the numbers between them stay the numbers', () => {
     const ctx = fakeCtx();
     const stop = recordHitMap(ctx, known);
@@ -154,10 +173,9 @@ describe('the hit map', () => {
 });
 
 describe('the editor', () => {
-  it('opens for the workout and the week, for the super user only; everyone else keeps the sheet', () => {
+  it('opens for the workout, for the super user only; everyone else and the week keep the sheet', () => {
     expect(SHEET).toMatch(/const editor = useIsSuperUser\(\);/);
     expect(SHEET).toMatch(/subject\.kind === 'workout' && editor\) return <WorkoutShareEditor/);
-    expect(SHEET).toMatch(/subject\.kind === 'week' && editor\) \{\s*return \(\s*<WeekShareEditor\s+report=\{subject\.report\}/);
     expect(SHEET).toMatch(/return <ClassicShareSheet subject=\{subject\}/);
   });
 
@@ -271,52 +289,5 @@ describe('the lap chart in the editor', () => {
     expect(SHEET).not.toMatch(/editorChart/);
     expect(RENDER).toMatch(/const trace = c\.editorChart && act\.hrTrace/);
     expect(RENDER).toMatch(/if \(c\.editorChart && !taken\.some\(y => Math\.abs\(y - topY\) < p\(11\)\)\) \{\s*ctx\.fillText\(formatPace\(fast\), start, topY\);/);
-  });
-});
-
-describe('the week editor (feedback 2026-09-30: the same flow as the workout)', () => {
-  it('has the workout editor\'s shell: the carousel, Edit, the labels, a tap opens a part, "‹ Edit" goes back', () => {
-    for (const src of [EDITOR, WEEK_EDITOR]) {
-      expect(src).toMatch(/createPortal\(/);
-      expect(src).toMatch(/snap-x snap-mandatory/);
-      expect(src).toMatch(/partAt\(hitMap, \(\(e\.clientX/);
-      expect(src).toMatch(/placeLabels\(/);
-      expect(src).toMatch(/if \(inPart\) back\(\); else onClose\(\);/);
-      expect(src).toMatch(/from '@\/components\/share\/editor-parts'/);
-    }
-  });
-
-  it('asks the week story for its tap areas, as the workout card does', () => {
-    expect(WEEK_RENDER).toMatch(/const stopHitMap = input\.onHitMap\s*\?\s*recordHitMap\(ctx/);
-    expect(WEEK_RENDER).toMatch(/isMark: img => img === logo, title: state\.title, date: range/);
-    expect(WEEK_EDITOR).toMatch(/onHitMap: map => \{ if \(!cancelled\) setHitMap\(map\); \}/);
-  });
-
-  it('stops watching before the name line, so the text part does not stretch over the card', () => {
-    expect(WEEK_RENDER).toMatch(/const drawName = \(\) => \{\s*finishHitMap\(\);/);
-  });
-
-  it('keeps every choice of the approved story editor: five looks, numbers, logo, text, chart, background', () => {
-    expect(WEEK_EDITOR).toMatch(/availableLooks\(report\)/);
-    expect(WEEK_EDITOR).toMatch(/NUMBER_ORDER\.filter\(k => avail\.includes\(k\)\)/);
-    expect(WEEK_EDITOR).toMatch(/swapNumbers\(s\.picks\[s\.look\], key, to\)/);
-    expect(WEEK_EDITOR).toMatch(/toggleNumber\(s\.picks\[s\.look\], key, LOOK_CAP\[s\.look\]\)/);
-    expect(WEEK_EDITOR).toMatch(/SHARE_BRAND_KEYS\.map/);
-    expect(WEEK_EDITOR).toMatch(/set\(\{ dates: !state\.dates \}\)/);
-    expect(WEEK_EDITOR).toMatch(/set\(\{ name: !state\.name \}\)/);
-    expect(WEEK_EDITOR).toMatch(/look === 'days' && \(/);
-    expect(WEEK_EDITOR).toMatch(/set\(\{ chartMetric: m \}\)/);
-    expect(WEEK_EDITOR).toMatch(/WEEK_BACKGROUNDS\.map/);
-    expect(WEEK_EDITOR).toMatch(/fileRef\.current\?\.click\(\)/);
-  });
-
-  it('has no tab bar any more: the parts are opened from the card', () => {
-    expect(WEEK_EDITOR).not.toMatch(/setTab\(/);
-    expect(WEEK_EDITOR).toMatch(/\{editing && \(\s*<div\s+ref=\{panelRef\}/);
-  });
-
-  it('opens on the chosen look: the snap settling before the layout is not a swipe', () => {
-    expect(WEEK_EDITOR).toMatch(/scrollTo\(look, placed\.current && centred === look\)/);
-    expect(WEEK_EDITOR).toMatch(/const onScroll = \(\) => \{\s*if \(!placed\.current\) return;/);
   });
 });
