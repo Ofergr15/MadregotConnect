@@ -33,7 +33,7 @@ const LABELS: Record<string, string> = {
   city: 'מקום מגורים',
   goal: 'מטרת ההשתתפות',
   group: 'דבוקה',
-  runningHistory: 'עבר ריצה (שנה אחרונה)',
+  runningHistory: 'רקע בריצה (שנה אחרונה)',
   achievements: 'הישגים',
   strava: 'סטראבה',
   medicalHistory: 'עבר רפואי',

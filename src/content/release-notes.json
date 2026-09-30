@@ -1,5 +1,13 @@
 [
   {
+    "id": "academy-form-running-background",
+    "date": "2026-09-30",
+    "kind": "fix",
+    "icon": "🏃",
+    "title": "טופס האקדמיה: רקע בריצה",
+    "body": "שאלת המטרה הוחלפה בשאלה פתוחה: ״מה היה הרקע שלך בריצה בשנה האחרונה?״"
+  },
+  {
     "id": "academy-form-shoe-size",
     "date": "2026-09-30",
     "kind": "fix",

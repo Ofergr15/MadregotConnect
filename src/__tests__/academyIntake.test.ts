@@ -297,3 +297,12 @@ describe('the form: shoe size', () => {
     expect(page).toContain("f.type === 'select' && (");
   });
 });
+
+describe('the form: running background', () => {
+  it('asks the past year in words, first on its page, and no longer asks the goal', () => {
+    const page = require('node:fs').readFileSync('src/app/academy-register/page.tsx', 'utf8') as string;
+    expect(page).toContain("{ key: 'runningHistory', label: 'מה היה הרקע שלך בריצה בשנה האחרונה?', type: 'textarea', required: true }");
+    expect(page).not.toMatch(/key: 'goal'/);
+    expect(page).toContain("keys: ['runningHistory', 'group',");
+  });
+});

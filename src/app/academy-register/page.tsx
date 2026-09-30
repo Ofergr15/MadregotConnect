@@ -52,12 +52,6 @@ const FIELDS: Field[] = [
   { key: 'weight', label: 'משקל (בק״ג)', type: 'number', inputMode: 'decimal' },
   { key: 'height', label: 'גובה (בס״מ)', type: 'number', required: true, inputMode: 'numeric' },
   { key: 'city', label: 'מקום מגורים', type: 'text', required: true },
-  { key: 'goal', label: 'מה מטרתך מההשתתפות בקבוצת הריצה', type: 'radio', required: true, options: [
-    'מסגרת לאימונים שתוציא אותי לרוץ',
-    'מסגרת שתביא אותי להישגים חדשים',
-    'שבירת שיאים',
-    'מסגרת חברתית',
-  ] },
   { key: 'group', label: 'לאיזה דבוקה תרצה להשתייך', type: 'radio', required: true, options: [
     'דבוקה 4 מרתון חזק עם רצון לסאב 3',
     'דבוקה 5 אימון למרתון באזור ה-3:30',
@@ -66,7 +60,9 @@ const FIELDS: Field[] = [
     'דבוקה 8 שיפור הישגים למרחקים קצרים 5 ק"מ 10 ק"מ',
     'דבוקה 9 אימון למתחילים מ-0',
   ] },
-  { key: 'runningHistory', label: 'עבר הריצה שלך בשנה האחרונה', type: 'textarea', required: true },
+  // Asked in its own words, and first on the running page: it took the place of the
+  // goal question (four fixed goals), which said less than a sentence does.
+  { key: 'runningHistory', label: 'מה היה הרקע שלך בריצה בשנה האחרונה?', type: 'textarea', required: true },
   { key: 'achievements', label: 'במידה ויש הישגים בתחום הריצה אנא פרט/י', type: 'textarea' },
   { key: 'medicalHistory', label: 'עבר רפואי', type: 'checkboxes', required: true, options: [
     HEALTHY,
@@ -99,7 +95,7 @@ const REGISTRATION_OPEN = true;
 const STEPS: { title: string; keys: string[] }[] = [
   { title: 'הפרטים שלך', keys: ['firstName', 'lastName', 'email', 'phone'] },
   { title: 'קצת עליך', keys: ['focus', 'birthDate', 'weight', 'height', 'city'] },
-  { title: 'הריצה שלך', keys: ['goal', 'group', 'runningHistory', 'achievements', 'hearAbout', 'hearAboutOther'] },
+  { title: 'הריצה שלך', keys: ['runningHistory', 'group', 'achievements', 'hearAbout', 'hearAboutOther'] },
   { title: 'בריאות ומידות', keys: ['medicalHistory', 'medicalDetails', 'shirtSize', 'pantsSize', 'tightsSize', 'shoeSize'] },
 ];
 const FIELD_BY_KEY = new Map(FIELDS.map(f => [f.key, f]));
