@@ -306,3 +306,17 @@ describe('the form: running background', () => {
     expect(page).toContain("keys: ['runningHistory', 'group',");
   });
 });
+
+describe('the form: birth date pickers', () => {
+  const page = () => require('node:fs').readFileSync('src/app/academy-register/page.tsx', 'utf8') as string;
+
+  it('uses three selects, not the native date box that overflows on iOS', () => {
+    expect(page()).toContain('<DateParts ');
+    expect(page()).not.toMatch(/f\.type === 'number' \|\| f\.type === 'date'\) && \(/);
+  });
+
+  it('refuses a half-picked or impossible date', () => {
+    expect(page()).toContain("if (f.type === 'date' && !isWholeDate(v))");
+    expect(page()).toContain('d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3])');
+  });
+});

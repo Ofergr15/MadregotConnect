@@ -1,5 +1,13 @@
 [
   {
+    "id": "academy-form-birthdate-pickers",
+    "date": "2026-09-30",
+    "kind": "fix",
+    "icon": "📅",
+    "title": "טופס האקדמיה: תאריך לידה באייפון",
+    "body": "תאריך הלידה נבחר עכשיו ביום, חודש ושנה, ולא בולט מחוץ לכרטיס באייפון."
+  },
+  {
     "id": "academy-form-running-background",
     "date": "2026-09-30",
     "kind": "fix",

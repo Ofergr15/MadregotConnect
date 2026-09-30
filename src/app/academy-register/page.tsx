@@ -100,8 +100,48 @@ const STEPS: { title: string; keys: string[] }[] = [
 ];
 const FIELD_BY_KEY = new Map(FIELDS.map(f => [f.key, f]));
 
+// ── Birth date as three pickers ──────────────────────────────────────────────
+// Not <input type="date">: on iOS it draws its own box that ignores the width and
+// sticks out of the card in RTL, and an empty one shows TODAY in English, which
+// reads as already answered. Three native selects open the iOS wheel each, sit in
+// the card, and say nothing until picked. The value is "YYYY-MM-DD" with empty
+// parts until all three are chosen ("-03-" is month only).
+const MONTHS_HE = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+function isWholeDate(v: unknown): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v ?? ''));
+  if (!m) return false;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]);
+}
+
+function DateParts({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  const [y = '', m = '', d = ''] = value.split('-');
+  const put = (ny: string, nm: string, nd: string) => onChange(ny || nm || nd ? `${ny}-${nm}-${nd}` : '');
+  const thisYear = new Date().getFullYear();
+  const years = Array.from({ length: thisYear - 10 - 1930 + 1 }, (_, i) => String(thisYear - 10 - i));
+  const cls = 'w-full min-w-0 min-h-[46px] bg-page border border-ink-300 rounded-lg px-2 py-2.5 text-base text-ink-700 focus:outline-none focus:ring-2 focus:ring-brand-600';
+  return (
+    <div id={id} role="group" aria-labelledby={`${id}-q`} className="grid grid-cols-[1fr_1.6fr_1.3fr] gap-2">
+      <select aria-label="יום" value={d} onChange={e => put(y, m, e.target.value)} className={cls}>
+        <option value="">יום</option>
+        {Array.from({ length: 31 }, (_, i) => pad2(i + 1)).map(v => <option key={v} value={v}>{Number(v)}</option>)}
+      </select>
+      <select aria-label="חודש" value={m} onChange={e => put(y, e.target.value, d)} className={cls}>
+        <option value="">חודש</option>
+        {MONTHS_HE.map((name, i) => <option key={name} value={pad2(i + 1)}>{name}</option>)}
+      </select>
+      <select aria-label="שנה" value={y} onChange={e => put(e.target.value, m, d)} className={cls}>
+        <option value="">שנה</option>
+        {years.map(v => <option key={v} value={v}>{v}</option>)}
+      </select>
+    </div>
+  );
+}
+
 const isTyped = (f: Field) =>
-  f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number' || f.type === 'date' || f.type === 'textarea';
+  f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number' || f.type === 'textarea';
 
 export default function AcademyRegisterPage() {
   const [values, setValues] = useState<Record<string, any>>({});
@@ -166,6 +206,7 @@ export default function AcademyRegisterPage() {
       const v = values[f.key];
       const empty = f.type === 'checkboxes' ? !(v && v.length) : !(v && String(v).trim());
       if (empty) return `אנא מלא/י: ${f.label}`;
+      if (f.type === 'date' && !isWholeDate(v)) return `אנא בחר/י יום, חודש ושנה: ${f.label}`;
     }
     // Same rule the server enforces, said on the FIRST page so it is a correction
     // and not a rejection: nobody should fill in twenty fields and then be told no.
@@ -293,20 +334,21 @@ export default function AcademyRegisterPage() {
                 </p>
               )}
 
-              {(f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number' || f.type === 'date') && (
+              {(f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number') && (
                 <input
                   id={`ar-${f.key}`} type={f.type === 'number' ? 'text' : f.type} value={values[f.key] || ''} placeholder={(f as any).placeholder || 'התשובה שלך'}
                   inputMode={(f as any).inputMode}
                   pattern={f.type === 'number' ? ((f as any).inputMode === 'decimal' ? '[0-9]*[.,]?[0-9]*' : '[0-9]*') : undefined}
-                  autoComplete={f.type === 'number' ? 'off' : f.type === 'date' ? 'bday' : undefined}
-                  // iOS opens its date wheel for type="date"; the bounds keep it on a real birth year.
-                  min={f.type === 'date' ? '1930-01-01' : undefined}
-                  max={f.type === 'date' ? new Date().toISOString().slice(0, 10) : undefined}
+                  autoComplete={f.type === 'number' ? 'off' : undefined}
                   onChange={e => set(f.key, f.type === 'number' ? numberOnly(e.target.value, (f as any).inputMode === 'decimal') : e.target.value)}
                   // text-base, not text-sm: under 16px iOS Safari zooms the page on
                   // every focus, and this form is opened from Instagram on a phone.
                   className="w-full min-h-[46px] bg-page border border-ink-300 rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
                 />
+              )}
+
+              {f.type === 'date' && (
+                <DateParts id={`ar-${f.key}`} value={values[f.key] || ''} onChange={v => set(f.key, v)} />
               )}
 
               {f.type === 'textarea' && (
