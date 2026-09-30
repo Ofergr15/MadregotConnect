@@ -51,6 +51,19 @@ describe('the change', () => {
     }
   });
 
+  it('says the new group shows on Saturday, before saving and while it waits', () => {
+    expect(PAGE).toMatch(/\{changesFromSaturday && hasChanges && !groupLocked && \(\s*<p[^>]*>\s*\{t\('groupChangeShowsSat'/);
+    expect(PAGE).toMatch(/t\('groupChangePendingNote', \{ current:/);
+    const he = JSON.parse(readFileSync('messages/he.json', 'utf8')).profile;
+    const en = JSON.parse(readFileSync('messages/en.json', 'utf8')).profile;
+    for (const k of ['groupChangeShowsSat', 'groupChangePendingNote']) {
+      expect(he[k], k).toMatch(k === 'groupChangeShowsSat' ? /\{date\}/ : /\{current\}/);
+      expect(en[k], k).toMatch(k === 'groupChangeShowsSat' ? /\{date\}/ : /\{current\}/);
+    }
+    expect(he.groupChangeBody).toMatch(/תופיע בפרופיל שלך בשבת/);
+    expect(en.groupChangeBody).toMatch(/shows in your profile on Saturday/);
+  });
+
   it('has a migration of bare DDL, nothing to kill the paste', () => {
     expect(MIGRATION).not.toMatch(/--/);
     expect(MIGRATION.trim().split('\n')).toHaveLength(2);

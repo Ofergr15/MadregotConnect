@@ -915,12 +915,17 @@ function ProfileContent() {
           {/* The move waiting for Saturday, and the way to take it back. */}
           {changesFromSaturday && pendingGroup && (
             <div className="mb-3 flex items-center justify-between gap-3 rounded-xl bg-brand-600/10 px-3.5 py-2.5">
-              <p className="text-xs font-medium text-ink-700">
-                {t('groupChangePending', {
-                  group: groups.find(g => g.id === pendingGroup.groupId)?.name ?? '',
-                  date: pendingGroup.from.slice(8, 10) + '.' + pendingGroup.from.slice(5, 7),
-                })}
-              </p>
+              <div>
+                <p className="text-xs font-medium text-ink-700">
+                  {t('groupChangePending', {
+                    group: groups.find(g => g.id === pendingGroup.groupId)?.name ?? '',
+                    date: pendingGroup.from.slice(8, 10) + '.' + pendingGroup.from.slice(5, 7),
+                  })}
+                </p>
+                <p className="mt-0.5 text-[11px] text-ink-400">
+                  {t('groupChangePendingNote', { current: groups.find(g => g.id === currentGroupId)?.name ?? '' })}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => savePendingGroup(null)}
@@ -952,6 +957,13 @@ function ProfileContent() {
 
           {groupLocked && (
             <p className="text-xs text-ink-400 mt-3 text-center">{t('groupLocked')}</p>
+          )}
+
+          {/* Before saving: the list still shows the old group after it, so say when the new one appears. */}
+          {changesFromSaturday && hasChanges && !groupLocked && (
+            <p className="text-xs text-ink-400 mt-3 text-center">
+              {t('groupChangeShowsSat', { date: (d => d.slice(8, 10) + '.' + d.slice(5, 7))(groupChangeDate(israelToday())) })}
+            </p>
           )}
 
           {hasChanges && !groupLocked && (
