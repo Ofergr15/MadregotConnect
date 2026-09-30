@@ -58,7 +58,11 @@ export default function ReleaseRehearsalPage() {
   const [mounted, setMounted] = useState(false);
   // A tap on the bar is outside the What's new drawer, which reads it as a close.
   const onBar = useRef(false);
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    // Opened from a real push (?from=push): that push was the alert, so start at the open.
+    if (new URLSearchParams(window.location.search).get('from') === 'push') setI(1);
+    setMounted(true);
+  }, []);
 
   const version = nextVersion(APP_VERSION);
   const steps = useMemo(() => STEPS.filter(s => !(closed && ONLY_IF_OPEN.includes(s))), [closed]);
