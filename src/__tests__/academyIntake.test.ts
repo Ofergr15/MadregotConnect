@@ -198,3 +198,15 @@ describe('who can let somebody in', () => {
     expect(canAdmitToAcademy({ isSuperUser: false, role: 'runner' })).toBe(false);
   });
 });
+
+describe('the form on a phone', () => {
+  it('opens the number keyboard for age, weight and height, and no longer asks marital status', async () => {
+    const { readFileSync } = await import('node:fs');
+    const page = readFileSync('src/app/academy-register/page.tsx', 'utf8');
+    for (const key of ['age', 'weight', 'height']) {
+      expect(page).toMatch(new RegExp(`key: '${key}'[^\\n]*inputMode: '(numeric|decimal)'`));
+    }
+    expect(page).toContain("label: 'גובה (בס״מ)'");
+    expect(page).not.toContain('maritalStatus');
+  });
+});
