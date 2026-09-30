@@ -2682,7 +2682,8 @@
     "closed": "This survey is closed",
     "submitting": "Submitting...",
     "submitError": "Submit failed, try again",
-    "changeAnswerHint": "You can change your answer anytime"
+    "changeAnswerHint": "You can change your answer anytime",
+    "whoPicked": "Who picked {option}"
   },
   "execution": {
     "title": "Plan vs. execution",

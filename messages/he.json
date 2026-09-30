@@ -2682,7 +2682,8 @@
     "closed": "הסקר נסגר להשתתפות",
     "submitting": "שולח...",
     "submitError": "השליחה נכשלה, נסו שוב",
-    "changeAnswerHint": "אפשר לשנות את התשובה בכל עת"
+    "changeAnswerHint": "אפשר לשנות את התשובה בכל עת",
+    "whoPicked": "מי בחר ב{option}"
   },
   "execution": {
     "title": "תוכנית מול ביצוע",

@@ -17,6 +17,12 @@ interface Survey {
   closes_at: string | null;
 }
 
+/** Who picked each option — the super user's only until rollout (#91). */
+interface SurveyResult {
+  optionIndex: number;
+  people: Array<{ id: string; name: string }>;
+}
+
 export default function SurveyPage() {
   const t = useTranslations('surveys');
   const locale = useLocale();
@@ -27,6 +33,7 @@ export default function SurveyPage() {
   const [loading, setLoading] = useState(true);
   const [survey, setSurvey] = useState<Survey | null>(null);
   const [myResponse, setMyResponse] = useState<number | null>(null);
+  const [results, setResults] = useState<SurveyResult[] | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -37,10 +44,22 @@ export default function SurveyPage() {
     apiHeaders()
       .then(h => fetch(`/api/surveys/${surveyId}${id ? `?athleteId=${id}` : ''}`, { headers: h }))
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => { setSurvey(d.survey); setMyResponse(d.myResponse); })
+      .then((d) => { setSurvey(d.survey); setMyResponse(d.myResponse); setResults(d.results ?? null); })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [surveyId]);
+
+  // Refetched after an answer rather than patched in by hand, so the lists are
+  // the server's and a changed answer moves the name instead of copying it.
+  const refreshResults = async () => {
+    if (!results) return;
+    try {
+      const r = await fetch(`/api/surveys/${surveyId}?athleteId=${athleteId}`, { headers: await apiHeaders() });
+      if (r.ok) setResults((await r.json()).results ?? null);
+    } catch {
+      // The answer is saved either way; the lists catch up on the next open.
+    }
+  };
 
   const answer = async (optionIndex: number) => {
     if (!athleteId || submitting) return;
@@ -55,6 +74,7 @@ export default function SurveyPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || data.error || t('submitError'));
       setMyResponse(optionIndex);
+      void refreshResults();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t('submitError'));
     } finally {
@@ -88,17 +108,18 @@ export default function SurveyPage() {
         <p className="text-xs font-bold text-brand-600 uppercase tracking-wider mb-2">{t('title')}</p>
         <h1 className="text-lg font-bold text-ink-700 mb-5" dir="auto">{question}</h1>
 
-        {closed ? (
+        {closed && !results ? (
           <EmptyState icon={HelpCircle} title={t('closed')} />
         ) : (
           <div className="space-y-2">
             {(options || []).map((opt, i) => {
               const mine = myResponse === i;
+              const people = results?.[i]?.people;
               return (
+                <div key={i}>
                 <button
-                  key={i}
                   onClick={() => answer(i)}
-                  disabled={submitting}
+                  disabled={submitting || closed}
                   dir="auto"
                   className={cn(
                     'w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-start min-h-[48px] transition-colors disabled:opacity-60',
@@ -111,8 +132,21 @@ export default function SurveyPage() {
                   )}
                 >
                   <span>{opt}</span>
-                  {mine && <CheckCircle2 className="h-5 w-5 text-brand-600 shrink-0" />}
+                  <span className="flex shrink-0 items-center gap-2">
+                    {people && <span className="text-sm font-bold tabular-nums text-ink-500">{people.length}</span>}
+                    {mine && <CheckCircle2 className="h-5 w-5 text-brand-600" />}
+                  </span>
                 </button>
+                {people && people.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 px-1 pt-2 pb-1" aria-label={t('whoPicked', { option: opt })}>
+                    {people.map(p => (
+                      <span key={p.id} dir="auto" className="rounded-full bg-page px-2.5 py-1 text-xs font-semibold text-ink-600">
+                        {p.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                </div>
               );
             })}
           </div>
