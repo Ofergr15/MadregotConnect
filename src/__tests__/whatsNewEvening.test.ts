@@ -5,7 +5,7 @@ import { join } from 'path';
 import type { ShownNote, WhatsNewRelease } from '@/lib/release-notes';
 import { WHATS_NEW, WHATS_NEW_LANGS } from '@/lib/whats-new/entries';
 import {
-  EVENING_ENTRIES, EVENING_MORE, EVENING_SINCE, composeWhatsNew,
+  EVENING_ENTRIES, EVENING_EXTRA, EVENING_MORE, EVENING_SINCE, composeWhatsNew,
 } from '@/lib/whats-new/evening';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
@@ -14,6 +14,8 @@ const read = (rel: string) => readFileSync(join(SRC, rel), 'utf8');
 const note = (id: string, o: Partial<ShownNote> = {}): ShownNote => ({
   id, date: '2026-09-30', kind: 'fix', icon: '🔧', title: id, body: `${id} body`, featured: false, edited: false, ...o,
 });
+/** The notes part of "and more"; the written extras always follow it. */
+const notesOf = (more: ShownNote[]) => more.map(n => n.id).filter(id => !EVENING_EXTRA.some(x => x.id === id));
 const release = (app_version: string, notes: ShownNote[], id = 1): WhatsNewRelease => ({
   id, released_at: '2026-09-30T17:00:00Z', app_version, notes,
 });
@@ -27,7 +29,7 @@ describe('composeWhatsNew', () => {
 
   it('with it, the two headlines lead and the old hand-written rows step aside', () => {
     const c = composeWhatsNew([], '2.41.70', true);
-    expect(c.entries.map(e => e.slug)).toEqual(['share-editor-2026-09', 'week-editor-2026-09']);
+    expect(c.entries.map(e => e.slug)).toEqual(['share-editor-2026-09', 'week-editor-2026-09', 'academy-2026-09']);
   });
 
   it('lists exactly his picks under them, in his order, once each', () => {
@@ -36,7 +38,7 @@ describe('composeWhatsNew', () => {
       release('2.41.60', [note(c), note('not-picked'), note(a)], 1),
       release('2.41.70', [note(b), note(a)], 2),
     ], '2.41.70', true);
-    expect(got.more.map(n => n.id)).toEqual([a, b, c]);
+    expect(notesOf(got.more)).toEqual([a, b, c]);
   });
 
   it('leaves out staff notes and starred notes even when picked', () => {
@@ -46,7 +48,7 @@ describe('composeWhatsNew', () => {
       note(b, { featured: true }),
       note(c),
     ])], '2.41.70', true);
-    expect(got.more.map(n => n.id)).toEqual([c]);
+    expect(notesOf(got.more)).toEqual([c]);
     // A starred note the headlines do not cover still gets its own row.
     expect(got.entries.map(e => e.slug)).toContain(`release:${b}`);
   });
@@ -54,14 +56,20 @@ describe('composeWhatsNew', () => {
   it('picks only notes that exist and that members may see', async () => {
     const { BUNDLED_NOTES } = await import('@/lib/release-notes');
     for (const id of EVENING_MORE) {
-      const n = BUNDLED_NOTES.find(x => x.id === id);
+      const n = [...BUNDLED_NOTES, ...EVENING_EXTRA].find(x => x.id === id);
       expect(n, id).toBeTruthy();
       expect(n!.audience, id).not.toBe('staff');
     }
   });
 
   it('never announces a release newer than the bundle', () => {
-    expect(composeWhatsNew([release('2.41.71', [note('later')])], '2.41.70', true).more).toEqual([]);
+    expect(notesOf(composeWhatsNew([release('2.41.71', [note('later')])], '2.41.70', true).more)).toEqual([]);
+  });
+
+  it('ends the list with every written extra, after his picks', () => {
+    const got = composeWhatsNew([], '2.41.70', true).more.map(n => n.id);
+    expect(got).toEqual(EVENING_EXTRA.map(x => x.id));
+    expect(EVENING_EXTRA.every(x => EVENING_MORE.includes(x.id))).toBe(true);
   });
 
   it('starts the list the day after the last hand-written entry', () => {
@@ -92,7 +100,7 @@ describe('the headline entries', () => {
   });
 
   it('each show their editor at work, on captures that exist, tapped on the screen', () => {
-    for (const e of EVENING_ENTRIES) {
+    for (const e of EVENING_ENTRIES.filter(x => x.slug !== 'academy-2026-09')) {
       const d = e.demo!;
       expect(d.steps.length, e.slug).toBeGreaterThan(3);
       for (const key of [d.first, ...d.steps.map(x => x.key)]) {
@@ -112,9 +120,10 @@ describe('the headline entries', () => {
   it('send their button to a page that exists', () => {
     for (const e of EVENING_ENTRIES) {
       const path = e.href.split('?')[0];
-      expect(existsSync(join(SRC, 'app/(app)', path, 'page.tsx')), e.href).toBe(true);
+      const found = ['app/(app)', 'app'].some(dir => existsSync(join(SRC, dir, path, 'page.tsx')));
+      expect(found, e.href).toBe(true);
     }
-    expect(EVENING_ENTRIES.map(e => e.href)).toEqual(['/dashboard/share?what=run', '/dashboard/share?what=week']);
+    expect(EVENING_ENTRIES.map(e => e.href)).toEqual(['/dashboard/share?what=run', '/dashboard/share?what=week', '/academy']);
   });
 });
 

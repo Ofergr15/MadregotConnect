@@ -50,6 +50,32 @@ export const EVENING_MORE: readonly string[] = [
   'rename-run-on-its-page', 'run-power-performance-condition', 'run-cadence-power-per-km',
   'feed-no-catchup-badges', 'my-week-start-day', 'silent-updates', 'share-segments-scale',
   'week-sleep-resting-hr',
+  ...[
+    'extra-favorites', 'extra-coming-up', 'extra-feed-squad-filter', 'extra-squad-who', 'extra-squad-weekly',
+    'extra-pr-fix', 'extra-photo-full', 'extra-watch-status', 'extra-maps', 'extra-plan-match',
+    'extra-target-range', 'extra-notif-prefs', 'extra-hoka',
+  ],
+];
+
+/**
+ * Things members got this month that never had a release note (they shipped
+ * before the release train), written for the "and more" page only. The records
+ * board and the run-meetup board are not here: no member role has their tab.
+ */
+export const EVENING_EXTRA: readonly ShownNote[] = [
+  { id: 'extra-favorites', date: '2026-09-18', kind: 'feature', icon: '⭐', title: 'רשימת מועדפים, ופילטר בפיד', body: 'מסמנים רצים כמועדפים (רק אתם רואים את הרשימה), ובפיד יש פילטר "מועדפים".', featured: false, edited: false },
+  { id: 'extra-coming-up', date: '2026-09-18', kind: 'feature', icon: '📅', title: 'מה קורה בקרוב', body: 'כרטיס בפיד עם המרוצים, אירועי המועדון וימי ההולדת שמתקרבים.', featured: false, edited: false },
+  { id: 'extra-feed-squad-filter', date: '2026-09-16', kind: 'feature', icon: '🏷️', title: 'הפיד של הדבוקה שלכם', body: 'בפיד אפשר לסנן ולראות רק את הדבוקה.', featured: false, edited: false },
+  { id: 'extra-squad-who', date: '2026-09-18', kind: 'feature', icon: '👥', title: 'מי בכל דבוקה', body: 'נגיעה בדבוקה בטבלת הדירוג מראה מי רץ בה.', featured: false, edited: false },
+  { id: 'extra-squad-weekly', date: '2026-09-16', kind: 'feature', icon: '⚔️', title: 'מלחמת הדבוקות, כל שבוע', body: 'התחרות בין הדבוקות מתחילה מחדש בכל שבוע.', featured: false, edited: false },
+  { id: 'extra-pr-fix', date: '2026-09-16', kind: 'feature', icon: '✏️', title: 'לתקן או להסתיר שיא', body: 'שיא אישי שנרשם לא נכון? מתקנים אותו או מסתירים.', featured: false, edited: false },
+  { id: 'extra-photo-full', date: '2026-09-19', kind: 'feature', icon: '🖼️', title: 'תמונת פרופיל במסך מלא', body: 'נגיעה בתמונת פרופיל פותחת אותה בגדול.', featured: false, edited: false },
+  { id: 'extra-watch-status', date: '2026-09-19', kind: 'feature', icon: '⌚', title: 'האימון הגיע לשעון?', body: 'רואים אם האימונים של השבוע נשלחו לשעון, ומתקנים אם לא.', featured: false, edited: false },
+  { id: 'extra-maps', date: '2026-09-19', kind: 'feature', icon: '🗺️', title: 'מפות ריצה נקיות יותר', body: 'המסלול מצויר על רקע בהיר ונקי, ומפת הרחובות מופיעה כשמתקרבים.', featured: false, edited: false },
+  { id: 'extra-plan-match', date: '2026-09-06', kind: 'feature', icon: '🎯', title: 'עמדתם בתוכנית?', body: 'בכל ריצה רואים אם היא תאמה את האימון שתוכנן, ולאיזה כיוון סטיתם.', featured: false, edited: false },
+  { id: 'extra-target-range', date: '2026-09-06', kind: 'feature', icon: '📏', title: 'יעד שבועי כטווח', body: 'היעד השבועי בפרופיל הוא טווח ק״מ, לא מספר אחד.', featured: false, edited: false },
+  { id: 'extra-notif-prefs', date: '2026-09-18', kind: 'feature', icon: '🔔', title: 'מההתראות ישר להגדרות', body: 'מתיבת ההתראות יש קישור להגדרות ההתראות.', featured: false, edited: false },
+  { id: 'extra-hoka', date: '2026-09-09', kind: 'feature', icon: '👟', title: 'דגמי HOKA ומידות מעל 46', body: 'בבחירת הנעליים בפרופיל.', featured: false, edited: false },
 ];
 
 export const EVENING_ENTRIES: WhatsNewEntry[] = [
@@ -166,6 +192,29 @@ export const EVENING_ENTRIES: WhatsNewEntry[] = [
       where: 'Every Saturday evening, at the top of your feed',
     },
   },
+  {
+    slug: 'academy-2026-09',
+    publishedAt: '2026-09-30',
+    href: '/academy',
+    cards: [
+      { key: 'academy-landing', he: 'דף האקדמיה', en: 'The academy' },
+      { key: 'academy-form', he: 'טופס ההצטרפות', en: 'The sign-up form' },
+    ],
+    he: {
+      title: 'אקדמיית מדרגות',
+      body: 'ליווי אישי 1:1 עם מאמן: מבחן כושר, תוכנית שבנויה עליכם, ופידבק על כל אימון. ההרשמה פתוחה.',
+      cta: 'לפרטים ולהרשמה',
+      kicker: 'חדש · אקדמיית מדרגות',
+      where: 'טופס קצר של 5 דקות, ואחריו שיחת היכרות',
+    },
+    en: {
+      title: 'Madregot Academy',
+      body: '1:1 coaching: a fitness test, a plan built around you, and feedback on every workout. Registration is open.',
+      cta: 'Details and sign-up',
+      kicker: 'New · Madregot Academy',
+      where: 'A 5-minute form, then an intro call',
+    },
+  },
 ];
 
 export interface WhatsNewContent {
@@ -195,7 +244,8 @@ export function composeWhatsNew(
   const released = releases
     .filter(r => compareAppVersions(appVersion, r.app_version) >= 0)
     .flatMap(r => r.notes)
-    .filter(n => n.audience !== 'staff' && !n.featured);
+    .filter(n => n.audience !== 'staff' && !n.featured)
+    .concat(EVENING_EXTRA);
   const more = EVENING_MORE
     .map(id => released.find(n => n.id === id))
     .filter((n): n is ShownNote => !!n);
