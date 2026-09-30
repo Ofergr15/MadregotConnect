@@ -3029,7 +3029,8 @@
     "withdraw": "Withdraw",
     "afterApproval": "Arrived after your approval — waiting for you",
     "approve": "Approve for 05:00 ({count, plural, one {one change} other {# changes}})",
-    "approveAgain": "Approve again with these ({count, plural, one {one change} other {# changes}})"
+    "approveAgain": "Approve again with these ({count, plural, one {one change} other {# changes}})",
+    "rehearse": "▶ Rehearse: how tonight will look"
   },
   "shareSheet": {
     "titleWorkout": "Share your run",
@@ -3248,5 +3249,29 @@
     "brandStairs": "Stairs",
     "swipeHint": "Swipe for another look",
     "anyWeek": "Weekly summary (trial)"
+  },
+  "rehearsal": {
+    "superOnly": "This page is open to the system owner only.",
+    "frameTitle": "The feed",
+    "pushTitle": "A new version of Madregot ✨",
+    "pushBody": "There's a new version — come see what's new",
+    "now": "now",
+    "noStarsTitle": "No notes starred ⭐ yet",
+    "noStarsBody": "Without a star, What's new won't open for members tonight. Star them on the approval page and come back.",
+    "noStarsLink": "Star the notes",
+    "back": "Back",
+    "next": "Next",
+    "exit": "Exit",
+    "modeOpen": "Background",
+    "modeClosed": "Closed",
+    "step": {
+      "alert": "20:00 · the alert",
+      "open": "The app opens",
+      "sheet": "\"New version · Update now\"",
+      "updating": "The update runs",
+      "toast": "\"Updated\"",
+      "wn": "What's new",
+      "after": "After"
+    }
   }
 }

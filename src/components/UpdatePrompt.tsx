@@ -8,6 +8,7 @@ import { useIsSuperUser } from '@/lib/impersonation';
 import { askBuildId, isNewerBuild } from '@/lib/sw-build-id';
 import { AWAY_MS, canApplyUpdate } from '@/lib/update-timing';
 import { APP_VERSION } from '@/lib/version';
+import { isFramed } from '@/lib/framed';
 import { isPublicPath } from '@/lib/public-paths';
 import type { WhatsNewRelease } from '@/lib/release-notes';
 import { WHATS_NEW_KEY, markSeen, readWhatsNewLedger } from '@/lib/whats-new/ledger';
@@ -133,6 +134,8 @@ export function UpdatePrompt() {
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+    // The rehearsal's framed feed: the page around it owns the update (lib/framed.ts).
+    if (isFramed()) return;
     let reg: ServiceWorkerRegistration | null = null;
     let disposed = false;
     // Start of the current quiet stretch: the load, or a return after being away.

@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import { CheckCircle2, Pencil, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
+import { useIsSuperUser } from '@/lib/impersonation';
 import { Sheet, Spinner } from '@/components/ui';
 import { splitByApproval, type ApprovalRow, type ShownNote, type WhatsNewRelease } from '@/lib/release-notes';
 
@@ -28,6 +30,7 @@ export default function WhatsNewPage() {
   const t = useTranslations('whatsNew');
   const locale = useLocale();
   const { data, isLoading, mutate } = useApi<Data>('/api/whats-new');
+  const isSuper = useIsSuperUser();
   const [editing, setEditing] = useState<ShownNote | null>(null);
   const [draft, setDraft] = useState({ title: '', body: '' });
   const [busy, setBusy] = useState(false);
@@ -155,6 +158,14 @@ export default function WhatsNewPage() {
               </button>
             )}
             <p className="mt-2 px-4 text-2xs leading-relaxed text-ink-400">{t('pickHint')}</p>
+            {isSuper && (
+              <Link
+                href="/dashboard/release-rehearsal"
+                className="mt-3 flex h-12 w-full items-center justify-center rounded-2xl bg-card text-sm font-extrabold text-brand-600 active:opacity-70"
+              >
+                {t('rehearse')}
+              </Link>
+            )}
           </section>
         );
       })()}

@@ -8,6 +8,7 @@ import { Sheet } from '@/components/ui/Sheet';
 import { InsetRow } from '@/components/ui/InsetList';
 import { israelToday } from '@/lib/utils';
 import { useApi } from '@/lib/api';
+import { isFramed } from '@/lib/framed';
 import { APP_VERSION } from '@/lib/version';
 import { releaseEntries, type WhatsNewRelease } from '@/lib/release-notes';
 import {
@@ -169,6 +170,9 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
 
   useEffect(() => {
     if (!ready || !all || entries) return;
+    // Not inside the release rehearsal's frame: opening there would spend the
+    // ledger, and the real sheet would never come (lib/framed.ts).
+    if (isFramed()) return;
     const stored = readWhatsNewLedger(localStorage.getItem(WHATS_NEW_KEY));
     // Stamping `since` is what decides whether anything is news to this device at
     // all, so it happens on the first ready feed whether or not a sheet follows.
