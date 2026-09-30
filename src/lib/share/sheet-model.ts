@@ -9,7 +9,7 @@ import {
 import { DIRECTION_COLOR } from '@/lib/plan-execution/verdict';
 import { VERDICT_TEXT, type ShareCardLang } from './card-text';
 import type { FeedItem } from '@/lib/feed/project';
-import type { Last7Report } from '@/lib/reports/last-7-days';
+import type { Last7Report, WellnessNight } from '@/lib/reports/last-7-days';
 
 /**
  * ONE SHARE SHEET. TWO KINDS OF CARD.
@@ -189,7 +189,11 @@ export function defaultTemplate(subject: ShareSubject): ShareTemplate {
 
 export type ShareSubject =
   | { kind: 'workout'; item: FeedItem }
-  | { kind: 'week'; report: Last7Report; athleteName?: string | null };
+  | {
+    kind: 'week'; report: Last7Report; athleteName?: string | null;
+    /** The week before and the nights, for the weekly story editor's body look and sleep strip. */
+    previous?: Last7Report | null; nights?: WellnessNight[];
+  };
 
 export interface FrameOption {
   key: ShareFrame;

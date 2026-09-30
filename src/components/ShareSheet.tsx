@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { Sheet } from '@/components/ui/Sheet';
 import { WorkoutShareEditor } from '@/components/share/WorkoutShareEditor';
+import { WeekShareEditor } from '@/components/share/WeekShareEditor';
 import { useIsSuperUser } from '@/lib/impersonation';
 import {
   renderShareCard, shareCard, supportsPhoto, supportsTransparent, workoutPaceBars,
@@ -86,6 +87,17 @@ const VIEW_LABEL: Record<ShareTemplate, string> = {
 export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClose: () => void }) {
   const editor = useIsSuperUser();
   if (subject.kind === 'workout' && editor) return <WorkoutShareEditor item={subject.item} onClose={onClose} />;
+  if (subject.kind === 'week' && editor) {
+    return (
+      <WeekShareEditor
+        report={subject.report}
+        previous={subject.previous}
+        nights={subject.nights}
+        athleteName={subject.athleteName ?? null}
+        onClose={onClose}
+      />
+    );
+  }
   return <ClassicShareSheet subject={subject} onClose={onClose} />;
 }
 
