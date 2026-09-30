@@ -14,6 +14,8 @@ import { WeekTargetBar } from '@/components/profile/WeekTargetBar';
 import { Last7DaysCard } from '@/components/profile/Last7DaysCard';
 import type { Last7Report } from '@/lib/reports/last-7-days';
 import { PrEditSheet } from '@/components/profile/PrEditSheet';
+import { RunsBrowser } from '@/components/profile/RunsBrowser';
+import { useIsSuperUser } from '@/lib/impersonation';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The body of an athlete's profile — the SAME component whether you are looking
@@ -164,6 +166,7 @@ export function AthleteProfileBody({
   const weekTarget = weekTargetRange(weekPlan);
 
   const weeks = stats?.weeks || [];
+  const superUser = useIsSuperUser();
   const runs = stats?.recentRuns || [];
   const achievedPrs = (stats?.prs || []).filter((p) => p.seconds != null);
 
@@ -397,7 +400,10 @@ export function AthleteProfileBody({
         </>
       )}
 
-      {section === 'runs' && (
+      {/* The super user tries the two Strava-like views first; everyone else keeps the list. */}
+      {section === 'runs' && superUser && athleteId && <RunsBrowser athleteId={athleteId} weeks={weeks} />}
+
+      {section === 'runs' && !superUser && (
         <section className="rounded-card bg-card p-4">
           <div className="flex items-end justify-between">
             <h2 className="text-xl font-bold text-ink-700">{t('recentRuns')}</h2>

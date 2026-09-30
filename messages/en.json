@@ -1757,7 +1757,16 @@
     "prErrorTooFast": "That time is too fast for this distance — check the digits.",
     "prErrorTooSlow": "That time is too slow for this distance — check the digits.",
     "prErrorNotReady": "Editing records is not enabled yet. Try again later.",
-    "openDayRun": "Open the run from {day}"
+    "openDayRun": "Open the run from {day}",
+    "runsViewWeeks": "Weeks",
+    "runsViewCalendar": "Calendar",
+    "runsWeekOf": "Week of {date}",
+    "runsThisWeek": "This week",
+    "runsNoneInWeek": "No runs this week",
+    "runsNoneInMonth": "No runs this month",
+    "runsPrevMonth": "Previous month",
+    "runsNextMonth": "Next month",
+    "runsCount": "{count, plural, one {1 run} other {# runs}}"
   },
   "profileBest": {
     "title": "Your Best",

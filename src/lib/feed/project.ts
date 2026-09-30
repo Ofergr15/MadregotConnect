@@ -214,7 +214,7 @@ function toNumber(v: unknown): number | null {
 }
 
 /** Coerce the stored JSONB route into a clean {lat,lng}[] — tolerates bad rows. */
-function toRoute(v: unknown): Array<{ lat: number; lng: number }> | null {
+export function toRoute(v: unknown): Array<{ lat: number; lng: number }> | null {
   if (!Array.isArray(v) || v.length === 0) return null;
   const pts = v
     .map((p) => {

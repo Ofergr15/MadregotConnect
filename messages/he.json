@@ -1757,7 +1757,16 @@
     "prErrorTooFast": "הזמן מהיר מדי למרחק הזה — בדקו את הספרות.",
     "prErrorTooSlow": "הזמן איטי מדי למרחק הזה — בדקו את הספרות.",
     "prErrorNotReady": "עריכת שיאים עוד לא זמינה. נסו שוב מאוחר יותר.",
-    "openDayRun": "לפתוח את הריצה של {day}"
+    "openDayRun": "לפתוח את הריצה של {day}",
+    "runsViewWeeks": "שבועות",
+    "runsViewCalendar": "לוח שנה",
+    "runsWeekOf": "שבוע {date}",
+    "runsThisWeek": "השבוע",
+    "runsNoneInWeek": "אין ריצות בשבוע הזה",
+    "runsNoneInMonth": "אין ריצות בחודש הזה",
+    "runsPrevMonth": "החודש הקודם",
+    "runsNextMonth": "החודש הבא",
+    "runsCount": "{count, plural, one {ריצה אחת} other {# ריצות}}"
   },
   "profileBest": {
     "title": "השיאים שלך",
