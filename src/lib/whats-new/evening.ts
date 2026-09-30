@@ -41,6 +41,17 @@ export const EVENING_FOLDED: readonly string[] = [
   'week-share-logo-place', 'week-sleep-resting-hr',
 ];
 
+/**
+ * The tour's last page, "and more": the notes he picked (2026-09-30), in his
+ * order, and nothing else. Two of them repeat a headline's detail, on purpose.
+ * A note shows once the reader's bundle has it; an id with no note is skipped.
+ */
+export const EVENING_MORE: readonly string[] = [
+  'rename-run-on-its-page', 'run-power-performance-condition', 'run-cadence-power-per-km',
+  'feed-no-catchup-badges', 'my-week-start-day', 'silent-updates', 'share-segments-scale',
+  'week-sleep-resting-hr',
+];
+
 export const EVENING_ENTRIES: WhatsNewEntry[] = [
   {
     slug: 'share-editor-2026-09',
@@ -159,15 +170,15 @@ export const EVENING_ENTRIES: WhatsNewEntry[] = [
 
 export interface WhatsNewContent {
   entries: WhatsNewEntry[];
-  /** The "and N more" list under the headlines. Empty before the evening. */
+  /** The "and N more" list under the headlines (EVENING_MORE). Empty before the evening. */
   more: ShownNote[];
 }
 
 /**
  * What the sheet holds. Before the evening: the hand-written entries plus the
  * starred release notes, as it always was. With it: the two headlines, any
- * starred note they do not already cover, and under them every other member
- * note released to this bundle since EVENING_SINCE, newest first.
+ * starred note they do not already cover, and under them the EVENING_MORE
+ * notes released to this bundle, in that order (a starred one has its row already).
  *
  * Staff notes are dropped here too and not only by the server, because the
  * super user's own answer carries them and the rehearsal must show him what a
@@ -181,12 +192,12 @@ export function composeWhatsNew(
     ...r,
     notes: r.notes.filter(n => n.audience !== 'staff' && !EVENING_FOLDED.includes(n.id)),
   }));
-  const seen = new Set<string>();
-  const more = member
+  const released = releases
     .filter(r => compareAppVersions(appVersion, r.app_version) >= 0)
-    .sort((a, b) => compareAppVersions(b.app_version, a.app_version))
     .flatMap(r => r.notes)
-    .filter(n => !n.featured && n.date >= EVENING_SINCE && !seen.has(n.id) && !!seen.add(n.id))
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    .filter(n => n.audience !== 'staff' && !n.featured);
+  const more = EVENING_MORE
+    .map(id => released.find(n => n.id === id))
+    .filter((n): n is ShownNote => !!n);
   return { entries: [...EVENING_ENTRIES, ...releaseEntries(member, appVersion)], more };
 }

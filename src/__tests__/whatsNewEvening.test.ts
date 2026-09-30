@@ -5,7 +5,7 @@ import { join } from 'path';
 import type { ShownNote, WhatsNewRelease } from '@/lib/release-notes';
 import { WHATS_NEW, WHATS_NEW_LANGS } from '@/lib/whats-new/entries';
 import {
-  EVENING_ENTRIES, EVENING_FOLDED, EVENING_SINCE, composeWhatsNew,
+  EVENING_ENTRIES, EVENING_MORE, EVENING_SINCE, composeWhatsNew,
 } from '@/lib/whats-new/evening';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
@@ -30,25 +30,34 @@ describe('composeWhatsNew', () => {
     expect(c.entries.map(e => e.slug)).toEqual(['share-editor-2026-09', 'week-editor-2026-09']);
   });
 
-  it('lists everything else under them, newest first, once each', () => {
-    const c = composeWhatsNew([
-      release('2.41.60', [note('old', { date: '2026-09-23' }), note('twice', { date: '2026-09-29' })], 1),
-      release('2.41.70', [note('new'), note('twice', { date: '2026-09-29' })], 2),
+  it('lists exactly his picks under them, in his order, once each', () => {
+    const [a, b, c] = EVENING_MORE;
+    const got = composeWhatsNew([
+      release('2.41.60', [note(c), note('not-picked'), note(a)], 1),
+      release('2.41.70', [note(b), note(a)], 2),
     ], '2.41.70', true);
-    expect(c.more.map(n => n.id)).toEqual(['new', 'twice', 'old']);
+    expect(got.more.map(n => n.id)).toEqual([a, b, c]);
   });
 
-  it('leaves out what the headlines say, staff notes, starred notes and anything before the floor', () => {
-    const c = composeWhatsNew([release('2.41.70', [
-      note(EVENING_FOLDED[0]),
-      note('admin', { audience: 'staff' }),
-      note('starred', { featured: true }),
-      note('ancient', { date: '2026-09-10' }),
-      note('kept'),
+  it('leaves out staff notes and starred notes even when picked', () => {
+    const [a, b, c] = EVENING_MORE;
+    const got = composeWhatsNew([release('2.41.70', [
+      note(a, { audience: 'staff' }),
+      note(b, { featured: true }),
+      note(c),
     ])], '2.41.70', true);
-    expect(c.more.map(n => n.id)).toEqual(['kept']);
+    expect(got.more.map(n => n.id)).toEqual([c]);
     // A starred note the headlines do not cover still gets its own row.
-    expect(c.entries.map(e => e.slug)).toContain('release:starred');
+    expect(got.entries.map(e => e.slug)).toContain(`release:${b}`);
+  });
+
+  it('picks only notes that exist and that members may see', async () => {
+    const { BUNDLED_NOTES } = await import('@/lib/release-notes');
+    for (const id of EVENING_MORE) {
+      const n = BUNDLED_NOTES.find(x => x.id === id);
+      expect(n, id).toBeTruthy();
+      expect(n!.audience, id).not.toBe('staff');
+    }
   });
 
   it('never announces a release newer than the bundle', () => {
