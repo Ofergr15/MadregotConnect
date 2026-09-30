@@ -98,12 +98,12 @@ export async function GET(request: Request) {
     let rows: any[] = [];
     const primary = await supabase
       .from('athletes')
-      .select('id, name, avatar_url, group_id, is_academy, groups (name)')
+      .select('id, name, avatar_url, group_id, is_academy, groups!group_id(name)')
       .eq('coach_id', COACH_ID);
     if (primary.error) {
       const fallback = await supabase
         .from('athletes')
-        .select('id, name, group_id, is_academy, groups (name)')
+        .select('id, name, group_id, is_academy, groups!group_id(name)')
         .eq('coach_id', COACH_ID);
       rows = fallback.error ? [] : fallback.data || [];
     } else {

@@ -49,9 +49,9 @@ const toMin = (sec: number) => Math.round(sec / 60);
 //
 // The 077 columns are one tier, not several: they land in a single migration, so
 // splitting them would add a fallback that no real schema can ever be in.
-const COLS_PAIRED = 'id, name, email, avatar_url, status, role, approved, group_id, garmin_auth, strava_auth, is_academy, created_at, academy_coach_id, academy_joined_on, academy_band_id, academy_pace_offset_sec, groups (name)';
-const COLS_FULL = 'id, name, email, avatar_url, status, role, approved, group_id, garmin_auth, strava_auth, is_academy, created_at, groups (name)';
-const COLS_MIN = 'id, name, email, status, group_id, garmin_auth, is_academy, created_at, groups (name)';
+const COLS_PAIRED = 'id, name, email, avatar_url, status, role, approved, group_id, garmin_auth, strava_auth, is_academy, created_at, academy_coach_id, academy_joined_on, academy_band_id, academy_pace_offset_sec, groups!group_id(name)';
+const COLS_FULL = 'id, name, email, avatar_url, status, role, approved, group_id, garmin_auth, strava_auth, is_academy, created_at, groups!group_id(name)';
+const COLS_MIN = 'id, name, email, status, group_id, garmin_auth, is_academy, created_at, groups!group_id(name)';
 
 export async function GET(request: Request) {
   try {

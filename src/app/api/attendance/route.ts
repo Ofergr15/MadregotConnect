@@ -88,7 +88,7 @@ export async function GET(request: Request) {
       const [{ data: athletes, error: aErr }, { data: rsvps, error: rErr }] = await Promise.all([
         supabase
           .from('athletes')
-          .select('id, name, avatar_url, group_id, groups(name), onboarding_status, approved')
+          .select('id, name, avatar_url, group_id, groups!group_id(name), onboarding_status, approved')
           .order('name'),
         supabase
           .from('workout_attendance')

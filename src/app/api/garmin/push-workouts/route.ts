@@ -65,14 +65,14 @@ export async function POST(req: NextRequest) {
 
     const primary = await supabase
       .from('athletes')
-      .select('id, name, email, garmin_auth, is_academy, group_id, groups(pace_profile)')
+      .select('id, name, email, garmin_auth, is_academy, group_id, groups!group_id(pace_profile)')
       .in('id', jobs.flatMap((b) => b.athleteIds))
       .eq('status', 'active');
 
     if (primary.error) {
       const fallback = await supabase
         .from('athletes')
-        .select('id, name, email, garmin_auth, group_id, groups(pace_profile)')
+        .select('id, name, email, garmin_auth, group_id, groups!group_id(pace_profile)')
         .in('id', jobs.flatMap((b) => b.athleteIds))
         .eq('status', 'active');
       athletes = fallback.data;

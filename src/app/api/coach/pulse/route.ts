@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     // Active athletes (name/squad).
     const { data: athletes } = await supabase
       .from('athletes')
-      .select('id, name, avatar_url, group_id, groups(name)')
+      .select('id, name, avatar_url, group_id, groups!group_id(name)')
       .eq('coach_id', COACH_ID)
       .eq('status', 'active');
     const meta = new Map<string, { name: string; avatar: string | null; squad: string | null }>();
