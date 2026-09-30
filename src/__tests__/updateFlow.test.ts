@@ -107,3 +107,20 @@ describe('the sheet cannot be dismissed', () => {
     expect(src).not.toMatch(/onOpenChange|onClose|later/i);
   });
 });
+
+describe('no update on a public page', () => {
+  it('covers the academy form and its landing, not the app', async () => {
+    const { isPublicPath } = await import('@/lib/public-paths');
+    expect(isPublicPath('/academy-register')).toBe(true);
+    expect(isPublicPath('/academy')).toBe(true);
+    expect(isPublicPath('/join/abc')).toBe(true);
+    expect(isPublicPath('/dashboard')).toBe(false);
+    expect(isPublicPath('/dashboard/academy')).toBe(false);
+  });
+
+  it('is checked on both the super user’s sheet and the silent reload', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync('src/components/UpdatePrompt.tsx', 'utf8');
+    expect(src.match(/if \(onPublicPage\(\)\) return;/g)?.length).toBe(2);
+  });
+});

@@ -101,7 +101,7 @@ describe('the academy door during maintenance', () => {
     // The Instagram auto-reply links here; behind the gate a lead meets "we're rebuilding"
     // and is lost silently. isPublicPath is module-private, so this reads its list.
     const { readFileSync } = await import('node:fs');
-    const src = readFileSync('src/components/MaintenanceGate.tsx', 'utf8');
+    const src = readFileSync('src/lib/public-paths.ts', 'utf8');
     const list = /const PUBLIC_PATHS = \[([^\]]*)\]/.exec(src)?.[1] ?? '';
     expect(list).toContain("'/academy-register'");
     expect(list).toContain("'/join'");

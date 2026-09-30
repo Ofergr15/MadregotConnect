@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { GraduationCap, CheckCircle2 } from 'lucide-react';
 import { Card, Button, LoadingBlock } from '@/components/ui';
 import { CLOTHING_SIZES, SOCK_SIZES } from '@/lib/kit-sizes';
-import { nameProblem, normalizeDisplayName } from '@/lib/names/latin';
+import { formNameProblem, normalizeDisplayName } from '@/lib/names/latin';
 import { HONEYPOT_FIELD, looksLikeToken, splitName } from '@/lib/academy/intake';
 
 // Mirrors the current Google Form "שאלון אישי להצטרפות אל Madregot Academy".
@@ -23,12 +23,10 @@ type Field =
   | { key: string; label: string; type: 'checkboxes'; required?: boolean; options: string[] };
 
 const FIELDS: Field[] = [
-  // In English, and asked for that way. The roster is Latin-only: `athletes.name`
-  // is the key that matches a Strava profile to a roster row, and a mixed-script
-  // roster sorts into two blocks and shows one person under two spellings. The
-  // Latin placeholders carry the expectation even before the label is read.
-  { key: 'firstName', label: 'שם פרטי (באנגלית)', type: 'text', required: true, placeholder: 'Daniel' },
-  { key: 'lastName', label: 'שם משפחה (באנגלית)', type: 'text', required: true, placeholder: 'Levi' },
+  // Hebrew or English, whichever the applicant writes (lib/names/latin.ts
+  // formNameProblem). The roster's Latin name arrives with Strava at /join.
+  { key: 'firstName', label: 'שם פרטי', type: 'text', required: true, placeholder: 'דניאל / Daniel' },
+  { key: 'lastName', label: 'שם משפחה', type: 'text', required: true, placeholder: 'לוי / Levi' },
   { key: 'email', label: 'אימייל', type: 'email', required: true },
   { key: 'phone', label: 'מספר נייד', type: 'tel', required: true, placeholder: '050-0000000' },
   { key: 'focus', label: 'מה מדבר אליך יותר', type: 'radio', required: true, options: [
@@ -151,7 +149,7 @@ export default function AcademyRegisterPage() {
     // and not a rejection: nobody should fill in twenty fields and then be told no.
     if (STEPS[index].keys.includes('firstName')) {
       for (const key of ['firstName', 'lastName'] as const) {
-        if (nameProblem(values[key]) === 'not-latin') return 'אנא כתבו את השם באותיות אנגליות';
+        if (formNameProblem(values[key]) === 'no-letters') return 'אנא כתבו את השם באותיות';
       }
     }
     return null;

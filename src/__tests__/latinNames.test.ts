@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  formNameProblem,
   hasNonLatinLetters,
   isPlaceholderRosterName,
   nameProblem,
@@ -140,13 +141,28 @@ describe('the intake paths', () => {
     // door onto athletes.name; a rule enforced at two of three is not a rule.
     expect(read('src/app/api/athletes/me/route.ts')).toContain('nameProblem(name)');
     expect(read('src/components/PersonalInfo.tsx')).toContain('nameProblem(name)');
-    expect(read('src/app/api/academy/register/route.ts')).toContain("nameProblem(name) === 'not-latin'");
-    expect(read('src/app/academy-register/page.tsx')).toContain("nameProblem(values[key]) === 'not-latin'");
+    // The academy form is the deliberate exception: Hebrew or English, and Strava at
+    // /join brings the Latin name (formNameProblem).
+    expect(read('src/app/api/academy/register/route.ts')).toContain('formNameProblem(name)');
+    expect(read('src/app/academy-register/page.tsx')).toContain('formNameProblem(values[key])');
   });
 
   it('no longer writes a Strava name onto the roster unconditionally', () => {
     const callback = read('src/app/api/strava/callback/route.ts');
     expect(callback).not.toContain('{ name: stravaDisplayName }');
     expect(callback.match(/rosterNameFromProvider\(/g)?.length).toBe(2);
+  });
+});
+
+describe('formNameProblem (the academy form)', () => {
+  it('takes Hebrew or English, and refuses a name with no letters', () => {
+    expect(formNameProblem('רועי רוט')).toBeNull();
+    expect(formNameProblem('Roy Roth')).toBeNull();
+    expect(formNameProblem('  ')).toBe('empty');
+    expect(formNameProblem('12345')).toBe('no-letters');
+  });
+
+  it('is still replaced by a Latin Strava name at /join', () => {
+    expect(rosterNameFromProvider('Roy Roth', 'רועי רוט')).toBe('Roy Roth');
   });
 });

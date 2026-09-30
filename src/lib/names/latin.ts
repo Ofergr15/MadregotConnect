@@ -77,6 +77,22 @@ export function nameProblem(raw: unknown): NameProblem | null {
 }
 
 /**
+ * The academy form's rule: Hebrew OR English, but real letters.
+ *
+ * Looser than nameProblem on purpose. An applicant from Instagram writes the name
+ * they write; asking them to spell it in English is a correction at the first field
+ * of a stranger's first contact. The roster still ends up Latin: connecting Strava
+ * at /join replaces a Hebrew name with the Strava one (rosterNameFromProvider lets
+ * Latin replace non-Latin, never the reverse), and the coach can fix the rest.
+ */
+export function formNameProblem(raw: unknown): 'empty' | 'no-letters' | null {
+  const name = normalizeDisplayName(raw);
+  if (!name) return 'empty';
+  if (!/[\p{Script=Latin}\p{Script=Hebrew}]/u.test(name)) return 'no-letters';
+  return null;
+}
+
+/**
  * The name to store on the roster when a provider hands us one, or null to leave
  * the row alone.
  *
