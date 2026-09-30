@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
 import { Sheet } from '@/components/ui';
+import { getNewTabs, setNewTabs } from '@/lib/role-views';
 
 // iOS-native redesign, phase 1: a bottom tab bar (the #1 "this is a real app"
 // signal) that replaces the hamburger on mobile. Primary tabs live in the bar;
@@ -47,6 +48,20 @@ export function BottomTabBar() {
   const pathname = usePathname();
   const t = useTranslations('nav');
   const [moreOpen, setMoreOpen] = useState(false);
+  // Tabs a new role just added (RoleWelcome), marked "חדש" until each is opened once.
+  const [newTabs, setNewTabsState] = useState<string[]>([]);
+  useEffect(() => {
+    const read = () => setNewTabsState(getNewTabs());
+    read();
+    window.addEventListener('new-tabs-changed', read);
+    return () => window.removeEventListener('new-tabs-changed', read);
+  }, []);
+  const seeTabs = (tabs: string[]) => {
+    const left = newTabs.filter(x => !tabs.includes(x));
+    if (left.length === newTabs.length) return;
+    setNewTabs(left);
+    setNewTabsState(left);
+  };
 
   // Identity and permissions come from the shared hook, so the Header, this bar
   // and Search all read one SWR-keyed pair of requests rather than each asking
@@ -117,19 +132,24 @@ export function BottomTabBar() {
   const activeColor = 'text-brand-600 font-bold';
   const idleColor = 'text-ink-400';
 
-  const renderIconButton = ({ href, ariaLabel, label, icon: Icon }: { href: string; ariaLabel: string; label: string; icon: any }) => {
+  const renderIconButton = ({ href, ariaLabel, label, icon: Icon, tab }: { href: string; ariaLabel: string; label: string; icon: any; tab?: string }) => {
     const isActiveState = isActive(href);
+    const isNew = !!tab && newTabs.includes(tab);
     return (
       <Link
         key={href}
         href={href}
-        onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } }}
+        onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } if (tab) seeTabs([tab]); }}
         aria-label={ariaLabel}
         className={cn(
-          'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors active:scale-[0.92]',
+          'relative flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors active:scale-[0.92]',
           isActiveState ? activeColor : idleColor,
+          isNew && !isActiveState && 'text-brand-600',
         )}
       >
+        {isNew && (
+          <span className="absolute top-0.5 left-1/2 -translate-x-1/2 rounded-[6px] bg-brand-600 px-1.5 text-[9px] font-bold leading-[14px] text-white">חדש</span>
+        )}
         <Icon className="h-6 w-6" strokeWidth={1.75} />
         <span className="text-3xs leading-none font-medium truncate max-w-full px-0.5">{label}</span>
       </Link>
@@ -169,14 +189,14 @@ export function BottomTabBar() {
         className="md:hidden shrink-0 z-40 flex items-stretch border-t border-page bg-card"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
+        {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon, tab: item.tab }))}
 
         {/* The roster IS its own page, so plain location-based active state is
             meaningful here — no disambiguation needed now that no slot shares an
             href with a tab. */}
         {isStaffView && renderIconButton({ href: '/dashboard/practice-attendance', ariaLabel: t('attendanceRosterAria' as any), label: t('practiceAttendance' as any), icon: CalendarCheck })}
 
-        {primary.slice(midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon }))}
+        {primary.slice(midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon, tab: item.tab }))}
 
         {/* "עוד" is unconditional: the sheet always has the static quick-actions
             group (search/store/benefits), so it's never empty — and it used to
@@ -184,13 +204,16 @@ export function BottomTabBar() {
             (e.g. `viewer`: activities/dashboard/program), taking the only mobile
             route to those three pages with it. */}
         <button
-          onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } setMoreOpen(true); }}
+          onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } setMoreOpen(true); seeTabs(overflow.map(i => i.tab)); }}
           aria-label={t('more' as any)}
           className={cn(
-            'flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors active:scale-[0.92]',
+            'relative flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-colors active:scale-[0.92]',
             overflowActive || moreActive ? activeColor : idleColor,
           )}
         >
+          {overflow.some(i => newTabs.includes(i.tab)) && (
+            <span className="absolute top-1.5 left-1/2 ms-2.5 h-2 w-2 rounded-full bg-brand-600" aria-hidden />
+          )}
           <Menu className="h-6 w-6" strokeWidth={1.75} />
           <span className="text-3xs leading-none font-medium">{t('more' as any)}</span>
         </button>

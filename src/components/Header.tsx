@@ -13,6 +13,7 @@ import { resolveNavItems, type TabPermission } from '@/lib/nav-items';
 import { getViewMode, stopViewAs, useIsSuperUser, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { activeNavRole } from '@/lib/role-views';
 import { RoleSwitcher, useRoleViews, ViewBadge, ViewMenuRow, ViewSwitchToast } from '@/components/RoleSwitcher';
+import { RoleWelcome } from '@/components/RoleWelcome';
 import { InsetSection, InsetRow, Sheet, Spinner } from '@/components/ui';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { AthleteLink } from '@/components/AthleteLink';
@@ -671,6 +672,7 @@ export function Header() {
         </div>
       </div>
       <ViewSwitchToast />
+      <RoleWelcome name={userName} />
     </header>
   );
 }

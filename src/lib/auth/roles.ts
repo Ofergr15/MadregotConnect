@@ -19,6 +19,8 @@ export interface RolePerson {
   email: string;
   avatarUrl: string | null;
   roles: GrantableRole[];
+  /** When the "קיבלת תפקיד חדש" push last went to them; null when it never did. */
+  lastNotifiedAt?: string | null;
 }
 
 /** Every role that makes an account staff — the three single-role ones plus the manager. */

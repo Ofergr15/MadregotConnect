@@ -592,6 +592,39 @@ export function accountLinkedCopy(locale: NotificationLocale, p: { name: string 
       };
 }
 
+const ROLE_NAMES: Record<NotificationLocale, Record<string, string>> = {
+  he: { coach: 'מאמן', academy_coach: 'מאמן אקדמיה', academy_manager: 'מנהל אקדמיה', admin: 'אדמין' },
+  en: { coach: 'Coach', academy_coach: 'Academy coach', academy_manager: 'Academy manager', admin: 'Admin' },
+};
+
+const ROLE_VIEW_NAMES: Record<NotificationLocale, Record<string, string>> = {
+  he: { coach: 'תצוגת המאמן', academy_coach: 'תצוגת המאמן', academy_manager: 'תצוגת מנהל האקדמיה', admin: 'תצוגת האדמין' },
+  en: { coach: 'the coach view', academy_coach: 'the coach view', academy_manager: 'the academy manager view', admin: 'the admin view' },
+};
+
+/**
+ * "קיבלת תפקיד חדש" — sent by the roles screen when a role is switched on. The
+ * point of the push is the tap: it opens the app in that role's view, which the
+ * person would otherwise have to find in the avatar menu on their own.
+ */
+export function roleGrantedCopy(
+  locale: NotificationLocale,
+  p: { role: string; by?: string | null },
+): PushCopy {
+  const who = (p.by || '').trim().split(/\s+/)[0] || '';
+  const role = ROLE_NAMES[locale][p.role] || p.role;
+  const view = ROLE_VIEW_NAMES[locale][p.role] || '';
+  return locale === 'he'
+    ? {
+        title: `🎓 קיבלת תפקיד חדש: ${role}`,
+        body: `${who ? `${who} הוסיף אותך. ` : ''}לחיצה פותחת את ${view}, עם הטאבים החדשים שלך.`,
+      }
+    : {
+        title: `🎓 You have a new role: ${role}`,
+        body: `${who ? `${who} added you. ` : ''}Tap to open ${view}, with your new tabs.`,
+      };
+}
+
 /**
  * The nudge for somebody who was approved and never came in.
  *

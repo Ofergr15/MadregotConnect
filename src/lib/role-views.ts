@@ -156,3 +156,80 @@ export function clearStoredView() {
   localStorage.removeItem(KEY);
   localStorage.removeItem(ROLE_KEY);
 }
+
+// ── A role just granted (the "קיבלת תפקיד חדש" push) ────────────────────────
+//
+// Granting a role changes nothing on the person's screen by itself: an extra role
+// keeps them in the view they were in, and the new tabs only appear once they
+// switch in the avatar menu, which most people never open. So the grant sends a
+// push to /dashboard?welcome=<role>, and opening it switches them into the role's
+// view and shows a one-time card naming the tabs they got.
+
+/** The query parameter the role push carries. */
+export const WELCOME_PARAM = 'welcome';
+/** sessionStorage: the role to welcome on the page the switch lands on. */
+export const WELCOME_KEY = 'role_welcome';
+/** localStorage: tabs to mark "חדש" in the tab bar until each is opened once. */
+export const NEW_TABS_KEY = 'new_nav_tabs';
+/** localStorage: the roles this device last saw, to welcome a grant made while the push was missed. */
+export const SEEN_ROLES_KEY = 'seen_roles';
+
+/** Highest first — the one a multi-role grant opens on. */
+const WELCOME_ORDER = ['admin', 'academy_manager', 'coach', 'academy_coach'] as const;
+
+/** The view a granted role opens in; null for a role that has none (runner). */
+export function viewForRole(role: string): RoleView | null {
+  if (role === 'admin') return 'admin';
+  if (role === 'academy_manager') return 'manager';
+  if (role === 'coach' || role === 'academy_coach') return 'coach';
+  return null;
+}
+
+/** Roles in `after` that `before` lacked, highest first. */
+export function newlyGranted(before: readonly string[], after: readonly string[]): string[] {
+  return WELCOME_ORDER.filter(r => after.includes(r) && !before.includes(r));
+}
+
+/** The role a welcome is about: the highest of `roles` that has a view of its own. */
+export function welcomeRoleOf(roles: readonly string[]): string | null {
+  return WELCOME_ORDER.find(r => roles.includes(r)) ?? null;
+}
+
+/** Tabs the view adds over the runner view, in nav order — what the card lists. */
+export function addedTabs<T extends { tab: string }>(viewItems: readonly T[], runnerItems: readonly T[]): T[] {
+  const had = new Set(runnerItems.map(i => i.tab));
+  return viewItems.filter(i => !had.has(i.tab) && i.tab !== 'profile');
+}
+
+export function getNewTabs(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const v = JSON.parse(localStorage.getItem(NEW_TABS_KEY) || '[]');
+    return Array.isArray(v) ? v.filter((t): t is string => typeof t === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export function setNewTabs(tabs: readonly string[]) {
+  if (typeof window === 'undefined') return;
+  if (tabs.length) localStorage.setItem(NEW_TABS_KEY, JSON.stringify(tabs));
+  else localStorage.removeItem(NEW_TABS_KEY);
+}
+
+/**
+ * What this device should welcome, given the account's roles now: the role named
+ * in the push link when the account holds it, else a staff role that appeared
+ * since this device last looked. The first look ever records the roles silently,
+ * so a device that simply never recorded any does not greet an old coach as new.
+ */
+export function pendingWelcome(
+  roles: readonly string[],
+  fromLink: string | null,
+  seen: readonly string[] | null,
+): string | null {
+  if (fromLink && roles.includes(fromLink) && viewForRole(fromLink)) return fromLink;
+  if (!seen) return null;
+  const fresh = newlyGranted(seen, roles);
+  return fresh[0] ?? null;
+}

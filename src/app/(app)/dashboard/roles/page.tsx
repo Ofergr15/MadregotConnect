@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Lock, Search, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Bell, Lock, MoreHorizontal, Pencil, Plus, Search, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { BackNav, Card, EmptyState, Sheet, SkeletonList, Switch } from '@/components/ui';
 import { ViewChipFace } from '@/components/RoleSwitcher';
 import { rolesToColumns, type GrantableRole, type RolePerson } from '@/lib/auth/roles';
-import { defaultViewFor, rolePreview } from '@/lib/role-views';
+import { defaultViewFor, newlyGranted, rolePreview } from '@/lib/role-views';
 
 // "תפקידים" — who holds which role, and switching them on (migration 127).
 //
@@ -70,6 +70,30 @@ function PersonAvatar({ person, size = 40 }: { person: RolePerson; size?: number
   );
 }
 
+/** "לפני 5 דק׳" style, for the sheet's last-sent line. */
+function sentAgo(iso: string): string {
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 1) return 'עכשיו';
+  if (min < 60) return `לפני ${min} דק׳`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `לפני ${h} שע׳`;
+  return new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+}
+
+/** POST action=notify — the role push again. Resolves to the error text, or null. */
+async function resendRolePush(athleteId: string): Promise<string | null> {
+  try {
+    const res = await fetch('/api/admin/roles', {
+      method: 'POST',
+      headers: await apiHeaders(true),
+      body: JSON.stringify({ athleteId, action: 'notify' }),
+    });
+    return res.ok ? null : 'השליחה נכשלה. נסה שוב.';
+  } catch {
+    return 'השליחה נכשלה. נסה שוב.';
+  }
+}
+
 function RoleBadges({ roles }: { roles: GrantableRole[] }) {
   if (!roles.length) {
     return <span className="inline-flex h-[22px] items-center rounded-[7px] bg-[#F1F1F3] px-2 text-2xs font-bold text-ink-400">רץ</span>;
@@ -93,6 +117,18 @@ export default function RolesPage() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('any');
   const [editing, setEditing] = useState<RolePerson | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const flash = (text: string) => {
+    setToast(text);
+    setTimeout(() => setToast(null), 2600);
+  };
+  const resend = async (p: RolePerson) => {
+    setMenuFor(null);
+    const failed = await resendRolePush(p.id);
+    flash(failed || `נשלחה התראה ל${p.name || p.email}`);
+    if (!failed) await mutate();
+  };
 
   const people = useMemo(() => data?.people ?? [], [data]);
   const withRole = people.filter(p => p.roles.length > 0).length;
@@ -171,19 +207,41 @@ export default function RolesPage() {
       ) : (
         <Card className="px-4 py-0">
           {shown.map(p => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setEditing(p)}
-              className="flex min-h-16 w-full items-center gap-3 border-b border-[#ECECEF] py-2 text-start last:border-b-0"
-            >
-              <PersonAvatar person={p} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[15px] font-bold text-ink-700">{p.name || p.email}</span>
-                <span className="block truncate text-xs text-ink-400" dir="ltr" style={{ textAlign: 'right' }}>{p.email}</span>
-              </span>
-              <RoleBadges roles={p.roles} />
-            </button>
+            <div key={p.id} className="relative flex min-h-16 items-center gap-1 border-b border-[#ECECEF] last:border-b-0">
+              <button
+                type="button"
+                onClick={() => setEditing(p)}
+                className="flex min-w-0 flex-1 items-center gap-3 py-2 text-start"
+              >
+                <PersonAvatar person={p} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-bold text-ink-700">{p.name || p.email}</span>
+                  <span className="block truncate text-xs text-ink-400" dir="ltr" style={{ textAlign: 'right' }}>{p.email}</span>
+                </span>
+                <RoleBadges roles={p.roles} />
+              </button>
+              <button
+                type="button"
+                aria-label={`פעולות: ${p.name || p.email}`}
+                onClick={() => setMenuFor(m => (m === p.id ? null : p.id))}
+                className={cn(
+                  '-me-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-400',
+                  menuFor === p.id ? 'bg-page text-ink-700' : 'active:bg-page',
+                )}
+              >
+                <MoreHorizontal className="h-5 w-5" />
+              </button>
+              {menuFor === p.id && (
+                <>
+                  <button type="button" aria-label="סגירה" className="fixed inset-0 z-40 cursor-default" onClick={() => setMenuFor(null)} />
+                  <div className="absolute end-0 top-[calc(100%-6px)] z-50 w-56 overflow-hidden rounded-2xl bg-card p-1 shadow-[0_16px_40px_rgba(0,0,0,.2)]" role="menu">
+                    <MenuItem icon={Plus} label="הוספת תפקיד…" strong onClick={() => { setMenuFor(null); setEditing(p); }} />
+                    <MenuItem icon={Pencil} label="עריכת כל התפקידים" onClick={() => { setMenuFor(null); setEditing(p); }} />
+                    {p.roles.length > 0 && <MenuItem icon={Bell} label="שליחת התראה שוב" onClick={() => resend(p)} />}
+                  </div>
+                </>
+              )}
+            </div>
           ))}
         </Card>
       )}
@@ -192,9 +250,41 @@ export default function RolesPage() {
         person={editing}
         canGrantAdmin={!!data?.canGrantAdmin}
         onClose={() => setEditing(null)}
-        onSaved={async () => { setEditing(null); await mutate(); }}
+        onSaved={async (notified) => {
+          const who = editing?.name || editing?.email || '';
+          setEditing(null);
+          if (notified) flash(`נשמר, ונשלחה התראה ל${who}`);
+          await mutate();
+        }}
+        onResent={async (failed) => {
+          flash(failed || 'ההתראה נשלחה שוב');
+          if (!failed) await mutate();
+        }}
       />
+
+      {toast && (
+        <div role="status" className="pointer-events-none fixed inset-x-0 z-[60] flex justify-center bottom-[calc(env(safe-area-inset-bottom)+96px)]">
+          <span className="rounded-pill bg-ink-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg">{toast}</span>
+        </div>
+      )}
     </div>
+  );
+}
+
+function MenuItem({ icon: Icon, label, strong = false, onClick }: { icon: typeof Plus; label: string; strong?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className={cn(
+        'flex h-11 w-full items-center gap-2.5 rounded-xl px-3 text-start text-[15px] active:bg-page',
+        strong ? 'font-bold text-brand-600' : 'text-ink-700',
+      )}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      {label}
+    </button>
   );
 }
 
@@ -203,12 +293,16 @@ function EditRolesSheet({
   canGrantAdmin,
   onClose,
   onSaved,
+  onResent,
 }: {
   person: RolePerson | null;
   canGrantAdmin: boolean;
   onClose: () => void;
-  onSaved: () => void | Promise<void>;
+  /** `notified` — the save switched a role on and its push went out. */
+  onSaved: (notified: boolean) => void | Promise<void>;
+  onResent: (failed: string | null) => void | Promise<void>;
 }) {
+  const [resending, setResending] = useState(false);
   const [draft, setDraft] = useState<GrantableRole[]>([]);
   const [forId, setForId] = useState<string | null>(null);
   const [confirmAdmin, setConfirmAdmin] = useState(false);
@@ -249,7 +343,8 @@ function EditRolesSheet({
         );
         return;
       }
-      await onSaved();
+      const body = await res.json().catch(() => ({}));
+      await onSaved(!!body.notified);
     } catch {
       setFailed('השמירה נכשלה. נסה שוב.');
     } finally {
@@ -294,6 +389,35 @@ function EditRolesSheet({
               {preview.chip && <ViewChipFace view={chipView} small />}
               <span className="min-w-0">{preview.text}</span>
             </div>
+
+            {newlyGranted(person.roles, draft).length > 0 && (
+              <div className="flex items-center gap-2 rounded-2xl bg-[#E6F4EC] px-3 py-2.5 text-sm font-semibold text-[#0B6B35]">
+                <Bell className="h-4 w-4 shrink-0" />
+                בשמירה תישלח ל{person.name?.split(' ')[0] || 'חשבון'} התראה על התפקיד החדש
+              </div>
+            )}
+
+            {person.roles.length > 0 && (
+              <button
+                type="button"
+                disabled={resending}
+                onClick={async () => {
+                  setResending(true);
+                  const err = await resendRolePush(person.id);
+                  setResending(false);
+                  await onResent(err);
+                }}
+                className="flex w-full items-center gap-3 rounded-2xl bg-brand-600/[.05] px-3 py-2.5 text-start disabled:opacity-50"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-bold text-brand-600">{resending ? 'שולח…' : 'שליחת ההתראה שוב'}</span>
+                  <span className="block text-xs text-ink-400">
+                    {person.lastNotifiedAt ? `נשלחה ${sentAgo(person.lastNotifiedAt)}` : 'עוד לא נשלחה'}
+                  </span>
+                </span>
+                <Bell className="h-4 w-4 shrink-0 text-brand-600" />
+              </button>
+            )}
 
             {failed && <p className="text-center text-sm text-accent-red">{failed}</p>}
 
