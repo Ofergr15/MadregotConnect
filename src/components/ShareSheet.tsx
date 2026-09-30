@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { Sheet } from '@/components/ui/Sheet';
 import { WorkoutShareEditor } from '@/components/share/WorkoutShareEditor';
+import { WeekShareEditor } from '@/components/share/WeekShareEditor';
 import { useIsSuperUser } from '@/lib/impersonation';
 import {
   renderShareCard, shareCard, supportsPhoto, supportsTransparent, workoutPaceBars,
@@ -75,17 +76,19 @@ const VIEW_LABEL: Record<ShareTemplate, string> = {
 
 /**
  * The workout opens the full-screen editor, where the card itself is the control
- * panel (`share/WorkoutShareEditor.tsx`); the week keeps this sheet. The sheet's
- * workout branch stays below, unreached, until the editor has been out a while:
+ * panel (`share/WorkoutShareEditor.tsx`), and so does the week, in the same flow
+ * (`share/WeekShareEditor.tsx`). The sheet's
+ * branches stay below, unreached for them, until the editors have been out a while:
  * it is the way back if the editor has to be pulled.
  */
 /**
  * The full-screen editor is on for the super user only while it is tried out on
- * real runs; everyone else keeps this sheet, whose workout branch is unchanged.
+ * real runs; everyone else keeps this sheet, unchanged.
  */
 export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClose: () => void }) {
   const editor = useIsSuperUser();
   if (subject.kind === 'workout' && editor) return <WorkoutShareEditor item={subject.item} onClose={onClose} />;
+  if (subject.kind === 'week' && editor) return <WeekShareEditor report={subject.report} athleteName={subject.athleteName} onClose={onClose} />;
   return <ClassicShareSheet subject={subject} onClose={onClose} />;
 }
 

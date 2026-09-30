@@ -8,6 +8,8 @@ import { thinHrTrace } from '@/lib/share/hr-trace';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
 const EDITOR = readFileSync(join(SRC, 'components/share/WorkoutShareEditor.tsx'), 'utf8');
+const WEEK_EDITOR = readFileSync(join(SRC, 'components/share/WeekShareEditor.tsx'), 'utf8');
+const WEEK_RENDER = readFileSync(join(SRC, 'lib/reports/week-share-image.ts'), 'utf8');
 const SHEET = readFileSync(join(SRC, 'components/ShareSheet.tsx'), 'utf8');
 const RENDER = readFileSync(join(SRC, 'lib/feed/share-image.ts'), 'utf8');
 const DETAILS = readFileSync(join(SRC, 'app/api/activities/details/route.ts'), 'utf8');
@@ -152,9 +154,10 @@ describe('the hit map', () => {
 });
 
 describe('the editor', () => {
-  it('opens for the workout, for the super user only; everyone else and the week keep the sheet', () => {
+  it('opens for the workout and the week, for the super user only; everyone else keeps the sheet', () => {
     expect(SHEET).toMatch(/const editor = useIsSuperUser\(\);/);
     expect(SHEET).toMatch(/subject\.kind === 'workout' && editor\) return <WorkoutShareEditor/);
+    expect(SHEET).toMatch(/subject\.kind === 'week' && editor\) return <WeekShareEditor report=\{subject\.report\}/);
     expect(SHEET).toMatch(/return <ClassicShareSheet subject=\{subject\}/);
   });
 
@@ -268,5 +271,48 @@ describe('the lap chart in the editor', () => {
     expect(SHEET).not.toMatch(/editorChart/);
     expect(RENDER).toMatch(/const trace = c\.editorChart && act\.hrTrace/);
     expect(RENDER).toMatch(/if \(c\.editorChart && !taken\.some\(y => Math\.abs\(y - topY\) < p\(11\)\)\) \{\s*ctx\.fillText\(formatPace\(fast\), start, topY\);/);
+  });
+});
+
+describe('the week editor (feedback 2026-09-30: the same flow as the workout)', () => {
+  it('has the workout editor\'s shell: the carousel, Edit, the labels, a tap opens a part, "‹ Edit" goes back', () => {
+    for (const src of [EDITOR, WEEK_EDITOR]) {
+      expect(src).toMatch(/createPortal\(/);
+      expect(src).toMatch(/snap-x snap-mandatory/);
+      expect(src).toMatch(/partAt\(hitMap, \(\(e\.clientX/);
+      expect(src).toMatch(/placeLabels\(/);
+      expect(src).toMatch(/if \(inPart\) back\(\); else onClose\(\);/);
+      expect(src).toMatch(/from '@\/components\/share\/editor-parts'/);
+    }
+  });
+
+  it('asks the week card for its tap areas, as the workout card does', () => {
+    expect(WEEK_RENDER).toMatch(/const stopHitMap = opts\.onHitMap\s*\?\s*recordHitMap\(ctx/);
+    expect(WEEK_RENDER).toMatch(/if \(stopHitMap\) opts\.onHitMap!\(stopHitMap\(\)\)/);
+    expect(WEEK_EDITOR).toMatch(/onHitMap: map => \{ if \(!cancelled\) setHitMap\(map\); \}/);
+  });
+
+  it('keeps every choice the week sheet had: logo place, mark, title, name, language, numbers, bars, photo', () => {
+    expect(WEEK_EDITOR).toMatch(/WEEK_LOGO_PLACEMENTS\.map/);
+    expect(WEEK_EDITOR).toMatch(/SHARE_BRAND_KEYS\.map/);
+    expect(WEEK_EDITOR).toMatch(/onClick=\{\(\) => setTypedTitle\(null\)\}/);
+    expect(WEEK_EDITOR).toMatch(/nameOk && pill\(t\('partName'\), withName/);
+    expect(WEEK_EDITOR).toMatch(/SHARE_CARD_LANGS\.map/);
+    expect(WEEK_EDITOR).toMatch(/toggleChip\(prev, chip\.key, chips\.length\)/);
+    expect(WEEK_EDITOR).toMatch(/t\('extraDays'\)/);
+    expect(WEEK_EDITOR).toMatch(/fileRef\.current\?\.click\(\)/);
+  });
+
+  it('draws the choices the sheet drew, with the typed title and the mark', () => {
+    expect(WEEK_EDITOR).toMatch(/athleteName: withName && nameOk \? athleteName : null/);
+    expect(WEEK_EDITOR).toMatch(/metrics: asWeekMetrics\(keys\)/);
+    expect(WEEK_EDITOR).toMatch(/title: typedTitle,/);
+    expect(WEEK_RENDER).toMatch(/const title = opts\.title\?\.trim\(\) \|\| text\.title/);
+    expect(WEEK_RENDER).toMatch(/loadImage\(BRAND_SRC\[opts\.brand \?\? 'badge'\]\)/);
+  });
+
+  it('has the name chip in both languages', () => {
+    expect(HE.shareSheet.partName).toBeTruthy();
+    expect(EN.shareSheet.partName).toBe('My name');
   });
 });

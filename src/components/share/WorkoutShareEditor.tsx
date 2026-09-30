@@ -21,6 +21,7 @@ import {
 import type { FeedItem } from '@/lib/feed/project';
 import { fetchActivityDetails } from '@/lib/activities-client';
 import type { HrTrace } from '@/lib/share/hr-trace';
+import { BRAND_SRC, LABEL_H, OUTLINE_PAD, Segmented, Toggle, labelWidth } from '@/components/share/editor-parts';
 
 /**
  * THE WORKOUT SHARE EDITOR: THE CARD IS THE CONTROL PANEL.
@@ -44,17 +45,11 @@ import type { HrTrace } from '@/lib/share/hr-trace';
  * areas follow the card when a view moves its parts around.
  *
  * The rules of what can be shown where are the old sheet's, from
- * `lib/share/sheet-model.ts`, unchanged. The week card keeps the old sheet: its
- * renderer has no parts to tap.
+ * `lib/share/sheet-model.ts`, unchanged. The week has its own editor with the same
+ * shell (`WeekShareEditor.tsx`); the pieces both draw with are in `editor-parts.tsx`.
  */
 type WorkoutBackground = 'photo' | 'club' | 'sticker';
 type Mode = 'looks' | SharePart | 'background';
-
-const BRAND_SRC: Record<ShareBrand, string> = {
-  badge: '/images/logo-white.png',
-  wordmark: '/images/wordmark-white.png',
-  stairs: '/images/stairs-white.png',
-};
 
 const VIEW_LABEL: Partial<Record<ShareTemplate, string>> = {
   splits: 'viewSplits',
@@ -65,54 +60,9 @@ const VIEW_LABEL: Partial<Record<ShareTemplate, string>> = {
   minimal: 'viewMinimal',
 };
 
-/** The labels over the card: one line of 10px type in a pill. */
-const LABEL_H = 20;
-/** How far, in card pixels, an outline stands off the part it rings. */
-const OUTLINE_PAD = 14;
-function labelWidth(text: string): number {
-  return Math.round(text.length * 6.4 + 18);
-}
-
 function cardItem(item: FeedItem, title: string): FeedItem {
   if (!item.activity || item.activity.activityName === title) return item;
   return { ...item, activity: { ...item.activity, activityName: title.trim() } };
-}
-
-function Toggle({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      aria-pressed={on}
-      className="mb-2 flex min-h-[44px] w-full items-center justify-between rounded-xl bg-white/[0.08] px-3 text-sm font-bold text-white"
-    >
-      {label}
-      <span className={cn('relative h-6 w-10 rounded-full transition-colors', on ? 'bg-[#FF5315]' : 'bg-white/25')}>
-        <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', on ? 'end-0.5' : 'start-0.5')} />
-      </span>
-    </button>
-  );
-}
-
-function Segmented<T extends string>({ items, value, onChange }: {
-  items: Array<[T, string]>; value: T; onChange: (v: T) => void;
-}) {
-  return (
-    <div className="mb-2 flex rounded-full bg-white/[0.08] p-0.5">
-      {items.map(([k, label]) => (
-        <button
-          key={k}
-          onClick={() => onChange(k)}
-          aria-pressed={value === k}
-          className={cn(
-            'min-h-[40px] flex-1 rounded-full px-3 text-xs font-bold transition-colors',
-            value === k ? 'bg-white text-ink-900' : 'text-white/60',
-          )}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; onClose: () => void }) {

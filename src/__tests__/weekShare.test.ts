@@ -160,7 +160,8 @@ describe('the canvas card', () => {
   });
 
   it('prints the range alone when the name is left off', () => {
-    expect(img).toMatch(/\[opts\.athleteName\?\.trim\(\), formatWeekRange\(report, rtl\)\]/);
+    expect(img).toMatch(/const range = formatWeekRange\(report, rtl\)/);
+    expect(img).toMatch(/\[opts\.athleteName\?\.trim\(\), range\]/);
     expect(img).toMatch(/\.filter\(Boolean\)\.join\(' · '\)/);
   });
 

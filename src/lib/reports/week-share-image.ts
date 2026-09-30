@@ -1,7 +1,8 @@
 import {
   STORY_W, STORY_H, drawCover, drawShareBars, loadImage, resolveFontStack, roundRectPath,
-  type ShareBars,
+  type ShareBars, type ShareBrand,
 } from '@/lib/feed/share-image';
+import { recordHitMap, type ShareHitMap } from '@/lib/share/hit-map';
 import type { Last7Report } from './last-7-days';
 import {
   WEEK_CARD_TEXT, selectedMetrics, type WeekCardLang, type WeekMetricKey,
@@ -34,6 +35,12 @@ import {
 /** Ships in /public/images — the club's own photo, so an empty card is never blank. */
 export const DEFAULT_WEEK_BACKGROUND = '/images/runners-group.jpg';
 const LOGO_SRC = '/images/logo-white.png';
+/** The three club marks, as the workout card offers them; the badge is the week's own. */
+const BRAND_SRC: Record<ShareBrand, string> = {
+  badge: LOGO_SRC,
+  wordmark: '/images/wordmark-white.png',
+  stairs: '/images/stairs-white.png',
+};
 
 export interface WeekShareOptions {
   /** A photo the athlete picked; falls back to the club photo. */
@@ -61,6 +68,15 @@ export interface WeekShareOptions {
    * were asked for side by side (feedback #69) and the athlete picks per share.
    */
   logo?: WeekLogoPlacement;
+  /** Which club mark. The badge unless the editor picked another. */
+  brand?: ShareBrand;
+  /** The card's title in place of "my week", typed in the editor; blank keeps the default. */
+  title?: string | null;
+  /**
+   * Hands back where the mark, the title lines and the numbers were drawn, for the
+   * editor's tap areas (`lib/share/hit-map.ts`). Nothing is recorded when absent.
+   */
+  onHitMap?: (map: ShareHitMap) => void;
 }
 
 export type WeekLogoPlacement = 'above' | 'inside';
@@ -213,6 +229,15 @@ export async function renderWeekShareCard(
   ctx.stroke();
   ctx.restore();
 
+  // Recorded from here on: the photo, its frost and the panel under everything are
+  // the background, which is what a tap on them opens.
+  const title = opts.title?.trim() || text.title;
+  const range = formatWeekRange(report, rtl);
+  const logo = await loadImage(BRAND_SRC[opts.brand ?? 'badge']).catch(() => null);
+  const stopHitMap = opts.onHitMap
+    ? recordHitMap(ctx, { isMark: src => !!logo && src === logo, title, date: range, width: STORY_W, height: STORY_H })
+    : null;
+
   // ── Header ────────────────────────────────────────────────────────────────
   const padX = 56;
   const textX = rtl ? panelX + panelW - padX : panelX + padX;
@@ -221,13 +246,13 @@ export async function renderWeekShareCard(
 
   ctx.fillStyle = '#ffffff';
   ctx.font = `800 54px ${font}`;
-  ctx.fillText(text.title, textX, bodyY + 90);
+  ctx.fillText(title, textX, bodyY + 90);
 
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
   ctx.font = `600 32px ${font}`;
   // The name is optional; with it off the range stands alone rather than leaving a
   // stray separator behind it.
-  const sub = [opts.athleteName?.trim(), formatWeekRange(report, rtl)]
+  const sub = [opts.athleteName?.trim(), range]
     .filter(Boolean).join(' · ');
   ctx.fillText(sub, textX, bodyY + 140);
 
@@ -235,11 +260,15 @@ export async function renderWeekShareCard(
   // Big, and centred above the panel rather than tucked in its corner: this card
   // is going to networks where nobody knows the club, and a 74px mark in a corner
   // is branding that gets cropped out of a re-share.
-  const logo = await loadImage(LOGO_SRC).catch(() => null);
+  // A wide mark (the wordmark) is held to a width and centred in the same slot, so
+  // it neither runs off the card nor moves the panel.
   if (logo) {
-    const h = inside ? INSIDE_LOGO_SIZE : LOGO_SIZE;
-    const w = (logo.width / logo.height) * h;
-    const y = inside ? panelY + INSIDE_LOGO_TOP : MARGIN + 40;
+    const slot = inside ? INSIDE_LOGO_SIZE : LOGO_SIZE;
+    const maxW = inside ? panelW - padX * 2 : STORY_W - MARGIN * 2;
+    let h = slot;
+    let w = (logo.width / logo.height) * h;
+    if (w > maxW) { w = maxW; h = (logo.height / logo.width) * w; }
+    const y = (inside ? panelY + INSIDE_LOGO_TOP : MARGIN + 40) + (slot - h) / 2;
     ctx.drawImage(logo, Math.round((STORY_W - w) / 2), y, w, h);
   }
 
@@ -285,6 +314,8 @@ export async function renderWeekShareCard(
       { rtl, labelPx: 36, axisPx: 26, radius: 10 },
     );
   }
+
+  if (stopHitMap) opts.onHitMap!(stopHitMap());
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
