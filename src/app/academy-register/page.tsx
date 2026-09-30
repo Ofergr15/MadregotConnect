@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { GraduationCap, CheckCircle2 } from 'lucide-react';
+import { GraduationCap } from 'lucide-react';
 import { Card, Button, LoadingBlock } from '@/components/ui';
 import { CLOTHING_SIZES } from '@/lib/kit-sizes';
 import { EU_SHOE_SIZES } from '@/lib/shoe-catalog';
@@ -273,13 +273,14 @@ export default function AcademyRegisterPage() {
 
   if (done) {
     return (
-      <div className="min-h-screen bg-page flex items-center justify-center p-4" dir="rtl">
+      <div className="min-h-screen bg-page flex items-start justify-center p-4 pt-[18vh]" dir="rtl">
         <Card className="w-full max-w-md p-6 sm:p-8 text-center">
-          <CheckCircle2 className="h-12 w-12 text-accent-600 mx-auto mb-3" />
-          <h2 className="text-lg font-bold text-ink-700">הטופס התקבל!</h2>
+          {/* The club's own logo, not a generic check: this is the first thing of
+              ours a stranger sees after sending, and often the only one for days. */}
+          <img src="/images/logo.png" alt="Madregot" width={112} height={112} className="mx-auto mb-4 h-28 w-28 object-contain" />
+          <h2 className="text-lg font-bold text-ink-700">תודה שפנית לאקדמיית הריצה של מדרגות</h2>
           <p className="text-ink-400 text-sm mt-2 leading-relaxed">
-            תודה שפנית לאקדמיית הריצה של מדרגות. שלחנו לך מייל אישור, ובימים הקרובים
-            נחזור אליך לשיחת היכרות קצרה. אין צורך לעשות שום דבר נוסף בינתיים.
+            הטופס התקבל. נחזור אליך בימים הקרובים לשיחת היכרות קצרה.
           </p>
         </Card>
       </div>

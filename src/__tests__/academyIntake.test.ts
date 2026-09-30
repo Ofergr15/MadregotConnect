@@ -339,3 +339,12 @@ describe('the academy pages and the service worker', () => {
     expect(rule).toBeLessThan(sw.indexOf('handler: pageCache('));
   });
 });
+
+describe('the form: thank-you screen', () => {
+  it('shows the club logo and thanks the applicant by the academy name', () => {
+    const page = require('node:fs').readFileSync('src/app/academy-register/page.tsx', 'utf8') as string;
+    expect(page).toContain('src="/images/logo.png"');
+    expect(page).toContain('תודה שפנית לאקדמיית הריצה של מדרגות');
+    expect(page).toContain('נחזור אליך בימים הקרובים לשיחת היכרות קצרה');
+  });
+});
