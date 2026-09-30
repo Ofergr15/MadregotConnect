@@ -12,7 +12,7 @@ import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { resolveNavItems, type TabPermission } from '@/lib/nav-items';
 import { getViewMode, stopViewAs, useIsSuperUser, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { activeNavRole } from '@/lib/role-views';
-import { RoleSwitcher } from '@/components/RoleSwitcher';
+import { RoleSwitcher, useRoleViews, ViewBadge, ViewMenuRow, ViewSwitchToast } from '@/components/RoleSwitcher';
 import { InsetSection, InsetRow, Sheet, Spinner } from '@/components/ui';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { AthleteLink } from '@/components/AthleteLink';
@@ -215,6 +215,8 @@ export function Header() {
     window.location.href = '/';
   };
 
+  const roleViews = useRoleViews(meData?.roles, userRole, isSuper);
+  const showViewSwitch = !viewMode && roleViews.views.length > 1;
   const initials = userName
     ? userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : userEmail ? userEmail[0].toUpperCase() : '?';
@@ -230,17 +232,6 @@ export function Header() {
     <header className="sticky top-0 z-40 safe-top bg-page">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="relative flex items-center justify-between h-14">
-          {/* The view switcher, dead centre on a phone — see RoleSwitcher. Not
-              while the super user previews somebody else: that bar owns the
-              "which app am I looking at" question then. */}
-          {!viewMode && (
-            <RoleSwitcher
-              roles={meData?.roles}
-              role={userRole}
-              isSuper={isSuper}
-              className="md:hidden absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10"
-            />
-          )}
           {/* Logo + Review */}
           <div className="flex items-center gap-3 shrink-0">
             {/* `-m-1 p-1` grows the tap area to 44×44 without moving the mark a
@@ -338,7 +329,7 @@ export function Header() {
           <div className="hidden md:flex items-center gap-2.5 shrink-0">
             <LocaleSwitcher />
             {!viewMode && (
-              <RoleSwitcher roles={meData?.roles} role={userRole} isSuper={isSuper} showToast={false} />
+              <RoleSwitcher roles={meData?.roles} role={userRole} isSuper={isSuper} />
             )}
             <span className={cn('text-sm font-medium hidden lg:inline', 'text-ink-500')}>{userName}</span>
 
@@ -582,12 +573,14 @@ export function Header() {
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className={cn(
-                'flex items-center justify-center w-11 h-11 rounded-full text-sm font-bold active:scale-95 transition-transform',
+                'relative flex items-center justify-center w-11 h-11 rounded-full text-sm font-bold active:scale-95 transition-transform',
                 'bg-brand-600 text-white',
               )}
               aria-label={mobileMenuOpen ? tc('close') : th('account')}
             >
               {mobileMenuOpen ? <X className="h-5 w-5" /> : initials}
+              {/* Which view this is, since the switch itself is inside the menu. */}
+              {showViewSwitch && !mobileMenuOpen && <ViewBadge view={roleViews.current} />}
             </button>
           </div>
         </div>
@@ -639,6 +632,19 @@ export function Header() {
               </div>
             </div>
 
+            {/* The phone's view switch. It used to be a chip pinned to the middle of
+                the header row, where it covered the bell and the search button. Not
+                while the super user previews somebody else, as on the desktop. */}
+            {showViewSwitch && (
+              <ViewMenuRow
+                views={roleViews.views}
+                current={roleViews.current}
+                roles={meData?.roles}
+                role={userRole}
+                onPicked={() => setMobileMenuOpen(false)}
+              />
+            )}
+
             {/* Inset-grouped account actions */}
             <InsetSection>
               <InsetRow icon={User} iconBg={'bg-brand-600'} label={t('profile')} href="/dashboard/profile" onClick={() => setMobileMenuOpen(false)} />
@@ -664,6 +670,7 @@ export function Header() {
           </div>
         </div>
       </div>
+      <ViewSwitchToast />
     </header>
   );
 }

@@ -17,10 +17,14 @@ import {
   type RoleView,
 } from '@/lib/role-views';
 
-// The chip in the middle of the top bar, for an account that holds more than one
-// role: which view it is in, and a tap away from the others. See
-// src/lib/role-views.ts for what a view is and why it is not the super user's
-// "view as". Draws nothing for a plain runner.
+// The view switch for an account that holds more than one role: which view it is
+// in, and a tap away from the others. See src/lib/role-views.ts for what a view is
+// and why it is not the super user's "view as". Draws nothing for a plain runner.
+//
+// Two homes. On a wide screen it is a chip in the user cluster (RoleSwitcher). On a
+// phone it lives in the account menu (ViewMenuRow) with a small mark on the avatar
+// (ViewBadge): the header row there is full, and a chip pinned to its centre sat on
+// top of the bell and the search button.
 
 export const VIEW_ICON: Record<RoleView, ComponentType<{ className?: string }>> = {
   runner: Footprints,
@@ -60,39 +64,10 @@ export function ViewChipFace({ view, small = false }: { view: RoleView; small?: 
   );
 }
 
-export function RoleSwitcher({
-  roles,
-  role,
-  isSuper,
-  className,
-  showToast = true,
-}: {
-  /** From /api/auth/me. Undefined until it answers, and the chip waits for it. */
-  roles: string[] | undefined;
-  role: string | null;
-  isSuper: boolean;
-  /** On the chip's button only — the sheet and the toast are not inside it. */
-  className?: string;
-  /** The header mounts two chips (phone and desktop); only one may own the toast. */
-  showToast?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
+/** The views this account holds and the one it is in; `views` is empty until /api/auth/me answers. */
+export function useRoleViews(roles: string[] | undefined, role: string | null, isSuper: boolean) {
   const [stored, setStored] = useState<RoleView | null>(null);
-  const [toast, setToast] = useState<RoleView | null>(null);
-
-  useEffect(() => {
-    setStored(getStoredView());
-    // Set by switchView just before the navigation, so it shows once, on the
-    // screen the switch landed on.
-    if (!showToast) return;
-    const t = sessionStorage.getItem(VIEW_TOAST_KEY);
-    if (t === 'runner' || t === 'coach' || t === 'manager' || t === 'admin') {
-      sessionStorage.removeItem(VIEW_TOAST_KEY);
-      setToast(t);
-      const id = setTimeout(() => setToast(null), 2600);
-      return () => clearTimeout(id);
-    }
-  }, []);
+  useEffect(() => { setStored(getStoredView()); }, []);
 
   const views = roles ? viewsFor(roles, isSuper) : [];
   // A choice the account no longer holds (a role taken away) is dropped here, so
@@ -102,7 +77,24 @@ export function RoleSwitcher({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roles, stored, isSuper]);
 
-  const toastEl = toast && (
+  return { views, current: resolveView(stored, views, defaultViewFor(role, isSuper)) };
+}
+
+/** "עברת לתצוגת…", once, on the screen a switch landed on. Mount it once per page. */
+export function ViewSwitchToast() {
+  const [toast, setToast] = useState<RoleView | null>(null);
+  useEffect(() => {
+    // Set by switchView just before the navigation.
+    const t = sessionStorage.getItem(VIEW_TOAST_KEY);
+    if (t === 'runner' || t === 'coach' || t === 'manager' || t === 'admin') {
+      sessionStorage.removeItem(VIEW_TOAST_KEY);
+      setToast(t);
+      const id = setTimeout(() => setToast(null), 2600);
+      return () => clearTimeout(id);
+    }
+  }, []);
+  if (!toast) return null;
+  return (
     <div
       role="status"
       className="fixed inset-x-0 z-[60] flex justify-center pointer-events-none bottom-[calc(env(safe-area-inset-bottom)+96px)]"
@@ -113,9 +105,102 @@ export function RoleSwitcher({
       </span>
     </div>
   );
+}
 
-  if (views.length < 2) return toastEl || null;
-  const current = resolveView(stored, views, defaultViewFor(role, isSuper));
+const VIEW_TINT: Record<RoleView, string> = {
+  runner: 'text-[#0F7A3A]',
+  coach: 'text-[#A34A00]',
+  manager: 'text-brand-600',
+  admin: 'text-brand-600',
+};
+
+/** The current view's icon on the corner of the phone avatar. */
+export function ViewBadge({ view }: { view: RoleView }) {
+  const Icon = VIEW_ICON[view];
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'absolute -bottom-[3px] -start-[3px] flex h-5 w-5 items-center justify-center rounded-full bg-white ring-2 ring-page',
+        VIEW_TINT[view],
+      )}
+    >
+      <Icon className="h-3 w-3" />
+    </span>
+  );
+}
+
+/** "התצוגה שלי" at the top of the phone account menu: one segment per view. */
+export function ViewMenuRow({
+  views,
+  current,
+  roles,
+  role,
+  onPicked,
+}: {
+  views: RoleView[];
+  current: RoleView;
+  roles: string[] | undefined;
+  role: string | null;
+  onPicked?: () => void;
+}) {
+  if (views.length < 2) return null;
+  return (
+    <div className="mb-4">
+      <div className="mb-2 px-1 text-2xs font-bold uppercase tracking-wider text-ink-400">התצוגה שלי</div>
+      <div
+        role="radiogroup"
+        aria-label="התצוגה שלי"
+        className="grid gap-1.5 rounded-2xl bg-card p-1"
+        style={{ gridTemplateColumns: `repeat(${views.length}, minmax(0, 1fr))` }}
+      >
+        {views.map(v => {
+          const Icon = VIEW_ICON[v];
+          const on = v === current;
+          return (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              aria-label={ROLE_VIEW_SPECS[v].label}
+              onClick={() => {
+                onPicked?.();
+                if (!on) switchView(v, roles || [], role);
+              }}
+              className={cn(
+                'flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-1 text-sm font-bold transition-colors',
+                on ? 'bg-brand-600 text-white' : 'text-ink-500 active:bg-page',
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{ROLE_VIEW_CHIP[v]}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** The wide-screen chip, and the sheet of views it opens. */
+export function RoleSwitcher({
+  roles,
+  role,
+  isSuper,
+  className,
+}: {
+  /** From /api/auth/me. Undefined until it answers, and the chip waits for it. */
+  roles: string[] | undefined;
+  role: string | null;
+  isSuper: boolean;
+  /** On the chip's button only — the sheet is not inside it. */
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const { views, current } = useRoleViews(roles, role, isSuper);
+
+  if (views.length < 2) return null;
 
   return (
     <>
@@ -170,7 +255,6 @@ export function RoleSwitcher({
           })}
         </div>
       </Sheet>
-      {toastEl}
     </>
   );
 }
