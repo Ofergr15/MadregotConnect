@@ -53,7 +53,7 @@ export async function GET(request: Request) {
     // 1) Active athletes with a squad.
     const { data: athletes, error: aErr } = await supabase
       .from('athletes')
-      .select('id, group_id, groups(name)')
+      .select('id, group_id, groups!group_id(name)')
       .eq('coach_id', COACH_ID)
       .eq('status', 'active');
     if (aErr) throw aErr;

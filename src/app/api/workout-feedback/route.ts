@@ -140,7 +140,7 @@ export async function GET(request: Request) {
       // Prefer the reply-aware select; fall back if migration 036 isn't applied.
       const REPLY_COLS = 'coach_reply, coach_reply_at, coach_reply_by, ';
       const baseCols = (extra: string) =>
-        `id, athlete_id, garmin_activity_id, difficulty, feel, pain, pain_detail, wants_feedback, comment, ${extra}created_at, athletes(name, avatar_url, group_id, groups(name))`;
+        `id, athlete_id, garmin_activity_id, difficulty, feel, pain, pain_detail, wants_feedback, comment, ${extra}created_at, athletes(name, avatar_url, group_id, groups!group_id(name))`;
       // The reports and the active roster in one wave — the roster is needed only
       // for the "who hasn't given feedback yet" list further down and has no
       // reason to wait for the reports. This route ran five round trips strictly
@@ -165,7 +165,7 @@ export async function GET(request: Request) {
             : res)),
         supabase
           .from('athletes')
-          .select('id, name, avatar_url, group_id, groups(name)')
+          .select('id, name, avatar_url, group_id, groups!group_id(name)')
           .eq('status', 'active'),
       ]);
       const { data, error } = feedbackRes;

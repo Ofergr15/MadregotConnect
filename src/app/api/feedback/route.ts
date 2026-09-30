@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     if (caller.athleteId) {
       const { data: me } = await supabase
         .from('athletes')
-        .select('name, email, groups(name)')
+        .select('name, email, groups!group_id(name)')
         .eq('id', caller.athleteId)
         .maybeSingle<{ name: string | null; email: string | null; groups: { name: string | null } | null }>();
       if (me) {

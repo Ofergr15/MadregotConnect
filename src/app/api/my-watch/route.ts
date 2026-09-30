@@ -93,7 +93,7 @@ async function loadContext(athleteId: string) {
 
   const { data: athlete } = await supabase
     .from('athletes')
-    .select('id, name, garmin_auth, is_academy, group_id, groups(pace_profile)')
+    .select('id, name, garmin_auth, is_academy, group_id, groups!group_id(pace_profile)')
     .eq('id', athleteId)
     .maybeSingle();
 

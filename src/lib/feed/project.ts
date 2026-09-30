@@ -497,7 +497,7 @@ export function projectLike(value: unknown): { itemId: string; liker: FeedLiker 
 export const FEED_SELECT = `
   id, type, author_athlete_id, body, media, payload, occurred_at,
   like_count, comment_count,
-  athletes ( id, name, avatar_url, groups ( name ) ),
+  athletes ( id, name, avatar_url, groups!group_id(name ) ),
   athlete_activities (
     id, athlete_id, garmin_activity_id, activity_name, activity_type, start_time,
     distance, duration, moving_duration, average_pace, average_hr, max_hr,

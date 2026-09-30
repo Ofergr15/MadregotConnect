@@ -579,6 +579,10 @@ should go through `useTranslations`.
 run **manually in the Supabase SQL editor** — there's no migration runner, and nothing
 in CI or deploy applies them. Use `IF NOT EXISTS` / `ON CONFLICT DO NOTHING`, and
 consider a graceful fallback in any route that reads the new column.
+**A new `REFERENCES` to a table this one already references breaks prod on paste:** every
+unhinted embed between the two (`athletes.select('groups(name)')`) starts failing with
+"more than one relationship was found" — that is how 125 took the feed down. Hint the
+embeds (`groups!group_id(name)`) first; `schemaEmbedAmbiguity.test.ts` fails until you do.
 
 **Hotspots** (by churn — expect these to be messy and change often):
 `dashboard/page.tsx` (1352 lines), `dashboard/settings/page.tsx` (1398),
