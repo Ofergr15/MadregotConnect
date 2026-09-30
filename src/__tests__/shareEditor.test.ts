@@ -184,9 +184,14 @@ describe('the editor', () => {
     expect(EDITOR).toMatch(/const dataOk = !fixed \|\| template === 'splits' \|\| template === 'route';/);
     // A look with nothing to change there says so when tapped, rather than opening an empty tab.
     expect(EDITOR).toMatch(/if \(part === 'data' && !dataOk\) \{ setNotice\(t\(fixed!\)\); return; \}/);
-    // Inside a part, "All looks" (or the same label again) goes back to the looks.
-    expect(EDITOR).toMatch(/<button\s+type="button"\s+onClick=\{back\}\s+tabIndex=\{inPart \? undefined : -1\}/);
-    expect(EDITOR).toMatch(/!inPart && 'invisible',/);
+    // Inside a part, the close corner becomes "‹ Edit", back to the whole edit
+    // (feedback 2026-09-30); the same label again does the same.
+    expect(EDITOR).toMatch(/\{inPart \? \(\s*<button\s+type="button"\s+onClick=\{back\}/);
+    expect(EDITOR).toMatch(/\{tc\('edit'\)\}\s*<\/button>\s*\) : \(\s*<button\s+onClick=\{onClose\}/);
+    // More than one way back, since a part is a place one gets lost in: beside the
+    // card, and Escape, go back too.
+    expect(EDITOR).toMatch(/onClick=\{e => \{ if \(inPart && !\(e\.target as HTMLElement\)\.closest\('\[data-view\]'\)\) back\(\); \}\}/);
+    expect(EDITOR).toMatch(/if \(inPart\) back\(\); else onClose\(\);/);
     // The labels over the card are buttons now (they were pictures of buttons), placed
     // so none lies on another.
     expect(EDITOR).toMatch(/<button\s+key=\{`label-\$\{p\}`\}\s+type="button"\s+aria-pressed=\{on\}\s+onClick=\{e => \{ e\.stopPropagation\(\); if \(on\) back\(\); else openPart\(p\); \}\}/);
@@ -197,7 +202,7 @@ describe('the editor', () => {
     expect(EDITOR).toMatch(/if \(editing\) \{ setEditing\(false\); back\(\); \} else setEditing\(true\);/);
     expect(EDITOR).toMatch(/if \(next !== 'looks'\) setEditing\(true\);/);
     // The looks and the part options are part of editing too.
-    expect(EDITOR).toMatch(/editing && 'rounded-t-3xl bg-\[#10132b\] pt-3\.5',\s*\)\}>\s*\{editing && \(\s*<>\s*\{\/\* Its row is kept/);
+    expect(EDITOR).toMatch(/editing && 'rounded-t-3xl bg-\[#10132b\] pt-3\.5',\s*\)\}>\s*\{editing && \(\s*<>\s*<div\s+ref=\{panelRef\}/);
     expect(EDITOR).not.toMatch(/showAll|showParts/);
   });
 

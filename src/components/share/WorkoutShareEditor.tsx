@@ -36,7 +36,8 @@ import type { HrTrace } from '@/lib/share/hr-trace';
  *    and Done puts all of it away again;
  *  · there is no row of tabs as well: the labels already name the parts, and
  *    three ways to open the same options were two too many (feedback
- *    2026-09-29). Inside a part, "All looks" (or its label again) goes back;
+ *    2026-09-29). Inside a part, "‹ Edit" in the close corner, the part's label
+ *    again, a tap beside the card or Escape goes back to the whole edit;
  *  · the big bottom button always shares, from whichever tab is open.
  *
  * Where each part sits is read off the drawing (`lib/share/hit-map.ts`), so the tap
@@ -211,12 +212,6 @@ export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; o
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const pickTemplate = useCallback((next: ShareTemplate) => {
     setTemplate(next);
     setBrand(null);
@@ -233,6 +228,16 @@ export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; o
     (document.activeElement as HTMLElement | null)?.blur?.();
     setMode('looks');
   }, []);
+
+  // Escape backs out of a part first, and closes only from the whole edit.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (inPart) back(); else onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, inPart, back]);
 
   // Every picture on screen is a blob URL. One is let go only when its replacement
   // is handed over, never when a re-render starts: the old picture is still showing
@@ -430,10 +435,11 @@ export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; o
   }, [centredView, scrollTo, pickTemplate, template]);
 
   // A tap on a neighbour brings it in; on the card it opens the part under the
-  // finger; inside a part, anywhere on the card goes back.
+  // finger, or another part's when one is open.
   const onSlideClick = (v: ShareTemplate, e: React.MouseEvent) => {
     if (justDragged.current) return;
-    if (v !== template) { pickTemplate(v); return; }
+    // Inside a part, the neighbour peeking at the edge is "beside the card" too: back, not a new look.
+    if (v !== template) { if (inPart) back(); else pickTemplate(v); return; }
     const r = imgRef.current?.getBoundingClientRect();
     if (!r) return;
     const part = partAt(hitMap, ((e.clientX - r.left) / r.width) * STORY_W, ((e.clientY - r.top) / r.height) * STORY_H);
@@ -831,13 +837,27 @@ export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; o
       className="fixed inset-0 z-[310] flex select-none flex-col bg-[#0b0d1d] pt-[env(safe-area-inset-top)] text-white"
     >
       <div className="relative flex h-14 flex-none items-center justify-between px-3 [@media(max-height:699px)]:h-11">
-        <button
-          onClick={onClose}
-          aria-label={tc('close')}
-          className="grid min-h-[44px] min-w-[44px] place-items-center rounded-lg text-white/85"
-        >
-          <X className="h-5 w-5" />
-        </button>
+        {/* Inside a part the close corner is the way back to the whole edit, where a
+            phone's back button sits; the small "All looks" line in the tray was not
+            found (feedback 2026-09-30). */}
+        {inPart ? (
+          <button
+            type="button"
+            onClick={back}
+            className="flex min-h-[44px] items-center gap-0.5 rounded-lg pe-2 text-sm font-extrabold text-white"
+          >
+            {rtl ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+            {tc('edit')}
+          </button>
+        ) : (
+          <button
+            onClick={onClose}
+            aria-label={tc('close')}
+            className="grid min-h-[44px] min-w-[44px] place-items-center rounded-lg text-white/85"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
         {/* Centred on the screen, not between two buttons of different widths. */}
         <span className="pointer-events-none absolute inset-x-24 truncate text-center text-base font-extrabold">{inPart ? partName(mode) : t('titleWorkout')}</span>
         <button
@@ -857,6 +877,9 @@ export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; o
         ref={stageRef}
         onScroll={onScroll}
         onPointerDown={onPointerDown}
+        // Inside a part, the empty room around the card is a way back to the whole
+        // edit as well (feedback 2026-09-30).
+        onClick={e => { if (inPart && !(e.target as HTMLElement).closest('[data-view]')) back(); }}
         className={cn(
           'flex min-h-0 flex-1 items-center overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
           inPart ? 'overflow-x-hidden' : 'snap-x snap-mandatory overflow-x-auto',
@@ -957,25 +980,10 @@ export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; o
       )}>
         {editing && (
           <>
-            {/* Its row is kept on the looks too, so opening a part does not shrink the card
-                under the finger. */}
-            <button
-              type="button"
-              onClick={back}
-              tabIndex={inPart ? undefined : -1}
-              aria-hidden={!inPart || undefined}
-              className={cn(
-                '-ms-1 mb-1 flex min-h-[32px] items-center gap-0.5 rounded-lg px-1 text-xs font-extrabold text-white/75',
-                !inPart && 'invisible',
-              )}
-            >
-              {rtl ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-              {t('allLooks')}
-            </button>
             <div
               ref={panelRef}
               data-share-panel
-                            onScroll={checkMore}
+              onScroll={checkMore}
               style={more ? { maskImage: 'linear-gradient(to bottom, #000 80%, transparent)', WebkitMaskImage: 'linear-gradient(to bottom, #000 80%, transparent)' } : undefined}
               className="h-[124px] overflow-y-auto [scrollbar-width:none] [@media(min-height:700px)_and_(max-height:799px)]:h-[150px] [@media(min-height:800px)]:h-[178px] [&::-webkit-scrollbar]:hidden"
             >

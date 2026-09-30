@@ -3068,8 +3068,7 @@
     "partDate": "Date",
     "partStart": "Start time",
     "dragHint": "Drag an orange tile to reorder · tap any tile to add or remove",
-    "showShoe": "Shoe beside the logo",
-    "allLooks": "All looks"
+    "showShoe": "Shoe beside the logo"
   },
   "watchAlerts": {
     "title": "Alerts & voice on your watch",
