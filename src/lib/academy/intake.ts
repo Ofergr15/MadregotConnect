@@ -85,3 +85,10 @@ export function clientIp(headers: Headers): string {
   if (fwd) return fwd.split(',')[0].trim();
   return headers.get('x-real-ip') || 'unknown';
 }
+
+/** A text input lets anything in, so a number field keeps only what a number has. */
+export function numberOnly(raw: string, decimal: boolean): string {
+  if (!decimal) return raw.replace(/\D/g, '');
+  const [whole, ...rest] = raw.replace(',', '.').replace(/[^\d.]/g, '').split('.');
+  return rest.length ? `${whole}.${rest.join('')}` : whole;
+}

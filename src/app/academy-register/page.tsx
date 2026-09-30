@@ -5,15 +5,16 @@ import { GraduationCap, CheckCircle2 } from 'lucide-react';
 import { Card, Button, LoadingBlock } from '@/components/ui';
 import { CLOTHING_SIZES, SOCK_SIZES } from '@/lib/kit-sizes';
 import { formNameProblem, normalizeDisplayName } from '@/lib/names/latin';
-import { HONEYPOT_FIELD, looksLikeToken, splitName } from '@/lib/academy/intake';
+import { HONEYPOT_FIELD, looksLikeToken, numberOnly, splitName } from '@/lib/academy/intake';
 
 // Mirrors the current Google Form "שאלון אישי להצטרפות אל Madregot Academy".
 // Structured name/email/phone are lifted into columns; everything else is stored
 // as the academy_intake JSON blob. (Blood-test file upload is intentionally left
 // out of v1 — needs file storage; the coach can request it separately.)
 type Field =
-  // `inputMode` is what picks the phone keyboard: type="number" alone opens the
-  // full keyboard on iOS, so every number field names its own.
+  // `inputMode` is what picks the phone keyboard. A number field is rendered as a
+  // text input with inputMode + pattern: that is what gets iOS to open the big
+  // keypad the phone field gets, where type="number" gives a row of small keys.
   | { key: string; label: string; type: 'text' | 'email' | 'tel' | 'number'; required?: boolean; placeholder?: string; inputMode?: 'numeric' | 'decimal' }
   | { key: string; label: string; type: 'textarea'; required?: boolean; placeholder?: string }
   | { key: string; label: string; type: 'radio' | 'select'; required?: boolean; options: string[] }
@@ -289,9 +290,11 @@ export default function AcademyRegisterPage() {
 
               {(f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number') && (
                 <input
-                  id={`ar-${f.key}`} type={f.type} value={values[f.key] || ''} placeholder={(f as any).placeholder || 'התשובה שלך'}
+                  id={`ar-${f.key}`} type={f.type === 'number' ? 'text' : f.type} value={values[f.key] || ''} placeholder={(f as any).placeholder || 'התשובה שלך'}
                   inputMode={(f as any).inputMode}
-                  onChange={e => set(f.key, e.target.value)}
+                  pattern={f.type === 'number' ? ((f as any).inputMode === 'decimal' ? '[0-9]*[.,]?[0-9]*' : '[0-9]*') : undefined}
+                  autoComplete={f.type === 'number' ? 'off' : undefined}
+                  onChange={e => set(f.key, f.type === 'number' ? numberOnly(e.target.value, (f as any).inputMode === 'decimal') : e.target.value)}
                   // text-base, not text-sm: under 16px iOS Safari zooms the page on
                   // every focus, and this form is opened from Instagram on a phone.
                   className="w-full bg-page border border-ink-300 rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600"

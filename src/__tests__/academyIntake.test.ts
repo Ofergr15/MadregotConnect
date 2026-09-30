@@ -234,3 +234,20 @@ describe('the form: how did you hear about us', () => {
     expect(page()).not.toMatch(/key: 'instagram'/);
   });
 });
+
+describe('number fields on the form', () => {
+  it('keep digits only, and one decimal point for weight', async () => {
+    const { numberOnly } = await import('@/lib/academy/intake');
+    expect(numberOnly('3a4 ', false)).toBe('34');
+    expect(numberOnly('1.80', false)).toBe('180');
+    expect(numberOnly('72,5', true)).toBe('72.5');
+    expect(numberOnly('7.2.5', true)).toBe('7.25');
+    expect(numberOnly('', true)).toBe('');
+  });
+
+  it('open the big keypad: a text input with inputMode and a digits pattern', () => {
+    const page = require('node:fs').readFileSync('src/app/academy-register/page.tsx', 'utf8') as string;
+    expect(page).toContain("type={f.type === 'number' ? 'text' : f.type}");
+    expect(page).toContain("'[0-9]*'");
+  });
+});

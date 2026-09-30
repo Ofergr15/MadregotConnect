@@ -1,5 +1,13 @@
 [
   {
+    "id": "academy-form-big-keypad",
+    "date": "2026-09-30",
+    "kind": "fix",
+    "icon": "🔢",
+    "title": "טופס האקדמיה: מקלדת מספרים גדולה",
+    "body": "גיל, גובה ומשקל פותחים עכשיו את אותה מקלדת מספרים גדולה כמו מספר הטלפון."
+  },
+  {
     "id": "academy-form-hear-about-choice",
     "date": "2026-09-30",
     "kind": "fix",
