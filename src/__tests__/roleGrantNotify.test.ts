@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { addedTabs, newlyGranted, pendingWelcome, viewForRole, welcomeRoleOf } from '@/lib/role-views';
-import { academyJoinedCopy, roleGrantedCopy } from '@/lib/notifications/copy';
+import { academyJoinedCopy, roleGrantedCopy, storyEditorCopy } from '@/lib/notifications/copy';
 
 /**
  * "קיבלת תפקיד חדש" — the push the roles screen sends when a role is switched on,
@@ -58,7 +58,7 @@ beforeEach(() => {
   db.athletes = [
     { id: 'boss', name: 'Ofer Gros', role: 'admin', extra_roles: [], status: 'active' },
     { id: 'shahar', name: 'Shahar Levi', role: 'runner', extra_roles: [], status: 'active', is_academy: false },
-    { id: 'maya', name: 'Maya Katz', role: 'runner', extra_roles: [], status: 'active', is_academy: true },
+    { id: 'maya', name: 'Maya Katz', role: 'runner', extra_roles: [], status: 'active', is_academy: true, is_story_editor: true },
     { id: 'dan', name: 'Dan Ron', role: 'coach', extra_roles: ['academy_coach'], status: 'active' },
   ];
   db.scheduled_notifications = [];
@@ -168,6 +168,42 @@ describe('the "רץ אקדמיה" switch', () => {
     expect(academyJoinedCopy('he', { by: 'Ofer Gros' }).title).toBe('🎓 נכנסת לאקדמיה');
     expect(academyJoinedCopy('he', { by: 'Ofer Gros' }).body).toContain('Ofer הוסיף אותך');
     expect(academyJoinedCopy('en', {}).body).not.toContain('undefined');
+  });
+});
+
+describe('the "אינסטגרם" switch', () => {
+  it('lists who has it', async () => {
+    const { GET } = await import('@/app/api/admin/roles/route');
+    const body = await (await GET(req('GET', undefined) as never)).json();
+    expect(body.storyMigrated).toBe(true);
+    const byId = Object.fromEntries(body.people.map((p: { id: string; storyEditor: boolean }) => [p.id, p.storyEditor]));
+    expect(byId).toMatchObject({ shahar: false, maya: true });
+  });
+
+  it('writes is_story_editor and says "נוספת לשיתוף אימוני הקבוצה", opening the quality session', async () => {
+    const { PUT } = await import('@/app/api/admin/roles/route');
+    const body = await (await PUT(req('PUT', { athleteId: 'shahar', roles: [], storyEditor: true }))).json();
+    expect(body).toMatchObject({ storyEditor: true, storyNotified: true, notified: null, academyNotified: false });
+    expect(db.athletes.find(a => a.id === 'shahar')!.is_story_editor).toBe(true);
+    expect(notifyAthlete.mock.calls[0][0]).toMatchObject({ url: '/dashboard/quality-session', kind: 'story_editor' });
+  });
+
+  it('turning it off sends nothing, and a save that does not mention it leaves it', async () => {
+    const { PUT } = await import('@/app/api/admin/roles/route');
+    await PUT(req('PUT', { athleteId: 'maya', roles: ['coach'] }));
+    expect(db.athletes.find(a => a.id === 'maya')!.is_story_editor).toBe(true);
+    notifyAthlete.mockClear();
+    const body = await (await PUT(req('PUT', { athleteId: 'maya', roles: ['coach'], storyEditor: false }))).json();
+    expect(body.storyNotified).toBe(false);
+    expect(db.athletes.find(a => a.id === 'maya')!.is_story_editor).toBe(false);
+    expect(notifyAthlete).not.toHaveBeenCalled();
+  });
+
+  it('has copy in both languages', () => {
+    expect(storyEditorCopy('he', { by: 'Ofer Gros' }).title).toBe('📸 נוספת לשיתוף אימוני הקבוצה');
+    expect(storyEditorCopy('he', { by: 'Ofer Gros' }).body).toContain('Ofer הוסיף אותך');
+    expect(storyEditorCopy('en', { by: 'Ofer Gros' }).body).toContain('Ofer added you');
+    expect(storyEditorCopy('en', {}).body).not.toContain('undefined');
   });
 });
 

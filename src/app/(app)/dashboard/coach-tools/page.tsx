@@ -57,7 +57,7 @@ export default function CoachToolsPage() {
   // Shared SWR cache (same endpoint/shape other role checks in the app use) —
   // revisiting this page shows the Academy row instantly from cache instead
   // of a skeleton flash every time.
-  const { data, isLoading: roleLoading } = useApi<{ role?: string }>(
+  const { data, isLoading: roleLoading } = useApi<{ role?: string; qualitySession?: boolean }>(
     !previewRole && email ? '/api/auth/me' : null,
   );
   // The account's own view switch sits under a preview — see role-views.ts.
@@ -185,12 +185,13 @@ export default function CoachToolsPage() {
       <InsetSection header={t('insights')}>
         <InsetRow icon={BarChart3} iconBg="bg-violet-500" label={tn('teamVolume')} href="/dashboard/team-volume" />
         <InsetRow icon={CalendarDays} iconBg="bg-accent-red" label={tn('calendar')} href="/dashboard/calendar" />
-        {/* The super user's alone while it is tried out — not in the nav, since
-            every admin gets every nav item. The API behind it says 403 to anyone else. */}
+        {/* Pack stories: the super user's alone while it is tried out. The quality
+            session: his, and the "אינסטגרם" switch's. Neither is in the nav, since
+            every admin gets every nav item. The APIs behind them say 403 to anyone else. */}
         {!previewRole && isSuperUser(email) && (
           <InsetRow icon={Images} iconBg="bg-pink-600" label={t('packStories')} sublabel={t('packStoriesSub')} href="/dashboard/pack-stories" />
         )}
-        {!previewRole && isSuperUser(email) && (
+        {!previewRole && (isSuperUser(email) || data?.qualitySession) && (
           <InsetRow icon={Zap} iconBg="bg-orange-500" label={t('qualitySession')} sublabel={t('qualitySessionSub')} href="/dashboard/quality-session" />
         )}
       </InsetSection>

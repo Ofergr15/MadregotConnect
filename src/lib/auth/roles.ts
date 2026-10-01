@@ -21,6 +21,8 @@ export interface RolePerson {
   roles: GrantableRole[];
   /** "רץ אקדמיה": `athletes.is_academy`, the academy membership flag. */
   academy?: boolean;
+  /** "אינסטגרם": `athletes.is_story_editor` (migration 129), the quality session. */
+  storyEditor?: boolean;
   /** When the "קיבלת תפקיד חדש" push last went to them; null when it never did. */
   lastNotifiedAt?: string | null;
 }

@@ -4,6 +4,7 @@ import { authError, requireSession } from '@/lib/auth-session';
 import { loadQualitySession, qualityPush } from '@/lib/quality-session/server';
 import { parseAt } from '@/lib/quality-session/model';
 import { notifyAthlete } from '@/lib/push';
+import { isStoryEditor } from '@/lib/quality-session/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,12 +14,15 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 //   -> { date, label, workout, runs } — is it a quality day (workout null when
 //      not), and every run of that day with its pack and its reps.
 //
-// Super user only, decided on the VERIFIED session, like /api/pack-stories: it
-// lists every runner's name and laps for the day, and is still being tried out.
+// The super user, and whoever has the "אינסטגרם" switch on the roles screen
+// (lib/quality-session/access.ts), decided on the VERIFIED session, like
+// /api/pack-stories: it lists every runner's name and laps for the day.
 export async function GET(request: Request) {
   const auth = await requireSession(request);
   if (!auth.ok) return authError(auth);
-  if (!auth.user.isSuperUser) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!auth.user.isSuperUser && !(await isStoryEditor(createServerClient(), auth.user.athleteId))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const date = new URL(request.url).searchParams.get('date') || '';
   if (!DATE.test(date)) return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 });
@@ -39,7 +43,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const auth = await requireSession(request);
   if (!auth.ok) return authError(auth);
-  if (!auth.user.isSuperUser || !auth.user.athleteId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!auth.user.athleteId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!auth.user.isSuperUser && !(await isStoryEditor(createServerClient(), auth.user.athleteId))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const body = await request.json().catch(() => ({}));
   const date = typeof body?.date === 'string' ? body.date : '';

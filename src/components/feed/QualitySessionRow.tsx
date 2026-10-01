@@ -4,22 +4,24 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 import { useApi } from '@/lib/api';
-import { useIsSuperUser, isPreviewing } from '@/lib/impersonation';
+import { isPreviewing } from '@/lib/impersonation';
 import { readClock } from '@/lib/quality-session/clock';
+import { useQualitySessionAccess } from '@/lib/quality-session/use-access';
 import { inRowWindow, type QsClock, type QsSession } from '@/lib/quality-session/model';
 
 // THE QUALITY SESSION, AT THE TOP OF THE FEED — 07:00 → 11:00 ON A QUALITY DAY.
 // One small row, nothing else: it only says the morning's session is there to
 // share, and the tap opens /dashboard/quality-session. A quality day is read off
 // the uploaded plan (lib/quality-session/server.ts), not the club's team days.
-// The super user's alone while it is tried out; outside the window, or on any
+// The super user's and the "אינסטגרם" switch's (lib/quality-session/access.ts);
+// outside the window, or on any
 // other day, it renders nothing, inside the feed's `empty:mb-0` wrapper.
 export function QualitySessionRow() {
-  const isSuper = useIsSuperUser();
+  const hasAccess = useQualitySessionAccess();
   const [clock, setClock] = useState<QsClock | null>(null);
   useEffect(() => { setClock(readClock()); }, []);
 
-  const on = isSuper && !isPreviewing() && !!clock && inRowWindow(clock.minutes);
+  const on = hasAccess && !isPreviewing() && !!clock && inRowWindow(clock.minutes);
   const { data } = useApi<QsSession>(on ? `/api/quality-session?date=${clock!.date}` : null);
   if (!on || !data?.workout) return null;
 

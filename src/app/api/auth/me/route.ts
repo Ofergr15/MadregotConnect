@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isStoryEditor } from '@/lib/quality-session/access';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { membershipFor } from '@/lib/auth/membership';
@@ -61,7 +62,7 @@ export async function GET(request: Request) {
     // before this existed, a revoked account got the whole signed-in shell and
     // every card inside it failed on its own with a raw English 403.
     if (!auth.user.athleteId) {
-      return NextResponse.json({ role: auth.user.role || 'coach', roles, membership: 'active', isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
+      return NextResponse.json({ role: auth.user.role || 'coach', roles, membership: 'active', isSuper, canApprove: canApproveHere, isCoreRunner: isCore, qualitySession: isSuper });
     }
 
     const supabase = createServerClient();
@@ -118,7 +119,11 @@ export async function GET(request: Request) {
       }
     } catch { /* not migrated yet — the snapshot stage stays a no-op */ }
 
-    return NextResponse.json({ role: auth.user.role || 'runner', roles, membership, isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere, isCoreRunner: isCore });
+    // The quality session (lib/quality-session/access.ts): its own read, like
+    // first_seen_at, so a missing column (no 129 yet) only reads as "no".
+    const qualitySession = isSuper || await isStoryEditor(supabase, auth.user.athleteId).catch(() => false);
+
+    return NextResponse.json({ role: auth.user.role || 'runner', roles, membership, isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere, isCoreRunner: isCore, qualitySession });
   } catch (error) {
     console.error('Failed to resolve user role:', error);
     return NextResponse.json({ error: 'Failed to resolve role' }, { status: 500 });

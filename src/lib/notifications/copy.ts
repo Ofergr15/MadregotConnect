@@ -645,6 +645,23 @@ export function academyJoinedCopy(
       };
 }
 
+/** The "אינסטגרם" switch turned on (roles screen): they now share the group's workouts. */
+export function storyEditorCopy(
+  locale: NotificationLocale,
+  p: { by?: string | null },
+): PushCopy {
+  const who = (p.by || '').trim().split(/\s+/)[0] || '';
+  return locale === 'he'
+    ? {
+        title: '📸 נוספת לשיתוף אימוני הקבוצה',
+        body: `${who ? `${who} הוסיף אותך. ` : ''}בבוקר של אימון איכות בוחרים רץ מכל דבוקה ומשתפים לאינסטגרם. לחיצה פותחת את העמוד.`,
+      }
+    : {
+        title: "📸 You're sharing the group's workouts",
+        body: `${who ? `${who} added you. ` : ''}On a quality morning, pick a runner from each pack and share to Instagram. Tap to open the page.`,
+      };
+}
+
 /**
  * The nudge for somebody who was approved and never came in.
  *

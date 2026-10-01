@@ -102,10 +102,10 @@ describe('time travel', () => {
 });
 
 describe('wiring', () => {
-  it('the API is the super user\'s alone', () => {
+  it('the API is the super user\'s and the "אינסטגרם" people\'s alone', () => {
     const api = read('app/api/quality-session/route.ts');
     expect(api).toMatch(/requireSession/);
-    expect(api).toMatch(/isSuperUser\) return NextResponse\.json\(\{ error: 'Forbidden' \}, \{ status: 403 \}\)/);
+    expect(api.match(/!auth\.user\.isSuperUser && !\(await isStoryEditor\(createServerClient\(\), auth\.user\.athleteId\)\)\) \{\s*return NextResponse\.json\(\{ error: 'Forbidden' \}, \{ status: 403 \}\)/g)).toHaveLength(2);
   });
   it('the row sits at the top of the feed, above what\'s next', () => {
     const feed = read('app/(app)/feed/page.tsx');
@@ -123,7 +123,8 @@ describe('wiring', () => {
   it('"send it to me" is the same push, to the caller alone, and outside the ledger', () => {
     const api = read('app/api/quality-session/route.ts');
     const post = api.slice(api.indexOf('export async function POST'));
-    expect(post).toMatch(/!auth\.user\.isSuperUser \|\| !auth\.user\.athleteId\) return NextResponse\.json\(\{ error: 'Forbidden' \}, \{ status: 403 \}\)/);
+    expect(post).toMatch(/!auth\.user\.athleteId\) return NextResponse\.json\(\{ error: 'Forbidden' \}, \{ status: 403 \}\)/);
+    expect(post).toMatch(/isStoryEditor\(/);
     expect(post).toMatch(/qualityPush\(/);
     expect(post).toMatch(/athleteId: auth\.user\.athleteId,/);
     expect(post).toMatch(/notifyAthlete\(/);

@@ -4,7 +4,8 @@ import { canGrantAdmin } from '@/lib/constants';
 import { resolveVerifiedCaller, type VerifiedCaller } from '@/lib/auth/self-or-staff';
 import { GRANTABLE_ROLES, grantedRoles, hasRole, rolesToColumns, type GrantableRole, type RolePerson } from '@/lib/auth/roles';
 import { notifyAthlete } from '@/lib/push';
-import { academyJoinedCopy, roleGrantedCopy } from '@/lib/notifications/copy';
+import { academyJoinedCopy, roleGrantedCopy, storyEditorCopy } from '@/lib/notifications/copy';
+import { storyEditorIds } from '@/lib/quality-session/access';
 import { applyAcademyMembership } from '@/lib/academy/membership-server';
 import { newlyGranted, welcomeRoleOf, WELCOME_PARAM } from '@/lib/role-views';
 
@@ -28,6 +29,11 @@ const BASE = 'id, name, email, avatar_url, role, status, is_academy';
 // "accept" on the applicants board turns on and everything academy reads (the
 // academy tab, watch pace targets, the academy feed). The switch here writes
 // that same flag, so the two doors can never disagree.
+//
+// "אינסטגרם" is a flag too: `athletes.is_story_editor` (migration 129), which opens
+// the quality session (lib/quality-session/access.ts). Read and written on its
+// own, so a database without 129 keeps every other switch working; the screen
+// hides this one until the column is there (`storyMigrated`).
 
 async function requireRoleAdmin(request: Request) {
   const { denied, caller } = await resolveVerifiedCaller(request);
@@ -101,6 +107,33 @@ async function sendAcademyJoined(
 
 const ACADEMY_JOINED_KIND = 'academy_joined';
 
+/** "נוספת לשיתוף אימוני הקבוצה", opening the quality session. Best-effort. */
+async function sendStoryEditor(
+  supabase: ReturnType<typeof createServerClient>,
+  athleteId: string,
+  caller: Pick<VerifiedCaller, 'athleteId'>,
+): Promise<boolean> {
+  try {
+    let by: string | null = null;
+    if (caller.athleteId && caller.athleteId !== athleteId) {
+      const me = await supabase.from('athletes').select('name').eq('id', caller.athleteId).maybeSingle();
+      by = (me.data as { name?: string | null } | null)?.name || null;
+    }
+    await notifyAthlete({
+      athleteId,
+      kind: 'story_editor',
+      actorAthleteId: caller.athleteId,
+      copy: locale => storyEditorCopy(locale, { by }),
+      url: '/dashboard/quality-session',
+      tag: 'story-editor',
+    });
+    return true;
+  } catch (err) {
+    console.error('Roles: story-editor push failed:', err);
+    return false;
+  }
+}
+
 /** Newest role_granted notification per person — the sheet's "נשלחה" line. */
 async function lastNotified(supabase: ReturnType<typeof createServerClient>): Promise<Map<string, string>> {
   const out = new Map<string, string>();
@@ -140,7 +173,8 @@ export async function GET(request: Request) {
       res = await supabase.from('athletes').select(BASE).order('name');
     }
     if (res.error) throw res.error;
-    const notified = await lastNotified(supabase);
+    const [notified, editors] = await Promise.all([lastNotified(supabase), storyEditorIds(supabase)]);
+    const editor = new Set(editors || []);
 
     const people: RolePerson[] = ((res.data || []) as any[])
       .filter(a => a.status !== 'removed')
@@ -151,10 +185,11 @@ export async function GET(request: Request) {
         avatarUrl: a.avatar_url || null,
         roles: grantedRoles(a.role, a.extra_roles),
         academy: a.is_academy === true,
+        storyEditor: editor.has(a.id),
         lastNotifiedAt: notified.get(a.id) ?? null,
       }));
 
-    return NextResponse.json({ people, migrated, canGrantAdmin: mayGrantAdmin(caller) });
+    return NextResponse.json({ people, migrated, storyMigrated: editors !== null, canGrantAdmin: mayGrantAdmin(caller) });
   } catch (error) {
     console.error('Failed to list roles:', error);
     return NextResponse.json({ error: 'Failed to list roles' }, { status: 500 });
@@ -166,9 +201,10 @@ export async function PUT(request: Request) {
     const { denied, caller } = await requireRoleAdmin(request);
     if (denied) return denied;
 
-    const body = (await request.json().catch(() => ({}))) as { athleteId?: unknown; roles?: unknown; academy?: unknown };
+    const body = (await request.json().catch(() => ({}))) as { athleteId?: unknown; roles?: unknown; academy?: unknown; storyEditor?: unknown };
     const athleteId = typeof body.athleteId === 'string' ? body.athleteId : '';
-    if (!athleteId || !Array.isArray(body.roles) || (body.academy !== undefined && typeof body.academy !== 'boolean')) {
+    if (!athleteId || !Array.isArray(body.roles) || (body.academy !== undefined && typeof body.academy !== 'boolean')
+      || (body.storyEditor !== undefined && typeof body.storyEditor !== 'boolean')) {
       return NextResponse.json({ error: 'athleteId and roles are required' }, { status: 400 });
     }
     if (body.roles.some(r => !(GRANTABLE_ROLES as readonly unknown[]).includes(r))) {
@@ -209,8 +245,18 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'migration_127_required' }, { status: 409 });
     }
 
+    // The "אינסטגרם" switch, read on its own (no 129 yet: the read fails, and only
+    // a save that asks to change it is refused).
+    const story = await supabase.from('athletes').select('is_story_editor').eq('id', athlete.id).maybeSingle();
+    const wasEditor = !story.error && (story.data as { is_story_editor?: boolean } | null)?.is_story_editor === true;
+    const storyEditor = typeof body.storyEditor === 'boolean' ? body.storyEditor : wasEditor;
+    if (storyEditor !== wasEditor && story.error) {
+      return NextResponse.json({ error: 'migration_129_required' }, { status: 409 });
+    }
+
     const update: Record<string, unknown> = migrated ? { role: next.role, extra_roles: next.extra_roles } : { role: next.role };
     if (academy !== wasAcademy) update.is_academy = academy;
+    if (storyEditor !== wasEditor) update.is_story_editor = storyEditor;
     const { error } = await supabase.from('athletes').update(update).eq('id', athlete.id);
     if (error) throw error;
     if (academy !== wasAcademy) await applyAcademyMembership(supabase, athlete.id, academy);
@@ -220,8 +266,9 @@ export async function PUT(request: Request) {
     const added = newlyGranted(before, roles)[0] ?? null;
     const notified = added ? await sendRoleGranted(supabase, athlete.id, added, caller) : false;
     const academyNotified = academy && !wasAcademy ? await sendAcademyJoined(supabase, athlete.id, caller) : false;
+    const storyNotified = storyEditor && !wasEditor ? await sendStoryEditor(supabase, athlete.id, caller) : false;
 
-    return NextResponse.json({ success: true, roles, academy, notified: notified ? added : null, academyNotified });
+    return NextResponse.json({ success: true, roles, academy, storyEditor, notified: notified ? added : null, academyNotified, storyNotified });
   } catch (error) {
     console.error('Failed to update roles:', error);
     return NextResponse.json({ error: 'Failed to update roles' }, { status: 500 });

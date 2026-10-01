@@ -29,6 +29,7 @@ import { dispatchDueTestReminders } from '@/lib/academy/testReminders-server';
 import { syncClubFollows } from '@/lib/follows/club-sync';
 import { qualityPush } from '@/lib/quality-session/server';
 import { PUSH_AT } from '@/lib/quality-session/model';
+import { storyEditorIds } from '@/lib/quality-session/access';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -638,8 +639,8 @@ async function run(request: Request) {
   // The quality session (lib/quality-session): at 7:30 on a morning the PLAN calls
   // intervals / tempo / fartlek — not the team days above — one push saying the
   // morning's runs are there to pick from and share. Once per day by the ledger,
-  // and no follow-ups: the screen keeps itself current. The super user's alone
-  // while it is tried out. Any tick from 7:30 on sends it, so a missed one only
+  // and no follow-ups: the screen keeps itself current. To the super user and
+  // whoever has the "אינסטגרם" switch (lib/quality-session/access.ts). Any tick from 7:30 on sends it, so a missed one only
   // delays it five minutes; the row on the feed stops at 11:00, so does this.
   if (hour * 60 + minute >= PUSH_AT && hour < 11) {
     const today = israelToday(now);
@@ -648,11 +649,15 @@ async function run(request: Request) {
       if (!(await already(tag))) {
         const push = await qualityPush(supabase, today);
         if (push) {
-          const [supers, byEmail] = await Promise.all([
+          const [supers, byEmail, editors] = await Promise.all([
             supabase.from('athletes').select('id').eq('is_super_user', true),
             supabase.from('athletes').select('id').eq('email', SUPER_USER_EMAIL),
+            storyEditorIds(supabase),
           ]);
-          const ids = [...new Set([...(supers.data || []), ...(byEmail.data || [])].map(a => a.id as string))];
+          const ids = [...new Set([
+            ...[...(supers.data || []), ...(byEmail.data || [])].map(a => a.id as string),
+            ...(editors || []),
+          ])];
           for (const athleteId of ids) {
             await notifyAthlete({
               athleteId,

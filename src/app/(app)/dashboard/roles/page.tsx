@@ -44,11 +44,12 @@ const BADGE_TONE: Record<GrantableRole, string> = {
   admin: 'bg-ink-700 text-white',
 };
 
-type Filter = 'any' | 'academyRunners' | 'coaches' | 'academy' | 'admin';
+type Filter = 'any' | 'academyRunners' | 'storyEditors' | 'coaches' | 'academy' | 'admin';
 
 const FILTERS: Array<{ key: Filter; label: string; test: (p: RolePerson) => boolean }> = [
-  { key: 'any', label: 'עם תפקיד', test: p => p.roles.length > 0 || !!p.academy },
+  { key: 'any', label: 'עם תפקיד', test: p => p.roles.length > 0 || !!p.academy || !!p.storyEditor },
   { key: 'academyRunners', label: 'רצי אקדמיה', test: p => !!p.academy },
+  { key: 'storyEditors', label: 'אינסטגרם', test: p => !!p.storyEditor },
   { key: 'coaches', label: 'מאמנים', test: p => p.roles.includes('coach') || p.roles.includes('academy_coach') },
   { key: 'academy', label: 'צוות אקדמיה', test: p => p.roles.includes('academy_coach') || p.roles.includes('academy_manager') },
   { key: 'admin', label: 'אדמין', test: p => p.roles.includes('admin') },
@@ -99,14 +100,17 @@ async function resendRolePush(athleteId: string): Promise<string | null> {
   }
 }
 
-function RoleBadges({ roles, academy }: { roles: GrantableRole[]; academy?: boolean }) {
-  if (!roles.length && !academy) {
+function RoleBadges({ roles, academy, storyEditor }: { roles: GrantableRole[]; academy?: boolean; storyEditor?: boolean }) {
+  if (!roles.length && !academy && !storyEditor) {
     return <span className="inline-flex h-[22px] items-center rounded-[7px] bg-[#F1F1F3] px-2 text-2xs font-bold text-ink-400">רץ</span>;
   }
   return (
     <span className="flex max-w-[128px] flex-wrap justify-end gap-1">
       {academy && (
         <span className="inline-flex h-[22px] items-center rounded-[7px] bg-[#E6F4EC] px-2 text-2xs font-bold text-[#0B6B35]">רץ אקדמיה</span>
+      )}
+      {storyEditor && (
+        <span className="inline-flex h-[22px] items-center rounded-[7px] bg-[#FDE7F3] px-2 text-2xs font-bold text-[#B0186F]">אינסטגרם</span>
       )}
       {roles.map(r => (
         <span key={r} className={cn('inline-flex h-[22px] items-center rounded-[7px] px-2 text-2xs font-bold', BADGE_TONE[r])}>
@@ -119,7 +123,7 @@ function RoleBadges({ roles, academy }: { roles: GrantableRole[]; academy?: bool
 
 export default function RolesPage() {
   const router = useRouter();
-  const { data, error, isLoading, mutate } = useApi<{ people: RolePerson[]; migrated: boolean; canGrantAdmin: boolean }>(
+  const { data, error, isLoading, mutate } = useApi<{ people: RolePerson[]; migrated: boolean; storyMigrated?: boolean; canGrantAdmin: boolean }>(
     '/api/admin/roles',
   );
   const [query, setQuery] = useState('');
@@ -226,7 +230,7 @@ export default function RolesPage() {
                   <span className="block truncate text-[15px] font-bold text-ink-700">{p.name || p.email}</span>
                   <span className="block truncate text-xs text-ink-400" dir="ltr" style={{ textAlign: 'right' }}>{p.email}</span>
                 </span>
-                <RoleBadges roles={p.roles} academy={p.academy} />
+                <RoleBadges roles={p.roles} academy={p.academy} storyEditor={p.storyEditor} />
               </button>
               <button
                 type="button"
@@ -257,6 +261,7 @@ export default function RolesPage() {
       <EditRolesSheet
         person={editing}
         canGrantAdmin={!!data?.canGrantAdmin}
+        storyMigrated={!!data?.storyMigrated}
         onClose={() => setEditing(null)}
         onSaved={async (notified) => {
           const who = editing?.name || editing?.email || '';
@@ -299,12 +304,15 @@ function MenuItem({ icon: Icon, label, strong = false, onClick }: { icon: typeof
 function EditRolesSheet({
   person,
   canGrantAdmin,
+  storyMigrated,
   onClose,
   onSaved,
   onResent,
 }: {
   person: RolePerson | null;
   canGrantAdmin: boolean;
+  /** Migration 129 is in: the "אינסטגרם" switch can be saved, so it is shown. */
+  storyMigrated: boolean;
   onClose: () => void;
   /** `notified` — the save switched a role (or the academy) on and its push went out. */
   onSaved: (notified: boolean) => void | Promise<void>;
@@ -313,6 +321,7 @@ function EditRolesSheet({
   const [resending, setResending] = useState(false);
   const [draft, setDraft] = useState<GrantableRole[]>([]);
   const [academy, setAcademy] = useState(false);
+  const [storyEditor, setStoryEditor] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [forId, setForId] = useState<string | null>(null);
   const [confirmAdmin, setConfirmAdmin] = useState(false);
@@ -324,6 +333,7 @@ function EditRolesSheet({
     setForId(person.id);
     setDraft(person.roles);
     setAcademy(!!person.academy);
+    setStoryEditor(!!person.storyEditor);
     setFailed(null);
   }
 
@@ -341,13 +351,15 @@ function EditRolesSheet({
       const res = await fetch('/api/admin/roles', {
         method: 'PUT',
         headers: await apiHeaders(true),
-        body: JSON.stringify({ athleteId: person.id, roles: draft, academy }),
+        body: JSON.stringify({ athleteId: person.id, roles: draft, academy, ...(storyMigrated ? { storyEditor } : {}) }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         setFailed(
           body.error === 'migration_127_required'
             ? 'כמה תפקידים לאותו אדם יעבדו אחרי מיגרציה 127.'
+            : body.error === 'migration_129_required'
+              ? 'המתג "אינסטגרם" יעבוד אחרי מיגרציה 129.'
             : res.status === 403
               ? 'רק חשבון המועדון יכול לתת או להסיר אדמין.'
               : 'השמירה נכשלה. נסה שוב.',
@@ -355,7 +367,7 @@ function EditRolesSheet({
         return;
       }
       const body = await res.json().catch(() => ({}));
-      await onSaved(!!body.notified || !!body.academyNotified);
+      await onSaved(!!body.notified || !!body.academyNotified || !!body.storyNotified);
     } catch {
       setFailed('השמירה נכשלה. נסה שוב.');
     } finally {
@@ -368,12 +380,13 @@ function EditRolesSheet({
   const preview = rolePreview(draft, chipView);
   const joining = !!person && academy && !person.academy;
   const changed = !!person && (
-    academy !== !!person.academy || draft.length !== person.roles.length || draft.some(r => !person.roles.includes(r))
+    academy !== !!person.academy || storyEditor !== !!person.storyEditor || draft.length !== person.roles.length || draft.some(r => !person.roles.includes(r))
   );
   const first = person?.name?.split(' ')[0] || 'חשבון';
   const grantNote = person
     ? [
         joining ? 'על הכניסה לאקדמיה' : null,
+        storyEditor && !person.storyEditor ? 'על שיתוף אימוני הקבוצה' : null,
         newlyGranted(person.roles, draft).length > 0 ? 'על התפקיד החדש' : null,
       ].filter(Boolean)
     : [];
@@ -403,6 +416,20 @@ function EditRolesSheet({
                 />
               </div>
             </div>
+
+            {storyMigrated && (
+              <div>
+                <p className="mb-1.5 px-1 text-2xs font-extrabold tracking-wide text-ink-400">גישה</p>
+                <div className="overflow-hidden rounded-2xl bg-page/60">
+                  <RoleRow
+                    title="אינסטגרם"
+                    description="אימון האיכות: בוחרים רץ מכל דבוקה ומשתפים, וההתראה של 7:30"
+                    checked={storyEditor}
+                    onChange={setStoryEditor}
+                  />
+                </div>
+              </div>
+            )}
 
             <div>
             <p className="mb-1.5 px-1 text-2xs font-extrabold tracking-wide text-ink-400">צוות</p>

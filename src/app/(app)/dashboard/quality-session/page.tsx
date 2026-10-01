@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { apiHeaders, useApi } from '@/lib/api';
-import { useIsSuperUser, isPreviewing } from '@/lib/impersonation';
+import { isPreviewing } from '@/lib/impersonation';
 import { GROUP_HEX } from '@/lib/utils';
 import { ShareSheet } from '@/components/ShareSheet';
 import { fetchFeedItemByActivity } from '@/lib/feed-client';
 import { withoutHeartRate, type FeedItem } from '@/lib/feed/project';
 import { fmtPace, type Pack } from '@/lib/pack-stories/model';
 import { readClock } from '@/lib/quality-session/clock';
+import { useQualitySessionAccess } from '@/lib/quality-session/use-access';
 import {
   fromMinutes, isNew, packRuns, runnersOf, shareTitle,
   type QsClock, type QsRunner, type QsSession, type SortKey,
@@ -25,8 +26,9 @@ import './quality-session.css';
 // ("דבוקה 1 · 6×1000" — this is what pack 1 ran). Pick on a scatter of km against
 // the main set's pace and a list under it (one row per runner), look at the run
 // part by part against the plan, then the workout share editor opens on that
-// run's own feed item. The super user's alone while it is tried out; GET
-// /api/quality-session answers 403 to anyone else. Design:
+// run's own feed item. The super user's, and whoever has the "אינסטגרם" switch on
+// the roles screen (lib/quality-session/access.ts); GET /api/quality-session
+// answers 403 to anyone else. Design:
 // ~/.cache/madregot/mockups/quality-session-v2.html.
 //
 // `?at=2026-09-29T08:00` makes it that moment (lib/quality-session/clock.ts):
@@ -76,8 +78,7 @@ function vsTarget(d: number) {
 }
 
 export default function QualitySessionPage() {
-  const isSuper = useIsSuperUser();
-  const allowed = isSuper && !isPreviewing();
+  const allowed = useQualitySessionAccess() && !isPreviewing();
   const [clock, setClock] = useState<QsClock | null>(null);
   const [asked, setAsked] = useState<string | null>(null);
   useEffect(() => {
