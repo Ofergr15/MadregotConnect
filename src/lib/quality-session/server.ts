@@ -2,7 +2,7 @@
 // uploaded plan), and the morning's runs with their reps. Shared by
 // GET /api/quality-session and the 7:30 stage of /api/cron/tick.
 
-import type { ParsedWorkout } from '@/lib/ai/types';
+import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { getPlanWeekStart } from '@/lib/utils';
@@ -11,6 +11,8 @@ import { classifyWorkout } from '@/lib/plans/session-summary';
 import { isOptionalWorkout } from '@/lib/plans/normalize-plan';
 import { buildSession, type ActivityRow, type AthleteRow, type AttendanceRow, type GroupRow } from '@/lib/pack-stories/build';
 import { sessionLabel } from '@/lib/pack-stories/model';
+import type { Pack } from '@/lib/pack-stories/model';
+import type { PlanRep, PlanTargets } from './parts';
 import { QUALITY_TYPES, detectReps, fromMinutes, repPace, toMinutes, type QsSession, type QualityWorkout } from './model';
 
 type Db = ReturnType<typeof createServerClient>;
@@ -39,8 +41,8 @@ const addDays = (date: string, n: number) => {
 };
 const dowOf = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();
 
-/** The date's quality session from the latest uploaded plan of its week, or null. */
-export async function loadQualityWorkout(supabase: Db, date: string): Promise<QualityWorkout | null> {
+/** The latest uploaded plan of the date's week, as stored. */
+async function loadPlan(supabase: Db, date: string): Promise<unknown> {
   const { data: plan, error } = await supabase
     .from('weekly_plans')
     .select('parsed_workouts')
@@ -50,11 +52,53 @@ export async function loadQualityWorkout(supabase: Db, date: string): Promise<Qu
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  for (const workouts of planWorkoutLists(plan?.parsed_workouts)) {
+  return plan?.parsed_workouts ?? null;
+}
+
+const workoutOf = (stored: unknown, date: string): QualityWorkout | null => {
+  for (const workouts of planWorkoutLists(stored)) {
     const found = qualityWorkout(workouts, dowOf(date));
     if (found) return found;
   }
   return null;
+};
+
+/** The date's quality session from the latest uploaded plan of its week, or null. */
+export async function loadQualityWorkout(supabase: Db, date: string): Promise<QualityWorkout | null> {
+  return workoutOf(await loadPlan(supabase, date), date);
+}
+
+/**
+ * Each pack's work steps on the day's morning, repeats spelled out, with its own
+ * paces (a per-pack plan holds each pack's pace in its own copy). An older
+ * single plan is every pack's.
+ */
+export function planTargets(stored: unknown, dow: number): PlanTargets {
+  const v = (stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {}) as Record<string, unknown>;
+  const perPack = ([1, 2, 3] as Pack[]).some(n => v[`group${n}`]);
+  const out: PlanTargets = {};
+  for (const n of [1, 2, 3] as Pack[]) {
+    const lists = planWorkoutLists(perPack ? { [`group${n}`]: v[`group${n}`] } : stored);
+    const day = (lists[0] || []).filter(w => w.dayOfWeek === dow && w.partKind !== 'evening' && !isOptionalWorkout(w));
+    const reps = day.flatMap(w => workReps(w.steps || []));
+    if (reps.length) out[n] = reps;
+  }
+  return out;
+}
+
+function workReps(steps: WorkoutStep[]): PlanRep[] {
+  const out: PlanRep[] = [];
+  const one = (s: WorkoutStep, float: number | null) => {
+    if (s.type !== 'interval' || (s.durationType !== 'time' && s.durationType !== 'distance') || !s.durationValue) return;
+    out.push({ unit: s.durationType, value: s.durationValue, pace: s.targetPaceMinPerKm ?? null, float });
+  };
+  for (const s of steps) {
+    if (s.repeatSteps?.length) {
+      const rec = s.repeatSteps.find(x => (x.type === 'recovery' || x.type === 'active') && x.targetPaceMinPerKm);
+      for (let k = 0; k < Math.max(1, s.repeatCount || 1); k++) for (const x of s.repeatSteps) one(x, rec?.targetPaceMinPerKm ?? null);
+    } else one(s, null);
+  }
+  return out;
 }
 
 /**
@@ -95,7 +139,7 @@ export async function loadQualitySession(supabase: Db, date: string): Promise<Qs
   // Attendance weeks start on Sunday; the day is an offset into the week.
   const dow = dowOf(date);
   // start_time is local wall-clock time stored as +00:00, so a naive day range is the local day.
-  const [acts, att, aths, grps, workout] = await Promise.all([
+  const [acts, att, aths, grps, stored] = await Promise.all([
     supabase.from('athlete_activities')
       .select('id, athlete_id, start_time, distance, duration, average_pace, average_hr, laps')
       .gte('start_time', `${date}T00:00:00`)
@@ -107,23 +151,26 @@ export async function loadQualitySession(supabase: Db, date: string): Promise<Qs
       .eq('attending', true),
     supabase.from('athletes').select('id, name, group_id'),
     supabase.from('groups').select('id, name'),
-    loadQualityWorkout(supabase, date),
+    loadPlan(supabase, date),
   ]);
   const failed = [acts, att, aths, grps].find(r => r.error);
   if (failed?.error) throw failed.error;
 
+  const workout = workoutOf(stored, date);
   const rows = ((acts.data || []) as Array<Omit<ActivityRow, 'gps_points'>>).map(r => ({ ...r, gps_points: null }));
   const lapsById = new Map(rows.map(r => [r.id, normalizeStoredLaps(r.laps)]));
+  const athleteOf = new Map(rows.map(r => [r.id, r.athlete_id]));
   const base = buildSession(date, rows, (att.data || []) as AttendanceRow[], (aths.data || []) as AthleteRow[], (grps.data || []) as GroupRow[]);
 
   return {
     date,
     label: sessionLabel(date),
     workout,
+    plan: workout ? planTargets(stored, dow) : {},
     runs: base.runs.map(r => {
       const laps = detectReps(lapsById.get(r.id) || []);
       return {
-        id: r.id, name: r.name, pack: r.pack, dup: r.dup,
+        id: r.id, athleteId: athleteOf.get(r.id) || r.id, name: r.name, pack: r.pack, dup: r.dup,
         start: r.start, end: fromMinutes(toMinutes(r.start) + r.dur / 60),
         dist: r.dist, dur: r.dur, pace: r.pace,
         repPace: repPace(laps), laps,

@@ -4,19 +4,20 @@ import { fileURLToPath } from 'url';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import type { StoredLap } from '@/lib/garmin/laps';
 import {
-  detectReps, repPace, packRuns, isNew, sortRuns, shareTitle, parseAt, inRowWindow,
-  type QsRun, type QsSession,
+  detectReps, repPace, packRuns, runnersOf, isNew, sortRuns, shareTitle, parseAt, inRowWindow,
+  type QsLap, type QsRun, type QsSession,
 } from '@/lib/quality-session/model';
 
 vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => ({}) }));
-const { qualityWorkout, planWorkoutLists } = await import('@/lib/quality-session/server');
+const { qualityWorkout, planWorkoutLists, planTargets } = await import('@/lib/quality-session/server');
+const { parseParts, mainSet, partLabel, targetFor } = await import('@/lib/quality-session/parts');
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(`../${p}`, import.meta.url)), 'utf8');
 const w = (o: Partial<ParsedWorkout>): ParsedWorkout => ({ dayOfWeek: 2, name: '', steps: [], ...o } as ParsedWorkout);
 const lap = (distance: number, duration: number, o: Partial<StoredLap> = {}): StoredLap =>
   ({ distance, duration, averagePace: null, averageHR: null, maxHR: null, ...o });
 const run = (o: Partial<QsRun> & { id: string }): QsRun => ({
-  name: o.id, pack: 1, dup: false, start: '06:00', end: '07:00',
+  name: o.id, athleteId: o.id, pack: 1, dup: false, start: '06:00', end: '07:00',
   dist: 10000, dur: 3600, pace: 360, repPace: null, laps: [], ...o,
 });
 
@@ -61,7 +62,7 @@ describe('detectReps', () => {
 
 describe('the morning as of a moment', () => {
   const sess: QsSession = {
-    date: '2026-09-29', label: '', workout: { name: '6×1000', type: 'intervals' },
+    date: '2026-09-29', label: '', workout: { name: '6×1000', type: 'intervals' }, plan: {},
     runs: [
       run({ id: 'a', end: '07:10' }),
       run({ id: 'b', end: '07:50' }),
@@ -139,5 +140,76 @@ describe('the stored plan', () => {
     expect(planWorkoutLists({ workouts: [w(3)] })).toEqual([[w(3)]]);
     expect(planWorkoutLists([w(4)])).toEqual([[w(4)]]);
     expect(planWorkoutLists(null)).toEqual([]);
+  });
+});
+
+// Four runners of Tuesday 29.9 (laps only, no names): the plan was a warm-up,
+// 4 × 45″, 2 × 20″, a fartlek of fast and float kilometres, and 5 × 300 m.
+const LAPS = JSON.parse(read('__tests__/fixtures/quality-session-0929-laps.json')) as Record<string, QsLap[]>;
+const labels = (k: string) => parseParts(LAPS[k]).parts.map(partLabel);
+
+describe('the parts of the workout', () => {
+  it('reads the whole morning, the fartlek as one set of its fast kms', () => {
+    expect(labels('full')).toEqual(['חימום 3.6 ק״מ', '4 × 45″', '2 × 20″', '10 × 1 ק״מ', '5 × 300 מ׳', 'שחרור 2.9 ק״מ']);
+    const main = mainSet(parseParts(LAPS.full).parts)!;
+    expect([main.unit, main.reps.length, main.floats.length]).toEqual(['fart', 10, 9]);
+  });
+  it('joins a fartlek broken by a cut-short float', () => {
+    expect(labels('splitFartlek')).toEqual(['חימום 4.0 ק״מ', '4 × 45″', '2 × 20″', '9 × 1 ק״מ', '5 × 300 מ׳']);
+  });
+  it('a steady run in place of the fartlek is a run, and the 45″ become the main set', () => {
+    const { parts } = parseParts(LAPS.noFartlek);
+    expect(parts.map(partLabel)).toEqual(['חימום 3.5 ק״מ', '4 × 45″', '2 × 20″', 'ריצה 17.1 ק״מ']);
+    expect(partLabel(mainSet(parts)!)).toBe('4 × 45″');
+  });
+  it('the main pace is the fast kms alone, not the floats', () => {
+    const main = mainSet(parseParts(LAPS.pack3).parts)!;
+    expect(main.p).toBeLessThan(230);
+    expect(main.floats.every(f => f.p > main.p)).toBe(true);
+  });
+});
+
+describe('one row per runner', () => {
+  it('keeps the long run with laps, the jog and the lap-less copy under it', () => {
+    const laps: QsLap[] = [[1000, 300, 'easy'], [1000, 300, 'easy']];
+    const rs = runnersOf([
+      run({ id: 'jog', athleteId: 'a', start: '05:01', dist: 1000, laps }),
+      run({ id: 'copy', athleteId: 'a', start: '05:02', dist: 26000, laps: [] }),
+      run({ id: 'main', athleteId: 'a', start: '05:10', dist: 25000, laps }),
+      run({ id: 'b', athleteId: 'b' }),
+    ]);
+    expect(rs.map(r => [r.run.id, r.extra.map(e => e.id)])).toEqual([['main', ['jog', 'copy']], ['b', []]]);
+  });
+});
+
+describe('the plan\'s targets', () => {
+  const step = (o: Record<string, unknown>) => o as never;
+  const pack = (fast: number, float: number, s45: number[]) => ({
+    workouts: [w({ name: 'פארטלק', steps: [
+      ...s45.map(p => step({ type: 'interval', durationType: 'time', durationValue: 45, targetPaceMinPerKm: p })),
+      step({ type: 'interval', durationType: 'time', durationValue: 20 }),
+      step({ type: 'repeat', repeatCount: 9, repeatSteps: [
+        step({ type: 'interval', durationType: 'distance', durationValue: 1000, targetPaceMinPerKm: fast }),
+        step({ type: 'recovery', durationType: 'distance', durationValue: 1000, targetPaceMinPerKm: float }),
+      ] }),
+      step({ type: 'interval', durationType: 'distance', durationValue: 1000, targetPaceMinPerKm: fast }),
+    ] })],
+  });
+  const plan = planTargets({ group1: pack(204, 265, [230, 220, 210, 200]), group3: pack(218, 285, [250, 240, 230, 220]) }, 2);
+
+  it('spells out each pack\'s repeats, with the float after them', () => {
+    expect(plan[2]).toBeUndefined();
+    const fast = plan[1]!.filter(r => r.unit === 'distance');
+    expect(fast).toHaveLength(10);
+    expect(fast.every(r => r.pace === 204)).toBe(true);
+    expect(fast[0].float).toBe(265);
+  });
+  it('matches a set to its step: the fast kms out of ten, the 45″ in their descending order', () => {
+    const parts = parseParts(LAPS.pack3).parts;
+    const fart = parts.find(p => p.unit === 'fart')!;
+    expect(targetFor(fart, plan[3])).toEqual({ paces: Array(10).fill(218), float: 285, planned: 10 });
+    const s45 = parts.find(p => partLabel(p) === '4 × 45″')!;
+    expect(targetFor(s45, plan[3])?.paces).toEqual([250, 240, 230, 220]);
+    expect(targetFor(parts.find(p => partLabel(p) === '5 × 300 מ׳')!, plan[3])).toBeNull();
   });
 });

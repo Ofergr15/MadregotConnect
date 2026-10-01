@@ -4,12 +4,13 @@
 // pack: "this is what pack 1 ran". The screen is /dashboard/quality-session, the
 // data GET /api/quality-session, the 7:30 push a stage of /api/cron/tick.
 //
-// Design: ~/.cache/madregot/mockups/quality-session-prototype.html.
+// Design: ~/.cache/madregot/mockups/quality-session-v2.html (the prototype before it: quality-session-prototype.html).
 // Units, as everywhere: distance METERS, duration SECONDS, pace SECONDS PER KM.
 
 import type { StoredLap } from '@/lib/garmin/laps';
 import type { WorkoutType } from '@/lib/plans/session-summary';
 import type { Pack } from '@/lib/pack-stories/model';
+import type { PlanTargets } from './parts';
 
 export const QUALITY_TYPES: WorkoutType[] = ['intervals', 'tempo', 'fartlek'];
 
@@ -68,6 +69,7 @@ export function repPace(laps: QsLap[]): number | null {
 /** One run of the morning, as the API ships it. */
 export interface QsRun {
   id: string;
+  athleteId: string;
   name: string;
   pack: 0 | Pack;
   dup: boolean;
@@ -85,6 +87,8 @@ export interface QsSession {
   date: string;
   label: string;
   workout: QualityWorkout | null;
+  /** Each pack's work steps for the morning, for the targets on the screen. */
+  plan: PlanTargets;
   runs: QsRun[];
 }
 
@@ -106,6 +110,23 @@ export const MORNING_ENDS = toMinutes('12:00');
  */
 export function packRuns(sess: QsSession, pack: 0 | Pack, nowMin: number): QsRun[] {
   return sess.runs.filter(r => !r.dup && r.pack === pack && toMinutes(r.start) < MORNING_ENDS && toMinutes(r.end) <= nowMin);
+}
+
+/** One runner of the morning: the run with the workout, and the other runs they synced that morning. */
+export interface QsRunner { run: QsRun; extra: QsRun[] }
+
+/**
+ * The runs, one row per runner. An athlete who also synced a jog to the start,
+ * the run split in two, or a lap-less copy from a second app shows once: the
+ * longest run that has laps, the rest listed under it.
+ */
+export function runnersOf(rs: QsRun[]): QsRunner[] {
+  const by = new Map<string, QsRun[]>();
+  for (const r of rs) by.set(r.athleteId, [...(by.get(r.athleteId) || []), r]);
+  return [...by.values()].map(g => {
+    const run = g.reduce((a, b) => ((b.laps.length > 1 ? 1 : 0) - (a.laps.length > 1 ? 1 : 0) || b.dist - a.dist) > 0 ? b : a);
+    return { run, extra: g.filter(r => r !== run).sort((a, b) => a.start.localeCompare(b.start)) };
+  });
 }
 
 /** "חדש": finished after the 7:30 push went out. */
