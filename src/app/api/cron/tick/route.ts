@@ -24,9 +24,11 @@ import {
   buildLast7Report, formatReportPace, reportIsEmpty,
   type Last7Report, type ReportActivity,
 } from '@/lib/reports/last-7-days';
-import { APPROVER_EMAILS } from '@/lib/constants';
+import { APPROVER_EMAILS, SUPER_USER_EMAIL } from '@/lib/constants';
 import { dispatchDueTestReminders } from '@/lib/academy/testReminders-server';
 import { syncClubFollows } from '@/lib/follows/club-sync';
+import { loadQualityWorkout } from '@/lib/quality-session/server';
+import { PUSH_AT } from '@/lib/quality-session/model';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -88,7 +90,7 @@ async function run(request: Request) {
   // Best-effort cleanup of old lock rows — never blocks the actual tick.
   supabase.from('cron_tick_locks').delete().lt('tick_at', new Date(now.getTime() - 2 * 86_400_000).toISOString()).then(() => {}, () => {});
 
-  const { weekday, hour } = israelNow(now);
+  const { weekday, hour, minute } = israelNow(now);
   const weekStart = getPlanWeekStart(now);
 
   // Load config (fall back to defaults if missing).
@@ -633,6 +635,47 @@ async function run(request: Request) {
   // have no result for your test" — must be re-checked against the invitation in
   // the instant before it goes out, and a scheduled row cannot carry a condition.
   // Steady state is one indexed query that finds nothing.
+  // The quality session (lib/quality-session): at 7:30 on a morning the PLAN calls
+  // intervals / tempo / fartlek — not the team days above — one push saying the
+  // morning's runs are there to pick from and share. Once per day by the ledger,
+  // and no follow-ups: the screen keeps itself current. The super user's alone
+  // while it is tried out. Any tick from 7:30 on sends it, so a missed one only
+  // delays it five minutes; the row on the feed stops at 11:00, so does this.
+  if (hour * 60 + minute >= PUSH_AT && hour < 11) {
+    const today = israelToday(now);
+    const tag = `qualitySession:${today}`;
+    try {
+      if (!(await already(tag))) {
+        const workout = await loadQualityWorkout(supabase, today);
+        if (workout) {
+          const [supers, byEmail, runs] = await Promise.all([
+            supabase.from('athletes').select('id').eq('is_super_user', true),
+            supabase.from('athletes').select('id').eq('email', SUPER_USER_EMAIL),
+            supabase.from('athlete_activities').select('id', { count: 'exact', head: true })
+              .gte('start_time', `${today}T00:00:00`).lt('start_time', `${today}T12:00:00`).gte('distance', 1000),
+          ]);
+          const ids = [...new Set([...(supers.data || []), ...(byEmail.data || [])].map(a => a.id as string))];
+          const n = runs.count || 0;
+          for (const athleteId of ids) {
+            await notifyAthlete({
+              athleteId,
+              kind: 'quality_session',
+              url: `/dashboard/quality-session?date=${today}`,
+              tag,
+              title: `📸 ${workout.name || 'אימון האיכות'} של הבוקר`,
+              body: n ? `${n} כבר סיימו. לבחור רץ מכל דבוקה ולשתף.` : 'לבחור רץ מכל דבוקה ולשתף.',
+            });
+          }
+          await markFired(tag, ids.length);
+          fired.push(`${tag} → ${ids.length}`);
+        }
+        // Not a quality day: nothing is written, so a plan uploaded at 8:00 still gets its push.
+      }
+    } catch (err) {
+      console.error('[tick] quality session push failed:', err);
+    }
+  }
+
   const testReminders = await dispatchDueTestReminders(supabase, now.toISOString());
   if (testReminders.sent) fired.push(`academyTestReminders → ${testReminders.sent}`);
   if (testReminders.withheld) fired.push(`academyTestRemindersWithheld → ${testReminders.withheld}`);

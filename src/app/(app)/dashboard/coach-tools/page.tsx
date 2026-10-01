@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog } from 'lucide-react';
+import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog, Zap } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { flowGroup, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
@@ -189,6 +189,9 @@ export default function CoachToolsPage() {
             every admin gets every nav item. The API behind it says 403 to anyone else. */}
         {!previewRole && isSuperUser(email) && (
           <InsetRow icon={Images} iconBg="bg-pink-600" label={t('packStories')} sublabel={t('packStoriesSub')} href="/dashboard/pack-stories" />
+        )}
+        {!previewRole && isSuperUser(email) && (
+          <InsetRow icon={Zap} iconBg="bg-orange-500" label={t('qualitySession')} sublabel={t('qualitySessionSub')} href="/dashboard/quality-session" />
         )}
       </InsetSection>
 

@@ -24,6 +24,7 @@ import { SquadStandings } from '@/components/SquadStandings';
 import { UpcomingEvents } from '@/components/UpcomingEvents';
 import { SetupNudgeCard } from '@/components/onboarding/SetupNudgeCard';
 import { WeekSummaryCard } from '@/components/feed/WeekSummaryCard';
+import { QualitySessionRow } from '@/components/feed/QualitySessionRow';
 import { NextSessionCard } from '@/components/feed/NextSessionCard';
 import { WhatsNewAutoSheet } from '@/components/whats-new/WhatsNewSheet';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
@@ -501,6 +502,14 @@ export default function FeedPage() {
           joined after the feature shipped. See WhatsNewSheet and
           lib/whats-new/ledger.ts. */}
       <WhatsNewAutoSheet ready={!loading && !error && items.length > 0} />
+
+      {/* ═══ THE QUALITY SESSION ═══
+          07:00 → 11:00 on a quality day (read off the plan), the super user's
+          alone while it is tried out: one row that opens the screen where a runner
+          per pack is picked and shared. See QualitySessionRow. */}
+      <div className="mb-4 empty:mb-0">
+        <QualitySessionRow />
+      </div>
 
       {/* ═══ WHAT'S NEXT ═══
           One line: tomorrow's session (from 20:00 the evening before), its

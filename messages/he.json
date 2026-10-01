@@ -99,7 +99,9 @@
     "statusStuck": "אושרו ולא נכנסו",
     "statusStuckSub": "אפשר לשלוח להם תזכורת",
     "packStories": "סטוריז לדבוקות",
-    "packStoriesSub": "סטורי לכל דבוקה מהאימון, לאינסטגרם"
+    "packStoriesSub": "סטורי לכל דבוקה מהאימון, לאינסטגרם",
+    "qualitySession": "אימון האיכות",
+    "qualitySessionSub": "לבחור רץ מכל דבוקה ולשתף את הריצה שלו"
   },
   "header": {
     "coach": "מאמן",
