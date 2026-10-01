@@ -55,7 +55,6 @@
 .qsx .chip{font-size:11px;font-weight:800;padding:2px 7px;border-radius:7px;background:#F0F0F4;color:var(--ink5);white-space:nowrap}
 .qsx .chip.main{background:var(--brand);color:#fff}
 .qsx .chip.miss{background:#fff;color:#B91C1C;border:1px dashed #F3A3A3}
-.qsx .ex{font-size:11px;color:var(--ink4);margin:5px 24px 0 0}
 .qsx .bars{display:flex;align-items:flex-end;gap:3px;height:46px;margin:9px 24px 0 0;position:relative;direction:ltr}
 .qsx .bars u{flex:1;max-width:28px;border-radius:3px 3px 0 0;background:var(--brand);text-decoration:none}
 .qsx .bars u.slow{background:#93A0FF}

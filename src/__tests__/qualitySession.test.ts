@@ -170,7 +170,7 @@ describe('the parts of the workout', () => {
 });
 
 describe('one row per runner', () => {
-  it('keeps the long run with laps, the jog and the lap-less copy under it', () => {
+  it('keeps only the longest run with laps, dropping the jog and the lap-less copy', () => {
     const laps: QsLap[] = [[1000, 300, 'easy'], [1000, 300, 'easy']];
     const rs = runnersOf([
       run({ id: 'jog', athleteId: 'a', start: '05:01', dist: 1000, laps }),
@@ -178,7 +178,7 @@ describe('one row per runner', () => {
       run({ id: 'main', athleteId: 'a', start: '05:10', dist: 25000, laps }),
       run({ id: 'b', athleteId: 'b' }),
     ]);
-    expect(rs.map(r => [r.run.id, r.extra.map(e => e.id)])).toEqual([['main', ['jog', 'copy']], ['b', []]]);
+    expect(rs.map(r => r.run.id)).toEqual(['main', 'b']);
   });
 });
 

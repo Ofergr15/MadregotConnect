@@ -112,20 +112,20 @@ export function packRuns(sess: QsSession, pack: 0 | Pack, nowMin: number): QsRun
   return sess.runs.filter(r => !r.dup && r.pack === pack && toMinutes(r.start) < MORNING_ENDS && toMinutes(r.end) <= nowMin);
 }
 
-/** One runner of the morning: the run with the workout, and the other runs they synced that morning. */
-export interface QsRunner { run: QsRun; extra: QsRun[] }
+/** One runner of the morning: their longest run, the only one the screen shows. */
+export interface QsRunner { run: QsRun }
 
 /**
- * The runs, one row per runner. An athlete who also synced a jog to the start,
- * the run split in two, or a lap-less copy from a second app shows once: the
- * longest run that has laps, the rest listed under it.
+ * The runs, one row per runner: the longest run of the morning that has laps. A
+ * jog to the start, the shorter half of a split run, or a lap-less copy from a
+ * second app is dropped, not listed or counted.
  */
 export function runnersOf(rs: QsRun[]): QsRunner[] {
   const by = new Map<string, QsRun[]>();
   for (const r of rs) by.set(r.athleteId, [...(by.get(r.athleteId) || []), r]);
   return [...by.values()].map(g => {
     const run = g.reduce((a, b) => ((b.laps.length > 1 ? 1 : 0) - (a.laps.length > 1 ? 1 : 0) || b.dist - a.dist) > 0 ? b : a);
-    return { run, extra: g.filter(r => r !== run).sort((a, b) => a.start.localeCompare(b.start)) };
+    return { run };
   });
 }
 

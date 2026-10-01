@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { apiHeaders, useApi } from '@/lib/api';
 import { useIsSuperUser, isPreviewing } from '@/lib/impersonation';
@@ -138,7 +138,6 @@ export default function QualitySessionPage() {
 
   const title = sess?.workout?.name ? <><bdi dir="ltr">{sess.workout.name}</bdi> · {sess.label.replace(/^אימון /, '')}</> : sess?.label;
   const runners = packs.reduce<number>((n, p) => n + (byPack[p]?.length || 0), 0);
-  const runs = packs.reduce<number>((n, p) => n + (byPack[p] || []).reduce((a, s) => a + 1 + s.runner.extra.length, 0), 0);
 
   const openShare = async () => {
     if (!picked || opening) return;
@@ -205,7 +204,7 @@ export default function QualitySessionPage() {
           )}
           {sess && !sess.workout && <div className="note">לפי התוכנית זה לא יום של אימון איכות. אפשר עדיין לבחור ולשתף.</div>}
           {sess && (
-            <div className="live"><i />{clock?.travelling ? 'נכון לשעה הזו' : 'מתעדכן'} · {runners} רצים סיימו · {runs} ריצות</div>
+            <div className="live"><i />{clock?.travelling ? 'נכון לשעה הזו' : 'מתעדכן'} · {runners} רצים סיימו</div>
           )}
           {/* Only before the first answer: a refresh keeps the morning on screen. */}
           {!sess && !error && <div className="note">טוען…</div>}
@@ -365,13 +364,6 @@ function Row({ s, i, seen, on, onPick }: { s: Seen; i: number; seen: Seen[]; on:
           : s.noFart && <span className="chip miss">בלי הפארטלק</span>}
       </div>
       {s.main && <MainBars s={s} />}
-      {s.runner.extra.length > 0 && (
-        <div className="ex">
-          + {s.runner.extra.map(e => (e.laps.length > 1
-            ? <span key={e.id}>ריצה של {km1(e.dist)} ק״מ ב-<bdi dir="ltr">{e.start}</bdi></span>
-            : <span key={e.id}>עותק של {km1(e.dist)} ק״מ בלי הקפות</span>)).reduce<ReactNode[]>((a, x, k) => (k ? [...a, ', ', x] : [x]), [])} · לא נספר בנפרד
-        </div>
-      )}
     </button>
   );
 }
