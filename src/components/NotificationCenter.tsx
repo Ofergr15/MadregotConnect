@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { EVENING_OPEN, TOUR_PARAM } from '@/lib/whats-new/evening';
 import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Gift, Camera, Pencil, Footprints, ImagePlus } from 'lucide-react';
 import { cn, getPlanWeekStart, israelToday } from '@/lib/utils';
 import { planDayKey } from '@/lib/plans/workout-parsing';
@@ -182,6 +183,10 @@ export function NotificationCenter() {
   const [audienceType, setAudienceType] = useState<'all' | 'academy' | 'group' | 'athlete'>('all');
   const [audienceId, setAudienceId] = useState('');
   const [scheduleType, setScheduleType] = useState<'now' | 'once_at' | 'recurring'>('now');
+  // Where a tap lands. 'tour' is the release push: the feed opens the What's new
+  // tour on any device (lib/whats-new/evening.ts TOUR_PARAM), so it is offered
+  // only once the release is out.
+  const [opens, setOpens] = useState<'app' | 'tour'>('app');
   const [scheduledAt, setScheduledAt] = useState('');
   const [recurInterval, setRecurInterval] = useState(1);
   const [recurUnit, setRecurUnit] = useState<'day' | 'week'>('week');
@@ -320,7 +325,7 @@ export function NotificationCenter() {
   }, [loadList, loadSurveys, loadRecurringTemplates]);
 
   const reset = () => {
-    setTitleHe(''); setBodyHe(''); setTitleEn(''); setBodyEn('');
+    setTitleHe(''); setBodyHe(''); setTitleEn(''); setBodyEn(''); setOpens('app');
     setImageUrl(''); setImageError(null);
     setAudienceType('all'); setAudienceId('');
     setScheduleType('now'); setScheduledAt(''); setRecurInterval(1); setRecurUnit('week');
@@ -400,6 +405,7 @@ export function NotificationCenter() {
           title_he: titleHe, body_he: bodyHe,
           title_en: titleEn || null, body_en: bodyEn || null,
           image_url: imageUrl || null,
+          ...(EVENING_OPEN && opens === 'tour' ? { url: `/feed?${TOUR_PARAM}=1` } : {}),
           audience_type: audienceType,
           audience_id: audienceType === 'all' || audienceType === 'academy' ? null : audienceId,
           schedule_type: scheduleType,
@@ -830,6 +836,26 @@ export function NotificationCenter() {
               </button>
             )}
           </div>
+
+          {composeMode === 'message' && EVENING_OPEN && (
+            <div className="rounded-2xl bg-page/40 border border-page/40 p-3">
+              <label className="text-xs font-semibold text-ink-400">לחיצה על ההתראה פותחת</label>
+              <SegmentedControl
+                className="mt-1.5"
+                value={opens}
+                onChange={setOpens}
+                options={[
+                  { value: 'app', label: 'את האפליקציה' },
+                  { value: 'tour', label: 'את ״מה חדש״' },
+                ]}
+              />
+              {opens === 'tour' && (
+                <span className="text-xs text-ink-400 mt-2 block" dir="rtl">
+                  הסיור של הגרסה נפתח בכל מכשיר, גם במי שכבר ראה אותו או שהמכשיר חדש.
+                </span>
+              )}
+            </div>
+          )}
 
           {/* תזמון — surveys always send immediately (no separate cron path
               for one notification kind); scheduling only applies to regular

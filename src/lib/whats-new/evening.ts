@@ -9,6 +9,9 @@
 // shipped since the last What's new. Settings keeps version B's sheet, with a
 // way to watch the tour again.
 //
+// The academy page was dropped from the tour on his word (2026-10-01): it is
+// not open yet.
+//
 // ONE SWITCH. Until `EVENING_OPEN` is true, everything here is the super user's
 // only: the two editors (ShareSheet), the week-before comparison on the weekend
 // card, and these entries in the settings row and the release rehearsal. The
@@ -26,6 +29,21 @@ import { WHATS_NEW } from './entries';
 export const EVENING_OPEN = false;
 
 /** The hook that reads the switch is lib/use-evening-release.ts, kept out of here so node tests need no React. */
+
+/**
+ * The headlines' date: the day before the switch flips, set in that commit. A
+ * device shows only entries dated after the day it first reached the feed
+ * (ledger.ts rule 1), so the eve of the release reaches every device a member had
+ * by then, one first opened since the tour was written included. A device newer
+ * than that still gets the tour from the release push (TOUR_PARAM).
+ */
+export const EVENING_DATE = '2026-09-30';
+
+/**
+ * `/feed?tour=1`, the release push's link: the feed opens the tour whatever the
+ * ledger says, because the reader asked for it by tapping (WhatsNewAutoSheet).
+ */
+export const TOUR_PARAM = 'tour';
 
 /** The day after the last hand-written entry (next-session-feed, 09-19): the "more" list starts here. */
 export const EVENING_SINCE = '2026-09-20';
@@ -81,7 +99,7 @@ export const EVENING_EXTRA: readonly ShownNote[] = [
 export const EVENING_ENTRIES: WhatsNewEntry[] = [
   {
     slug: 'share-editor-2026-09',
-    publishedAt: '2026-09-30',
+    publishedAt: EVENING_DATE,
     href: '/dashboard/share?what=run',
     cards: [
       { key: 'share-splits', he: 'ק״מ אחרי ק״מ', en: 'KM Splits' },
@@ -139,7 +157,7 @@ export const EVENING_ENTRIES: WhatsNewEntry[] = [
   },
   {
     slug: 'week-editor-2026-09',
-    publishedAt: '2026-09-30',
+    publishedAt: EVENING_DATE,
     href: '/dashboard/share?what=week',
     cards: [
       { key: 'week-totals', he: 'סיכום', en: 'Totals' },
@@ -190,29 +208,6 @@ export const EVENING_ENTRIES: WhatsNewEntry[] = [
       cta: 'Share my week',
       kicker: 'New · Weekly summary',
       where: 'Every Saturday evening, at the top of your feed',
-    },
-  },
-  {
-    slug: 'academy-2026-09',
-    publishedAt: '2026-09-30',
-    href: '/academy',
-    cards: [
-      { key: 'academy-landing', he: 'דף האקדמיה', en: 'The academy' },
-      { key: 'academy-form', he: 'ככה מצטרפים', en: 'How to join' },
-    ],
-    he: {
-      title: 'האקדמיה נכנסת לאפליקציה',
-      body: 'אקדמיית מדרגות היא ליווי אישי 1:1 עם מאמן, למי שמתחילים לרוץ או רוצים מסלול משלהם. אנחנו מכניסים אותה לאפליקציה: המאמן, התוכנית והפידבק על כל אימון, במקום אחד.',
-      cta: 'להציץ באקדמיה',
-      kicker: 'לאן אנחנו גדלים · אקדמיית מדרגות',
-      where: 'אתם כבר במועדון, אז אין צורך לעשות כלום. מכירים מישהו שזה בשבילו? שלחו לו את הקישור.',
-    },
-    en: {
-      title: 'The academy is coming into the app',
-      body: 'Madregot Academy is 1:1 coaching, for people starting to run or wanting a path of their own. We are bringing it into the app: the coach, the plan and the feedback on every workout, in one place.',
-      cta: 'Take a look',
-      kicker: 'Where we are growing · Madregot Academy',
-      where: 'You are already in the club, so there is nothing to do. Know someone it is for? Send them the link.',
     },
   },
 ];

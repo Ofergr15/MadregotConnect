@@ -15,9 +15,9 @@ import { useEveningRelease } from '@/lib/use-evening-release';
 import {
   WHATS_NEW, type WhatsNewEntry, type WhatsNewLang,
 } from '@/lib/whats-new/entries';
-import { EVENING_OPEN, composeWhatsNew, type WhatsNewContent } from '@/lib/whats-new/evening';
+import { EVENING_OPEN, TOUR_PARAM, composeWhatsNew, type WhatsNewContent } from '@/lib/whats-new/evening';
 import {
-  WHATS_NEW_KEY, deviceIsReturning, initLedger, markSeen, readWhatsNewLedger,
+  WHATS_NEW_EPOCH, WHATS_NEW_KEY, deviceIsReturning, initLedger, markSeen, readWhatsNewLedger,
   unseenEntries, visibleEntries,
 } from '@/lib/whats-new/ledger';
 import { WhatsNewArt } from './WhatsNewArt';
@@ -328,7 +328,18 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
     );
     if (ledger !== stored) localStorage.setItem(WHATS_NEW_KEY, JSON.stringify(ledger));
 
-    const next = unseenEntries(all, ledger);
+    // The release push links here with ?tour=1 (TOUR_PARAM): a tap is asking, so the
+    // tour opens on any device, a new or a spent one, and the link is dropped so a
+    // reload does not replay it.
+    const url = new URL(window.location.href);
+    const asked = EVENING_OPEN && url.searchParams.get(TOUR_PARAM) === '1';
+    if (asked) {
+      url.searchParams.delete(TOUR_PARAM);
+      window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    }
+    const next = asked
+      ? visibleEntries(all, { ...ledger, since: WHATS_NEW_EPOCH })
+      : unseenEntries(all, ledger);
     if (next.length === 0) return;
     // Spent at OPEN, not at close: a sheet that only counted as shown once it was
     // dismissed would re-announce itself forever to anyone who closes the tab, and

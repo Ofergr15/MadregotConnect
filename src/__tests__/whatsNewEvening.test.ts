@@ -5,7 +5,7 @@ import { join } from 'path';
 import type { ShownNote, WhatsNewRelease } from '@/lib/release-notes';
 import { WHATS_NEW, WHATS_NEW_LANGS } from '@/lib/whats-new/entries';
 import {
-  EVENING_ENTRIES, EVENING_EXTRA, EVENING_MORE, EVENING_SINCE, composeWhatsNew,
+  EVENING_DATE, EVENING_ENTRIES, EVENING_EXTRA, EVENING_MORE, EVENING_SINCE, TOUR_PARAM, composeWhatsNew,
 } from '@/lib/whats-new/evening';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
@@ -29,7 +29,15 @@ describe('composeWhatsNew', () => {
 
   it('with it, the two headlines lead and the old hand-written rows step aside', () => {
     const c = composeWhatsNew([], '2.41.70', true);
-    expect(c.entries.map(e => e.slug)).toEqual(['share-editor-2026-09', 'week-editor-2026-09', 'academy-2026-09']);
+    expect(c.entries.map(e => e.slug)).toEqual(['share-editor-2026-09', 'week-editor-2026-09']);
+  });
+
+  it('has no academy page: it is not open yet', () => {
+    expect(JSON.stringify(EVENING_ENTRIES)).not.toMatch(/academy/i);
+  });
+
+  it('dates both headlines by the one release date', () => {
+    expect(EVENING_ENTRIES.map(e => e.publishedAt)).toEqual([EVENING_DATE, EVENING_DATE]);
   });
 
   it('lists exactly his picks under them, in his order, once each', () => {
@@ -100,7 +108,7 @@ describe('the headline entries', () => {
   });
 
   it('each show their editor at work, on captures that exist, tapped on the screen', () => {
-    for (const e of EVENING_ENTRIES.filter(x => x.slug !== 'academy-2026-09')) {
+    for (const e of EVENING_ENTRIES) {
       const d = e.demo!;
       expect(d.steps.length, e.slug).toBeGreaterThan(3);
       for (const key of [d.first, ...d.steps.map(x => x.key)]) {
@@ -123,7 +131,30 @@ describe('the headline entries', () => {
       const found = ['app/(app)', 'app'].some(dir => existsSync(join(SRC, dir, path, 'page.tsx')));
       expect(found, e.href).toBe(true);
     }
-    expect(EVENING_ENTRIES.map(e => e.href)).toEqual(['/dashboard/share?what=run', '/dashboard/share?what=week', '/academy']);
+    expect(EVENING_ENTRIES.map(e => e.href)).toEqual(['/dashboard/share?what=run', '/dashboard/share?what=week']);
+  });
+});
+
+describe('the release push link', () => {
+  it('opens the tour on any device, only once the switch is on, and drops itself from the address', () => {
+    expect(TOUR_PARAM).toBe('tour');
+    const sheet = read('components/whats-new/WhatsNewSheet.tsx');
+    const auto = sheet.slice(sheet.indexOf('export function WhatsNewAutoSheet'), sheet.indexOf('export function WhatsNewSettingsRow'));
+    expect(auto).toMatch(/const asked = EVENING_OPEN && url\.searchParams\.get\(TOUR_PARAM\) === '1';/);
+    expect(auto).toMatch(/asked\s*\? visibleEntries\(all, \{ \.\.\.ledger, since: WHATS_NEW_EPOCH \}\)\s*: unseenEntries\(all, ledger\)/);
+    expect(auto).toMatch(/url\.searchParams\.delete\(TOUR_PARAM\)/);
+    // still spent at open, and never inside the rehearsal's frame
+    expect(auto.indexOf('isFramed()')).toBeLessThan(auto.indexOf('const asked'));
+    expect(auto).toMatch(/markSeen\(ledger, next\.map/);
+  });
+});
+
+describe('the composer', () => {
+  it('can send a broadcast whose tap opens the tour, only once the release is out', () => {
+    const nc = read('components/NotificationCenter.tsx');
+    expect(nc).toMatch(/\.\.\.\(EVENING_OPEN && opens === 'tour' \? \{ url: `\/feed\?\$\{TOUR_PARAM\}=1` \} : \{\}\)/);
+    expect(nc).toMatch(/composeMode === 'message' && EVENING_OPEN && \(/);
+    expect(nc).toMatch(/setOpens\('app'\)/);
   });
 });
 
