@@ -5,6 +5,9 @@ import { createPortal } from 'react-dom';
 import { useApi } from '@/lib/api';
 import { useIsSuperUser, getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 import { GROUP_HEX } from '@/lib/utils';
+import { ShareSheet } from '@/components/ShareSheet';
+import { fetchFeedItemByActivity } from '@/lib/feed-client';
+import type { FeedItem } from '@/lib/feed/project';
 import {
   PACKS, LAYOUTS, METRICS, METRIC_ORDER,
   initialState, newPack, runsFor, unassigned, dups, ranked, chartRun, slots,
@@ -50,7 +53,7 @@ const loadImage = (src: string) => new Promise<HTMLImageElement | null>(res => {
   i.src = src;
 });
 
-type Sheet = null | { kind: 'slot'; i: number } | { kind: 'chart' } | { kind: 'export' } | { kind: 'numbers' | 'design' | 'caption' };
+type Sheet = null | { kind: 'slot'; i: number } | { kind: 'chart' } | { kind: 'runner' } | { kind: 'export' } | { kind: 'numbers' | 'design' | 'caption' };
 
 export default function PackStoriesPage() {
   const isSuper = useIsSuperUser();
@@ -84,6 +87,9 @@ export default function PackStoriesPage() {
   const [sheet, setSheet] = useState<Sheet>(null);
   const [X, setX] = useState<{ variant: Variant; all: boolean }>({ variant: 'full', all: false });
   const [toastMsg, setToastMsg] = useState('');
+  // A runner's own run, open in the workout share editor: the story is exactly their share.
+  const [shareItem, setShareItem] = useState<FeedItem | null>(null);
+  const [opening, setOpening] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const toast = (t: string) => {
     setToastMsg(t);
@@ -222,9 +228,42 @@ export default function PackStoriesPage() {
     toast(files.length > 1 ? `${files.length} תמונות נשמרו` : 'התמונה נשמרה');
   };
 
+  // The same card the runner gets from "Share" on the run: the feed item comes from
+  // the lookup the run page's share uses, so their hidden stats stay hidden here too.
+  const openRunner = async (id: string) => {
+    if (opening) return;
+    setOpening(id);
+    try {
+      const { item } = await fetchFeedItemByActivity(id);
+      if (!item?.activity) throw new Error('no activity');
+      setSheet(null);
+      setShareItem(item);
+    } catch {
+      toast('לא הצלחתי לפתוח את הריצה הזו');
+    } finally {
+      setOpening(null);
+    }
+  };
+
   // ── sheets ──
   let sheetBody: React.ReactNode = null;
-  if (sheet?.kind === 'chart') {
+  if (sheet?.kind === 'runner') {
+    sheetBody = (
+      <>
+        <h3>דבוקה {p} · משתפים ריצה של</h3>
+        <div className="pick">
+          {rs.slice().sort((a, b) => b.dist - a.dist).map(r => (
+            <button key={r.id} disabled={!!opening} onClick={() => openRunner(r.id)}>
+              <span><bdi dir="ltr">{r.name}</bdi></span>
+              <span>{opening === r.id ? '…' : `${fmtKm(r.dist)} · ${fmtPace(r.pace)}`}</span>
+            </button>
+          ))}
+        </div>
+        <div className="src">נפתח עורך השיתוף של הריצה, עם כל התצוגות והעריכה, בדיוק כמו שהרץ היה משתף אותה.</div>
+        <div className="seg" style={{ marginTop: 14 }}><button className="on" onClick={() => setSheet(null)}>חזרה</button></div>
+      </>
+    );
+  } else if (sheet?.kind === 'chart') {
     sheetBody = (
       <>
         <h3>דבוקה {p} · הריצה המוצגת</h3>
@@ -492,6 +531,7 @@ export default function PackStoriesPage() {
             </button>
           ))}
         </div>
+        {rs.length > 0 && <button className="runShare" onClick={() => setSheet({ kind: 'runner' })}>משתפים ריצה של רץ מהדבוקה ‹</button>}
         <div className="prev">
           {!rs.length && <div className="hint">אין ריצות בוקר בדבוקה הזו.</div>}
           <div className="canvasBox"><canvas ref={cvRef} width={STORY_W} height={STORY_H} /></div>
@@ -536,6 +576,7 @@ export default function PackStoriesPage() {
         </div>,
         document.body,
       )}
+      {shareItem && <ShareSheet subject={{ kind: 'workout', item: shareItem }} onClose={() => setShareItem(null)} />}
     </div>
   );
 }

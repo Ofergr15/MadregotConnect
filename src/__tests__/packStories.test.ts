@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 import {
   fastestKm, slots, chartRun, sessionLabel, initialState, runsFor, unassigned,
   type PackRun, type PackSession,
@@ -159,5 +161,14 @@ describe('normaliseRoute', () => {
     expect(normaliseRoute(null)).toBeNull();
     expect(normaliseRoute([{ lat: 32, lng: 34 }])).toBeNull();
     expect(normaliseRoute([{ lat: 0, lng: 0 }, { lat: 0, lng: 0 }])).toBeNull();
+  });
+});
+
+describe('sharing a runner’s run', () => {
+  const page = readFileSync(fileURLToPath(new URL('../app/(app)/dashboard/pack-stories/page.tsx', import.meta.url)), 'utf8');
+
+  it('opens the workout share editor itself, on the item the run page’s share uses', () => {
+    expect(page).toMatch(/<ShareSheet subject=\{\{ kind: 'workout', item: shareItem \}\}/);
+    expect(page).toMatch(/fetchFeedItemByActivity\(id\)/);
   });
 });
