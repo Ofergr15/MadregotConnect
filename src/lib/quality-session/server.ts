@@ -50,7 +50,28 @@ export async function loadQualityWorkout(supabase: Db, date: string): Promise<Qu
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return qualityWorkout(plan?.parsed_workouts as ParsedWorkout[] | null, dowOf(date));
+  for (const workouts of planWorkoutLists(plan?.parsed_workouts)) {
+    const found = qualityWorkout(workouts, dowOf(date));
+    if (found) return found;
+  }
+  return null;
+}
+
+/**
+ * The plan's workout lists. A stored plan is one per pack, { group1: { workouts }, … },
+ * and an older one a single { workouts } or a bare list; a quality morning is one
+ * when any pack's plan says so.
+ */
+export function planWorkoutLists(value: unknown): ParsedWorkout[][] {
+  if (Array.isArray(value)) return [value as ParsedWorkout[]];
+  if (!value || typeof value !== 'object') return [];
+  const v = value as Record<string, { workouts?: unknown } | unknown>;
+  if (Array.isArray((v as { workouts?: unknown }).workouts)) return [(v as { workouts: ParsedWorkout[] }).workouts];
+  return Object.keys(v)
+    .filter(k => /^group\d+$/.test(k))
+    .sort((a, b) => Number(a.slice(5)) - Number(b.slice(5)))
+    .map(k => (v[k] as { workouts?: unknown } | null)?.workouts)
+    .filter((w): w is ParsedWorkout[] => Array.isArray(w));
 }
 
 /** The day's runs, placed in packs the way the pack stories place them, with their reps. */

@@ -9,7 +9,7 @@ import {
 } from '@/lib/quality-session/model';
 
 vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => ({}) }));
-const { qualityWorkout } = await import('@/lib/quality-session/server');
+const { qualityWorkout, planWorkoutLists } = await import('@/lib/quality-session/server');
 
 const read = (p: string) => readFileSync(fileURLToPath(new URL(`../${p}`, import.meta.url)), 'utf8');
 const w = (o: Partial<ParsedWorkout>): ParsedWorkout => ({ dayOfWeek: 2, name: '', steps: [], ...o } as ParsedWorkout);
@@ -118,5 +118,16 @@ describe('wiring', () => {
     expect(stage).toMatch(/loadQualityWorkout/);
     expect(stage).toMatch(/markFired\(tag/);
     expect(stage).not.toMatch(/teamDays/);
+  });
+});
+
+describe('the stored plan', () => {
+  const w = (dayOfWeek: number) => ({ dayOfWeek, name: 'x' }) as unknown as ParsedWorkout;
+  it('reads every pack of a per-pack plan, in pack order, and the older shapes', () => {
+    expect(planWorkoutLists({ group2: { workouts: [w(2)] }, group1: { workouts: [w(1)] }, note: 'x' }))
+      .toEqual([[w(1)], [w(2)]]);
+    expect(planWorkoutLists({ workouts: [w(3)] })).toEqual([[w(3)]]);
+    expect(planWorkoutLists([w(4)])).toEqual([[w(4)]]);
+    expect(planWorkoutLists(null)).toEqual([]);
   });
 });
