@@ -386,6 +386,16 @@ function maskHiddenStats(activity: FeedActivity, hidden: Set<HiddenFieldKey>): F
   };
 }
 
+/**
+ * The item with its heart rate gone, as if the athlete had hidden it: the
+ * averages, the laps' heart rate and the watch trace (so the share editor has
+ * nothing to fetch it for). The pack story shares a runner's run this way.
+ */
+export function withoutHeartRate(item: FeedItem): FeedItem {
+  if (!item.activity) return item;
+  return { ...item, activity: { ...maskHiddenStats(item.activity, new Set(['heart_rate'])), hrTrace: null } };
+}
+
 export interface ProjectContext {
   /** Verified athlete id of the caller (null for staff without an athlete row). */
   viewerAthleteId: string | null;

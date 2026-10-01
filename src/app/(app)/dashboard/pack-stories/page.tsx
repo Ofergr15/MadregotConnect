@@ -7,7 +7,7 @@ import { useIsSuperUser, getViewMode, MAINTENANCE_MODE } from '@/lib/impersonati
 import { GROUP_HEX } from '@/lib/utils';
 import { ShareSheet } from '@/components/ShareSheet';
 import { fetchFeedItemByActivity } from '@/lib/feed-client';
-import type { FeedItem } from '@/lib/feed/project';
+import { withoutHeartRate, type FeedItem } from '@/lib/feed/project';
 import {
   PACKS, LAYOUTS, METRICS, METRIC_ORDER,
   initialState, newPack, runsFor, unassigned, dups, ranked, chartRun, slots,
@@ -237,7 +237,7 @@ export default function PackStoriesPage() {
       const { item } = await fetchFeedItemByActivity(id);
       if (!item?.activity) throw new Error('no activity');
       setSheet(null);
-      setShareItem(item);
+      setShareItem(withoutHeartRate(item));
     } catch {
       toast('לא הצלחתי לפתוח את הריצה הזו');
     } finally {

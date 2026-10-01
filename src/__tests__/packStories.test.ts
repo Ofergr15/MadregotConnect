@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
+import { withoutHeartRate, type FeedItem } from '@/lib/feed/project';
 import {
   fastestKm, slots, chartRun, sessionLabel, initialState, runsFor, unassigned,
   type PackRun, type PackSession,
@@ -170,5 +171,18 @@ describe('sharing a runner’s run', () => {
   it('opens the workout share editor itself, on the item the run page’s share uses', () => {
     expect(page).toMatch(/<ShareSheet subject=\{\{ kind: 'workout', item: shareItem \}\}/);
     expect(page).toMatch(/fetchFeedItemByActivity\(id\)/);
+  });
+
+  it('shares it without heart rate, and nothing else hidden', () => {
+    expect(page).toMatch(/setShareItem\(withoutHeartRate\(item\)\)/);
+    const activity = {
+      id: 'a', averageHr: 150, maxHr: 175, calories: 600, averagePace: 270,
+      lapBands: [{ m: 1000, pace: 270, hr: 150 }, { m: 1000, pace: 265, hr: 155 }],
+      hrTrace: [[0, 120], [500, 150]],
+    } as unknown as NonNullable<FeedItem['activity']>;
+    const out = withoutHeartRate({ id: 'i', activity } as unknown as FeedItem).activity!;
+    expect([out.averageHr, out.maxHr, out.hrTrace]).toEqual([null, null, null]);
+    expect(out.lapBands).toEqual([{ m: 1000, pace: 270 }, { m: 1000, pace: 265 }]);
+    expect([out.calories, out.averagePace]).toEqual([600, 270]);
   });
 });
