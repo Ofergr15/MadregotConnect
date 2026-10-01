@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useApi } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 import { useIsSuperUser, isPreviewing } from '@/lib/impersonation';
 import { GROUP_HEX } from '@/lib/utils';
 import { ShareSheet } from '@/components/ShareSheet';
@@ -71,6 +71,7 @@ export default function QualitySessionPage() {
   const [detail, setDetail] = useState(false);
   const [shareItem, setShareItem] = useState<FeedItem | null>(null);
   const [opening, setOpening] = useState(false);
+  const [pushing, setPushing] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const toast = (t: string) => {
@@ -110,6 +111,22 @@ export default function QualitySessionPage() {
       setOpening(false);
     }
   };
+  // The 7:30 push, sent to his own phone now, opening at the moment the screen is at.
+  const sendPush = async () => {
+    if (!date || pushing) return;
+    setPushing(true);
+    try {
+      const at = clock?.travelling ? `${clock.date}T${fromMinutes(clock.minutes)}` : undefined;
+      const res = await fetch('/api/quality-session', {
+        method: 'POST', headers: await apiHeaders(true), body: JSON.stringify({ date, at }),
+      });
+      toast(res.ok ? '🔔 נשלחה לטלפון שלך' : res.status === 404 ? 'זה לא יום של אימון איכות' : 'לא הצלחתי לשלוח');
+    } catch {
+      toast('לא הצלחתי לשלוח');
+    } finally {
+      setPushing(false);
+    }
+  };
   const closeShare = () => {
     setShareItem(null);
     const next = { ...done, [pack]: true };
@@ -135,6 +152,11 @@ export default function QualitySessionPage() {
               ⏱ כאילו השעה <bdi dir="ltr">{fromMinutes(clock.minutes)}</bdi> ב-<bdi dir="ltr">{clock.date.split('-').reverse().slice(0, 2).join('.')}</bdi>
               <a href="?at=off">לחזור לעכשיו</a>
             </div>
+          )}
+          {sess?.workout && (
+            <button className="try" disabled={pushing} onClick={sendPush}>
+              🔔 {pushing ? 'שולח…' : 'לשלוח לי את ההתראה של 7:30'}
+            </button>
           )}
           {sess && !sess.workout && <div className="note">לפי התוכנית זה לא יום של אימון איכות. אפשר עדיין לבחור ולשתף.</div>}
           {sess && (

@@ -74,6 +74,22 @@ export function planWorkoutLists(value: unknown): ParsedWorkout[][] {
     .filter((w): w is ParsedWorkout[] => Array.isArray(w));
 }
 
+/**
+ * The 7:30 push for the date, or null when the plan does not call it a quality
+ * day. One wording for the tick and for the screen's "send it to me".
+ */
+export async function qualityPush(supabase: Db, date: string): Promise<{ title: string; body: string } | null> {
+  const workout = await loadQualityWorkout(supabase, date);
+  if (!workout) return null;
+  const { count } = await supabase.from('athlete_activities').select('id', { count: 'exact', head: true })
+    .gte('start_time', `${date}T00:00:00`).lt('start_time', `${date}T12:00:00`).gte('distance', 1000);
+  const n = count || 0;
+  return {
+    title: `📸 ${workout.name || 'אימון האיכות'} של הבוקר`,
+    body: n ? `${n} כבר סיימו. לבחור רץ מכל דבוקה ולשתף.` : 'לבחור רץ מכל דבוקה ולשתף.',
+  };
+}
+
 /** The day's runs, placed in packs the way the pack stories place them, with their reps. */
 export async function loadQualitySession(supabase: Db, date: string): Promise<QsSession> {
   // Attendance weeks start on Sunday; the day is an offset into the week.

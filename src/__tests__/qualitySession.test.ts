@@ -115,9 +115,19 @@ describe('wiring', () => {
     const tick = read('app/api/cron/tick/route.ts');
     const stage = tick.slice(tick.indexOf('qualitySession:'), tick.indexOf('dispatchDueTestReminders(supabase'));
     expect(stage).toMatch(/already\(tag\)/);
-    expect(stage).toMatch(/loadQualityWorkout/);
+    expect(stage).toMatch(/qualityPush\(supabase, today\)/);
     expect(stage).toMatch(/markFired\(tag/);
     expect(stage).not.toMatch(/teamDays/);
+  });
+  it('"send it to me" is the same push, to the caller alone, and outside the ledger', () => {
+    const api = read('app/api/quality-session/route.ts');
+    const post = api.slice(api.indexOf('export async function POST'));
+    expect(post).toMatch(/!auth\.user\.isSuperUser \|\| !auth\.user\.athleteId\) return NextResponse\.json\(\{ error: 'Forbidden' \}, \{ status: 403 \}\)/);
+    expect(post).toMatch(/qualityPush\(/);
+    expect(post).toMatch(/athleteId: auth\.user\.athleteId,/);
+    expect(post).toMatch(/notifyAthlete\(/);
+    expect(post.match(/notifyAthlete\(/g)).toHaveLength(1);
+    expect(post).not.toMatch(/markFired|already\(/);
   });
 });
 

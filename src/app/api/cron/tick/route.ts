@@ -27,7 +27,7 @@ import {
 import { APPROVER_EMAILS, SUPER_USER_EMAIL } from '@/lib/constants';
 import { dispatchDueTestReminders } from '@/lib/academy/testReminders-server';
 import { syncClubFollows } from '@/lib/follows/club-sync';
-import { loadQualityWorkout } from '@/lib/quality-session/server';
+import { qualityPush } from '@/lib/quality-session/server';
 import { PUSH_AT } from '@/lib/quality-session/model';
 
 export const dynamic = 'force-dynamic';
@@ -646,24 +646,20 @@ async function run(request: Request) {
     const tag = `qualitySession:${today}`;
     try {
       if (!(await already(tag))) {
-        const workout = await loadQualityWorkout(supabase, today);
-        if (workout) {
-          const [supers, byEmail, runs] = await Promise.all([
+        const push = await qualityPush(supabase, today);
+        if (push) {
+          const [supers, byEmail] = await Promise.all([
             supabase.from('athletes').select('id').eq('is_super_user', true),
             supabase.from('athletes').select('id').eq('email', SUPER_USER_EMAIL),
-            supabase.from('athlete_activities').select('id', { count: 'exact', head: true })
-              .gte('start_time', `${today}T00:00:00`).lt('start_time', `${today}T12:00:00`).gte('distance', 1000),
           ]);
           const ids = [...new Set([...(supers.data || []), ...(byEmail.data || [])].map(a => a.id as string))];
-          const n = runs.count || 0;
           for (const athleteId of ids) {
             await notifyAthlete({
               athleteId,
               kind: 'quality_session',
               url: `/dashboard/quality-session?date=${today}`,
               tag,
-              title: `📸 ${workout.name || 'אימון האיכות'} של הבוקר`,
-              body: n ? `${n} כבר סיימו. לבחור רץ מכל דבוקה ולשתף.` : 'לבחור רץ מכל דבוקה ולשתף.',
+              ...push,
             });
           }
           await markFired(tag, ids.length);
