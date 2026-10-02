@@ -278,8 +278,8 @@ export interface ShareCardOptions {
   editorChart?: boolean;
   /**
    * Segments: time runs left to right on a Hebrew card too, the way Strava and the
-   * watch draw it; the pace scale stays on the right. Super user only until he
-   * rolls it out ("the workout here is reversed", 2026-10-02).
+   * watch draw it; the pace scale stays on the right. The editor asks for it for
+   * everyone ("the workout here is reversed", rolled out 2026-10-02).
    */
   timeLtr?: boolean;
   /**

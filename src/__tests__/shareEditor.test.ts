@@ -291,9 +291,9 @@ describe('the lap chart in the editor', () => {
     expect(RENDER).toMatch(/if \(c\.editorChart && !taken\.some\(y => Math\.abs\(y - topY\) < p\(11\)\)\) \{\s*ctx\.fillText\(formatPace\(fast\), start, topY\);/);
   });
 
-  it('runs time left to right for the super user only, the scale kept on the right', () => {
-    expect(EDITOR).toMatch(/const superUser = useIsSuperUser\(\);/);
-    expect(EDITOR.match(/timeLtr: superUser,/g)).toHaveLength(2);
+  it('runs time left to right for everyone, the scale kept on the right', () => {
+    expect(EDITOR).not.toMatch(/useIsSuperUser/);
+    expect(EDITOR.match(/timeLtr: true,/g)).toHaveLength(2);
     expect(SHEET).not.toMatch(/timeLtr/);
     expect(RENDER).toMatch(/const trtl = rtl && !c\.timeLtr;/);
     expect(RENDER).toMatch(/const barsStart = trtl \? start \+ dir \* gutter : rtl \? x0 : x0 \+ gutter;/);

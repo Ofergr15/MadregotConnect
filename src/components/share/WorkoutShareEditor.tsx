@@ -20,7 +20,6 @@ import {
 } from '@/lib/share/sheet-model';
 import type { FeedItem } from '@/lib/feed/project';
 import { fetchActivityDetails } from '@/lib/activities-client';
-import { useIsSuperUser } from '@/lib/impersonation';
 import type { HrTrace } from '@/lib/share/hr-trace';
 
 /**
@@ -117,8 +116,6 @@ function Segmented<T extends string>({ items, value, onChange }: {
 }
 
 export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; onClose: () => void }) {
-  // The lap chart's time left to right is his alone until he rolls it out.
-  const superUser = useIsSuperUser();
   // The watch's heart rate, for the lap chart, fetched for the run's own athlete
   // (the route answers nobody else). Until it comes, or when there is none, the
   // chart draws the laps' averages.
@@ -270,7 +267,7 @@ export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; o
             avgLine: true,
             hrLine: true,
             editorChart: true,
-            timeLtr: superUser,
+            timeLtr: true,
           });
           if (cancelled) return;
           const url = swapUrl(`thumb:${v.key}`, URL.createObjectURL(blob));
@@ -281,7 +278,7 @@ export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; o
       }
     })();
     return () => { cancelled = true; };
-  }, [item, subject, views, rtl, swapUrl, superUser]);
+  }, [item, subject, views, rtl, swapUrl]);
 
   const renderOpts = useCallback((view: ShareTemplate, own: boolean) => {
     const d = drawnTemplate(view, { routeOnly, withPhoto: bg === 'photo' && !!photo });
@@ -300,10 +297,10 @@ export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; o
       avgLine,
       hrLine,
       editorChart: true,
-      timeLtr: superUser,
+      timeLtr: true,
       metrics: asWorkoutMetrics(own ? keys : fitChipKeys(subject, view, keys)),
     };
-  }, [routeOnly, bg, photo, accent, showTitle, titleText, showStartTime, showDate, showShoe, brand, segmentOk, splitMode, avgLine, hrLine, keys, subject, superUser]);
+  }, [routeOnly, bg, photo, accent, showTitle, titleText, showStartTime, showDate, showShoe, brand, segmentOk, splitMode, avgLine, hrLine, keys, subject]);
 
   // The card being edited, with its tap areas.
   useEffect(() => {
