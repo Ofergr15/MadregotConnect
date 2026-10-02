@@ -24,6 +24,17 @@ export const dynamic = 'force-dynamic';
  */
 const GHOST_STALE_DAYS = 30;
 
+/**
+ * How long another of the athlete's endpoints may stay silent while THIS one
+ * confirms displays before it counts as a ghost. Short, because the evidence is
+ * direct: every push goes to all of an athlete's endpoints at once, so a sibling
+ * that showed nothing for days while this device showed what was sent is not
+ * reaching anything. A live phone switched off that long gets its pushes held by
+ * the push service and receipts them when it comes back; if it is pruned anyway,
+ * it re-registers on its next app open, as above.
+ */
+const SIBLING_SILENT_DAYS = 3;
+
 // Store (or refresh) a device's push subscription for an athlete.
 //
 // Self-or-staff on `athleteId`. This one mattered more than it looks: the
@@ -140,6 +151,33 @@ export async function POST(request: Request) {
       .neq('endpoint', subscription.endpoint)
       .lt('created_at', cutoff)
       .or(`last_success_at.is.null,last_success_at.lt.${cutoff}`);
+
+    // Then the ghosts a working sibling exposes, without the month's wait. Guy's
+    // iPhone (2026-10-02): a new endpoint confirming every push, beside the one it
+    // replaced, silent since Sep 29 and still taking the role-switch push the day
+    // before. The month above would have kept that one until Oct 29.
+    //
+    // The quiet window ends at this device's last confirmed display, not now: a
+    // sibling older than the window got every push this device was sent in it,
+    // so a sibling with no receipt in it showed none of them. Nothing happens
+    // until this device has confirmed one, and never on user_agent (see above).
+    const { data: self } = await supabase
+      .from('push_subscriptions')
+      .select('last_success_at')
+      .eq('athlete_id', athleteId)
+      .eq('endpoint', subscription.endpoint)
+      .maybeSingle();
+    const seen = (self as { last_success_at?: string | null } | null)?.last_success_at;
+    if (seen && Number.isFinite(Date.parse(seen))) {
+      const quiet = new Date(Date.parse(seen) - SIBLING_SILENT_DAYS * 86_400_000).toISOString();
+      await supabase
+        .from('push_subscriptions')
+        .delete()
+        .eq('athlete_id', athleteId)
+        .neq('endpoint', subscription.endpoint)
+        .lt('created_at', quiet)
+        .or(`last_success_at.is.null,last_success_at.lt.${quiet}`);
+    }
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {

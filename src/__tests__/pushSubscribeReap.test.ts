@@ -23,6 +23,8 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 type Filter = { fn: string; args: unknown[] };
 let ops: Array<{ table: string; op: string; filters: Filter[] }>;
 let upsertError: { message: string } | null;
+/** This device's own row, as the sibling prune reads it back. */
+let selfRow: { last_success_at: string | null } | null;
 
 // The route gates athleteId on the verified session now — forging it used to
 // register YOUR device against someone else's id, from which point their
@@ -56,6 +58,8 @@ vi.mock('@/lib/supabase/server', () => ({
         neq: track('neq'),
         lt: track('lt'),
         or: track('or'),
+        select: track('select'),
+        maybeSingle: () => Promise.resolve({ data: selfRow, error: null }),
         then: (resolve: (v: unknown) => unknown) => Promise.resolve({ data: null, error: null }).then(resolve),
       };
       return chain;
@@ -82,7 +86,7 @@ const reap = () => deletes().find((o) => o.filters.some((f) => f.fn === 'eq' && 
 /** The sweep: rows with no confirmed display in a month. */
 const prune = () => deletes().find((o) => o.filters.some((f) => f.fn === 'or'));
 
-beforeEach(() => { ops = []; upsertError = null; gateDenied = null; gatedFor = []; });
+beforeEach(() => { ops = []; upsertError = null; selfRow = null; gateDenied = null; gatedFor = []; });
 
 describe('POST /api/push/subscribe — retiring a superseded endpoint', () => {
   it('deletes exactly the named endpoint, scoped to this athlete', async () => {
@@ -253,5 +257,43 @@ describe('POST /api/push/subscribe — who may register a device', () => {
     gateDenied = new Response(null, { status: 401 });
     expect((await post({ subscription: null })).status).toBe(400);
     expect(gatedFor).toHaveLength(0);
+  });
+});
+
+/** The sibling prune: the second sweep, keyed on this device's own last receipt. */
+const siblingPrune = () => deletes().filter((o) => o.filters.some((f) => f.fn === 'or'))[1];
+
+describe('POST /api/push/subscribe — ghosts a working sibling exposes', () => {
+  it('does nothing until this device has confirmed a display', async () => {
+    selfRow = { last_success_at: null };
+    await post(body({ replacesEndpoint: undefined }));
+    expect(siblingPrune()).toBeUndefined();
+  });
+
+  it('removes siblings silent for 3 days before this device\'s last receipt', async () => {
+    // Guy, 2026-10-02: the new iPhone endpoint confirmed at 09:48; the Sep 9 one
+    // had shown nothing since Sep 29.
+    selfRow = { last_success_at: '2026-10-02T09:48:16.999Z' };
+    await post(body({ replacesEndpoint: undefined }));
+    const quiet = '2026-09-29T09:48:16.999Z';
+    expect(siblingPrune()?.filters).toEqual([
+      { fn: 'eq', args: ['athlete_id', 'a1'] },
+      { fn: 'neq', args: ['endpoint', 'https://web.push.apple.com/new'] },
+      { fn: 'lt', args: ['created_at', quiet] },
+      { fn: 'or', args: [`last_success_at.is.null,last_success_at.lt.${quiet}`] },
+    ]);
+  });
+
+  it('never keys on user_agent', async () => {
+    selfRow = { last_success_at: '2026-10-02T09:48:16.999Z' };
+    await post(body({ replacesEndpoint: undefined }));
+    expect(siblingPrune()?.filters.map((f) => f.args[0])).not.toContain('user_agent');
+  });
+
+  it('runs no prune at all when the gate denies', async () => {
+    selfRow = { last_success_at: '2026-10-02T09:48:16.999Z' };
+    gateDenied = new Response(null, { status: 403 });
+    await post(body());
+    expect(deletes()).toHaveLength(0);
   });
 });
