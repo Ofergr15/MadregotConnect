@@ -277,6 +277,12 @@ export interface ShareCardOptions {
    */
   editorChart?: boolean;
   /**
+   * Segments: time runs left to right on a Hebrew card too, the way Strava and the
+   * watch draw it; the pace scale stays on the right. Super user only until he
+   * rolls it out ("the workout here is reversed", 2026-10-02).
+   */
+  timeLtr?: boolean;
+  /**
    * Handed where the logo, the text and the data were drawn, in card pixels, so the
    * share editor can open each part's options when that part is tapped
    * (`lib/share/hit-map.ts`). Nothing is recorded when it is absent.
@@ -861,6 +867,7 @@ interface LayoutCtx {
   avgLine: boolean;
   hrLine: boolean;
   editorChart: boolean;
+  timeLtr: boolean;
   splitMode: 'km' | 'segments';
   shadow: string;
   shadowBlur: number;
@@ -1889,8 +1896,8 @@ function layoutSplits(c: LayoutCtx) {
  * is a wide low block and a short rep a narrow tall one; speed rather than pace
  * because taller has to mean faster. The fastest third of the range is in the
  * accent, the rest white fading with slowness, which is what makes the reps read
- * as reps. Time runs in the card's reading direction: right to left on a Hebrew
- * card, like its every other line.
+ * as reps. Time runs in the card's reading direction, right to left on a Hebrew
+ * card, unless `timeLtr` asks for left to right with the scale kept on the right.
  */
 function layoutSegments(c: LayoutCtx) {
   const { ctx, font, act, stairs, accent, shadow, shadowBlur, i18n } = c;
@@ -1967,7 +1974,10 @@ function layoutSegments(c: LayoutCtx) {
   // The pace scale takes a gutter on the reading-start side.
   const gutter = p(26);
   const barsW = w - gutter;
-  const barsStart = start + dir * gutter;
+  // The direction time runs in, which `timeLtr` can turn against the text's.
+  const trtl = rtl && !c.timeLtr;
+  const tdir = trtl ? -1 : 1;
+  const barsStart = trtl ? start + dir * gutter : rtl ? x0 : x0 + gutter;
   const gap = p(1.2);
 
   ctx.shadowBlur = 0;
@@ -1986,7 +1996,7 @@ function layoutSegments(c: LayoutCtx) {
   if (c.hrLine && hrs.length >= 2) {
     const pts: Array<[number, number]> = [];
     let hx = barsStart;
-    const end = barsStart + dir * barsW;
+    const end = barsStart + tdir * barsW;
     if (trace) {
       const bpm = trace.map((_, i) => {
         const near = trace.slice(Math.max(0, i - 1), i + 2);
@@ -1998,7 +2008,7 @@ function layoutSegments(c: LayoutCtx) {
       const hLo = sorted[Math.floor(sorted.length * 0.05)]! - 6;
       const hHi = sorted[sorted.length - 1]! + 2;
       const hY = (h: number) => Math.min(bottom, bottom - ((h - hLo) / (hHi - hLo || 1)) * chartH * 0.9);
-      trace.forEach(([m], i) => pts.push([barsStart + dir * Math.min(1, m / total) * barsW, hY(bpm[i]!)]));
+      trace.forEach(([m], i) => pts.push([barsStart + tdir * Math.min(1, m / total) * barsW, hY(bpm[i]!)]));
       hx = end;
     } else {
       const hLo = Math.min(...hrs) - 6;
@@ -2010,12 +2020,12 @@ function layoutSegments(c: LayoutCtx) {
         last = l.hr ?? last;
         // A 20 m pause is a hairline on the chart; as a line point it is a cliff.
         if (l.m >= total * 0.015) {
-          if (c.editorChart) pts.push([hx + (dir * bw) / 3, hY(last)], [hx + dir * bw, hY(last)]);
-          else pts.push([hx + (dir * bw) / 2, hY(last)]);
+          if (c.editorChart) pts.push([hx + (tdir * bw) / 3, hY(last)], [hx + tdir * bw, hY(last)]);
+          else pts.push([hx + (tdir * bw) / 2, hY(last)]);
         }
-        hx += dir * bw;
+        hx += tdir * bw;
       }
-      if (pts.length === 0) pts.push([barsStart + (dir * barsW) / 2, hY(last)]);
+      if (pts.length === 0) pts.push([barsStart + (tdir * barsW) / 2, hY(last)]);
     }
     pts.unshift([barsStart, pts[0][1]]);
     pts.push([hx, pts[pts.length - 1][1]]);
@@ -2048,11 +2058,11 @@ function layoutSegments(c: LayoutCtx) {
     ctx.fillStyle = t < 0.35 ? accent : `rgba(255,255,255,${(0.85 - 0.5 * t).toFixed(3)})`;
     const drawW = Math.max(bw - gap, p(0.8));
     const r = Math.max(0, Math.min(drawW / 2, p(4)));
-    const left = rtl ? cursor - bw + gap / 2 : cursor + gap / 2;
+    const left = trtl ? cursor - bw + gap / 2 : cursor + gap / 2;
     ctx.beginPath();
     ctx.roundRect(left, top, drawW, bottom - top, [r, r, 0, 0]);
     ctx.fill();
-    cursor += dir * bw;
+    cursor += tdir * bw;
   }
 
   if (hrLine) {
@@ -2113,7 +2123,7 @@ function layoutSegments(c: LayoutCtx) {
     ctx.lineWidth = p(1);
     ctx.beginPath();
     ctx.moveTo(barsStart, ay);
-    ctx.lineTo(rtl ? x0 : x1, ay);
+    ctx.lineTo(barsStart + tdir * barsW, ay);
     ctx.stroke();
     ctx.restore();
     ctx.fillText(`avg ${formatPace(avg)}`, start, ay - p(4));
@@ -2234,6 +2244,7 @@ export async function renderShareCard(
     avgLine: opts.avgLine ?? false,
     hrLine: opts.hrLine ?? false,
     editorChart: opts.editorChart ?? false,
+    timeLtr: opts.timeLtr ?? false,
     splitMode: opts.splitMode ?? 'km',
     shadow: transparent ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.45)',
     shadowBlur: transparent ? 28 : 16,
