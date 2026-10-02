@@ -26,7 +26,7 @@ import type { WhatsNewEntry } from './entries';
 import { WHATS_NEW } from './entries';
 
 /** Flipped on his go, and that commit is the release. */
-export const EVENING_OPEN = false;
+export const EVENING_OPEN = true;
 
 /** The hook that reads the switch is lib/use-evening-release.ts, kept out of here so node tests need no React. */
 
@@ -37,7 +37,7 @@ export const EVENING_OPEN = false;
  * by then, one first opened since the tour was written included. A device newer
  * than that still gets the tour from the release push (TOUR_PARAM).
  */
-export const EVENING_DATE = '2026-09-30';
+export const EVENING_DATE = '2026-10-01';
 
 /**
  * `/feed?tour=1`, the release push's link: the feed opens the tour whatever the
