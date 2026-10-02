@@ -246,8 +246,12 @@ export function ActivitySyncEditor({
 
   return (
     <>
+    {/* Down while the share editor is up: a modal sheet turns off every tap outside
+        itself, and the editor is a full-screen layer outside it, so the editor
+        froze ("the screen got stuck", 2026-10-02). A prop change does not call
+        onOpenChange, so the sheet only steps aside and comes back after. */}
     <Sheet
-      open
+      open={!showShare}
       onOpenChange={(open) => { if (!open) onClose(); }}
       leadingAction={
         <button
