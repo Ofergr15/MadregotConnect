@@ -9,7 +9,8 @@ import { readClock } from '@/lib/quality-session/clock';
 import { useQualitySessionAccess } from '@/lib/quality-session/use-access';
 import { inRowWindow, type QsClock, type QsSession } from '@/lib/quality-session/model';
 
-// THE QUALITY SESSION, AT THE TOP OF THE FEED — 07:00 → 11:00 ON A QUALITY DAY.
+// THE QUALITY SESSION, AT THE TOP OF THE FEED — 07:00 → 11:00 ON A QUALITY DAY,
+// ALL DAY ON ONE THE SUPER USER MARKED SPECIAL.
 // One small row, nothing else: it only says the morning's session is there to
 // share, and the tap opens /dashboard/quality-session. A quality day is read off
 // the uploaded plan (lib/quality-session/server.ts), not the club's team days.
@@ -21,9 +22,10 @@ export function QualitySessionRow() {
   const [clock, setClock] = useState<QsClock | null>(null);
   useEffect(() => { setClock(readClock()); }, []);
 
-  const on = hasAccess && !isPreviewing() && !!clock && inRowWindow(clock.minutes);
+  // Asked all day: a day the super user marked special shows outside the window too.
+  const on = hasAccess && !isPreviewing() && !!clock;
   const { data } = useApi<QsSession>(on ? `/api/quality-session?date=${clock!.date}` : null);
-  if (!on || !data?.workout) return null;
+  if (!on || !data?.workout || !(data.workout.special || inRowWindow(clock!.minutes))) return null;
 
   return (
     <Link

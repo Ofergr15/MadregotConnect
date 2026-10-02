@@ -63,9 +63,38 @@ const workoutOf = (stored: unknown, date: string): QualityWorkout | null => {
   return null;
 };
 
-/** The date's quality session from the latest uploaded plan of its week, or null. */
+/**
+ * Days the super user marked special: a quality day whatever the plan says (a
+ * long run with reps in it, a race). app_settings, a JSON list of dates.
+ */
+export const SPECIAL_DAYS_KEY = 'quality_special_days';
+
+export async function loadSpecialDays(supabase: Db): Promise<string[]> {
+  const { data } = await supabase.from('app_settings').select('value').eq('key', SPECIAL_DAYS_KEY).maybeSingle();
+  try {
+    const v = JSON.parse(data?.value || '[]');
+    return Array.isArray(v) ? v.filter((d): d is string => typeof d === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** A marked day's session: the morning's workout from the plan, whatever its type. */
+const specialOf = (stored: unknown, date: string): QualityWorkout => {
+  for (const workouts of planWorkoutLists(stored)) {
+    const w = workouts.find(x => x.dayOfWeek === dowOf(date) && x.partKind !== 'evening' && !isOptionalWorkout(x));
+    if (w) return { name: (w.name || '').trim(), type: classifyWorkout(w), special: true };
+  }
+  return { name: '', type: 'easy', special: true };
+};
+
+const dayWorkout = (stored: unknown, date: string, special: string[]) =>
+  workoutOf(stored, date) ?? (special.includes(date) ? specialOf(stored, date) : null);
+
+/** The date's quality session from the latest uploaded plan of its week (or the mark), or null. */
 export async function loadQualityWorkout(supabase: Db, date: string): Promise<QualityWorkout | null> {
-  return workoutOf(await loadPlan(supabase, date), date);
+  const [stored, special] = await Promise.all([loadPlan(supabase, date), loadSpecialDays(supabase)]);
+  return dayWorkout(stored, date, special);
 }
 
 /**
@@ -139,7 +168,7 @@ export async function loadQualitySession(supabase: Db, date: string): Promise<Qs
   // Attendance weeks start on Sunday; the day is an offset into the week.
   const dow = dowOf(date);
   // start_time is local wall-clock time stored as +00:00, so a naive day range is the local day.
-  const [acts, att, aths, grps, stored] = await Promise.all([
+  const [acts, att, aths, grps, stored, special] = await Promise.all([
     supabase.from('athlete_activities')
       .select('id, athlete_id, start_time, distance, duration, average_pace, average_hr, laps')
       .gte('start_time', `${date}T00:00:00`)
@@ -152,11 +181,12 @@ export async function loadQualitySession(supabase: Db, date: string): Promise<Qs
     supabase.from('athletes').select('id, name, group_id'),
     supabase.from('groups').select('id, name'),
     loadPlan(supabase, date),
+    loadSpecialDays(supabase),
   ]);
   const failed = [acts, att, aths, grps].find(r => r.error);
   if (failed?.error) throw failed.error;
 
-  const workout = workoutOf(stored, date);
+  const workout = dayWorkout(stored, date, special);
   const rows = ((acts.data || []) as Array<Omit<ActivityRow, 'gps_points'>>).map(r => ({ ...r, gps_points: null }));
   const lapsById = new Map(rows.map(r => [r.id, normalizeStoredLaps(r.laps)]));
   const athleteOf = new Map(rows.map(r => [r.id, r.athlete_id]));

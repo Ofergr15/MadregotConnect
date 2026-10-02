@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
-import { loadQualitySession, qualityPush } from '@/lib/quality-session/server';
+import { SPECIAL_DAYS_KEY, loadQualitySession, loadSpecialDays, qualityPush } from '@/lib/quality-session/server';
 import { parseAt } from '@/lib/quality-session/model';
 import { notifyAthlete } from '@/lib/push';
 import { isStoryEditor } from '@/lib/quality-session/access';
@@ -68,5 +68,36 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error('[quality-session] POST failed:', err);
     return NextResponse.json({ error: 'Failed to send' }, { status: 500 });
+  }
+}
+
+// PUT /api/quality-session { date, special } -> { ok, special }
+//   Marks the date special (a quality day whatever the plan says) or unmarks it.
+//   Super user only: the mark is the club's, it shows the row to every story
+//   editor. Kept to the last 60 days.
+export async function PUT(request: Request) {
+  const auth = await requireSession(request);
+  if (!auth.ok) return authError(auth);
+  if (!auth.user.isSuperUser) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  const body = await request.json().catch(() => ({}));
+  const date = typeof body?.date === 'string' ? body.date : '';
+  if (!DATE.test(date)) return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 });
+  const special = body?.special === true;
+
+  try {
+    const supabase = createServerClient();
+    const floor = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+    const days = (await loadSpecialDays(supabase)).filter(d => d !== date && d >= floor);
+    if (special) days.push(date);
+    const { error } = await supabase.from('app_settings').upsert(
+      { key: SPECIAL_DAYS_KEY, value: JSON.stringify(days.sort()), updated_at: new Date().toISOString() },
+      { onConflict: 'key' },
+    );
+    if (error) throw error;
+    return NextResponse.json({ ok: true, special });
+  } catch (err) {
+    console.error('[quality-session] PUT failed:', err);
+    return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
   }
 }

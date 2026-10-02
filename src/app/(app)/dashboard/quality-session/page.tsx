@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { apiHeaders, useApi } from '@/lib/api';
-import { isPreviewing } from '@/lib/impersonation';
+import { isPreviewing, useIsSuperUser } from '@/lib/impersonation';
 import { GROUP_HEX } from '@/lib/utils';
 import { ShareSheet } from '@/components/ShareSheet';
 import { fetchFeedItemByActivity } from '@/lib/feed-client';
@@ -79,6 +79,7 @@ function vsTarget(d: number) {
 
 export default function QualitySessionPage() {
   const allowed = useQualitySessionAccess() && !isPreviewing();
+  const isSuper = useIsSuperUser();
   const [clock, setClock] = useState<QsClock | null>(null);
   const [asked, setAsked] = useState<string | null>(null);
   useEffect(() => {
@@ -93,7 +94,7 @@ export default function QualitySessionPage() {
   }, [clock]);
 
   const date = (asked && /^\d{4}-\d{2}-\d{2}$/.test(asked) ? asked : null) || clock?.date || null;
-  const { data: sess, error } = useApi<QsSession>(
+  const { data: sess, error, mutate } = useApi<QsSession>(
     allowed && date ? `/api/quality-session?date=${date}` : null,
     { refreshInterval: clock?.travelling ? 0 : REFRESH_MS },
   );
@@ -109,6 +110,7 @@ export default function QualitySessionPage() {
   const [shareItem, setShareItem] = useState<FeedItem | null>(null);
   const [opening, setOpening] = useState(false);
   const [pushing, setPushing] = useState(false);
+  const [marking, setMarking] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const toast = (t: string) => {
@@ -171,6 +173,23 @@ export default function QualitySessionPage() {
       setPushing(false);
     }
   };
+  // The super user's mark: a quality day whatever the plan says, the feed row all day.
+  const markSpecial = async (special: boolean) => {
+    if (!date || marking) return;
+    setMarking(true);
+    try {
+      const res = await fetch('/api/quality-session', {
+        method: 'PUT', headers: await apiHeaders(true), body: JSON.stringify({ date, special }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      await mutate();
+      toast(special ? '⭐ סומן כיום מיוחד' : 'הסימון הוסר');
+    } catch {
+      toast('לא הצלחתי לשמור');
+    } finally {
+      setMarking(false);
+    }
+  };
   const closeShare = () => {
     setShareItem(null);
     const next = { ...done, [pack]: true };
@@ -204,6 +223,17 @@ export default function QualitySessionPage() {
             </button>
           )}
           {sess && !sess.workout && <div className="note">לפי התוכנית זה לא יום של אימון איכות. אפשר עדיין לבחור ולשתף.</div>}
+          {sess && isSuper && !sess.workout && (
+            <button className="try" disabled={marking} onClick={() => markSpecial(true)}>
+              ⭐ {marking ? 'שומר…' : 'לסמן את היום כמיוחד'}
+            </button>
+          )}
+          {sess?.workout?.special && (
+            <div className="note">
+              ⭐ יום מיוחד: מופיע בראש הפיד כל היום.
+              {isSuper && <button className="unmark" disabled={marking} onClick={() => markSpecial(false)}>להסיר</button>}
+            </div>
+          )}
           {sess && (
             <div className="live"><i />{clock?.travelling ? 'נכון לשעה הזו' : 'מתעדכן'} · {runners} רצים סיימו</div>
           )}

@@ -214,3 +214,45 @@ describe('the plan\'s targets', () => {
     expect(targetFor(parts.find(p => partLabel(p) === '5 × 300 מ׳')!, plan[3])).toBeNull();
   });
 });
+
+describe('a day marked special', () => {
+  // weekly_plans and app_settings, each answering one row to any filter.
+  const db = (plan: ParsedWorkout[], special: string[]) => ({
+    from: (t: string) => {
+      const row = t === 'app_settings' ? { value: JSON.stringify(special) } : { parsed_workouts: { workouts: plan } };
+      const q: Record<string, unknown> = {};
+      for (const k of ['select', 'eq', 'order', 'limit']) q[k] = () => q;
+      q.maybeSingle = async () => ({ data: row, error: null });
+      return q;
+    },
+  });
+  // Friday 2026-10-02: a long run with reps in it, not a quality type.
+  const friday = [w({ dayOfWeek: 5, name: 'ארוכה 40', description: '40 ק״מ עם 5×500' })];
+
+  it('is a quality day only once marked, named after the morning', async () => {
+    const { loadQualityWorkout } = await import('@/lib/quality-session/server');
+    expect(await loadQualityWorkout(db(friday, []) as never, '2026-10-02')).toBeNull();
+    const got = await loadQualityWorkout(db(friday, ['2026-10-02']) as never, '2026-10-02');
+    expect(got).toMatchObject({ name: 'ארוכה 40', special: true });
+    expect(await loadQualityWorkout(db(friday, ['2026-10-01']) as never, '2026-10-02')).toBeNull();
+  });
+
+  it('a real quality day stays one, not "special"', async () => {
+    const { loadQualityWorkout } = await import('@/lib/quality-session/server');
+    const tue = [w({ dayOfWeek: 2, name: 'אינטרוולים', description: '6×800' })];
+    const got = await loadQualityWorkout(db(tue, ['2026-09-29']) as never, '2026-09-29');
+    expect(got?.special).toBeUndefined();
+  });
+
+  it('shows the feed row all day, and only the super user marks it', () => {
+    const row = read('components/feed/QualitySessionRow.tsx');
+    expect(row).toMatch(/const on = hasAccess && !isPreviewing\(\) && !!clock;/);
+    expect(row).toMatch(/data\.workout\.special \|\| inRowWindow\(clock!\.minutes\)/);
+    const route = read('app/api/quality-session/route.ts');
+    const put = route.slice(route.indexOf('export async function PUT'));
+    expect(put).toMatch(/if \(!auth\.user\.isSuperUser\) return NextResponse\.json\(\{ error: 'Forbidden' \}, \{ status: 403 \}\)/);
+    expect(put).not.toMatch(/isStoryEditor/);
+    const page = read('app/(app)/dashboard/quality-session/page.tsx');
+    expect(page).toMatch(/sess && isSuper && !sess\.workout && \(/);
+  });
+});

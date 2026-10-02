@@ -19,7 +19,12 @@ export const PUSH_AT = 7 * 60 + 30;
 export const ROW_FROM = 7 * 60;
 export const ROW_UNTIL = 11 * 60;
 
-export interface QualityWorkout { name: string; type: WorkoutType }
+export interface QualityWorkout {
+  name: string;
+  type: WorkoutType;
+  /** Marked special by the super user, not a quality type in the plan: the feed row shows all day. */
+  special?: true;
+}
 
 export type LapKind = 'rep' | 'easy' | 'rest';
 /** [meters, seconds, kind] per watch lap. */
