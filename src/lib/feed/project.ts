@@ -8,7 +8,7 @@
  * rather than a hunt through every route and component.
  *
  * Full-resolution GPS and the splits table are deliberately NOT here: the feed
- * ships `route_preview` (~60 points) and the client loads full detail on expand
+ * ships `route_preview` (300 points, migration 130) and the client loads full detail on expand
  * via /api/garmin/activity-details. The one thing taken from `splits` is
  * `paceBands` — the per-km average paces as bare numbers, so a card's thumbnail
  * can draw the pace heat map — and it is masked alongside `averagePace`.

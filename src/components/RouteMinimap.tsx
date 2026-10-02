@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { planRoutePlate, toSvgPath, type LatLng } from '@/lib/activity/tiles';
-import { paceSegments } from '@/components/activity/format';
+import { planRoutePlate, type LatLng } from '@/lib/activity/tiles';
+import { catmullRom, paceSegments } from '@/components/activity/format';
 import { useMapPrefs } from '@/lib/mapPrefs';
 
 export type RoutePoint = LatLng;
@@ -123,27 +123,44 @@ export function RouteMinimap({
 
             With pace colours on it becomes one path per kilometre. The bands
             overlap by a point (see `paceSegments`) so no hairline gap opens up
-            where two colours meet. */}
+            where two colours meet.
+
+            Widths are screen pixels (non-scaling-stroke), not viewBox units: the
+            plate is stretched to the card's width, and a line that scaled with
+            it would merge repeated laps into one blob. The white casing keeps
+            the thin line legible over the tiles. */}
+        <path
+          d={catmullRom(plate.points)}
+          fill="none"
+          stroke="#FFFFFF"
+          strokeOpacity="0.85"
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
         {segments ? (
           segments.map((seg) => (
             <path
               key={seg.start}
-              d={toSvgPath(plate.points.slice(seg.start, seg.end))}
+              d={catmullRom(plate.points.slice(seg.start, seg.end))}
               fill="none"
               stroke={seg.color}
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
             />
           ))
         ) : (
           <path
-            d={toSvgPath(plate.points)}
+            d={catmullRom(plate.points)}
             fill="none"
             stroke="#FF5315"
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
           />
         )}
         <circle
