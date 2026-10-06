@@ -138,7 +138,7 @@ describe('what a confirmed invitation plans', () => {
     expect(row.next_run_at).toBe('2026-09-23T16:00:00.000Z');
     expect(row).toMatchObject({
       audience_type: 'athlete', audience_id: 'a1', schedule_type: 'once_at', status: 'scheduled',
-      url: '/dashboard/academy',
+      url: '/dashboard/academy?test=mine',
     });
   });
 });
@@ -180,7 +180,8 @@ describe('dispatching the due reminders', () => {
     // The push the athlete gets: their own screen, and the category the badge counter agrees
     // with (KIND_CATEGORY maps both kinds to 'workouts').
     const payload = sendPushLocalized.mock.calls[0][1]('he');
-    expect(payload).toMatchObject({ url: '/dashboard/academy', category: 'workouts' });
+    // Stored with the pre-deep-link bare url, sent upgraded so the tap raises the test card.
+    expect(payload).toMatchObject({ url: '/dashboard/academy?test=mine', category: 'workouts' });
   });
 
   it('withholds the follow-up when the test has been recorded, and cancels the row', async () => {

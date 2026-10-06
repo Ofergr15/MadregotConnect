@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut, Bug, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
+import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
 import { Sheet } from '@/components/ui';
 import { getNewTabs, setNewTabs } from '@/lib/role-views';
@@ -76,9 +76,10 @@ export function BottomTabBar() {
 
   // Split into up-to-4 primary tabs + overflow, using the role-appropriate
   // preferred order. "More" is added as a 5th slot whenever there are leftovers.
+  // An academy member's bar trades Program for Academy — see athletePrimaryOrder.
   const primaryOrder = identity.isOperator
     ? OPERATOR_PRIMARY_ORDER
-    : isStaffView ? STAFF_PRIMARY_ORDER : ATHLETE_PRIMARY_ORDER;
+    : isStaffView ? STAFF_PRIMARY_ORDER : athletePrimaryOrder(ATHLETE_PRIMARY_ORDER, identity.isAcademyMember);
   const byTab = new Map(navItems.map(i => [i.tab, i]));
   const primary: NavItem[] = [];
   for (const tab of primaryOrder) {

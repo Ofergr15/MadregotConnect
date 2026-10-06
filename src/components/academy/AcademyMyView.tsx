@@ -1,78 +1,113 @@
 'use client';
 
-import { useState } from 'react';
-import { useLocale, useTranslations } from 'next-intl';
-import {
-  Activity, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, GraduationCap,
-  Medal, Route, Timer, Trophy, Users, XCircle,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { formatPace } from '@/lib/garmin/pace';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { ChevronLeft, ChevronRight, GraduationCap } from 'lucide-react';
+import { cn, israelToday } from '@/lib/utils';
 import { useApi } from '@/lib/api';
-import { Card, EmptyState, InsetRow, InsetSection, SkeletonList } from '@/components/ui';
-import { fmtRate, fmtWeekRange, initialsOf, rateColor, shiftWeek, sundayOf } from './types';
-import { AthleteLink } from '@/components/AthleteLink';
+import { EmptyState, Sheet, SkeletonList } from '@/components/ui';
+import { DAY_LABELS } from '@/lib/academy/characterization';
+import { fmtKm, fmtPace } from '@/lib/academy/pace-verdict';
+import { weekDates, type HomeWorkout, type TraineeHome } from '@/lib/academy/trainee-home';
+import type { TestInvitation } from '@/lib/academy/testInvite';
+import { initialsOf, shiftWeek, sundayOf } from './types';
 import { AcademyThreadPanel } from './AcademyThreadPanel';
-import { MyTest } from './MyTest';
 import { MyInvitation } from './MyInvitation';
+import { MyTestsCard } from './MyTestsCard';
+import { PaceText } from './PaceMark';
+import { BidiText } from '@/components/BidiText';
+import { WorkoutPlanSheet } from './WorkoutPlanSheet';
 
-// The academy as one of its athletes sees it.
+// The academy as one of its trainees sees it — mockup academy-trainee-home-v4.
 //
-// Before this, an academy athlete had no academy screen at all: migration 022
-// denies `academy_user` the academy nav tab on purpose, because the only thing
-// behind it was the coach's admin console. So the answer to "am I keeping up, and
-// where do I stand?" was spread across the program tab and the group leaderboard,
-// and the academy itself — the thing they signed up for — was invisible.
+// Screen one, above the fold on an iPhone 14: who coaches me (and whether they
+// wrote), what I'm training for and how long is left, my paces, twelve weeks of
+// kilometres ending at this one, and this week's plan day by day with what I
+// actually ran under each session. Screen two, "המסע שלי": the long-run numbers and
+// my tests.
 //
-// Reads /api/academy/me, which is gated self-or-staff and returns only what a
-// club member can already see about their teammates (first name + weekly
-// distance), never the staff roster's emails or approval flags.
+// What is NOT here any more, on purpose (2026-10-06): the leaderboard, the rank,
+// "the academy this week" and the mini-stats. In a 1:1 academy the comparison
+// that matters is me against my plan, and a table of teammates' kilometres on the
+// screen about my training answered a question nobody asked it.
+//
+// Every pace on the screen goes through ONE rule (lib/academy/pace-verdict.ts):
+// green on plan, green ▲ faster, orange ▼ slower. Tapping a session opens its
+// plan-vs-actual sheet; tapping the coach opens the conversation.
+//
+// Reads /api/academy/me, gated self-or-staff, about this one trainee only.
 
-interface Workout {
-  date: string;
-  name: string;
-  completed: boolean;
-  distance: { plannedMin: number; plannedMax: number; actual: number | null };
-  // `estimated` — no time was prescribed, so `planned` is a guess: see adherence.ts.
-  duration: { planned: number; actual: number | null; estimated?: boolean };
-  pace: { actual: number | null };
+const RING_C = 2 * Math.PI * 15;
+
+/** "4.10" */
+function dm(date: string): string {
+  const d = new Date(`${date}T12:00:00Z`);
+  return `${d.getUTCDate()}.${d.getUTCMonth() + 1}`;
 }
 
-interface MyView {
-  isMember: boolean;
-  weekStart: string;
-  athlete?: { athleteId: string; name: string; avatarUrl: string | null; groupName: string | null; hasWatch: boolean };
-  week?: { plannedCount: number; completedCount: number; completionRate: number; avgScore: number; workouts: Workout[] };
-  volume?: { weekKm: number; weekRuns: number; weekDurationMin: number; totalKm: number; totalRuns: number; totalDurationMin: number };
-  rank?: { position: number; of: number } | null;
-  academy?: { members: number; activeThisWeek: number; weekKm: number; avgWeekKm: number };
-  leaderboard?: { athleteId: string; name: string; avatarUrl: string | null; weekKm: number; isMe: boolean }[];
-  results?: { id: string; testName: string; timeSeconds: number; recordedOn: string; rank: number; entrants: number }[];
+/** "4–10.10", or "27.9–3.10" across a month. */
+function weekRange(weekStart: string): string {
+  const [first, , , , , , last] = weekDates(weekStart);
+  const a = new Date(`${first}T12:00:00Z`);
+  const b = new Date(`${last}T12:00:00Z`);
+  return a.getUTCMonth() === b.getUTCMonth()
+    ? `${a.getUTCDate()}–${dm(last)}`
+    : `${dm(first)}–${dm(last)}`;
 }
 
-export function AcademyMyView({ athleteId }: {
+export function AcademyMyView({ athleteId, openThread = false, raiseTest = false }: {
   /** `null` while the id is still being read from storage; `''` once we've looked and found nobody. */
   athleteId: string | null;
+  /** `?thread=mine` — a push about the conversation was tapped: open it. */
+  openThread?: boolean;
+  /** `?test=mine` — a test reminder was tapped: bring the test card into view. */
+  raiseTest?: boolean;
 }) {
   const t = useTranslations('academy');
-  const locale = useLocale();
   const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()));
-  /** Set by `MyInvitation`, read by `MyTest`, so one explanation is not printed twice. */
+  const [today] = useState(() => israelToday());
+  /** Set by `MyInvitation`, so the top slot only takes room when there is a card in it. */
   const [hasInvitation, setHasInvitation] = useState(false);
+  const [invitation, setInvitation] = useState<TestInvitation | null>(null);
   /**
-   * Set by `MyTest` when a result is saved, read by `MyInvitation` above it.
-   *
-   * The two fetch independently — deliberately, so a bad minute on the trend endpoint cannot cost
-   * somebody the date of their test — and that independence has one cost: saving a result changes
-   * what the OTHER one should be showing, and only this screen sees both. The invitation stays
-   * open (only the coach's approval closes it), so without this the card asks for a result that
-   * was sent a second ago.
+   * Set when a result is saved from the tests card, read by `MyInvitation` at the
+   * top. The two fetch independently — deliberately, so a bad minute on the trend
+   * endpoint cannot cost somebody the date of their test — so only this screen
+   * knows that saving a result changes what the invitation should say.
    */
   const [resultJustSent, setResultJustSent] = useState(false);
+  const [sheetDate, setSheetDate] = useState<string | null>(null);
+  const [threadOpen, setThreadOpen] = useState(false);
+  /** The dot clears as soon as the conversation has been opened once. */
+  const [threadSeen, setThreadSeen] = useState(false);
+  const testsRef = useRef<HTMLDivElement>(null);
+  const topRef = useRef<HTMLDivElement>(null);
 
-  const { data, isLoading } = useApi<MyView>(
+  const { data, isLoading } = useApi<TraineeHome>(
     athleteId ? `/api/academy/me?athleteId=${encodeURIComponent(athleteId)}&weekStart=${weekStart}` : null,
   );
+
+  const openConversation = useCallback(() => {
+    setSheetDate(null);
+    setThreadOpen(true);
+    setThreadSeen(true);
+  }, []);
+
+  // A push lands here with `?thread=mine`. Followed when it flips, so a second tap
+  // while the screen is open opens the sheet again.
+  useEffect(() => { if (openThread) openConversation(); }, [openThread, openConversation]);
+
+  // `?test=mine`: the invitation (when there is one) sits at the very top already;
+  // otherwise the tests card is below the fold and is scrolled to.
+  const loaded = !!data?.isMember;
+  useEffect(() => {
+    if (!raiseTest || !loaded) return;
+    const id = setTimeout(() => {
+      const target = hasInvitation ? topRef.current : testsRef.current;
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 400);
+    return () => clearTimeout(id);
+  }, [raiseTest, loaded, hasInvitation]);
 
   const isCurrentWeek = weekStart === sundayOf(new Date());
 
@@ -82,315 +117,403 @@ export function AcademyMyView({ athleteId }: {
 
   // "You're not in the academy" is a legitimate answer, not an error — a club
   // runner who lands here gets told how to join rather than an empty dashboard.
-  // Same screen for a visitor we can't identify at all: there's no athlete whose
-  // academy week we could show, and a spinner that never resolves is worse.
   if (!athleteId || (data && !data.isMember)) {
-    return (
-      <EmptyState
-        icon={GraduationCap}
-        title={t('notMemberTitle')}
-        description={t('notMemberDesc')}
-      />
-    );
+    return <EmptyState icon={GraduationCap} title={t('notMemberTitle')} description={t('notMemberDesc')} />;
   }
 
+  const coach = data?.coach ?? null;
+  const coachFirst = coach ? coach.name.split(' ')[0] : null;
+  const unread = !threadSeen && (data?.unread ?? 0) > 0;
   const week = data?.week;
-  const vol = data?.volume;
-  const academy = data?.academy;
-  // The athlete's own rate is recomputed from counts rather than read off
-  // `week.completionRate`, so "no plan this week" shows an em dash instead of 0%.
-  const myRate = week && week.plannedCount > 0 ? week.completedCount / week.plannedCount : null;
-
-  const km = (meters: number | null) => (meters == null ? '—' : (meters / 1000).toFixed(1));
-  const mins = (sec: number | null) => (sec == null ? '—' : String(Math.round(sec / 60)));
-  const dayName = (date: string) =>
-    new Date(`${date}T12:00:00Z`).toLocaleDateString(locale, { weekday: 'short', timeZone: 'UTC' });
+  const byDate = new Map((week?.workouts ?? []).map((w) => [w.date, w]));
+  const doneKm = (week?.workouts ?? []).reduce((sum, w) => sum + (w.actualM ?? 0), 0);
 
   return (
-    <div className="space-y-5" dir="auto">
-      {/* Week pager */}
-      <div className="flex items-center justify-center gap-2">
-        <button
-          onClick={() => setWeekStart(shiftWeek(weekStart, -1))}
-          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
-          aria-label={t('previousWeek')}
-        >
-          <ChevronRight className="h-5 w-5 rtl:block hidden" />
-          <ChevronLeft className="h-5 w-5 rtl:hidden" />
-        </button>
-        <div className="text-center min-w-[170px]">
-          <div className="text-sm font-semibold text-ink-700">{fmtWeekRange(weekStart, locale)}</div>
-          <div className="text-xs text-ink-400">{isCurrentWeek ? t('thisWeek') : ''}</div>
-        </div>
-        <button
-          onClick={() => setWeekStart(shiftWeek(weekStart, 1))}
-          disabled={isCurrentWeek}
-          className="p-2.5 min-h-[44px] min-w-[44px] rounded-lg text-ink-400 hover:text-ink-900 hover:bg-page transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label={t('nextWeek')}
-        >
-          <ChevronLeft className="h-5 w-5 rtl:block hidden" />
-          <ChevronRight className="h-5 w-5 rtl:hidden" />
-        </button>
-      </div>
-
-      {/* The headline the athlete came for: how much of my week did I do. */}
-      <Card variant="solid" className="text-center">
-        <div className="text-2xs font-bold uppercase tracking-wider text-ink-400">{t('myWeekHeader')}</div>
-        <div className={cn('mt-1.5 text-5xl font-black tabular-nums leading-none', rateColor(myRate))}>
-          {fmtRate(myRate)}
-        </div>
-        <div className="mt-2 text-sm text-ink-500">
-          {week && week.plannedCount > 0
-            ? t('completedOfPlanned', { done: week.completedCount, planned: week.plannedCount })
-            : t('noPlanThisWeek')}
-        </div>
-        {data?.athlete?.groupName && (
-          <div className="mt-2.5 inline-block text-2xs font-bold px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-800 border border-purple-500/20">
-            {data.athlete.groupName}
-          </div>
-        )}
-      </Card>
-
-      {/* My volume */}
-      <div className="grid grid-cols-3 gap-2.5">
-        <MiniStat icon={Route} value={vol ? vol.weekKm.toFixed(1) : '0'} label={t('weekKmShort')} />
-        <MiniStat icon={Activity} value={String(vol?.weekRuns ?? 0)} label={t('weekRuns')} />
-        <MiniStat icon={Timer} value={String(vol?.weekDurationMin ?? 0)} label={t('minUnit')} />
-      </div>
-
-      {/* Where I stand — only meaningful once someone ran. */}
-      {data?.rank && academy && (
-        <Card variant="muted" className="flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl bg-band-3/15 flex items-center justify-center shrink-0">
-            <Medal className="h-5 w-5 text-band-3-ink" />
-          </span>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-bold text-ink-700">
-              {t('rankOf', { position: data.rank.position, of: data.rank.of })}
-            </div>
-            <div className="text-xs text-ink-400">{t('rankHint')}</div>
-          </div>
-        </Card>
-      )}
-
-      {/* This week's sessions, planned vs actual. */}
-      <div>
-        <SectionTitle>{t('myWorkouts')}</SectionTitle>
-        <div className="rounded-card bg-card/80 border border-page/50 overflow-hidden divide-y divide-page/50">
-          {!week || week.workouts.length === 0 ? (
-            <p className="px-4 py-6 text-center text-xs text-ink-400">{t('noPlannedWorkouts')}</p>
-          ) : (
-            week.workouts.map((w, i) => (
-              <div key={i} className="flex items-start gap-3 px-4 py-3">
-                <div className="w-9 shrink-0 text-center">
-                  <div className="text-2xs text-ink-400 font-semibold">{dayName(w.date)}</div>
-                  {w.completed
-                    ? <CheckCircle2 className="h-4 w-4 text-accent-600 mx-auto mt-1" />
-                    : <XCircle className="h-4 w-4 text-ink-400 mx-auto mt-1" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-ink-700 truncate">{w.name}</div>
-                  {w.completed ? (
-                    <div className="mt-0.5 text-xs text-ink-400 tabular-nums">
-                      {/* Both "done / planned" pairs are ISOLATED, and measured rather
-                          than assumed: on this RTL line a slash with spaces around it
-                          is a neutral between two separate number runs, so the runs
-                          get laid out right-to-left and the fraction renders mirrored.
-                          Measured in WebKit at 393px: 8.1 done out of a 9.0 plan put
-                          9.0 to the LEFT of 8.1, i.e. the row read "9.0 / 8.1" — the
-                          plan presented as the result and the result as the plan, on
-                          every completed session of the week. `<bdi dir="ltr">` opens
-                          an isolate, so the pair keeps its own order. Same defect the
-                          shoe mileage had; the difference here is that BOTH numbers
-                          are real and swapping them is plausible, so nothing on the
-                          screen gives the mistake away. */}
-                      <bdi dir="ltr">{km(w.distance.actual)} / {km(w.distance.plannedMin)}</bdi> {t('kmUnit')}
-                      {' · '}
-                      {w.duration.estimated
-                        ? mins(w.duration.actual)
-                        : <bdi dir="ltr">{mins(w.duration.actual)} / {mins(w.duration.planned)}</bdi>}
-                      {' '}{t('minUnit')}
-                      {w.pace.actual != null && ` · ${formatPace(w.pace.actual)}`}
-                    </div>
-                  ) : (
-                    <div className="mt-0.5 text-xs text-ink-400">
-                      {km(w.distance.plannedMin)} {t('kmUnit')}
-                      {!w.duration.estimated && ` · ${mins(w.duration.planned)} ${t('minUnit')}`}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* ── The conversation ───────────────────────────────────────────────────
-          Placed HERE on purpose: directly under the week it is about, and above the
-          group stats. The week's numbers are what happened; this is where somebody
-          says something about it. Below the leaderboard it would be a feature nobody
-          scrolled to, which is the WhatsApp silence this replaces. */}
-      <div>
-        <SectionTitle>{t('myThread')}</SectionTitle>
-        <AcademyThreadPanel />
-      </div>
-
-      {/* The academy's week, so an athlete sees the group they're part of. */}
-      {academy && (
-        <InsetSection header={t('academyThisWeek')}>
-          <InsetRow icon={Users} iconBg="bg-brand-600" label={t('statMembers')} value={String(academy.members)} />
-          <InsetRow icon={Activity} iconBg="bg-accent-600" label={t('statActiveThisWeek')} value={`${academy.activeThisWeek}/${academy.members}`} />
-          <InsetRow icon={Route} iconBg="bg-band-2" label={t('statAcademyKm')} value={academy.weekKm.toFixed(1)} />
-          <InsetRow icon={ClipboardList} iconBg="bg-violet-600" label={t('avgPerMember')} value={academy.avgWeekKm.toFixed(1)} />
-        </InsetSection>
-      )}
-
-      {/* Leaderboard — first names and distance only, the same club-internal
-          shape the feed and the group standings already show. */}
-      {(data?.leaderboard?.length ?? 0) > 0 && (
-        <div>
-          <SectionTitle>{t('leaderboardHeader')}</SectionTitle>
-          <div className="space-y-2">
-            {data!.leaderboard!.map((r, i) => (
-              <div
-                key={r.athleteId}
-                className={cn(
-                  'flex items-center gap-3 rounded-2xl border p-3',
-                  r.isMe
-                    ? 'bg-brand-600/15 border-brand-600/40'
-                    : 'bg-card/50 border-page/50',
-                )}
-              >
-                <span className="w-4 text-center text-xs font-bold text-ink-400 shrink-0">{i + 1}</span>
-                {/* `r.isMe ? null` opts the viewer's own row out — it already says
-                    "you" in brand blue, and this board is on the viewer's own academy
-                    screen, so linking it would loop them to a peer copy of themselves. */}
-                <AthleteLink
-                  athleteId={r.isMe ? null : r.athleteId}
-                  name={r.name}
-                  // `-my-2 py-2` grows the hit area into the row's own padding
-                  // without moving a pixel: the link wrapped the 36px avatar line
-                  // only, inside a 60px row, so the target was 36px tall against a
-                  // 44px floor — measured at 197×36 on a 375px phone. The negative
-                  // margin cancels the padding, so the extra 16px is reachable
-                  // thumb area that costs no layout.
-                  className="flex min-w-0 flex-1 items-center gap-3 -my-2 py-2"
-                >
-                  {r.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={r.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
-                  ) : (
-                    <span className="w-9 h-9 rounded-full bg-brand-600/20 flex items-center justify-center text-xs font-bold text-brand-600 shrink-0">
-                      {initialsOf(r.name)}
-                    </span>
-                  )}
-                  <span className={cn('flex-1 min-w-0 text-sm truncate', r.isMe ? 'font-bold text-ink-700' : 'font-medium text-ink-700')} dir="auto">
-                    {r.name}
-                    {r.isMe && <span className="ms-1.5 text-2xs font-semibold text-brand-600">{t('you')}</span>}
-                  </span>
-                </AthleteLink>
-                <span className="text-sm font-bold text-ink-700 tabular-nums shrink-0">
-                  {r.weekKm.toFixed(1)} <span className="text-3xs text-ink-400 font-semibold">{t('kmUnit')}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* My benchmark results, each with where it placed. */}
-      {(data?.results?.length ?? 0) > 0 && (
-        <div>
-          <SectionTitle>{t('myResults')}</SectionTitle>
-          <div className="rounded-card bg-card/80 border border-page/50 overflow-hidden divide-y divide-page/50">
-            {data!.results!.map((r) => (
-              <div key={r.id} className="flex items-center gap-3 px-4 py-3">
-                <Trophy className="h-4 w-4 text-band-3 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-ink-700 truncate">{r.testName}</div>
-                  <div className="text-2xs text-ink-400">
-                    {t('placedOf', { position: r.rank, of: r.entrants })}
-                    {r.recordedOn && ` · ${new Date(`${r.recordedOn}T12:00:00Z`).toLocaleDateString(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' })}`}
-                  </div>
-                </div>
-                <span className="text-sm font-bold text-ink-700 tabular-nums shrink-0">{formatClock(r.timeSeconds)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* The threshold test: their own improvement graph, and the form that puts a result in
-          without waiting for Ofer's evening. Above the all-time footer because it is the
-          number that changes their training, not a souvenir. Renders nothing at all until
-          the athlete is a known academy member with a name to submit under. */}
+    <div className="flex flex-col gap-[7px]" dir="rtl" ref={topRef}>
+      {/* The invitation FIRST, above everything: it is the one card on this screen that
+          asks the trainee for something with a date on it, and on a test day it is the
+          only thing they came for. Outside the tests card on purpose — that one renders
+          nothing when its request fails, which is right for history and wrong for an
+          appointment. */}
       {data?.athlete?.athleteId && (
-        <div className="space-y-3">
-          <SectionTitle>טסט סף</SectionTitle>
-          {/* The invitation FIRST, and outside `MyTest` on purpose. `MyTest` renders nothing
-              when its own request fails — the right call for a graph, wrong for an appointment:
-              a trainee must not lose the date of their test because the trend endpoint had a bad
-              minute. Two independent fetches, and only the one that matters is load-bearing. */}
+        <div className={cn(!hasInvitation && 'hidden')}>
           <MyInvitation
             athleteId={data.athlete.athleteId}
             watchConnected={data.athlete.hasWatch}
             onVisible={setHasInvitation}
+            onInvitation={setInvitation}
             resultJustSent={resultJustSent}
-          />
-          <MyTest
-            athleteId={data.athlete.athleteId}
-            name={data.athlete.name}
-            invitationShown={hasInvitation}
-            onRecorded={() => setResultJustSent(true)}
           />
         </div>
       )}
 
-      {/* All-time footer — the long-run number an athlete likes seeing grow. */}
-      {vol && (
-        <Card variant="muted" className="flex items-center justify-around text-center">
-          <div>
-            <div className="text-xl font-bold text-ink-700 tabular-nums">{vol.totalKm.toFixed(0)}</div>
-            <div className="text-2xs text-ink-400">{t('allTimeKm')}</div>
+      {/* ── Header: the coach, the title, the week ── */}
+      <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={openConversation}
+          aria-label={unread ? `${coach ? `הודעה חדשה מ${coachFirst}` : 'הודעה חדשה'} · לפתיחת השיחה` : 'לפתיחת השיחה'}
+          className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-600 text-13 font-extrabold text-white active:scale-95 transition-transform"
+        >
+          {coach?.avatarUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={coach.avatarUrl} alt="" className="h-full w-full rounded-full object-cover" />
+            : coach ? initialsOf(coach.name) : <GraduationCap className="h-5 w-5" />}
+          {unread && <i className="absolute -top-px start-[-1px] h-3 w-3 rounded-full border-2 border-page bg-accent-red" aria-hidden />}
+        </button>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-[21px] font-black leading-tight text-ink-700">האקדמיה שלי</h1>
+          <p className="truncate text-xs text-ink-400">
+            {coachFirst && <>עם <span dir="auto">{coachFirst}</span> · </>}
+            {isCurrentWeek ? 'השבוע' : 'שבוע'} <bdi dir="ltr">{weekRange(weekStart)}</bdi>
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            onClick={() => setWeekStart(shiftWeek(weekStart, -1))}
+            aria-label={t('previousWeek')}
+            className="grid h-11 w-11 place-items-center rounded-full bg-card text-ink-500 active:scale-95"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setWeekStart(shiftWeek(weekStart, 1))}
+            disabled={isCurrentWeek}
+            aria-label={t('nextWeek')}
+            className="grid h-11 w-11 place-items-center rounded-full bg-card text-ink-500 active:scale-95 disabled:opacity-30"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* ── What I'm training for ── */}
+      {data?.goal && (
+        <div className="flex items-center gap-2.5 rounded-2xl bg-gradient-to-l from-brand-600 to-[#3B49FF] px-2.5 py-[7px] text-white">
+          <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-xl bg-white/20 text-lg" aria-hidden>🏁</span>
+          <div className="min-w-0 flex-1">
+            <b className="block truncate text-[14.5px] font-black leading-5"><BidiText text={data.goal.title} /></b>
+            {data.goal.subtitle && <small className="block truncate text-xs leading-4 opacity-90"><BidiText text={data.goal.subtitle} /></small>}
           </div>
-          <div className="w-px h-8 bg-page" />
-          <div>
-            <div className="text-xl font-bold text-ink-700 tabular-nums">{vol.totalRuns}</div>
-            <div className="text-2xs text-ink-400">{t('allTimeRuns')}</div>
-          </div>
-          <div className="w-px h-8 bg-page" />
-          <div>
-            <div className="text-xl font-bold text-ink-700 tabular-nums">{Math.round(vol.totalDurationMin / 60)}</div>
-            <div className="text-2xs text-ink-400">{t('allTimeHours')}</div>
-          </div>
-        </Card>
+          {data.goal.daysLeft != null && (
+            <div className="shrink-0 rounded-xl bg-white/15 px-2.5 py-1 text-center">
+              <b className="block text-xl font-black leading-none tabular-nums">{data.goal.daysLeft}</b>
+              <span className="block text-3xs leading-3 opacity-85">ימים</span>
+            </div>
+          )}
+        </div>
       )}
+
+      {/* ── My paces ── */}
+      {data?.paces && (
+        <div className="flex gap-1.5">
+          {data.paces.bandNumber != null && (
+            <PaceTile value={String(data.paces.bandNumber)} label="דבוקה" highlight />
+          )}
+          <PaceTile value={fmtPace(data.paces.easy)} label="קל" />
+          <PaceTile value={fmtPace(data.paces.tempo)} label="טמפו" />
+          <PaceTile value={fmtPace(data.paces.threshold)} label="סף" />
+          <PaceTile value={fmtPace(data.paces.interval)} label="אינטרוול" />
+        </div>
+      )}
+
+      {/* ── Twelve weeks of kilometres ── */}
+      {data?.km && week && (
+        <KmCard
+          weeks={data.km.weeks}
+          plannedKm={data.km.plannedKm}
+          avgKm={data.km.avgKm}
+          doneKm={Math.round(doneKm / 100) / 10}
+          isCurrentWeek={isCurrentWeek}
+          completed={week.completedCount}
+          planned={week.plannedCount}
+        />
+      )}
+
+      {/* ── This week, Sunday to Saturday ── */}
+      <div className="overflow-hidden rounded-2xl bg-card">
+        {!week || week.workouts.length === 0 ? (
+          <p className="px-4 py-6 text-center text-xs text-ink-400">{t('noPlannedWorkouts')}</p>
+        ) : (
+          weekDates(weekStart).map((date) => {
+            const w = byDate.get(date);
+            const day = DAY_LABELS[new Date(`${date}T12:00:00Z`).getUTCDay()];
+            if (!w) {
+              return (
+                <div key={date} className="flex min-h-[26px] items-center gap-2.5 border-b border-page/60 px-3 last:border-0">
+                  <span className="w-8 shrink-0 text-center text-[12.5px] font-black text-ink-300">{day}</span>
+                  <span className="text-xs text-ink-300">מנוחה</span>
+                </div>
+              );
+            }
+            return (
+              <WorkoutRow key={date} w={w} day={day} isToday={date === today} onOpen={() => setSheetDate(date)} />
+            );
+          })
+        )}
+      </div>
+
+      {/* ── Below the fold: the journey ── */}
+      {data?.journey && (
+        <section className="mt-5 flex flex-col gap-[7px]">
+          <h2 className="px-0.5 text-[15px] font-black text-ink-700">המסע שלי</h2>
+          <div className="grid grid-cols-3 gap-[7px]">
+            <JourneyTile value={data.journey.monthsWithUs != null ? String(data.journey.monthsWithUs) : '—'} label="חודשים איתנו" />
+            <JourneyTile value={String(data.journey.runs)} label="ריצות הושלמו" />
+            <JourneyTile value={String(data.journey.km)} label="ק״מ" />
+            <JourneyTile value={data.journey.planPct != null ? `${data.journey.planPct}%` : '—'} label="מהתוכנית בוצע" />
+            <JourneyTile value={String(data.journey.streakWeeks)} label="שבועות ברצף" />
+            <JourneyTile value={data.journey.longestKm != null ? fmtKm(data.journey.longestKm * 1000) : '—'} label="הכי ארוכה (ק״מ)" />
+          </div>
+          {data.athlete?.athleteId && (
+            <MyTestsCard
+              ref={testsRef}
+              athleteId={data.athlete.athleteId}
+              name={data.athlete.name}
+              invitation={invitation}
+              onRecorded={() => setResultJustSent(true)}
+            />
+          )}
+        </section>
+      )}
+
+      {data?.athlete?.athleteId && (
+        <WorkoutPlanSheet
+          athleteId={data.athlete.athleteId}
+          date={sheetDate}
+          coachName={coach?.name ?? null}
+          onOpenChange={(open) => { if (!open) setSheetDate(null); }}
+          onOpenThread={openConversation}
+        />
+      )}
+
+      {/* The conversation, over the home: newest at the bottom and in view, the
+          composer pinned under it, the older messages behind one tap. */}
+      <Sheet
+        open={threadOpen}
+        onOpenChange={setThreadOpen}
+        title={coachFirst ? `השיחה עם ${coachFirst}` : 'השיחה שלי'}
+        className="h-[88dvh]"
+        bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden pb-3"
+      >
+        {threadOpen && (
+          <AcademyThreadPanel athleteId={data?.athlete?.athleteId} layout="sheet" className="min-h-0 flex-1" />
+        )}
+      </Sheet>
     </div>
   );
 }
 
-function formatClock(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="px-1 mb-2 text-sm font-bold text-ink-700">{children}</h2>;
-}
-
-function MiniStat({
-  icon: Icon, value, label,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  value: string;
-  label: string;
-}) {
+function PaceTile({ value, label, highlight }: { value: string; label: string; highlight?: boolean }) {
   return (
-    <div className="rounded-card border border-page/60 bg-card/60 p-3 text-center">
-      <Icon className="h-3.5 w-3.5 text-ink-400 mx-auto" />
-      <div className="mt-1 text-xl font-bold text-ink-700 tabular-nums leading-none">{value}</div>
-      <div className="mt-1 text-2xs text-ink-400">{label}</div>
+    <div className={cn('flex-1 rounded-xl px-0.5 py-1 text-center', highlight ? 'bg-brand-600/10' : 'bg-card')}>
+      <b className={cn('block text-[14.5px] font-black leading-[19px] tabular-nums', highlight ? 'text-brand-600' : 'text-ink-700')}>
+        <bdi dir="ltr">{value}</bdi>
+      </b>
+      <span className="block text-3xs text-ink-400">{label}</span>
     </div>
+  );
+}
+
+function JourneyTile({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="rounded-[14px] bg-card px-2 py-[9px] text-center">
+      <b className="block text-[21px] font-black leading-tight text-ink-700"><bdi dir="ltr">{value}</bdi></b>
+      <span className="text-2xs text-ink-400">{label}</span>
+    </div>
+  );
+}
+
+// ── The km chart ────────────────────────────────────────────────────────────
+// Time runs left to right whatever the page direction: it is an SVG, and a
+// timeline that ran right-to-left would put "this week" under the trainee's
+// thumb's opposite edge from every other chart in the app. One hue: the brand
+// blue for this week, its light tint for the weeks before, a dashed outline for
+// what is planned this week, and a dashed line for the average.
+
+const MONTHS = ['ינו׳', 'פבר׳', 'מרץ', 'אפר׳', 'מאי', 'יוני', 'יולי', 'אוג׳', 'ספט׳', 'אוק׳', 'נוב׳', 'דצמ׳'];
+
+function KmCard({ weeks, plannedKm, avgKm, doneKm, isCurrentWeek, completed, planned }: {
+  weeks: Array<{ weekStart: string; km: number }>;
+  plannedKm: number;
+  avgKm: number | null;
+  doneKm: number;
+  isCurrentWeek: boolean;
+  completed: number;
+  planned: number;
+}) {
+  const W = 330, base = 54, y0 = 6, r = 4;
+  const n = Math.max(weeks.length, 1);
+  const slot = W / n;
+  const bw = Math.max(4, slot - 7);
+  const max = Math.max(...weeks.map((w) => w.km), plannedKm, avgKm ?? 0, 1) * 1.08;
+  const h = (v: number) => ((base - y0) * v) / max;
+  const bar = (x: number, height: number) => (height <= r
+    ? `M${x},${base} v${-height} h${bw} v${height} z`
+    : `M${x},${base} v${-(height - r)} q0,-${r} ${r},-${r} h${bw - 2 * r} q${r},0 ${r},${r} v${height - r} z`);
+
+  // Three ticks: the first month, the first month change in the middle, and the end.
+  const ticks: Array<[number, string]> = [];
+  if (weeks.length) {
+    const month = (i: number) => new Date(`${weeks[i].weekStart}T12:00:00Z`).getUTCMonth();
+    ticks.push([0, MONTHS[month(0)]]);
+    for (let i = 3; i < weeks.length - 3; i++) {
+      if (month(i) !== month(i - 1)) { ticks.push([i, MONTHS[month(i)]]); break; }
+    }
+    ticks.push([weeks.length - 1, isCurrentWeek ? 'השבוע' : 'שבוע זה']);
+  }
+
+  return (
+    <div className="rounded-2xl bg-card px-3 pb-1.5 pt-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <b className="text-[15px] font-black text-ink-700">
+          {isCurrentWeek ? 'השבוע' : 'בשבוע'} <bdi dir="ltr">{fmtKm(doneKm * 1000)}</bdi>{' '}
+          <span className="text-xs font-semibold text-ink-400">מתוך <bdi dir="ltr">{fmtKm(plannedKm * 1000)}</bdi> ק״מ</span>
+        </b>
+        <span className="shrink-0 text-xs font-bold text-ink-400">{completed} מתוך {planned} אימונים</span>
+      </div>
+      <svg viewBox={`0 0 ${W} 64`} className="mt-1 block h-16 w-full overflow-visible" role="img"
+        aria-label={`ק״מ ב־${weeks.length} השבועות האחרונים`}>
+        {[0, 0.5, 1].map((g) => (
+          <line key={g} x1={0} x2={W} y1={base - (base - y0) * g} y2={base - (base - y0) * g} stroke="#EEEEF2" />
+        ))}
+        {weeks.map((w, i) => {
+          const x = i * slot + (slot - bw) / 2;
+          const last = i === weeks.length - 1;
+          return (
+            <g key={w.weekStart}>
+              {last && plannedKm > 0 && (
+                <path d={bar(x, h(plannedKm))} fill="#F4F5FF" stroke="#1525FF" strokeWidth={1.5} strokeDasharray="3 2" />
+              )}
+              {w.km > 0 && <path d={bar(x, h(w.km))} fill={last ? '#1525FF' : '#9FA8FF'} />}
+            </g>
+          );
+        })}
+        {avgKm != null && avgKm > 0 && (
+          <line x1={0} x2={W} y1={base - h(avgKm)} y2={base - h(avgKm)} stroke="#2D2E38" strokeDasharray="2 3" opacity={0.45} />
+        )}
+        {ticks.map(([i, label]) => (
+          <text key={i} x={i * slot + slot / 2} y={64} textAnchor="middle" fontSize={10} fill="#5F5F5F">{label}</text>
+        ))}
+      </svg>
+      <div className="mt-0.5 flex gap-2.5 text-3xs text-ink-400">
+        <span className="inline-flex items-center gap-1"><i className="inline-block h-[9px] w-[9px] rounded-[3px] bg-brand-600" />נרץ</span>
+        <span className="inline-flex items-center gap-1"><svg viewBox="0 0 10 10" className="h-[9px] w-[9px]" aria-hidden><rect x="0.75" y="0.75" width="8.5" height="8.5" rx="2.5" fill="none" stroke="#1525FF" strokeWidth="1.5" strokeDasharray="2.5 1.5" /></svg>מתוכנן {isCurrentWeek ? 'השבוע' : ''}</span>
+        {avgKm != null && <span className="ms-auto font-bold">ממוצע {weeks.length} שבועות: <bdi dir="ltr">{Math.round(avgKm)}</bdi></span>}
+      </div>
+    </div>
+  );
+}
+
+// ── One day of the week ─────────────────────────────────────────────────────
+
+function WorkoutRow({ w, day, isToday, onOpen }: {
+  w: HomeWorkout;
+  day: string;
+  isToday: boolean;
+  onOpen: () => void;
+}) {
+  const s = w.status;
+  const km = (m: number | null) => fmtKm(m);
+  let sub: React.ReactNode;
+  if (s.kind === 'done' || s.kind === 'partial') {
+    sub = (
+      <>
+        {s.kind === 'partial'
+          ? <span><bdi dir="ltr">{km(w.actualM)}</bdi> מתוך <bdi dir="ltr">{km(w.plannedM)}</bdi> ק״מ</span>
+          : <span><bdi dir="ltr">{km(w.actualM)}</bdi> ק״מ</span>}
+        {w.pace && <> · <PaceText pace={w.pace.actual} verdict={w.pace.verdict} /></>}
+      </>
+    );
+  } else if (s.kind === 'missed') {
+    sub = <span><bdi dir="ltr">{km(w.plannedM)}</bdi> ק״מ · לא בוצע</span>;
+  } else if (isToday && w.plannedDurationSec) {
+    sub = <span><bdi dir="ltr">{km(w.plannedM)}</bdi> ק״מ · כ־{Math.round(w.plannedDurationSec / 60)} דק׳</span>;
+  } else {
+    sub = (
+      <span>
+        <bdi dir="ltr">{km(w.plannedM)}</bdi> ק״מ
+        {w.plannedPace != null && <> · <bdi dir="ltr">{fmtPace(w.plannedPace)}</bdi></>}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={cn(
+        'flex w-full flex-wrap items-center gap-x-2.5 border-b border-page/60 px-3 text-start last:border-0 active:bg-page/30',
+        isToday ? 'border-s-4 border-s-brand-600 bg-brand-600/[0.05] py-[9px]' : 'min-h-[47px]',
+      )}
+    >
+      <span className="w-8 shrink-0 text-center leading-[1.05]">
+        <b className={cn('block text-sm font-black', isToday ? 'text-brand-600' : 'text-ink-700')}>{day}</b>
+        <span className="text-3xs text-ink-400"><bdi dir="ltr">{dm(w.date)}</bdi></span>
+      </span>
+      <span className="min-w-0 flex-1">
+        <b className="flex items-center text-[14.5px] font-extrabold text-ink-700">
+          {/* Pinned number runs: "6×800" otherwise renders as "800×6" in this RTL line. */}
+          <span className="truncate"><BidiText text={w.name} /></span>
+          {isToday && <span className="ms-1.5 shrink-0 rounded-[5px] bg-brand-600 px-1.5 text-3xs font-black leading-[15px] text-white">היום</span>}
+        </b>
+        <span className="mt-px flex items-center gap-1.5 text-xs text-ink-400">
+          <span className="min-w-0 truncate">{sub}</span>
+          {w.hasFeedback && <span className="shrink-0 rounded-md bg-brand-600/10 px-1 text-2xs font-extrabold text-brand-600" aria-label="יש משוב מהמאמן">💬</span>}
+        </span>
+      </span>
+      <span className="w-[42px] shrink-0 text-center"><RowMark status={s} /></span>
+      {isToday && w.steps && w.steps.length > 0 && (
+        <span
+          className="mt-1.5 grid basis-full gap-1 ps-[42px]"
+          style={{ gridTemplateColumns: w.steps.map((st) => (st.kind === 'main' ? '1.5fr' : '1fr')).join(' ') }}
+        >
+          {w.steps.map((st, i) => (
+            <span
+              key={i}
+              className={cn(
+                'flex flex-col items-center rounded-[9px] px-1 py-1 text-center text-2xs leading-tight',
+                st.kind === 'main' ? 'bg-brand-600 text-white' : 'bg-card text-ink-700',
+              )}
+            >
+              <span className="line-clamp-1">{st.label}</span>
+              {st.pace != null && <b className="text-sm font-black"><bdi dir="ltr">{fmtPace(st.pace)}</bdi></b>}
+            </span>
+          ))}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/** The mark at the end of a row — a ring for what was run, ✕ for what was missed, an empty circle for what is to come. */
+function RowMark({ status }: { status: HomeWorkout['status'] }) {
+  if (status.kind === 'missed') {
+    return (
+      <span className="mx-auto grid h-7 w-7 place-items-center rounded-full bg-accent-red/10 text-13 font-black text-accent-red" aria-label="לא בוצע">✕</span>
+    );
+  }
+  if (status.kind === 'upcoming') {
+    return <span className="mx-auto block h-7 w-7 rounded-full border-2 border-ink-300" aria-label="מתוכנן" />;
+  }
+  const partial = status.kind === 'partial';
+  const pct = partial ? status.pct : status.score ?? 100;
+  const label = partial ? `${status.pct}%` : status.score != null ? String(status.score) : '✓';
+  return (
+    <span className="relative mx-auto block h-[38px] w-[38px]" aria-label={partial ? `בוצע ${status.pct}% מהמרחק` : status.score != null ? `דיוק ${status.score}` : 'בוצע'}>
+      <svg viewBox="0 0 36 36" className="h-[38px] w-[38px] -rotate-90">
+        <circle cx={18} cy={18} r={15} fill="none" stroke={partial ? '#FDEBDD' : '#E3F5EA'} strokeWidth={4} />
+        <circle
+          cx={18} cy={18} r={15} fill="none"
+          stroke={partial ? '#E8893A' : '#1FA55B'}
+          strokeWidth={4}
+          strokeLinecap="round"
+          strokeDasharray={`${(Math.max(0, Math.min(100, pct)) / 100) * RING_C} ${RING_C}`}
+        />
+      </svg>
+      <b className="absolute inset-0 grid place-items-center text-2xs font-black text-ink-700">{label}</b>
+    </span>
   );
 }

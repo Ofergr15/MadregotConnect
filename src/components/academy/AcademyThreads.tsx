@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { ThreadInbox } from './ThreadInbox';
 import { AcademyThreadPanel } from './AcademyThreadPanel';
@@ -16,8 +16,16 @@ import { AcademyThreadPanel } from './AcademyThreadPanel';
 // band and the order is now different. A stale list would still be showing them as
 // owed an answer.
 
-export function AcademyThreads() {
-  const [openId, setOpenId] = useState<string | null>(null);
+export function AcademyThreads({ initialOpenId = null }: {
+  /**
+   * A thread to open straight away — the `?thread=<traineeId>` a staff push lands
+   * on (lib/academy/deep-links.ts). Followed when it changes too, so a second push
+   * tapped while this tab is already showing opens the new thread.
+   */
+  initialOpenId?: string | null;
+} = {}) {
+  const [openId, setOpenId] = useState<string | null>(initialOpenId);
+  useEffect(() => { if (initialOpenId) setOpenId(initialOpenId); }, [initialOpenId]);
 
   if (!openId) return <ThreadInbox onOpen={setOpenId} />;
 

@@ -236,6 +236,22 @@ export function resolveNavItems({
 }
 
 /**
+ * The phone bar's primary order for a non-staff account, with the academy in
+ * place of the program for an academy member (2026-10-06).
+ *
+ * A trainee's program IS their academy plan — the home of /dashboard/academy
+ * shows the week, day by day, with what they actually ran under each session —
+ * so a Program tab beside it was two doors to the same week and the academy, the
+ * thing they signed up for, was the one left in "More". The program page stays
+ * reachable from there; nothing is removed from the nav, only reordered.
+ */
+export function athletePrimaryOrder(order: readonly string[], isAcademyMember: boolean): string[] {
+  if (!isAcademyMember) return [...order];
+  const out = order.map((tab) => (tab === 'program' ? 'academy' : tab));
+  return out.includes('academy') ? out : [...out, 'academy'];
+}
+
+/**
  * The signed-in user's identity as the nav needs it: which role to render as,
  * whether they're staff, and the two localStorage-derived flags. Shared by the
  * Header and the BottomTabBar, which both used to resolve this independently.

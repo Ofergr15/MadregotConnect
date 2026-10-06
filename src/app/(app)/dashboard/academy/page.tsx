@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
+import { useSearchParams } from 'next/navigation';
 import {
   GraduationCap, Plus, Search, Users, ClipboardCheck, CalendarPlus,
   BarChart3, Trophy, Settings as SettingsIcon, UserPlus, LayoutDashboard,
@@ -37,6 +38,7 @@ import { getActiveViewRole, getStoredView } from '@/lib/role-views';
 import { AcademyAdminButton, CoachesSheet } from '@/components/academy/AcademyAdmin';
 import { getViewedPerson, type ViewedPerson } from '@/lib/view-as-person';
 import { ViewAsBanner } from '@/components/academy/AcademyAdmin';
+import { readAcademyDeepLink } from '@/lib/academy/deep-links';
 
 // The academy centre. Three audiences, three lenses off the same route:
 //
@@ -281,9 +283,17 @@ export default function AcademyPage() {
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
 
+  // Read through `useSearchParams`, not `window.location` once on mount: a push
+  // tapped while this screen is already open is a router navigation to the same
+  // route, which keeps the component mounted — so only a hook re-reads the new
+  // `?thread=` / `?tab=`. The scheme lives in lib/academy/deep-links.ts.
+  const searchParams = useSearchParams();
+  const deepLink = useMemo(() => readAcademyDeepLink(searchParams), [searchParams]);
   useEffect(() => {
     // Deep-link to a tab, e.g. /dashboard/academy?tab=results (from the header bell).
-    const tab = new URLSearchParams(window.location.search).get('tab');
+    // A staff thread link (`?thread=<traineeId>`) implies the threads tab even when
+    // an older link forgot to say so.
+    const tab = deepLink.tab || (deepLink.thread && deepLink.thread !== 'mine' ? 'threads' : null);
     if (!tab) return;
     // `roster` is the old name for what is now the members directory — links
     // already out in notifications and shared URLs must keep working.
@@ -293,7 +303,7 @@ export default function AcademyPage() {
     // from the day it shipped — `academyFlowMap.test.ts` now fails on any new gap.
     const valid: Tab[] = ['overview', 'threads', 'funnel', 'members', 'registrations', 'plans', 'book', 'dispatch', 'compliance', 'tests', 'stats', 'results', 'payments', 'settings'];
     if (valid.includes(normalized as Tab)) setView(normalized as Tab);
-  }, []);
+  }, [deepLink]);
 
   // ── The one staff payload. Overview and the directory are the same data seen
   //    two ways, so they share a fetch and can't disagree. ────────────────────
@@ -381,21 +391,20 @@ export default function AcademyPage() {
   // ── Athlete lens ──────────────────────────────────────────────────────────
   if (!isStaff) {
     return (
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="bg-brand-600/20 w-12 h-12 rounded-2xl flex items-center justify-center ring-1 ring-brand-600/20">
-            <GraduationCap className="h-6 w-6 text-brand-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-ink-700">{t('title')}</h1>
-            <p className="text-sm text-ink-400">{t('mySubtitle')}</p>
-          </div>
-        </div>
+      // No page title here: the trainee home draws its own header row (coach,
+      // "האקדמיה שלי", the week and its arrows), and it is meant to fit one phone
+      // screen (2026-10-06), so on a phone the page adds no padding of its own —
+      // the shell's <main> already pads it — exactly like the manager lens.
+      <div className="max-w-3xl mx-auto sm:px-6 sm:py-8">
         {/* Passed raw, not `|| null`: `null` means "haven't read storage yet"
             and `''` means "read it, nobody's signed in" — collapsing the two
             would leave an anonymous visitor on a skeleton that never resolves. */}
         {viewed && <ViewAsBanner person={viewed} />}
-        <AcademyMyView athleteId={viewed ? viewed.id : myAthleteId} />
+        <AcademyMyView
+          athleteId={viewed ? viewed.id : myAthleteId}
+          openThread={deepLink.thread === 'mine'}
+          raiseTest={deepLink.test}
+        />
       </div>
     );
   }
@@ -502,7 +511,7 @@ export default function AcademyPage() {
           onOpenCoach={(id) => { setFocusCoach(id); setCoachesOpen(true); }}
         />
       ) : view === 'threads' ? (
-        <AcademyThreads />
+        <AcademyThreads initialOpenId={deepLink.thread && deepLink.thread !== 'mine' ? deepLink.thread : null} />
       ) : view === 'members' ? (
         <AcademyMembers
           data={members}

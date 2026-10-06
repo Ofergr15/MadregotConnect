@@ -625,7 +625,8 @@ describe('the reminders a confirmed time arms', () => {
       expect(r.audience_id).toBe('a1');
       expect(r.status).toBe('scheduled');
       expect(r.schedule_type).toBe('once_at');
-      expect(r.url).toBe('/dashboard/academy');
+      // The tap raises the test card (lib/academy/deep-links.ts).
+      expect(r.url).toBe('/dashboard/academy?test=mine');
     }
     // And the invitation can find them again, which is what makes cancelling possible.
     expect(row.reminder_before_id).toBe(before[0].id);

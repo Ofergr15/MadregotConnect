@@ -1,3 +1,4 @@
+import { academyTestUrl } from './deep-links';
 import {
   FOLLOW_UP_DAYS_AFTER,
   REMINDER_HOURS_BEFORE,
@@ -57,8 +58,11 @@ export const REMINDER_AFTER_KIND = 'academy_test_after';
  */
 export const ACADEMY_REMINDER_KINDS: readonly string[] = [REMINDER_BEFORE_KIND, REMINDER_AFTER_KIND];
 
-/** Where the tap lands: the trainee's own academy screen, which holds the invitation card. */
-export const REMINDER_URL = '/dashboard/academy';
+/**
+ * Where the tap lands: the trainee's own academy screen with the invitation card raised
+ * (`?test=mine`). Both reminders go to the trainee — `audience_id` is always them.
+ */
+export const REMINDER_URL = academyTestUrl({ recipientIsStaff: false });
 
 export interface PlannedReminder {
   which: 'before' | 'after';

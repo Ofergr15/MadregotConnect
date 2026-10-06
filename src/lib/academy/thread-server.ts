@@ -256,3 +256,33 @@ export async function postAcademyTestSummary(
     return { posted: false, updated: false, error: String(err) };
   }
 }
+
+/** How long the home waits on Stream for the red dot before drawing without it. */
+const UNREAD_TIMEOUT_MS = 1500;
+
+/**
+ * Unread messages in a trainee's own thread, counted AS the trainee — the red dot
+ * on the coach's avatar on their academy home.
+ *
+ * Best-effort by design: zero on any failure, on a channel that does not exist yet,
+ * and on a Stream that takes longer than `UNREAD_TIMEOUT_MS`. A missing dot is a
+ * small loss; a home screen held hostage by a chat provider is not.
+ */
+export async function traineeUnreadCount(stream: StreamChat, athleteId: string): Promise<number> {
+  const count = stream
+    .queryChannels(
+      { type: CHANNEL_TYPE, id: { $in: [academyChannelId(athleteId)] } },
+      [{ last_message_at: -1 }],
+      // The unread count is read off the channel's own state, so it needs some
+      // messages loaded; 30 is more than the dot ever has to say.
+      { limit: 1, message_limit: 30, state: true, user_id: athleteId },
+    )
+    .then((channels) => {
+      const ch = channels[0];
+      if (!ch) return 0;
+      try { return ch.countUnread(); } catch { return 0; }
+    })
+    .catch(() => 0);
+  const timeout = new Promise<number>((resolve) => setTimeout(() => resolve(0), UNREAD_TIMEOUT_MS));
+  return Promise.race([count, timeout]);
+}

@@ -1,3 +1,4 @@
+import { upgradeLegacyAcademyUrl } from '@/lib/academy/deep-links';
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { kudosActivityId, rsvpTarget } from '@/lib/notifications/history';
 import { isKindMuted } from '@/lib/notifications/prefs';
@@ -22,6 +23,7 @@ interface InboxRow {
   body_he: string;
   url: string | null;
   last_sent_at: string | null;
+  actor_athlete_id?: string | null;
   actor?: { name?: string | null; avatar_url?: string | null } | null;
 }
 
@@ -29,13 +31,25 @@ interface InboxRow {
 // internal urls (ledger sentinels, already excluded at the query level, but a
 // defense-in-depth filter belongs here too) back to a safe '/dashboard'
 // fallback, and derives `unread` from the single last_seen_at cutoff.
-export function shapeInboxItem(row: InboxRow, sinceIso: string): RawItem {
+//
+// `viewer` upgrades the academy rows sent before their deep links existed: a
+// thread or review notification stored as the bare `/dashboard/academy` opens the
+// conversation instead (see lib/academy/deep-links.ts). Optional, so a caller that
+// doesn't know the viewer's staffness gets the stored url unchanged.
+export function shapeInboxItem(
+  row: InboxRow,
+  sinceIso: string,
+  viewer?: { isStaff: boolean },
+): RawItem {
+  const stored = row.url && !row.url.startsWith('#') ? row.url : '/dashboard';
   return {
     id: row.id,
     kind: row.kind,
     title: row.title_he,
     body: row.body_he,
-    url: row.url && !row.url.startsWith('#') ? row.url : '/dashboard',
+    url: viewer
+      ? upgradeLegacyAcademyUrl(row.kind, stored, { viewerIsStaff: viewer.isStaff, actorAthleteId: row.actor_athlete_id ?? null })
+      : stored,
     sentAt: row.last_sent_at || '',
     unread: !!row.last_sent_at && row.last_sent_at > sinceIso,
     actorName: row.actor?.name || null,

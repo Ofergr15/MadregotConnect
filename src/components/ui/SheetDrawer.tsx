@@ -14,6 +14,8 @@ export interface SheetProps {
   footer?: React.ReactNode;
   className?: string;
   bodyClassName?: string;
+  /** Overrides the centred title's look (the plain-title variant only) — e.g. a start-aligned heading. */
+  titleClassName?: string;
 }
 
 // Native-style bottom sheet (Phase 3) built on vaul: grabber handle, drag/
@@ -34,6 +36,7 @@ export function SheetDrawer({
   footer,
   className,
   bodyClassName,
+  titleClassName,
 }: SheetProps) {
   // vaul already handles Escape and the swipe-down drag; this adds the third way
   // out of a sheet, which on a phone is the main one — the back gesture. Every
@@ -67,7 +70,7 @@ export function SheetDrawer({
               <div className="justify-self-end">{trailingAction}</div>
             </div>
           ) : title ? (
-            <Drawer.Title className="px-5 pt-2 pb-1 text-base font-bold text-center text-ink-900">
+            <Drawer.Title className={cn('px-5 pt-2 pb-1 text-base font-bold text-center text-ink-900', titleClassName)}>
               {title}
             </Drawer.Title>
           ) : null}

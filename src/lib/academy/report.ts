@@ -16,8 +16,9 @@ import { isMissingMatchesTable } from '@/lib/plans/match-athlete-activities';
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
 import { normalizeStoredLaps } from '@/lib/garmin/laps';
 import { effortReportFor, segmentReportFor } from '@/lib/plan-execution/resolve';
-import { buildVerdict, toExecutionSummary, type ExecutionSummary } from '@/lib/plan-execution/verdict';
-import type { Lap } from './segments';
+import { buildVerdict, toExecutionSummary, type ExecutionSummary, type ExecutionVerdict } from '@/lib/plan-execution/verdict';
+import type { EffortReport, Lap } from './segments';
+import { workPaceOf } from './work-pace';
 
 /** One planned workout, plus its accuracy verdict when the caller asked for one. */
 export interface WorkoutAdherenceRow extends WorkoutAdherence {
@@ -28,6 +29,31 @@ export interface WorkoutAdherenceRow extends WorkoutAdherence {
    * never mistake "not asked for" for "not gradeable".
    */
   execution?: ExecutionSummary | null;
+  /**
+   * The pace of the WORK in a structured session — the mean over its graded
+   * interval/active reps, with the band the first of them was written at. Null on
+   * a session whose reps could not be read; absent unless `withExecution` was set.
+   *
+   * The trainee's week row needs it because the whole-run average of an interval
+   * day is a number about the jog between the reps, and `pace.comparedMin` is
+   * deliberately null there (see computeGradedPaceBand) — so without this the row
+   * of the session that matters most would have no pace to judge at all.
+   */
+  workPace?: { actual: number; min: number; max: number } | null;
+  /**
+   * SERVER-ONLY. What the plan-vs-actual sheet is built from: the raw planned
+   * workout, the stored laps and the full verdict (per-rep paces included). Set
+   * only under `keepDetail`, and a route must never serialize it — raw laps are
+   * the widest thing in this module, which is why the sheet route reduces them to
+   * the chart's points first.
+   */
+  detail?: {
+    workout: ParsedWorkout;
+    laps: Lap[];
+    /** Null for a session that has not been run. */
+    verdict: ExecutionVerdict | null;
+    efforts: EffortReport | null;
+  };
 }
 
 export interface AcademyWeek extends Omit<WeekAdherence, 'workouts'> {
@@ -121,7 +147,10 @@ export async function computeAcademyWeekAdherence(opts: {
    * order of a megabyte, which the members overview has no use for.
    */
   withExecution?: boolean;
+  /** Also attach `detail` (implies `withExecution`). One athlete's sheet only — see WorkoutAdherenceRow.detail. */
+  keepDetail?: boolean;
 }): Promise<AcademyWeekReport> {
+  if (opts.keepDetail) opts = { ...opts, withExecution: true };
   const weekStart = sundayOf(opts.weekStart);
   const weekEnd = addDaysStr(weekStart, 6);
   const supabase = createServerClient();
@@ -173,11 +202,7 @@ export async function computeAcademyWeekAdherence(opts: {
   const groupNames = new Map<string, string>(
     (groupsRes.data || []).map((g: any) => [g.id, g.name]),
   );
-  const groupNumberOf = (athlete: any): number => {
-    if (!athlete.group_id) return 2; // ungrouped athletes sit with the middle group
-    const index = resolveGroup(groupNames.get(athlete.group_id)).index;
-    return index >= 0 ? index + 1 : 2;
-  };
+  const groupNumberOf = (athlete: any): number => groupNumberFor(athlete.group_id, groupNames);
 
   // 2) Planned workouts per athlete — individual plan wins, else shared group plan.
   // Ordered newest-first so `.find()` below picks the most recent plan per
@@ -215,23 +240,7 @@ export async function computeAcademyWeekAdherence(opts: {
   // needs and not enough for accuracy: the per-rep verdicts are read off the
   // STEPS, so throwing the raw workout away here is what used to make a rep-level
   // score impossible anywhere but the athlete's own run page.
-  const toPlanned = (workouts: ParsedWorkout[]): {
-    planned: PlannedWorkout[];
-    rawByDate: Map<string, ParsedWorkout>;
-  } => {
-    const seen = new Set<number>();
-    const planned: PlannedWorkout[] = [];
-    const rawByDate = new Map<string, ParsedWorkout>();
-    for (const w of workouts) {
-      if (seen.has(w.dayOfWeek)) continue;
-      seen.add(w.dayOfWeek);
-      // The same key WorkoutAdherence.date carries (it is planned.date verbatim).
-      const date = addDaysStr(weekStart, w.dayOfWeek);
-      planned.push(buildPlannedWorkout(w, date));
-      rawByDate.set(date, w);
-    }
-    return { planned, rawByDate };
-  };
+  const toPlanned = (workouts: ParsedWorkout[]) => plannedForWeek(workouts, weekStart);
 
   const plannedByAthlete = new Map<string, PlannedWorkout[]>();
   const rawByAthlete = new Map<string, Map<string, ParsedWorkout>>();
@@ -311,7 +320,18 @@ export async function computeAcademyWeekAdherence(opts: {
     const rawByDate = rawByAthlete.get(athleteId);
     const workouts: WorkoutAdherenceRow[] = week.workouts.map((w) => {
       const raw = rawByDate?.get(w.date);
-      if (!w.completed || !w.actual || !raw) return { ...w, execution: null };
+      if (!w.completed || !w.actual || !raw) {
+        // A session not run yet still has its steps, and the trainee's home draws
+        // today's from them — so under `keepDetail` the plan travels even without a run.
+        return {
+          ...w,
+          execution: null,
+          workPace: null,
+          ...(opts.keepDetail && raw ? { detail: { workout: raw, laps: [], verdict: null, efforts: null } } : {}),
+        };
+      }
+      const laps = lapsByActivity.get(w.actual.id) || [];
+      const efforts = effortReportFor(raw, laps, tolerances.paceSec);
       // Laps are read, never fetched. Grading a club-week would otherwise mean one
       // Garmin round trip per session — and a paced session whose laps are missing
       // comes back `ungraded` rather than scored on distance alone, so the gap
@@ -320,15 +340,20 @@ export async function computeAcademyWeekAdherence(opts: {
         activityId: w.actual.id,
         athleteId,
         adherence: w,
-        segments: segmentReportFor(raw, lapsByActivity.get(w.actual.id) || [], tolerances.paceSec),
+        segments: segmentReportFor(raw, laps, tolerances.paceSec),
         // The same rep search this table renders below the score. It has to be in
         // the score too, or the coach reads "partially done, 15 of 19 reps at
         // target" next to a 97%.
-        efforts: effortReportFor(raw, lapsByActivity.get(w.actual.id) || [], tolerances.paceSec),
+        efforts,
         tolerances,
         workoutName: w.name,
       });
-      return { ...w, execution: toExecutionSummary(verdict) };
+      return {
+        ...w,
+        execution: toExecutionSummary(verdict),
+        workPace: workPaceOf(verdict, efforts),
+        ...(opts.keepDetail ? { detail: { workout: raw, laps, verdict, efforts } } : {}),
+      };
     });
 
     const scores = workouts
@@ -343,4 +368,171 @@ export async function computeAcademyWeekAdherence(opts: {
   }
 
   return { weekStart, weekEnd, athletes: result, tolerances };
+}
+
+/** Which of the plan's three group variants an athlete is graded against. See extractWorkouts. */
+function groupNumberFor(groupId: string | null | undefined, groupNames: Map<string, string>): number {
+  if (!groupId) return 2; // ungrouped athletes sit with the middle group
+  const index = resolveGroup(groupNames.get(groupId)).index;
+  return index >= 0 ? index + 1 : 2;
+}
+
+/**
+ * One week's ParsedWorkout[] → the PlannedWorkout[] adherence grades, plus the raw
+ * workout per date.
+ *
+ * The raw ParsedWorkout goes back alongside the PlannedWorkout it becomes.
+ * `buildPlannedWorkout` reduces a session to its totals, which is all adherence
+ * needs and not enough for accuracy: the per-rep verdicts are read off the STEPS,
+ * so throwing the raw workout away here is what used to make a rep-level score
+ * impossible anywhere but the athlete's own run page.
+ */
+function plannedForWeek(workouts: ParsedWorkout[], weekStart: string): {
+  planned: PlannedWorkout[];
+  rawByDate: Map<string, ParsedWorkout>;
+} {
+  const seen = new Set<number>();
+  const planned: PlannedWorkout[] = [];
+  const rawByDate = new Map<string, ParsedWorkout>();
+  for (const w of workouts) {
+    if (seen.has(w.dayOfWeek)) continue;
+    seen.add(w.dayOfWeek);
+    // The same key WorkoutAdherence.date carries (it is planned.date verbatim).
+    const date = addDaysStr(weekStart, w.dayOfWeek);
+    planned.push(buildPlannedWorkout(w, date));
+    rawByDate.set(date, w);
+  }
+  return { planned, rawByDate };
+}
+
+/** One plan week of one athlete, reduced to the four numbers the trainee's journey reads. */
+export interface AthleteWeekHistory {
+  weekStart: string;
+  plannedCount: number;
+  completedCount: number;
+  /** Mid-point of the planned distance range over the week's workouts, metres. */
+  plannedM: number;
+  /** Every activity in the plan week (Sun–Sat), metres. */
+  ranM: number;
+}
+
+/**
+ * Many weeks of ONE athlete's adherence, for the trainee home's km chart and its
+ * journey tiles ("% of plan done", "weeks in a row ≥80%").
+ *
+ * Not `computeAcademyWeekAdherence` in a loop: that is three waves of queries per
+ * week, so a season of tiles would be ~150 round trips. This reads each table
+ * ONCE for the whole range — the plans, the activities, the matcher's attribution
+ * — and grades each week in memory with the same `assessWeek`, the same group
+ * variant and the same individual-over-shared plan precedence, so a week here
+ * counts exactly what the compliance table counts for it.
+ *
+ * No laps: nothing here needs accuracy, only completed-or-not.
+ */
+export async function computeAthleteWeekHistory(opts: {
+  athleteId: string;
+  /** Plan week starts (Sundays), inclusive. */
+  fromWeek: string;
+  toWeek: string;
+}): Promise<AthleteWeekHistory[]> {
+  const fromWeek = sundayOf(opts.fromWeek);
+  const toWeek = sundayOf(opts.toWeek);
+  if (fromWeek > toWeek) return [];
+  const weeks: string[] = [];
+  for (let w = fromWeek; w <= toWeek; w = addDaysStr(w, 7)) weeks.push(w);
+  const lastDay = addDaysStr(toWeek, 6);
+
+  const supabase = createServerClient();
+  const [{ tolerances }, athRes, groupsRes, sharedRes, indivRes, actsRes] = await Promise.all([
+    loadAcademySettings(),
+    supabase.from('athletes').select('id, group_id').eq('id', opts.athleteId).maybeSingle(),
+    supabase.from('groups').select('id, name'),
+    supabase
+      .from('weekly_plans')
+      .select('id, week_start_date, parsed_workouts, created_at')
+      .eq('coach_id', COACH_ID)
+      .is('athlete_id', null)
+      .gte('week_start_date', fromWeek)
+      .lte('week_start_date', toWeek)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('weekly_plans')
+      .select('id, week_start_date, parsed_workouts, created_at')
+      .eq('athlete_id', opts.athleteId)
+      .gte('week_start_date', fromWeek)
+      .lte('week_start_date', toWeek)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('athlete_activities')
+      .select('id, start_time, distance, duration, moving_duration, average_pace, activity_type')
+      .eq('athlete_id', opts.athleteId)
+      .gte('start_time', `${fromWeek}T00:00:00Z`)
+      .lte('start_time', `${lastDay}T23:59:59Z`),
+  ]);
+
+  const groupNames = new Map<string, string>((groupsRes.data || []).map((g: any) => [g.id, g.name]));
+  const groupNumber = groupNumberFor((athRes.data as any)?.group_id ?? null, groupNames);
+
+  // Newest-first per week, individual over shared — the same precedence as the
+  // single-week report (a re-pushed plan INSERTs a new row).
+  const planOf = new Map<string, any>();
+  for (const p of (sharedRes.error ? [] : sharedRes.data || []) as any[]) {
+    if (!planOf.has(p.week_start_date)) planOf.set(p.week_start_date, p);
+  }
+  const ownWeeks = new Set<string>();
+  for (const p of (indivRes.error ? [] : indivRes.data || []) as any[]) {
+    if (ownWeeks.has(p.week_start_date)) continue;
+    ownWeeks.add(p.week_start_date);
+    planOf.set(p.week_start_date, p);
+  }
+
+  const attribution = new Map<string, Map<string, string[]>>();
+  const planIds = [...new Set([...planOf.values()].map((p) => p.id).filter(Boolean))];
+  if (planIds.length) {
+    const matchRes = await supabase
+      .from('activity_plan_matches')
+      .select('weekly_plan_id, workout_key, activity_id')
+      .eq('athlete_id', opts.athleteId)
+      .in('weekly_plan_id', planIds);
+    if (matchRes.error && !isMissingMatchesTable(matchRes.error)) throw matchRes.error;
+    for (const row of (matchRes.data || []) as any[]) {
+      const forPlan = attribution.get(row.weekly_plan_id) || new Map<string, string[]>();
+      const ids = forPlan.get(row.workout_key) || [];
+      ids.push(row.activity_id);
+      forPlan.set(row.workout_key, ids);
+      attribution.set(row.weekly_plan_id, forPlan);
+    }
+  }
+
+  const actsByWeek = new Map<string, ActualActivity[]>();
+  for (const r of (actsRes.error ? [] : actsRes.data || []) as any[]) {
+    if (!r.start_time) continue;
+    const date = activityLocalDateStr(r.start_time);
+    const week = sundayOf(date);
+    const arr = actsByWeek.get(week) || [];
+    arr.push({
+      id: r.id,
+      date,
+      distance: Number(r.distance) || 0,
+      duration: Number(r.duration) || 0,
+      movingDuration: r.moving_duration != null ? Number(r.moving_duration) : null,
+      averagePace: r.average_pace != null ? Number(r.average_pace) : null,
+      activityType: r.activity_type,
+    });
+    actsByWeek.set(week, arr);
+  }
+
+  return weeks.map((weekStart) => {
+    const plan = planOf.get(weekStart);
+    const { planned } = plannedForWeek(extractWorkouts(plan?.parsed_workouts, groupNumber), weekStart);
+    const acts = actsByWeek.get(weekStart) || [];
+    const week = assessWeek(planned, acts, tolerances, plan?.id ? attribution.get(plan.id) : undefined);
+    return {
+      weekStart,
+      plannedCount: week.plannedCount,
+      completedCount: week.completedCount,
+      plannedM: Math.round(planned.reduce((sum, p) => sum + (p.distanceMin + p.distanceMax) / 2, 0)),
+      ranM: Math.round(acts.reduce((sum, a) => sum + a.distance, 0)),
+    };
+  });
 }

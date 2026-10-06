@@ -54,6 +54,7 @@ export function MyInvitation({
   athleteId,
   watchConnected,
   onVisible,
+  onInvitation,
   resultJustSent,
 }: {
   athleteId: string;
@@ -61,6 +62,8 @@ export function MyInvitation({
   watchConnected?: boolean;
   /** Tells the parent whether anything rendered, so it can drop text this screen replaces. */
   onVisible?: (visible: boolean) => void;
+  /** The open invitation itself (or null), for the "next test" tile further down the home. */
+  onInvitation?: (invitation: TestInvitation | null) => void;
   /**
    * A result was just saved further down this screen — the same fact `submittedAt` carries, known
    * one round trip earlier.
@@ -135,6 +138,7 @@ export function MyInvitation({
   const waiting = !!submittedAt || !!resultJustSent;
   const visible = !!invitation && !!now && !waiting;
   useEffect(() => { onVisible?.(visible); }, [visible, onVisible]);
+  useEffect(() => { onInvitation?.(invitation); }, [invitation, onInvitation]);
 
   if (!invitation || !now || waiting) return null;
 

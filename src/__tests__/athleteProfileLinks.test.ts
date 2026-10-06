@@ -91,7 +91,9 @@ const PERSON_LISTS = [
   // Academy
   'components/AcademyStats.tsx',
   'components/AcademyResults.tsx',
-  'components/academy/AcademyMyView.tsx',
+  // AcademyMyView left this list on 2026-10-06: the trainee home no longer shows
+  // anybody else (the leaderboard went), and its one other person — the coach's
+  // avatar — opens the conversation, which is the point of tapping it.
   'components/academy/MemberSheet.tsx',
   // Discovery, search, own profile
   'components/MemberDiscovery.tsx',

@@ -139,7 +139,7 @@ export async function GET(request: Request) {
       (data || [])
         // Drop internal idempotency-ledger rows (not real member messages).
         .filter((r: any) => !String(r.url || '').startsWith('#ledger:'))
-        .map((r: any) => shapeInboxItem(r, since)),
+        .map((r: any) => shapeInboxItem(r, since, { isStaff: isStaffRole(a.role) })),
       a.notification_prefs as Record<string, boolean> | null,
       isStaffRole(a.role),
     );

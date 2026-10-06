@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { MessageCircle, Send, ShieldCheck } from 'lucide-react';
 import { cn, israelToday } from '@/lib/utils';
 import type { AcademyFeedbackAttachment } from '@/lib/academy/thread';
@@ -46,6 +46,16 @@ export interface ThreadMessage {
  * the rest of the app already uses for staff. The trainee's own name is never
  * printed on their own messages — they know who they are.
  */
+/**
+ * How many messages are drawn at once; older ones wait behind "הודעות קודמות".
+ *
+ * The transcript used to render the whole season, so a thread a trainee had used
+ * since the spring was a page that only grew — every bubble since March mounted,
+ * and the newest one (the only one anybody opened the thread for) at the bottom
+ * of it. Thirty is a few weeks of a normal thread.
+ */
+export const THREAD_PAGE = 30;
+
 const SEAT_INK: Record<ThreadSeat, string> = {
   trainee: 'text-ink-500',
   coach: 'text-brand-600',
@@ -60,6 +70,7 @@ export function ThreadTranscript({
   sending = false,
   error = null,
   className,
+  layout = 'inline',
 }: {
   messages: ThreadMessage[];
   /** Which seat is looking. Their own messages are the ones that sit on the end. */
@@ -69,8 +80,40 @@ export function ThreadTranscript({
   sending?: boolean;
   error?: string | null;
   className?: string;
+  /**
+   * `sheet` — the trainee's conversation sheet: the transcript scrolls inside its
+   * own box with the newest message in view, and the composer stays pinned below
+   * it however long the thread is. `inline` is the staff tab's flowing layout.
+   * The parent must give a `sheet` a bounded height (flex-1 min-h-0).
+   */
+  layout?: 'inline' | 'sheet';
 }) {
   const [draft, setDraft] = useState('');
+  const [shown, setShown] = useState(THREAD_PAGE);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  /** scrollHeight before "הודעות קודמות" grew the list, so the reader stays where they were. */
+  const anchorRef = useRef<number | null>(null);
+  const hidden = Math.max(0, messages.length - shown);
+  const visible = hidden ? messages.slice(hidden) : messages;
+  const isSheet = layout === 'sheet';
+
+  // Newest in view: on open and whenever a message arrives — except right after
+  // older ones were revealed, when the reader is looking at the top on purpose.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !isSheet) return;
+    if (anchorRef.current != null) {
+      el.scrollTop = el.scrollHeight - anchorRef.current;
+      anchorRef.current = null;
+      return;
+    }
+    el.scrollTop = el.scrollHeight;
+  }, [visible.length, messages.length, isSheet]);
+
+  const showOlder = () => {
+    if (scrollRef.current) anchorRef.current = scrollRef.current.scrollHeight - scrollRef.current.scrollTop;
+    setShown((n) => n + THREAD_PAGE);
+  };
 
   const send = async () => {
     const text = draft.trim();
@@ -82,7 +125,17 @@ export function ThreadTranscript({
   };
 
   return (
-    <div className={cn('flex flex-col', className)} dir="rtl">
+    <div className={cn('flex flex-col', isSheet && 'min-h-0', className)} dir="rtl">
+      <div ref={scrollRef} className={cn(isSheet && 'min-h-0 flex-1 overflow-y-auto overscroll-contain')}>
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={showOlder}
+          className="mx-auto flex min-h-[44px] items-center px-4 text-xs font-bold text-brand-600"
+        >
+          הודעות קודמות
+        </button>
+      )}
       {messages.length === 0 ? (
         <div className="flex items-center gap-1.5 py-6 text-xs text-ink-400">
           <MessageCircle className="h-3.5 w-3.5" />
@@ -93,19 +146,21 @@ export function ThreadTranscript({
         </div>
       ) : (
         <div className="space-y-2.5 py-1">
-          {messages.map((m, i) => (
+          {visible.map((m, i) => (
             <div key={m.id}>
-              {needsDaySeparator(messages, i) && <DaySeparator at={m.at} />}
+              {needsDaySeparator(visible, i) && <DaySeparator at={m.at} />}
               <Bubble message={m} mine={m.seat === viewerSeat} segments={segments} />
             </div>
           ))}
         </div>
       )}
 
+      </div>
+
       {error && <p className="mt-1 text-[11px] text-accent-red-ink">{error}</p>}
 
       {onSend && (
-        <div className="mt-2 flex items-end gap-2">
+        <div className={cn('mt-2 flex items-end gap-2', isSheet && 'shrink-0 border-t border-page pt-2')}>
           <textarea
             value={draft}
             onChange={e => setDraft(e.target.value)}

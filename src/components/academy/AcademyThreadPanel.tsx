@@ -59,11 +59,14 @@ export function AcademyThreadPanel({
   athleteId,
   segments,
   className,
+  layout,
 }: {
   /** Omit to open the signed-in trainee's own thread. */
   athleteId?: string;
   segments?: SegmentVerdict[];
   className?: string;
+  /** See ThreadTranscript — `sheet` pins the composer and scrolls the transcript. */
+  layout?: 'inline' | 'sheet';
 }) {
   const [supabaseToken, setSupabaseToken] = useState<string | null>(null);
   const [thread, setThread] = useState<OpenedThread | null>(null);
@@ -130,6 +133,7 @@ export function AcademyThreadPanel({
       thread={thread}
       segments={segments}
       className={className}
+      layout={layout}
     />
   );
 }
@@ -139,11 +143,13 @@ function ConnectedAcademyThread({
   thread,
   segments,
   className,
+  layout,
 }: {
   tokenData: StreamTokenData;
   thread: OpenedThread;
   segments?: SegmentVerdict[];
   className?: string;
+  layout?: 'inline' | 'sheet';
 }) {
   const client = useConnectedStreamClient(tokenData);
   const [channel, setChannel] = useState<StreamChannel | null>(null);
@@ -241,6 +247,7 @@ function ConnectedAcademyThread({
       sending={sending}
       error={error}
       className={className}
+      layout={layout}
     />
   );
 }

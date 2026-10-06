@@ -1,3 +1,4 @@
+import { ACADEMY_PATH, upgradeLegacyAcademyUrl } from './deep-links';
 import type { createServerClient } from '@/lib/supabase/server';
 import { isMissingColumn, isMissingTable } from '@/lib/supabase/schema-drift';
 import { pickBilingual } from '@/lib/notifications/copy';
@@ -207,7 +208,11 @@ export async function dispatchDueTestReminders(
         const { sent } = await sendPushLocalized(subs, locale => ({
           title: pickBilingual(locale, { he: row.title_he as string, en: row.title_en as string | null }) || 'Madregot',
           body: pickBilingual(locale, { he: row.body_he as string, en: row.body_en as string | null }),
-          url: String(row.url || '/dashboard/academy'),
+          // A row scheduled before the deep link existed still carries the bare academy
+          // url; it is upgraded on the way out so the tap raises the test card.
+          url: upgradeLegacyAcademyUrl(kind, String(row.url || ACADEMY_PATH), {
+            viewerIsStaff: String(row.audience_type || 'athlete') !== 'athlete',
+          }),
           // One tag per row, so the follow-up cannot replace the before-reminder on the lock
           // screen — they say different things and both are worth reading.
           tag: `notif-${id}`,

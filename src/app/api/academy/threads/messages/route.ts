@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { academyThreadUrl } from '@/lib/academy/deep-links';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { getStreamServerClient, CHANNEL_TYPE } from '@/lib/stream/server';
@@ -111,7 +112,10 @@ export async function POST(request: Request) {
             kind: 'academy_message',
             actorAthleteId: caller.athleteId,
             copy: (locale) => academyThreadMessageCopy(locale, { name: author?.name ?? null, text }),
-            url: '/dashboard/academy',
+            // Straight to the conversation, from the recipient's side of it: staff
+            // land on the threads tab with this trainee's open, the trainee on their
+            // own thread's sheet. See lib/academy/deep-links.ts.
+            url: academyThreadUrl({ recipientIsStaff: r.staff, traineeId: trainee.id }),
             // Per THREAD, not per message: a burst of three messages should replace
             // one banner rather than stack three, which is how a chat notification
             // behaves everywhere else on the phone.

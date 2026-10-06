@@ -20,6 +20,7 @@ import { postAcademyFeedback } from '@/lib/academy/thread-server';
 import { notifyAthlete } from '@/lib/push';
 import { academyFeedbackCopy } from '@/lib/notifications/copy';
 import { mayCoach } from '@/lib/academy/pairing-server';
+import { academyThreadUrl } from '@/lib/academy/deep-links';
 
 export const dynamic = 'force-dynamic';
 
@@ -222,9 +223,10 @@ export async function POST(request: Request) {
           copy: (locale) => academyFeedbackCopy(locale, {
             mentorName: body.mentorName ? String(body.mentorName).slice(0, 60) : null,
           }),
-          // The academy tab, where the thread is mounted — not the run page. The tap
-          // should land on the conversation it is inviting a reply to.
-          url: '/dashboard/academy',
+          // The conversation, opened — not the run page, and not the academy home with
+          // the thread three scrolls down. The tap should land on the review it is
+          // inviting a reply to. See lib/academy/deep-links.ts.
+          url: academyThreadUrl({ recipientIsStaff: false, traineeId: athleteId }),
           // Keyed to the review, so two reviews do not collapse into one banner while
           // a re-send of the same one replaces it.
           tag: `academy-feedback-${athleteId}-${date}`,
