@@ -6,6 +6,8 @@ import { useTranslations } from 'next-intl';
 import { Activity, ClipboardList, Newspaper, User } from 'lucide-react';
 import { useOnboarding, markOnboarding } from '@/lib/onboarding/use-onboarding';
 import { TOUR_HOME, canStartTour, tourExitTarget } from '@/lib/onboarding/first-run-order';
+import { FIRST_RUN_EVENT, readFirstRunStage, setFirstRunStage } from '@/lib/onboarding/first-run-flow';
+import { useOnboardingV2 } from '@/lib/install/v2';
 import { useInstallStep } from './InstallStepProvider';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -73,6 +75,10 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   const { answered: installAnswered } = useInstallStep();
 
   const [phase, setPhase] = useState<Phase>('idle');
+
+  const v2 = useOnboardingV2();
+
+  const [stageTick, setStageTick] = useState(0);
   /** The steps whose anchors actually exist, snapshotted once. */
   const [steps, setSteps] = useState<TourStep[]>([]);
   const [index, setIndex] = useState(0);
@@ -82,11 +88,13 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   // the install step has been answered ("add to the home screen, THEN start
   // setting things up"; see first-run-order.ts). `phase` guards re-arming: once
   // dismissed, a later revalidate must not bring it back.
+
+  // FirstRunFlow announces its hand-off; re-check then rather than on the next render.
   useEffect(() => {
-    if (phase !== 'idle') return;
-    if (!canStartTour(data, installAnswered)) return;
-    setPhase('welcome');
-  }, [data, phase, installAnswered]);
+    const on = () => setStageTick((n) => n + 1);
+    window.addEventListener(FIRST_RUN_EVENT, on);
+    return () => window.removeEventListener(FIRST_RUN_EVENT, on);
+  }, []);
 
   useEffect(() => {
     onActiveChange?.(phase === 'welcome' || phase === 'preparing' || phase === 'steps');
@@ -94,6 +102,10 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
 
   const finish = useCallback(async () => {
     setPhase('done');
+    // Ends FirstRunFlow's sequence (onboarding v2). Harmless when v2 is off: nothing
+    // reads the stage then.
+    const id = localStorage.getItem('athlete_id');
+    if (id) setFirstRunStage(id, 'done');
     // Fire and forget by design: the tour is already gone from the screen. A
     // failure here (including the 501 before migration 078 is applied) just
     // means it replays next time, which beats blocking a dismissal on a write.
@@ -105,6 +117,19 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
     setPhase('preparing');
     if (pathname !== TOUR_HOME) router.push(TOUR_HOME);
   }, [pathname, router]);
+
+  useEffect(() => {
+    if (phase !== 'idle') return;
+    if (!canStartTour(data, installAnswered)) return;
+    // Onboarding v2: the tour is step two of FirstRunFlow's sequence. It waits for
+    // the hand-off, and skips its own welcome sheet — the flow already welcomed them.
+    if (v2) {
+      if (readFirstRunStage(localStorage.getItem('athlete_id')) !== 'tour') return;
+      start();
+      return;
+    }
+    setPhase('welcome');
+  }, [data, phase, installAnswered, v2, stageTick, start]);
 
   // Snapshot which steps are real. Done once, after the destination screen has
   // had a moment to render, so the "3 of 4" counter can't claim a step that will

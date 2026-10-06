@@ -14,6 +14,7 @@ import { FirstRunTour } from '@/components/onboarding/FirstRunTour';
 import { InstallStepProvider } from '@/components/onboarding/InstallStepProvider';
 import { ExecutionScoreProvider } from '@/components/activity/execution-context';
 import { NotificationsStep } from '@/components/onboarding/NotificationsStep';
+import { FirstRunFlow } from '@/components/onboarding/FirstRunFlow';
 import { Spinner } from '@/components/ui';
 import { AccessBlocked } from '@/components/AccessBlocked';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -401,6 +402,8 @@ export default function AppLayout({
             PushOptIn below — that banner additionally requires the
             `push_optin_trigger` flag, which only the feedback page sets, long
             after onboarding. */}
+        {/* Onboarding v2: the welcome → notifications → tour sequence (FirstRunFlow). */}
+        {popupsAllowed && <FirstRunFlow />}
         {popupsAllowed && <NotificationsStep />}
         {popupsAllowed && <PushOptIn />}
         {/* Ordered before the connect nudge, and it silences that nudge for the

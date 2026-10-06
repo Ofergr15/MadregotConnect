@@ -194,30 +194,41 @@ export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLate
   if (!ready || platform === 'standalone') return null;
   if (intro) {
     return (
-      <div className="fixed inset-0 z-[60] flex flex-col bg-gradient-to-b from-[#2b33ff] via-brand-600 to-[#141a6b] text-white" dir="rtl" role="dialog" aria-modal="true" aria-labelledby="install-welcome-title">
-        <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center px-7 text-center">
+      <div
+        className="fixed inset-0 z-[60] flex flex-col bg-cover bg-center text-white"
+        style={{ backgroundImage: 'linear-gradient(180deg, rgba(9,12,60,0.25) 0%, rgba(9,12,60,0.55) 42%, #0b0e3e 76%), url(/images/hero-running.jpg)' }}
+        dir="rtl" role="dialog" aria-modal="true" aria-labelledby="install-welcome-title"
+      >
+        <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-6 pb-[max(26px,env(safe-area-inset-bottom))] pt-[max(40px,env(safe-area-inset-top))]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/logo-white.png" alt="מדרגות" className="h-28 w-auto" />
-          <p className="mt-7 text-xs font-bold tracking-wide text-white/80">מועדון הריצה של מדרגות</p>
-          <h1 id="install-welcome-title" className="mt-1 text-[32px] font-black leading-tight">ברוכים הבאים 👋</h1>
-          <p className="mt-3 max-w-[300px] text-[15px] leading-relaxed text-white/90">
-            מדרגות היא אפליקציה שמתקינים מהדפדפן. זה לוקח 30 שניות, פעם אחת, ואנחנו נראה לך בדיוק איך.
-          </p>
-          <div className="mt-6 flex flex-col gap-2 text-sm text-white/85">
-            <span>📲 מוסיפים למסך הבית</span>
-            <span>🔑 נכנסים פעם אחת</span>
-            <span>🔔 מקבלים את האימונים וההודעות מהמאמן</span>
-          </div>
-        </div>
-        <div className="mx-auto w-full max-w-md px-6 pb-[max(28px,env(safe-area-inset-bottom))]">
-          <button type="button" onClick={() => setIntro(false)} className="min-h-[56px] w-full rounded-pill bg-white text-lg font-black text-brand-600 active:bg-white/90">
-            בואו נתחיל ▶
-          </button>
-          {onEscape && (
-            <button type="button" onClick={onEscape} className="mx-auto mt-4 block text-2xs text-white/60 underline underline-offset-2">
-              לא מצליחים להתקין? כניסה בדפדפן
+          <img src="/images/logo-white.png" alt="מדרגות" className="ig-rise mx-auto h-24 w-auto drop-shadow-[0_6px_18px_rgba(0,0,0,0.35)]" />
+          <div className="mt-auto text-center">
+            <p className="ig-rise text-xs font-bold tracking-wide text-white/85" style={{ animationDelay: '120ms' }}>מועדון הריצה של מדרגות</p>
+            <h1 id="install-welcome-title" className="ig-rise mt-1 text-[34px] font-black leading-[1.08]" style={{ animationDelay: '200ms' }}>ברוכים הבאים<br />למשפחה 👋</h1>
+            <p className="ig-rise mx-auto mt-3 max-w-[310px] text-[15px] leading-relaxed text-white/90" style={{ animationDelay: '280ms' }}>
+              הכול במקום אחד: התוכנית מהמאמן, הריצות שלך מהשעון, והקבוצה.
+            </p>
+            <ol className="ig-rise mx-auto mt-6 flex max-w-[300px] items-start justify-center" style={{ animationDelay: '360ms' }} aria-label="3 צעדים">
+              {['מתקינים', 'נכנסים', 'רצים'].map((label, i) => (
+                <li key={label} className="flex flex-1 items-start">
+                  <div className="flex w-16 flex-col items-center gap-1">
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-black ${i === 0 ? 'border-[#FF5315] bg-[#FF5315]' : 'border-white/50'}`}>{i + 1}</span>
+                    <span className="text-xs font-bold">{label}</span>
+                  </div>
+                  {i < 2 && <span className="mt-4 h-0.5 flex-1 bg-white/35" aria-hidden />}
+                </li>
+              ))}
+            </ol>
+            <button type="button" onClick={() => setIntro(false)} className="ig-rise mt-7 min-h-[60px] w-full rounded-pill bg-white text-lg font-black text-[#2b33ff] shadow-[0_14px_34px_rgba(0,0,0,0.35)] active:bg-white/90" style={{ animationDelay: '440ms' }}>
+              בואו נתחיל ▶
+              <span className="block text-2xs font-semibold text-ink-400">30 שניות · פעם אחת</span>
             </button>
-          )}
+            {onEscape && (
+              <button type="button" onClick={onEscape} className="mx-auto mt-4 block text-2xs text-white/60 underline underline-offset-2">
+                לא מצליחים להתקין? כניסה בדפדפן
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
