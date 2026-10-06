@@ -60,6 +60,10 @@ vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({ from: (table: keyof typeof db) => new Query(table) }),
 }));
 
+// coach-1 coaches everyone the tests ask about, except a9, who is another coach's.
+const visible = vi.fn(async () => new Set(['a1', 'a2', 'a3']) as Set<string> | null);
+vi.mock('@/lib/academy/pairing-server', () => ({ visibleTraineeIds: () => visible() }));
+
 const { GET } = await import('@/app/api/academy/plan-inputs/route');
 
 const asStaff = () => resolveVerifiedCaller.mockResolvedValue({
@@ -103,6 +107,14 @@ describe('who may read somebody else\'s injuries', () => {
   it('is staff, not the trainee', async () => {
     asTrainee();
     expect((await get('athleteIds=a1')).status).toBe(403);
+  });
+});
+
+describe('one coach\'s trainees are not another\'s', () => {
+  it('drops the ids of a trainee paired with someone else', async () => {
+    db.academy_candidates.push({ id: 'c9', athlete_id: 'a9' });
+    const body = await (await get('athleteIds=a1,a9')).json();
+    expect(Object.keys(body.inputs)).toEqual(['a1']);
   });
 });
 
@@ -177,6 +189,7 @@ describe('absence is not an error', () => {
   });
 
   it('caps how many trainees can be asked about at once', async () => {
+    visible.mockResolvedValueOnce(null); // the manager, who may ask about anyone
     const many = Array.from({ length: 60 }, (_, i) => `id-${i}`).join(',');
     await get(`athleteIds=${many}`);
     expect((inCalls[0].values as string[]).length).toBe(40);

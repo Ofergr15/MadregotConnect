@@ -187,3 +187,47 @@ export async function writeCoachPair(
   }
   return true;
 }
+
+/**
+ * Which trainees this caller may see in an academy-wide read: `null` for the
+ * manager (all of them), otherwise the ids paired to the caller. The same line
+ * /api/academy/members draws, for the routes that used to hand every coach the
+ * whole academy — stats, compliance, results, plan inputs, workout feedback.
+ *
+ * `?scope=coach` narrows a manager to their own trainees, as on members; nothing
+ * widens a coach. Before migration 077 there is no pairing, and a coach sees
+ * nobody rather than everybody.
+ */
+export async function visibleTraineeIds(
+  caller: RoleCaller & { athleteId: string | null },
+  request?: Request,
+): Promise<Set<string> | null> {
+  const narrowed = request ? new URL(request.url).searchParams.get('scope') === 'coach' : false;
+  if (isAcademyManager(caller) && !narrowed) return null;
+  if (!caller.athleteId) return new Set();
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from('athletes')
+    .select('id')
+    .eq('coach_id', COACH_ID)
+    .eq('academy_coach_id', caller.athleteId);
+  if (error) return new Set();
+  return new Set(((data || []) as Array<{ id: string }>).map((r) => r.id));
+}
+
+/**
+ * May this caller read or write one trainee's academy record: themselves, the
+ * manager, or the coach they are paired with. Narrower than `mayActFor`, which
+ * lets any staff account act for anyone — right for club data, wrong for a 1:1
+ * academy where one coach's trainee is not another coach's business.
+ */
+export async function mayCoach(
+  caller: RoleCaller & { athleteId: string | null; isStaff: boolean },
+  athleteId: string,
+): Promise<boolean> {
+  if (caller.athleteId && caller.athleteId === athleteId) return true;
+  if (isAcademyManager(caller)) return true;
+  if (!caller.isStaff || !caller.athleteId) return false;
+  const lookup = await loadPair(athleteId);
+  return lookup.ok && lookup.pair.academyCoachId === caller.athleteId;
+}

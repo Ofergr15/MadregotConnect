@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { getActivityWeekStart, israelDateAnchor } from '@/lib/utils';
-import { requireStaff } from '@/lib/auth/self-or-staff';
+import { requireStaffCaller } from '@/lib/auth/self-or-staff';
+import { visibleTraineeIds } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,8 +28,10 @@ interface AthleteStat {
 export async function GET(request: Request) {
   try {
     // Named per-athlete volume across the academy — the coach dashboard's table.
-    const denied = await requireStaff(request);
+    // A coach sees their own trainees' volume, the manager everyone's.
+    const { denied, caller } = await requireStaffCaller(request);
     if (denied) return denied;
+    const visible = await visibleTraineeIds(caller, request);
 
     const supabase = createServerClient();
 
@@ -37,7 +40,7 @@ export async function GET(request: Request) {
       .from('athletes')
       .select('id, name, group_id, is_academy')
       .eq('coach_id', COACH_ID);
-    const athletes = athRes.error ? [] : (athRes.data || []).filter((a: any) => a.is_academy);
+    const athletes = athRes.error ? [] : (athRes.data || []).filter((a: any) => a.is_academy && (!visible || visible.has(a.id)));
 
     if (!athletes.length) {
       return NextResponse.json({

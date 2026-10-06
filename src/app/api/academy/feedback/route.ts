@@ -19,6 +19,7 @@ import { getStreamServerClient } from '@/lib/stream/server';
 import { postAcademyFeedback } from '@/lib/academy/thread-server';
 import { notifyAthlete } from '@/lib/push';
 import { academyFeedbackCopy } from '@/lib/notifications/copy';
+import { mayCoach } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
 
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
-    if (!mayActFor(caller, athleteId)) {
+    if (!mayActFor(caller, athleteId) || !(await mayCoach(caller, athleteId))) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
@@ -109,6 +110,11 @@ export async function POST(request: Request) {
     const date = String(body.date || '');
     if (!athleteId || !date) {
       return NextResponse.json({ error: 'athleteId and date are required' }, { status: 400 });
+    }
+    // Their own coach (or the manager) writes it, not any coach on staff.
+    const { caller } = await resolveVerifiedCaller(request);
+    if (caller.athleteId === athleteId || !(await mayCoach(caller, athleteId))) {
+      return NextResponse.json({ error: 'Not your trainee' }, { status: 403 });
     }
 
     const feedback: WorkoutFeedback = {

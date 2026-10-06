@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { computeAcademyWeekAdherence } from '@/lib/academy/report';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
+import { mayCoach, visibleTraineeIds } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,8 +14,15 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     // No athleteId means the whole academy's compliance table — staff only.
     // With one, an athlete may pull their own.
-    const { denied } = await requireCallerForAthlete(request, searchParams.get('athleteId'));
+    const athleteId = searchParams.get('athleteId');
+    const { denied, caller } = await requireCallerForAthlete(request, athleteId);
     if (denied) return denied;
+    // One coach's trainees are not another coach's: the whole table is the
+    // manager's, a coach gets their own rows, and one athlete needs to be theirs.
+    if (athleteId && !(await mayCoach(caller, athleteId))) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+    const visible = athleteId ? null : await visibleTraineeIds(caller, request);
 
     const report = await computeAcademyWeekAdherence({
       weekStart: searchParams.get('weekStart'),
@@ -23,7 +31,7 @@ export async function GET(request: Request) {
       // the compact summary crosses the wire — laps stay on this side.
       withExecution: true,
     });
-    return NextResponse.json(report);
+    return NextResponse.json(visible ? { ...report, athletes: report.athletes.filter(a => visible.has(a.athleteId)) } : report);
   } catch (error: any) {
     console.error('Academy adherence error:', error);
     return NextResponse.json({ error: error.message || 'Failed to compute adherence' }, { status: 500 });

@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isMissingTable } from '@/lib/supabase/schema-drift';
 import { planInputsFrom, readCharacterization, type PlanInputs } from '@/lib/academy/characterization';
+import { visibleTraineeIds } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,13 +53,15 @@ export async function GET(request: Request) {
     if (!(caller.isSuperUser || caller.isStaff)) {
       return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
     }
+    // A coach composes for their own trainees; anyone else's ids are dropped.
+    const visible = await visibleTraineeIds(caller, request);
 
     const athleteIds = [...new Set(
       (new URL(request.url).searchParams.get('athleteIds') || '')
         .split(',')
         .map(s => s.trim())
         .filter(Boolean),
-    )].slice(0, MAX_IDS);
+    )].slice(0, MAX_IDS).filter(id => !visible || visible.has(id));
 
     // An empty ask is an empty answer, not a 400: the composer fires this whenever the selection
     // changes, including the moment it is cleared.
