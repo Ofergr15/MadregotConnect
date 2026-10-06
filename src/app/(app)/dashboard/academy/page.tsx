@@ -1,41 +1,16 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useTranslations } from 'next-intl';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import {
-  GraduationCap, Users, ClipboardCheck, CalendarPlus,
-  BarChart3, Trophy, Settings as SettingsIcon, UserPlus, LayoutDashboard,
-  MessagesSquare, Watch, TrendingUp, UserRoundSearch, Banknote, ChevronDown,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Sheet, SkeletonList } from '@/components/ui';
-import { WeeklyReview } from '@/components/academy/WeeklyReview';
-import { AcademyPlanComposer } from '@/components/AcademyPlanComposer';
-import { AcademyStats } from '@/components/AcademyStats';
-import { AcademyResults } from '@/components/AcademyResults';
-import { AcademySettingsPanel } from '@/components/AcademySettings';
-import { AcademyRegistrations } from '@/components/AcademyRegistrations';
-import { AcademyOverview, AcademyWeekArrows, AcademyWeekLabel } from '@/components/academy/AcademyOverview';
-import { AcademyMembers } from '@/components/academy/AcademyMembers';
+import { SkeletonList } from '@/components/ui';
 import { AcademyMyView } from '@/components/academy/AcademyMyView';
-import { AcademyThreads } from '@/components/academy/AcademyThreads';
-import { WatchDispatch } from '@/components/academy/WatchDispatch';
-import { CandidateFunnel } from '@/components/academy/CandidateFunnel';
-import { BookIcon, WorkoutBook } from '@/components/academy/WorkoutBook';
-import { TestRegistry } from '@/components/academy/TestRegistry';
-import { AcademyPayments } from '@/components/academy/AcademyPayments';
-import { TestBoard } from '@/components/academy/TestBoard';
-import { MemberSheet } from '@/components/academy/MemberSheet';
-import { ChangeCoachSheet, postBulk } from '@/components/academy/ManageMembersSheets';
-import { sundayOf, type AcademyMember, type AcademyMembersResponse } from '@/components/academy/types';
+import { AcademyShell } from '@/components/academy/AcademyShell';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
 import { useAthleteId } from '@/lib/use-athlete-id';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 import { getActiveViewRole, getStoredView } from '@/lib/role-views';
-import { AcademyAdminButton, CoachesSheet } from '@/components/academy/AcademyAdmin';
 import { getViewedPerson, type ViewedPerson } from '@/lib/view-as-person';
 import { ViewAsBanner } from '@/components/academy/AcademyAdmin';
 import { readAcademyDeepLink } from '@/lib/academy/deep-links';
@@ -60,153 +35,13 @@ import { readAcademyDeepLink } from '@/lib/academy/deep-links';
 // manager gets the coach roster, the load-by-coach filter and the ability to
 // change who coaches whom.
 
-type Tab = 'overview' | 'threads' | 'funnel' | 'members' | 'registrations' | 'plans' | 'book' | 'dispatch' | 'compliance' | 'tests' | 'stats' | 'results' | 'payments' | 'settings';
-
-
-
-
-type SectionGroup = 'people' | 'training' | 'progress' | 'manage';
-const SECTION_GROUPS: SectionGroup[] = ['people', 'training', 'progress', 'manage'];
-
-/** Which stage of the work each section belongs to — the order the sheet reads in. */
-const GROUP_OF: Record<Tab, SectionGroup> = {
-  overview: 'people', threads: 'people', funnel: 'people', members: 'people', registrations: 'people',
-  plans: 'training', book: 'training', dispatch: 'training',
-  compliance: 'progress', tests: 'progress', stats: 'progress', results: 'progress',
-  payments: 'manage', settings: 'manage',
-};
-
-type SectionOption<T extends string> = {
-  value: T; label: string; icon?: React.ComponentType<{ className?: string }>; badge?: number;
-};
-
-function CountBadge({ n, onDark }: { n?: number; onDark?: boolean }) {
-  if (!n) return null;
-  return (
-    <span className={cn(
-      'min-w-[18px] px-1 rounded-full text-2xs font-bold tabular-nums text-center',
-      onDark ? 'bg-page text-ink-700' : 'bg-band-3/20 text-band-3-ink',
-    )}>
-      {n}
-    </span>
-  );
-}
-
-/**
- * The academy's section switcher (#72: "the menu needs scrolling, very
- * impractical"). It was one horizontally scrolling strip of up to 14 tabs, so on
- * a phone four were visible and the other ten were a guess — nothing on screen
- * said there was more to the right.
- *
- * Phone: one full-width button naming the section you're in, and a sheet with
- * every section on one screen, grouped by stage of the work, in a two-column
- * grid. Nothing scrolls sideways and nothing is hidden. The button carries the
- * total of the pending counts, so work waiting in another section still shows.
- * Wider screens: the same tabs, wrapping onto a second row instead of scrolling.
- */
-function AcademySectionNav<T extends string>({
-  value,
-  onChange,
-  options,
-  groupOf,
-  className,
-}: {
-  value: T;
-  onChange: (v: T) => void;
-  options: Array<SectionOption<T>>;
-  groupOf: (v: T) => SectionGroup;
-  className?: string;
-}) {
-  const t = useTranslations('academy');
-  const [open, setOpen] = useState(false);
-  const current = options.find(o => o.value === value) ?? options[0];
-  const CurrentIcon = current?.icon;
-  const pendingElsewhere = options.filter(o => o.value !== value).reduce((n, o) => n + (o.badge || 0), 0);
-  const choose = (v: T) => {
-    setOpen(false);
-    if (v !== value) { try { navigator.vibrate?.(6); } catch { /* no-op */ } onChange(v); }
-  };
-
-  return (
-    <div className={className}>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-haspopup="dialog"
-        className="sm:hidden flex w-full items-center gap-2 rounded-xl border border-page bg-card px-3 min-h-[48px] text-start"
-      >
-        {CurrentIcon && <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-white"><CurrentIcon className="h-4 w-4" /></span>}
-        <span className="flex-1 text-[15px] font-bold text-ink-700">{current?.label}</span>
-        <CountBadge n={pendingElsewhere} />
-        <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600">
-          {t('allSections')}
-          <ChevronDown className="h-4 w-4" />
-        </span>
-      </button>
-
-      <div className="hidden sm:flex flex-wrap gap-1 rounded-xl bg-card p-1 border border-page">
-        {options.map(opt => {
-          const Icon = opt.icon;
-          const active = opt.value === value;
-          return (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => choose(opt.value)}
-              className={cn(
-                'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors min-h-[44px]',
-                active ? 'bg-brand-600 text-white shadow-sm' : 'text-ink-400 hover:text-ink-900',
-              )}
-            >
-              {Icon && <Icon className="h-4 w-4" />}
-              {opt.label}
-              <CountBadge n={opt.badge} onDark={active} />
-            </button>
-          );
-        })}
-      </div>
-
-      <Sheet open={open} onOpenChange={setOpen} title={t('allSections')}>
-        <div className="space-y-3 pb-2">
-          {SECTION_GROUPS.map(g => {
-            const items = options.filter(o => groupOf(o.value) === g);
-            if (!items.length) return null;
-            return (
-              <section key={g}>
-                <p className="mb-1.5 px-1 text-2xs font-bold uppercase tracking-wider text-ink-400">{t(`sectionGroup_${g}` as never)}</p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {items.map(opt => {
-                    const Icon = opt.icon;
-                    const active = opt.value === value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => choose(opt.value)}
-                        aria-current={active ? 'page' : undefined}
-                        className={cn(
-                          'flex items-center gap-2 rounded-xl px-3 min-h-[46px] text-start text-sm font-semibold',
-                          active ? 'bg-brand-600 text-white' : 'bg-page/60 text-ink-700',
-                        )}
-                      >
-                        {Icon && <Icon className="h-4 w-4 shrink-0" />}
-                        <span className="flex-1 min-w-0 truncate">{opt.label}</span>
-                        <CountBadge n={opt.badge} onDark={active} />
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
-        </div>
-      </Sheet>
-    </div>
-  );
-}
+// Every `?tab=` value a link may carry. The staff screen is five areas now
+// (lib/academy/areas.ts maps each of these onto an area and its sub-tab), but links
+// already out in notifications and shared URLs name the old fourteen sections, so
+// all of them stay valid — `academyFlowMap.test.ts` fails on any gap.
+type Tab = 'overview' | 'threads' | 'funnel' | 'members' | 'registrations' | 'coaches' | 'plans' | 'book' | 'dispatch' | 'compliance' | 'tests' | 'stats' | 'results' | 'payments' | 'settings' | 'roster';
 
 export default function AcademyPage() {
-  const t = useTranslations('academy');
 
   // ── Who is looking? Same resolution order as Coach Tools. ──────────────────
   const viewMode = getViewMode();
@@ -254,107 +89,15 @@ export default function AcademyPage() {
   // and found nobody", which is a real anonymous visitor.
   const resolving = email === null || (!previewRole && !!email && roleLoading) || (!!viewed && !viewer);
 
-  // ── Tab state ─────────────────────────────────────────────────────────────
-  const [view, setView] = useState<Tab>('overview');
-  const [coachesOpen, setCoachesOpen] = useState(false);
-  const [focusCoach, setFocusCoach] = useState<string | null>(null);
-  const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()));
-  // The open drill-in is held by id, not as a copy of the member. Editing a
-  // trainee's coach or their standing hour revalidates the payload, and a
-  // snapshot taken when the sheet opened would keep showing what was true
-  // before the edit. It also closes itself when the member leaves the payload —
-  // which is exactly what should happen on "remove from academy".
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [saving, setSaving] = useState<string | null>(null);
-  // Jumps out of the member sheet: whose conversation / plan to open on arrival.
-  const [threadAthlete, setThreadAthlete] = useState<string | null>(null);
-  const [planAthlete, setPlanAthlete] = useState<string | null>(null);
-  // The change-coach sheet opened from a member's sheet. The member sheet closes
-  // under it (a drawer on a drawer fights the drag) and reopens after — each with
-  // a beat between, because a closing sheet pops its history entry and that pop
-  // would dismiss a sheet opened in the same tick (useBackDismiss).
-  const [coachMove, setCoachMove] = useState<AcademyMember | null>(null);
-
   // Read through `useSearchParams`, not `window.location` once on mount: a push
   // tapped while this screen is already open is a router navigation to the same
   // route, which keeps the component mounted — so only a hook re-reads the new
   // `?thread=` / `?tab=`. The scheme lives in lib/academy/deep-links.ts.
   const searchParams = useSearchParams();
   const deepLink = useMemo(() => readAcademyDeepLink(searchParams), [searchParams]);
-  useEffect(() => {
-    // Deep-link to a tab, e.g. /dashboard/academy?tab=results (from the header bell).
-    // A staff thread link (`?thread=<traineeId>`) implies the threads tab even when
-    // an older link forgot to say so.
-    const tab = deepLink.tab || (deepLink.thread && deepLink.thread !== 'mine' ? 'threads' : null);
-    if (!tab) return;
-    // `roster` is the old name for what is now the members directory — links
-    // already out in notifications and shared URLs must keep working.
-    const normalized = tab === 'roster' ? 'members' : tab;
-    // Every member of `Tab`. A tab missing from here has no deep link and fails
-    // silently on the default view, which is how `payments` was unreachable by URL
-    // from the day it shipped — `academyFlowMap.test.ts` now fails on any new gap.
-    const valid: Tab[] = ['overview', 'threads', 'funnel', 'members', 'registrations', 'plans', 'book', 'dispatch', 'compliance', 'tests', 'stats', 'results', 'payments', 'settings'];
-    if (valid.includes(normalized as Tab)) setView(normalized as Tab);
-  }, [deepLink]);
-
-  // ── The one staff payload. Overview and the directory are the same data seen
-  //    two ways, so they share a fetch and can't disagree. ────────────────────
-  const { data: members, isLoading: membersLoading, mutate: refreshMembers } = useApi<AcademyMembersResponse>(
-    isStaff ? `/api/academy/members?weekStart=${weekStart}${activeView === 'coach' ? '&scope=coach' : ''}` : null,
-  );
-
-  const selected = useMemo(
-    () => members?.members.find((m) => m.athleteId === selectedId) ?? null,
-    [members, selectedId],
-  );
-  const selectMember = useCallback((member: AcademyMember) => setSelectedId(member.athleteId), []);
-  // SWR's mutate resolves with the refreshed payload; the sheet only needs to
-  // know the refresh finished, and passing the data through would invite a
-  // second copy of it living in the child.
-  const reloadMembers = useCallback(async () => { await refreshMembers(); }, [refreshMembers]);
-
-  // Out of the academy, still in the club. The same write the members tab's
-  // multi-select uses (POST /api/academy/members/bulk), so one removal and twenty
-  // leave the same trail and can both be brought back from "עזבו".
-  const removeFromAcademy = async (athleteId: string) => {
-    setSaving(athleteId);
-    try {
-      await postBulk({ athleteIds: [athleteId], action: 'remove' });
-      // Leaving the payload closes the sheet on its own: `selected` is derived from it.
-      await refreshMembers();
-    } finally {
-      setSaving(null);
-    }
-  };
-
-  // Any way of changing section other than a member-sheet jump starts it fresh.
-  const goTab = useCallback((v: Tab) => { setThreadAthlete(null); setPlanAthlete(null); setView(v); }, []);
-
-  const openFunnelCard = useCallback((candidateId: string) => {
-    // CandidateFunnel opens `?candidate=` once on mount, as the applicant mail's link does.
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.set('tab', 'funnel');
-      url.searchParams.set('candidate', candidateId);
-      window.history.replaceState(null, '', url.toString());
-    } catch { /* the board still opens */ }
-    setSelectedId(null);
-    setView('funnel');
-  }, []);
-
-  // The band and the pace override travel with each trainee: the planner shifts
-  // every pace by them before saving and pushing, so it has to resolve them the
-  // same way the directory displays them rather than refetch and possibly disagree.
-  const planComposerAthletes = useMemo(
-    () => (members?.members || []).map(m => ({
-      id: m.athleteId,
-      name: m.name,
-      hasGarmin: m.hasGarmin,
-      band: m.band,
-      paceOffsetSec: m.paceOffsetSec,
-    })),
-    [members],
-  );
+  const valid: Tab[] = ['overview', 'threads', 'funnel', 'members', 'registrations', 'coaches', 'plans', 'book', 'dispatch', 'compliance', 'tests', 'stats', 'results', 'payments', 'settings', 'roster'];
+  const linkTab = deepLink.tab && valid.includes(deepLink.tab as Tab) ? deepLink.tab : null;
+  const linkThread = deepLink.thread && deepLink.thread !== 'mine' ? deepLink.thread : null;
 
   if (resolving) {
     return (
@@ -386,200 +129,20 @@ export default function AcademyPage() {
   }
 
   // ── Manager / coach lens ──────────────────────────────────────────────────
-  const tabs: Array<{ value: Tab; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number }> = [
-    { value: 'overview', label: t('tabOverview'), icon: LayoutDashboard },
-    { value: 'threads', label: t('tabThreads'), icon: MessagesSquare },
-    // Before the roster, because it comes before the roster in real life: everybody
-    // on this board is somebody who is not yet a member. The club's own
-    // registrations tab is a different queue — that one is the public door to the
-    // running club, this one is nine steps with four owners.
-    // The funnel and the registrations are the academy manager's (2026-10-06); the
-    // routes refuse a coach either way, this keeps the tabs out of their way.
-    ...(isManager ? [{ value: 'funnel' as Tab, label: t('tabFunnel'), icon: UserRoundSearch }] : []),
-    { value: 'members', label: t('tabMembers'), icon: Users },
-    ...(isManager ? [{ value: 'registrations' as Tab, label: t('tabRegistrations'), icon: UserPlus, badge: members?.pending.registrations }] : []),
-    { value: 'plans', label: t('tabPlans'), icon: CalendarPlus },
-    // Immediately after the composer, because it is where the composer's contents come
-    // from: the book's whole claim is three clicks instead of writing a week from scratch,
-    // and a shelf filed two tabs away from the screen that writes the plan is a shelf
-    // nobody reaches for.
-    { value: 'book', label: t('tabBook'), icon: BookIcon },
-    // Immediately after the tab that pushes the week, because that is the question
-    // it raises: the composer says "sent to 18 athletes" and this says whether it
-    // actually arrived.
-    { value: 'dispatch', label: t('tabDispatch'), icon: Watch },
-    { value: 'compliance', label: t('tabCompliance'), icon: ClipboardCheck },
-    // Before `stats`, because this one is about whether the training is working and
-    // `stats` is about volume. It also sits next to compliance on purpose: "did they do
-    // the work" and "did the work move the number" are one question asked twice.
-    { value: 'tests', label: t('tabTests'), icon: TrendingUp },
-    { value: 'stats', label: t('tabStats'), icon: BarChart3 },
-    { value: 'results', label: t('tabResults'), icon: Trophy, badge: members?.pending.results },
-    // Manager only, and more strictly than Settings is: what one trainee pays and what a
-    // mentor earns are the two facts in this app that no colleague is entitled to. The
-    // mockup says so itself — "מודול קטן ומוגן — רק אתה". The route refuses everybody
-    // else regardless; this only keeps the tab out of a coach's way.
-    // No badge on this one, unlike Registrations and Results: the count would mean another
-    // fetch of a manager-only payload on every visit to every other tab, and "somebody has
-    // not paid" is a monthly question rather than an inbox.
-    ...(isManager ? [{ value: 'payments' as Tab, label: t('tabPayments'), icon: Banknote }] : []),
-    // Academy-wide settings (registration window, public form copy) are a
-    // manager decision, not a per-coach one.
-    ...(isManager ? [{ value: 'settings' as Tab, label: t('tabSettings'), icon: SettingsIcon }] : []),
-  ];
-
   return (
-    // On a phone the shell's <main> already pads this page, and the academy home is
-    // meant to fit one screen (2026-10-06), so the page adds no padding of its own
-    // there and the title row loses its icon tile.
+    // On a phone the shell's <main> already pads this page, so the page adds no
+    // padding of its own there.
     <div className="max-w-5xl mx-auto sm:px-6 lg:px-8 sm:py-8">
       {viewed && <ViewAsBanner person={viewed} />}
-      <div className="flex items-center justify-between gap-4 mb-2 sm:mb-6">
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex bg-brand-600/20 w-12 h-12 rounded-2xl items-center justify-center ring-1 ring-brand-600/20">
-            <GraduationCap className="h-6 w-6 text-brand-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-ink-700">{t('title')}</h1>
-            {view === 'overview' && <span className="sm:hidden"><AcademyWeekLabel weekStart={weekStart} /></span>}
-            <p className="hidden sm:block text-sm text-ink-400">
-              {/* A coach's payload is their own caseload, so calling it the
-                  academy's member count would overstate what they're looking at. */}
-              {!members
-                ? t('subtitle')
-                : members.scope === 'coach'
-                  ? t('myTraineesCount', { count: members.team.members })
-                  : t('membersCount', { count: members.team.members })}
-            </p>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-        {view === 'overview' && <AcademyWeekArrows weekStart={weekStart} onWeekChange={setWeekStart} />}
-        {isManager && members?.scope === 'academy' && (
-          <AcademyAdminButton
-            onOpenCoaches={() => { setFocusCoach(null); setCoachesOpen(true); }}
-            onOpenSettings={() => setView('settings')}
-            canEditRoles={role === 'admin'}
-            members={members?.members}
-            onGoTab={goTab}
-          />
-        )}
-        </div>
-      </div>
-
-      <AcademySectionNav
-        value={view}
-        onChange={goTab}
-        options={tabs}
-        groupOf={(v) => GROUP_OF[v]}
-        className="mb-2.5 sm:mb-6"
-      />
-
-      {view === 'overview' ? (
-        <AcademyOverview
-          data={members}
-          isLoading={membersLoading}
-          weekStart={weekStart}
-          onWeekChange={setWeekStart}
-          onSelectMember={selectMember}
-          onGoTab={goTab}
-          onChanged={reloadMembers}
-          onOpenCoach={(id) => { setFocusCoach(id); setCoachesOpen(true); }}
-        />
-      ) : view === 'threads' ? (
-        // Either door: a staff push (?thread=<traineeId>) or the member sheet's
-        // "the conversation" (threadAthlete); the member sheet wins when both.
-        <AcademyThreads
-          key={threadAthlete ?? 'inbox'}
-          initialOpenId={threadAthlete ?? (deepLink.thread && deepLink.thread !== 'mine' ? deepLink.thread : null)}
-        />
-      ) : view === 'members' ? (
-        <AcademyMembers
-          data={members}
-          isLoading={membersLoading}
-          onSelectMember={selectMember}
-          isManager={isManager}
-          onChanged={reloadMembers}
-          onOpenFunnel={openFunnelCard}
-          myAthleteId={myAthleteId}
-        />
-      ) : view === 'funnel' ? (
-        <CandidateFunnel />
-      ) : view === 'registrations' ? (
-        <AcademyRegistrations />
-      ) : view === 'stats' ? (
-        <AcademyStats />
-      ) : view === 'results' ? (
-        <AcademyResults />
-      ) : view === 'payments' ? (
-        <AcademyPayments />
-      ) : view === 'settings' ? (
-        <AcademySettingsPanel />
-      ) : view === 'book' ? (
-        <WorkoutBook />
-      ) : view === 'dispatch' ? (
-        // Shares the page's week, so moving the week on the overview and opening
-        // this tab shows the same week rather than silently jumping to this one.
-        <WatchDispatch weekStart={weekStart} />
-      ) : view === 'compliance' ? (
-        <WeeklyReview />
-      ) : view === 'tests' ? (
-        // The board fetches its own rows, but its POSITION on this tab is a decision that
-        // belongs to the registry — see `TestRegistry`'s `scheduling` prop. Tapping a row opens
-        // the same member sheet every other academy list opens.
-        <TestRegistry scheduling={<TestBoard onSelectAthlete={setSelectedId} />} />
-      ) : (
-        <AcademyPlanComposer key={planAthlete ?? 'plans'} athletes={planComposerAthletes} initialAthleteId={planAthlete} />
-      )}
-
-      {members?.scope === 'academy' && (
-        <CoachesSheet
-          open={coachesOpen}
-          onOpenChange={setCoachesOpen}
-          members={members.members}
-          onSelectMember={(m) => setSelectedId(m.athleteId)}
-          focusCoach={focusCoach}
-        />
-      )}
-
-      {/* One drill-in, shared by the overview's lists and the directory — a
-          member surfaced anywhere opens the same sheet. */}
-      <MemberSheet
-        member={selected}
-        weekStart={weekStart}
-        onOpenChange={(o) => { if (!o) setSelectedId(null); }}
-        onRemove={isManager ? (id) => void removeFromAcademy(id) : undefined}
-        removing={!!selected && saving === selected.athleteId}
-        // Who coaches whom, and which דבוקה they're in, are the manager's calls; a
-        // coach still owns their own trainees' paces, which CoachPairing lets them
-        // edit either way.
-        coaches={members?.coaches}
-        bands={members?.bands}
-        canAssign={isManager}
-        onChanged={reloadMembers}
-        onChangeCoach={isManager ? (m) => { setSelectedId(null); setTimeout(() => setCoachMove(m), 350); } : undefined}
-        onOpenThread={(id) => { setSelectedId(null); setThreadAthlete(id); setView('threads'); }}
-        onOpenPlan={(id) => { setSelectedId(null); setPlanAthlete(id); setView('plans'); }}
-        onOpenTests={() => { setSelectedId(null); setView('tests'); }}
+      <AcademyShell
+        isManager={isManager}
+        scopeCoach={activeView === 'coach'}
+        canEditRoles={role === 'admin'}
         canViewAs={!viewed && isSuperUser(email)}
+        myAthleteId={myAthleteId}
+        linkTab={linkTab}
+        linkThread={linkThread}
       />
-
-      {isManager && members?.scope === 'academy' && (
-        <ChangeCoachSheet
-          open={!!coachMove}
-          onOpenChange={(o) => {
-            if (o) return;
-            const back = coachMove?.athleteId ?? null;
-            setCoachMove(null);
-            // Back to the trainee the move started from, now showing the new coach.
-            if (back) setTimeout(() => setSelectedId(back), 350);
-          }}
-          members={coachMove ? [coachMove] : []}
-          coaches={members.coaches}
-          onDone={reloadMembers}
-        />
-      )}
-
     </div>
   );
 }

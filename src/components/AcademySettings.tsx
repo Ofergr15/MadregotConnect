@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Plus, X, Save, CheckCircle2 } from 'lucide-react';
-import { AcademySettings as Settings, DEFAULT_ACADEMY_SETTINGS } from '@/lib/academy/settings';
+import { AcademySettings as Settings, DEFAULT_ACADEMY_SETTINGS, MAX_COACH_CAPACITY } from '@/lib/academy/settings';
 import { Card, Button, Spinner, LoadingBlock, Switch } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
@@ -21,7 +21,9 @@ export function AcademySettingsPanel() {
       try {
         const res = await fetch('/api/academy/settings');
         const data = await res.json();
-        if (data.settings) setS(data.settings);
+        // Spread over the defaults: a blob saved before a field existed (coachCapacity)
+        // still renders that field with its default rather than an empty input.
+        if (data.settings) setS({ ...DEFAULT_ACADEMY_SETTINGS, ...data.settings });
       } catch { /* defaults */ } finally { setLoading(false); }
     })();
   }, []);
@@ -68,6 +70,18 @@ export function AcademySettingsPanel() {
           <button onClick={() => { if (newTest.trim()) { setS({ ...s, tests: [...new Set([...s.tests, newTest.trim()])] }); setNewTest(''); } }}
             className="flex items-center gap-1 px-3 min-h-[44px] rounded-lg bg-page hover:bg-ink-300/40 text-sm text-ink-700"><Plus className="h-4 w-4" /> הוספה</button>
         </div>
+      </Section>
+
+      {/* Coach capacity */}
+      <Section title="מקומות למאמן" desc="כמה מתאמנים מאמן אחד מקבל. לפי זה מוצגים המקומות הפנויים והמאמן המומלץ בשיבוץ.">
+        <label className="flex items-center gap-3">
+          <span className="text-sm text-ink-500">עד</span>
+          <input type="number" min={1} max={MAX_COACH_CAPACITY} step={1} value={s.coachCapacity}
+            aria-label="מקומות למאמן"
+            onChange={e => setS({ ...s, coachCapacity: Math.min(MAX_COACH_CAPACITY, Math.max(1, Math.round(Number(e.target.value) || 1))) })}
+            className="w-24 bg-page border border-page rounded-lg px-3 h-11 text-base text-ink-700 tabular-nums" />
+          <span className="text-sm text-ink-500">מתאמנים למאמן</span>
+        </label>
       </Section>
 
       {/* Pace alerts */}

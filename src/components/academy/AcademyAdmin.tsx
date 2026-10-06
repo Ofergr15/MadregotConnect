@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ChevronLeft, Eye, KeyRound, Link2, ListChecks, Search, Settings2, UsersRound } from 'lucide-react';
+import { Banknote, ChevronLeft, Eye, KeyRound, Link2, ListChecks, Search, Settings2, UsersRound } from 'lucide-react';
 import { startViewingAs, stopViewingAs, type ViewedPerson } from '@/lib/view-as-person';
 import { useIsSuperUser } from '@/lib/impersonation';
 import { useApi, apiHeaders } from '@/lib/api';
@@ -27,12 +27,15 @@ const SHEET_HANDOFF_MS = 350;
 export function AcademyAdminButton({
   onOpenCoaches,
   onOpenSettings,
+  onOpenPayments,
   canEditRoles,
   members = [],
   onGoTab = () => {},
 }: {
   onOpenCoaches: () => void;
   onOpenSettings: () => void;
+  /** Payments is parked (2026-09-20) but stays reachable, here, for the manager only. */
+  onOpenPayments?: () => void;
   canEditRoles: boolean;
   /** For "view as": the trainees to pick from. */
   members?: AcademyMember[];
@@ -85,6 +88,15 @@ export function AcademyAdminButton({
               label="הגדרות האקדמיה"
               onClick={() => { setOpen(false); onOpenSettings(); }}
             />
+            {onOpenPayments && (
+              <InsetRow
+                icon={Banknote}
+                iconBg="bg-accent-700"
+                label="תשלומים"
+                sublabel="הוראות קבע ושכר מאמנים · רק אתה"
+                onClick={() => { setOpen(false); onOpenPayments(); }}
+              />
+            )}
             {canEditRoles && (
               <InsetRow icon={KeyRound} iconBg="bg-ink-700" label="תפקידים" sublabel="מנהלי אקדמיה · לאדמין בלבד" href="/dashboard/roles" />
             )}

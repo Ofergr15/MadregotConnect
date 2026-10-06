@@ -12,7 +12,9 @@ import { join } from 'node:path';
 
 const read = (file: string) => readFileSync(join(process.cwd(), 'src', file), 'utf8');
 const screen = read('components/academy/AcademyPayments.tsx');
-const page = read('app/(app)/dashboard/academy/page.tsx');
+const shell = read('components/academy/AcademyShell.tsx');
+const admin = read('components/academy/AcademyAdmin.tsx');
+const areas = read('lib/academy/areas.ts');
 const route = read('app/api/academy/payments/route.ts');
 
 describe('the screen sends nothing', () => {
@@ -90,16 +92,19 @@ describe('one tap per state', () => {
 });
 
 describe('who reaches the screen', () => {
-  it('is a manager-only tab, and the route refuses everybody else regardless', () => {
-    expect(page).toContain("value: 'payments' as Tab");
-    expect(page.slice(page.indexOf("value: 'payments' as Tab") - 200, page.indexOf("value: 'payments' as Tab")))
-      .toContain('isManager');
+  it('is manager-only behind the ⚙, and the route refuses everybody else regardless', () => {
+    // Parked (2026-09-20) and moved under the ⚙: no area carries it, the section is in the
+    // manager-only set, and the shell renders it only for the manager.
+    expect(areas).toContain("payments: null");
+    expect(areas).toMatch(/MANAGER_ONLY = new Set<AcademySection>\([^)]*'payments'/);
+    expect(shell).toContain("section === 'payments' && manager ?");
+    expect(shell).toContain("onOpenPayments={() => go('payments')}");
+    expect(admin).toContain('onOpenPayments');
     expect(route).toContain("caller.role === 'admin'");
     expect(route).toContain('Manager access required');
   });
 
-  it('carries no badge, so no other tab pays for a manager-only fetch', () => {
-    const tab = page.slice(page.indexOf("value: 'payments' as Tab"));
-    expect(tab.slice(0, tab.indexOf('\n'))).not.toContain('badge');
+  it('carries no badge, so no other area pays for a manager-only fetch', () => {
+    expect(shell).not.toContain('/api/academy/payments');
   });
 });

@@ -15,13 +15,20 @@ export interface AcademySettings {
   paceAlerts: boolean;
   // Weekly report delivery.
   report: { recipients: string[]; day: number }; // day: 0=Sun..6=Sat (default Mon=1)
+  // How many trainees one coach takes (1:1 training). Drives "N פנויים", the
+  // recommended coach in every coach picker, and the home's smart suggestions.
+  coachCapacity: number;
 }
+
+export const DEFAULT_COACH_CAPACITY = 8;
+export const MAX_COACH_CAPACITY = 50;
 
 export const DEFAULT_ACADEMY_SETTINGS: AcademySettings = {
   tests: ['2000m'],
   tolerances: { ...DEFAULT_TOLERANCES, hrBpm: DEFAULT_HR_TOLERANCE_BPM },
   paceAlerts: true,
   report: { recipients: [], day: 1 },
+  coachCapacity: DEFAULT_COACH_CAPACITY,
 };
 
 // Merge a stored (possibly partial / legacy) blob onto the defaults.
@@ -47,7 +54,16 @@ export function normalizeSettings(raw: any): AcademySettings {
         ? r.report.day
         : d.report.day,
     },
+    coachCapacity: capacityOr(r.coachCapacity, d.coachCapacity),
   };
+}
+
+/** A whole number of seats, 1..MAX_COACH_CAPACITY; anything else falls back. */
+function capacityOr(v: any, fallback: number): number {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  const whole = Math.round(n);
+  return whole >= 1 && whole <= MAX_COACH_CAPACITY ? whole : fallback;
 }
 
 function numOr(v: any, fallback: number): number {
