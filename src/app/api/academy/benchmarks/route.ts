@@ -30,6 +30,26 @@ export async function GET(request: Request) {
     const status = searchParams.get('status') || 'approved';
 
     const supabase = createServerClient();
+
+    // 'approved' is the public board and stays open. Anything else — the pending
+    // queue, or 'all' — names people whose result nobody has vetted yet, so it is
+    // staff's, plus the athlete asking for their OWN (ProfileBest shows a runner
+    // their submission waiting for approval). "Own" is checked against the session:
+    // an athleteId equal to the caller's, or a name equal to the caller's own name.
+    if (status !== 'approved') {
+      const { denied, caller } = await resolveVerifiedCaller(request);
+      if (denied) return denied;
+      if (!caller.isSuperUser && !caller.isStaff) {
+        let self = !!caller.athleteId && !!athleteId && athleteId === caller.athleteId;
+        if (!self && !athleteId && name && caller.athleteId) {
+          const { data: me } = await supabase
+            .from('athletes').select('name').eq('id', caller.athleteId).maybeSingle();
+          const own = String((me as { name?: string | null } | null)?.name || '').trim().toLowerCase();
+          self = !!own && own === name.trim().toLowerCase();
+        }
+        if (!self) return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
+      }
+    }
     let q = supabase
       .from('benchmark_results')
       .select('id, test_name, athlete_name, athlete_id, time_seconds, notes, recorded_on, status, submitted_by, submitted_at')

@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarClock } from 'lucide-react';
+import { CalendarClock, ChevronDown } from 'lucide-react';
 import { formatPace } from '@/components/activity/format';
-import { apiHeaders } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { initialsOf } from './types';
 import { RecordTest } from './RecordTest';
@@ -95,6 +95,10 @@ export function RegistryList({
 }) {
   const { rows, summary, byBand } = registry;
   const stale = rows.filter(r => r.overdue);
+  // The per-trainee rows sit behind the summary. The KPIs and the stale banner are what a
+  // manager reads; eleven identical cards under them pushed the per-band answer off the
+  // phone. Everyone the banner names is one tap away, and nothing in the list is lost.
+  const [showRows, setShowRows] = useState(false);
 
   // An empty roster is a SETUP gap, and it used to read as "nothing to see here" in grey
   // 11px. It is the one state where the screen has to say what is missing, because the only
@@ -179,7 +183,20 @@ export function RegistryList({
         </div>
       )}
 
-      <div className="space-y-1.5">
+      <button
+        type="button"
+        onClick={() => setShowRows(v => !v)}
+        aria-expanded={showRows}
+        className="flex w-full min-h-[48px] items-center gap-1.5 rounded-card bg-card px-3.5 text-sm font-bold text-ink-700"
+      >
+        <span className="flex-1 text-start">
+          {rows.length === 1 ? 'מתאמן אחד' : <><bdi dir="ltr">{rows.length}</bdi> מתאמנים</>}
+          <span className="font-normal text-ink-400"> · הטסט האחרון של כל אחד</span>
+        </span>
+        <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-400 transition-transform', showRows && 'rotate-180')} />
+      </button>
+
+      {showRows && <div className="space-y-1.5">
         {rows.map(row => (
           <Row
             key={row.athleteId}
@@ -190,7 +207,7 @@ export function RegistryList({
             onAnalyse={onAnalyse && row.lastTestId ? () => onAnalyse(row) : undefined}
           />
         ))}
-      </div>
+      </div>}
 
       {/* The manager's question, which no single athlete's graph answers: does the method
           work, and does it work the same at every level? */}
@@ -346,13 +363,10 @@ export function TestRegistry({
 
   if (state === 'loading') return <p className="py-6 text-center text-xs text-ink-400">טוען…</p>;
   if (state === 'missing') {
-    // Migration 105 is pasted in by hand. Said plainly, because "no tests" would send
-    // Ofer looking for a bug in the wrong place — the club's tests exist, in a spreadsheet.
+    // The table is not there yet (a hand-pasted migration). The manager is not the person
+    // who runs migrations, so the screen says what they can see, not what a developer does.
     return (
-      <p className="py-6 text-center text-xs leading-relaxed text-ink-400">
-        מרשם הטסטים עוד לא הוקם במסד הנתונים.
-        <br />צריך להריץ את מיגרציה <bdi dir="ltr">105</bdi>.
-      </p>
+      <p className="py-6 text-center text-xs leading-relaxed text-ink-400">הטסטים עוד לא מוגדרים</p>
     );
   }
   if (state === 'error' || !registry) {
@@ -412,4 +426,21 @@ export function TestRegistry({
       />
     </div>
   );
+}
+
+/**
+ * How many submitted test results are waiting on staff — the badge the academy shell
+ * puts on its tracking area. The same read the registry makes (SWR shares it when both
+ * are mounted), and 0 while loading, on error, or before the pending table exists.
+ */
+export function usePendingTestsCount(protocol = '30min'): number {
+  const { data } = useApi<RegistryResponse & { tableMissing?: boolean }>(
+    `/api/academy/tests?protocol=${encodeURIComponent(protocol)}`,
+  );
+  return pendingCountOf(data);
+}
+
+/** Pure, for the hook and its test. */
+export function pendingCountOf(data: { pending?: unknown[] | null } | null | undefined): number {
+  return Array.isArray(data?.pending) ? data!.pending!.length : 0;
 }

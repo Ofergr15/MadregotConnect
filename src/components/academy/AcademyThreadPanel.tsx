@@ -178,7 +178,11 @@ function ConnectedAcademyThread({
         ch.markRead().catch(() => { /* a stale read marker is not worth an error */ });
       })
       .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (cancelled) return;
+        // Stream's own message is English ("Request failed with status code 403")
+        // and says nothing a trainee can act on: logged, never rendered.
+        console.error('academy thread watch', e);
+        setError(THREAD_ERROR_FALLBACK);
       });
 
     // `message.updated` matters as much as `message.new` here: a revised weekly review

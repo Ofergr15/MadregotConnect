@@ -41,13 +41,21 @@ export function ProfileBest({ athleteId, athleteName }: { athleteId: string; ath
     try {
       // Approved results for this athlete (by id, name fallback for imported rows).
       let data: any = null;
-      if (athleteId) data = await (await fetch(`/api/academy/benchmarks?athleteId=${athleteId}`)).json();
+      if (athleteId) data = await (await fetch(`/api/academy/benchmarks?athleteId=${athleteId}`, { headers: await apiHeaders() })).json();
       if ((!data || !data.results?.length) && athleteName)
-        data = await (await fetch(`/api/academy/benchmarks?name=${encodeURIComponent(athleteName)}`)).json();
+        data = await (await fetch(`/api/academy/benchmarks?name=${encodeURIComponent(athleteName)}`, { headers: await apiHeaders() })).json();
       setResults(data?.results || []);
 
       // The athlete's own pending submissions.
-      const pend = await (await fetch(`/api/academy/benchmarks?status=pending&name=${encodeURIComponent(athleteName)}`)).json();
+      // Authenticated: the route only serves pending results to staff or to the
+      // athlete they belong to, and it reads "who" from the session.
+      const pendRes = await fetch(
+        athleteId
+          ? `/api/academy/benchmarks?status=pending&athleteId=${encodeURIComponent(athleteId)}`
+          : `/api/academy/benchmarks?status=pending&name=${encodeURIComponent(athleteName)}`,
+        { headers: await apiHeaders() },
+      );
+      const pend = pendRes.ok ? await pendRes.json() : null;
       setPending(pend?.results || []);
 
       // Available tests (from the approved board / settings).
