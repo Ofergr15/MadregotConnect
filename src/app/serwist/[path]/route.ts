@@ -50,4 +50,31 @@ export const { dynamic, dynamicParams, revalidate, generateStaticParams, GET } =
     // no size info, so this can only be done here, at manifest-generation
     // time, not in the worker itself.)
     maximumFileSizeToCacheInBytes: 1024 * 1024,
+    // …and only the app shell from public/. Measured 2026-10-06: the manifest was
+    // 344 files, 20 MB, 13 MB of it public/ pictures nothing needs to start the app
+    // (what's-new art, tour screenshots, design previews, the install video). On a
+    // freshly installed iPhone the worker cannot activate until all of it is down,
+    // and "enable notifications" waits for an active worker — so on a phone
+    // connection the very first notifications step just spun. Everything dropped
+    // here is still fetched (and cached at runtime) the first time a screen uses it.
+    manifestTransforms: [
+      async (entries) => ({
+        manifest: entries.filter((e) => isAppShell(e.url)),
+        warnings: [],
+      }),
+    ],
   });
+
+/** What the installed app needs before it has opened a single screen. */
+function isAppShell(url: string): boolean {
+  // At transform time an entry is still a build path (".next/static/chunks/x.js",
+  // "public/images/icon-192.png"); the URL prefix is applied after. Compare on
+  // the part that is the same either way.
+  const path = url.replace(/^https?:\/\/[^/]+/, '').replace(/^\.?\//, '').replace(/^(\.next|_next|public)\//, '');
+  return (
+    path.startsWith('static/') ||
+    path === 'offline.html' ||
+    path === 'manifest.json' ||
+    /^images\/(icon-|apple-touch-icon|favicon|logo)/.test(path)
+  );
+}

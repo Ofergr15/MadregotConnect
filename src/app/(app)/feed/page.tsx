@@ -29,6 +29,7 @@ import { WeekSummaryCard } from '@/components/feed/WeekSummaryCard';
 import { QualitySessionRow } from '@/components/feed/QualitySessionRow';
 import { NextSessionCard } from '@/components/feed/NextSessionCard';
 import { WhatsNewAutoSheet } from '@/components/whats-new/WhatsNewSheet';
+import { OnboardingTestReset } from '@/components/onboarding/OnboardingTestReset';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
@@ -529,6 +530,7 @@ export default function FeedPage() {
           joined after the feature shipped. See WhatsNewSheet and
           lib/whats-new/ledger.ts. */}
       <WhatsNewAutoSheet ready={!loading && !error && items.length > 0} />
+      <OnboardingTestReset />
 
       {/* ═══ THE QUALITY SESSION ═══
           07:00 → 11:00 on a quality day (read off the plan), the super user's

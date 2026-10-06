@@ -179,6 +179,9 @@ export async function ensurePushSubscription(
  * nudge right when push becomes useful, versus an on-demand retry for anyone
  * whose permission got reset (e.g. after revoking it in iOS Settings).
  */
+/** How long "enable notifications" waits for the service worker before saying so. */
+export const SW_READY_TIMEOUT_MS = 20_000;
+
 export async function subscribeToPush(athleteId: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -187,7 +190,15 @@ export async function subscribeToPush(athleteId: string): Promise<{ ok: boolean;
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') return { ok: false, error: 'permission_denied' };
 
-    const reg = await navigator.serviceWorker.ready;
+    // `ready` resolves only once the worker is ACTIVE, and on a freshly installed
+    // app that waits for its whole precache to download. Unbounded, that was an
+    // "enable" button spinning forever on a phone connection. Bounded, the step can
+    // say what is going on and offer the retry that will work a minute later.
+    const reg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), SW_READY_TIMEOUT_MS)),
+    ]);
+    if (!reg) return { ok: false, error: 'sw_not_ready' };
 
     // A subscription created before permission was reset (e.g. revoked in
     // iOS Settings, then re-granted) can still be sitting in the

@@ -22,6 +22,10 @@ import {
 } from '@/lib/whats-new/ledger';
 import { WhatsNewArt } from './WhatsNewArt';
 import { WhatsNewStory } from './WhatsNewStory';
+import { useOnboardingV2 } from '@/lib/install/v2';
+import { useOnboarding } from '@/lib/onboarding/use-onboarding';
+import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
+import { readPushPermission, whatsNewTiming } from '@/lib/onboarding/first-run-order';
 
 /**
  * WHAT'S NEW — the digest sheet.
@@ -314,6 +318,10 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
   const all = content?.entries ?? null;
   const [entries, setEntries] = useState<WhatsNewEntry[] | null>(null);
   const [open, setOpen] = useState(false);
+  // Onboarding v2: after the first run, never in front of it (whatsNewTiming).
+  const v2 = useOnboardingV2();
+  const { data: onboarding } = useOnboarding();
+  const { answered: installAnswered } = useInstallStep();
 
   useEffect(() => {
     if (!ready || !all || entries) return;
@@ -341,6 +349,15 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
       ? visibleEntries(all, { ...ledger, since: WHATS_NEW_EPOCH })
       : unseenEntries(all, ledger);
     if (next.length === 0) return;
+    // A tap on the release push is asking, so it opens whatever the first run says.
+    if (v2 && !asked) {
+      const timing = whatsNewTiming(onboarding, installAnswered, readPushPermission(), Date.now());
+      if (timing === 'wait') return; // re-runs as the first run moves on
+      if (timing === 'quiet') {
+        localStorage.setItem(WHATS_NEW_KEY, JSON.stringify(markSeen(ledger, next.map((e) => e.slug))));
+        return;
+      }
+    }
     // Spent at OPEN, not at close: a sheet that only counted as shown once it was
     // dismissed would re-announce itself forever to anyone who closes the tab, and
     // "once, ever" is the whole restraint this module lives by.
@@ -349,7 +366,7 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
     );
     setEntries(next);
     setOpen(true);
-  }, [ready, all, entries]);
+  }, [ready, all, entries, v2, onboarding, installAnswered]);
 
   if (!entries) return null;
   // The evening's headlines come as the full-screen tour (version A); the plain
