@@ -56,6 +56,32 @@ export async function fetchFeed(
   return parse<{ items: FeedItem[]; nextCursor: string | null }>(res);
 }
 
+/** One page of the club feed, shared by the feed screen and the shell's prime below. */
+export const FEED_PAGE_SIZE = 20;
+
+// The first page of the unfiltered feed, requested by the shell WHILE it is
+// still waiting on /api/auth/me. The feed screen can't mount until that answer
+// is in (a revoked member must never see a flash of the feed), so without this
+// the two requests ran back to back: about a second on a cold open, measured in
+// the lab. Started early and handed over once; the server still refuses the
+// page to a blocked member, so nothing is shown that wouldn't have been.
+let primed: { at: number; page: ReturnType<typeof fetchFeed> } | null = null;
+const PRIME_TTL_MS = 15_000;
+
+export function primeFeedFirstPage(): void {
+  if (primed && Date.now() - primed.at < PRIME_TTL_MS) return;
+  const page = fetchFeed(null, FEED_PAGE_SIZE);
+  page.catch(() => { /* surfaced, if at all, by whoever takes it */ });
+  primed = { at: Date.now(), page };
+}
+
+/** The primed page if one is fresh, else null. Taken at most once. */
+export function takePrimedFeedPage(): ReturnType<typeof fetchFeed> | null {
+  const p = primed;
+  primed = null;
+  return p && Date.now() - p.at < PRIME_TTL_MS ? p.page : null;
+}
+
 /**
  * The single card pinned above the feed. Takes no athlete id — the server reads
  * it off the JWT, so this can only ever return the caller's own numbers.

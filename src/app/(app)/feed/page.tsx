@@ -9,7 +9,7 @@ import { useTranslations, useFormatter } from 'next-intl';
 import { cn, dayKeyRelation, dayKeyToDate, feedDayKey, resolveGroup } from '@/lib/utils';
 import { useNavIdentity } from '@/lib/nav-items';
 import { useApi } from '@/lib/api';
-import { fetchFeed, deletePost, fetchFeedItem, fetchFeedItemByActivity } from '@/lib/feed-client';
+import { fetchFeed, deletePost, fetchFeedItem, fetchFeedItemByActivity, FEED_PAGE_SIZE, takePrimedFeedPage } from '@/lib/feed-client';
 import { feedFocusFromParams } from '@/lib/feed/deep-link';
 import { FAVORITES_SQUAD, MINE_SQUAD } from '@/lib/feed/squad-filter';
 import { useIsSuperUser } from '@/lib/impersonation';
@@ -32,7 +32,7 @@ import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
 import { appScrollTop } from '@/lib/app-scroll';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = FEED_PAGE_SIZE;
 
 /**
  * The filter chips above the list. `types` is empty for "everything"; the rest
@@ -353,7 +353,13 @@ export default function FeedPage() {
     if (!lastFeedPage || filter !== 'all' || squad) setLoading(true);
     setError(null);
     try {
-      const { items: page, nextCursor } = await fetchFeed(null, PAGE_SIZE, activeTypes, squad);
+      // The shell may already have this page in flight (primeFeedFirstPage). If
+      // that early request failed, ask again rather than show its error.
+      const unfiltered = activeTypes.length === 0 && !squad;
+      const primed = unfiltered ? takePrimedFeedPage() : null;
+      const { items: page, nextCursor } = await (primed
+        ? primed.catch(() => fetchFeed(null, PAGE_SIZE))
+        : fetchFeed(null, PAGE_SIZE, activeTypes, squad));
       setItems(page);
       setCursor(nextCursor);
       // Only the unfiltered club feed is cached — a squad's page under the "all"

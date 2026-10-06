@@ -20,6 +20,7 @@ import { apiHeaders, useApi } from '@/lib/api';
 import { BLOCKED_MEMBERSHIPS } from '@/lib/auth/membership';
 import { shouldSyncOnOpen, stravaOpenSyncKey } from '@/lib/providers/open-sync';
 import { getSupabase } from '@/lib/supabase/client';
+import { primeFeedFirstPage } from '@/lib/feed-client';
 import { REVIEW_LAST_PATH_KEY } from '@/lib/review-context';
 import {
   APP_SCROLL_ID,
@@ -325,6 +326,15 @@ export default function AppLayout({
     })();
     return () => { cancelled = true; };
   }, [authorized, blocked, pathname]);
+
+  // While the gate below waits on /api/auth/me, start the feed's first page so
+  // the two requests overlap instead of running back to back. Only on /feed
+  // (the installed app's front door) and only while actually waiting: once
+  // `me` is cached the feed mounts at once and fetches for itself.
+  const gateWaiting = authorized && meLoading && !me;
+  useEffect(() => {
+    if (gateWaiting && pathname === '/feed') primeFeedFirstPage();
+  }, [gateWaiting, pathname]);
 
   // Held behind the same spinner as the session check rather than swapped in
   // after the fact: a revoked member should never see a flash of the feed they
