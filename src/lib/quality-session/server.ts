@@ -13,6 +13,7 @@ import { buildSession, type ActivityRow, type AthleteRow, type AttendanceRow, ty
 import { sessionLabel } from '@/lib/pack-stories/model';
 import type { Pack } from '@/lib/pack-stories/model';
 import type { PlanRep, PlanTargets } from './parts';
+import { PLAN_DAYS_KEY, parsePlanDays, type PlanDays } from './plan-days';
 import { QUALITY_TYPES, detectReps, fromMinutes, repPace, toMinutes, type QsSession, type QualityWorkout } from './model';
 
 type Db = ReturnType<typeof createServerClient>;
@@ -40,6 +41,8 @@ const addDays = (date: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 const dowOf = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();
+/** The plan week (its Sunday) the date belongs to, as the plan screen keys it. */
+const weekOf = (date: string) => addDays(date, -dowOf(date));
 
 /** The latest uploaded plan of the date's week, as stored. */
 async function loadPlan(supabase: Db, date: string): Promise<unknown> {
@@ -79,22 +82,43 @@ export async function loadSpecialDays(supabase: Db): Promise<string[]> {
   }
 }
 
-/** A marked day's session: the morning's workout from the plan, whatever its type. */
-const specialOf = (stored: unknown, date: string): QualityWorkout => {
-  for (const workouts of planWorkoutLists(stored)) {
-    const w = workouts.find(x => x.dayOfWeek === dowOf(date) && x.partKind !== 'evening' && !isOptionalWorkout(x));
-    if (w) return { name: (w.name || '').trim(), type: classifyWorkout(w), special: true };
-  }
-  return { name: '', type: 'easy', special: true };
+/** The weeks whose quality days the super user picked on the plan screen. */
+export async function loadPlanDays(supabase: Db): Promise<PlanDays> {
+  const { data } = await supabase.from('app_settings').select('value').eq('key', PLAN_DAYS_KEY).maybeSingle();
+  return parsePlanDays(data?.value);
+}
+
+/**
+ * A marked day's session: the morning's workout from the plan, whatever its type
+ * and even when it was saved optional — the mark is the human saying it counts.
+ */
+const markedOf = (stored: unknown, date: string, special: boolean): QualityWorkout => {
+  const day = planWorkoutLists(stored).flatMap(ws => ws.filter(x => x.dayOfWeek === dowOf(date) && x.partKind !== 'evening'));
+  const w = day.find(x => QUALITY_TYPES.includes(classifyWorkout(x))) ?? day.find(x => !isOptionalWorkout(x)) ?? day[0];
+  const out: QualityWorkout = w ? { name: (w.name || '').trim(), type: classifyWorkout(w) } : { name: '', type: 'easy' };
+  return special ? { ...out, special: true } : out;
 };
 
-const dayWorkout = (stored: unknown, date: string, special: string[]) =>
-  workoutOf(stored, date) ?? (special.includes(date) ? specialOf(stored, date) : null);
+/** Is the date's morning marked by hand: a special day, or a day picked on the plan screen. */
+const isMarked = (date: string, special: string[], planDays: PlanDays) =>
+  special.includes(date) || !!planDays[weekOf(date)]?.includes(dowOf(date));
+
+/**
+ * The day's session. A week whose days were picked on the plan screen is decided
+ * by the pick alone (an unpicked detected day is off); any other week by the
+ * plan. A special day is one either way.
+ */
+const dayWorkout = (stored: unknown, date: string, special: string[], planDays: PlanDays): QualityWorkout | null => {
+  const picked = planDays[weekOf(date)];
+  if (picked?.includes(dowOf(date))) return markedOf(stored, date, false);
+  const planned = picked ? null : workoutOf(stored, date);
+  return planned ?? (special.includes(date) ? markedOf(stored, date, true) : null);
+};
 
 /** The date's quality session from the latest uploaded plan of its week (or the mark), or null. */
 export async function loadQualityWorkout(supabase: Db, date: string): Promise<QualityWorkout | null> {
-  const [stored, special] = await Promise.all([loadPlan(supabase, date), loadSpecialDays(supabase)]);
-  return dayWorkout(stored, date, special);
+  const [stored, special, planDays] = await Promise.all([loadPlan(supabase, date), loadSpecialDays(supabase), loadPlanDays(supabase)]);
+  return dayWorkout(stored, date, special, planDays);
 }
 
 /**
@@ -102,13 +126,13 @@ export async function loadQualityWorkout(supabase: Db, date: string): Promise<Qu
  * paces (a per-pack plan holds each pack's pace in its own copy). An older
  * single plan is every pack's.
  */
-export function planTargets(stored: unknown, dow: number): PlanTargets {
+export function planTargets(stored: unknown, dow: number, includeOptional = false): PlanTargets {
   const v = (stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {}) as Record<string, unknown>;
   const perPack = ([1, 2, 3] as Pack[]).some(n => v[`group${n}`]);
   const out: PlanTargets = {};
   for (const n of [1, 2, 3] as Pack[]) {
     const lists = planWorkoutLists(perPack ? { [`group${n}`]: v[`group${n}`] } : stored);
-    const day = (lists[0] || []).filter(w => w.dayOfWeek === dow && w.partKind !== 'evening' && !isOptionalWorkout(w));
+    const day = (lists[0] || []).filter(w => w.dayOfWeek === dow && w.partKind !== 'evening' && (includeOptional || !isOptionalWorkout(w)));
     const reps = day.flatMap(w => workReps(w.steps || []));
     if (reps.length) out[n] = reps;
   }
@@ -168,7 +192,7 @@ export async function loadQualitySession(supabase: Db, date: string): Promise<Qs
   // Attendance weeks start on Sunday; the day is an offset into the week.
   const dow = dowOf(date);
   // start_time is local wall-clock time stored as +00:00, so a naive day range is the local day.
-  const [acts, att, aths, grps, stored, special] = await Promise.all([
+  const [acts, att, aths, grps, stored, special, planDays] = await Promise.all([
     supabase.from('athlete_activities')
       .select('id, athlete_id, start_time, distance, duration, average_pace, average_hr, laps')
       .gte('start_time', `${date}T00:00:00`)
@@ -182,11 +206,12 @@ export async function loadQualitySession(supabase: Db, date: string): Promise<Qs
     supabase.from('groups').select('id, name'),
     loadPlan(supabase, date),
     loadSpecialDays(supabase),
+    loadPlanDays(supabase),
   ]);
   const failed = [acts, att, aths, grps].find(r => r.error);
   if (failed?.error) throw failed.error;
 
-  const workout = dayWorkout(stored, date, special);
+  const workout = dayWorkout(stored, date, special, planDays);
   const rows = ((acts.data || []) as Array<Omit<ActivityRow, 'gps_points'>>).map(r => ({ ...r, gps_points: null }));
   const lapsById = new Map(rows.map(r => [r.id, normalizeStoredLaps(r.laps)]));
   const athleteOf = new Map(rows.map(r => [r.id, r.athlete_id]));
@@ -196,7 +221,7 @@ export async function loadQualitySession(supabase: Db, date: string): Promise<Qs
     date,
     label: sessionLabel(date),
     workout,
-    plan: workout ? planTargets(stored, dow) : {},
+    plan: workout ? planTargets(stored, dow, isMarked(date, special, planDays)) : {},
     runs: base.runs.map(r => {
       const laps = detectReps(lapsById.get(r.id) || []);
       return {

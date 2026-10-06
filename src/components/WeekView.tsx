@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { WorkoutPreview } from './WorkoutPreview';
@@ -17,6 +17,8 @@ interface WeekViewProps {
   workouts: ParsedWorkout[];
   editable?: boolean;
   onWorkoutChange?: (index: number, workout: ParsedWorkout) => void;
+  /** Extra content on a day's header, after the session count (the planner's quality chip). */
+  dayBadge?: (dayOfWeek: number) => ReactNode;
 }
 
 const stepTypeColors: Record<string, string> = {
@@ -150,7 +152,7 @@ function WorkoutDetailSheet({ workout, dayName, open, onClose }: { workout: Pars
   );
 }
 
-export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekViewProps) {
+export function WeekView({ workouts, editable = false, onWorkoutChange, dayBadge }: WeekViewProps) {
   const t = useTranslations('common');
   const tp = useTranslations('planner');
   const dayNames = t.raw('dayNames') as string[];
@@ -255,6 +257,7 @@ export function WeekView({ workouts, editable = false, onWorkoutChange }: WeekVi
                       {tp('sessionCount', { count: dayWorkouts.length })}
                     </span>
                   )}
+                  {dayBadge?.(dayIndex)}
                 </div>
                 <div className="flex items-center gap-0.5 shrink-0">
                   {/* Per-day edit pencil — only for a day with a single session.

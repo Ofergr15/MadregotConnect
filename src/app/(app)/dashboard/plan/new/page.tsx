@@ -36,6 +36,7 @@ import {
   Check,
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
+import { QualityDayChip, QualityDaysCard, useQualityDays } from './QualityDays';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 import { DayByDayReview } from '@/components/DayByDayReview';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
@@ -241,6 +242,8 @@ export default function WeeklyPlannerPage() {
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [savedPlanId, setSavedPlanId] = useState<string | null>(null);
+  // The week's quality days (super user): reloaded when the plan is replaced or re-saved.
+  const qualityDays = useQualityDays(weekStartDate, superUser && !!currentPlan, `${currentPlan?.id}:${lastSavedAt?.getTime()}`);
 
   // --- Delete ---
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -1730,10 +1733,13 @@ export default function WeeklyPlannerPage() {
           <div className="flex-1 px-6 py-6 w-full">
             {error && <ErrorBanner message={error} className="mb-4" />}
 
+            {superUser && <QualityDaysCard state={qualityDays} />}
+
             <WeekView
               workouts={parsedPlan.workouts}
               editable={editMode}
               onWorkoutChange={handleWorkoutChange}
+              dayBadge={superUser ? (dow) => <QualityDayChip state={qualityDays} dow={dow} /> : undefined}
             />
           </div>
 

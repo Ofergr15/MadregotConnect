@@ -299,6 +299,11 @@ function packTarget(seen: Seen[]): number | null {
 // The scatter, in an assumed box: names are placed only where they fit, and that is decided in pixels.
 const SC_W = 330, SC_H = 280;
 
+/** The smallest step that puts at most five ticks on the range (and so at least two). */
+function niceStep(range: number, steps: number[]): number {
+  return steps.find(s => range / s <= 5) ?? steps[steps.length - 1];
+}
+
 function Scatter({ seen, pack, zoom, setZoom, sel, onPick }: {
   seen: Seen[]; pack: 0 | Pack; zoom: boolean; setZoom: (z: boolean) => void; sel?: string; onPick: (id: string) => void;
 }) {
@@ -322,7 +327,8 @@ function Scatter({ seen, pack, zoom, setZoom, sel, onPick }: {
   const isOut = ({ x, y }: { x: number; y: number }) => x === 0 || x === 1 || y === 0 || y === 1;
   const hidden = pts.filter(s => isOut(at(s))).length;
 
-  const yStep = y1 - y0 > 60 ? 15 : 5, xStep = x1 - x0 > 8 ? 2 : 1;
+  // The step is picked from the range, so a zoom on a tight pack (paces 3 s apart) still has numbers on its axis.
+  const yStep = niceStep(y1 - y0, [1, 2, 5, 10, 15, 30, 60]), xStep = niceStep(x1 - x0, [0.5, 1, 2, 5]);
   const yTicks: number[] = [], xTicks: number[] = [];
   for (let v = Math.ceil(y0 / yStep) * yStep; v <= y1; v += yStep) yTicks.push(v);
   for (let v = Math.ceil(x0 / xStep) * xStep; v <= x1; v += xStep) xTicks.push(v);
