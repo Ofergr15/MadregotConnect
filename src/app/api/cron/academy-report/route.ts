@@ -3,6 +3,7 @@ import { computeAcademyWeekAdherence, addDaysStr, sundayOf } from '@/lib/academy
 import { sendAcademyWeeklyReport } from '@/lib/email';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { israelNow } from '@/lib/utils';
+import { cronPaused } from '@/lib/cron-pause';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -18,6 +19,7 @@ export const maxDuration = 60;
  * Also runnable manually with the same header for testing.
  */
 async function run(request: Request) {
+  if (await cronPaused()) return NextResponse.json({ paused: true });
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const authHeader = request.headers.get('authorization');

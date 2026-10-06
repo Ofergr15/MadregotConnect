@@ -31,6 +31,7 @@ import { syncClubFollows } from '@/lib/follows/club-sync';
 import { qualityPush } from '@/lib/quality-session/server';
 import { PUSH_AT } from '@/lib/quality-session/model';
 import { storyEditorIds } from '@/lib/quality-session/access';
+import { cronPaused } from '@/lib/cron-pause';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -63,6 +64,7 @@ const SYNC_STALE_HOURS = 24;
 // Also: Saturday 20:00 plan-rollover push, and Sunday 19:00 personalized weekly
 // recap push (per-runner km + runs for the week that just ended).
 async function run(request: Request) {
+  if (await cronPaused()) return NextResponse.json({ paused: true });
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const auth = request.headers.get('authorization');

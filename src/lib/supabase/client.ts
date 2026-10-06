@@ -113,7 +113,10 @@ export function getSupabase(): { auth: GoTrueClient } {
 
     const { authUrl } = browserAuthConfig(url);
     const storageKey = sessionStorageKey(url);
-    if (typeof window !== 'undefined') expireForeignSession(window.localStorage, storageKey, authUrl);
+    if (typeof window !== 'undefined' && expireForeignSession(window.localStorage, storageKey, authUrl)) {
+      // Read by /dashboard/move's check suite: "your session carried over".
+      try { window.sessionStorage.setItem('mc_session_carried', '1'); } catch { /* private mode */ }
+    }
 
     _client = {
       auth: new GoTrueClient({

@@ -8,6 +8,7 @@ import { backfillStravaRoutes } from '@/lib/strava/backfill-routes';
 import { runScheduledHistoryBackfill } from '@/lib/garmin/history-schedule';
 import { createServerClient } from '@/lib/supabase/server';
 import { israelNow } from '@/lib/utils';
+import { cronPaused } from '@/lib/cron-pause';
 
 // Give the sync enough time to walk every athlete (Pro plan allows up to 300s).
 export const maxDuration = 300;
@@ -113,6 +114,7 @@ async function pollStravaOnlyAthletes() {
 }
 
 async function runSync(request: Request) {
+  if (await cronPaused()) return NextResponse.json({ paused: true });
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const authHeader = request.headers.get('authorization');

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { runDetectors } from '@/lib/bugs/run';
+import { cronPaused } from '@/lib/cron-pause';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -18,6 +19,7 @@ export const maxDuration = 60;
  * rows on the coach's own reports board.
  */
 async function run(request: Request) {
+  if (await cronPaused()) return NextResponse.json({ paused: true });
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const auth = request.headers.get('authorization');

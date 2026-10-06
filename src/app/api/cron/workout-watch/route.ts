@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { subscriptionsForAthletes, sendPushLocalized } from '@/lib/push';
 import { workoutDetectedCopy } from '@/lib/notifications/copy';
 import { israelNow, israelToday, getPlanWeekStart } from '@/lib/utils';
+import { cronPaused } from '@/lib/cron-pause';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -27,6 +28,7 @@ const START_MIN = 30;
 const END_HOUR = 12;
 
 async function run(request: Request) {
+  if (await cronPaused()) return NextResponse.json({ paused: true });
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const auth = request.headers.get('authorization');

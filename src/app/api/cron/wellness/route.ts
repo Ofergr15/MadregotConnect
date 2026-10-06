@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { sweepWellness } from '@/lib/wellness/sweep';
+import { cronPaused } from '@/lib/cron-pause';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -14,6 +15,7 @@ export const maxDuration = 300;
  * Secured with CRON_SECRET like every other cron.
  */
 async function run(request: Request) {
+  if (await cronPaused()) return NextResponse.json({ paused: true });
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const auth = request.headers.get('authorization');

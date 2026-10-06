@@ -4,6 +4,7 @@ import { sendPushLocalized, resolveAudience } from '@/lib/push';
 import { pickBilingual } from '@/lib/notifications/copy';
 import { publishAnnouncement } from '@/lib/feed/announce';
 import { ACADEMY_REMINDER_KINDS } from '@/lib/academy/testReminders';
+import { cronPaused } from '@/lib/cron-pause';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -25,6 +26,7 @@ function advance(current: string, interval: number, unit: string): string {
  * only scheduled / recurring sends wait for the daily tick.
  */
 async function run(request: Request) {
+  if (await cronPaused()) return NextResponse.json({ paused: true });
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const authHeader = request.headers.get('authorization');

@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
 import { reconcileClubFollows } from '@/lib/follows/club-sync';
+import { cronPaused } from '@/lib/cron-pause';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -18,6 +19,7 @@ export const maxDuration = 60;
 //
 // Secured with CRON_SECRET like the other crons.
 async function run(request: Request) {
+  if (await cronPaused()) return NextResponse.json({ paused: true });
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const auth = request.headers.get('authorization');

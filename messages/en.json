@@ -3308,5 +3308,73 @@
     "noWeek": "No runs in the last 7 days",
     "noWeekBody": "One run and your week is ready to share.",
     "toFeed": "To the feed"
+  },
+  "move": {
+    "title": "Move to Frankfurt",
+    "stepsAria": "Move steps",
+    "step": {
+      "check": "Check",
+      "start": "Start",
+      "copy": "Copy",
+      "verify": "Verify",
+      "open": "Open"
+    },
+    "database": "Database",
+    "frankfurt": "Frankfurt",
+    "tokyo": "Tokyo",
+    "new": "new",
+    "old": "old",
+    "functions": "Functions",
+    "version": "Version",
+    "maintenance": "Maintenance",
+    "maintOn": "on · {n} allowed",
+    "maintOff": "off",
+    "snapshot": "Count snapshot",
+    "pass": "pass",
+    "warn": "warn",
+    "fail": "fail",
+    "running": "Running checks…",
+    "ranAt": "Checked at {time}",
+    "group": {
+      "env": "Environment",
+      "data": "Data",
+      "files": "Images & files",
+      "links": "Links",
+      "auth": "Sign-in",
+      "services": "Connections & services",
+      "client": "From this phone"
+    },
+    "runAgain": "Run checks again",
+    "testPush": "Send me a test push",
+    "saveBaseline": "Save a starting count snapshot",
+    "pushSent": "Sent to {sent} of {devices} devices",
+    "progress": "Progress",
+    "readyTitle": "Ready to start",
+    "readyBody": "Maintenance turns on for everyone but you. From there the copy runs from the computer and reports here.",
+    "start": "Start the move",
+    "allGreen": "All green",
+    "notYet": "Not yet",
+    "openBody": "Every check passed. Opening turns maintenance off for everyone.",
+    "openBlocked": "{n} checks failed. Opening stays locked until everything is green.",
+    "open": "Open the app to everyone",
+    "rollback": "Request a rollback",
+    "cancel": "Cancel",
+    "confirm": {
+      "start": {
+        "title": "Start the move?",
+        "body": "Maintenance turns on now for the whole club, except you.",
+        "cta": "Start"
+      },
+      "open": {
+        "title": "Open to everyone?",
+        "body": "Maintenance turns off and the club comes in on the new database.",
+        "cta": "Open"
+      },
+      "rollback": {
+        "title": "Request a rollback?",
+        "body": "Logged, and it puts the app back on the Tokyo database. Anything written in Frankfurt since opening does not come back.",
+        "cta": "Request"
+      }
+    }
   }
 }
