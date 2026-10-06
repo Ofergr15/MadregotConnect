@@ -8,7 +8,7 @@
  * list cannot disagree about who is whose.
  */
 
-import type { AcademyMember, AttentionReason } from './members';
+import { memberCoachIds, memberHasCoach, type AcademyMember, type AttentionReason } from './members';
 
 /** The places a coach holds when the academy settings do not say. */
 export const DEFAULT_COACH_CAPACITY = 8;
@@ -49,7 +49,8 @@ export function coachCapacityOf(settings: unknown): number {
 export function buildCoachCards(coaches: CoachRef[], members: AcademyMember[], capacity: number): CoachCard[] {
   return coaches.map((c) => {
     const trainees = members
-      .filter((m) => m.academyCoachId === c.id)
+      // A shared trainee is on each of their coaches' cards, and takes a place on each.
+      .filter((m) => memberHasCoach(m, c.id))
       .sort((a, b) => a.name.localeCompare(b.name));
     const behind = trainees.filter((m) => m.attention.some((r) => BEHIND.has(r))).length;
     const notRunning = trainees.filter((m) => m.attention.some((r) => NOT_RUNNING.has(r))).length;
@@ -79,7 +80,7 @@ export function buildCoachCards(coaches: CoachRef[], members: AcademyMember[], c
 /** Approved trainees nobody coaches — who "לשבץ אליו" would place. */
 export function unpairedTrainees(members: AcademyMember[]): AcademyMember[] {
   return members
-    .filter((m) => !m.academyCoachId && m.approved && m.status !== 'removed')
+    .filter((m) => memberCoachIds(m).length === 0 && m.approved && m.status !== 'removed')
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 

@@ -12,6 +12,7 @@ import {
 } from '@/lib/academy/home';
 import type { Suggestion } from '@/lib/academy/suggestions';
 import type { AcademyMembersResponse } from './types';
+import { memberCoachIds } from '@/lib/academy/members';
 
 // The academy home, as phone 1 of the approved mockup (academy-manager-v5.html)
 // draws it, top to bottom:
@@ -62,7 +63,7 @@ export function AcademyHome({
   }
 
   const approved = members.filter((m) => m.approved);
-  const unpaired = approved.filter((m) => !m.academyCoachId).length;
+  const unpaired = approved.filter((m) => memberCoachIds(m).length === 0).length;
   const coachRows = (data.coaches ?? []).filter((c) => c.coachId);
   const rate = data.team.completionRate;
   const prevRate = prev?.team.completionRate ?? null;

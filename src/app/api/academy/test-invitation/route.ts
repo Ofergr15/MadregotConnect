@@ -13,6 +13,7 @@ import {
 } from '@/lib/academy/testReminders-server';
 import type { TestInvitation } from '@/lib/academy/testInvite';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
+import { coachIdsOf } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -144,7 +145,7 @@ async function refuseUnlessTheirTrainee(
   if (!data) return NextResponse.json({ error: 'No such athlete' }, { status: 404 });
 
   const isManager = isAcademyManager(caller);
-  if (!isManager && data.academy_coach_id !== caller.athleteId) {
+  if (!isManager && !(await coachIdsOf(supabase, data.id, data.academy_coach_id ?? null)).includes(caller.athleteId ?? '')) {
     return NextResponse.json({ error: 'Not your trainee' }, { status: 403 });
   }
   return null;

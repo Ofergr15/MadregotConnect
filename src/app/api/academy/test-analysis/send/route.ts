@@ -6,6 +6,7 @@ import { isMissingColumn, isMissingTable } from '@/lib/supabase/schema-drift';
 import { getStreamServerClient } from '@/lib/stream/server';
 import { postAcademyTestSummary } from '@/lib/academy/thread-server';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
+import { coachIdsOf } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
       .eq('coach_id', COACH_ID)
       .maybeSingle();
     if (!athlete?.is_academy) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (!isManager && athlete.academy_coach_id !== caller.athleteId) {
+    if (!isManager && !(await coachIdsOf(supabase, athlete.id, athlete.academy_coach_id ?? null)).includes(caller.athleteId ?? '')) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 

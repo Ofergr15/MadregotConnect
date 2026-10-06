@@ -32,6 +32,11 @@ export type ThreadSeat = 'trainee' | 'coach' | 'manager';
 
 export interface ThreadMessage {
   id: string;
+  /**
+   * Who wrote it. With several coaches in one seat (a shared trainee, migration
+   * 135), the seat no longer says whose message is the viewer's own — the id does.
+   */
+  authorId?: string | null;
   authorName: string;
   seat: ThreadSeat;
   /** Empty is legal: a message can be nothing but a feedback card. */
@@ -62,9 +67,16 @@ const SEAT_INK: Record<ThreadSeat, string> = {
   manager: 'text-accent-900',
 };
 
+/** Is this message the viewer's own? By author when both ids are known, else by seat. */
+export function isMine(m: Pick<ThreadMessage, 'authorId' | 'seat'>, viewerSeat: ThreadSeat, viewerId?: string | null): boolean {
+  if (viewerId && m.authorId) return m.authorId === viewerId;
+  return m.seat === viewerSeat;
+}
+
 export function ThreadTranscript({
   messages,
   viewerSeat,
+  viewerId = null,
   segments,
   onSend,
   sending = false,
@@ -75,6 +87,12 @@ export function ThreadTranscript({
   messages: ThreadMessage[];
   /** Which seat is looking. Their own messages are the ones that sit on the end. */
   viewerSeat: ThreadSeat;
+  /**
+   * The viewer's own id. When given, "mine" is the messages THEY wrote — so one
+   * coach of a shared trainee sees the other coach's messages as someone else's,
+   * named, rather than as their own. Without it, the seat decides (as before).
+   */
+  viewerId?: string | null;
   segments?: SegmentVerdict[];
   onSend?: (text: string) => void | Promise<void>;
   sending?: boolean;
@@ -149,7 +167,7 @@ export function ThreadTranscript({
           {visible.map((m, i) => (
             <div key={m.id}>
               {needsDaySeparator(visible, i) && <DaySeparator at={m.at} />}
-              <Bubble message={m} mine={m.seat === viewerSeat} segments={segments} />
+              <Bubble message={m} mine={isMine(m, viewerSeat, viewerId)} segments={segments} />
             </div>
           ))}
         </div>

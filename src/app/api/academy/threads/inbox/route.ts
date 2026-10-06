@@ -10,6 +10,7 @@ import {
   type ThreadSnapshot,
 } from '@/lib/academy/thread';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
+import { coachIdsByTrainee, coachesTrainee } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,9 +65,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ ...buildInbox([]), scope: 'academy', unmigrated: true });
     }
 
-    const roster = (rows || [])
-      .filter(a => a.is_academy)
-      .filter(a => isManager || (a.academy_coach_id && a.academy_coach_id === caller.athleteId));
+    // Every coach of a shared trainee has the thread in their inbox.
+    const academyRows = (rows || []).filter(a => a.is_academy);
+    const coachMap = isManager ? null : await coachIdsByTrainee(supabase, undefined, academyRows);
+    const roster = academyRows.filter(a => !coachMap || coachesTrainee(coachMap, a.id, caller.athleteId));
 
     if (roster.length === 0) {
       return NextResponse.json({ ...buildInbox([]), scope: isManager ? 'academy' : 'coach' });

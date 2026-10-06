@@ -15,6 +15,7 @@ import {
   type TestRow,
 } from '@/lib/academy/tests';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
+import { coachIdsByTrainee, coachIdsOf, coachesTrainee } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,9 +98,10 @@ async function roster(supabase: any, callerAthleteId: string | null, isManager: 
     .select('id, name, is_academy, academy_coach_id, academy_band_id, academy_bands(band_number)')
     .eq('coach_id', COACH_ID);
   if (error) return { error };
-  const athletes: RegistryAthlete[] = (data || [])
-    .filter((a: any) => a.is_academy)
-    .filter((a: any) => isManager || (a.academy_coach_id && a.academy_coach_id === callerAthleteId))
+  const academyRows = (data || []).filter((a: any) => a.is_academy);
+  const coachMap = isManager ? null : await coachIdsByTrainee(supabase, undefined, academyRows);
+  const athletes: RegistryAthlete[] = academyRows
+    .filter((a: any) => !coachMap || coachesTrainee(coachMap, a.id, callerAthleteId))
     .map((a: any) => ({
       id: a.id,
       name: a.name || a.id,
@@ -309,7 +311,8 @@ export async function POST(request: Request) {
     // A coach is confined to their own trainees. A trainee submitting for themselves is
     // neither — their `academy_coach_id` points at their coach, not at them, so the coach
     // check would reject the one person who is unambiguously entitled to this row.
-    if (isStaff && !isManager && target.academy_coach_id !== caller.athleteId) {
+    if (isStaff && !isManager
+      && !(await coachIdsOf(supabase, target.id, target.academy_coach_id ?? null)).includes(caller.athleteId ?? '')) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 

@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { requireAcademyManager } from '@/lib/academy/pairing-server';
 import { holdsAcademyCoachRole } from '@/lib/academy/coaches';
+import { coachIdsByTrainee } from '@/lib/academy/trainee-coaches';
 import { grantedRoles, rolesToColumns, type GrantableRole } from '@/lib/auth/roles';
 import { notifyAthlete } from '@/lib/push';
 import { roleGrantedCopy } from '@/lib/notifications/copy';
@@ -35,16 +36,30 @@ async function loadRows() {
   return { supabase, rows: (data || []) as CoachRow[], error };
 }
 
+/**
+ * Trainees per coach. A shared trainee counts toward EACH of their coaches — a
+ * coach's seats are a coach's time, and a shared trainee takes some of everyone's.
+ */
+async function coachLoads(
+  supabase: ReturnType<typeof createServerClient>,
+  rows: Array<{ id: string; is_academy: boolean | null; academy_coach_id: string | null }>,
+): Promise<Map<string, number>> {
+  const trainees = rows.filter((r) => r.is_academy);
+  const map = await coachIdsByTrainee(supabase, undefined, trainees);
+  const load = new Map<string, number>();
+  for (const ids of map.values()) for (const c of ids) load.set(c, (load.get(c) || 0) + 1);
+  return load;
+}
+
 /** GET — the academy coaches with their caseload, and who could be added. */
 export async function GET(request: Request) {
   try {
     const { denied } = await requireAcademyManager(request);
     if (denied) return denied;
-    const { rows, error } = await loadRows();
+    const { supabase, rows, error } = await loadRows();
     if (error) throw error;
 
-    const load = new Map<string, number>();
-    for (const r of rows) if (r.is_academy && r.academy_coach_id) load.set(r.academy_coach_id, (load.get(r.academy_coach_id) || 0) + 1);
+    const load = await coachLoads(supabase, rows);
 
     const body: AcademyCoachesResponse = {
       coaches: rows
@@ -88,7 +103,7 @@ export async function PUT(request: Request) {
     if (isCoach === body.coach) return NextResponse.json({ success: true, coach: isCoach });
 
     if (!body.coach) {
-      const holding = rows.filter((r) => r.is_academy && r.academy_coach_id === athleteId).length;
+      const holding = (await coachLoads(supabase, rows)).get(athleteId) || 0;
       if (holding > 0) {
         return NextResponse.json({ error: 'coach_has_trainees', trainees: holding }, { status: 409 });
       }

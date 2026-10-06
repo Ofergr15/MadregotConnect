@@ -5,7 +5,7 @@
 //
 // Nothing in here imports Supabase, so the client can pull it in for free.
 
-import type { AcademyMember } from './members';
+import { memberCoachIds, memberCoachNames, type AcademyMember } from './members';
 
 // ── Grouping the roster by coach ────────────────────────────────────────────
 
@@ -28,10 +28,16 @@ export function groupByCoach(members: AcademyMember[]): CoachSection[] {
   const byCoach = new Map<string, CoachSection>();
   const unpaired: AcademyMember[] = [];
   for (const m of members) {
-    if (!m.academyCoachId) { unpaired.push(m); continue; }
-    const s = byCoach.get(m.academyCoachId) ?? { coachId: m.academyCoachId, coachName: m.academyCoachName, members: [] };
-    s.members.push(m);
-    byCoach.set(m.academyCoachId, s);
+    // A shared trainee sits under EACH of their coaches (the row says "משותף").
+    const ids = memberCoachIds(m);
+    const names = memberCoachNames(m);
+    if (!ids.length) { unpaired.push(m); continue; }
+    ids.forEach((coachId, i) => {
+      const s = byCoach.get(coachId) ?? { coachId, coachName: names[i] || null, members: [] };
+      if (!s.coachName && names[i]) s.coachName = names[i];
+      s.members.push(m);
+      byCoach.set(coachId, s);
+    });
   }
   const byName = (a: AcademyMember, b: AcademyMember) => a.name.localeCompare(b.name);
   const sections = [...byCoach.values()]
@@ -39,6 +45,16 @@ export function groupByCoach(members: AcademyMember[]): CoachSection[] {
     .sort((a, b) => b.members.length - a.members.length || (a.coachName || '').localeCompare(b.coachName || ''));
   if (unpaired.length) sections.push({ coachId: null, coachName: null, members: [...unpaired].sort(byName) });
   return sections;
+}
+
+/**
+ * The OTHER coaches of a trainee, seen from one coach's section — "גם אצל Guy".
+ * Empty for a trainee with one coach (or none), which is when no tag shows.
+ */
+export function otherCoachNames(m: AcademyMember, sectionCoachId: string | null): string[] {
+  const ids = memberCoachIds(m);
+  const names = memberCoachNames(m);
+  return ids.map((id, i) => (id === sectionCoachId ? null : names[i] || null)).filter((n): n is string => !!n);
 }
 
 // ── What a row says under the name ──────────────────────────────────────────
@@ -61,7 +77,7 @@ export function rowLine(m: AcademyMember, todayIso: string): RowLine {
   const joinedDays = m.academyJoinedOn ? daysBetween(m.academyJoinedOn, todayIso) : null;
   if (!m.hasWatch) return { kind: 'no_watch' };
   if (m.daysSinceActivity !== null && m.daysSinceActivity >= 5) return { kind: 'inactive', days: m.daysSinceActivity };
-  if (joinedDays !== null && joinedDays <= 14 && (!m.academyCoachId || m.plannedCount === 0)) {
+  if (joinedDays !== null && joinedDays <= 14 && (memberCoachIds(m).length === 0 || m.plannedCount === 0)) {
     return { kind: 'new', days: joinedDays };
   }
   if (m.daysSinceActivity === null && m.totalRuns === 0) return { kind: 'never_ran' };
@@ -260,7 +276,10 @@ export function applicationDeletable(
 
 // ── The bulk body ───────────────────────────────────────────────────────────
 
-export const BULK_ACTIONS = ['coach', 'band', 'remove', 'add', 'restore'] as const;
+// 'coach' REPLACES the set (coachIds, or the legacy single coachId / null);
+// 'addCoach' and 'removeCoach' add or drop ONE coach across many trainees, leaving
+// their other coaches alone (migration 135: a trainee can have several).
+export const BULK_ACTIONS = ['coach', 'addCoach', 'removeCoach', 'band', 'remove', 'add', 'restore'] as const;
 export type BulkAction = (typeof BULK_ACTIONS)[number];
 export const MAX_BULK = 100;
 
@@ -269,6 +288,11 @@ export interface BulkRequest {
   action: BulkAction;
   /** `null` unpairs ('coach'); for 'add' the coach to start with, or none. */
   coachId: string | null;
+  /**
+   * 'coach' only: the whole new set, first = the legacy coach. `null` when the
+   * caller sent the single `coachId` instead (then the set is [coachId] or []).
+   */
+  coachIds: string[] | null;
   bandId: string | null;
   /** Whether to push the trainee and the coach. */
   notify: boolean;
@@ -291,10 +315,19 @@ export function parseBulk(body: unknown): BulkRequest | string {
   const idOrNull = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
   const coachId = idOrNull(b.coachId);
   const bandId = idOrNull(b.bandId);
-  if (action === 'coach' && !hasCoach) return 'coachId is required; pass null to unpair';
+  const coachIds = Array.isArray(b.coachIds)
+    ? [...new Set(b.coachIds.map(idOrNull).filter((x): x is string => !!x))]
+    : null;
+  if (Object.prototype.hasOwnProperty.call(b, 'coachIds') && !Array.isArray(b.coachIds)) return 'coachIds must be an array';
+  if (action === 'coach' && !hasCoach && !coachIds) return 'coachId or coachIds is required; pass null or [] to unpair';
+  if ((action === 'addCoach' || action === 'removeCoach') && !coachId) return 'coachId is required';
+  if (coachIds && coachIds.some((c) => ids.includes(c))) return 'A trainee cannot be their own coach';
   if (action === 'band' && !hasBand) return 'bandId is required; pass null to clear';
   if (coachId && ids.includes(coachId)) return 'A trainee cannot be their own coach';
-  return { athleteIds: ids, action, coachId, bandId, notify: b.notify === true, hasCoach, hasBand };
+  return {
+    athleteIds: ids, action, coachId, coachIds: action === 'coach' ? coachIds : null,
+    bandId, notify: b.notify === true, hasCoach, hasBand,
+  };
 }
 
 // ── Sharing the form link ───────────────────────────────────────────────────

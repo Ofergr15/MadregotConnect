@@ -8,6 +8,7 @@ import { analyzeTest, draftSummary, recommendBand } from '@/lib/academy/testAnal
 import { thresholdPaceSec } from '@/lib/academy/tests';
 import type { AcademyBand } from '@/lib/academy/bands';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
+import { coachIdsOf } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -160,7 +161,7 @@ async function loadTest(
     .eq('coach_id', COACH_ID)
     .maybeSingle();
   if (!athlete?.is_academy) return { denied: NextResponse.json({ error: 'Not found' }, { status: 404 }) };
-  if (!isManager && athlete.academy_coach_id !== callerAthleteId) {
+  if (!isManager && !(await coachIdsOf(supabase, athlete.id, athlete.academy_coach_id ?? null)).includes(callerAthleteId ?? '')) {
     return { denied: NextResponse.json({ error: 'forbidden' }, { status: 403 }) };
   }
   return { test: test as Record<string, unknown>, athlete: athlete as Record<string, unknown> };

@@ -1,7 +1,7 @@
 'use client';
 
 import { notFound } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AcademyMembers } from '@/components/academy/AcademyMembers';
 import { MemberSheet } from '@/components/academy/MemberSheet';
 import { ChangeCoachSheet } from '@/components/academy/ManageMembersSheets';
@@ -18,9 +18,15 @@ const daysAgo = (n: number) => new Date(today.getTime() - n * 86_400_000).toISOS
 const BANDS = [2, 3, 4, 5].map((n) => ({ id: `b${n}`, name: `דבוקה ${n}`, bandNumber: n, goal: null, paceProfile: { offsetSeconds: n * 10 } }));
 const band = (n: number | null) => (n ? BANDS.find((b) => b.bandNumber === n)! : null);
 
-const m = (athleteId: string, name: string, coach: [string, string] | null, b: number | null, o: Partial<AcademyMember> = {}): AcademyMember => ({
+// `coach` is one coach, or several for a shared trainee (migration 135).
+const m = (athleteId: string, name: string, coach: [string, string] | Array<[string, string]> | null, b: number | null, o: Partial<AcademyMember> = {}): AcademyMember => {
+  const set: Array<[string, string]> = !coach ? [] : Array.isArray(coach[0]) ? (coach as Array<[string, string]>) : [coach as [string, string]];
+  return mk(athleteId, name, set, b, o);
+};
+const mk = (athleteId: string, name: string, set: Array<[string, string]>, b: number | null, o: Partial<AcademyMember>): AcademyMember => ({
   athleteId, name, email: '', avatarUrl: null, groupId: null, groupName: null,
-  academyCoachId: coach?.[0] ?? null, academyCoachName: coach?.[1] ?? null,
+  academyCoachId: set[0]?.[0] ?? null, academyCoachName: set[0]?.[1] ?? null,
+  academyCoachIds: set.map((c) => c[0]), academyCoachNames: set.map((c) => c[1]),
   band: band(b), paceOffsetSec: null, status: 'active', role: 'runner', approved: true, hasWatch: true, hasGarmin: true, hasStrava: false,
   joinedAt: null, academyJoinedOn: daysAgo(90), weekKm: 24.3, weekRuns: 3, weekDurationMin: 150, totalKm: 400, totalRuns: 60,
   lastActivityAt: null, daysSinceActivity: 1, plannedCount: 4, completedCount: 3, completionRate: 0.75, attention: [],
@@ -32,7 +38,8 @@ const GUY: [string, string] = ['guy', 'Guy Ziv'];
 const MEMBERS: AcademyMember[] = [
   m('t5', 'Michal Raz', DANA, 4, { academyJoinedOn: daysAgo(80), completedCount: 4, completionRate: 1, weekKm: 38.2 }),
   m('t1', 'Noa Barak', DANA, 4, { academyJoinedOn: daysAgo(120), weekKm: 0, weekRuns: 0, completedCount: 0, completionRate: 0, daysSinceActivity: 6, attention: ['inactive' as never] }),
-  m('t2', 'Yoav Cohen', DANA, 3, { academyJoinedOn: daysAgo(55), weekKm: 9.4, weekRuns: 1, completedCount: 1, completionRate: 0.25, paceOffsetSec: 5 }),
+  // Shared: Dana and Guy (all coaches equal) — listed under each, tagged "משותף".
+  m('t2', 'Yoav Cohen', [DANA, GUY], 3, { academyJoinedOn: daysAgo(55), weekKm: 9.4, weekRuns: 1, completedCount: 1, completionRate: 0.25, paceOffsetSec: 5 }),
   m('t6', 'Omer Segev', DANA, 4),
   m('t13', 'Eden Paz', DANA, 2),
   m('t14', 'Maya Ron', DANA, 5),
@@ -54,7 +61,7 @@ const DATA = {
   team: { members: 15 },
   coaches: [
     { coachId: 'dana', coachName: 'Dana Levi', trainees: 6, unpaced: 0, weekKm: 0, completionRate: 0.69 },
-    { coachId: 'guy', coachName: 'Guy Ziv', trainees: 6, unpaced: 0, weekKm: 0, completionRate: 0.88 },
+    { coachId: 'guy', coachName: 'Guy Ziv', trainees: 7, unpaced: 0, weekKm: 0, completionRate: 0.88 },
     { coachId: 'avi', coachName: 'Avi Peretz', trainees: 1, unpaced: 0, weekKm: 0, completionRate: null },
     { coachId: null, coachName: null, trainees: 2, unpaced: 2, weekKm: 0, completionRate: null },
   ],
@@ -93,6 +100,7 @@ function stub(url: string, method: string): unknown {
     return { ok: true };
   }
   if (url.startsWith('/api/academy/members/people')) return PEOPLE;
+  if (url.startsWith('/api/academy/settings')) return { settings: { coachCapacity: 8 } };
   if (url.startsWith('/api/academy/members')) return DATA;
   if (url.startsWith('/api/academy/adherence')) return { athletes: [{ week: { workouts: WEEK } }] };
   if (url.startsWith('/api/academy/tests')) return { trend: { points: [{ date: daysAgo(40), paceSec: 284 }] } };
@@ -116,6 +124,13 @@ export default function PreviewAcademyMembers() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [coachMove, setCoachMove] = useState<AcademyMember | null>(null);
   const selected = useMemo(() => MEMBERS.find((x) => x.athleteId === selectedId) ?? null, [selectedId]);
+  // ?open=t2 opens a member sheet, ?coaches=t2 the change-coaches sheet (screenshots).
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('open')) setSelectedId(q.get('open'));
+    const c = MEMBERS.find((x) => x.athleteId === q.get('coaches'));
+    if (c) setCoachMove(c);
+  }, []);
 
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-page" dir="rtl">

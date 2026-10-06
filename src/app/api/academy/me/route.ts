@@ -10,6 +10,7 @@ import { toBand } from '@/lib/academy/bands';
 import { thresholdPaceSec } from '@/lib/academy/tests';
 import { traineeUnreadCount } from '@/lib/academy/thread-server';
 import { getStreamServerClient } from '@/lib/stream/server';
+import { coachIdsOf } from '@/lib/academy/trainee-coaches';
 import {
   goalCard,
   journeyPlanStats,
@@ -158,9 +159,15 @@ export async function GET(request: Request) {
           ? supabase.from('athletes').select('garmin_auth').eq('id', athleteId)
             .maybeSingle<{ garmin_auth: unknown }>()
           : res)),
-      me.academy_coach_id
-        ? supabase.from('athletes').select('id, name, avatar_url').eq('id', me.academy_coach_id).maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
+      // All their coaches (a shared trainee has several), legacy first.
+      (async () => {
+        const ids = await coachIdsOf(supabase, athleteId, me.academy_coach_id ?? null);
+        if (!ids.length) return { data: [] as Array<{ id: string; name: string; avatar_url: string | null }>, error: null };
+        const { data, error } = await supabase.from('athletes').select('id, name, avatar_url').in('id', ids);
+        const rows = (error ? [] : (data || [])) as Array<{ id: string; name: string; avatar_url: string | null }>;
+        const byId = new Map(rows.map((r) => [r.id, r]));
+        return { data: ids.map((id) => byId.get(id)).filter((r): r is NonNullable<typeof r> => !!r), error: null };
+      })(),
       me.academy_band_id
         ? supabase.from('academy_bands').select('id, band_number, name, goal, pace_profile').eq('id', me.academy_band_id).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
@@ -213,7 +220,8 @@ export async function GET(request: Request) {
 
     const tolerances = settings.tolerances;
     const band = bandRes.data ? toBand(bandRes.data as never) : null;
-    const coach = coachRes.data as { id: string; name: string; avatar_url: string | null } | null;
+    const coachRows = (coachRes.data || []) as Array<{ id: string; name: string; avatar_url: string | null }>;
+    const coach = coachRows[0] ?? null;
     const feedbackDays = new Set(
       ((feedbackRes as { data: Array<{ workout_date: string }> | null }).data || []).map((r) => r.workout_date),
     );
@@ -276,6 +284,7 @@ export async function GET(request: Request) {
       weekStart,
       athlete: { athleteId: me.id, name: me.name, avatarUrl: me.avatar_url || null, hasWatch },
       coach: coach ? { id: coach.id, name: coach.name, avatarUrl: coach.avatar_url || null } : null,
+      coaches: coachRows.map((c) => ({ id: c.id, name: c.name, avatarUrl: c.avatar_url || null })),
       unread,
       goal: goalCard(characterization, band, today),
       paces: resolveTraineePaces({

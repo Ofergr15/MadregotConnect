@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { Card, InsetRow, InsetSection, Sheet, Switch } from '@/components/ui';
 import type { AcademyCoachesResponse } from '@/app/api/academy/coaches/route';
 import { fmtRate, initialsOf, type AcademyMember } from './types';
+import { coachNameAmong, joinHebrewList, memberCoachIds, memberCoachNames, memberHasCoach } from '@/lib/academy/members';
 
 /**
  * The academy manager's controls, behind the ⚙ on the academy home so the home
@@ -178,9 +179,9 @@ export function CoachesSheet({
     }
   };
 
-  const caseload = caseloadOf ? members.filter((m) => m.academyCoachId === caseloadOf) : [];
+  const caseload = caseloadOf ? members.filter((m) => memberHasCoach(m, caseloadOf)) : [];
   const caseloadName = data?.coaches.find((c) => c.id === caseloadOf)?.name
-    ?? members.find((m) => m.academyCoachId === caseloadOf)?.academyCoachName ?? '';
+    ?? coachNameAmong(members, caseloadOf);
 
   return (
     <>
@@ -367,7 +368,7 @@ export function ViewAsSheet({ open, onOpenChange, members }: {
     ...(data?.coaches ?? []).map((c) => ({ id: c.id, name: c.name, kind: 'coach' as const, sub: c.trainees === 0 ? 'מאמן · אין מתאמנים' : c.trainees === 1 ? 'מאמן · מתאמן אחד' : `מאמן · ${c.trainees} מתאמנים` })),
     ...members.filter((m) => m.approved).map((m) => ({
       id: m.athleteId, name: m.name, kind: 'trainee' as const,
-      sub: m.academyCoachName ? `מתאמן · אצל ${m.academyCoachName.split(' ')[0]}` : 'מתאמן · בלי מאמן',
+      sub: memberCoachNames(m).filter(Boolean).length ? `מתאמן · אצל ${joinHebrewList(memberCoachNames(m).filter(Boolean).map((n) => n.split(' ')[0]))}` : 'מתאמן · בלי מאמן',
     })),
   ].filter((p) => !q || p.name.toLowerCase().includes(q));
 
@@ -432,7 +433,7 @@ export function AcademyTestScript({ open, onOpenChange, members, onGoTab, onView
     try { localStorage.setItem(MANUAL_KEY, JSON.stringify(next)); } catch { /* memory only */ }
   };
 
-  const paired = members.filter((m) => m.approved && m.academyCoachId);
+  const paired = members.filter((m) => m.approved && memberCoachIds(m).length > 0);
   const done: Record<StepKey, boolean> = {
     coach: (coaches?.coaches.length ?? 0) > 0,
     open: !!reg?.open,

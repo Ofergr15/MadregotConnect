@@ -21,9 +21,15 @@ const today = new Date();
 const daysAgo = (n: number) => new Date(today.getTime() - n * 86_400_000).toISOString().slice(0, 10);
 const hoursAgo = (n: number) => new Date(today.getTime() - n * 3_600_000).toISOString();
 
-const m = (athleteId: string, name: string, coach: [string, string] | null, band: string | null, o: Partial<AcademyMember> = {}): AcademyMember => ({
+// `coach` is one coach, or several for a shared trainee (migration 135).
+const m = (athleteId: string, name: string, coach: [string, string] | Array<[string, string]> | null, band: string | null, o: Partial<AcademyMember> = {}): AcademyMember => {
+  const set: Array<[string, string]> = !coach ? [] : Array.isArray(coach[0]) ? (coach as Array<[string, string]>) : [coach as [string, string]];
+  return mk(athleteId, name, set, band, o);
+};
+const mk = (athleteId: string, name: string, set: Array<[string, string]>, band: string | null, o: Partial<AcademyMember>): AcademyMember => ({
   athleteId, name, email: '', avatarUrl: null, groupId: null, groupName: null,
-  academyCoachId: coach?.[0] ?? null, academyCoachName: coach?.[1] ?? null,
+  academyCoachId: set[0]?.[0] ?? null, academyCoachName: set[0]?.[1] ?? null,
+  academyCoachIds: set.map((c) => c[0]), academyCoachNames: set.map((c) => c[1]),
   band: band ? { id: band, name: band, bandNumber: 3, paceProfile: { offsetSeconds: 0 } } : null,
   paceOffsetSec: null, status: 'active', role: 'runner', approved: true, hasWatch: true, hasGarmin: true, hasStrava: false,
   joinedAt: null, academyJoinedOn: daysAgo(90), weekKm: 24.3, weekRuns: 3, weekDurationMin: 150, totalKm: 400, totalRuns: 60,
@@ -35,7 +41,8 @@ const DANA: [string, string] = ['dana', 'Dana Levi'];
 const GUY: [string, string] = ['guy', 'Guy Ziv'];
 const MEMBERS: AcademyMember[] = [
   m('t1', 'Noa Barak', DANA, 'דבוקה 4', { weekKm: 0, weekRuns: 0, completedCount: 0, completionRate: 0, daysSinceActivity: 9, attention: ['inactive' as never] }),
-  m('t2', 'Yoav Cohen', DANA, 'דבוקה 3', { weekKm: 9.4, weekRuns: 1, completedCount: 1, completionRate: 0.25, attention: ['low_adherence' as never] }),
+  // Shared between Dana and Guy.
+  m('t2', 'Yoav Cohen', [DANA, GUY], 'דבוקה 3', { weekKm: 9.4, weekRuns: 1, completedCount: 1, completionRate: 0.25, attention: ['low_adherence' as never] }),
   m('t3', 'Raz Kedem', null, null, { academyJoinedOn: daysAgo(4), plannedCount: 0, completedCount: 0, completionRate: null, attention: ['no_coach' as never, 'no_band' as never] }),
   m('t4', 'Adi Nir', null, 'דבוקה 5', { academyJoinedOn: daysAgo(3), plannedCount: 0, completedCount: 0, completionRate: null, attention: ['no_coach' as never] }),
   m('t5', 'Michal Raz', DANA, 'דבוקה 4', { weekKm: 38.2, weekRuns: 4, completedCount: 4, completionRate: 1 }),
@@ -56,7 +63,7 @@ const team = (activeThisWeek: number, completionRate: number) => ({
 });
 
 const coachView = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('coach') === '1';
-const SHOWN = coachView ? MEMBERS.filter((x) => x.academyCoachId === 'dana') : MEMBERS;
+const SHOWN = coachView ? MEMBERS.filter((x) => x.academyCoachIds.includes('dana')) : MEMBERS;
 
 const DATA = {
   weekStart: planWeekStartOf(),
@@ -65,7 +72,7 @@ const DATA = {
   team: { ...team(12, 0.81), members: SHOWN.length, approved: SHOWN.length },
   coaches: coachView ? [] : [
     { coachId: 'dana', coachName: 'Dana Levi', trainees: 6, unpaced: 0, weekKm: 0, completionRate: 0.69 },
-    { coachId: 'guy', coachName: 'Guy Ziv', trainees: 6, unpaced: 0, weekKm: 0, completionRate: 0.88 },
+    { coachId: 'guy', coachName: 'Guy Ziv', trainees: 7, unpaced: 0, weekKm: 0, completionRate: 0.88 },
     { coachId: 'avi', coachName: 'Avi Peretz', trainees: 0, unpaced: 0, weekKm: 0, completionRate: null },
   ],
   bands: [],

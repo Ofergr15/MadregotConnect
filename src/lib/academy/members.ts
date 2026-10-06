@@ -8,6 +8,52 @@
 
 import { canResolvePaces, sortBands, type AcademyBand } from './bands';
 
+/**
+ * "Dana", "Dana ו־Guy", "Dana, Guy ו־Avi" — names joined the Hebrew way, with the
+ * maqaf so the ו sticks to a Latin name.
+ */
+export function joinHebrewList(names: string[]): string {
+  const list = names.filter(Boolean);
+  if (list.length <= 1) return list[0] ?? '';
+  return `${list.slice(0, -1).join(', ')} ו־${list[list.length - 1]}`;
+}
+
+/**
+ * A member's coaches, tolerant of a payload from before `academyCoachIds` existed
+ * (an old cached response, a fixture): then it is the one legacy coach, or none.
+ */
+export function memberCoachIds(m: Pick<AcademyMember, 'academyCoachId'> & { academyCoachIds?: string[] | null }): string[] {
+  if (Array.isArray(m.academyCoachIds)) return m.academyCoachIds;
+  return m.academyCoachId ? [m.academyCoachId] : [];
+}
+
+/** Names alongside `memberCoachIds`, same order; falls back to the legacy name. */
+export function memberCoachNames(
+  m: Pick<AcademyMember, 'academyCoachId' | 'academyCoachName'> & { academyCoachIds?: string[] | null; academyCoachNames?: string[] | null },
+): string[] {
+  const ids = memberCoachIds(m);
+  if (Array.isArray(m.academyCoachNames) && m.academyCoachNames.length === ids.length) return m.academyCoachNames;
+  return ids.map((id, i) => (i === 0 ? m.academyCoachName || '' : ''));
+}
+
+/** The name a roster gives one coach, off any member they coach ('' when nobody names them). */
+export function coachNameAmong(
+  members: Array<Parameters<typeof memberCoachNames>[0]>,
+  coachId: string | null | undefined,
+): string {
+  if (!coachId) return '';
+  for (const m of members) {
+    const i = memberCoachIds(m).indexOf(coachId);
+    if (i >= 0 && memberCoachNames(m)[i]) return memberCoachNames(m)[i];
+  }
+  return '';
+}
+
+/** Does this member have this coach (any of their coaches)? */
+export function memberHasCoach(m: Pick<AcademyMember, 'academyCoachId'> & { academyCoachIds?: string[] | null }, coachId: string | null | undefined): boolean {
+  return !!coachId && memberCoachIds(m).includes(coachId);
+}
+
 /** Why a member is surfaced as needing attention. Codes, not sentences — the UI translates them. */
 export type AttentionReason =
   | 'not_approved'
@@ -48,10 +94,21 @@ export interface AcademyMember {
   avatarUrl: string | null;
   groupId: string | null;
   groupName: string | null;
-  /** The dedicated 1:1 coach. Null means nobody is responsible for this trainee. */
+  /**
+   * The FIRST of the trainee's coaches (the legacy `academy_coach_id`). Null means
+   * nobody is responsible for this trainee. Kept for callers that show one coach;
+   * anything deciding who coaches whom reads `academyCoachIds`.
+   */
   academyCoachId: string | null;
   /** Resolved for display; null when unpaired, or when the coach isn't a club athlete. */
   academyCoachName: string | null;
+  /**
+   * EVERY coach of this trainee (migration 135), first = `academyCoachId`. All are
+   * equal; `[]` = without a coach.
+   */
+  academyCoachIds: string[];
+  /** Names for `academyCoachIds`, index for index ('' when unresolvable). */
+  academyCoachNames: string[];
   /**
    * The trainee's goal band (דבוקה). Null means unassigned — which blocks the
    * planner, because a band is where their paces come from.
@@ -295,18 +352,27 @@ export function rollupCoaches(
   for (const c of roster) map.set(c.coachId, blank(c.coachId, c.coachName));
 
   for (const m of members) {
-    const key = m.academyCoachId || '__none__';
-    const row = map.get(key) || blank(m.academyCoachId, m.academyCoachName);
-    // A coach met through a member but missing from the roster still gets named
-    // — better a caseload attributed to someone than one silently pooled into
-    // "unpaired", which would read as a gap that isn't there.
-    if (!row.coachName && m.academyCoachName) row.coachName = m.academyCoachName;
-    row.trainees += 1;
-    if (!canResolvePaces(m.paceOffsetSec, m.band)) row.unpaced += 1;
-    row.weekKm = addKm(row.weekKm, m.weekKm);
-    row.planned += m.plannedCount;
-    row.completed += m.completedCount;
-    map.set(key, row);
+    // A shared trainee counts toward EACH of their coaches (all coaches are equal,
+    // and each one's seats are their own time). No coach → the unpaired bucket.
+    const ids = memberCoachIds(m);
+    const names = memberCoachNames(m);
+    const keys: Array<[string | null, string | null]> = ids.length
+      ? ids.map((id, i) => [id, names[i] || null])
+      : [[null, null]];
+    for (const [coachId, coachName] of keys) {
+      const key = coachId || '__none__';
+      const row = map.get(key) || blank(coachId, coachName);
+      // A coach met through a member but missing from the roster still gets named
+      // — better a caseload attributed to someone than one silently pooled into
+      // "unpaired", which would read as a gap that isn't there.
+      if (!row.coachName && coachName) row.coachName = coachName;
+      row.trainees += 1;
+      if (!canResolvePaces(m.paceOffsetSec, m.band)) row.unpaced += 1;
+      row.weekKm = addKm(row.weekKm, m.weekKm);
+      row.planned += m.plannedCount;
+      row.completed += m.completedCount;
+      map.set(key, row);
+    }
   }
 
   return [...map.values()]

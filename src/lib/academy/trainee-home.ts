@@ -88,6 +88,11 @@ export interface TraineeHome {
   weekStart: string;
   athlete?: { athleteId: string; name: string; avatarUrl: string | null; hasWatch: boolean };
   coach?: { id: string; name: string; avatarUrl: string | null } | null;
+  /**
+   * EVERY coach of this trainee (migration 135), first = `coach`. Absent on an
+   * older payload; then `coach` alone is the list.
+   */
+  coaches?: Array<{ id: string; name: string; avatarUrl: string | null }>;
   unread?: number;
   goal?: HomeGoal | null;
   paces?: HomePaces | null;

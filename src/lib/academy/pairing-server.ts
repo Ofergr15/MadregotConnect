@@ -2,8 +2,12 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { resolveVerifiedCaller, type VerifiedCaller } from '@/lib/auth/self-or-staff';
-import { israelToday } from '@/lib/utils';
 import { hasRole } from '@/lib/auth/roles';
+import { getStreamServerClient } from '@/lib/stream/server';
+import { syncAcademyThreadCoaches } from './thread-server';
+import {
+  coachIdsOf, setTraineeCoaches, traineeIdsOfCoach, type SetCoachesResult,
+} from './trainee-coaches';
 
 // The gates the 1:1 pairing endpoints share.
 //
@@ -56,8 +60,16 @@ export interface AcademyPair {
   athleteId: string;
   name: string;
   isAcademy: boolean;
-  /** The dedicated coach in force right now, or null when unpaired. */
+  /**
+   * The FIRST of the trainee's coaches (the legacy `academy_coach_id`), or null when
+   * they have none. Kept for the callers that only ever named one coach.
+   */
   academyCoachId: string | null;
+  /**
+   * Every coach of this trainee since migration 135 — all equal, first = the legacy
+   * one. `[]` = without a coach. Read through lib/academy/trainee-coaches.ts.
+   */
+  academyCoachIds: string[];
   /** The goal band (דבוקה) they're assigned to, or null. */
   academyBandId: string | null;
   /** Their own pace override in sec/km, or null to follow the band. */
@@ -83,13 +95,15 @@ export async function loadPair(athleteId: string): Promise<PairLookup> {
 
   if (error) return { ok: false, reason: 'no_schema' };
   if (!data) return { ok: false, reason: 'not_found' };
+  const coachIds = await coachIdsOf(supabase, data.id, data.academy_coach_id || null);
   return {
     ok: true,
     pair: {
       athleteId: data.id,
       name: data.name,
       isAcademy: !!data.is_academy,
-      academyCoachId: data.academy_coach_id || null,
+      academyCoachId: coachIds[0] ?? null,
+      academyCoachIds: coachIds,
       academyBandId: data.academy_band_id || null,
       // Not `|| null`: a stored 0 is a real decision ("runs exactly at band
       // pace") and must not collapse into "follows the band".
@@ -138,7 +152,8 @@ export async function requireTraineeAccess(
   const lookup = await loadPair(athleteId);
   if (!lookup.ok) return { denied: pairLookupError(lookup.reason), caller, pair: null };
 
-  const isOwnTrainee = !!caller.athleteId && lookup.pair.academyCoachId === caller.athleteId;
+  // Any of their coaches: every coach of a shared trainee has the same access.
+  const isOwnTrainee = !!caller.athleteId && lookup.pair.academyCoachIds.includes(caller.athleteId);
   if (!isAcademyManager(caller) && !isOwnTrainee) {
     return {
       denied: NextResponse.json({ error: 'Not your trainee' }, { status: 403 }),
@@ -150,44 +165,45 @@ export async function requireTraineeAccess(
 }
 
 /**
- * Write a trainee's dedicated coach: the column first, then the audit trail.
+ * Replace a trainee's coaches — the one write behind PUT /api/academy/coach, the
+ * bulk actions and the funnel's accept, so every door leaves the same trail.
  *
- * Shared by PUT /api/academy/coach and the funnel's accept, so both doors leave the
- * same history. The order is the one documented on the coach route: the column is
- * what every read scopes on, and a failed history row is logged, not fatal.
- * Returns false only when the column write failed.
+ * The DB side is `setTraineeCoaches` (legacy column first, then the link table,
+ * then the history, which follows the first coach). This adds the conversation:
+ * the shared thread gains the coaches who were added and loses the ones removed.
+ * Best-effort — the pair is the source of truth and the thread re-syncs its
+ * membership on every open anyway.
+ */
+export async function setPairCoaches(
+  athleteId: string,
+  coachIds: string[],
+  reason: string | null,
+): Promise<SetCoachesResult> {
+  const supabase = createServerClient();
+  const result = await setTraineeCoaches(supabase, athleteId, coachIds, { reason });
+  if (result.ok && !result.unchanged && (result.added.length || result.removed.length)
+    && process.env.STREAM_API_KEY && process.env.STREAM_API_SECRET) {
+    try {
+      await syncAcademyThreadCoaches(getStreamServerClient(), supabase, athleteId, result.removed);
+    } catch (err) {
+      console.error('Academy thread membership sync failed (the pair is saved):', err);
+    }
+  }
+  return result;
+}
+
+/**
+ * Write a trainee's ONE coach (or none) — the single-coach door, kept for the
+ * callers that pair with one coach (the funnel's accept, "bring back"). The set
+ * becomes `[coachId]`. Returns false only when the write failed.
  */
 export async function writeCoachPair(
   athleteId: string,
   coachId: string | null,
   reason: string | null,
 ): Promise<boolean> {
-  const supabase = createServerClient();
-  const today = israelToday();
-
-  const { error: pairErr } = await supabase
-    .from('athletes')
-    .update({ academy_coach_id: coachId })
-    .eq('id', athleteId)
-    .eq('coach_id', COACH_ID);
-  if (pairErr) {
-    console.error('Academy coach assign error:', pairErr);
-    return false;
-  }
-
-  const closed = await supabase
-    .from('academy_coach_history')
-    .update({ ended_on: today })
-    .eq('athlete_id', athleteId)
-    .is('ended_on', null);
-  if (closed.error) console.error('Academy coach history close failed:', closed.error);
-  if (coachId) {
-    const opened = await supabase
-      .from('academy_coach_history')
-      .insert({ athlete_id: athleteId, coach_id: coachId, started_on: today, reason });
-    if (opened.error) console.error('Academy coach history open failed:', opened.error);
-  }
-  return true;
+  const result = await setPairCoaches(athleteId, coachId ? [coachId] : [], reason);
+  return result.ok;
 }
 
 /**
@@ -207,19 +223,13 @@ export async function visibleTraineeIds(
   const narrowed = request ? new URL(request.url).searchParams.get('scope') === 'coach' : false;
   if (isAcademyManager(caller) && !narrowed) return null;
   if (!caller.athleteId) return new Set();
-  const supabase = createServerClient();
-  const { data, error } = await supabase
-    .from('athletes')
-    .select('id')
-    .eq('coach_id', COACH_ID)
-    .eq('academy_coach_id', caller.athleteId);
-  if (error) return new Set();
-  return new Set(((data || []) as Array<{ id: string }>).map((r) => r.id));
+  // Shared trainees included: a trainee with two coaches is in both their scopes.
+  return new Set(await traineeIdsOfCoach(createServerClient(), caller.athleteId));
 }
 
 /**
  * May this caller read or write one trainee's academy record: themselves, the
- * manager, or the coach they are paired with. Narrower than `mayActFor`, which
+ * manager, or ANY of the coaches they are paired with (all coaches are equal). Narrower than `mayActFor`, which
  * lets any staff account act for anyone — right for club data, wrong for a 1:1
  * academy where one coach's trainee is not another coach's business.
  */
@@ -231,5 +241,5 @@ export async function mayCoach(
   if (isAcademyManager(caller)) return true;
   if (!caller.isStaff || !caller.athleteId) return false;
   const lookup = await loadPair(athleteId);
-  return lookup.ok && lookup.pair.academyCoachId === caller.athleteId;
+  return lookup.ok && lookup.pair.academyCoachIds.includes(caller.athleteId);
 }

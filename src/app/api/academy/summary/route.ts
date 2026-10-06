@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { requireAcademyManager } from '@/lib/academy/pairing-server';
 import { academyCoachIds } from '@/lib/academy/coaches';
+import { coachIdsByTrainee, coachesOf } from '@/lib/academy/trainee-coaches';
 import { buildFunnel, type CandidateEvent, type CandidateRow } from '@/lib/academy/funnel';
 import { isRegistrationOpen } from '@/lib/academy/registration';
 
@@ -41,7 +42,10 @@ export async function GET(request: Request) {
 
     type Row = { id: string; role: string | null; extra_roles: string[] | null; is_academy: boolean | null; approved: boolean | null; academy_coach_id: string | null };
     const rows = (athletesRes.error ? [] : athletesRes.data || []) as Row[];
-    const trainees = rows.filter((a) => a.is_academy && a.approved !== false);
+    const academy = rows.filter((a) => a.is_academy && a.approved !== false);
+    // Every coach of a shared trainee; "unpaired" = no coach at all.
+    const coachMap = await coachIdsByTrainee(supabase, undefined, academy);
+    const trainees = academy.map((a) => ({ ...a, academy_coach_ids: coachesOf(coachMap, a.id) }));
 
     const candidates: CandidateRow[] = (candidatesRes.error ? [] : candidatesRes.data || []).map((c: any) => ({
       id: c.id, name: c.name, athleteId: c.athlete_id, archivedAt: c.archived_at, createdAt: c.created_at,
@@ -54,7 +58,7 @@ export async function GET(request: Request) {
     const summary: AcademySummary = {
       trainees: trainees.length,
       coaches: academyCoachIds(rows, trainees).size,
-      unpaired: trainees.filter((t) => !t.academy_coach_id).length,
+      unpaired: trainees.filter((t) => t.academy_coach_ids.length === 0).length,
       inFunnel,
       registrationOpen,
     };

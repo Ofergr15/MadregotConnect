@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  applicationDeletable, daysBetween, deriveLeft, groupByCoach, monthsBetween, parseBulk, rowLine, waPhone, waShareUrl,
+  applicationDeletable, daysBetween, deriveLeft, groupByCoach, monthsBetween, otherCoachNames, parseBulk, rowLine, waPhone, waShareUrl,
   type ApplicantRow,
 } from '@/lib/academy/manage';
 import type { AcademyMember } from '@/lib/academy/members';
@@ -9,20 +9,23 @@ import type { AcademyMember } from '@/lib/academy/members';
 
 type Row = Record<string, unknown>;
 const db: Record<string, Row[]> = {};
-const writes: Array<{ table: string; op: 'update' | 'insert' | 'delete'; row?: Row; filters: Array<[string, unknown]> }> = [];
+const writes: Array<{ table: string; op: 'update' | 'insert' | 'delete' | 'upsert'; row?: Row; filters: Array<[string, unknown]> }> = [];
 /** Tables whose reads fail, and how. */
 const failing: Record<string, { code: string; message: string }> = {};
 
 class Query {
   private filters: Array<[string, (r: Row) => boolean, string, unknown]> = [];
-  private op: 'select' | 'update' | 'insert' | 'delete' = 'select';
+  private op: 'select' | 'update' | 'insert' | 'delete' | 'upsert' = 'select';
   private payload: Row | null = null;
+  private many: Row[] = [];
   private head = false;
   constructor(private table: string) {}
   select(_cols?: string, opts?: { count?: string; head?: boolean }) { if (this.op === 'select') this.head = !!opts?.head; return this; }
   update(row: Row) { this.op = 'update'; this.payload = row; return this; }
   insert(row: Row) { this.op = 'insert'; this.payload = row; return this; }
   delete() { this.op = 'delete'; return this; }
+  // The link table's upsert (migration 135): insert what isn't there by (athlete_id, coach_id).
+  upsert(rows: Row[]) { this.op = 'upsert'; this.many = rows; return this; }
   eq(col: string, v: unknown) { this.filters.push([col, (r) => col === 'coach_id' && this.table === 'athletes' ? true : r[col] === v, 'eq', v]); return this; }
   in(col: string, vs: unknown[]) { this.filters.push([col, (r) => vs.includes(r[col]), 'in', vs]); return this; }
   is(col: string, v: unknown) { this.filters.push([col, (r) => (r[col] ?? null) === v, 'is', v]); return this; }
@@ -43,6 +46,14 @@ class Query {
       const row = { id: `new-${writes.length}`, ...this.payload };
       (db[this.table] ||= []).push(row);
       return { data: row, error: null };
+    }
+    if (this.op === 'upsert') {
+      const t = (db[this.table] ||= []);
+      for (const row of this.many) {
+        writes.push({ table: this.table, op: 'upsert', row, filters });
+        if (!t.some((r) => r.athlete_id === row.athlete_id && r.coach_id === row.coach_id)) t.push({ ...row });
+      }
+      return { data: null, error: null };
     }
     if (this.op === 'delete') {
       writes.push({ table: this.table, op: 'delete', filters });
@@ -128,6 +139,8 @@ const member = (o: Partial<AcademyMember>): AcademyMember => ({
   approved: true, hasWatch: true, hasGarmin: true, hasStrava: false, joinedAt: null, academyJoinedOn: '2026-07-01',
   weekKm: 10, weekRuns: 2, weekDurationMin: 60, totalKm: 100, totalRuns: 10, lastActivityAt: null, daysSinceActivity: 1,
   plannedCount: 4, completedCount: 3, completionRate: 0.75, attention: [], ...o,
+  academyCoachIds: o.academyCoachIds ?? ((o.academyCoachId === undefined ? 'dana' : o.academyCoachId) ? [o.academyCoachId === undefined ? 'dana' : o.academyCoachId!] : []),
+  academyCoachNames: o.academyCoachNames ?? ((o.academyCoachId === undefined ? 'dana' : o.academyCoachId) ? [o.academyCoachName === undefined ? 'Dana' : o.academyCoachName || ''] : []),
 });
 
 describe('grouping the roster by coach', () => {
@@ -220,7 +233,13 @@ describe('the bulk body', () => {
   it('validates the action, the ids and the fields each action needs', () => {
     expect(parseBulk({ action: 'nope', athleteIds: ['a'] })).toBe('Unknown action');
     expect(parseBulk({ action: 'remove', athleteIds: [] })).toBe('athleteIds is required');
-    expect(parseBulk({ action: 'coach', athleteIds: ['a'] })).toMatch(/coachId is required/);
+    expect(parseBulk({ action: 'coach', athleteIds: ['a'] })).toMatch(/coachId or coachIds is required/);
+    expect(parseBulk({ action: 'addCoach', athleteIds: ['a'] })).toMatch(/coachId is required/);
+    expect(parseBulk({ action: 'removeCoach', athleteIds: ['a'], coachId: null })).toMatch(/coachId is required/);
+    expect(parseBulk({ action: 'coach', athleteIds: ['a'], coachIds: 'dana' })).toMatch(/must be an array/);
+    expect(parseBulk({ action: 'coach', athleteIds: ['a'], coachIds: ['dana', 'a'] })).toMatch(/own coach/);
+    expect(parseBulk({ action: 'coach', athleteIds: ['a'], coachIds: ['dana', ' guy ', 'dana', ''] })).toMatchObject({ coachIds: ['dana', 'guy'] });
+    expect(parseBulk({ action: 'band', athleteIds: ['a'], bandId: null, coachIds: ['dana'] })).toMatchObject({ coachIds: null });
     expect(parseBulk({ action: 'band', athleteIds: ['a'] })).toMatch(/bandId is required/);
     expect(parseBulk({ action: 'coach', athleteIds: ['a'], coachId: 'a' })).toMatch(/own coach/);
     expect(parseBulk({ action: 'remove', athleteIds: Array.from({ length: 101 }, (_, i) => `i${i}`) })).toMatch(/At most/);
@@ -278,16 +297,19 @@ describe('POST /api/academy/members/bulk', () => {
     caller.mockReturnValue(manager);
     const body = await (await post({ action: 'coach', athleteIds: ['t1', 't2', 'plain'], coachId: 'guy', notify: true })).json();
     expect(body.results).toEqual([
-      { athleteId: 't1', ok: true, coachId: 'guy' },
-      { athleteId: 't2', ok: true, coachId: 'guy' },
+      { athleteId: 't1', ok: true, coachId: 'guy', coachIds: ['guy'] },
+      { athleteId: 't2', ok: true, coachId: 'guy', coachIds: ['guy'] },
       { athleteId: 'plain', ok: false, error: 'not_member' },
     ]);
     expect(db.athletes.find((a) => a.id === 't1')!.academy_coach_id).toBe('guy');
     expect(db.academy_coach_history.find((h) => h.athlete_id === 't1' && h.coach_id === 'dana')!.ended_on).not.toBeNull();
     expect(writes.filter((w) => w.table === 'academy_coach_history' && w.op === 'insert').map((w) => w.row!.athlete_id)).toEqual(['t1', 't2']);
     expect(pushes.map((p) => [p.athleteId, p.kind])).toEqual([
-      ['t1', 'academy_coach_assigned'], ['t2', 'academy_coach_assigned'], ['guy', 'academy_trainee_assigned'],
+      ['t1', 'academy_coach_assigned'], ['t2', 'academy_coach_assigned'],
+      // The coach they left is told too (the sheet's "להודיע … שנוספו או הוסרו").
+      ['dana', 'academy_trainee_removed'], ['guy', 'academy_trainee_assigned'],
     ]);
+    expect(pushes[3].title).toContain('2');
     expect(pushes[2].title).toContain('2');
   });
 
@@ -336,6 +358,64 @@ describe('POST /api/academy/members/bulk', () => {
     const body = await (await post({ action: 'restore', athleteIds: ['gone'] })).json();
     expect(body.results[0]).toMatchObject({ ok: true, coachId: 'guy' });
     expect(db.athletes.find((a) => a.id === 'gone')).toMatchObject({ is_academy: true, academy_coach_id: 'guy' });
+  });
+});
+
+describe('several coaches per trainee (migration 135)', () => {
+  it('replaces the set with coachIds, keeps the first as the legacy coach, and history follows the first', async () => {
+    caller.mockReturnValue(manager);
+    const body = await (await post({ action: 'coach', athleteIds: ['t1'], coachIds: ['dana', 'guy'], notify: true })).json();
+    expect(body.results[0]).toMatchObject({ ok: true, coachId: 'dana', coachIds: ['dana', 'guy'] });
+    expect(db.athletes.find((a) => a.id === 't1')!.academy_coach_id).toBe('dana');
+    expect(db.academy_trainee_coaches.map((r) => `${r.athlete_id}:${r.coach_id}`).sort()).toEqual(['t1:dana', 't1:guy']);
+    // The first coach didn't change, so the one-open-row history is untouched.
+    expect(writes.filter((w) => w.table === 'academy_coach_history')).toHaveLength(0);
+    expect(pushes.map((p) => [p.athleteId, p.kind])).toEqual([['t1', 'academy_coach_added'], ['guy', 'academy_trainee_assigned']]);
+    expect(pushes[0].title).toContain('Guy');
+  });
+
+  it('addCoach adds one coach across many and keeps who they had; removeCoach drops just that one', async () => {
+    caller.mockReturnValue(manager);
+    const add = await (await post({ action: 'addCoach', athleteIds: ['t1', 't2'], coachId: 'guy' })).json();
+    expect(add.results.map((r: { coachIds: string[] }) => r.coachIds)).toEqual([['dana', 'guy'], ['dana', 'guy']]);
+    const again = await (await post({ action: 'addCoach', athleteIds: ['t1'], coachId: 'guy' })).json();
+    expect(again.results[0]).toMatchObject({ ok: true, unchanged: true });
+
+    const rm = await (await post({ action: 'removeCoach', athleteIds: ['t1'], coachId: 'dana' })).json();
+    expect(rm.results[0]).toMatchObject({ ok: true, coachId: 'guy', coachIds: ['guy'] });
+    // The legacy column moves to the remaining coach, and the history with it.
+    expect(db.athletes.find((a) => a.id === 't1')!.academy_coach_id).toBe('guy');
+    expect(db.academy_coach_history.find((h) => h.athlete_id === 't1' && h.coach_id === 'dana')!.ended_on).not.toBeNull();
+    expect(db.academy_coach_history.find((h) => h.athlete_id === 't1' && h.coach_id === 'guy' && h.ended_on == null)).toBeTruthy();
+    expect(db.academy_trainee_coaches.filter((r) => r.athlete_id === 't1').map((r) => r.coach_id)).toEqual(['guy']);
+  });
+
+  it('before 135 is pasted: one coach works as today, a set of two is refused and nothing is written', async () => {
+    caller.mockReturnValue(manager);
+    failing.academy_trainee_coaches = { code: '42P01', message: 'relation "academy_trainee_coaches" does not exist' };
+    const two = await (await post({ action: 'coach', athleteIds: ['t1'], coachIds: ['dana', 'guy'] })).json();
+    expect(two.results[0]).toMatchObject({ ok: false, error: 'no_schema' });
+    expect(writes).toHaveLength(0);
+    const one = await (await post({ action: 'coach', athleteIds: ['t1'], coachIds: ['guy'] })).json();
+    expect(one.results[0]).toMatchObject({ ok: true, coachIds: ['guy'] });
+    expect(db.athletes.find((a) => a.id === 't1')!.academy_coach_id).toBe('guy');
+  });
+
+  it('a shared trainee sits under each coach, tagged with the others', () => {
+    const shared = member({ athleteId: 's', name: 'Yoav', academyCoachId: 'dana', academyCoachName: 'Dana', academyCoachIds: ['dana', 'guy'], academyCoachNames: ['Dana', 'Guy'] });
+    const s = groupByCoach([shared, member({ athleteId: 'm', name: 'Michal' })]);
+    expect(s.map((x) => [x.coachId, x.members.map((m) => m.athleteId)])).toEqual([['dana', ['m', 's']], ['guy', ['s']]]);
+    expect(otherCoachNames(shared, 'dana')).toEqual(['Guy']);
+    expect(otherCoachNames(shared, 'guy')).toEqual(['Dana']);
+    expect(otherCoachNames(member({}), 'dana')).toEqual([]);
+  });
+
+  it('a co-coach of a shared trainee is "coaching someone" for the delete gate', async () => {
+    caller.mockReturnValue(manager);
+    db.academy_trainee_coaches = [{ athlete_id: 't1', coach_id: 'app' }];
+    const res = await del({ athleteId: 'app', confirm: 'delete' });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe('coaches_someone');
   });
 });
 

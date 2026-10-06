@@ -162,8 +162,21 @@ const THREAD: ThreadMessage[] = Array.from({ length: 44 }, (_, i) => {
   };
 });
 
+// ?shared=1 — Noa has two coaches (migration 135): the header shows both, and the
+// one conversation is hers, Dana's and Guy's, each coach message named.
+// &viewer=guy reads that same conversation as Guy, a coach of hers.
+const SHARED_COACHES = [{ id: 'dana', name: 'Dana Levi', avatarUrl: null }, { id: 'guy', name: 'Guy Ziv', avatarUrl: null }];
+const SHARED_THREAD: ThreadMessage[] = [
+  { id: 's1', authorId: 'noa', authorName: 'Noa Barak', seat: 'trainee', text: 'סיימתי את האינטרוולים 🙌', at: at(-1, '07:40') },
+  { id: 's2', authorId: 'dana', authorName: 'Dana Levi', seat: 'coach', text: 'חזרות מצוינות אתמול', at: at(-1, '08:05') },
+  { id: 's3', authorId: 'guy', authorName: 'Guy Ziv', seat: 'coach', text: 'מסכים. מחר רק קל', at: at(-1, '08:20') },
+  { id: 's4', authorId: 'noa', authorName: 'Noa Barak', seat: 'trainee', text: 'תודה לשניכם 🙏', at: at(-1, '08:31') },
+];
+const isShared = () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('shared') === '1';
+
 function stub(url: string): unknown {
   const c = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('case') : null;
+  if (url.startsWith('/api/academy/me') && isShared()) return { ...HOME, coaches: SHARED_COACHES, unread: 1 };
   if (url.startsWith('/api/academy/me')) return HOME;
   if (url.startsWith('/api/academy/workout')) {
     const date = new URL(url, 'http://x').searchParams.get('date');
@@ -220,8 +233,15 @@ if (typeof window !== 'undefined' && !(window as { __traineeStub?: boolean }).__
 export default function PreviewAcademyTrainee() {
   if (process.env.NODE_ENV === 'production') notFound();
   const [threadOpen, setThreadOpen] = useState(false);
+  const [shared, setShared] = useState(false);
+  const [viewer, setViewer] = useState<string | null>(null);
   // After mount, so the server's render and the first client render agree.
-  useEffect(() => { if (new URLSearchParams(window.location.search).get('case') === 'thread') setThreadOpen(true); }, []);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('case') === 'thread') setThreadOpen(true);
+    setShared(q.get('shared') === '1');
+    setViewer(q.get('viewer'));
+  }, []);
 
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-page" dir="rtl">
@@ -235,11 +255,18 @@ export default function PreviewAcademyTrainee() {
       <Sheet
         open={threadOpen}
         onOpenChange={setThreadOpen}
-        title="השיחה עם Dana"
+        title={shared ? (viewer ? 'Noa Barak' : 'השיחה עם Dana ו־Guy') : 'השיחה עם Dana'}
         className="h-[88dvh]"
         bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden pb-3"
       >
-        <ThreadTranscript messages={THREAD} viewerSeat="trainee" onSend={() => {}} layout="sheet" className="min-h-0 flex-1" />
+        <ThreadTranscript
+          messages={shared ? SHARED_THREAD : THREAD}
+          viewerSeat={viewer ? 'coach' : 'trainee'}
+          viewerId={shared ? viewer ?? 'noa' : null}
+          onSend={() => {}}
+          layout="sheet"
+          className="min-h-0 flex-1"
+        />
       </Sheet>
     </div>
   );

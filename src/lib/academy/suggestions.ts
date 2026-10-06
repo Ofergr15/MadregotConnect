@@ -56,6 +56,8 @@ export interface SuggestionMember {
   name: string;
   approved: boolean;
   academyCoachId: string | null;
+  /** Every coach (migration 135); absent on an older payload = the legacy one. */
+  academyCoachIds?: string[];
   academyJoinedOn: string | null;
   daysSinceActivity: number | null;
 }
@@ -86,7 +88,8 @@ export function buildSuggestions({
   // (a) Pair the unpaired with the coach who has room.
   if (isManager) {
     const unpaired = approved
-      .filter((m) => !m.academyCoachId)
+      // "Without a coach" = no coach at all; a shared trainee is paired twice over.
+      .filter((m) => (m.academyCoachIds ?? (m.academyCoachId ? [m.academyCoachId] : [])).length === 0)
       .sort((a, b) => (a.academyJoinedOn || '').localeCompare(b.academyJoinedOn || '') || a.name.localeCompare(b.name));
     if (unpaired.length) {
       const coach = recommendCoach(coaches, capacity, Math.min(2, unpaired.length));

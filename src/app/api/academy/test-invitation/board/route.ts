@@ -9,6 +9,7 @@ import {
 } from '@/lib/academy/settle-invitation-server';
 import type { BoardRow } from '@/lib/academy/testBoard';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
+import { coachIdsByTrainee, coachesTrainee } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,9 +70,10 @@ export async function GET(request: Request) {
     if (rosterError) return NextResponse.json({ error: 'Failed to read the roster' }, { status: 500 });
 
     const names = new Map<string, string>();
-    for (const person of people || []) {
-      if (!person.is_academy) continue;
-      if (!isManager && person.academy_coach_id !== caller.athleteId) continue;
+    const academyPeople = (people || []).filter((p) => p.is_academy);
+    const coachMap = isManager ? null : await coachIdsByTrainee(supabase, undefined, academyPeople);
+    for (const person of academyPeople) {
+      if (coachMap && !coachesTrainee(coachMap, person.id, caller.athleteId)) continue;
       names.set(String(person.id), String(person.name || person.id));
     }
 

@@ -7,6 +7,7 @@ import { academyChannelId } from '@/lib/academy/thread';
 import { notifyAthlete } from '@/lib/push';
 import { academyThreadMessageCopy } from '@/lib/notifications/copy';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
+import { coachIdsOf } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,7 +57,8 @@ export async function POST(request: Request) {
     // posting are separate requests, and this one writes.
     const isManager = isAcademyManager(caller);
     const isSelf = caller.athleteId === trainee.id;
-    const isMentor = caller.athleteId === trainee.academy_coach_id;
+    const coachIds = await coachIdsOf(supabase, trainee.id, trainee.academy_coach_id ?? null);
+    const isMentor = coachIds.includes(caller.athleteId);
     if (!isManager && !isSelf && !isMentor) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
@@ -75,8 +77,9 @@ export async function POST(request: Request) {
     // message to every admin — and an admin who mutes the club's chat stops seeing
     // the sign-ups too, because it is one toggle.
     //
-    // So: staff writing reaches the trainee, and the trainee writing reaches their
-    // MENTOR only. The manager already has the ranked inbox, which exists precisely
+    // So: staff writing reaches the trainee, and the trainee writing reaches ALL
+    // their coaches (a shared trainee has several, all equal) — nobody else. The
+    // other coaches see a coach's message in the thread itself, unpushed. The manager already has the ranked inbox, which exists precisely
     // so the third seat can watch twenty threads without twenty pushes.
     //
     // The exception is an unpaired trainee: nobody is assigned, so a message from
@@ -84,8 +87,8 @@ export async function POST(request: Request) {
     // one is nobody's job" is exactly when it has to reach somebody.
     const recipients: Array<{ id: string; staff: boolean }> = [];
     if (isSelf) {
-      if (trainee.academy_coach_id) {
-        recipients.push({ id: trainee.academy_coach_id, staff: true });
+      if (coachIds.length) {
+        for (const id of coachIds) recipients.push({ id, staff: true });
       } else {
         const { data: admins } = await supabase
           .from('athletes')

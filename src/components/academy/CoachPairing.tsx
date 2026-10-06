@@ -11,6 +11,8 @@ import {
   sortBands, type AcademyBand,
 } from '@/lib/academy/bands';
 import type { AcademyCoachSummary, AcademyMember } from './types';
+import { memberCoachIds, memberCoachNames } from '@/lib/academy/members';
+import { CoachAvatarStack } from './CoachAvatarStack';
 
 // Who coaches this trainee, what they're training for, and what paces they run —
 // the three facts a 1:1 online academy is made of, edited where they're read.
@@ -93,14 +95,24 @@ export function CoachPairing({
     setMode('pace');
   };
 
+  // Every coach of this trainee (migration 135) — all equal; the first is the legacy one.
+  const coachIds = memberCoachIds(member);
+  const coachNames = memberCoachNames(member);
+
+  /**
+   * The inline picker toggles one coach in or out of the set (null clears it);
+   * the members tab opens the full multi-select sheet instead.
+   */
   const assignCoach = async (coachId: string | null) => {
     setBusy(true);
     setError(null);
+    const next = coachId === null ? []
+      : coachIds.includes(coachId) ? coachIds.filter((c) => c !== coachId) : [...coachIds, coachId];
     try {
       const res = await fetch('/api/academy/coach', {
         method: 'PUT',
         headers: await bearerHeaders(),
-        body: JSON.stringify({ athleteId: member.athleteId, coachId }),
+        body: JSON.stringify({ athleteId: member.athleteId, coachIds: next }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setError(data.error || t('pairingError')); return; }
@@ -163,7 +175,7 @@ export function CoachPairing({
           </div>
         ) : (
           assignable.map((c) => {
-            const current = c.coachId === member.academyCoachId;
+            const current = !!c.coachId && coachIds.includes(c.coachId);
             return (
               <InsetRow
                 key={c.coachId}
@@ -181,7 +193,7 @@ export function CoachPairing({
             );
           })
         )}
-        {member.academyCoachId && (
+        {coachIds.length > 0 && (
           <InsetRow
             icon={UserMinus}
             iconBg="bg-accent-red"
@@ -369,17 +381,24 @@ export function CoachPairing({
   return (
     <>
       <InsetSection header={t('coachAndPaces')}>
+        {/* "מאמנים": every coach, as faces and names (mockup academy-multi-coach,
+            phone 1). One coach reads as before; several get the stack. */}
         <InsetRow
           icon={UserRound}
-          iconBg={member.academyCoachId ? 'bg-band-2' : 'bg-ink-300'}
-          label={t('academyCoach')}
-          sublabel={member.academyJoinedOn
-            ? t('academySince', { date: fmtJoined(member.academyJoinedOn, locale) })
+          iconBg={coachIds.length ? 'bg-band-2' : 'bg-ink-300'}
+          label={coachIds.length > 1 ? 'מאמנים' : t('academyCoach')}
+          sublabel={coachIds.length > 1
+            ? coachNames.filter(Boolean).join(' · ')
+            : member.academyJoinedOn
+              ? t('academySince', { date: fmtJoined(member.academyJoinedOn, locale) })
+              : undefined}
+          meta={coachIds.length > 1
+            ? <CoachAvatarStack size={24} coaches={coachIds.map((id, i) => ({ id, name: coachNames[i] || '' }))} />
             : undefined}
-          value={member.academyCoachName || t('noCoach')}
-          valueMuted={!member.academyCoachId}
+          value={coachIds.length > 1 ? undefined : coachNames[0] || t('noCoach')}
+          valueMuted={!coachIds.length}
           onClick={canAssign ? () => { setError(null); if (onChangeCoach) onChangeCoach(); else setMode('coach'); } : undefined}
-          trailing={canAssign ? <EditLabel>{member.academyCoachId ? 'החלפה' : 'שיבוץ'}</EditLabel> : undefined}
+          trailing={canAssign ? <EditLabel>{coachIds.length ? 'לשנות' : 'שיבוץ'}</EditLabel> : undefined}
         />
 
         <InsetRow

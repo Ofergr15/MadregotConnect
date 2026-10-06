@@ -17,6 +17,7 @@ import {
 } from '@/lib/academy/coach-board';
 import { CoachesSheet } from './AcademyAdmin';
 import { initialsOf, type AcademyMember } from './types';
+import { memberCoachIds, memberCoachNames } from '@/lib/academy/members';
 
 // ── אנשים → מאמנים ────────────────────────────────────────────────────────────
 //
@@ -93,9 +94,11 @@ export function CoachesBoard({
     if (canManage) return data ? data.coaches : null;
     const seen = new Map<string, CoachRef>();
     for (const m of members) {
-      if (m.academyCoachId && !seen.has(m.academyCoachId)) {
-        seen.set(m.academyCoachId, { id: m.academyCoachId, name: m.academyCoachName || '', avatarUrl: null, trainees: 0 });
-      }
+      // Every coach a member names — a shared trainee names several.
+      const names = memberCoachNames(m);
+      memberCoachIds(m).forEach((id, i) => {
+        if (!seen.has(id)) seen.set(id, { id, name: names[i] || '', avatarUrl: null, trainees: 0 });
+      });
     }
     return [...seen.values()];
   }, [canManage, data, members]);

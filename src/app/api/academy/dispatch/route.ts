@@ -13,6 +13,7 @@ import {
 } from '@/lib/academy/dispatch';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { countPlanWorkouts, type DispatchRosterEntry } from '@/lib/academy/week-status';
+import { coachIdsByTrainee, coachesTrainee } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,9 +86,11 @@ export async function GET(request: Request) {
       rosterRows = withHealth.data;
     }
 
-    const athletes: DispatchAthlete[] = (rosterRows || [])
-      .filter((a: any) => a.is_academy)
-      .filter((a: any) => isManager || (a.academy_coach_id && a.academy_coach_id === caller.athleteId))
+    // Any coach of a shared trainee sees them (lib/academy/trainee-coaches.ts).
+    const academyRoster = (rosterRows || []).filter((a: any) => a.is_academy);
+    const coachMap = isManager ? null : await coachIdsByTrainee(supabase, undefined, academyRoster);
+    const athletes: DispatchAthlete[] = academyRoster
+      .filter((a: any) => !coachMap || coachesTrainee(coachMap, a.id, caller.athleteId))
       .map((a: any) => ({
         id: a.id,
         name: a.name || a.id,

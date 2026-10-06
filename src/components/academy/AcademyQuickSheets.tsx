@@ -9,6 +9,7 @@ import { freeSeats, recommendCoach, type Suggestion } from '@/lib/academy/sugges
 import type { CandidateRow } from '@/lib/academy/funnel';
 import { postBulk } from './ManageMembersSheets';
 import { initialsOf, type AcademyCoachSummary, type AcademyMember } from './types';
+import { joinHebrewList, memberCoachIds, memberCoachNames } from '@/lib/academy/members';
 
 // The academy's quick sheets (mockup academy-manager-v5.html, phones 5 and 6):
 //
@@ -28,6 +29,9 @@ const VIOLET = '#5B21D6';
 export const SHEET_HANDOFF_MS = 350;
 
 const first = (name: string | null | undefined) => (name || '').trim().split(/\s+/)[0] || '';
+/** "Dana ו־Guy" — every coach of the trainee, first names (a shared trainee has several). */
+const coachFirstNames = (m: AcademyMember) => joinHebrewList(memberCoachNames(m).filter(Boolean).map((n) => first(n)));
+const coachLine = (m: AcademyMember) => (coachFirstNames(m) ? `אצל ${coachFirstNames(m)}` : 'בלי מאמן');
 
 function Radio({ on }: { on: boolean }) {
   return <span aria-hidden className={cn('h-[22px] w-[22px] shrink-0 rounded-full border-2 transition-all', on ? 'border-[7px] border-brand-600' : 'border-ink-300')} />;
@@ -152,7 +156,7 @@ export function QuickActionSheet({
   const matches = useMemo(() => {
     const list = approved.filter((m) => !q || m.name.toLowerCase().includes(q));
     // The unpaired first: they are who "change coach" is most often for.
-    return list.sort((a, b) => Number(!!a.academyCoachId) - Number(!!b.academyCoachId) || a.name.localeCompare(b.name));
+    return list.sort((a, b) => Number(memberCoachIds(a).length > 0) - Number(memberCoachIds(b).length > 0) || a.name.localeCompare(b.name));
   }, [approved, q]);
   const pickedMembers = approved.filter((m) => picked.includes(m.athleteId));
   const handOff = (fn: () => void) => { onOpenChange(false); setTimeout(fn, SHEET_HANDOFF_MS); };
@@ -194,7 +198,7 @@ export function QuickActionSheet({
                     <Face name={m.name} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-extrabold text-ink-700" dir="auto">{m.name}</span>
-                      <span className="block text-2xs text-ink-400">{m.academyCoachName ? `אצל ${first(m.academyCoachName)}` : 'בלי מאמן'}</span>
+                      <span className="block text-2xs text-ink-400">{coachLine(m)}</span>
                     </span>
                     <span className="shrink-0 text-xs font-extrabold text-brand-600">להחליף מאמן</span>
                   </button>
@@ -225,8 +229,8 @@ export function QuickActionSheet({
                     </span>
                     <Face name={m.name} />
                     <span className="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-700" dir="auto">{m.name}</span>
-                    <span className={cn('shrink-0 text-2xs', m.academyCoachId ? 'text-ink-400' : 'font-bold text-band-3-ink')}>
-                      {m.academyCoachName ? first(m.academyCoachName) : 'בלי מאמן'}
+                    <span className={cn('shrink-0 text-2xs', memberCoachIds(m).length ? 'text-ink-400' : 'font-bold text-band-3-ink')}>
+                      {coachFirstNames(m) || 'בלי מאמן'}
                     </span>
                   </button>
                 );
@@ -250,7 +254,7 @@ export function QuickActionSheet({
               </p>
             )}
             {error && <p className="mt-2 px-1 text-sm text-accent-red-ink">{error}</p>}
-            <Cta onClick={() => void submit()} disabled={!coachId || coachId === single?.academyCoachId} busy={busy}>
+            <Cta onClick={() => void submit()} disabled={!coachId || (!!single && memberCoachIds(single).length === 1 && memberCoachIds(single)[0] === coachId)} busy={busy}>
               {coach ? `להעביר ל־${first(coach.coachName)}` : 'בוחרים מאמן'}
             </Cta>
             <button type="button" onClick={() => setStep('pick')} className="mt-1 min-h-[44px] w-full text-sm font-bold text-brand-600">חזרה לבחירת מתאמנים</button>
@@ -364,7 +368,7 @@ export function SuggestionSheet({
                 const m = byId.get(p.id);
                 return (
                   <MenuRow key={p.id} face={p.name} title={`לפתוח את ${p.name}`}
-                    sub={m ? [m.academyCoachName ? `אצל ${first(m.academyCoachName)}` : null, m.band ? m.band.name : 'דבוקה עוד לא נקבעה'].filter(Boolean).join(' · ') : ''}
+                    sub={m ? [coachFirstNames(m) ? `אצל ${coachFirstNames(m)}` : null, m.band ? m.band.name : 'דבוקה עוד לא נקבעה'].filter(Boolean).join(' · ') : ''}
                     onClick={() => handOff(() => onOpenMember(p.id))} />
                 );
               })}
@@ -491,7 +495,7 @@ export function PeopleSearchSheet({ open, onOpenChange, members, coaches, isMana
           {trainees.length > 0 && (
             <HitGroup title="מתאמנים">
               {trainees.map((m) => (
-                <HitRow key={m.athleteId} name={m.name} sub={m.academyCoachName ? `אצל ${first(m.academyCoachName)}` : 'בלי מאמן'} onClick={() => pick({ kind: 'trainee', id: m.athleteId })} />
+                <HitRow key={m.athleteId} name={m.name} sub={coachLine(m)} onClick={() => pick({ kind: 'trainee', id: m.athleteId })} />
               ))}
             </HitGroup>
           )}

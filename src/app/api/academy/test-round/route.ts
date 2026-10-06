@@ -5,6 +5,7 @@ import { COACH_ID } from '@/lib/constants';
 import { isMissingTable } from '@/lib/supabase/schema-drift';
 import type { RoundOutcome } from '@/lib/academy/testRound';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
+import { coachIdsByTrainee, coachesTrainee } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,9 +107,11 @@ export async function POST(request: Request) {
     if (rosterError) return NextResponse.json({ error: 'Failed to read the roster' }, { status: 500 });
 
     const isManager = isAcademyManager(caller);
+    const academyPeople = (people || []).filter(p => p.is_academy);
+    const coachMap = isManager ? null : await coachIdsByTrainee(supabase, undefined, academyPeople);
     const allowed = new Set(
-      (people || [])
-        .filter(p => p.is_academy && (isManager || p.academy_coach_id === caller.athleteId))
+      academyPeople
+        .filter(p => !coachMap || coachesTrainee(coachMap, p.id, caller.athleteId))
         .map(p => String(p.id)),
     );
 

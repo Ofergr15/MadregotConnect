@@ -52,6 +52,10 @@ interface OpenedThread {
   name: string;
   channelId: string;
   mentorId: string | null;
+  /** Every coach of the trainee (migration 135); absent from an older server. */
+  mentorIds?: string[];
+  /** The caller's own athlete id, so "mine" is by author and not by seat. */
+  viewerId?: string | null;
   seat: ThreadSeat;
 }
 
@@ -160,9 +164,9 @@ function ConnectedAcademyThread({
   const sync = useCallback((ch: StreamChannel) => {
     setMessages(toThreadMessages(
       (ch.state.messages ?? []) as unknown as StreamMessageLike[],
-      { athleteId: thread.athleteId, mentorId: thread.mentorId },
+      { athleteId: thread.athleteId, mentorId: thread.mentorIds?.length ? thread.mentorIds : thread.mentorId },
     ));
-  }, [thread.athleteId, thread.mentorId]);
+  }, [thread.athleteId, thread.mentorId, thread.mentorIds]);
 
   useEffect(() => {
     if (!client) return;
@@ -246,6 +250,7 @@ function ConnectedAcademyThread({
     <ThreadTranscript
       messages={messages}
       viewerSeat={thread.seat}
+      viewerId={thread.viewerId ?? null}
       segments={segments}
       onSend={onSend}
       sending={sending}

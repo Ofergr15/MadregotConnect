@@ -5,12 +5,15 @@ import { type VerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isMissingColumn, isMissingTable } from '@/lib/supabase/schema-drift';
 import { notifyAthlete } from '@/lib/push';
 import {
-  academyCoachAssignedCopy, academyJoinedCopy, academyTraineesAssignedCopy,
+  academyCoachAddedCopy, academyCoachAssignedCopy, academyJoinedCopy, academyTraineeRemovedCopy,
+  academyTraineesAssignedCopy, type PushCopy,
 } from '@/lib/notifications/copy';
+import type { NotificationLocale } from '@/lib/notifications/locale';
 import { israelToday } from '@/lib/utils';
 import { holdsAcademyCoachRole } from './coaches';
 import { applyAcademyMembership } from './membership-server';
-import { writeCoachPair } from './pairing-server';
+import { setPairCoaches, writeCoachPair } from './pairing-server';
+import { coachIdsByTrainee, coachesOf, joinHebrewList, traineeIdsOfCoach } from './trainee-coaches';
 import {
   applicationDeletable, deriveLeft,
   type AcademyPeopleResponse, type AddableMember, type ApplicantRow, type BulkRequest, type DeleteRefusal,
@@ -75,7 +78,9 @@ export async function loadAcademyPeople(): Promise<AcademyPeopleResponse> {
   const [rows, history, cards] = await Promise.all([readPeopleRows(supabase), readHistory(supabase), readLiveCards(supabase)]);
   const names = new Map<string, string>(rows.map((r: any) => [r.id, r.name]));
   const byId = new Map<string, any>(rows.map((r: any) => [r.id, r]));
-  const coaching = new Set(rows.filter((r: any) => r.is_academy && r.academy_coach_id).map((r: any) => r.academy_coach_id));
+  // Everyone who coaches somebody — every coach of a shared trainee included.
+  const coachMap = await coachIdsByTrainee(supabase, undefined, rows.filter((r: any) => r.is_academy));
+  const coaching = new Set([...coachMap.values()].flat());
 
   const left = deriveLeft(rows, history, names, israelToday());
 
@@ -130,9 +135,11 @@ export interface BulkResult {
   athleteId: string;
   ok: boolean;
   unchanged?: boolean;
-  /** not_found | not_member | already_member | not_club_member | write_failed */
+  /** not_found | not_member | already_member | not_club_member | write_failed | no_schema */
   error?: string;
   coachId?: string | null;
+  /** The trainee's coaches after the write ('coach' / 'addCoach' / 'removeCoach'). */
+  coachIds?: string[];
 }
 
 /** May this account be handed a trainee? Only an academy coach (the role, primary or extra). */
@@ -180,12 +187,35 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
   // The coach and band are validated once, up front: one bad id fails the whole
   // request rather than half of it.
   let coach: { id: string; name: string } | null = null;
-  if (req.coachId && ['coach', 'add', 'restore'].includes(req.action)) {
+  if (req.coachId && ['coach', 'add', 'restore', 'addCoach'].includes(req.action) && !req.coachIds) {
     const c = await readCoach(supabase, req.coachId);
     if (!c) return NextResponse.json({ error: 'No such coach in this club' }, { status: 404 });
     if (!canBeCoach(c)) return NextResponse.json({ error: `${c.name} is not an academy coach` }, { status: 400 });
     coach = { id: c.id, name: c.name };
   }
+  // 'coach' with a whole set: every coach in it checked the same way.
+  const setCoaches: Array<{ id: string; name: string }> = [];
+  for (const cid of req.coachIds ?? []) {
+    const c = await readCoach(supabase, cid);
+    if (!c) return NextResponse.json({ error: 'No such coach in this club' }, { status: 404 });
+    if (!canBeCoach(c)) return NextResponse.json({ error: `${c.name} is not an academy coach` }, { status: 400 });
+    setCoaches.push({ id: c.id, name: c.name });
+  }
+  // The trainees' current sets, for 'addCoach' / 'removeCoach' and the notifications.
+  const isSetAction = req.action === 'coach' || req.action === 'addCoach' || req.action === 'removeCoach';
+  const currentSets = isSetAction
+    ? await coachIdsByTrainee(supabase, req.athleteIds, ((rowData || []) as any[]).map((r) => ({ id: r.id, academy_coach_id: r.academy_coach_id })))
+    : new Map<string, string[]>();
+  // Names for every coach a push may mention: the targets and everyone they hold today.
+  const coachNames = new Map<string, string>([...setCoaches, ...(coach ? [coach] : [])].map((c) => [c.id, c.name]));
+  if (isSetAction) {
+    const unknown = [...new Set([...currentSets.values()].flat())].filter((id) => !coachNames.has(id));
+    if (unknown.length) {
+      const { data } = await supabase.from('athletes').select('id, name').in('id', unknown);
+      for (const r of (data || []) as Array<{ id: string; name: string }>) coachNames.set(r.id, r.name);
+    }
+  }
+  const nameOf = (id: string) => coachNames.get(id) || '';
   if (req.bandId && ['band', 'add', 'restore'].includes(req.action)) {
     const { data: band, error } = await supabase.from('academy_bands').select('id, name, active').eq('id', req.bandId).maybeSingle();
     if (error) return NextResponse.json({ error: 'Academy bands are not available yet' }, { status: 409 });
@@ -202,10 +232,17 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
     }
   }
 
+  // The manager's name, for "X added you" — read once, only when someone is told.
+  const by = req.notify && (req.action === 'add' || req.action === 'restore') ? await managerName(supabase, caller) : null;
+
   const results: BulkResult[] = [];
   /** coachId → { name, trainee names } for the one push per coach. */
   const toCoaches = new Map<string, { trainees: string[] }>();
-  const toTrainees: Array<{ athleteId: string; coachName: string | null; joined: boolean }> = [];
+  /** coachId → trainee names, for the coaches taken off someone. */
+  const fromCoaches = new Map<string, { trainees: string[] }>();
+  const toTrainees: Array<{ athleteId: string; kind: string; copy: (locale: NotificationLocale) => PushCopy }> = [];
+  const pushTo = (m: Map<string, { trainees: string[] }>, coachId: string, name: string) =>
+    (m.get(coachId) ?? m.set(coachId, { trainees: [] }).get(coachId)!).trainees.push(name);
 
   for (const id of req.athleteIds) {
     const row = rows.get(id);
@@ -215,14 +252,34 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
       if (!row.is_academy) { results.push({ athleteId: id, ok: false, error: 'not_member' }); continue; }
     }
 
-    if (req.action === 'coach') {
-      const target = req.coachId;
-      if ((row.academy_coach_id || null) === target) { results.push({ athleteId: id, ok: true, unchanged: true, coachId: target }); continue; }
-      const ok = await writeCoachPair(id, target, 'מנהל האקדמיה');
-      results.push({ athleteId: id, ok, coachId: target, ...(ok ? {} : { error: 'write_failed' }) });
-      if (ok && coach) {
-        toTrainees.push({ athleteId: id, coachName: coach.name, joined: false });
-        (toCoaches.get(coach.id) ?? toCoaches.set(coach.id, { trainees: [] }).get(coach.id)!).trainees.push(row.name);
+    if (isSetAction) {
+      const before = coachesOf(currentSets, id);
+      const target = req.action === 'coach'
+        ? (req.coachIds ?? (req.coachId ? [req.coachId] : []))
+        : req.action === 'addCoach'
+          ? [...before, req.coachId!]
+          : before.filter((c) => c !== req.coachId);
+      const r = await setPairCoaches(id, target, 'מנהל האקדמיה');
+      if (!r.ok) {
+        results.push({ athleteId: id, ok: false, coachId: target[0] ?? null, error: r.reason === 'no_schema' ? 'no_schema' : 'write_failed' });
+        continue;
+      }
+      results.push({
+        athleteId: id, ok: true, coachId: r.after[0] ?? null, coachIds: r.after,
+        ...(r.unchanged ? { unchanged: true } : {}),
+      });
+      if (r.unchanged) continue;
+      for (const c of r.added) pushTo(toCoaches, c, row.name);
+      for (const c of r.removed) pushTo(fromCoaches, c, row.name);
+      if (r.added.length) {
+        const all = joinHebrewList(r.after.map(nameOf).filter(Boolean));
+        const added = joinHebrewList(r.added.map(nameOf).filter(Boolean));
+        // Somebody joined the coaches they keep → "a coach was added"; otherwise
+        // (a new set, or a first coach) → "your coach(es): …", as before.
+        const kept = r.after.filter((c) => !r.added.includes(c));
+        toTrainees.push(kept.length
+          ? { athleteId: id, kind: 'academy_coach_added', copy: (locale) => academyCoachAddedCopy(locale, { coach: added, all }) }
+          : { athleteId: id, kind: 'academy_coach_assigned', copy: (locale) => academyCoachAssignedCopy(locale, { coach: all }) });
       }
       continue;
     }
@@ -256,27 +313,40 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
     const pairWith = coach ?? restoreCoach.get(id) ?? null;
     if (pairWith) {
       await writeCoachPair(id, pairWith.id, req.action === 'restore' ? 'חזר לאקדמיה' : 'נוסף לאקדמיה');
-      (toCoaches.get(pairWith.id) ?? toCoaches.set(pairWith.id, { trainees: [] }).get(pairWith.id)!).trainees.push(row.name);
+      pushTo(toCoaches, pairWith.id, row.name);
     }
-    toTrainees.push({ athleteId: id, coachName: pairWith?.name ?? null, joined: true });
+    const pairName = pairWith?.name ?? null;
+    toTrainees.push({
+      athleteId: id,
+      kind: 'academy_joined',
+      copy: (locale) => (pairName ? academyCoachAssignedCopy(locale, { coach: pairName }) : academyJoinedCopy(locale, { by })),
+    });
     results.push({ athleteId: id, ok: true, coachId: pairWith?.id ?? null });
   }
 
   if (req.notify) {
     // Best effort, after every write: a push that failed must never read as a
     // move that failed.
-    const by = await managerName(supabase, caller);
     const sends: Promise<unknown>[] = [];
     for (const t of toTrainees) {
       sends.push(notifyAthlete({
         athleteId: t.athleteId,
-        kind: t.joined ? 'academy_joined' : 'academy_coach_assigned',
+        kind: t.kind,
         actorAthleteId: caller.athleteId,
-        copy: (locale) => (t.joined && !t.coachName
-          ? academyJoinedCopy(locale, { by })
-          : academyCoachAssignedCopy(locale, { coach: t.coachName || '' })),
+        copy: t.copy,
         url: '/dashboard/academy',
         tag: 'academy-coach',
+      }));
+    }
+    for (const [coachId, { trainees }] of fromCoaches) {
+      if (coachId === caller.athleteId) continue;
+      sends.push(notifyAthlete({
+        athleteId: coachId,
+        kind: 'academy_trainee_removed',
+        actorAthleteId: caller.athleteId,
+        copy: (locale) => academyTraineeRemovedCopy(locale, { names: trainees }),
+        url: '/dashboard/academy?tab=members',
+        tag: 'academy-trainees',
       }));
     }
     for (const [coachId, { trainees }] of toCoaches) {
@@ -388,8 +458,10 @@ export async function deleteApplication(p: { athleteId: string | null; candidate
 
     const coached = await supabase.from('athletes').select('id', { count: 'exact', head: true }).eq('academy_coach_id', athleteId);
     if (coached.error) return NextResponse.json({ error: 'Cannot verify this account, so it was not deleted' }, { status: 409 });
+    // A co-coach of a shared trainee is in the link table only (135), not the column.
+    const coSharing = (await traineeIdsOfCoach(supabase, athleteId)).length;
     const dataRows = await countApplicantData(supabase, athleteId);
-    const verdict = applicationDeletable(row, { dataRows, coachesSomeone: (coached.count || 0) > 0 });
+    const verdict = applicationDeletable(row, { dataRows, coachesSomeone: (coached.count || 0) > 0 || coSharing > 0 });
     if (!verdict.ok) {
       return NextResponse.json({ error: REFUSAL_TEXT[verdict.reason], code: verdict.reason }, { status: 409 });
     }

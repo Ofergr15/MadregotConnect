@@ -6,6 +6,7 @@ import {
   academyChannelId,
   type AcademyFeedbackAttachment,
 } from './thread';
+import { coachIdsOf } from './trainee-coaches';
 import type { TraineeFeedback } from '@/components/academy/FeedbackCard';
 
 // ── The academy thread, server side ─────────────────────────────────────────
@@ -39,7 +40,9 @@ export async function academyThreadMembers(
     .select('academy_coach_id')
     .eq('id', athleteId)
     .maybeSingle();
-  if (trainee?.academy_coach_id) members.add(trainee.academy_coach_id);
+  // EVERY coach of the trainee (migration 135): one shared conversation for the
+  // trainee and all their coaches, who are equal in it.
+  for (const c of await coachIdsOf(supabase, athleteId, trainee?.academy_coach_id ?? null)) members.add(c);
 
   // `academy_coach_id` points at athletes.id, unlike run-chat's `coach_id` which
   // points at coaches.id and needs resolving across two identity spaces by email.
@@ -92,6 +95,25 @@ export async function ensureAcademyThread(
   }
 
   return { channel, channelId: id, cid: `${CHANNEL_TYPE}:${id}`, members: unique };
+}
+
+/**
+ * After the manager changes a trainee's coaches: the coaches added join the shared
+ * thread (with its history — `ensureAcademyThread` adds everyone who belongs), and
+ * the coaches removed leave it, unless they still belong in another seat (an admin
+ * stays as the manager). Throws on a Stream failure; the caller treats it as
+ * best-effort, because the next open re-adds whoever belongs.
+ */
+export async function syncAcademyThreadCoaches(
+  stream: StreamChat,
+  supabase: SupabaseClient,
+  athleteId: string,
+  removed: string[],
+): Promise<{ members: string[]; removed: string[] }> {
+  const { channel, members } = await ensureAcademyThread(stream, supabase, athleteId);
+  const leaving = removed.filter((id) => id && !members.includes(id));
+  if (leaving.length) await channel.removeMembers(leaving);
+  return { members, removed: leaving };
 }
 
 /**

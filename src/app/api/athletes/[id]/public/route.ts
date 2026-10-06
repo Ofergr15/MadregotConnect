@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { seesPending } from '@/lib/auth/pending-athletes';
+import { coachIdsOf, joinHebrewList } from '@/lib/academy/trainee-coaches';
 import {
   buildPublicProfile,
   type PublicProfileAthleteRow,
@@ -75,15 +76,18 @@ export async function GET(
           .maybeSingle();
         band = bandRow;
       }
-      if (athlete.academy_coach_id) {
+      // Every coach of a shared trainee, names only ("Dana ו־Guy").
+      const coachIds = await coachIdsOf(supabase, athlete.id, athlete.academy_coach_id ?? null);
+      if (coachIds.length) {
         // Name only. The coach is another athlete row, and everything else on it
         // is as private as the one this route is already being careful about.
-        const { data: coachRow } = await supabase
+        const { data: coachRows } = await supabase
           .from('athletes')
-          .select('name')
-          .eq('id', athlete.academy_coach_id)
-          .maybeSingle();
-        coach = coachRow;
+          .select('id, name')
+          .in('id', coachIds);
+        const nameOf = new Map(((coachRows || []) as Array<{ id: string; name: string | null }>).map((r) => [r.id, r.name]));
+        const names = coachIds.map((id) => nameOf.get(id)).filter((n): n is string => !!n);
+        coach = names.length ? { name: joinHebrewList(names) } : null;
       }
     }
 

@@ -19,9 +19,14 @@ export function holdsAcademyCoachRole(row: CoachCandidateRow): boolean {
 /** The academy's coaches: role holders, and anyone a trainee is paired with. */
 export function academyCoachIds(
   rows: CoachCandidateRow[],
-  trainees: Array<{ academy_coach_id?: string | null }>,
+  // `academy_coach_ids` is the whole set (lib/academy/trainee-coaches.ts) when the
+  // caller has it; the legacy column alone otherwise.
+  trainees: Array<{ academy_coach_id?: string | null; academy_coach_ids?: string[] }>,
 ): Set<string> {
   const ids = new Set(rows.filter(holdsAcademyCoachRole).map(r => r.id));
-  for (const t of trainees) if (t.academy_coach_id) ids.add(t.academy_coach_id);
+  for (const t of trainees) {
+    if (t.academy_coach_id) ids.add(t.academy_coach_id);
+    for (const c of t.academy_coach_ids ?? []) if (c) ids.add(c);
+  }
   return ids;
 }

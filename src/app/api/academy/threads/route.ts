@@ -5,6 +5,7 @@ import { getStreamServerClient } from '@/lib/stream/server';
 import { ensureAcademyThread } from '@/lib/academy/thread-server';
 import { seatFor } from '@/lib/academy/thread';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
+import { coachIdsOf } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +45,9 @@ export async function POST(request: Request) {
 
     const isManager = isAcademyManager(caller);
     const isSelf = caller.athleteId === trainee.id;
-    const isMentor = !!caller.athleteId && caller.athleteId === trainee.academy_coach_id;
+    // Any of the trainee's coaches — one shared thread for all of them.
+    const coachIds = await coachIdsOf(supabase, trainee.id, trainee.academy_coach_id ?? null);
+    const isMentor = !!caller.athleteId && coachIds.includes(caller.athleteId);
     if (!isManager && !isSelf && !isMentor) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
@@ -70,11 +73,15 @@ export async function POST(request: Request) {
       channelId,
       cid,
       members,
-      mentorId: trainee.academy_coach_id ?? null,
+      mentorId: coachIds[0] ?? null,
+      // All of them, so the transcript seats every coach as "coach" and can name
+      // the author when there is more than one.
+      mentorIds: coachIds,
+      viewerId: caller.athleteId ?? null,
       // The caller's own seat, decided by the same pure function the transcript uses
       // for every other message — so "which bubbles are mine" cannot disagree with
       // "which side did the server think I am on".
-      seat: seatFor(caller.athleteId, trainee.id, trainee.academy_coach_id ?? null),
+      seat: seatFor(caller.athleteId, trainee.id, coachIds),
     });
   } catch (err: unknown) {
     console.error('POST /api/academy/threads error:', err);

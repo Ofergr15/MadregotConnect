@@ -13,6 +13,7 @@ import { toBand, type AcademyBand } from '@/lib/academy/bands';
 import { isStaffRole, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { academyCoachIds } from '@/lib/academy/coaches';
+import { coachIdsByTrainee, coachesOf, coachesTrainee } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -121,10 +122,16 @@ export async function GET(request: Request) {
     // Narrowed to the academy's coaches (lib/academy/coaches.ts): the role, or a
     // trainee already held. `extra_roles` is its own read so a missing column (no
     // 127) falls back to the old rule, every staff account, rather than to nobody.
+    // Every trainee's coaches — the whole set since migration 135, the legacy
+    // column alone before it (lib/academy/trainee-coaches.ts).
+    const coachMap = hasPairing
+      ? await coachIdsByTrainee(supabase, undefined, rows.filter((a) => a.is_academy))
+      : new Map<string, string[]>();
+
     let coachRoster: AcademyCoachRef[] = [];
     if (isManager && hasPairing) {
       const extra = await extraRolesRead!;
-      const academyRows = rows.filter((a) => a.is_academy);
+      const academyRows = rows.filter((a) => a.is_academy).map((a) => ({ ...a, academy_coach_ids: coachesOf(coachMap, a.id) }));
       const isCoach = extra.error
         ? (a: any) => isStaffRole(a.role)
         : (() => {
@@ -139,7 +146,8 @@ export async function GET(request: Request) {
     const academyRows = rows.filter((a) => a.is_academy);
     const members = isManager
       ? academyRows
-      : academyRows.filter((a) => a.academy_coach_id && a.academy_coach_id === caller.athleteId);
+      // Shared trainees included: every coach of a trainee sees them.
+      : academyRows.filter((a) => coachesTrainee(coachMap, a.id, caller.athleteId));
     const scope: 'academy' | 'coach' = isManager ? 'academy' : 'coach';
 
     // The goal bands (דבוקות). Read whole — six rows — and sent to every staff
@@ -257,7 +265,8 @@ export async function GET(request: Request) {
       const planned = adh?.plannedCount ?? 0;
       const completed = adh?.completedCount ?? 0;
       const completionRate = completionRateOf(planned, completed);
-      const academyCoachId = a.academy_coach_id || null;
+      const academyCoachIds = coachesOf(coachMap, a.id);
+      const academyCoachId = academyCoachIds[0] ?? null;
       const band = a.academy_band_id ? bandById.get(a.academy_band_id) || null : null;
       // A stored 0 is a real decision ("runs exactly at band pace"), so this
       // cannot be `|| null` — that would erase it and silently fall back to the
@@ -275,6 +284,8 @@ export async function GET(request: Request) {
         groupName: a.groups?.name ? groupDisplayName(a.groups.name) : null,
         academyCoachId,
         academyCoachName: academyCoachId ? coachNames.get(academyCoachId) || null : null,
+        academyCoachIds,
+        academyCoachNames: academyCoachIds.map((id) => coachNames.get(id) || ''),
         band,
         paceOffsetSec,
         status: a.status || null,
@@ -302,7 +313,7 @@ export async function GET(request: Request) {
           weekRuns: w.runs,
           plannedCount: planned,
           completionRate,
-          hasCoach: !!academyCoachId,
+          hasCoach: academyCoachIds.length > 0,
           academyHasCoaches,
           hasBand: academyHasBands ? !!band : undefined,
         }),

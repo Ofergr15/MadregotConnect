@@ -10,7 +10,7 @@ import { ConfirmSheet, EmptyState, Sheet, SkeletonList, Spinner } from '@/compon
 import { israelToday } from '@/lib/utils';
 import { sortBands } from '@/lib/academy/bands';
 import {
-  daysBetween, groupByCoach, rowLine,
+  daysBetween, groupByCoach, otherCoachNames, rowLine,
   type AcademyPeopleResponse, type LeftMember, type PendingApplicant,
 } from '@/lib/academy/manage';
 import { AcceptSheet } from './AdmitSheets';
@@ -18,6 +18,7 @@ import {
   AddMemberSheet, BandSheet, ChangeCoachSheet, MemberAvatar, postBulk,
 } from './ManageMembersSheets';
 import type { AcademyMember, AcademyMembersResponse } from './types';
+import { joinHebrewList, memberCoachIds } from '@/lib/academy/members';
 
 // The members tab, as the approved mockup (academy-manage-members.html) draws it.
 //
@@ -94,7 +95,7 @@ export function AcademyMembers({
   const coaches = data?.coaches ?? [];
   const bands = useMemo(() => data?.bands ?? [], [data?.bands]);
   const approved = useMemo(() => members.filter((m) => m.approved), [members]);
-  const unpaired = approved.filter((m) => !m.academyCoachId).length;
+  const unpaired = approved.filter((m) => memberCoachIds(m).length === 0).length;
   const pending = people?.pending ?? [];
   const left = people?.left ?? [];
   const today = israelToday();
@@ -112,7 +113,7 @@ export function AcademyMembers({
     let list = approved;
     if (q) list = list.filter((m) => m.name.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q));
     if (bandId) list = bandId === '__none__' ? list.filter((m) => !m.band) : list.filter((m) => m.band?.id === bandId);
-    if (filter === 'nocoach') list = list.filter((m) => !m.academyCoachId);
+    if (filter === 'nocoach') list = list.filter((m) => memberCoachIds(m).length === 0);
     return list;
   }, [approved, query, bandId, filter]);
   const sections = useMemo(() => groupByCoach(visible), [visible]);
@@ -282,6 +283,7 @@ export function AcademyMembers({
                   <MemberRow
                     key={m.athleteId}
                     member={m}
+                    sectionCoachId={s.coachId}
                     locale={locale}
                     today={today}
                     selecting={selecting}
@@ -377,9 +379,11 @@ export function AcademyMembers({
 // ── One row ─────────────────────────────────────────────────────────────────
 
 function MemberRow({
-  member: m, locale, today, selecting, checked, onTap,
+  member: m, sectionCoachId = null, locale, today, selecting, checked, onTap,
 }: {
   member: AcademyMember;
+  /** The coach whose section this row sits in — a shared trainee sits in each. */
+  sectionCoachId?: string | null;
   locale: string;
   today: string;
   selecting: boolean;
@@ -388,6 +392,8 @@ function MemberRow({
 }) {
   const line = rowLine(m, today);
   const since = monthOf(m.academyJoinedOn, locale);
+  // "גם אצל Guy" — the trainee's other coaches, seen from this section.
+  const others = otherCoachNames(m, sectionCoachId).map((n) => n.trim().split(/\s+/)[0]);
   const attention = line.kind === 'inactive' || line.kind === 'no_watch' || line.kind === 'never_ran';
   const sub = (() => {
     switch (line.kind) {
@@ -412,9 +418,13 @@ function MemberRow({
       <MemberAvatar name={m.name} url={m.avatarUrl} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[14.5px] font-bold text-ink-700" dir="auto">{m.name}</span>
-        <span className={cn('block truncate text-xs', attention ? 'font-semibold text-band-3-ink' : 'text-ink-400')}>{sub}</span>
+        <span className={cn('block truncate text-xs', attention ? 'font-semibold text-band-3-ink' : 'text-ink-400')}>
+          {others.length ? <>גם אצל {joinHebrewList(others)}</> : sub}
+        </span>
       </span>
-      {!m.academyCoachId ? (
+      {others.length ? (
+        <span className="shrink-0 rounded-md bg-violet-600/10 px-1.5 py-0.5 text-[11px] font-extrabold text-violet-600">משותף</span>
+      ) : memberCoachIds(m).length === 0 ? (
         <span className="shrink-0 rounded-md bg-band-3/15 px-1.5 py-0.5 text-[11px] font-extrabold text-band-3-ink">בלי מאמן</span>
       ) : m.band ? (
         <span className="shrink-0 rounded-md bg-brand-600/10 px-1.5 py-0.5 text-[11px] font-extrabold text-brand-600">{m.band.name}</span>

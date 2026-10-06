@@ -1,5 +1,6 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import { israelToday } from '@/lib/utils';
+import { isMissingTable } from '@/lib/supabase/schema-drift';
 
 // What switching `athletes.is_academy` carries beyond the boolean. Shared by the
 // two doors that flip it by hand: PUT /api/athletes (the athlete screens) and
@@ -43,6 +44,12 @@ export async function applyAcademyMembership(
     .from('athletes')
     .update({ academy_coach_id: null })
     .eq('id', athleteId);
-  const failed = histErr || slotErr || unpairErr;
+  // Every coach, not just the legacy one (migration 135). Before 135 the table
+  // isn't there, which is fine: there is nothing in it to clear.
+  const { error: linksErr } = await supabase
+    .from('academy_trainee_coaches')
+    .delete()
+    .eq('athlete_id', athleteId);
+  const failed = histErr || slotErr || unpairErr || (linksErr && !isMissingTable(linksErr) ? linksErr : null);
   if (failed) console.warn('academy pairing not cleared:', failed.message);
 }

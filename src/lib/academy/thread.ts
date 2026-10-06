@@ -163,10 +163,13 @@ export interface StreamMessageLike extends ThreadMessageRef {
 export function seatFor(
   authorId: string | null,
   athleteId: string,
-  mentorId: string | null,
+  // One coach, or every coach of a shared trainee (migration 135) — all of them
+  // sit in the coach seat.
+  mentorId: string | readonly string[] | null,
 ): ThreadSeat {
   if (authorId && authorId === athleteId) return 'trainee';
-  if (mentorId && authorId === mentorId) return 'coach';
+  const mentors = mentorId == null ? [] : typeof mentorId === 'string' ? [mentorId] : mentorId;
+  if (authorId && mentors.includes(authorId)) return 'coach';
   return 'manager';
 }
 
@@ -179,7 +182,7 @@ export function seatFor(
  */
 export function toThreadMessages(
   messages: StreamMessageLike[],
-  { athleteId, mentorId }: { athleteId: string; mentorId: string | null },
+  { athleteId, mentorId }: { athleteId: string; mentorId: string | readonly string[] | null },
 ): ThreadMessage[] {
   const out: ThreadMessage[] = [];
   for (const m of messages) {
@@ -194,6 +197,7 @@ export function toThreadMessages(
     if (!text && !feedback) continue;
     out.push({
       id: m.id,
+      authorId,
       // Stream carries "Name · role" as the display name; the seat already conveys the
       // role here, and repeating it puts "יוסי · מאמן" next to a coach badge.
       authorName: (m.user?.name ?? '').split(' · ')[0] || authorId || '',

@@ -10,6 +10,7 @@ import {
   rollupCoaches,
   rollupGroups,
   rollupTeam,
+  coachNameAmong, joinHebrewList, memberCoachIds, memberCoachNames, memberHasCoach,
   type AcademyMember,
   type AttentionInput,
 } from '@/lib/academy/members';
@@ -43,7 +44,7 @@ const band = (over: Partial<AcademyBand> = {}): AcademyBand => ({
   ...over,
 });
 
-const member = (over: Partial<AcademyMember> = {}): AcademyMember => ({
+const member = (over: Partial<AcademyMember> = {}): AcademyMember => withCoachSet({
   athleteId: 'a1',
   name: 'Athlete',
   email: 'a@example.com',
@@ -74,7 +75,16 @@ const member = (over: Partial<AcademyMember> = {}): AcademyMember => ({
   completionRate: 1,
   attention: [],
   ...over,
-});
+}, over);
+
+/** The set mirrors the legacy coach unless the test gives one (a shared trainee). */
+function withCoachSet(m: Omit<AcademyMember, 'academyCoachIds' | 'academyCoachNames'> & Partial<AcademyMember>, over: Partial<AcademyMember>): AcademyMember {
+  return {
+    ...m,
+    academyCoachIds: over.academyCoachIds ?? (m.academyCoachId ? [m.academyCoachId] : []),
+    academyCoachNames: over.academyCoachNames ?? (m.academyCoachId ? [m.academyCoachName || ''] : []),
+  };
+}
 
 describe('completionRateOf', () => {
   it('returns null when nothing was planned, not 0', () => {
@@ -248,6 +258,35 @@ describe('rollupGroups', () => {
 });
 
 describe('rollupCoaches', () => {
+  it('counts a shared trainee toward EACH of their coaches, and nobody as unpaired', () => {
+    const shared = member({
+      athleteId: 's', academyCoachId: 'c1', academyCoachName: 'Anat',
+      academyCoachIds: ['c1', 'c2'], academyCoachNames: ['Anat', 'Dror'], weekKm: 12,
+    });
+    const coaches = rollupCoaches([shared, member({ athleteId: 'x', academyCoachId: 'c1', academyCoachName: 'Anat' })],
+      [{ coachId: 'c1', coachName: 'Anat' }, { coachId: 'c2', coachName: 'Dror' }]);
+    expect(coaches.map((c) => [c.coachId, c.trainees])).toEqual([['c1', 2], ['c2', 1]]);
+    expect(coaches.find((c) => c.coachId === 'c2')!.weekKm).toBe(12);
+    expect(coaches.some((c) => c.coachId === null)).toBe(false);
+  });
+
+  it('reads an older payload without academyCoachIds as the one legacy coach', () => {
+    const old = { ...member({ athleteId: '1', academyCoachId: 'c1', academyCoachName: 'Anat' }) } as Partial<AcademyMember>;
+    delete old.academyCoachIds; delete old.academyCoachNames;
+    expect(memberCoachIds(old as AcademyMember)).toEqual(['c1']);
+    expect(memberCoachNames(old as AcademyMember)).toEqual(['Anat']);
+    expect(memberCoachIds({ academyCoachId: null })).toEqual([]);
+    expect(memberHasCoach(member({ academyCoachIds: ['a', 'b'], academyCoachId: 'a' }), 'b')).toBe(true);
+    expect(coachNameAmong([member({ academyCoachId: 'a', academyCoachName: 'A', academyCoachIds: ['a', 'b'], academyCoachNames: ['A', 'Bea'] })], 'b')).toBe('Bea');
+  });
+
+  it('joins names the Hebrew way', () => {
+    expect(joinHebrewList([])).toBe('');
+    expect(joinHebrewList(['Dana'])).toBe('Dana');
+    expect(joinHebrewList(['Dana', 'Guy'])).toBe('Dana ו־Guy');
+    expect(joinHebrewList(['Dana', 'Guy', 'Avi'])).toBe('Dana, Guy ו־Avi');
+  });
+
   it('keeps a coach who holds nobody, because spare hours are the point of the view', () => {
     const coaches = rollupCoaches(
       [member({ athleteId: '1', academyCoachId: 'c1', academyCoachName: 'Anat' })],

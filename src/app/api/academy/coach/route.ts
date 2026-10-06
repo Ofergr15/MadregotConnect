@@ -2,15 +2,18 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { isStaffRole } from '@/lib/auth/self-or-staff';
-import { loadPair, pairLookupError, requireAcademyManager, writeCoachPair } from '@/lib/academy/pairing-server';
+import { loadPair, pairLookupError, requireAcademyManager, setPairCoaches } from '@/lib/academy/pairing-server';
 import { holdsAcademyCoachRole } from '@/lib/academy/coaches';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * PUT /api/academy/coach — assign, change, or clear a trainee's dedicated coach.
+ * PUT /api/academy/coach — set, change, or clear a trainee's coaches.
  *
- * Body: `{ athleteId, coachId | null, reason? }`.
+ * Body: `{ athleteId, coachIds: string[], reason? }` — the whole set, first = the
+ * legacy `academy_coach_id` (migration 135: several coaches, all equal). The old
+ * `{ athleteId, coachId | null }` still works and means `[coachId]` / `[]`.
+ * Before 135 is pasted, a set of more than one is refused with 409 `no_schema`.
  *
  * The single write that makes the academy's 1:1 structure real. Manager-only: a
  * coach may run their trainees but not decide who they are.
@@ -40,21 +43,24 @@ export async function PUT(request: Request) {
     // `null` is a real, meaningful value here — "unpair this trainee" — so it has
     // to be told apart from a caller who simply omitted the field.
     const rawCoach = body.coachId;
-    const coachId: string | null | undefined =
+    const legacyCoach: string | null | undefined =
       rawCoach === null || rawCoach === '' ? null
         : typeof rawCoach === 'string' ? rawCoach.trim()
           : undefined;
+    const coachIds: string[] | undefined = Array.isArray(body.coachIds)
+      ? [...new Set((body.coachIds as unknown[]).filter((x): x is string => typeof x === 'string' && !!x.trim()).map((x) => x.trim()))]
+      : legacyCoach === undefined ? undefined : legacyCoach ? [legacyCoach] : [];
     const reason = typeof body.reason === 'string' && body.reason.trim()
       ? body.reason.trim().slice(0, 300)
       : null;
 
-    if (!athleteId || coachId === undefined) {
+    if (!athleteId || coachIds === undefined) {
       return NextResponse.json(
-        { error: 'athleteId and coachId are required; pass coachId: null to unpair' },
+        { error: 'athleteId and coachIds (or coachId) are required; pass [] or null to unpair' },
         { status: 400 },
       );
     }
-    if (coachId && coachId === athleteId) {
+    if (coachIds.includes(athleteId)) {
       return NextResponse.json({ error: 'A trainee cannot be their own coach' }, { status: 400 });
     }
 
@@ -73,8 +79,8 @@ export async function PUT(request: Request) {
     // The coach must be a staff account in this club. Checked here rather than
     // trusted from the picker: the picker is built from the same list, but this
     // endpoint is reachable without it.
-    let coachName: string | null = null;
-    if (coachId) {
+    const coachNames: string[] = [];
+    for (const coachId of coachIds) {
       const { data: coach, error } = await supabase
         .from('athletes')
         .select('id, name, role, extra_roles')
@@ -91,20 +97,33 @@ export async function PUT(request: Request) {
           { status: 400 },
         );
       }
-      coachName = coach.name;
+      coachNames.push(coach.name);
     }
+    const coachId = coachIds[0] ?? null;
+    const coachName = coachNames[0] ?? null;
 
-    if (pair.academyCoachId === coachId) {
-      // Idempotent: re-picking the coach a trainee already has is a no-op, not an
+    if (pair.academyCoachIds.length === coachIds.length
+      && coachIds.every((c) => pair.academyCoachIds.includes(c))
+      && pair.academyCoachId === coachId) {
+      // Idempotent: re-picking the coaches a trainee already has is a no-op, not an
       // error, and must not write a second history row for one arrangement.
-      return NextResponse.json({ athleteId, coachId, coachName, unchanged: true });
+      return NextResponse.json({ athleteId, coachId, coachName, coachIds, coachNames, unchanged: true });
     }
 
-    if (!(await writeCoachPair(athleteId, coachId, reason))) {
-      return NextResponse.json({ error: 'Failed to assign the coach' }, { status: 500 });
+    const result = await setPairCoaches(athleteId, coachIds, reason);
+    if (!result.ok) {
+      return result.reason === 'no_schema'
+        ? NextResponse.json(
+          { error: 'Several coaches per trainee need migration 135 — paste it first', code: 'no_schema' },
+          { status: 409 },
+        )
+        : NextResponse.json({ error: 'Failed to assign the coach' }, { status: 500 });
     }
 
-    return NextResponse.json({ athleteId, coachId, coachName, unchanged: false });
+    return NextResponse.json({
+      athleteId, coachId, coachName, coachIds, coachNames,
+      added: result.added, removed: result.removed, unchanged: result.unchanged,
+    });
   } catch (error: any) {
     console.error('Academy coach assign error:', error);
     return NextResponse.json({ error: error.message || 'Failed to assign the coach' }, { status: 500 });

@@ -659,6 +659,39 @@ export function academyCoachAssignedCopy(
     : { title: `🎓 Your academy coach: ${coach}`, body: 'Your history comes with you. Tap to open the academy.' };
 }
 
+/**
+ * A coach was ADDED to a trainee who already has one (migration 135 — several
+ * coaches, all equal). To the trainee: who joined, and who coaches them now.
+ * `all` is the whole set, already joined ("Dana ו־Guy").
+ */
+export function academyCoachAddedCopy(
+  locale: NotificationLocale,
+  p: { coach: string; all: string },
+): PushCopy {
+  const coach = (p.coach || '').trim() || SOMEONE[locale];
+  const all = (p.all || '').trim();
+  return locale === 'he'
+    ? { title: `🎓 מאמן נוסף באקדמיה: ${coach}`, body: `${all ? `מעכשיו מאמנים אותך ${all}. ` : ''}כולם רואים את ההיסטוריה ואת השיחה. לחיצה פותחת את האקדמיה.` }
+    : { title: `🎓 Another academy coach: ${coach}`, body: `${all ? `You're now coached by ${all}. ` : ''}They all see your history and the conversation. Tap to open the academy.` };
+}
+
+/** To a coach taken OFF a trainee by the manager: so the trainee doesn't just vanish from their list. */
+export function academyTraineeRemovedCopy(
+  locale: NotificationLocale,
+  p: { names: string[] },
+): PushCopy {
+  const names = p.names.map((n) => (n || '').trim()).filter(Boolean);
+  const first = names[0] || SOMEONE[locale];
+  if (locale === 'he') {
+    return names.length > 1
+      ? { title: `🎓 ${names.length} מתאמנים כבר לא אצלך`, body: `${names.slice(0, 3).join(', ')}${names.length > 3 ? ' ועוד' : ''}. מנהל האקדמיה שינה את המאמנים.` }
+      : { title: `🎓 ${first} כבר לא אצלך`, body: 'מנהל האקדמיה שינה את המאמנים.' };
+  }
+  return names.length > 1
+    ? { title: `🎓 ${names.length} trainees moved off your list`, body: `${names.slice(0, 3).join(', ')}${names.length > 3 ? ' and more' : ''}. The academy manager changed their coaches.` }
+    : { title: `🎓 ${first} is no longer with you`, body: 'The academy manager changed their coaches.' };
+}
+
 /** The same move, to the coach receiving them: one push per coach, however many arrived. */
 export function academyTraineesAssignedCopy(
   locale: NotificationLocale,

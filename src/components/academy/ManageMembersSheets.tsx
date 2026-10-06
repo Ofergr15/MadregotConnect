@@ -7,6 +7,9 @@ import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet, Spinner, Switch } from '@/components/ui';
 import { sortBands } from '@/lib/academy/bands';
 import { waShareUrl, type AddableMember, type BulkAction } from '@/lib/academy/manage';
+import { memberCoachIds, memberCoachNames, joinHebrewList } from '@/lib/academy/members';
+import { coachCapacityOf } from '@/lib/academy/coach-board';
+import { useApi } from '@/lib/api';
 import { initialsOf, type AcademyBand, type AcademyCoachSummary, type AcademyMember } from './types';
 
 // The manager's sheets on the members tab: move to a coach (one trainee or many),
@@ -18,6 +21,8 @@ export async function postBulk(body: {
   athleteIds: string[];
   action: BulkAction;
   coachId?: string | null;
+  /** 'coach': the whole new set of coaches (migration 135). */
+  coachIds?: string[];
   bandId?: string | null;
   notify?: boolean;
 }): Promise<{ ok: boolean; failed: number; error?: string }> {
@@ -29,6 +34,10 @@ export async function postBulk(body: {
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, failed: body.athleteIds.length, error: json.error || 'השמירה נכשלה' };
+    // Several coaches for one trainee need migration 135; until it is pasted the
+    // server refuses a set of more than one, and says so per trainee.
+    const noSchema = Array.isArray(json.results) && json.results.some((r: { error?: string }) => r?.error === 'no_schema');
+    if (noSchema) return { ok: false, failed: json.failed ?? 0, error: 'כמה מאמנים למתאמן יעבדו אחרי עדכון מסד הנתונים. בינתיים אפשר מאמן אחד.' };
     return { ok: (json.failed ?? 0) === 0, failed: json.failed ?? 0, error: json.failed ? `${json.failed} לא עודכנו` : undefined };
   } catch {
     return { ok: false, failed: body.athleteIds.length, error: 'השמירה נכשלה' };
@@ -39,6 +48,20 @@ const firstName = (name: string | null | undefined) => (name || '').trim().split
 
 export function traineesLabel(n: number): string {
   return n === 0 ? 'אין מתאמנים' : n === 1 ? 'מתאמן אחד' : `${n} מתאמנים`;
+}
+
+function Checkbox({ on }: { on: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'grid h-6 w-6 shrink-0 place-items-center rounded-[7px] border-2 transition-colors',
+        on ? 'border-brand-600 bg-brand-600 text-white' : 'border-ink-300',
+      )}
+    >
+      {on && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+    </span>
+  );
 }
 
 function Radio({ on }: { on: boolean }) {
@@ -88,6 +111,22 @@ function PrimaryButton({ children, onClick, disabled, busy }: { children: React.
 }
 
 // ── Change coach ────────────────────────────────────────────────────────────
+//
+// Migration 135: a trainee can have several coaches, all equal. For ONE trainee
+// the sheet is a multi-select (mockup academy-multi-coach.html, phone 2): tick
+// one or more, each with their load — a shared trainee takes a place on each.
+// For MANY, two modes: "להעביר" replaces everyone's coaches with one, and
+// "להוסיף מאמן" adds one coach and keeps the coaches they already have.
+
+/** "לשמור · 2 מאמנים" — the count the save button carries. */
+export function saveCoachesLabel(n: number): string {
+  return n === 0 ? 'לשמור · בלי מאמן' : n === 1 ? 'לשמור · מאמן אחד' : `לשמור · ${n} מאמנים`;
+}
+
+/** Same set, same first coach — nothing to save. */
+export function sameCoachSet(before: string[], after: string[]): boolean {
+  return before.length === after.length && before.every((c) => after.includes(c)) && before[0] === after[0];
+}
 
 export function ChangeCoachSheet({
   open, onOpenChange, members, coaches, onDone,
@@ -100,106 +139,173 @@ export function ChangeCoachSheet({
   onDone: () => void | Promise<void>;
 }) {
   const single = members.length === 1 ? members[0] : null;
-  const current = single?.academyCoachId ?? null;
+  const currentIds = useMemo(() => (single ? memberCoachIds(single) : []), [single]);
+  const currentKey = currentIds.join(',');
   const assignable = useMemo(() => coaches.filter((c) => c.coachId), [coaches]);
-  // `undefined` = nothing picked yet; `null` = "no coach", a real choice.
+  const { data: settingsData } = useApi<{ settings?: unknown }>(open ? '/api/academy/settings' : null);
+  const capacity = coachCapacityOf(settingsData?.settings);
+  // Single: the ticked set, in the order ticked (the first stays the legacy coach).
+  const [set, setSet] = useState<string[]>([]);
+  // Many: `undefined` = nothing picked yet; `null` = "no coach", a real choice.
   const [pick, setPick] = useState<string | null | undefined>(undefined);
+  const [mode, setMode] = useState<'move' | 'add'>('move');
   const [notify, setNotify] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setPick(single ? current : undefined);
+    setSet(currentKey ? currentKey.split(',') : []);
+    setPick(undefined);
+    setMode('move');
     setNotify(true);
     setError(null);
-  }, [open, single, current]);
+  }, [open, currentKey]);
 
-  // The bar is relative to the busiest coach, with a floor so two trainees each
-  // don't read as two full caseloads.
-  const maxLoad = Math.max(6, ...assignable.map((c) => c.trainees));
+  const toggle = (id: string) => setSet((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  // What the load will be after the save, so the bar answers "can he take them?".
+  const loadAfter = (c: AcademyCoachSummary) => {
+    if (!single || !c.coachId) return c.trainees;
+    const was = currentIds.includes(c.coachId);
+    const now = set.includes(c.coachId);
+    return c.trainees + (now && !was ? 1 : 0) - (was && !now ? 1 : 0);
+  };
+  const maxLoad = Math.max(capacity, ...assignable.map((c) => c.trainees));
   const picked = assignable.find((c) => c.coachId === pick) ?? null;
-  const unchanged = pick === undefined || (!!single && pick === current);
+  const unchanged = single ? sameCoachSet(currentIds, set) : pick === undefined || (mode === 'add' && pick === null);
+  const changes = single
+    ? set.filter((c) => !currentIds.includes(c)).length + currentIds.filter((c) => !set.includes(c)).length
+    : 1;
 
   const submit = async () => {
-    if (pick === undefined) return;
     setBusy(true);
     setError(null);
-    const r = await postBulk({ athleteIds: members.map((m) => m.athleteId), action: 'coach', coachId: pick, notify: notify && pick !== null });
+    const athleteIds = members.map((m) => m.athleteId);
+    const r = single
+      ? await postBulk({ athleteIds, action: 'coach', coachIds: set, notify: notify && changes > 0 })
+      : mode === 'add'
+        ? await postBulk({ athleteIds, action: 'addCoach', coachId: pick ?? null, notify })
+        : await postBulk({ athleteIds, action: 'coach', coachId: pick ?? null, notify: notify && pick !== null });
     setBusy(false);
     if (!r.ok) { setError(r.error || 'השמירה נכשלה'); if (r.failed < members.length) await onDone(); return; }
     await onDone();
     onOpenChange(false);
   };
 
-  const cta = pick === null
-    ? (single ? 'להשאיר בלי מאמן' : `${members.length} מתאמנים בלי מאמן`)
-    : single
-      ? `להעביר ל־${picked?.coachName || ''}`
-      : `להעביר ${members.length} מתאמנים ל־${firstName(picked?.coachName) || '…'}`;
+  const cta = single
+    ? saveCoachesLabel(set.length)
+    : mode === 'add'
+      ? `להוסיף את ${firstName(picked?.coachName) || '…'} ל־${members.length} מתאמנים`
+      : pick === null
+        ? `${members.length} מתאמנים בלי מאמן`
+        : `להעביר ${members.length} מתאמנים ל־${firstName(picked?.coachName) || '…'}`;
+
+  const coachRow = (c: AcademyCoachSummary, on: boolean, onClick: () => void, control: React.ReactNode) => {
+    const load = loadAfter(c);
+    const isCurrent = !!single && currentIds.includes(c.coachId!);
+    const free = Math.max(0, capacity - load);
+    return (
+      <button
+        key={c.coachId}
+        type="button"
+        onClick={onClick}
+        aria-pressed={on}
+        className="flex w-full min-h-[56px] items-center gap-3 px-4 text-start active:bg-page/60"
+      >
+        {control}
+        <Avatar name={c.coachName || ''} coach size={30} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-semibold text-ink-700" dir="auto">{c.coachName}</span>
+          <span className="block text-xs text-ink-400">
+            <bdi dir="ltr">{load}</bdi> מתוך <bdi dir="ltr">{capacity}</bdi>
+            {load === 0 ? ' · פנוי' : free === 0 ? ' · מלא' : ''}
+            {isCurrent && !single ? ' · המאמן היום' : ''}
+          </span>
+        </span>
+        <span className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-page" aria-hidden>
+          <i className="block h-full rounded-full bg-brand-600" style={{ width: `${Math.min(100, (load / maxLoad) * 100)}%` }} />
+        </span>
+      </button>
+    );
+  };
+
+  const title = single ? `מאמנים ל־${single.name}` : mode === 'add' ? `מאמן נוסף ל־${members.length} מתאמנים` : `להעביר ${members.length} מתאמנים`;
+  const todayNames = single ? joinHebrewList(memberCoachNames(single).filter(Boolean)) : '';
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} className="bg-page" title={single ? `מאמן ל־${single.name}` : `להעביר ${members.length} מתאמנים`}>
+    <Sheet open={open} onOpenChange={onOpenChange} className="bg-page" title={title}>
       <div className="pb-2" dir="rtl">
         <p className="-mt-1 mb-3 px-1 text-xs text-ink-400">
-          {single ? `היום: ${single.academyCoachName || 'בלי מאמן'}` : members.map((m) => firstName(m.name)).slice(0, 6).join(', ') + (members.length > 6 ? '…' : '')}
+          {single
+            ? `אפשר לבחור אחד או יותר. כולם שווים.${todayNames ? ` היום: ${todayNames}` : ' היום: בלי מאמן'}`
+            : members.map((m) => firstName(m.name)).slice(0, 6).join(', ') + (members.length > 6 ? '…' : '')}
         </p>
+        {!single && (
+          <div className="mb-2.5 grid grid-cols-2 gap-1 rounded-2xl bg-card p-1" role="tablist">
+            {([['move', 'להעביר'], ['add', 'להוסיף מאמן']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={mode === key}
+                onClick={() => { setMode(key); if (key === 'add' && pick === null) setPick(undefined); }}
+                className={cn(
+                  'min-h-[44px] rounded-xl text-sm font-extrabold transition-colors',
+                  mode === key ? 'bg-brand-600 text-white' : 'text-ink-500',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="overflow-hidden rounded-card bg-card divide-y divide-page">
           {assignable.length === 0 && (
             <p className="px-4 py-4 text-sm text-ink-500">אין עדיין מאמנים באקדמיה. מוסיפים מאמן בכפתור המנהל, בראש המסך.</p>
           )}
-          {assignable.map((c) => {
-            const on = pick === c.coachId;
-            // What the load will be after the move, so the bar answers "can he take them?".
-            const isCurrent = !!single && c.coachId === current;
-            return (
-              <button
-                key={c.coachId}
-                type="button"
-                onClick={() => setPick(c.coachId)}
-                aria-pressed={on}
-                className="flex w-full min-h-[56px] items-center gap-3 px-4 text-start active:bg-page/60"
-              >
-                <Radio on={on} />
-                <Avatar name={c.coachName || ''} coach size={30} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[15px] font-semibold text-ink-700">{c.coachName}</span>
-                  <span className="block text-xs text-ink-400">
-                    {traineesLabel(c.trainees)}{isCurrent ? ' · המאמן היום' : ''}
-                  </span>
-                </span>
-                <span className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-page" aria-hidden>
-                  <i className="block h-full rounded-full bg-brand-600" style={{ width: `${Math.min(100, (c.trainees / maxLoad) * 100)}%` }} />
-                </span>
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            onClick={() => setPick(null)}
-            aria-pressed={pick === null}
-            className="flex w-full min-h-[56px] items-center gap-3 px-4 text-start active:bg-page/60"
-          >
-            <Radio on={pick === null} />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[15px] font-semibold text-ink-700">בלי מאמן</span>
-              <span className="block text-xs text-ink-400">יופיע ב״בלי מאמן״</span>
-            </span>
-          </button>
+          {assignable.map((c) => (single
+            ? coachRow(c, set.includes(c.coachId!), () => toggle(c.coachId!), <Checkbox on={set.includes(c.coachId!)} />)
+            : coachRow(c, pick === c.coachId, () => setPick(c.coachId), <Radio on={pick === c.coachId} />)))}
+          {!single && mode === 'move' && (
+            <button
+              type="button"
+              onClick={() => setPick(null)}
+              aria-pressed={pick === null}
+              className="flex w-full min-h-[56px] items-center gap-3 px-4 text-start active:bg-page/60"
+            >
+              <Radio on={pick === null} />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-semibold text-ink-700">בלי מאמן</span>
+                <span className="block text-xs text-ink-400">יופיע ב״בלי מאמן״</span>
+              </span>
+            </button>
+          )}
         </div>
 
         <div className="mt-2.5 flex min-h-[56px] items-center gap-3 rounded-card bg-card px-4">
           <span className="min-w-0 flex-1">
-            <span className="block text-[15px] font-semibold text-ink-700">להודיע לשניהם</span>
-            <span className="block text-xs text-ink-400">{single ? 'למתאמן ולמאמן החדש' : 'לכל מתאמן, ולמאמן החדש בהודעה אחת'}</span>
+            <span className="block text-[15px] font-semibold text-ink-700">להודיע</span>
+            <span className="block text-xs text-ink-400">
+              {single ? 'למתאמן ולמאמנים שנוספו או הוסרו' : mode === 'add' ? 'לכל מתאמן, ולמאמן בהודעה אחת' : 'לכל מתאמן, ולמאמן החדש בהודעה אחת'}
+            </span>
           </span>
-          <Switch checked={notify && pick !== null} onChange={setNotify} disabled={pick === null} activeColor="bg-accent-600" ariaLabel="להודיע לשניהם" />
+          <Switch
+            checked={notify && (single ? changes > 0 : pick !== null)}
+            onChange={setNotify}
+            disabled={single ? changes === 0 : pick === null}
+            activeColor="bg-accent-600"
+            ariaLabel="להודיע"
+          />
         </div>
         <p className="mt-1.5 px-1 text-xs leading-relaxed text-ink-400">
-          השיחה הקודמת והמשובים נשארים אצל המתאמן. המאמן החדש רואה את כל ההיסטוריה, והדבוקה והקצב לא משתנים.
+          {single
+            ? 'שיחה אחת למתאמן ולכל המאמנים שלו. מאמן שנוסף רואה את כל ההיסטוריה, והדבוקה והקצב לא משתנים.'
+            : mode === 'add'
+              ? 'המאמנים שכבר יש להם נשארים. מתאמן משותף נספר במקומות של כל מאמן שלו.'
+              : 'השיחה הקודמת והמשובים נשארים אצל המתאמן. המאמן החדש רואה את כל ההיסטוריה, והדבוקה והקצב לא משתנים.'}
         </p>
         {error && <p className="mt-2 px-1 text-sm text-accent-red-ink">{error}</p>}
-        <PrimaryButton onClick={() => void submit()} disabled={unchanged || assignable.length === 0 && pick !== null} busy={busy}>
+        <PrimaryButton onClick={() => void submit()} disabled={unchanged || (assignable.length === 0 && (single ? set.length > 0 : pick !== null))} busy={busy}>
           {cta}
         </PrimaryButton>
       </div>

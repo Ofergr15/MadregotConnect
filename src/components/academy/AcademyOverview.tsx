@@ -14,6 +14,7 @@ import {
 } from '@/lib/academy/overview';
 import { BandPaces } from './BandPaces';
 import { AcademyTrendChart } from './AcademyTrendChart';
+import { joinHebrewList, memberCoachIds, memberCoachNames } from '@/lib/academy/members';
 import {
   ATTENTION_ORDER, ATTENTION_STYLE, fmtRate, fmtWeekRange, initialsOf,
   shiftWeek, sundayOf,
@@ -114,7 +115,7 @@ export function AcademyOverview({
   // waiting on them, and the bands' paces.
   const approved = members.filter((m) => m.approved);
   const recent = approved.filter((m) => !!m.academyJoinedOn && daysBetween(m.academyJoinedOn, today) <= NEW_DAYS);
-  const unpaired = approved.filter((m) => !m.academyCoachId);
+  const unpaired = approved.filter((m) => memberCoachIds(m).length === 0);
   const chipCounts = { attention: atRisk.length, unpaired: unpaired.length, recent: recent.length, all: members.length };
   const defaultChip: Chip = atRisk.length ? 'attention' : 'all';
   const shownChip = chip ?? defaultChip;
@@ -279,7 +280,7 @@ function TraineeRow({ m, showCoach, onClick, reason }: {
 }) {
   const worst = ATTENTION_ORDER.find((x) => m.attention.includes(x));
   const sub = showCoach
-    ? (m.academyCoachName ? m.academyCoachName.split(' ')[0] : 'בלי מאמן')
+    ? (memberCoachNames(m).filter(Boolean).length ? memberCoachNames(m).filter(Boolean).map((n) => n.split(' ')[0]).join(' · ') : 'בלי מאמן')
     : (m.band?.name ?? 'בלי דבוקה');
   return (
     <button onClick={onClick} className="flex h-[54px] w-full items-center gap-2.5 text-start active:bg-page/60">
@@ -318,7 +319,8 @@ export function diffLabel(diff: number, suffix: string, unit = ''): { text: stri
 function attentionLine(m: AcademyMember): string {
   if (m.daysSinceActivity !== null && m.daysSinceActivity >= 7) return `לא רץ/ה ${m.daysSinceActivity} ימים`;
   if (m.plannedCount > 0) return `${m.completedCount} מתוך ${m.plannedCount} אימונים`;
-  return m.academyCoachName ? `אצל ${m.academyCoachName}` : 'בלי מאמן';
+  const names = memberCoachNames(m).filter(Boolean);
+  return names.length ? `אצל ${joinHebrewList(names)}` : 'בלי מאמן';
 }
 
 function Sparkline({ values }: { values: number[] }) {

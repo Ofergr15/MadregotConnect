@@ -114,6 +114,8 @@ const KNOWN_AMBIGUOUS: Record<string, string[]> = {
   'academy_test_analyses->athletes': ['approved_by', 'athlete_id', 'author_id', 'sent_by'],
   'academy_test_invitations->athletes': ['athlete_id', 'created_by'],
   'academy_test_invitations->scheduled_notifications': ['reminder_after_id', 'reminder_before_id'],
+  // 135: a trainee and a coach. Nothing embeds across it; reads go through trainee-coaches.ts.
+  'academy_trainee_coaches->athletes': ['athlete_id', 'coach_id'],
   'academy_tests->athletes': ['approved_by', 'athlete_id', 'author_id', 'submitted_by'],
   'academy_workout_feedback->athletes': ['athlete_id', 'author_id'],
   'athlete_claims->athletes': ['shell_athlete_id', 'target_athlete_id'],

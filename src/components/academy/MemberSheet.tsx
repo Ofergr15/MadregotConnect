@@ -13,6 +13,15 @@ import { Sheet, InsetSection, InsetRow, ConfirmSheet, Spinner } from '@/componen
 import { teammateHref } from '@/lib/athletes/profile-link';
 import { startViewingAs } from '@/lib/view-as-person';
 import { CoachPairing } from './CoachPairing';
+import { joinHebrewList, memberCoachNames } from '@/lib/academy/members';
+
+/** "Yoav, Dana ו־Guy" — who is in the trainee's one shared conversation. */
+function threadPeople(m: AcademyMember): string {
+  const first = (n: string) => n.trim().split(/\s+/)[0] || '';
+  // RLM first: the row's dir="auto" would otherwise take the Latin name as LTR
+  // and glue "ו־" to the wrong side.
+  return `\u200F${joinHebrewList([first(m.name), ...memberCoachNames(m).filter(Boolean).map(first)])}`;
+}
 import {
   ATTENTION_ORDER, ATTENTION_STYLE, fmtRate, initialsOf, rateColor,
   type AcademyBand, type AcademyCoachSummary, type AcademyMember,
@@ -218,7 +227,14 @@ export function MemberSheet({
           {(onOpenThread || onOpenPlan || onOpenTests || canViewAs) && (
             <InsetSection header="לעבור אל">
               {onOpenThread && (
-                <InsetRow icon={MessagesSquare} iconBg="bg-brand-600" label="השיחה עם המאמן" onClick={() => onOpenThread(member.athleteId)} />
+                <InsetRow
+                  icon={MessagesSquare}
+                  iconBg="bg-brand-600"
+                  label="השיחה"
+                  // One shared conversation: the trainee and every coach of theirs.
+                  sublabel={threadPeople(member)}
+                  onClick={() => onOpenThread(member.athleteId)}
+                />
               )}
               {onOpenPlan && (
                 <InsetRow icon={CalendarPlus} iconBg="bg-band-2" label="התוכנית של השבוע" onClick={() => onOpenPlan(member.athleteId)} />

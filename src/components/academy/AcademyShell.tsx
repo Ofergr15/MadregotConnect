@@ -42,6 +42,7 @@ import {
 } from './AcademyQuickSheets';
 import { CoachesBoard } from './CoachesBoard';
 import { PlansWeekStatus } from './PlansWeekStatus';
+import { memberCoachIds, memberCoachNames } from '@/lib/academy/members';
 import {
   fmtRate, initialsOf, shiftWeek, sundayOf,
   type AcademyCoachSummary, type AcademyMember, type AcademyMembersResponse,
@@ -200,7 +201,7 @@ export function AcademyShell({
     try { localStorage.setItem(SUGGESTION_STORE_KEY, JSON.stringify(next)); } catch { /* memory only */ }
   };
 
-  const unpaired = roster.filter((m) => m.approved && !m.academyCoachId).length;
+  const unpaired = roster.filter((m) => m.approved && memberCoachIds(m).length === 0).length;
   const badges: Record<AcademyArea, number> = {
     home: 0,
     people: manager ? unpaired + (home?.funnel?.forms.length ?? 0) + (members?.pending.registrations ?? 0) : 0,
@@ -564,7 +565,7 @@ function FilteredTrainees({ members, filter, onClear, onSelect }: {
                 {m.weekRuns === 0
                   ? (m.daysSinceActivity !== null ? `לא רץ ${m.daysSinceActivity} ימים` : 'לא רץ השבוע')
                   : m.plannedCount > 0 ? <><bdi dir="ltr">{m.completedCount}/{m.plannedCount}</bdi> השבוע</> : `${m.weekRuns} ריצות השבוע`}
-                {m.academyCoachName ? ` · ${m.academyCoachName.split(' ')[0]}` : ''}
+                {memberCoachNames(m).filter(Boolean).length ? ` · ${memberCoachNames(m).filter(Boolean).map((n) => n.split(' ')[0]).join(', ')}` : ''}
               </span>
             </span>
             <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />

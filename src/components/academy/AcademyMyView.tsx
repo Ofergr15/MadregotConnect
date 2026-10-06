@@ -17,6 +17,8 @@ import { MyTestsCard } from './MyTestsCard';
 import { PaceText } from './PaceMark';
 import { BidiText } from '@/components/BidiText';
 import { WorkoutPlanSheet } from './WorkoutPlanSheet';
+import { joinHebrewList } from '@/lib/academy/members';
+import { CoachAvatarStack } from './CoachAvatarStack';
 
 // The academy as one of its trainees sees it — mockup academy-trainee-home-v4.
 //
@@ -122,7 +124,13 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
   }
 
   const coach = data?.coach ?? null;
-  const coachFirst = coach ? coach.name.split(' ')[0] : null;
+  // Every coach (a shared trainee has several, all equal); an older payload has
+  // only `coach`.
+  const coachList = data?.coaches?.length ? data.coaches : coach ? [coach] : [];
+  const firstOf = (name: string) => name.split(' ')[0];
+  // "Dana" or "Dana ו־Guy" — the header line and the conversation's title.
+  const coachFirst = coachList.length ? joinHebrewList(coachList.map((c) => firstOf(c.name))) : null;
+  const multi = coachList.length > 1;
   const unread = !threadSeen && (data?.unread ?? 0) > 0;
   const week = data?.week;
   const byDate = new Map((week?.workouts ?? []).map((w) => [w.date, w]));
@@ -153,9 +161,14 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
           type="button"
           onClick={openConversation}
           aria-label={unread ? `${coach ? `הודעה חדשה מ${coachFirst}` : 'הודעה חדשה'} · לפתיחת השיחה` : 'לפתיחת השיחה'}
-          className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-600 text-13 font-extrabold text-white active:scale-95 transition-transform"
+          className={cn(
+            'relative grid h-11 shrink-0 place-items-center text-13 font-extrabold text-white active:scale-95 transition-transform',
+            multi ? 'min-w-11' : 'w-11 rounded-full bg-brand-600',
+          )}
         >
-          {coach?.avatarUrl
+          {multi
+            ? <CoachAvatarStack coaches={coachList} size={36} />
+            : coach?.avatarUrl
             // eslint-disable-next-line @next/next/no-img-element
             ? <img src={coach.avatarUrl} alt="" className="h-full w-full rounded-full object-cover" />
             : coach ? initialsOf(coach.name) : <GraduationCap className="h-5 w-5" />}
@@ -164,7 +177,9 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
         <div className="min-w-0 flex-1">
           <h1 className="text-[21px] font-black leading-tight text-ink-700">האקדמיה שלי</h1>
           <p className="truncate text-xs text-ink-400">
-            {coachFirst && <>עם <span dir="auto">{coachFirst}</span> · </>}
+            {/* RTL, not auto, for "Dana ו־Guy": auto would read the Latin first name and
+                lay the ו־ out left-to-right, glued to the wrong name. */}
+            {coachFirst && <>עם <span dir={multi ? 'rtl' : 'auto'}>{coachFirst}</span> · </>}
             {isCurrentWeek ? 'השבוע' : 'שבוע'} <bdi dir="ltr">{weekRange(weekStart)}</bdi>
           </p>
         </div>
