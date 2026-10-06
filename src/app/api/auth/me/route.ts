@@ -1,5 +1,4 @@
-import { NextResponse } from 'next/server';
-import { isStoryEditor } from '@/lib/quality-session/access';
+import { after, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { membershipFor } from '@/lib/auth/membership';
@@ -66,62 +65,80 @@ export async function GET(request: Request) {
     }
 
     const supabase = createServerClient();
+    const athleteId = auth.user.athleteId;
 
+    // ONE read for everything requireSession's select doesn't carry. This is the
+    // request that gates the whole app, and every sequential query in it costs a
+    // full function↔DB round trip (~225 ms from iad1 to the Tokyo DB) before the
+    // shell can render: it used to be four reads and two writes in a row, about
+    // 1.5 s. The lab (~/.cache/madregot/lab) measured this shape at half that.
+    //
     // `is_academy` rides along because academy membership is a flag, not a role:
     // an athlete with role `runner` can be in the academy (and several are), so
-    // the nav can't derive their academy entry point from `role` alone. It's a
-    // second read because requireSession's select can't carry it — that select
-    // gates the whole app, and a column it doesn't have yet in some environment
-    // must not be able to fail it. Here a missing column just reads as false.
+    // the nav can't derive their academy entry point from `role` alone. It can't
+    // ride requireSession's select — that select gates every route, and a column
+    // it doesn't have yet in some environment must not be able to fail it.
     //
     // `approved` is here for the same reason: it is what separates "waiting for
     // the coach" from "access was removed", and requireSession does not carry it.
     // A read that fails leaves it undefined, which membershipFor() resolves to the
     // answer that promises nothing.
-    const { data: row } = await supabase
+    //
+    // `first_seen_at` (migration 102) and `is_story_editor` (129) used to be
+    // reads of their own so a column that isn't migrated yet couldn't take
+    // `is_academy`/`approved` down with it. The same guarantee now costs a round
+    // trip only when it's needed: if the full select errors, fall back to the
+    // two columns that decide membership, and the other two read as "no".
+    type Row = { is_academy?: boolean; approved?: boolean; first_seen_at?: string | null; is_story_editor?: boolean };
+    const full = await supabase
       .from('athletes')
-      .select('is_academy, approved')
-      .eq('id', auth.user.athleteId)
+      .select('is_academy, approved, first_seen_at, is_story_editor')
+      .eq('id', athleteId)
       .maybeSingle();
+    let row = full.data as Row | null;
+    const fullRead = !full.error;
+    if (!fullRead) {
+      const { data } = await supabase
+        .from('athletes')
+        .select('is_academy, approved')
+        .eq('id', athleteId)
+        .maybeSingle();
+      row = data as Row | null;
+    }
 
     const membership = membershipFor({ status: auth.user.athleteStatus, approved: row?.approved });
 
-    const seenAt = new Date().toISOString();
-    await supabase
-      .from('athletes')
-      .update({ last_seen_at: seenAt })
-      .eq('id', auth.user.athleteId);
-
-    // `first_seen_at` — the other end of the same story, and the one signal that
-    // means "the app actually opened for them" (migration 102). An auth account
-    // is minted the moment a Strava callback lands, which on iOS can happen
-    // inside another app's browser sheet while the app itself never opens, so
-    // auth.users.created_at cannot stand in for this.
+    // The stamps are bookkeeping nobody waits on, so they run after the response
+    // is sent (Vercel keeps the function alive for them via waitUntil).
     //
-    // Its own read and write, isolated on purpose: this is the request that gates
-    // the whole app, and a column that isn't migrated yet must not be able to
-    // fail it or to take `is_academy`/`approved` down with it. A missing column
-    // here simply means no snapshot, which is the safe direction.
-    try {
-      const { data: seen } = await supabase
+    // `first_seen_at` — the one signal that means "the app actually opened for
+    // them" (migration 102). An auth account is minted the moment a Strava
+    // callback lands, which on iOS can happen inside another app's browser sheet
+    // while the app itself never opens, so auth.users.created_at can't stand in.
+    // Only stamped when the read SAW it empty: a fallback read knows nothing, and
+    // a missing column means no snapshot, which is the safe direction.
+    const seenAt = new Date().toISOString();
+    const stampFirstSeen = fullRead && row !== null && !row.first_seen_at;
+    after(async () => {
+      await supabase
         .from('athletes')
-        .select('first_seen_at')
-        .eq('id', auth.user.athleteId)
-        .maybeSingle();
-      if (seen && !seen.first_seen_at) {
-        // Guarded by `is null` as well as by the read, so two tabs opening at once
-        // can't move the timestamp forward and restart somebody's 15 minutes.
-        await supabase
-          .from('athletes')
-          .update({ first_seen_at: seenAt })
-          .eq('id', auth.user.athleteId)
-          .is('first_seen_at', null);
+        .update({ last_seen_at: seenAt })
+        .eq('id', athleteId);
+      if (stampFirstSeen) {
+        try {
+          // Guarded by `is null` as well as by the read, so two tabs opening at
+          // once can't move the timestamp forward and restart somebody's 15 minutes.
+          await supabase
+            .from('athletes')
+            .update({ first_seen_at: seenAt })
+            .eq('id', athleteId)
+            .is('first_seen_at', null);
+        } catch { /* not migrated yet — the snapshot stage stays a no-op */ }
       }
-    } catch { /* not migrated yet — the snapshot stage stays a no-op */ }
+    });
 
-    // The quality session (lib/quality-session/access.ts): its own read, like
-    // first_seen_at, so a missing column (no 129 yet) only reads as "no".
-    const qualitySession = isSuper || await isStoryEditor(supabase, auth.user.athleteId).catch(() => false);
+    // The quality session (lib/quality-session/access.ts): no 129 yet only reads as "no".
+    const qualitySession = isSuper || row?.is_story_editor === true;
 
     return NextResponse.json({ role: auth.user.role || 'runner', roles, membership, isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere, isCoreRunner: isCore, qualitySession });
   } catch (error) {

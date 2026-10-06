@@ -141,6 +141,16 @@ type Op = { table: string; op: string; patch?: Record<string, unknown>; filters:
 let ops: Op[] = [];
 let rows: unknown[] = [];
 let selected: Record<string, unknown> | null = null;
+// Errors handed to successive maybeSingle() calls — a column a select names but
+// the database doesn't have yet.
+let selectErrors: unknown[] = [];
+
+// auth/me stamps last_seen_at in `after()`, which only exists inside a real
+// request scope. Run the callback on the spot so the stamp stays assertable.
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  after: (fn: () => unknown) => { void fn(); },
+}));
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({
@@ -163,7 +173,11 @@ vi.mock('@/lib/supabase/server', () => ({
         eq: track('eq'),
         in: track('in'),
         or: track('or'),
-        maybeSingle: () => Promise.resolve({ data: selected, error: null }),
+        is: track('is'),
+        maybeSingle: () => {
+          const error = selectErrors.shift() ?? null;
+          return Promise.resolve({ data: error ? null : selected, error });
+        },
         then: (resolve: (v: unknown) => unknown) =>
           Promise.resolve({ data: rows, error: null }).then(resolve),
       };
@@ -181,6 +195,7 @@ beforeEach(() => {
   ops = [];
   rows = [];
   selected = null;
+  selectErrors = [];
 });
 
 describe('GET /api/auth/me', () => {
@@ -224,6 +239,42 @@ describe('GET /api/auth/me', () => {
     expect(Object.keys(update?.patch || {})).toEqual(['last_seen_at']);
     // By athlete id, never by the email the caller supplied.
     expect(update?.filters).toEqual([['eq', ['id', ME]]]);
+  });
+
+  // The shell waits on this route, and every sequential query in it is a full
+  // function↔DB round trip. Everything it needs past the session is ONE read.
+  it('reads the athlete row once, and answers the story-editor flag from it', async () => {
+    requireSession.mockResolvedValue(session());
+    selected = { is_academy: false, approved: true, first_seen_at: '2026-01-01T00:00:00Z', is_story_editor: true };
+    const res = await me(new Request('https://example.test/api/auth/me'));
+    expect(await res.json()).toMatchObject({ membership: 'active', qualitySession: true });
+    expect(ops.filter((o) => o.op === 'select')).toHaveLength(1);
+    // first_seen_at was already set, so the only write is the last_seen stamp.
+    expect(ops.filter((o) => o.op === 'update').map((o) => Object.keys(o.patch || {}))).toEqual([['last_seen_at']]);
+  });
+
+  it('stamps first_seen_at only when the read saw it empty, guarded by is-null', async () => {
+    requireSession.mockResolvedValue(session());
+    selected = { is_academy: false, approved: true, first_seen_at: null };
+    await me(new Request('https://example.test/api/auth/me'));
+    // It's the second write inside after(), behind the first one's await.
+    await new Promise((r) => setTimeout(r, 0));
+    const first = ops.find((o) => o.op === 'update' && o.patch && 'first_seen_at' in o.patch);
+    expect(first?.filters).toEqual([['eq', ['id', ME]], ['is', ['first_seen_at', null]]]);
+  });
+
+  // A column the full select names but this database doesn't have yet (no 129,
+  // say) must not cost anyone their membership or their academy entry.
+  it('falls back to the membership columns when the full read fails', async () => {
+    requireSession.mockResolvedValue(session());
+    selectErrors = [{ code: '42703', message: 'column athletes.is_story_editor does not exist' }];
+    selected = { is_academy: true, approved: true };
+    const res = await me(new Request('https://example.test/api/auth/me'));
+    expect(await res.json()).toMatchObject({ membership: 'active', isAcademy: true, qualitySession: false });
+    const selects = ops.filter((o) => o.op === 'select').map((o) => o.filters[0]?.[1]?.[0]);
+    expect(selects).toEqual(['is_academy, approved, first_seen_at, is_story_editor', 'is_academy, approved']);
+    // The fallback knows nothing about first_seen_at, so it must not stamp it.
+    expect(ops.some((o) => o.op === 'update' && o.patch && 'first_seen_at' in o.patch)).toBe(false);
   });
 
   it('serves a legacy coaches-only account, which has no athletes row to read', async () => {
