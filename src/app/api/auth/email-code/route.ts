@@ -33,11 +33,43 @@ async function memberFor(supabase: Db, email: string) {
   return data;
 }
 
+/**
+ * The address behind a personal join link — the installed app's first open
+ * (/welcome?t=…, onboarding v2) signs in by the link alone, so a member never
+ * types an address the club already has. The token IS the invitation; anyone
+ * holding it was sent it, and the code still goes only to the member's inbox.
+ */
+async function emailForToken(supabase: Db, token: string): Promise<string | null> {
+  if (!/^[A-Za-z0-9_-]{8,128}$/.test(token)) return null;
+  const { data } = await supabase.from('athletes').select('email').eq('invite_token', token).maybeSingle();
+  return data?.email ? normaliseEmail(data.email) : null;
+}
+
+/** n•••@gmail.com — enough to recognise your own address, not enough to harvest one. */
+function maskEmail(email: string): string {
+  const [user, domain] = email.split('@');
+  return `${user.slice(0, 1)}•••@${domain}`;
+}
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const email = normaliseEmail(typeof body?.email === 'string' ? body.email : '');
-  if (!isLikelyEmail(email)) return NextResponse.json({ error: 'invalid-email' }, { status: 400 });
   const supabase = createServerClient();
+  const token = typeof body?.token === 'string' ? body.token : '';
+  const email = token
+    ? (await emailForToken(supabase, token)) || ''
+    : normaliseEmail(typeof body?.email === 'string' ? body.email : '');
+  if (!isLikelyEmail(email)) return NextResponse.json({ error: token ? 'unknown-link' : 'invalid-email' }, { status: token ? 404 : 400 });
+
+  // The welcome screen's greeting: who this link belongs to, never the full address.
+  if (body?.action === 'who') {
+    const member = await memberFor(supabase, email);
+    if (!member) return NextResponse.json({ error: 'unknown-link' }, { status: 404 });
+    // The name they typed on the form (migration 131) reads better than the roster's
+    // Latin placeholder, which for a /register applicant is made from the address.
+    const { data: req } = await supabase.from('signup_requests').select('full_name').eq('athlete_id', member.id).not('full_name', 'is', null).limit(1).maybeSingle();
+    const name = (req?.full_name as string | undefined) || member.name || '';
+    return NextResponse.json({ firstName: name.split(/\s+/)[0] || null, maskedEmail: maskEmail(email) });
+  }
 
   try {
     if (body?.action === 'send') {

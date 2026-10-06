@@ -14,7 +14,10 @@ import {
   recordNudgeShown,
   skipNudge,
   type NudgeLedger,
+  nudgeAllowedV2,
+  skipNudgeForToday,
 } from '@/lib/onboarding/nudge-ledger';
+import { useOnboardingV2 } from '@/lib/install/v2';
 import { ProgressRing } from './ProgressRing';
 import {
   SETUP_CHECKLIST_HREF,
@@ -61,6 +64,7 @@ export function SetupNudgeCard() {
   // null = the ledger hasn't been read yet. The card stays hidden until it is,
   // so a member who pressed דלג never sees a flash of it on the way in.
   const [ledger, setLedger] = useState<NudgeLedger | null>(null);
+  const v2 = useOnboardingV2();
   const today = nudgeDayKey(new Date());
 
   useEffect(() => {
@@ -86,7 +90,7 @@ export function SetupNudgeCard() {
     open.length > 0 &&
     !!athleteId &&
     !!ledger &&
-    nudgeAllowed(ledger, today);
+    (v2 ? nudgeAllowedV2(ledger, today) : nudgeAllowed(ledger, today));
 
   // Spend the day only once it is actually on screen. Written on the way in
   // rather than on dismissal: the cap is on APPEARANCES, and a member who sees
@@ -103,12 +107,13 @@ export function SetupNudgeCard() {
 
   const skip = useCallback(() => {
     if (!athleteId || !ledger) return;
-    const next = skipNudge(ledger);
+    // v2: "later" means tomorrow, for a week (lib/onboarding/nudge-ledger).
+    const next = v2 ? skipNudgeForToday(ledger, nudgeDayKey(new Date())) : skipNudge(ledger);
     try {
       localStorage.setItem(nudgeLedgerKey(athleteId), JSON.stringify(next));
     } catch { /* private mode */ }
     setLedger(next);
-  }, [athleteId, ledger]);
+  }, [athleteId, ledger, v2]);
 
   if (!visible || !data || !data.applicable) return null;
 
@@ -191,7 +196,7 @@ export function SetupNudgeCard() {
 
       {/* Says the deal out loud, because a skip that quietly leaves something
           behind in the header would read as the card not having gone away. */}
-      <p className="mt-2 text-center text-2xs font-light text-ink-400">{t('nudgeSkipNote')}</p>
+      <p className="mt-2 text-center text-2xs font-light text-ink-400">{v2 ? 'נזכיר שוב מחר, עד שהכול מסודר.' : t('nudgeSkipNote')}</p>
     </div>
   );
 }

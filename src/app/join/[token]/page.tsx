@@ -8,6 +8,7 @@ import { InsetSection, InsetRow, Button } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { InstallGuide } from '@/components/install/InstallGuide';
 import { usePreviewOnboardingV2 } from '@/lib/install/v2';
+import { isStandalone } from '@/lib/pwa';
 
 // Local input primitive — see src/app/admin/login/page.tsx for why this is
 // duplicated locally instead of promoted to the shared ui/index.tsx.
@@ -86,6 +87,13 @@ export default function JoinPage() {
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
+    // Opened from the home-screen icon (a phone that saved this address rather than
+    // the manifest's start_url): this is the first open of the installed app, so
+    // it belongs on the welcome screen, not on the form again.
+    if (isStandalone()) {
+      window.location.replace(`/welcome?t=${encodeURIComponent(token)}`);
+      return;
+    }
     // Skip auth check — this is a public join page for new runners
     // They will enter their info fresh regardless of any existing session
     setStep('info');
@@ -241,6 +249,16 @@ export default function JoinPage() {
       return;
     }
     setError(null);
+    // Onboarding v2: install FIRST, sign in once inside the app afterwards (an
+    // iPhone's home-screen app does not share Safari's login). So the details are
+    // saved and the guide comes next — no Strava or Garmin here.
+    if (guideV2) {
+      setStep('connecting');
+      persistProfile()
+        .then(() => setStep('done'))
+        .catch((err) => { setError(err instanceof Error ? err.message : String(err)); setStep('info'); });
+      return;
+    }
     if (!garminEmail) setGarminEmail(email);
     setStep('garmin');
   };
