@@ -48,6 +48,50 @@ export function browserAuthConfig(url: string): { authUrl: string; storageKey: s
   };
 }
 
+/**
+ * Where the browser keeps its session. Normally derived from the project URL, as
+ * supabase-js does. NEXT_PUBLIC_SUPABASE_AUTH_STORAGE_KEY pins it instead: when
+ * the database moves to a new Supabase project (Tokyo → Frankfurt, 2026-10), the
+ * derived key changes with the project ref, and every signed-in phone would look
+ * signed out. Pinned to the old key, the stored session is found and handed to
+ * expireForeignSession() below.
+ */
+export function sessionStorageKey(url: string): string {
+  const pinned = process.env.NEXT_PUBLIC_SUPABASE_AUTH_STORAGE_KEY?.trim();
+  return pinned || browserAuthConfig(url).storageKey;
+}
+
+/**
+ * A session minted by ANOTHER project (its access token's `iss` is not this
+ * project's auth URL) can't be used as-is: the new project rejects the old
+ * signature. Its refresh token still works — auth.refresh_tokens moved with the
+ * data — so mark it expired and let auth-js refresh it on load
+ * (_recoverAndRefresh refreshes any session past expires_at). If the refresh
+ * fails, auth-js drops the session and the mc_device silent re-auth takes over.
+ * Returns true when it rewrote something; never throws.
+ */
+export function expireForeignSession(storage: Pick<Storage, 'getItem' | 'setItem'>, storageKey: string, authUrl: string): boolean {
+  try {
+    const raw = storage.getItem(storageKey);
+    if (!raw) return false;
+    const session = JSON.parse(raw) as { access_token?: string; expires_at?: number };
+    const payload = session.access_token?.split('.')[1];
+    if (!payload) return false;
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '='));
+    const iss = (JSON.parse(json) as { iss?: string }).iss;
+    // Compared by HOST, and only when `iss` is a URL at all: a token whose issuer
+    // isn't a URL (or is this project's) is never touched, so a format surprise
+    // can't turn into a refresh on every load.
+    let issHost = '';
+    try { issHost = new URL(iss || '').hostname; } catch { return false; }
+    if (!issHost || issHost === new URL(authUrl).hostname || session.expires_at === 0) return false;
+    storage.setItem(storageKey, JSON.stringify({ ...session, expires_at: 0 }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 let _client: { auth: GoTrueClient } | null = null;
 
 /**
@@ -67,7 +111,9 @@ export function getSupabase(): { auth: GoTrueClient } {
       throw new Error('Supabase not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local');
     }
 
-    const { authUrl, storageKey } = browserAuthConfig(url);
+    const { authUrl } = browserAuthConfig(url);
+    const storageKey = sessionStorageKey(url);
+    if (typeof window !== 'undefined') expireForeignSession(window.localStorage, storageKey, authUrl);
 
     _client = {
       auth: new GoTrueClient({
