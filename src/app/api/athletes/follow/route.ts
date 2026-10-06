@@ -62,7 +62,7 @@ export async function POST(request: Request) {
           kind: 'follow',
           actorAthleteId: followerId,
           copy: (locale) => followCopy(locale, { name: who }),
-          url: '/dashboard/profile',
+          url: `/dashboard/teammate/${followerId}`, // who followed you, not your own profile
           tag: `follow-${followerId}-${followeeId}`,
           category: 'teammates',
           ...(follower?.avatar_url ? { icon: follower.avatar_url } : {}),

@@ -149,8 +149,9 @@ export async function POST(req: NextRequest) {
             kind: 'watch_disconnected',
             copy: watchDisconnectedCopy,
             // Where the reconnect button is — the notification names an action, so it has
-            // to land on the screen that performs it.
-            url: '/dashboard/settings',
+            // to land on the screen that performs it: the profile's data-source screen
+            // (Settings has no watch screen; it used to land on its landing grid).
+            url: '/dashboard/profile?tab=datasource',
             // Per athlete per week, so a coach retrying the push four times sends this once.
             // The retries fail identically until the athlete reconnects, and four copies of
             // "your watch is disconnected" is the noise this whole branch avoids.

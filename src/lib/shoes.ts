@@ -37,7 +37,7 @@ export async function checkShoeAlert(shoeId: string): Promise<void> {
         copy: (locale) => shoeLimitCopy(locale, {
           name: shoe.name, km: kmRounded, limit: limitRounded, reached: true,
         }),
-        url: '/dashboard/settings',
+        url: '/dashboard/profile', // ShoeManager lives on the profile's landing screen
         category: 'workouts',
       });
     } else if (!shoe.alerted_near_at && totalKm >= nearThreshold) {
@@ -48,7 +48,7 @@ export async function checkShoeAlert(shoeId: string): Promise<void> {
         copy: (locale) => shoeLimitCopy(locale, {
           name: shoe.name, km: kmRounded, limit: limitRounded, reached: false,
         }),
-        url: '/dashboard/settings',
+        url: '/dashboard/profile', // ShoeManager lives on the profile's landing screen
         category: 'workouts',
       });
     }

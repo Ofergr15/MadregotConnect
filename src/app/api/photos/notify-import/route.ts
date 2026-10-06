@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       sent = await sendPushToSubscriptions(subs, {
         title: '📸 תמונות חדשות עלו!',
         body: `תמונות מהריצה בתאריך ${date} זמינות לצפייה`,
-        url: '/dashboard/photos?tab=browse',
+        url: '/feed', // /dashboard/photos is switched off (notFound) until it ships
         tag: `photos-import-${date}`,
         category: 'news',
       });

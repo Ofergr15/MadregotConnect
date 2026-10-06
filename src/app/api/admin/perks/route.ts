@@ -106,7 +106,7 @@ export async function POST(request: Request) {
         // perk title are whatever the admin typed, in whatever language.
         await sendPushLocalized(subs, (locale) => ({
           ...newPerkCopy(locale, { sponsor: sponsorName.trim(), title: titleHe.trim() }),
-          url: '/dashboard/benefits',
+          url: `/dashboard/benefits?perk=${data.id}`, // the page opens that perk's sheet
           tag: `perk-${data.id}`,
           category: 'news',
         }));

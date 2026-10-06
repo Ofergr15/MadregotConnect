@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { isSuperUser } from '@/lib/constants';
-import { subscriptionsForAthletes, sendPushLocalized } from '@/lib/push';
+import { notifyAthlete } from '@/lib/push';
 import { coachReplyCopy } from '@/lib/notifications/copy';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 
@@ -147,23 +147,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // submission already does.
     if (side.side === 'coach') {
       try {
-        const subs = await subscriptionsForAthletes([fb.athlete_id]);
-        if (subs.length) {
-          const { data: senderRow } = await supabase.from('athletes').select('name, avatar_url').eq('id', side.senderAthleteId).maybeSingle();
-          const senderName = (senderRow as { name?: string } | null)?.name?.trim() || '';
-          const senderAvatarUrl = (senderRow as { avatar_url?: string } | null)?.avatar_url?.trim() || '';
-          const url = fb.garmin_activity_id ? `/dashboard/feedback?activity=${fb.garmin_activity_id}` : '/dashboard';
-          await sendPushLocalized(subs, (locale) => ({
-            // Only the frame follows the athlete's language — the message body
-            // is whatever the coach actually typed.
-            ...coachReplyCopy(locale, { coachName: senderName }),
-            body: trimmed.slice(0, 120),
-            url,
-            tag: `coach-reply-${id}`,
-            category: 'coach',
-            ...(senderAvatarUrl ? { icon: senderAvatarUrl } : {}),
-          }));
-        }
+        // notifyAthlete, not a bare push: it also writes the in-app notification row,
+        // so a coach's message is in the bell list too (it only ever existed as a push,
+        // and a dismissed push was gone for good).
+        const { data: senderRow } = await supabase.from('athletes').select('name, avatar_url').eq('id', side.senderAthleteId).maybeSingle();
+        const senderName = (senderRow as { name?: string } | null)?.name?.trim() || '';
+        const senderAvatarUrl = (senderRow as { avatar_url?: string } | null)?.avatar_url?.trim() || '';
+        const url = fb.garmin_activity_id ? `/dashboard/feedback?activity=${fb.garmin_activity_id}` : '/dashboard';
+        await notifyAthlete({
+          athleteId: fb.athlete_id,
+          kind: 'feedback_reply',
+          actorAthleteId: side.senderAthleteId,
+          // Only the frame follows the athlete's language — the message body is
+          // whatever the coach actually typed.
+          copy: (locale) => ({ ...coachReplyCopy(locale, { coachName: senderName }), body: trimmed.slice(0, 120) }),
+          url,
+          tag: `coach-reply-${id}`,
+          category: 'coach',
+          ...(senderAvatarUrl ? { icon: senderAvatarUrl } : {}),
+        });
       } catch { /* push optional */ }
     }
 
