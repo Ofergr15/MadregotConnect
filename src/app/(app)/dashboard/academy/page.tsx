@@ -15,7 +15,7 @@ import { AcademyStats } from '@/components/AcademyStats';
 import { AcademyResults } from '@/components/AcademyResults';
 import { AcademySettingsPanel } from '@/components/AcademySettings';
 import { AcademyRegistrations } from '@/components/AcademyRegistrations';
-import { AcademyOverview } from '@/components/academy/AcademyOverview';
+import { AcademyOverview, AcademyWeekArrows, AcademyWeekLabel } from '@/components/academy/AcademyOverview';
 import { AcademyMembers } from '@/components/academy/AcademyMembers';
 import { AcademyMyView } from '@/components/academy/AcademyMyView';
 import { AcademyThreads } from '@/components/academy/AcademyThreads';
@@ -34,6 +34,7 @@ import { useAthleteId } from '@/lib/use-athlete-id';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 import { getActiveViewRole, getStoredView } from '@/lib/role-views';
+import { AcademyAdminButton, CoachesSheet } from '@/components/academy/AcademyAdmin';
 
 // The academy centre. Three audiences, three lenses off the same route:
 //
@@ -255,6 +256,8 @@ export default function AcademyPage() {
 
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [view, setView] = useState<Tab>('overview');
+  const [coachesOpen, setCoachesOpen] = useState(false);
+  const [focusCoach, setFocusCoach] = useState<string | null>(null);
   const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()));
   // The open drill-in is held by id, not as a copy of the member. Editing a
   // trainee's coach or their standing hour revalidates the payload, and a
@@ -372,8 +375,9 @@ export default function AcademyPage() {
             <GraduationCap className="h-6 w-6 text-brand-600" />
           </div>
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-ink-700">{t('title')}</h1>
-            <p className="text-sm text-ink-400">{t('mySubtitle')}</p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-ink-700">{t('title')}</h1>
+            {view === 'overview' && <span className="sm:hidden"><AcademyWeekLabel weekStart={weekStart} /></span>}
+            <p className="hidden sm:block text-sm text-ink-400">{t('mySubtitle')}</p>
           </div>
         </div>
         {/* Passed raw, not `|| null`: `null` means "haven't read storage yet"
@@ -392,9 +396,11 @@ export default function AcademyPage() {
     // on this board is somebody who is not yet a member. The club's own
     // registrations tab is a different queue — that one is the public door to the
     // running club, this one is nine steps with four owners.
-    { value: 'funnel', label: t('tabFunnel'), icon: UserRoundSearch },
+    // The funnel and the registrations are the academy manager's (2026-10-06); the
+    // routes refuse a coach either way, this keeps the tabs out of their way.
+    ...(isManager ? [{ value: 'funnel' as Tab, label: t('tabFunnel'), icon: UserRoundSearch }] : []),
     { value: 'members', label: t('tabMembers'), icon: Users },
-    { value: 'registrations', label: t('tabRegistrations'), icon: UserPlus, badge: members?.pending.registrations },
+    ...(isManager ? [{ value: 'registrations' as Tab, label: t('tabRegistrations'), icon: UserPlus, badge: members?.pending.registrations }] : []),
     { value: 'plans', label: t('tabPlans'), icon: CalendarPlus },
     // Immediately after the composer, because it is where the composer's contents come
     // from: the book's whole claim is three clicks instead of writing a week from scratch,
@@ -426,10 +432,13 @@ export default function AcademyPage() {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-start justify-between gap-4 mb-6">
+    // On a phone the shell's <main> already pads this page, and the academy home is
+    // meant to fit one screen (2026-10-06), so the page adds no padding of its own
+    // there and the title row loses its icon tile.
+    <div className="max-w-5xl mx-auto sm:px-6 lg:px-8 sm:py-8">
+      <div className="flex items-center justify-between gap-4 mb-2 sm:mb-6">
         <div className="flex items-center gap-3">
-          <div className="bg-brand-600/20 w-12 h-12 rounded-2xl flex items-center justify-center ring-1 ring-brand-600/20">
+          <div className="hidden sm:flex bg-brand-600/20 w-12 h-12 rounded-2xl items-center justify-center ring-1 ring-brand-600/20">
             <GraduationCap className="h-6 w-6 text-brand-600" />
           </div>
           <div>
@@ -445,6 +454,16 @@ export default function AcademyPage() {
             </p>
           </div>
         </div>
+        <div className="flex shrink-0 items-center gap-1">
+        {view === 'overview' && <AcademyWeekArrows weekStart={weekStart} onWeekChange={setWeekStart} />}
+        {isManager && members?.scope === 'academy' && (
+          <AcademyAdminButton
+            onOpenCoaches={() => { setFocusCoach(null); setCoachesOpen(true); }}
+            onOpenSettings={() => setView('settings')}
+            canEditRoles={role === 'admin'}
+          />
+        )}
+        </div>
       </div>
 
       <AcademySectionNav
@@ -452,7 +471,7 @@ export default function AcademyPage() {
         onChange={setView}
         options={tabs}
         groupOf={(v) => GROUP_OF[v]}
-        className="mb-6"
+        className="mb-2.5 sm:mb-6"
       />
 
       {view === 'overview' ? (
@@ -464,7 +483,7 @@ export default function AcademyPage() {
           onSelectMember={selectMember}
           onGoTab={setView}
           onChanged={reloadMembers}
-          canEditRoles={role === 'admin'}
+          onOpenCoach={(id) => { setFocusCoach(id); setCoachesOpen(true); }}
         />
       ) : view === 'threads' ? (
         <AcademyThreads />
@@ -502,6 +521,16 @@ export default function AcademyPage() {
         <TestRegistry scheduling={<TestBoard onSelectAthlete={setSelectedId} />} />
       ) : (
         <AcademyPlanComposer athletes={planComposerAthletes} />
+      )}
+
+      {members?.scope === 'academy' && (
+        <CoachesSheet
+          open={coachesOpen}
+          onOpenChange={setCoachesOpen}
+          members={members.members}
+          onSelectMember={(m) => setSelectedId(m.athleteId)}
+          focusCoach={focusCoach}
+        />
       )}
 
       {/* One drill-in, shared by the overview's lists and the directory — a

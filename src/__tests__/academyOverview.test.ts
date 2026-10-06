@@ -64,20 +64,26 @@ describe('the home screen numbers', () => {
 describe('the home screen layout', () => {
   const src = () => readFileSync('src/components/academy/AcademyOverview.tsx', 'utf8');
 
-  it('puts both charts and the four numbers before anything you scroll to', () => {
+  // The one-screen home (2026-10-06): four numbers, the chart, the trainees, the
+  // coaches row — and only then what the manager scrolls to.
+  it('keeps the numbers, the chart and the trainees above the fold, in that order', () => {
     const s = src();
-    const sentence = s.indexOf('The week in one sentence');
-    for (const part of ['<Sparkline ', '<MiniStages ', 'label="רצו השבוע"', 'label="ביצוע תוכנית"', 'label="ק״מ השבוע"', 'label="הצטרפו החודש"']) {
-      expect(s.indexOf(part)).toBeGreaterThan(-1);
-      expect(s.indexOf(part)).toBeLessThan(sentence);
+    const fold = s.indexOf('{/* Below the fold');
+    const order = ['label="רצו השבוע"', 'label="בתוכנית"', '<AcademyTrendChart', '<TraineeRow', 'מאמנים</span>'];
+    let last = -1;
+    for (const part of order) {
+      const at = s.indexOf(part);
+      expect(at, part).toBeGreaterThan(last);
+      expect(at, part).toBeLessThan(fold);
+      last = at;
     }
   });
 
-  it('has no test-improvement tile and says "joining", not "on the way in"', () => {
+  it('has no test-improvement tile and calls the funnel "במשפך"', () => {
     const s = src();
     expect(s).not.toContain('שיפור בטסט');
     expect(s).not.toContain('בדרך פנימה');
     expect(s).not.toContain('ימים עד כניסה');
-    expect(s).toContain('בתהליך הצטרפות');
+    expect(s).toContain('label="במשפך"');
   });
 });

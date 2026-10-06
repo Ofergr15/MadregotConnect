@@ -193,7 +193,7 @@ describe('who can let somebody in', () => {
   it('the manager and academy coaches, not a club coach', () => {
     expect(canAdmitToAcademy({ isSuperUser: true, role: 'runner' })).toBe(true);
     expect(canAdmitToAcademy({ isSuperUser: false, role: 'admin' })).toBe(true);
-    expect(canAdmitToAcademy({ isSuperUser: false, role: 'academy_coach' })).toBe(true);
+    expect(canAdmitToAcademy({ isSuperUser: false, role: 'academy_coach' })).toBe(false);
     expect(canAdmitToAcademy({ isSuperUser: false, role: 'coach' })).toBe(false);
     expect(canAdmitToAcademy({ isSuperUser: false, role: 'runner' })).toBe(false);
   });

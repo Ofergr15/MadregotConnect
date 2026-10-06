@@ -13,7 +13,7 @@ import {
   agoLabel, israelDay, STAGE_SHORT, joinedInMonth, memberTrend, newJoiners, stageBars,
 } from '@/lib/academy/overview';
 import { BandPaces } from './BandPaces';
-import { AcademyManagerPanel } from './AcademyManagerPanel';
+import { AcademyTrendChart } from './AcademyTrendChart';
 import {
   ATTENTION_ORDER, ATTENTION_STYLE, fmtRate, fmtWeekRange, initialsOf,
   shiftWeek, sundayOf,
@@ -36,7 +36,7 @@ const STUCK_PREVIEW = 3;
 /** A joiner wears the "new" tag for their first week. */
 const NEW_TAG_DAYS = 7;
 
-type GoTab = 'members' | 'registrations' | 'results' | 'compliance' | 'funnel';
+type GoTab = 'members' | 'registrations' | 'results' | 'compliance' | 'funnel' | 'settings';
 
 export function AcademyOverview({
   data,
@@ -46,7 +46,7 @@ export function AcademyOverview({
   onSelectMember,
   onGoTab,
   onChanged,
-  canEditRoles = false,
+  onOpenCoach,
 }: {
   data: AcademyMembersResponse | undefined;
   isLoading: boolean;
@@ -56,12 +56,13 @@ export function AcademyOverview({
   onGoTab: (tab: GoTab) => void;
   /** Revalidate the academy payload after a band's paces are edited. */
   onChanged: () => void | Promise<void>;
-  /** Whether the manager's block may link to the roles screen (admins only). */
-  canEditRoles?: boolean;
+  /** Open one coach's caseload (the page owns the coaches sheet, next to the ⚙). */
+  onOpenCoach?: (coachId: string) => void;
 }) {
   const t = useTranslations('academy');
   const locale = useLocale();
   const [now] = useState(() => new Date());
+  const [chip, setChip] = useState<Chip | null>(null);
   const today = israelDay(now);
 
   const isCurrentWeek = weekStart === sundayOf(now);
@@ -105,100 +106,115 @@ export function AcademyOverview({
     : [];
   const waitingCount = (pending?.registrations ?? 0) + (pending?.results ?? 0) + stuck.length;
 
+  // ── The home, one screen (2026-10-06) ─────────────────────────────────────
+  // Trainees first: four numbers, one chart, the five who most need someone, and
+  // a single row of coaches. What used to follow (the sentence, new joiners, the
+  // stage chart, a separate attention list) is in the list's chips, the funnel
+  // tab, or the chart. Below the fold only what is the manager's work: what is
+  // waiting on them, and the bands' paces.
+  const approved = members.filter((m) => m.approved);
+  const recent = approved.filter((m) => !!m.academyJoinedOn && daysBetween(m.academyJoinedOn, today) <= NEW_DAYS);
+  const unpaired = approved.filter((m) => !m.academyCoachId);
+  const chipCounts = { attention: atRisk.length, unpaired: unpaired.length, recent: recent.length, all: members.length };
+  const defaultChip: Chip = atRisk.length ? 'attention' : 'all';
+  const shownChip = chip ?? defaultChip;
+  const listed = (shownChip === 'attention' ? atRisk
+    : shownChip === 'unpaired' ? unpaired
+    : shownChip === 'recent' ? [...recent].sort((x, y) => (y.academyJoinedOn || '').localeCompare(x.academyJoinedOn || ''))
+    : [...members].sort((x, y) => x.name.localeCompare(y.name))).slice(0, LIST_PREVIEW);
+  const coachRow = (data?.coaches ?? []).filter((c) => c.coachId);
+
   return (
-    <div className="space-y-5" dir="rtl">
-      {/* 0 · The manager's block: registration, coaches, who has no coach. */}
-      {isAcademyScope && (
-        <AcademyManagerPanel data={data} onSelectMember={onSelectMember} canEditRoles={canEditRoles} />
-      )}
-
-      {/* The first screen, no scrolling: the week, the two charts and the four
-          numbers. Everything after the tiles is detail you scroll down to. The page
-          title above already says where you are, so there is no greeting line. */}
-      <div className="flex items-center justify-between gap-2 px-1">
-        <div className="min-w-0 text-sm font-bold text-ink-700">
-          {isCurrentWeek ? t('thisWeek') : 'שבוע'} · <bdi dir="ltr" className="font-semibold text-ink-400">{fmtWeekRange(weekStart, locale)}</bdi>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <WeekArrow label={t('previousWeek')} onClick={() => onWeekChange(shiftWeek(weekStart, -1))} dir="back" />
-          <WeekArrow label={t('nextWeek')} onClick={() => onWeekChange(shiftWeek(weekStart, 1))} dir="forward" disabled={isCurrentWeek} />
-        </div>
-      </div>
-
+    <div className="space-y-2.5" dir="rtl">
       {isLoading && !data ? (
         <SkeletonList count={5} />
       ) : !team || team.members === 0 ? (
         <EmptyState icon={Users} title={t('noAthletesYet')} description={t('noAthletesDesc')} />
       ) : (
         <>
-          <div className="-mt-2 space-y-2.5">
-            {/* 1 · How many, which way it is going, and (manager) who is on the way in. */}
-            <div className="flex gap-3 rounded-card bg-brand-600 p-4 text-white">
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-bold opacity-80">{isAcademyScope ? 'מתאמנים באקדמיה' : 'המתאמנים שלי'}</div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-extrabold leading-tight tabular-nums">{team.members}</span>
-                  {joinedThisMonth > 0 && (
-                    <span className="text-xs opacity-85"><bdi dir="ltr">+{joinedThisMonth}</bdi> החודש</span>
-                  )}
-                </div>
-                <Sparkline values={trend} />
-                {/* Time runs left to right, like the line itself. */}
-                <div dir="ltr" className="flex justify-between text-3xs opacity-70">
-                  <span>לפני {trend.length} ש׳</span><span>{isCurrentWeek ? 'היום' : 'סוף השבוע'}</span>
-                </div>
+          {/* 1 · Four numbers. */}
+          <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr] overflow-hidden rounded-card bg-card">
+            <div className="bg-brand-600 px-1.5 py-2.5 text-center text-white">
+              <span className="block text-[22px] font-black leading-tight tabular-nums">{team.approved}</span>
+              <span className="block text-3xs opacity-85">{isAcademyScope ? 'מתאמנים' : 'המתאמנים שלי'}</span>
+              {joinedThisMonth > 0 && <span className="block text-3xs font-bold opacity-90"><bdi dir="ltr">+{joinedThisMonth}</bdi> החודש</span>}
+            </div>
+            <Stat label="רצו השבוע" value={<bdi dir="ltr">{team.activeThisWeek}<span className="text-xs font-bold text-ink-400">/{team.approved}</span></bdi>}
+              delta={prev ? diffLabel(team.activeThisWeek - prev.team.activeThisWeek, '') : null} />
+            <Stat label="בתוכנית" value={fmtRate(team.completionRate)} onClick={() => onGoTab('compliance')}
+              delta={prev && team.completionRate !== null && prev.team.completionRate !== null
+                ? diffLabel(Math.round((team.completionRate - prev.team.completionRate) * 100), '', '%') : null} />
+            {isAcademyScope && board ? (
+              <Stat label="במשפך" value={String(board.live)} onClick={() => onGoTab('funnel')}
+                note={stuck.length ? `${stuck.length} תקועים` : undefined} />
+            ) : (
+              <Stat label="ק״מ השבוע" value={team.weekKm.toFixed(0)}
+                delta={prev ? diffLabel(Math.round(team.weekKm - prev.team.weekKm), '') : null} />
+            )}
+          </div>
+
+          {/* 2 · One chart, three ways. */}
+          <AcademyTrendChart coachScope={data?.scope === 'coach'} />
+
+          {/* 3 · The trainees: who needs someone, first. */}
+          <div className="flex gap-1.5 overflow-x-auto" role="tablist">
+            {CHIPS.filter((c) => (c.key !== 'unpaired' || isAcademyScope) && (c.key === 'all' || chipCounts[c.key] > 0)).map((c) => (
+              <button
+                key={c.key}
+                role="tab"
+                aria-selected={shownChip === c.key}
+                onClick={() => setChip(c.key)}
+                className={cn(
+                  'min-h-[34px] shrink-0 rounded-pill px-3 text-xs font-semibold',
+                  shownChip === c.key ? 'bg-ink-700 text-white' : 'bg-card text-ink-500',
+                )}
+              >
+                {c.label}<span className="ms-1 opacity-60 tabular-nums">{chipCounts[c.key]}</span>
+              </button>
+            ))}
+            <button onClick={() => onGoTab('members')} className="min-h-[34px] shrink-0 px-2 text-xs font-semibold text-brand-600">
+              כל ה־{members.length} ›
+            </button>
+          </div>
+          {listed.length === 0 ? (
+            <Card variant="muted" className="flex items-center gap-3">
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-accent-600" />
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-ink-700">{t('allGood')}</div>
+                <div className="text-xs text-ink-400">{t('allGoodDesc')}</div>
               </div>
-              {board && board.live > 0 && (
-                <button onClick={() => onGoTab('funnel')} aria-label="פתיחת לוח המצטרפים"
-                  className="flex w-[44%] shrink-0 flex-col border-s border-white/20 ps-3 text-start">
-                  <span className="text-xs font-bold opacity-80">בתהליך הצטרפות</span>
-                  <span className="flex items-baseline gap-1.5">
-                    <span className="text-4xl font-extrabold leading-tight tabular-nums">{board.live}</span>
-                    {stuck.length > 0 && <span className="text-xs font-bold text-amber-200">{stuck.length} תקועים</span>}
-                  </span>
-                  <MiniStages bars={stageBars(board)} />
-                  <span dir="ltr" className="flex justify-between text-3xs opacity-70">
-                    <span>{STAGE_SHORT.standing_order}</span><span>{STAGE_SHORT.form}</span>
-                  </span>
+            </Card>
+          ) : (
+            <Card className="divide-y divide-page py-0.5">
+              {listed.map((m) => <TraineeRow key={m.athleteId} m={m} showCoach={isAcademyScope} onClick={() => onSelectMember(m)} reason={(r) => t(`reason_${r}`)} />)}
+            </Card>
+          )}
+
+          {/* 4 · The coaches, one row. Each opens their caseload. */}
+          {isAcademyScope && coachRow.length > 0 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              <span className="shrink-0 text-xs font-bold text-ink-400">מאמנים</span>
+              {coachRow.map((c) => (
+                <button key={c.coachId} onClick={() => onOpenCoach?.(c.coachId!)}
+                  className="min-h-[34px] shrink-0 rounded-pill bg-card px-3 text-xs font-semibold text-ink-700" dir="auto">
+                  {(c.coachName || '').split(' ')[0]}<span className="ms-1 text-ink-400 tabular-nums">{c.trainees}</span>
+                </button>
+              ))}
+              {unpaired.length > 0 && (
+                <button onClick={() => setChip('unpaired')}
+                  className="min-h-[34px] shrink-0 rounded-pill bg-band-3/15 px-3 text-xs font-semibold text-band-3-ink">
+                  בלי מאמן<span className="ms-1 tabular-nums">{unpaired.length}</span>
                 </button>
               )}
             </div>
+          )}
 
-            {/* 2 · The week in numbers, each against last week. */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <Tile label="רצו השבוע" value={`${team.activeThisWeek}/${team.members}`}
-                delta={prev ? diffLabel(team.activeThisWeek - prev.team.activeThisWeek, '') : null} />
-              <Tile label="ביצוע תוכנית" value={fmtRate(team.completionRate)}
-                delta={prev && team.completionRate !== null && prev.team.completionRate !== null
-                  ? diffLabel(Math.round((team.completionRate - prev.team.completionRate) * 100), '', '%')
-                  : null}
-                onClick={() => onGoTab('compliance')} />
-              <Tile label="ק״מ השבוע" value={team.weekKm.toFixed(0)}
-                delta={prev ? diffLabel(Math.round(team.weekKm - prev.team.weekKm), '') : null} />
-              <Tile label="הצטרפו החודש" value={String(joinedThisMonth)}
-                delta={diffLabel(joinedThisMonth - joinedLastMonth, '')} />
-            </div>
-          </div>
-
-          {/* 3 · The week in one sentence — the first thing below the fold. */}
-          <Card className="text-base leading-relaxed text-ink-700">
-            {isAcademyScope && coachCount > 0 && <><b className="tabular-nums">{team.members}</b> מתאמנים אצל <b className="tabular-nums">{coachCount}</b> מאמנים. </>}
-            {isCurrentWeek ? 'השבוע ' : 'באותו שבוע '}
-            <b className="tabular-nums">{team.activeThisWeek} מתוך {team.members}</b> רצו
-            {team.completionRate !== null && <> וביצעו <b className="tabular-nums">{fmtRate(team.completionRate)}</b> מהתוכנית</>}
-            .
-            {joinedThisMonth > 0 && (
-              <> <span className="rounded-md bg-brand-600/10 px-1 font-bold text-brand-600">{joinedThisMonth} הצטרפו החודש</span>.</>
-            )}
-            {waitingCount > 0 && <> <b>{waitingCount === 1 ? 'דבר אחד' : `${waitingCount} דברים`}</b> {waitingCount === 1 ? 'מחכה' : 'מחכים'} לך.</>}
-          </Card>
-
-          {/* 4 · What is waiting on me. Hidden when empty — a permanent "0" is noise. */}
+          {/* Below the fold: the manager's own work. */}
           {waitingCount > 0 && (
-            <div>
+            <div className="pt-3">
               <SectionHeader title="מחכה לך" count={waitingCount} />
               <div className="space-y-2">
-                {!!pending?.registrations && (
+                {!!pending?.registrations && isAcademyScope && (
                   <StoryCard icon={ClipboardList} tone="amber" chip="לטיפול" onClick={() => onGoTab('registrations')}
                     title={pending.registrations === 1 ? 'טופס הצטרפות חדש' : `${pending.registrations} טפסי הצטרפות חדשים`}
                     body="השלב הבא: שיחת היכרות" />
@@ -214,109 +230,81 @@ export function AcademyOverview({
               </div>
             </div>
           )}
-
-          {/* 5 · Who is new. */}
-          {joiners.length > 0 && (
-            <div>
-              <SectionHeader title="מצטרפים חדשים" actionLabel={t('seeAll')} onAction={() => onGoTab('members')} />
-              <Card className="flex gap-3 overflow-x-auto py-3">
-                {joiners.slice(0, JOINERS_PREVIEW).map(({ member, daysAgo }) => (
-                  <button key={member.athleteId} onClick={() => onSelectMember(member)}
-                    className="flex min-w-[64px] flex-col items-center gap-1 text-3xs text-ink-700">
-                    <span className="relative">
-                      <Avatar member={member} size="lg" />
-                      {daysAgo <= NEW_TAG_DAYS && (
-                        <span className="absolute -bottom-1 -start-1 rounded-full border-2 border-card bg-accent-700 px-1 text-[9px] font-bold text-white">חדש</span>
-                      )}
-                    </span>
-                    <span className="max-w-[64px] truncate font-semibold">{member.name.split(' ')[0]}</span>
-                    <span className="text-ink-400">{agoLabel(daysAgo)}</span>
-                  </button>
-                ))}
-              </Card>
-            </div>
-          )}
-
-          {/* 6 · Who is on the way in, and where they are stuck. Manager only. */}
-          {board && board.live > 0 && (
-            <div>
-              <SectionHeader title="בתהליך הצטרפות" actionLabel="כל הלוח" onAction={() => onGoTab('funnel')} />
-              <Card>
-                <StageChart bars={stageBars(board)} active={team.members} onClick={() => onGoTab('funnel')} />
-              </Card>
-            </div>
-          )}
-
-          {/* 7 · Who is slipping. */}
-          <div>
-            <SectionHeader
-              title={t('needsAttention')}
-              count={atRisk.length}
-              actionLabel={atRisk.length > ATTENTION_PREVIEW ? t('seeAll') : undefined}
-              onAction={() => onGoTab('members')}
-            />
-            {atRisk.length === 0 ? (
-              <Card variant="muted" className="flex items-center gap-3">
-                <CheckCircle2 className="h-5 w-5 text-accent-600 shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-ink-700">{t('allGood')}</div>
-                  <div className="text-xs text-ink-400">{t('allGoodDesc')}</div>
-                </div>
-              </Card>
-            ) : (
-              <Card className="divide-y divide-page py-1">
-                {atRisk.slice(0, ATTENTION_PREVIEW).map((m) => (
-                  <button key={m.athleteId} onClick={() => onSelectMember(m)}
-                    className="flex w-full min-h-[52px] items-center gap-3 py-2.5 text-start">
-                    <Avatar member={m} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold text-ink-700">{m.name}</div>
-                      <div className="text-xs text-ink-400">{attentionLine(m)}</div>
-                    </div>
-                    {(() => {
-                      const r = ATTENTION_ORDER.find((x) => m.attention.includes(x))!;
-                      return <span className={cn('shrink-0 rounded border px-1.5 py-0.5 text-3xs font-semibold', ATTENTION_STYLE[r])}>{t(`reason_${r}`)}</span>;
-                    })()}
-                  </button>
-                ))}
-              </Card>
-            )}
-          </div>
-
-          {/* A coach's home ends on their whole caseload: with a handful of 1:1
-              trainees the list IS the dashboard, and the directory is a tab away. */}
-          {!isAcademyScope && (
-            <div>
-              <SectionHeader title="כל המתאמנים שלי" count={members.length} actionLabel={t('seeAll')} onAction={() => onGoTab('members')} />
-              <Card className="divide-y divide-page py-1">
-                {[...members].sort((x, y) => x.name.localeCompare(y.name)).map((m) => (
-                  <button key={m.athleteId} onClick={() => onSelectMember(m)}
-                    className="flex w-full min-h-[52px] items-center gap-3 py-2.5 text-start">
-                    <Avatar member={m} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold text-ink-700">{m.name}</div>
-                      <div className="text-xs text-ink-400">
-                        {m.band?.name ?? 'בלי דבוקה'} · {m.weekRuns} ריצות השבוע
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-end">
-                      <div className="text-sm font-bold tabular-nums text-ink-700">{m.weekKm.toFixed(1)}</div>
-                      <div className="text-3xs text-ink-400">{fmtRate(m.completionRate)}</div>
-                    </div>
-                  </button>
-                ))}
-              </Card>
-            </div>
-          )}
-
-          {/* The bands' paces stay on the manager's home: an unpriced band blocks the
-              planner, which is work waiting on the manager, not a statistic. */}
           {(data?.bands?.length ?? 0) > 0 && (
-            <BandPaces bands={data!.bands} canEdit={isAcademyScope} onChanged={onChanged} />
+            <div className="pt-1">
+              <BandPaces bands={data!.bands} canEdit={isAcademyScope} onChanged={onChanged} />
+            </div>
           )}
         </>
       )}
     </div>
+  );
+}
+
+type Chip = 'attention' | 'unpaired' | 'recent' | 'all';
+const CHIPS: Array<{ key: Chip; label: string }> = [
+  { key: 'attention', label: 'תשומת לב' },
+  { key: 'unpaired', label: 'בלי מאמן' },
+  { key: 'recent', label: 'חדשים' },
+  { key: 'all', label: 'הכל' },
+];
+const LIST_PREVIEW = 5;
+const NEW_DAYS = 30;
+const daysBetween = (from: string, to: string) =>
+  Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from.slice(0, 10)}T12:00:00Z`)) / 86_400_000);
+
+function Stat({ label, value, delta, note, onClick }: {
+  label: string; value: React.ReactNode; delta?: { text: string; tone: 'up' | 'down' | 'flat' } | null; note?: string; onClick?: () => void;
+}) {
+  const inner = (
+    <>
+      <span className="block text-[22px] font-black leading-tight tabular-nums text-ink-700">{value}</span>
+      <span className="block text-3xs text-ink-400">{label}</span>
+      {delta && delta.tone !== 'flat' && (
+        <span className={cn('block text-3xs font-bold', delta.tone === 'up' ? 'text-accent-900' : 'text-accent-red')}>
+          <bdi dir="ltr">{delta.text}</bdi>
+        </span>
+      )}
+      {note && <span className="block text-3xs font-bold text-band-3-ink">{note}</span>}
+    </>
+  );
+  const cls = 'border-s border-page px-1 py-2.5 text-center';
+  return onClick
+    ? <button onClick={onClick} className={cn(cls, 'active:bg-page/60')}>{inner}</button>
+    : <div className={cls}>{inner}</div>;
+}
+
+function TraineeRow({ m, showCoach, onClick, reason }: {
+  m: AcademyMember; showCoach: boolean; onClick: () => void; reason: (r: string) => string;
+}) {
+  const worst = ATTENTION_ORDER.find((x) => m.attention.includes(x));
+  const sub = showCoach
+    ? (m.academyCoachName ? m.academyCoachName.split(' ')[0] : 'בלי מאמן')
+    : (m.band?.name ?? 'בלי דבוקה');
+  return (
+    <button onClick={onClick} className="flex h-[54px] w-full items-center gap-2.5 text-start active:bg-page/60">
+      <Avatar member={m} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-ink-700" dir="auto">{m.name}</span>
+        <span className="flex items-center gap-1.5 text-xs text-ink-400">
+          <span className="truncate" dir="auto">{sub}</span>
+          {m.plannedCount > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="inline-flex h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-page" aria-hidden>
+                <span className="h-full rounded-full bg-brand-600" style={{ width: `${Math.min(100, (100 * m.completedCount) / m.plannedCount)}%` }} />
+              </span>
+              <bdi dir="ltr" className="tabular-nums">{m.completedCount}/{m.plannedCount}</bdi>
+            </>
+          )}
+        </span>
+      </span>
+      {worst ? (
+        <span className={cn('shrink-0 rounded border px-1.5 py-0.5 text-3xs font-semibold', ATTENTION_STYLE[worst])}>{reason(worst)}</span>
+      ) : (
+        <span className="shrink-0 text-sm font-bold tabular-nums text-ink-700">{m.weekKm.toFixed(1)} <span className="text-3xs font-normal text-ink-400">ק״מ</span></span>
+      )}
+    </button>
   );
 }
 
@@ -391,6 +379,33 @@ function MiniStages({ bars }: { bars: { key: string; count: number; stuck: boole
           b.count === 0 ? 'bg-white/20' : b.stuck ? 'bg-amber-300' : 'bg-white')}
           style={{ height: b.count === 0 ? 3 : Math.max(6, Math.round((b.count / max) * 36)) }} />
       ))}
+    </span>
+  );
+}
+
+/**
+ * The week the academy home shows, for the page's title row (the home has no row
+ * of its own for it, so it fits one screen): "השבוע · 4–10 באוק׳" and its arrows.
+ */
+export function AcademyWeekLabel({ weekStart }: { weekStart: string }) {
+  const t = useTranslations('academy');
+  const locale = useLocale();
+  const [now] = useState(() => new Date());
+  const current = weekStart === sundayOf(now);
+  return (
+    <span className="block truncate text-xs font-semibold text-ink-400">
+      {current ? t('thisWeek') : 'שבוע'} · <bdi dir="ltr">{fmtWeekRange(weekStart, locale)}</bdi>
+    </span>
+  );
+}
+
+export function AcademyWeekArrows({ weekStart, onWeekChange }: { weekStart: string; onWeekChange: (w: string) => void }) {
+  const t = useTranslations('academy');
+  const [now] = useState(() => new Date());
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      <WeekArrow label={t('previousWeek')} onClick={() => onWeekChange(shiftWeek(weekStart, -1))} dir="back" />
+      <WeekArrow label={t('nextWeek')} onClick={() => onWeekChange(shiftWeek(weekStart, 1))} dir="forward" disabled={weekStart === sundayOf(now)} />
     </span>
   );
 }

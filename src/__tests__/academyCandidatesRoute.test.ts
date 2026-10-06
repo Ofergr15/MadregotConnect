@@ -165,7 +165,7 @@ const { GET, PATCH, POST } = await import('@/app/api/academy/candidates/route');
 function asStaff(email = 'yossi@madregot.app') {
   resolveVerifiedCaller.mockResolvedValue({
     denied: null,
-    caller: { email, athleteId: 'staff-1', role: 'academy_coach', isStaff: true, isSuperUser: false },
+    caller: { email, athleteId: 'staff-1', role: 'academy_coach', roles: ['academy_coach', 'academy_manager'], isStaff: true, isSuperUser: false },
   });
 }
 function asRunner() {
@@ -522,10 +522,13 @@ describe('inviting and accepting', () => {
     expect((await res.json()).code).toBe('not-linked');
   });
 
-  it('lets an academy coach accept only for themselves', async () => {
+  it('is the academy manager\'s: a coach can neither see the funnel nor accept from it', async () => {
     const body = await (await post({ name: 'רון' })).json();
-    await patch({ id: body.candidate.id, action: 'link', athleteId: 'a1' });
-    const res = await patch({ id: body.candidate.id, action: 'accept', preview: true, coachId: 'someone-else' });
-    expect(res.status).toBe(403);
+    resolveVerifiedCaller.mockResolvedValue({
+      denied: null,
+      caller: { email: 'dana@x.com', athleteId: 'staff-3', role: 'academy_coach', roles: ['academy_coach'], isStaff: true, isSuperUser: false },
+    });
+    expect((await get()).status).toBe(403);
+    expect((await patch({ id: body.candidate.id, action: 'accept', preview: true, coachId: 'staff-3' })).status).toBe(403);
   });
 });

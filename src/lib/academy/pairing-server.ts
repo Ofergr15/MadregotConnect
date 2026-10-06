@@ -29,11 +29,13 @@ export function isAcademyManager(caller: RoleCaller): boolean {
 
 /**
  * May this caller let somebody into the academy from the funnel — send the form
- * invite, accept them? The manager, and the academy's own coaches, who pick the
- * trainees they will run. A club `coach` is staff but not academy staff.
+ * invite, accept them? The manager only (2026-10-06): the academy runs as a
+ * hierarchy — admin names managers, a manager runs the funnel, names coaches and
+ * pairs trainees, a coach runs the trainees they were given. Coaches used to pick
+ * their own from the funnel.
  */
 export function canAdmitToAcademy(caller: RoleCaller): boolean {
-  return isAcademyManager(caller) || hasRole(caller, 'academy_coach');
+  return isAcademyManager(caller);
 }
 
 export async function requireAcademyManager(

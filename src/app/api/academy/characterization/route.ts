@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { resolveVerifiedCaller, type VerifiedCaller } from '@/lib/auth/self-or-staff';
+import { isAcademyManager, mayCoach } from '@/lib/academy/pairing-server';
 import { isMissingTable } from '@/lib/supabase/schema-drift';
 import { readCharacterization, readWeekdays, type Characterization } from '@/lib/academy/characterization';
 
@@ -55,6 +56,18 @@ async function staffOnly(request: Request) {
   return { caller };
 }
 
+/**
+ * The manager's (it is the funnel's call notes), and the trainee's own coach once
+ * the candidate has become their trainee: the coach plans from these answers. No
+ * other coach.
+ */
+async function mayReadCandidate(caller: VerifiedCaller, candidateId: string): Promise<boolean> {
+  if (isAcademyManager(caller)) return true;
+  const { data } = await createServerClient().from('academy_candidates').select('athlete_id').eq('id', candidateId).maybeSingle();
+  const athleteId = (data as { athlete_id?: string | null } | null)?.athlete_id;
+  return !!athleteId && (await mayCoach(caller, athleteId));
+}
+
 /** A number in range, or null. Anything unparseable is "no answer", never 0. */
 function boundedNumber(value: unknown, min: number, max: number): number | null {
   if (value === null || value === undefined || value === '') return null;
@@ -85,6 +98,9 @@ export async function GET(request: Request) {
 
     const candidateId = new URL(request.url).searchParams.get('candidateId') || '';
     if (!candidateId) return NextResponse.json({ error: 'candidateId is required' }, { status: 400 });
+    if (!(await mayReadCandidate(gate.caller!, candidateId))) {
+      return NextResponse.json({ error: 'Not your trainee' }, { status: 403 });
+    }
 
     const supabase = createServerClient();
     const { data, error } = await supabase
@@ -127,6 +143,9 @@ export async function PUT(request: Request) {
     const body = await request.json().catch(() => ({}));
     const candidateId = String(body?.candidateId || '');
     if (!candidateId) return NextResponse.json({ error: 'candidateId is required' }, { status: 400 });
+    if (!(await mayReadCandidate(gate.caller!, candidateId))) {
+      return NextResponse.json({ error: 'Not your trainee' }, { status: 403 });
+    }
 
     const supabase = createServerClient();
     // The candidate has to exist. The foreign key would catch it anyway, but as a 500 during a

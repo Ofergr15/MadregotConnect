@@ -91,7 +91,7 @@ const { GET, PUT } = await import('@/app/api/academy/characterization/route');
 function asStaff(email = 'ofer@madregot.app') {
   resolveVerifiedCaller.mockResolvedValue({
     denied: null,
-    caller: { email, athleteId: 'staff-1', role: 'academy_coach', isStaff: true, isSuperUser: false },
+    caller: { email, athleteId: 'staff-1', role: 'academy_coach', roles: ['academy_coach', 'academy_manager'], isStaff: true, isSuperUser: false },
   });
 }
 function asRunner() {

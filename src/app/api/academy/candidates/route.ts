@@ -126,11 +126,13 @@ async function emailsByCandidate(supabase: any, rows: any[]) {
   return out;
 }
 
+// The funnel is the academy manager's (see canAdmitToAcademy): candidates' phone
+// numbers, intake answers and call notes, before anyone is anybody's trainee.
 async function staffOnly(request: Request) {
   const { denied, caller } = await resolveVerifiedCaller(request);
   if (denied) return { denied };
-  if (!(caller.isSuperUser || caller.isStaff)) {
-    return { denied: NextResponse.json({ error: 'Staff access required' }, { status: 403 }) };
+  if (!isAcademyManager(caller)) {
+    return { denied: NextResponse.json({ error: 'Academy manager access required' }, { status: 403 }) };
   }
   return { caller };
 }

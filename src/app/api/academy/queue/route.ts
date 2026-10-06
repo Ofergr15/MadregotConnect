@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { requireStaff } from '@/lib/auth/self-or-staff';
+import { requireStaffCaller } from '@/lib/auth/self-or-staff';
+import { visibleTraineeIds } from '@/lib/academy/pairing-server';
 import { computeAcademyWeekAdherence, sundayOf, addDaysStr } from '@/lib/academy/report';
 import { isMissingFeedbackTable } from '@/lib/academy/feedback';
 import { buildQueue } from '@/lib/academy/queue';
@@ -21,8 +22,10 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: Request) {
   try {
-    const denied = await requireStaff(request);
+    const { denied, caller } = await requireStaffCaller(request);
     if (denied) return denied;
+    // "Whose week do I open first" — of MY trainees, for a coach.
+    const visible = await visibleTraineeIds(caller, request);
 
     const { searchParams } = new URL(request.url);
     const weekStart = sundayOf(searchParams.get('weekStart'));
@@ -31,7 +34,8 @@ export async function GET(request: Request) {
     // `withExecution` because the queue prints the same accuracy the trainee sees
     // on the run itself — two surfaces disagreeing about one workout is the
     // failure this whole feature exists to end.
-    const report = await computeAcademyWeekAdherence({ weekStart, withExecution: true });
+    const full = await computeAcademyWeekAdherence({ weekStart, withExecution: true });
+    const report = visible ? { ...full, athletes: full.athletes.filter((a) => visible.has(a.athleteId)) } : full;
 
     const supabase = createServerClient();
     const { data, error } = await supabase

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { requireStaff } from '@/lib/auth/self-or-staff';
+import { requireAcademyManager } from '@/lib/academy/pairing-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,8 +11,9 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: Request) {
   try {
-    // Applicant PII — phone numbers and the full intake questionnaire.
-    const denied = await requireStaff(request);
+    // Applicant PII — phone numbers and the full intake questionnaire. The
+    // manager's, with the rest of the funnel.
+    const { denied } = await requireAcademyManager(request);
     if (denied) return denied;
 
     const { searchParams } = new URL(request.url);
