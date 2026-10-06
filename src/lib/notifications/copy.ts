@@ -645,6 +645,37 @@ export function academyJoinedCopy(
       };
 }
 
+/**
+ * The academy manager gave a trainee a (new) dedicated coach, from the members
+ * tab with "להודיע לשניהם" on. To the trainee: who is coaching them now.
+ */
+export function academyCoachAssignedCopy(
+  locale: NotificationLocale,
+  p: { coach: string },
+): PushCopy {
+  const coach = (p.coach || '').trim() || SOMEONE[locale];
+  return locale === 'he'
+    ? { title: `🎓 המאמן שלך באקדמיה: ${coach}`, body: 'כל ההיסטוריה שלך עוברת איתך. לחיצה פותחת את האקדמיה.' }
+    : { title: `🎓 Your academy coach: ${coach}`, body: 'Your history comes with you. Tap to open the academy.' };
+}
+
+/** The same move, to the coach receiving them: one push per coach, however many arrived. */
+export function academyTraineesAssignedCopy(
+  locale: NotificationLocale,
+  p: { names: string[] },
+): PushCopy {
+  const names = p.names.map((n) => (n || '').trim()).filter(Boolean);
+  const first = names[0] || SOMEONE[locale];
+  if (locale === 'he') {
+    return names.length > 1
+      ? { title: `🎓 ${names.length} מתאמנים חדשים אצלך`, body: `${names.slice(0, 3).join(', ')}${names.length > 3 ? ' ועוד' : ''}. לחיצה פותחת את המתאמנים שלך.` }
+      : { title: `🎓 מתאמן חדש אצלך: ${first}`, body: 'לחיצה פותחת את המתאמנים שלך באקדמיה.' };
+  }
+  return names.length > 1
+    ? { title: `🎓 ${names.length} new trainees for you`, body: `${names.slice(0, 3).join(', ')}${names.length > 3 ? ' and more' : ''}. Tap to open your trainees.` }
+    : { title: `🎓 New trainee: ${first}`, body: 'Tap to open your academy trainees.' };
+}
+
 /** The "אינסטגרם" switch turned on (roles screen): they now share the group's workouts. */
 export function storyEditorCopy(
   locale: NotificationLocale,

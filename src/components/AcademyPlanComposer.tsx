@@ -119,11 +119,15 @@ function offsetLabel(a: AcademyAthlete): string | null {
   return off === null ? null : `${fmtOffsetSec(off)} ש׳/ק״מ`;
 }
 
-export function AcademyPlanComposer({ athletes }: { athletes: AcademyAthlete[] }) {
+export function AcademyPlanComposer({ athletes, initialAthleteId = null }: {
+  athletes: AcademyAthlete[];
+  /** Seed the board with one trainee — the member sheet's "this week's plan". */
+  initialAthleteId?: string | null;
+}) {
   // One board, one or more recipients — "each week the coach decides whether to
   // push a specific workout to one or more athletes". Selection order matters:
   // the first pick is the trainee whose saved week seeds the board.
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => (initialAthleteId ? [initialAthleteId] : []));
   const [weekStart, setWeekStart] = useState(() => planWeekStartOf());
   // Day-of-week (0=Sun..6=Sat) → what is planned for that day: either a written workout
   // carrying absolute paces, or a book entry carrying none. See `lib/academy/plan-slot.ts` —

@@ -4,12 +4,12 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import {
-  GraduationCap, Plus, Search, Users, ClipboardCheck, CalendarPlus,
+  GraduationCap, Users, ClipboardCheck, CalendarPlus,
   BarChart3, Trophy, Settings as SettingsIcon, UserPlus, LayoutDashboard,
   MessagesSquare, Watch, TrendingUp, UserRoundSearch, Banknote, ChevronDown,
 } from 'lucide-react';
-import { cn, getGroupChip } from '@/lib/utils';
-import { Sheet, Spinner, SkeletonList } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { Sheet, SkeletonList } from '@/components/ui';
 import { WeeklyReview } from '@/components/academy/WeeklyReview';
 import { AcademyPlanComposer } from '@/components/AcademyPlanComposer';
 import { AcademyStats } from '@/components/AcademyStats';
@@ -27,8 +27,8 @@ import { TestRegistry } from '@/components/academy/TestRegistry';
 import { AcademyPayments } from '@/components/academy/AcademyPayments';
 import { TestBoard } from '@/components/academy/TestBoard';
 import { MemberSheet } from '@/components/academy/MemberSheet';
+import { ChangeCoachSheet, postBulk } from '@/components/academy/ManageMembersSheets';
 import { sundayOf, type AcademyMember, type AcademyMembersResponse } from '@/components/academy/types';
-import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
 import { useAthleteId } from '@/lib/use-athlete-id';
@@ -60,24 +60,10 @@ import { readAcademyDeepLink } from '@/lib/academy/deep-links';
 // manager gets the coach roster, the load-by-coach filter and the ability to
 // change who coaches whom.
 
-interface Athlete {
-  id: string;
-  name: string;
-  email: string;
-  groupName: string | null;
-  groupId: string | null;
-  status: 'active' | 'invited' | 'paused' | 'disconnected';
-  isAcademy?: boolean;
-  hasGarmin?: boolean;
-}
-
 type Tab = 'overview' | 'threads' | 'funnel' | 'members' | 'registrations' | 'plans' | 'book' | 'dispatch' | 'compliance' | 'tests' | 'stats' | 'results' | 'payments' | 'settings';
 
 
 
-function initialsOf(name: string) {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
-}
 
 type SectionGroup = 'people' | 'training' | 'progress' | 'manage';
 const SECTION_GROUPS: SectionGroup[] = ['people', 'training', 'progress', 'manage'];
@@ -279,9 +265,15 @@ export default function AcademyPage() {
   // before the edit. It also closes itself when the member leaves the payload —
   // which is exactly what should happen on "remove from academy".
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showAdd, setShowAdd] = useState(false);
-  const [search, setSearch] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
+  // Jumps out of the member sheet: whose conversation / plan to open on arrival.
+  const [threadAthlete, setThreadAthlete] = useState<string | null>(null);
+  const [planAthlete, setPlanAthlete] = useState<string | null>(null);
+  // The change-coach sheet opened from a member's sheet. The member sheet closes
+  // under it (a drawer on a drawer fights the drag) and reopens after — each with
+  // a beat between, because a closing sheet pops its history entry and that pop
+  // would dismiss a sheet opened in the same tick (useBackDismiss).
+  const [coachMove, setCoachMove] = useState<AcademyMember | null>(null);
 
   // Read through `useSearchParams`, not `window.location` once on mount: a push
   // tapped while this screen is already open is a router navigation to the same
@@ -321,50 +313,34 @@ export default function AcademyPage() {
   // second copy of it living in the child.
   const reloadMembers = useCallback(async () => { await refreshMembers(); }, [refreshMembers]);
 
-  // The club-wide roster is only needed to *add* someone, so it loads when the
-  // add sheet is first opened rather than blocking the page's first paint.
-  const [athletes, setAthletes] = useState<Athlete[] | null>(null);
-  const loadAthletes = useCallback(async () => {
-    try {
-      const res = await fetch('/api/athletes', { headers: await bearerHeaders(false) });
-      const data = await res.json();
-      setAthletes(data.athletes || []);
-    } catch (err) {
-      console.error('Failed to fetch athletes:', err);
-      setAthletes([]);
-    }
-  }, []);
-  const openAdd = () => { setShowAdd(true); if (athletes === null) loadAthletes(); };
-
-  const setAcademy = async (athleteId: string, isAcademy: boolean) => {
+  // Out of the academy, still in the club. The same write the members tab's
+  // multi-select uses (POST /api/academy/members/bulk), so one removal and twenty
+  // leave the same trail and can both be brought back from "עזבו".
+  const removeFromAcademy = async (athleteId: string) => {
     setSaving(athleteId);
-    setAthletes(prev => prev && prev.map(a => (a.id === athleteId ? { ...a, isAcademy } : a)));
     try {
-      const res = await fetch('/api/athletes', {
-        method: 'PUT',
-        headers: await bearerHeaders(),
-        body: JSON.stringify({ id: athleteId, isAcademy }),
-      });
-      if (!res.ok) throw new Error('save failed');
-      // One revalidation refreshes the overview tiles, the group rollup and the
-      // directory together — they're all views of this key.
+      await postBulk({ athleteIds: [athleteId], action: 'remove' });
+      // Leaving the payload closes the sheet on its own: `selected` is derived from it.
       await refreshMembers();
-      // Removing them from the academy drops them from the payload, which closes
-      // the sheet on its own now that `selected` is derived from it.
-    } catch (err) {
-      console.error('Failed to update academy status:', err);
-      setAthletes(prev => prev && prev.map(a => (a.id === athleteId ? { ...a, isAcademy: !isAcademy } : a)));
     } finally {
       setSaving(null);
     }
   };
 
-  const addableAthletes = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return (athletes || [])
-      .filter(a => !a.isAcademy && a.status !== 'invited')
-      .filter(a => !q || a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q));
-  }, [athletes, search]);
+  // Any way of changing section other than a member-sheet jump starts it fresh.
+  const goTab = useCallback((v: Tab) => { setThreadAthlete(null); setPlanAthlete(null); setView(v); }, []);
+
+  const openFunnelCard = useCallback((candidateId: string) => {
+    // CandidateFunnel opens `?candidate=` once on mount, as the applicant mail's link does.
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'funnel');
+      url.searchParams.set('candidate', candidateId);
+      window.history.replaceState(null, '', url.toString());
+    } catch { /* the board still opens */ }
+    setSelectedId(null);
+    setView('funnel');
+  }, []);
 
   // The band and the pace override travel with each trainee: the planner shifts
   // every pace by them before saving and pushing, so it has to resolve them the
@@ -485,7 +461,7 @@ export default function AcademyPage() {
             onOpenSettings={() => setView('settings')}
             canEditRoles={role === 'admin'}
             members={members?.members}
-            onGoTab={setView}
+            onGoTab={goTab}
           />
         )}
         </div>
@@ -493,7 +469,7 @@ export default function AcademyPage() {
 
       <AcademySectionNav
         value={view}
-        onChange={setView}
+        onChange={goTab}
         options={tabs}
         groupOf={(v) => GROUP_OF[v]}
         className="mb-2.5 sm:mb-6"
@@ -506,18 +482,26 @@ export default function AcademyPage() {
           weekStart={weekStart}
           onWeekChange={setWeekStart}
           onSelectMember={selectMember}
-          onGoTab={setView}
+          onGoTab={goTab}
           onChanged={reloadMembers}
           onOpenCoach={(id) => { setFocusCoach(id); setCoachesOpen(true); }}
         />
       ) : view === 'threads' ? (
-        <AcademyThreads initialOpenId={deepLink.thread && deepLink.thread !== 'mine' ? deepLink.thread : null} />
+        // Either door: a staff push (?thread=<traineeId>) or the member sheet's
+        // "the conversation" (threadAthlete); the member sheet wins when both.
+        <AcademyThreads
+          key={threadAthlete ?? 'inbox'}
+          initialOpenId={threadAthlete ?? (deepLink.thread && deepLink.thread !== 'mine' ? deepLink.thread : null)}
+        />
       ) : view === 'members' ? (
         <AcademyMembers
           data={members}
           isLoading={membersLoading}
           onSelectMember={selectMember}
-          onAdd={openAdd}
+          isManager={isManager}
+          onChanged={reloadMembers}
+          onOpenFunnel={openFunnelCard}
+          myAthleteId={myAthleteId}
         />
       ) : view === 'funnel' ? (
         <CandidateFunnel />
@@ -545,7 +529,7 @@ export default function AcademyPage() {
         // the same member sheet every other academy list opens.
         <TestRegistry scheduling={<TestBoard onSelectAthlete={setSelectedId} />} />
       ) : (
-        <AcademyPlanComposer athletes={planComposerAthletes} />
+        <AcademyPlanComposer key={planAthlete ?? 'plans'} athletes={planComposerAthletes} initialAthleteId={planAthlete} />
       )}
 
       {members?.scope === 'academy' && (
@@ -564,7 +548,7 @@ export default function AcademyPage() {
         member={selected}
         weekStart={weekStart}
         onOpenChange={(o) => { if (!o) setSelectedId(null); }}
-        onRemove={(id) => setAcademy(id, false)}
+        onRemove={isManager ? (id) => void removeFromAcademy(id) : undefined}
         removing={!!selected && saving === selected.athleteId}
         // Who coaches whom, and which דבוקה they're in, are the manager's calls; a
         // coach still owns their own trainees' paces, which CoachPairing lets them
@@ -573,67 +557,29 @@ export default function AcademyPage() {
         bands={members?.bands}
         canAssign={isManager}
         onChanged={reloadMembers}
+        onChangeCoach={isManager ? (m) => { setSelectedId(null); setTimeout(() => setCoachMove(m), 350); } : undefined}
+        onOpenThread={(id) => { setSelectedId(null); setThreadAthlete(id); setView('threads'); }}
+        onOpenPlan={(id) => { setSelectedId(null); setPlanAthlete(id); setView('plans'); }}
+        onOpenTests={() => { setSelectedId(null); setView('tests'); }}
+        canViewAs={!viewed && isSuperUser(email)}
       />
 
-      {/* Add Sheet */}
-      <Sheet
-        open={showAdd}
-        onOpenChange={(o) => { if (!o) setShowAdd(false); }}
-        title={t('addToAcademy')}
-        bodyClassName="px-2"
-      >
-        <div className="px-2 pb-3">
-          <div className="relative">
-            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-400" />
-            <input
-              autoFocus
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder={t('searchAthletes')}
-              className="w-full bg-page border border-page rounded-xl ps-9 pe-3 min-h-[44px] text-sm text-ink-700 placeholder:text-ink-400 focus:outline-none focus:border-brand-600"
-            />
-          </div>
-        </div>
-        <div className="max-h-[60vh] overflow-y-auto">
-          {athletes === null ? (
-            <div className="flex justify-center py-8"><Spinner size={20} /></div>
-          ) : addableAthletes.length === 0 ? (
-            <p className="text-sm text-ink-400 text-center py-8">
-              {search ? t('noMatchingAthletes') : t('allAlreadyInAcademy')}
-            </p>
-          ) : (
-            addableAthletes.map(a => {
-              const gs = getGroupChip(a.groupName);
-              return (
-                <button
-                  key={a.id}
-                  onClick={() => setAcademy(a.id, true)}
-                  disabled={saving === a.id}
-                  className="w-full flex items-center gap-3 p-3 min-h-[44px] rounded-xl hover:bg-page/50 active:scale-[0.98] transition-all text-start disabled:opacity-50"
-                >
-                  <div className="bg-page w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-ink-500 shrink-0">
-                    {initialsOf(a.name)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-ink-700 text-sm truncate">{a.name}</div>
-                    <div className="text-xs text-ink-400 truncate">{a.email}</div>
-                  </div>
-                  {a.groupName && gs && (
-                    <span className={cn('text-2xs font-bold px-2 py-0.5 rounded-md border', gs.bg, gs.text, gs.border)}>
-                      {a.groupName}
-                    </span>
-                  )}
-                  {saving === a.id ? (
-                    <Spinner size={16} className="shrink-0" />
-                  ) : (
-                    <Plus className="h-4 w-4 text-brand-600 shrink-0" />
-                  )}
-                </button>
-              );
-            })
-          )}
-        </div>
-      </Sheet>
+      {isManager && members?.scope === 'academy' && (
+        <ChangeCoachSheet
+          open={!!coachMove}
+          onOpenChange={(o) => {
+            if (o) return;
+            const back = coachMove?.athleteId ?? null;
+            setCoachMove(null);
+            // Back to the trainee the move started from, now showing the new coach.
+            if (back) setTimeout(() => setSelectedId(back), 350);
+          }}
+          members={coachMove ? [coachMove] : []}
+          coaches={members.coaches}
+          onDone={reloadMembers}
+        />
+      )}
+
     </div>
   );
 }

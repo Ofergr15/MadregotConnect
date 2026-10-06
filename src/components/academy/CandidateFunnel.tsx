@@ -136,7 +136,7 @@ function CandidateCard({
   // Source and goal are half of what tells the coach who this person is, and the
   // wait is the other half. All three on one line, because the card's whole job
   // is to be skimmed.
-  const facts = [candidate.source === 'form' ? 'טופס' : 'אינסטגרם', candidate.goal].filter(Boolean);
+  const facts = [sourceLabel(candidate.source, true), candidate.goal].filter(Boolean);
 
   return (
     <button
@@ -520,7 +520,7 @@ export function CandidateSheet({
     <Sheet open={open} onOpenChange={onOpenChange} title={candidate.name}>
       <div className="px-4 pb-6">
         <p className="text-xs text-ink-400" dir="auto">
-          {candidate.source === 'form' ? 'טופס הרשמה' : 'אינסטגרם'}
+          {sourceLabel(candidate.source)}
           {candidate.goal && ` · ${candidate.goal}`}
         </p>
         {contact.length > 0 && (
@@ -1204,4 +1204,12 @@ export function CandidateFunnel() {
       <AddCandidateSheet open={adding} onOpenChange={setAdding} onCreate={create} />
     </>
   );
+}
+
+/** Where a card came from. 'club' and 'manager' are the members tab's two doors. */
+function sourceLabel(source: string | null | undefined, short = false): string {
+  if (source === 'form') return short ? 'טופס' : 'טופס הרשמה';
+  if (source === 'club') return 'חבר מועדון';
+  if (source === 'manager') return short ? 'הזמנה' : 'הזמנה מהמנהל';
+  return 'אינסטגרם';
 }
