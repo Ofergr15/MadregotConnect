@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { onAppReady } from '@/lib/app-ready';
 
 // App-open loading splash: ink floods the logo's staircase bottom-to-top (the
 // badge is used as a mask), the mark snaps to solid ink when the fill tops out,
@@ -25,13 +26,22 @@ import { useEffect, useState } from 'react';
 // upside-down halfway through every single launch, and ran 2700ms end to end.
 // The mark now doesn't move at all, so it's readable from the first frame.
 //
-// Timing: entrance 1530ms + hold 170ms -> start fade; fade 420ms -> unmount.
+// Ends when the app is READY, not on a clock (lib/app-ready): a returning member
+// whose feed is saved on the device sees it in a few hundred ms, and making them
+// watch a 2.1 s animation over it was the single biggest cost of every open
+// (measured in ~/.cache/madregot/lab). The timer below stays as the CAP, so an
+// open is never slower than it was; reaching it early just fades mid-fill.
+//
+// Timing (the cap): entrance 1530ms + hold 170ms -> start fade; fade 420ms -> unmount.
 // The 1530ms is not arbitrary — it's when the fill + ink-snap finish. The
 // matching per-element delays live in globals.css (.app-fill-*); the two have
 // to move together or the layer starts fading mid-fill.
 const ENTRANCE_MS = 1530;
 const HOLD_MS = 170;
 const FADE_MS = 420;
+// Leaving because the app is ready (not because the cap ran out) means there is
+// already a feed under the logo, so the fade is a quick reveal, not a scene change.
+const FAST_FADE_MS = 180;
 const SESSION_KEY = 'app_splash_shown';
 
 // Whether this JS runtime has already kicked the animation off. Module scope, so
@@ -48,6 +58,7 @@ export function AppSplash() {
   // Renders visible on the very first paint (server + client identical, so no
   // hydration mismatch). The decision to skip/animate happens in effects only.
   const [phase, setPhase] = useState<'in' | 'out' | 'done'>('in');
+  const [fast, setFast] = useState(false);
   useEffect(() => {
     // Already shown this session (e.g. locale reload) -> skip instantly. Our own
     // key from a moment ago doesn't count, hence the runtime flag.
@@ -58,11 +69,20 @@ export function AppSplash() {
     startedInThisRuntime = true;
     sessionStorage.setItem(SESSION_KEY, '1');
 
-    const toOut = setTimeout(() => setPhase('out'), ENTRANCE_MS + HOLD_MS);
-    const toDone = setTimeout(() => setPhase('done'), ENTRANCE_MS + HOLD_MS + FADE_MS);
+    let toOut: ReturnType<typeof setTimeout> | null = setTimeout(() => leave(false), ENTRANCE_MS + HOLD_MS);
+    let toDone: ReturnType<typeof setTimeout> | null = null;
+    const leave = (early: boolean) => {
+      if (toDone) return;
+      if (toOut) { clearTimeout(toOut); toOut = null; }
+      setFast(early);
+      setPhase('out');
+      toDone = setTimeout(() => setPhase('done'), early ? FAST_FADE_MS : FADE_MS);
+    };
+    const off = onAppReady(() => leave(true));
     return () => {
-      clearTimeout(toOut);
-      clearTimeout(toDone);
+      off();
+      if (toOut) clearTimeout(toOut);
+      if (toDone) clearTimeout(toDone);
     };
   }, []);
 
@@ -74,7 +94,7 @@ export function AppSplash() {
       // `app-splash-layer` is the CSS-only failsafe (see globals.css): it takes
       // this layer away on its own at 4s even if none of the JS below ever runs.
       className={`app-splash-layer fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden ${
-        phase === 'out' ? 'app-splash-out' : ''
+        phase === 'out' ? (fast ? 'app-splash-out app-splash-out-fast' : 'app-splash-out') : ''
       }`}
       // Card white in the middle easing out to the page grey (#DFDFDF) — the same
       // colour as the manifest's background and the app body, so there's no jump

@@ -1,4 +1,5 @@
 import { clearPersistedSWRCache } from '@/lib/swr-persist';
+import { clearSavedFeedPage } from '@/lib/feed/feed-cache';
 import { LEGACY_DASHBOARD_SYNC_PREFIX, STRAVA_OPEN_SYNC_PREFIX } from '@/lib/providers/open-sync';
 
 // Every localStorage key that says "who is signed in" in this browser.
@@ -84,4 +85,6 @@ export function clearIdentityKeys() {
   // sign-in, which is the path where the next person on the device would otherwise
   // be the first to see the last person's numbers.
   clearPersistedSWRCache();
+  // The saved first feed page (lib/feed/feed-cache) is the same kind of data.
+  clearSavedFeedPage();
 }

@@ -21,6 +21,7 @@ import { BLOCKED_MEMBERSHIPS } from '@/lib/auth/membership';
 import { shouldSyncOnOpen, stravaOpenSyncKey } from '@/lib/providers/open-sync';
 import { getSupabase } from '@/lib/supabase/client';
 import { primeFeedFirstPage } from '@/lib/feed-client';
+import { markAppReady } from '@/lib/app-ready';
 import { REVIEW_LAST_PATH_KEY } from '@/lib/review-context';
 import {
   APP_SCROLL_ID,
@@ -335,6 +336,13 @@ export default function AppLayout({
   useEffect(() => {
     if (gateWaiting && pathname === '/feed') primeFeedFirstPage();
   }, [gateWaiting, pathname]);
+
+  // The splash waits for "something real on screen" (lib/app-ready). The feed
+  // raises it itself once its cards are up; every other screen counts as ready
+  // the moment the gate opens, which is when its shell renders.
+  useEffect(() => {
+    if (authorized && !gateWaiting && pathname !== '/feed') markAppReady();
+  }, [authorized, gateWaiting, pathname]);
 
   // Held behind the same spinner as the session check rather than swapped in
   // after the fact: a revoked member should never see a flash of the feed they

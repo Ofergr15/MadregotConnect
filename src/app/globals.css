@@ -380,6 +380,8 @@
   animation: appOpenReveal 420ms cubic-bezier(0.4, 0, 1, 1) forwards;
   pointer-events: none;
 }
+/* Ready before the cap (AppSplash FAST_FADE_MS): the feed is already underneath. */
+.app-splash-out.app-splash-out-fast { animation-duration: 180ms; }
 /* Reduced motion: drop the rise and the halo's breath — the mark simply fades
    in already-inked. The level bar is kept (it fills linearly, no easing): a
    bar growing in place isn't the kind of large-area motion this query is about,

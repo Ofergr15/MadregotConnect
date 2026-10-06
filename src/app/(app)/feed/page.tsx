@@ -9,6 +9,8 @@ import { useTranslations, useFormatter } from 'next-intl';
 import { cn, dayKeyRelation, dayKeyToDate, feedDayKey, resolveGroup } from '@/lib/utils';
 import { useNavIdentity } from '@/lib/nav-items';
 import { useApi } from '@/lib/api';
+import { markAppReady } from '@/lib/app-ready';
+import { readSavedFeedPage, saveFeedPage } from '@/lib/feed/feed-cache';
 import { fetchFeed, deletePost, fetchFeedItem, fetchFeedItemByActivity, FEED_PAGE_SIZE, takePrimedFeedPage } from '@/lib/feed-client';
 import { feedFocusFromParams } from '@/lib/feed/deep-link';
 import { FAVORITES_SQUAD, MINE_SQUAD } from '@/lib/feed/squad-filter';
@@ -159,11 +161,20 @@ function DayHeading({ dayKey }: { dayKey: string }) {
 // (loadMore) and optimistic mutations are untouched.
 let lastFeedPage: { items: FeedItem[]; cursor: string | null } | null = null;
 
+// The in-memory page from a moment ago, else the copy saved on the device by the
+// last visit (lib/feed/feed-cache) — what makes a returning open show the feed at
+// once instead of a skeleton under the splash. Safe to read in a state initializer
+// because the (app) layout never renders this page on the server.
+function seedPage() {
+  if (!lastFeedPage) lastFeedPage = readSavedFeedPage();
+  return lastFeedPage;
+}
+
 export default function FeedPage() {
   const t = useTranslations('feed');
-  const [items, setItems] = useState<FeedItem[]>(() => lastFeedPage?.items ?? []);
-  const [cursor, setCursor] = useState<string | null>(() => lastFeedPage?.cursor ?? null);
-  const [loading, setLoading] = useState(() => !lastFeedPage);
+  const [items, setItems] = useState<FeedItem[]>(() => seedPage()?.items ?? []);
+  const [cursor, setCursor] = useState<string | null>(() => seedPage()?.cursor ?? null);
+  const [loading, setLoading] = useState(() => !seedPage());
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -364,7 +375,10 @@ export default function FeedPage() {
       setCursor(nextCursor);
       // Only the unfiltered club feed is cached — a squad's page under the "all"
       // key would come back as everyone's feed on the next visit.
-      if (activeTypes.length === 0 && !squad) lastFeedPage = { items: page, cursor: nextCursor };
+      if (activeTypes.length === 0 && !squad) {
+        lastFeedPage = { items: page, cursor: nextCursor };
+        saveFeedPage(page, nextCursor);
+      }
     } catch (err: unknown) {
       setError((err as Error).message || t('loadError'));
     } finally {
@@ -385,6 +399,13 @@ export default function FeedPage() {
     finally { setLoadingMore(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingMore, cursor, filter, squad]);
+
+  // Ends the app-open splash (components/AppSplash) as soon as there is a feed
+  // to look at — a saved page counts, and so does a finished load with nothing in
+  // it or an error, because the splash hiding an answer helps nobody.
+  useEffect(() => {
+    if (items.length > 0 || !loading) markAppReady();
+  }, [items.length, loading]);
 
   useEffect(() => { loadInitial(); }, [loadInitial]);
 
