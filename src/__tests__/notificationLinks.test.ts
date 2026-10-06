@@ -17,7 +17,7 @@ describe('notification links open the exact place', () => {
     expect(src('src/app/api/admin/perks/route.ts')).toContain('/dashboard/benefits?perk=${data.id}');
   });
   it('a follow opens the follower, not your own profile', () => {
-    expect(src('src/app/api/athletes/follow/route.ts')).toContain('/dashboard/teammate/${followerId}');
+    expect(src('src/app/api/athletes/follow/route.ts')).toContain('teammateHref(followerId)');
   });
   it('nothing points at the switched-off photos page', () => {
     expect(src('src/app/api/photos/notify-import/route.ts')).not.toContain("url: '/dashboard/photos");

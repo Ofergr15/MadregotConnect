@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
 import { followCopy } from '@/lib/notifications/copy';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
+import { teammateHref } from '@/lib/athletes/profile-link';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
           kind: 'follow',
           actorAthleteId: followerId,
           copy: (locale) => followCopy(locale, { name: who }),
-          url: `/dashboard/teammate/${followerId}`, // who followed you, not your own profile
+          url: teammateHref(followerId) ?? '/dashboard/profile', // who followed you, not your own profile
           tag: `follow-${followerId}-${followeeId}`,
           category: 'teammates',
           ...(follower?.avatar_url ? { icon: follower.avatar_url } : {}),
