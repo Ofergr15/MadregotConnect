@@ -9,8 +9,8 @@ import { sortBands } from '@/lib/academy/bands';
 import { waShareUrl, type AddableMember, type BulkAction } from '@/lib/academy/manage';
 import { memberCoachIds, memberCoachNames, joinHebrewList } from '@/lib/academy/members';
 import { coachCapacityOf } from '@/lib/academy/coach-board';
-import { useApi } from '@/lib/api';
 import { initialsOf, type AcademyBand, type AcademyCoachSummary, type AcademyMember } from './types';
+import { apiHeaders, useApi } from '@/lib/api';
 
 // The manager's sheets on the members tab: move to a coach (one trainee or many),
 // set the band for many, and add somebody — a club member, or someone new. Every
@@ -141,7 +141,50 @@ export function ChangeCoachSheet({
   const single = members.length === 1 ? members[0] : null;
   const currentIds = useMemo(() => (single ? memberCoachIds(single) : []), [single]);
   const currentKey = currentIds.join(',');
-  const assignable = useMemo(() => coaches.filter((c) => c.coachId), [coaches]);
+  // Coaches made right here (below) show at once, before the parent's payload
+  // catches up — otherwise the one just added could not be ticked.
+  const [madeHere, setMadeHere] = useState<AcademyCoachSummary[]>([]);
+  const assignable = useMemo(() => {
+    const listed = coaches.filter((c) => c.coachId);
+    return [...listed, ...madeHere.filter((m) => !listed.some((c) => c.coachId === m.coachId))];
+  }, [coaches, madeHere]);
+  // "+ מאמן נוסף": a club member becomes an academy coach without leaving the
+  // sheet. With one coach in the academy there is nobody second to tick, which
+  // is exactly where "choose several coaches" stopped working (2026-10-06).
+  const [adding, setAdding] = useState(false);
+  const [query, setQuery] = useState('');
+  const [making, setMaking] = useState<string | null>(null);
+  const { data: pool } = useApi<{ candidates: Array<{ id: string; name: string }> }>(open && adding ? '/api/academy/coaches' : null);
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const taken = new Set(assignable.map((c) => c.coachId));
+    const exclude = new Set(members.map((m) => m.athleteId));
+    return (pool?.candidates ?? [])
+      .filter((c) => !taken.has(c.id) && !exclude.has(c.id) && (!q || c.name.toLowerCase().includes(q)))
+      .slice(0, 6);
+  }, [pool, query, assignable, members]);
+  const makeCoach = async (person: { id: string; name: string }) => {
+    setMaking(person.id);
+    setError(null);
+    try {
+      const res = await fetch('/api/academy/coaches', {
+        method: 'PUT',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ athleteId: person.id, coach: true }),
+      });
+      if (!res.ok) throw new Error();
+      setMadeHere((m) => [...m, { coachId: person.id, coachName: person.name, trainees: 0, unpaced: 0, weekKm: 0, completionRate: null } as AcademyCoachSummary]);
+      if (single) setSet((s) => (s.includes(person.id) ? s : [...s, person.id]));
+      else setPick(person.id);
+      setAdding(false);
+      setQuery('');
+      void onDone();
+    } catch {
+      setError('לא הצלחתי להוסיף את המאמן');
+    } finally {
+      setMaking(null);
+    }
+  };
   const { data: settingsData } = useApi<{ settings?: unknown }>(open ? '/api/academy/settings' : null);
   const capacity = coachCapacityOf(settingsData?.settings);
   // Single: the ticked set, in the order ticked (the first stays the legacy coach).
@@ -160,6 +203,8 @@ export function ChangeCoachSheet({
     setMode('move');
     setNotify(true);
     setError(null);
+    setAdding(false);
+    setQuery('');
   }, [open, currentKey]);
 
   const toggle = (id: string) => setSet((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -261,7 +306,7 @@ export function ChangeCoachSheet({
         )}
         <div className="overflow-hidden rounded-card bg-card divide-y divide-page">
           {assignable.length === 0 && (
-            <p className="px-4 py-4 text-sm text-ink-500">אין עדיין מאמנים באקדמיה. מוסיפים מאמן בכפתור המנהל, בראש המסך.</p>
+            <p className="px-4 py-4 text-sm text-ink-500">אין עדיין מאמנים באקדמיה. מוסיפים כאן למטה.</p>
           )}
           {assignable.map((c) => (single
             ? coachRow(c, set.includes(c.coachId!), () => toggle(c.coachId!), <Checkbox on={set.includes(c.coachId!)} />)
@@ -281,6 +326,47 @@ export function ChangeCoachSheet({
             </button>
           )}
         </div>
+
+        {single && assignable.length === 1 && !adding && (
+          <p className="mt-2 px-1 text-xs text-ink-400">יש באקדמיה מאמן אחד. כדי לבחור כמה, מוסיפים מאמן:</p>
+        )}
+        {!adding ? (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="mt-2 flex w-full min-h-[48px] items-center justify-center gap-2 rounded-card border-2 border-dashed border-ink-300 text-sm font-extrabold text-brand-600"
+          >
+            + מאמן נוסף מהמועדון
+          </button>
+        ) : (
+          <div className="mt-2 rounded-card bg-card p-2">
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="חיפוש חבר מועדון"
+              className="w-full min-h-[44px] rounded-xl bg-page px-3 text-base text-ink-700 outline-none placeholder:text-ink-400"
+              dir="auto"
+            />
+            <div className="mt-1 divide-y divide-page">
+              {!pool && <p className="px-2 py-3 text-sm text-ink-400">טוען…</p>}
+              {pool && matches.length === 0 && <p className="px-2 py-3 text-sm text-ink-400">לא נמצא</p>}
+              {matches.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => makeCoach(c)}
+                  disabled={!!making}
+                  className="flex w-full min-h-[48px] items-center gap-3 px-2 text-start disabled:opacity-50"
+                >
+                  <Avatar name={c.name} size={28} />
+                  <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink-700" dir="auto">{c.name}</span>
+                  <span className="shrink-0 text-xs font-extrabold text-brand-600">{making === c.id ? '…' : 'להוסיף כמאמן'}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-2.5 flex min-h-[56px] items-center gap-3 rounded-card bg-card px-4">
           <span className="min-w-0 flex-1">
