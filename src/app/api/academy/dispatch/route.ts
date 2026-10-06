@@ -12,6 +12,7 @@ import {
   type DispatchAthlete,
 } from '@/lib/academy/dispatch';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
+import { countPlanWorkouts, type DispatchRosterEntry } from '@/lib/academy/week-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,6 +101,15 @@ export async function GET(request: Request) {
         }),
       }));
 
+    // The roster itself, beside the verdicts: the report only has rows for slots that were
+    // pushed, so a trainee whose week was never sent — or never built — is not in it at all.
+    // "Who has no plan yet" and "whose plan never left" are exactly the people the plans
+    // screen exists to list, so the roster says, per trainee, whether Garmin is linked and
+    // how many workouts their OWN plan for this week holds. Never the credential itself.
+    const hasGarminById = new Map<string, boolean>(
+      (rosterRows || []).map((a: any) => [a.id, !!a.garmin_auth]),
+    );
+
     if (athletes.length === 0) {
       // A real pre-launch empty state, not an error: as of this build exactly one
       // athlete is `is_academy`, so a coach with no trainees assigned sees nothing.
@@ -108,6 +118,7 @@ export async function GET(request: Request) {
         rows: [],
         summary: { onAccount: 0, ranFromIt: 0, unconfirmed: 0, blind: 0 },
         needsAttention: [],
+        roster: [],
         scope: isManager ? 'academy' : 'coach',
         ...(healthUnknown ? { healthUnknown: true } : {}),
       });
@@ -159,6 +170,30 @@ export async function GET(request: Request) {
       (activityRows || []).map((a: any) => slotKey(a.athlete_id, String(a.start_time || '').slice(0, 10))),
     );
 
+    // Individual plans only (athlete_id set): an academy week is built per trainee, and the
+    // club's shared plan is not a plan anybody built for them. Newest first, because a
+    // rebuilt week inserts a new row rather than updating the old one. A failed read leaves
+    // `planWorkouts` null — unknown, which the screen must not print as "no plan".
+    const plansRes = await supabase
+      .from('weekly_plans')
+      .select('athlete_id, parsed_workouts, created_at')
+      .eq('week_start_date', weekStart)
+      .in('athlete_id', ids)
+      .order('created_at', { ascending: false });
+    const planWorkouts = new Map<string, number>();
+    if (!plansRes.error) {
+      for (const p of (plansRes.data || []) as any[]) {
+        if (!planWorkouts.has(p.athlete_id)) planWorkouts.set(p.athlete_id, countPlanWorkouts(p.parsed_workouts));
+      }
+    }
+    const roster: DispatchRosterEntry[] = athletes.map(a => ({
+      athleteId: a.id,
+      name: a.name,
+      hasGarmin: hasGarminById.get(a.id) ?? false,
+      connection: a.connection,
+      planWorkouts: plansRes.error ? null : (planWorkouts.get(a.id) ?? 0),
+    }));
+
     const report = buildDispatchReport({
       athletes,
       deliveries: (deliveryRows || []) as DeliveryRow[],
@@ -169,6 +204,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       weekStart,
       ...report,
+      roster,
       scope: isManager ? 'academy' : 'coach',
       ...(healthUnknown ? { healthUnknown: true } : {}),
     });

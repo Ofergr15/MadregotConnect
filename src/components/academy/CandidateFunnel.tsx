@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, ClipboardList, GraduationCap, Link2, Mail, Plus, RotateCcw, Undo2, UserPlus } from 'lucide-react';
-import { apiHeaders } from '@/lib/api';
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ClipboardList, FileText, GraduationCap, Link2, Mail, Plus, RotateCcw, Undo2, UserPlus } from 'lucide-react';
+import { apiHeaders, useApi } from '@/lib/api';
+import { AcademyRegistrations } from '@/components/AcademyRegistrations';
 import { cn } from '@/lib/utils';
 import { EmptyState, LoadingBlock, SegmentedControl, Sheet } from '@/components/ui';
 import {
@@ -32,9 +33,11 @@ import { initialsOf } from './types';
 //
 // Three things about the shape of this screen, all of them load-bearing:
 //
-//  * **A section per stage, and the empty ones stay.** An empty `ממתין לטסט` is
-//    information — it is the shape of the funnel — and sections that appear and
-//    vanish as people move cannot be read at a glance twice. The mockup's
+//  * **A section per stage that holds somebody; the empty ones fold into one line.**
+//    They used to stay as full sections ("an empty stage is the shape of the
+//    funnel"), and with one candidate that was nine headers and eight "אין אף אחד"
+//    cards — 650px to say one name. The shape is kept, in a single thin line that
+//    names every empty stage in order, so nothing about the funnel disappears. The mockup's
 //    horizontal kanban became vertical sections for the same reason every other
 //    board in this app did: on a 375 px phone a column you have to scroll
 //    sideways to reach is a column nobody reads.
@@ -185,10 +188,20 @@ export function FunnelBoardView({
   onOpen,
   onAdd,
   likelyMembers,
+  onOpenRegistrations,
+  registrationsPending,
 }: {
   board: FunnelBoard;
   onOpen: (id: string) => void;
   onAdd?: () => void;
+  /**
+   * The platform registrations (AcademyRegistrations) — what the first stage turns
+   * into. A row above the stages opens them, so the people who filled the form are
+   * reachable from the funnel and not only from a separate section.
+   */
+  onOpenRegistrations?: () => void;
+  /** How many of those wait for approval; the row's badge. */
+  registrationsPending?: number;
   /** Card ids with a club match waiting on the card. */
   likelyMembers?: ReadonlySet<string>;
 }) {
@@ -238,6 +251,24 @@ export function FunnelBoardView({
         )}
       </div>
 
+      {onOpenRegistrations && (
+        <button
+          type="button"
+          onClick={onOpenRegistrations}
+          className="mb-4 flex min-h-[52px] w-full items-center gap-3 rounded-card bg-card px-4 text-start active:bg-page/60"
+        >
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-600 text-white"><FileText className="h-4 w-4" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-ink-900">טפסי הרשמה</span>
+            <span className="block text-xs text-ink-400">מי שמילא את הטופס, לאישור</span>
+          </span>
+          {!!registrationsPending && (
+            <span className="shrink-0 rounded-pill bg-accent-red px-2 py-0.5 text-2xs font-bold text-white"><bdi dir="ltr">{registrationsPending}</bdi></span>
+          )}
+          <ChevronLeft className="h-4 w-4 shrink-0 text-ink-400" />
+        </button>
+      )}
+
       {board.live === 0 ? (
         <EmptyState
           icon={UserPlus}
@@ -248,25 +279,20 @@ export function FunnelBoardView({
 
       {board.live > 0 && (
         <div className="space-y-5">
-          {board.columns.map(column => (
+          {board.columns.filter(column => column.candidates.length > 0).map(column => (
             <div key={column.spec.key}>
               <p className="px-4 mb-1.5 text-2xs font-bold uppercase tracking-wider text-ink-400">
                 {column.spec.waiting}
                 <span className="font-normal normal-case"> · {OWNER_LABEL[column.spec.owner]}</span>
               </p>
-              {column.candidates.length === 0 ? (
-                // An empty stage stays on the screen, and says so in words. A
-                // dash here would read as a value that failed to load.
-                <div className="rounded-card bg-card px-4 py-3 text-xs text-ink-400">אין אף אחד</div>
-              ) : (
-                <div className="overflow-hidden rounded-card bg-card divide-y divide-page">
-                  {column.candidates.map(candidate => (
-                    <CandidateCard key={candidate.id} candidate={candidate} onOpen={onOpen} likelyMember={likelyMembers?.has(candidate.id)} />
-                  ))}
-                </div>
-              )}
+              <div className="overflow-hidden rounded-card bg-card divide-y divide-page">
+                {column.candidates.map(candidate => (
+                  <CandidateCard key={candidate.id} candidate={candidate} onOpen={onOpen} likelyMember={likelyMembers?.has(candidate.id)} />
+                ))}
+              </div>
             </div>
           ))}
+          <EmptyStagesLine names={board.columns.filter(column => column.candidates.length === 0).map(column => column.spec.waiting)} />
         </div>
       )}
 
@@ -313,6 +339,24 @@ export function FunnelBoardView({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The empty stages, in funnel order, as one quiet line: `ריקים: שיחת היכרות · טסט 30 דקות`.
+ * The "ממתין ל" every label opens with is dropped — the line's own heading says it.
+ */
+export function emptyStageLabel(waiting: string): string {
+  return waiting.replace(/^ממתין\s+ל/, '');
+}
+
+function EmptyStagesLine({ names }: { names: string[] }) {
+  if (!names.length) return null;
+  return (
+    <p className="px-4 text-2xs leading-relaxed text-ink-400">
+      <span className="font-bold">ריקים: </span>
+      {names.map(emptyStageLabel).join(' · ')}
+    </p>
   );
 }
 
@@ -899,7 +943,14 @@ const ADD_INPUT =
 
 // ── The mounted panel ────────────────────────────────────────────────────────
 
-export function CandidateFunnel() {
+export function CandidateFunnel({
+  showRegistrations = true,
+}: {
+  /** The "טפסי הרשמה" row above the stages. Off if the shell shows registrations elsewhere. */
+  showRegistrations?: boolean;
+} = {}) {
+  const [registrationsOpen, setRegistrationsOpen] = useState(false);
+  const { data: regData } = useApi<{ registrations?: unknown[] }>(showRegistrations ? '/api/academy/registrations' : null);
   const [data, setData] = useState<FunnelResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1100,7 +1151,19 @@ export function CandidateFunnel() {
 
   return (
     <>
-      <FunnelBoardView board={board} onOpen={setOpenId} onAdd={() => setAdding(true)} likelyMembers={likelyMembers} />
+      <FunnelBoardView
+        board={board}
+        onOpen={setOpenId}
+        onAdd={() => setAdding(true)}
+        likelyMembers={likelyMembers}
+        onOpenRegistrations={showRegistrations ? () => setRegistrationsOpen(true) : undefined}
+        registrationsPending={regData?.registrations?.length ?? 0}
+      />
+      {showRegistrations && (
+        <Sheet open={registrationsOpen} onOpenChange={setRegistrationsOpen} title="טפסי הרשמה">
+          {registrationsOpen && <AcademyRegistrations />}
+        </Sheet>
+      )}
       <CandidateSheet
         candidate={open}
         events={data?.events ?? []}

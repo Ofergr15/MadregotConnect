@@ -40,7 +40,8 @@ export function AcademyResults() {
     try {
       const [approvedRes, pendingRes] = await Promise.all([
         fetch('/api/academy/benchmarks'),
-        fetch('/api/academy/benchmarks?status=pending'),
+        // The pending queue is staff-only now, so it carries the session.
+        apiHeaders().then(headers => fetch('/api/academy/benchmarks?status=pending', { headers })),
       ]);
       const data = await approvedRes.json();
       const pend = await pendingRes.json();

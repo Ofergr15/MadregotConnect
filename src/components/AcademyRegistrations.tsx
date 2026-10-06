@@ -199,9 +199,12 @@ export function AcademyRegistrations() {
 
                 {open && r.intake && (
                   <div className="border-t border-page/50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
-                    {Object.entries(r.intake).filter(([k]) => !RETIRED_KEYS.has(k)).map(([k, v]) => (
+                    {/* Only keys with a Hebrew label are shown. An unknown key (a field the form
+                        gained before this map did, or one an old form wrote) used to print
+                        as raw English — `socksSize: M` in the middle of a Hebrew card. */}
+                    {Object.entries(r.intake).filter(([k]) => !RETIRED_KEYS.has(k)).filter(([k]) => k in LABELS).map(([k, v]) => (
                       <div key={k} className="text-sm">
-                        <span className="text-ink-400">{LABELS[k] || k}: </span>
+                        <span className="text-ink-400">{LABELS[k]}: </span>
                         <span className="text-ink-700">{k === 'birthDate' ? <bdi dir="ltr">{birthDateLabel(v)}</bdi> : Array.isArray(v) ? v.join(', ') : String(v || '—')}</span>
                       </div>
                     ))}

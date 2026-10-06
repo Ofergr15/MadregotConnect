@@ -6,6 +6,8 @@ import { apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { initialsOf } from './types';
 import type { DispatchReport, DispatchRow, DispatchState } from '@/lib/academy/dispatch';
+import type { DispatchRosterEntry } from '@/lib/academy/week-status';
+import { BuildButton, ResendButton } from './PlansWeekStatus';
 
 // ── "Did the week reach the watches?" ────────────────────────────────────────
 //
@@ -110,18 +112,63 @@ function clockTime(timestamp: string | null): React.ReactNode {
  * mounts it with a fixture that has been through the real `buildDispatchReport`,
  * so a row in the wrong place in the preview is a real bug and not a fixture typo.
  */
-export function DispatchList({ report }: { report: DispatchReport }) {
+export function DispatchList({
+  report,
+  weekStart,
+  onBuild,
+  onChanged,
+}: {
+  report: DispatchReport & { roster?: DispatchRosterEntry[] };
+  /** With it, every failure in the red box gets "לשלוח שוב". Absent in the audit harness. */
+  weekStart?: string;
+  /** With it, trainees with no plan this week are listed with "לבנות". */
+  onBuild?: (athleteId: string) => void;
+  /** Refetch after a resend. */
+  onChanged?: () => void;
+}) {
   const { rows, summary, needsAttention } = report;
+  // Trainees in scope whose own plan for the week holds nothing and who were never
+  // pushed anything — the dispatch rows cannot show them, there is no slot to show.
+  const pushed = new Set(rows.map(r => r.athleteId));
+  const missing = (report.roster ?? []).filter(r => r.planWorkouts === 0 && !pushed.has(r.athleteId));
+  const missingBox = onBuild && missing.length > 0 ? (
+    <div className="rounded-card bg-card px-3.5 py-2">
+      <p className="py-1 text-xs font-bold text-ink-700">
+        {missing.length === 1 ? 'למתאמן אחד עוד אין תוכנית' : <>ל־<bdi dir="ltr">{missing.length}</bdi> מתאמנים עוד אין תוכנית</>}
+      </p>
+      <div className="divide-y divide-page">
+        {missing.map(r => (
+          <div key={r.athleteId} className="flex min-h-[48px] items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-900" dir="auto">{r.name}</span>
+            <BuildButton onClick={() => onBuild(r.athleteId)} />
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null;
   // The two boxes below split `needsAttention` by whose problem it is: `broken` is
   // ours to fix by re-pushing, `blind` is the athlete's to fix by reconnecting.
   // Both come out of the same pre-ordered list, so the boxes and the table can
   // never disagree about who is in trouble.
   const blind = needsAttention.filter(r => r.state === 'blind');
   const broken = needsAttention.filter(r => r.state !== 'blind');
+  // People, not slots: three failed days of one trainee is "one trainee" in a sentence
+  // that counts trainees. (It used to say "4 מתאמנים" above a list of two names.)
+  const brokenPeople = new Set(broken.map(r => r.athleteId)).size;
 
   if (!rows.length) {
-    return <p className="py-6 text-center text-xs text-ink-400">לא נדחפו אימונים בשבוע הזה.</p>;
+    return (
+      <div className="space-y-3" dir="rtl">
+        <p className="py-6 text-center text-xs text-ink-400">לא נדחפו אימונים בשבוע הזה.</p>
+        {missingBox}
+      </div>
+    );
   }
+  // One button per PERSON, not per slot: a resend pushes their whole week, so three
+  // failed days are one tap. `blind` is not here — the fix for it is a reconnect.
+  const resendable = weekStart
+    ? [...new Map(broken.map(r => [r.athleteId, r])).values()]
+    : [];
 
   return (
     <div className="space-y-3" dir="rtl">
@@ -160,20 +207,32 @@ export function DispatchList({ report }: { report: DispatchReport }) {
                     `unconfirmed`, where Garmin took the workout and never confirmed
                     it. It may well be on the watch. Saying flatly that it is not
                     would be the same overclaim in the other direction. */}
-                {broken.length === 1
+                {brokenPeople === 1
                   ? 'אצל מתאמן אחד אין אימון מאושר'
-                  : <>אצל <bdi dir="ltr">{broken.length}</bdi> מתאמנים אין אימון מאושר</>}
+                  : <>אצל <bdi dir="ltr">{brokenPeople}</bdi> מתאמנים אין אימון מאושר</>}
               </span>
               {' — '}
-              {broken.map(r => r.name).join(', ')}
+              {broken.map(r => r.name).filter((n, i, all) => all.indexOf(n) === i).join(', ')}
             </span>
           </p>
+          {resendable.length > 0 && (
+            <div className="mt-2 divide-y divide-accent-red/15">
+              {resendable.map(r => (
+                <div key={r.athleteId} className="flex min-h-[48px] items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-xs font-bold text-accent-red-ink" dir="auto">{r.name}</span>
+                  <ResendButton athleteId={r.athleteId} weekStart={weekStart!} onSent={onChanged} className="bg-card" />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <div className="rounded-card bg-card px-3.5 py-3">
           <p className="text-sm font-semibold text-accent-900">כל האימונים יצאו. אין מה לתקן.</p>
         </div>
       )}
+
+      {missingBox}
 
       {blind.length > 0 && (
         // Its own box, in the setup-gap colour rather than the failure one. Said out
@@ -299,13 +358,22 @@ function detailText(row: DispatchRow): React.ReactNode {
 }
 
 /** The fetching wrapper. Staff-only screen, so it does not guard on identity here. */
-export function WatchDispatch({ weekStart }: { weekStart: string }) {
-  const [report, setReport] = useState<DispatchReport | null>(null);
+export function WatchDispatch({
+  weekStart,
+  onBuild,
+}: {
+  weekStart: string;
+  /** "לבנות" for a trainee with no plan this week; the shell opens the composer. */
+  onBuild?: (athleteId: string) => void;
+}) {
+  const [report, setReport] = useState<(DispatchReport & { roster?: DispatchRosterEntry[] }) | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    setReport(null);
+    // A refetch after a resend keeps the screen up; only a new week blanks it.
+    setReport(prev => (prev && (prev as { weekStart?: string }).weekStart === weekStart ? prev : null));
     setError(null);
     (async () => {
       try {
@@ -321,11 +389,11 @@ export function WatchDispatch({ weekStart }: { weekStart: string }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [weekStart]);
+  }, [weekStart, reload]);
 
   if (error) return <p className="py-6 text-center text-xs text-accent-red-ink">{error}</p>;
   if (!report) return <p className="py-6 text-center text-xs text-ink-400">טוען…</p>;
-  return <DispatchList report={report} />;
+  return <DispatchList report={report} weekStart={weekStart} onBuild={onBuild} onChanged={() => setReload(n => n + 1)} />;
 }
 
 /** The icon the tab uses, exported so the page does not import lucide twice. */
