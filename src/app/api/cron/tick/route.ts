@@ -25,6 +25,7 @@ import {
   type Last7Report, type ReportActivity,
 } from '@/lib/reports/last-7-days';
 import { APPROVER_EMAILS, SUPER_USER_EMAIL } from '@/lib/constants';
+import { runJoinReminders } from '@/lib/onboarding/join-reminder';
 import { dispatchDueTestReminders } from '@/lib/academy/testReminders-server';
 import { syncClubFollows } from '@/lib/follows/club-sync';
 import { qualityPush } from '@/lib/quality-session/server';
@@ -636,6 +637,17 @@ async function run(request: Request) {
   // have no result for your test" — must be re-checked against the invitation in
   // the instant before it goes out, and a scheduled row cannot carry a condition.
   // Steady state is one indexed query that finds nothing.
+  // ── The approved applicant who never came in (lib/onboarding/join-reminder) ──
+  // Through the 10:00 hour (the ledger keeps it to one per person), 48 hours after approval.
+  if (hour === 10) {
+    try {
+      const reminded = await runJoinReminders(supabase, now, { already, markFired });
+      if (reminded) fired.push(`joinReminder → ${reminded}`);
+    } catch (err) {
+      console.error('[tick] join reminders failed:', err);
+    }
+  }
+
   // The quality session (lib/quality-session): at 7:30 on a morning the PLAN calls
   // intervals / tempo / fartlek — not the team days above — one push saying the
   // morning's runs are there to pick from and share. Once per day by the ledger,

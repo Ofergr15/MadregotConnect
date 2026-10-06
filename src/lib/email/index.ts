@@ -146,6 +146,33 @@ export async function notifyAdminNewSignupRequest(req: {
 }
 
 /**
+ * The 48-hour reminder for an approved applicant who has not come in (onboarding
+ * v2, lib/onboarding/join-reminder): back to their own link, which opens the
+ * install guide, with the same QR and Safari tip as the approval mail.
+ */
+export async function notifyJoinReminder(user: { email: string; token: string; groupName?: string | null; athleteId?: string | null }): Promise<SendResult> {
+  const link = joinLinkV2(APP_URL, user.token, true);
+  return sendEmail({
+    template: 'join_reminder',
+    to: user.email,
+    subject: 'האפליקציה של מדרגות עוד מחכה לך 👟',
+    replyTo: ADMIN_EMAIL,
+    athleteId: user.athleteId ?? null,
+    html: renderEmail({
+      eyebrow: 'תזכורת קטנה',
+      title: 'עוד צעד אחד, ואתם בפנים',
+      preheader: 'ההתקנה לוקחת דקה, ואנחנו כאן אם משהו לא עובד.',
+      paragraphs: [`ראינו שעוד לא נכנסתם${user.groupName ? ` (${user.groupName})` : ''}. זה לוקח דקה, והמסך יראה בדיוק איך.`],
+      bodyHtml: renderJourney(2),
+      cta: { label: 'להתקנת האפליקציה ←', href: link },
+      afterCtaHtml: renderScanOnPhone(`${APP_URL}/api/public/qr?t=${encodeURIComponent(user.token)}`)
+        + renderTip('💡 באייפון ההתקנה עובדת רק דרך <b>Safari</b>.'),
+      notes: ['משהו לא עובד? פשוט תשיבו למייל הזה עם מספר טלפון, ונעזור.'],
+    }),
+  });
+}
+
+/**
  * The sign-in code (lib/auth/email-code). The code is the subject's first word, so
  * iOS offers it from the mail notification straight into the code field, and it
  * is big in the body for anyone typing it.

@@ -47,6 +47,11 @@ vi.mock('@/lib/supabase/server', () => ({
           },
         };
       }
+      // Approving also closes the request the person came in on; that write is
+      // not what these tests are about, so it is a quiet no-op here.
+      if (table === 'signup_requests') {
+        return { update: () => ({ eq: () => ({ eq: async () => ({ error: null }) }) }) };
+      }
       return {
         select: () => ({ eq: () => ({ single: async () => ({ data: athlete, error: athlete ? null : { code: 'X' } }) }) }),
         update: (values: Record<string, unknown>) => ({

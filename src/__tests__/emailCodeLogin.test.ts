@@ -40,3 +40,21 @@ describe('sign in with a code by email', () => {
     expect(read('components/auth/EmailCodeSheet.tsx')).toMatch(/autoComplete="one-time-code"/);
   });
 });
+
+describe('phase 4: nobody stuck quietly', () => {
+  it('approving an athlete closes the request they came in on', () => {
+    const r = read('app/api/admin/approve/route.ts');
+    expect(r).toMatch(/\.from\('signup_requests'\)\s+\.update\(\{ status: 'approved', approved_at: updates\.approved_at, approved_by: updates\.approved_by \}\)\s+\.eq\('athlete_id', athleteId\)\s+\.eq\('status', 'pending'\)/);
+  });
+
+  it('the 48h reminder: v2 approvals only, still invited, never seen, real address, once', async () => {
+    const { runJoinReminders, isSynthetic } = await import('@/lib/onboarding/join-reminder');
+    expect(isSynthetic('strava_1@strava.madregot.local')).toBe(true);
+    expect(isSynthetic('noa@gmail.com')).toBe(false);
+    const src = read('lib/onboarding/join-reminder.ts');
+    expect(src).toMatch(/a\.status !== 'invited' \|\| a\.last_seen_at \|\| !a\.invite_token \|\| isSynthetic\(a\.email\)/);
+    expect(src).toMatch(/if \(await ledger\.already\(tag\)\) continue;/);
+    expect(typeof runJoinReminders).toBe('function');
+    expect(read('app/api/cron/tick/route.ts')).toMatch(/if \(hour === 10\) \{\s+try \{\s+const reminded = await runJoinReminders/);
+  });
+});

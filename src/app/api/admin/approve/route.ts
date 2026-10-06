@@ -115,6 +115,21 @@ export async function POST(req: NextRequest) {
 
     if (updateError) throw updateError;
 
+    // Close the request this person came in on (a Strava sign-in or the club
+    // backfill). This route approves the athlete row and never touched it, so
+    // those rows stayed 'pending' forever and inflated every "N waiting" count
+    // the approvers saw (6 of the 7 pending on 2026-10-06 were people already in).
+    // Isolated: the approval is committed either way.
+    try {
+      await supabase
+        .from('signup_requests')
+        .update({ status: 'approved', approved_at: updates.approved_at, approved_by: updates.approved_by })
+        .eq('athlete_id', athleteId)
+        .eq('status', 'pending');
+    } catch (closeErr) {
+      console.error('Failed to close the approved athlete\'s signup request:', closeErr);
+    }
+
     // Email and push are independent channels for the same event — send
     // concurrently rather than one after the other. Each is isolated in its
     // own try/catch so a failure in one can't block or skip the other.
