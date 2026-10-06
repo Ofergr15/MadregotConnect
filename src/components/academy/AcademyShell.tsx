@@ -40,6 +40,8 @@ import { AcademyAdminButton, CoachesSheet } from './AcademyAdmin';
 import {
   PeopleSearchSheet, QuickActionSheet, SHEET_HANDOFF_MS, SuggestionSheet, type QuickFlow, type SearchHit,
 } from './AcademyQuickSheets';
+import { CoachesBoard } from './CoachesBoard';
+import { PlansWeekStatus } from './PlansWeekStatus';
 import {
   fmtRate, initialsOf, shiftWeek, sundayOf,
   type AcademyCoachSummary, type AcademyMember, type AcademyMembersResponse,
@@ -340,6 +342,7 @@ export function AcademyShell({
               onChanged={reload}
               onOpenFunnel={openFunnelCard}
               myAthleteId={myAthleteId}
+              embedded
             />
           )
         ) : section === 'funnel' ? (
@@ -354,22 +357,24 @@ export function AcademyShell({
                 <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />
               </button>
             )}
-            <CandidateFunnel key={funnelKey} />
+            <CandidateFunnel key={funnelKey} showRegistrations={false} />
           </>
         ) : section === 'coaches' ? (
-          // Swapped for the coaches board (CoachesBoard, built alongside) when the two branches merge.
-          <CoachesInline members={roster} coaches={coaches} capacity={capacity} onOpenCoach={(id) => openCoach(id)}
-            onAdd={() => openCoach(null)} onAssignTo={(id) => { setQuickCoach(id); setQuick('move'); }} />
+          <CoachesBoard members={roster} onSelectMember={(m) => setSelectedId(m.athleteId)} onOpenCoach={(id) => openCoach(id)} canManage={manager} />
         ) : section === 'plans' ? (
+          <>
+          {/* Who still needs something this week, above the composer that fixes it. */}
+          {!planAthlete && <div className="mb-3"><PlansWeekStatus weekStart={sundayOf(new Date())} members={roster} onBuild={openPlan} /></div>}
           <AcademyPlanComposer
             key={planAthlete ?? 'plans'}
             athletes={roster.map((m) => ({ id: m.athleteId, name: m.name, hasGarmin: m.hasGarmin, band: m.band, paceOffsetSec: m.paceOffsetSec }))}
             initialAthleteId={planAthlete}
           />
+          </>
         ) : section === 'book' ? (
           <WorkoutBook />
         ) : section === 'dispatch' ? (
-          <WatchDispatch weekStart={dispatchWeek} />
+          <WatchDispatch weekStart={dispatchWeek} onBuild={openPlan} />
         ) : section === 'compliance' ? (
           <WeeklyReview />
         ) : section === 'tests' ? (
@@ -573,53 +578,4 @@ function FilteredTrainees({ members, filter, onClear, onSelect }: {
 
 // ── People → coaches (inline until the coaches board lands) ─────────────────
 
-function CoachesInline({ members, coaches, capacity, onOpenCoach, onAdd, onAssignTo }: {
-  members: AcademyMember[];
-  coaches: AcademyCoachSummary[];
-  capacity: number;
-  onOpenCoach: (coachId: string) => void;
-  onAdd: () => void;
-  onAssignTo: (coachId: string) => void;
-}) {
-  const real = coaches.filter((c) => c.coachId);
-  return (
-    <div className="space-y-2.5">
-      {real.map((c) => {
-        const mine = members.filter((m) => m.academyCoachId === c.coachId);
-        const behind = mine.filter((m) => m.attention.includes('low_adherence') || m.weekRuns === 0).length;
-        const free = freeSeats(c, capacity);
-        return (
-          <div key={c.coachId} className="rounded-card bg-card p-3">
-            <button type="button" onClick={() => onOpenCoach(c.coachId!)} className="flex min-h-[44px] w-full items-center gap-2.5 text-start">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-600 text-xs font-black text-white">{initialsOf(c.coachName || '')}</span>
-              <span className="min-w-0 flex-1">
-                <b className="block truncate text-[15.5px] font-black text-ink-700" dir="auto">{c.coachName}</b>
-                <small className="block truncate text-xs text-ink-400">
-                  {c.trainees === 0 ? 'עוד אין מתאמנים' : <><bdi dir="ltr">{c.trainees}</bdi> מתאמנים · <bdi dir="ltr">{fmtRate(c.completionRate)}</bdi> בתוכנית{behind ? <> · <bdi dir="ltr">{behind}</bdi> מאחור</> : null}</>}
-                </small>
-              </span>
-              <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />
-            </button>
-            <div className="my-2 flex gap-1" aria-hidden>
-              {Array.from({ length: Math.max(capacity, c.trainees) }, (_, i) => (
-                <i key={i} className={cn('h-2 flex-1 rounded', i < c.trainees - behind ? 'bg-brand-600' : i < c.trainees ? 'bg-band-3' : 'bg-page')} />
-              ))}
-            </div>
-            <div className="flex items-center justify-between">
-              <span className={cn('text-xs font-bold', free > 0 && c.trainees === 0 ? 'text-accent-900' : 'text-ink-500')}>
-                {c.trainees === 0 ? <>פנוי לקבל <bdi dir="ltr">{capacity}</bdi></> : <><bdi dir="ltr">{c.trainees}</bdi> מתוך <bdi dir="ltr">{capacity}</bdi> מקומות</>}
-              </span>
-              {free > 0 && (
-                <button type="button" onClick={() => onAssignTo(c.coachId!)} className="min-h-[36px] rounded-xl bg-brand-600/10 px-3 text-xs font-extrabold text-brand-600">לשבץ אליו</button>
-              )}
-            </div>
-          </div>
-        );
-      })}
-      <button type="button" onClick={onAdd}
-        className="flex h-[58px] w-full items-center justify-center gap-2 rounded-card border-2 border-dashed border-ink-300 text-sm font-black text-brand-600">
-        <UserPlus className="h-5 w-5" />מאמן חדש
-      </button>
-    </div>
-  );
-}
+

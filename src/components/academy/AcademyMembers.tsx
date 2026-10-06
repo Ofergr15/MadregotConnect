@@ -55,6 +55,7 @@ export function AcademyMembers({
   onChanged,
   onOpenFunnel,
   myAthleteId = null,
+  embedded = false,
 }: {
   data: AcademyMembersResponse | undefined;
   isLoading: boolean;
@@ -66,6 +67,12 @@ export function AcademyMembers({
   /** Open one card on the funnel tab. */
   onOpenFunnel?: (candidateId: string) => void;
   myAthleteId?: string | null;
+  /**
+   * Inside the academy shell, whose title row already says "אנשים" and carries
+   * the "+": drop this list's own count-and-add header (kept while selecting,
+   * where it is the "בחרת N · ביטול" bar).
+   */
+  embedded?: boolean;
 }) {
   const locale = useLocale();
   const manager = isManager && data?.scope === 'academy';
@@ -141,7 +148,7 @@ export function AcademyMembers({
   return (
     <div className={cn('space-y-2.5', selecting && 'pb-24')} dir="rtl">
       {/* Header: the count, and the one action that grows the list. */}
-      <div className="flex min-h-[44px] items-center justify-between gap-3">
+      {(!embedded || selecting) && <div className="flex min-h-[44px] items-center justify-between gap-3">
         {selecting ? (
           <>
             <h2 className="text-[22px] font-black text-ink-700">{selected.size ? <>בחרת <bdi dir="ltr">{selected.size}</bdi></> : 'בחירה'}</h2>
@@ -160,7 +167,7 @@ export function AcademyMembers({
             )}
           </>
         )}
-      </div>
+      </div>}
 
       {!selecting && (
         <>
