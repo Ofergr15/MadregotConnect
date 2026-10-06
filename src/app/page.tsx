@@ -9,6 +9,7 @@ import { loginErrorText, type LoginErrorText } from '@/lib/auth/login-error';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { Figure } from '@/components/Figure';
 import { Sheet, Button, LoadingBlock, BigStat } from '@/components/ui';
+import { EmailCodeSheet } from '@/components/auth/EmailCodeSheet';
 
 interface PublicStats {
   since?: string;
@@ -112,6 +113,8 @@ export default function HomePage() {
   const [checking, setChecking] = useState(true);
   const { signIn, loading: signingIn, error: stravaError } = useStravaLogin();
   const [showAdminLogin, setShowAdminLogin] = useState(false);
+  // "No Strava? A code by email" (lib/auth/email-code): the way in for a member without Strava.
+  const [showEmailCode, setShowEmailCode] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminLoading, setAdminLoading] = useState(false);
@@ -362,6 +365,7 @@ export default function HomePage() {
         )}
 
         {/* Admin Login Sheet (triggered from footer) */}
+        <EmailCodeSheet open={showEmailCode} onOpenChange={setShowEmailCode} />
         <Sheet open={showAdminLogin} onOpenChange={setShowAdminLogin} title={th('adminLogin')}>
           <form onSubmit={handleAdminLogin} className="space-y-3 pb-2">
             <input
@@ -432,6 +436,13 @@ export default function HomePage() {
                       {t('signInWithStrava')}
                     </>
                   )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEmailCode(true)}
+                  className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border-2 border-brand-600/25 bg-white px-6 text-[15px] font-bold text-brand-600 active:scale-[0.99]"
+                >
+                  אין לי Strava · כניסה עם קוד במייל
                 </button>
               </div>
             </div>

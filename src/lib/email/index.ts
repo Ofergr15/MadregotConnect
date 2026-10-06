@@ -146,6 +146,29 @@ export async function notifyAdminNewSignupRequest(req: {
 }
 
 /**
+ * The sign-in code (lib/auth/email-code). The code is the subject's first word, so
+ * iOS offers it from the mail notification straight into the code field, and it
+ * is big in the body for anyone typing it.
+ */
+export async function notifyLoginCode(user: { email: string; code: string; name?: string | null; athleteId?: string | null }): Promise<SendResult> {
+  const spaced = `${user.code.slice(0, 3)} ${user.code.slice(3)}`;
+  return sendEmail({
+    template: 'login_code',
+    to: user.email,
+    subject: `${user.code} הוא קוד הכניסה שלך למדרגות`,
+    athleteId: user.athleteId ?? null,
+    html: renderEmail({
+      eyebrow: 'כניסה לאפליקציה',
+      title: 'קוד הכניסה שלך',
+      preheader: `${user.code} · בתוקף ל-10 דקות`,
+      bodyHtml: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 40px; font-weight: 800; letter-spacing: 0.18em; color: #1D1E26; text-align: center; background-color: #F5F6FA; border-radius: 16px; padding: 18px 0; margin: 4px 0 14px;" dir="ltr">${esc(spaced)}</div>`,
+      paragraphs: ['מקלידים את הקוד באפליקציה. הוא בתוקף ל-10 דקות.'],
+      notes: ['לא ביקשת קוד? אפשר להתעלם מהמייל, אף אחד לא נכנס בלעדיו.'],
+    }),
+  });
+}
+
+/**
  * The applicant's "we got it" mail (onboarding v2): sent the moment the public form
  * lands, so the first thing a new member hears from the club is that it arrived,
  * where they are in the journey, and that the next step is ours. No button: there
