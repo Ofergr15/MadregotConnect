@@ -39,7 +39,16 @@ export interface NudgeLedger {
   days: string[];
   /** They pressed דלג. Terminal. */
   skipped: boolean;
+  /** Onboarding v2: "later" hides the card for that day only. */
+  skippedOn?: string;
 }
+
+/**
+ * Onboarding v2: the card comes back every day for a week until the setup is done.
+ * "Later" is not "never" — a new member who skipped notifications on day one is
+ * exactly who has to be asked again on day two.
+ */
+export const NUDGE_V2_DAYS = 7;
 
 /**
  * Per-athlete, because one device does get handed around: a parent opening the
@@ -67,6 +76,7 @@ export function readNudgeLedger(raw: string | null | undefined): NudgeLedger {
     return {
       days: Array.isArray(parsed.days) ? parsed.days.filter((d) => typeof d === 'string') : [],
       skipped: parsed.skipped === true,
+      ...(typeof parsed.skippedOn === 'string' ? { skippedOn: parsed.skippedOn } : {}),
     };
   } catch {
     return { days: [], skipped: false };
@@ -91,4 +101,16 @@ export function recordNudgeShown(ledger: NudgeLedger, today: string): NudgeLedge
 
 export function skipNudge(ledger: NudgeLedger): NudgeLedger {
   return { ...ledger, skipped: true };
+}
+
+/** v2: allowed on any of the first seven days it is shown, except a day it was skipped. */
+export function nudgeAllowedV2(ledger: NudgeLedger, today: string): boolean {
+  if (ledger.skippedOn === today) return false;
+  if (ledger.days.includes(today)) return true;
+  return ledger.days.length < NUDGE_V2_DAYS;
+}
+
+/** v2: "later" — gone until tomorrow. */
+export function skipNudgeForToday(ledger: NudgeLedger, today: string): NudgeLedger {
+  return { ...ledger, skippedOn: today };
 }

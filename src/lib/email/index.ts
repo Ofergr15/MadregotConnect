@@ -257,7 +257,7 @@ export async function notifyRegistrationApproved(user: {
         bodyHtml: renderJourney(2) + renderSteps([
           { title: 'פותחים את הכפתור בטלפון', sub: 'לא במחשב' },
           { title: 'מוסיפים למסך הבית', sub: 'המסך יראה לך בדיוק איך' },
-          { title: 'נכנסים', sub: 'עם Strava' },
+          { title: 'פותחים מהאייקון ונכנסים', sub: 'קוד קצר במייל' },
         ]),
         cta: { label: 'להתקנת האפליקציה ←', href: link },
         afterCtaHtml: renderScanOnPhone(`${APP_URL}/api/public/qr?t=${encodeURIComponent(user.token)}`)
