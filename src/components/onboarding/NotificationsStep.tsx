@@ -45,6 +45,7 @@ export function NotificationsStep() {
   const { answered: installAnswered } = useInstallStep();
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [slow, setSlow] = useState(false);
   // Set only for failures that are worth another tap. A denial is NOT one of
   // them: it's terminal for this origin, so it closes the step instead.
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +83,10 @@ export function NotificationsStep() {
 
   const enable = async () => {
     setBusy(true);
+    setSlow(false);
     setError(null);
+    // The first time on a fresh install the worker can still be downloading; say so.
+    const slowTimer = setTimeout(() => setSlow(true), 4000);
     try {
       const athleteId = localStorage.getItem('athlete_id') || '';
       const result = await subscribeToPush(athleteId);
@@ -107,6 +111,7 @@ export function NotificationsStep() {
       }
       setError(result.error ?? 'unknown');
     } finally {
+      clearTimeout(slowTimer);
       setBusy(false);
     }
   };
@@ -158,9 +163,14 @@ export function NotificationsStep() {
             Settings, so this is the one place a picture is worth the space. */}
         {v2 && ios && <IosPermissionPreview />}
 
+        {busy && slow && !error && (
+          <p className="mt-4 text-center text-2xs font-light leading-relaxed text-ink-400">
+            מסיימים להכין את האפליקציה בפעם הראשונה, עוד רגע…
+          </p>
+        )}
         {error && (
           <p role="alert" className="mt-4 text-center text-2xs font-light leading-relaxed text-red-400">
-            {t('failed')}
+            {error === 'sw_not_ready' ? 'האפליקציה עוד מסיימת להתקין ברקע. נסו שוב בעוד דקה.' : t('failed')}
           </p>
         )}
 

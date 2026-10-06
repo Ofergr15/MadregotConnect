@@ -169,6 +169,9 @@ export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLate
   const [video, setVideo] = useState(false);
   const [step, setStep] = useState(0);
   const [copied, setCopied] = useState(false);
+  // The landing page's welcome, before the video: someone who just tapped a link
+  // to a running club should be greeted, not dropped into instructions.
+  const [intro, setIntro] = useState(!!blocking);
   const topRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -189,6 +192,36 @@ export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLate
   useEffect(() => { topRef.current?.scrollIntoView({ block: 'start' }); }, [step]);
 
   if (!ready || platform === 'standalone') return null;
+  if (intro) {
+    return (
+      <div className="fixed inset-0 z-[60] flex flex-col bg-gradient-to-b from-[#2b33ff] via-brand-600 to-[#141a6b] text-white" dir="rtl" role="dialog" aria-modal="true" aria-labelledby="install-welcome-title">
+        <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center px-7 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/logo-white.png" alt="מדרגות" className="h-28 w-auto" />
+          <p className="mt-7 text-xs font-bold tracking-wide text-white/80">מועדון הריצה של מדרגות</p>
+          <h1 id="install-welcome-title" className="mt-1 text-[32px] font-black leading-tight">ברוכים הבאים 👋</h1>
+          <p className="mt-3 max-w-[300px] text-[15px] leading-relaxed text-white/90">
+            מדרגות היא אפליקציה שמתקינים מהדפדפן. זה לוקח 30 שניות, פעם אחת, ואנחנו נראה לך בדיוק איך.
+          </p>
+          <div className="mt-6 flex flex-col gap-2 text-sm text-white/85">
+            <span>📲 מוסיפים למסך הבית</span>
+            <span>🔑 נכנסים פעם אחת</span>
+            <span>🔔 מקבלים את האימונים וההודעות מהמאמן</span>
+          </div>
+        </div>
+        <div className="mx-auto w-full max-w-md px-6 pb-[max(28px,env(safe-area-inset-bottom))]">
+          <button type="button" onClick={() => setIntro(false)} className="min-h-[56px] w-full rounded-pill bg-white text-lg font-black text-brand-600 active:bg-white/90">
+            בואו נתחיל ▶
+          </button>
+          {onEscape && (
+            <button type="button" onClick={onEscape} className="mx-auto mt-4 block text-2xs text-white/60 underline underline-offset-2">
+              לא מצליחים להתקין? כניסה בדפדפן
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
   // iPhone: the real recording (Ofer's own phone, public/videos). Elsewhere, the
   // drawn walkthrough until there is a recording for that platform too.
   if (video && steps.length && platform.startsWith('ios-safari')) return <RealVideo onDone={endVideo} />;

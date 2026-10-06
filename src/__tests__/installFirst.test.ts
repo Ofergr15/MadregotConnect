@@ -80,3 +80,19 @@ describe('"what\'s new" waits for the first run, and a new member never gets it'
     expect(api).toMatch(/if \(resetForTest\) \{\s+if \(!auth\.user\.isSuperUser\) return NextResponse\.json\(\{ error: 'Forbidden' \}, \{ status: 403 \}\);/);
   });
 });
+
+describe('the first notifications tap on a fresh install', () => {
+  it('the worker precaches the app shell only (the 20 MB manifest made it wait), and the wait is bounded', () => {
+    const route = read('app/serwist/[path]/route.ts');
+    expect(route).toMatch(/manifest: entries\.filter\(\(e\) => isAppShell\(e\.url\)\)/);
+    expect(route).toMatch(/replace\(\/\^\(\\\.next\|_next\|public\)\\\/\/, ''\)/);
+    const pwa = read('lib/pwa.ts');
+    expect(pwa).toMatch(/if \(!reg\) return \{ ok: false, error: 'sw_not_ready' \};/);
+    expect(read('components/onboarding/NotificationsStep.tsx')).toMatch(/error === 'sw_not_ready'/);
+  });
+  it('the landing guide greets before it instructs', () => {
+    const g = read('components/install/InstallGuide.tsx');
+    expect(g).toMatch(/const \[intro, setIntro\] = useState\(!!blocking\);/);
+    expect(g).toMatch(/בואו נתחיל ▶/);
+  });
+});
