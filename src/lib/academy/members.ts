@@ -226,6 +226,13 @@ export interface AcademyMembersResponse {
    * "assign a coach" action over a list you can't see all of is a trap.
    */
   scope: 'academy' | 'coach';
+  /**
+   * The manager's read only: whether migration 135 is in, so a trainee can have
+   * several coaches. `false` = one coach per trainee until the database update;
+   * absent = not known (a coach's payload, or an older server) — assume yes, the
+   * server still refuses a set it cannot store and says why.
+   */
+  multiCoach?: boolean;
 }
 
 /**

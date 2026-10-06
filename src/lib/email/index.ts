@@ -564,9 +564,11 @@ export async function notifyAcademyFormReceived(p: { email: string; name?: strin
 
 /** `token` null = somebody who already has an account (a club member joining the
  *  academy): there is nothing to set up, so the button opens the app instead. */
-export function academyAcceptedEmail(p: { name?: string | null; token: string | null; coachName?: string | null }): BuiltEmail {
+export function academyAcceptedEmail(p: { name?: string | null; token: string | null; coachName?: string | null; coachCount?: number }): BuiltEmail {
   const who = firstName(p.name);
   const coach = (p.coachName || '').trim();
+  // Several coaches (migration 135): `coachName` is already "Dana ו־Guy".
+  const coachLine = (p.coachCount ?? 1) > 1 ? `המאמנים שלך: ${coach}` : `המאמן/ת שלך: ${coach}`;
   return {
     subject: '🎉 התקבלת לאקדמיה של מדרגות',
     html: renderEmail({
@@ -575,7 +577,7 @@ export function academyAcceptedEmail(p: { name?: string | null; token: string | 
       preheader: 'שלב אחרון: להתחבר עם Strava — דקה וזה נגמר.',
       paragraphs: [
         coach
-          ? `ברוך/ה הבא/ה לאקדמיה. המאמן/ת שלך: ${coach}. מכאן התוכנית, האימונים והמשוב יגיעו אליך ישירות.`
+          ? `ברוך/ה הבא/ה לאקדמיה. ${coachLine}. מכאן התוכנית, האימונים והמשוב יגיעו אליך ישירות.`
           : 'ברוך/ה הבא/ה לאקדמיה. מכאן התוכנית, האימונים והמשוב יגיעו אליך ישירות.',
         ...(p.token
           ? [
@@ -593,7 +595,7 @@ export function academyAcceptedEmail(p: { name?: string | null; token: string | 
 }
 
 export async function notifyAcademyAccepted(p: {
-  email: string; name?: string | null; token: string | null; coachName?: string | null; athleteId?: string | null; candidateId?: string | null;
+  email: string; name?: string | null; token: string | null; coachName?: string | null; coachCount?: number; athleteId?: string | null; candidateId?: string | null;
 }): Promise<SendResult> {
   const built = academyAcceptedEmail(p);
   return sendEmail({

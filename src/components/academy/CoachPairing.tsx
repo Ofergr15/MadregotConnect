@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useLocale, useTranslations } from 'next-intl';
-import { Check, Gauge, Layers, Target, UserMinus, UserRound, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { Check, Gauge, Layers, Target, UserRound, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { InsetRow, InsetSection, Spinner } from '@/components/ui';
@@ -13,6 +13,7 @@ import {
 import type { AcademyCoachSummary, AcademyMember } from './types';
 import { memberCoachIds, memberCoachNames } from '@/lib/academy/members';
 import { CoachAvatarStack } from './CoachAvatarStack';
+import { ASSIGN_COACHES_LABEL, bidiNames } from '@/lib/academy/coach-picker';
 
 // Who coaches this trainee, what they're training for, and what paces they run —
 // the three facts a 1:1 online academy is made of, edited where they're read.
@@ -31,7 +32,7 @@ import { CoachAvatarStack } from './CoachAvatarStack';
 //     today, so their own dedicated coach may set it too.
 // The API enforces the same rule; this only decides what's worth showing.
 
-type Mode = 'idle' | 'coach' | 'band' | 'pace';
+type Mode = 'idle' | 'band' | 'pace';
 
 /**
  * Quick offsets, in sec/km. Not a scale of anything — just the values a coach
@@ -41,28 +42,27 @@ const OFFSET_PRESETS = [0, 15, 30, 45, 60, 90];
 
 export function CoachPairing({
   member,
-  coaches,
   bands,
   canAssign,
   onChanged,
   onChangeCoach,
 }: {
   member: AcademyMember;
-  /** The academy's coach roster, idle ones included. Empty for a non-manager. */
-  coaches: AcademyCoachSummary[];
+  /** The academy's coach roster (the sheet behind onChangeCoach uses it). Kept for callers. */
+  coaches?: AcademyCoachSummary[];
   /** The academy's goal bands, with trainee counts. Sent to coaches too, for reading. */
   bands: AcademyBand[];
   canAssign: boolean;
   /** Revalidate the shared academy payload — this component holds no copy of it. */
   onChanged: () => void | Promise<void>;
   /**
-   * Open the full change-coach sheet (coach load, "tell them both") instead of the
-   * inline picker. The members tab passes it; other lists keep the inline one.
+   * Open "שיבוץ מאמנים" — the one multi-select coaches sheet (ChangeCoachSheet),
+   * the same picker every other door uses. Without it the row only reads: there
+   * is deliberately no second, inline, one-coach picker any more.
    */
   onChangeCoach?: () => void;
 }) {
   const t = useTranslations('academy');
-  const locale = useLocale();
 
   const [mode, setMode] = useState<Mode>('idle');
   const [busy, setBusy] = useState(false);
@@ -74,7 +74,6 @@ export function CoachPairing({
   const [offsetInput, setOffsetInput] = useState('');
 
   const orderedBands = sortBands(bands);
-  const assignable = coaches.filter((c) => c.coachId);
   const effective = effectiveOffsetSec(member.paceOffsetSec, member.band);
   const source = offsetSource(member.paceOffsetSec, member.band);
 
@@ -98,32 +97,6 @@ export function CoachPairing({
   // Every coach of this trainee (migration 135) — all equal; the first is the legacy one.
   const coachIds = memberCoachIds(member);
   const coachNames = memberCoachNames(member);
-
-  /**
-   * The inline picker toggles one coach in or out of the set (null clears it);
-   * the members tab opens the full multi-select sheet instead.
-   */
-  const assignCoach = async (coachId: string | null) => {
-    setBusy(true);
-    setError(null);
-    const next = coachId === null ? []
-      : coachIds.includes(coachId) ? coachIds.filter((c) => c !== coachId) : [...coachIds, coachId];
-    try {
-      const res = await fetch('/api/academy/coach', {
-        method: 'PUT',
-        headers: await bearerHeaders(),
-        body: JSON.stringify({ athleteId: member.athleteId, coachIds: next }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(data.error || t('pairingError')); return; }
-      reset();
-      await onChanged();
-    } catch {
-      setError(t('pairingError'));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   /** One writer for both halves of the band endpoint — band, override, or both. */
   const saveBandOrPace = async (body: Record<string, unknown>) => {
@@ -163,49 +136,6 @@ export function CoachPairing({
     }
     await saveBandOrPace({ paceOffsetSec: parsed });
   };
-
-  // ── The coach picker, expanded in place ───────────────────────────────────
-  if (mode === 'coach') {
-    return (
-      <Expanded title={t('chooseCoach')} error={error}>
-        {assignable.length === 0 ? (
-          <div className="px-4 py-4">
-            <p className="text-sm text-ink-700">{t('noCoachesYet')}</p>
-            <p className="mt-1 text-xs text-ink-400">{t('noCoachesYetDesc')}</p>
-          </div>
-        ) : (
-          assignable.map((c) => {
-            const current = !!c.coachId && coachIds.includes(c.coachId);
-            return (
-              <InsetRow
-                key={c.coachId}
-                icon={UserRound}
-                iconBg={current ? 'bg-brand-600' : 'bg-ink-300'}
-                label={c.coachName || ''}
-                sublabel={t('traineesShort', { count: c.trainees })}
-                onClick={busy ? undefined : () => assignCoach(c.coachId)}
-                trailing={
-                  busy ? <Spinner size={14} />
-                    : current ? <Check className="h-4 w-4 text-brand-600 shrink-0" />
-                      : undefined
-                }
-              />
-            );
-          })
-        )}
-        {coachIds.length > 0 && (
-          <InsetRow
-            icon={UserMinus}
-            iconBg="bg-accent-red"
-            label={t('unpairCoach')}
-            danger
-            onClick={busy ? undefined : () => assignCoach(null)}
-          />
-        )}
-        <InsetRow icon={X} iconBg="bg-page" label={t('cancel')} onClick={busy ? undefined : reset} />
-      </Expanded>
-    );
-  }
 
   // ── The band picker, expanded in place ────────────────────────────────────
   if (mode === 'band') {
@@ -381,24 +311,26 @@ export function CoachPairing({
   return (
     <>
       <InsetSection header={t('coachAndPaces')}>
-        {/* "מאמנים": every coach, as faces and names (mockup academy-multi-coach,
-            phone 1). One coach reads as before; several get the stack. */}
+        {/* "מאמנים" first: every coach, as faces and names (mockup
+            academy-multi-coach, phone 1), and the one door to "שיבוץ מאמנים". */}
         <InsetRow
           icon={UserRound}
           iconBg={coachIds.length ? 'bg-band-2' : 'bg-ink-300'}
-          label={coachIds.length > 1 ? 'מאמנים' : t('academyCoach')}
-          sublabel={coachIds.length > 1
-            ? coachNames.filter(Boolean).join(' · ')
-            : member.academyJoinedOn
-              ? t('academySince', { date: fmtJoined(member.academyJoinedOn, locale) })
-              : undefined}
-          meta={coachIds.length > 1
+          label="מאמנים"
+          // The names under the label, the faces beside it, and the room on the
+          // end for the button. When they joined is already in the sheet's header.
+          sublabel={coachIds.length ? bidiNames(coachNames) : 'בלי מאמן'}
+          meta={coachIds.length
             ? <CoachAvatarStack size={24} coaches={coachIds.map((id, i) => ({ id, name: coachNames[i] || '' }))} />
             : undefined}
-          value={coachIds.length > 1 ? undefined : coachNames[0] || t('noCoach')}
-          valueMuted={!coachIds.length}
-          onClick={canAssign ? () => { setError(null); if (onChangeCoach) onChangeCoach(); else setMode('coach'); } : undefined}
-          trailing={canAssign ? <EditLabel>{coachIds.length ? 'לשנות' : 'שיבוץ'}</EditLabel> : undefined}
+          onClick={canAssign && onChangeCoach ? () => { setError(null); onChangeCoach(); } : undefined}
+          trailing={canAssign && onChangeCoach
+            ? (
+              <span className="shrink-0 rounded-pill bg-brand-600/10 px-3 py-1.5 text-[13px] font-extrabold text-brand-600">
+                {coachIds.length ? 'לשנות' : ASSIGN_COACHES_LABEL}
+              </span>
+            )
+            : undefined}
         />
 
         <InsetRow
@@ -470,11 +402,4 @@ function Expanded({
       {error && <p className="px-4 mt-1.5 text-xs text-accent-red">{error}</p>}
     </div>
   );
-}
-
-/** 'March 2026' — a joining month, which is as precise as anyone needs. */
-function fmtJoined(date: string, locale: string): string {
-  const d = new Date(`${date}T12:00:00Z`);
-  if (Number.isNaN(d.getTime())) return date;
-  return d.toLocaleDateString(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' });
 }

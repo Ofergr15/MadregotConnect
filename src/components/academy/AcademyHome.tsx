@@ -171,7 +171,7 @@ export function AcademyHome({
       {isManager && (
         <div className="flex gap-1.5">
           <QuickButton icon={Plus} bg="bg-brand-600" label="מתאמן" onClick={() => onQuick('add')} />
-          <QuickButton icon={ArrowLeftRight} bg="bg-accent-700" label="מאמן למתאמן" onClick={() => onQuick('move')} />
+          <QuickButton icon={ArrowLeftRight} bg="bg-accent-700" label="שיבוץ מאמנים" onClick={() => onQuick('move')} />
           <QuickButton icon={UserPlus} bgStyle={VIOLET} label="מאמן" onClick={() => onQuick('coach')} />
         </div>
       )}

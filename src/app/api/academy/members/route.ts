@@ -13,7 +13,7 @@ import { toBand, type AcademyBand } from '@/lib/academy/bands';
 import { isStaffRole, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { academyCoachIds } from '@/lib/academy/coaches';
-import { coachIdsByTrainee, coachesOf, coachesTrainee } from '@/lib/academy/trainee-coaches';
+import { coachIdsByTrainee, coachesOf, coachesTrainee, hasTraineeCoachesTable } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -149,6 +149,9 @@ export async function GET(request: Request) {
       // Shared trainees included: every coach of a trainee sees them.
       : academyRows.filter((a) => coachesTrainee(coachMap, a.id, caller.athleteId));
     const scope: 'academy' | 'coach' = isManager ? 'academy' : 'coach';
+    // Can a trainee have several coaches yet (migration 135)? The manager's
+    // "שיבוץ מאמנים" picker says "one coach until the database update" when not.
+    const multiCoach = isManager && hasPairing ? await hasTraineeCoachesTable(supabase) : undefined;
 
     // The goal bands (דבוקות). Read whole — six rows — and sent to every staff
     // caller: a coach needs the band names to read their own trainees, not only
@@ -177,6 +180,7 @@ export async function GET(request: Request) {
         team: emptyTeamTotals(),
         pending: { registrations: 0, results: 0 },
         scope,
+        multiCoach,
       });
     }
 
@@ -332,6 +336,7 @@ export async function GET(request: Request) {
         results: pendingResults,
       },
       scope,
+      multiCoach,
     });
   } catch (error: any) {
     console.error('Academy members error:', error);

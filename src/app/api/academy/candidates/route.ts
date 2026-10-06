@@ -8,6 +8,8 @@ import { isStaffRole } from '@/lib/auth/self-or-staff';
 import { canAdmitToAcademy, isAcademyManager } from '@/lib/academy/pairing-server';
 import { acceptAction, inviteAction } from '@/lib/academy/admit-server';
 import { clubMatchesFor, readRosterForMatching } from '@/lib/academy/link-server';
+import { holdsAcademyCoachRole } from '@/lib/academy/coaches';
+import { coachIdsByTrainee, hasTraineeCoachesTable } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -177,16 +179,31 @@ export async function GET(request: Request) {
     const matches = await readRosterForMatching(supabase as any)
       .then(roster => clubMatchesFor((rows || []) as any[], roster))
       .catch(() => ({} as ReturnType<typeof clubMatchesFor>));
-    // The accept sheet's coach picker. Only the manager picks; a coach accepts for
-    // themselves, so they get just their own entry.
-    let coaches: Array<{ id: string; name: string }> = [];
+    // The accept sheet's coach picker ("שיבוץ מאמנים"). Only the manager picks; a
+    // coach accepts for themselves, so they get just their own entry. The academy's
+    // coaches only — the role, primary or extra (127) — because that is what the
+    // accept itself requires; listing every staff account offered admins the
+    // accept then refused, and missed a coach who holds the role as an extra one.
+    // Each with their load, so the picker can show who has room.
+    let coaches: Array<{ id: string; name: string; trainees?: number }> = [];
+    let multiCoach: boolean | undefined;
     if (canAdmit) {
-      const { data: staff } = await supabase.from('athletes').select('id, name, role').eq('coach_id', COACH_ID);
-      coaches = (staff || [])
-        .filter((a: any) => isStaffRole(a.role))
+      let staffRes: any = await supabase.from('athletes').select('id, name, role, extra_roles, is_academy, academy_coach_id').eq('coach_id', COACH_ID);
+      const hasExtra = !(staffRes.error && isMissingColumn(staffRes.error));
+      if (!hasExtra) staffRes = await supabase.from('athletes').select('id, name, role').eq('coach_id', COACH_ID);
+      const staff: any[] = staffRes.data || [];
+      const isCoach = (a: any) => (hasExtra ? holdsAcademyCoachRole(a) : isStaffRole(a.role));
+      const load = new Map<string, number>();
+      try {
+        const sets = await coachIdsByTrainee(supabase as any, undefined, staff.filter(a => a.is_academy).map(a => ({ id: a.id, academy_coach_id: a.academy_coach_id ?? null })));
+        for (const ids of sets.values()) for (const c of ids) load.set(c, (load.get(c) ?? 0) + 1);
+      } catch { /* the load is a hint */ }
+      coaches = staff
+        .filter(isCoach)
         .filter((a: any) => isAcademyManager(caller) || a.id === caller.athleteId)
-        .map((a: any) => ({ id: String(a.id), name: String(a.name || '') }))
+        .map((a: any) => ({ id: String(a.id), name: String(a.name || ''), trainees: load.get(String(a.id)) ?? 0 }))
         .sort((a, b) => a.name.localeCompare(b.name));
+      multiCoach = await hasTraineeCoachesTable(supabase as any);
     }
 
     return NextResponse.json({
@@ -200,6 +217,7 @@ export async function GET(request: Request) {
       events: (eventRows || []).map(toEvent),
       me: { canAdmit, isManager: isAcademyManager(caller), athleteId: caller.athleteId ?? null },
       coaches,
+      multiCoach,
     });
   } catch {
     return NextResponse.json({ error: 'Failed to read the funnel' }, { status: 500 });

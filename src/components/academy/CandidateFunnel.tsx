@@ -82,6 +82,8 @@ interface FunnelResponse {
   /** Whether this reader may invite and accept (manager or academy coach). */
   me?: { canAdmit: boolean; isManager: boolean; athleteId: string | null };
   coaches?: FunnelCoach[];
+  /** False before migration 135: the accept takes one coach. */
+  multiCoach?: boolean;
 }
 
 /**
@@ -1211,6 +1213,7 @@ export function CandidateFunnel({
             isManager={data.me.isManager}
             myId={data.me.athleteId}
             linked={!!open.athleteId}
+            multiCoach={data.multiCoach}
             onDone={() => void load()}
           />
         </>

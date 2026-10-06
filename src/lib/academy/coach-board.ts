@@ -115,3 +115,23 @@ export function suggestedCoachId(cards: Pick<CoachCard, 'id' | 'name' | 'free' |
   open.sort((a, b) => b.free - a.free || a.trainees.length - b.trainees.length || a.name.localeCompare(b.name));
   return open[0].id;
 }
+
+/**
+ * "להוסיף מתאמן" on a coach card: the trainees that coach could be given — every
+ * approved academy trainee they do not already hold. The unpaired first (they are
+ * who needs a coach), then by name. Adding keeps a trainee's other coaches.
+ */
+export function traineesToAdd(coachId: string, members: AcademyMember[]): AcademyMember[] {
+  return members
+    .filter((m) => m.approved && m.status !== 'removed' && m.athleteId !== coachId && !memberCoachIds(m).includes(coachId))
+    .sort((a, b) => Number(memberCoachIds(a).length > 0) - Number(memberCoachIds(b).length > 0) || a.name.localeCompare(b.name));
+}
+
+/**
+ * The bulk body behind both "add to this coach" buttons on the board ("לשבץ אליו"
+ * for the unpaired, "להוסיף מתאמן" for anyone): 'addCoach', never 'coach', so a
+ * trainee who already has coaches keeps them.
+ */
+export function addToCoachBody(coachId: string, athleteIds: string[], notify = true) {
+  return { athleteIds, action: 'addCoach' as const, coachIds: [coachId], notify };
+}

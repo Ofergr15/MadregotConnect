@@ -213,7 +213,8 @@ export function AcademyShell({
   const runSuggestion = async (s: Suggestion) => {
     if (s.kind === 'pair' && s.coachId) {
       setAssigning(true);
-      const r = await postBulk({ athleteIds: s.people.map((p) => p.id), action: 'coach', coachId: s.coachId, notify: true });
+      // 'addCoach', not 'coach': if somebody got a coach meanwhile, they keep them.
+      const r = await postBulk({ athleteIds: s.people.map((p) => p.id), action: 'addCoach', coachIds: [s.coachId], notify: true });
       setAssigning(false);
       if (r.ok) await reload();
       return;
@@ -405,6 +406,7 @@ export function AcademyShell({
             members={roster}
             coaches={coaches}
             capacity={capacity}
+            multiCoach={members?.multiCoach}
             onDone={reload}
             onAddTrainee={() => setAddOpen(true)}
             onNewCoach={() => openCoach(null)}
@@ -416,6 +418,7 @@ export function AcademyShell({
             members={roster}
             coaches={coaches}
             capacity={capacity}
+            multiCoach={members?.multiCoach}
             onDone={reload}
             onOpenMember={setSelectedId}
             onOpenThread={openThread}
@@ -429,6 +432,7 @@ export function AcademyShell({
             addable={people?.addable}
             coaches={coaches}
             bands={members?.bands ?? []}
+            multiCoach={members?.multiCoach}
             onDone={async () => { await Promise.all([reload(), refreshPeople()]); }}
             onOpenFunnel={(id) => { setAddOpen(false); setTimeout(() => openFunnelCard(id), SHEET_HANDOFF_MS); }}
           />
@@ -452,6 +456,7 @@ export function AcademyShell({
             }}
             members={coachMove ? [coachMove] : []}
             coaches={coaches}
+            multiCoach={members?.multiCoach}
             onDone={reload}
           />
         </>

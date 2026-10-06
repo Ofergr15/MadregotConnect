@@ -7,22 +7,24 @@ import { useApi } from '@/lib/api';
 import { Sheet, Spinner } from '@/components/ui';
 import { freeSeats, recommendCoach, type Suggestion } from '@/lib/academy/suggestions';
 import type { CandidateRow } from '@/lib/academy/funnel';
-import { postBulk } from './ManageMembersSheets';
+import { CoachAssignPanel } from './ManageMembersSheets';
+import { ASSIGN_COACHES_LABEL, bidiNames } from '@/lib/academy/coach-picker';
 import { initialsOf, type AcademyCoachSummary, type AcademyMember } from './types';
 import { joinHebrewList, memberCoachIds, memberCoachNames } from '@/lib/academy/members';
 
 // The academy's quick sheets (mockup academy-manager-v5.html, phones 5 and 6):
 //
-//   QuickActionSheet   "מה לעשות?" — four actions, short steps, the free coach
-//                      marked "פנוי · מומלץ"
-//   SuggestionSheet    the ⋯ on a smart suggestion: another coach, one by one,
-//                      open each person, remind me tomorrow, don't suggest again
+//   QuickActionSheet   "מה לעשות?" — four actions, short steps; "שיבוץ מאמנים"
+//                      is pick trainees → the shared multi-select coaches panel
+//   SuggestionSheet    the ⋯ on a smart suggestion: another coach (or several),
+//                      one by one, open each person, remind me tomorrow, don't
+//                      suggest again
 //   PeopleSearchSheet  one search over trainees, candidates and coaches, opened
 //                      from the title row of every area
-//   CoachPicker        the coach list with seats, shared by the first two
 //
-// Every write is POST /api/academy/members/bulk (postBulk), the same path the
-// members tab uses, so a move made here leaves the same history.
+// Choosing coaches is CoachAssignPanel (ManageMembersSheets) everywhere — the same
+// panel the member card opens — and every write is POST /api/academy/members/bulk,
+// so a change made here leaves the same history.
 
 const VIOLET = '#5B21D6';
 /** Long enough for a closing sheet's slide before the next one opens (see AcademyAdmin). */
@@ -30,7 +32,7 @@ export const SHEET_HANDOFF_MS = 350;
 
 const first = (name: string | null | undefined) => (name || '').trim().split(/\s+/)[0] || '';
 /** "Dana ו־Guy" — every coach of the trainee, first names (a shared trainee has several). */
-const coachFirstNames = (m: AcademyMember) => joinHebrewList(memberCoachNames(m).filter(Boolean).map((n) => first(n)));
+const coachFirstNames = (m: AcademyMember) => bidiNames(memberCoachNames(m).filter(Boolean).map((n) => first(n)));
 const coachLine = (m: AcademyMember) => (coachFirstNames(m) ? `אצל ${coachFirstNames(m)}` : 'בלי מאמן');
 
 function Radio({ on }: { on: boolean }) {
@@ -70,58 +72,12 @@ function Crumbs({ items }: { items: Array<{ label: string; state: 'done' | 'on' 
   );
 }
 
-// ── Coach picker ────────────────────────────────────────────────────────────
-
-export function CoachPicker({ coaches, capacity, need = 1, value, onChange, currentCoachId = null }: {
-  coaches: AcademyCoachSummary[];
-  capacity: number;
-  /** How many trainees are being placed, for the recommendation. */
-  need?: number;
-  value: string | null;
-  onChange: (coachId: string) => void;
-  currentCoachId?: string | null;
-}) {
-  const real = coaches.filter((c) => c.coachId);
-  const rec = recommendCoach(real, capacity, need);
-  const ordered = [...real].sort((a, b) =>
-    Number(b.coachId === rec?.coachId) - Number(a.coachId === rec?.coachId)
-    || freeSeats(b, capacity) - freeSeats(a, capacity) || (a.coachName || '').localeCompare(b.coachName || ''));
-  if (!real.length) {
-    return <p className="mt-2.5 rounded-2xl bg-card px-4 py-4 text-sm text-ink-500">עוד אין מאמנים באקדמיה. מוסיפים מאמן מ״מאמן חדש״.</p>;
-  }
-  return (
-    <div className="mt-2.5 overflow-hidden rounded-2xl bg-card">
-      {ordered.map((c) => {
-        const free = freeSeats(c, capacity);
-        const on = value === c.coachId;
-        return (
-          <button key={c.coachId} type="button" onClick={() => onChange(c.coachId!)} aria-pressed={on}
-            className="flex min-h-[52px] w-full items-center gap-2.5 border-b border-page/70 px-3 text-start last:border-0 active:bg-page/40">
-            <Radio on={on} />
-            <Face name={c.coachName || ''} coach />
-            <span className="min-w-0 flex-1 truncate text-sm font-extrabold text-ink-700" dir="auto">
-              {c.coachName}{c.coachId === currentCoachId ? <span className="font-semibold text-ink-400"> · היום</span> : null}
-            </span>
-            {c.coachId === rec?.coachId ? (
-              <span className="shrink-0 rounded-[7px] bg-accent-600/15 px-1.5 py-0.5 text-2xs font-black text-accent-900">פנוי · מומלץ</span>
-            ) : (
-              <span className={cn('shrink-0 text-xs tabular-nums', free === 0 ? 'font-bold text-accent-red-ink' : 'text-ink-400')}>
-                {free === 0 ? 'מלא · ' : ''}<bdi dir="ltr">{c.trainees}/{capacity}</bdi>
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 // ── Quick action ────────────────────────────────────────────────────────────
 
 export type QuickFlow = 'menu' | 'move';
 
 export function QuickActionSheet({
-  open, onOpenChange, start = 'menu', coachPreset = null, members, coaches, capacity, onDone, onAddTrainee, onNewCoach, onInvite,
+  open, onOpenChange, start = 'menu', coachPreset = null, members, coaches, capacity, multiCoach, onDone, onAddTrainee, onNewCoach, onInvite,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -132,6 +88,8 @@ export function QuickActionSheet({
   members: AcademyMember[];
   coaches: AcademyCoachSummary[];
   capacity: number;
+  /** `false` before migration 135 (one coach per trainee). */
+  multiCoach?: boolean;
   onDone: () => void | Promise<void>;
   /** The three actions that live in existing sheets; the shell opens them after this one closes. */
   onAddTrainee: () => void;
@@ -142,13 +100,12 @@ export function QuickActionSheet({
   const [step, setStep] = useState<'pick' | 'coach'>('pick');
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<string[]>([]);
-  const [coachId, setCoachId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Bumped each time the coaches step opens, so the panel starts fresh.
+  const [round, setRound] = useState(0);
 
   useEffect(() => {
     if (!open) return;
-    setFlow(start); setStep('pick'); setQuery(''); setPicked([]); setCoachId(null); setError(null);
+    setFlow(start); setStep('pick'); setQuery(''); setPicked([]);
   }, [open, start]);
 
   const approved = useMemo(() => members.filter((m) => m.approved), [members]);
@@ -163,28 +120,16 @@ export function QuickActionSheet({
 
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const startMove = (ids: string[] = []) => { setFlow('move'); setPicked(ids); setStep(ids.length ? 'coach' : 'pick'); setQuery(''); };
-  const coach = coaches.find((c) => c.coachId === coachId) ?? null;
-  const rec = recommendCoach(coaches.filter((c) => c.coachId), capacity, Math.max(1, picked.length));
-  // The recommended coach is preselected the moment the coach step opens.
-  useEffect(() => {
-    if (flow === 'move' && step === 'coach' && !coachId && (coachPreset || rec?.coachId)) setCoachId(coachPreset || rec!.coachId);
-  }, [flow, step, coachId, rec, coachPreset]);
 
-  const submit = async () => {
-    if (!coachId || !picked.length) return;
-    setBusy(true); setError(null);
-    const r = await postBulk({ athleteIds: picked, action: 'coach', coachId, notify: true });
-    setBusy(false);
-    if (!r.ok) { setError(r.error || 'השמירה נכשלה'); return; }
-    await onDone();
-    onOpenChange(false);
-  };
+  const rec = recommendCoach(coaches.filter((c) => c.coachId), capacity, Math.max(1, picked.length));
+  const toCoaches = () => setStep('coach');
+  useEffect(() => { if (flow === 'move' && step === 'coach') setRound((n) => n + 1); }, [flow, step]);
 
   const single = pickedMembers.length === 1 ? pickedMembers[0] : null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} className="bg-page" titleClassName="text-start"
-      title={flow === 'menu' ? 'מה לעשות?' : 'להחליף מאמן'}>
+      title={flow === 'menu' ? 'מה לעשות?' : ASSIGN_COACHES_LABEL}>
       <div className="pb-2" dir="rtl">
         {flow === 'menu' ? (
           <>
@@ -200,7 +145,7 @@ export function QuickActionSheet({
                       <span className="block truncate text-sm font-extrabold text-ink-700" dir="auto">{m.name}</span>
                       <span className="block text-2xs text-ink-400">{coachLine(m)}</span>
                     </span>
-                    <span className="shrink-0 text-xs font-extrabold text-brand-600">להחליף מאמן</span>
+                    <span className="shrink-0 text-xs font-extrabold text-brand-600">{ASSIGN_COACHES_LABEL}</span>
                   </button>
                 ))}
                 {matches.length === 0 && <p className="px-4 py-4 text-sm text-ink-400">לא נמצא מתאמן בשם הזה</p>}
@@ -208,7 +153,7 @@ export function QuickActionSheet({
             ) : (
               <div className="mt-2.5 grid grid-cols-2 gap-2">
                 <MenuTile icon={Plus} bg="bg-brand-600" title="להוסיף מתאמן" sub="מהמועדון או חדש" onClick={() => handOff(onAddTrainee)} />
-                <MenuTile icon={ArrowLeftRight} bg="bg-accent-700" title="להחליף מאמן" sub="לאחד או לכמה" onClick={() => startMove()} />
+                <MenuTile icon={ArrowLeftRight} bg="bg-accent-700" title={ASSIGN_COACHES_LABEL} sub="מאמן אחד או כמה, לאחד או לכמה" onClick={() => startMove()} />
                 <MenuTile icon={UserPlus} bgStyle={VIOLET} title="מאמן חדש" sub="חבר מועדון כמאמן" onClick={() => handOff(onNewCoach)} />
                 <MenuTile icon={Send} bgStyle="#E57A1F" title="להזמין לטופס" sub="קישור בוואטסאפ" onClick={() => handOff(onInvite)} />
               </div>
@@ -216,7 +161,7 @@ export function QuickActionSheet({
           </>
         ) : step === 'pick' ? (
           <>
-            <Crumbs items={[{ label: 'מתאמנים', state: 'on' }, { label: 'מאמן', state: 'todo' }]} />
+            <Crumbs items={[{ label: 'מתאמנים', state: 'on' }, { label: 'מאמנים', state: 'todo' }]} />
             <div className="mt-2"><SearchField value={query} onChange={setQuery} placeholder="חיפוש מתאמן…" /></div>
             <div className="mt-2.5 max-h-[42vh] overflow-y-auto rounded-2xl bg-card">
               {matches.map((m) => {
@@ -236,27 +181,28 @@ export function QuickActionSheet({
                 );
               })}
             </div>
-            <Cta onClick={() => setStep('coach')} disabled={!picked.length}>
-              {picked.length ? `הבא · מאמן ל־${picked.length === 1 ? first(pickedMembers[0]?.name) : `${picked.length} מתאמנים`}` : 'בוחרים מתאמן אחד או יותר'}
+            <Cta onClick={toCoaches} disabled={!picked.length}>
+              {picked.length ? `הבא · מאמנים ל־${picked.length === 1 ? first(pickedMembers[0]?.name) : `${picked.length} מתאמנים`}` : 'בוחרים מתאמן אחד או יותר'}
             </Cta>
           </>
         ) : (
           <>
             <Crumbs items={[
               { label: single ? single.name : `${picked.length} מתאמנים`, state: 'done' },
-              { label: 'מאמן', state: 'on' },
+              { label: 'מאמנים', state: 'on' },
             ]} />
-            <CoachPicker coaches={coaches} capacity={capacity} need={picked.length} value={coachId} onChange={setCoachId}
-              currentCoachId={single?.academyCoachId ?? null} />
-            {coach && freeSeats(coach, capacity) < picked.length && (
-              <p className="mt-2 px-1 text-xs text-band-3-ink">
-                ל־{first(coach.coachName)} נשארו <bdi dir="ltr">{freeSeats(coach, capacity)}</bdi> מקומות. אפשר לשבץ בכל זאת.
-              </p>
-            )}
-            {error && <p className="mt-2 px-1 text-sm text-accent-red-ink">{error}</p>}
-            <Cta onClick={() => void submit()} disabled={!coachId || (!!single && memberCoachIds(single).length === 1 && memberCoachIds(single)[0] === coachId)} busy={busy}>
-              {coach ? `להעביר ל־${first(coach.coachName)}` : 'בוחרים מאמן'}
-            </Cta>
+            <div className="mt-2.5">
+              <CoachAssignPanel
+                key={`${round}:${picked.join(',')}`}
+                members={pickedMembers}
+                coaches={coaches}
+                multiCoach={multiCoach}
+                preset={coachPreset ? [coachPreset] : rec?.coachId ? [rec.coachId] : []}
+                recommendedId={rec?.coachId ?? null}
+                onDone={onDone}
+                onSaved={() => onOpenChange(false)}
+              />
+            </div>
             <button type="button" onClick={() => setStep('pick')} className="mt-1 min-h-[44px] w-full text-sm font-bold text-brand-600">חזרה לבחירת מתאמנים</button>
           </>
         )}
@@ -294,13 +240,14 @@ function SearchField({ value, onChange, placeholder, autoFocus }: { value: strin
 // ── ⋯ on a suggestion ───────────────────────────────────────────────────────
 
 export function SuggestionSheet({
-  suggestion, onOpenChange, members, coaches, capacity, onDone, onOpenMember, onOpenThread, onOpenDispatch, onSnooze, onDismiss,
+  suggestion, onOpenChange, members, coaches, capacity, multiCoach, onDone, onOpenMember, onOpenThread, onOpenDispatch, onSnooze, onDismiss,
 }: {
   suggestion: Suggestion | null;
   onOpenChange: (open: boolean) => void;
   members: AcademyMember[];
   coaches: AcademyCoachSummary[];
   capacity: number;
+  multiCoach?: boolean;
   onDone: () => void | Promise<void>;
   onOpenMember: (athleteId: string) => void;
   onOpenThread: (athleteId: string) => void;
@@ -315,11 +262,8 @@ export function SuggestionSheet({
   const s = suggestion ?? shown;
   const [mode, setMode] = useState<'menu' | 'other' | 'each'>('menu');
   const [eachFor, setEachFor] = useState<string | null>(null);
-  const [coachId, setCoachId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [placed, setPlaced] = useState<Record<string, string>>({});
-  useEffect(() => { if (open) { setMode('menu'); setEachFor(null); setCoachId(null); setError(null); setPlaced({}); } }, [open, suggestion?.key]);
+  const [placed, setPlaced] = useState<Record<string, string[]>>({});
+  useEffect(() => { if (open) { setMode('menu'); setEachFor(null); setPlaced({}); } }, [open, suggestion?.key]);
 
   if (!s) return null;
   const byId = new Map(members.map((m) => [m.athleteId, m]));
@@ -327,14 +271,11 @@ export function SuggestionSheet({
   const handOff = (fn: () => void) => { close(); setTimeout(fn, SHEET_HANDOFF_MS); };
   const suggested = coaches.find((c) => c.coachId === s.coachId) ?? null;
 
-  const assign = async (ids: string[], to: string) => {
-    setBusy(true); setError(null);
-    const r = await postBulk({ athleteIds: ids, action: 'coach', coachId: to, notify: true });
-    setBusy(false);
-    if (!r.ok) { setError(r.error || 'השמירה נכשלה'); return false; }
-    await onDone();
-    return true;
-  };
+  // The people as roster rows, for the shared coaches panel (a suggestion only
+  // carries ids and names; an unknown id still gets a bare row).
+  const asMember = (p: { id: string; name: string }): AcademyMember =>
+    byId.get(p.id) ?? ({ athleteId: p.id, name: p.name, academyCoachId: null, academyCoachIds: [], approved: true } as unknown as AcademyMember);
+  const nameOfCoach = (id: string) => coaches.find((c) => c.coachId === id)?.coachName || '';
 
   const title = s.kind === 'pair'
     ? `שיבוץ ל־${s.people.map((p) => first(p.name)).join(' ול־')}`
@@ -352,9 +293,9 @@ export function SuggestionSheet({
             <div className="mt-2.5 overflow-hidden rounded-2xl bg-card">
               {s.kind === 'pair' && (
                 <>
-                  <MenuRow icon={ArrowLeftRight} bg="bg-accent-700" title="לבחור מאמן אחר" sub="כל המאמנים עם המקומות הפנויים" onClick={() => setMode('other')} />
+                  <MenuRow icon={ArrowLeftRight} bg="bg-accent-700" title="לבחור מאמן אחר" sub="אחד או כמה, עם המקומות הפנויים" onClick={() => setMode('other')} />
                   {s.people.length > 1 && (
-                    <MenuRow icon={Users} bg="bg-brand-600" title="לשבץ כל אחד בנפרד" sub="מאמן אחר לכל מתאמן" onClick={() => setMode('each')} />
+                    <MenuRow icon={Users} bg="bg-brand-600" title="לשבץ כל אחד בנפרד" sub="מאמנים אחרים לכל מתאמן" onClick={() => setMode('each')} />
                   )}
                 </>
               )}
@@ -382,12 +323,16 @@ export function SuggestionSheet({
 
         {mode === 'other' && (
           <>
-            <CoachPicker coaches={coaches} capacity={capacity} need={s.people.length} value={coachId} onChange={setCoachId} />
-            {error && <p className="mt-2 px-1 text-sm text-accent-red-ink">{error}</p>}
-            <Cta busy={busy} disabled={!coachId}
-              onClick={async () => { if (coachId && await assign(s.people.map((p) => p.id), coachId)) close(); }}>
-              {coachId ? `לשבץ אצל ${first(coaches.find((c) => c.coachId === coachId)?.coachName)}` : 'בוחרים מאמן'}
-            </Cta>
+            <div className="mt-2.5">
+              <CoachAssignPanel
+                key={`other:${s.key}`}
+                members={s.people.map(asMember)}
+                coaches={coaches}
+                multiCoach={multiCoach}
+                onDone={onDone}
+                onSaved={close}
+              />
+            </div>
             <button type="button" onClick={() => setMode('menu')} className="mt-1 min-h-[44px] w-full text-sm font-bold text-brand-600">חזרה</button>
           </>
         )}
@@ -395,28 +340,32 @@ export function SuggestionSheet({
         {mode === 'each' && (
           eachFor ? (
             <>
-              <Crumbs items={[{ label: s.people.find((p) => p.id === eachFor)?.name || '', state: 'done' }, { label: 'מאמן', state: 'on' }]} />
-              <CoachPicker coaches={coaches} capacity={capacity} value={coachId} onChange={setCoachId} />
-              {error && <p className="mt-2 px-1 text-sm text-accent-red-ink">{error}</p>}
-              <Cta busy={busy} disabled={!coachId}
-                onClick={async () => {
-                  if (!coachId || !(await assign([eachFor], coachId))) return;
-                  const next = { ...placed, [eachFor]: coachId };
-                  setPlaced(next); setEachFor(null); setCoachId(null);
-                  if (s.people.every((p) => next[p.id])) close();
-                }}>
-                לשבץ
-              </Cta>
+              <Crumbs items={[{ label: s.people.find((p) => p.id === eachFor)?.name || '', state: 'done' }, { label: 'מאמנים', state: 'on' }]} />
+              <div className="mt-2.5">
+                <CoachAssignPanel
+                  key={`each:${eachFor}`}
+                  members={[asMember(s.people.find((p) => p.id === eachFor)!)]}
+                  coaches={coaches}
+                  multiCoach={multiCoach}
+                  onDone={onDone}
+                  onSaved={(ids) => {
+                    const next = { ...placed, [eachFor]: ids };
+                    setPlaced(next); setEachFor(null);
+                    if (s.people.every((p) => next[p.id])) close();
+                  }}
+                />
+              </div>
+              <button type="button" onClick={() => setEachFor(null)} className="mt-1 min-h-[44px] w-full text-sm font-bold text-brand-600">חזרה</button>
             </>
           ) : (
             <>
               <div className="mt-2.5 overflow-hidden rounded-2xl bg-card">
                 {s.people.map((p) => {
-                  const to = placed[p.id] ? coaches.find((c) => c.coachId === placed[p.id]) : null;
+                  const to = placed[p.id];
                   return (
                     <MenuRow key={p.id} face={p.name} title={p.name}
-                      sub={to ? `✓ אצל ${to.coachName}` : 'לבחור מאמן'}
-                      onClick={() => { if (!to) { setEachFor(p.id); setCoachId(null); } }} />
+                      sub={to ? (to.length ? `✓ אצל ${bidiNames(to.map(nameOfCoach).filter(Boolean).map(first))}` : '✓ בלי מאמן') : ASSIGN_COACHES_LABEL}
+                      onClick={() => setEachFor(p.id)} />
                   );
                 })}
               </div>

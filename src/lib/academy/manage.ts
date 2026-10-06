@@ -277,8 +277,10 @@ export function applicationDeletable(
 // ── The bulk body ───────────────────────────────────────────────────────────
 
 // 'coach' REPLACES the set (coachIds, or the legacy single coachId / null);
-// 'addCoach' and 'removeCoach' add or drop ONE coach across many trainees, leaving
-// their other coaches alone (migration 135: a trainee can have several).
+// 'addCoach' adds one coach (coachId) or several (coachIds) across many trainees,
+// and 'removeCoach' drops ONE, leaving their other coaches alone (migration 135:
+// a trainee can have several). 'add' takes coachIds too: a club member let in
+// straight away with several coaches.
 export const BULK_ACTIONS = ['coach', 'addCoach', 'removeCoach', 'band', 'remove', 'add', 'restore'] as const;
 export type BulkAction = (typeof BULK_ACTIONS)[number];
 export const MAX_BULK = 100;
@@ -289,8 +291,9 @@ export interface BulkRequest {
   /** `null` unpairs ('coach'); for 'add' the coach to start with, or none. */
   coachId: string | null;
   /**
-   * 'coach' only: the whole new set, first = the legacy coach. `null` when the
-   * caller sent the single `coachId` instead (then the set is [coachId] or []).
+   * 'coach': the whole new set, first = the legacy coach. 'addCoach': the coaches
+   * to add. 'add': the coaches to start with. `null` when the caller sent the
+   * single `coachId` instead (then the set is [coachId] or []).
    */
   coachIds: string[] | null;
   bandId: string | null;
@@ -320,12 +323,14 @@ export function parseBulk(body: unknown): BulkRequest | string {
     : null;
   if (Object.prototype.hasOwnProperty.call(b, 'coachIds') && !Array.isArray(b.coachIds)) return 'coachIds must be an array';
   if (action === 'coach' && !hasCoach && !coachIds) return 'coachId or coachIds is required; pass null or [] to unpair';
-  if ((action === 'addCoach' || action === 'removeCoach') && !coachId) return 'coachId is required';
+  if (action === 'addCoach' && !coachId && !coachIds?.length) return 'coachId or coachIds is required';
+  if (action === 'removeCoach' && !coachId) return 'coachId is required';
   if (coachIds && coachIds.some((c) => ids.includes(c))) return 'A trainee cannot be their own coach';
   if (action === 'band' && !hasBand) return 'bandId is required; pass null to clear';
   if (coachId && ids.includes(coachId)) return 'A trainee cannot be their own coach';
   return {
-    athleteIds: ids, action, coachId, coachIds: action === 'coach' ? coachIds : null,
+    athleteIds: ids, action, coachId,
+    coachIds: action === 'coach' || action === 'addCoach' || action === 'add' ? coachIds : null,
     bandId, notify: b.notify === true, hasCoach, hasBand,
   };
 }

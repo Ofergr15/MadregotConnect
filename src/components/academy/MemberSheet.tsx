@@ -13,14 +13,15 @@ import { Sheet, InsetSection, InsetRow, ConfirmSheet, Spinner } from '@/componen
 import { teammateHref } from '@/lib/athletes/profile-link';
 import { startViewingAs } from '@/lib/view-as-person';
 import { CoachPairing } from './CoachPairing';
-import { joinHebrewList, memberCoachNames } from '@/lib/academy/members';
+import { memberCoachNames } from '@/lib/academy/members';
+import { bidiNames } from '@/lib/academy/coach-picker';
 
 /** "Yoav, Dana ו־Guy" — who is in the trainee's one shared conversation. */
 function threadPeople(m: AcademyMember): string {
   const first = (n: string) => n.trim().split(/\s+/)[0] || '';
   // RLM first: the row's dir="auto" would otherwise take the Latin name as LTR
   // and glue "ו־" to the wrong side.
-  return `\u200F${joinHebrewList([first(m.name), ...memberCoachNames(m).filter(Boolean).map(first)])}`;
+  return bidiNames([first(m.name), ...memberCoachNames(m).filter(Boolean).map(first)]);
 }
 import {
   ATTENTION_ORDER, ATTENTION_STYLE, fmtRate, initialsOf, rateColor,

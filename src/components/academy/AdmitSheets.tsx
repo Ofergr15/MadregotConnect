@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, Send } from 'lucide-react';
 import { apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { LoadingBlock, Sheet } from '@/components/ui';
+import { joinHebrewList } from '@/lib/academy/members';
+import { ASSIGN_COACHES_LABEL, ONE_COACH_UNTIL_UPDATE } from '@/lib/academy/coach-picker';
+import { CoachesPicker } from './CoachesPicker';
 
 // ── Sending the form, and letting somebody in ────────────────────────────────
 //
@@ -21,7 +24,8 @@ export interface CandidateEmail {
   error: string | null;
 }
 
-export interface FunnelCoach { id: string; name: string }
+/** An academy coach the accept can pair with; `trainees` when the caller knows the load. */
+export interface FunnelCoach { id: string; name: string; trainees?: number }
 
 const TEMPLATE_LABEL: Record<string, string> = {
   academy_invite: 'הזמנה לטופס',
@@ -107,6 +111,7 @@ function MailPreview({ html, to }: { html: string | null; to: string | null }) {
 
 function sendError(json: any, fallback: string): string {
   if (json?.code === 'needs-126') return 'צריך קודם להריץ את מיגרציה 126.';
+  if (json?.code === 'no_schema') return ONE_COACH_UNTIL_UPDATE;
   if (json?.email && json.email.ok === false) return `המייל לא יצא: ${json.email.reason}`;
   return json?.error || fallback;
 }
@@ -225,7 +230,7 @@ export function InviteSheet({
 }
 
 export function AcceptSheet({
-  open, onOpenChange, candidateId, candidateName, coaches, isManager, myId, linked, onDone,
+  open, onOpenChange, candidateId, candidateName, coaches, isManager, myId, linked, multiCoach, onDone,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -236,37 +241,47 @@ export function AcceptSheet({
   myId: string | null;
   /** No athlete row means nothing to let in yet; the sheet says what to do instead. */
   linked: boolean;
+  /** `false` before migration 135: one coach. Unknown (the funnel) = the server says. */
+  multiCoach?: boolean;
   onDone: () => void;
 }) {
-  const [coachId, setCoachId] = useState<string>(myId ?? '');
+  // "שיבוץ מאמנים" at the door: one coach or several, all equal (migration 135).
+  const [coachIds, setCoachIds] = useState<string[]>(myId ? [myId] : []);
   const [preview, setPreview] = useState<{ html: string; to: string | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const previewKey = coachIds.join(',');
 
+  // The default is set once per opening. Not on every `coaches` change: the
+  // funnel reloads its payload after the accept (onDone), and re-defaulting then
+  // wiped the coaches just picked off the sheet that reports the accept.
+  const seeded = useRef<string | null>(null);
   useEffect(() => {
-    if (!open) return;
+    if (!open) { seeded.current = null; return; }
+    if (seeded.current === candidateId || !coaches.length) return;
+    seeded.current = candidateId;
     setMessage(null);
     const mine = coaches.find(c => c.id === myId);
-    setCoachId(mine ? mine.id : coaches[0]?.id ?? '');
+    setCoachIds(mine ? [mine.id] : [coaches[0].id]);
   }, [open, candidateId, coaches, myId]);
 
   useEffect(() => {
-    if (!open || !linked || !coachId) return;
+    if (!open || !linked || !previewKey) return;
     let live = true;
     setPreview(null);
-    void patchCandidate({ id: candidateId, action: 'accept', preview: true, coachId }).then(({ ok, json }) => {
+    void patchCandidate({ id: candidateId, action: 'accept', preview: true, coachIds: previewKey.split(',') }).then(({ ok, json }) => {
       if (!live) return;
       if (ok) setPreview({ html: json.html, to: json.to ?? null });
       else setMessage({ ok: false, text: json?.error || 'לא הצלחנו להכין את המייל' });
     });
     return () => { live = false; };
-  }, [open, candidateId, coachId, linked]);
+  }, [open, candidateId, previewKey, linked]);
 
   async function accept() {
     setBusy(true);
     setMessage(null);
     try {
-      const { ok, json } = await patchCandidate({ id: candidateId, action: 'accept', coachId });
+      const { ok, json } = await patchCandidate({ id: candidateId, action: 'accept', coachIds });
       if (!ok) { setMessage({ ok: false, text: sendError(json, 'הקבלה נכשלה') }); return; }
       onDone();
       if (json.email && json.email.ok === false) {
@@ -279,6 +294,9 @@ export function AcceptSheet({
     }
   }
 
+  const pickerCoaches = coaches.map(c => ({ coachId: c.id, coachName: c.id === myId ? `${c.name} (אני)` : c.name, trainees: c.trainees }));
+  const names = joinHebrewList(coachIds.map(id => coaches.find(c => c.id === id)?.name || '').filter(Boolean));
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={`קבלה לאקדמיה · ${candidateName}`}>
       <div className="px-4 pb-6">
@@ -288,29 +306,28 @@ export function AcceptSheet({
           </p>
         ) : (
           <>
-            <label className="block">
-              <span className="mb-1 block text-[11px] font-semibold text-ink-500">מאמן</span>
-              <select
-                value={coachId}
-                onChange={e => setCoachId(e.target.value)}
-                disabled={!isManager || coaches.length < 2}
-                className="w-full min-h-[48px] rounded-card bg-page px-3 text-[16px] text-ink-900 disabled:opacity-80"
-                dir="auto"
-              >
-                {coaches.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}{c.id === myId ? ' (אני)' : ''}</option>
-                ))}
-              </select>
-            </label>
+            <p className="mb-1.5 px-1 text-[11px] font-semibold text-ink-500">{ASSIGN_COACHES_LABEL}</p>
+            {isManager ? (
+              <CoachesPicker
+                coaches={pickerCoaches}
+                value={coachIds}
+                onChange={setCoachIds}
+                sets={[[]]}
+                multi={multiCoach !== false}
+                showLoad={coaches.some(c => typeof c.trainees === 'number')}
+              />
+            ) : (
+              <p className="rounded-card bg-page px-3 py-3 text-sm text-ink-700" dir="auto">{names || 'אין מאמן'}</p>
+            )}
             <p className="mt-2 text-xs text-ink-500" dir="auto">
-              הקבלה מאשרת את החשבון, משייכת למאמן, ושולחת מייל ״התקבלת״ עם קישור כניסה דרך Strava. Garmin — אחר כך, לא חובה.
+              הקבלה מאשרת את החשבון, משייכת למאמנים שסימנתם, ושולחת מייל ״התקבלת״ עם קישור כניסה דרך Strava. Garmin — אחר כך, לא חובה.
             </p>
             <MailPreview html={preview?.html ?? null} to={preview?.to ?? null} />
           </>
         )}
 
         {message && (
-          <p className={cn('mt-3 flex items-center gap-1.5 text-sm', message.ok ? 'text-accent-600' : 'text-accent-red-ink')} dir="auto">
+          <p className={cn('mt-3 flex items-center gap-1.5 text-sm', message.ok ? 'text-accent-600' : 'text-accent-red-ink')} dir="auto" role={message.ok ? 'status' : 'alert'}>
             {message.ok && <Check className="h-4 w-4" />}
             {message.text}
           </p>
@@ -320,10 +337,10 @@ export function AcceptSheet({
           <button
             type="button"
             onClick={() => void accept()}
-            disabled={busy || !coachId || message?.ok === true}
+            disabled={busy || !coachIds.length || message?.ok === true}
             className="mt-4 flex w-full min-h-[48px] items-center justify-center gap-1.5 rounded-card bg-brand-600 text-sm font-bold text-white disabled:opacity-50"
           >
-            {busy ? 'שולח…' : 'קבלה ושליחה'}
+            {busy ? 'שולח…' : coachIds.length > 1 ? `קבלה ושליחה · ${coachIds.length} מאמנים` : 'קבלה ושליחה'}
           </button>
         )}
       </div>

@@ -18,7 +18,9 @@ import {
   AddMemberSheet, BandSheet, ChangeCoachSheet, MemberAvatar, postBulk,
 } from './ManageMembersSheets';
 import type { AcademyMember, AcademyMembersResponse } from './types';
-import { joinHebrewList, memberCoachIds } from '@/lib/academy/members';
+import { joinHebrewList, memberCoachIds, memberCoachNames } from '@/lib/academy/members';
+import { ASSIGN_COACHES_LABEL, bidiNames } from '@/lib/academy/coach-picker';
+import { CoachAvatarStack } from './CoachAvatarStack';
 
 // The members tab, as the approved mockup (academy-manage-members.html) draws it.
 //
@@ -229,6 +231,7 @@ export function AcademyMembers({
           onOpenFunnel={onOpenFunnel}
           onChanged={refreshAll}
           today={today}
+          multiCoach={data?.multiCoach}
         />
       ) : filter === 'left' ? (
         <LeftList items={left} loading={!people} onChanged={refreshAll} flash={flash} />
@@ -268,7 +271,7 @@ export function AcademyMembers({
                   ) : isUnpaired ? (
                     <button type="button" className="min-h-[32px] px-1 text-xs font-extrabold text-brand-600"
                       onClick={() => setCoachSheet(s.members)}>
-                      לשבץ
+                      {ASSIGN_COACHES_LABEL}
                     </button>
                   ) : (
                     <button type="button" className="min-h-[32px] px-1 text-xs font-extrabold text-brand-600"
@@ -309,7 +312,7 @@ export function AcademyMembers({
                 else setRemoveIds([...selected]);
               }}
               className={cn('min-h-[44px] rounded-xl bg-white/15 px-2.5 text-[13px] font-extrabold disabled:opacity-40', a === 'remove' && 'text-[#FFB4AE]')}>
-              {a === 'coach' ? 'להעביר למאמן' : a === 'band' ? 'דבוקה' : 'להוציא'}
+              {a === 'coach' ? ASSIGN_COACHES_LABEL : a === 'band' ? 'דבוקה' : 'להוציא'}
             </button>
           ))}
         </div>
@@ -322,6 +325,7 @@ export function AcademyMembers({
             onOpenChange={(o) => { if (!o) setCoachSheet(null); }}
             members={coachSheet ?? []}
             coaches={coaches}
+            multiCoach={data?.multiCoach}
             onDone={async () => { await refreshAll(); exitSelect(); }}
           />
           <BandSheet
@@ -354,6 +358,7 @@ export function AcademyMembers({
             addable={people?.addable}
             coaches={coaches}
             bands={bands}
+            multiCoach={data?.multiCoach}
             onDone={refreshAll}
             onOpenFunnel={onOpenFunnel ? (id) => { setAddOpen(false); onOpenFunnel(id); } : undefined}
           />
@@ -394,6 +399,8 @@ function MemberRow({
   const since = monthOf(m.academyJoinedOn, locale);
   // "גם אצל Guy" — the trainee's other coaches, seen from this section.
   const others = otherCoachNames(m, sectionCoachId).map((n) => n.trim().split(/\s+/)[0]);
+  const coachIdsOf = memberCoachIds(m);
+  const coachNamesOf = memberCoachNames(m);
   const attention = line.kind === 'inactive' || line.kind === 'no_watch' || line.kind === 'never_ran';
   const sub = (() => {
     switch (line.kind) {
@@ -419,9 +426,13 @@ function MemberRow({
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[14.5px] font-bold text-ink-700" dir="auto">{m.name}</span>
         <span className={cn('block truncate text-xs', attention ? 'font-semibold text-band-3-ink' : 'text-ink-400')}>
-          {others.length ? <>גם אצל {joinHebrewList(others)}</> : sub}
+          {others.length ? <>גם אצל {bidiNames(others)}</> : sub}
         </span>
       </span>
+      {/* Every coach of this trainee, at a glance — the shared ones too. */}
+      {coachIdsOf.length > 0 && (
+        <CoachAvatarStack size={22} coaches={coachIdsOf.map((id, i) => ({ id, name: coachNamesOf[i] || '' }))} />
+      )}
       {others.length ? (
         <span className="shrink-0 rounded-md bg-violet-600/10 px-1.5 py-0.5 text-[11px] font-extrabold text-violet-600">משותף</span>
       ) : memberCoachIds(m).length === 0 ? (
@@ -439,7 +450,7 @@ function MemberRow({
 // ── Waiting for approval ────────────────────────────────────────────────────
 
 function PendingList({
-  items, loading, coaches, myAthleteId, onOpenFunnel, onChanged, today,
+  items, loading, coaches, myAthleteId, onOpenFunnel, onChanged, today, multiCoach,
 }: {
   items: PendingApplicant[];
   loading: boolean;
@@ -448,6 +459,7 @@ function PendingList({
   onOpenFunnel?: (candidateId: string) => void;
   onChanged: () => Promise<void>;
   today: string;
+  multiCoach?: boolean;
 }) {
   const [accepting, setAccepting] = useState<PendingApplicant | null>(null);
   const [deleting, setDeleting] = useState<PendingApplicant | null>(null);
@@ -458,7 +470,7 @@ function PendingList({
   const funnelCoaches = coaches
     .filter((c) => c.coachId)
     .sort((a, b) => a.trainees - b.trainees)
-    .map((c) => ({ id: c.coachId as string, name: c.coachName || '' }));
+    .map((c) => ({ id: c.coachId as string, name: c.coachName || '', trainees: c.trainees }));
 
   const remove = async (p: PendingApplicant) => {
     setBusy(p.key);
@@ -539,6 +551,7 @@ function PendingList({
           isManager
           myId={myAthleteId && funnelCoaches.some((c) => c.id === myAthleteId) ? myAthleteId : null}
           linked={!!accepting.athleteId}
+          multiCoach={multiCoach}
           onDone={() => void onChanged()}
         />
       )}

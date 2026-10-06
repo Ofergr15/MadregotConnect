@@ -8,10 +8,12 @@ export const dynamic = 'force-dynamic';
 /**
  * POST /api/academy/members/bulk — one write for one trainee or many.
  *
- *   { athleteIds, action: 'coach',   coachId | null, notify? }  move to a coach, or unpair
+ *   { athleteIds, action: 'coach',   coachIds[] | coachId | null, notify? }  replace the coaches, or unpair
+ *   { athleteIds, action: 'addCoach', coachIds[] | coachId, notify? }  add coaches, keep the rest
+ *   { athleteIds, action: 'removeCoach', coachId }               drop one coach, keep the rest
  *   { athleteIds, action: 'band',    bandId | null }            set the goal band
  *   { athleteIds, action: 'remove' }                            out of the academy, still in the club
- *   { athleteIds, action: 'add',     coachId?, bandId?, notify? } approved club members, straight in
+ *   { athleteIds, action: 'add',     coachIds? | coachId?, bandId?, notify? } approved club members, straight in
  *   { athleteIds, action: 'restore', coachId?, notify? }        bring back, with the last coach by default
  *
  * Academy manager only. Every id is checked on its own — 'coach', 'band' and

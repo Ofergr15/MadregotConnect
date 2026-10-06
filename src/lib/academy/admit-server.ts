@@ -12,7 +12,8 @@ import {
 import { notifyAthlete } from '@/lib/push';
 import { approvalCopy } from '@/lib/notifications/copy';
 import { inviteUrl, isInviteFresh } from './intake';
-import { isAcademyManager, writeCoachPair } from './pairing-server';
+import { isAcademyManager, setPairCoaches } from './pairing-server';
+import { coachIdsOf, hasTraineeCoachesTable, joinHebrewList } from './trainee-coaches';
 import { applyAcademyMembership } from './membership-server';
 import { holdsAcademyCoachRole } from '@/lib/academy/coaches';
 
@@ -93,7 +94,7 @@ export async function inviteAction(id: string, caller: VerifiedCaller, body: any
 }
 
 /**
- *   { action: 'accept', coachId?, preview?: boolean }
+ *   { action: 'accept', coachIds?: string[], coachId?, preview?: boolean }
  *
  * Needs the athlete row: the form writes one for every applicant, and a card that
  * came some other way is linked first (the card's link row). Then, in order:
@@ -101,11 +102,26 @@ export async function inviteAction(id: string, caller: VerifiedCaller, body: any
  *   1. out of the maintenance window — as the approvals list does, and for the
  *      same reason: approving someone who then meets a closed door changes nothing
  *   2. approved + active, a join token, and `is_academy`
- *   3. the dedicated coach (writeCoachPair, same trail as the coach picker)
+ *   3. the coaches (setPairCoaches, same trail as "שיבוץ מאמנים") — one or
+ *      several since migration 135, all equal; `coachId` is the one-coach form
  *   4. the "you're in" mail, and a push for whoever already has the app
  *
- * An academy coach accepts for themselves; the manager may name any staff coach.
+ * An academy coach accepts for themselves; the manager may name any academy coaches.
  */
+export function acceptCoachIds(body: any, caller: VerifiedCaller, manager: boolean): string[] | { error: string; status: number } {
+  const clean = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  const asked = Array.isArray(body?.coachIds)
+    ? [...new Set((body.coachIds as unknown[]).map(clean).filter(Boolean))]
+    : clean(body?.coachId) ? [clean(body?.coachId)] : [];
+  if (!manager) {
+    if (asked.some((c) => c !== caller.athleteId)) {
+      return { error: 'An academy coach accepts trainees for themselves', status: 403 };
+    }
+    return caller.athleteId ? [caller.athleteId] : [];
+  }
+  return asked.length ? asked : caller.athleteId ? [caller.athleteId] : [];
+}
+
 export async function acceptAction(id: string, caller: VerifiedCaller, body: any): Promise<Response> {
   const { card } = await readCard(id);
   if (!card) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -117,22 +133,25 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
   }
 
   const manager = isAcademyManager(caller);
-  const asked = typeof body?.coachId === 'string' ? body.coachId.trim() : '';
-  const coachId = manager ? asked || caller.athleteId || '' : caller.athleteId || '';
-  if (!manager && asked && asked !== caller.athleteId) {
-    return NextResponse.json({ error: 'An academy coach accepts trainees for themselves' }, { status: 403 });
-  }
-  if (!coachId) return NextResponse.json({ error: 'Pick the coach' }, { status: 400 });
-  if (coachId === card.athlete_id) {
+  const picked = acceptCoachIds(body, caller, manager);
+  if (!Array.isArray(picked)) return NextResponse.json({ error: picked.error }, { status: picked.status });
+  if (!picked.length) return NextResponse.json({ error: 'Pick the coach' }, { status: 400 });
+  if (picked.includes(card.athlete_id)) {
     return NextResponse.json({ error: 'A trainee cannot be their own coach' }, { status: 400 });
   }
 
   const supabase = createServerClient();
-  const { data: coach } = await supabase
-    .from('athletes').select('id, name, role, extra_roles').eq('id', coachId).eq('coach_id', COACH_ID).maybeSingle();
-  if (!coach || !holdsAcademyCoachRole(coach)) {
-    return NextResponse.json({ error: 'That coach is not an academy coach in this club' }, { status: 400 });
+  const coaches: Array<{ id: string; name: string }> = [];
+  for (const cid of picked) {
+    const { data: coach } = await supabase
+      .from('athletes').select('id, name, role, extra_roles').eq('id', cid).eq('coach_id', COACH_ID).maybeSingle();
+    if (!coach || !holdsAcademyCoachRole(coach)) {
+      return NextResponse.json({ error: 'That coach is not an academy coach in this club' }, { status: 400 });
+    }
+    coaches.push({ id: coach.id, name: coach.name });
   }
+  const coachId = coaches[0].id;
+  const coachName = joinHebrewList(coaches.map((c) => c.name));
 
   const { data: athlete, error: athleteError } = await supabase
     .from('athletes')
@@ -148,8 +167,17 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
   const to = card.email || athlete.email;
 
   if (body?.preview) {
-    const built = academyAcceptedEmail({ name: card.name || athlete.name, token: token || null, coachName: coach.name });
+    const built = academyAcceptedEmail({ name: card.name || athlete.name, token: token || null, coachName, coachCount: coaches.length });
     return NextResponse.json({ to, ...built });
+  }
+
+  // Several coaches need 135. Refused before anything is written, so nobody is
+  // let in with one coach of the two the manager picked.
+  if (coaches.length > 1 && !(await hasTraineeCoachesTable(supabase))) {
+    return NextResponse.json(
+      { error: 'Several coaches per trainee need migration 135 — paste it first', code: 'no_schema' },
+      { status: 409 },
+    );
   }
 
   let released = false;
@@ -180,9 +208,12 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
   // findable in "עזבו" only through the coach history.
   await applyAcademyMembership(supabase, athlete.id, true);
 
-  const paired = athlete.academy_coach_id === coachId
+  // The whole set, through the one write every "שיבוץ מאמנים" door uses.
+  const before = await coachIdsOf(supabase, athlete.id, athlete.academy_coach_id ?? null);
+  const coachIds = coaches.map((c) => c.id);
+  const paired = before.length === coachIds.length && coachIds.every((c) => before.includes(c)) && before[0] === coachId
     ? true
-    : await writeCoachPair(athlete.id, coachId, 'accepted from the funnel');
+    : (await setPairCoaches(athlete.id, coachIds, 'accepted from the funnel')).ok;
 
   const now = new Date().toISOString();
   const stamp = await supabase.from('academy_candidates').update({ accepted_at: now, updated_at: now }).eq('id', id);
@@ -190,7 +221,7 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
 
   const [email] = await Promise.all([
     to
-      ? notifyAcademyAccepted({ email: to, name: card.name || athlete.name, token, coachName: coach.name, athleteId: athlete.id, candidateId: id })
+      ? notifyAcademyAccepted({ email: to, name: card.name || athlete.name, token, coachName, coachCount: coaches.length, athleteId: athlete.id, candidateId: id })
       : Promise.resolve(null),
     notifyAthlete({
       athleteId: athlete.id,
@@ -201,5 +232,5 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
     }).catch((err: unknown) => console.error('Accept: push failed:', err)),
   ]);
 
-  return NextResponse.json({ ok: true, coachId, coachName: coach.name, paired, released, acceptedAt: now, email });
+  return NextResponse.json({ ok: true, coachId, coachIds, coachName, paired, released, acceptedAt: now, email });
 }

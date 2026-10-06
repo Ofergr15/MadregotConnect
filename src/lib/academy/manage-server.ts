@@ -13,7 +13,7 @@ import { israelToday } from '@/lib/utils';
 import { holdsAcademyCoachRole } from './coaches';
 import { applyAcademyMembership } from './membership-server';
 import { setPairCoaches, writeCoachPair } from './pairing-server';
-import { coachIdsByTrainee, coachesOf, joinHebrewList, traineeIdsOfCoach } from './trainee-coaches';
+import { coachIdsByTrainee, coachesOf, hasTraineeCoachesTable, joinHebrewList, traineeIdsOfCoach } from './trainee-coaches';
 import {
   applicationDeletable, deriveLeft,
   type AcademyPeopleResponse, type AddableMember, type ApplicantRow, type BulkRequest, type DeleteRefusal,
@@ -193,13 +193,22 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
     if (!canBeCoach(c)) return NextResponse.json({ error: `${c.name} is not an academy coach` }, { status: 400 });
     coach = { id: c.id, name: c.name };
   }
-  // 'coach' with a whole set: every coach in it checked the same way.
+  // A whole set ('coach'), the coaches to add ('addCoach'), or to start with
+  // ('add'): every coach in it checked the same way.
   const setCoaches: Array<{ id: string; name: string }> = [];
   for (const cid of req.coachIds ?? []) {
     const c = await readCoach(supabase, cid);
     if (!c) return NextResponse.json({ error: 'No such coach in this club' }, { status: 404 });
     if (!canBeCoach(c)) return NextResponse.json({ error: `${c.name} is not an academy coach` }, { status: 400 });
     setCoaches.push({ id: c.id, name: c.name });
+  }
+  // Letting somebody in with several coaches before 135: refused up front, so no
+  // one is half let in (in the academy, with one coach of the two asked for).
+  if (req.action === 'add' && setCoaches.length > 1 && !(await hasTraineeCoachesTable(supabase))) {
+    return NextResponse.json(
+      { error: 'Several coaches per trainee need migration 135 — paste it first', code: 'no_schema' },
+      { status: 409 },
+    );
   }
   // The trainees' current sets, for 'addCoach' / 'removeCoach' and the notifications.
   const isSetAction = req.action === 'coach' || req.action === 'addCoach' || req.action === 'removeCoach';
@@ -257,7 +266,7 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
       const target = req.action === 'coach'
         ? (req.coachIds ?? (req.coachId ? [req.coachId] : []))
         : req.action === 'addCoach'
-          ? [...before, req.coachId!]
+          ? [...before, ...(req.coachIds?.length ? req.coachIds : [req.coachId!])]
           : before.filter((c) => c !== req.coachId);
       const r = await setPairCoaches(id, target, 'מנהל האקדמיה');
       if (!r.ok) {
@@ -310,18 +319,24 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
     const { error } = await supabase.from('athletes').update(update).eq('id', id).eq('coach_id', COACH_ID);
     if (error) { results.push({ athleteId: id, ok: false, error: 'write_failed' }); continue; }
     await applyAcademyMembership(supabase, id, true);
-    const pairWith = coach ?? restoreCoach.get(id) ?? null;
-    if (pairWith) {
-      await writeCoachPair(id, pairWith.id, req.action === 'restore' ? 'חזר לאקדמיה' : 'נוסף לאקדמיה');
-      pushTo(toCoaches, pairWith.id, row.name);
+    // 'add' with a set: every coach at once, the same write as "שיבוץ מאמנים".
+    const startWith = req.action === 'add' && setCoaches.length
+      ? setCoaches
+      : [coach ?? restoreCoach.get(id) ?? null].filter((c): c is { id: string; name: string } => !!c);
+    if (startWith.length) {
+      const reason = req.action === 'restore' ? 'חזר לאקדמיה' : 'נוסף לאקדמיה';
+      if (startWith.length > 1) await setPairCoaches(id, startWith.map((c) => c.id), reason);
+      else await writeCoachPair(id, startWith[0].id, reason);
+      for (const c of startWith) pushTo(toCoaches, c.id, row.name);
     }
-    const pairName = pairWith?.name ?? null;
+    const pairWith = startWith[0] ?? null;
+    const pairName = startWith.length ? joinHebrewList(startWith.map((c) => c.name)) : null;
     toTrainees.push({
       athleteId: id,
       kind: 'academy_joined',
       copy: (locale) => (pairName ? academyCoachAssignedCopy(locale, { coach: pairName }) : academyJoinedCopy(locale, { by })),
     });
-    results.push({ athleteId: id, ok: true, coachId: pairWith?.id ?? null });
+    results.push({ athleteId: id, ok: true, coachId: pairWith?.id ?? null, coachIds: startWith.map((c) => c.id) });
   }
 
   if (req.notify) {

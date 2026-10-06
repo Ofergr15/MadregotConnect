@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useSWRConfig } from 'swr';
-import { ChevronLeft, UserPlus } from 'lucide-react';
+import { ChevronLeft, Plus, UserPlus } from 'lucide-react';
 import { useApi, apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { AcademyCoachesResponse } from '@/app/api/academy/coaches/route';
@@ -12,10 +12,12 @@ import {
   coachSummaryParts,
   suggestedCoachId,
   unpairedTrainees,
+  addToCoachBody,
   type CoachCard,
   type CoachRef,
 } from '@/lib/academy/coach-board';
 import { CoachesSheet } from './AcademyAdmin';
+import { AddTraineesToCoachSheet } from './ManageMembersSheets';
 import { initialsOf, type AcademyMember } from './types';
 import { memberCoachIds, memberCoachNames } from '@/lib/academy/members';
 
@@ -24,8 +26,11 @@ import { memberCoachIds, memberCoachNames } from '@/lib/academy/members';
 // Mockup v5, phone 3. One card per coach: who they hold, how much of the plan those
 // trainees ran, who is not running, and a bar of the coach's places — filled, orange
 // for the trainees who are behind, empty for what is free. A coach with free places
-// while trainees sit unpaired gets "לשבץ אליו". The numbers are `buildCoachCards`
-// (lib/academy/coach-board.ts, tested); this file draws.
+// while trainees sit unpaired gets "לשבץ אליו", and every card (manager) gets
+// "+ להוסיף מתאמן": pick any trainees, and this coach JOINS their coaches — both
+// buttons add, never replace (addToCoachBody), so a trainee who already has a
+// coach keeps them. The numbers are `buildCoachCards` (lib/academy/coach-board.ts,
+// tested); this file draws.
 //
 // Adding and removing the role is CoachesSheet's, reused rather than redrawn: one
 // place decides that a coach still holding trainees cannot be removed (and the route
@@ -89,6 +94,13 @@ export function CoachesBoard({
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [placed, setPlaced] = useState<Set<string>>(() => new Set());
+  const [addTo, setAddTo] = useState<{ id: string; name: string } | null>(null);
+  const refresh = async () => {
+    await Promise.all([
+      mutate(),
+      mutateKeys((key) => typeof key === 'string' && key.startsWith('/api/academy/members')),
+    ]);
+  };
 
   const coaches: CoachRef[] | null = useMemo(() => {
     if (canManage) return data ? data.coaches : null;
@@ -134,16 +146,13 @@ export function CoachesBoard({
       const res = await fetch('/api/academy/members/bulk', {
         method: 'POST',
         headers: await apiHeaders(true),
-        body: JSON.stringify({ athleteIds: ids, action: 'coach', coachId: card.id, notify: true }),
+        body: JSON.stringify(addToCoachBody(card.id, ids)),
       });
       if (!res.ok) throw new Error();
       setPlaced((prev) => new Set([...prev, ...ids]));
       // The members payload is the shell's; refresh every members read so the new
       // trainees land on this coach's card and leave the unpaired list.
-      await Promise.all([
-        mutate(),
-        mutateKeys((key) => typeof key === 'string' && key.startsWith('/api/academy/members')),
-      ]);
+      await refresh();
     } catch {
       setFailed(card.id);
     } finally {
@@ -254,6 +263,16 @@ export function CoachesBoard({
                 </span>
               ) : null}
             </div>
+
+            {canManage && (
+              <button
+                type="button"
+                onClick={() => setAddTo({ id: card.id, name: card.name })}
+                className="mt-2 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl bg-page text-[13px] font-extrabold text-brand-600 active:bg-page/60"
+              >
+                <Plus className="h-4 w-4" /> להוסיף מתאמן
+              </button>
+            )}
           </div>
         );
       })}
@@ -267,6 +286,15 @@ export function CoachesBoard({
           <UserPlus className="h-5 w-5" />
           מאמן חדש
         </button>
+      )}
+
+      {canManage && (
+        <AddTraineesToCoachSheet
+          coach={addTo}
+          onOpenChange={(o) => { if (!o) setAddTo(null); }}
+          members={members}
+          onDone={refresh}
+        />
       )}
 
       {canManage && (

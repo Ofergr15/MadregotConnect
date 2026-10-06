@@ -234,7 +234,7 @@ describe('the bulk body', () => {
     expect(parseBulk({ action: 'nope', athleteIds: ['a'] })).toBe('Unknown action');
     expect(parseBulk({ action: 'remove', athleteIds: [] })).toBe('athleteIds is required');
     expect(parseBulk({ action: 'coach', athleteIds: ['a'] })).toMatch(/coachId or coachIds is required/);
-    expect(parseBulk({ action: 'addCoach', athleteIds: ['a'] })).toMatch(/coachId is required/);
+    expect(parseBulk({ action: 'addCoach', athleteIds: ['a'] })).toMatch(/coachId or coachIds is required/);
     expect(parseBulk({ action: 'removeCoach', athleteIds: ['a'], coachId: null })).toMatch(/coachId is required/);
     expect(parseBulk({ action: 'coach', athleteIds: ['a'], coachIds: 'dana' })).toMatch(/must be an array/);
     expect(parseBulk({ action: 'coach', athleteIds: ['a'], coachIds: ['dana', 'a'] })).toMatch(/own coach/);
