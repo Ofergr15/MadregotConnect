@@ -47,6 +47,12 @@ export interface FeedActivity {
   routePreview: Array<{ lat: number; lng: number }> | null;
   /** `routePreview` is the 300-point route (migration 130), drawn as a curve (RouteMinimap `hd`). */
   routeHd?: boolean;
+  /**
+   * The run's whole stored GPS track (gps_points), only on the share sheet's own
+   * fetch (`/api/feed/items/[id]?route=full`): the card is a 1080 px picture and
+   * draws from this when it is there, the feed never carries it.
+   */
+  routeFull?: Array<{ lat: number; lng: number }> | null;
   hasRoute: boolean;
   /**
    * Average pace per kilometre, seconds/km, for the thumbnail's pace heat map.

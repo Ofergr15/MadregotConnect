@@ -8,6 +8,7 @@ import { Sheet } from '@/components/ui/Sheet';
 import { WorkoutShareEditor } from '@/components/share/WorkoutShareEditor';
 import { WeekShareEditor } from '@/components/share/WeekShareEditor';
 import { useEveningRelease } from '@/lib/use-evening-release';
+import { useFullRoute } from '@/lib/share/full-route';
 import {
   renderShareCard, shareCard, supportsPhoto, supportsTransparent, workoutPaceBars,
   ACCENT_HEX, SHARE_ACCENT_KEYS, SHARE_BRAND_KEYS, type ShareAccent, type ShareBrand, type ShareTemplate,
@@ -85,8 +86,14 @@ const VIEW_LABEL: Record<ShareTemplate, string> = {
  * the super user's until the switch, then everyone's. Before it, everyone else
  * keeps this sheet, whose workout branch is unchanged.
  */
-export function ShareSheet({ subject, onClose }: { subject: ShareSubject; onClose: () => void }) {
+export function ShareSheet({ subject: given, onClose }: { subject: ShareSubject; onClose: () => void }) {
   const editor = useEveningRelease();
+  // The run's whole track for the card, swapped in once it loads (lib/share/full-route).
+  const fullItem = useFullRoute(given.kind === 'workout' ? given.item : null);
+  const subject = useMemo<ShareSubject>(
+    () => (given.kind === 'workout' && fullItem && fullItem !== given.item ? { ...given, item: fullItem } : given),
+    [given, fullItem],
+  );
   if (subject.kind === 'workout' && editor) return <WorkoutShareEditor item={subject.item} onClose={onClose} />;
   if (subject.kind === 'week' && editor) {
     return (

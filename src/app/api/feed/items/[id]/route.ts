@@ -71,6 +71,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       }),
     );
 
+    // The share card's track (see FeedActivity.routeFull). Only when the route
+    // survived the item's own masking: a hidden map stays hidden here too.
+    if (searchParams.get('route') === 'full' && item.activity?.routePreview?.length) {
+      const { data: gps } = await supabase.from('athlete_activities').select('gps_points').eq('id', item.activity.id).maybeSingle();
+      const pts = Array.isArray(gps?.gps_points) ? (gps.gps_points as Array<{ lat?: unknown; lng?: unknown }>) : [];
+      const full = pts.filter((p): p is { lat: number; lng: number } => typeof p?.lat === 'number' && typeof p?.lng === 'number')
+        .map(p => ({ lat: p.lat, lng: p.lng }));
+      if (full.length > item.activity.routePreview.length) item.activity.routeFull = full;
+    }
+
     return NextResponse.json({ item });
   } catch (err: unknown) {
     console.error('Feed item fetch error:', err);

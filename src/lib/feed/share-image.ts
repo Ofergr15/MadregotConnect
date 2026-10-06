@@ -588,6 +588,66 @@ function tint(img: HTMLImageElement, color: string): CanvasImageSource {
   return off;
 }
 
+/** The route as it was drawn before the full track: 10 px under an 18 px shadow. */
+function drawRouteClassic(ctx: CanvasRenderingContext2D, pts: Array<{ x: number; y: number }>, lineWidth: number, color: string) {
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.shadowColor = 'rgba(0,0,0,0.55)';
+  ctx.shadowBlur = 18;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (const p of pts.slice(1)) ctx.lineTo(p.x, p.y);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  const capR = Math.max(8, lineWidth * 1.4);
+  for (const [pt, cap] of [[pts[0], '#22c55e'], [pts[pts.length - 1], '#ef4444']] as const) {
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, capR, 0, Math.PI * 2);
+    ctx.fillStyle = cap;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * A 3-point moving average: takes the GPS jitter out of a straight road without
+ * cutting corners (a corner is many points wide at 1080 px). Ends stay put.
+ */
+export function smoothRoute(pts: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
+  if (pts.length < 3) return pts;
+  return pts.map((p, i) => (i === 0 || i === pts.length - 1 ? p : {
+    x: (pts[i - 1].x + p.x + pts[i + 1].x) / 3,
+    y: (pts[i - 1].y + p.y + pts[i + 1].y) / 3,
+  }));
+}
+
+/** Catmull-Rom through the points as cubic Béziers, so corners read as curves, not kinks. */
+function traceCurve(ctx: CanvasRenderingContext2D, pts: Array<{ x: number; y: number }>) {
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    ctx.bezierCurveTo(
+      p1.x + (p2.x - p0.x) / 6, p1.y + (p2.y - p0.y) / 6,
+      p2.x - (p3.x - p1.x) / 6, p2.y - (p3.y - p1.y) / 6,
+      p2.x, p2.y,
+    );
+  }
+}
+
+/**
+ * Tracks the sheet fetched whole (FeedActivity.routeFull). They draw in the new
+ * crisp style; the feed's 300-point route keeps the old one. The sheet only
+ * fetches for the super user while it is tried (lib/share/full-route), so this
+ * is the gate, keyed on the array itself so concurrent renders cannot mix.
+ */
+const FULL_TRACKS = new WeakSet<object>();
+
 /** The route polyline, fitted into a box with its aspect ratio preserved. */
 function drawRoute(
   ctx: CanvasRenderingContext2D,
@@ -618,35 +678,45 @@ function drawRoute(
   const originX = box.x + (box.w - drawW) / 2;
   const originY = box.y + (box.h - drawH) / 2;
 
-  const pts = points.map(p => ({
+  const raw = points.map(p => ({
     x: originX + ((p.lng - minLng) * lngScale) * scale,
     // Invert Y so north is up.
     y: originY + (maxLat - p.lat) * scale,
   }));
+  if (!FULL_TRACKS.has(points)) {
+    drawRouteClassic(ctx, raw, lineWidth, color);
+    return;
+  }
+  const pts = smoothRoute(raw);
 
+  // A thin line over a dark casing, no blur — the way Strava draws a track. The
+  // old 10 px line under an 18 px shadow merged an out-and-back into one smeared
+  // band and turned every GPS wobble into a lump (Tuesday 2026-10-06, 23.76 km).
+  // Callers' widths are the old fat ones, so they scale down here.
+  const width = Math.max(3, lineWidth * 0.45);
   ctx.save();
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  ctx.shadowColor = 'rgba(0,0,0,0.55)';
-  ctx.shadowBlur = 18;
-
   ctx.beginPath();
-  ctx.moveTo(pts[0].x, pts[0].y);
-  for (const p of pts.slice(1)) ctx.lineTo(p.x, p.y);
+  traceCurve(ctx, pts);
+  ctx.strokeStyle = 'rgba(6,10,58,0.85)';
+  ctx.lineWidth = width * 2.6;
+  ctx.stroke();
+  ctx.beginPath();
+  traceCurve(ctx, pts);
   ctx.strokeStyle = color;
-  ctx.lineWidth = lineWidth;
+  ctx.lineWidth = width;
   ctx.stroke();
 
-  ctx.shadowBlur = 0;
   // Start (green) and finish (red) caps, same language as the feed minimap.
-  const capR = Math.max(8, lineWidth * 1.4);
+  const capR = Math.max(5, width * 1.3);
   for (const [pt, color] of [[pts[0], '#22c55e'], [pts[pts.length - 1], '#ef4444']] as const) {
     ctx.beginPath();
     ctx.arc(pt.x, pt.y, capR, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(6,10,58,0.85)';
+    ctx.lineWidth = 2;
     ctx.stroke();
   }
   ctx.restore();
@@ -2167,7 +2237,11 @@ export async function renderShareCard(
 ): Promise<Blob> {
   const raw = item.activity;
   if (!raw) throw new Error('Share card requires an activity');
-  const act = raw.activityName ? { ...raw, activityName: isolateLtrRuns(raw.activityName) } : raw;
+  const named = raw.activityName ? { ...raw, activityName: isolateLtrRuns(raw.activityName) } : raw;
+  // The whole track when the sheet fetched it: every route view below reads routePreview.
+  const full = raw.routeFull && raw.routeFull.length > (raw.routePreview?.length ?? 0) ? raw.routeFull : null;
+  if (full) FULL_TRACKS.add(full);
+  const act = full ? { ...named, routePreview: full } : named;
 
   // Otherwise the first paint uses a fallback face and the text is subtly wrong.
   await document.fonts.ready;
