@@ -158,7 +158,19 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const { markTourSeen, markCompleted } = body as { markTourSeen?: boolean; markCompleted?: boolean };
+    const { markTourSeen, markCompleted, resetForTest } = body as { markTourSeen?: boolean; markCompleted?: boolean; resetForTest?: boolean };
+
+    // `?onb=reset` (components/onboarding/OnboardingTestReset): the super user
+    // walking the first run again as if new — the tour is once per account, so
+    // without this it can only ever be seen once, by anybody, including the one
+    // person testing it. His own row only; nobody else can.
+    if (resetForTest) {
+      if (!auth.user.isSuperUser) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      const { error } = await createServerClient().from('athletes')
+        .update({ onboarding_tour_seen_at: null, onboarding_completed_at: null }).eq('id', auth.user.athleteId);
+      if (error) throw error;
+      return NextResponse.json({ ok: true, reset: true });
+    }
     if (!markTourSeen && !markCompleted) {
       return NextResponse.json({ error: 'Nothing to mark' }, { status: 400 });
     }

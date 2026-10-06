@@ -58,3 +58,25 @@ describe('on an iPhone browser the landing page is the install guide', () => {
     expect(g).toMatch(/לא מצליחים להתקין\? כניסה בדפדפן/);
   });
 });
+
+describe('"what\'s new" waits for the first run, and a new member never gets it', () => {
+  const base = { applicable: true, migrated: true, tourSeen: true, tourSeenAt: '2026-09-01T08:00:00Z', completed: false, completedAt: null } as never;
+  const NOW = Date.parse('2026-10-06T12:00:00Z');
+  it('waits for the install step, the tour and an askable notifications step', async () => {
+    const { whatsNewTiming } = await import('@/lib/onboarding/first-run-order');
+    expect(whatsNewTiming(undefined, true, 'granted', NOW)).toBe('wait');
+    expect(whatsNewTiming(base, false, 'granted', NOW)).toBe('wait');
+    expect(whatsNewTiming({ ...(base as object), tourSeen: false } as never, true, 'granted', NOW)).toBe('wait');
+    expect(whatsNewTiming(base, true, 'granted', NOW)).toBe('open');
+  });
+  it('a member whose tour ended in the last three days: spent quietly', async () => {
+    const { whatsNewTiming } = await import('@/lib/onboarding/first-run-order');
+    expect(whatsNewTiming({ ...(base as object), tourSeenAt: '2026-10-06T07:00:00Z' } as never, true, 'granted', NOW)).toBe('quiet');
+  });
+  it('the auto-sheet asks it (unless the release push was tapped), and the test reset is the super user\'s alone', () => {
+    const sheet = read('components/whats-new/WhatsNewSheet.tsx');
+    expect(sheet).toMatch(/if \(v2 && !asked\) \{\s+const timing = whatsNewTiming\(/);
+    const api = read('app/api/onboarding/route.ts');
+    expect(api).toMatch(/if \(resetForTest\) \{\s+if \(!auth\.user\.isSuperUser\) return NextResponse\.json\(\{ error: 'Forbidden' \}, \{ status: 403 \}\);/);
+  });
+});

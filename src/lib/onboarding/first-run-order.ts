@@ -205,3 +205,45 @@ export function canStartTour(data: OnboardingState | undefined, installAnswered:
 export function tourExitTarget(steps: { anchor: string }[], index: number): string | null {
   return steps[index]?.anchor === 'setupCard' ? `${TOUR_HOME}?tab=setup` : null;
 }
+
+
+/** What the browser reports, normalised so an absent `Notification` is a value. */
+export function readPushPermission(): PushPermissionState {
+  if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return 'unsupported';
+  }
+  return Notification.permission as PushPermissionState;
+}
+
+/**
+ * A member whose tour ended this recently is new: for them the whole app is news,
+ * the tour has just explained it, and a "what's new" story on top of that reads as
+ * the app talking over itself.
+ */
+export const NEW_MEMBER_QUIET_MS = 3 * 24 * 3_600_000;
+
+/**
+ * Where the auto-opening "what's new" sits in the first run (onboarding v2): after
+ * it, never in front of it. It used to open the moment the feed painted, so a
+ * member signing in for the first time got a story about this week's releases
+ * before the tour and the notifications step — the two things that decide whether
+ * they stay.
+ *   'wait'  — the install step, the tour or the notifications step is still ahead
+ *   'quiet' — a new member: spend the entries without showing them
+ *   'open'  — show it as before
+ */
+export function whatsNewTiming(
+  data: OnboardingState | undefined,
+  installAnswered: boolean,
+  permission: PushPermissionState,
+  now: number,
+): 'wait' | 'quiet' | 'open' {
+  if (!data) return 'wait';
+  if (!data.applicable) return 'open'; // staff with no athlete row
+  if (!installAnswered) return 'wait';
+  if (data.migrated && !data.tourSeen) return 'wait';
+  if (canShowNotificationsStep(data, installAnswered, permission)) return 'wait';
+  const seenAt = data.tourSeenAt ? Date.parse(data.tourSeenAt) : NaN;
+  if (Number.isFinite(seenAt) && now - seenAt < NEW_MEMBER_QUIET_MS) return 'quiet';
+  return 'open';
+}

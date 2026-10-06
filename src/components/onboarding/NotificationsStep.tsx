@@ -13,6 +13,7 @@ import {
   PUSH_STEP_DISMISS_KEY,
   PUSH_STEP_SESSION_SKIP_KEY,
   canShowNotificationsStep,
+  readPushPermission,
   recordPushStepSkipped,
   type PushPermissionState,
 } from '@/lib/onboarding/first-run-order';
@@ -33,13 +34,7 @@ import { logClient } from '@/lib/client-log';
 // sheet that isn't a deliberate "yes" has to leave the prompt unspent.
 // ═════════════════════════════════════════════════════════════════════════════
 
-/** What the browser reports, normalised so an absent `Notification` is a value. */
-function readPermission(): PushPermissionState {
-  if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-    return 'unsupported';
-  }
-  return Notification.permission as PushPermissionState;
-}
+const readPermission = readPushPermission;
 
 export function NotificationsStep() {
   const t = useTranslations('pushStep');
