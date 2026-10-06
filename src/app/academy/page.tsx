@@ -1,6 +1,11 @@
 import Link from 'next/link';
 import { GraduationCap } from 'lucide-react';
 import { academyShareMetadata } from '@/lib/academy/share-metadata';
+import { createServerClient } from '@/lib/supabase/server';
+import { isRegistrationOpen } from '@/lib/academy/registration';
+
+// Read per request: the manager's open/closed switch must show the moment it flips.
+export const dynamic = 'force-dynamic';
 
 /**
  * /academy — the page the Instagram bio links to (door B; see lib/academy/intake.ts).
@@ -29,6 +34,7 @@ export default async function AcademyLandingPage({
 }) {
   const { src } = await searchParams;
   const href = `/academy-register?src=${encodeURIComponent(src === 'form' ? 'form' : 'ig')}`;
+  const open = await isRegistrationOpen(createServerClient());
   return (
     <div className="min-h-screen bg-page px-5 py-10" dir="rtl">
       <div className="mx-auto max-w-md">
@@ -59,13 +65,24 @@ export default async function AcademyLandingPage({
           </ol>
         </div>
 
-        <Link
-          href={href}
-          className="mt-6 flex min-h-[52px] w-full items-center justify-center rounded-pill bg-brand-600 text-base font-bold text-white"
-        >
-          אני רוצה להצטרף
-        </Link>
-        <p className="mt-3 text-center text-sm text-ink-400">בלי הורדה, בלי סיסמה. עובד מכאן.</p>
+        {open ? (
+          <>
+            <Link
+              href={href}
+              className="mt-6 flex min-h-[52px] w-full items-center justify-center rounded-pill bg-brand-600 text-base font-bold text-white"
+            >
+              אני רוצה להצטרף
+            </Link>
+            <p className="mt-3 text-center text-sm text-ink-400">בלי הורדה, בלי סיסמה. עובד מכאן.</p>
+          </>
+        ) : (
+          // Closed by the manager: the page still says what the academy is, so the
+          // link in the bio isn't a dead end, but there is no button to press.
+          <div className="mt-6 rounded-card bg-card p-4 text-center">
+            <p className="text-base font-bold text-ink-700">ההרשמה סגורה כרגע</p>
+            <p className="mt-1 text-sm leading-relaxed text-ink-400">עקבו אחרינו באינסטגרם לפתיחת המחזור הבא.</p>
+          </div>
+        )}
       </div>
     </div>
   );

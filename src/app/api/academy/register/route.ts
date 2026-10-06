@@ -9,13 +9,10 @@ import { invitePrefill, recordFormCandidate } from '@/lib/academy/intake-server'
 import { academyManagerIds, notifyStaff } from '@/lib/notifications/staff';
 import { academyApplicantCopy } from '@/lib/notifications/copy';
 import { likelyClubMember } from '@/lib/academy/link-server';
+import { mayRegister } from '@/lib/academy/registration';
 
 export const dynamic = 'force-dynamic';
 
-// Registration accepts direct-link sign-ups; only the landing-page buttons are
-// hidden. Keep in sync with REGISTRATION_OPEN in
-// src/app/academy-register/page.tsx. Flip to false to fully close registration.
-const REGISTRATION_OPEN = true;
 
 // Every submit mails the admin and the typed address, so a script hammering this
 // public endpoint is a spam cannon. Five a minute from one address is more than a
@@ -49,18 +46,19 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    if (!REGISTRATION_OPEN) {
-      return NextResponse.json(
-        { error: 'Academy registration is currently closed.' },
-        { status: 403 }
-      );
-    }
-
     if (!allowSubmit(clientIp(request.headers))) {
       return NextResponse.json({ error: 'Too many attempts, try again in a minute' }, { status: 429 });
     }
 
     const body = await request.json().catch(() => null);
+    // The manager's switch (lib/academy/registration.ts). A coach's personal
+    // invitation (the token from the funnel) gets through a closed door.
+    if (!(await mayRegister(createServerClient(), body?.inviteToken))) {
+      return NextResponse.json(
+        { error: 'Academy registration is currently closed.', message: 'ההרשמה לאקדמיה סגורה כרגע.' },
+        { status: 403 }
+      );
+    }
     if (isBotSubmit(body)) return NextResponse.json({ success: true });
     const { name, email, phone, intake, inviteToken, src } = body || {};
     if (!name?.trim() || !email?.trim()) {

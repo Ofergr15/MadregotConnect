@@ -20,7 +20,7 @@ const queue = readFileSync(join(root, 'src/components/AcademyRegistrations.tsx')
 
 /** The FIELDS array literal alone — the `Field` union above it names the same
  *  strings, so counting anything across the whole file counts it twice. */
-const fields = form.slice(form.indexOf('const FIELDS'), form.indexOf('REGISTRATION_OPEN'));
+const fields = form.slice(form.indexOf('const FIELDS'), form.indexOf('const STEPS'));
 
 /** Every `key: '…'` inside the FIELDS array literal. */
 function formKeys(): string[] {

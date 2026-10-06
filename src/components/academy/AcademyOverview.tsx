@@ -13,6 +13,7 @@ import {
   agoLabel, israelDay, STAGE_SHORT, joinedInMonth, memberTrend, newJoiners, stageBars,
 } from '@/lib/academy/overview';
 import { BandPaces } from './BandPaces';
+import { AcademyManagerPanel } from './AcademyManagerPanel';
 import {
   ATTENTION_ORDER, ATTENTION_STYLE, fmtRate, fmtWeekRange, initialsOf,
   shiftWeek, sundayOf,
@@ -45,6 +46,7 @@ export function AcademyOverview({
   onSelectMember,
   onGoTab,
   onChanged,
+  canEditRoles = false,
 }: {
   data: AcademyMembersResponse | undefined;
   isLoading: boolean;
@@ -54,6 +56,8 @@ export function AcademyOverview({
   onGoTab: (tab: GoTab) => void;
   /** Revalidate the academy payload after a band's paces are edited. */
   onChanged: () => void | Promise<void>;
+  /** Whether the manager's block may link to the roles screen (admins only). */
+  canEditRoles?: boolean;
 }) {
   const t = useTranslations('academy');
   const locale = useLocale();
@@ -103,6 +107,11 @@ export function AcademyOverview({
 
   return (
     <div className="space-y-5" dir="rtl">
+      {/* 0 · The manager's block: registration, coaches, who has no coach. */}
+      {isAcademyScope && (
+        <AcademyManagerPanel data={data} onSelectMember={onSelectMember} canEditRoles={canEditRoles} />
+      )}
+
       {/* The first screen, no scrolling: the week, the two charts and the four
           numbers. Everything after the tiles is detail you scroll down to. The page
           title above already says where you are, so there is no greeting line. */}

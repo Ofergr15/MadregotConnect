@@ -464,6 +464,7 @@ export default function AcademyPage() {
           onSelectMember={selectMember}
           onGoTab={setView}
           onChanged={reloadMembers}
+          canEditRoles={role === 'admin'}
         />
       ) : view === 'threads' ? (
         <AcademyThreads />

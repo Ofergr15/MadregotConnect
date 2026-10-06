@@ -86,10 +86,6 @@ const FIELDS: Field[] = [
   { key: 'shoeSize', label: 'מה מידת הנעליים שלך', type: 'select', required: true, options: EU_SHOE_SIZES },
 ];
 
-// The public form works via direct link; the landing-page "Join the Academy"
-// buttons are intentionally disabled ("Coming Soon"), so the form isn't
-// advertised there. Flip to false to fully close registration.
-const REGISTRATION_OPEN = true;
 
 // Twenty-three questions on one phone screen is a scroll nobody finishes from an
 // Instagram link. Four short pages, each checked before the next, same questions.
@@ -157,11 +153,19 @@ export default function AcademyRegisterPage() {
   const [src, setSrc] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState(false);
   const [honeypot, setHoneypot] = useState('');
+  // The manager's open/closed switch (lib/academy/registration.ts), answered for
+  // this visitor: a personal invitation (?i=) gets through a closed door. Null
+  // until known, so a closed academy never flashes the form first.
+  const [canRegister, setCanRegister] = useState<boolean | null>(null);
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const i = q.get('i');
     setSrc(q.get('src'));
+    fetch(`/api/academy/registration${looksLikeToken(i) ? `?invite=${i}` : ''}`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(({ canRegister: may }) => setCanRegister(may !== false))
+      .catch(() => setCanRegister(true));
     if (!looksLikeToken(i)) return;
     setInviteToken(i);
     fetch(`/api/academy/register?i=${i}`)
@@ -257,7 +261,9 @@ export default function AcademyRegisterPage() {
     }
   };
 
-  if (!REGISTRATION_OPEN) {
+  if (canRegister === null) return <div className="min-h-screen bg-page" dir="rtl" />;
+
+  if (!canRegister) {
     return (
       <div className="min-h-screen bg-page flex items-center justify-center p-4" dir="rtl">
         <Card className="w-full max-w-md p-6 sm:p-8 text-center">

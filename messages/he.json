@@ -232,7 +232,15 @@
     "silent7dHint": "לחיצה מראה מי",
     "deliveryHint": "אימונים שהגיעו לשעון",
     "vsLastWeek": "משבוע שעבר",
-    "sameAsLastWeek": "כמו בשבוע שעבר"
+    "sameAsLastWeek": "כמו בשבוע שעבר",
+    "academy": "אקדמיה",
+    "academyTrainees": "מתאמנים",
+    "academyCoaches": "מאמנים",
+    "academyUnpaired": "בלי מאמן",
+    "academyInFunnel": "במשפך",
+    "academyOpen": "לאזור האקדמיה",
+    "academyRegistrationOpen": "ההרשמה פתוחה",
+    "academyRegistrationClosed": "ההרשמה סגורה"
   },
   "adminAccount": {
     "title": "החשבון",

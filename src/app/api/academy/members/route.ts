@@ -12,6 +12,7 @@ import {
 import { toBand, type AcademyBand } from '@/lib/academy/bands';
 import { isStaffRole, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
+import { academyCoachIds } from '@/lib/academy/coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,6 +94,11 @@ export async function GET(request: Request) {
     // still works — it just has no coaches to show, so it must not then report
     // every trainee as unpaired.
     let hasPairing = true;
+    // Started now, read below: the coach roster's `extra_roles` costs no round trip
+    // of its own (Promise.resolve kicks off the lazy PostgREST builder).
+    const extraRolesRead = isManager
+      ? Promise.resolve(supabase.from('athletes').select('id, extra_roles').eq('coach_id', COACH_ID))
+      : null;
     const paired = await supabase.from('athletes').select(COLS_PAIRED).eq('coach_id', COACH_ID);
     if (paired.error) {
       hasPairing = false;
@@ -111,9 +117,23 @@ export async function GET(request: Request) {
     // anyone today — an idle coach is the manager's spare capacity, so it has to
     // appear in the load view and in the assign picker. Manager-only: a coach has
     // no use for the roster and no permission to reassign against it.
-    const coachRoster: AcademyCoachRef[] = isManager && hasPairing
-      ? rows.filter((a) => isStaffRole(a.role)).map((a) => ({ coachId: a.id, coachName: a.name }))
-      : [];
+    //
+    // Narrowed to the academy's coaches (lib/academy/coaches.ts): the role, or a
+    // trainee already held. `extra_roles` is its own read so a missing column (no
+    // 127) falls back to the old rule, every staff account, rather than to nobody.
+    let coachRoster: AcademyCoachRef[] = [];
+    if (isManager && hasPairing) {
+      const extra = await extraRolesRead!;
+      const academyRows = rows.filter((a) => a.is_academy);
+      const isCoach = extra.error
+        ? (a: any) => isStaffRole(a.role)
+        : (() => {
+          const extraOf = new Map(((extra.data || []) as Array<{ id: string; extra_roles: string[] | null }>).map((r) => [r.id, r.extra_roles]));
+          const ids = academyCoachIds(rows.map((a) => ({ id: a.id, role: a.role, extra_roles: extraOf.get(a.id) ?? null })), academyRows);
+          return (a: any) => ids.has(a.id);
+        })();
+      coachRoster = rows.filter(isCoach).map((a) => ({ coachId: a.id, coachName: a.name }));
+    }
     const coachNames = new Map<string, string>(rows.map((a) => [a.id, a.name]));
 
     const academyRows = rows.filter((a) => a.is_academy);

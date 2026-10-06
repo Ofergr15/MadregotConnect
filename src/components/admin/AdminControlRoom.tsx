@@ -9,6 +9,7 @@ import { AttendanceRoster } from '@/components/AttendanceRoster';
 import { AdminAttention, type AdminOverview } from '@/components/admin/AdminAttention';
 import { CoachPulse } from '@/components/CoachPulse';
 import { ClubWeekTiles } from '@/components/admin/ClubWeekTiles';
+import { AcademyCard } from '@/components/admin/AcademyCard';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE ADMIN'S HOME — a control room, not a training log.
@@ -82,6 +83,8 @@ export function AdminControlRoom({
       <ClubWeekTiles week={data?.week} deliverySuccessRate={data?.club.deliverySuccessRate} />
 
       <AdminAttention />
+
+      <AcademyCard />
 
       {/* Both kept from the coach home on purpose: they are about the athletes,
           not about this account's own training. */}

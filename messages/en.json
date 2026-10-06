@@ -232,7 +232,15 @@
     "silent7dHint": "Tap to see who",
     "deliveryHint": "Workouts to watches",
     "vsLastWeek": "vs last week",
-    "sameAsLastWeek": "Same as last week"
+    "sameAsLastWeek": "Same as last week",
+    "academy": "Academy",
+    "academyTrainees": "Trainees",
+    "academyCoaches": "Coaches",
+    "academyUnpaired": "No coach",
+    "academyInFunnel": "In funnel",
+    "academyOpen": "Open the academy",
+    "academyRegistrationOpen": "Registration open",
+    "academyRegistrationClosed": "Registration closed"
   },
   "adminAccount": {
     "title": "Account",
