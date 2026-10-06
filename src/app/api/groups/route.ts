@@ -89,6 +89,10 @@ export async function GET(request: Request) {
     // response are ever looked up, so the extra rows are inert — but note that
     // PostgREST caps an unpaginated select at 1000 rows, so if the roster ever
     // passes ~1000 connected athletes these need scoping (or pagination).
+    //
+    // `!group_id` names the join: migration 125 adds athletes.pending_group_id,
+    // a second FK into groups, and a bare `athletes(...)` embed is then ambiguous
+    // (PostgREST PGRST201 → this route 500s, the whole group list gone).
     const [groupsRes, garminRes, stravaRes, academyRes] = await Promise.all([
       supabase
         .from('groups')
@@ -97,7 +101,7 @@ export async function GET(request: Request) {
           name,
           pace_profile,
           created_at,
-          athletes:athletes(id, name, email, status, data_source)
+          athletes:athletes!group_id(id, name, email, status, data_source)
         `)
         .eq('coach_id', coachId)
         .order('created_at', { ascending: true }),
