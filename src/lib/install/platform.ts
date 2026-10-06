@@ -3,8 +3,11 @@
 // the wrong pictures is a member who never gets the icon:
 //
 //   ios-safari     Safari on iOS ≤ 18 — Share is the middle button of the bottom bar.
-//   ios-safari-26  Safari on iOS 26 — the bar collapsed into one "⋯" button at the
-//                  bottom right, and Share moved inside it.
+//   ios-safari-26  Safari on iOS 26+ in the "Bottom" layout (what an upgraded phone
+//                  keeps): Share in the bottom row, then "View More" in the sheet.
+//   ios-safari-compact  iOS 26+ in the "Compact" layout (a new phone's default):
+//                  Share is behind the menu button. Not detectable from the UA, so
+//                  it is the "looks different on my phone" alternative.
 //   ios-inapp      a webview (WhatsApp, Gmail, Instagram) or Chrome/Firefox on an
 //                  iPhone: none of them can add to the home screen, so step one is
 //                  leaving for Safari.
@@ -21,6 +24,7 @@ import { isInAppBrowser, isIosDevice, isStandalone } from '@/lib/pwa';
 export type InstallPlatform =
   | 'ios-safari'
   | 'ios-safari-26'
+  | 'ios-safari-compact'
   | 'ios-inapp'
   | 'android'
   | 'android-inapp'
@@ -68,4 +72,4 @@ export function detectInstallPlatform(): InstallPlatform {
 
 /** The Safari layouts, for the "looks different on my phone" switch. */
 export const otherSafari = (p: InstallPlatform): InstallPlatform =>
-  p === 'ios-safari' ? 'ios-safari-26' : p === 'ios-safari-26' ? 'ios-safari' : p;
+  p === 'ios-safari-26' ? 'ios-safari-compact' : p === 'ios-safari-compact' ? 'ios-safari-26' : p === 'ios-safari' ? 'ios-safari-26' : p;

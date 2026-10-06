@@ -22,6 +22,7 @@ const HELP_WHATSAPP = process.env.NEXT_PUBLIC_HELP_WHATSAPP || '';
 const DEVICE_LABEL: Record<InstallPlatform, string> = {
   'ios-safari': 'אייפון · Safari',
   'ios-safari-26': 'אייפון · Safari',
+  'ios-safari-compact': 'אייפון · Safari',
   'ios-inapp': 'אייפון · בתוך אפליקציה אחרת',
   android: 'אנדרואיד · Chrome',
   'android-inapp': 'אנדרואיד · בתוך אפליקציה אחרת',
@@ -60,6 +61,50 @@ function Qr({ url }: { url: string }) {
     return q.createSvgTag({ cellSize: 5, margin: 2, scalable: true });
   }, [url]);
   return <div className="mx-auto w-[190px] rounded-2xl bg-white p-2 shadow-sm [&_svg]:h-auto [&_svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />;
+}
+
+/** A real screenshot of the step, the control to press ringed. */
+function StepShot({ shot }: { shot: NonNullable<InstallStep['shot']> }) {
+  const r = shot.ring;
+  return (
+    <div className="relative mx-auto w-[min(52vw,200px)] overflow-hidden rounded-[26px] border-[5px] border-[#111] shadow-[0_14px_34px_rgba(20,24,60,0.22)]">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={shot.src} alt="" className="block w-full" />
+      <span
+        aria-hidden
+        className="ig-shot-ring absolute"
+        style={{ left: `${r.x - r.w / 2}%`, top: `${r.y - r.h / 2}%`, width: `${r.w}%`, height: `${r.h}%`, borderRadius: r.round ? 9999 : 12 }}
+      />
+    </div>
+  );
+}
+
+/**
+ * The real install video (an iPhone, recorded on Ofer's own phone): muted so the
+ * phone lets it start by itself, captions burned in, a way out at the top, and it
+ * hands over to the steps when it ends.
+ */
+function RealVideo({ onDone }: { onDone: () => void }) {
+  return (
+    <div className="ig-video" role="dialog" aria-modal="true" aria-label="סרטון התקנה" dir="rtl" data-testid="install-video">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="rounded-full bg-white/10 px-3 py-1 text-xs">איך מתקינים · 30 שניות</span>
+        <button type="button" onClick={onDone} className="min-h-[40px] rounded-full bg-white px-4 text-sm font-black text-[#0b0e2e]">דילוג ←</button>
+      </div>
+      <div className="flex flex-1 items-center justify-center overflow-hidden rounded-[22px] bg-black">
+        <video
+          src="/videos/install-iphone.mp4"
+          poster="/videos/install-iphone-poster.jpg"
+          autoPlay
+          muted
+          playsInline
+          onEnded={onDone}
+          className="h-full max-h-full w-auto"
+        />
+      </div>
+      <p className="mt-2 text-center text-xs text-white/70">אחרי הסרטון נעבור על זה יחד, צעד אחד בכל פעם</p>
+    </div>
+  );
 }
 
 /** The video: every step's drawing in turn, with its caption, and a way out at the top. */
@@ -137,12 +182,15 @@ export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLate
   useEffect(() => { topRef.current?.scrollIntoView({ block: 'start' }); }, [step]);
 
   if (!ready || platform === 'standalone') return null;
+  // iPhone: the real recording (Ofer's own phone, public/videos). Elsewhere, the
+  // drawn walkthrough until there is a recording for that platform too.
+  if (video && steps.length && platform.startsWith('ios-safari')) return <RealVideo onDone={endVideo} />;
   if (video && steps.length) return <InstallVideo steps={steps} browser={browser} onDone={endVideo} />;
 
   const s = steps[step];
   const last = step === steps.length - 1;
   const help = helpLink(platform, step, memberName);
-  const isSafari = platform === 'ios-safari' || platform === 'ios-safari-26';
+  const isSafari = platform === 'ios-safari' || platform === 'ios-safari-26' || platform === 'ios-safari-compact';
   const inApp = platform === 'ios-inapp' || platform === 'android-inapp';
 
   const copy = async () => {
@@ -181,7 +229,7 @@ export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLate
               </div>
             )}
 
-            <div className="mt-4"><InstallScene scene={s.scene} browser={browser} /></div>
+            <div className="mt-4">{s.shot ? <StepShot shot={s.shot} /> : <InstallScene scene={s.scene} browser={browser} />}</div>
 
             <div className="mt-3 text-center">
               <p className="text-2xs font-black tracking-wide text-brand-600">צעד {step + 1} מתוך {steps.length}</p>
