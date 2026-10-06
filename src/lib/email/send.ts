@@ -59,6 +59,8 @@ export interface OutboundEmail {
   /** A display name to send under instead of the configured one. The ADDRESS is
    *  always the configured sender — only a verified domain may send. */
   fromName?: string | null;
+  /** Where a reply goes. Unset, it goes to the sending address, which nobody reads. */
+  replyTo?: string | null;
 }
 
 /** `Name <addr>` with the configured address and another display name. */
@@ -186,6 +188,7 @@ export async function sendEmail(msg: OutboundEmail): Promise<SendResult> {
       to,
       subject: msg.subject,
       html: msg.html,
+      ...(msg.replyTo ? { replyTo: msg.replyTo } : {}),
     });
 
     // ⚠️ THE LINE THE WHOLE FILE IS ABOUT. A resolved promise is not a sent email.

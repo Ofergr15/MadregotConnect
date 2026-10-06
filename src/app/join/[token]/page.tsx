@@ -6,6 +6,8 @@ import { useTranslations } from 'next-intl';
 import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Check, Eye, EyeOff } from 'lucide-react';
 import { InsetSection, InsetRow, Button } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { InstallGuide } from '@/components/install/InstallGuide';
+import { usePreviewOnboardingV2 } from '@/lib/install/v2';
 
 // Local input primitive — see src/app/admin/login/page.tsx for why this is
 // duplicated locally instead of promoted to the shared ui/index.tsx.
@@ -77,6 +79,9 @@ export default function JoinPage() {
   // invite token no longer resolves) or 'error' (the link itself failed).
   const [stravaReturn, setStravaReturn] = useState<string | null>(null);
   const [step, setStep] = useState<'auth' | 'info' | 'garmin' | 'mfa' | 'connecting' | 'done'>('auth');
+  // The illustrated install guide over the done screen, while it is tried (lib/install/v2).
+  const guideV2 = usePreviewOnboardingV2();
+  const [guideClosed, setGuideClosed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -336,6 +341,8 @@ export default function JoinPage() {
 
   if (step === 'done') {
     return (
+      <>
+      {guideV2 && !guideClosed && <InstallGuide canPrompt={false} onLater={() => setGuideClosed(true)} memberName={name || null} />}
       <div className="min-h-screen bg-page flex items-center justify-center p-4">
         <div className="bg-card rounded-card border border-page p-6 sm:p-8 w-full max-w-md animate-fade-in">
           {/* Logo */}
@@ -392,6 +399,7 @@ export default function JoinPage() {
           )}
         </div>
       </div>
+      </>
     );
   }
 

@@ -77,6 +77,8 @@ export interface EmailBlocks {
   /** Escape hatch for a mail whose body is a real table (the academy weekly report).
    *  Raw HTML: the caller owns escaping. Prefer the fields above. */
   bodyHtml?: string;
+  /** Raw HTML under the button and above the notes (the approval mail's QR and tip). */
+  afterCtaHtml?: string;
 }
 
 export interface SetupProgressRow {
@@ -266,6 +268,7 @@ ${preheader}
             ${rows}
             ${blocks.bodyHtml || ''}
             ${cta}
+            ${blocks.afterCtaHtml || ''}
             ${notes}
           </td>
         </tr>
@@ -284,4 +287,53 @@ ${preheader}
 </table>
 </body>
 </html>`;
+}
+
+/**
+ * The 4-step journey (signup · approval · install · sign-in), the same tracker the
+ * join screens draw, so the mail and the screens say where the member is in one
+ * picture. `done` steps are filled, the `at` step is ringed. Tables, not flexbox:
+ * this has to survive Outlook.
+ */
+export function renderJourney(done: number): string {
+  const labels = ['הרשמה', 'אישור', 'התקנה', 'כניסה'];
+  const cells = labels.map((label, i) => {
+    const isDone = i < done, isAt = i === done;
+    const bg = isDone ? BRAND : '#ffffff';
+    const border = isDone || isAt ? BRAND : '#D5D7E4';
+    const color = isDone ? '#ffffff' : isAt ? BRAND : '#9AA0B8';
+    return `<td align="center" style="width: 25%; padding: 0 2px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" width="28" height="28" bgcolor="${bg}" style="width: 28px; height: 28px; border-radius: 14px; border: 2px solid ${border}; font-family: ${FONT}; font-size: 13px; font-weight: 700; color: ${color};">${isDone ? '✓' : i + 1}</td></tr></table>
+      <div style="font-family: ${FONT}; font-size: 12px; font-weight: 700; color: ${isAt ? INK_900 : isDone ? BRAND : '#9AA0B8'}; margin-top: 5px;">${label}</div>
+    </td>`;
+  }).join('');
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 6px 0 18px;"><tr>${cells}</tr></table>`;
+}
+
+/** Numbered steps in tinted wells, side by side — the "three things to do" of a mail. */
+export function renderSteps(steps: Array<{ title: string; sub: string }>): string {
+  const w = Math.floor(100 / steps.length);
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 4px 0 6px;"><tr>${steps.map((s, i) => `
+    <td valign="top" style="width: ${w}%; padding: 0 3px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${WELL}" style="border-radius: 14px;"><tr><td align="center" style="padding: 12px 6px;">
+        <div style="display: inline-block; width: 24px; height: 24px; line-height: 24px; border-radius: 12px; background-color: ${BRAND}; color: #ffffff; font-family: ${FONT}; font-size: 12px; font-weight: 700;">${i + 1}</div>
+        <div style="font-family: ${FONT}; font-size: 13px; font-weight: 700; color: ${INK_900}; line-height: 1.35; margin-top: 6px;">${esc(s.title)}</div>
+        <div style="font-family: ${FONT}; font-size: 11.5px; color: ${INK_500}; line-height: 1.4; margin-top: 3px;">${esc(s.sub)}</div>
+      </td></tr></table>
+    </td>`).join('')}</tr></table>`;
+}
+
+/** "Opened this on a computer? Scan it." — a QR image (an <img>, which every client draws) beside one line. */
+export function renderScanOnPhone(qrSrc: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${WELL}" style="border-radius: 14px; margin: 14px 0 0;"><tr>
+    <td width="96" style="width: 96px; padding: 10px;"><img src="${esc(qrSrc)}" width="84" height="84" alt="קוד QR לקישור" style="display: block; width: 84px; height: 84px; border: 0; background: #ffffff; border-radius: 8px;" /></td>
+    <td style="padding: 10px 6px 10px 12px; font-family: ${FONT};">
+      <div style="font-size: 14px; font-weight: 700; color: ${INK_900};">פתחתם את המייל במחשב?</div>
+      <div style="font-size: 13px; color: ${INK_500}; line-height: 1.5; margin-top: 2px;">סורקים את הקוד במצלמה של הטלפון, וזה נפתח שם.</div>
+    </td></tr></table>`;
+}
+
+/** A warm one-line tip in an amber well. */
+export function renderTip(html: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#FFF7ED" style="border-radius: 12px; margin: 12px 0 0;"><tr><td style="padding: 10px 14px; font-family: ${FONT}; font-size: 13px; color: #7C2D12; line-height: 1.55;">${html}</td></tr></table>`;
 }

@@ -6,6 +6,8 @@ import { useTranslations } from 'next-intl';
 import { Share, Plus, PartyPopper, MoreHorizontal, Compass, Link2, Check } from 'lucide-react';
 import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
 import { isIosDevice } from '@/lib/pwa';
+import { InstallGuide } from '@/components/install/InstallGuide';
+import { useOnboardingV2 } from '@/lib/install/v2';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The install offer — step 1 of the first run, and the only screen that comes
@@ -36,6 +38,7 @@ export function InstallPrompt() {
   const t = useTranslations('install');
   const { offer, dismissForever, skipForSession } = useInstallStep();
   const [copied, setCopied] = useState(false);
+  const v2 = useOnboardingV2();
 
   const copyLink = async () => {
     // The fallback for the member whose webview hides its own menu: paste the
@@ -76,6 +79,19 @@ export function InstallPrompt() {
     // declining the browser's own dialog is a decision we shouldn't re-ask.
     dismissForever();
   };
+
+  // The illustrated guide with its video (components/install), while it is tried
+  // (lib/install/v2). Same three answers as the sheet below.
+  if (v2) {
+    return (
+      <InstallGuide
+        canPrompt={offer.kind === 'prompt'}
+        onInstall={offer.kind === 'prompt' ? install : undefined}
+        onLater={skipForSession}
+        onNever={dismissForever}
+      />
+    );
+  }
 
   return (
     // The backdrop is a click-to-dismiss surface, not a control — WCAG doesn't want

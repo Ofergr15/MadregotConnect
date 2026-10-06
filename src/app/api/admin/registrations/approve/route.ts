@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
 import { APP_URL, COACH_ID } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
+import { ONBOARDING_V2_FOR_ALL, joinLinkV2 } from '@/lib/install/flag';
 import { notifyRegistrationApproved } from '@/lib/email';
 import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
 import { notifyAthlete } from '@/lib/push';
@@ -237,6 +238,9 @@ export async function POST(request: Request) {
     // is not something anyone can guess from "failed".
     let emailed = false;
     let emailReason: string | null = null;
+    // Onboarding v2 (lib/install/flag): the new mail and a link that opens the new
+    // guide, while it is tried — whenever the super user is the one approving.
+    const v2 = ONBOARDING_V2_FOR_ALL || !!auth.user.isSuperUser;
 
     if (isSyntheticAuthEmail(reqRow.email)) {
       // There is no address to send to. They signed in with Strava, so the one on
@@ -252,6 +256,7 @@ export async function POST(request: Request) {
         groupName,
         athleteId: athleteId || null,
         signupRequestId: id,
+        v2,
       });
       emailed = mail.ok;
       emailReason = mail.ok ? null : mail.code === 'email-not-configured' ? mail.code : mail.reason;
@@ -294,7 +299,9 @@ export async function POST(request: Request) {
       emailed,
       emailReason,
       inviteToken: token,
-      joinUrl: `${APP_URL}/join/${token}`,
+      joinUrl: joinLinkV2(APP_URL, token, v2),
+      v2,
+      groupName,
     });
   } catch (err) {
     console.error('Failed to approve registration:', err);

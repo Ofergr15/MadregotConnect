@@ -1,0 +1,81 @@
+/* The install guide's drawings: a small phone with exactly what the member will
+   see, the control to press ringed in orange. Plain CSS (not Tailwind) because
+   these are pictures, positioned to the pixel, and they animate. */
+
+.ig-phone{position:relative;width:min(48vw,182px);aspect-ratio:9/16;margin:0 auto;border-radius:26px;border:6px solid #111;background:#f4f5fa;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 14px 34px rgba(20,24,60,.22)}
+.ig-page{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px;color:#151827}
+.ig-page img{width:44px;height:44px;border-radius:11px}
+.ig-page b{font-size:12px}
+.ig-bar{display:flex;justify-content:space-around;align-items:center;background:rgba(246,246,248,.97);border-top:1px solid #ddd;color:#007aff;padding:6px 4px 12px}
+.ig-bar svg{width:17px;height:17px}
+.ig-url{background:#e7e7ec;border-radius:9px;font-size:9.5px;color:#333;padding:4px 8px;direction:ltr}
+.ig-bar26{display:flex;align-items:center;gap:6px;padding:8px 8px 14px}
+.ig-bar26 .ig-url{flex:1;border-radius:999px;padding:6px 8px;text-align:center;background:rgba(232,232,237,.95)}
+.ig-round{width:30px;height:30px;border-radius:50%;background:rgba(232,232,237,.95);display:flex;align-items:center;justify-content:center;color:#111}
+.ig-hot{position:relative}
+.ig-hot::after{content:"";position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:3px solid #FF5315;animation:ig-pulse 1.4s infinite}
+.ig-row-hot{outline:3px solid #FF5315;outline-offset:-3px;background:#fff7ef!important;font-weight:800;border-radius:9px;animation:ig-glow 1.4s infinite}
+@keyframes ig-pulse{0%{box-shadow:0 0 0 0 rgba(255,83,21,.55)}70%{box-shadow:0 0 0 12px rgba(255,83,21,0)}100%{box-shadow:0 0 0 0 rgba(255,83,21,0)}}
+@keyframes ig-glow{0%,100%{box-shadow:0 0 0 0 rgba(255,83,21,.45)}60%{box-shadow:0 0 0 7px rgba(255,83,21,0)}}
+
+.ig-sheet{margin-top:auto;background:#f2f2f6;border-radius:16px 16px 0 0;padding:6px;display:flex;flex-direction:column;gap:3px}
+.ig-sheet-head{display:flex;gap:6px;align-items:center;background:#fff;border-radius:10px;padding:6px}
+.ig-sheet-head img{width:24px;height:24px;border-radius:6px}
+.ig-sheet-head b{font-size:10px;display:block}
+.ig-sheet-head span{font-size:8.5px;color:#888}
+.ig-srow{display:flex;justify-content:space-between;align-items:center;background:#fff;border-radius:9px;padding:7px 8px;font-size:10px;color:#151827}
+.ig-srow.dim{color:#aaa}
+.ig-srow svg{width:13px;height:13px}
+
+.ig-menu{margin:auto 8px 8px;background:rgba(250,250,252,.98);border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.18);overflow:hidden}
+.ig-menu.top{margin:8px 8px auto}
+
+.ig-add{padding:8px;display:flex;flex-direction:column;gap:8px}
+.ig-add-bar{display:flex;justify-content:space-between;align-items:center;font-size:10px}
+.ig-add-bar span{color:#007aff}
+.ig-add-bar .ig-btn{font-weight:900;padding:2px 6px;border-radius:7px}
+.ig-add-card{display:flex;gap:8px;align-items:center;background:#fff;border-radius:11px;padding:8px}
+.ig-add-card img{width:32px;height:32px;border-radius:8px}
+.ig-add-card b{font-size:11px;display:block}
+.ig-add-card span{font-size:8.5px;color:#888}
+
+.ig-home{flex:1;background:linear-gradient(160deg,#5b6cff,#a35bff);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;padding:20px 12px;align-content:start}
+.ig-home i{aspect-ratio:1;border-radius:10px;background:rgba(255,255,255,.33)}
+.ig-home figure{margin:0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px}
+.ig-home figure img{width:100%;aspect-ratio:1;border-radius:10px;animation:ig-glow 1.4s infinite;box-shadow:0 0 0 3px #FF5315}
+.ig-home figure figcaption{font-size:8px;color:#fff;font-weight:700}
+
+.ig-adialog{margin:auto 10px;background:#fff;border-radius:18px;padding:12px;box-shadow:0 10px 26px rgba(0,0,0,.2)}
+.ig-adialog b{display:block;font-size:12px;margin-bottom:8px}
+.ig-adialog .r{display:flex;gap:8px;align-items:center;font-size:10px}
+.ig-adialog .r img{width:26px;height:26px;border-radius:50%}
+.ig-adialog .btns{display:flex;justify-content:flex-start;gap:14px;margin-top:10px;font-size:10.5px;color:#1a73e8;flex-direction:row-reverse}
+.ig-adialog .btns em{font-style:normal;background:#1a73e8;color:#fff;border-radius:999px;padding:3px 10px;box-shadow:0 0 0 3px #FF5315;animation:ig-glow 1.4s infinite}
+
+.ig-chromebar{display:flex;align-items:center;gap:6px;padding:6px 6px 6px 8px;background:#fff;border-bottom:1px solid #e5e5e5}
+.ig-chromebar .ig-url{flex:1;border-radius:999px;background:#f1f3f4}
+.ig-chromebar svg{width:16px;height:16px;color:#444}
+
+.ig-finger{position:absolute;font-size:30px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.35));animation:ig-tap 1.6s ease-in-out infinite;pointer-events:none;z-index:3}
+@keyframes ig-tap{0%,100%{transform:translateY(0) scale(1)}45%{transform:translateY(-8px) scale(1.02)}60%{transform:translateY(0) scale(.92)}}
+
+/* The video: one scene after another, each with its caption. */
+.ig-video{position:fixed;inset:0;z-index:70;background:#0b0e2e;color:#fff;display:flex;flex-direction:column;padding:max(14px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom))}
+.ig-vstage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;border-radius:22px;background:radial-gradient(120% 90% at 50% 30%,#2b37d6,#141a6b 70%);overflow:hidden}
+.ig-vscene{animation:ig-in .45s ease-out}
+@keyframes ig-in{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+.ig-vcap{position:absolute;left:12px;right:12px;bottom:14px;background:rgba(0,0,0,.74);border-radius:14px;padding:11px 12px;font-size:17px;font-weight:800;line-height:1.35;text-align:center;animation:ig-in .45s ease-out}
+.ig-vbar{height:4px;border-radius:9px;background:rgba(255,255,255,.2);overflow:hidden;margin-top:12px}
+.ig-vbar i{display:block;height:100%;background:#FF5315;transition:width .25s linear}
+
+/* The arrow at the edge of the screen, toward the browser's own button. */
+.ig-point{position:fixed;z-index:65;pointer-events:none;display:flex;align-items:center;gap:6px;background:#FF5315;color:#fff;font-weight:900;font-size:13.5px;border-radius:999px;padding:6px 14px;box-shadow:0 6px 18px rgba(255,83,21,.4)}
+.ig-point.bottom-center{left:50%;transform:translateX(-50%);bottom:max(6px,env(safe-area-inset-bottom))}
+.ig-point.bottom-right{right:14px;bottom:max(6px,env(safe-area-inset-bottom))}
+.ig-point.top-right{right:14px;top:max(6px,env(safe-area-inset-top))}
+.ig-point span{font-size:18px;line-height:1;animation:ig-bounce 1.1s ease-in-out infinite}
+.ig-point.top-right span{animation-name:ig-bounce-up}
+@keyframes ig-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(7px)}}
+@keyframes ig-bounce-up{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+
+@media (prefers-reduced-motion:reduce){.ig-hot::after,.ig-row-hot,.ig-finger,.ig-home figure img,.ig-point span,.ig-vscene,.ig-vcap{animation:none}}

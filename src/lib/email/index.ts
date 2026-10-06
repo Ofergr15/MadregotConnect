@@ -1,6 +1,7 @@
 import { APP_URL, APPROVER_EMAILS } from '@/lib/constants';
+import { joinLinkV2 } from '@/lib/install/flag';
 import { openInAppHref } from '@/lib/open-in-app';
-import { renderEmail, renderSetupProgress, esc, type SetupProgressRow } from './template';
+import { renderEmail, renderSetupProgress, renderJourney, renderSteps, renderScanOnPhone, renderTip, esc, type SetupProgressRow } from './template';
 import { gapNames } from '@/lib/notifications/copy';
 import { sendEmail, type SendResult } from './send';
 import { renderAcademyFormReceived } from './academy-form-received';
@@ -159,7 +160,38 @@ export async function notifyRegistrationApproved(user: {
   groupName?: string | null;
   athleteId?: string | null;
   signupRequestId?: string | null;
+  /** Onboarding v2 (lib/install/flag): the journey, the three install steps, a QR for a computer. */
+  v2?: boolean;
 }): Promise<SendResult> {
+  if (user.v2) {
+    const link = joinLinkV2(APP_URL, user.token, true);
+    return sendEmail({
+      template: 'registration_approved',
+      to: user.email,
+      subject: '✅ אושרת! ככה מתקינים את האפליקציה של מדרגות',
+      // "Stuck? Just reply" has to reach a person.
+      replyTo: ADMIN_EMAIL,
+      athleteId: user.athleteId ?? null,
+      signupRequestId: user.signupRequestId ?? null,
+      html: renderEmail({
+        eyebrow: 'ההרשמה אושרה',
+        title: 'ברוכים הבאים למדרגות! 🎉',
+        preheader: 'נשארה דקה אחת: להתקין את האפליקציה ולהיכנס.',
+        paragraphs: [
+          `ההרשמה שלך אושרה${user.groupName ? `, ${user.groupName}` : ''}. נשארה דקה אחת: להתקין את האפליקציה ולהיכנס.`,
+        ],
+        bodyHtml: renderJourney(2) + renderSteps([
+          { title: 'פותחים את הכפתור בטלפון', sub: 'לא במחשב' },
+          { title: 'מוסיפים למסך הבית', sub: 'המסך יראה לך בדיוק איך' },
+          { title: 'נכנסים', sub: 'עם Strava' },
+        ]),
+        cta: { label: 'להתקנת האפליקציה ←', href: link },
+        afterCtaHtml: renderScanOnPhone(`${APP_URL}/api/public/qr?t=${encodeURIComponent(user.token)}`)
+          + renderTip('💡 באייפון ההתקנה עובדת רק דרך <b>Safari</b>. אם המייל נפתח בתוך Gmail, המסך הראשון יסביר איך לעבור.'),
+        notes: ['הקישור אישי, אל תעבירו אותו לאף אחד.', 'נתקעתם? פשוט תשיבו למייל הזה.'],
+      }),
+    });
+  }
   return sendEmail({
     template: 'registration_approved',
     to: user.email,

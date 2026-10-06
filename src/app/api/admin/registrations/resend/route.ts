@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
 import { APP_URL } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
+import { ONBOARDING_V2_FOR_ALL, joinLinkV2 } from '@/lib/install/flag';
 import { notifyRegistrationApproved } from '@/lib/email';
 import { groupDisplayName } from '@/lib/utils';
 
@@ -68,12 +69,14 @@ export async function POST(request: Request) {
       groupName = group?.name ? groupDisplayName(group.name) : null;
     }
 
+    const v2 = ONBOARDING_V2_FOR_ALL || !!auth.user.isSuperUser;
     const mail = await notifyRegistrationApproved({
       email: reqRow.email,
       token,
       groupName,
       athleteId: reqRow.athlete_id,
       signupRequestId: id,
+      v2,
     });
 
     // ok:true either way, and the link ALWAYS rides back. A refusal here is not the
@@ -84,7 +87,7 @@ export async function POST(request: Request) {
       ok: true,
       emailed: mail.ok,
       emailReason: mail.ok ? undefined : mail.code === 'email-not-configured' ? mail.code : mail.reason,
-      joinUrl: `${APP_URL}/join/${token}`,
+      joinUrl: joinLinkV2(APP_URL, token, v2),
     });
   } catch (err) {
     console.error('Failed to resend an approval link:', err);

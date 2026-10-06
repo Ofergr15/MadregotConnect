@@ -1,6 +1,6 @@
 {
   "name": "madregot-connect",
-  "version": "2.41.111",
+  "version": "2.41.112",
   "private": true,
   "scripts": {
     "predev": "node scripts/copy-pdf-worker.mjs",
@@ -50,6 +50,7 @@
     "openai": "^6.45.0",
     "pdfjs-dist": "^6.3.289",
     "posthog-js": "^1.425.1",
+    "qrcode-generator": "^2.0.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "resend": "^6.18.1",

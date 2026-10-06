@@ -13,6 +13,7 @@ import {
 import { cn, getGroupChip, groupDisplayName } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { approvalWhatsAppText } from '@/lib/install/flag';
 import { Button, Card, EmptyState, Skeleton } from '@/components/ui';
 import { AthleteLink } from '@/components/AthleteLink';
 import { teammateHref } from '@/lib/athletes/profile-link';
@@ -148,6 +149,10 @@ export default function EntryQueuePage() {
   // without one is a 400 from the API — so the choice lives on their card.
   const [orphanGroup, setOrphanGroup] = useState<Record<string, string>>({});
   const [orphanResult, setOrphanResult] = useState<Record<string, 'approved' | 'rejected' | 'failed' | null>>({});
+  // People approved on this visit, with their link: the card itself leaves the list
+  // the moment it is approved, and "send it on WhatsApp" is the next thing to do.
+  const [justApproved, setJustApproved] = useState<Array<{ id: string; email: string; url: string; groupName: string | null }>>([]);
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
   // Per-person outcome of a reminder: sent, sent-but-nowhere-to-land, or failed.
   const [nudged, setNudged] = useState<Record<string, 'sent' | 'emailed' | 'unreachable' | 'failed' | null>>({});
   // What the last "let in" did: both doors, or only the approval because the club
@@ -344,6 +349,12 @@ export default function EntryQueuePage() {
         body: JSON.stringify(action === 'approve' ? { id: req.id, action, groupId } : { id: req.id, action }),
       });
       setOrphanResult((prev) => ({ ...prev, [req.id]: res.ok ? (action === 'approve' ? 'approved' : 'rejected') : 'failed' }));
+      if (res.ok && action === 'approve') {
+        const body = await res.json().catch(() => ({}));
+        if (typeof body?.joinUrl === 'string') {
+          setJustApproved((prev) => [{ id: req.id, email: req.email, url: body.joinUrl, groupName: body.groupName ?? null }, ...prev.filter((p) => p.id !== req.id)]);
+        }
+      }
       if (res.ok) mutate();
     } catch {
       setOrphanResult((prev) => ({ ...prev, [req.id]: 'failed' }));
@@ -489,6 +500,36 @@ export default function EntryQueuePage() {
 
   return (
     <div className="space-y-5">
+      {justApproved.length > 0 && (
+        <Card variant="solid" className="border border-accent-600/30 bg-accent-600/5" dir="rtl">
+          <p className="text-sm font-black text-ink-700">✅ אושרו עכשיו · שלחו להם את הקישור</p>
+          <p className="mt-0.5 text-xs text-ink-500">המייל כבר יצא. בוואטסאפ זה מגיע גם כשהמייל נופל לספאם.</p>
+          <div className="mt-3 space-y-2">
+            {justApproved.map((a) => (
+              <div key={a.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-card p-2.5">
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-700" dir="ltr">{a.email}</span>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(approvalWhatsAppText(a.url, a.groupName))}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex min-h-[40px] items-center gap-1.5 rounded-pill bg-[#25D366] px-3.5 text-sm font-extrabold text-white"
+                >
+                  📲 שליחה בוואטסאפ
+                </a>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try { await navigator.clipboard.writeText(a.url); setCopiedLink(a.id); setTimeout(() => setCopiedLink(null), 2000); } catch { /* shown below */ }
+                  }}
+                  className="min-h-[40px] rounded-pill border border-page bg-card px-3.5 text-sm font-bold text-ink-700"
+                >
+                  {copiedLink === a.id ? '✓ הועתק' : 'העתקת הקישור'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
       {/* The window itself, and its off switch — this is the screen where you can
           see exactly who it costs, so it is the screen that should be able to end
           it. Shown to approvers only, who are the only callers allowed to write. */}
