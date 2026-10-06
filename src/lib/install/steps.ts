@@ -31,6 +31,13 @@ export interface InstallStep {
   point: PointAt;
   /** The caption the video shows over this step's picture. */
   caption: string;
+  /**
+   * A REAL screenshot of this step (an iPhone 17 Pro, iOS 26, Safari "Bottom"
+   * layout — Ofer's own phone, 2026-10-06, contacts and wallpaper blurred), shown
+   * instead of the drawing, with a ring on the control to press. Box in % of the
+   * picture, so it holds at any width.
+   */
+  shot?: { src: string; ring: { x: number; y: number; w: number; h: number; round?: boolean } };
 }
 
 const OPEN_FROM_ICON: InstallStep = {
@@ -57,6 +64,48 @@ const ADD_CONFIRM: InstallStep = {
   caption: 'לוחצים "הוספה" למעלה',
 };
 
+// iOS 26+ with Safari's "Bottom" layout — the layout every iPhone that UPGRADED
+// keeps, so the common one in the club. Measured on a real phone: the share
+// sheet opens WITHOUT "Add to Home Screen"; it is behind "View More".
+const IOS26_BOTTOM: InstallStep[] = [
+    {
+      title: 'לוחצים על כפתור השיתוף',
+      body: 'הריבוע עם החץ למעלה, באמצע השורה התחתונה, מתחת לכתובת.',
+      scene: 'safari-share',
+      point: 'bottom-center',
+      caption: 'לוחצים על כפתור השיתוף',
+      shot: { src: '/images/install/ios-share.jpg', ring: { x: 48.7, y: 94.2, w: 13, h: 6, round: true } },
+    },
+    {
+      title: 'לוחצים "View More" (החץ למטה)',
+      body: 'בחלון שנפתח, העיגול האחרון בשורה התחתונה. בטלפון בעברית: "עוד".',
+      scene: 'share-sheet',
+      point: null,
+      caption: 'לוחצים View More (החץ למטה)',
+      shot: { src: '/images/install/ios-view-more.jpg', ring: { x: 82.8, y: 89.2, w: 15, h: 7, round: true } },
+    },
+    {
+      title: 'בוחרים "Add to Home Screen"',
+      body: 'השורה האחרונה ברשימה, עם הריבוע והפלוס. בטלפון בעברית: "הוספה למסך הבית".',
+      scene: 'share-sheet',
+      point: null,
+      caption: 'בוחרים Add to Home Screen',
+      shot: { src: '/images/install/ios-add-to-home.jpg', ring: { x: 50, y: 94.4, w: 92, h: 5.5 } },
+    },
+    {
+      title: 'משאירים את המתג דלוק, ולוחצים "Add"',
+      body: 'המתג "Open as Web App" צריך להיות ירוק. אחר כך הכפתור הכחול למעלה.',
+      scene: 'add-confirm',
+      point: null,
+      caption: 'משאירים את המתג דלוק, ולוחצים Add',
+      shot: { src: '/images/install/ios-add.jpg', ring: { x: 88, y: 11.5, w: 20, h: 5.5, round: true } },
+    },
+    {
+      ...OPEN_FROM_ICON,
+      shot: { src: '/images/install/ios-home-icon.jpg', ring: { x: 15.7, y: 71.4, w: 19, h: 9, round: true } },
+    },
+  ];
+
 export const INSTALL_STEPS: Record<Exclude<InstallPlatform, 'standalone' | 'desktop'>, InstallStep[]> = {
   'ios-safari': [
     {
@@ -70,24 +119,24 @@ export const INSTALL_STEPS: Record<Exclude<InstallPlatform, 'standalone' | 'desk
     ADD_CONFIRM,
     OPEN_FROM_ICON,
   ],
-  'ios-safari-26': [
+  'ios-safari-26': IOS26_BOTTOM,
+  // iOS 26+ with the "Compact" layout (a new phone's default): Share is behind the menu button.
+  'ios-safari-compact': [
     {
-      title: 'לוחצים על ⋯ בשורה התחתונה',
-      body: 'שלוש הנקודות בעיגול, ליד הכתובת בשורה התחתונה של המסך.',
+      title: 'לוחצים על ☰ בשורה התחתונה',
+      body: 'הכפתור העגול ליד הכתובת (בגרסאות מסוימות: שלוש נקודות ⋯).',
       scene: 'safari26-menu',
       point: null,
-      caption: 'לוחצים על שלוש הנקודות, למטה בצד',
+      caption: 'לוחצים על ☰ בשורה למטה',
     },
     {
-      title: 'בוחרים "שיתוף"',
+      title: 'בוחרים "Share" (שיתוף)',
       body: 'בתפריט שנפתח, השורה עם הריבוע והחץ למעלה.',
       scene: 'safari26-share',
       point: null,
-      caption: 'בוחרים "שיתוף"',
+      caption: 'בוחרים Share',
     },
-    SHARE_SHEET,
-    { ...ADD_CONFIRM, body: 'בפינה העליונה. אם יש מתג "לפתוח כאפליקציה", משאירים אותו דלוק.' },
-    OPEN_FROM_ICON,
+    ...IOS26_BOTTOM.slice(1),
   ],
   'ios-inapp': [
     {

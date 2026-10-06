@@ -31,9 +31,10 @@ describe('which install guide a device gets', () => {
     expect(classifyPlatform(sig(IOS18, { standalone: true }))).toBe('standalone');
   });
 
-  it('"looks different on my phone" swaps only between the two Safari layouts', () => {
+  it('"looks different on my phone" swaps between the Safari layouts, nothing else', () => {
+    expect(otherSafari('ios-safari-26')).toBe('ios-safari-compact');
+    expect(otherSafari('ios-safari-compact')).toBe('ios-safari-26');
     expect(otherSafari('ios-safari')).toBe('ios-safari-26');
-    expect(otherSafari('ios-safari-26')).toBe('ios-safari');
     expect(otherSafari('android')).toBe('android');
   });
 });
@@ -47,8 +48,30 @@ describe('the steps', () => {
   });
 
   it('points at the screen edge only where it cannot be the wrong corner', () => {
-    const points = Object.values(INSTALL_STEPS).flat().map(s => s.point).filter(Boolean);
-    expect(points).toEqual(['bottom-center']);
+    const points = new Set(Object.values(INSTALL_STEPS).flat().map(s => s.point).filter(Boolean));
+    expect([...points]).toEqual(['bottom-center']);
+  });
+});
+
+describe('the real iPhone flow (measured on a phone, 2026-10-06)', () => {
+  it('both iOS 26 layouts go through "View More" before "Add to Home Screen"', () => {
+    for (const p of ['ios-safari-26', 'ios-safari-compact'] as const) {
+      const titles = INSTALL_STEPS[p].map(s => s.title);
+      const more = titles.findIndex(t => t.includes('View More'));
+      const home = titles.findIndex(t => t.includes('Add to Home Screen'));
+      expect(more).toBeGreaterThan(-1);
+      expect(home).toBe(more + 1);
+    }
+  });
+
+  it('the Bottom layout is the real screenshots, each with a ring', () => {
+    for (const s of INSTALL_STEPS['ios-safari-26']) expect(s.shot?.src).toMatch(/^\/images\/install\/ios-.+\.jpg$/);
+  });
+
+  it('an iPhone plays the real recording, muted and inline so it may start by itself', () => {
+    const g = read('components/install/InstallGuide.tsx');
+    expect(g).toMatch(/src="\/videos\/install-iphone\.mp4"/);
+    expect(g).toMatch(/autoPlay\s+muted\s+playsInline/);
   });
 });
 
