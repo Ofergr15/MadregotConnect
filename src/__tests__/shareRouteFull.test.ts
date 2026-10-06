@@ -19,7 +19,7 @@ describe('the share card route', () => {
     const fn = src.slice(src.indexOf('function drawRoute('), src.indexOf('interface Stat {'));
     expect(fn).toMatch(/if \(!FULL_TRACKS\.has\(points\)\) \{\s+drawRouteClassic/);
     expect(fn).toMatch(/traceCurve\(ctx, pts\)/);
-    expect(read('lib/share/full-route.ts')).toMatch(/const wants = superUser && /);
+    expect(read('lib/share/full-route.ts')).toMatch(/const wants = !!item\?\.activity\?\.routePreview\?\.length/);
   });
 
   it('the card uses the whole track when the sheet fetched it, and only an unmasked route gets one', () => {

@@ -7,15 +7,13 @@
 
 import { useEffect, useState } from 'react';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
-import { useIsSuperUser } from '@/lib/impersonation';
 import type { FeedItem } from '@/lib/feed/project';
 
 export function useFullRoute(item: FeedItem | null): FeedItem | null {
   const [full, setFull] = useState<{ id: string; route: Array<{ lat: number; lng: number }> } | null>(null);
   const id = item?.id ?? null;
-  // Super user only while it is tried: no track, no new style (FULL_TRACKS in share-image).
-  const superUser = useIsSuperUser();
-  const wants = superUser && !!item?.activity?.routePreview?.length && !item.activity.routeFull;
+  // Everyone since 2.41.104 (tried by the super user in 2.41.103). No track, no new style (FULL_TRACKS in share-image).
+  const wants = !!item?.activity?.routePreview?.length && !item.activity.routeFull;
 
   useEffect(() => {
     if (!id || !wants) return;

@@ -642,9 +642,9 @@ function traceCurve(ctx: CanvasRenderingContext2D, pts: Array<{ x: number; y: nu
 
 /**
  * Tracks the sheet fetched whole (FeedActivity.routeFull). They draw in the new
- * crisp style; the feed's 300-point route keeps the old one. The sheet only
- * fetches for the super user while it is tried (lib/share/full-route), so this
- * is the gate, keyed on the array itself so concurrent renders cannot mix.
+ * crisp style; the feed's 300-point route keeps the old one, which is what a
+ * card falls back to when the fetch fails (lib/share/full-route). Keyed on the
+ * array itself so concurrent renders cannot mix.
  */
 const FULL_TRACKS = new WeakSet<object>();
 
