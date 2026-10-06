@@ -3,13 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import {
-  Activity, CheckCircle2, ClipboardList, Route, Timer, Trophy, UserMinus, Watch, XCircle,
+  Activity, CalendarPlus, CheckCircle2, ClipboardList, Eye, MessagesSquare, Route, Timer, TrendingUp, Trophy,
+  UserMinus, Watch, XCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPace } from '@/lib/garmin/pace';
 import { apiHeaders } from '@/lib/api';
 import { Sheet, InsetSection, InsetRow, ConfirmSheet, Spinner } from '@/components/ui';
 import { teammateHref } from '@/lib/athletes/profile-link';
+import { startViewingAs } from '@/lib/view-as-person';
 import { CoachPairing } from './CoachPairing';
 import {
   ATTENTION_ORDER, ATTENTION_STYLE, fmtRate, initialsOf, rateColor,
@@ -49,6 +51,11 @@ export function MemberSheet({
   bands,
   canAssign,
   onChanged,
+  onChangeCoach,
+  onOpenThread,
+  onOpenPlan,
+  onOpenTests,
+  canViewAs,
 }: {
   member: AcademyMember | null;
   weekStart: string;
@@ -64,6 +71,14 @@ export function MemberSheet({
   canAssign?: boolean;
   /** Revalidate the academy payload after a pairing or pace edit. */
   onChanged?: () => void | Promise<void>;
+  /** Manager: open the change-coach sheet (load per coach, "tell them both"). */
+  onChangeCoach?: (member: AcademyMember) => void;
+  /** Jumps out of the sheet: the conversation, this week's plan, the tests tab. */
+  onOpenThread?: (athleteId: string) => void;
+  onOpenPlan?: (athleteId: string) => void;
+  onOpenTests?: (athleteId: string) => void;
+  /** Super user only: "view as they see it" (lib/view-as-person). */
+  canViewAs?: boolean;
 }) {
   const t = useTranslations('academy');
   const locale = useLocale();
@@ -72,6 +87,26 @@ export function MemberSheet({
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   const athleteId = member?.athleteId ?? null;
+  const [lastTest, setLastTest] = useState<{ date: string; paceSec: number | null } | null>(null);
+
+  // The latest counted test, for the "tests" jump's caption. Only when the jump is
+  // shown; a failed read just leaves the caption off.
+  useEffect(() => {
+    setLastTest(null);
+    if (!athleteId || !onOpenTests) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/academy/tests?athleteId=${encodeURIComponent(athleteId)}`, { headers: await apiHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+        const points = (data?.trend?.points ?? []) as Array<{ date: string; paceSec: number | null }>;
+        const last = points[points.length - 1];
+        if (!cancelled && last) setLastTest({ date: last.date, paceSec: last.paceSec });
+      } catch { /* caption only */ }
+    })();
+    return () => { cancelled = true; };
+  }, [athleteId, onOpenTests]);
 
   useEffect(() => {
     if (!athleteId) { setWorkouts(null); return; }
@@ -112,21 +147,26 @@ export function MemberSheet({
 
   return (
     <>
-      <Sheet open={!!member} onOpenChange={onOpenChange} title={member.name}>
+      <Sheet open={!!member} onOpenChange={onOpenChange} className="bg-page" title={<span className="sr-only">{member.name}</span>}>
         <div dir="auto">
-          {/* Identity block */}
+          {/* Who: since when, and this week in one line — the two things every
+              conversation about a trainee starts from. */}
           <div className="flex items-center gap-3 pb-4">
             {member.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={member.avatarUrl} alt="" className="w-14 h-14 rounded-full object-cover shrink-0" />
+              <img src={member.avatarUrl} alt="" className="w-12 h-12 rounded-full object-cover shrink-0" />
             ) : (
-              <div className="w-14 h-14 rounded-full bg-brand-600/20 flex items-center justify-center text-base font-bold text-brand-600 shrink-0">
+              <div className="w-12 h-12 rounded-full bg-brand-600/15 flex items-center justify-center text-[15px] font-extrabold text-brand-600 shrink-0">
                 {initialsOf(member.name)}
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <div className="text-base font-bold text-ink-700 truncate">{member.name}</div>
-              <div className="text-xs text-ink-400 truncate" dir="ltr">{member.email}</div>
+              <div className="text-[19px] font-black text-ink-700 truncate" dir="auto">{member.name}</div>
+              <div className="text-[12.5px] text-ink-400 truncate">
+                {member.academyJoinedOn && <>באקדמיה מאז <bdi dir="ltr">{shortDate(member.academyJoinedOn)}</bdi> · </>}
+                {member.plannedCount > 0 && <><bdi dir="ltr">{member.completedCount}/{member.plannedCount}</bdi> השבוע · </>}
+                <bdi dir="ltr">{member.weekKm.toFixed(1)}</bdi> {t('kmUnit')}
+              </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 {member.groupName && (
                   <span className="text-2xs font-bold px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-800 border border-purple-500/20">
@@ -170,7 +210,39 @@ export function MemberSheet({
               bands={bands ?? []}
               canAssign={!!canAssign}
               onChanged={onChanged}
+              onChangeCoach={onChangeCoach ? () => onChangeCoach(member) : undefined}
             />
+          )}
+
+          {/* Out of the sheet, straight to where the work on this trainee happens. */}
+          {(onOpenThread || onOpenPlan || onOpenTests || canViewAs) && (
+            <InsetSection header="לעבור אל">
+              {onOpenThread && (
+                <InsetRow icon={MessagesSquare} iconBg="bg-brand-600" label="השיחה עם המאמן" onClick={() => onOpenThread(member.athleteId)} />
+              )}
+              {onOpenPlan && (
+                <InsetRow icon={CalendarPlus} iconBg="bg-band-2" label="התוכנית של השבוע" onClick={() => onOpenPlan(member.athleteId)} />
+              )}
+              {onOpenTests && (
+                <InsetRow
+                  icon={TrendingUp}
+                  iconBg="bg-accent-600"
+                  label="טסטים"
+                  sublabel={lastTest
+                    ? `אחרון: ${lastTest.paceSec ? `${formatPace(lastTest.paceSec)} · ` : ''}${shortDate(lastTest.date)}`
+                    : undefined}
+                  onClick={() => onOpenTests(member.athleteId)}
+                />
+              )}
+              {canViewAs && (
+                <InsetRow
+                  icon={Eye}
+                  iconBg="bg-ink-500"
+                  label="לצפות כמו שהוא רואה"
+                  onClick={() => startViewingAs({ id: member.athleteId, name: member.name, kind: 'trainee' })}
+                />
+              )}
+            </InsetSection>
           )}
 
           {/* This week's numbers */}
@@ -221,10 +293,10 @@ export function MemberSheet({
                     <div className="text-sm font-medium text-ink-700 truncate">{w.name}</div>
                     {w.completed ? (
                       <div className="mt-0.5 text-xs text-ink-400 tabular-nums">
-                        {km(w.distance.actual)} / {km(w.distance.plannedMin)} {t('kmUnit')}
+                        {/* <bdi>: "8.2 / 10" with spaces swaps the two numbers in RTL. */}
+                        <bdi dir="ltr">{km(w.distance.actual)} / {km(w.distance.plannedMin)}</bdi> {t('kmUnit')}
                         {' · '}
-                        {mins(w.duration.actual)}
-                        {!w.duration.estimated && ` / ${mins(w.duration.planned)}`} {t('minUnit')}
+                        <bdi dir="ltr">{mins(w.duration.actual)}{!w.duration.estimated && ` / ${mins(w.duration.planned)}`}</bdi> {t('minUnit')}
                         {w.pace.actual != null && ` · ${formatPace(w.pace.actual)}`}
                       </div>
                     ) : (
@@ -243,16 +315,20 @@ export function MemberSheet({
               label={t('openProfile')}
               href={teammateHref(member.athleteId) ?? undefined}
             />
-            {onRemove && (
+          </InsetSection>
+          {onRemove && (
+            <InsetSection header="יציאה">
               <InsetRow
                 icon={UserMinus}
                 iconBg="bg-accent-red"
-                label={removing ? t('removing') : t('removeFromAcademy')}
+                label={removing ? t('removing') : 'להוציא מהאקדמיה'}
+                sublabel="נשאר רץ במועדון. ההיסטוריה נשמרת, אפשר להחזיר"
+                sublabelClamp
                 danger
                 onClick={removing ? undefined : () => setConfirmRemove(true)}
               />
-            )}
-          </InsetSection>
+            </InsetSection>
+          )}
         </div>
       </Sheet>
 
@@ -263,13 +339,19 @@ export function MemberSheet({
         open={confirmRemove}
         onOpenChange={setConfirmRemove}
         title={t('removeConfirmTitle', { name: member.name })}
-        description={t('removeConfirmDesc')}
+        description="נשאר רץ במועדון, עם כל הריצות שלו. מי אימן אותו וההיסטוריה נשמרים, ואפשר להחזיר אותו מ״עזבו״ בלחיצה." 
         confirmLabel={t('removeFromAcademy')}
         cancelLabel={t('cancel')}
         onConfirm={() => onRemove?.(member.athleteId)}
       />
     </>
   );
+}
+
+/** '12.8' — day and month, the way the club writes a date. */
+function shortDate(date: string): string {
+  const [, m, d] = date.slice(0, 10).split('-').map(Number);
+  return m && d ? `${d}.${m}` : date;
 }
 
 function StatTile({

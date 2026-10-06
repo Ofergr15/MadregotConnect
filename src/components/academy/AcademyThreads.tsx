@@ -16,8 +16,11 @@ import { AcademyThreadPanel } from './AcademyThreadPanel';
 // band and the order is now different. A stale list would still be showing them as
 // owed an answer.
 
-export function AcademyThreads() {
-  const [openId, setOpenId] = useState<string | null>(null);
+export function AcademyThreads({ initialAthleteId = null }: {
+  /** Open straight on one trainee's thread — the member sheet's "the conversation". */
+  initialAthleteId?: string | null;
+} = {}) {
+  const [openId, setOpenId] = useState<string | null>(initialAthleteId);
 
   if (!openId) return <ThreadInbox onOpen={setOpenId} />;
 

@@ -43,6 +43,7 @@ export function CoachPairing({
   bands,
   canAssign,
   onChanged,
+  onChangeCoach,
 }: {
   member: AcademyMember;
   /** The academy's coach roster, idle ones included. Empty for a non-manager. */
@@ -52,6 +53,11 @@ export function CoachPairing({
   canAssign: boolean;
   /** Revalidate the shared academy payload — this component holds no copy of it. */
   onChanged: () => void | Promise<void>;
+  /**
+   * Open the full change-coach sheet (coach load, "tell them both") instead of the
+   * inline picker. The members tab passes it; other lists keep the inline one.
+   */
+  onChangeCoach?: () => void;
 }) {
   const t = useTranslations('academy');
   const locale = useLocale();
@@ -213,7 +219,7 @@ export function CoachPairing({
                 // number mean anything.
                 sublabel={b.goal || undefined}
                 value={typeof offset === 'number'
-                  ? t('secPerKmValue', { value: fmtOffsetSec(offset) })
+                  ? t('secPerKmValue', { value: ltr(fmtOffsetSec(offset)) })
                   : t('bandPacesUnsetShort')}
                 valueMuted={typeof offset !== 'number'}
                 onClick={busy ? undefined : () => saveBandOrPace({ bandId: b.id })}
@@ -272,7 +278,7 @@ export function CoachPairing({
                   {!member.band
                     ? t('followBandNoneDesc')
                     : typeof bandOffset === 'number'
-                      ? t('secPerKmValue', { value: fmtOffsetSec(bandOffset) })
+                      ? t('secPerKmValue', { value: ltr(fmtOffsetSec(bandOffset)) })
                       : t('bandPacesUnsetDesc')}
                 </span>
               </span>
@@ -372,7 +378,8 @@ export function CoachPairing({
             : undefined}
           value={member.academyCoachName || t('noCoach')}
           valueMuted={!member.academyCoachId}
-          onClick={canAssign ? () => { setError(null); setMode('coach'); } : undefined}
+          onClick={canAssign ? () => { setError(null); if (onChangeCoach) onChangeCoach(); else setMode('coach'); } : undefined}
+          trailing={canAssign ? <EditLabel>{member.academyCoachId ? 'החלפה' : 'שיבוץ'}</EditLabel> : undefined}
         />
 
         <InsetRow
@@ -383,6 +390,7 @@ export function CoachPairing({
           value={member.band?.name || t('noBand')}
           valueMuted={!member.band}
           onClick={canAssign ? () => { setError(null); setMode('band'); } : undefined}
+          trailing={canAssign ? <EditLabel>שינוי</EditLabel> : undefined}
         />
 
         {/* The number the planner will actually apply, and where it came from —
@@ -400,15 +408,30 @@ export function CoachPairing({
           }
           value={effective === null
             ? t('paceUnset')
-            : t('secPerKmValue', { value: fmtOffsetSec(effective) })}
+            : t('secPerKmValue', { value: ltr(fmtOffsetSec(effective)) })}
           valueMuted={effective === null}
           onClick={busy ? undefined : openPace}
+          trailing={<EditLabel>שינוי</EditLabel>}
         />
       </InsetSection>
 
       {error && <p className="px-4 -mt-3 mb-4 text-xs text-accent-red">{error}</p>}
     </>
   );
+}
+
+/**
+ * A signed number inside Hebrew: "+5 שנ'/ק\"מ" renders as "5+" without an isolate,
+ * because the row's text resolves RTL and the sign is weak. LRI…PDI is the
+ * string form of <bdi dir="ltr">, for values that must stay strings.
+ */
+function ltr(v: string): string {
+  return `\u2066${v}\u2069`;
+}
+
+/** The row's own verb, in place of the chevron: what tapping it does. */
+function EditLabel({ children }: { children: React.ReactNode }) {
+  return <span className="shrink-0 text-[13px] font-extrabold text-brand-600">{children}</span>;
 }
 
 /** The shared chrome for an inline picker — a labelled inset list, in place. */
