@@ -64,6 +64,8 @@ export default function WelcomePage() {
       }
       localStorage.setItem('athlete_id', data.athleteId);
       localStorage.setItem('athlete_name', data.name || '');
+      // The name they gave on the form, for the first-run welcome inside the app.
+      if (who?.firstName) localStorage.setItem('mc-first-name', who.firstName);
       localStorage.setItem('athlete_email', data.email);
       if (data.groupId) localStorage.setItem('athlete_group_id', data.groupId); else localStorage.removeItem('athlete_group_id');
       router.replace('/feed');

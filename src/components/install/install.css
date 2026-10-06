@@ -83,3 +83,8 @@
 /* The ring on a real screenshot step. */
 .ig-shot-ring{border:4px solid #FF5315;box-shadow:0 0 0 0 rgba(255,83,21,.5);animation:ig-pulse 1.4s infinite}
 @media (prefers-reduced-motion:reduce){.ig-shot-ring{animation:none}}
+
+/* The landing welcome: each part rises in, one after the other. */
+.ig-rise{animation:ig-rise .6s cubic-bezier(.2,.9,.3,1) both}
+@keyframes ig-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.ig-rise{animation:none}}
