@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { planRoutePlate, toSvgPath, type LatLng } from '@/lib/activity/tiles';
-import { paceSegments } from '@/components/activity/format';
+import { catmullRom, paceSegments } from '@/components/activity/format';
 import { useMapPrefs } from '@/lib/mapPrefs';
 
 export type RoutePoint = LatLng;
@@ -29,6 +29,7 @@ export function RouteMinimap({
   className = '',
   width = 300,
   height = 100,
+  hd = false,
 }: {
   points: RoutePoint[];
   /**
@@ -40,6 +41,13 @@ export function RouteMinimap({
   className?: string;
   width?: number;
   height?: number;
+  /**
+   * The sharper-route trial (PR #12, lib/feed/route-hd.ts): a 300-point route,
+   * drawn as a curve at a fixed 2.5 screen pixels with a white casing. Widths in
+   * screen pixels (non-scaling-stroke) because the plate stretches to the card,
+   * and a line that scaled with it would merge repeated laps into one blob.
+   */
+  hd?: boolean;
 }) {
   const [{ paceColors }] = useMapPrefs();
   const plate = planRoutePlate(points, width, height);
@@ -72,6 +80,7 @@ export function RouteMinimap({
 
   if (!plate) return null;
 
+  const draw = hd ? catmullRom : toSvgPath;
   const start = plate.points[0];
   const end = plate.points[plate.points.length - 1];
   const segments =
@@ -124,26 +133,40 @@ export function RouteMinimap({
             With pace colours on it becomes one path per kilometre. The bands
             overlap by a point (see `paceSegments`) so no hairline gap opens up
             where two colours meet. */}
+        {hd && (
+          <path
+            d={draw(plate.points)}
+            fill="none"
+            stroke="#FFFFFF"
+            strokeOpacity="0.85"
+            strokeWidth="5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
         {segments ? (
           segments.map((seg) => (
             <path
               key={seg.start}
-              d={toSvgPath(plate.points.slice(seg.start, seg.end))}
+              d={draw(plate.points.slice(seg.start, seg.end))}
               fill="none"
               stroke={seg.color}
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
+              vectorEffect={hd ? 'non-scaling-stroke' : undefined}
             />
           ))
         ) : (
           <path
-            d={toSvgPath(plate.points)}
+            d={draw(plate.points)}
             fill="none"
             stroke="#FF5315"
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
+            vectorEffect={hd ? 'non-scaling-stroke' : undefined}
           />
         )}
         <circle

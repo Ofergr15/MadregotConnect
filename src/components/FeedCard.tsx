@@ -618,7 +618,7 @@ function ActivityCard({
               {/* paceBands is null for runs with no cached splits, which just
                   means the plain line — the reader's colour-by-pace setting
                   applies wherever the data exists. */}
-              <RouteMinimap points={act.routePreview} paces={act.paceBands} />
+              <RouteMinimap points={act.routePreview} paces={act.paceBands} hd={act.routeHd} />
             </div>
           )}
 

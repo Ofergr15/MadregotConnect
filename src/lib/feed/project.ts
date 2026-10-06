@@ -45,6 +45,8 @@ export interface FeedActivity {
   perceivedRpe: number | null;
   perceivedFeel: number | null;
   routePreview: Array<{ lat: number; lng: number }> | null;
+  /** The 300-point trial route is in `routePreview` (lib/feed/route-hd.ts). */
+  routeHd?: boolean;
   hasRoute: boolean;
   /**
    * Average pace per kilometre, seconds/km, for the thumbnail's pace heat map.
