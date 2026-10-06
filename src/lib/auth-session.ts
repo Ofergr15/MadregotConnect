@@ -6,6 +6,7 @@ import { pickAthleteRow, stravaIdFromAuthEmail } from '@/lib/auth/athlete-identi
 import { heldRoles, holdsStaffRole } from '@/lib/auth/roles';
 import { membershipFor, type Membership } from '@/lib/auth/membership';
 import { blockedFromApp, pathnameOf, requiresApproval } from '@/lib/auth/approval-gate';
+import { looksLikeAthleteId, VIEW_AS_HEADER, viewAsApplies } from '@/lib/auth/view-as';
 import {
   entryExpiry,
   isTokenExpired,
@@ -67,6 +68,11 @@ export interface SessionUser {
    * src/lib/core-runner.ts for why both, and migration 091.
    */
   isCoreRunner: boolean;
+  /**
+   * Set when the super user is viewing the academy as this athlete (view-as.ts):
+   * their real email. Routes that write as a side effect of a read check it.
+   */
+  viewingAsBy?: string;
 }
 
 export type AuthResult =
@@ -142,6 +148,8 @@ interface AthleteRow {
 async function fetchAthleteRows(
   supabase: ReturnType<typeof createServerClient>,
   email: string,
+  /** Look one row up by id instead (view-as, lib/auth/view-as.ts). */
+  byId?: string,
 ): Promise<{ rows: AthleteRow[]; approvalKnown: boolean }> {
   // Cast rather than `.returns<AthleteRow[]>()`: the column list is a runtime
   // string, so Supabase's generic can't infer the row shape from it anyway, and
@@ -153,9 +161,11 @@ async function fetchAthleteRows(
     // `.or` only when there is a second thing to match. A real address must keep
     // resolving on exactly one column, so an ordinary login cannot start matching
     // rows for a reason it never used to.
-    const filtered = stravaId
-      ? base.or(`email.eq.${email},strava_athlete_id.eq.${stravaId}`)
-      : base.eq('email', email);
+    const filtered = byId
+      ? base.eq('id', byId)
+      : stravaId
+        ? base.or(`email.eq.${email},strava_athlete_id.eq.${stravaId}`)
+        : base.eq('email', email);
     const { data, error } = await filtered.order('created_at', { ascending: false });
     return { rows: (data || []) as unknown as AthleteRow[], error };
   };
@@ -249,7 +259,61 @@ export async function requireSession(request: Request): Promise<AuthResult> {
   if (blocked && requiresApproval(pathnameOf(request))) {
     return { ok: false, status: 403, error: blocked };
   }
-  return result;
+  // Also after the cache, for the same reason: it depends on the request's header.
+  const viewed = await viewAsSession(request, result.user);
+  return viewed ?? result;
+}
+
+/** The session for one athlete row: what every route reads as "who is asking". */
+function athleteSessionUser(athlete: AthleteRow, email: string, approvalKnown: boolean): SessionUser {
+  const role = athlete.role || 'runner';
+  const roles = heldRoles(role, athlete.extra_roles);
+  return {
+    email,
+    athleteEmail: athlete.email && athlete.email !== email ? athlete.email : null,
+    athleteId: athlete.id,
+    name: athlete.name || '',
+    role,
+    roles,
+    groupId: athlete.group_id || null,
+    athleteStatus: athlete.status || null,
+    // The same predicate /api/auth/me sends and the layout blocks on, resolved
+    // here so the SERVER can act on it too — see lib/auth/approval-gate.ts.
+    // 'active' when the column could not be read: a database with no `approved`
+    // has no approval to enforce, and guessing "unapproved" locks out the club.
+    membership: approvalKnown ? membershipFor(athlete) : 'active',
+    // Any held role, not just the primary one: an academy manager's primary
+    // role is still `runner` (the enum has no manager value).
+    isStaff: STAFF_ROLES.includes(role) || holdsStaffRole(roles),
+    // Either source is enough. The row flag exists for accounts whose email
+    // can never match a literal (Strava signups); the literal stays so this
+    // is purely additive and nobody loses access if a flag is unset.
+    isSuperUser: athlete.is_super_user === true || isSuperUser(email),
+    canApprove: athlete.is_approver === true || canApprove(email),
+    // Reads the legacy role too, so this is right before 091 is applied.
+    isCoreRunner: isCoreRunner(athlete),
+  };
+}
+
+/**
+ * "View as this person" (lib/auth/view-as.ts): the super user's verified session,
+ * answered as the athlete they picked. Only for the academy's reads; the header
+ * means nothing anywhere else, or from anyone else.
+ */
+async function viewAsSession(request: Request, real: SessionUser): Promise<AuthResult | null> {
+  const asId = request.headers.get(VIEW_AS_HEADER);
+  if (!asId || !real.isSuperUser || !viewAsApplies(pathnameOf(request))) return null;
+  if (!looksLikeAthleteId(asId)) return { ok: false, status: 400, error: 'Bad view-as id' };
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return { ok: false, status: 403, error: 'view_as_read_only' };
+  }
+  const { rows, approvalKnown } = await fetchAthleteRows(createServerClient(), '', asId);
+  const athlete = rows[0];
+  if (!athlete) return { ok: false, status: 404, error: 'Viewed athlete not found' };
+  // Their own address, so nothing keyed on the email (the super-user list, the
+  // approver list) carries the real user's privileges into the view.
+  const user = athleteSessionUser(athlete, athlete.email || '', approvalKnown);
+  return { ok: true, user: { ...user, isSuperUser: false, canApprove: false, viewingAsBy: real.email } };
 }
 
 /** The uncached resolution: verify the JWT, then find the membership row. */
@@ -312,38 +376,7 @@ async function resolveSession(token: string, url: string, anonKey: string): Prom
     ? pickAthleteRow(rows, stravaId)
     : rows.find((r) => r.status === 'active') || rows[0];
 
-  if (athlete) {
-    const role = athlete.role || 'runner';
-    const roles = heldRoles(role, athlete.extra_roles);
-    return {
-      ok: true,
-      user: {
-        email,
-        athleteEmail: athlete.email && athlete.email !== email ? athlete.email : null,
-        athleteId: athlete.id,
-        name: athlete.name || '',
-        role,
-        roles,
-        groupId: athlete.group_id || null,
-        athleteStatus: athlete.status || null,
-        // The same predicate /api/auth/me sends and the layout blocks on, resolved
-        // here so the SERVER can act on it too — see lib/auth/approval-gate.ts.
-        // 'active' when the column could not be read: a database with no `approved`
-        // has no approval to enforce, and guessing "unapproved" locks out the club.
-        membership: approvalKnown ? membershipFor(athlete) : 'active',
-        // Any held role, not just the primary one: an academy manager's primary
-        // role is still `runner` (the enum has no manager value).
-        isStaff: STAFF_ROLES.includes(role) || holdsStaffRole(roles),
-        // Either source is enough. The row flag exists for accounts whose email
-        // can never match a literal (Strava signups); the literal stays so this
-        // is purely additive and nobody loses access if a flag is unset.
-        isSuperUser: athlete.is_super_user === true || isSuperUser(email),
-        canApprove: athlete.is_approver === true || canApprove(email),
-        // Reads the legacy role too, so this is right before 091 is applied.
-        isCoreRunner: isCoreRunner(athlete),
-      },
-    };
-  }
+  if (athlete) return { ok: true, user: athleteSessionUser(athlete, email, approvalKnown) };
 
   // Fallback for legacy staff that live only in `coaches` (same fallback order as
   // /api/auth/me). Same reason as above for taking the first row rather than

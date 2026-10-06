@@ -2,6 +2,8 @@
 
 import { getSupabase } from '@/lib/supabase/client';
 import { trySilentReauth } from '@/lib/auth/silent-reauth';
+import { getViewedPerson } from '@/lib/view-as-person';
+import { VIEW_AS_HEADER } from '@/lib/auth/view-as';
 
 // Attaches the caller's real Supabase session token as a Bearer header. This is
 // now the app's ONLY way of proving who's asking — the x-user-email convention
@@ -88,8 +90,12 @@ export async function accessToken(): Promise<string | null> {
 
 export async function bearerHeaders(includeJson = true): Promise<Record<string, string>> {
   const token = await accessToken();
+  // "View as this person" (lib/auth/view-as.ts): sent on every request, and the
+  // server decides where it counts — the academy, for the super user, reads only.
+  const viewing = getViewedPerson();
   return {
     ...(includeJson ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(viewing ? { [VIEW_AS_HEADER]: viewing.id } : {}),
   };
 }

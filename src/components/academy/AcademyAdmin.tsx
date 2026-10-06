@@ -1,7 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ChevronLeft, KeyRound, Link2, Search, Settings2, UsersRound } from 'lucide-react';
+import { ChevronLeft, Eye, KeyRound, Link2, ListChecks, Search, Settings2, UsersRound } from 'lucide-react';
+import { startViewingAs, stopViewingAs, type ViewedPerson } from '@/lib/view-as-person';
+import { useIsSuperUser } from '@/lib/impersonation';
 import { useApi, apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Card, InsetRow, InsetSection, Sheet, Switch } from '@/components/ui';
@@ -26,12 +28,21 @@ export function AcademyAdminButton({
   onOpenCoaches,
   onOpenSettings,
   canEditRoles,
+  members = [],
+  onGoTab = () => {},
 }: {
   onOpenCoaches: () => void;
   onOpenSettings: () => void;
   canEditRoles: boolean;
+  /** For "view as": the trainees to pick from. */
+  members?: AcademyMember[];
+  /** The test script's buttons open these tabs. */
+  onGoTab?: (tab: 'funnel' | 'plans' | 'members') => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [viewAsOpen, setViewAsOpen] = useState(false);
+  const [testOpen, setTestOpen] = useState(false);
+  const isSuper = useIsSuperUser();
   // One sheet at a time: the next one opens once this one has slid away. Opened in
   // the same tick, the drawer library drops the second open while the first is
   // still closing, and the tap appears to do nothing.
@@ -78,8 +89,24 @@ export function AcademyAdminButton({
               <InsetRow icon={KeyRound} iconBg="bg-ink-700" label="תפקידים" sublabel="מנהלי אקדמיה · לאדמין בלבד" href="/dashboard/roles" />
             )}
           </InsetSection>
+          <InsetSection className="mb-0">
+            <InsetRow icon={ListChecks} iconBg="bg-accent-600" label="בדיקת האקדמיה" sublabel="שלב אחרי שלב, עם מתאמנים אמיתיים"
+              onClick={() => handOff(() => setTestOpen(true))} />
+            {isSuper && (
+              <InsetRow icon={Eye} iconBg="bg-[#5B21D6]" label="לצפות כמאמן או מתאמן" sublabel="לבדוק בדיוק מה הם רואים"
+                onClick={() => handOff(() => setViewAsOpen(true))} />
+            )}
+          </InsetSection>
         </div>
       </Sheet>
+      {isSuper && <ViewAsSheet open={viewAsOpen} onOpenChange={setViewAsOpen} members={members} />}
+      <AcademyTestScript
+        open={testOpen}
+        onOpenChange={setTestOpen}
+        members={members}
+        onGoTab={onGoTab}
+        onViewAs={isSuper ? () => setViewAsOpen(true) : undefined}
+      />
     </>
   );
 }
@@ -296,5 +323,187 @@ function RegistrationSwitch() {
         trailing={<span className="shrink-0 text-xs font-bold text-brand-600">{copied ? 'הועתק' : 'העתקה'}</span>}
       />
     </InsetSection>
+  );
+}
+
+/**
+ * Shown on every academy screen while the super user views it as somebody
+ * (lib/auth/view-as.ts): who, and the way out. Read-only, and it says so, because
+ * a button that does nothing in this mode would otherwise read as a bug.
+ */
+export function ViewAsBanner({ person }: { person: ViewedPerson }) {
+  return (
+    <div className="mb-3 flex min-h-[48px] items-center gap-2 rounded-card bg-[#5B21D6] px-3 text-white">
+      <Eye className="h-4 w-4 shrink-0" />
+      <span className="min-w-0 flex-1 text-sm font-semibold leading-tight">
+        צופה כ־<bdi dir="auto">{person.name}</bdi> · {person.kind === 'coach' ? 'מאמן אקדמיה' : 'מתאמן'}
+        <span className="block text-3xs font-medium opacity-80">בדיוק מה שהוא רואה באקדמיה · לקריאה בלבד</span>
+      </span>
+      <button onClick={stopViewingAs} className="min-h-[36px] shrink-0 rounded-pill bg-white/20 px-3 text-xs font-bold">יציאה</button>
+    </div>
+  );
+}
+
+/** Pick whom to view the academy as: a coach, or a trainee. Super user only. */
+export function ViewAsSheet({ open, onOpenChange, members }: {
+  open: boolean; onOpenChange: (open: boolean) => void; members: AcademyMember[];
+}) {
+  const { data } = useApi<AcademyCoachesResponse>(open ? '/api/academy/coaches' : null);
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const people: Array<{ id: string; name: string; kind: 'coach' | 'trainee'; sub: string }> = [
+    ...(data?.coaches ?? []).map((c) => ({ id: c.id, name: c.name, kind: 'coach' as const, sub: c.trainees === 0 ? 'מאמן · אין מתאמנים' : c.trainees === 1 ? 'מאמן · מתאמן אחד' : `מאמן · ${c.trainees} מתאמנים` })),
+    ...members.filter((m) => m.approved).map((m) => ({
+      id: m.athleteId, name: m.name, kind: 'trainee' as const,
+      sub: m.academyCoachName ? `מתאמן · אצל ${m.academyCoachName.split(' ')[0]}` : 'מתאמן · בלי מאמן',
+    })),
+  ].filter((p) => !q || p.name.toLowerCase().includes(q));
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title="לצפות כ…">
+      <p className="-mt-1 mb-3 text-center text-xs text-ink-400">האקדמיה בדיוק כמו שהוא רואה אותה, כולל הנתונים. לקריאה בלבד.</p>
+      <label className="mb-2 flex min-h-[44px] items-center gap-2 rounded-xl bg-card px-3">
+        <Search className="h-4 w-4 shrink-0 text-ink-400" />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="חיפוש לפי שם"
+          className="min-w-0 flex-1 bg-transparent text-base text-ink-700 outline-none placeholder:text-ink-400" dir="auto" />
+      </label>
+      {!data ? (
+        <div className="h-32 animate-pulse rounded-card bg-card/60" />
+      ) : (
+        <Card className="max-h-[55vh] divide-y divide-page overflow-y-auto py-1">
+          {people.map((p) => (
+            <button key={`${p.kind}:${p.id}`} onClick={() => startViewingAs({ id: p.id, name: p.name, kind: p.kind })}
+              className="flex w-full min-h-[52px] items-center gap-3 py-2 text-start active:bg-page/60">
+              <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                p.kind === 'coach' ? 'bg-brand-600 text-white' : 'bg-brand-600/20 text-brand-600')}>{initialsOf(p.name)}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-ink-700" dir="auto">{p.name}</span>
+                <span className="block text-xs text-ink-400">{p.sub}</span>
+              </span>
+              <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />
+            </button>
+          ))}
+          {people.length === 0 && <p className="py-6 text-center text-sm text-ink-400">לא נמצא</p>}
+        </Card>
+      )}
+    </Sheet>
+  );
+}
+
+// ── The test script ─────────────────────────────────────────────────────────
+// Opening the academy with real trainees, step by step (mockup
+// academy-test-script.html). Each step ticks itself from what has actually
+// happened in the academy; the last two can only be judged by looking, so they
+// are ticked by hand (kept on this device) and each opens "view as" to do it.
+
+type StepKey = 'coach' | 'open' | 'signup' | 'paired' | 'watch' | 'plan' | 'coachSees' | 'traineeSees';
+const MANUAL_KEY = 'mc_academy_test_manual';
+
+export function AcademyTestScript({ open, onOpenChange, members, onGoTab, onViewAs }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  members: AcademyMember[];
+  onGoTab: (tab: 'funnel' | 'plans' | 'members') => void;
+  /** "View as" is the super user's; without it the two looking steps have no button. */
+  onViewAs?: () => void;
+}) {
+  const { data: coaches } = useApi<AcademyCoachesResponse>(open ? '/api/academy/coaches' : null);
+  const { data: reg } = useApi<{ open: boolean }>(open ? '/api/academy/registration' : null);
+  const { data: summary } = useApi<{ inFunnel: number }>(open ? '/api/academy/summary' : null);
+  const [manual, setManual] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return {};
+    try { return JSON.parse(localStorage.getItem(MANUAL_KEY) || '{}'); } catch { return {}; }
+  });
+  const tick = (key: StepKey) => {
+    const next = { ...manual, [key]: !manual[key] };
+    setManual(next);
+    try { localStorage.setItem(MANUAL_KEY, JSON.stringify(next)); } catch { /* memory only */ }
+  };
+
+  const paired = members.filter((m) => m.approved && m.academyCoachId);
+  const done: Record<StepKey, boolean> = {
+    coach: (coaches?.coaches.length ?? 0) > 0,
+    open: !!reg?.open,
+    signup: (summary?.inFunnel ?? 0) > 0 || members.length > 0,
+    paired: paired.length > 0,
+    watch: paired.some((m) => m.hasWatch),
+    plan: paired.some((m) => m.plannedCount > 0),
+    coachSees: !!manual.coachSees,
+    traineeSees: !!manual.traineeSees,
+  };
+  const go = (fn: () => void) => { onOpenChange(false); setTimeout(fn, SHEET_HANDOFF_MS); };
+
+  const groups: Array<{ title: string; steps: Array<{ key: StepKey; title: string; how: string; action?: { label: string; run: () => void }; manual?: boolean }> }> = [
+    { title: 'הכנה', steps: [
+      { key: 'coach', title: 'יש מאמן אקדמיה', how: 'בניהול: מאמני האקדמיה ← להוסיף מאמן.' },
+      { key: 'open', title: 'ההרשמה פתוחה', how: 'בניהול: מתג ההרשמה.' },
+    ] },
+    { title: 'הצטרפות של מתאמן', steps: [
+      { key: 'signup', title: 'נרשם בטופס', how: 'שולחים לו את הקישור לאינסטגרם, או מוסיפים חבר מועדון מרשימת החברים.', action: { label: 'לחברים', run: () => go(() => onGoTab('members')) } },
+      { key: 'paired', title: 'לקבל אותו ולשבץ מאמן', how: 'במשפך: שיחה ראשונה, שיחה שנייה, "לקבל", ובוחרים מאמן.', action: { label: 'למשפך', run: () => go(() => onGoTab('funnel')) } },
+      { key: 'watch', title: 'הוא מחבר שעון', how: 'הוא פותח את הקישור מהמייל ומחבר Garmin או Strava.', action: { label: 'למשפך', run: () => go(() => onGoTab('funnel')) } },
+    ] },
+    { title: 'אימון', steps: [
+      { key: 'plan', title: 'שבוע ראשון נשלח', how: 'בתוכניות: בונים שבוע ושולחים לו.', action: { label: 'לתוכניות', run: () => go(() => onGoTab('plans')) } },
+      { key: 'coachSees', title: 'המאמן רואה רק אותו', how: 'צופים כמאמן ובודקים שרק המתאמנים שלו מופיעים.', action: onViewAs ? { label: 'לצפות', run: () => go(onViewAs) } : undefined, manual: true },
+      { key: 'traineeSees', title: 'המתאמן רואה את השבוע', how: 'צופים כמתאמן ובודקים את השבוע, השיחה והמבחן.', action: onViewAs ? { label: 'לצפות', run: () => go(onViewAs) } : undefined, manual: true },
+    ] },
+  ];
+  const all = groups.flatMap((g) => g.steps);
+  const count = all.filter((s) => done[s.key]).length;
+  const current = all.find((s) => !done[s.key])?.key ?? null;
+  const loading = !coaches || !reg || !summary;
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title="בדיקת האקדמיה">
+      <div className="mb-4 flex items-center gap-3 px-1">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-page">
+          <div className="h-full rounded-full bg-accent-600 transition-[width]" style={{ width: `${(100 * count) / all.length}%` }} />
+        </div>
+        <span className="shrink-0 text-xs font-bold tabular-nums text-ink-500"><bdi dir="ltr">{count}</bdi> מתוך <bdi dir="ltr">{all.length}</bdi></span>
+      </div>
+      {loading ? (
+        <div className="h-64 animate-pulse rounded-card bg-card/60" />
+      ) : groups.map((g) => (
+        <div key={g.title} className="mb-4">
+          <p className="mb-1.5 px-1 text-2xs font-bold uppercase tracking-wider text-ink-400">{g.title}</p>
+          <Card className="divide-y divide-page overflow-hidden p-0">
+            {g.steps.map((st) => {
+              const isDone = done[st.key];
+              const isNow = st.key === current;
+              return (
+                <div key={st.key} className={cn('px-3.5', isNow ? 'bg-brand-600/[0.06] py-3' : 'flex min-h-[52px] items-center')}>
+                  <div className="flex min-h-[28px] w-full items-center gap-3">
+                    <button
+                      onClick={st.manual ? () => tick(st.key) : undefined}
+                      disabled={!st.manual}
+                      aria-label={st.manual ? (isDone ? 'לבטל סימון' : 'לסמן שבוצע') : undefined}
+                      className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-sm font-black text-white',
+                        isDone ? 'border-accent-600 bg-accent-600' : isNow ? 'border-brand-600' : 'border-ink-300')}
+                    >
+                      {isDone ? '✓' : ''}
+                    </button>
+                    <span className={cn('flex-1 text-[15px]', isDone ? 'font-medium text-ink-400' : 'font-bold text-ink-700')}>{st.title}</span>
+                    {!isNow && !isDone && st.action && (
+                      <button onClick={st.action.run} className="min-h-[44px] shrink-0 px-1 text-xs font-bold text-brand-600">{st.action.label}</button>
+                    )}
+                  </div>
+                  {isNow && (
+                    <div className="ps-10">
+                      <p className="mt-1 text-sm leading-relaxed text-ink-500">{st.how}</p>
+                      {st.action && (
+                        <button onClick={st.action.run} className="mt-2 min-h-[40px] rounded-xl bg-brand-600 px-4 text-sm font-bold text-white">{st.action.label}</button>
+                      )}
+                      {st.manual && <p className="mt-2 text-xs text-ink-400">אחרי שבדקת, לוחצים על העיגול לסמן.</p>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </Card>
+        </div>
+      ))}
+      <p className="px-1 text-xs text-ink-400">הסימונים מתעדכנים לבד לפי מה שקרה באקדמיה. שני האחרונים מסמנים ביד.</p>
+    </Sheet>
   );
 }

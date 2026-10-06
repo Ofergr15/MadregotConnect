@@ -2,6 +2,7 @@
 
 import type { Cache, State } from 'swr';
 import { APP_VERSION } from '@/lib/version';
+import { getViewedPerson } from '@/lib/view-as-person';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // A persistent SWR cache — the fix for "a refresh feels like a hard refresh".
@@ -68,7 +69,10 @@ function identityFingerprint(): string {
   try {
     const id = localStorage.getItem('athlete_id') || '';
     const email = localStorage.getItem('coach_email') || '';
-    return id || email ? `${id}|${email}` : '';
+    // Viewing the academy as somebody else (lib/view-as-person.ts) is a different
+    // cache: what was fetched as them must never come back as the super user's own.
+    const as = getViewedPerson()?.id;
+    return id || email ? `${id}|${email}${as ? `|as:${as}` : ''}` : '';
   } catch {
     return ''; // private mode — memory-only cache, which is the right answer there
   }

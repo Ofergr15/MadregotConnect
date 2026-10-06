@@ -119,7 +119,8 @@ export async function GET(request: Request) {
     // a missing column means no snapshot, which is the safe direction.
     const seenAt = new Date().toISOString();
     const stampFirstSeen = fullRead && row !== null && !row.first_seen_at;
-    after(async () => {
+    // Viewing as somebody (lib/auth/view-as.ts) must not stamp THEIR last-seen.
+    if (!auth.user.viewingAsBy) after(async () => {
       await supabase
         .from('athletes')
         .update({ last_seen_at: seenAt })

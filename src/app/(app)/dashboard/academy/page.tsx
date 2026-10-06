@@ -35,6 +35,8 @@ import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 import { getActiveViewRole, getStoredView } from '@/lib/role-views';
 import { AcademyAdminButton, CoachesSheet } from '@/components/academy/AcademyAdmin';
+import { getViewedPerson, type ViewedPerson } from '@/lib/view-as-person';
+import { ViewAsBanner } from '@/components/academy/AcademyAdmin';
 
 // The academy centre. Three audiences, three lenses off the same route:
 //
@@ -242,8 +244,18 @@ export default function AcademyPage() {
   // borrows for it; "coach" on a manager's account narrows the payload to their
   // own trainees (the server honours that — it only ever narrows).
   const activeView = previewRole ? null : getStoredView();
-  const role = previewRole || getActiveViewRole() || (isSuperUser(email) ? 'admin' : meData?.role) || null;
-  const isManager = activeView === 'manager' || (role === 'admin' && activeView !== 'coach');
+  // Viewing the academy as a particular person (lib/auth/view-as.ts): their role,
+  // as the server resolves it, decides the lens — not the super user's own.
+  const [viewed, setViewed] = useState<ViewedPerson | null>(null);
+  useEffect(() => { setViewed(getViewedPerson()); }, []);
+  const { data: viewer } = useApi<{ role: string; roles: string[]; isStaff: boolean; isManager: boolean }>(
+    viewed ? '/api/academy/viewer' : null,
+  );
+  const viewedRole = viewer
+    ? (viewer.isManager ? 'admin' : viewer.roles.includes('academy_coach') ? 'academy_coach' : viewer.isStaff ? viewer.role : 'runner')
+    : null;
+  const role = viewed ? viewedRole : (previewRole || getActiveViewRole() || (isSuperUser(email) ? 'admin' : meData?.role) || null);
+  const isManager = viewed ? !!viewer?.isManager : (activeView === 'manager' || (role === 'admin' && activeView !== 'coach'));
   // Plain `coach` is included because the route serves them, and since migration
   // 077 it serves them a *scoped* payload: any staff caller who isn't the manager
   // sees only the trainees dedicated to them. A club coach with no academy
@@ -252,7 +264,7 @@ export default function AcademyPage() {
   const isStaff = isManager || role === 'academy_coach' || role === 'coach';
   // `email === null` means we haven't even looked yet — distinct from "looked
   // and found nobody", which is a real anonymous visitor.
-  const resolving = email === null || (!previewRole && !!email && roleLoading);
+  const resolving = email === null || (!previewRole && !!email && roleLoading) || (!!viewed && !viewer);
 
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [view, setView] = useState<Tab>('overview');
@@ -376,14 +388,14 @@ export default function AcademyPage() {
           </div>
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-ink-700">{t('title')}</h1>
-            {view === 'overview' && <span className="sm:hidden"><AcademyWeekLabel weekStart={weekStart} /></span>}
-            <p className="hidden sm:block text-sm text-ink-400">{t('mySubtitle')}</p>
+            <p className="text-sm text-ink-400">{t('mySubtitle')}</p>
           </div>
         </div>
         {/* Passed raw, not `|| null`: `null` means "haven't read storage yet"
             and `''` means "read it, nobody's signed in" — collapsing the two
             would leave an anonymous visitor on a skeleton that never resolves. */}
-        <AcademyMyView athleteId={myAthleteId} />
+        {viewed && <ViewAsBanner person={viewed} />}
+        <AcademyMyView athleteId={viewed ? viewed.id : myAthleteId} />
       </div>
     );
   }
@@ -436,14 +448,16 @@ export default function AcademyPage() {
     // meant to fit one screen (2026-10-06), so the page adds no padding of its own
     // there and the title row loses its icon tile.
     <div className="max-w-5xl mx-auto sm:px-6 lg:px-8 sm:py-8">
+      {viewed && <ViewAsBanner person={viewed} />}
       <div className="flex items-center justify-between gap-4 mb-2 sm:mb-6">
         <div className="flex items-center gap-3">
           <div className="hidden sm:flex bg-brand-600/20 w-12 h-12 rounded-2xl items-center justify-center ring-1 ring-brand-600/20">
             <GraduationCap className="h-6 w-6 text-brand-600" />
           </div>
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-ink-700">{t('title')}</h1>
-            <p className="text-sm text-ink-400">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-ink-700">{t('title')}</h1>
+            {view === 'overview' && <span className="sm:hidden"><AcademyWeekLabel weekStart={weekStart} /></span>}
+            <p className="hidden sm:block text-sm text-ink-400">
               {/* A coach's payload is their own caseload, so calling it the
                   academy's member count would overstate what they're looking at. */}
               {!members
@@ -461,6 +475,8 @@ export default function AcademyPage() {
             onOpenCoaches={() => { setFocusCoach(null); setCoachesOpen(true); }}
             onOpenSettings={() => setView('settings')}
             canEditRoles={role === 'admin'}
+            members={members?.members}
+            onGoTab={setView}
           />
         )}
         </div>
