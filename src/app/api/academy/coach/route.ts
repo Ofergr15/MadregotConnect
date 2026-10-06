@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { isStaffRole } from '@/lib/auth/self-or-staff';
 import { loadPair, pairLookupError, requireAcademyManager, writeCoachPair } from '@/lib/academy/pairing-server';
+import { holdsAcademyCoachRole } from '@/lib/academy/coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,16 +77,17 @@ export async function PUT(request: Request) {
     if (coachId) {
       const { data: coach, error } = await supabase
         .from('athletes')
-        .select('id, name, role')
+        .select('id, name, role, extra_roles')
         .eq('id', coachId)
         .eq('coach_id', COACH_ID)
         .maybeSingle();
       if (error || !coach) {
         return NextResponse.json({ error: 'No such coach in this club' }, { status: 404 });
       }
-      if (!isStaffRole(coach.role)) {
+      // An academy coach only (2026-10-06): not every admin or club coach.
+      if (!holdsAcademyCoachRole(coach)) {
         return NextResponse.json(
-          { error: `${coach.name} is not a staff account — set their role to academy_coach first` },
+          { error: `${coach.name} is not an academy coach — add them as one first` },
           { status: 400 },
         );
       }

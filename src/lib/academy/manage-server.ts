@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { isStaffRole, type VerifiedCaller } from '@/lib/auth/self-or-staff';
+import { type VerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isMissingColumn, isMissingTable } from '@/lib/supabase/schema-drift';
 import { notifyAthlete } from '@/lib/push';
 import {
@@ -135,9 +135,9 @@ export interface BulkResult {
   coachId?: string | null;
 }
 
-/** May this account be handed a trainee? The academy role, or (as /api/academy/coach) any staff role. */
+/** May this account be handed a trainee? Only an academy coach (the role, primary or extra). */
 function canBeCoach(row: { id: string; role?: string | null; extra_roles?: string[] | null }): boolean {
-  return holdsAcademyCoachRole(row) || isStaffRole(row.role);
+  return holdsAcademyCoachRole(row);
 }
 
 async function readCoach(supabase: Db, id: string): Promise<{ id: string; name: string; role: string | null; extra_roles: string[] | null } | null> {

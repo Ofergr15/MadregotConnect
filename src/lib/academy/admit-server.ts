@@ -14,6 +14,7 @@ import { approvalCopy } from '@/lib/notifications/copy';
 import { inviteUrl, isInviteFresh } from './intake';
 import { isAcademyManager, writeCoachPair } from './pairing-server';
 import { applyAcademyMembership } from './membership-server';
+import { holdsAcademyCoachRole } from '@/lib/academy/coaches';
 
 /**
  * The funnel's two outward actions: send somebody the form, and let them in.
@@ -128,9 +129,9 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
 
   const supabase = createServerClient();
   const { data: coach } = await supabase
-    .from('athletes').select('id, name, role').eq('id', coachId).eq('coach_id', COACH_ID).maybeSingle();
-  if (!coach || !isStaffRole(coach.role)) {
-    return NextResponse.json({ error: 'That coach is not a staff account in this club' }, { status: 400 });
+    .from('athletes').select('id, name, role, extra_roles').eq('id', coachId).eq('coach_id', COACH_ID).maybeSingle();
+  if (!coach || !holdsAcademyCoachRole(coach)) {
+    return NextResponse.json({ error: 'That coach is not an academy coach in this club' }, { status: 400 });
   }
 
   const { data: athlete, error: athleteError } = await supabase
