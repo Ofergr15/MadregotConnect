@@ -10,6 +10,9 @@ import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { Figure } from '@/components/Figure';
 import { Sheet, Button, LoadingBlock, BigStat } from '@/components/ui';
 import { EmailCodeSheet } from '@/components/auth/EmailCodeSheet';
+import { InstallGuide } from '@/components/install/InstallGuide';
+import { usePreviewOnboardingV2 } from '@/lib/install/v2';
+import { detectInstallPlatform } from '@/lib/install/platform';
 
 interface PublicStats {
   since?: string;
@@ -115,6 +118,13 @@ export default function HomePage() {
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   // "No Strava? A code by email" (lib/auth/email-code): the way in for a member without Strava.
   const [showEmailCode, setShowEmailCode] = useState(false);
+  const v2 = usePreviewOnboardingV2();
+  const [installFirst, setInstallFirst] = useState(false);
+  const [browserEscape, setBrowserEscape] = useState(false);
+  useEffect(() => {
+    const p = detectInstallPlatform();
+    setInstallFirst(v2 && (p === 'ios-safari' || p === 'ios-safari-26' || p === 'ios-safari-compact' || p === 'ios-inapp'));
+  }, [v2]);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminLoading, setAdminLoading] = useState(false);
@@ -294,6 +304,16 @@ export default function HomePage() {
       setAdminLoading(false);
     }
   };
+
+  // Onboarding v2, install first: on an iPhone browser this page IS the install
+  // guide — the login a member makes in Safari would not carry into the app on
+  // the home screen (separate storage), so signing in here only means signing in
+  // twice. Android shares the login with Chrome and a computer installs nothing,
+  // so neither is held. An existing Safari session is not affected: `checking`
+  // has already sent a signed-in member on to the feed.
+  if (!checking && installFirst && !browserEscape) {
+    return <InstallGuide canPrompt={false} onLater={() => {}} blocking onEscape={() => setBrowserEscape(true)} />;
+  }
 
   if (checking) {
     return (

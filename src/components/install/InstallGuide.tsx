@@ -40,6 +40,13 @@ export interface InstallGuideProps {
   onNever?: () => void;
   /** Who is asking for help, for the pre-written WhatsApp message. */
   memberName?: string | null;
+  /**
+   * The landing page on an iPhone browser (onboarding v2): installing is the only
+   * way in, so there is no "not now", the last step says to open the icon, and
+   * the one way out is a quiet "can't install? sign in here" (onEscape).
+   */
+  blocking?: boolean;
+  onEscape?: () => void;
   /** /preview/install only: draw this platform instead of detecting one. */
   forcePlatform?: InstallPlatform;
   /** /preview/install only: open on the video (true) or skip it (false), whatever this device saw. */
@@ -146,7 +153,7 @@ interface BeforeInstallPrompt extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLater, onNever, memberName, forcePlatform, forceVideo }: InstallGuideProps) {
+export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLater, onNever, memberName, forcePlatform, forceVideo, blocking, onEscape }: InstallGuideProps) {
   // Where no provider caught Chrome's install event (the end of /join), catch it here.
   const [own, setOwn] = useState<BeforeInstallPrompt | null>(null);
   useEffect(() => {
@@ -206,7 +213,7 @@ export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLate
       <div ref={topRef} className="mx-auto flex min-h-full max-w-md flex-col px-5 pb-32 pt-[max(18px,env(safe-area-inset-top))]">
         <div className="flex items-center justify-between">
           <span className="rounded-full bg-brand-600/10 px-3 py-1 text-2xs font-extrabold text-brand-600">{DEVICE_LABEL[platform]}</span>
-          <button type="button" onClick={onLater} className="min-h-[40px] px-2 text-sm font-bold text-ink-400">לא עכשיו</button>
+          {!blocking && <button type="button" onClick={onLater} className="min-h-[40px] px-2 text-sm font-bold text-ink-400">לא עכשיו</button>}
         </div>
 
         {platform === 'desktop' ? (
@@ -247,6 +254,10 @@ export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLate
                 <button type="button" onClick={copy} className="min-h-[52px] rounded-pill bg-brand-600 text-base font-black text-white active:bg-brand-700">
                   {copied ? '✓ הקישור הועתק. מדביקים אותו בדפדפן' : 'העתקת הקישור'}
                 </button>
+              ) : last && blocking ? (
+                <p className="rounded-2xl bg-brand-600/10 px-4 py-3 text-center text-sm font-bold leading-relaxed text-brand-600">
+                  עכשיו סוגרים את הדפדפן, פותחים את האייקון של מדרגות במסך הבית, ונכנסים משם 🏠
+                </p>
               ) : last ? (
                 <button type="button" onClick={onLater} className="min-h-[52px] rounded-pill bg-brand-600 text-base font-black text-white active:bg-brand-700">
                   הבנתי, עובר/ת לאייקון
@@ -282,8 +293,13 @@ export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLate
             💬 נתקעת? כתבו לנו בוואטסאפ
           </a>
         )}
-        {onNever && (
+        {onNever && !blocking && (
           <button type="button" onClick={onNever} className="mx-auto mt-4 text-2xs text-ink-400 underline">אל תציע לי שוב</button>
+        )}
+        {blocking && onEscape && (
+          <button type="button" onClick={onEscape} className="mx-auto mt-6 text-2xs text-ink-400 underline underline-offset-2">
+            לא מצליחים להתקין? כניסה בדפדפן
+          </button>
         )}
       </div>
 
