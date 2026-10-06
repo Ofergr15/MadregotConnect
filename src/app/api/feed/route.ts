@@ -6,7 +6,6 @@ import { clampFeedLimit, parseFeedCursor } from '@/lib/feed/pagination';
 import { pendingAthleteIds, withoutPendingAuthors } from '@/lib/auth/pending-athletes';
 import { loadFeedContext } from '@/lib/feed/context';
 import { parseSquadParam } from '@/lib/feed/squad-filter';
-import { isRouteHdTester, loadHdRoutes, withHdRoutes } from '@/lib/feed/route-hd';
 
 export const dynamic = 'force-dynamic';
 
@@ -122,32 +121,19 @@ export async function GET(request: Request) {
     // A runner the club hasn't approved yet stays out of everyone's feed but
     // their own (#77). Filtered after the slice so the cursor still walks the
     // raw order — a page may come back short, never skipped.
-    const [pending, hdTester] = await Promise.all([
-      pendingAthleteIds(supabase),
-      isRouteHdTester(supabase, auth.user).catch(() => false),
-    ]);
+    const pending = await pendingAthleteIds(supabase);
     if (auth.user.athleteId) pending.delete(auth.user.athleteId);
     const page = withoutPendingAuthors(raw as { author_athlete_id?: string | null }[], pending) as typeof raw;
 
     // Likes, comment previews and plan verdicts for the whole page — see
     // lib/feed/context.ts, which the single-item route uses too so a card opened
     // from a notification carries the same state as the same card in the feed.
-    // The sharper-route trial (lib/feed/route-hd.ts), fetched beside the context
-    // so it adds no round trip, and only for the runners on it.
-    const activityIds = hdTester
-      ? (page as Array<{ athlete_activities?: { id?: string } | null }>)
-          .map((r) => r.athlete_activities?.id)
-          .filter((id): id is string => !!id)
-      : [];
-    const [ctx, hdRoutes] = await Promise.all([
-      loadFeedContext(supabase, page, {
-        athleteId: auth.user.athleteId,
-        isStaff: auth.user.isStaff,
-      }),
-      loadHdRoutes(supabase, activityIds).catch(() => new Map()),
-    ]);
+    const ctx = await loadFeedContext(supabase, page, {
+      athleteId: auth.user.athleteId,
+      isStaff: auth.user.isStaff,
+    });
 
-    const items: FeedItem[] = withHdRoutes(page.map((row) => projectFeedItem(row, ctx)), hdRoutes);
+    const items: FeedItem[] = page.map((row) => projectFeedItem(row, ctx));
 
     const last = raw[raw.length - 1] as { occurred_at: string; id: string } | undefined;
     const nextCursor = hasMore && last ? `${last.occurred_at},${last.id}` : null;

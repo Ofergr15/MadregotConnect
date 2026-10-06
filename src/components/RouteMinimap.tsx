@@ -42,7 +42,7 @@ export function RouteMinimap({
   width?: number;
   height?: number;
   /**
-   * The sharper-route trial (PR #12, lib/feed/route-hd.ts): a 300-point route,
+   * A 300-point route (PR #12, migration 130's `route_preview_hd`),
    * drawn as a curve at a fixed 2.5 screen pixels with a white casing. Widths in
    * screen pixels (non-scaling-stroke) because the plate stretches to the card,
    * and a line that scaled with it would merge repeated laps into one blob.

@@ -8,7 +8,7 @@
  * rather than a hunt through every route and component.
  *
  * Full-resolution GPS and the splits table are deliberately NOT here: the feed
- * ships `route_preview` (~60 points) and the client loads full detail on expand
+ * ships `route_preview_hd` (300 points, migration 130; `route_preview`'s ~60 as the fallback) and the client loads full detail on expand
  * via /api/garmin/activity-details. The one thing taken from `splits` is
  * `paceBands` — the per-km average paces as bare numbers, so a card's thumbnail
  * can draw the pace heat map — and it is masked alongside `averagePace`.
@@ -45,7 +45,7 @@ export interface FeedActivity {
   perceivedRpe: number | null;
   perceivedFeel: number | null;
   routePreview: Array<{ lat: number; lng: number }> | null;
-  /** The 300-point trial route is in `routePreview` (lib/feed/route-hd.ts). */
+  /** `routePreview` is the 300-point route (migration 130), drawn as a curve (RouteMinimap `hd`). */
   routeHd?: boolean;
   hasRoute: boolean;
   /**
@@ -204,6 +204,7 @@ interface RawActivityRow {
   perceived_rpe: number | null;
   perceived_feel: number | null;
   route_preview: unknown;
+  route_preview_hd?: unknown;
   has_polyline: boolean | null;
   splits: unknown;
   laps?: unknown;
@@ -301,7 +302,9 @@ function toMedia(v: unknown): FeedMedia[] {
 }
 
 function projectActivity(row: RawActivityRow, planVerdict: FeedPlanVerdict | null): FeedActivity {
-  const route = toRoute(row.route_preview);
+  // 300 points (migration 130) where built, else 047's ~60.
+  const hd = toRoute(row.route_preview_hd);
+  const route = hd ?? toRoute(row.route_preview);
   return {
     id: row.id,
     athleteId: row.athlete_id,
@@ -321,6 +324,7 @@ function projectActivity(row: RawActivityRow, planVerdict: FeedPlanVerdict | nul
     perceivedRpe: toNumber(row.perceived_rpe),
     perceivedFeel: toNumber(row.perceived_feel),
     routePreview: route,
+    routeHd: !!hd,
     hasRoute: !!route || !!row.has_polyline,
     paceBands: toPaceBands(row.splits, row.laps),
     lapBands: toLapBands(row.laps),
@@ -514,6 +518,6 @@ export const FEED_SELECT = `
     id, athlete_id, garmin_activity_id, activity_name, activity_type, start_time,
     distance, duration, moving_duration, average_pace, average_hr, max_hr,
     calories, elevation_gain, location_name, perceived_rpe, perceived_feel,
-    route_preview, has_polyline, splits, laps
+    route_preview, route_preview_hd, has_polyline, splits, laps
   )
 `;
