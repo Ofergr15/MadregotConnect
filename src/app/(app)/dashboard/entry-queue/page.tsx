@@ -151,7 +151,7 @@ export default function EntryQueuePage() {
   const [orphanResult, setOrphanResult] = useState<Record<string, 'approved' | 'rejected' | 'failed' | null>>({});
   // People approved on this visit, with their link: the card itself leaves the list
   // the moment it is approved, and "send it on WhatsApp" is the next thing to do.
-  const [justApproved, setJustApproved] = useState<Array<{ id: string; email: string; url: string; groupName: string | null }>>([]);
+  const [justApproved, setJustApproved] = useState<Array<{ id: string; email: string; url: string; groupName: string | null; fullName: string | null; whatsapp: string | null }>>([]);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   // Per-person outcome of a reminder: sent, sent-but-nowhere-to-land, or failed.
   const [nudged, setNudged] = useState<Record<string, 'sent' | 'emailed' | 'unreachable' | 'failed' | null>>({});
@@ -352,7 +352,7 @@ export default function EntryQueuePage() {
       if (res.ok && action === 'approve') {
         const body = await res.json().catch(() => ({}));
         if (typeof body?.joinUrl === 'string') {
-          setJustApproved((prev) => [{ id: req.id, email: req.email, url: body.joinUrl, groupName: body.groupName ?? null }, ...prev.filter((p) => p.id !== req.id)]);
+          setJustApproved((prev) => [{ id: req.id, email: req.email, url: body.joinUrl, groupName: body.groupName ?? null, fullName: body.fullName ?? null, whatsapp: body.whatsapp ?? null }, ...prev.filter((p) => p.id !== req.id)]);
         }
       }
       if (res.ok) mutate();
@@ -507,9 +507,13 @@ export default function EntryQueuePage() {
           <div className="mt-3 space-y-2">
             {justApproved.map((a) => (
               <div key={a.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-card p-2.5">
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-700" dir="ltr">{a.email}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-700">
+                  {a.fullName && <span className="me-1.5">{a.fullName}</span>}
+                  <span dir="ltr" className="font-normal text-ink-400">{a.email}</span>
+                </span>
                 <a
-                  href={`https://wa.me/?text=${encodeURIComponent(approvalWhatsAppText(a.url, a.groupName))}`}
+                  // Straight to them when the form gave a phone; otherwise WhatsApp asks whom.
+                  href={`https://wa.me/${a.whatsapp ?? ''}?text=${encodeURIComponent(approvalWhatsAppText(a.url, a.groupName, a.fullName))}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex min-h-[40px] items-center gap-1.5 rounded-pill bg-[#25D366] px-3.5 text-sm font-extrabold text-white"

@@ -9,9 +9,10 @@ export function joinLinkV2(appUrl: string, token: string, v2: boolean): string {
 }
 
 /** The WhatsApp message an approver sends with one tap. */
-export function approvalWhatsAppText(link: string, groupName?: string | null): string {
+export function approvalWhatsAppText(link: string, groupName?: string | null, name?: string | null): string {
+  const first = (name || '').trim().split(/\s+/)[0];
   return [
-    `היי! 👋 כאן ממדרגות. אושרת להצטרף${groupName ? `, ${groupName}` : ''} 🎉`,
+    `היי${first ? ` ${first}` : ''}! 👋 כאן ממדרגות. אושרת להצטרף${groupName ? `, ${groupName}` : ''} 🎉`,
     '',
     'ככה מתקינים את האפליקציה (דקה אחת):',
     '1. לוחצים על הקישור כאן למטה',

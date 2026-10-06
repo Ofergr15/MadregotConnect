@@ -1,7 +1,7 @@
 import { APP_URL, APPROVER_EMAILS } from '@/lib/constants';
 import { joinLinkV2 } from '@/lib/install/flag';
 import { openInAppHref } from '@/lib/open-in-app';
-import { renderEmail, renderSetupProgress, renderJourney, renderSteps, renderScanOnPhone, renderTip, esc, type SetupProgressRow } from './template';
+import { renderEmail, renderSetupProgress, renderJourney, renderSteps, renderScanOnPhone, renderTip, renderNextUp, esc, type SetupProgressRow } from './template';
 import { gapNames } from '@/lib/notifications/copy';
 import { sendEmail, type SendResult } from './send';
 import { renderAcademyFormReceived } from './academy-form-received';
@@ -141,6 +141,30 @@ export async function notifyAdminNewSignupRequest(req: {
       // tapping the mail showed the approver a different screen than browsing did.
       cta: { label: 'Review & approve →', href: openInAppHref(APP_URL, '/dashboard/entry-queue?at=mine') },
       notes: ['They cannot enter the app until someone approves this.'],
+    }),
+  });
+}
+
+/**
+ * The applicant's "we got it" mail (onboarding v2): sent the moment the public form
+ * lands, so the first thing a new member hears from the club is that it arrived,
+ * where they are in the journey, and that the next step is ours. No button: there
+ * is nothing for them to do yet, and a button would invent something.
+ */
+export async function notifyRegistrationReceived(user: { email: string; name?: string | null }): Promise<SendResult> {
+  const first = (user.name || '').split(/\s+/)[0] || '';
+  return sendEmail({
+    template: 'registration_received',
+    to: user.email,
+    subject: `קיבלנו את הבקשה שלך${first ? `, ${first}` : ''} 🏃`,
+    replyTo: ADMIN_EMAIL,
+    html: renderEmail({
+      eyebrow: 'מועדון הריצה של מדרגות',
+      title: `קיבלנו${first ? `, ${first}` : ''}. המדרגה הראשונה מאחורייך`,
+      preheader: 'הבקשה שלך אצלנו. בדרך כלל מאשרים תוך יום.',
+      paragraphs: ['הבקשה שלך הגיעה אלינו. ככה זה ממשיך מכאן:'],
+      bodyHtml: renderJourney(1) + renderNextUp('הבא בתור', 'אישור מהמנהלים', 'בדרך כלל תוך יום. נשלח לך מייל עם קישור אישי להתקנת האפליקציה.'),
+      notes: ['אין צורך לעשות שום דבר נוסף בינתיים.', 'שאלות? פשוט תשיבו למייל הזה.'],
     }),
   });
 }

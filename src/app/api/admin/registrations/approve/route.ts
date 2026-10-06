@@ -4,6 +4,18 @@ import { createServerClient } from '@/lib/supabase/server';
 import { APP_URL, COACH_ID } from '@/lib/constants';
 import { authError, requireSession } from '@/lib/auth-session';
 import { ONBOARDING_V2_FOR_ALL, joinLinkV2 } from '@/lib/install/flag';
+import { whatsappNumber } from '@/lib/email/academy-new-applicant';
+
+/**
+ * The name and phone the v2 form asked for (migration 131), for the queue's
+ * WhatsApp send. Its own read so a database without the columns yet answers
+ * "none" instead of failing the approval.
+ */
+async function contactOf(supabase: ReturnType<typeof createServerClient>, id: string) {
+  const { data, error } = await supabase.from('signup_requests').select('full_name, phone').eq('id', id).maybeSingle();
+  if (error || !data) return {};
+  return { fullName: data.full_name ?? null, whatsapp: whatsappNumber(data.phone) };
+}
 import { notifyRegistrationApproved } from '@/lib/email';
 import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
 import { notifyAthlete } from '@/lib/push';
@@ -302,6 +314,7 @@ export async function POST(request: Request) {
       joinUrl: joinLinkV2(APP_URL, token, v2),
       v2,
       groupName,
+      ...(await contactOf(supabase, id)),
     });
   } catch (err) {
     console.error('Failed to approve registration:', err);

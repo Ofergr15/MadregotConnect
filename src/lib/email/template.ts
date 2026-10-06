@@ -337,3 +337,12 @@ export function renderScanOnPhone(qrSrc: string): string {
 export function renderTip(html: string): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#FFF7ED" style="border-radius: 12px; margin: 12px 0 0;"><tr><td style="padding: 10px 14px; font-family: ${FONT}; font-size: 13px; color: #7C2D12; line-height: 1.55;">${html}</td></tr></table>`;
 }
+
+/** The "next up" card: a small caps label, one bold line, one quiet line. */
+export function renderNextUp(label: string, title: string, sub: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#EFEEFE" style="border-radius: 16px; margin: 0 0 6px;"><tr><td align="center" style="padding: 14px 16px; font-family: ${FONT};">
+    <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: ${BRAND};">${esc(label)}</div>
+    <div style="font-size: 17px; font-weight: 700; color: ${INK_900}; margin: 3px 0;">${esc(title)}</div>
+    <div style="font-size: 13px; color: ${INK_500}; line-height: 1.55;">${esc(sub)}</div>
+  </td></tr></table>`;
+}

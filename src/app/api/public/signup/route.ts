@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { notifyAdminNewSignupRequest } from '@/lib/email';
+import { notifyAdminNewSignupRequest, notifyRegistrationReceived } from '@/lib/email';
+import { ONBOARDING_V2_FOR_ALL } from '@/lib/install/flag';
 import { notifyStaff } from '@/lib/notifications/staff';
 import { signupRequestCopy } from '@/lib/notifications/copy';
 import { groupDisplayName } from '@/lib/utils';
@@ -77,9 +78,17 @@ async function recordMemberSubmission(
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json().catch(() => ({}))) as { email?: string; groupId?: string };
+    const body = (await request.json().catch(() => ({}))) as { email?: string; groupId?: string; fullName?: string; phone?: string; onb?: string };
     const email = normaliseEmail(body.email || '');
     const groupId = body.groupId?.trim() || null;
+    // Onboarding v2 (lib/install/flag): the form also asks a name and, optionally,
+    // a phone — for the queue and the WhatsApp send, never written onto athletes
+    // (the roster name is Latin-only; /join asks for that one).
+    const v2 = ONBOARDING_V2_FOR_ALL || body.onb === 'v2';
+    const contact = {
+      ...(typeof body.fullName === 'string' && body.fullName.trim() ? { full_name: body.fullName.trim().slice(0, 80) } : {}),
+      ...(typeof body.phone === 'string' && body.phone.replace(/\D/g, '').length >= 9 ? { phone: body.phone.trim().slice(0, 24) } : {}),
+    };
 
     if (!isLikelyEmail(email)) {
       return NextResponse.json({ error: 'invalid-email' }, { status: 400 });
@@ -139,6 +148,10 @@ export async function POST(request: Request) {
       if (resolvedGroupId) {
         await supabase.from('signup_requests').update({ group_id: resolvedGroupId }).eq('id', pending.id);
       }
+      if (Object.keys(contact).length) {
+        // Best effort: before migration 131 the columns do not exist.
+        await supabase.from('signup_requests').update(contact).eq('id', pending.id);
+      }
       return NextResponse.json({ ok: true, state: 'pending' });
     }
 
@@ -174,12 +187,12 @@ export async function POST(request: Request) {
     }
 
     // 3. New request.
-    const { error: insertError } = await supabase.from('signup_requests').insert({
-      email,
-      group_id: resolvedGroupId,
-      status: 'pending',
-      source: 'public-form',
-    });
+    const row = { email, group_id: resolvedGroupId, status: 'pending', source: 'public-form' };
+    let { error: insertError } = await supabase.from('signup_requests').insert({ ...row, ...contact });
+    // Migration 131 (full_name, phone) not pasted yet: keep the request, drop the extras.
+    if (insertError && Object.keys(contact).length && (insertError.code === 'PGRST204' || insertError.code === '42703')) {
+      ({ error: insertError } = await supabase.from('signup_requests').insert(row));
+    }
 
     // 23505 = unique_violation: two submissions raced on the partial unique index
     // over pending emails. Both are the same person pressing twice; the row that
@@ -192,7 +205,7 @@ export async function POST(request: Request) {
       // Both channels below used to be handed the raw address as the name, which
       // is the same complaint the Strava alert drew: an approver reading a lock
       // screen wants to know who, and an address makes them work it out.
-      const who = signupAlertName({ email });
+      const who = contact.full_name || signupAlertName({ email });
 
       // The approvers cannot act on what they do not know arrived. Isolated: a
       // Resend outage must not fail a registration that is already committed.
@@ -220,6 +233,15 @@ export async function POST(request: Request) {
         category: 'management',
         copy: (locale) => signupRequestCopy(locale, { name: who, pending: count ?? 1 }),
       });
+    }
+
+    // The applicant's own "we got it" mail, v2 only: the journey and what comes next.
+    if (!insertError && v2) {
+      try {
+        await notifyRegistrationReceived({ email, name: contact.full_name ?? null });
+      } catch (mailErr) {
+        console.error('Failed to send the registration-received mail:', mailErr);
+      }
     }
 
     return NextResponse.json({ ok: true, state: 'new' });

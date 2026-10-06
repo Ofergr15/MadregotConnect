@@ -88,7 +88,7 @@ describe('the approval message', () => {
   it('only the super user sends it while it is tried, and the queue keeps the link to send on WhatsApp', () => {
     expect(read('app/api/admin/registrations/approve/route.ts')).toMatch(/const v2 = ONBOARDING_V2_FOR_ALL \|\| !!auth\.user\.isSuperUser;/);
     expect(read('app/api/admin/registrations/resend/route.ts')).toMatch(/const v2 = ONBOARDING_V2_FOR_ALL \|\| !!auth\.user\.isSuperUser;/);
-    expect(read('app/(app)/dashboard/entry-queue/page.tsx')).toMatch(/approvalWhatsAppText\(a\.url, a\.groupName\)/);
+    expect(read('app/(app)/dashboard/entry-queue/page.tsx')).toMatch(/approvalWhatsAppText\(a\.url, a\.groupName, a\.fullName\)/);
   });
 
   it('the QR endpoint only draws our own join link', () => {
