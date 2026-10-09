@@ -48,6 +48,12 @@ const PILL: Record<PersonState, string> = {
   active: 'bg-accent-600/15 text-accent-900',
 };
 
+/** A role's label; a role with no message falls back to its name instead of the raw key. */
+function roleLabel(t: ReturnType<typeof useTranslations<'people'>>, role: string): string {
+  const key = `role_${role}` as never;
+  return t.has(key) ? t(key) : role.replace(/_/g, ' ');
+}
+
 function initials(name: string): string {
   return name.trim().split(/\s+/).slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase() || '?';
 }
@@ -78,7 +84,7 @@ export default function PeoplePage() {
   /** The row's second line: the one fact behind its pill. */
   const subline = (p: Person) => {
     const bits: string[] = [];
-    if (p.role !== 'runner') bits.push(t(`role_${p.role}` as never));
+    if (p.role !== 'runner') bits.push(roleLabel(t, p.role));
     if (p.groupName) bits.push(groupDisplayName(p.groupName));
     const state = personState(p, today);
     if (state === 'silent' || state === 'active') {
@@ -246,7 +252,7 @@ function MemberCard({ person: p, today }: { person: Person; today: string }) {
             label={t('status')}
             value={state === 'waiting' ? t('statusWaiting') : state === 'paused' ? t('statusPaused') : t('statusApproved')}
           />
-          <KV label={t('role')} value={t(`role_${p.role}` as never)} />
+          <KV label={t('role')} value={roleLabel(t, p.role)} />
           <KV label={t('group')} value={p.groupName ? groupDisplayName(p.groupName) : t('noGroup')} />
           <KV label={t('source')} value={p.source ? t(p.source) : t('notConnected')} />
           <KV
