@@ -3,6 +3,10 @@
    these are pictures, positioned to the pixel, and they animate. */
 
 .ig-phone{position:relative;width:min(48vw,182px);aspect-ratio:9/16;margin:0 auto;border-radius:26px;border:6px solid #111;background:#f4f5fa;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 14px 34px rgba(20,24,60,.22)}
+/* Inside the step-by-step guide the picture takes the height that is left over
+   once the words and the bottom bar have theirs (the guide caps that box), so
+   nothing is pushed below the fold on a short phone. */
+.ig-stage .ig-phone{height:100%;width:auto;max-width:100%}
 .ig-page{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px;color:#151827}
 .ig-page img{width:44px;height:44px;border-radius:11px}
 .ig-page b{font-size:12px}
@@ -68,11 +72,15 @@
 .ig-vbar{height:4px;border-radius:9px;background:rgba(255,255,255,.2);overflow:hidden;margin-top:12px}
 .ig-vbar i{display:block;height:100%;background:#FF5315;transition:width .25s linear}
 
-/* The arrow at the edge of the screen, toward the browser's own button. */
-.ig-point{position:fixed;z-index:65;pointer-events:none;display:flex;align-items:center;gap:6px;background:#FF5315;color:#fff;font-weight:900;font-size:13.5px;border-radius:999px;padding:6px 14px;box-shadow:0 6px 18px rgba(255,83,21,.4)}
-.ig-point.bottom-center{left:50%;transform:translateX(-50%);bottom:max(6px,env(safe-area-inset-bottom))}
-.ig-point.bottom-right{right:14px;bottom:max(6px,env(safe-area-inset-bottom))}
-.ig-point.top-right{right:14px;top:max(6px,env(safe-area-inset-top))}
+/* The arrow toward the browser's own button, which sits OUTSIDE the page (below
+   it for Safari's bottom bar). In the flow now, at the very edge of the guide —
+   the last thing in the bottom bar, or the first under the header — so it points
+   the right way and can never sit on top of the instructions or the buttons
+   (it used to be position:fixed, over the step's text). */
+.ig-point{pointer-events:none;display:flex;align-items:center;justify-content:center;gap:6px;align-self:center;background:#FF5315;color:#fff;font-weight:900;font-size:13.5px;border-radius:999px;padding:4px 14px;box-shadow:0 6px 18px rgba(255,83,21,.32)}
+.ig-point.bottom-center{margin:6px auto 0}
+.ig-point.bottom-right{margin:6px 0 0 auto}
+.ig-point.top-right{margin:0 auto 6px 0}
 .ig-point span{font-size:18px;line-height:1;animation:ig-bounce 1.1s ease-in-out infinite}
 .ig-point.top-right span{animation-name:ig-bounce-up}
 @keyframes ig-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(7px)}}

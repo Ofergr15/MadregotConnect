@@ -1,22 +1,40 @@
 'use client';
 
-// The install guide, full screen: a short video that opens by itself (once per
-// device, muted — phones refuse to autoplay anything with sound — so it is
-// captions and a finger), then the same steps one at a time, each with a drawing
-// of what the member sees and an arrow at the edge of the screen toward the
-// browser's own button. Built for the member who has never added anything to a
-// home screen: one instruction per screen, no jargon, a way out on every screen.
+// The install guide, full screen: the steps one at a time, each with a picture
+// of what the member sees, in the joining journey's look (journey-ui: the sunset
+// header, the cream page, ONE primary pill in a bottom bar that never scrolls
+// away). Built for the member who has never added anything to a home screen: one
+// instruction per screen, no jargon, a way out on every screen.
 //
-// Shared by the in-app install step (InstallPrompt) and the end of /join.
+// Steps only (Ofer, 2026-10-10): it used to open on a dark video screen that
+// then showed the very same steps again, and on the landing page on a welcome
+// screen before that. Both are gone from the flow; the video components stay for
+// /preview/install (`forceVideo`). On a 390×664 phone everything fits: the
+// picture takes what is left over (max ~half the screen), the "next" control is
+// always on screen, and the arrow toward Safari's own button sits in the flow at
+// the bottom edge instead of floating over the instructions.
+//
+// Shared by the in-app install step (InstallPrompt), the end of /join and the
+// landing page on an iPhone (blocking). Every showing marks the device
+// (INSTALL_GUIDE_SEEN_KEY), so the app itself does not open it full screen again.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import { detectInstallPlatform, otherSafari, type InstallPlatform } from '@/lib/install/platform';
 import { stepsFor, VIDEO_STEP_MS, type InstallStep } from '@/lib/install/steps';
+import { JOURNEY, JourneyHero, PrimaryButton, SecondaryButton } from '@/components/onboarding/journey-ui';
 import { InstallScene } from './InstallScene';
 import './install.css';
 
 export const VIDEO_SEEN_KEY = 'mc-install-video-seen';
+/**
+ * This device has been shown the guide (anywhere: the landing page, the end of
+ * /join, the app). Read by InstallPrompt so the guide shows ONCE — after that the
+ * app only offers a small strip that reopens it on request. Under the
+ * `pwa_install_` prefix so the super user's onboarding test reset clears it, and
+ * deliberately NOT cleared by resetInstallOffer(): reopening is an explicit ask.
+ */
+export const INSTALL_GUIDE_SEEN_KEY = 'pwa_install_guide_seen';
 const HELP_WHATSAPP = process.env.NEXT_PUBLIC_HELP_WHATSAPP || '';
 
 const DEVICE_LABEL: Record<InstallPlatform, string> = {
@@ -49,7 +67,7 @@ export interface InstallGuideProps {
   onEscape?: () => void;
   /** /preview/install only: draw this platform instead of detecting one. */
   forcePlatform?: InstallPlatform;
-  /** /preview/install only: open on the video (true) or skip it (false), whatever this device saw. */
+  /** /preview/install only: open on the (retired) video. The real flow always opens on step 1. */
   forceVideo?: boolean;
 }
 
@@ -70,13 +88,18 @@ export function Qr({ url }: { url: string }) {
   return <div className="mx-auto w-[190px] rounded-2xl bg-white p-2 shadow-sm [&_svg]:h-auto [&_svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
-/** A real screenshot of the step, the control to press ringed. */
+/**
+ * A real screenshot of the step, the control to press ringed. Sized by HEIGHT (the
+ * box the guide leaves for it), its width following the picture's own shape, so
+ * the ring's percentages land on the same pixels at any size. The frame is a
+ * shadow, not a border, so it doesn't bend that shape.
+ */
 function StepShot({ shot }: { shot: NonNullable<InstallStep['shot']> }) {
   const r = shot.ring;
   return (
-    <div className="relative mx-auto w-[min(52vw,200px)] overflow-hidden rounded-[26px] border-[5px] border-[#111] shadow-[0_14px_34px_rgba(20,24,60,0.22)]">
+    <div className="relative h-full max-w-full overflow-hidden rounded-[22px] shadow-[0_0_0_4px_#111,0_14px_34px_rgba(20,24,60,0.22)]" style={{ aspectRatio: '603 / 1311' }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={shot.src} alt="" className="block w-full" />
+      <img src={shot.src} alt="" className="block h-full w-full object-cover" />
       <span
         aria-hidden
         className="ig-shot-ring absolute"
@@ -169,17 +192,17 @@ export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLate
   const [video, setVideo] = useState(false);
   const [step, setStep] = useState(0);
   const [copied, setCopied] = useState(false);
-  // The landing page's welcome, before the video: someone who just tapped a link
-  // to a running club should be greeted, not dropped into instructions.
-  const [intro, setIntro] = useState(!!blocking);
   const topRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const p = forcePlatform ?? detectInstallPlatform();
     setPlatform(p);
-    let seen = false;
-    try { seen = localStorage.getItem(VIDEO_SEEN_KEY) === '1'; } catch { /* private mode */ }
-    setVideo((forceVideo ?? !seen) && p !== 'desktop' && p !== 'standalone');
+    // The video is no longer part of the flow — only the preview can still open on it.
+    setVideo(forceVideo === true && p !== 'desktop' && p !== 'standalone');
+    // Shown once: from here on the app itself only offers the small strip (InstallPrompt).
+    if (!forcePlatform && p !== 'desktop' && p !== 'standalone') {
+      try { localStorage.setItem(INSTALL_GUIDE_SEEN_KEY, '1'); } catch { /* private mode */ }
+    }
     setReady(true);
   }, [forcePlatform, forceVideo]);
 
@@ -189,60 +212,20 @@ export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLate
     try { localStorage.setItem(VIDEO_SEEN_KEY, '1'); } catch { /* ignore */ }
     setVideo(false);
   }, []);
-  useEffect(() => { topRef.current?.scrollIntoView({ block: 'start' }); }, [step]);
+  useEffect(() => { topRef.current?.scrollTo?.({ top: 0 }); }, [step]);
 
   if (!ready || platform === 'standalone') return null;
-  if (intro) {
-    return (
-      <div
-        className="fixed inset-0 z-[60] flex flex-col bg-cover bg-center text-white"
-        style={{ backgroundImage: 'linear-gradient(180deg, rgba(9,12,60,0.25) 0%, rgba(9,12,60,0.55) 42%, #0b0e3e 76%), url(/images/hero-running.jpg)' }}
-        dir="rtl" role="dialog" aria-modal="true" aria-labelledby="install-welcome-title"
-      >
-        <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-6 pb-[max(26px,env(safe-area-inset-bottom))] pt-[max(40px,env(safe-area-inset-top))]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/logo-white.png" alt="מדרגות" className="ig-rise mx-auto h-24 w-auto drop-shadow-[0_6px_18px_rgba(0,0,0,0.35)]" />
-          <div className="mt-auto text-center">
-            <p className="ig-rise text-xs font-bold tracking-wide text-white/85" style={{ animationDelay: '120ms' }}>מועדון הריצה של מדרגות</p>
-            <h1 id="install-welcome-title" className="ig-rise mt-1 text-[34px] font-black leading-[1.08]" style={{ animationDelay: '200ms' }}>ברוכים הבאים<br />למשפחה 👋</h1>
-            <p className="ig-rise mx-auto mt-3 max-w-[310px] text-[15px] leading-relaxed text-white/90" style={{ animationDelay: '280ms' }}>
-              הכול במקום אחד: התוכנית מהמאמן, הריצות שלך מהשעון, והקבוצה.
-            </p>
-            <ol className="ig-rise mx-auto mt-6 flex max-w-[300px] items-start justify-center" style={{ animationDelay: '360ms' }} aria-label="3 צעדים">
-              {['מתקינים', 'נכנסים', 'רצים'].map((label, i) => (
-                <li key={label} className="flex flex-1 items-start">
-                  <div className="flex w-16 flex-col items-center gap-1">
-                    <span className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-black ${i === 0 ? 'border-[#FF5315] bg-[#FF5315]' : 'border-white/50'}`}>{i + 1}</span>
-                    <span className="text-xs font-bold">{label}</span>
-                  </div>
-                  {i < 2 && <span className="mt-4 h-0.5 flex-1 bg-white/35" aria-hidden />}
-                </li>
-              ))}
-            </ol>
-            <button type="button" onClick={() => setIntro(false)} className="ig-rise mt-7 min-h-[60px] w-full rounded-pill bg-white text-lg font-black text-[#2b33ff] shadow-[0_14px_34px_rgba(0,0,0,0.35)] active:bg-white/90" style={{ animationDelay: '440ms' }}>
-              בואו נתחיל ▶
-              <span className="block text-2xs font-semibold text-ink-400">30 שניות · פעם אחת</span>
-            </button>
-            {onEscape && (
-              <button type="button" onClick={onEscape} className="mx-auto mt-4 block text-2xs text-white/60 underline underline-offset-2">
-                לא מצליחים להתקין? כניסה בדפדפן
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-  // iPhone: the real recording (Ofer's own phone, public/videos). Elsewhere, the
-  // drawn walkthrough until there is a recording for that platform too.
+  // /preview/install?video=1 only. iPhone: the real recording; elsewhere the drawn one.
   if (video && steps.length && platform.startsWith('ios-safari')) return <RealVideo onDone={endVideo} />;
   if (video && steps.length) return <InstallVideo steps={steps} browser={browser} onDone={endVideo} />;
 
+  const desktop = platform === 'desktop';
   const s = steps[step];
   const last = step === steps.length - 1;
   const help = helpLink(platform, step, memberName);
   const isSafari = platform === 'ios-safari' || platform === 'ios-safari-26' || platform === 'ios-safari-compact';
   const inApp = platform === 'ios-inapp' || platform === 'android-inapp';
+  const device = DEVICE_LABEL[platform].replace(' · ', ', ');
 
   const copy = async () => {
     try {
@@ -252,106 +235,96 @@ export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLate
     } catch { /* the steps above are still the way */ }
   };
 
+  const title = desktop ? 'את האפליקציה מתקינים בטלפון' : inApp ? 'רגע לפני: פותחים בדפדפן' : 'מוסיפים את מדרגות למסך הבית';
+  const subtitle = !desktop && steps.length > 1 ? `צעד ${step + 1} מתוך ${steps.length} · ${device}` : device;
+
+  // The header's top row: back (from step 2 on) at the start, "not now" at the end —
+  // both 44px, "not now" a white pill in the quiet ink so it reads on the sunset.
+  const top = (
+    <div className="-mx-1 mb-1 flex min-h-[44px] items-center justify-between">
+      {step > 0 && !desktop ? (
+        <button type="button" onClick={() => setStep(step - 1)} className="min-h-[44px] px-2 text-[14px] font-bold text-white">→ חזרה</button>
+      ) : <span />}
+      {!blocking && <button type="button" onClick={onLater} className="min-h-[44px] rounded-full bg-white px-4 text-[14px] font-extrabold" style={{ color: JOURNEY.soft }}>לא עכשיו</button>}
+    </div>
+  );
+
+  const pointer = s?.point && !desktop ? (
+    <div className={`ig-point ${s.point}`} aria-hidden>
+      {s.point === 'top-right' ? (<><span>↑</span>הכפתור כאן למעלה</>) : (<>הכפתור כאן למטה<span>↓</span></>)}
+    </div>
+  ) : null;
+
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto bg-page" role="dialog" aria-modal="true" aria-labelledby="install-guide-title" dir="rtl" data-testid="install-guide">
-      <div ref={topRef} className="mx-auto flex min-h-full max-w-md flex-col px-5 pb-32 pt-[max(18px,env(safe-area-inset-top))]">
-        <div className="flex items-center justify-between">
-          <span className="rounded-full bg-brand-600/10 px-3 py-1 text-2xs font-extrabold text-brand-600">{DEVICE_LABEL[platform]}</span>
-          {!blocking && <button type="button" onClick={onLater} className="min-h-[40px] px-2 text-sm font-bold text-ink-400">לא עכשיו</button>}
+    <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: JOURNEY.page }} role="dialog" aria-modal="true" aria-labelledby="install-guide-title" dir="rtl" data-testid="install-guide">
+      <div className="mx-auto flex h-[100dvh] w-full max-w-md flex-col">
+        <JourneyHero compact top={top} title={<span id="install-guide-title">{title}</span>} subtitle={subtitle} />
+
+        <div ref={topRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 pt-3" style={{ color: JOURNEY.body }}>
+          {desktop ? (
+            <div className="flex flex-col items-center gap-3 pt-2 text-center">
+              <p className="max-w-[320px] text-[15px] leading-relaxed" style={{ color: JOURNEY.soft }}>פותחים את המצלמה של הטלפון, מכוונים לקוד ולוחצים על הקישור שקופץ.</p>
+              <Qr url={typeof window === 'undefined' ? '' : window.location.href} />
+              <p className="max-w-[300px] text-[13px] leading-relaxed" style={{ color: JOURNEY.soft }}>או: פותחים בטלפון את המייל או ההודעה עם הקישור, ולוחצים שם.</p>
+            </div>
+          ) : (
+            <>
+              {s.point === 'top-right' && pointer}
+              {/* The picture gets whatever height is left, never more than about half the screen. */}
+              <div className="ig-stage relative min-h-[170px] flex-1" style={{ maxHeight: '52dvh' }}>
+                <div className="absolute inset-0 flex justify-center py-1">
+                  {s.shot ? <StepShot shot={s.shot} /> : <InstallScene scene={s.scene} browser={browser} />}
+                </div>
+              </div>
+              <div className="text-center">
+                <h2 className="text-[18px] font-black leading-snug" style={{ color: JOURNEY.ink }}>{s.title}</h2>
+                <p className="mx-auto mt-1 max-w-[340px] text-[14px] leading-snug" style={{ color: JOURNEY.soft }}>{s.body}</p>
+              </div>
+            </>
+          )}
+
+          {(help || (onNever && !blocking) || (blocking && onEscape)) && (
+            <div className="flex flex-wrap items-center justify-center gap-x-4">
+              {help && (
+                <a href={help} target="_blank" rel="noopener noreferrer" className="flex min-h-[44px] items-center gap-1.5 text-[14px] font-extrabold text-[#128C4B]">
+                  💬 נתקעתם? כותבים לנו בוואטסאפ
+                </a>
+              )}
+              {onNever && !blocking && (
+                <button type="button" onClick={onNever} className="min-h-[44px] text-[13px] underline underline-offset-2" style={{ color: JOURNEY.soft }}>לא להציע שוב</button>
+              )}
+              {blocking && onEscape && (
+                <button type="button" onClick={onEscape} className="min-h-[44px] text-[13px] underline underline-offset-2" style={{ color: JOURNEY.soft }}>
+                  לא מצליחים להתקין? כניסה בדפדפן
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
-        {platform === 'desktop' ? (
-          <div className="mt-6 flex flex-col items-center gap-3 text-center">
-            <h1 id="install-guide-title" className="text-2xl font-black text-ink-700">את האפליקציה מתקינים בטלפון</h1>
-            <p className="max-w-[320px] text-sm leading-relaxed text-ink-500">פותחים את המצלמה של הטלפון, מכוונים לקוד ולוחצים על הקישור שקופץ.</p>
-            <Qr url={typeof window === 'undefined' ? '' : window.location.href} />
-            <p className="max-w-[300px] text-xs leading-relaxed text-ink-400">או: פותחים בטלפון את המייל או ההודעה עם הקישור, ולוחצים שם.</p>
-          </div>
-        ) : (
-          <>
-            <h1 id="install-guide-title" className="mt-2 text-center text-[21px] font-black leading-tight text-ink-700">
-              {inApp ? 'רגע לפני: פותחים בדפדפן' : 'מוסיפים את מדרגות למסך הבית'}
-            </h1>
-            {steps.length > 1 && (
-              <div className="mt-3 flex justify-center gap-1.5" aria-label={`צעד ${step + 1} מתוך ${steps.length}`}>
-                {steps.map((_, i) => (
-                  <i key={i} className={`h-1.5 rounded-full transition-all ${i === step ? 'w-6 bg-brand-600' : i < step ? 'w-1.5 bg-brand-600/50' : 'w-1.5 bg-ink-300'}`} />
-                ))}
-              </div>
+        {!desktop && (
+          // The bottom bar: always on screen, never scrolled away.
+          <div className="flex shrink-0 flex-col gap-1 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-2.5" data-testid="install-guide-bar">
+            {platform === 'android' && canPrompt && step === 0 ? (
+              <PrimaryButton onClick={async () => { await onInstall?.(); setStep(1); }}>התקנת האפליקציה</PrimaryButton>
+            ) : inApp ? (
+              <PrimaryButton onClick={copy}>{copied ? '✓ הקישור הועתק. מדביקים אותו בדפדפן' : 'העתקת הקישור'}</PrimaryButton>
+            ) : last && blocking ? (
+              <p className="rounded-[20px] px-4 py-3 text-center text-[15px] font-bold leading-relaxed" style={{ background: JOURNEY.tagBg, color: JOURNEY.ink }}>
+                עכשיו סוגרים את הדפדפן, פותחים את האייקון של מדרגות במסך הבית, ונכנסים משם 🏠
+              </p>
+            ) : last ? (
+              <PrimaryButton onClick={onLater}>סיימתי</PrimaryButton>
+            ) : (
+              <PrimaryButton onClick={() => setStep(step + 1)}>עשיתי, הבא</PrimaryButton>
             )}
-
-            <div className="mt-4">{s.shot ? <StepShot shot={s.shot} /> : <InstallScene scene={s.scene} browser={browser} />}</div>
-
-            <div className="mt-3 text-center">
-              <p className="text-2xs font-black tracking-wide text-brand-600">צעד {step + 1} מתוך {steps.length}</p>
-              <h2 className="mt-1 text-lg font-black text-ink-700">{s.title}</h2>
-              <p className="mx-auto mt-1 max-w-[320px] text-sm leading-relaxed text-ink-500">{s.body}</p>
-            </div>
-
-            <div className="mt-4 flex flex-col gap-2.5">
-              {platform === 'android' && canPrompt && step === 0 ? (
-                <button type="button" onClick={async () => { await onInstall?.(); setStep(1); }}
-                  className="min-h-[52px] rounded-pill bg-brand-600 text-base font-black text-white active:bg-brand-700">
-                  התקנת האפליקציה
-                </button>
-              ) : inApp ? (
-                <button type="button" onClick={copy} className="min-h-[52px] rounded-pill bg-brand-600 text-base font-black text-white active:bg-brand-700">
-                  {copied ? '✓ הקישור הועתק. מדביקים אותו בדפדפן' : 'העתקת הקישור'}
-                </button>
-              ) : last && blocking ? (
-                <p className="rounded-2xl bg-brand-600/10 px-4 py-3 text-center text-sm font-bold leading-relaxed text-brand-600">
-                  עכשיו סוגרים את הדפדפן, פותחים את האייקון של מדרגות במסך הבית, ונכנסים משם 🏠
-                </p>
-              ) : last ? (
-                <button type="button" onClick={onLater} className="min-h-[52px] rounded-pill bg-brand-600 text-base font-black text-white active:bg-brand-700">
-                  הבנתי, עובר/ת לאייקון
-                </button>
-              ) : (
-                <button type="button" onClick={() => setStep(step + 1)} className="min-h-[52px] rounded-pill bg-brand-600 text-base font-black text-white active:bg-brand-700">
-                  עשיתי את זה · לצעד הבא
-                </button>
-              )}
-              <div className="flex gap-2.5">
-                {step > 0 && (
-                  <button type="button" onClick={() => setStep(step - 1)} className="min-h-[46px] flex-1 rounded-pill border border-page bg-card text-sm font-bold text-ink-700">
-                    → חזרה
-                  </button>
-                )}
-                <button type="button" onClick={() => setVideo(true)} className="min-h-[46px] flex-1 rounded-pill border border-page bg-card text-sm font-bold text-ink-700">
-                  ▶ הסרטון שוב
-                </button>
-              </div>
-              {isSafari && (
-                <button type="button" onClick={() => { setPlatform(otherSafari(platform)); setStep(0); }}
-                  className="mx-auto mt-1 text-xs font-bold text-brand-600 underline underline-offset-2">
-                  אצלי זה נראה אחרת
-                </button>
-              )}
-            </div>
-          </>
-        )}
-
-        {help && (
-          <a href={help} target="_blank" rel="noopener noreferrer"
-            className="mx-auto mt-6 flex min-h-[44px] items-center gap-2 rounded-full bg-[#25D366] px-4 text-sm font-extrabold text-white shadow-md">
-            💬 נתקעת? כתבו לנו בוואטסאפ
-          </a>
-        )}
-        {onNever && !blocking && (
-          <button type="button" onClick={onNever} className="mx-auto mt-4 text-2xs text-ink-400 underline">אל תציע לי שוב</button>
-        )}
-        {blocking && onEscape && (
-          <button type="button" onClick={onEscape} className="mx-auto mt-6 text-2xs text-ink-400 underline underline-offset-2">
-            לא מצליחים להתקין? כניסה בדפדפן
-          </button>
+            {isSafari && (
+              <SecondaryButton onClick={() => { setPlatform(otherSafari(platform)); setStep(0); }}>אצלי זה נראה אחרת</SecondaryButton>
+            )}
+            {s.point !== 'top-right' && pointer}
+          </div>
         )}
       </div>
-
-      {s?.point && platform !== 'desktop' && (
-        <div className={`ig-point ${s.point}`} aria-hidden>
-          {s.point === 'top-right' ? (<><span>↑</span>הכפתור כאן למעלה</>) : (<>הכפתור כאן למטה<span>↓</span></>)}
-        </div>
-      )}
     </div>
   );
 }

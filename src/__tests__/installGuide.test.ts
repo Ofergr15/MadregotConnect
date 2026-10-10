@@ -68,6 +68,14 @@ describe('the real iPhone flow (measured on a phone, 2026-10-06)', () => {
     for (const s of INSTALL_STEPS['ios-safari-26']) expect(s.shot?.src).toMatch(/^\/images\/install\/ios-.+\.jpg$/);
   });
 
+  it('every title leads with the Hebrew label; the English iOS one only in parentheses', () => {
+    for (const s of Object.values(INSTALL_STEPS).flat()) {
+      const english = s.title.match(/"?(View More|Add to Home Screen|Add|Share)"?/g) ?? [];
+      for (const e of english) expect(s.title).toMatch(new RegExp(`\\(${e.replace(/"/g, '')}\\)`));
+    }
+    expect(INSTALL_STEPS['ios-safari-26'][1].title).toBe('לוחצים על "עוד" (View More)');
+  });
+
   it('an iPhone plays the real recording, muted and inline so it may start by itself', () => {
     const g = read('components/install/InstallGuide.tsx');
     expect(g).toMatch(/src="\/videos\/install-iphone\.mp4"/);
@@ -77,16 +85,39 @@ describe('the real iPhone flow (measured on a phone, 2026-10-06)', () => {
 
 describe('where it shows', () => {
   it('replaces the install sheet while it is tried, and sits over the end of /join', () => {
-    expect(read('components/InstallPrompt.tsx')).toMatch(/if \(v2\) \{\s+return \(\s+<InstallGuide/);
+    expect(read('components/InstallPrompt.tsx')).toMatch(/if \(v2\) \{\s+if \(seen === null \|\| quiet\) return null;\s+return \(\s+<InstallGuide/);
     // A computer gets "continue on the phone" there instead of the home-screen guide.
     expect(read('app/join/[token]/page.tsx')).toMatch(/\{guideV2 && !guideClosed && \(computer[\s\S]{0,400}?<ContinueOnPhone [\s\S]{0,400}?<InstallGuide /);
     expect(read('lib/install/flag.ts')).toMatch(/export const ONBOARDING_V2_FOR_ALL = false;/);
   });
 
-  it('opens on the video once per device, with a skip', () => {
+  it('opens on step 1: the video belongs to the preview alone (still with its skip)', () => {
     const g = read('components/install/InstallGuide.tsx');
+    expect(g).toMatch(/setVideo\(forceVideo === true && p !== 'desktop' && p !== 'standalone'\);/);
+    expect(g).not.toMatch(/הסרטון שוב/);
     expect(g).toMatch(/localStorage\.setItem\(VIDEO_SEEN_KEY, '1'\)/);
     expect(g).toMatch(/דילוג ←/);
+  });
+
+  it('one fixed bottom bar: "done, next" / "finished", and "looks different" as a full secondary', () => {
+    const g = read('components/install/InstallGuide.tsx');
+    expect(g).toMatch(/<PrimaryButton onClick=\{\(\) => setStep\(step \+ 1\)\}>עשיתי, הבא<\/PrimaryButton>/);
+    expect(g).toMatch(/<PrimaryButton onClick=\{onLater\}>סיימתי<\/PrimaryButton>/);
+    expect(g).toMatch(/<SecondaryButton onClick=\{\(\) => \{ setPlatform\(otherSafari\(platform\)\); setStep\(0\); \}\}>אצלי זה נראה אחרת<\/SecondaryButton>/);
+    // The picture is capped so nothing is pushed below the fold.
+    expect(g).toMatch(/maxHeight: '52dvh'/);
+    // The arrow toward Safari's button is in the flow, never over the text.
+    expect(read('components/install/install.css')).not.toMatch(/\.ig-point\{position:fixed/);
+  });
+
+  it('shows once: seen anywhere, the app answers the step quietly and offers only the strip', () => {
+    const g = read('components/install/InstallGuide.tsx');
+    expect(g).toMatch(/localStorage\.setItem\(INSTALL_GUIDE_SEEN_KEY, '1'\)/);
+    const p = read('components/InstallPrompt.tsx');
+    expect(p).toMatch(/wasSeen = localStorage\.getItem\(INSTALL_GUIDE_SEEN_KEY\) === '1' \|\| installOfferCount\(\) > 0;/);
+    expect(p).toMatch(/const quiet = v2 && !!offer && seen === true && !asked;\s+useEffect\(\(\) => \{ if \(quiet\) skipForSession\(\); \}, \[quiet, skipForSession\]\);/);
+    expect(p).toMatch(/data-testid="install-strip"/);
+    expect(p).toMatch(/onClick=\{\(\) => \{ setAsked\(true\); reopen\(\); \}\}/);
   });
 });
 

@@ -41,16 +41,19 @@ const HERO_BG = `linear-gradient(160deg, ${JOURNEY.dusk} 0%, ${JOURNEY.sun} 100%
 const PRIMARY_BG = `linear-gradient(135deg, ${JOURNEY.dusk} 0%, #5B3FC4 100%)`;
 
 /** The sunset header with the club badge. `compact` for in-flow screens (install steps). */
-export function JourneyHero({ eyebrow, title, subtitle, compact = false, badge }: {
+export function JourneyHero({ eyebrow, title, subtitle, compact = false, badge, top }: {
   eyebrow?: ReactNode; title: ReactNode; subtitle?: ReactNode; compact?: boolean;
   /** Replaces the club badge, e.g. the member's initial. */
   badge?: ReactNode;
+  /** A row above everything else in the header, e.g. the install guide's "back" / "not now". */
+  top?: ReactNode;
 }) {
   return (
     <header
       className={cn('text-center text-white', compact ? 'px-5 pb-4 pt-[max(16px,env(safe-area-inset-top))]' : 'px-5 pb-6 pt-[max(24px,env(safe-area-inset-top))]', 'rounded-b-[28px] md:rounded-t-[28px] md:rounded-b-none')}
       style={{ background: HERO_BG }}
     >
+      {top}
       {!compact && (badge ?? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src="/images/logo-white.png" alt="מדרגות" width={88} height={88} className="mx-auto h-[88px] w-[88px] object-contain" />

@@ -91,9 +91,11 @@ describe('the first notifications tap on a fresh install', () => {
     expect(pwa).toMatch(/if \(!reg\) return \{ ok: false, error: 'sw_not_ready' \};/);
     expect(read('components/onboarding/NotificationsStep.tsx')).toMatch(/error === 'sw_not_ready'/);
   });
-  it('the landing guide greets before it instructs', () => {
+  it('the landing guide opens straight on step 1 (no separate welcome before the steps)', () => {
     const g = read('components/install/InstallGuide.tsx');
-    expect(g).toMatch(/const \[intro, setIntro\] = useState\(!!blocking\);/);
-    expect(g).toMatch(/בואו נתחיל ▶/);
+    expect(g).not.toMatch(/setIntro|בואו נתחיל ▶/);
+    // Greeted by the journey's sunset header instead, the step count in it.
+    expect(g).toMatch(/<JourneyHero compact top=\{top\}/);
+    expect(g).toMatch(/`צעד \$\{step \+ 1\} מתוך \$\{steps\.length\} · \$\{device\}`/);
   });
 });

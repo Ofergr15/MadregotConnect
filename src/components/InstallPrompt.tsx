@@ -5,9 +5,12 @@ import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Share, Plus, PartyPopper, MoreHorizontal, Compass, Link2, Check } from 'lucide-react';
 import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
-import { isIosDevice } from '@/lib/pwa';
-import { InstallGuide } from '@/components/install/InstallGuide';
+import { isIosDevice, isStandalone } from '@/lib/pwa';
+import { InstallGuide, INSTALL_GUIDE_SEEN_KEY } from '@/components/install/InstallGuide';
+import { JOURNEY } from '@/components/onboarding/journey-ui';
 import { useOnboardingV2 } from '@/lib/install/v2';
+import { useIsComputer } from '@/lib/install/use-computer';
+import { INSTALL_DISMISS_KEY, installOfferCount } from '@/lib/onboarding/first-run-order';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The install offer — step 1 of the first run, and the only screen that comes
@@ -32,13 +35,50 @@ import { useOnboardingV2 } from '@/lib/install/v2';
 // No X in the corner: this is a step now, not a nag, and every way out is a
 // labelled choice — "not now" (comes back next visit) or "don't offer again".
 // Tapping the backdrop is still the soft skip, so it can't trap anyone.
+//
+// Onboarding v2 — the guide shows ONCE (Ofer, 2026-10-10: a new member met it
+// on the landing page, at the end of /join, and again here, up to four times).
+// A device that has already been shown it anywhere (INSTALL_GUIDE_SEEN_KEY) or
+// has already waved the offer away does not get it full screen again: the offer
+// is answered for this visit on its behalf (skipForSession — exactly what its own
+// "לא עכשיו" would do, so `installAnswered` and the tour behind it move on as
+// before), and all the app shows is a small strip that reopens the guide when
+// tapped. "×" hides that strip for a week; "don't offer again" and installing
+// remove it.
 // ═════════════════════════════════════════════════════════════════════════════
+
+/** Until when this phone has hidden the "not on the home screen yet" strip. */
+const STRIP_HIDE_KEY = 'pwa_install_strip_hidden_until';
+const STRIP_HIDE_MS = 7 * 24 * 3600 * 1000;
 
 export function InstallPrompt() {
   const t = useTranslations('install');
-  const { offer, dismissForever, skipForSession } = useInstallStep();
+  const { offer, dismissForever, skipForSession, reopen, canOffer } = useInstallStep();
   const [copied, setCopied] = useState(false);
   const v2 = useOnboardingV2();
+  const computer = useIsComputer();
+
+  // v2's "once" (see the header). All read after mount: they touch storage.
+  const [seen, setSeen] = useState<boolean | null>(null);
+  const [asked, setAsked] = useState(false); // the strip was tapped this visit
+  const [stripOff, setStripOff] = useState(true); // installed, opted out, or hidden for the week
+  useEffect(() => {
+    let wasSeen = false, off = true;
+    try {
+      wasSeen = localStorage.getItem(INSTALL_GUIDE_SEEN_KEY) === '1' || installOfferCount() > 0;
+      off = isStandalone() || localStorage.getItem(INSTALL_DISMISS_KEY) === '1'
+        || Number(localStorage.getItem(STRIP_HIDE_KEY) || 0) > Date.now();
+    } catch { /* private mode: no strip, and the guide as before */ }
+    setSeen(wasSeen);
+    setStripOff(off);
+    const onInstalled = () => setStripOff(true);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => window.removeEventListener('appinstalled', onInstalled);
+  }, []);
+  // Seen before and not asked for: answer the step for this visit instead of
+  // opening the guide over the app again.
+  const quiet = v2 && !!offer && seen === true && !asked;
+  useEffect(() => { if (quiet) skipForSession(); }, [quiet, skipForSession]);
 
   const copyLink = async () => {
     // The fallback for the member whose webview hides its own menu: paste the
@@ -69,7 +109,23 @@ export function InstallPrompt() {
     return () => document.removeEventListener('keydown', onKey);
   }, [offer, skipForSession]);
 
-  if (!offer) return null;
+  if (!offer) {
+    // v2, phone, not installed, something to offer: the one small reminder.
+    if (!v2 || computer || stripOff || !canOffer || seen === null) return null;
+    const hide = () => {
+      try { localStorage.setItem(STRIP_HIDE_KEY, String(Date.now() + STRIP_HIDE_MS)); } catch { /* ignore */ }
+      setStripOff(true);
+    };
+    return (
+      <div className="mx-4 mt-2 flex shrink-0 items-center gap-2 rounded-[18px] ps-3" style={{ background: JOURNEY.tagBg }} dir="rtl" data-testid="install-strip">
+        <span aria-hidden className="text-lg">📲</span>
+        <button type="button" onClick={() => { setAsked(true); reopen(); }} className="min-h-[44px] min-w-0 flex-1 text-start text-[14px] font-bold leading-snug" style={{ color: JOURNEY.ink }}>
+          האפליקציה עוד לא על המסך הראשי · <span className="underline underline-offset-2" style={{ color: JOURNEY.tag }}>להתקנה</span>
+        </button>
+        <button type="button" onClick={hide} aria-label="להסתיר לשבוע" className="min-h-[44px] min-w-[44px] text-lg" style={{ color: JOURNEY.soft }}>×</button>
+      </div>
+    );
+  }
 
   const install = async () => {
     if (offer.kind !== 'prompt') return;
@@ -77,18 +133,21 @@ export function InstallPrompt() {
     await offer.prompt.userChoice;
     // Either outcome is an answer: accepting also fires `appinstalled`, and
     // declining the browser's own dialog is a decision we shouldn't re-ask.
+    setStripOff(true);
     dismissForever();
   };
 
-  // The illustrated guide with its video (components/install), while it is tried
-  // (lib/install/v2). Same three answers as the sheet below.
+  // The illustrated guide (components/install), while it is tried (lib/install/v2).
+  // Same three answers as the sheet below. Not when it has been seen before and
+  // nobody asked: that offer is being answered quietly (above), the strip follows.
   if (v2) {
+    if (seen === null || quiet) return null;
     return (
       <InstallGuide
         canPrompt={offer.kind === 'prompt'}
         onInstall={offer.kind === 'prompt' ? install : undefined}
         onLater={skipForSession}
-        onNever={dismissForever}
+        onNever={() => { setStripOff(true); dismissForever(); }}
       />
     );
   }
