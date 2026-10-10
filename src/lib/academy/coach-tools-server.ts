@@ -3,7 +3,7 @@
  * fetches and saves). Server-only.
  *
  * Every read degrades rather than throws, the academy's rule: the tables are migrated by
- * hand, and migration 139 (`academy_coach_decisions`) ships AFTER this code. Without it the
+ * hand, and migration 141 (`academy_coach_decisions`) ships AFTER this code. Without it the
  * suggestions still appear and a pace update still re-resolves the planned weeks; what is
  * missing is the record — no "your coach updated your paces" card, no cross-device snooze,
  * and later copies do not know about the update. `stored: false` says so to the client.
@@ -71,7 +71,7 @@ export async function loadTestBasis(supabase: Db, athleteIds: string[]): Promise
   return out;
 }
 
-// ── Decisions (migration 139) ─────────────────────────────────────────────────────────
+// ── Decisions (migration 141) ─────────────────────────────────────────────────────────
 
 export async function loadDecisions(supabase: Db, athleteIds: string[]): Promise<{ stored: boolean; rows: CoachDecision[] }> {
   if (!athleteIds.length) return { stored: true, rows: [] };
@@ -117,7 +117,7 @@ export interface DecisionRow {
   evidence?: unknown;
 }
 
-/** True when written; false when 139 is not there (or the write failed — logged). */
+/** True when written; false when 141 is not there (or the write failed — logged). */
 export async function recordDecision(supabase: Db, row: DecisionRow): Promise<boolean> {
   try {
     const { error } = await supabase.from(DECISIONS_TABLE).insert({
@@ -459,7 +459,7 @@ export const CARD_WEEKS = 2;
 /**
  * "<coach> עדכן את הקצבים שלך" for the trainee's academy home, or null: the newest pace
  * update made against their current test, while it is fresh. Never throws — the home must
- * load without 139.
+ * load without 141.
  */
 export async function loadPaceUpdateCard(supabase: Db, athleteId: string, today = israelToday()): Promise<{
   card: PaceUpdateCard | null;

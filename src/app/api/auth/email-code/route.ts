@@ -6,6 +6,7 @@ import { DEVICE_COOKIE, DEVICE_COOKIE_OPTIONS, signDeviceToken } from '@/lib/aut
 import { CODE_TTL_MS, MAX_ATTEMPTS, MAX_SENDS, SEND_WINDOW_MS, codeMatches, hashCode, newCode, normaliseCode } from '@/lib/auth/email-code';
 import { isLikelyEmail, normaliseEmail } from '@/lib/signup';
 import { notifyLoginCode } from '@/lib/email';
+import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +88,7 @@ export async function POST(request: Request) {
       if (error) throw error;
       const mail = await notifyLoginCode({ email, code, name: member.name, athleteId: member.id });
       if (!mail.ok) console.error('[email-code] mail not sent', mail.code, mail.reason);
+      await recordOnbEvent({ step: 'code_sent', athleteId: member.id, device: deviceFromUa(request.headers.get('user-agent')), meta: { mailed: mail.ok } });
       return NextResponse.json({ ok: true });
     }
 
@@ -123,6 +125,7 @@ export async function POST(request: Request) {
         console.error('[email-code] session mint failed:', auth.error);
         return NextResponse.json({ error: 'failed' }, { status: 500 });
       }
+      await recordOnbEvent({ step: 'code_verified', athleteId: member.id, device: deviceFromUa(request.headers.get('user-agent')) });
       const response = NextResponse.json({
         ok: true,
         email,

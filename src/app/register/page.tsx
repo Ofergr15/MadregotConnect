@@ -6,6 +6,7 @@ import { RegisterReceived } from './RegisterReceived';
 import { Check, CheckCircle2, Mail } from 'lucide-react';
 import { Button, LoadingBlock } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { trackOnb } from '@/lib/onboarding/track';
 
 /**
  * /register — the shareable public sign-up page. THE ONE TO SEND PEOPLE.
@@ -458,6 +459,9 @@ export default function RegisterPage() {
   /** The normalised address that was actually sent — what the success screen shows. */
   const [sentEmail, setSentEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // The top of the joining funnel (lib/onboarding/events): which device people register from.
+  useEffect(() => { trackOnb('register_view', { once: true, meta: { v2 } }); }, [v2]);
 
   useEffect(() => {
     // The group field is optional, so a failure here is not worth surfacing —

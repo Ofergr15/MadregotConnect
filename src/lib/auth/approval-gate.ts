@@ -37,6 +37,9 @@ export const APPROVAL_EXEMPT_PREFIXES = [
   '/api/athletes/update-group',
   // The one thing the waiting screen offers: "notify me when I'm let in".
   '/api/push/subscribe',
+  // …and its other half, for an iPhone Safari tab that cannot get a push at all:
+  // "tell me by email" (lib/onboarding/notify-email, analysis 2026-10-10).
+  '/api/onboarding/notify-email',
 ] as const;
 
 /**

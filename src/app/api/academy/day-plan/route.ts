@@ -80,7 +80,7 @@ export async function GET(request: Request) {
       loadTraineeWeeks(supabase, ids, weekStart),
       loadClubWeek(supabase, weekStart),
       loadLaneReferences(supabase),
-      // The coach's pace update in force that week (coach tools, migration 139): every pace
+      // The coach's pace update in force that week (coach tools, migration 141): every pace
       // the screens draw and every pace sent goes through it. `{}` = none = as before.
       loadPaceAdjusts(supabase, ids, weekStart),
     ]);

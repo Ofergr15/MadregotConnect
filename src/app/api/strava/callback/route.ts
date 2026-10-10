@@ -24,6 +24,7 @@ import {
 import { mergeAthleteRows } from '@/lib/auth/merge-athletes';
 import { HANDOFF_TTL_MS, parseLoginState } from '@/lib/auth/login-handoff';
 import { queuePendingStravaSignup } from '@/lib/signup-queue';
+import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -319,6 +320,7 @@ export async function GET(request: Request) {
       // athlete keys and lands them on /feed — where FirstRunTour picks them up,
       // since it fires for anyone with no `onboarding_tour_seen_at`. So finishing
       // the join hands them directly to the in-app guide with no extra wiring.
+      await recordOnbEvent({ step: 'strava_connected', athleteId: invited.id, device: deviceFromUa(request.headers.get('user-agent')), meta: { via: 'join' } });
       return NextResponse.redirect(`${origin}/auth/resolve#${joinFragment.toString()}`);
     }
 
@@ -612,6 +614,7 @@ export async function GET(request: Request) {
       type: 'strava',
       debug_id: debugId,
     });
+    if (athleteId) await recordOnbEvent({ step: 'strava_login', athleteId, device: deviceFromUa(request.headers.get('user-agent')), meta: { newRow: !existing } });
     console.info(`[auth-debug:${debugId}] callback:redirect_resolve`);
     return NextResponse.redirect(`${origin}/auth/resolve#${sessionFragment.toString()}`);
   } catch (err) {

@@ -100,7 +100,7 @@ export interface TraineeHome {
   km?: { weeks: HomeKmWeek[]; plannedKm: number; avgKm: number | null };
   week?: { plannedCount: number; completedCount: number; workouts: HomeWorkout[] };
   journey?: HomeJourney;
-  /** "<coach> עדכן את הקצבים שלך" — the newest pace update, while fresh (migration 139). */
+  /** "<coach> עדכן את הקצבים שלך" — the newest pace update, while fresh (migration 141). */
   paceUpdate?: PaceUpdateCard | null;
 }
 

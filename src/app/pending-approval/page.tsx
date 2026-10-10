@@ -10,6 +10,7 @@ import { ApprovalPushOptIn } from '@/components/PushOptIn';
 import ClaimExistingAccount from '@/components/ClaimExistingAccount';
 import { InstallStepProvider } from '@/components/onboarding/InstallStepProvider';
 import { AddToHomeScreen } from '@/components/onboarding/AddToHomeScreen';
+import { ApprovalEmailOptIn } from '@/components/onboarding/ApprovalEmailOptIn';
 
 // How often to ask whether they have been let in yet. The (app) layout uses 30s
 // for the same question on the same endpoint; this screen is faster because it is
@@ -137,6 +138,9 @@ function PendingApproval() {
         {/* The one useful thing to do with the wait — and on iOS the precondition
             for ever being notified about anything, this approval included. */}
         <AddToHomeScreen />
+        {/* For the one member nothing else can reach: a Strava sign-in has no real
+            address, and an iPhone Safari tab gets no push (analysis 2026-10-10). */}
+        <ApprovalEmailOptIn />
       </Card>
       <ApprovalPushOptIn />
     </div>

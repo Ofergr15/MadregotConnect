@@ -240,7 +240,7 @@ export function adjustFor(suggestion: Pick<PaceSuggestion, 'kinds'>, amount: 'ap
   return cleanAdjust(out);
 }
 
-// ── Decisions: what the coach did (migration 139's rows, or the device store) ───────────
+// ── Decisions: what the coach did (migration 141's rows, or the device store) ───────────
 
 export type DecisionKind = 'pace' | 'missed' | 'copy';
 

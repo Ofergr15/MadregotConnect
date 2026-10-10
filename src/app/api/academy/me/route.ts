@@ -218,7 +218,7 @@ export async function GET(request: Request) {
       (async () => {
         try { return await traineeUnreadCount(getStreamServerClient(), athleteId); } catch { return 0; }
       })(),
-      // The coach's pace update (migration 139): the card, and the paces it moved.
+      // The coach's pace update (migration 141): the card, and the paces it moved.
       loadPaceUpdateCard(supabase, athleteId, today),
     ]);
 

@@ -55,7 +55,7 @@ export interface CoachToolsResponse {
   today: string;
   thisWeek: string;
   nextWeek: string;
-  /** Migration 139 is there: decisions are recorded and the card shows. */
+  /** Migration 141 is there: decisions are recorded and the card shows. */
   stored: boolean;
   pace: PaceSuggestionPayload[];
   missed: MissedPayload[];

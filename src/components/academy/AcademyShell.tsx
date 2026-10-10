@@ -199,7 +199,7 @@ export function AcademyShell({
   const awaiting = useMemo(() => (inbox?.rows ?? []).filter((r) => r.reason === 'awaiting_reply'), [inbox]);
   const resendRows = useMemo(() => (dispatch?.needsAttention ?? []).filter((r) => RESEND_STATES.has(r.state)), [dispatch]);
   // The coach tools' rows, worded here (messages/*.json) with every number isolated. Hidden
-  // on this device when snoozed or decided — the server hides them too once 139 records it.
+  // on this device when snoozed or decided — the server hides them too once 141 records it.
   const toolRows = useMemo(() => {
     if (!tools) return [];
     const nowMs = Date.now();
@@ -479,7 +479,7 @@ export function AcademyShell({
           onClose={() => setPaceOpen(null)}
           onDone={(action) => {
             // The device remembers too: "לא עכשיו" for two weeks, an update until the next
-            // test (the key carries the test date). The server agrees once 139 is pasted.
+            // test (the key carries the test date). The server agrees once 141 is pasted.
             saveStore({ ...readStore(), [paceOpen.key]: action === 'snooze' ? { until: snoozeUntil(Date.now()) } : { dismissed: true } });
             void refreshTools();
           }}

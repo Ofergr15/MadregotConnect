@@ -13,6 +13,7 @@ import { getSupabase } from '@/lib/supabase/client';
 import { ONBOARDING_V2_KEY } from '@/lib/install/v2';
 import { Journey } from '@/app/register/RegisterReceived';
 import { useIsComputer } from '@/lib/install/use-computer';
+import { trackOnb } from '@/lib/onboarding/track';
 
 type Who = { firstName: string | null; maskedEmail: string };
 
@@ -31,6 +32,7 @@ export default function WelcomePage() {
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('t') || '';
     setToken(t);
+    trackOnb('welcome_open', { token: t || null, once: true });
     // This IS the new flow's app: the rest of v2 (the notifications picture) follows it here.
     try { localStorage.setItem(ONBOARDING_V2_KEY, '1'); } catch { /* private mode */ }
     (async () => {

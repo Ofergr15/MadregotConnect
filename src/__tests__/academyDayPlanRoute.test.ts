@@ -102,7 +102,7 @@ function query(table: string) {
     then: (ok: (v: unknown) => unknown) => {
       if (op !== 'select') writes.push({ table, op, row, id });
       const answer = table === 'athletes' && op === 'select' ? { data: tokens, error: null }
-        // The coach tools' reads (migration 139 and the tests it is keyed to).
+        // The coach tools' reads (migration 141 and the tests it is keyed to).
         : table === 'academy_coach_decisions' ? tables.decisions
           : table === 'academy_tests' && op === 'select' ? { data: tables.tests, error: null }
             : { data: [], error: null };
@@ -211,7 +211,7 @@ describe('POST /api/academy/day-plan', () => {
     expect(write.row.parsed_workouts.workouts[0].name).toBe('x');
   });
 
-  // ── The coach's pace update (coach tools, migration 139) ──
+  // ── The coach's pace update (coach tools, migration 141) ──
   const update = (changes: Record<string, number>, weekStart = '2026-10-11') => {
     tables.tests = [{ athlete_id: 'shahar', test_date: '2026-09-01', duration_sec: 1800, distance_m: 6667, excluded_reason: null, status: 'approved' }];
     tables.decisions = { data: [{ athlete_id: 'shahar', kind: 'pace', action: 'apply', basis_test_date: '2026-09-01', week_start: weekStart, changes, created_at: '2026-10-10T08:00:00Z', coach: { name: 'Sahar' } }], error: null };
@@ -246,7 +246,7 @@ describe('POST /api/academy/day-plan', () => {
     expect(tue.paceAdjust).toBeUndefined();
   });
 
-  it('without 139 the week written is byte-identical to the book without the coach tools', async () => {
+  it('without 141 the week written is byte-identical to the book without the coach tools', async () => {
     tables.decisions = { data: null, error: { code: '42P01', message: 'relation "academy_coach_decisions" does not exist' } };
     tables.tests = [{ athlete_id: 'shahar', test_date: '2026-09-01', duration_sec: 1800, distance_m: 6667, excluded_reason: null, status: 'approved' }];
     const steps = toLibrarySteps(model);

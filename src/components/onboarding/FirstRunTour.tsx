@@ -14,6 +14,7 @@ import { APP_VERSION } from '@/lib/version';
 import type { WhatsNewRelease } from '@/lib/release-notes';
 import { tourLatest, type TourLatestItem } from '@/lib/whats-new/tour-latest';
 import { WHATS_NEW_KEY, markSeen, readWhatsNewLedger } from '@/lib/whats-new/ledger';
+import { trackOnb } from '@/lib/onboarding/track';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The first-run guided tour. Runs once, ever (onboarding_tour_seen_at), for
@@ -160,6 +161,7 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
       setSteps(present);
       setIndex(0);
       setPhase('steps');
+      trackOnb('tour_start', { once: true, meta: { steps: present.length } });
     }, SETTLE_MS);
     return () => clearTimeout(timer);
   }, [phase, finish]);
@@ -174,6 +176,7 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
     } catch { /* private mode */ }
     setExitTarget(target);
     setPhase('latest');
+    trackOnb('latest_shown', { meta: { slugs: latest.map((i) => i.slug) } });
     return true;
   }, [latest]);
 
@@ -186,13 +189,17 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
     // still had to find and tap themselves; now the last press opens the
     // checklist itself (see tourExitTarget).
     const target = tourExitTarget(steps, index);
+    trackOnb('tour_done');
     if (toLatest(target)) return;
     if (target) router.push(target);
     finish();
   }, [index, steps, finish, router, toLatest]);
 
   /** "Skip" mid-tour still ends on what's new: one screen, and nobody misses the launch's news. */
-  const skip = useCallback(() => { if (!toLatest(null)) finish(); }, [toLatest, finish]);
+  const skip = useCallback(() => {
+    trackOnb('tour_skipped', { meta: { at: index + 1, of: steps.length } });
+    if (!toLatest(null)) finish();
+  }, [toLatest, finish, index, steps.length]);
 
   const leaveLatest = useCallback((href?: string) => {
     const to = href || exitTarget;
@@ -242,7 +249,7 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
           <h2 id="tour-latest-title" className="mt-1 text-xl font-bold text-ink-700">{t('tourLatestTitle')}</h2>
           <p className="mt-1 text-13 font-light leading-relaxed text-ink-400">{t('tourLatestBody')}</p>
           {latest.map((item) => (
-            <button key={item.slug} type="button" onClick={() => leaveLatest(item.href)} className="mt-3 flex w-full items-start gap-3 rounded-2xl bg-page/60 p-3 text-start active:bg-page">
+            <button key={item.slug} type="button" onClick={() => { trackOnb('latest_clicked', { meta: { slug: item.slug } }); leaveLatest(item.href); }} className="mt-3 flex w-full items-start gap-3 rounded-2xl bg-page/60 p-3 text-start active:bg-page">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card text-lg" aria-hidden>{item.icon}</span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-bold text-ink-700">{item.title}</span>

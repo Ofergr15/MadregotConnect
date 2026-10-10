@@ -61,16 +61,23 @@ export async function notifyAdminNewUser(user: {
 }
 
 export async function notifyUserApproved(user: { name: string; email: string }): Promise<SendResult> {
+  // Hebrew like every other member mail; it used to be the one English mail in the
+  // journey. Its readers are mostly Strava members (the address they left on the
+  // waiting screen), so the way back in is "sign in with Strava again".
+  const first = (user.name || '').trim().split(/\s+/)[0] || '';
   return sendEmail({
     template: 'user_approved',
     to: user.email,
-    subject: '✅ Welcome to Madregot! You\'re approved',
+    subject: '✅ אושרת! ברוכים הבאים למדרגות',
     html: renderEmail({
-      dir: 'ltr',
-      title: `Welcome, ${user.name}! 🎉`,
-      paragraphs: ['Your account has been approved. You can now access the full Madregot training platform.'],
-      cta: { label: 'Open Madregot →', href: `${APP_URL}/dashboard` },
+      eyebrow: 'מועדון הריצה של מדרגות',
+      title: first ? `${first}, אושרת 🎉` : 'אושרת 🎉',
+      preheader: 'נכנסים לאפליקציה ומתחילים לרוץ איתנו.',
+      paragraphs: ['המאמן אישר את ההצטרפות שלך. פותחים את מדרגות ונכנסים כמו בפעם הקודמת (עם Strava אם נכנסת דרכו).'],
+      cta: { label: 'לפתיחת מדרגות ←', href: `${APP_URL}/feed` },
+      notes: ['משהו לא עובד? פשוט תשיבו למייל הזה, ונעזור.'],
     }),
+    replyTo: ADMIN_EMAIL,
   });
 }
 

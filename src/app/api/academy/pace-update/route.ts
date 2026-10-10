@@ -23,7 +23,7 @@ export const maxDuration = 120;
  * taken from that — never from numbers in the body. An update takes effect from next
  * week: every stored plan week from then on is re-resolved (idempotent, see
  * `applyPaceAdjust`) and the sessions already on the watch are sent again. The decision is
- * recorded (migration 139) with its evidence, which is what the trainee's card prints.
+ * recorded (migration 141) with its evidence, which is what the trainee's card prints.
  *
  * WHO: `requireTraineeAccess` — the manager, or one of the trainee's own coaches.
  */
