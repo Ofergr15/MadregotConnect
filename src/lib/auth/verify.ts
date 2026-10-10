@@ -15,6 +15,8 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { escapeLike } from '@/lib/db/like';
+import { requireSession } from '@/lib/auth-session';
+import { VIEW_AS_HEADER } from '@/lib/auth/view-as';
 
 export interface VerifiedUser {
   email: string;
@@ -33,6 +35,10 @@ export function isStaff(role: string): boolean {
  * resolved user, or null if authentication fails.
  */
 export async function verifyRequest(req: NextRequest): Promise<VerifiedUser | null> {
+  // An admin viewing as a member (lib/auth/view-as.ts): requireSession is the one
+  // place that decides whether the header counts and refuses writes, so a photo
+  // GET answers as the viewed member instead of as the admin.
+  if (req.headers.get(VIEW_AS_HEADER)) return verifyThroughSession(req);
   try {
     const auth = req.headers.get('Authorization');
     if (!auth?.startsWith('Bearer ')) return null;
@@ -67,4 +73,12 @@ export async function verifyRequest(req: NextRequest): Promise<VerifiedUser | nu
   } catch {
     return null;
   }
+}
+
+async function verifyThroughSession(req: NextRequest): Promise<VerifiedUser | null> {
+  const result = await requireSession(req);
+  if (!result.ok) return null;
+  const { athleteId, athleteEmail, email, role } = result.user;
+  if (!athleteId) return null;
+  return { email: (athleteEmail ?? email).toLowerCase(), athleteId, role };
 }
