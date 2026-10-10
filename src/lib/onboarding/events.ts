@@ -19,7 +19,7 @@ import { APP_VERSION } from '@/lib/version';
 /** Every step, in journey order. The dashboard orders by this list. */
 export const ONB_STEPS = [
   'register_view', 'register_submitted',
-  'approved',
+  'notify_email_left', 'approved',
   'join_open', 'join_saved', 'install_guide_shown', 'continue_on_phone_shown', 'phone_link_mailed', 'continue_on_computer',
   'welcome_open', 'code_sent', 'code_verified', 'strava_login',
   'phone_app_opened',

@@ -3712,5 +3712,14 @@
     "minutes": "{n} min",
     "hours": "{n}h",
     "days": "{n} days"
+  },
+  "pendingEmail": {
+    "title": "How should we tell you you're in?",
+    "body": "Leave an email and we'll write the moment the coach approves you. It's used only for that.",
+    "label": "Email address",
+    "cta": "Tell me",
+    "saved": "We'll email you the moment you're approved.",
+    "bad": "That address doesn't look right.",
+    "error": "Couldn't save it. Try again."
   }
 }

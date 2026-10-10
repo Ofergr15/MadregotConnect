@@ -26,6 +26,7 @@ import {
 } from '@/lib/reports/last-7-days';
 import { APPROVER_EMAILS, SUPER_USER_EMAIL } from '@/lib/constants';
 import { runJoinReminders } from '@/lib/onboarding/join-reminder';
+import { runPendingReminders } from '@/lib/onboarding/pending-reminder';
 import { dispatchDueTestReminders } from '@/lib/academy/testReminders-server';
 import { syncClubFollows } from '@/lib/follows/club-sync';
 import { qualityPush } from '@/lib/quality-session/server';
@@ -641,6 +642,17 @@ async function run(request: Request) {
   // Steady state is one indexed query that finds nothing.
   // ── The approved applicant who never came in (lib/onboarding/join-reminder) ──
   // Through the 10:00 hour (the ledger keeps it to one per person), 48 hours after approval.
+  // ── Still waiting for approval after a day (lib/onboarding/pending-reminder) ──
+  // Every morning at 09:00 while anyone has waited over 24 hours; one push per day.
+  if (hour === 9) {
+    try {
+      const waiting = await runPendingReminders(supabase, now, { already, markFired });
+      if (waiting) fired.push(`pendingReminder → ${waiting}`);
+    } catch (err) {
+      console.error('[tick] pending reminders failed:', err);
+    }
+  }
+
   if (hour === 10) {
     try {
       const reminded = await runJoinReminders(supabase, now, { already, markFired });

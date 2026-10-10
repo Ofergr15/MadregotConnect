@@ -5,6 +5,7 @@ import { authError, requireSession } from '@/lib/auth-session';
 import { releaseFromMaintenance } from '@/lib/maintenance-release';
 import { notifyUserApproved, notifyAdminUserApproved, notifyAcademyApproved } from '@/lib/email';
 import { notifyAthlete } from '@/lib/push';
+import { isSynthetic } from '@/lib/onboarding/join-reminder';
 import { approvalCopy } from '@/lib/notifications/copy';
 import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
 
@@ -142,6 +143,16 @@ export async function POST(req: NextRequest) {
             await notifyAcademyApproved({ name: athlete.name, email: athlete.email, token });
           } else {
             await notifyUserApproved({ name: athlete.name, email: athlete.email });
+            // A Strava member's address is synthetic, so the mail above is skipped;
+            // the address they left on the waiting screen is the one that reaches
+            // them (POST /api/onboarding/notify-email, migration 140).
+            if (isSynthetic(athlete.email)) {
+              const { data: reqRow } = await supabase.from('signup_requests').select('notify_email')
+                .eq('athlete_id', athleteId).not('notify_email', 'is', null)
+                .order('created_at', { ascending: false }).limit(1).maybeSingle();
+              const to = (reqRow as { notify_email?: string | null } | null)?.notify_email;
+              if (to) await notifyUserApproved({ name: athlete.name, email: to });
+            }
           }
           if (approverEmail) {
             await notifyAdminUserApproved({ email: approverEmail }, { name: athlete.name, email: athlete.email });

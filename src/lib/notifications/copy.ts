@@ -1080,6 +1080,29 @@ export function signupRequestCopy(
       };
 }
 
+/**
+ * The daily reminder that people are still waiting for approval
+ * (lib/onboarding/pending-reminder). The one-off alert at sign-up time can be
+ * missed; one request waited 27 days (analysis 2026-10-10), and everyone who
+ * waited days was lost. Names only when they are names (isHumanName).
+ */
+export function pendingReminderCopy(
+  locale: NotificationLocale,
+  p: { names: Array<string | null | undefined>; count: number; oldestDays: number },
+): PushCopy {
+  const named = p.names.filter((n) => isHumanName(n)).map((n) => (n as string).trim()).slice(0, 3);
+  const who = named.length ? named.join(', ') + (p.count > named.length ? (locale === 'he' ? ' ועוד' : ' and more') : '') : '';
+  return locale === 'he'
+    ? {
+        title: p.count > 1 ? `⏳ ${p.count} מחכים לאישור יותר מיום` : '⏳ מישהו מחכה לאישור יותר מיום',
+        body: `${who ? `${who} · ` : ''}${p.oldestDays > 1 ? `הוותיק מחכה ${p.oldestDays} ימים. ` : ''}מי שמחכה ימים לא חוזר.`,
+      }
+    : {
+        title: p.count > 1 ? `⏳ ${p.count} waiting over a day for approval` : '⏳ Someone has waited over a day for approval',
+        body: `${who ? `${who} · ` : ''}${p.oldestDays > 1 ? `The oldest has waited ${p.oldestDays} days. ` : ''}People who wait days don't come back.`,
+      };
+}
+
 export function problemReportCopy(
   locale: NotificationLocale,
   p: { athleteName: string | null | undefined; preview: string | null | undefined },
