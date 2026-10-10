@@ -1,4 +1,5 @@
 import { daysBetween } from './load';
+import { weekStartOf } from './pmc';
 import type { LoadPayload, LoadRange } from './load-payload';
 import { isHeavyWeek, type FormBandKey } from './form-bands';
 import { smoothPath, xAt } from '@/lib/charts/timeline';
@@ -25,6 +26,34 @@ export function rangeOptions(raceDate: string | null | undefined): LoadRange[] {
 
 // ── The fitness / fatigue chart (7) ────────────────────────────────────────────────────
 
+/** Past this span the chart draws one point a week (the mockup's Mondays). */
+export const WEEKLY_FROM_DAYS = 49;
+
+/**
+ * The points the line goes through. Six weeks are drawn day by day; a longer range one
+ * point per week (each week's first sample) plus the last day, so the 3-day sampling of
+ * a run-every-other-day week does not alias into a saw-tooth. The end point — today's
+ * number — is always the real last one.
+ */
+export function chartPoints(series: LoadPayload['series']): LoadPayload['series'] {
+  if (series.length < 3) return series;
+  const span = daysBetween(series[0].date, series[series.length - 1].date);
+  if (span <= WEEKLY_FROM_DAYS) return series;
+  const out: LoadPayload['series'] = [];
+  let lastWeek = '';
+  for (const p of series.slice(0, -1)) {
+    const week = weekStartOf(p.date);
+    if (week === lastWeek) continue;
+    lastWeek = week;
+    out.push(p);
+  }
+  const last = series[series.length - 1];
+  // A weekly point right before the end would make a kink: today replaces it.
+  if (out.length && daysBetween(out[out.length - 1].date, last.date) < 3) out.pop();
+  out.push(last);
+  return out;
+}
+
 export const FITNESS_CHART = { width: 326, height: 150, padL: 14, padR: 12, padY: 8 } as const;
 
 export interface FitnessChartGeometry {
@@ -49,9 +78,10 @@ export interface FitnessChartGeometry {
  * two points — the page then hides the card rather than drawing a dot.
  */
 export function fitnessChart(
-  series: LoadPayload['series'],
+  all: LoadPayload['series'],
   opts: { width?: number; height?: number } = {},
 ): FitnessChartGeometry | null {
+  const series = chartPoints(all);
   if (series.length < 2) return null;
   const width = opts.width ?? FITNESS_CHART.width;
   const height = opts.height ?? FITNESS_CHART.height;

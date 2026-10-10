@@ -3,7 +3,7 @@ import { shiftDate } from '@/lib/academy/load';
 import { buildLoadPayload } from '@/lib/academy/load-payload';
 import type { LoadRow } from '@/lib/academy/pmc';
 import {
-  RAMP_BANDS, fitnessChart, formStrip, progressView, rampBandOf, rampSentence, rangeOptions, sinceFirstTest, thresholdRow,
+  RAMP_BANDS, chartPoints, fitnessChart, formStrip, progressView, rampBandOf, rampSentence, rangeOptions, sinceFirstTest, thresholdRow,
 } from '@/lib/academy/progress';
 
 /**
@@ -89,6 +89,17 @@ describe('fitnessChart', () => {
     expect([...xs].sort((a, b) => a - b)).toEqual(xs);
     // No month label crowding "היום".
     expect(g.labels.slice(0, -1).every(l => last.x - l.x >= 44)).toBe(true);
+  });
+
+  it('a 3-month range is drawn one point a week, ending on the real last day', () => {
+    const pts = chartPoints(p.series);
+    expect(pts.length).toBeGreaterThanOrEqual(13);
+    expect(pts.length).toBeLessThanOrEqual(15);
+    expect(pts[pts.length - 1]).toEqual(p.series[p.series.length - 1]);
+    expect(pts[0]).toEqual(p.series[0]);
+    // Six weeks stay day by day.
+    const six = buildLoadPayload({ rows: building(), tests: TESTS, today: TODAY, range: '6w' }).series;
+    expect(chartPoints(six)).toEqual(six);
   });
 
   it('nothing to draw with fewer than two points', () => {

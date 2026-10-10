@@ -116,7 +116,8 @@ describe('rangeChart', () => {
     // The band is drawn above 46 and below 50 — higher values are higher up.
     expect(g.band!.y).toBeLessThan(g.band!.y + g.band!.h);
     expect(g.dots.find(d => d.value === 52)!.y).toBeLessThan(g.dots.find(d => d.value === 44)!.y);
-    expect(g.grid.length).toBeGreaterThan(0);
+    // The mockup's two gridlines over 42…56.
+    expect(g.grid.map(l => l.value)).toEqual([45, 55]);
   });
 
   it('sleep: only the short nights are coloured', () => {

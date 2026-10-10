@@ -173,15 +173,16 @@ export function rangeChart(
   const step = kind === 'sleep' ? 60 : 5;
   const vs = series.map(p => val(p.value));
   if (!learning) vs.push(val(range.lo), val(range.hi));
-  const lo = Math.floor((Math.min(...vs) - step / 2) / step) * step;
-  const hi = Math.ceil((Math.max(...vs) + step / 2) / step) * step;
+  // A little air below, a little more above (room for the flag); gridlines on the round
+  // values inside, the outer two kept (the mockup's 45 / 55 over 42…56).
+  const lo = Math.min(...vs) - step * 0.4;
+  const hi = Math.max(...vs) + step * 0.8;
   const y = (v: number) => padY + ((hi - v) / (hi - lo)) * (height - 2 * padY);
   const x = (date: string) => xAt(Math.round((Date.parse(date) - Date.parse(from)) / 86_400_000), RANGE_DAYS, width, padL, padR);
 
   const highLine = learning ? null : rhrHighLine(range);
   const grid: RangeChartGeometry['grid'] = [];
-  for (let g = lo + step; g < hi; g += step) grid.push({ y: y(g), value: kind === 'sleep' ? g * 60 : g });
-  // Two gridlines are enough (the mockup's 45 / 55); keep the outer ones.
+  for (let g = Math.ceil(lo / step) * step; g < hi; g += step) grid.push({ y: y(g), value: kind === 'sleep' ? g * 60 : g });
   const shown = grid.length > 2 ? [grid[0], grid[grid.length - 1]] : grid;
 
   return {
@@ -197,7 +198,7 @@ export function rangeChart(
       out: !learning && (kind === 'rhr' ? p.value > (highLine as number) : p.value < (range as { lo: number }).lo),
       latest: i === series.length - 1,
     })),
-    first: lo,
-    last: hi,
+    first: kind === 'sleep' ? lo * 60 : lo,
+    last: kind === 'sleep' ? hi * 60 : hi,
   };
 }
