@@ -121,7 +121,7 @@ async function loadContext(athleteId: string) {
 
 /**
  * Garmin when the row says so — decided without a query, as before. Otherwise the
- * Apple lookup, which is an empty answer until migration 136 is applied.
+ * Apple lookup, which is an empty answer until migration 138 is applied.
  */
 async function providerFor(
   supabase: ReturnType<typeof createServerClient>,

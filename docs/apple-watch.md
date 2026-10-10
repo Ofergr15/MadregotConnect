@@ -1,7 +1,7 @@
 # Apple Watch: the server contract for the companion iPhone app
 
 Status: Phase 0 (server only).
-- Every `/api/device/*` route answers **404 `{"error":"watch-not-enabled"}`** until migration 136
+- Every `/api/device/*` route answers **404 `{"error":"watch-not-enabled"}`** until migration 138
   (`athlete_devices`, …) is applied.
 - Nothing is reachable until a device registers.
 - Design notes are in `~/.cache/madregot/plans/watch-phase0-plan.md`.

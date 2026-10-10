@@ -9,7 +9,7 @@ import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
  * `fixtures/matcher-garmin-golden.json` was written by the matcher as it was
  * BEFORE Phase 0 (git HEAD at the time), on this exact data. A Garmin/Strava
  * athlete — no Apple uploads — must get the same rows, and must not cause a
- * single extra query, with or without migration 136.
+ * single extra query, with or without migration 138.
  */
 
 const ATHLETE = 'a-1';
@@ -23,7 +23,7 @@ const BASE_SCHEMA = {
   workout_deliveries: ['id', 'plan_id', 'athlete_id', 'garmin_workout_id', 'workout_key', 'device_confirmed_at', 'created_at'],
   activity_plan_matches: ['id', 'activity_id', 'athlete_id', 'weekly_plan_id', 'workout_key', 'group_number', 'match_method', 'score', 'evidence', 'created_at'],
 };
-const WITH_136 = {
+const WITH_138 = {
   ...BASE_SCHEMA,
   athlete_activities: [...BASE_SCHEMA.athlete_activities, 'provider_plan_id', 'apple_workout_uuid', 'source'],
   workout_deliveries: [...BASE_SCHEMA.workout_deliveries, 'provider', 'provider_plan_id', 'superseded_at', 'removed_at'],
@@ -68,12 +68,12 @@ describe('the matcher gives a Garmin athlete exactly what it gave before Phase 0
     golden = JSON.stringify({ rows: persisted(db), confirmed: db.tables.workout_deliveries.map((d) => [d.id, !!d.device_confirmed_at]) }, null, 2);
   });
 
-  it('before migration 136 (rows pinned by the pre-change golden file)', async () => {
+  it('before migration 138 (rows pinned by the pre-change golden file)', async () => {
     await expect(golden).toMatchFileSnapshot('./fixtures/matcher-garmin-golden.json');
   });
 
-  it('after migration 136, with no Apple uploads: same rows, no Apple deliveries query', async () => {
-    const db = seed(WITH_136);
+  it('after migration 138, with no Apple uploads: same rows, no Apple deliveries query', async () => {
+    const db = seed(WITH_138);
     await matchAthleteActivities(db.client, ATHLETE);
     const after = JSON.stringify({ rows: persisted(db), confirmed: db.tables.workout_deliveries.map((d) => [d.id, !!d.device_confirmed_at]) }, null, 2);
     expect(after).toBe(golden);

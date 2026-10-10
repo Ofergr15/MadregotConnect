@@ -1,7 +1,7 @@
 import type { Db } from './types';
 
 /**
- * Is migration 136 applied here?
+ * Is migration 138 applied here?
  *
  * Migrations are pasted by hand, so this code ships before its tables exist —
  * and every device route, and the Apple branch of a coach push, has to behave as
@@ -29,7 +29,7 @@ export async function hasWatchSchema(supabase: Db, now = Date.now()): Promise<bo
   try {
     const devices = await supabase.from(WATCH_TABLES.devices).select('id').limit(1);
     // The delivery columns are part of the same paste; probing one of them too
-    // keeps a half-applied 136 (tables but no columns) reading as "not yet".
+    // keeps a half-applied 138 (tables but no columns) reading as "not yet".
     const deliveries = devices.error
       ? devices
       : await supabase.from('workout_deliveries').select('provider_plan_id').limit(1);
@@ -46,7 +46,7 @@ export function resetWatchSchemaCache(): void {
   cached = null;
 }
 
-/** The answer every device route gives before 136: the feature isn't here. */
+/** The answer every device route gives before 138: the feature isn't here. */
 export function watchNotEnabled(): Response {
   return new Response(JSON.stringify({ error: 'watch-not-enabled' }), {
     status: 404,

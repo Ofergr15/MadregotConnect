@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
     // Which watch each athlete's week goes to (lib/watch). An athlete with a Garmin
     // link is decided off their row alone and goes down the exact path below; only
     // athletes WITHOUT one are looked up for an Apple device — an empty set before
-    // migration 136, so until then every athlete is routed as before.
+    // migration 138, so until then every athlete is routed as before.
     const appleIds = await appleCandidates(supabase, found);
 
     const deliver = async ({ athlete, plannedWorkouts }: (typeof tasks)[number]) => {

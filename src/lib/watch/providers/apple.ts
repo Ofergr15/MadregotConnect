@@ -130,7 +130,7 @@ export async function enqueueAppleWeek(
   return { inserted: inserts.length, kept, superseded: supersede.length };
 }
 
-/** Athletes (from `ids`) with a live, scheduler-authorized Apple device. Empty before 136. */
+/** Athletes (from `ids`) with a live, scheduler-authorized Apple device. Empty before 138. */
 export async function loadAppleAthleteIds(supabase: Db, ids: string[]): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
   try {

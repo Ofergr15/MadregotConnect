@@ -6,7 +6,7 @@ import { json } from '@/lib/watch/http';
  * GET /api/device/pending-workouts — the Apple Watch delivery queue for the
  * device's athlete: what to schedule (WatchWorkoutV1 + the plan UUID to give
  * `WorkoutPlan(_:id:)`) and what to remove. See lib/watch/pending.ts and
- * docs/apple-watch.md. 404 until migration 136.
+ * docs/apple-watch.md. 404 until migration 138.
  */
 export const dynamic = 'force-dynamic';
 

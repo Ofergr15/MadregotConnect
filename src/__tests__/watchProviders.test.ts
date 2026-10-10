@@ -61,7 +61,7 @@ describe('appleCandidates', () => {
     const ids = await appleCandidates(d.client, ['a', 'b', 'c', 'd'].map((id) => ({ id, name: '', garmin_auth: null })));
     expect([...ids]).toEqual(['a']);
   });
-  it('is empty before 136, and on a client that throws', async () => {
+  it('is empty before 138, and on a client that throws', async () => {
     expect((await appleCandidates(db(PRE).client, [{ id: 'a', name: '' }])).size).toBe(0);
     resetWatchSchemaCache();
     const broken = { from: () => { throw new Error('boom'); } } as any;
@@ -133,7 +133,7 @@ describe('Apple delivery queues rows for the phone', () => {
     expect(res).toEqual({ inserted: 1, kept: 0, superseded: 1 });
   });
 
-  it('before 136 it fails honestly instead of writing a half-row', async () => {
+  it('before 138 it fails honestly instead of writing a half-row', async () => {
     const d = db(PRE);
     const res = await deliverWeek('apple', input(d));
     expect(res).toMatchObject({ status: 'failed', provider: 'apple', error: 'Apple Watch delivery is not enabled yet' });

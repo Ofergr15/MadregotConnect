@@ -5,7 +5,7 @@ import { intervals } from './fixtures/watch-workouts';
 
 /**
  * The /api/device routes end to end against an in-memory database: register →
- * token → pending → ack → upload, the pre-136 answer, and the auth edges.
+ * token → pending → ack → upload, the pre-138 answer, and the auth edges.
  */
 
 const h = vi.hoisted(() => ({
@@ -36,7 +36,7 @@ import { addDays } from '@/lib/watch/pending';
 
 process.env.ENCRYPTION_KEY = 'a'.repeat(64);
 
-const SCHEMA_136 = {
+const SCHEMA_138 = {
   athletes: ['id', 'name', 'status', 'active_shoe_id', 'max_hr_bpm', 'group_id'],
   athlete_devices: ['id', 'athlete_id', 'platform', 'installation_id', 'device_name', 'app_version', 'os_version', 'apns_token', 'scheduler_authorized', 'health_authorized', 'last_seen_at', 'created_at', 'revoked_at'],
   device_tokens: ['id', 'device_id', 'token_hash', 'created_at', 'expires_at', 'used_at', 'replaced_by', 'revoked_at'],
@@ -45,13 +45,13 @@ const SCHEMA_136 = {
   activity_plan_matches: ['id', 'activity_id', 'workout_key', 'match_method', 'weekly_plan_id'],
   activity_streams: ['id', 'activity_id', 'garmin_activity_id', 'source', 'sample_count', 'interval_sec', 'metrics', 'series', 'laps', 'unit_correction', 'fetched_at', 'created_at'],
 };
-const PRE_136 = {
-  athletes: SCHEMA_136.athletes,
-  workout_deliveries: SCHEMA_136.workout_deliveries.filter((c) => !['provider', 'provider_plan_id', 'superseded_at', 'removed_at'].includes(c)),
-  athlete_activities: SCHEMA_136.athlete_activities.filter((c) => !['apple_workout_uuid', 'provider_plan_id'].includes(c)),
+const PRE_138 = {
+  athletes: SCHEMA_138.athletes,
+  workout_deliveries: SCHEMA_138.workout_deliveries.filter((c) => !['provider', 'provider_plan_id', 'superseded_at', 'removed_at'].includes(c)),
+  athlete_activities: SCHEMA_138.athlete_activities.filter((c) => !['apple_workout_uuid', 'provider_plan_id'].includes(c)),
 };
 
-function freshDb(schema: Record<string, string[]> = SCHEMA_136) {
+function freshDb(schema: Record<string, string[]> = SCHEMA_138) {
   const db = createMemoryDb({
     schema,
     unique: {
@@ -85,9 +85,9 @@ beforeEach(() => {
   h.session = { ok: true, user: { athleteId: 'ath-1', viewingAsBy: undefined } };
 });
 
-describe('before migration 136 every device route is a 404', () => {
+describe('before migration 138 every device route is a 404', () => {
   it('answers watch-not-enabled and writes nothing', async () => {
-    h.db = freshDb(PRE_136);
+    h.db = freshDb(PRE_138);
     const calls = [
       register(req('/api/device/register', { installationId: 'i' }, 'jwt')),
       token(req('/api/device/token', { refreshToken: 'wrt1.x' })),

@@ -33,7 +33,7 @@ export type MatchMethod = 'manual' | 'garmin_workout' | 'apple_workout' | 'auto'
 
 /**
  * Every derived method is recomputed from scratch; only `manual` is preserved.
- * `apple_workout` (migration 136) is the Apple Watch twin of `garmin_workout`:
+ * `apple_workout` (migration 138) is the Apple Watch twin of `garmin_workout`:
  * the run carried the plan id of the workout we scheduled (lib/watch/plan-matches.ts).
  */
 const DERIVED_METHODS: MatchMethod[] = ['auto', 'garmin_workout', 'apple_workout'];
@@ -41,7 +41,7 @@ const DERIVED_METHODS: MatchMethod[] = ['auto', 'garmin_workout', 'apple_workout
 type ActivityRow = MatchableActivity & ActivityWithGarminWorkout & ActivityWithProviderPlan;
 
 /**
- * Migration 136's `provider_plan_id`, remembered as missing for a while once a
+ * Migration 138's `provider_plan_id`, remembered as missing for a while once a
  * select has said so, so a database without it pays one failed query per
  * instance per 10 minutes rather than one per match.
  */
@@ -92,7 +92,7 @@ async function loadActivities(
     try {
       return await fetchAllRows<ActivityRow>(page(`${columns}, garmin_workout_id, provider_plan_id`));
     } catch (error) {
-      // Pre-136: no provider_plan_id. Everything below is exactly the old chain.
+      // Pre-138: no provider_plan_id. Everything below is exactly the old chain.
       if (!isMissingColumn(error, 'provider_plan_id')) throw error;
       providerPlanMissingUntil = Date.now() + PROVIDER_PLAN_RETRY_MS;
     }
