@@ -23,6 +23,7 @@ import { shouldSyncOnOpen, stravaOpenSyncKey } from '@/lib/providers/open-sync';
 import { getSupabase } from '@/lib/supabase/client';
 import { primeFeedFirstPage } from '@/lib/feed-client';
 import { markAppReady } from '@/lib/app-ready';
+import { PhoneAppStrip, PhoneOpenBeacon } from '@/components/onboarding/PhoneAppStrip';
 import { REVIEW_LAST_PATH_KEY } from '@/lib/review-context';
 import {
   APP_SCROLL_ID,
@@ -432,6 +433,10 @@ export default function AppLayout({
           {/* One accuracy-ring cache for every signed-in screen. Mounted here, in
               the shell that survives a feed ↔ dashboard hop, so a page of cards
               fetches its scores in ONE request and keeps them across navigation. */}
+          {/* Computer only: "the app on your phone isn't installed yet". The beacon is
+              its other half: on a phone it records that the app ran there. */}
+          <PhoneOpenBeacon />
+          {!isRunChat && <PhoneAppStrip />}
           <ExecutionScoreProvider>
             {isRunChat ? children : <PageTransition>{children}</PageTransition>}
           </ExecutionScoreProvider>

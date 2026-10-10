@@ -37,6 +37,13 @@ export interface PlatformSignals {
   /** iPadOS 13+ says Macintosh; the caller resolves that with a touch check. */
   ios: boolean;
   inApp: boolean;
+  /**
+   * The primary pointer is a finger: `(pointer: coarse)` and no hover, with touch
+   * points. What tells a phone that asked for the "desktop site" (Android sends a
+   * Linux desktop UA then) from a real computer. A touchscreen laptop still has a
+   * trackpad or mouse as its PRIMARY pointer, so it stays a computer.
+   */
+  fingerPrimary?: boolean;
 }
 
 /**
@@ -50,7 +57,7 @@ export function iosMajor(ua: string): number | null {
   return os ? Number(os[1]) : null;
 }
 
-export function classifyPlatform({ ua, standalone, ios, inApp }: PlatformSignals): InstallPlatform {
+export function classifyPlatform({ ua, standalone, ios, inApp, fingerPrimary }: PlatformSignals): InstallPlatform {
   if (standalone) return 'standalone';
   if (ios) {
     // Chrome / Firefox / Edge on iOS can't install a web app either.
@@ -58,6 +65,8 @@ export function classifyPlatform({ ua, standalone, ios, inApp }: PlatformSignals
     return (iosMajor(ua) ?? 0) >= 26 ? 'ios-safari-26' : 'ios-safari';
   }
   if (/android/i.test(ua)) return inApp ? 'android-inapp' : 'android';
+  // A desktop UA on a finger-driven screen: an Android phone on "desktop site".
+  if (fingerPrimary) return inApp ? 'android-inapp' : 'android';
   return 'desktop';
 }
 
@@ -67,9 +76,33 @@ export function detectInstallPlatform(): InstallPlatform {
     standalone: isStandalone(),
     ios: isIosDevice(),
     inApp: isInAppBrowser(),
+    fingerPrimary: fingerIsPrimaryPointer(),
   });
 }
 
 /** The Safari layouts, for the "looks different on my phone" switch. */
 export const otherSafari = (p: InstallPlatform): InstallPlatform =>
   p === 'ios-safari-26' ? 'ios-safari-compact' : p === 'ios-safari-compact' ? 'ios-safari-26' : p === 'ios-safari' ? 'ios-safari-26' : p;
+
+/** See PlatformSignals.fingerPrimary. */
+export function fingerIsPrimaryPointer(): boolean {
+  try {
+    return window.matchMedia('(pointer: coarse)').matches
+      && !window.matchMedia('(hover: hover)').matches
+      && (navigator.maxTouchPoints || 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A computer (desktop or laptop browser), as opposed to a phone or tablet. On a
+ * computer the onboarding drops what only a phone can use (the notification
+ * request, "installed ✓", the home-screen guide) and invites the member to
+ * continue on the phone instead — never blocks them (Ofer, 2026-10-09).
+ * An installed app is never a computer here: a desktop PWA behaves like the app.
+ */
+export function isComputer(): boolean {
+  if (typeof window === 'undefined') return false;
+  return detectInstallPlatform() === 'desktop';
+}

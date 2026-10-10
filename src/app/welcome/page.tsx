@@ -12,11 +12,14 @@ import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase/client';
 import { ONBOARDING_V2_KEY } from '@/lib/install/v2';
 import { Journey } from '@/app/register/RegisterReceived';
+import { useIsComputer } from '@/lib/install/use-computer';
 
 type Who = { firstName: string | null; maskedEmail: string };
 
 export default function WelcomePage() {
   const router = useRouter();
+  // On a computer nothing was installed: no "installed 🎉", no install step.
+  const computer = useIsComputer();
   const [token, setToken] = useState('');
   const [who, setWho] = useState<Who | null>(null);
   const [unknown, setUnknown] = useState(false);
@@ -74,16 +77,16 @@ export default function WelcomePage() {
 
   return (
     <div className="min-h-viewport bg-page" dir="rtl">
-      <div className="mx-auto flex max-w-md flex-col gap-4 px-5 pb-10 pt-[max(22px,env(safe-area-inset-top))]">
+      <div className={`mx-auto flex max-w-md flex-col gap-4 px-5 pb-10 pt-[max(22px,env(safe-area-inset-top))] ${computer ? 'md:max-w-lg md:pt-16' : ''}`}>
         <div className="rounded-[24px] bg-gradient-to-br from-[#2b33ff] via-brand-600 to-[#6a5cff] px-4 pb-5 pt-4 text-center text-white">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/images/logo-white.png" alt="מדרגות" className="mx-auto h-14 w-auto" />
-          <p className="mt-2 text-2xs font-bold tracking-wide text-white/85">ההתקנה הצליחה 🎉</p>
+          <p className="mt-2 text-2xs font-bold tracking-wide text-white/85">{computer ? 'מועדון הריצה של מדרגות' : 'ההתקנה הצליחה 🎉'}</p>
           <h1 className="mt-0.5 text-2xl font-black">{who?.firstName ? `שלום, ${who.firstName} 👋` : 'ברוכים הבאים 👋'}</h1>
           <p className="mt-0.5 text-13 text-white/90">נשאר רק להיכנס, פעם אחת</p>
         </div>
 
-        <Journey done={3} />
+        <Journey done={3} computer={computer} />
 
         {unknown ? (
           <div className="rounded-2xl bg-card p-4 text-center">

@@ -8,7 +8,8 @@ const read = (p: string) => readFileSync(join(__dirname, '..', p), 'utf8');
 describe('install first, then sign in once inside the app', () => {
   it('/join (v2) saves the details and goes to the guide, with no Strava or Garmin there', () => {
     const page = read('app/join/[token]/page.tsx');
-    expect(page).toMatch(/if \(guideV2\) \{\s+setStep\('connecting'\);\s+persistProfile\(\)\s+\.then\(\(\) => setStep\('done'\)\)/);
+    // …and the done screen knows nothing was connected (it used to say "your Garmin is linked").
+    expect(page).toMatch(/if \(guideV2\) \{\s+setStep\('connecting'\);\s+persistProfile\(\)[\s\S]{0,240}?\.then\(\(\) => \{ setSkippedGarmin\(true\); setStep\('done'\); \}\)/);
   });
 
   it('the icon added from /join opens the member\'s welcome; a phone that saved /join is forwarded', async () => {

@@ -21,6 +21,8 @@ export type OnboardingState =
       tourSeenAt: string | null;
       completed: boolean;
       completedAt: string | null;
+      /** lib/onboarding/phone-app: opened on a phone yet, and their own link to get there. */
+      phoneApp?: { opened: boolean; link: string | null };
     } & SetupState);
 
 export function useOnboarding() {

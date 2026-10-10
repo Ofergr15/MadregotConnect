@@ -9,11 +9,18 @@ import { cn } from '@/lib/utils';
 
 const STEPS = ['הרשמה', 'אישור', 'התקנה', 'כניסה'];
 
-export function Journey({ done }: { done: number }) {
+/**
+ * The joining journey. `computer`: there is nothing to install on a computer, so
+ * the "installed ✓" step is not shown there (a step marked done that never
+ * happened). `done` always counts on the full four-step scale.
+ */
+export function Journey({ done, computer = false }: { done: number; computer?: boolean }) {
+  const steps = computer ? STEPS.filter((s) => s !== 'התקנה') : STEPS;
+  const at = computer && done > STEPS.indexOf('התקנה') ? done - 1 : done;
   return (
-    <ol className="flex items-start justify-between px-1" aria-label={`שלב ${done + 1} מתוך 4`}>
-      {STEPS.map((label, i) => {
-        const isDone = i < done, isAt = i === done;
+    <ol className="flex items-start justify-between px-1" aria-label={`שלב ${at + 1} מתוך ${steps.length}`}>
+      {steps.map((label, i) => {
+        const isDone = i < at, isAt = i === at;
         return (
           <li key={label} className="flex flex-1 items-start">
             <div className="flex w-14 flex-col items-center gap-1">
@@ -25,7 +32,7 @@ export function Journey({ done }: { done: number }) {
               )}>{isDone ? '✓' : i + 1}</span>
               <span className={cn('text-3xs font-bold', isAt ? 'text-ink-700' : isDone ? 'text-brand-600' : 'text-ink-400')}>{label}</span>
             </div>
-            {i < STEPS.length - 1 && <span className={cn('mt-3.5 h-0.5 flex-1', i < done ? 'bg-brand-600' : 'bg-ink-300')} aria-hidden />}
+            {i < steps.length - 1 && <span className={cn('mt-3.5 h-0.5 flex-1', i < at ? 'bg-brand-600' : 'bg-ink-300')} aria-hidden />}
           </li>
         );
       })}
