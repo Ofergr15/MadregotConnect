@@ -101,7 +101,10 @@ export async function GET(request: Request) {
         plannedSec: row.duration.planned || null,
         actualSec: row.duration.actual,
         plannedPace,
-        actualPace: row.workPace?.actual ?? row.pace.actual ?? null,
+        // The work's pace where the reps were read; the whole run's only when the session
+        // was graded against a whole-session band — never a run average set beside a rep
+        // target, which would call every interval session slow.
+        actualPace: row.workPace?.actual ?? (row.pace.comparedMin != null && row.pace.comparedMin === row.pace.plannedMin ? row.pace.actual : null),
         onWatch: onWatch.has(row.date),
         steps,
         note: row.detail?.workout.description ?? null,

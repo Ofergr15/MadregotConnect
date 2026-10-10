@@ -8,6 +8,10 @@
 -- OPTIONAL. Without it, GET /api/academy/library answers `favouritesStored: false` and the
 -- client keeps favourites on the device; nothing else depends on it.
 --
+-- NOTE for PostgREST: this table relates athletes to academy_workout_library a second way
+-- (many-to-many), so a bare `athletes(name)` embed from the library becomes ambiguous
+-- (PGRST201). The library route embeds `athletes!owner_id(name)` for that reason.
+--
 -- Locked like every table since 134: RLS on, nothing for anon/authenticated, service role
 -- only through the API.
 

@@ -38,9 +38,16 @@ export const dynamic = 'force-dynamic';
  * not a book.
  */
 
-/** The columns, mapped once so the pure lib never sees snake_case. */
+/**
+ * The columns, mapped once so the pure lib never sees snake_case.
+ *
+ * `athletes!owner_id`, not a bare `athletes`: migration 137's favourites table joins
+ * athletes to this one a second way (many-to-many), and PostgREST refuses an ambiguous
+ * embed outright (PGRST201) — the whole book would 500 the moment 137 was pasted. The hint
+ * names the author's foreign key by its column, which holds with or without 137.
+ */
 const COLUMNS =
-  'id, scope, owner_id, name, kind, notes, steps, use_count, last_used_at, created_at, athletes(name)';
+  'id, scope, owner_id, name, kind, notes, steps, use_count, last_used_at, created_at, athletes!owner_id(name)';
 
 function toEntry(row: any): LibraryEntry {
   return {
