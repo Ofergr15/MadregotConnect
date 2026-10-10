@@ -95,12 +95,14 @@ export function MonthBoard({ athleteId, initialMonth, onView, onOpenDay }: {
             d.race ? t('day.race') : null,
           ].filter(Boolean).join(' · ');
           const cell = cn(
-            'relative h-11 rounded-[10px] bg-white pt-[5px] text-[12.5px] font-bold text-ink-900 shadow-[0_1px_2px_rgba(20,22,40,.04),0_6px_18px_rgba(20,22,40,.06)]',
+            'relative block h-11 w-full rounded-[10px] bg-white text-[12.5px] font-bold text-ink-900 shadow-[0_1px_2px_rgba(20,22,40,.04),0_6px_18px_rgba(20,22,40,.06)]',
             d.today && 'outline outline-2 outline-brand-600',
           );
+          // Pinned to the top, not flowed: a <button> centres its content and a <div> does
+          // not, and the days with a session are buttons.
           const inner = (
             <>
-              <N>{n}</N>
+              <span className="absolute inset-x-0 top-[5px]"><N>{n}</N></span>
               {d.race && <span aria-hidden className="absolute end-[3px] top-0.5 text-[10px] leading-none">🏁</span>}
               {d.color && (
                 <i aria-hidden className="absolute bottom-1.5 left-1/2 h-[5px] w-5 -translate-x-1/2 rounded-[3px]" style={{ background: COMPLIANCE_HEX[d.color] }} />
