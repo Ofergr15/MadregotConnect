@@ -34,7 +34,7 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
   const t = useTranslations('workoutBook');
   const [sheet, setSheet] = useState(false);
   const T = board.thresholdSec;
-  const model = useMemo(() => workoutModel(workout, T), [workout, T]);
+  const model = useMemo(() => workoutModel(workout, board.referenceSec), [workout, board.referenceSec]);
   const totals = model ? bookTotals(model, T) : null;
   const coachFirst = (board.coachName ?? '').split(' ')[0] || null;
   const day = t(`day.${WEEKDAY_KEYS[workout.dayOfWeek]}`);

@@ -109,11 +109,11 @@ export function AdjustScreen({
         {model && quick.length > 0 && (
           <div className={cn('grid gap-2', quick.length === 3 ? 'grid-cols-3' : 'grid-cols-2')}>
             {quick.map(ref => (
-              <div key={ref.field} className={cn(CARD, 'rounded-[18px] px-2 py-2.5 text-center')}>
+              <div key={ref.field} className={cn(CARD, 'rounded-[18px] px-1.5 py-2.5 text-center')}>
                 <small className="mb-1.5 block text-[12.5px] font-bold text-ink-400">{t(`quick.${ref.field}`)}</small>
                 <div className="flex items-center justify-between">
                   <StepperButton sign={-1} onClick={() => nudge(ref, -1)} />
-                  <button type="button" onClick={() => setWheel(ref)} className="min-w-0 text-[20px] font-black text-ink-900" aria-label={t('a11y.openWheel')}>
+                  <button type="button" onClick={() => setWheel(ref)} className="shrink-0 text-[19px] font-black tracking-tight text-ink-900" aria-label={t('a11y.openWheel')}>
                     <N>{fieldDisplay(model, ref, T)}</N>
                   </button>
                   <StepperButton sign={1} onClick={() => nudge(ref, 1)} />
@@ -178,7 +178,7 @@ export function AdjustScreen({
   );
 }
 
-/** The quick row's − + — 32px drawn, 44px to the thumb. */
+/** The quick row's − + — 28px drawn (three cells share 354px), 44px to the thumb. */
 function StepperButton({ sign, onClick }: { sign: 1 | -1; onClick: () => void }) {
   const t = useTranslations('workoutBook');
   return (
@@ -186,9 +186,9 @@ function StepperButton({ sign, onClick }: { sign: 1 | -1; onClick: () => void })
       type="button"
       onClick={onClick}
       aria-label={sign < 0 ? t('a11y.less') : t('a11y.more')}
-      className="relative grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-[#EEF0FF] text-brand-600 after:absolute after:-inset-1.5 after:content-['']"
+      className="relative grid h-7 w-7 shrink-0 place-items-center rounded-[9px] bg-[#EEF0FF] text-brand-600 after:absolute after:-inset-2 after:content-['']"
     >
-      {sign < 0 ? <Minus className="h-[18px] w-[18px]" strokeWidth={3} /> : <Plus className="h-[18px] w-[18px]" strokeWidth={3} />}
+      {sign < 0 ? <Minus className="h-4 w-4" strokeWidth={3} /> : <Plus className="h-4 w-4" strokeWidth={3} />}
     </button>
   );
 }

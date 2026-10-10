@@ -42,6 +42,7 @@ export function SendScreen({ data, draft, day, primary, onBack, onClose }: {
   const isReps = draft.model ? draft.model[mainStepIndex(draft.model)]?.kind === 'reps' : false;
 
   const eligible = (o: DayPlanData['others'][number]) => !o.busy && !!o.thresholdSec;
+  const rank = (o: DayPlanData['others'][number]) => (eligible(o) ? 0 : o.busy ? 1 : 2);
   const [picked, setPicked] = useState<Set<string>>(
     () => new Set(data.others.filter(o => eligible(o) && o.lane === data.trainee.lane).map(o => o.id)),
   );
@@ -96,14 +97,16 @@ export function SendScreen({ data, draft, day, primary, onBack, onClose }: {
     }
   };
 
+  const first = data.trainee.name.split(' ')[0] || data.trainee.name;
   const primaryLine = primary.status === 'sent'
-    ? (pace ? t.rich(isReps ? 'onWatchOfReps' : 'onWatchOfRun', { ...RICH, name: data.trainee.name, pace: clockText(pace.sec) }) : t('onWatchOf', { name: data.trainee.name }))
+    ? (pace ? t.rich(isReps ? 'onWatchOfReps' : 'onWatchOfRun', { ...RICH, name: first, pace: clockText(pace.sec) }) : t('onWatchOf', { name: first }))
     : primary.status === 'saved'
-      ? t('savedNoWatch', { name: data.trainee.name })
-      : t('savedPushFailed', { name: data.trainee.name });
+      ? t('savedNoWatch', { name: first })
+      : t('savedPushFailed', { name: first });
 
   return (
     <FlowScreen
+      className="gap-3"
       title={t('sendTitle')}
       leading={<BarButton onClick={onBack}><ChevronRight className="h-5 w-5" />{t('back.back')}</BarButton>}
       footer={finished
@@ -125,7 +128,8 @@ export function SendScreen({ data, draft, day, primary, onBack, onClose }: {
         <>
           <SectionLabel>{t('sendOthersTitle')}</SectionLabel>
           <div className={cn(CARD, 'max-h-[300px] overflow-y-auto')}>
-            {data.others.map(o => {
+            {/* Who can be sent it first, then who already has a session, then who needs a test. */}
+            {[...data.others].sort((a, b) => rank(a) - rank(b)).map(o => {
               const can = eligible(o);
               const on = picked.has(o.id);
               const result = results[o.id];

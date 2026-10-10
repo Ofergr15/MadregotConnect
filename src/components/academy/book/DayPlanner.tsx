@@ -79,9 +79,8 @@ export function DayPlanner({ athleteId, date, onClose, onDone }: {
   onDone?: () => void;
 }) {
   const t = useTranslations('workoutBook');
-  const [lane, setLane] = useState<number | null>(null);
   const { data, error } = useApi<DayPlanData>(
-    `/api/academy/day-plan?athleteId=${encodeURIComponent(athleteId)}&date=${date}${lane ? `&lane=${lane}` : ''}`,
+    `/api/academy/day-plan?athleteId=${encodeURIComponent(athleteId)}&date=${date}`,
     { keepPreviousData: true },
   );
   const [screen, setScreen] = useState<Screen>('choose');
@@ -157,7 +156,6 @@ export function DayPlanner({ athleteId, date, onClose, onDone }: {
           sending={sending}
           sendError={sendError}
           onClose={onClose}
-          onLane={setLane}
           onTake={w => void send(draftFromSenior(w))}
           onAdjust={w => { setDraft(draftFromSenior(w)); go('adjust'); }}
           onBook={() => go('book')}
@@ -207,7 +205,7 @@ export function DayPlanner({ athleteId, date, onClose, onDone }: {
 }
 
 function ChooseScreen({
-  data, day, dayTitle, sending, sendError, onClose, onLane, onTake, onAdjust, onBook, onQuick,
+  data, day, dayTitle, sending, sendError, onClose, onTake, onAdjust, onBook, onQuick,
 }: {
   data: DayPlanData;
   day: string;
@@ -215,7 +213,6 @@ function ChooseScreen({
   sending: boolean;
   sendError: string | null;
   onClose: () => void;
-  onLane: (lane: number) => void;
   onTake: (w: SeniorWorkout) => void;
   onAdjust: (w: SeniorWorkout) => void;
   onBook: () => void;
@@ -225,6 +222,7 @@ function ChooseScreen({
   const T = data.trainee.thresholdSec;
   const today = data.senior.today;
   const name = data.trainee.name;
+  const first = name.split(' ')[0] || name;
   const totals = useMemo(() => (today?.model ? bookTotals(today.model, T) : null), [today, T]);
   const bar = useMemo(() => (today?.model ? profileBar(today.model, T) : []), [today, T]);
   const pace = mainPace(today?.model ?? null, T);
@@ -254,12 +252,13 @@ function ChooseScreen({
       {today ? (
         <>
           <div className={cn(CARD, 'border-2 border-brand-600 px-[18px] pb-[18px] pt-5')}>
-            <div className="flex items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EEF0FF] px-[11px] py-[5px] text-13 font-extrabold text-brand-600">
-                ★ {t('seniorRan', { day })}
-              </span>
-              {data.lanesDiffer && <LanePicker lane={data.trainee.lane} bandLane={data.trainee.bandLane} onLane={onLane} />}
-            </div>
+            {/* No lane picker here: the lane only picks which squad's version of the session
+                to start from, and once its paces are restated against that squad's reference
+                the three versions are the same session at this trainee's pace. The route still
+                takes `?lane=` for a coach who wants another squad's version. */}
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EEF0FF] px-[11px] py-[5px] text-13 font-extrabold text-brand-600">
+              ★ {t('seniorRan', { day })}
+            </span>
             <button type="button" onClick={() => onAdjust(today)} className="mt-3 block w-full text-start">
               <span className="block text-[32px] font-black leading-tight text-ink-900"><bdi>{today.name}</bdi></span>
               {totals && (
@@ -271,7 +270,7 @@ function ChooseScreen({
             {bar.length > 0 && <ProfileBar segments={bar} className="mt-4" />}
             {pace && (
               <p className="mt-3.5 text-[15.5px] leading-normal text-ink-500">
-                {t.rich(pace.reps ? 'paceLineReps' : 'paceLineRun', { ...RICH, pace: clockText(pace.sec), name })}
+                {t.rich(pace.reps ? 'paceLineReps' : 'paceLineRun', { ...RICH, pace: clockText(pace.sec), name: first })}
               </p>
             )}
           </div>
@@ -322,31 +321,5 @@ function OtherRow({ w, thresholdSec, onPick }: { w: SeniorWorkout; thresholdSec:
       </span>
       {w.model && <ProfileBar segments={profileBar(w.model, thresholdSec)} size="sm" />}
     </button>
-  );
-}
-
-/** ❶❷❸ — only when the lanes actually differ this week. */
-function LanePicker({ lane, bandLane, onLane }: { lane: number; bandLane: number | null; onLane: (lane: number) => void }) {
-  const t = useTranslations('workoutBook');
-  return (
-    <div className="flex gap-4" role="radiogroup" aria-label={t('lane')}>
-      {[1, 2, 3].map(l => (
-        <button
-          key={l}
-          type="button"
-          role="radio"
-          aria-checked={lane === l}
-          aria-label={t('laneN', { n: l })}
-          onClick={() => onLane(l)}
-          className={cn(
-            'relative grid h-7 w-7 place-items-center rounded-full text-13 font-black after:absolute after:-inset-2 after:content-[""]',
-            lane === l ? 'bg-ink-900 text-white' : 'bg-[#F4F4F8] text-ink-500',
-            bandLane === l && lane !== l && 'ring-1 ring-ink-300',
-          )}
-        >
-          <N>{l}</N>
-        </button>
-      ))}
-    </div>
   );
 }

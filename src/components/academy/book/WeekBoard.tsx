@@ -32,10 +32,13 @@ function dm(date: string): string {
   return `${Number(d)}.${Number(m)}`;
 }
 
-/** A planned workout's own steps, as the book model, drawn at the trainee's threshold. */
-export function workoutModel(w: Pick<WeekBoardWorkout, 'steps'>, thresholdSec: number | null): BookStep[] | null {
+/**
+ * A planned workout's own steps, as the book model: restated against the threshold they were
+ * written for (`referenceSec`), then drawn at the trainee's.
+ */
+export function workoutModel(w: Pick<WeekBoardWorkout, 'steps'>, referenceSec: number): BookStep[] | null {
   if (!w.steps?.length) return null;
-  return fromLibrarySteps(absoluteToLibrary(w.steps, thresholdSec ?? 300).steps);
+  return fromLibrarySteps(absoluteToLibrary(w.steps, referenceSec).steps);
 }
 
 export function WeekBoard({ athleteId, initialWeek }: { athleteId: string; initialWeek?: string | null }) {
@@ -82,6 +85,10 @@ export function WeekBoard({ athleteId, initialWeek }: { athleteId: string; initi
         <Total label={t('total.time')} done={hoursText(totals.doneSec)} planned={hoursText(totals.plannedSec)} fraction={meterFraction(totals.doneSec, totals.plannedSec)} />
       </div>
 
+      {data.fromClub && (
+        <p className="px-1 text-13 text-ink-400">{t('fromClubNote', { name: data.athlete.name.split(' ')[0] })}</p>
+      )}
+
       {data.workouts.length === 0 && (
         <p className="rounded-[18px] bg-white px-4 py-5 text-center text-sm text-ink-400">{t('weekEmpty')}</p>
       )}
@@ -92,6 +99,7 @@ export function WeekBoard({ athleteId, initialWeek }: { athleteId: string; initi
           w={w}
           today={data.today}
           thresholdSec={T}
+          referenceSec={data.referenceSec}
           isNext={next?.date === w.date}
           onOpen={() => setOpen(w)}
         />
@@ -144,10 +152,11 @@ function Total({ label, done, planned, fraction }: { label: string; done: string
   );
 }
 
-function WeekCard({ w, today, thresholdSec, isNext, onOpen }: {
+function WeekCard({ w, today, thresholdSec, referenceSec, isNext, onOpen }: {
   w: WeekBoardWorkout;
   today: string;
   thresholdSec: number | null;
+  referenceSec: number;
   isNext: boolean;
   onOpen: () => void;
 }) {
@@ -156,7 +165,7 @@ function WeekCard({ w, today, thresholdSec, isNext, onOpen }: {
   const dayShort = t(`dayShort.${WEEKDAY_KEYS[w.dayOfWeek]}`);
   const caret = c.caret === 'up' ? '▲' : c.caret === 'down' ? '▼' : '';
   const tomorrow = addDaysToDateStr(today, 1);
-  const model = useMemo(() => workoutModel(w, thresholdSec), [w, thresholdSec]);
+  const model = useMemo(() => workoutModel(w, referenceSec), [w, referenceSec]);
   const reps = !!model && model[mainStepIndex(model)]?.kind === 'reps';
 
   let status: React.ReactNode;

@@ -90,7 +90,7 @@ export function Wheel({ title, options, value, format, onPick, onClose }: {
             ))}
           </div>
         </div>
-        <PrimaryButton onClick={() => onPick(options[index] ?? value)}>{t('wheelDone')}</PrimaryButton>
+        <PrimaryButton className="w-full" onClick={() => onPick(options[index] ?? value)}>{t('wheelDone')}</PrimaryButton>
       </div>
     </>
   );

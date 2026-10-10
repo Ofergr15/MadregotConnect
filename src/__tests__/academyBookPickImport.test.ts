@@ -91,7 +91,11 @@ describe('the senior-group pick', () => {
     // Lane 2's rep pace (210) against lane 2's reference (210) is exactly threshold: a
     // trainee with a 4:30 threshold runs it at 4:30.
     const resolved = resolveLibraryWorkout({ name: '', notes: null, steps: pick.today!.steps }, { thresholdPaceSec: 270, dayOfWeek: 2 })!;
-    expect(resolved.steps[1].repeatSteps![0]).toMatchObject({ targetPaceMinPerKm: 270, targetPaceMaxPerKm: 270 });
+    const rep = resolved.steps[1].repeatSteps![0];
+    // A pace written as one number gets the typed band (±1.5%), never a zero-width alarm.
+    expect(rep.targetPaceMinPerKm).toBeLessThan(270);
+    expect(rep.targetPaceMaxPerKm).toBeGreaterThan(270);
+    expect(Math.abs((rep.targetPaceMinPerKm! + rep.targetPaceMaxPerKm!) / 2 - 270)).toBeLessThanOrEqual(1);
   });
 
   it('reads the older three-bucket shape the same way', () => {
@@ -201,7 +205,7 @@ describe('the import', () => {
     const model = fromLibrarySteps(reps.steps!)!;
     const work = model[1];
     if (work.kind !== 'reps' || !work.effort) throw new Error();
-    expect(work.effort.intensity.fastPct).toBeCloseTo(101.2, 1);
+    expect((work.effort.intensity.fastPct + work.effort.intensity.slowPct) / 2).toBeCloseTo(101.2, 1);
   });
 
   it('sorts by use', () => {

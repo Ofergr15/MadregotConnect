@@ -52,7 +52,7 @@ export function BookImport({ onClose, onImported }: { onClose: () => void; onImp
     return () => { cancelled = true; };
   }, []);
 
-  const rows = data?.candidates ?? [];
+  const rows = useMemo(() => data?.candidates ?? [], [data]);
   const summary = data?.summary ?? { new: 0, existing: 0, review: 0 };
 
   const save = async () => {

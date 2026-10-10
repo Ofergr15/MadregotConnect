@@ -3630,6 +3630,7 @@
       "written": "{n, plural, one {Saved one workout} other {Saved <m>#</m> workouts}} · Close",
       "failed": "Saving failed. Try again.",
       "nameTaken": "One of the names is already in the book. Try again."
-    }
+    },
+    "fromClubNote": "No personal plan for this week yet: this is the senior group's week, at {name}'s pace."
   }
 }

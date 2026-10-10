@@ -411,10 +411,13 @@ export function absoluteToLibrary(steps: WorkoutStep[], referenceSec: number): C
 
     if (fast !== null && slow !== null && step.targetType !== 'heart_rate') {
       out.targetType = 'pace';
-      out.intensity = {
-        fastPct: round1((referenceSec / fast) * 100),
-        slowPct: round1((referenceSec / slow) * 100),
-      };
+      const fastPct = (referenceSec / fast) * 100;
+      const slowPct = (referenceSec / slow) * 100;
+      // One pace written as one number (`3:05`) is a band of zero width, which on a watch is
+      // an alarm on every stride off it. Widened the way a typed pace is.
+      out.intensity = fast === slow
+        ? { fastPct: round1(fastPct + TYPED_HALF_WIDTH_PCT), slowPct: round1(fastPct - TYPED_HALF_WIDTH_PCT) }
+        : { fastPct: round1(fastPct), slowPct: round1(slowPct) };
       if (!isDraftZone(out.targetZone)) out.targetZone = nearestZone(centrePct(out.intensity));
     } else if (step.targetType === 'pace' && isDraftZone(step.targetZone)) {
       out.intensity = { ...ZONE_INTENSITY[step.targetZone]! };
@@ -840,7 +843,14 @@ export function structureName(steps: BookStep[]): string {
     ?? steps.find(s => s.kind === 'run' && s.role === 'main')
     ?? steps.find(s => s.kind === 'run');
   if (run && run.kind === 'run') {
-    const word = run.effort?.zone ? TONE_WORD[run.effort.zone] : undefined;
+    // The words follow the effort's TONE: a run stored as `easy` whose pace says tempo is
+    // named for the pace, not for the label it came in with.
+    const zone = run.effort
+      ? (run.effort.zone && toneOfPct(centrePct(ZONE_INTENSITY[run.effort.zone]!)) === toneOf(run.effort)
+        ? run.effort.zone
+        : nearestZone(centrePct(run.effort.intensity)))
+      : null;
+    const word = zone ? TONE_WORD[zone] : undefined;
     if (word && run.length?.measure === 'time') return `${word} ${Math.round(run.length.value / 60)} דקות`;
     if (word && run.length) return `${kmText(run.length.value)} ק״מ ${word}`;
     if (totals.distanceM >= 14000) return `${kmText(Math.round(totals.distanceM / 500) * 500)} ק״מ ארוכה`;

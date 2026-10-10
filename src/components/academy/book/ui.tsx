@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import type { BarSegment } from '@/lib/academy/book-steps';
 
@@ -98,17 +99,26 @@ export function FlowScreen({ title, leading, trailing, children, footer, classNa
   );
 }
 
-/** The overlay that hosts a flow. Locks the page behind it while open. */
+/**
+ * The overlay that hosts a flow. Locks the page behind it while open.
+ *
+ * Portalled to <body>: the app's scroll container is a positioned flex box, and a `fixed`
+ * child of it is laid out inside the page's padding instead of over the whole screen.
+ */
 export function FlowOverlay({ children, label }: { children: ReactNode; label: string }) {
+  const [host, setHost] = useState<HTMLElement | null>(null);
   useEffect(() => {
+    setHost(document.body);
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = previous; };
   }, []);
-  return (
+  if (!host) return null;
+  return createPortal(
     <div role="dialog" aria-modal="true" aria-label={label} className="fixed inset-0 z-[290] flex flex-col" style={{ background: BOOK_PAGE }}>
       {children}
-    </div>
+    </div>,
+    host,
   );
 }
 

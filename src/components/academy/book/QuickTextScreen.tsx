@@ -75,7 +75,7 @@ export function QuickTextScreen({ traineeName, thresholdSec, onCancel, onContinu
         className={cn(CARD, 'min-h-[96px] resize-none rounded-[18px] border-2 border-brand-600 px-4 py-3.5 text-[18px] leading-relaxed text-ink-900 outline-none placeholder:text-ink-400')}
       />
       <p className="px-1 text-13 leading-normal text-ink-400">
-        {t.rich('quickHint', { ...RICH, c: (chunks) => <code className="rounded-md bg-white px-1.5 font-extrabold text-ink-900" dir="ltr">{chunks}</code> })}
+        {t.rich('quickHint', { ...RICH, c: (chunks) => <bdi dir="auto" className="rounded-md bg-white px-1.5 font-extrabold text-ink-900">{chunks}</bdi> })}
       </p>
 
       {steps.length > 0 && (
@@ -87,7 +87,7 @@ export function QuickTextScreen({ traineeName, thresholdSec, onCancel, onContinu
             <p className="px-1 text-13 leading-normal text-ink-400">
               {t.rich('quickTotals', { ...RICH, km: kmText(totals.distanceM), min: Math.round(totals.durationSec / 60) })}
               {typedPace && mainPace !== null && mainEffort?.zone && (
-                <> {t.rich('quickKept', { ...RICH, pace: clockText(mainPace), zone: t(`zone.${mainEffort.zone}`), name: traineeName })}</>
+                <> {t.rich('quickKept', { ...RICH, pace: clockText(mainPace), zone: t(`zone.${mainEffort.zone}`), name: traineeName.split(' ')[0] })}</>
               )}
             </p>
           )}

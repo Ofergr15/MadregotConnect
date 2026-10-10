@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { addDaysToDateStr, israelToday, planWeekStartOf } from '@/lib/utils';
+import { addDaysToDateStr, israelToday, planWeekStartOf, resolveGroup } from '@/lib/utils';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { mayCoach } from '@/lib/academy/pairing-server';
-import { loadThresholds } from '@/lib/academy/book-server';
+import { loadClubWeek, loadLaneReferences, loadThresholds, loadTraineeWeeks } from '@/lib/academy/book-server';
+import type { Lane } from '@/lib/academy/group-lane';
 import { computeAcademyWeekAdherence } from '@/lib/academy/report';
 import { complianceOf, weekTotals } from '@/lib/academy/compliance';
 import { absoluteToLibrary, fromLibrarySteps, structureName } from '@/lib/academy/book-steps';
@@ -15,6 +16,19 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Restating paces needs A threshold; with no test, a typical one only names the session. */
 const DISPLAY_REFERENCE = 300;
+
+/**
+ * The reps' pace, but only when it was read off the WORK. On a session cut short the effort
+ * search can come back with the warmup as its first verifiable block (`workPaceOf` takes the
+ * first), and "the reps at 5:30" beside a 4:05 target is a false alarm about the one
+ * session that matters. Trusted when its band is the work band the plan states.
+ */
+function workPaceOfRow(row: { workPace?: { actual: number; min: number; max: number } | null; pace: { plannedMin: number | null } }): number | null {
+  const wp = row.workPace;
+  if (!wp) return null;
+  if (row.pace.plannedMin != null && Math.abs(wp.min - row.pace.plannedMin) > 10) return null;
+  return wp.actual;
+}
 
 /**
  * GET /api/academy/week-board?athleteId=…&weekStart=YYYY-MM-DD — screen 4 of the book v3.
@@ -73,11 +87,35 @@ export async function GET(request: Request) {
     const today = israelToday();
     const rows = report.athletes[0]?.week.workouts ?? [];
 
+    // Whose paces the steps are in. A trainee with no plan of their own this week is graded
+    // against the CLUB's week (report.ts: individual plan, else the shared one), so those
+    // steps carry a squad's lane paces — lane 1's on a unified plan, which is what
+    // `extractWorkouts` hands back for it. Restated against that lane's reference and drawn
+    // at the trainee's own threshold, they read as the session at THEIR pace, which is
+    // exactly what screen 1 offers to send; drawn as stored, an academy beginner would see
+    // a sub-2:30 squad's 3:05 reps as their plan.
+    const weeks = await loadTraineeWeeks(supabase, [athleteId], weekStart);
+    const fromClub = rows.length > 0 && !weeks[athleteId]?.planId;
+    let referenceSec = thresholdSec ?? DISPLAY_REFERENCE;
+    if (fromClub) {
+      const [club, refs, group] = await Promise.all([
+        loadClubWeek(supabase, weekStart),
+        loadLaneReferences(supabase),
+        supabase.from('athletes').select('groups!group_id(name)').eq('id', athleteId).maybeSingle(),
+      ]);
+      const unified = Array.isArray((club as { workouts?: unknown } | null)?.workouts);
+      const groupLane = resolveGroup((group.data as { groups?: { name?: string } } | null)?.groups?.name).index + 1;
+      const lane = (unified ? 1 : groupLane >= 1 ? groupLane : 1) as Lane;
+      referenceSec = refs[lane];
+    }
+    // A planned pace in the steps' own terms → the trainee's.
+    const toTrainee = (sec: number | null) => (sec && fromClub && thresholdSec ? Math.round((sec * thresholdSec) / referenceSec) : sec);
+
     const workouts: WeekBoardWorkout[] = rows.map((row) => {
       const steps = row.detail?.workout.steps ?? [];
       // Named from the structure, the way the book names it (`6 × 800 מ׳`) — the club's own
       // titles are day names (`שלישי`), which the row already says.
-      const model = steps.length ? fromLibrarySteps(absoluteToLibrary(steps, thresholdSec ?? DISPLAY_REFERENCE).steps) : null;
+      const model = steps.length ? fromLibrarySteps(absoluteToLibrary(steps, referenceSec).steps) : null;
       const plannedM = (row.distance.plannedMin + row.distance.plannedMax) / 2 || null;
       const plannedPace = row.pace.plannedMin && row.pace.plannedMax
         ? Math.round((row.pace.plannedMin + row.pace.plannedMax) / 2)
@@ -100,11 +138,11 @@ export async function GET(request: Request) {
         actualM: row.distance.actual,
         plannedSec: row.duration.planned || null,
         actualSec: row.duration.actual,
-        plannedPace,
+        plannedPace: toTrainee(plannedPace),
         // The work's pace where the reps were read; the whole run's only when the session
         // was graded against a whole-session band — never a run average set beside a rep
         // target, which would call every interval session slow.
-        actualPace: row.workPace?.actual ?? (row.pace.comparedMin != null && row.pace.comparedMin === row.pace.plannedMin ? row.pace.actual : null),
+        actualPace: workPaceOfRow(row) ?? (row.pace.comparedMin != null && row.pace.comparedMin === row.pace.plannedMin ? row.pace.actual : null),
         onWatch: onWatch.has(row.date),
         steps,
         note: row.detail?.workout.description ?? null,
@@ -119,6 +157,8 @@ export async function GET(request: Request) {
       athlete: { id: athleteId, name: (me.data as { name?: string } | null)?.name ?? report.athletes[0]?.name ?? '' },
       coachName,
       thresholdSec,
+      referenceSec,
+      fromClub,
       totals: weekTotals(workouts.map(w => ({
         completed: w.compliance.color !== 'red' && w.compliance.color !== 'grey',
         plannedM: w.plannedM,

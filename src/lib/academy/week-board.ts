@@ -31,6 +31,10 @@ export interface WeekBoard {
   coachName: string | null;
   /** The trainee's 30-minute threshold — what the steps are drawn against. Null: no test. */
   thresholdSec: number | null;
+  /** The threshold the steps' paces were written for: the trainee's own, or a club lane's. */
+  referenceSec: number;
+  /** No plan of their own this week — the board shows the senior groups' week. */
+  fromClub: boolean;
   totals: WeekTotals;
   workouts: WeekBoardWorkout[];
   canPlan: boolean;
