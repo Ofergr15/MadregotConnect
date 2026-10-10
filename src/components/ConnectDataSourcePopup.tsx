@@ -100,7 +100,12 @@ export function ConnectDataSourcePopup() {
   // dismissing: the next visit decides again.
   if (!onboarding || !ledger) return null;
   const today = nudgeDayKey(new Date());
-  const nudgeMayShow = v2 ? nudgeAllowedV2(ledger, today) : nudgeAllowed(ledger, today);
+  // v2: a day the checklist was put off ("later" → tomorrow) still belongs to it.
+  // Asking the same watch question in a modal right after that answer is the
+  // nag the hold exists to prevent; the popup takes over once the week is out.
+  const nudgeMayShow = v2
+    ? nudgeAllowedV2(ledger, today) || ledger.skippedOn === today
+    : nudgeAllowed(ledger, today);
   const checklistUp =
     onboarding.applicable &&
     !onboarding.completed &&
