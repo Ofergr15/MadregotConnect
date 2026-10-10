@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
  *
  *   GET    /api/academy/library            → every entry this coach may see
  *   POST   /api/academy/library            → write one
- *   PATCH  /api/academy/library            → edit, duplicate, archive, or record a push
+ *   PATCH  /api/academy/library            → edit, duplicate, archive, record a push, or ❤
  *
  * STAFF ONLY, all of it. The book is the coach's writing tool; a trainee sees the workouts
  * that were pushed to them, never the shelf they came from.
@@ -114,8 +114,29 @@ export async function GET(request: Request) {
     // same two facts decide which rows get an עריכה button, and deriving them client-side
     // from the entry list is not possible — `scope: 'mine'` rows are already filtered to the
     // caller, so the list alone cannot say whether the canon rows are theirs to touch.
+    // ❤ — this coach's favourites (migration 137). Absent table → the client keeps them on
+    // the device instead, and says nothing: a favourite is a convenience, not data.
+    let favourites: string[] = [];
+    let favouritesStored = false;
+    if (caller.athleteId) {
+      try {
+        const fav = await supabase
+          .from('academy_library_favourites')
+          .select('entry_id')
+          .eq('athlete_id', caller.athleteId);
+        if (!fav.error) {
+          favouritesStored = true;
+          favourites = (fav.data || []).map((r: any) => String(r.entry_id));
+        }
+      } catch {
+        // The book loads without its hearts rather than not at all.
+      }
+    }
+
     return NextResponse.json({
       entries,
+      favourites,
+      favouritesStored,
       viewer: {
         athleteId: caller.athleteId ?? null,
         isManager: isAcademyManager(caller),
@@ -241,6 +262,22 @@ export async function PATCH(request: Request) {
         .eq('id', id);
       if (error) return NextResponse.json({ error: 'Failed to record the push' }, { status: 500 });
       return NextResponse.json({ ok: true });
+    }
+
+    if (action === 'favourite') {
+      // A coach's own mark on any entry they can see, canon included — like `used`, it
+      // changes nothing about the entry itself.
+      if (!caller.athleteId) return NextResponse.json({ error: 'No athlete record' }, { status: 403 });
+      const on = body?.on !== false;
+      const table = supabase.from('academy_library_favourites');
+      const { error } = on
+        ? await table.upsert({ athlete_id: caller.athleteId, entry_id: id }, { onConflict: 'athlete_id,entry_id' })
+        : await table.delete().eq('athlete_id', caller.athleteId).eq('entry_id', id);
+      if (error) {
+        if (isMissingTable(error)) return NextResponse.json({ ok: false, stored: false });
+        return NextResponse.json({ error: 'Failed to save the favourite' }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true, stored: true });
     }
 
     // Everything below CHANGES the entry, so it needs the write permission the POST
