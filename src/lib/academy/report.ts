@@ -116,7 +116,7 @@ export function addDaysStr(dateStr: string, days: number): string {
  * Falls back to any group present, then to any nested `workouts` array, so an
  * unusual blob still yields a plan rather than nothing.
  */
-function extractWorkouts(raw: any, groupNumber = 1): ParsedWorkout[] {
+export function extractWorkouts(raw: any, groupNumber = 1): ParsedWorkout[] {
   if (!raw) return [];
   // Normalized so `workoutKey` is present even on plans published before the write
   // paths normalized — without it there is nothing to join activity_plan_matches on.
@@ -378,7 +378,7 @@ export async function computeAcademyWeekAdherence(opts: {
 }
 
 /** Which of the plan's three group variants an athlete is graded against. See extractWorkouts. */
-function groupNumberFor(groupId: string | null | undefined, groupNames: Map<string, string>): number {
+export function groupNumberFor(groupId: string | null | undefined, groupNames: Map<string, string>): number {
   if (!groupId) return 2; // ungrouped athletes sit with the middle group
   const index = resolveGroup(groupNames.get(groupId)).index;
   return index >= 0 ? index + 1 : 2;
