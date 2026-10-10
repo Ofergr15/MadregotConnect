@@ -635,6 +635,8 @@ export function copyWorkout(input: {
   /** The week's position in a multi-week copy: week 2 gets the progression twice. */
   times?: number;
   dayOfWeek?: number;
+  /** The progression already decided for the whole week (`copyWeek`); skips `mode`. */
+  progressed?: { steps: BookStep[]; changes: StepChange[] } | null;
 }): CopiedWorkout {
   const { mode } = input;
   // The source's own pace update comes off first: it is theirs, not the session's. The
@@ -652,7 +654,7 @@ export function copyWorkout(input: {
   let name = workout.name;
   let distanceM = model ? bookTotals(model, target ?? null).distanceM : 0;
   if (model) {
-    const progressed = progressModel(model, mode, target ?? null, input.times ?? 1);
+    const progressed = input.progressed ?? progressModel(model, mode, target ?? null, input.times ?? 1);
     steps = toLibrarySteps(progressed.steps);
     changes = progressed.changes;
     name = changes.length || /^(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)$/.test(workout.name.trim()) ? structureName(progressed.steps) : workout.name;
@@ -684,11 +686,53 @@ export function copyWorkout(input: {
   };
 }
 
+/**
+ * +5% / +10% decided for the WEEK, not per session: every session offers the one change a
+ * coach would write for it (`growModel`), and the set whose extra comes closest to the
+ * week's share is taken (ties: more sessions touched, then the earlier ones). So "+5%"
+ * lands near 5% of the week instead of each session rounding up on its own — and a session
+ * that is left alone says "ללא שינוי". Applied `times` times for a multi-week copy.
+ */
+export function balanceWeek(models: Array<BookStep[] | null>, pct: number, refSec: number | null, times = 1): Array<{ steps: BookStep[]; changes: StepChange[] } | null> {
+  let cur = models.map(m => (m ? [...m] : null));
+  for (let k = 0; k < Math.max(1, times); k++) {
+    const total = cur.reduce((sum, m) => sum + (m ? bookTotals(m, refSec).distanceM : 0), 0);
+    const goal = total * pct;
+    const options = cur.map(m => {
+      if (!m) return null;
+      const grown = growModel(m, pct, refSec);
+      if (!grown.changes.length) return null;
+      return { steps: grown.steps, extra: bookTotals(grown.steps, refSec).distanceM - bookTotals(m, refSec).distanceM };
+    });
+    const idx = options.map((o, i) => (o ? i : -1)).filter(i => i >= 0);
+    let best: { mask: number; gap: number; n: number } = { mask: 0, gap: goal, n: 0 };
+    for (let mask = 1; mask < 1 << idx.length; mask++) {
+      let extra = 0, n = 0;
+      idx.forEach((i, b) => { if (mask & (1 << b)) { extra += options[i]!.extra; n += 1; } });
+      const gap = Math.abs(extra - goal);
+      if (gap < best.gap - 1 || (Math.abs(gap - best.gap) <= 1 && n > best.n)) best = { mask, gap, n };
+    }
+    cur = cur.map((m, i) => {
+      const b = idx.indexOf(i);
+      return b >= 0 && best.mask & (1 << b) ? options[i]!.steps : m;
+    });
+  }
+  return cur.map((m, i) => (m && models[i] ? { steps: m, changes: diffMain(models[i]!, m) } : null));
+}
+
 /** A whole week, copied (sorted by day). */
-export function copyWeek(input: Omit<Parameters<typeof copyWorkout>[0], 'workout' | 'dayOfWeek'> & { workouts: ParsedWorkout[] }): CopiedWorkout[] {
-  return [...input.workouts]
-    .sort((a, b) => a.dayOfWeek - b.dayOfWeek || (a.partIndex ?? 0) - (b.partIndex ?? 0))
-    .map(w => copyWorkout({ ...input, workout: w }));
+export function copyWeek(input: Omit<Parameters<typeof copyWorkout>[0], 'workout' | 'dayOfWeek' | 'progressed'> & { workouts: ParsedWorkout[] }): CopiedWorkout[] {
+  const sorted = [...input.workouts].sort((a, b) => a.dayOfWeek - b.dayOfWeek || (a.partIndex ?? 0) - (b.partIndex ?? 0));
+  if (input.mode !== 'plus5' && input.mode !== 'plus10') return sorted.map(w => copyWorkout({ ...input, workout: w }));
+  // The shape is decided once, against the SOURCE's threshold, so every trainee gets the same
+  // sessions; each still gets their own paces below.
+  const ref = input.sourceThresholdSec ?? ESTIMATE_THRESHOLD_SEC;
+  const models = sorted.map(w => {
+    const base = input.sourceThresholdSec ? applyPaceAdjust(w, input.sourceThresholdSec, {}) : w;
+    return fromLibrarySteps(absoluteToLibrary(base.steps, ref).steps);
+  });
+  const plan = balanceWeek(models, share(input.mode), ref, input.times ?? 1);
+  return sorted.map((w, i) => copyWorkout({ ...input, workout: w, progressed: plan[i] }));
 }
 
 export interface CopyCandidate {

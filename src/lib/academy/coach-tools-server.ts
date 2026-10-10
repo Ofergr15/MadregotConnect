@@ -159,6 +159,15 @@ function workReading(row: WorkoutAdherenceRow): { planned: number; actual: numbe
       return { planned: (wp.min + (wp.max || wp.min)) / 2, actual: wp.actual };
     }
   }
+  // The rep search's reading of the WORK band (workPaceOf takes the first verifiable block,
+  // which on a structured session is the warmup): the requirement written at the work band.
+  const work = row.pace.plannedMin
+    ? (row.detail?.efforts?.requirements ?? []).find(q => q.verifiable && q.paces.length > 0
+      && Math.abs(q.paceMin - (row.pace.plannedMin as number)) <= 10)
+    : null;
+  if (work) {
+    return { planned: (work.paceMin + work.paceMax) / 2, actual: work.paces.reduce((a, b) => a + b, 0) / work.paces.length };
+  }
   if (row.pace.actual && row.pace.plannedMin && row.pace.comparedMin != null && row.pace.comparedMin === row.pace.plannedMin) {
     return { planned: (row.pace.plannedMin + (row.pace.plannedMax ?? row.pace.plannedMin)) / 2, actual: row.pace.actual };
   }

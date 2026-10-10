@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { PACE_KINDS, PACE_MEANINGFUL_SEC, type KindEvidence, type PaceKind } from '@/lib/academy/coach-tools';
 import type { PaceSuggestionPayload, PaceUpdateResponse } from '@/lib/academy/coach-tools-payload';
 import { BarButton, CARD, FlowOverlay, FlowScreen, PrimaryButton, RICH, clockText } from '../book/ui';
-import { Segmented, dayMonth, signed } from './shared';
+import { dayMonth, signed } from './shared';
 
 // ── הצעת קצב (mockup academy-coach-tools.html, phone 2) ────────────────────────────────
 //
@@ -67,10 +67,10 @@ export function PaceSuggestionScreen({ suggestion, onClose, onDone }: {
   const changedList = rows.filter(r => r.changed).map(r => t(`kindThe.${r.kind}`)).join(t('waiting.and'));
 
   return (
-    <FlowOverlay label={t('pace.title', { name: first })}>
+    <FlowOverlay label={t.markup('pace.title', { name: first, bdi: (c) => c })}>
       <FlowScreen
         className="gap-3"
-        title={t.rich('pace.title', { ...RICH, name: first })}
+        title={<span className="inline-block">{t.rich('pace.title', { ...RICH, name: first })}</span>}
         leading={<BarButton onClick={onClose}><ChevronRight className="h-5 w-5" />{t('back')}</BarButton>}
         footer={result ? (
           <PrimaryButton onClick={onClose}>{t('close')}</PrimaryButton>
@@ -78,10 +78,10 @@ export function PaceSuggestionScreen({ suggestion, onClose, onDone }: {
           <>
             <PrimaryButton onClick={() => void decide('apply')} busy={busy === 'apply'} disabled={!!busy}>{t('pace.apply')}</PrimaryButton>
             <div className="flex gap-2.5">
-              <PrimaryButton secondary className="flex-1 text-[16px]" onClick={() => void decide('half')} busy={busy === 'half'} disabled={!!busy}>
-                {halves.length === 1 && halves[0] !== 0 ? t.rich('pace.half', { ...RICH, sec: signed(halves[0]) }) : t('pace.halfPlain')}
+              <PrimaryButton secondary className="h-12 flex-1 text-[16px]" onClick={() => void decide('half')} busy={busy === 'half'} disabled={!!busy}>
+                <span>{halves.length === 1 && halves[0] !== 0 ? t.rich('pace.half', { ...RICH, sec: signed(halves[0]) }) : t('pace.halfPlain')}</span>
               </PrimaryButton>
-              <PrimaryButton secondary className="flex-1 text-[16px]" onClick={() => void decide('snooze')} busy={busy === 'snooze'} disabled={!!busy}>
+              <PrimaryButton secondary className="h-12 flex-1 text-[16px]" onClick={() => void decide('snooze')} busy={busy === 'snooze'} disabled={!!busy}>
                 {t('pace.later')}
               </PrimaryButton>
             </div>
@@ -89,37 +89,50 @@ export function PaceSuggestionScreen({ suggestion, onClose, onDone }: {
         )}
       >
         <div>
-          <small className="block text-[14px] font-bold text-ink-400">{t.rich('pace.window', { ...RICH, kind: t(`kind.${ev.kind}`), count: ev.sessions.length })}</small>
+          <div className="flex min-h-[20px] items-center justify-between gap-2">
+            <small className="block text-[14px] font-bold text-ink-400">{t.rich('pace.window', { ...RICH, kind: t(`kind.${ev.kind}`), count: ev.sessions.length })}</small>
+            {/* More than one kind moved: a chip per kind switches the evidence. */}
+            {suggestion.kinds.length > 1 && (
+              <span className="-my-3 flex gap-1" role="radiogroup" aria-label={t('pace.chartLabel', { count: ev.sessions.length })}>
+                {suggestion.kinds.map(k => (
+                  <button
+                    key={k.kind}
+                    type="button"
+                    role="radio"
+                    aria-checked={k.kind === kind}
+                    onClick={() => setKind(k.kind)}
+                    className={cn(
+                      'relative min-h-[32px] rounded-full px-3 text-[13px] font-extrabold after:absolute after:-inset-y-1.5 after:inset-x-0 after:content-[""]',
+                      k.kind === kind ? 'bg-ink-900 text-white' : 'bg-white text-ink-500 shadow-sm',
+                    )}
+                  >
+                    {t(`kind.${k.kind}`)}
+                  </button>
+                ))}
+              </span>
+            )}
+          </div>
           <h2 className="mt-0.5 text-[25px] font-black leading-tight text-ink-900">
             {t.rich(faster ? 'pace.headFaster' : 'pace.headSlower', { ...RICH, sec: Math.abs(ev.deltaSec) })}
           </h2>
         </div>
 
-        {suggestion.kinds.length > 1 && (
-          <Segmented
-            label={t('pace.chartLabel', { count: ev.sessions.length })}
-            value={kind}
-            onChange={setKind}
-            options={suggestion.kinds.map(k => ({ value: k.kind, label: t(`kind.${k.kind}`) }))}
-          />
-        )}
-
-        <div className={cn(CARD, 'px-4 pb-3 pt-4')}>
+        <div className={cn(CARD, 'px-4 pb-3 pt-3')}>
           <EvidenceChart ev={ev} label={t('pace.chartLabel', { count: ev.sessions.length })} planLabel={t('pace.planLine', { pace: '' })} />
-          <p className="mt-3 text-[15px] leading-snug text-ink-700">
+          <p className="mt-2 text-[14.5px] leading-snug text-ink-700">
             {t('pace.higherFaster')}{' '}
             {ev.hr === 'missing' ? t('pace.hrMissing') : faster ? t('pace.hrFlatFaster') : t('pace.hrFlatSlower')}
           </p>
         </div>
 
         <div className={cn(CARD, 'overflow-hidden')}>
-          <div className="grid grid-cols-[1fr_84px_84px] items-center bg-[#F7F7FA] px-4 py-2 text-[13px] font-bold text-ink-400">
+          <div className="grid grid-cols-[1fr_84px_84px] items-center bg-[#F7F7FA] px-4 py-1.5 text-[13px] font-bold text-ink-400">
             <span />
             <span className="text-center">{t('pace.today')}</span>
             <span className="text-center">{t('pace.proposed')}</span>
           </div>
           {rows.map(r => (
-            <div key={r.kind} className="grid min-h-[48px] grid-cols-[1fr_84px_84px] items-center border-t border-[#EFEFF4] px-4">
+            <div key={r.kind} className="grid min-h-[44px] grid-cols-[1fr_84px_84px] items-center border-t border-[#EFEFF4] px-4">
               <b className="text-[16px] font-extrabold text-ink-900">{t(`kind.${r.kind}`)}</b>
               <bdi dir="ltr" className="text-center text-[16px] font-black text-ink-900">{r.today !== null ? clockText(r.today) : '—'}</bdi>
               <bdi dir="ltr" className="text-center text-[16px] font-black" style={{ color: r.changed ? (faster ? GREEN : AMBER) : '#1F2030' }}>
@@ -150,7 +163,7 @@ function ResultCard({ result }: { result: PaceUpdateResponse }) {
     <div className={cn(CARD, 'px-4 py-3')} role="status">
       <b className="block text-[16px] font-extrabold text-[#0E7A3C]">✓ {t('done')}</b>
       <small className="mt-0.5 block text-[14px] text-ink-500">
-        {t('doneWeeks', { count: result.weeks?.length ?? 0 })}{t('doneSent', { count: result.sent ?? 0 })}
+        {t.rich('doneWeeks', { ...RICH, count: result.weeks?.length ?? 0 })}{t.rich('doneSent', { ...RICH, count: result.sent ?? 0 })}
       </small>
       {!result.stored && <small className="mt-1 block text-[13px] text-[#8A4308]">{t.rich('noRecord', RICH)}</small>}
     </div>
@@ -170,7 +183,7 @@ function EvidenceChart({ ev, label, planLabel }: { ev: KindEvidence; label: stri
   const hi = Math.max(...paces) + 4;
   // Faster (fewer seconds) = taller. 40%..100% of the plot, so every bar has room for its label.
   const frac = (pace: number) => 0.4 + 0.6 * ((hi - pace) / Math.max(1, hi - lo));
-  const H = 118;
+  const H = 96;
   const faster = ev.direction === 'faster';
   const lineBottom = frac(plan) * H;
   return (

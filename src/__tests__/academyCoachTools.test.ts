@@ -364,7 +364,25 @@ describe('copy', () => {
     const out = copyWeek({ workouts: [long16, sixBy800], sourceThresholdSec: T, targetThresholdSec: T, mode: 'plus5' });
     expect(out.map((o) => o.workout.dayOfWeek)).toEqual([0, 6]);
     expect(out[0].workout.name).toBe('7 × 800 מ׳');
-    expect(out[1].workout.name).toBe('17 ק״מ ארוכה');
+    // +5% of this 26 km week is ~1.3 km: the extra rep alone is the closest, so the long
+    // run is left as it was (and still gets a name from its shape).
+    expect(out[1].workout.name).toBe('16 ק״מ ארוכה');
+    expect(out[1].changes).toEqual([]);
+  });
+
+  it('+5% / +10% land near that share of the WEEK, not each session rounding up', () => {
+    const fiveBy1k: ParsedWorkout = { dayOfWeek: 2, name: 'שלישי', steps: [run(1, 'warmup', 2000, pace(330)), reps(2, 5, 1000, pace(245, 2, 'interval')), run(3, 'cooldown', 2000, pace(330))] };
+    const week = [sixBy800, fiveBy1k, tempo3x2, long16];
+    const km = (xs: { distanceM: number }[]) => xs.reduce((a, b) => a + b.distanceM, 0);
+    const base = km(copyWeek({ workouts: week, sourceThresholdSec: T, targetThresholdSec: T, mode: 'same' }));
+    for (const [mode, share] of [['plus5', 0.05], ['plus10', 0.1]] as const) {
+      const out = copyWeek({ workouts: week, sourceThresholdSec: T, targetThresholdSec: T, mode });
+      const grew = km(out) / base - 1;
+      expect(Math.abs(grew - share)).toBeLessThan(0.02);
+      // Never a pace: every main pace is what the plain copy gives.
+      const plain = copyWeek({ workouts: week, sourceThresholdSec: T, targetThresholdSec: T, mode: 'same' });
+      out.forEach((o, i) => expect(mainPaceOf(o.workout)).toBe(mainPaceOf(plain[i].workout)));
+    }
   });
 
   it('collisions: whoever already has workouts starts unticked, with the count to replace', () => {

@@ -64,10 +64,12 @@ export function MissedWeekScreen({ missed, thisWeek, onClose, onDone, onTalk }: 
   };
 
   return (
-    <FlowOverlay label={t('missed.title', { name: first, when })}>
+    <FlowOverlay label={t.markup('missed.title', { name: first, when, bdi: (c) => c })}>
       <FlowScreen
         className="gap-3"
-        title={t.rich('missed.title', { ...RICH, name: first, when })}
+        // An atomic box: WebKit measured the bdi-led title a fraction wider than its own line
+        // and drew an ellipsis on "השבוע" in the e2e run.
+        title={<span className="inline-block">{t.rich('missed.title', { ...RICH, name: first, when })}</span>}
         leading={<BarButton onClick={onClose}><ChevronRight className="h-5 w-5" />{t('back')}</BarButton>}
         footer={done
           ? <PrimaryButton onClick={onClose}>{t('close')}</PrimaryButton>

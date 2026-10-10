@@ -3744,8 +3744,8 @@
       "halfPlain": "Half of it",
       "later": "Not now",
       "done": "Paces updated from next week",
-      "doneWeeks": "{count, plural, =0 {No planned sessions yet; new ones get the paces} one {One planned week updated} other {# planned weeks updated}}",
-      "doneSent": "{count, plural, =0 {} one { · one session re-sent to the watch} other { · # sessions re-sent to the watch}}",
+      "doneWeeks": "{count, plural, =0 {No planned sessions yet; new ones get the paces} one {One planned week updated} other {<m>#</m> planned weeks updated}}",
+      "doneSent": "{count, plural, =0 {} one { · one session re-sent to the watch} other { · <m>#</m> sessions re-sent to the watch}}",
       "snoozed": "OK. We'll suggest it again in two weeks, or after a new test.",
       "noRecord": "The planned weeks were updated, but the update was not saved for later (migration <m>139</m> is missing), so the trainee won't see it either.",
       "gone": "This suggestion no longer applies (maybe there was a new test)."
@@ -3786,7 +3786,7 @@
       "whoTitle": "Who",
       "emptyNext": "Next week is empty",
       "emptyAll": "The weeks are empty",
-      "replaces": "{count, plural, one {Already has one session · will be replaced} other {Already has # sessions · will be replaced}}",
+      "replaces": "{count, plural, one {Already has one session · will be replaced} other {Already has <m>#</m> sessions · will be replaced}}",
       "noTest": "No test · gets it without paces",
       "progress": "Progress?",
       "mode": {
@@ -3795,18 +3795,12 @@
         "plus10": "<m>+10%</m> volume",
         "light": "Light week"
       },
-      "modeHint": {
-        "same": "The same week exactly, each at their own paces.",
-        "plus5": "Adds a rep or lengthens, never changes a pace.",
-        "plus10": "Adds a rep or lengthens, never changes a pace.",
-        "light": "<m>70%</m> of the volume, no fast reps."
-      },
-      "continue": "Continue · {count, plural, one {one trainee} other {# trainees}}",
+      "continue": "Continue · {count, plural, one {one trainee} other {<m>#</m> trainees}}",
       "pickSomeone": "Pick a trainee",
       "emptySource": "There are no sessions this week, so there is nothing to copy.",
       "reviewNext": "Next week · <m>{range}</m>",
       "reviewMany": "<m>{n}</m> weeks · <m>{range}</m>",
-      "people": "{count, plural, one {one trainee} other {# trainees}}",
+      "people": "{count, plural, one {one trainee} other {<m>#</m> trainees}}",
       "weekOf": "Week <m>{range}</m>",
       "noChange": "No change",
       "countChange": "<m>{to}</m> reps instead of <m>{from}</m>",
@@ -3823,11 +3817,12 @@
       "sendNow": "Send to the watch now",
       "sendSub": "Or just save it in the plan, and send it later from their week",
       "noTestWarn": "<bdi>{names}</bdi>: no test, so the sessions arrive without paces or pace alerts.",
-      "go": "Copy to {count, plural, one {one trainee} other {# trainees}}",
-      "done": "{count, plural, one {Copied to one trainee} other {Copied to # trainees}}",
+      "go": "Copy to {count, plural, one {one trainee} other {<m>#</m> trainees}}",
+      "done": "{count, plural, one {Copied to one trainee} other {Copied to <m>#</m> trainees}}",
       "doneSent": " · sent to the watch",
-      "doneFailed": "{count, plural, one {One week wasn't saved} other {# weeks weren't saved}}",
-      "weekButton": "Copy the week"
+      "doneFailed": "{count, plural, one {One week wasn't saved} other {<m>#</m> weeks weren't saved}}",
+      "weekButton": "Copy the week",
+      "long": "Long run"
     },
     "card": {
       "title": "<bdi>{coach}</bdi> updated your paces",

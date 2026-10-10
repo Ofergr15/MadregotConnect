@@ -53,7 +53,6 @@ describe('academyTools messages', () => {
     for (const d of ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']) expect(keys.has(`dayOn.${d}`)).toBe(true);
     for (const p of PROGRESSIONS) {
       expect(keys.has(`copy.mode.${p}`)).toBe(true);
-      expect(keys.has(`copy.modeHint.${p}`)).toBe(true);
     }
   });
 

@@ -38,6 +38,20 @@ export function dayMonth(date: string): string {
 
 const HEBREW = /[֐-׿]/;
 
+/**
+ * Text that mixes Hebrew with numbers — a structure name like `7 × 800 מ׳` or `17 ק״מ
+ * ארוכה` — with every run of numbers (and the × between them) in its own LTR isolate, so the
+ * unit stays after the number and `5 × 1` never turns into `1 × 5`.
+ */
+export function Nums({ text }: { text: string }) {
+  const parts = text.split(/(\d[\d.,:]*(?:\s*[×x]\s*\d[\d.,:]*)*(?:\s*[–-]\s*\d[\d.,:]*)?%?)/);
+  return (
+    <bdi>
+      {parts.map((p, i) => (i % 2 ? <bdi key={i} dir="ltr">{p}</bdi> : p))}
+    </bdi>
+  );
+}
+
 export interface Square {
   dayOfWeek: number;
   label: string | null;

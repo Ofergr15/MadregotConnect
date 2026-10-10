@@ -216,7 +216,7 @@ function TraineeStrips({ strips, onOpen }: { strips: TraineeStrip[]; onOpen?: (a
       <div className="mx-1 -mb-0.5 mt-0.5 flex items-baseline justify-between">
         <b className="text-[15px] font-black text-ink-700">{t('title')}</b>
         {strips.length > STRIPS_SHOWN && (
-          <button type="button" onClick={() => setAll((v) => !v)} className="-my-3 min-h-[44px] px-1 text-xs font-extrabold text-brand-600">
+          <button type="button" onClick={() => setAll((v) => !v)} className="-my-3 min-h-[44px] min-w-[44px] px-1 text-xs font-extrabold text-brand-600">
             {all ? t('less') : t('all')}
           </button>
         )}
@@ -308,19 +308,25 @@ const WAITING_ICON: Record<WaitingKind, { icon: React.ComponentType<{ className?
   copy: { icon: Copy, cls: 'bg-[#ECEBFF] text-[#5B21D6]' },
 };
 
+const TOOL_KINDS = new Set<WaitingKind>(['pace', 'missed', 'copy']);
+
 function WaitingRow({ item, onClick }: { item: WaitingItem; onClick: () => void }) {
   const { icon: Icon, cls } = WAITING_ICON[item.kind];
   const age = ageLabel(item.ageHours);
+  // The coach tools' rows explain themselves in a sentence (the mockup's phone 1), so they
+  // wrap to two lines instead of cutting it off. RTL, not auto: a sentence that opens with a
+  // Latin name ("Shahar מהיר מהתוכנית…") would otherwise be laid out left to right.
+  const tool = TOOL_KINDS.has(item.kind);
   return (
     <button type="button" onClick={onClick}
-      className="flex h-[58px] w-full items-center gap-2.5 border-b border-page/70 px-3 text-start last:border-0 active:bg-page/40">
+      className={cn('flex w-full items-center gap-2.5 border-b border-page/70 px-3 text-start last:border-0 active:bg-page/40', tool ? 'min-h-[58px] py-2' : 'h-[58px]')}>
       <span className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-xl', cls)}><Icon className="h-[18px] w-[18px]" /></span>
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-1.5">
-          <b className="truncate text-sm font-extrabold text-ink-700" dir="auto">{item.title}</b>
+          <b className={cn('text-sm font-extrabold text-ink-700', tool ? 'line-clamp-2 leading-tight' : 'truncate')} dir={tool ? 'rtl' : 'auto'}>{item.title}</b>
           {age && <bdi className="shrink-0 rounded-md bg-page/70 px-1.5 text-3xs font-extrabold text-ink-400">{age}</bdi>}
         </span>
-        <small className="block truncate text-2xs text-ink-400" dir="auto">{item.sub}</small>
+        <small className={cn('block text-2xs text-ink-400', tool ? 'mt-0.5 line-clamp-2 leading-snug' : 'truncate')} dir={tool ? 'rtl' : 'auto'}>{item.sub}</small>
       </span>
       <span className="shrink-0 rounded-xl bg-brand-600/10 px-3 py-2 text-[12.5px] font-extrabold text-brand-600">{item.action}</span>
     </button>

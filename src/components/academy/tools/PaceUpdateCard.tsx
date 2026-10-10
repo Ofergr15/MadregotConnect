@@ -21,7 +21,7 @@ export function PaceUpdateCard({ card }: { card: Card }) {
     <section
       className="flex gap-3 rounded-[20px] border-2 bg-white px-3.5 py-3"
       style={{ borderColor: faster ? '#1FA55B' : '#E8892B' }}
-      aria-label={coach ? t('card.title', { coach }) : t('card.titleNoName')}
+      aria-label={coach ? t.markup('card.title', { coach, bdi: (c) => c }) : t('card.titleNoName')}
     >
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: faster ? '#E5F6EC' : '#FDF0E2', color: faster ? '#0E7A3C' : '#8A4308' }}>
         {faster ? <ArrowUp className="h-5 w-5" strokeWidth={3} /> : <ArrowDown className="h-5 w-5" strokeWidth={3} />}

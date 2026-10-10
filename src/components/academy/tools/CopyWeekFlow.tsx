@@ -6,13 +6,13 @@ import { Check, ChevronRight } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import {
-  PROGRESSIONS, copyDefaults, copyWeek, mainPaceOf, squareLabel, targetWeeks, type CopiedWorkout, type Progression,
+  PROGRESSIONS, copyDefaults, copyWeek, isLongRun, mainPaceOf, squareLabel, targetWeeks, type CopiedWorkout, type Progression,
 } from '@/lib/academy/coach-tools';
 import { ESTIMATE_THRESHOLD_SEC } from '@/lib/academy/book-steps';
 import type { CopyWeekCandidate, CopyWeekResponse } from '@/lib/academy/coach-tools-payload';
 import { BarButton, CARD, FlowOverlay, FlowScreen, PrimaryButton, RICH, SectionLabel, clockText, initials, kmText } from '../book/ui';
 import { WEEKDAY_KEYS } from '../book/WeekBoard';
-import { ChangeWords, Segmented, WeekSquares, signed, weekRange } from './shared';
+import { ChangeWords, Nums, Segmented, WeekSquares, signed, weekRange } from './shared';
 
 // ── להעתיק שבוע (mockup academy-coach-tools.html, phones 4 and 5) ───────────────────────
 //
@@ -127,12 +127,12 @@ export function CopyWeekFlow({ athleteId, weekStart, preselect, onClose, onDone 
     return (
       <FlowOverlay label={t('copy.title')}>
         <FlowScreen
-          className="gap-3"
+          className="gap-2.5"
           title={t('copy.title')}
           leading={<BarButton onClick={onClose}>{t('cancel')}</BarButton>}
           footer={(
             <PrimaryButton onClick={() => setStep('review')} disabled={!chosen.length || !src.workouts.length}>
-              {chosen.length ? t('copy.continue', { count: chosen.length }) : t('copy.pickSomeone')}
+              <span>{chosen.length ? t.rich('copy.continue', { ...RICH, count: chosen.length }) : t('copy.pickSomeone')}</span>
             </PrimaryButton>
           )}
         >
@@ -179,14 +179,13 @@ export function CopyWeekFlow({ athleteId, weekStart, preselect, onClose, onDone 
           </div>
 
           <SectionLabel>{t('copy.progress')}</SectionLabel>
-          <div className={cn(CARD, 'p-2')}>
+          <div className={cn(CARD, 'p-1.5')}>
             <Segmented
               label={t('copy.progress')}
               value={mode}
               onChange={setMode}
               options={PROGRESSIONS.map(p => ({ value: p, label: t.rich(`copy.mode.${p}`, RICH) }))}
             />
-            <small className="mt-1.5 block px-2 pb-0.5 text-[13px] text-ink-400">{t.rich(`copy.modeHint.${mode}`, RICH)}</small>
           </div>
         </FlowScreen>
       </FlowOverlay>
@@ -202,6 +201,14 @@ export function CopyWeekFlow({ athleteId, weekStart, preselect, onClose, onDone 
   const noTest = chosen.filter(c => !c.thresholdSec && c.id !== src.id).map(c => c.name.split(' ')[0]);
   const range = weeks.length > 1 ? `${weekRange(weeks[0]).split('–')[0]}–${weekRange(weeks[weeks.length - 1]).split('–')[1]}` : weekRange(weeks[0]);
   const modeWord = t.rich(`copy.mode.${mode}`, RICH);
+  // The row says which session it is the way the squares do (`6×800`, `טמפו`, `ארוכה`); the
+  // words under it say what changed.
+  const sourceSorted = [...src.workouts].sort((a, b) => a.dayOfWeek - b.dayOfWeek || (a.partIndex ?? 0) - (b.partIndex ?? 0));
+  const rowLabel = (i: number) => {
+    const w = sourceSorted[i];
+    if (!w) return '';
+    return isLongRun(w, ref) ? t('copy.long') : squareLabel(w, ref);
+  };
 
   return (
     <FlowOverlay label={t('copy.title')}>
@@ -211,20 +218,20 @@ export function CopyWeekFlow({ athleteId, weekStart, preselect, onClose, onDone 
         leading={done ? undefined : <BarButton onClick={() => setStep('where')}><ChevronRight className="h-5 w-5" />{t('back')}</BarButton>}
         footer={done
           ? <PrimaryButton onClick={onClose}>{t('close')}</PrimaryButton>
-          : <PrimaryButton onClick={() => void submit()} busy={busy}>{t('copy.go', { count: chosen.length })}</PrimaryButton>}
+          : <PrimaryButton onClick={() => void submit()} busy={busy}><span>{t.rich('copy.go', { ...RICH, count: chosen.length })}</span></PrimaryButton>}
       >
-        <small className="-mb-1 block text-[14px] font-bold text-ink-400">{modeWord} · {t('copy.people', { count: chosen.length })}</small>
+        <small className="-mb-1 block text-[14px] font-bold text-ink-400">{modeWord} · {t.rich('copy.people', { ...RICH, count: chosen.length })}</small>
 
         <div className={cn(CARD, 'overflow-hidden')}>
           <div className="flex items-center bg-[#F7F7FA] px-4 py-2 text-[13px] font-bold text-ink-400">
             <span className="flex-1" />
-            {cols.map(c => <bdi key={c.id} className="w-[64px] shrink-0 truncate text-center">{c.name.split(' ')[0]}</bdi>)}
+            {cols.map(c => <bdi key={c.id} className="w-[58px] shrink-0 truncate text-center">{c.name.split(' ')[0]}</bdi>)}
           </div>
           {lead.map((w, i) => (
             <div key={`${w.workout.dayOfWeek}-${i}`} className="flex min-h-[60px] items-center border-t border-[#EFEFF4] px-4 py-2.5">
               <span className="min-w-0 flex-1 pe-2">
                 <b className="block text-[15.5px] font-extrabold leading-tight text-ink-900">
-                  {tb(`dayShort.${WEEKDAY_KEYS[w.workout.dayOfWeek]}`)} · <bdi>{w.workout.name}</bdi>
+                  {tb(`dayShort.${WEEKDAY_KEYS[w.workout.dayOfWeek]}`)} · <Nums text={rowLabel(i)} />
                 </b>
                 <small className="mt-0.5 block text-[13.5px] leading-snug text-ink-500"><ChangeWords changes={w.changes} /></small>
               </span>
@@ -232,7 +239,7 @@ export function CopyWeekFlow({ athleteId, weekStart, preselect, onClose, onDone 
                 const own = firstWeek[ci]?.[i];
                 const p = own?.paced ? mainPaceOf(own.workout) : null;
                 return (
-                  <bdi key={c.id} dir="ltr" className={cn('w-[64px] shrink-0 text-center text-[16px] font-black', p ? 'text-ink-900' : 'text-[13px] font-bold text-ink-400')}>
+                  <bdi key={c.id} dir="ltr" className={cn('w-[58px] shrink-0 text-center text-[16px] font-black', p ? 'text-ink-900' : 'text-[13px] font-bold text-ink-400')}>
                     {p ? clockText(p) : t('copy.noPace')}
                   </bdi>
                 );
@@ -279,8 +286,8 @@ export function CopyWeekFlow({ athleteId, weekStart, preselect, onClose, onDone 
 
         {done && (
           <p className={cn(CARD, 'px-4 py-3 text-[16px] font-extrabold', done.failed ? 'text-[#8A4308]' : 'text-[#0E7A3C]')} role="status">
-            {done.ok > 0 && <>✓ {t('copy.done', { count: done.ok })}{done.sent && t('copy.doneSent')}</>}
-            {done.failed > 0 && <> {t('copy.doneFailed', { count: done.failed })}</>}
+            {done.ok > 0 && <>✓ {t.rich('copy.done', { ...RICH, count: done.ok })}{done.sent && t('copy.doneSent')}</>}
+            {done.failed > 0 && <> {t.rich('copy.doneFailed', { ...RICH, count: done.failed })}</>}
           </p>
         )}
       </FlowScreen>
@@ -303,7 +310,7 @@ function CandidateRow({ c, on, replaces, many, onToggle }: {
       tabIndex={0}
       onClick={onToggle}
       onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onToggle(); } }}
-      className="flex min-h-[64px] cursor-pointer items-center gap-3 border-b border-[#EFEFF4] px-4 py-2.5 last:border-0"
+      className="flex min-h-[56px] cursor-pointer items-center gap-3 border-b border-[#EFEFF4] px-4 py-1.5 last:border-0"
     >
       <span className={cn('grid h-[26px] w-[26px] shrink-0 place-items-center rounded-lg border-2 text-white', on ? 'border-brand-600 bg-brand-600' : 'border-ink-300')}>
         {on && <Check className="h-4 w-4" strokeWidth={3.5} />}
@@ -312,7 +319,7 @@ function CandidateRow({ c, on, replaces, many, onToggle }: {
       <span className="min-w-0 flex-1">
         <b className="block truncate text-[16.5px] font-extrabold text-ink-900"><bdi>{c.name}</bdi></b>
         <small className={cn('mt-0.5 block text-[13.5px]', replaces ? 'font-bold text-[#8A4308]' : 'text-ink-400')}>
-          {replaces ? t('replaces', { count: replaces }) : many ? t('emptyAll') : t('emptyNext')}
+          {replaces ? t.rich('replaces', { ...RICH, count: replaces }) : many ? t('emptyAll') : t('emptyNext')}
           {!c.thresholdSec && <> · {t('noTest')}</>}
         </small>
       </span>
