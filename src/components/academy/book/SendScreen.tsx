@@ -168,7 +168,7 @@ export function SendScreen({ data, draft, day, primary, onBack, onClose }: {
                       {result ? <ResultLine result={result} />
                         : o.busy ? t('busyThatDay', { day })
                           : !o.thresholdSec ? (
-                            <Link href={academyTestUrl({ recipientIsStaff: true })} onClick={e => e.stopPropagation()} className="font-bold text-[#8A4308]">
+                            <Link href={academyTestUrl({ recipientIsStaff: true })} onClick={e => e.stopPropagation()} className="relative font-bold text-[#8A4308] after:absolute after:inset-x-0 after:-inset-y-3 after:content-['']">
                               {t('noTestOther')} ›
                             </Link>
                           )

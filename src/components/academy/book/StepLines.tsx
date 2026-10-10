@@ -178,7 +178,11 @@ export function StepLines({
               {line.parts.map((part, j) => {
                 const prev = line.parts[j - 1];
                 const space = j > 0 && !(prev && 'glue' in prev && prev.glue) ? ' ' : '';
-                if (!('field' in part)) return <span key={j}>{space}{part.text}</span>;
+                // The `×` between two numbers gets air on both sides, so the count's tap
+                // halo and the rep length's do not meet over it.
+                if (!('field' in part)) {
+                  return <span key={j}>{space}<span className={part.text === '×' && editable ? 'mx-1' : undefined}>{part.text}</span></span>;
+                }
                 if (!editable) {
                   return <span key={j}>{space}<N className="font-extrabold">{part.text}</N></span>;
                 }
@@ -194,8 +198,10 @@ export function StepLines({
                       aria-pressed={on}
                       className={cn(
                         // The visible number stays the mockup's size; the after-element makes
-                        // the tap target 44px without moving the sentence.
-                        'relative inline-block px-0.5 font-black text-brand-600 after:absolute after:left-1/2 after:top-1/2 after:h-11 after:w-[max(100%,40px)] after:-translate-x-1/2 after:-translate-y-1/2 after:content-[""]',
+                        // the tap target 48px (44 plus the probe's margin) without moving the
+                        // sentence. A later number's halo paints over an earlier one's, so two
+                        // numbers a `×` apart still each own the side facing the other.
+                        'relative inline-block px-0.5 font-black text-brand-600 after:absolute after:left-1/2 after:top-1/2 after:h-12 after:w-[max(100%+8px,48px)] after:-translate-x-1/2 after:-translate-y-1/2 after:content-[""]',
                         on ? 'rounded-[7px] bg-brand-600 px-[7px] text-white' : 'border-b-[2.5px] border-brand-600',
                       )}
                     >

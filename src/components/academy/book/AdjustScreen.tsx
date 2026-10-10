@@ -113,9 +113,10 @@ export function AdjustScreen({
                 <small className="mb-1.5 block text-[12.5px] font-bold text-ink-400">{t(`quick.${ref.field}`)}</small>
                 <div className="flex items-center justify-between">
                   <StepperButton sign={-1} onClick={() => nudge(ref, -1)} />
-                  <button type="button" onClick={() => setWheel(ref)} className="shrink-0 text-[19px] font-black tracking-tight text-ink-900" aria-label={t('a11y.openWheel')}>
-                    <N>{fieldDisplay(model, ref, T)}</N>
-                  </button>
+                  {/* Not a button: three cells share 354px, and a third target between the
+                      two 44px halos would be a target nobody can hit. The wheel for these is
+                      a second tap on the same number in the sentences below. */}
+                  <N className="shrink-0 text-[19px] font-black tracking-tight text-ink-900">{fieldDisplay(model, ref, T)}</N>
                   <StepperButton sign={1} onClick={() => nudge(ref, 1)} />
                 </div>
               </div>
