@@ -319,7 +319,11 @@ export default function HomePage() {
   // twice. Android shares the login with Chrome and a computer installs nothing,
   // so neither is held. An existing Safari session is not affected: `checking`
   // has already sent a signed-in member on to the feed.
-  if (!checking && installFirst && !browserEscape) {
+  // Only once they ask to SIGN IN (the sheet below): the landing is also where a
+  // newcomer arrives to register, and holding a full-screen install guide in front
+  // of someone who hasn't joined yet blocks the "מצטרפים למועדון" button
+  // (integration of the 2026-10-10 journey pass).
+  if (!checking && installFirst && showSignIn && !browserEscape) {
     return <InstallGuide canPrompt={false} onLater={() => {}} blocking onEscape={() => setBrowserEscape(true)} />;
   }
 

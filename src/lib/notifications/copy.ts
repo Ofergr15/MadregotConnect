@@ -559,8 +559,8 @@ export function approvalCopy(locale: NotificationLocale, p: { name: string | nul
   const who = (p.name || '').trim();
   return locale === 'he'
     ? {
-        title: `${who}, אושרת! 🎉`,
-        body: 'ההרשמה שלך אושרה — היכנס/י כדי לראות את תוכנית האימונים שלך',
+        title: who ? `${who}, ההרשמה אושרה! 🎉` : 'ההרשמה אושרה! 🎉',
+        body: 'נכנסים לאפליקציה ורואים את תוכנית האימונים',
       }
     : {
         title: `${who}, you're approved! 🎉`,

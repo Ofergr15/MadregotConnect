@@ -38,7 +38,7 @@ describe('the WhatsApp send after approval', () => {
   });
 
   it('greets by first name', () => {
-    expect(approvalWhatsAppText('L', 'דבוקה 2', 'נועה לוי').split('\n')[0]).toBe('היי נועה! 👋 כאן ממדרגות. אושרת להצטרף, דבוקה 2 🎉');
-    expect(approvalWhatsAppText('L', null, null).split('\n')[0]).toBe('היי! 👋 כאן ממדרגות. אושרת להצטרף 🎉');
+    expect(approvalWhatsAppText('L', 'קבוצה 2', 'נועה לוי').split('\n')[0]).toBe('היי נועה! 👋 כאן ממדרגות. ההרשמה אושרה, קבוצה 2 🎉');
+    expect(approvalWhatsAppText('L', null, null).split('\n')[0]).toBe('היי! 👋 כאן ממדרגות. ההרשמה אושרה 🎉');
   });
 });

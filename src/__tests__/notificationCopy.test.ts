@@ -172,8 +172,8 @@ describe('Hebrew output is byte-identical to the pre-refactor call sites', () =>
 
   it('approval (api/admin/approve)', () => {
     expect(approvalCopy('he', { name: 'דנה' })).toEqual({
-      title: 'דנה, אושרת! 🎉',
-      body: 'ההרשמה שלך אושרה — היכנס/י כדי לראות את תוכנית האימונים שלך',
+      title: 'דנה, ההרשמה אושרה! 🎉',
+      body: 'נכנסים לאפליקציה ורואים את תוכנית האימונים',
     });
   });
 

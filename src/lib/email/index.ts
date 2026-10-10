@@ -3,7 +3,7 @@ import { joinLinkV2 } from '@/lib/install/flag';
 import { openInAppHref } from '@/lib/open-in-app';
 import { renderEmail, renderSetupProgress, renderJourney, renderSteps, renderScanOnPhone, renderTip, renderNextUp, esc, type SetupProgressRow } from './template';
 import { gapNames } from '@/lib/notifications/copy';
-import { resolveGroup } from '@/lib/utils';
+import { memberGroupName } from '@/lib/utils';
 import { sendEmail, type SendResult } from './send';
 import { renderAcademyFormReceived } from './academy-form-received';
 import { newApplicantSubject, renderAcademyNewApplicant } from './academy-new-applicant';
@@ -41,10 +41,7 @@ const firstName = (name?: string | null) => (name || '').trim().split(/\s+/)[0] 
  * (groupDisplayName is the app's canonical — English — label). A squad the club has
  * named something else ("SUB 2:30" maps to its number; anything unknown) keeps its name.
  */
-export function memberGroupName(name?: string | null): string {
-  const g = resolveGroup(name);
-  return g.index >= 0 ? `קבוצה ${g.index + 1}` : (name || '').trim();
-}
+export { memberGroupName };
 
 // ── Legacy Google/Garmin onboarding ──────────────────────────────────────────────
 
@@ -372,18 +369,18 @@ export async function notifyAthleteClaim(claim: {
     athleteId: claim.athleteId ?? null,
     html: renderEmail({
       eyebrow: 'אישור חיבור חשבון',
-      title: 'זה אתה?',
+      title: 'זה אתם?',
       // No name here either, for the same reason it stays out of the subject: the
       // preview line is shown on a locked screen.
-      preheader: 'התחברות דרך Strava מבקשת להתחבר לחשבון שלך. אם זה לא אתה — אין מה לעשות.',
+      preheader: 'התחברות דרך Strava מבקשת להתחבר לחשבון שלכם. אם זה לא אתם, אין מה לעשות.',
       paragraphs: [
-        `התחברות חדשה דרך Strava${who ? ` בשם ${who}` : ''} מבקשת להתחבר לחשבון שלך במדרגות${
+        `התחברות חדשה דרך Strava${who ? ` בשם ${who}` : ''} מבקשת להתחבר לחשבון שלכם במדרגות${
           claim.targetName ? ` (${claim.targetName})` : ''
         }.`,
-        'אם זה אתה — הקישור למטה יחבר את השניים לחשבון אחד: כל האימונים, הדבוקה וההיסטוריה שלך יישארו איתך, ותוכל להיכנס דרך Strava מעכשיו.',
-        'אם זה לא אתה — אין שום צורך לעשות דבר. בלי הקישור הזה שום דבר לא קורה, והוא נכבה מעצמו אחרי חצי שעה.',
+        'אם זה אתם, הקישור למטה יחבר את השניים לחשבון אחד: כל האימונים, הקבוצה וההיסטוריה נשארים, ומעכשיו אפשר להיכנס גם דרך Strava.',
+        'אם זה לא אתם, אין צורך לעשות דבר. בלי הקישור הזה שום דבר לא קורה, והוא נכבה מעצמו אחרי חצי שעה.',
       ],
-      cta: { label: 'כן, זה אני — לחיבור →', href: `${APP_URL}/claim/${claim.token}` },
+      cta: { label: 'כן, זה אני · לחיבור ←', href: `${APP_URL}/claim/${claim.token}` },
       notes: ['הקישור חד-פעמי, אישי, ותקף לחצי שעה. אל תעבירו אותו לאף אחד.'],
     }),
   });
