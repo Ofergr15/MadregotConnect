@@ -790,13 +790,43 @@ export default function WeeklyPlannerPage() {
   // groupedPlans is re-derived from this immediately after every edit so
   // saving/pushing/Clipboard Studio (all still genuinely per-group) keep
   // working against correct, current data.
+  // An edit confirmed in the workout editor is written to the plan right away.
+  // It used to live only in this screen's state until "save draft" or publish, so
+  // leaving the app after editing a session threw the edit away. Only the workouts
+  // are sent — never a status — so a published week stays published. Saves run one
+  // after another, so a slow earlier save can't land after (and undo) a later one.
+  const persistQueue = useRef<Promise<void>>(Promise.resolve());
+  const persistPlan = (next: GroupedWeeklyPlans) => {
+    if (!savedPlanId) return;
+    const planId = savedPlanId;
+    persistQueue.current = persistQueue.current.then(async () => {
+      try {
+        const res = await fetch('/api/plans', {
+          method: 'PUT',
+          headers: await bearerHeaders(),
+          body: JSON.stringify({ plan_id: planId, parsed_workouts: next }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || t('errors.failedToSaveDraft'));
+        }
+        setLastSavedAt(new Date());
+        setWeekPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, parsed_workouts: next } : p)));
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : t('errors.failedToSaveDraft'));
+      }
+    });
+  };
+
   const handleWorkoutChange = (index: number, workout: ParsedWorkout) => {
     if (!parsedPlan || !groupedPlans) return;
     const newWorkouts = [...parsedPlan.workouts];
     newWorkouts[index] = workout;
     const updatedUnified = { ...parsedPlan, workouts: newWorkouts };
+    const nextGrouped = applyUnifiedEditsToGroups(groupedPlans, updatedUnified);
     setParsedPlan(updatedUnified);
-    setGroupedPlans(applyUnifiedEditsToGroups(groupedPlans, updatedUnified));
+    setGroupedPlans(nextGrouped);
+    persistPlan(nextGrouped);
   };
 
   // Clipboard Studio edits ONE group's already-split, publish-ready steps
@@ -809,7 +839,9 @@ export default function WeeklyPlannerPage() {
     const groupKey = `group${activeGroup}` as keyof GroupedWeeklyPlans;
     const newWorkouts = [...groupedPlans[groupKey].workouts];
     newWorkouts[workoutIndex] = workout;
-    setGroupedPlans({ ...groupedPlans, [groupKey]: { workouts: newWorkouts } });
+    const nextGrouped = { ...groupedPlans, [groupKey]: { workouts: newWorkouts } };
+    setGroupedPlans(nextGrouped);
+    persistPlan(nextGrouped);
   };
 
   /**
@@ -832,6 +864,7 @@ export default function WeeklyPlannerPage() {
       next[key] = { workouts };
     }
     setGroupedPlans(next);
+    persistPlan(next);
   };
 
   const loadClipboardPreview = useCallback(async (workout: ParsedWorkout) => {
