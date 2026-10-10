@@ -7,6 +7,7 @@ import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
 import { paceGroupKeyFor } from '@/lib/plans/pace-group';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { pushWeekToAthlete } from '@/lib/garmin/push-week';
+import { appleCandidates, deliverWeek, resolveWatchProvider, type WatchProvider } from '@/lib/watch';
 import type { ParsedWorkout } from '@/lib/ai/types';
 
 /**
@@ -50,6 +51,11 @@ interface WatchState {
   hasPlan: boolean;
   /** Dates (YYYY-MM-DD) Garmin has CONFIRMED. 'pending' is deliberately not here. */
   onWatch: string[];
+  /**
+   * Where this athlete's workouts go (lib/watch). 'apple' only for an athlete with
+   * no Garmin link and a registered iPhone app; additive, nothing renders it yet.
+   */
+  provider: WatchProvider;
 }
 
 /**
@@ -65,6 +71,7 @@ async function readWatchState(
   weekStartDate: string,
   hasPlan: boolean,
   garminConnected: boolean,
+  provider: WatchProvider = 'garmin',
 ): Promise<WatchState> {
   const weekEnd = new Date(weekStartDate);
   weekEnd.setDate(weekEnd.getDate() + 6);
@@ -83,6 +90,7 @@ async function readWatchState(
     weekStartDate,
     hasPlan,
     onWatch: [...new Set((data || []).map((r: { workout_date: string }) => r.workout_date))].sort(),
+    provider,
   };
 }
 
@@ -111,12 +119,26 @@ async function loadContext(athleteId: string) {
   return { supabase, weekStartDate, athlete, plan };
 }
 
+/**
+ * Garmin when the row says so — decided without a query, as before. Otherwise the
+ * Apple lookup, which is an empty answer until migration 136 is applied.
+ */
+async function providerFor(
+  supabase: ReturnType<typeof createServerClient>,
+  athlete: { id: string; name?: string | null; garmin_auth?: unknown } | null,
+): Promise<WatchProvider> {
+  if (!athlete) return 'garmin';
+  const target = { id: athlete.id, name: athlete.name || '', garmin_auth: athlete.garmin_auth };
+  return resolveWatchProvider(target, await appleCandidates(supabase, [target]));
+}
+
 export async function GET(request: Request) {
   try {
     const auth = await requireAthlete(request);
     if (!auth.ok) return authError(auth);
 
     const { supabase, weekStartDate, athlete, plan } = await loadContext(auth.user.athleteId);
+    const provider = await providerFor(supabase, athlete);
 
     return NextResponse.json(
       await readWatchState(
@@ -127,6 +149,7 @@ export async function GET(request: Request) {
         // Never the token itself, not even a truncation of it — the credential is
         // encrypted at rest and a boolean is the whole of what a client needs.
         !!athlete?.garmin_auth,
+        provider,
       ),
     );
   } catch (error) {
@@ -142,7 +165,8 @@ export async function POST(request: Request) {
 
     const { supabase, weekStartDate, athlete, plan } = await loadContext(auth.user.athleteId);
 
-    if (!athlete?.garmin_auth) {
+    const provider = await providerFor(supabase, athlete);
+    if (!athlete?.garmin_auth && provider !== 'apple') {
       return NextResponse.json({ error: 'garmin-not-connected' }, { status: 409 });
     }
     if (!plan?.parsed_workouts) {
@@ -180,7 +204,18 @@ export async function POST(request: Request) {
     const { paceAlerts } = await loadAcademySettings();
     const paceTarget = !!(athlete as { is_academy?: boolean }).is_academy && paceAlerts;
 
-    const result = await pushWeekToAthlete({
+    // Garmin exactly as before; Apple queues the week for the athlete's iPhone app.
+    const result = provider === 'apple'
+      ? await deliverWeek('apple', {
+        supabase,
+        athlete: athlete as any,
+        plannedWorkouts,
+        weekStartDate,
+        planId: plan.id,
+        paceTarget,
+        notify: false,
+      })
+      : await pushWeekToAthlete({
       supabase,
       athlete: athlete as any,
       plannedWorkouts,
@@ -201,7 +236,7 @@ export async function POST(request: Request) {
     // The fresh truth, read back rather than assumed, so the card redraws from
     // what `workout_deliveries` actually says after the push.
     return NextResponse.json(
-      await readWatchState(supabase, auth.user.athleteId, weekStartDate, true, true),
+      await readWatchState(supabase, auth.user.athleteId, weekStartDate, true, !!athlete?.garmin_auth, provider),
     );
   } catch (error: any) {
     console.error('my-watch push error:', error);

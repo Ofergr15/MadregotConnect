@@ -4,6 +4,7 @@ import { subscriptionsForAthletes, sendPushLocalized } from '@/lib/push';
 import { workoutDetectedCopy } from '@/lib/notifications/copy';
 import { israelNow, israelToday, getPlanWeekStart } from '@/lib/utils';
 import { cronPaused } from '@/lib/cron-pause';
+import { pullRecentActivities } from '@/lib/watch/pull';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -63,16 +64,11 @@ async function run(request: Request) {
   // 1) Pull fresh Garmin activities now (suppress the sync's own feedback nudge —
   //    we send the morning teaser instead). Reuse the existing sync handler.
   //    Skipped in dry-run so a test never triggers a live Garmin fetch.
+  //    Per provider (lib/watch/pull.ts): Garmin is pulled here; Apple runs are
+  //    uploaded by the athlete's phone and are already in the table below.
   let synced: unknown = null;
   if (!dryRun) {
-    try {
-      const { runSyncRequest: syncPost } = await import('../../garmin/sync-activities/route');
-      synced = await syncPost(new Request('http://internal/sync', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ suppressPush: true }),
-      })).then(r => r.json()).catch(() => null);
-    } catch { /* sync best-effort — we still scan the DB below */ }
+    synced = (await pullRecentActivities({ suppressPush: true })).garmin ?? null;
   }
 
   // 2) Ledger helpers — at-most-once per activity, namespaced by kind+tag.

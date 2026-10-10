@@ -9,6 +9,7 @@ import { notifyStaff } from '@/lib/notifications/staff';
 import { shouldTellAthlete } from '@/lib/garmin/delivery-failure';
 import { authError, requireSession } from '@/lib/auth-session';
 import { pushWeekToAthlete, type PushResult } from '@/lib/garmin/push-week';
+import { appleCandidates, deliverWeek, resolveWatchProvider } from '@/lib/watch';
 
 // One request carries a whole pace group — every athlete in it, up to 7 workouts
 // each — and each workout costs two serial Garmin calls plus a read-back per
@@ -105,6 +106,12 @@ export async function POST(req: NextRequest) {
     // Academy pace-zone alerts are on by default but coach-toggleable in settings.
     const { paceAlerts } = await loadAcademySettings();
 
+    // Which watch each athlete's week goes to (lib/watch). An athlete with a Garmin
+    // link is decided off their row alone and goes down the exact path below; only
+    // athletes WITHOUT one are looked up for an Apple device — an empty set before
+    // migration 136, so until then every athlete is routed as before.
+    const appleIds = await appleCandidates(supabase, found);
+
     const deliver = async ({ athlete, plannedWorkouts }: (typeof tasks)[number]) => {
       // Three conditions, all required, and the request can only ever remove
       // one: the athlete is in the academy, the coach hasn't turned alerts off
@@ -115,15 +122,28 @@ export async function POST(req: NextRequest) {
       // The delivery itself lives in lib/garmin/push-week.ts — the athlete's own
       // one-tap push (POST /api/my-watch) calls the same function, so there is one
       // set of rules about when a delivery may be called a success.
-      const result = await pushWeekToAthlete({
-        supabase,
-        athlete: athlete as any,
-        plannedWorkouts: plannedWorkouts as ParsedWorkout[],
-        weekStartDate,
-        planId: planId || null,
-        paceTarget,
-        cleanDayOnce: auth.user.isSuperUser,
-      });
+      //
+      // Apple has no account to write to: its "delivery" queues the week for the
+      // athlete's iPhone app to collect (lib/watch/providers/apple.ts).
+      const provider = resolveWatchProvider(athlete, appleIds);
+      const result: PushResult = provider === 'apple'
+        ? await deliverWeek('apple', {
+          supabase,
+          athlete,
+          plannedWorkouts: plannedWorkouts as ParsedWorkout[],
+          weekStartDate,
+          planId: planId || null,
+          paceTarget,
+        })
+        : await pushWeekToAthlete({
+          supabase,
+          athlete: athlete as any,
+          plannedWorkouts: plannedWorkouts as ParsedWorkout[],
+          weekStartDate,
+          planId: planId || null,
+          paceTarget,
+          cleanDayOnce: auth.user.isSuperUser,
+        });
       results.push(result);
 
       // Tell the ATHLETE, but only when the failure is theirs to fix.
