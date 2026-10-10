@@ -5,13 +5,10 @@ import { addDaysToDateStr, israelToday, planWeekStartOf, shiftWeekStart } from '
 import { computeAcademyWeekAdherence, computeAthleteWeekHistory, sundayOf } from '@/lib/academy/report';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
-import { readCharacterization } from '@/lib/academy/characterization';
 import { toBand } from '@/lib/academy/bands';
 import { thresholdPaceSec } from '@/lib/academy/tests';
 import { loadPaceUpdateCard } from '@/lib/academy/coach-tools-server';
-import { traineeUnreadCount } from '@/lib/academy/thread-server';
-import { getStreamServerClient } from '@/lib/stream/server';
-import { coachIdsOf } from '@/lib/academy/trainee-coaches';
+import { loadCoachRows, loadGoalCharacterization, loadTraineeUnread } from '@/lib/academy/me-reads';
 import {
   goalCard,
   journeyPlanStats,
@@ -162,36 +159,12 @@ export async function GET(request: Request) {
             .maybeSingle<{ garmin_auth: unknown }>()
           : res)),
       // All their coaches (a shared trainee has several), legacy first.
-      (async () => {
-        const ids = await coachIdsOf(supabase, athleteId, me.academy_coach_id ?? null);
-        if (!ids.length) return { data: [] as Array<{ id: string; name: string; avatar_url: string | null }>, error: null };
-        const { data, error } = await supabase.from('athletes').select('id, name, avatar_url').in('id', ids);
-        const rows = (error ? [] : (data || [])) as Array<{ id: string; name: string; avatar_url: string | null }>;
-        const byId = new Map(rows.map((r) => [r.id, r]));
-        return { data: ids.map((id) => byId.get(id)).filter((r): r is NonNullable<typeof r> => !!r), error: null };
-      })(),
+      loadCoachRows(supabase, athleteId, me.academy_coach_id ?? null),
       me.academy_band_id
         ? supabase.from('academy_bands').select('id, band_number, name, goal, pace_profile').eq('id', me.academy_band_id).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
-      // The characterization call's answers, through the candidate row that became
-      // this athlete. Only the three goal fields — never the coach's verdict or the
-      // limitations note, which the goal card has no use for.
-      (async () => {
-        const { data: cands, error } = await supabase
-          .from('academy_candidates')
-          .select('id')
-          .eq('athlete_id', athleteId);
-        if (error || !cands?.length) return null;
-        const { data: rows, error: cErr } = await supabase
-          .from('academy_characterizations')
-          .select('candidate_id, goal_type, target_race, target_race_date')
-          .in('candidate_id', cands.map((c: { id: string }) => c.id));
-        if (cErr || !rows?.length) return null;
-        // More than one candidate row for a person is a re-application; the one with
-        // a race named is the one that says what they are training for now.
-        const read = rows.map((r) => readCharacterization(r as Record<string, unknown>));
-        return read.find((c) => c.targetRace) ?? read.find((c) => c.goalType) ?? null;
-      })(),
+      // The characterization call's answers (the three goal fields only).
+      loadGoalCharacterization(supabase, athleteId),
       // The latest APPROVED, non-excluded test, for the paces fallback. Migration
       // 108's `status` may be absent; then every row counts, as everywhere else.
       supabase
@@ -215,9 +188,7 @@ export async function GET(request: Request) {
         .gte('workout_date', weekStart)
         .lte('workout_date', addDaysToDateStr(weekStart, 6)),
       // The red dot. Never throws and never waits more than 1.5 s.
-      (async () => {
-        try { return await traineeUnreadCount(getStreamServerClient(), athleteId); } catch { return 0; }
-      })(),
+      loadTraineeUnread(athleteId),
       // The coach's pace update (migration 141): the card, and the paces it moved.
       loadPaceUpdateCard(supabase, athleteId, today),
     ]);

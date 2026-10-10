@@ -6,6 +6,101 @@ import { mayCoach } from '@/lib/academy/pairing-server';
 import { computeAcademyWeekAdherence, sundayOf } from '@/lib/academy/report';
 import { buildWorkoutSheet } from '@/lib/academy/workout-sheet';
 import { toRoute } from '@/lib/feed/project';
+import { isMissingColumn } from '@/lib/supabase/schema-drift';
+import { MAX_HR_DAYS, shiftDate, type TestPoint } from '@/lib/academy/load';
+import { ACTIVITY_LOAD_COLUMNS, activityLoadBreakdown, loadTestsFor, maxHrNow } from '@/lib/academy/load-server';
+import { buildWorkoutExtras, personalRecord, type WorkoutExtras } from '@/lib/academy/workout-extras';
+import { computeDistanceBests, filterQualifyingRuns } from '@/lib/prs/pr-buckets';
+
+/** How far back a personal record is looked for — the PR table's own window is a season. */
+const PR_DAYS = 365;
+/** The shortest PR bucket (5K) less its 1% — a shorter run can hold no record. */
+const PR_MIN_M = 4950;
+const PR_RUNS_MAX = 200;
+
+/**
+ * Screens 4, 5 and 6's additions (lib/academy/workout-extras.ts): the expected ⚡ and its
+ * parts, the watch ranges, "why this pace", the plan/done/diff table, the reps against the
+ * watch range, a real PR, the watch's self-evaluation and the trainee's own answer.
+ * Never fails the sheet: a read that breaks here costs the extras, not the screen.
+ */
+async function loadExtras(
+  supabase: ReturnType<typeof createServerClient>,
+  input: {
+    athleteId: string; date: string; row: Parameters<typeof buildWorkoutExtras>[0]['row'];
+    sheet: Parameters<typeof buildWorkoutExtras>[0]['sheet']; write: boolean;
+  },
+): Promise<WorkoutExtras | null> {
+  try {
+    const { athleteId, date, row } = input;
+    const actId = row.actual?.id ?? null;
+    const read = (cols: string) => supabase.from('athlete_activities').select(cols).eq('id', actId).eq('athlete_id', athleteId).maybeSingle();
+    const [testsBy, actRes] = await Promise.all([
+      loadTestsFor(supabase, [athleteId]),
+      actId
+        ? read(`${ACTIVITY_LOAD_COLUMNS}, garmin_activity_id, perceived_feel, perceived_rpe`).then(async (r) => (
+          r.error && isMissingColumn(r.error) ? read(`${ACTIVITY_LOAD_COLUMNS}, garmin_activity_id`) : r))
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+    const tests: TestPoint[] = testsBy[athleteId] || [];
+    const raw = (actRes.error ? null : actRes.data) as any;
+    // PostgREST hands a NUMERIC column back as a string; the PR maths compares numbers.
+    const toRun = (a: any) => ({ ...a, distance: Number(a.distance) || 0, duration: Number(a.duration) || 0 });
+    const act = raw ? toRun(raw) : null;
+
+    const steps = row.detail?.workout.steps ?? [];
+    const hasCap = steps.some(s => (s.repeatSteps?.length ? s.repeatSteps : [s]).some(x => Number(x.targetHrMaxPct) > 0));
+    const ownBests = act ? computeDistanceBests(filterQualifyingRuns([act])).some(b => b.seconds != null) : false;
+
+    const [breakdown, feedbackRes, historyRes, prRes] = await Promise.all([
+      act ? activityLoadBreakdown(supabase, athleteId, act, { write: input.write, tests }) : Promise.resolve(null),
+      act?.garmin_activity_id != null
+        ? supabase
+          .from('workout_feedback')
+          .select('feel, difficulty, pain')
+          .eq('athlete_id', athleteId)
+          .eq('garmin_activity_id', Number(act.garmin_activity_id))
+          .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      hasCap
+        ? supabase
+          .from('athlete_activities')
+          .select('start_time, activity_type, max_hr')
+          .eq('athlete_id', athleteId)
+          .gte('start_time', `${shiftDate(israelToday(), -MAX_HR_DAYS)}T00:00:00Z`)
+        : Promise.resolve({ data: null, error: null }),
+      // Only a run that holds a 5K-or-longer effort can be a record; only then are the
+      // season's other runs (with their laps) read.
+      ownBests
+        ? supabase
+          .from('athlete_activities')
+          .select('id, start_time, activity_type, distance, duration, laps')
+          .eq('athlete_id', athleteId)
+          .gte('start_time', `${shiftDate(date, -PR_DAYS)}T00:00:00Z`)
+          .gte('distance', PR_MIN_M)
+          .order('start_time', { ascending: false })
+          .limit(PR_RUNS_MAX)
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+    const history = (historyRes.error ? null : historyRes.data) as any[] | null;
+    const others = (prRes.error ? null : prRes.data) as any[] | null;
+
+    return buildWorkoutExtras({
+      row,
+      sheet: input.sheet,
+      date,
+      tests,
+      actualLoad: breakdown?.load ?? null,
+      maxHr: history ? maxHrNow(history, israelToday()) : null,
+      activity: act,
+      pr: act && others ? personalRecord(act, others.map(toRun)) : null,
+      ownFeedback: (feedbackRes.error ? null : feedbackRes.data) as any,
+    });
+  } catch (err) {
+    console.error('Academy workout extras failed (the sheet still answers):', err);
+    return null;
+  }
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +122,11 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
  * engine, attribution and tolerances as the home's row and the coach's compliance
  * table, so the sheet cannot disagree with the ring that opened it. The laps stay
  * here: `buildWorkoutSheet` reduces them to one point per rep or kilometre.
+ *
+ * Beside the sheet (screens 4/5/6 of trainee-experience-v2): `expectedLoad` +
+ * `expectedParts`, `steps[].watchRange` (work steps only), `why`, `done`, `pr`,
+ * `feelPrefill`, `feedback` and `activity` — see `loadExtras`. Pricing the run's ⚡ stores
+ * its load (migration 142) unless the caller is viewing as someone.
  */
 export async function GET(request: Request) {
   try {
@@ -104,7 +204,8 @@ export async function GET(request: Request) {
         : null,
       feedback,
     });
-    return NextResponse.json({ sheet });
+    const extras = await loadExtras(supabase, { athleteId, date, row, sheet, write: !caller.viewingAsBy });
+    return NextResponse.json({ sheet, ...(extras ?? {}) });
   } catch (error: unknown) {
     console.error('Academy workout sheet error:', error);
     return NextResponse.json({ error: 'Failed to load the workout' }, { status: 500 });

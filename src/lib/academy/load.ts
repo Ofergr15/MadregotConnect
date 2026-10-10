@@ -389,6 +389,58 @@ export function loadParts(segments: LoadSegment[], basis: number | HrBasis, grou
   });
 }
 
+/**
+ * The 5ב lines of a PLANNED workout (screen 4's "⚡ עומס צפוי"), one per step of the plan:
+ * a repeat's work and its recovery as two lines ("5 × 1000", "4 × 2:00"), the warmup and
+ * the cooldown as one each. Priced exactly as `plannedLoad`, then rounded so the lines add
+ * up to the number on the ⚡.
+ */
+export function plannedParts(steps: WorkoutStep[] | null | undefined, T: number, opts: EstimateOptions = {}): LoadPart[] {
+  if (!(T > 0) || !steps?.length) return [];
+  type Acc = { kind: PartKind; raw: number; count: number; sec: number; distM: number };
+  const parts: Acc[] = [];
+  const leaf = (step: WorkoutStep) => {
+    const time = stepTimeRange(step, opts);
+    if (time.from === 'none') return null;
+    const sec = mid(time.range);
+    const pace = mid(stepPaceBand(step, opts).range);
+    if (!(sec > 0) || !(pace > 0)) return null;
+    const f = clampIf(T / pace);
+    return { sec, distM: (sec / pace) * 1000, load: 100 * (sec / 3600) * f * f, f };
+  };
+  const kindOf = (step: WorkoutStep, f: number): PartKind => {
+    if (step.type === 'warmup') return 'warmup';
+    if (step.type === 'cooldown') return 'cooldown';
+    if (step.type === 'recovery' || step.type === 'rest') return 'jog';
+    return f >= WORK_IF || step.type === 'interval' ? 'work' : 'run';
+  };
+  const add = (step: WorkoutStep, times: number) => {
+    const l = leaf(step);
+    if (!l) return;
+    parts.push({ kind: kindOf(step, l.f), raw: times * l.load, count: times, sec: l.sec, distM: l.distM });
+  };
+  for (const step of steps) {
+    if (step.repeatCount && step.repeatSteps?.length) {
+      // Every rep with its recovery, as `plannedLoad` counts them, so the lines sum to it.
+      for (const sub of step.repeatSteps) add(sub, step.repeatCount);
+    } else {
+      add(step, 1);
+    }
+  }
+  const rounded = largestRemainder(parts.map(p => p.raw));
+  return parts.map((p, k) => ({
+    labelKey: `trainee.loadSheet.part.${p.kind}`,
+    params: {
+      count: p.count,
+      distM: Math.round(p.distM),
+      sec: Math.round(p.sec),
+      km: Math.round((p.distM * p.count) / 100) / 10,
+      paceSec: p.distM > 0 ? Math.round(p.sec / (p.distM / 1000)) : 0,
+    },
+    load: rounded[k],
+  }));
+}
+
 /** The IF of one segment against a pace or an HR basis — what `groupSegments` sorts by. */
 export function intensityOf(basis: number | HrBasis): (s: LoadSegment) => number {
   if (typeof basis === 'number') return (s) => clampIf(basis / s.paceSec);

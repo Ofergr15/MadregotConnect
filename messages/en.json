@@ -3987,6 +3987,200 @@
         "none": "Not enough data to compute",
         "not_run": "Not a run"
       }
+    },
+    "home": {
+      "greeting": {
+        "morning": "Good morning, <bdi>{name}</bdi>",
+        "afternoon": "Good afternoon, <bdi>{name}</bdi>",
+        "evening": "Good evening, <bdi>{name}</bdi>"
+      },
+      "threadLabel": "Conversation with your coach",
+      "unread": "{n, plural, one {One unread message} other {<m>#</m> unread messages}}",
+      "notifications": "Notifications",
+      "dayTag": "{when, select, today {Today ·} other {Tomorrow ·}} {day}",
+      "onWatch": "⌚ On your watch",
+      "notOnWatch": "Not on the watch yet",
+      "doneTag": "✓ Done",
+      "onPlanTag": "As planned",
+      "km": "<b><m>{km}</m></b> km",
+      "min": "~<m>{min}</m> min",
+      "repsAt": "reps at <b><m>{pace}</m></b>",
+      "runAt": "at <b><m>{pace}</m></b>",
+      "easyTalk": "conversational pace",
+      "rest": "Rest",
+      "restAfterQuality": "Your body is building on yesterday's reps.",
+      "restAfterEasy": "Your body is building on this week's running.",
+      "restPlain": "A day without running, as planned.",
+      "nextDay": "{when, select, tomorrow {Tomorrow ·} other {Next ·}} {day}",
+      "form": {
+        "title": "{when, select, tomorrow {{gender, select, other {How you arrive at tomorrow}}} other {{gender, select, other {How you arrive at today}}}}",
+        "progress": "Progress",
+        "daysOf": "<m>{seen}</m> of <m>{total}</m> days",
+        "learning": "Learning you, {n, plural, one {one more day} other {<m>#</m> more days}}",
+        "learningSay": "After <m>{total}</m> days of runs, one number and one word appear here. Until then, just run the plan.",
+        "insufficient": "Not enough data",
+        "insufficientSay": "Some recent runs have neither pace nor heart rate, so this can't be computed. Running with your watch fixes it.",
+        "bandsLabel": "Where you are on the scale"
+      },
+      "body": {
+        "sleep": "😴 Sleep",
+        "rhr": "❤️ Resting HR",
+        "inRange": "Within your range",
+        "yesterday": "Yesterday",
+        "on": "on <m>{date}</m>",
+        "label": "Sleep and resting HR against your range"
+      },
+      "race": {
+        "title": "<bdi>{name}</bdi> · {n, plural, =0 {race day} =1 {one day to go} other {<m>#</m> days to go}}",
+        "goal": "goal <m>{goal}</m>",
+        "build": "{n, plural, =0 {race week} one {one week of build} other {~<m>#</m> weeks of build}}"
+      },
+      "yesterday": {
+        "title": "Yesterday · <bdi>{name}</bdi>",
+        "titleKm": "Yesterday · <m>{km}</m> km",
+        "estimate": "Estimate"
+      },
+      "invite": {
+        "title": "You're invited to a test · {day} <m>{date}</m>",
+        "sub": "<m>{time}</m> · it sets your paces"
+      },
+      "open": "Open the workout",
+      "openDone": "See the workout",
+      "openTomorrow": "See tomorrow's workout",
+      "noPlan": "This week isn't published yet",
+      "noPlanSay": "Once your coach publishes the week, today's workout shows up here.",
+      "error": "Couldn't load today. Try again in a moment.",
+      "loading": "Loading…"
+    },
+    "club": {
+      "rest": "Rest today",
+      "restSay": "No workout today or tomorrow in this week's plan.",
+      "noPlan": "No plan"
+    },
+    "workout": {
+      "expectedLoad": "⚡ expected load <b><m>{load}</m></b>",
+      "watchRange": "Watch range <b><m>{range}</m></b>",
+      "whyTitle": "Why <m>{pace}</m>?",
+      "whyFaster": "<m>{n}</m> s faster than your threshold (<m>{threshold}</m>), from your {month} test",
+      "whySlower": "<m>{n}</m> s slower than your threshold (<m>{threshold}</m>), from your {month} test",
+      "whySame": "Right at your threshold, from your {month} test",
+      "sentTitle": "Sent to Garmin",
+      "sentSub": "On the watch: <m>Workouts</m> › \"<bdi>{name}</bdi>\"",
+      "onWatchTag": "✓ On watch",
+      "notSentTitle": "Not on the watch yet",
+      "notSentSub": "Your coach sends it before the workout",
+      "doneTitle": "{day} · done",
+      "feelButton": "How did it feel?"
+    },
+    "done": {
+      "tabs": {
+        "summary": "Summary",
+        "map": "Map & chart",
+        "laps": "Laps"
+      },
+      "verdict": {
+        "onPlan": "As planned",
+        "onPlanFast": "As planned, a bit fast",
+        "onPlanSlow": "As planned, a bit slow",
+        "fast": "Faster than planned",
+        "slow": "Slower than planned",
+        "short": "Shorter than planned",
+        "long": "Longer than planned",
+        "done": "Done"
+      },
+      "detailReps": "Reps at <m>{actual}</m> instead of <m>{target}</m>.",
+      "detailRun": "At <m>{actual}</m> instead of <m>{target}</m>.",
+      "inRange": "{inRange, plural, =0 {No rep in range} one {One rep in range} other {<m>#</m> of <m>{of}</m> in range}}{lastFaster, select, yes {, and the last one faster.} other {.}}",
+      "col": {
+        "plan": "Plan",
+        "done": "Done",
+        "diff": "Diff"
+      },
+      "row": {
+        "distance": "Distance",
+        "time": "Time",
+        "reps": "Reps",
+        "pace": "Pace",
+        "hr": "HR",
+        "load": "⚡ Load"
+      },
+      "hrCap": "up to <m>{bpm}</m>",
+      "faster": "▲ <m>{n}</m> s",
+      "slower": "▼ <m>{n}</m> s",
+      "repsTitle": "Every rep against the range",
+      "repsHint": "Higher = faster",
+      "repsCaption": "Green zone = the range <m>{range}</m>. Green ▲ = faster than the range.",
+      "repN": "Rep {n}",
+      "pr": "New best for <bdi>{bucket}</bdi>",
+      "prSub": "<m>{value}</m> instead of the previous best <m>{previous}</m> ({month})",
+      "loading": "Loading the run…",
+      "bucket": {
+        "5k": "5K",
+        "10k": "10K",
+        "hm": "half marathon",
+        "fm": "marathon"
+      }
+    },
+    "feel": {
+      "back": "Summary",
+      "title": "How did it feel?",
+      "skip": "Skip",
+      "feel": "Feel",
+      "fromWatch": "Filled in from your watch · you can change it",
+      "faces": {
+        "0": "Very weak",
+        "1": "Weak",
+        "2": "Normal",
+        "3": "Strong",
+        "4": "Very strong"
+      },
+      "effort": "How hard was it?",
+      "effortScale": "<m>1</m> very easy · <m>10</m> max",
+      "pain": "Pain or discomfort?",
+      "painSub": "If so, <bdi>{name}</bdi> gets notified",
+      "painSubGeneric": "If so, your coach gets notified",
+      "talk": "The conversation about this workout",
+      "allTalk": "Whole conversation",
+      "ref": "🏃 <bdi>{name}</bdi> · {day}",
+      "review": "<bdi>{name}</bdi> · workout feedback",
+      "reviewHeading": "Workout feedback",
+      "compose": "Write to <bdi>{name}</bdi>…",
+      "composeGeneric": "Write to your coach…",
+      "send": "Send",
+      "save": "Save",
+      "saved": "Saved",
+      "saveFailed": "Couldn't save. Try again."
+    },
+    "loadSheetUi": {
+      "title": "⚡ Load <m>{load}</m>",
+      "titlePlanned": "⚡ Expected load <m>{load}</m>",
+      "like": "like <m>{min}</m> min at threshold",
+      "what": "<b>What it is:</b> how much the workout loaded you. <b>One hour at threshold = <m>100</m></b>.",
+      "how": "<b>How it's computed:</b> for each segment, the time × (threshold pace ÷ segment pace) squared, summed. Faster counts much more. <b>Hills are not included.</b>",
+      "word": {
+        "warmup": "Warmup",
+        "work": "Reps",
+        "jog": "Jog",
+        "cooldown": "Cooldown",
+        "run": "Run"
+      },
+      "detail": {
+        "warmup": "<m>{km}</m> km at <m>{pace}</m>",
+        "work": "<m>{count} × {dist}</m> at <m>{pace}</m>",
+        "jog": "<m>{count} × {time}</m>",
+        "cooldown": "<m>{km}</m> km at <m>{pace}</m>",
+        "run": "<m>{km}</m> km at <m>{pace}</m>"
+      },
+      "threshold": "Your threshold pace <m>{pace}</m>",
+      "fromTest": "From your {month} test (<m>{date}</m>), valid on the day of the run",
+      "fromTestPlanned": "From your {month} test (<m>{date}</m>), valid today",
+      "hrTitle": "Heart-rate estimate",
+      "hrSub": "There was no valid test on the day of the run, so it's computed from heart rate",
+      "avgSub": "Estimated from the average pace: this run has no laps",
+      "footnote": "Without a valid test it's computed from heart rate, and the number says \"heart-rate estimate\".",
+      "ok": "Got it",
+      "loading": "Computing…",
+      "none": "This run doesn't have enough data to compute a load."
     }
   }
 }

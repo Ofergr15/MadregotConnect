@@ -44,6 +44,8 @@ export interface ThreadMessage {
   at: string;
   /** The weekly review, posted into the thread rather than living on another screen. */
   feedback?: AcademyFeedbackAttachment | null;
+  /** The workout the message is about (YYYY-MM-DD), when it was sent from one. */
+  workoutDate?: string | null;
 }
 
 /**

@@ -3987,6 +3987,200 @@
         "none": "אין מספיק נתונים לחישוב",
         "not_run": "לא ריצה"
       }
+    },
+    "home": {
+      "greeting": {
+        "morning": "בוקר טוב, <bdi>{name}</bdi>",
+        "afternoon": "צהריים טובים, <bdi>{name}</bdi>",
+        "evening": "ערב טוב, <bdi>{name}</bdi>"
+      },
+      "threadLabel": "השיחה עם המאמן",
+      "unread": "{n, plural, one {הודעה אחת שלא נקראה} other {<m>#</m> הודעות שלא נקראו}}",
+      "notifications": "התראות",
+      "dayTag": "{when, select, today {היום} other {מחר}} · {day}",
+      "onWatch": "⌚ כבר בשעון",
+      "notOnWatch": "עוד לא בשעון",
+      "doneTag": "✓ בוצע",
+      "onPlanTag": "לפי התוכנית",
+      "km": "<b><m>{km}</m></b> ק״מ",
+      "min": "כ־<m>{min}</m> דק׳",
+      "repsAt": "החזרות ב־<b><m>{pace}</m></b>",
+      "runAt": "ב־<b><m>{pace}</m></b>",
+      "easyTalk": "בקצב שאפשר לדבר בו",
+      "rest": "מנוחה",
+      "restAfterQuality": "הגוף בונה עכשיו את החזרות של אתמול.",
+      "restAfterEasy": "הגוף בונה עכשיו את מה שרצת השבוע.",
+      "restPlain": "יום בלי ריצה, לפי התוכנית.",
+      "nextDay": "{when, select, tomorrow {מחר} other {אחר כך}} · {day}",
+      "form": {
+        "title": "{when, select, tomorrow {{gender, select, female {איך את מגיעה למחר} other {איך אתה מגיע למחר}}} other {{gender, select, female {איך את מגיעה להיום} other {איך אתה מגיע להיום}}}}",
+        "progress": "התקדמות",
+        "daysOf": "<m>{seen}</m> מתוך <m>{total}</m> ימים",
+        "learning": "לומד אותך, עוד {n, plural, one {יום אחד} other {<m>#</m> ימים}}",
+        "learningSay": "אחרי <m>{total}</m> ימים של ריצות יופיע כאן מספר אחד ומילה. עד אז, פשוט לרוץ לפי התוכנית.",
+        "insufficient": "אין מספיק נתונים",
+        "insufficientSay": "בחלק מהריצות האחרונות אין לא קצב ולא דופק, אז אי אפשר לחשב. ריצה עם השעון תסדר את זה.",
+        "bandsLabel": "איפה אתה על הסקאלה"
+      },
+      "body": {
+        "sleep": "😴 שינה",
+        "rhr": "❤️ דופק",
+        "inRange": "בתוך הטווח שלך",
+        "yesterday": "אתמול",
+        "on": "ב־<m>{date}</m>",
+        "label": "שינה ודופק מול הטווח שלך"
+      },
+      "race": {
+        "title": "<bdi>{name}</bdi> · {n, plural, =0 {היום} =1 {מחר} =2 {עוד יומיים} other {עוד <m>#</m> ימים}}",
+        "goal": "המטרה <m>{goal}</m>",
+        "build": "{n, plural, =0 {שבוע המרוץ} one {שבוע אחד של בנייה} other {כ־<m>#</m> שבועות של בנייה}}"
+      },
+      "yesterday": {
+        "title": "אתמול · <bdi>{name}</bdi>",
+        "titleKm": "אתמול · <m>{km}</m> ק״מ",
+        "estimate": "הערכה"
+      },
+      "invite": {
+        "title": "הוזמנת לטסט · {day} <m>{date}</m>",
+        "sub": "<m>{time}</m> · ממנו נקבעים הקצבים שלך"
+      },
+      "open": "לפתוח את האימון",
+      "openDone": "לראות את האימון",
+      "openTomorrow": "לראות את האימון של מחר",
+      "noPlan": "השבוע עוד לא פורסם",
+      "noPlanSay": "כשהמאמן יפרסם את השבוע, האימון של היום יופיע כאן.",
+      "error": "לא הצלחנו לטעון את היום. נסו שוב בעוד רגע.",
+      "loading": "טוען…"
+    },
+    "club": {
+      "rest": "מנוחה היום",
+      "restSay": "אין אימון היום ומחר בתוכנית של השבוע.",
+      "noPlan": "אין תוכנית"
+    },
+    "workout": {
+      "expectedLoad": "⚡ עומס צפוי <b><m>{load}</m></b>",
+      "watchRange": "טווח בשעון <b><m>{range}</m></b>",
+      "whyTitle": "למה <m>{pace}</m>?",
+      "whyFaster": "<m>{n}</m> שנ׳ מהר מקצב הסף שלך (<m>{threshold}</m>), מהטסט של {month}",
+      "whySlower": "<m>{n}</m> שנ׳ לאט מקצב הסף שלך (<m>{threshold}</m>), מהטסט של {month}",
+      "whySame": "בדיוק בקצב הסף שלך, מהטסט של {month}",
+      "sentTitle": "נשלח לגרמין",
+      "sentSub": "בשעון: <m>Workouts</m> ‹ \"<bdi>{name}</bdi>\"",
+      "onWatchTag": "✓ בשעון",
+      "notSentTitle": "עוד לא בשעון",
+      "notSentSub": "המאמן ישלח לפני האימון",
+      "doneTitle": "{day} · בוצע",
+      "feelButton": "איך הרגשת?"
+    },
+    "done": {
+      "tabs": {
+        "summary": "סיכום",
+        "map": "מפה וגרף",
+        "laps": "הקפות"
+      },
+      "verdict": {
+        "onPlan": "לפי התוכנית",
+        "onPlanFast": "לפי התוכנית, וקצת מהר",
+        "onPlanSlow": "לפי התוכנית, וקצת לאט",
+        "fast": "מהר מהתוכנית",
+        "slow": "לאט מהתוכנית",
+        "short": "קצר מהתוכנית",
+        "long": "ארוך מהתוכנית",
+        "done": "בוצע"
+      },
+      "detailReps": "החזרות ב־<m>{actual}</m> במקום <m>{target}</m>.",
+      "detailRun": "בקצב <m>{actual}</m> במקום <m>{target}</m>.",
+      "inRange": "{inRange, plural, =0 {אף חזרה לא בטווח} one {חזרה אחת בטווח} other {<m>#</m> מתוך <m>{of}</m> בטווח}}{lastFaster, select, yes {, והאחרונה מהירה ממנו.} other {.}}",
+      "col": {
+        "plan": "תוכנית",
+        "done": "בוצע",
+        "diff": "הפרש"
+      },
+      "row": {
+        "distance": "מרחק",
+        "time": "זמן",
+        "reps": "החזרות",
+        "pace": "קצב",
+        "hr": "דופק",
+        "load": "⚡ עומס"
+      },
+      "hrCap": "עד <m>{bpm}</m>",
+      "faster": "▲ <m>{n}</m> שנ׳",
+      "slower": "▼ <m>{n}</m> שנ׳",
+      "repsTitle": "כל חזרה מול הטווח",
+      "repsHint": "גבוה יותר = מהר יותר",
+      "repsCaption": "האזור הירוק = הטווח <m>{range}</m>. ירוק ▲ = מהר מהטווח.",
+      "repN": "חזרה {n}",
+      "pr": "שיא חדש ל־<bdi>{bucket}</bdi>",
+      "prSub": "<m>{value}</m> במקום השיא הקודם <m>{previous}</m> ({month})",
+      "loading": "טוען את הריצה…",
+      "bucket": {
+        "5k": "5 ק״מ",
+        "10k": "10 ק״מ",
+        "hm": "חצי מרתון",
+        "fm": "מרתון"
+      }
+    },
+    "feel": {
+      "back": "סיכום",
+      "title": "איך הרגשת?",
+      "skip": "דילוג",
+      "feel": "הרגשה",
+      "fromWatch": "מולא מהשעון · אפשר לשנות",
+      "faces": {
+        "0": "חלש מאוד",
+        "1": "חלש",
+        "2": "רגיל",
+        "3": "חזק",
+        "4": "חזק מאוד"
+      },
+      "effort": "כמה קשה היה?",
+      "effortScale": "<m>1</m> קל מאוד · <m>10</m> מקסימום",
+      "pain": "כאב או אי נוחות?",
+      "painSub": "אם כן, <bdi>{name}</bdi> מקבל התראה",
+      "painSubGeneric": "אם כן, המאמן מקבל התראה",
+      "talk": "השיחה על האימון הזה",
+      "allTalk": "כל השיחה",
+      "ref": "🏃 <bdi>{name}</bdi> · {day}",
+      "review": "<bdi>{name}</bdi> · משוב לאימון",
+      "reviewHeading": "משוב לאימון",
+      "compose": "לכתוב ל־<bdi>{name}</bdi>…",
+      "composeGeneric": "לכתוב למאמן…",
+      "send": "שליחה",
+      "save": "שמירה",
+      "saved": "נשמר",
+      "saveFailed": "השמירה לא הצליחה. נסו שוב."
+    },
+    "loadSheetUi": {
+      "title": "⚡ עומס <m>{load}</m>",
+      "titlePlanned": "⚡ עומס צפוי <m>{load}</m>",
+      "like": "כמו <m>{min}</m> דק׳ בקצב הסף",
+      "what": "<b>מה זה:</b> כמה האימון העמיס עליך. <b>שעה בקצב הסף = <m>100</m></b>.",
+      "how": "<b>איך מחשבים:</b> לכל קטע, הזמן כפול (קצב הסף חלקי הקצב בקטע) בריבוע, ומחברים. מהר יותר נחשב הרבה יותר. <b>לא כולל עליות.</b>",
+      "word": {
+        "warmup": "חימום",
+        "work": "חזרות",
+        "jog": "ג׳וג",
+        "cooldown": "שחרור",
+        "run": "ריצה"
+      },
+      "detail": {
+        "warmup": "<m>{km}</m> ק״מ ב־<m>{pace}</m>",
+        "work": "<m>{count} × {dist}</m> ב־<m>{pace}</m>",
+        "jog": "<m>{count} × {time}</m>",
+        "cooldown": "<m>{km}</m> ק״מ ב־<m>{pace}</m>",
+        "run": "<m>{km}</m> ק״מ ב־<m>{pace}</m>"
+      },
+      "threshold": "קצב הסף שלך <m>{pace}</m>",
+      "fromTest": "מהטסט של {month} (<m>{date}</m>), שהיה בתוקף ביום הריצה",
+      "fromTestPlanned": "מהטסט של {month} (<m>{date}</m>), שבתוקף היום",
+      "hrTitle": "הערכה לפי דופק",
+      "hrSub": "ביום הריצה עוד לא היה טסט בתוקף, אז מחשבים לפי הדופק",
+      "avgSub": "הערכה לפי הקצב הממוצע: לריצה הזאת אין הקפות",
+      "footnote": "בלי טסט בתוקף מחשבים לפי הדופק, ועל המספר כתוב \"הערכה לפי דופק\".",
+      "ok": "הבנתי",
+      "loading": "מחשב…",
+      "none": "לריצה הזאת אין מספיק נתונים לחישוב עומס."
     }
   }
 }

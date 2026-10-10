@@ -3,7 +3,7 @@ import { academyThreadUrl } from '@/lib/academy/deep-links';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { getStreamServerClient, CHANNEL_TYPE } from '@/lib/stream/server';
-import { academyChannelId, seatFor, toThreadMessages, type StreamMessageLike } from '@/lib/academy/thread';
+import { academyChannelId, messagesForWorkout, seatFor, toThreadMessages, type StreamMessageLike } from '@/lib/academy/thread';
 import { notifyAthlete } from '@/lib/push';
 import { academyThreadMessageCopy } from '@/lib/notifications/copy';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
@@ -17,6 +17,8 @@ const TEXT_MAX = 2000;
 /** How much history the read-only transcript carries. */
 const HISTORY_LIMIT = 100;
 
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
  * GET /api/academy/threads/messages?athleteId= — a thread's history, read on the
  * server, for the one viewer who must not connect to Stream: an admin viewing the
@@ -26,12 +28,19 @@ const HISTORY_LIMIT = 100;
  * state and creates nothing (a channel that does not exist yet reads as empty).
  *
  * Same three-way gate as the POST: the trainee, any of their coaches, or the manager.
+ *
+ * `?workoutDate=YYYY-MM-DD` narrows it to the conversation about one workout (screen 6 of
+ * trainee-experience-v2): the coach's review of that day, then the last two messages
+ * tagged with it (`messagesForWorkout`).
  */
 export async function GET(request: Request) {
   try {
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
-    const athleteId = new URL(request.url).searchParams.get('athleteId')?.trim() || caller.athleteId;
+    const params = new URL(request.url).searchParams;
+    const athleteId = params.get('athleteId')?.trim() || caller.athleteId;
+    const workoutDate = params.get('workoutDate')?.trim() || null;
+    if (workoutDate && !DATE.test(workoutDate)) return NextResponse.json({ error: 'workoutDate must be YYYY-MM-DD' }, { status: 400 });
     if (!athleteId) return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
 
     const supabase = createServerClient();
@@ -66,13 +75,14 @@ export async function GET(request: Request) {
       degraded = true;
     }
 
+    const messages = toThreadMessages(raw, { athleteId: trainee.id, mentorId: coachIds });
     return NextResponse.json({
       athleteId: trainee.id,
       name: trainee.name || trainee.id,
       mentorIds: coachIds,
       viewerId: caller.athleteId ?? null,
       seat: seatFor(caller.athleteId, trainee.id, coachIds),
-      messages: toThreadMessages(raw, { athleteId: trainee.id, mentorId: coachIds }),
+      messages: workoutDate ? messagesForWorkout(messages, workoutDate) : messages,
       ...(degraded ? { degraded: true } : {}),
     });
   } catch (err: unknown) {
@@ -109,6 +119,9 @@ export async function POST(request: Request) {
     const athleteId = String(body?.athleteId || '').trim() || caller.athleteId;
     const text = String(body?.text ?? '').trim().slice(0, TEXT_MAX);
     if (!text) return NextResponse.json({ error: 'text required' }, { status: 400 });
+    // Screen 6 says which workout the message is about; it rides as a custom field on the
+    // Stream message, the way the review's `academy_feedback` does.
+    const workoutDate = typeof body?.workoutDate === 'string' && DATE.test(body.workoutDate) ? body.workoutDate : null;
 
     const supabase = createServerClient();
     const { data: trainee, error } = await supabase
@@ -135,6 +148,7 @@ export async function POST(request: Request) {
     const sent = await channel.sendMessage({
       text,
       user_id: caller.athleteId,
+      ...(workoutDate ? { workout_date: workoutDate } : {}),
     } as Record<string, unknown>);
 
     // ── Who hears about it ────────────────────────────────────────────────────

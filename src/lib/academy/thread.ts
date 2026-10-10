@@ -148,6 +148,8 @@ export interface StreamMessageLike extends ThreadMessageRef {
   user?: { id?: string | null; name?: string | null } | null;
   /** The review, carried as a custom field on the message. */
   academy_feedback?: AcademyFeedbackAttachment | null;
+  /** The workout a message is about (screen 6's "השיחה על האימון הזה"), a custom field. */
+  workout_date?: string | null;
 }
 
 /**
@@ -205,9 +207,25 @@ export function toThreadMessages(
       text,
       at: stamp.toISOString(),
       feedback,
+      workoutDate: feedback?.workout_date ?? (typeof m.workout_date === 'string' ? m.workout_date : null),
     });
   }
   return out.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+}
+
+/** How many of a workout's own messages screen 6 shows under the coach's review. */
+export const WORKOUT_MESSAGES_SHOWN = 2;
+
+/**
+ * The conversation about one workout (mockup 6): the coach's review of that day first,
+ * then the last `n` messages tagged with it, oldest first. `messages` as `toThreadMessages`
+ * returns them.
+ */
+export function messagesForWorkout(messages: ThreadMessage[], workoutDate: string, n = WORKOUT_MESSAGES_SHOWN): ThreadMessage[] {
+  const about = messages.filter(m => m.workoutDate === workoutDate);
+  const review = [...about].reverse().find(m => !!m.feedback) ?? null;
+  const talk = about.filter(m => !m.feedback && m.text).slice(-n);
+  return review ? [review, ...talk] : talk;
 }
 
 export interface InboxRow extends ThreadSnapshot {

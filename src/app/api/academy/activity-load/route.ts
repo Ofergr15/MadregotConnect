@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { activityLocalDateStr, israelToday } from '@/lib/utils';
+import { israelToday } from '@/lib/utils';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { mayCoach } from '@/lib/academy/pairing-server';
-import { activityBreakdown, LOAD_VERSION, MAX_HR_DAYS, shiftDate } from '@/lib/academy/load';
-import { ACTIVITY_LOADS_TABLE, BACKFILL_DAYS, hasActivityLoadsTable, loadTestsFor, maxHrNow, rhrOn } from '@/lib/academy/load-server';
+import { ACTIVITY_LOAD_COLUMNS, activityLoadBreakdown } from '@/lib/academy/load-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,54 +36,16 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     const { data: act, error } = await supabase
       .from('athlete_activities')
-      .select('id, athlete_id, start_time, activity_type, distance, duration, moving_duration, average_hr, max_hr, laps, splits')
+      .select(ACTIVITY_LOAD_COLUMNS)
       .eq('id', activityId)
       .eq('athlete_id', athleteId)
       .maybeSingle();
     if (error) throw error;
     if (!act) return NextResponse.json({ error: 'activity not found' }, { status: 404 });
 
-    const date = activityLocalDateStr((act as any).start_time);
-    const today = israelToday();
-    // The same mornings ensureActivityLoads reads, so the sheet and the stored row agree.
-    const [testsBy, nightsRes, historyRes] = await Promise.all([
-      loadTestsFor(supabase, [athleteId]),
-      supabase
-        .from('athlete_wellness')
-        .select('date, resting_hr')
-        .eq('athlete_id', athleteId)
-        .gte('date', shiftDate(today, -BACKFILL_DAYS - 30))
-        .order('date', { ascending: true }),
-      supabase
-        .from('athlete_activities')
-        .select('start_time, activity_type, max_hr')
-        .eq('athlete_id', athleteId)
-        .gte('start_time', `${shiftDate(today, -MAX_HR_DAYS)}T00:00:00Z`),
-    ]);
-    const nights = ((nightsRes.error ? [] : nightsRes.data) || []).map((n: any) => ({ date: String(n.date).slice(0, 10), resting_hr: n.resting_hr ?? null }));
-    const history = ((historyRes.error ? [] : historyRes.data) || []) as any[];
-
-    const breakdown = activityBreakdown(act as any, {
-      tests: testsBy[athleteId] || [],
-      rhr: rhrOn(nights, date),
-      maxHr: maxHrNow(history, today),
-    });
-
-    // Keep the stored row in step with what the sheet shows (view-as writes nothing).
-    if (!caller.viewingAsBy && (await hasActivityLoadsTable(supabase))) {
-      const { error: upErr } = await supabase.from(ACTIVITY_LOADS_TABLE).upsert({
-        activity_id: activityId,
-        athlete_id: athleteId,
-        activity_date: date,
-        load: breakdown.load,
-        source: breakdown.source,
-        threshold_sec: breakdown.thresholdSec,
-        basis_test_date: breakdown.basisTestDate,
-        formula_version: LOAD_VERSION,
-        computed_at: new Date().toISOString(),
-      }, { onConflict: 'activity_id' });
-      if (upErr) console.error('activity_loads upsert failed:', upErr);
-    }
+    // Priced from the same mornings ensureActivityLoads reads, and the stored row kept in
+    // step with what the sheet shows (view-as writes nothing).
+    const breakdown = await activityLoadBreakdown(supabase, athleteId, act as any, { write: !caller.viewingAsBy, today: israelToday() });
 
     return NextResponse.json({
       load: breakdown.load,

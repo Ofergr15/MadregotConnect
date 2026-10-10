@@ -146,10 +146,16 @@ export function useStepLines() {
  * read-only list of "הבנתי כך" and of the trainee's own workout, with the pace at the end.
  */
 export function StepLines({
-  steps, thresholdSec, paceAdjust, selected, onTap, onNudge, className,
+  steps, thresholdSec, paceAdjust, selected, onTap, onNudge, rangeFor, className,
 }: {
   steps: BookStep[];
   thresholdSec: number | null;
+  /**
+   * The range a WORK step carries on the watch (trainee-experience-v2 screen 4: "טווח
+   * בשעון 4:01–4:09"), printed under work lines only — the warmup and the cooldown get a
+   * wide range on the watch, but on the screen just their pace. Read-only lines only.
+   */
+  rangeFor?: (step: number, paceSec: number) => { min: number; max: number } | null;
   /** The coach's pace update in force for this trainee: the paces shown are the ones sent. */
   paceAdjust?: PaceAdjust | null;
   selected?: FieldRef | null;
@@ -158,6 +164,7 @@ export function StepLines({
   className?: string;
 }) {
   const t = useTranslations('workoutBook');
+  const tw = useTranslations('trainee.workout');
   const build = useStepLines();
   const editable = !!onTap;
   const lines = build(steps, thresholdSec, { editable, adjust: paceAdjust });
@@ -178,6 +185,7 @@ export function StepLines({
           >
             <Stripe tone={line.tone} />
             <div className="min-w-0 flex-1 text-ink-900">
+              <span>
               {line.parts.map((part, j) => {
                 const prev = line.parts[j - 1];
                 const space = j > 0 && !(prev && 'glue' in prev && prev.glue) ? ' ' : '';
@@ -213,6 +221,20 @@ export function StepLines({
                   </span>
                 );
               })}
+              </span>
+              {(() => {
+                const work = !editable && rangeFor && line.pace !== null && line.tone !== 'e' && line.tone !== 'r' && !line.key.endsWith('r');
+                const range = work ? rangeFor!(line.step, line.pace!) : null;
+                return range ? (
+                  <small className="mt-px block text-[12.5px] leading-snug text-ink-400">
+                    {tw.rich('watchRange', {
+                      range: `${clockText(range.min)}–${clockText(range.max)}`,
+                      m: (c) => <bdi dir="ltr">{c}</bdi>,
+                      b: (c) => <b className="font-extrabold text-ink-900">{c}</b>,
+                    })}
+                  </small>
+                ) : null;
+              })()}
             </div>
             {editable && isSelected && onNudge && selected && (
               <div className="flex shrink-0 gap-2.5">

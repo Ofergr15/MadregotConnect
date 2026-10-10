@@ -26,8 +26,8 @@ import type { ParsedWorkout } from '@/lib/ai/types';
 import { thresholdPaceSec } from './tests';
 import { extractWorkouts, groupNumberFor } from './report';
 import {
-  LOAD_VERSION, activityLoad, isRunType, maxHrOf, plannedLoad, shiftDate, thresholdOn,
-  type LoadActivity, type LoadSource, type TestPoint,
+  LOAD_VERSION, MAX_HR_DAYS, activityBreakdown, activityLoad, isRunType, maxHrOf, plannedLoad, shiftDate, thresholdOn,
+  type ActivityBreakdown, type LoadActivity, type LoadSource, type TestPoint,
 } from './load';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -527,4 +527,56 @@ export async function loadRaceDate(supabase: Db, athleteId: string): Promise<str
   } catch {
     return null;
   }
+}
+
+// ── One activity's ⚡ (5ב, and the ⚡ row of screen 5) ──────────────────────────────────
+
+export const ACTIVITY_LOAD_COLUMNS = 'id, athlete_id, start_time, activity_type, distance, duration, moving_duration, average_hr, max_hr, laps, splits';
+
+/**
+ * One activity priced with its parts, from the same tests and mornings
+ * `ensureActivityLoads` reads, so the sheet and the stored row agree — and the stored
+ * row kept in step with what the sheet shows (unless `write` is off: view-as).
+ */
+export async function activityLoadBreakdown(
+  supabase: Db,
+  athleteId: string,
+  act: LoadActivity & { id: string },
+  opts: { write: boolean; today?: string; tests?: TestPoint[] },
+): Promise<ActivityBreakdown> {
+  const date = activityLocalDateStr(act.start_time);
+  const today = opts.today ?? israelToday();
+  const [tests, nightsRes, historyRes] = await Promise.all([
+    opts.tests ? Promise.resolve(opts.tests) : loadTestsFor(supabase, [athleteId]).then(t => t[athleteId] || []),
+    supabase
+      .from('athlete_wellness')
+      .select('date, resting_hr')
+      .eq('athlete_id', athleteId)
+      .gte('date', shiftDate(today, -BACKFILL_DAYS - 30))
+      .order('date', { ascending: true }),
+    supabase
+      .from('athlete_activities')
+      .select('start_time, activity_type, max_hr')
+      .eq('athlete_id', athleteId)
+      .gte('start_time', `${shiftDate(today, -MAX_HR_DAYS)}T00:00:00Z`),
+  ]);
+  const nights = ((nightsRes.error ? [] : nightsRes.data) || []).map((n: any) => ({ date: String(n.date).slice(0, 10), resting_hr: n.resting_hr ?? null }));
+  const history = ((historyRes.error ? [] : historyRes.data) || []) as any[];
+  const breakdown = activityBreakdown(act, { tests, rhr: rhrOn(nights, date), maxHr: maxHrNow(history, today) });
+
+  if (opts.write && (await hasActivityLoadsTable(supabase))) {
+    const { error } = await supabase.from(ACTIVITY_LOADS_TABLE).upsert({
+      activity_id: act.id,
+      athlete_id: athleteId,
+      activity_date: date,
+      load: breakdown.load,
+      source: breakdown.source,
+      threshold_sec: breakdown.thresholdSec,
+      basis_test_date: breakdown.basisTestDate,
+      formula_version: LOAD_VERSION,
+      computed_at: new Date().toISOString(),
+    }, { onConflict: 'activity_id' });
+    if (error) console.error('activity_loads upsert failed:', error);
+  }
+  return breakdown;
 }

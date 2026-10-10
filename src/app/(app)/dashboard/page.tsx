@@ -29,6 +29,8 @@ import { shouldSyncOnOpen, stravaOpenSyncKey } from '@/lib/providers/open-sync';
 // put the same countdown on a second screen — see src/lib/goal-race.ts. The
 // h/m/s tick below stays local: only this strip counts down by the second.
 import { GOAL_RACE } from '@/lib/goal-race';
+import { homeDayState, planUploadCta } from '@/lib/academy/trainee-today';
+import { useTraineeV2 } from '@/lib/trainee/v2';
 
 // ── Loaded on demand, following components/ui/Sheet.tsx ──────────────────────
 // This is the heaviest route in the app and four of the components it imports are
@@ -50,6 +52,16 @@ const AttendanceRoster = dynamic(() => import('@/components/AttendanceRoster').t
 const ActivitySyncEditor = dynamic(() => import('@/components/ActivitySyncEditor').then(m => m.ActivitySyncEditor), { ssr: false });
 // Admin-only, and it renders nothing when the club is quiet — so it is never worth
 // putting in the bundle every member downloads.
+// The academy trainee's home (trainee-experience-v2), behind its switch (lib/trainee/v2.ts):
+// rendered for academy members only, so a club runner never downloads it.
+const TraineeToday = dynamic(() => import('@/components/trainee/TraineeToday').then(m => m.TraineeToday), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center py-16">
+      <Spinner />
+    </div>
+  ),
+});
 const AdminAttention = dynamic(() => import('@/components/admin/AdminAttention').then(m => m.AdminAttention), { ssr: false });
 // The one exception to "no fallback needed": this replaces the WHOLE screen for an
 // admin, so without a spinner the control room opens on a blank page.
@@ -144,6 +156,7 @@ export default function DashboardPage() {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
   const tm = useTranslations('momentum');
+  const tt = useTranslations('trainee');
   const workoutTypeLabel = useWorkoutTypeLabel();
   const router = useRouter();
   const locale = useLocale();
@@ -162,7 +175,11 @@ export default function DashboardPage() {
   //
   // The same role resolution the nav uses, so a super-user "viewing as runner"
   // gets the runner home — `effectiveRole` already has the preview role applied.
-  const { effectiveRole, isAthlete, isOperator, accountKnown, ready: identityReady } = useNavIdentity();
+  const { effectiveRole, isAthlete, isOperator, accountKnown, isAcademyMember, ready: identityReady } = useNavIdentity();
+  // The academy trainee's v2 home replaces the hero for academy members once the switch is
+  // on for this device (the flag, the super user, or `?tv=2`). Everything below the hero
+  // stays.
+  const traineeV2 = useTraineeV2();
   // `isAthlete` comes out of localStorage in the hook's own mount effect, so it is
   // false on the very first render even when SWR answers the role from cache. The
   // spinner below waits for this rather than trusting it early — the difference
@@ -575,18 +592,30 @@ export default function DashboardPage() {
   // page's, so the screen is the same through either door.
   if (controlRoomView) return <ControlRoomScreen />;
 
+  const showTraineeHome = !!athleteId && isAcademyMember && traineeV2;
+  // Whether this is an academy member is /api/auth/me's answer; with the switch on, the
+  // hero waits for it rather than flashing the club card and then swapping it.
+  const heroPending = !!athleteId && traineeV2 && !accountKnown;
+
+  // Matched on DATE, not on weekday. `dayOfWeek` alone is meaningless without
+  // the week it belongs to, and the week the server returns is not always the
+  // one the browser is in: `getDisplayWeekStart` rolls the plan forward after
+  // Saturday 20:00 Israel so athletes can preview the coming week. Matching by
+  // weekday meant that on Saturday evening this card presented NEXT Saturday's
+  // session as "today", and measured tonight's kilometres against it.
+  const plannedDays = weekly?.hasPlan && weekly.currentWeekStart
+    ? (weekly.dailyDistances || []).filter(d => d.max > 0)
+    : [];
+  const dayFor = (d: { dayOfWeek: number }) => planDayKey(weekly!.currentWeekStart, d.dayOfWeek);
+  const todayW = plannedDays.find(d => dayFor(d) === todayKey);
+  const tomorrowW = plannedDays.find(d => dayFor(d) === tomorrowKey);
+  // Workout, rest, or no plan at all (lib/academy/trainee-today.ts). A week WITH a plan
+  // and nothing today or tomorrow is a rest day — it used to say "אין תוכנית" and offer
+  // every runner the plan upload, which only staff can do.
+  const dayState = homeDayState({ hasPlan: !!weekly?.hasPlan, today: todayW, tomorrow: tomorrowW, isAcademy: false });
+  const uploadCta = planUploadCta({ dayState, isStaff: isCoach, isAcademy: isAcademyMember });
+
   const heroWorkout = (() => {
-    // Matched on DATE, not on weekday. `dayOfWeek` alone is meaningless without
-    // the week it belongs to, and the week the server returns is not always the
-    // one the browser is in: `getDisplayWeekStart` rolls the plan forward after
-    // Saturday 20:00 Israel so athletes can preview the coming week. Matching by
-    // weekday meant that on Saturday evening this card presented NEXT Saturday's
-    // session as "today", and measured tonight's kilometres against it.
-    if (!weekly?.hasPlan || !weekly.currentWeekStart) return null;
-    const dayFor = (d: { dayOfWeek: number }) => planDayKey(weekly.currentWeekStart, d.dayOfWeek);
-    const planned = (weekly.dailyDistances || []).filter(d => d.max > 0);
-    const todayW = planned.find(d => dayFor(d) === todayKey);
-    const tomorrowW = planned.find(d => dayFor(d) === tomorrowKey);
     if (!todayW && !tomorrowW) return null;
 
     // activityLocalDateStr, not a local-midnight comparison: see countThisWeek.
@@ -616,13 +645,13 @@ export default function DashboardPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-5 sm:space-y-6">
 
-      {/* ═══ LARGE TITLE (native home header) ═══ */}
-      <div className="flex items-center justify-between">
+      {/* ═══ LARGE TITLE (native home header) — the trainee home brings its own greeting ═══ */}
+      {!showTraineeHome && <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-ink-400">{greeting}{firstName ? ` ${firstName}` : ''} 👋</p>
           <h1 className="text-3xl font-extrabold text-ink-700 tracking-tight mt-0.5">מדרגות</h1>
         </div>
-      </div>
+      </div>}
 
       {/* ═══ DDORESH TIPUL (admin) — what is waiting for the person who runs the
           club, on the screen they actually open ═══
@@ -642,8 +671,9 @@ export default function DashboardPage() {
         <AttendanceRoster weekStart={rsvpWeekStart} day={rsvpTarget.dow} />
       )}
 
-      {/* ═══ RACE COUNTDOWN — compact native strip, kept minimal on purpose ═══ */}
-      <section className="rounded-card bg-card/60 border border-page/60 p-4 flex items-center gap-4">
+      {/* ═══ RACE COUNTDOWN — compact native strip, kept minimal on purpose. The trainee
+          home counts down to the trainee's OWN race instead (RaceLine). ═══ */}
+      {!showTraineeHome && <section className="rounded-card bg-card/60 border border-page/60 p-4 flex items-center gap-4">
         <div className="w-12 h-12 rounded-2xl bg-brand-600/15 flex items-center justify-center shrink-0">
           <MapPin className="h-5 w-5 text-brand-600" />
         </div>
@@ -657,7 +687,7 @@ export default function DashboardPage() {
           <div className="text-2xl font-black text-ink-700 leading-none tabular-nums">{countdown.d}</div>
           <div className="text-2xs text-ink-400 mt-1">{tc('days')}</div>
         </div>
-      </section>
+      </section>}
 
       {/* ═══ COACH PULSE (attention + celebrate radar) — the rest of the coach hero ═══ */}
       {isCoach && <CoachPulse />}
@@ -706,7 +736,11 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {athleteId && heroWorkout ? (
+      {heroPending ? (
+        <div className="flex items-center justify-center py-16"><Spinner /></div>
+      ) : showTraineeHome ? (
+        <TraineeToday athleteId={athleteId!} firstName={firstName} />
+      ) : athleteId && heroWorkout ? (
         <NextWorkoutCard
           isToday={heroWorkout.showingToday}
           workout={heroWorkout.nextWorkout}
@@ -734,16 +768,20 @@ export default function DashboardPage() {
             />
           )}
         </NextWorkoutCard>
-      ) : !isCoach ? (
+      ) : dayState === 'rest' && (athleteId || !isCoach) ? (
+        <Card variant="muted">
+          <EmptyState icon={Calendar} title={tt('club.rest')} description={tt('club.restSay')} />
+        </Card>
+      ) : !isCoach || athleteId ? (
         <Card variant="muted">
           <EmptyState
             icon={Calendar}
             title={t('noPlanLoaded')}
-            action={
+            action={uploadCta ? (
               <Button onClick={() => router.push('/dashboard/plan/new')}>
                 {t('uploadPlan')} <ArrowRight className="h-4 w-4" />
               </Button>
-            }
+            ) : undefined}
           />
         </Card>
       ) : null}

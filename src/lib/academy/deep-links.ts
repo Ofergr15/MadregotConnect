@@ -69,3 +69,10 @@ export function readAcademyDeepLink(params: { get(name: string): string | null }
     test: params.get('test') === 'mine',
   };
 }
+
+/** The trainee's progress tab (trainee-experience-v2, screen 7; `body` = 8, `tests` = 7ג). */
+export const TRAINEE_PROGRESS_PATH = `${ACADEMY_PATH}/progress`;
+
+export function traineeProgressUrl(view?: 'body' | 'tests'): string {
+  return view ? `${TRAINEE_PROGRESS_PATH}?view=${view}` : TRAINEE_PROGRESS_PATH;
+}
