@@ -164,7 +164,7 @@ function buildPaceLabel(
 // so we keep them verbatim when they already contain a pace token. Otherwise we
 // synthesize the pace from the numeric fields/zone so pace still shows even on
 // regex-fallback or zone-only steps whose notes were stripped of the pace.
-function buildStepDescription(
+export function buildStepDescription(
   step: WorkoutStep,
   paceProfile: StoredPaceProfile
 ): string | undefined {
