@@ -81,7 +81,8 @@
     "records": "Club Records",
     "runTogether": "Run together",
     "people": "People",
-    "contentHub": "Content"
+    "contentHub": "Content",
+    "board": "Board"
   },
   "coachTools": {
     "title": "Coach Tools",
@@ -4181,6 +4182,100 @@
       "ok": "Got it",
       "loading": "Computing…",
       "none": "This run doesn't have enough data to compute a load."
+    },
+    "week": {
+      "weekOf": "This week · <m>{range}</m>",
+      "otherWeek": "Week · <m>{range}</m>",
+      "prev": "Previous week",
+      "next": "Next week",
+      "view": {
+        "label": "View",
+        "week": "Week",
+        "month": "Month"
+      },
+      "tile": {
+        "km": "km",
+        "workouts": "Workouts",
+        "time": "Time",
+        "load": "⚡ Load",
+        "of": "of <m>{planned}</m>"
+      },
+      "onPlan": "✓ On plan",
+      "missed": "Missed",
+      "today": "Today",
+      "onWatch": "⌚ On watch",
+      "offKm": "{caret} <m>{actual}</m> km instead of <m>{planned}</m>",
+      "offMin": "{caret} <m>{actual}</m> min instead of <m>{planned}</m>",
+      "km": "<m>{km}</m> km",
+      "reps": "reps at <m>{pace}</m>",
+      "at": "at <m>{pace}</m>",
+      "load": "⚡ <m>{load}</m>",
+      "comments": "💬 <m>{n}</m>",
+      "pr": "🏅 {bucket} record",
+      "rest": "Rest",
+      "legend": {
+        "green": "On plan",
+        "yellow": "A bit off",
+        "orange": "Far off",
+        "red": "Missed"
+      },
+      "empty": "No workouts this week.",
+      "error": "Couldn't load the week.",
+      "thread": "Conversation with {name}",
+      "threadMine": "My conversation"
+    },
+    "month": {
+      "title": "{month} <m>{year}</m>",
+      "prev": "Previous month",
+      "next": "Next month",
+      "weekdays": {
+        "sun": "S",
+        "mon": "M",
+        "tue": "T",
+        "wed": "W",
+        "thu": "T",
+        "fri": "F",
+        "sat": "S"
+      },
+      "summarySoFar": "{month} so far · <m>{done}</m> of <m>{planned}</m> workouts",
+      "summaryWhole": "{month} · <m>{done}</m> of <m>{planned}</m> workouts",
+      "summaryKm": "<m>{km}</m> km",
+      "part": {
+        "onPlan": "<m>{n}</m> on plan",
+        "bitOff": "<m>{n}</m> a bit off",
+        "farOff": "<m>{n}</m> far off",
+        "missed": "<m>{n}</m> missed"
+      },
+      "day": {
+        "green": "{day} · on plan",
+        "yellow": "{day} · a bit off",
+        "orange": "{day} · far off",
+        "red": "{day} · missed",
+        "grey": "{day} · planned",
+        "none": "{day}",
+        "race": "race day",
+        "today": "today"
+      },
+      "load": {
+        "title": "⚡ Load by week",
+        "axis": "Oldest left · this week right",
+        "thisWeek": "This week",
+        "avg": "Average <m>{avg}</m>",
+        "easy": "Easy week",
+        "aria": "Load over the last {n} weeks, oldest on the left",
+        "vs": {
+          "wellBelow": "This week's plan (<b><m>{planned}</m></b>, the dashed frame) is well below your average (<b><m>{avg}</m></b>)",
+          "below": "This week's plan (<b><m>{planned}</m></b>, the dashed frame) is a little below your average (<b><m>{avg}</m></b>)",
+          "same": "This week's plan (<b><m>{planned}</m></b>, the dashed frame) is about your average (<b><m>{avg}</m></b>)",
+          "above": "This week's plan (<b><m>{planned}</m></b>, the dashed frame) is a little above your average (<b><m>{avg}</m></b>)",
+          "wellAbove": "This week's plan (<b><m>{planned}</m></b>, the dashed frame) is well above your average (<b><m>{avg}</m></b>)"
+        },
+        "noPlan": "This week so far <b><m>{done}</m></b>, your average <b><m>{avg}</m></b>",
+        "afterHeavy": ", after a heavy week",
+        "end": ".",
+        "easyNote": " The light bar is an easy week."
+      },
+      "error": "Couldn't load the month."
     }
   }
 }

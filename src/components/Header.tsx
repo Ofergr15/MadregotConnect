@@ -10,6 +10,7 @@ import { apiHeaders, useApi } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
 import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { resolveNavItems, type TabPermission } from '@/lib/nav-items';
+import { useTraineeV2 } from '@/lib/trainee/v2';
 import { getViewMode, stopViewAs, useIsSuperUser, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { activeNavRole } from '@/lib/role-views';
 import { hasRole } from '@/lib/auth/roles';
@@ -73,6 +74,8 @@ export function Header() {
   // header didn't, which is the drift the shared resolver closes.
   const isAcademyMember = !!meData?.isAcademy;
   const isCoreRunner = !!meData?.isCoreRunner;
+  // The trainee experience v2 names a trainee's academy tab "לוח" (lib/nav-items.ts).
+  const traineeV2 = useTraineeV2();
 
   // Also shared — NotificationCenter and the profile page ask for it too.
   const { data: groupsData } = useApi<{ groups?: Array<{ id: string; name: string }> } | Array<{ id: string; name: string }>>(
@@ -178,6 +181,7 @@ export function Header() {
         isAthlete,
         isAcademyMember,
         isCoreRunner,
+        traineeV2,
         isOperator: userRole === 'admin' && !previewRole && (!activeRole || activeRole === 'admin'),
         // An empty header nav would leave a signed-in user with nowhere to go.
         fallback: true,

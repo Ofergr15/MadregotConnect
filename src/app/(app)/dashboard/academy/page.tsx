@@ -14,12 +14,16 @@ import { getActiveViewRole, getStoredView } from '@/lib/role-views';
 import { getViewedPerson, isViewingPerson, type ViewedPerson } from '@/lib/view-as-person';
 import { hasRole } from '@/lib/auth/roles';
 import { readAcademyDeepLink } from '@/lib/academy/deep-links';
+import { useTraineeV2 } from '@/lib/trainee/v2';
+import { TraineeBoard } from '@/components/trainee/TraineeBoard';
 
 // The academy centre. Three audiences, three lenses off the same route:
 //
 //   admin          → manager: every tab, including Settings and Registrations
 //   academy_coach  → coach: the same minus Settings
-//   everyone else  → their own academy view (/api/academy/me)
+//   everyone else  → their own academy view (/api/academy/me); under the trainee
+//                    experience v2 (lib/trainee/v2.ts) their board, "לוח": the week
+//                    and the month (trainee/TraineeBoard.tsx)
 //
 // The last one is new. This route used to be coach-only in practice — migration
 // 022 denies `academy_user` the academy nav tab on purpose — but tab permissions
@@ -97,6 +101,7 @@ export default function AcademyPage() {
   // `?thread=` / `?tab=`. The scheme lives in lib/academy/deep-links.ts.
   const searchParams = useSearchParams();
   const deepLink = useMemo(() => readAcademyDeepLink(searchParams), [searchParams]);
+  const traineeV2 = useTraineeV2();
   const valid: Tab[] = ['overview', 'threads', 'funnel', 'members', 'registrations', 'coaches', 'plans', 'book', 'dispatch', 'compliance', 'tests', 'stats', 'results', 'payments', 'settings', 'roster'];
   const linkTab = deepLink.tab && valid.includes(deepLink.tab as Tab) ? deepLink.tab : null;
   const linkThread = deepLink.thread && deepLink.thread !== 'mine' ? deepLink.thread : null;
@@ -110,6 +115,19 @@ export default function AcademyPage() {
   }
 
   // ── Athlete lens ──────────────────────────────────────────────────────────
+  if (!isStaff && traineeV2) {
+    return (
+      <div className="max-w-3xl mx-auto sm:px-6 sm:py-8">
+        <TraineeBoard
+          athleteId={viewed ? viewed.id : myAthleteId}
+          view={deepLink.view}
+          openDate={deepLink.open}
+          openThread={deepLink.thread === 'mine'}
+          raiseTest={deepLink.test}
+        />
+      </div>
+    );
+  }
   if (!isStaff) {
     return (
       // No page title here: the trainee home draws its own header row (coach,

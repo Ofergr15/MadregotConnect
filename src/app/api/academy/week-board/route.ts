@@ -6,9 +6,16 @@ import { mayCoach } from '@/lib/academy/pairing-server';
 import { loadClubWeek, loadLaneReferences, loadThresholds, loadTraineeWeeks } from '@/lib/academy/book-server';
 import type { Lane } from '@/lib/academy/group-lane';
 import { computeAcademyWeekAdherence } from '@/lib/academy/report';
-import { complianceOf, weekTotals } from '@/lib/academy/compliance';
+import { weekTotals } from '@/lib/academy/compliance';
 import { absoluteToLibrary, fromLibrarySteps, structureName } from '@/lib/academy/book-steps';
 import type { WeekBoard, WeekBoardWorkout } from '@/lib/academy/week-board';
+import { boardRow, offLineOf, restDaysOf } from '@/lib/academy/board';
+import { loadBoardMarks, rowMarks } from '@/lib/academy/board-server';
+import { plannedLoad, shiftDate, thresholdOn } from '@/lib/academy/load';
+import { athleteLoads, BACKFILL_DAYS } from '@/lib/academy/load-server';
+import { loadStatus } from '@/lib/academy/pmc';
+import { planEstimateOptions } from '@/lib/plans/step-estimate';
+import type { ParsedWorkout } from '@/lib/ai/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +46,14 @@ function workPaceOfRow(row: { workPace?: { actual: number; min: number; max: num
  * so the next one can draw its profile and the workout screen can print it.
  *
  * Graded by `computeAcademyWeekAdherence`, the engine the home's rows and the
- * plan-vs-actual sheet use, so the strip cannot disagree with the sheet it opens.
+ * plan-vs-actual sheet use, so the strip cannot disagree with the sheet it opens. Each
+ * row is graded by lib/academy/board.ts `boardRow`, which the month grid uses as well.
+ *
+ * Trainee-experience v2 (screen 2) adds, all optional so the coach's screen and an older
+ * client read the same payload: the ⚡ of every run and of every planned session and the
+ * week's two totals, the "▼ 6.2 ק״מ במקום 8" line, the footer marks (lib/academy/
+ * board-server.ts), the rest days, and whether the load numbers are trusted yet. Pricing
+ * a run with no stored load writes it (migration 142), except under view-as.
  *
  * WHO: `mayCoach` — the trainee, their coach, the manager.
  */
@@ -59,7 +73,16 @@ export async function GET(request: Request) {
     }
 
     const supabase = createServerClient();
-    const [report, deliveries, me, thresholds] = await Promise.all([
+    const today = israelToday();
+    // The loads of a run that has none stored yet are priced on the way (bounded, and
+    // never written under view-as), as /api/academy/load does — one history, so the ⚡ tile
+    // and the month's bars are the same numbers. A failure costs the ⚡, not the week.
+    const loadsP = athleteLoads(supabase, athleteId, { since: shiftDate(today, -BACKFILL_DAYS), write: !caller.viewingAsBy, today })
+      .catch((err) => {
+        console.error('week-board loads failed (the week still answers):', err);
+        return null;
+      });
+    const [report, deliveries, me, thresholds, loads] = await Promise.all([
       computeAcademyWeekAdherence({ weekStart, onlyAthleteId: athleteId, keepDetail: true }),
       supabase
         .from('workout_deliveries')
@@ -69,6 +92,7 @@ export async function GET(request: Request) {
         .lte('workout_date', weekEnd),
       supabase.from('athletes').select('id, name, academy_coach_id').eq('id', athleteId).maybeSingle(),
       loadThresholds(supabase, [athleteId]),
+      loadsP,
     ]);
     const thresholdSec = thresholds[athleteId] ?? null;
 
@@ -84,8 +108,16 @@ export async function GET(request: Request) {
         .filter(d => d.status === 'success')
         .map(d => d.workout_date),
     );
-    const today = israelToday();
     const rows = report.athletes[0]?.week.workouts ?? [];
+    // The footer marks need only the matched runs, so they are read while the steps' lane
+    // is resolved below rather than after it.
+    const marksP = loadBoardMarks(supabase, {
+      athleteId, weekStart, weekEnd,
+      activityIds: rows.filter(r => r.completed && r.actual?.id).map(r => String(r.actual!.id)),
+    }).catch((err) => {
+      console.error('week-board marks failed (the week still answers):', err);
+      return null;
+    });
 
     // Whose paces the steps are in. A trainee with no plan of their own this week is graded
     // against the CLUB's week (report.ts: individual plan, else the shared one), so those
@@ -111,12 +143,27 @@ export async function GET(request: Request) {
     // A planned pace in the steps' own terms → the trainee's.
     const toTrainee = (sec: number | null) => (sec && fromClub && thresholdSec ? Math.round((sec * thresholdSec) / referenceSec) : sec);
 
+    // ⚡: the stored load of each run, and the plan priced at the threshold valid TODAY,
+    // over the same steps and estimate options /api/academy/load's planned week uses.
+    const loadOf = new Map((loads?.rows ?? []).map(r => [r.activityId, r.load]));
+    const loadT = loads ? thresholdOn(today, loads.tests)?.thresholdSec ?? null : null;
+    const parsed = rows.map(r => r.detail?.workout).filter(Boolean) as ParsedWorkout[];
+    const estimate = planEstimateOptions(parsed);
+    const marks = await marksP;
+    /** Each row's planned ⚡ unrounded, for the week's sum. */
+    const planRaw: number[] = [];
+
     const workouts: WeekBoardWorkout[] = rows.map((row) => {
       const steps = row.detail?.workout.steps ?? [];
       // Named from the structure, the way the book names it (`6 × 800 מ׳`) — the club's own
       // titles are day names (`שלישי`), which the row already says.
       const model = steps.length ? fromLibrarySteps(absoluteToLibrary(steps, referenceSec).steps) : null;
-      const plannedM = (row.distance.plannedMin + row.distance.plannedMax) / 2 || null;
+      const graded = boardRow(row, today);
+      const { plannedM } = graded;
+      const activityId = row.actual?.id ? String(row.actual.id) : null;
+      const runLoad = row.completed && activityId ? loadOf.get(activityId) : undefined;
+      const planLoad = loadT && steps.length ? plannedLoad(steps, loadT, estimate) : 0;
+      planRaw.push(row.detail?.workout.optional ? 0 : planLoad);
       const plannedPace = row.pace.plannedMin && row.pace.plannedMax
         ? Math.round((row.pace.plannedMin + row.pace.plannedMax) / 2)
         : null;
@@ -124,20 +171,11 @@ export async function GET(request: Request) {
         date: row.date,
         dayOfWeek: new Date(`${row.date}T12:00:00Z`).getUTCDay(),
         name: model ? structureName(model) : row.name,
-        compliance: complianceOf({
-          date: row.date,
-          today,
-          completed: row.completed,
-          plannedM,
-          actualM: row.distance.actual,
-          plannedSec: row.duration.planned || null,
-          actualSec: row.duration.actual,
-          plannedInTime: !row.duration.estimated && !(plannedM && plannedM > 0),
-        }),
+        compliance: graded.compliance,
         plannedM,
-        actualM: row.distance.actual,
-        plannedSec: row.duration.planned || null,
-        actualSec: row.duration.actual,
+        actualM: graded.actualM,
+        plannedSec: graded.plannedSec,
+        actualSec: graded.actualSec,
         plannedPace: toTrainee(plannedPace),
         // The work's pace where the reps were read; the whole run's only when the session
         // was graded against a whole-session band — never a run average set beside a rep
@@ -146,9 +184,23 @@ export async function GET(request: Request) {
         onWatch: onWatch.has(row.date),
         steps,
         note: row.detail?.workout.description ?? null,
-        activityId: row.actual?.id ? String(row.actual.id) : null,
+        activityId,
+        load: runLoad != null ? Math.round(runLoad) : null,
+        plannedLoad: planLoad > 0 ? Math.round(planLoad) : null,
+        // Only what a coach or the trainee wrote (or a record) is a mark; computed for
+        // every row so the coach's screen can draw them too.
+        marks: marks ? rowMarks(marks, row.date, row.completed ? activityId : null) : {},
+        offLine: offLineOf(graded),
+        comment: (row.completed && activityId ? marks?.byActivity.get(activityId)?.comment : null) ?? null,
+        ...(row.detail?.workout.optional ? { optional: true } : {}),
       };
     });
+
+    // The week's ⚡: planned = the plan's non-optional sessions summed unrounded and then
+    // rounded, exactly as /api/academy/load sums this week's dashed frame, so the tile and
+    // the bar print one number. Done = what the matched runs stored.
+    const plannedLoadSum = planRaw.reduce((a, b) => a + b, 0);
+    const doneLoadSum = workouts.reduce((a, w) => a + (w.load ?? 0), 0);
 
     const body: WeekBoard = {
       weekStart,
@@ -159,14 +211,20 @@ export async function GET(request: Request) {
       thresholdSec,
       referenceSec,
       fromClub,
-      totals: weekTotals(workouts.map(w => ({
-        completed: w.compliance.color !== 'red' && w.compliance.color !== 'grey',
-        plannedM: w.plannedM,
-        actualM: w.actualM,
-        plannedSec: w.plannedSec,
-        actualSec: w.actualSec,
-      }))),
+      totals: {
+        ...weekTotals(workouts.map(w => ({
+          completed: w.compliance.color !== 'red' && w.compliance.color !== 'grey',
+          plannedM: w.plannedM,
+          actualM: w.actualM,
+          plannedSec: w.plannedSec,
+          actualSec: w.actualSec,
+        }))),
+        plannedLoad: loadT && plannedLoadSum > 0 ? Math.round(plannedLoadSum) : null,
+        doneLoad: loads ? Math.round(doneLoadSum) : null,
+      },
       workouts,
+      restDays: restDaysOf(weekStart, workouts.map(w => w.date)),
+      loadOk: !!loads && loadStatus(loads.rows, today).kind === 'ok',
       // The coach plans from this screen; the trainee only reads it.
       canPlan: caller.athleteId !== athleteId && (caller.isStaff || caller.isSuperUser),
     };

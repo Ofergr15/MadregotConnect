@@ -11,6 +11,7 @@ import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
 import { getViewMode, useIsSuperUser, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { activeNavRole } from '@/lib/role-views';
+import { useTraineeV2 } from '@/lib/trainee/v2';
 
 // Shared "which pages can this signed-in user reach" resolution. FOUR places
 // need the same answer: the desktop Header nav, the mobile BottomTabBar, the
@@ -33,6 +34,10 @@ export interface NavItem { href: string; tab: string; labelKey: string; icon: Re
 // Named because it's force-added for academy members below as well as being a
 // permission-gated staff tab — one definition so the two can't drift.
 export const ACADEMY_ITEM: NavItem = { href: '/dashboard/academy', tab: 'academy', labelKey: 'academy', icon: GraduationCap };
+// The same door for a trainee under the trainee experience v2 (lib/trainee/v2.ts): the
+// route's trainee lens is their week and month there ("לוח", mockup screens 2/3), so the
+// tab says so. Same href and tab id, so active state and every deep link are unchanged.
+export const ACADEMY_BOARD_ITEM: NavItem = { href: '/dashboard/academy', tab: 'academy', labelKey: 'board', icon: CalendarDays };
 
 export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
@@ -140,6 +145,11 @@ export interface NavResolutionInput {
    * control room.
    */
   isOperator?: boolean;
+  /**
+   * The trainee experience v2 is on for this device (lib/trainee/v2.ts). A non-staff
+   * academy member's academy tab is then the board ("לוח"). Off: exactly as before.
+   */
+  traineeV2?: boolean;
 }
 
 /** Member-only destinations an operator account has no use for. */
@@ -180,6 +190,7 @@ export function resolveNavItems({
   isCoreRunner = false,
   fallback = false,
   isOperator = false,
+  traineeV2 = false,
 }: NavResolutionInput): NavItem[] {
   if (!effectiveRole) return [];
   const isAdmin = effectiveRole === 'admin';
@@ -230,6 +241,12 @@ export function resolveNavItems({
   // thing behind it was the coach's admin console; /dashboard/academy now serves
   // an athlete their own view, so the row is theirs to have.
   if (isAcademyMember && !items.some(i => i.tab === 'academy')) items.push(ACADEMY_ITEM);
+  // Under v2 a trainee's academy is their board: same door, its own name and icon. Staff
+  // keep the academy centre, whatever their own membership.
+  if (traineeV2 && isAcademyMember && !STAFF_ROLES.includes(effectiveRole)) {
+    const at = items.findIndex(i => i.tab === 'academy');
+    if (at >= 0) items[at] = ACADEMY_BOARD_ITEM;
+  }
 
   if (!items.length && fallback) return [ALL_NAV_ITEMS[0], PROFILE_ITEM];
   return items;
@@ -245,10 +262,16 @@ export function resolveNavItems({
  * thing they signed up for, was the one left in "More". The program page stays
  * reachable from there; nothing is removed from the nav, only reordered.
  */
-export function athletePrimaryOrder(order: readonly string[], isAcademyMember: boolean): string[] {
+export function athletePrimaryOrder(order: readonly string[], isAcademyMember: boolean, traineeV2 = false): string[] {
   if (!isAcademyMember) return [...order];
   const out = order.map((tab) => (tab === 'program' ? 'academy' : tab));
-  return out.includes('academy') ? out : [...out, 'academy'];
+  if (!traineeV2) return out.includes('academy') ? out : [...out, 'academy'];
+  // v2 (mockup tab bar: פיד · בית · לוח · …): the board sits right after home, whatever
+  // the base order held, so it is always one of the four flat tabs.
+  const rest = out.filter(tab => tab !== 'academy');
+  const home = rest.indexOf('dashboard');
+  rest.splice(home >= 0 ? home + 1 : rest.length, 0, 'academy');
+  return rest;
 }
 
 /**
@@ -264,6 +287,7 @@ export function useNavIdentity() {
   // match SUPER_USER_EMAIL, so the local check alone hid every view-as entry
   // point. `isSuper` on /api/auth/me is the server-verified answer.
   const localSuper = useIsSuperUser();
+  const traineeV2 = useTraineeV2();
 
   // Both answers go through useApi (SWR) rather than a raw fetch, because the
   // Header, the tab bar and Search all need the same two and each request pays
@@ -323,6 +347,7 @@ export function useNavIdentity() {
     isAcademyMember: !!meData?.isAcademy,
     isCoreRunner: !!meData?.isCoreRunner,
     isOperator,
+    traineeV2,
     /** /api/auth/me has answered, so `isOperator` is final rather than "not yet". */
     accountKnown: !!meData,
     ready: !permsLoading && !!effectiveRole,

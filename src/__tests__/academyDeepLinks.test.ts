@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  academyTestUrl, academyThreadUrl, readAcademyDeepLink, upgradeLegacyAcademyUrl,
+  academyBoardUrl, academyTestUrl, academyThreadUrl, readAcademyDeepLink, upgradeLegacyAcademyUrl,
 } from '@/lib/academy/deep-links';
 import { shapeInboxItem } from '@/lib/notifications/inbox';
 import { REMINDER_URL, reminderRow } from '@/lib/academy/testReminders';
@@ -35,11 +35,34 @@ describe('the urls a sender writes', () => {
 
 describe('the page reading them', () => {
   const params = (q: string) => new URLSearchParams(q);
+  const none = { open: null, view: 'week' };
   it('reads the three parameters', () => {
-    expect(readAcademyDeepLink(params('thread=mine'))).toEqual({ tab: null, thread: 'mine', test: false });
-    expect(readAcademyDeepLink(params('tab=threads&thread=t1'))).toEqual({ tab: 'threads', thread: 't1', test: false });
-    expect(readAcademyDeepLink(params('test=mine'))).toEqual({ tab: null, thread: null, test: true });
-    expect(readAcademyDeepLink(params(''))).toEqual({ tab: null, thread: null, test: false });
+    expect(readAcademyDeepLink(params('thread=mine'))).toEqual({ tab: null, thread: 'mine', test: false, ...none });
+    expect(readAcademyDeepLink(params('tab=threads&thread=t1'))).toEqual({ tab: 'threads', thread: 't1', test: false, ...none });
+    expect(readAcademyDeepLink(params('test=mine'))).toEqual({ tab: null, thread: null, test: true, ...none });
+    expect(readAcademyDeepLink(params(''))).toEqual({ tab: null, thread: null, test: false, ...none });
+  });
+
+  it('reads the board: a day to open and the month view', () => {
+    expect(readAcademyDeepLink(params('open=2026-10-13'))).toMatchObject({ open: '2026-10-13', view: 'week' });
+    expect(readAcademyDeepLink(params('view=month'))).toMatchObject({ open: null, view: 'month' });
+    // Anything that is not a date opens nothing; an unknown view is the week.
+    expect(readAcademyDeepLink(params('open=tuesday&view=year'))).toMatchObject({ open: null, view: 'week' });
+  });
+});
+
+describe('the board link', () => {
+  it('is the bare academy path for the week, and carries the day and the month', () => {
+    expect(academyBoardUrl()).toBe('/dashboard/academy');
+    expect(academyBoardUrl({ open: '2026-10-13' })).toBe('/dashboard/academy?open=2026-10-13');
+    expect(academyBoardUrl({ view: 'month' })).toBe('/dashboard/academy?view=month');
+    expect(academyBoardUrl({ view: 'month', open: '2026-10-02' })).toBe('/dashboard/academy?view=month&open=2026-10-02');
+    expect(academyBoardUrl({ open: '13.10' })).toBe('/dashboard/academy');
+  });
+
+  it('round-trips through the reader', () => {
+    const url = academyBoardUrl({ view: 'month', open: '2026-10-02' });
+    expect(readAcademyDeepLink(new URL(`http://x${url}`).searchParams)).toMatchObject({ open: '2026-10-02', view: 'month' });
   });
 });
 

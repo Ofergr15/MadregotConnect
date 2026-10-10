@@ -9,6 +9,8 @@
 //   ?tab=threads&thread=<traineeId>   staff: the threads tab with that trainee's open
 //   ?test=mine                        the trainee's test / invitation card, raised
 //   ?tab=tests                        staff: the tests tab
+//   ?open=<YYYY-MM-DD>                the trainee's board with that day's workout open
+//   ?view=month                       the trainee's board on the month
 //
 // Every one of these used to be the bare `/dashboard/academy`, so a push saying
 // "Dana answered you" opened a screen with the answer three scrolls away.
@@ -59,7 +61,15 @@ export interface AcademyDeepLink {
   thread: string | null;
   /** The trainee asked to see their test card. */
   test: boolean;
+  /** The trainee's board: a day whose workout opens on arrival (YYYY-MM-DD), else null. */
+  open: string | null;
+  /** The trainee's board: which of its two views. */
+  view: BoardView;
 }
+
+export type BoardView = 'week' | 'month';
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function readAcademyDeepLink(params: { get(name: string): string | null }): AcademyDeepLink {
   const thread = (params.get('thread') || '').trim();
@@ -67,7 +77,22 @@ export function readAcademyDeepLink(params: { get(name: string): string | null }
     tab: params.get('tab'),
     thread: thread ? thread : null,
     test: params.get('test') === 'mine',
+    open: DATE.test(params.get('open') || '') ? params.get('open') : null,
+    view: params.get('view') === 'month' ? 'month' : 'week',
   };
+}
+
+/**
+ * The trainee's board (trainee-experience-v2 screens 2/3): the week, or the month, and
+ * optionally one day's workout opened over it — the link a morning reminder or a coach's
+ * "look at Tuesday" lands on.
+ */
+export function academyBoardUrl(opts: { open?: string | null; view?: BoardView } = {}): string {
+  const q = new URLSearchParams();
+  if (opts.view === 'month') q.set('view', 'month');
+  if (opts.open && DATE.test(opts.open)) q.set('open', opts.open);
+  const s = q.toString();
+  return s ? `${ACADEMY_PATH}?${s}` : ACADEMY_PATH;
 }
 
 /** The trainee's progress tab (trainee-experience-v2, screen 7; `body` = 8, `tests` = 7ג). */

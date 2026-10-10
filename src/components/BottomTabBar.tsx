@@ -80,7 +80,7 @@ export function BottomTabBar() {
   // An academy member's bar trades Program for Academy — see athletePrimaryOrder.
   const primaryOrder = identity.isOperator
     ? OPERATOR_PRIMARY_ORDER
-    : isStaffView ? STAFF_PRIMARY_ORDER : athletePrimaryOrder(ATHLETE_PRIMARY_ORDER, identity.isAcademyMember);
+    : isStaffView ? STAFF_PRIMARY_ORDER : athletePrimaryOrder(ATHLETE_PRIMARY_ORDER, identity.isAcademyMember, identity.traineeV2);
   const byTab = new Map(navItems.map(i => [i.tab, i]));
   const primary: NavItem[] = [];
   for (const tab of primaryOrder) {

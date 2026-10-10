@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApi } from '@/lib/api';
@@ -12,6 +12,9 @@ import { N, ProfileBar, RICH, clockText, hoursText, kmText } from './ui';
 import { DayPlanner } from './DayPlanner';
 import { TraineeWorkout } from './TraineeWorkout';
 import { CopyWeekFlow } from '../tools/CopyWeekFlow';
+import { useTraineeV2 } from '@/lib/trainee/v2';
+import type { BoardView } from '@/lib/academy/deep-links';
+import { BoardViewSwitch, WeekRestRow, WeekRowV2, WeekTilesV2, ComplianceLegend } from '@/components/trainee/WeekRows';
 
 // ── השבוע (mockup phone 4) — the same screen for the trainee and the coach ───────────────
 //
@@ -24,6 +27,12 @@ import { CopyWeekFlow } from '../tools/CopyWeekFlow';
 // its profile, because "what am I running next" is the question this screen is opened to
 // answer. Tapping any session opens it (phone 5); the coach gets the same screen with the
 // planner one tap further, and the days with nothing on them as `+` chips.
+//
+// Under the trainee experience v2 (lib/trainee/v2.ts) it is the trainee's "לוח", screen 2
+// of trainee-experience-v2: four tiles (ק״מ, אימונים, זמן, ⚡), a row per day from Sunday
+// down (a thin one for a rest day), the ⚡ of every session, and under each run only the
+// marks that are true (🙂 feel, 💬 comments, 🏅 a record). With `onView`, a week | month
+// switch sits under the title. The rows themselves are trainee/WeekRows.tsx.
 
 export const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
@@ -42,8 +51,19 @@ export function workoutModel(w: Pick<WeekBoardWorkout, 'steps'>, referenceSec: n
   return fromLibrarySteps(absoluteToLibrary(w.steps, referenceSec).steps);
 }
 
-export function WeekBoard({ athleteId, initialWeek }: { athleteId: string; initialWeek?: string | null }) {
+export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed }: {
+  athleteId: string;
+  initialWeek?: string | null;
+  /** `?open=<date>`: that day's workout opens as soon as the week has loaded. */
+  openDate?: string | null;
+  /** The trainee's board: draws the week | month switch, and is told when it is tapped. */
+  onView?: (view: BoardView) => void;
+  /** The opened workout was closed (the board clears `?open=`). */
+  onClosed?: () => void;
+}) {
   const t = useTranslations('workoutBook');
+  const tw = useTranslations('trainee.week');
+  const v2 = useTraineeV2();
   const [week, setWeek] = useState<string | null>(initialWeek ?? null);
   const { data, error, mutate } = useApi<WeekBoardData>(
     `/api/academy/week-board?athleteId=${encodeURIComponent(athleteId)}${week ? `&weekStart=${week}` : ''}`,
@@ -55,6 +75,21 @@ export function WeekBoard({ athleteId, initialWeek }: { athleteId: string; initi
   const tt = useTranslations('academyTools.copy');
 
   const next = useMemo(() => data?.workouts.find(w => w.date >= data.today && w.compliance.color === 'grey') ?? null, [data]);
+
+  // A deep link to one day: opened once, when its week arrives.
+  const [opened, setOpened] = useState<string | null>(null);
+  useEffect(() => {
+    // Cleared (the workout was closed): the same day may be linked again.
+    if (!openDate) { if (opened) setOpened(null); return; }
+    if (opened === openDate || !data || data.weekStart > openDate || data.weekEnd < openDate) return;
+    const w = data.workouts.find(x => x.date === openDate);
+    setOpened(openDate);
+    if (w) setOpen(w);
+  }, [openDate, opened, data]);
+  const close = () => {
+    setOpen(null);
+    onClosed?.();
+  };
 
   if (!data) {
     return <p className="py-10 text-center text-sm text-ink-400">{error ? t('error.load') : t('loading')}</p>;
@@ -74,7 +109,11 @@ export function WeekBoard({ athleteId, initialWeek }: { athleteId: string; initi
           <ChevronRight className="h-6 w-6" />
         </button>
         <h2 className="text-[17px] font-extrabold text-ink-900">
-          {t('weekTitle')} · <N>{dm(weekStart).split('.')[0]}–{dm(data.weekEnd)}</N>
+          {v2
+            ? tw.rich(weekStart <= data.today && data.today <= data.weekEnd ? 'weekOf' : 'otherWeek', {
+              m: (c) => <N>{c}</N>, range: `${dm(weekStart).split('.')[0]}–${dm(data.weekEnd)}`,
+            })
+            : <>{t('weekTitle')} · <N>{dm(weekStart).split('.')[0]}–{dm(data.weekEnd)}</N></>}
         </h2>
         <button type="button" onClick={() => setWeek(addDaysToDateStr(weekStart, 7))} aria-label={t('nextWeek')}
           className="grid h-11 w-11 place-items-center rounded-full text-brand-600">
@@ -82,6 +121,36 @@ export function WeekBoard({ athleteId, initialWeek }: { athleteId: string; initi
         </button>
       </div>
 
+      {onView && <BoardViewSwitch view="week" onChange={onView} />}
+
+      {v2 ? (
+        <>
+          <WeekTilesV2 board={data} />
+          {data.fromClub && (
+            <p className="px-1 text-13 text-ink-400">{t('fromClubNote', { name: data.athlete.name.split(' ')[0] })}</p>
+          )}
+          {data.workouts.length === 0 && (
+            <p className="rounded-[18px] bg-white px-4 py-5 text-center text-sm text-ink-400">{tw('empty')}</p>
+          )}
+          {days.map((d) => {
+            const list = data.workouts.filter(w => w.date === d);
+            if (!list.length) {
+              return data.restDays?.some(r => r.date === d) ? <WeekRestRow key={d} date={d} /> : null;
+            }
+            return list.map(w => (
+              <WeekRowV2
+                key={`${w.date}-${w.name}`}
+                w={w}
+                board={data}
+                isNext={next?.date === w.date}
+                onOpen={() => setOpen(w)}
+              />
+            ));
+          })}
+          {data.workouts.length > 0 && <ComplianceLegend />}
+        </>
+      ) : (
+        <>
       <div className="grid grid-cols-3 gap-2">
         <Total label={t('total.km')} done={kmText(totals.doneKm * 1000)} planned={kmText(totals.plannedKm * 1000)} fraction={meterFraction(totals.doneKm, totals.plannedKm)} />
         <Total label={t('total.workouts')} done={String(totals.doneCount)} planned={String(totals.plannedCount)} fraction={meterFraction(totals.doneCount, totals.plannedCount)} />
@@ -107,6 +176,8 @@ export function WeekBoard({ athleteId, initialWeek }: { athleteId: string; initi
           onOpen={() => setOpen(w)}
         />
       ))}
+        </>
+      )}
 
       {data.canPlan && emptyDays.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -135,7 +206,7 @@ export function WeekBoard({ athleteId, initialWeek }: { athleteId: string; initi
         <TraineeWorkout
           workout={open}
           board={data}
-          onClose={() => setOpen(null)}
+          onClose={close}
           onChange={data.canPlan ? () => { setPlanning(open.date); setOpen(null); } : undefined}
         />
       )}

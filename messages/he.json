@@ -81,7 +81,8 @@
     "records": "שיאי המועדון",
     "runTogether": "ריצה ביחד",
     "people": "אנשים",
-    "contentHub": "תוכן"
+    "contentHub": "תוכן",
+    "board": "לוח"
   },
   "coachTools": {
     "title": "כלי מאמן",
@@ -4181,6 +4182,100 @@
       "ok": "הבנתי",
       "loading": "מחשב…",
       "none": "לריצה הזאת אין מספיק נתונים לחישוב עומס."
+    },
+    "week": {
+      "weekOf": "השבוע · <m>{range}</m>",
+      "otherWeek": "שבוע · <m>{range}</m>",
+      "prev": "השבוע הקודם",
+      "next": "השבוע הבא",
+      "view": {
+        "label": "תצוגה",
+        "week": "שבוע",
+        "month": "חודש"
+      },
+      "tile": {
+        "km": "ק״מ",
+        "workouts": "אימונים",
+        "time": "זמן",
+        "load": "⚡ עומס",
+        "of": "מתוך <m>{planned}</m>"
+      },
+      "onPlan": "✓ לפי התוכנית",
+      "missed": "לא בוצע",
+      "today": "היום",
+      "onWatch": "⌚ בשעון",
+      "offKm": "{caret} <m>{actual}</m> ק״מ במקום <m>{planned}</m>",
+      "offMin": "{caret} <m>{actual}</m> דק׳ במקום <m>{planned}</m>",
+      "km": "<m>{km}</m> ק״מ",
+      "reps": "החזרות ב־<m>{pace}</m>",
+      "at": "ב־<m>{pace}</m>",
+      "load": "⚡ <m>{load}</m>",
+      "comments": "💬 <m>{n}</m>",
+      "pr": "🏅 שיא ל־{bucket}",
+      "rest": "מנוחה",
+      "legend": {
+        "green": "לפי התוכנית",
+        "yellow": "קצת שונה",
+        "orange": "שונה מאוד",
+        "red": "לא בוצע"
+      },
+      "empty": "אין אימונים בשבוע הזה.",
+      "error": "לא הצלחנו לטעון את השבוע.",
+      "thread": "השיחה עם {name}",
+      "threadMine": "השיחה שלי"
+    },
+    "month": {
+      "title": "{month} <m>{year}</m>",
+      "prev": "החודש הקודם",
+      "next": "החודש הבא",
+      "weekdays": {
+        "sun": "א׳",
+        "mon": "ב׳",
+        "tue": "ג׳",
+        "wed": "ד׳",
+        "thu": "ה׳",
+        "fri": "ו׳",
+        "sat": "ש׳"
+      },
+      "summarySoFar": "{month} עד היום · <m>{done}</m> מתוך <m>{planned}</m> אימונים",
+      "summaryWhole": "{month} · <m>{done}</m> מתוך <m>{planned}</m> אימונים",
+      "summaryKm": "<m>{km}</m> ק״מ",
+      "part": {
+        "onPlan": "<m>{n}</m> לפי התוכנית",
+        "bitOff": "<m>{n}</m> קצת שונה",
+        "farOff": "<m>{n}</m> שונה מאוד",
+        "missed": "<m>{n}</m> לא בוצע"
+      },
+      "day": {
+        "green": "{day} · לפי התוכנית",
+        "yellow": "{day} · קצת שונה",
+        "orange": "{day} · שונה מאוד",
+        "red": "{day} · לא בוצע",
+        "grey": "{day} · מתוכנן",
+        "none": "{day}",
+        "race": "יום המרוץ",
+        "today": "היום"
+      },
+      "load": {
+        "title": "⚡ עומס לפי שבוע",
+        "axis": "הישן משמאל · השבוע מימין",
+        "thisWeek": "השבוע",
+        "avg": "ממוצע <m>{avg}</m>",
+        "easy": "שבוע קל",
+        "aria": "עומס ב־{n} השבועות האחרונים, הישן משמאל",
+        "vs": {
+          "wellBelow": "המתוכנן השבוע (<b><m>{planned}</m></b>, המסגרת המקווקו) הרבה מתחת לממוצע שלך (<b><m>{avg}</m></b>)",
+          "below": "המתוכנן השבוע (<b><m>{planned}</m></b>, המסגרת המקווקו) קצת מתחת לממוצע שלך (<b><m>{avg}</m></b>)",
+          "same": "המתוכנן השבוע (<b><m>{planned}</m></b>, המסגרת המקווקו) בערך כמו הממוצע שלך (<b><m>{avg}</m></b>)",
+          "above": "המתוכנן השבוע (<b><m>{planned}</m></b>, המסגרת המקווקו) קצת מעל הממוצע שלך (<b><m>{avg}</m></b>)",
+          "wellAbove": "המתוכנן השבוע (<b><m>{planned}</m></b>, המסגרת המקווקו) הרבה מעל הממוצע שלך (<b><m>{avg}</m></b>)"
+        },
+        "noPlan": "השבוע עד עכשיו <b><m>{done}</m></b>, והממוצע שלך <b><m>{avg}</m></b>",
+        "afterHeavy": ", אחרי שבוע עמוס",
+        "end": ".",
+        "easyNote": " העמודה הבהירה היא שבוע קל."
+      },
+      "error": "לא הצלחנו לטעון את החודש."
     }
   }
 }

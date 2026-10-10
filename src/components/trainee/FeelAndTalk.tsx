@@ -21,7 +21,8 @@ import { CARD, Chevron, RICH, SHADOW, StructureText } from './ui';
 // conversation about THIS workout: the coach's review of the run first, then the last two
 // messages tagged with its date, and a line to write one more.
 
-const FACES = ['😫', '😕', '😐', '🙂', '🤩'];
+/** The five faces, feel 0–4 (חלש מאוד … חזק מאוד); the week board's 🙂 mark draws the same ones. */
+export const FACES = ['😫', '😕', '😐', '🙂', '🤩'];
 
 interface ThreadPayload {
   viewerId: string | null;

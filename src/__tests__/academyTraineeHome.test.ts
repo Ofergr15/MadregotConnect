@@ -4,7 +4,7 @@ import {
   goalCard, journeyPlanStats, kmAverage, monthsBetween, plannedPaceOf, resolveTraineePaces, rowPace, rowStatus,
   stepTiles, weekDates,
 } from '@/lib/academy/trainee-home';
-import { athletePrimaryOrder } from '@/lib/nav-items';
+import { ACADEMY_BOARD_ITEM, ACADEMY_ITEM, athletePrimaryOrder, resolveNavItems } from '@/lib/nav-items';
 
 const step = (s: Partial<WorkoutStep>): WorkoutStep => ({
   order: 0, type: 'active', durationType: 'distance', targetType: 'no_target', ...s,
@@ -181,5 +181,42 @@ describe('the phone tab bar for an academy member', () => {
   });
   it('leaves everybody else alone', () => {
     expect(athletePrimaryOrder(ORDER, false)).toEqual(ORDER);
+  });
+
+  describe('under the trainee experience v2', () => {
+    it('keeps the board right after home, one of the four flat tabs', () => {
+      expect(athletePrimaryOrder(ORDER, true, true)).toEqual(['feed', 'dashboard', 'academy', 'profile']);
+      // Even from an order that never held the program.
+      expect(athletePrimaryOrder(['feed', 'dashboard', 'records', 'profile'], true, true))
+        .toEqual(['feed', 'dashboard', 'academy', 'records', 'profile']);
+    });
+    it('changes nothing for a club runner', () => {
+      expect(athletePrimaryOrder(ORDER, false, true)).toEqual(ORDER);
+    });
+  });
+});
+
+describe('the academy tab is the board for a trainee under v2', () => {
+  const base = { permissions: [], isAthlete: true, isAcademyMember: true };
+  const academyOf = (items: ReturnType<typeof resolveNavItems>) => items.find(i => i.tab === 'academy');
+
+  it('off: the academy, as before', () => {
+    expect(academyOf(resolveNavItems({ ...base, effectiveRole: 'runner' }))).toBe(ACADEMY_ITEM);
+    expect(academyOf(resolveNavItems({ ...base, effectiveRole: 'runner', traineeV2: false }))).toBe(ACADEMY_ITEM);
+  });
+
+  it('on: "לוח", the same door', () => {
+    const item = academyOf(resolveNavItems({ ...base, effectiveRole: 'runner', traineeV2: true }));
+    expect(item).toBe(ACADEMY_BOARD_ITEM);
+    expect(item).toMatchObject({ href: '/dashboard/academy', tab: 'academy', labelKey: 'board' });
+  });
+
+  it('on, but staff keep the academy centre', () => {
+    expect(academyOf(resolveNavItems({ ...base, effectiveRole: 'academy_coach', traineeV2: true }))).toBe(ACADEMY_ITEM);
+    expect(academyOf(resolveNavItems({ ...base, effectiveRole: 'admin', traineeV2: true }))).toBe(ACADEMY_ITEM);
+  });
+
+  it('on, for somebody outside the academy: no tab at all', () => {
+    expect(academyOf(resolveNavItems({ ...base, isAcademyMember: false, effectiveRole: 'runner', traineeV2: true }))).toBeUndefined();
   });
 });
