@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import Link from 'next/link';
 import { ChevronLeft, ChevronRight, GraduationCap } from 'lucide-react';
 import { cn, israelToday } from '@/lib/utils';
 import { useApi } from '@/lib/api';
@@ -268,6 +269,13 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
             );
           })
         )}
+        {/* The whole week (book v3): totals, the colour strips, what is on the watch. */}
+        <Link
+          href={`/dashboard/academy/week?weekStart=${weekStart}`}
+          className="flex min-h-[44px] items-center justify-center gap-0.5 border-t border-page/60 text-[12.5px] font-extrabold text-brand-600"
+        >
+          {t('openWeek')} <ChevronLeft className="h-3.5 w-3.5" />
+        </Link>
       </div>
 
       {/* ── Below the fold: the journey ── */}

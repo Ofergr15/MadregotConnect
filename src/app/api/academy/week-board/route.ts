@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { addDaysToDateStr, israelToday, planWeekStartOf } from '@/lib/utils';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { mayCoach } from '@/lib/academy/pairing-server';
+import { loadThresholds } from '@/lib/academy/book-server';
 import { computeAcademyWeekAdherence } from '@/lib/academy/report';
 import { complianceOf, weekTotals } from '@/lib/academy/compliance';
 import { absoluteToLibrary, fromLibrarySteps, structureName } from '@/lib/academy/book-steps';
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** The threshold the board's steps are restated against. Any value works — see below. */
+/** Restating paces needs A threshold; with no test, a typical one only names the session. */
 const DISPLAY_REFERENCE = 300;
 
 /**
@@ -44,7 +45,7 @@ export async function GET(request: Request) {
     }
 
     const supabase = createServerClient();
-    const [report, deliveries, me] = await Promise.all([
+    const [report, deliveries, me, thresholds] = await Promise.all([
       computeAcademyWeekAdherence({ weekStart, onlyAthleteId: athleteId, keepDetail: true }),
       supabase
         .from('workout_deliveries')
@@ -53,7 +54,9 @@ export async function GET(request: Request) {
         .gte('workout_date', weekStart)
         .lte('workout_date', weekEnd),
       supabase.from('athletes').select('id, name, academy_coach_id').eq('id', athleteId).maybeSingle(),
+      loadThresholds(supabase, [athleteId]),
     ]);
+    const thresholdSec = thresholds[athleteId] ?? null;
 
     let coachName: string | null = null;
     const coachId = (me.data as { academy_coach_id?: string | null } | null)?.academy_coach_id;
@@ -73,9 +76,8 @@ export async function GET(request: Request) {
     const workouts: WeekBoardWorkout[] = rows.map((row) => {
       const steps = row.detail?.workout.steps ?? [];
       // Named from the structure, the way the book names it (`6 × 800 מ׳`) — the club's own
-      // titles are day names (`שלישי`), which the row already says. Restated against an
-      // arbitrary reference and back: a name depends only on the shape, never on the pace.
-      const model = steps.length ? fromLibrarySteps(absoluteToLibrary(steps, DISPLAY_REFERENCE).steps) : null;
+      // titles are day names (`שלישי`), which the row already says.
+      const model = steps.length ? fromLibrarySteps(absoluteToLibrary(steps, thresholdSec ?? DISPLAY_REFERENCE).steps) : null;
       const plannedM = (row.distance.plannedMin + row.distance.plannedMax) / 2 || null;
       const plannedPace = row.pace.plannedMin && row.pace.plannedMax
         ? Math.round((row.pace.plannedMin + row.pace.plannedMax) / 2)
@@ -113,6 +115,7 @@ export async function GET(request: Request) {
       today,
       athlete: { id: athleteId, name: (me.data as { name?: string } | null)?.name ?? report.athletes[0]?.name ?? '' },
       coachName,
+      thresholdSec,
       totals: weekTotals(workouts.map(w => ({
         completed: w.compliance.color !== 'red' && w.compliance.color !== 'grey',
         plannedM: w.plannedM,

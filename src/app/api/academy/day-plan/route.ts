@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { addDaysToDateStr, planWeekStartOf } from '@/lib/utils';
-import { isMissingTable } from '@/lib/supabase/schema-drift';
 import { requireTraineeAccess, visibleTraineeIds } from '@/lib/academy/pairing-server';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { laneForBand, lanesDiffer, type Lane } from '@/lib/academy/group-lane';
@@ -12,7 +11,7 @@ import {
 } from '@/lib/academy/book-server';
 import { decideRecipients, hasWorkoutOn, mergeDay, type SkipReason } from '@/lib/academy/day-send';
 import {
-  hasAbsolutePaces, isLibraryKind, resolveLibraryWorkout, type LibraryStep,
+  hasAbsolutePaces, resolveLibraryWorkout, type LibraryStep,
 } from '@/lib/academy/library';
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
 import { revalidateWeeklyPlans } from '@/lib/plans/cache';
@@ -33,11 +32,11 @@ export const maxDuration = 120;
  *          others too".
  *
  *   POST /api/academy/day-plan
- *        { date, recipients: [primary, …others], workout: { name, notes, steps }, entryId?,
- *          saveToBook?: { name, kind } }
+ *        { date, recipients: [primary, …others], workout: { name, notes, steps }, entryId? }
  *        → each recipient's own copy, resolved from THEIR threshold, saved into their week
  *          and pushed to their watch through `pushWeekToAthlete` — the same delivery the
- *          planner and "לשלוח שוב" use.
+ *          planner and "לשלוח שוב" use. ("לשמור בספר" is the book's own POST, which already
+ *          guards what an entry may hold.)
  *
  * Gated per trainee by `requireTraineeAccess` (the manager, or that trainee's own coach),
  * which is narrower than push-workouts' any-staff: this route takes steps in the body, and
@@ -95,6 +94,7 @@ export async function GET(request: Request) {
         name: t.name,
         thresholdSec: thresholds[t.id] ?? null,
         hasGarmin: t.hasGarmin,
+        lane: laneForBand(t.bandNumber),
         busy: hasWorkoutOn(weeks[t.id]?.workouts ?? [], dayOfWeek),
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -270,32 +270,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // "לשמור בספר": this version, on the coach's own shelf, counted as used.
-    let saved: { id: string } | { error: string } | null = null;
-    const save = body?.saveToBook;
-    if (save && caller.athleteId) {
-      const saveName = String(save.name || name).trim();
-      const kind = isLibraryKind(save.kind) ? save.kind : 'easy';
-      const { data, error } = await supabase.from('academy_workout_library').insert({
-        scope: 'mine',
-        owner_id: caller.athleteId,
-        name: saveName,
-        kind,
-        notes,
-        steps,
-        use_count: assigned,
-        last_used_at: assigned ? new Date().toISOString() : null,
-      }).select('id').single();
-      if (error) {
-        saved = {
-          error: isMissingTable(error) ? 'not-set-up' : String((error as { code?: string }).code) === '23505' ? 'name-taken' : 'failed',
-        };
-      } else if (data) {
-        saved = { id: String(data.id) };
-      }
-    }
-
-    return NextResponse.json({ date, weekStart, results, saved, weekEnd: addDaysToDateStr(weekStart, 6) });
+    return NextResponse.json({ date, weekStart, weekEnd: addDaysToDateStr(weekStart, 6), assigned, results });
   } catch (error) {
     console.error('day-plan POST error:', error);
     return NextResponse.json({ error: 'Failed to send' }, { status: 500 });

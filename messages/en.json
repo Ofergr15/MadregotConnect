@@ -1269,7 +1269,8 @@
     "sectionGroup_people": "People",
     "sectionGroup_training": "Training",
     "sectionGroup_progress": "Progress",
-    "sectionGroup_manage": "Management"
+    "sectionGroup_manage": "Management",
+    "openWeek": "The whole week"
   },
   "records": {
     "title": "Club Records",
@@ -3378,6 +3379,257 @@
         "body": "Logged, and it puts the app back on the Tokyo database. Anything written in Frankfurt since opening does not come back.",
         "cta": "Request"
       }
+    }
+  },
+  "workoutBook": {
+    "flowLabel": "Plan a workout",
+    "workoutLabel": "The workout",
+    "loading": "Loading…",
+    "cancel": "Cancel",
+    "done": "Done",
+    "close": "Close",
+    "finish": "Done",
+    "continue": "Next",
+    "change": "Change",
+    "back": {
+      "week": "Week",
+      "back": "Back"
+    },
+    "day": {
+      "sun": "Sunday",
+      "mon": "Monday",
+      "tue": "Tuesday",
+      "wed": "Wednesday",
+      "thu": "Thursday",
+      "fri": "Friday",
+      "sat": "Saturday"
+    },
+    "dayShort": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    },
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "band": "Band {n}",
+    "whatRuns": "What runs on {day}?",
+    "alreadyHas": "Already planned that day: <b>{name}</b>. What you send replaces it.",
+    "noTest": "{name} has no test yet, so there is no threshold to set paces from. Nothing goes to the watch without one.",
+    "noTestBlock": "{name} has no test, so nothing goes to the watch.",
+    "setTest": "Schedule a test ›",
+    "seniorRan": "What the senior group ran on {day}",
+    "seniorRests": "The senior group rests on {day}",
+    "noClubWeek": "No senior-group plan this week yet",
+    "seniorRestsHint": "Pick from the book or write a workout.",
+    "volume": "<b>{km} km</b> · about <m>{min}</m> min",
+    "kmOnly": "<m>{km}</m> km",
+    "minShort": "<m>{min}</m> min",
+    "uses": "{count, plural, =0 {not used yet} one {used once} other {used <m>#</m> times}}",
+    "paceLineReps": "Reps at <n>{pace}</n>/km, from <bdi>{name}</bdi>'s test",
+    "paceLineRun": "At <n>{pace}</n>/km, from <bdi>{name}</bdi>'s test",
+    "take": "Take this one",
+    "fromBook": "From the book",
+    "writeQuick": "Quick write",
+    "moreFromSenior": "More from the senior group this week",
+    "lane": "Lane",
+    "laneN": "Lane {n}",
+    "bookTitle": "Workout book",
+    "searchPlaceholder": "\"800\", \"hills\", \"long\"",
+    "searchLabel": "Search the book",
+    "kindsLabel": "Workout kinds",
+    "favourites": "Favourites",
+    "favourite": "Favourite",
+    "kind": {
+      "all": "All",
+      "intervals": "Fast",
+      "tempo": "Tempo",
+      "long": "Long",
+      "easy": "Easy",
+      "hills": "Hills",
+      "test": "Test"
+    },
+    "chip": {
+      "intervals": "Fast",
+      "tempo": "Tempo",
+      "long": "Long",
+      "easy": "Easy",
+      "hills": "Hills",
+      "test": "Test"
+    },
+    "mostUsed": "Most used",
+    "noMatch": "No workout matches.",
+    "bookEmpty": "The book is empty.",
+    "bookNotSetUp": "The workout book is not set up in the database yet.",
+    "adjustTitle": "Adjust",
+    "quick": {
+      "count": "Reps",
+      "length": "Each rep",
+      "pace": "Pace",
+      "rest": "Rest",
+      "hrMin": "HR",
+      "hrMax": "HR"
+    },
+    "stepsHint": "Steps · tap a blue number",
+    "stepsReadOnly": "Steps",
+    "notEditable": "This workout can't be edited here, but it can be sent as it is.",
+    "addStep": "Step",
+    "add": {
+      "run": "Run",
+      "reps": "Reps",
+      "rest": "Rest"
+    },
+    "reset": "As planned",
+    "outcome": "Comes to: <b>{km} km</b> · <m>{min}</m> min",
+    "outcomeEstimated": "Comes to: <b>about {km} km</b> · <m>{min}</m> min",
+    "putOn": "Put on {day}",
+    "wheel": {
+      "count": "How many reps",
+      "length": "Length",
+      "pace": "Pace per km",
+      "rest": "Rest",
+      "hrMin": "HR from",
+      "hrMax": "HR to"
+    },
+    "wheelDone": "OK",
+    "unit": {
+      "km": "km",
+      "m": "m",
+      "min": "min",
+      "sec": "s"
+    },
+    "role": {
+      "warmup": "Warm-up",
+      "cooldown": "Cool-down",
+      "rest": "Rest"
+    },
+    "mode": {
+      "jog": "jog",
+      "walk": "walk",
+      "stand": "stand"
+    },
+    "zone": {
+      "easy": "easy",
+      "marathon_pace": "marathon pace",
+      "tempo": "tempo",
+      "threshold": "threshold",
+      "interval": "fast",
+      "sprint": "sprint"
+    },
+    "at": "at ",
+    "ofThreshold": "of threshold",
+    "open": "until lap",
+    "hr": "HR",
+    "quickTitle": "Write a workout",
+    "quickLabel": "The workout in one line",
+    "quickPlaceholder": "2 easy, 5x1000 at 4:05 rest 2:00, 2 easy",
+    "quickHint": "Write it like a WhatsApp message: <c>6x800</c> · <c>ב־4:05</c> · <c>מנוחה 90</c> · <c>20 דק׳ טמפו</c> · <c>קל</c>",
+    "understood": "Here's how I read it",
+    "quickTotals": "✓ <m>{km}</m> km · <m>{min}</m> min.",
+    "quickKept": "The pace <n>{pace}</n> is kept as \"{zone} for <bdi>{name}</bdi>\", so another trainee gets their own pace.",
+    "quickNoTest": "{name} has no test, so a pace written as a number can't be kept. Write it in words (easy, tempo, threshold), or schedule a test.",
+    "continueToAdjust": "Continue to adjust",
+    "unknownWords": "Didn't understand: \"{text}\"",
+    "assume": {
+      "rest-ambiguous": "\"{text}\" after rest was read as seconds. If you meant minutes, write {text} דק׳.",
+      "bare-seconds": "\"{text}\" was read as seconds per rep.",
+      "bare-minutes": "\"{text}\" was read as minutes.",
+      "second-work": "Only the first block of a rep is kept: \"{text}\" was left out.",
+      "rest-default": "No rest time was given, so it's 2:00."
+    },
+    "sendTitle": "Send",
+    "onWatchOf": "On {name}'s watch",
+    "onWatchOfReps": "On <bdi>{name}</bdi>'s watch · reps at <n>{pace}</n>",
+    "onWatchOfRun": "On <bdi>{name}</bdi>'s watch · at <n>{pace}</n>",
+    "savedNoWatch": "Saved in {name}'s plan · no watch connected",
+    "savedPushFailed": "Saved in {name}'s plan, but it didn't reach the watch. You can resend it from the watches screen.",
+    "sendOthersTitle": "Send to them too? Each at their own pace",
+    "theirReps": "Reps at <n>{pace}</n>",
+    "theirRun": "At <n>{pace}</n>",
+    "ownPace": "At their own pace",
+    "busyThatDay": "Already has a workout on {day}",
+    "noTestOther": "No test, no pace. Schedule a test",
+    "saveToBook": "Save to the book",
+    "savedToBook": "Saved to your book",
+    "saveTaken": "The book already has a workout with this name",
+    "saveFailed": "Couldn't save to the book",
+    "sendAlso": "{n, plural, one {Also send to one} other {Also send to #}}",
+    "result": {
+      "sent": "Sent to the watch",
+      "saved": "Saved in the plan · no watch",
+      "failed": "Sending failed",
+      "skip": {
+        "has-workout": "Skipped · already has a workout",
+        "no-test": "Skipped · no test",
+        "other": "Skipped"
+      }
+    },
+    "error": {
+      "load": "Couldn't load. Try again in a moment.",
+      "send": "Couldn't send. Try again.",
+      "push": "The workout was saved, but it didn't reach the watch."
+    },
+    "weekTitle": "Week",
+    "prevWeek": "Previous week",
+    "nextWeek": "Next week",
+    "total": {
+      "km": "km",
+      "workouts": "Workouts",
+      "time": "Time"
+    },
+    "weekEmpty": "No workouts this week.",
+    "addOn": "Add:",
+    "onPlan": "On plan",
+    "missed": "Missed",
+    "onWatchShort": "On watch ✓",
+    "notOnWatch": "Not on the watch yet",
+    "ofPlannedKm": "<m>{actual}</m> of <m>{planned}</m> km",
+    "ofPlannedMin": "<m>{actual}</m> of <m>{planned}</m> min",
+    "atPace": "at <p>{pace}</p>",
+    "repsAtPace": "reps at <p>{pace}</p>",
+    "fromCoach": "From {name}",
+    "fromCoachGeneric": "From your coach",
+    "stepsUnavailable": "This workout's steps can't be shown here.",
+    "onWatchTitle": "On the watch",
+    "onWatchSub": "Sent to Garmin · it will appear under \"Workouts\"",
+    "notOnWatchTitle": "Not on the watch yet",
+    "notOnWatchSub": "Not sent yet, or the watch isn't connected",
+    "planVsActual": "Plan vs actual",
+    "askCoach": "Ask {name}",
+    "askCoachGeneric": "Ask your coach",
+    "writeTo": "Write to {name}",
+    "a11y": {
+      "editNumber": "Change {value}",
+      "less": "Less",
+      "more": "More",
+      "openWheel": "Pick from a wheel",
+      "closeWheel": "Close the wheel"
+    },
+    "import": {
+      "open": "Import every workout already in the app into the book",
+      "title": "Import to the book",
+      "scanning": "Scanning every plan…",
+      "loadFailed": "Couldn't scan the plans.",
+      "scanned": "Scanned <m>{plans}</m> weekly plans · <m>{sessions}</m> distinct workouts",
+      "status": {
+        "new": "New",
+        "existing": "Already in the book",
+        "review": "Needs review"
+      },
+      "reason": {
+        "no-test": "trainee has no test",
+        "pace-from-note": "pace read from the note",
+        "length-from-note": "length read from the note",
+        "open-length": "no length",
+        "not-editable": "not editable"
+      },
+      "save": "{n, plural, =0 {Pick workouts to save} one {Save one workout to the book} other {Save # workouts to the book}}",
+      "written": "{n, plural, one {Saved one workout} other {Saved <m>#</m> workouts}} · Close",
+      "failed": "Saving failed. Try again.",
+      "nameTaken": "One of the names is already in the book. Try again."
     }
   }
 }

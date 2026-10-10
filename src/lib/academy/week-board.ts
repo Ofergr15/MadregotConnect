@@ -29,6 +29,8 @@ export interface WeekBoard {
   today: string;
   athlete: { id: string; name: string };
   coachName: string | null;
+  /** The trainee's 30-minute threshold — what the steps are drawn against. Null: no test. */
+  thresholdSec: number | null;
   totals: WeekTotals;
   workouts: WeekBoardWorkout[];
   canPlan: boolean;

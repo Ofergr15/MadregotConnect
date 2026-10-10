@@ -1269,7 +1269,8 @@
     "sectionGroup_people": "אנשים",
     "sectionGroup_training": "אימונים",
     "sectionGroup_progress": "התקדמות",
-    "sectionGroup_manage": "ניהול"
+    "sectionGroup_manage": "ניהול",
+    "openWeek": "השבוע המלא"
   },
   "records": {
     "title": "שיאי המועדון",
@@ -3378,6 +3379,257 @@
         "body": "הבקשה נרשמת ביומן ומחזירה את האפליקציה למסד בטוקיו. מה שנכתב בפרנקפורט מאז הפתיחה לא יעבור.",
         "cta": "בקש חזרה"
       }
+    }
+  },
+  "workoutBook": {
+    "flowLabel": "תכנון אימון",
+    "workoutLabel": "האימון",
+    "loading": "טוען…",
+    "cancel": "ביטול",
+    "done": "סיום",
+    "close": "סגירה",
+    "finish": "סיום",
+    "continue": "המשך",
+    "change": "לשנות",
+    "back": {
+      "week": "השבוע",
+      "back": "חזרה"
+    },
+    "day": {
+      "sun": "ראשון",
+      "mon": "שני",
+      "tue": "שלישי",
+      "wed": "רביעי",
+      "thu": "חמישי",
+      "fri": "שישי",
+      "sat": "שבת"
+    },
+    "dayShort": {
+      "sun": "א׳",
+      "mon": "ב׳",
+      "tue": "ג׳",
+      "wed": "ד׳",
+      "thu": "ה׳",
+      "fri": "ו׳",
+      "sat": "ש׳"
+    },
+    "today": "היום",
+    "tomorrow": "מחר",
+    "band": "דבוקה {n}",
+    "whatRuns": "מה ירוץ ב{day}?",
+    "alreadyHas": "כבר יש לו ביום הזה: <b>{name}</b>. מה שתשלחו יחליף אותו.",
+    "noTest": "ל־{name} אין עדיין טסט, אז אין ממה לגזור קצבים. בלי טסט לא שולחים לשעון.",
+    "noTestBlock": "אין ל־{name} טסט, אז לא שולחים לשעון.",
+    "setTest": "לקבוע טסט ›",
+    "seniorRan": "מה שהבוגרת רצה ב{day}",
+    "seniorRests": "הבוגרת לא רצה ב{day}",
+    "noClubWeek": "עוד אין תוכנית לבוגרת השבוע",
+    "seniorRestsHint": "אפשר לבחור מהספר או לכתוב אימון.",
+    "volume": "<b>{km} ק״מ</b> · כ־<m>{min}</m> דקות",
+    "kmOnly": "<m>{km}</m> ק״מ",
+    "minShort": "<m>{min}</m> דק׳",
+    "uses": "{count, plural, =0 {עוד לא} one {פעם אחת} other {<m>#</m> פעמים}}",
+    "paceLineReps": "החזרות ב־<n>{pace}</n> לק״מ, לפי הטסט של <bdi>{name}</bdi>",
+    "paceLineRun": "ב־<n>{pace}</n> לק״מ, לפי הטסט של <bdi>{name}</bdi>",
+    "take": "לקחת את זה",
+    "fromBook": "מהספר",
+    "writeQuick": "לכתוב מהר",
+    "moreFromSenior": "עוד מהבוגרת השבוע",
+    "lane": "נתיב",
+    "laneN": "נתיב {n}",
+    "bookTitle": "ספר האימונים",
+    "searchPlaceholder": "\"800\", \"גבעות\", \"ארוכה\"",
+    "searchLabel": "חיפוש בספר",
+    "kindsLabel": "סוגי אימון",
+    "favourites": "מועדפים",
+    "favourite": "מועדף",
+    "kind": {
+      "all": "הכל",
+      "intervals": "מהיר",
+      "tempo": "טמפו",
+      "long": "ארוכה",
+      "easy": "קל",
+      "hills": "גבעות",
+      "test": "טסט"
+    },
+    "chip": {
+      "intervals": "מהיר",
+      "tempo": "טמפו",
+      "long": "ארוכה",
+      "easy": "קל",
+      "hills": "גבעות",
+      "test": "טסט"
+    },
+    "mostUsed": "הכי בשימוש",
+    "noMatch": "אין אימון שמתאים לחיפוש.",
+    "bookEmpty": "הספר עוד ריק.",
+    "bookNotSetUp": "ספר האימונים עוד לא הוגדר במסד הנתונים.",
+    "adjustTitle": "להתאים",
+    "quick": {
+      "count": "חזרות",
+      "length": "כל חזרה",
+      "pace": "קצב",
+      "rest": "מנוחה",
+      "hrMin": "דופק",
+      "hrMax": "דופק"
+    },
+    "stepsHint": "השלבים · נוגעים במספר כחול",
+    "stepsReadOnly": "השלבים",
+    "notEditable": "את האימון הזה אי אפשר לערוך כאן, אבל אפשר לשלוח אותו כמו שהוא.",
+    "addStep": "שלב",
+    "add": {
+      "run": "ריצה",
+      "reps": "חזרות",
+      "rest": "מנוחה"
+    },
+    "reset": "כמו בתוכנית",
+    "outcome": "יוצא: <b>{km} ק״מ</b> · <m>{min}</m> דק׳",
+    "outcomeEstimated": "יוצא: <b>כ־{km} ק״מ</b> · <m>{min}</m> דק׳",
+    "putOn": "לשים ב{day}",
+    "wheel": {
+      "count": "כמה חזרות",
+      "length": "אורך",
+      "pace": "קצב לק״מ",
+      "rest": "מנוחה",
+      "hrMin": "דופק מ־",
+      "hrMax": "דופק עד"
+    },
+    "wheelDone": "אישור",
+    "unit": {
+      "km": "ק״מ",
+      "m": "מ׳",
+      "min": "דק׳",
+      "sec": "שנ׳"
+    },
+    "role": {
+      "warmup": "חימום",
+      "cooldown": "שחרור",
+      "rest": "מנוחה"
+    },
+    "mode": {
+      "jog": "ג׳וג",
+      "walk": "הליכה",
+      "stand": "עמידה"
+    },
+    "zone": {
+      "easy": "קל",
+      "marathon_pace": "קצב מרתון",
+      "tempo": "טמפו",
+      "threshold": "סף",
+      "interval": "מהיר",
+      "sprint": "ספרינט"
+    },
+    "at": "ב־",
+    "ofThreshold": "מהסף",
+    "open": "עד לחיצה",
+    "hr": "דופק",
+    "quickTitle": "לכתוב אימון",
+    "quickLabel": "האימון במשפט",
+    "quickPlaceholder": "2 קל, 5x1000 ב־4:05 מנוחה 2:00, 2 קל",
+    "quickHint": "כותבים כמו בוואטסאפ: <c>6x800</c> · <c>ב־4:05</c> · <c>מנוחה 90</c> · <c>20 דק׳ טמפו</c> · <c>קל</c>",
+    "understood": "הבנתי כך",
+    "quickTotals": "✓ <m>{km}</m> ק״מ · <m>{min}</m> דק׳.",
+    "quickKept": "הקצב <n>{pace}</n> נשמר כ״{zone} ל־<bdi>{name}</bdi>״, כך שגם מתאמן אחר יקבל את הקצב שלו.",
+    "quickNoTest": "ל־{name} אין טסט, אז אי אפשר לשמור קצב שנכתב במספרים. אפשר לכתוב במילים (קל, טמפו, סף), או לקבוע טסט.",
+    "continueToAdjust": "להמשיך להתאמה",
+    "unknownWords": "לא הבנתי: \"{text}\"",
+    "assume": {
+      "rest-ambiguous": "\"{text}\" אחרי מנוחה נקרא כשניות. אם התכוונתם לדקות, כתבו {text} דק׳.",
+      "bare-seconds": "\"{text}\" נקרא כשניות לכל חזרה.",
+      "bare-minutes": "\"{text}\" נקרא כדקות.",
+      "second-work": "בתוך חזרה נשמר רק הקטע הראשון: \"{text}\" לא נכנס.",
+      "rest-default": "לא היה זמן מנוחה, שמתי 2:00."
+    },
+    "sendTitle": "לשלוח",
+    "onWatchOf": "בשעון של {name}",
+    "onWatchOfReps": "בשעון של <bdi>{name}</bdi> · החזרות ב־<n>{pace}</n>",
+    "onWatchOfRun": "בשעון של <bdi>{name}</bdi> · ב־<n>{pace}</n>",
+    "savedNoWatch": "נשמר בתוכנית של {name} · אין שעון מחובר",
+    "savedPushFailed": "נשמר בתוכנית של {name}, אבל לא הגיע לשעון. אפשר לשלוח שוב ממסך השעונים.",
+    "sendOthersTitle": "לשלוח גם להם? כל אחד בקצב שלו",
+    "theirReps": "החזרות ב־<n>{pace}</n>",
+    "theirRun": "ב־<n>{pace}</n>",
+    "ownPace": "בקצב שלו",
+    "busyThatDay": "כבר יש אימון ב{day}",
+    "noTestOther": "אין טסט, אין קצב. לקבוע טסט",
+    "saveToBook": "לשמור בספר",
+    "savedToBook": "נשמר בספר שלך",
+    "saveTaken": "כבר יש בספר אימון בשם הזה",
+    "saveFailed": "לא הצלחנו לשמור בספר",
+    "sendAlso": "{n, plural, one {לשלוח גם לאחד} other {לשלוח גם ל־#}}",
+    "result": {
+      "sent": "נשלח לשעון",
+      "saved": "נשמר בתוכנית · אין שעון",
+      "failed": "השליחה נכשלה",
+      "skip": {
+        "has-workout": "דולג · כבר יש אימון",
+        "no-test": "דולג · אין טסט",
+        "other": "דולג"
+      }
+    },
+    "error": {
+      "load": "לא הצלחנו לטעון. נסו שוב בעוד רגע.",
+      "send": "לא הצלחנו לשלוח. נסו שוב.",
+      "push": "האימון נשמר, אבל לא הגיע לשעון."
+    },
+    "weekTitle": "השבוע",
+    "prevWeek": "השבוע הקודם",
+    "nextWeek": "השבוע הבא",
+    "total": {
+      "km": "ק״מ",
+      "workouts": "אימונים",
+      "time": "זמן"
+    },
+    "weekEmpty": "אין אימונים בשבוע הזה.",
+    "addOn": "להוסיף:",
+    "onPlan": "לפי התוכנית",
+    "missed": "לא בוצע",
+    "onWatchShort": "בשעון ✓",
+    "notOnWatch": "עוד לא בשעון",
+    "ofPlannedKm": "<m>{actual}</m> מ־<m>{planned}</m> ק״מ",
+    "ofPlannedMin": "<m>{actual}</m> מ־<m>{planned}</m> דק׳",
+    "atPace": "ב־<p>{pace}</p>",
+    "repsAtPace": "החזרות ב־<p>{pace}</p>",
+    "fromCoach": "מ־{name}",
+    "fromCoachGeneric": "מהמאמן",
+    "stepsUnavailable": "את השלבים של האימון הזה אי אפשר להציג כאן.",
+    "onWatchTitle": "בשעון",
+    "onWatchSub": "נשלח לגרמין · יופיע ב״אימונים״",
+    "notOnWatchTitle": "עוד לא בשעון",
+    "notOnWatchSub": "המאמן עוד לא שלח, או שהשעון לא מחובר",
+    "planVsActual": "תוכנית מול ביצוע",
+    "askCoach": "שאלה ל־{name}",
+    "askCoachGeneric": "שאלה למאמן",
+    "writeTo": "לכתוב ל־{name}",
+    "a11y": {
+      "editNumber": "לשנות {value}",
+      "less": "פחות",
+      "more": "יותר",
+      "openWheel": "לבחור מגלגל",
+      "closeWheel": "סגירת הגלגל"
+    },
+    "import": {
+      "open": "לייבא לספר את כל האימונים שכבר באפליקציה",
+      "title": "ייבוא לספר",
+      "scanning": "סורקים את כל התוכניות…",
+      "loadFailed": "לא הצלחנו לסרוק את התוכניות.",
+      "scanned": "נסרקו <m>{plans}</m> תוכניות שבועיות · <m>{sessions}</m> אימונים שונים",
+      "status": {
+        "new": "חדש",
+        "existing": "כבר בספר",
+        "review": "לבדוק"
+      },
+      "reason": {
+        "no-test": "אין טסט למתאמן",
+        "pace-from-note": "הקצב נקרא מההערה",
+        "length-from-note": "האורך נקרא מההערה",
+        "open-length": "בלי אורך",
+        "not-editable": "לא ניתן לעריכה"
+      },
+      "save": "{n, plural, =0 {לבחור אימונים לשמירה} one {לשמור אימון אחד בספר} other {לשמור # אימונים בספר}}",
+      "written": "{n, plural, one {נשמר אימון אחד} other {נשמרו <m>#</m> אימונים}} · סגירה",
+      "failed": "השמירה נכשלה. נסו שוב.",
+      "nameTaken": "יש בספר כבר אימון באחד השמות. נסו שוב."
     }
   }
 }

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   Activity, CalendarPlus, CheckCircle2, ClipboardList, Eye, MessagesSquare, Route, Timer, TrendingUp, Trophy,
-  UserMinus, Watch, XCircle,
+  UserMinus, Watch, XCircle, CalendarDays,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPace } from '@/lib/garmin/pace';
@@ -326,6 +326,13 @@ export function MemberSheet({
           </div>
 
           <InsetSection>
+            {/* The week (book v3): compliance, totals, and the planner one tap on. */}
+            <InsetRow
+              icon={CalendarDays}
+              iconBg="bg-brand-600"
+              label={t('openWeek')}
+              href={`/dashboard/academy/week?athleteId=${encodeURIComponent(member.athleteId)}`}
+            />
             <InsetRow
               icon={Activity}
               iconBg="bg-ink-300"

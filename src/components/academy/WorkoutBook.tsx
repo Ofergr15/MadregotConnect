@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Archive, BookOpen, Copy, Heart, Layers, Pencil, Plus, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { Archive, BookOpen, Copy, Download, Heart, Layers, Pencil, Plus, Search } from 'lucide-react';
 import { apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { KIND_LABEL, ZONE_LABEL } from './libraryText';
 import { WorkoutEditor, type WorkoutDraftPayload } from './WorkoutEditor';
+import { BookImport } from './book/BookImport';
 import {
   LIBRARY_KINDS,
   duplicateEntry,
@@ -367,24 +369,28 @@ export function WorkoutBook() {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const t = useTranslations('workoutBook');
+
+  const reload = useCallback(async (isCancelled: () => boolean = () => false) => {
+    try {
+      const res = await fetch('/api/academy/library', { headers: await apiHeaders() });
+      const data = await res.json();
+      if (isCancelled()) return;
+      if (!res.ok) { setError(data?.error || 'לא הצלחנו לטעון את ספר האימונים'); return; }
+      setNotSetUp(!!data.tableMissing);
+      setEntries((data.entries || []) as LibraryEntry[]);
+      if (data.viewer) setViewer(data.viewer as Viewer);
+    } catch {
+      if (!isCancelled()) setError('לא הצלחנו לטעון את ספר האימונים');
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/academy/library', { headers: await apiHeaders() });
-        const data = await res.json();
-        if (cancelled) return;
-        if (!res.ok) { setError(data?.error || 'לא הצלחנו לטעון את ספר האימונים'); return; }
-        setNotSetUp(!!data.tableMissing);
-        setEntries((data.entries || []) as LibraryEntry[]);
-        if (data.viewer) setViewer(data.viewer as Viewer);
-      } catch {
-        if (!cancelled) setError('לא הצלחנו לטעון את ספר האימונים');
-      }
-    })();
+    void reload(() => cancelled);
     return () => { cancelled = true; };
-  }, []);
+  }, [reload]);
 
   /**
    * A row is this coach's to write when it is on their own shelf, or when they hold the canon.
@@ -490,15 +496,30 @@ export function WorkoutBook() {
   }
 
   return (
-    <BookList
-      entries={entries}
-      scope={scope}
-      onScope={setScope}
-      onNew={() => { setSaveError(null); setEditing({ mode: 'new' }); }}
-      onEdit={entry => { setSaveError(null); setEditing({ mode: 'edit', entry }); }}
-      onDuplicate={duplicate}
-      canEdit={canEdit}
-    />
+    <>
+      {/* The manager's one-time door: every workout the app already holds, reviewed, into
+          the canon (book v3). Nothing is written until the review screen's button. */}
+      {viewer.isManager && (
+        <button
+          type="button"
+          onClick={() => setImporting(true)}
+          className="mb-3 flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-card bg-card text-sm font-bold text-brand-600"
+        >
+          <Download className="h-4 w-4" />
+          {t('import.open')}
+        </button>
+      )}
+      <BookList
+        entries={entries}
+        scope={scope}
+        onScope={setScope}
+        onNew={() => { setSaveError(null); setEditing({ mode: 'new' }); }}
+        onEdit={entry => { setSaveError(null); setEditing({ mode: 'edit', entry }); }}
+        onDuplicate={duplicate}
+        canEdit={canEdit}
+      />
+      {importing && <BookImport onClose={() => setImporting(false)} onImported={() => void reload()} />}
+    </>
   );
 }
 
