@@ -3898,5 +3898,95 @@
     "saved": "We'll email you the moment you're approved.",
     "bad": "That address doesn't look right.",
     "error": "Couldn't save it. Try again."
+  },
+  "trainee": {
+    "bands": {
+      "veryTired": {
+        "word": "Very tired",
+        "long": "{gender, select, other {Very tired}}",
+        "meaning": "Take an easy day or rest"
+      },
+      "working": {
+        "word": "Working hard",
+        "long": "{gender, select, other {Working hard, in the right range}}",
+        "meaning": "Building fitness, in the right range"
+      },
+      "maintain": {
+        "word": "Maintaining",
+        "long": "Maintaining fitness",
+        "meaning": "Maintaining fitness"
+      },
+      "fresh": {
+        "word": "Fresh",
+        "long": "{gender, select, other {Feeling fresh}}",
+        "meaning": "Ready for quality or a race"
+      },
+      "detraining": {
+        "word": "Training little",
+        "long": "{gender, select, other {Training little}}",
+        "meaning": "Fitness is starting to drop"
+      }
+    },
+    "ramp": {
+      "tooFast": "Too fast",
+      "building": "Building",
+      "maintaining": "Maintaining",
+      "recovering": "Recovering",
+      "easyWeek": "Easy week",
+      "tooFastNote": "Above <m>8</m> a week raises the injury risk"
+    },
+    "formSentence": {
+      "veryTired_quality": "Fatigue is high. Talk to your coach before today's reps.",
+      "veryTired_easy": "Fatigue is high. Keep today truly easy, don't chase the pace.",
+      "veryTired_rest": "Fatigue is high. Today's rest matters.",
+      "working_quality": "Building fitness, in the right range. Keep to the plan.",
+      "working_quality_heavy": "After a heavy week, fatigue is high but in range. Keep to the plan and listen to your body in the reps.",
+      "working_easy": "Building fitness, in the right range. Today is easy, and that is part of the build.",
+      "working_easy_heavy": "After a heavy week, today's easy run is exactly what you need.",
+      "working_rest": "{gender, select, other {Today's rest lowers fatigue, and tomorrow you'll arrive fresher.}}",
+      "maintain_quality": "Maintaining fitness. Good for today's reps, keep to the plan.",
+      "maintain_quality_heavy": "{gender, select, other {After a heavy week, moderately tired. Good for today's reps, keep to the plan.}}",
+      "maintain_easy": "Maintaining fitness. An easy run as planned.",
+      "maintain_easy_heavy": "After a heavy week, an easy run is exactly what you need today.",
+      "maintain_rest": "{gender, select, other {Today's rest lowers fatigue, and tomorrow you'll arrive fresher.}}",
+      "fresh_quality": "{gender, select, other {Fresh and ready. A good day for reps.}}",
+      "fresh_easy": "Nicely fresh. An easy run as planned, nothing extra.",
+      "fresh_rest": "Nicely fresh. Today's rest keeps it that way.",
+      "detraining_quality": "Fitness is starting to drop. Today's reps bring it back.",
+      "detraining_easy": "Fitness is starting to drop. Every planned run rebuilds it.",
+      "detraining_rest": "Fitness is starting to drop. After the rest, back to the plan."
+    },
+    "range": {
+      "sleep": {
+        "veryLittle": "Very little sleep",
+        "less": "Less than usual",
+        "normal": "✓ Normal",
+        "more": "✓ More than usual"
+      },
+      "rhr": {
+        "high": "▲ High",
+        "bitHigh": "▲ A bit high",
+        "normal": "✓ Normal",
+        "low": "✓ Low"
+      },
+      "learning": "Learning you, {n, plural, one {one more night} other {<m>#</m> more nights}}",
+      "yours": "Your range <m>{range}</m>"
+    },
+    "loadSheet": {
+      "part": {
+        "warmup": "Warm-up <m>{km}</m> km at <m>{pace}</m>",
+        "work": "Reps <m>{count} × {dist}</m> at <m>{pace}</m>",
+        "jog": "Jog <m>{count} × {time}</m>",
+        "cooldown": "Cool-down <m>{km}</m> km at <m>{pace}</m>",
+        "run": "Run <m>{km}</m> km at <m>{pace}</m>"
+      },
+      "source": {
+        "pace": "From your threshold pace",
+        "pace_avg": "An estimate, from the average pace",
+        "hr": "Estimated from heart rate, no test yet",
+        "none": "Not enough data to compute",
+        "not_run": "Not a run"
+      }
+    }
   }
 }
