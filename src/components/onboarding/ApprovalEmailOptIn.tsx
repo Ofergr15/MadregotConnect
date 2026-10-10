@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { JOURNEY, SecondaryButton } from '@/components/onboarding/journey-ui';
 
 // "How should we tell you you're in?" — on the waiting-for-approval screen, for the
 // member nothing can reach: signed in with Strava (so the only address on file is
@@ -40,25 +41,26 @@ export function ApprovalEmailOptIn() {
   };
 
   if (state === 'saved') {
-    return <p className="mt-3 rounded-2xl bg-accent-600/10 px-4 py-3 text-sm text-accent-700" data-testid="approval-email-saved">✓ {t('saved')}</p>;
+    return <p className="rounded-2xl px-4 py-3 text-[14px] font-bold" style={{ background: JOURNEY.tagBg, color: JOURNEY.ink }} data-testid="approval-email-saved">✓ {t('saved')}</p>;
   }
   return (
-    <form onSubmit={save} className="mt-3 rounded-2xl bg-card p-4 text-start" dir="rtl" data-testid="approval-email">
-      <p className="text-sm font-bold text-ink-700">{t('title')}</p>
-      <p className="mt-0.5 text-xs text-ink-500">{t('body')}</p>
-      <div className="mt-3 flex gap-2">
-        <input
-          type="email" inputMode="email" autoComplete="email" dir="ltr" required value={email}
-          onChange={(e) => { setEmail(e.target.value); if (state !== 'idle') setState('idle'); }}
-          placeholder="you@example.com" aria-label={t('label')}
-          className="min-h-[48px] min-w-0 flex-1 rounded-2xl border border-ink-300 bg-page px-3 text-base text-ink-700"
-        />
-        <button type="submit" disabled={state === 'saving'} className="min-h-[48px] rounded-pill bg-brand-600 px-5 text-sm font-bold text-white disabled:opacity-50">
-          {state === 'saving' ? '…' : t('cta')}
-        </button>
-      </div>
-      {state === 'bad' && <p className="mt-2 text-xs font-semibold text-accent-red">{t('bad')}</p>}
-      {state === 'error' && <p className="mt-2 text-xs font-semibold text-accent-red">{t('error')}</p>}
+    <form onSubmit={save} className="rounded-[20px] bg-white p-4 text-start" dir="rtl" data-testid="approval-email">
+      <p className="text-[15px] font-bold" style={{ color: JOURNEY.ink }}>{t('title')}</p>
+      <p className="mt-0.5 text-[13px] leading-snug" style={{ color: JOURNEY.soft }}>{t('body')}</p>
+      <input
+        type="email" inputMode="email" autoComplete="email" dir={email ? 'ltr' : 'rtl'} required value={email}
+        onChange={(e) => { setEmail(e.target.value); if (state !== 'idle') setState('idle'); }}
+        placeholder={t('placeholder')} aria-label={t('label')}
+        className="mt-3 h-[48px] w-full rounded-2xl border px-4 text-base focus:outline-none"
+        style={{ borderColor: state === 'bad' ? JOURNEY.red : JOURNEY.line, background: JOURNEY.well, color: JOURNEY.ink }}
+      />
+      {state === 'bad' && <p className="mt-2 text-[13px] font-bold" style={{ color: JOURNEY.red }}>{t('bad')}</p>}
+      {state === 'error' && <p className="mt-2 text-[13px] font-bold" style={{ color: JOURNEY.red }}>{t('error')}</p>}
+      {/* Outline, not a second primary pill: nothing on the waiting screen is the
+          one thing to do, and this is optional. */}
+      <SecondaryButton type="submit" outline disabled={state === 'saving'} className="mt-2">
+        {state === 'saving' ? '…' : t('cta')}
+      </SecondaryButton>
     </form>
   );
 }

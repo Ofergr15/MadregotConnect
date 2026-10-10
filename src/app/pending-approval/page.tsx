@@ -2,14 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Clock } from 'lucide-react';
 import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { apiHeaders } from '@/lib/api';
-import { Card, EmptyState, Button, Spinner } from '@/components/ui';
+import { Spinner } from '@/components/ui';
 import { ApprovalPushOptIn } from '@/components/PushOptIn';
 import ClaimExistingAccount from '@/components/ClaimExistingAccount';
 import { InstallStepProvider } from '@/components/onboarding/InstallStepProvider';
-import { AddToHomeScreen } from '@/components/onboarding/AddToHomeScreen';
+import { useIsComputer } from '@/lib/install/use-computer';
+import {
+  JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, JourneyTracker, NextCard, SecondaryButton,
+} from '@/components/onboarding/journey-ui';
 import { ApprovalEmailOptIn } from '@/components/onboarding/ApprovalEmailOptIn';
 
 // How often to ask whether they have been let in yet. The (app) layout uses 30s
@@ -47,6 +49,8 @@ const POLL_MS = 12_000;
 function PendingApproval() {
   const t = useTranslations('onboarding');
   const [lettingIn, setLettingIn] = useState(false);
+  // On a computer there is nothing to install: the tracker drops that step.
+  const computer = useIsComputer();
 
   const handleBackHome = async () => {
     await signOutEverywhere();
@@ -96,28 +100,24 @@ function PendingApproval() {
     };
   }, []);
 
+  // The same screen as "we got it" (register/RegisterReceived): one look, one
+  // tracker, nothing to do but wait — and the install guide is NOT here: it is
+  // shown once, after approval (journey spec 2026-10-10).
   return (
-    <div className="min-h-screen bg-page flex items-center justify-center p-4">
-      <Card className="max-w-md text-center">
-        <div className="flex items-center justify-center">
-          <img src="/images/logo.png" alt="Madregot" className="h-10 w-10 object-contain brightness-0 invert" />
-          <span className="text-lg font-bold text-ink-700 ms-3">Madregot</span>
-        </div>
-
-        <EmptyState
-          icon={Clock}
-          titleAs="h1"
-          title={t('waitingApproval')}
-          description={t('approvalMessage')}
-          action={<Button variant="secondary" onClick={handleBackHome}>{t('backHome')}</Button>}
-          className="mx-auto"
-        />
+    <>
+      <JourneyScreen
+        testId="pending-approval"
+        hero={<JourneyHero eyebrow={t('pendingEyebrow')} title={t('pendingTitle')} subtitle={t('pendingSubtitle')} />}
+        actions={<SecondaryButton onClick={handleBackHome}>{t('backHome')}</SecondaryButton>}
+      >
+        <JourneyTracker done={1} computer={computer} />
+        <NextCard label={t('pendingNextLabel')} title={t('pendingNextTitle')}>{t('pendingNextBody')}</NextCard>
 
         {/* The promise the screen can actually keep, in place of the email it
             couldn't send. Swaps to "letting you in" for the moment between the
             poll answering and the page navigating, so the last thing they see is
             an explanation rather than an unexplained reload. */}
-        <p className="mt-1 flex items-center justify-center gap-2 text-xs font-light text-ink-400" dir="rtl">
+        <p className="flex items-center justify-center gap-2 text-center text-[13px]" style={{ color: JOURNEY.soft }} dir="rtl">
           {lettingIn ? (
             <>
               <Spinner size={12} tone="ink" />
@@ -128,30 +128,34 @@ function PendingApproval() {
           )}
         </p>
 
-        {/* Under the "waiting for approval" message, because for some of the people
-            reading it that message is simply wrong: they are already members, and
-            the only reason they are here is that their Strava name could not be
-            matched to their roster row. This is their way back to their own
-            account without anybody's help. */}
-        <ClaimExistingAccount />
+        <JourneyCard>
+          <JourneyRow icon="⌚" title={t('pendingWatchTitle')} sub={t('pendingWatchSub')} />
+        </JourneyCard>
 
-        {/* The one useful thing to do with the wait — and on iOS the precondition
-            for ever being notified about anything, this approval included. */}
-        <AddToHomeScreen />
         {/* For the one member nothing else can reach: a Strava sign-in has no real
-            address, and an iPhone Safari tab gets no push (analysis 2026-10-10). */}
+            address, and an iPhone Safari tab gets no push (analysis 2026-10-10).
+            Renders only when the address on file is synthetic. */}
         <ApprovalEmailOptIn />
-      </Card>
+
+        {/* Last, because for some of the people reading this screen it is simply
+            wrong: they are already members, and the only reason they are here is
+            that their Strava name could not be matched to their roster row. This
+            is their way back to their own account without anybody's help. */}
+        <JourneyCard className="py-3 [&>div]:mt-0 [&>div]:border-t-0 [&>div]:pt-0">
+          <ClaimExistingAccount />
+        </JourneyCard>
+      </JourneyScreen>
       <ApprovalPushOptIn />
-    </div>
+    </>
   );
 }
 
 export default function PendingApprovalPage() {
   // The provider this route was missing. Everything about the install step is
   // device-local state plus one `beforeinstallprompt` listener, so mounting a
-  // second provider outside the (app) shell costs nothing and is what makes both
-  // AddToHomeScreen and the push offer function here at all.
+  // second provider outside the (app) shell costs nothing and is what makes the
+  // push offer function here at all. (The install box itself is gone from this
+  // screen: the guide is shown once, after approval.)
   return (
     <InstallStepProvider>
       <PendingApproval />

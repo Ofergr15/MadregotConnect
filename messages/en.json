@@ -1538,7 +1538,15 @@
     "resolveConnecting": "Connecting...",
     "resolveStalledTitle": "Signing in is taking longer than usual",
     "resolveStalledBody": "We are still trying. If it does not come through, you can start signing in again.",
-    "resolveRetry": "Sign in again"
+    "resolveRetry": "Sign in again",
+    "pendingEyebrow": "Madregot running club",
+    "pendingTitle": "Your request is being reviewed 🙌",
+    "pendingSubtitle": "The first step is behind you",
+    "pendingNextLabel": "Up next",
+    "pendingNextTitle": "The coach approves",
+    "pendingNextBody": "Usually within a day. The moment you are approved, this screen takes you in by itself.",
+    "pendingWatchTitle": "Have a running watch or Strava?",
+    "pendingWatchSub": "Connect it after approval, in one tap"
   },
   "join": {
     "joinYourTeam": "Join Your Team",
@@ -1574,7 +1582,34 @@
     "stravaInviteInvalid": "This invitation link is no longer valid. Ask your coach for a new one.",
     "stravaWhyGarmin": "Your watch keeps syncing exactly as before. Strava is how you sign in to the app — there is no other way in.",
     "connectLater": "I'll do this later",
-    "stravaAlreadyLinked": "This Strava account is already linked to another Madregot account. Ask your coach to merge them — no need to try again."
+    "stravaAlreadyLinked": "This Strava account is already linked to another Madregot account. Ask your coach to merge them — no need to try again.",
+    "approvedEyebrow": "You are approved",
+    "welcome": "Welcome 🎉",
+    "welcomeName": "Welcome, {name} 🎉",
+    "confirmSub": "Just making sure everything is right",
+    "confirmCta": "All correct, continue",
+    "confirmFix": "Something wrong? Fix it",
+    "fixSub": "Fix what is needed and continue",
+    "saving": "Saving…",
+    "nextUp": "Up next",
+    "groupN": "Group {n}",
+    "goal": "Marathon goal {goal}",
+    "subPrefix": "sub",
+    "namePlaceholder": "Full name in English letters",
+    "emailPlaceholder": "Your email",
+    "invalidTitle": "This link does not work",
+    "invalidSub": "It may be old, or already used",
+    "invalidNextLabel": "What now",
+    "invalidNextTitle": "Sign in with your email",
+    "invalidNextBody": "We will send you a 6-digit code",
+    "invalidCta": "Sign in with email",
+    "invalidRegister": "Not registered yet? Register",
+    "savedTitle": "Your details are saved ✓",
+    "savedSub": "Add the app to your home screen and sign in",
+    "savedNextTitle": "Add it to the home screen",
+    "savedNextBody": "So it opens like an app and the coach’s notifications arrive",
+    "savedInstallCta": "Show me how",
+    "savedBrowserCta": "Continue in the browser for now"
   },
   "joinAcademy": {
     "title": "Connect Your Garmin",
@@ -3918,6 +3953,7 @@
     "cta": "Tell me",
     "saved": "We'll email you the moment you're approved.",
     "bad": "That address doesn't look right.",
-    "error": "Couldn't save it. Try again."
+    "error": "Couldn't save it. Try again.",
+    "placeholder": "you@example.com"
   }
 }

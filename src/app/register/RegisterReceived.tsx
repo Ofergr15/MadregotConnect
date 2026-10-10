@@ -3,88 +3,66 @@
 // The "we got it" screen of onboarding v2 (lib/install/flag): the same 4-step
 // journey the approval mail and the install guide draw, so a new member always
 // sees where they are and that there is nothing to do but wait for one thing.
+// Drawn with the journey's one look (components/onboarding/journey-ui); the
+// waiting screen for a signed-in member (/pending-approval) is the same screen.
 
-import Link from 'next/link';
-import { cn } from '@/lib/utils';
-
-const STEPS = ['הרשמה', 'אישור', 'התקנה', 'כניסה'];
+import { useIsComputer } from '@/lib/install/use-computer';
+import {
+  JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, JourneyTracker, NextCard, PrimaryButton,
+} from '@/components/onboarding/journey-ui';
 
 /**
- * The joining journey. `computer`: there is nothing to install on a computer, so
- * the "installed ✓" step is not shown there (a step marked done that never
- * happened). `done` always counts on the full four-step scale.
+ * The joining journey — kept as an export for older callers; it is the shared
+ * JourneyTracker now. `done` always counts on the full four-step scale.
  */
 export function Journey({ done, computer = false }: { done: number; computer?: boolean }) {
-  const steps = computer ? STEPS.filter((s) => s !== 'התקנה') : STEPS;
-  const at = computer && done > STEPS.indexOf('התקנה') ? done - 1 : done;
-  return (
-    <ol className="flex items-start justify-between px-1" aria-label={`שלב ${at + 1} מתוך ${steps.length}`}>
-      {steps.map((label, i) => {
-        const isDone = i < at, isAt = i === at;
-        return (
-          <li key={label} className="flex flex-1 items-start">
-            <div className="flex w-14 flex-col items-center gap-1">
-              <span className={cn(
-                'flex h-7 w-7 items-center justify-center rounded-full border-2 text-xs font-black',
-                isDone ? 'border-brand-600 bg-brand-600 text-white'
-                  : isAt ? 'border-brand-600 bg-card text-brand-600 shadow-[0_0_0_4px_rgba(67,56,255,0.15)]'
-                    : 'border-ink-300 bg-card text-ink-400',
-              )}>{isDone ? '✓' : i + 1}</span>
-              <span className={cn('text-3xs font-bold', isAt ? 'text-ink-700' : isDone ? 'text-brand-600' : 'text-ink-400')}>{label}</span>
-            </div>
-            {i < steps.length - 1 && <span className={cn('mt-3.5 h-0.5 flex-1', i < at ? 'bg-brand-600' : 'bg-ink-300')} aria-hidden />}
-          </li>
-        );
-      })}
-    </ol>
-  );
+  return <JourneyTracker done={done} computer={computer} />;
 }
 
 export function RegisterReceived({ state, email, name }: { state: 'new' | 'pending' | 'member'; email: string; name: string }) {
+  // On a computer there is nothing to install, so the tracker has no install step.
+  const computer = useIsComputer();
   const first = name.split(/\s+/)[0] || '';
-  const title = state === 'member' ? 'כבר יש לך חשבון 🙌' : state === 'pending' ? 'כבר קיבלנו אותך 🙌' : `קיבלנו${first ? `, ${first}` : ''} 🙌`;
-  return (
-    <div className="min-h-viewport bg-page" dir="rtl">
-      <div className="mx-auto flex max-w-md flex-col gap-4 px-5 pb-10 pt-[max(18px,env(safe-area-inset-top))]">
-        <div className="rounded-[24px] bg-gradient-to-br from-[#2b33ff] via-brand-600 to-[#6a5cff] px-4 pb-5 pt-4 text-center text-white">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/logo-white.png" alt="מדרגות" className="mx-auto h-14 w-auto" />
-          <p className="mt-2 text-2xs font-bold tracking-wide text-white/85">מועדון הריצה של מדרגות</p>
-          <h1 className="mt-0.5 text-2xl font-black">{title}</h1>
-          <p className="mt-0.5 text-13 text-white/90">{state === 'member' ? 'אין צורך להירשם שוב' : 'הבקשה שלך אצלנו'}</p>
-        </div>
+  const title = state === 'member' ? 'כבר יש לכם חשבון 🙌' : state === 'pending' ? 'כבר קיבלנו את הבקשה 🙌' : `קיבלנו${first ? `, ${first}` : ''} 🙌`;
+  const subtitle = state === 'member' ? 'אין צורך להירשם שוב' : state === 'pending' ? 'הבקשה בבדיקה' : 'הצעד הראשון מאחוריכם';
 
-        {state === 'member' ? (
-          <div className="rounded-2xl bg-card p-4 text-center">
-            <p className="text-sm leading-relaxed text-ink-700">הכתובת <bdi dir="ltr" className="font-semibold">{email}</bdi> כבר רשומה במדרגות.</p>
-            <Link href="/" className="mt-3 inline-flex min-h-[48px] items-center justify-center rounded-pill bg-brand-600 px-6 text-sm font-black text-white">לכניסה לאפליקציה</Link>
-          </div>
-        ) : (
-          <>
-            <Journey done={1} />
-            <div className="rounded-2xl bg-brand-600/10 p-4 text-center">
-              <p className="text-3xs font-black tracking-wide text-brand-600">הבא בתור</p>
-              <p className="mt-0.5 text-base font-black text-ink-700">אישור מהמנהלים</p>
-              <p className="mt-1 text-xs leading-relaxed text-ink-500">
-                בדרך כלל תוך יום. נשלח לך מייל עם קישור אישי לכתובת<br />
-                <bdi dir="ltr" className="font-semibold text-ink-700">{email}</bdi>
-              </p>
-            </div>
-            <div className="rounded-2xl border border-page bg-card p-3.5">
-              <p className="text-3xs font-black text-ink-400">אפשר להתכונן כבר עכשיו</p>
-              <div className="mt-2 flex gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-page text-lg" aria-hidden>⌚</span>
-                <div><p className="text-sm font-bold text-ink-700">יש לך Strava?</p><p className="text-xs leading-relaxed text-ink-500">כך נכנסים לאפליקציה ורואים את הריצות. אין? אפשר להוריד אותה בחינם.</p></div>
-              </div>
-              <div className="mt-3 flex gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-page text-lg" aria-hidden>📱</span>
-                <div><p className="text-sm font-bold text-ink-700">את המייל פותחים בטלפון</p><p className="text-xs leading-relaxed text-ink-500">שם ההתקנה לוקחת דקה, והמסך יראה בדיוק איך.</p></div>
-              </div>
-            </div>
-            <p className="text-center text-xs leading-relaxed text-ink-400">אין צורך לעשות שום דבר נוסף בינתיים.<br />לא הגיע מייל תוך יום? כדאי לבדוק בספאם.</p>
-          </>
-        )}
-      </div>
-    </div>
+  if (state === 'member') {
+    return (
+      <JourneyScreen
+        testId="register-received"
+        hero={<JourneyHero eyebrow="מועדון הריצה של מדרגות" title={title} subtitle={subtitle} />}
+        // /welcome without a link is the email-code sign-in, never the marketing page.
+        actions={<PrimaryButton href="/welcome">לכניסה לאפליקציה</PrimaryButton>}
+      >
+        <JourneyCard className="text-center">
+          <p className="text-[15px] leading-relaxed" style={{ color: JOURNEY.body }}>
+            הכתובת <bdi dir="ltr" className="font-bold">{email}</bdi> כבר רשומה במדרגות.
+          </p>
+        </JourneyCard>
+      </JourneyScreen>
+    );
+  }
+
+  return (
+    <JourneyScreen
+      testId="register-received"
+      hero={<JourneyHero eyebrow="מועדון הריצה של מדרגות" title={title} subtitle={subtitle} />}
+      actions={
+        <p className="text-center text-[13px] leading-relaxed" style={{ color: JOURNEY.soft }}>
+          אין צורך לעשות שום דבר בינתיים.<br />לא הגיע מייל תוך יום? כדאי לבדוק בספאם.
+        </p>
+      }
+    >
+      <JourneyTracker done={1} computer={computer} />
+      <NextCard label="הבא בתור" title="אישור מהמאמן">
+        בדרך כלל תוך יום. נשלח מייל אל<br />
+        <bdi dir="ltr" className="font-bold" style={{ color: JOURNEY.ink }}>{email}</bdi>
+      </NextCard>
+      <JourneyCard>
+        <JourneyRow icon="⌚" title="יש שעון ריצה או Strava?" sub="מחברים אחרי האישור, בלחיצה" />
+        {/* The approval mail is opened on the phone, where the install takes a minute. */}
+        {computer && <JourneyRow icon="📱" title="את המייל פותחים בטלפון" sub="שם ההתקנה לוקחת דקה, והמסך מראה בדיוק איך" />}
+      </JourneyCard>
+    </JourneyScreen>
   );
 }

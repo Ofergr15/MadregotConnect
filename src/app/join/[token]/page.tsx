@@ -5,13 +5,16 @@ import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Check, Eye, EyeOff } from 'lucide-react';
 import { InsetSection, InsetRow, Button } from '@/components/ui';
-import { cn } from '@/lib/utils';
+import { cn, resolveGroup } from '@/lib/utils';
 import { InstallGuide } from '@/components/install/InstallGuide';
 import { ContinueOnPhone } from '@/components/install/ContinueOnPhone';
 import { useIsComputer } from '@/lib/install/use-computer';
 import { usePreviewOnboardingV2 } from '@/lib/install/v2';
 import { isStandalone } from '@/lib/pwa';
 import { trackOnb } from '@/lib/onboarding/track';
+import {
+  JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, JourneyTracker, NextCard, PrimaryButton, SecondaryButton,
+} from '@/components/onboarding/journey-ui';
 
 // Local input primitive — see src/app/admin/login/page.tsx for why this is
 // duplicated locally instead of promoted to the shared ui/index.tsx.
@@ -47,6 +50,20 @@ interface Group {
   paceOffsetSeconds: number;
   level: 'fast' | 'medium' | 'slow';
   marathonGoal?: string;
+}
+
+type T = ReturnType<typeof useTranslations>;
+
+/** A pace group's member-facing name: "קבוצה N" (never the English "Group N"), or the club's own name. */
+function groupNameHe(name: string, t: T): string {
+  const i = resolveGroup(name).index;
+  return i >= 0 ? t('groupN', { n: i + 1 }) : name;
+}
+
+/** "SUB 2:30" → "יעד מרתון תת 2:30"; empty when the group has no goal set. */
+function goalHe(goal: string | undefined, t: T): string {
+  const g = (goal || '').trim();
+  return g ? t('goal', { goal: g.replace(/^sub\s*/i, t('subPrefix') + ' ') }) : '';
 }
 
 export default function JoinPage() {
@@ -94,6 +111,11 @@ export default function JoinPage() {
   }, [step, guideV2, guideClosed, computer, token]);
   const [error, setError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  // What the groups API said about this link: 'invalid' = it knows no athlete for it.
+  const [linkState, setLinkState] = useState<'loading' | 'ok' | 'invalid'>('loading');
+  // v2: the details on file are shown read-only to confirm; `editing` is the form.
+  // Starts as the form whenever something required is missing.
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     // Opened from the home-screen icon (a phone that saved this address rather than
@@ -138,8 +160,12 @@ export default function JoinPage() {
         if (fetchedGroups.length === 1 && !me?.groupId) {
           setSelectedGroup(fetchedGroups[0].id);
         }
+        const hasGroup = fetchedGroups.length === 0 || !!me?.groupId || fetchedGroups.length === 1;
+        setEditing(!(me?.name && me?.email && hasGroup));
+        setLinkState(me ? 'ok' : 'invalid');
       })
-      .catch(() => {});
+      // A failed read is not a dead link: show the form, as before.
+      .catch(() => { setEditing(true); setLinkState('ok'); });
   }, [token]);
 
 
@@ -251,10 +277,12 @@ export default function JoinPage() {
     }
   };
 
-  const handleInfoSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Also the confirm step's "הכול נכון, ממשיכים" (no event there).
+  const handleInfoSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (groups.length > 0 && !selectedGroup) {
       setError(t('selectPaceGroupError'));
+      setEditing(true);
       return;
     }
     setError(null);
@@ -368,6 +396,11 @@ export default function JoinPage() {
     setStep('info');
   };
 
+  const first = (name || '').split(/\s+/)[0] || '';
+  const welcomeTitle = first ? t('welcomeName', { name: first }) : t('welcome');
+  const tracker = <JourneyTracker done={2} computer={computer} />;
+  const selected = groups.find(g => g.id === selectedGroup);
+
   if (step === 'done') {
     return (
       <>
@@ -375,182 +408,209 @@ export default function JoinPage() {
         // On a computer: no home-screen guide. Invite them to the phone, never block (ContinueOnPhone).
         ? <ContinueOnPhone token={token} firstName={(name || '').split(/\s+/)[0] || null} onContinueHere={() => { trackOnb('continue_on_computer', { token }); window.location.assign(`/welcome?t=${encodeURIComponent(token)}`); }} />
         : <InstallGuide canPrompt={false} onLater={() => setGuideClosed(true)} memberName={name || null} />)}
-      <div className="min-h-screen bg-page flex items-center justify-center p-4">
-        <div className="bg-card rounded-card border border-page p-6 sm:p-8 w-full max-w-md animate-fade-in">
-          {/* Logo */}
-          <div className="flex flex-col items-center justify-center mb-6">
-            <div className="flex items-center gap-3 mb-2">
-              <img src="/images/logo.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain invert" />
-              <span className="text-lg font-bold text-ink-700 uppercase tracking-tight">Madregot After 2KM</span>
-            </div>
-            <span className="text-xs text-brand-600 uppercase tracking-wide font-medium">{t('runningClub')}</span>
-          </div>
-
-          {/* Success Icon */}
-          <div className="bg-accent-600/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 animate-scale-in">
-            <CheckCircle2 className="h-8 w-8 text-accent-600" />
-          </div>
-
-          {/* Success Message */}
-          <h1 className="text-2xl font-bold text-ink-700 text-center">
-            {skippedGarmin ? to('registrationComplete') : t('youreConnected')}
-          </h1>
-          <p className="text-ink-400 mt-3 text-center">
-            {skippedGarmin
-              ? to('canConnectLater')
-              : t('garminLinkedCoach')}
-          </p>
-
+      {/* What is under the guide, and what "לא עכשיו" lands on. It used to be a
+          "registration complete → to the dashboard" card, which contradicted the
+          guide (there is no session yet on this path: v2 signs in once, at
+          /welcome). Now it says the one true thing — saved, the install is next —
+          and offers the guide again or the browser sign-in. */}
+      {guideV2 ? (
+        <JourneyScreen
+          hero={<JourneyHero eyebrow={t('approvedEyebrow')} title={t('savedTitle')} subtitle={t('savedSub')} />}
+          actions={
+            <>
+              <PrimaryButton onClick={() => setGuideClosed(false)}>{t('savedInstallCta')}</PrimaryButton>
+              <SecondaryButton href={`/welcome?t=${encodeURIComponent(token)}`}>{t('savedBrowserCta')}</SecondaryButton>
+            </>
+          }
+        >
+          {tracker}
+          <NextCard label={t('nextUp')} title={t('savedNextTitle')}>{t('savedNextBody')}</NextCard>
+        </JourneyScreen>
+      ) : (
+        <JourneyScreen
+          hero={
+            <JourneyHero
+              eyebrow={t('approvedEyebrow')}
+              title={skippedGarmin ? to('registrationComplete') : t('youreConnected')}
+              subtitle={skippedGarmin ? to('canConnectLater') : t('garminLinkedCoach')}
+            />
+          }
+          actions={<PrimaryButton href="/dashboard/program">{skippedGarmin ? t('goToDashboard') : t('viewProgram')}</PrimaryButton>}
+        >
+          {tracker}
           {/* What's Next Section */}
           {!skippedGarmin && (
-            <div className="mt-8">
+            <>
               <InsetSection header={t('whatsNext')}>
                 <InsetRow icon={Calendar} iconBg="bg-brand-600" label={t('receiveWorkouts')} sublabel={t('receiveWorkoutsDesc')} />
                 <InsetRow icon={Smartphone} iconBg="bg-brand-600" label={t('syncPhone')} sublabel={t('syncPhoneDesc')} />
                 <InsetRow icon={Watch} iconBg="bg-brand-600" label={t('findOnWatch')} sublabel={t('findOnWatchDesc')} />
               </InsetSection>
-            </div>
+              <p className="text-center text-[13px]" style={{ color: JOURNEY.soft }}>{t('bluetoothNote')}</p>
+            </>
           )}
-
-          {/* Go to Dashboard */}
-          <div className="mt-6">
-            <a
-              href="/dashboard/program"
-              className="block w-full bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-3 rounded-lg transition-colors text-center"
-            >
-              {skippedGarmin ? t('goToDashboard') : t('viewProgram')}
-            </a>
-          </div>
-
-          {!skippedGarmin && (
-            <div className="mt-4 pt-4 border-t border-page">
-              <p className="text-xs text-ink-400 text-center">
-                {t('bluetoothNote')}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
+        </JourneyScreen>
+      )}
       </>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-page flex items-center justify-center p-4">
-      <div className="bg-card rounded-card border border-page p-6 sm:p-8 w-full max-w-md">
-        {/* Logo */}
-        <div className="flex flex-col items-center justify-center mb-6">
-          <div className="flex items-center gap-3 mb-2">
-            <img src="/images/logo.png" alt="Madregot After 2KM" className="h-10 w-10 object-contain brightness-0 invert" />
-            <div className="flex flex-col leading-tight">
-              <span className="text-lg font-bold text-ink-700 tracking-tight">Madregot</span>
-              <span className="text-xs font-medium tracking-wide text-ink-400">After 2KM Running Club</span>
-            </div>
+  // The groups API answers no athlete for a token it does not know: an old link, a
+  // used one, a typo. That used to render an empty join form; it is a dead end, so
+  // say so and offer the two ways on. /welcome without a link IS the email-code
+  // sign-in (/login only redirects to the marketing page).
+  if (linkState === 'invalid') {
+    return (
+      <JourneyScreen
+        testId="join-invalid"
+        hero={<JourneyHero title={t('invalidTitle')} subtitle={t('invalidSub')} />}
+        actions={
+          <>
+            <PrimaryButton href="/welcome">{t('invalidCta')}</PrimaryButton>
+            <SecondaryButton href="/register?onb=v2">{t('invalidRegister')}</SecondaryButton>
+          </>
+        }
+      >
+        <NextCard label={t('invalidNextLabel')} title={t('invalidNextTitle')}>{t('invalidNextBody')}</NextCard>
+      </JourneyScreen>
+    );
+  }
+
+  if (linkState === 'loading' && (step === 'info' || step === 'auth')) {
+    return (
+      <JourneyScreen hero={<JourneyHero eyebrow={t('approvedEyebrow')} title={t('welcome')} />}>
+        <div className="flex flex-1 items-center justify-center py-10" style={{ color: JOURNEY.soft }}>
+          <Loader2 className="h-6 w-6 animate-spin" aria-label={tc('loading')} />
+        </div>
+      </JourneyScreen>
+    );
+  }
+
+  const busy = step === 'connecting';
+  const errorBox = (msg: string | null) => msg && (
+    <p role="alert" className="rounded-2xl px-4 py-2.5 text-center text-[14px] font-bold text-white" style={{ background: JOURNEY.red }}>{msg}</p>
+  );
+
+  // Onboarding v2, the approval link: the details are on file, so CONFIRM them
+  // instead of asking for them a second time. "תיקון" opens the same form.
+  if (guideV2 && (step === 'info' || busy) && !editing) {
+    return (
+      <JourneyScreen
+        testId="join-confirm"
+        hero={<JourneyHero eyebrow={t('approvedEyebrow')} title={welcomeTitle} subtitle={t('confirmSub')} />}
+        actions={
+          <>
+            <PrimaryButton onClick={() => handleInfoSubmit()} disabled={busy}>{busy ? t('saving') : t('confirmCta')}</PrimaryButton>
+            <SecondaryButton onClick={() => { setError(null); setEditing(true); }} disabled={busy}>{t('confirmFix')}</SecondaryButton>
+          </>
+        }
+      >
+        {tracker}
+        <JourneyCard>
+          <JourneyRow icon="👤" title={<bdi>{name}</bdi>} sub={<bdi dir="ltr">{email}</bdi>} />
+          {selected && <JourneyRow icon="🏃" title={groupNameHe(selected.name, t)} sub={goalHe(selected.marathonGoal, t)} />}
+        </JourneyCard>
+        {errorBox(error)}
+      </JourneyScreen>
+    );
+  }
+
+  const fieldCls = 'h-[52px] w-full rounded-2xl border bg-white px-4 text-base focus:outline-none';
+  const fieldStyle = { borderColor: JOURNEY.line, color: JOURNEY.ink };
+
+  if (step === 'info' || (guideV2 && busy)) {
+    return (
+      <form onSubmit={handleInfoSubmit}>
+        <JourneyScreen
+          hero={
+            <JourneyHero
+              eyebrow={t('approvedEyebrow')}
+              title={welcomeTitle}
+              subtitle={guideV2 ? t('fixSub') : garminReady ? t('resumeDesc') : t('joinDesc')}
+            />
+          }
+          actions={<PrimaryButton type="submit" disabled={busy}>{busy ? t('saving') : tc('continue')}</PrimaryButton>}
+        >
+          {tracker}
+          <div>
+            <label htmlFor="jt-yourName" className="mb-1 block text-[13px] font-bold" style={{ color: JOURNEY.soft }}>
+              {to('yourName')}
+            </label>
+            <input id="jt-yourName"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('namePlaceholder')}
+              autoComplete="name"
+              required
+              className={fieldCls} style={fieldStyle}
+            />
           </div>
-          <span className="text-xs text-brand-600 uppercase tracking-wide font-medium">{t('runningClub')}</span>
-        </div>
-
-        {/* Header */}
-        <div className="text-center mb-6">
-          <h1 className="text-xl font-bold text-ink-700">{t('joinYourTeam')}</h1>
-          {/* "Connect your Garmin to get workouts" is the wrong promise twice
-              over: for someone whose watch has been connected for months (they
-              are here to finish an account, not set one up), and for everyone on
-              the Strava path, who may well own no Garmin at all. */}
-          <p className="text-ink-400 mt-2 text-sm">
-            {garminReady
-              ? t('resumeDesc')
-              : !onConnectStep
-                ? t('joinDesc')
-                : showGarminForm
-                  ? t('connectGarminDesc')
-                  : t('connectStravaDesc')}
-          </p>
-        </div>
-
-        {/* Step indicator */}
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <div className={`h-2 w-8 rounded-full ${step === 'info' || step === 'garmin' || step === 'mfa' || step === 'connecting' ? 'bg-brand-600' : 'bg-ink-300'}`} />
-          <div className={`h-2 w-8 rounded-full ${step === 'garmin' || step === 'mfa' || step === 'connecting' ? 'bg-brand-600' : 'bg-ink-300'}`} />
-        </div>
-
-
-        {/* Step 2: Basic info + group */}
-        {step === 'info' && (
-          <form onSubmit={handleInfoSubmit} className="space-y-4 animate-fade-in">
-            <div>
-              <label htmlFor="jt-yourName" className="block text-sm font-medium text-ink-500 mb-1">
-                {to('yourName')}
-              </label>
-              <Input id="jt-yourName"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Yossi Cohen"
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="jt-emailLabel" className="block text-sm font-medium text-ink-500 mb-1">
-                {to('emailLabel')}
-              </label>
-              <Input id="jt-emailLabel"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                required
-              />
-            </div>
-            {groups.length > 0 && (
-              <div>
-                <InsetSection header={to('yourPaceGroup')}>
-                  {groups.map(g => {
-                    const isSelected = selectedGroup === g.id;
-                    const levelColors = {
-                      fast: 'text-accent-900 bg-accent-600/10',
-                      medium: 'text-band-3-ink bg-band-3/10',
-                      slow: 'text-band-3-ink bg-band-3/10',
-                    };
-                    const levelLabels = {
-                      fast: 'SUB 2:30',
-                      medium: 'SUB 2:35',
-                      slow: 'SUB 2:45',
-                    };
-                    return (
-                      <InsetRow
-                        key={g.id}
-                        label={g.name}
-                        sublabel={g.marathonGoal ? `${to('marathonGoal')} ${g.marathonGoal}` : undefined}
-                        onClick={() => setSelectedGroup(g.id)}
-                        trailing={
-                          <span className="flex items-center gap-2 shrink-0">
-                            <span className={cn('px-2 py-1 rounded text-xs font-medium', levelColors[g.level])}>
-                              {levelLabels[g.level]}
-                            </span>
-                            {isSelected && <Check className="h-4 w-4 text-brand-600" />}
-                          </span>
-                        }
-                      />
-                    );
-                  })}
-                </InsetSection>
-                <p className="text-xs text-ink-400 -mt-3 mb-1">
-                  {t('groupPaceNote')}
-                </p>
+          <div>
+            <label htmlFor="jt-emailLabel" className="mb-1 block text-[13px] font-bold" style={{ color: JOURNEY.soft }}>
+              {to('emailLabel')}
+            </label>
+            <input id="jt-emailLabel"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={t('emailPlaceholder')}
+              dir={email ? 'ltr' : 'rtl'}
+              autoComplete="email"
+              required
+              className={cn(fieldCls, email ? 'text-left' : 'text-right')} style={fieldStyle}
+            />
+          </div>
+          {groups.length > 0 && (
+            <fieldset>
+              <legend className="mb-1 block text-[13px] font-bold" style={{ color: JOURNEY.soft }}>{to('yourPaceGroup')}</legend>
+              <div className="flex flex-col gap-2">
+                {groups.map(g => {
+                  const isSelected = selectedGroup === g.id;
+                  const goal = goalHe(g.marathonGoal, t);
+                  return (
+                    <label
+                      key={g.id}
+                      className="flex min-h-[52px] cursor-pointer items-center gap-3 rounded-2xl border-2 bg-white px-4"
+                      style={{ borderColor: isSelected ? JOURNEY.dusk : JOURNEY.line }}
+                    >
+                      <input type="radio" name="join-group" checked={isSelected} onChange={() => setSelectedGroup(g.id)} className="sr-only" />
+                      <span className="min-w-0 flex-1 text-[15px]" style={{ color: JOURNEY.ink }}>
+                        <b>{groupNameHe(g.name, t)}</b>{goal && <span style={{ color: JOURNEY.soft }}> · {goal}</span>}
+                      </span>
+                      <span
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2"
+                        style={isSelected ? { background: JOURNEY.dusk, borderColor: JOURNEY.dusk } : { borderColor: JOURNEY.line }}
+                        aria-hidden="true"
+                      >
+                        {isSelected && <Check className="h-3.5 w-3.5 text-white" strokeWidth={3.5} />}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
-            )}
-            {error && step === 'info' && (
-              <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">
-                {error}
-              </div>
-            )}
-            <Button type="submit" variant="primary" size="lg" className="w-full">
-              {tc('continue')}
-            </Button>
-          </form>
-        )}
+              <p className="mt-1.5 text-[13px]" style={{ color: JOURNEY.soft }}>{t('groupPaceNote')}</p>
+            </fieldset>
+          )}
+          {errorBox(error)}
+        </JourneyScreen>
+      </form>
+    );
+  }
 
+  // The old (pre-v2) flow's connect steps — Strava, Garmin, Garmin MFA — in the same look.
+  return (
+    <JourneyScreen
+      hero={
+        <JourneyHero
+          eyebrow={t('approvedEyebrow')}
+          title={welcomeTitle}
+          subtitle={step === 'mfa' ? to('verificationRequired') : garminReady ? t('resumeDesc') : showGarminForm ? t('connectGarminDesc') : t('connectStravaDesc')}
+        />
+      }
+    >
+      {tracker}
+      <div className="pb-6">
         {/* Step 3: connect a training account.
             One button, Strava, for everyone — including the athletes whose watch
             has been syncing for months. That is not a nicety: Strava is the app's
@@ -571,7 +631,7 @@ export default function JoinPage() {
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-ink-700">{t('garminAlreadyConnected')}</p>
-                  <p className="text-xs text-ink-400 mt-1 leading-relaxed">{t('garminAlreadyConnectedDesc')}</p>
+                  <p className="text-13 text-ink-400 mt-1 leading-relaxed">{t('garminAlreadyConnectedDesc')}</p>
                 </div>
                 <CheckCircle2 className="h-5 w-5 text-accent-600 shrink-0" />
               </div>
@@ -592,7 +652,7 @@ export default function JoinPage() {
                 </>
               )}
             </button>
-            <p className="text-xs text-ink-400 leading-relaxed text-center">
+            <p className="text-13 text-ink-400 leading-relaxed text-center">
               {garminReady ? t('stravaWhyGarmin') : t('stravaWhy')}
             </p>
             {/* Strava's authorize page offers SIGNUP to anyone who isn't already
@@ -600,7 +660,7 @@ export default function JoinPage() {
                 empty new account the app cannot tell apart from a real one. Warned
                 here because this is registration — the one moment when the person is
                 most likely not to be signed in to Strava yet. */}
-            <p className="text-xs text-ink-400 leading-relaxed text-center">
+            <p className="text-13 text-ink-400 leading-relaxed text-center">
               {t('stravaUseExistingAccount')}
             </p>
 
@@ -633,7 +693,7 @@ export default function JoinPage() {
                 // must not tell them nothing is connected.
                 onClick={() => finishWithoutCredentials(!garminConnected)}
                 disabled={stravaLoading || step === 'connecting'}
-                className="w-full min-h-[44px] text-xs font-medium text-ink-400 hover:text-ink-700 transition-colors disabled:opacity-50"
+                className="w-full min-h-[44px] text-13 font-medium text-ink-400 hover:text-ink-700 transition-colors disabled:opacity-50"
               >
                 {step === 'connecting' ? tc('loading') : t('connectLater')}
               </button>
@@ -656,7 +716,7 @@ export default function JoinPage() {
           <form onSubmit={handleGarminSubmit} className="space-y-4 animate-fade-in">
             <div className="bg-page/50 rounded-lg p-3 flex items-start gap-2">
               <Shield className="h-4 w-4 text-brand-600 mt-0.5 shrink-0" />
-              <p className="text-xs text-ink-400">
+              <p className="text-13 text-ink-400">
                 <span className="text-ink-700 font-medium">{to('oneTimeSetup')}</span> {to('garminHelper')}
               </p>
             </div>
@@ -669,7 +729,7 @@ export default function JoinPage() {
                 type="email"
                 value={garminEmail}
                 onChange={(e) => setGarminEmail(e.target.value)}
-                placeholder="your-garmin@email.com"
+                placeholder={t('emailPlaceholder')}
                 required
               />
             </div>
@@ -695,7 +755,7 @@ export default function JoinPage() {
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
-              <p className="text-xs text-ink-400 mt-1.5">
+              <p className="text-13 text-ink-400 mt-1.5">
                 {t('tapEye')}
               </p>
             </div>
@@ -746,7 +806,7 @@ export default function JoinPage() {
           <form onSubmit={handleMfaSubmit} className="space-y-4 animate-fade-in">
             <div className="bg-band-3/10 border border-band-3/30 rounded-lg p-3 flex items-start gap-2">
               <Shield className="h-4 w-4 text-band-3 mt-0.5 shrink-0" />
-              <p className="text-xs text-ink-500">
+              <p className="text-13 text-ink-500">
                 <span className="text-band-3-ink font-medium">{to('verificationRequired')}</span> {to('mfaHelper')}
               </p>
             </div>
@@ -783,6 +843,6 @@ export default function JoinPage() {
           </form>
         )}
       </div>
-    </div>
+    </JourneyScreen>
   );
 }

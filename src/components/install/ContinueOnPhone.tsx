@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Qr } from '@/components/install/InstallGuide';
 import { joinLinkV2 } from '@/lib/install/flag';
+import { JOURNEY, JourneyHero, JourneyRow, JourneyTracker, PrimaryButton, SecondaryButton } from '@/components/onboarding/journey-ui';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // "CONTINUE ON THE PHONE" — the end of /join on a COMPUTER (lib/install/platform
@@ -21,12 +22,21 @@ import { joinLinkV2 } from '@/lib/install/flag';
 // ═════════════════════════════════════════════════════════════════════════════
 
 const WHY: Array<[string, string, string]> = [
-  ['🔔', 'התראות מהמאמן', 'תגובה למשוב, הודעות מהקבוצה, kudos'],
+  ['🔔', 'התראות מהמאמן', 'תגובה למשוב, הודעות ולייקים מהקבוצה'],
   ['⏰', 'תזכורת יום לפני אימון', 'ואישור הגעה בלחיצה אחת'],
   ['⌚', 'סנכרון מהשעון', 'Garmin ו-Strava, הריצה מופיעה בלי לעשות כלום'],
 ];
 
-export function ContinueOnPhone({ token, firstName, onContinueHere }: { token: string; firstName?: string | null; onContinueHere: () => void }) {
+/**
+ * `journey`: draw the joining journey's header and tracker (the end of /join, where
+ * the details were just saved). Defaults to on when the caller passes `firstName`
+ * at all (/join does, possibly null); the in-app "the app on your phone" strip
+ * (onboarding/PhoneAppStrip) passes neither, and a member already inside the app
+ * is not mid-journey, so it gets the plain header.
+ */
+export function ContinueOnPhone({ token, firstName, onContinueHere, journey = firstName !== undefined }: {
+  token: string; firstName?: string | null; onContinueHere: () => void; journey?: boolean;
+}) {
   const [mail, setMail] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [to, setTo] = useState('');
   const link = typeof window === 'undefined' ? '' : joinLinkV2(window.location.origin, token, true);
@@ -45,41 +55,40 @@ export function ContinueOnPhone({ token, firstName, onContinueHere }: { token: s
   };
 
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto bg-page" dir="rtl" role="dialog" aria-modal="true" aria-labelledby="cop-title" data-testid="continue-on-phone">
+    <div className="fixed inset-0 z-[60] overflow-y-auto" style={{ background: JOURNEY.page }} dir="rtl" role="dialog" aria-modal="true" aria-labelledby="cop-title" data-testid="continue-on-phone">
       <div className="flex min-h-full items-center justify-center p-6">
-        <div className="flex w-full max-w-[880px] flex-col-reverse gap-8 rounded-[26px] bg-card p-8 shadow-[0_10px_40px_rgba(0,0,0,0.08)] md:flex-row md:items-stretch md:p-10">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-extrabold text-brand-600">✓ הפרטים נשמרו{firstName ? ` · ${firstName}, את/ה בפנים` : ''}</p>
-            <h1 id="cop-title" className="mt-1.5 text-[30px] font-black leading-tight text-ink-700">ממשיכים בטלפון</h1>
-            <p className="mt-1 text-[15px] text-ink-500">מדרגות בנויה לטלפון. שם המאמן יכול לכתוב לך, והריצות נכנסות לבד.</p>
-            <ul className="mt-3">
-              {WHY.map(([icon, title, sub], i) => (
-                <li key={title} className={`flex items-start gap-3 py-2.5 ${i ? 'border-t border-page' : ''}`}>
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand-600/10 text-lg" aria-hidden>{icon}</span>
-                  <span><b className="block text-[15px] text-ink-700">{title}</b><span className="text-13 text-ink-500">{sub}</span></span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
-              <button
-                type="button"
-                onClick={sendLink}
-                disabled={mail === 'sending' || mail === 'sent'}
-                className="min-h-[52px] rounded-pill border border-page bg-card px-6 text-base font-black text-ink-700 shadow-sm disabled:opacity-60"
-              >
-                {mail === 'sending' ? 'שולח…' : mail === 'sent' ? '✓ נשלח למייל' : '✉️ שלחו לי את הקישור למייל'}
-              </button>
-              <button type="button" onClick={onContinueHere} className="min-h-[44px] text-sm font-bold text-ink-500 underline underline-offset-2">
-                אמשיך במחשב בינתיים
-              </button>
-            </div>
-            {mail === 'sent' && <p className="mt-2 text-13 text-ink-500">שלחנו{to ? <> ל-<bdi dir="ltr">{to}</bdi></> : ''}. פותחים את המייל בטלפון ולוחצים על הקישור.</p>}
-            {mail === 'error' && <p className="mt-2 text-13 font-semibold text-accent-red">לא הצלחנו לשלוח עכשיו. אפשר לסרוק את הקוד, או לנסות שוב.</p>}
+        <div className="w-full max-w-[880px] overflow-hidden rounded-[28px] bg-white shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
+          <div className="[&>header]:rounded-none">
+            <JourneyHero
+              eyebrow={journey ? `✓ ${firstName ? `${firstName}, ` : ''}הפרטים נשמרו` : 'מועדון הריצה של מדרגות'}
+              title={<span id="cop-title">ממשיכים בטלפון</span>}
+              subtitle="מדרגות בנויה לטלפון. שם המאמן יכול לכתוב לכם, והריצות נכנסות לבד."
+            />
           </div>
-          <div className="flex w-full shrink-0 flex-col items-center rounded-[22px] bg-page/60 p-6 text-center md:w-[260px]">
-            {link && <Qr url={link} />}
-            <b className="mt-3 text-[15px] text-ink-700">סורקים עם מצלמת הטלפון</b>
-            <span className="mt-0.5 text-13 text-ink-500">והטלפון ידריך אותך בהתקנה, צעד אחר צעד</span>
+          {journey && <div className="mx-auto max-w-[520px] px-6 pt-6"><JourneyTracker done={2} computer /></div>}
+          <div className="flex flex-col-reverse gap-8 p-6 md:flex-row md:items-stretch md:p-10 md:pt-6">
+            <div className="min-w-0 flex-1">
+              <ul>
+                {WHY.map(([icon, title, sub], i) => (
+                  <li key={title} className={i ? 'border-t' : ''} style={{ borderColor: JOURNEY.line }}>
+                    <JourneyRow icon={icon} title={title} sub={sub} />
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-5 flex flex-col gap-1">
+                <PrimaryButton onClick={sendLink} disabled={mail === 'sending' || mail === 'sent'}>
+                  {mail === 'sending' ? 'שולחים…' : mail === 'sent' ? '✓ נשלח למייל' : '✉️ שלחו לי את הקישור למייל'}
+                </PrimaryButton>
+                <SecondaryButton onClick={onContinueHere}>אמשיך במחשב בינתיים</SecondaryButton>
+              </div>
+              {mail === 'sent' && <p className="mt-2 text-[13px]" style={{ color: JOURNEY.soft }}>שלחנו{to ? <> אל <bdi dir="ltr">{to}</bdi></> : ''}. פותחים את המייל בטלפון ולוחצים על הקישור.</p>}
+              {mail === 'error' && <p className="mt-2 text-[13px] font-bold" style={{ color: JOURNEY.red }}>לא הצלחנו לשלוח עכשיו. אפשר לסרוק את הקוד, או לנסות שוב.</p>}
+            </div>
+            <div className="flex w-full shrink-0 flex-col items-center rounded-[22px] p-6 text-center md:w-[260px]" style={{ background: JOURNEY.well }}>
+              {link && <Qr url={link} />}
+              <b className="mt-3 text-[15px]" style={{ color: JOURNEY.ink }}>סורקים עם מצלמת הטלפון</b>
+              <span className="mt-0.5 text-[13px]" style={{ color: JOURNEY.soft }}>והטלפון ידריך בהתקנה, צעד אחר צעד</span>
+            </div>
           </div>
         </div>
       </div>

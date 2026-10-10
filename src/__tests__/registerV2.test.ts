@@ -10,8 +10,10 @@ describe('the v2 signup form', () => {
   it('asks a name (required) and an optional phone, and drops the expired countdown', () => {
     const page = read('app/register/page.tsx');
     expect(page).toMatch(/if \(v2 && !fullName\.trim\(\)\) \{ setError\('איך קוראים לך\?'\); return; \}/);
-    expect(page).toMatch(/placeholder="טלפון · רק אם תצטרכו עזרה"/);
-    expect(page).toMatch(/לא יודע\/ת · המאמן יחליט/);
+    expect(page).toMatch(/placeholder="טלפון \(לא חובה\) · למקרה שנצטרך לחזור אליכם"/);
+    // One term (קבוצת קצב), gender-neutral, and "not sure" is a real choice (groupId '').
+    expect(page).toMatch(/\{ id: '', title: 'לא בטוחים\?', sub: 'המאמן יחליט' \}/);
+    expect(page).toMatch(/placeholder="שם מלא באנגלית"/);
     expect(page).toMatch(/if \(done && v2\) \{\s+return <RegisterReceived/);
   });
 
