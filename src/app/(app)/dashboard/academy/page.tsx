@@ -43,7 +43,7 @@ import { TraineeBoard } from '@/components/trainee/TraineeBoard';
 // (lib/academy/areas.ts maps each of these onto an area and its sub-tab), but links
 // already out in notifications and shared URLs name the old fourteen sections, so
 // all of them stay valid — `academyFlowMap.test.ts` fails on any gap.
-type Tab = 'overview' | 'threads' | 'funnel' | 'members' | 'registrations' | 'coaches' | 'plans' | 'book' | 'dispatch' | 'compliance' | 'tests' | 'stats' | 'results' | 'payments' | 'settings' | 'roster';
+type Tab = 'overview' | 'threads' | 'funnel' | 'members' | 'registrations' | 'coaches' | 'plans' | 'book' | 'dispatch' | 'readiness' | 'compliance' | 'tests' | 'stats' | 'results' | 'payments' | 'settings' | 'roster';
 
 export default function AcademyPage() {
 
@@ -106,7 +106,7 @@ export default function AcademyPage() {
   // A test reminder tapped under v2: the tests are on the progress tab (7ג) now.
   const testRedirect = resolving ? null : traineeTestRedirect(deepLink, { traineeV2, isStaff });
   useEffect(() => { if (testRedirect) router.replace(testRedirect); }, [testRedirect, router]);
-  const valid: Tab[] = ['overview', 'threads', 'funnel', 'members', 'registrations', 'coaches', 'plans', 'book', 'dispatch', 'compliance', 'tests', 'stats', 'results', 'payments', 'settings', 'roster'];
+  const valid: Tab[] = ['overview', 'threads', 'funnel', 'members', 'registrations', 'coaches', 'plans', 'book', 'dispatch', 'readiness', 'compliance', 'tests', 'stats', 'results', 'payments', 'settings', 'roster'];
   const linkTab = deepLink.tab && valid.includes(deepLink.tab as Tab) ? deepLink.tab : null;
   const linkThread = deepLink.thread && deepLink.thread !== 'mine' ? deepLink.thread : null;
 

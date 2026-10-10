@@ -4,6 +4,32 @@ import type { ParsedWorkout } from '@/lib/ai/types';
 import type {
   KindEvidence, MissedOption, NoteReason, PaceAdjust, PaceKind, WeekSession,
 } from './coach-tools';
+import type { FormBandKey } from './form-bands';
+import type { GateReason } from './readiness';
+
+/**
+ * Why a suggestion is NOT held (readiness-board.ts): what C2 and the pace screen say before
+ * "אפשר לאשר" — "לא עייף מדי (−9, שומר), בלי כאב, והדופק לא מעל הטווח 3 בקרים".
+ */
+export interface PaceReadiness {
+  /** Null while the engine is still learning the trainee (then nothing is said about it). */
+  form: number | null;
+  bandKey: FormBandKey | null;
+  rhrFlag: boolean;
+  /** The RHR range is known (else the RHR part says it is still being learned). */
+  rhrKnown: boolean;
+  pain: boolean;
+  /** `trainee.feel.faces.N` of the last 4 runs' average, or null with no answers. */
+  feelKey: string | null;
+  gender: string | null;
+}
+
+/** A suggestion the readiness gate holds back (coach-tools.ts `gatePaceSuggestion`). */
+export interface PausedPacePayload {
+  athleteId: string;
+  name: string;
+  reasons: GateReason[];
+}
 
 export interface PaceSuggestionPayload {
   key: string;
@@ -12,6 +38,8 @@ export interface PaceSuggestionPayload {
   basisTestDate: string;
   kinds: KindEvidence[];
   current: Partial<Record<PaceKind, number>>;
+  /** Optional: absent from payloads older than the readiness gate. */
+  readiness?: PaceReadiness;
 }
 
 export interface MissedPayload {
@@ -58,6 +86,8 @@ export interface CoachToolsResponse {
   /** Migration 141 is there: decisions are recorded and the card shows. */
   stored: boolean;
   pace: PaceSuggestionPayload[];
+  /** Pace-up suggestions the readiness gate holds (very tired, RHR, pain, a weak feel). Optional for old clients. */
+  paused?: PausedPacePayload[];
   missed: MissedPayload[];
   emptyNext: EmptyNextPayload | null;
   strips: TraineeStrip[];

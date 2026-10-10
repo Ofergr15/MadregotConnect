@@ -242,6 +242,23 @@ export function adjustFor(suggestion: Pick<PaceSuggestion, 'kinds'>, amount: 'ap
 
 // ── Decisions: what the coach did (migration 141's rows, or the device store) ───────────
 
+/**
+ * The fatigue gate on a suggestion (spec §3.6, readiness.ts `readinessGate`): a trainee
+ * who is very tired, has had a high resting HR 3 mornings running, reported pain this week
+ * or felt weak over the last 4 runs is not offered faster paces — the suggestion is held,
+ * with the reasons, until the gate opens again. Only a pace-UP is held: a suggestion to
+ * slow down is exactly what a tired trainee needs, so it always goes through.
+ * `detectPaceSuggestion` stays as it is; the gate is applied after it.
+ */
+export function gatePaceSuggestion<S extends Pick<PaceSuggestion, 'kinds'>, R extends string>(
+  suggestion: S,
+  gate: { paused: boolean; reasons: R[] },
+): { held: true; reasons: R[] } | { held: false; suggestion: S } {
+  const up = suggestion.kinds.some(k => k.direction === 'faster');
+  if (gate.paused && up) return { held: true, reasons: gate.reasons };
+  return { held: false, suggestion };
+}
+
 export type DecisionKind = 'pace' | 'missed' | 'copy';
 
 export interface CoachDecision {

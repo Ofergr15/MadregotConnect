@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   activeAdjust, adjustFor, applyPaceAdjust, checkKind, copyDefaults, copyWeek, copyWorkout, detectMissed,
-  detectPaceSuggestion, hrVerdict, isLongRun, isMissedDecided, isPaceSnoozed, mainPaceOf, noteReason, paceKindOf,
+  detectPaceSuggestion, gatePaceSuggestion, hrVerdict, isLongRun, isMissedDecided, isPaceSnoozed, mainPaceOf, noteReason, paceKindOf,
   pickNote, preselectMissed, progressModel, squareLabel, targetWeeks, PACE_SNOOZE_DAYS,
   type CoachDecision, type PaceSession, type WeekOfSessions,
 } from '../lib/academy/coach-tools';
@@ -417,5 +417,25 @@ describe('labels', () => {
   it('knows a long run', () => {
     expect(isLongRun(long16, T)).toBe(true);
     expect(isLongRun(sixBy800, T)).toBe(false);
+  });
+});
+
+describe('gatePaceSuggestion (the readiness gate, spec §3.6)', () => {
+  const sug = (direction: 'faster' | 'slower') => ({ kinds: [{ kind: 'reps', direction } as never] });
+  const open = { paused: false, reasons: [] as string[] };
+  const held = { paused: true, reasons: ['veryTired', 'rhr'] };
+
+  it('holds a pace-UP while the gate is paused, with its reasons', () => {
+    expect(gatePaceSuggestion(sug('faster'), held)).toEqual({ held: true, reasons: ['veryTired', 'rhr'] });
+  });
+
+  it('lets it through when the gate is open', () => {
+    const s0 = sug('faster');
+    expect(gatePaceSuggestion(s0, open)).toEqual({ held: false, suggestion: s0 });
+  });
+
+  it('never holds a suggestion to slow down: that is what a tired trainee needs', () => {
+    const s1 = sug('slower');
+    expect(gatePaceSuggestion(s1, held)).toEqual({ held: false, suggestion: s1 });
   });
 });

@@ -5,7 +5,7 @@
 //   בית      the home
 //   אנשים    מתאמנים · מועמדים · מאמנים
 //   תוכניות  השבוע · ספר אימונים · שעונים
-//   מעקב     ביצוע · טסטים · תוצאות
+//   מעקב     מוכנות · ביצוע · טסטים · תוצאות
 //   שיחות    the threads
 //
 // Payments and settings belong to no area: they sit behind the ⚙ (manager only).
@@ -18,7 +18,7 @@ export type AcademySection =
   | 'overview'
   | 'members' | 'funnel' | 'coaches'
   | 'plans' | 'book' | 'dispatch'
-  | 'compliance' | 'tests' | 'results'
+  | 'readiness' | 'compliance' | 'tests' | 'results'
   | 'threads'
   | 'payments' | 'settings';
 
@@ -44,7 +44,7 @@ export const AREA_OF: Record<AcademySection, AcademyArea | null> = {
   overview: 'home',
   members: 'people', funnel: 'people', coaches: 'people',
   plans: 'plans', book: 'plans', dispatch: 'plans',
-  compliance: 'track', tests: 'track', results: 'track',
+  readiness: 'track', compliance: 'track', tests: 'track', results: 'track',
   threads: 'threads',
   payments: null, settings: null,
 };
@@ -62,6 +62,8 @@ const SUB_TABS: Record<AcademyArea, ReadonlyArray<{ section: AcademySection; lab
     { section: 'dispatch', label: 'שעונים' },
   ],
   track: [
+    // First: who is ready for more this week (trainee-experience-v2 C1).
+    { section: 'readiness', label: 'מוכנות' },
     { section: 'compliance', label: 'ביצוע' },
     { section: 'tests', label: 'טסטים' },
     { section: 'results', label: 'תוצאות' },

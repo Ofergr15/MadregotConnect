@@ -68,8 +68,22 @@ export interface FitnessChartGeometry {
   /** Three faint gridlines. */
   grid: number[];
   /** HTML labels under the chart: the first point of each month, and "היום" at the right. */
-  labels: Array<{ x: number; kind: 'month' | 'today'; date: string; align: 'start' | 'center' | 'end' }>;
+  labels: Array<{ x: number; kind: 'month' | 'ago' | 'today' | 'next'; date: string; align: 'start' | 'center' | 'end'; weeks?: number }>;
+  /**
+   * C2's dashed projection, in its own fixed-width zone to the RIGHT of today (spec G1:
+   * the future continues further right): the zone's left edge, the two dashed lines from
+   * today's dots, and the hollow end dots. Null without a projection.
+   */
+  projection: {
+    zoneX: number;
+    fitnessPath: string;
+    fatiguePath: string;
+    end: { x: number; fitnessY: number; fatigueY: number };
+  } | null;
 }
+
+/** The projection zone's width (the mockup's C2: 78 of 326). */
+export const PROJECTION_WIDTH = 78;
 
 /**
  * The PMC chart: fitness thick, fatigue thin, OLDEST LEFT and today on the far right
@@ -79,7 +93,14 @@ export interface FitnessChartGeometry {
  */
 export function fitnessChart(
   all: LoadPayload['series'],
-  opts: { width?: number; height?: number } = {},
+  opts: {
+    width?: number;
+    height?: number;
+    /** C2: the projected points after today, oldest first (lib/academy/readiness-board.ts). */
+    projection?: LoadPayload['series'];
+    /** `weeks`: "לפני חודשיים · לפני חודש · היום · שבוע הבא" instead of month names. */
+    axis?: 'months' | 'weeks';
+  } = {},
 ): FitnessChartGeometry | null {
   const series = chartPoints(all);
   if (series.length < 2) return null;
@@ -87,10 +108,18 @@ export function fitnessChart(
   const height = opts.height ?? FITNESS_CHART.height;
   const { padL, padR, padY } = FITNESS_CHART;
   const first = series[0].date;
-  const span = Math.max(1, daysBetween(first, series[series.length - 1].date));
-  const x = (date: string) => xAt(daysBetween(first, date), span + 1, width, padL, padR);
+  const lastDate = series[series.length - 1].date;
+  const span = Math.max(1, daysBetween(first, lastDate));
+  const future = (opts.projection ?? []).filter(p => p.date > lastDate);
+  // With a projection, today sits at the left edge of a fixed zone on the far right, and
+  // the future is spread by day inside it; without one, today is at the right padding.
+  const zone = future.length ? PROJECTION_WIDTH : 0;
+  const futureSpan = future.length ? Math.max(1, daysBetween(lastDate, future[future.length - 1].date)) : 1;
+  const x = (date: string) => (date <= lastDate
+    ? xAt(daysBetween(first, date), span + 1, width - zone, padL, padR)
+    : width - padR - zone + (daysBetween(lastDate, date) / futureSpan) * zone);
 
-  const values = series.flatMap(p => [p.fitness, p.fatigue]);
+  const values = [...series, ...future].flatMap(p => [p.fitness, p.fatigue]);
   let lo = Math.min(...values);
   let hi = Math.max(...values);
   // A little air, and never a flat line drawn across the middle as if it were a trend.
@@ -107,19 +136,42 @@ export function fitnessChart(
   const endX = fit[fit.length - 1][0];
 
   const labels: FitnessChartGeometry['labels'] = [];
-  let month = '';
-  for (const p of series) {
-    const m = p.date.slice(0, 7);
-    if (m === month) continue;
-    month = m;
-    const px = x(p.date);
-    // A month starting under "היום" would collide with it; the first point is always named.
-    if (labels.length && endX - px < 46) continue;
-    labels.push({ x: px, kind: 'month', date: p.date, align: labels.length ? 'center' : 'start' });
+  if (opts.axis === 'weeks') {
+    // C2: how long ago, in weeks — the first point, and four weeks back when there is room.
+    const weeksAgo = (d: string) => Math.round(daysBetween(d, last.date) / 7);
+    labels.push({ x: x(first), kind: 'ago', date: first, align: 'start', weeks: weeksAgo(first) });
+    const mid = series.find(p => weeksAgo(p.date) === 4);
+    if (mid && weeksAgo(first) >= 7) labels.push({ x: x(mid.date), kind: 'ago', date: mid.date, align: 'center', weeks: 4 });
+  } else {
+    let month = '';
+    for (const p of series) {
+      const m = p.date.slice(0, 7);
+      if (m === month) continue;
+      month = m;
+      const px = x(p.date);
+      // A month starting under "היום" would collide with it; the first point is always named.
+      if (labels.length && endX - px < 46) continue;
+      labels.push({ x: px, kind: 'month', date: p.date, align: labels.length ? 'center' : 'start' });
+    }
+    // A month squeezed against the first label (a range that opens on the 29th) is dropped.
+    if (labels.length > 1 && labels[1].x - labels[0].x < 44) labels.splice(1, 1);
   }
-  // A month squeezed against the first label (a range that opens on the 29th) is dropped.
-  if (labels.length > 1 && labels[1].x - labels[0].x < 44) labels.splice(1, 1);
-  labels.push({ x: endX, kind: 'today', date: last.date, align: 'end' });
+  // With a projection "היום" is centred over its dot (the next week's label takes the end).
+  labels.push({ x: endX, kind: 'today', date: last.date, align: future.length ? 'center' : 'end' });
+
+  let projection: FitnessChartGeometry['projection'] = null;
+  if (future.length) {
+    const fp: Array<[number, number]> = [[endX, y(last.fitness)], ...future.map(p => [x(p.date), y(p.fitness)] as [number, number])];
+    const ap: Array<[number, number]> = [[endX, y(last.fatigue)], ...future.map(p => [x(p.date), y(p.fatigue)] as [number, number])];
+    const tip = future[future.length - 1];
+    projection = {
+      zoneX: endX,
+      fitnessPath: smoothPath(fp),
+      fatiguePath: smoothPath(ap),
+      end: { x: x(tip.date), fitnessY: y(tip.fitness), fatigueY: y(tip.fatigue) },
+    };
+    labels.push({ x: x(tip.date), kind: 'next', date: tip.date, align: 'end' });
+  }
 
   return {
     width,
@@ -130,6 +182,7 @@ export function fitnessChart(
     end: { x: endX, fitnessY: y(last.fitness), fatigueY: y(last.fatigue), fitness: Math.round(last.fitness), fatigue: Math.round(last.fatigue) },
     grid: [0.25, 0.5, 0.75].map(t => padY + t * (height - 2 * padY)),
     labels,
+    projection,
   };
 }
 

@@ -17,6 +17,9 @@ export const maxDuration = 60;
  * their own trainees (and `?scope=coach` narrows a manager to theirs).
  *
  * Read-only. Nothing here changes a trainee: every row is a suggestion the coach opens.
+ * A pace-up suggestion for a trainee the readiness gate holds (very tired, a high resting
+ * HR 3 mornings running, pain this week, a weak feel) comes back in `paused`, not `pace`;
+ * pricing the loads that gate reads is skipped under view-as.
  */
 export async function GET(request: Request) {
   try {
@@ -28,7 +31,7 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     const visible = await visibleTraineeIds(caller, request);
     const ids = visible === null ? await allAcademyTraineeIds(supabase) : [...visible];
-    const { context, ...body } = await buildCoachTools(supabase, ids);
+    const { context, ...body } = await buildCoachTools(supabase, ids, { write: !caller.viewingAsBy });
     void context;
     return NextResponse.json(body);
   } catch (error) {

@@ -4478,5 +4478,122 @@
         "saveError": "Not saved. Please try again."
       }
     }
+  },
+  "readiness": {
+    "title": "My trainees · <m>{n}</m>",
+    "error": "Could not load. Try again.",
+    "empty": "No trainees yet",
+    "alert": {
+      "both": "⚠️ <bdi>{name}</bdi> {gender, select, other {is very tired}}, and the resting HR has been above the range for <m>{n}</m> mornings",
+      "veryTired": "⚠️ <bdi>{name}</bdi> {gender, select, other {is very tired}}",
+      "rhr": "⚠️ <bdi>{name}</bdi>'s resting HR has been above the range for <m>{n}</m> mornings",
+      "held": "{gender, select, female {Her pace suggestion} other {His pace suggestion}} is on hold. An easy week is recommended before building on.",
+      "plain": "An easy week is recommended before building on.",
+      "light": "Build an easy week",
+      "write": "{gender, select, female {Write to her} other {Write to him}}",
+      "story": "Every trainee's readiness"
+    },
+    "sort": {
+      "label": "Order",
+      "tired": "Most tired first",
+      "week": "By the week",
+      "name": "By name"
+    },
+    "caption": "The line = fitness over <m>7</m> weeks, today on the right",
+    "captionForm": "Form",
+    "chip": {
+      "veryTired": "{gender, select, female {Very tired} other {Very tired}}",
+      "working": "{gender, select, female {Working hard} other {Working hard}}",
+      "maintain": "{gender, select, other {Keeping fit}}",
+      "fresh": "{gender, select, other {Feeling fresh}}",
+      "detraining": "{gender, select, female {Training little} other {Training little}}",
+      "learning": "Learning",
+      "learningDays": "<m>{n}</m> days to go",
+      "insufficient": "Not enough",
+      "insufficientSub": "data"
+    },
+    "highlight": {
+      "veryTiredRhr": "❤️ {gender, select, other {Very tired}}, and the HR is above the range",
+      "rampTooFast": "📈 Fitness up <m>{n}</m>, too fast",
+      "pr": {
+        "1k": "🏅 A <m>1</m> km record {when}",
+        "5k": "🏅 A <m>5</m> km record {when}",
+        "10k": "🏅 A <m>10</m> km record {when}",
+        "hm": "🏅 A half marathon record {when}",
+        "fm": "🏅 A marathon record {when}"
+      },
+      "race": "🏁 Race <s>{race}</s> {when}",
+      "raceUnnamed": "🏁 Race {when}",
+      "noRun": "{gender, select, other {No run}} for <m>{n}</m> days",
+      "week": "<m>{done}</m> of <m>{planned}</m> this week",
+      "weekNone": "No plan this week"
+    },
+    "when": {
+      "today": "today",
+      "yesterday": "yesterday",
+      "tomorrow": "tomorrow",
+      "sun": "on Sunday",
+      "mon": "on Monday",
+      "tue": "on Tuesday",
+      "wed": "on Wednesday",
+      "thu": "on Thursday",
+      "fri": "on Friday",
+      "sat": "on Saturday",
+      "week": "in a week"
+    },
+    "row": "{name}, form {form}",
+    "reason": {
+      "veryTired": "{gender, select, female {Very tired} other {Very tired}}",
+      "rhr": "Resting HR above the range",
+      "pain": "Reported pain this week",
+      "feel": "Felt weak in the last runs"
+    },
+    "paused": {
+      "title": "{name}'s pace suggestion is on hold",
+      "action": "See"
+    },
+    "detail": {
+      "back": "Trainees",
+      "fitnessSub": "{word}{heavy, select, yes {, after a heavy week} other {}}",
+      "legendNext": "Next week",
+      "zone": "Form about <m>{form}</m>",
+      "ago": "{weeks, plural, =4 {A month ago} =8 {Two months ago} other {<m>#</m> weeks ago}}",
+      "next": "Next week",
+      "today": "Today",
+      "aria": "Fitness and fatigue over the last 8 weeks, oldest on the left, and next week as planned on the right",
+      "say": {
+        "room": "If {gender, select, female {she runs} other {he runs}} what you planned to the end of next week, load <m>{load}</m> next week, form will be about <b><m>{form}</m></b>: {word} ✓. There is room to add a little load.",
+        "inRange": "If {gender, select, female {she runs} other {he runs}} what you planned to the end of next week, load <m>{load}</m> next week, form will be about <b><m>{form}</m></b>: {word}, in the right range ✓. Carry on with the plan.",
+        "warn": "If {gender, select, female {she runs} other {he runs}} what you planned to the end of next week, load <m>{load}</m> next week, form will be about <b><m>{form}</m></b>: {word}. Take some load off next week.",
+        "noPlan": "Next week has no plan yet. Without more workouts, form will be about <b><m>{form}</m></b>: {word}."
+      },
+      "feel": "Feel: {word}{effort, select, none {} other { · effort <m>{effort}</m>}}",
+      "feelSub": "Average of {n, plural, one {the last run} other {the last <m>#</m> runs}} · {pain, select, yes {reported pain} other {no pain}}",
+      "feelNone": "No feedback from the runs yet",
+      "feelNoneSub": "{pain, select, yes {reported pain} other {no pain}}",
+      "weekPart": " · <m>{done}</m> of <m>{planned}</m> this week",
+      "body": "HR <m>{rhr}</m>{sleep, select, none {} other { · sleep <m>{sleep}</m>}}",
+      "bodySleep": "Sleep <m>{sleep}</m>",
+      "bodyNone": "No data from the watch yet",
+      "range": "{gender, select, female {Her normal range} other {His normal range}} <m>{range}</m>",
+      "rangeLearning": "{gender, select, female {Learning her range} other {Learning his range}}",
+      "above": "{n, plural, one {<m>#</m> morning} other {<m>#</m> mornings}} above the range",
+      "inside": "✓ Inside the range",
+      "paceTitle": "Pace suggestion: {kinds} faster by <m>{sec}</m> s",
+      "paceTitleSlower": "Pace suggestion: {kinds} slower by <m>{sec}</m> s",
+      "paceFrom": "<m>{to}</m> instead of <m>{from}</m>.",
+      "heldTitle": "Pace suggestion: on hold",
+      "heldSay": "{reasons}. An easy week first, before the pace goes up.",
+      "approve": "Approve the new pace"
+    },
+    "gate": {
+      "form": "{gender, select, other {Not too tired}} (<m>{form}</m>, {word})",
+      "formUnknown": "Fatigue is still being learned",
+      "pain": "no pain",
+      "rhr": "and the HR has not been above the range <m>3</m> mornings",
+      "rhrUnknown": "and the resting HR is still being learned",
+      "ok": "OK to approve."
+    },
+    "sparkAria": "Fitness over the last 7 weeks, oldest on the left"
   }
 }

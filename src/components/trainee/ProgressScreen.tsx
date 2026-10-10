@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { SkeletonList } from '@/components/ui';
-import { FORM_BANDS, signed } from '@/lib/academy/form-bands';
+import { FORM_BANDS, signed, type FormBandKey } from '@/lib/academy/form-bands';
 import type { LoadPayload, LoadRange } from '@/lib/academy/load-payload';
 import { LEARNING_DAYS } from '@/lib/academy/pmc';
 import { rampSentence, rangeOptions, thresholdRow, type Metric } from '@/lib/academy/progress';
@@ -53,16 +53,7 @@ export function ProgressScreen({ athleteId, gender, testsHref }: { athleteId: st
   return (
     <div className="flex flex-col gap-2.5" dir="rtl">
       {now ? (
-        <div className="grid grid-cols-3 gap-2">
-          <MetricTile color={FIT} onOpen={() => setSheet('fitness')} label={t('tile.fitness')}
-            value={<><bdi dir="ltr">{now.fitness}</bdi>{now.ramp !== 0 && <small className="ms-1 text-[13px] font-extrabold">{now.ramp > 0 ? '▲' : '▼'} <bdi dir="ltr">{Math.abs(now.ramp)}</bdi></small>}</>}
-            valueColor={FIT} sub={t.rich('tile.fitnessSub', RICH)} />
-          <MetricTile color={FAT} onOpen={() => setSheet('fatigue')} label={t('tile.fatigue')}
-            value={<bdi dir="ltr">{now.fatigue}</bdi>} sub={t.rich('tile.fatigueSub', RICH)} />
-          <MetricTile color={BAND_COLOR[now.band]} tint={BAND_TILE[now.band]?.bg} onOpen={() => setSheet('form')} label={t('tile.form')}
-            value={<bdi dir="ltr">{signed(now.form)}</bdi>} valueColor={BAND_TILE[now.band]?.ink}
-            sub={tt(FORM_BANDS.find(b => b.key === now.band)!.longKey as never, { gender } as never)} />
-        </div>
+        <MetricTiles numbers={now} gender={gender} onOpen={setSheet} />
       ) : (
         <LearningCard status={data.status} />
       )}
@@ -166,6 +157,33 @@ function LearningCard({ status }: { status: LoadPayload['status'] }) {
     <div className={cn(CARD, 'px-4 py-3.5')}>
       <p className="text-[16px] font-black text-ink-900">{tf('insufficient')}</p>
       <p className="mt-1 text-[13px] leading-normal text-ink-500">{tf('insufficientSay')}</p>
+    </div>
+  );
+}
+
+/**
+ * The three numbers — fitness ▲ ramp, fatigue, form in its band's tint — each a tap into
+ * 7ב. Shared with the coach's C2 (readiness/TraineeReadiness.tsx), which words the fitness
+ * line its own way ("שומר, אחרי שבוע עמוס").
+ */
+export function MetricTiles({ numbers: now, gender, onOpen, fitnessSub }: {
+  numbers: { fitness: number; fatigue: number; form: number; ramp: number; band: FormBandKey };
+  gender: string;
+  onOpen: (m: Metric) => void;
+  fitnessSub?: React.ReactNode;
+}) {
+  const t = useTranslations('trainee.progress');
+  const tt = useTranslations();
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <MetricTile color={FIT} onOpen={() => onOpen('fitness')} label={t('tile.fitness')}
+        value={<><bdi dir="ltr">{now.fitness}</bdi>{now.ramp !== 0 && <small className="ms-1 text-[13px] font-extrabold">{now.ramp > 0 ? '▲' : '▼'} <bdi dir="ltr">{Math.abs(now.ramp)}</bdi></small>}</>}
+        valueColor={FIT} sub={fitnessSub ?? t.rich('tile.fitnessSub', RICH)} />
+      <MetricTile color={FAT} onOpen={() => onOpen('fatigue')} label={t('tile.fatigue')}
+        value={<bdi dir="ltr">{now.fatigue}</bdi>} sub={t.rich('tile.fatigueSub', RICH)} />
+      <MetricTile color={BAND_COLOR[now.band]} tint={BAND_TILE[now.band]?.bg} onOpen={() => onOpen('form')} label={t('tile.form')}
+        value={<bdi dir="ltr">{signed(now.form)}</bdi>} valueColor={BAND_TILE[now.band]?.ink}
+        sub={tt(FORM_BANDS.find(b => b.key === now.band)!.longKey as never, { gender } as never)} />
     </div>
   );
 }

@@ -23,7 +23,7 @@ describe('areas', () => {
     expect(subTabsOf('people', true).map((t) => t.label)).toEqual(['מתאמנים', 'מועמדים', 'מאמנים']);
     expect(subTabsOf('people', false).map((t) => t.section)).toEqual(['members']);
     expect(subTabsOf('plans', false).map((t) => t.label)).toEqual(['השבוע', 'ספר אימונים', 'שעונים']);
-    expect(subTabsOf('track', false).map((t) => t.label)).toEqual(['ביצוע', 'טסטים', 'תוצאות']);
+    expect(subTabsOf('track', false).map((t) => t.label)).toEqual(['מוכנות', 'ביצוע', 'טסטים', 'תוצאות']);
   });
 
   it('puts payments and settings behind the ⚙, in no area', () => {
@@ -38,6 +38,8 @@ describe('areas', () => {
     ['roster', 'members'], ['registrations', 'funnel'], ['stats', 'compliance'], ['tests', 'tests'],
     ['dispatch', 'dispatch'], ['book', 'book'], ['plans', 'plans'], ['results', 'results'],
     ['payments', 'payments'], ['settings', 'settings'], ['coaches', 'coaches'],
+    // The coach's readiness board (trainee-experience-v2 C1), for coach and manager alike.
+    ['readiness', 'readiness'],
   ])('maps the old ?tab=%s to %s for the manager', (tab, section) => {
     expect(sectionForTab(tab, true)).toBe(section);
   });
@@ -52,7 +54,10 @@ describe('areas', () => {
   it('ignores what it does not know', () => {
     expect(sectionForTab('nope', true)).toBeNull();
     expect(sectionForTab(null, true)).toBeNull();
-    expect(defaultSectionOf('track')).toBe('compliance');
+    // Readiness opens the area; the old ?tab=track link still lands on the compliance it meant.
+    expect(defaultSectionOf('track')).toBe('readiness');
+    expect(sectionForTab('track', true)).toBe('compliance');
+    expect(sectionForTab('readiness', false)).toBe('readiness');
   });
 });
 

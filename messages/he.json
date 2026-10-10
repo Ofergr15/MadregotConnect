@@ -4478,5 +4478,122 @@
         "saveError": "לא נשמר. נסו שוב."
       }
     }
+  },
+  "readiness": {
+    "title": "המתאמנים שלי · <m>{n}</m>",
+    "error": "לא הצלחנו לטעון. נסו שוב.",
+    "empty": "עוד אין מתאמנים",
+    "alert": {
+      "both": "⚠️ <bdi>{name}</bdi> {gender, select, female {עייפה מאוד} other {עייף מאוד}}, והדופק במנוחה מעל הטווח <m>{n}</m> בקרים",
+      "veryTired": "⚠️ <bdi>{name}</bdi> {gender, select, female {עייפה מאוד} other {עייף מאוד}}",
+      "rhr": "⚠️ הדופק במנוחה של <bdi>{name}</bdi> מעל הטווח <m>{n}</m> בקרים",
+      "held": "הצעת הקצב {gender, select, female {שלה} other {שלו}} הושהתה. מומלץ שבוע קל לפני שממשיכים לבנות.",
+      "plain": "מומלץ שבוע קל לפני שממשיכים לבנות.",
+      "light": "לבנות שבוע קל",
+      "write": "לכתוב {gender, select, female {לה} other {לו}}",
+      "story": "המוכנות של כל המתאמנים"
+    },
+    "sort": {
+      "label": "סדר המתאמנים",
+      "tired": "מהעייף לרענן",
+      "week": "לפי השבוע",
+      "name": "לפי שם"
+    },
+    "caption": "הקו = כושר ב־<m>7</m> שבועות, היום מימין",
+    "captionForm": "רעננות",
+    "chip": {
+      "veryTired": "{gender, select, female {עייפה מאוד} other {עייף מאוד}}",
+      "working": "{gender, select, female {עובדת קשה} other {עובד קשה}}",
+      "maintain": "{gender, select, female {שומרת} other {שומר}}",
+      "fresh": "{gender, select, female {רעננה} other {רענן}}",
+      "detraining": "{gender, select, female {מתאמנת מעט} other {מתאמן מעט}}",
+      "learning": "לומד",
+      "learningDays": "עוד <m>{n}</m> ימים",
+      "insufficient": "אין מספיק",
+      "insufficientSub": "נתונים"
+    },
+    "highlight": {
+      "veryTiredRhr": "❤️ {gender, select, female {עייפה מאוד} other {עייף מאוד}}, והדופק מעל הטווח",
+      "rampTooFast": "📈 כושר עלה <m>{n}</m>, מהר מדי",
+      "pr": {
+        "1k": "🏅 שיא ל־<m>1</m> ק״מ {when}",
+        "5k": "🏅 שיא ל־<m>5</m> ק״מ {when}",
+        "10k": "🏅 שיא ל־<m>10</m> ק״מ {when}",
+        "hm": "🏅 שיא בחצי מרתון {when}",
+        "fm": "🏅 שיא במרתון {when}"
+      },
+      "race": "🏁 מרוץ <s>{race}</s> {when}",
+      "raceUnnamed": "🏁 מרוץ {when}",
+      "noRun": "לא {gender, select, female {רצה} other {רץ}} <m>{n}</m> ימים",
+      "week": "<m>{done}</m> מתוך <m>{planned}</m> השבוע",
+      "weekNone": "אין תוכנית השבוע"
+    },
+    "when": {
+      "today": "היום",
+      "yesterday": "אתמול",
+      "tomorrow": "מחר",
+      "sun": "בראשון",
+      "mon": "בשני",
+      "tue": "בשלישי",
+      "wed": "ברביעי",
+      "thu": "בחמישי",
+      "fri": "בשישי",
+      "sat": "בשבת",
+      "week": "בעוד שבוע"
+    },
+    "row": "{name}, רעננות {form}",
+    "reason": {
+      "veryTired": "{gender, select, female {עייפה מאוד} other {עייף מאוד}}",
+      "rhr": "דופק במנוחה מעל הטווח",
+      "pain": "דיווח על כאב השבוע",
+      "feel": "הרגשה חלשה באימונים האחרונים"
+    },
+    "paused": {
+      "title": "הצעת הקצב של {name} הושהתה",
+      "action": "לראות"
+    },
+    "detail": {
+      "back": "מתאמנים",
+      "fitnessSub": "{word}{heavy, select, yes {, אחרי שבוע עמוס} other {}}",
+      "legendNext": "השבוע הבא",
+      "zone": "רעננות בערך <m>{form}</m>",
+      "ago": "{weeks, plural, =4 {לפני חודש} =8 {לפני חודשיים} other {לפני <m>#</m> שבועות}}",
+      "next": "שבוע הבא",
+      "today": "היום",
+      "aria": "כושר ועייפות ב־8 השבועות האחרונים, הישן משמאל, והשבוע הבא לפי התוכנית מימין",
+      "say": {
+        "room": "אם {gender, select, female {תרוץ} other {ירוץ}} את מה שתכננת עד סוף השבוע הבא, עומס <m>{load}</m> בשבוע הבא, הרעננות תהיה בערך <b><m>{form}</m></b>: {word} ✓. יש מקום להוסיף קצת עומס.",
+        "inRange": "אם {gender, select, female {תרוץ} other {ירוץ}} את מה שתכננת עד סוף השבוע הבא, עומס <m>{load}</m> בשבוע הבא, הרעננות תהיה בערך <b><m>{form}</m></b>: {word}, בטווח הנכון ✓. ממשיכים לפי התוכנית.",
+        "warn": "אם {gender, select, female {תרוץ} other {ירוץ}} את מה שתכננת עד סוף השבוע הבא, עומס <m>{load}</m> בשבוע הבא, הרעננות תהיה בערך <b><m>{form}</m></b>: {word}. כדאי להוריד עומס מהשבוע הבא.",
+        "noPlan": "עוד אין תוכנית לשבוע הבא. בלי אימונים נוספים, הרעננות תהיה בערך <b><m>{form}</m></b>: {word}."
+      },
+      "feel": "הרגשה: {word}{effort, select, none {} other { · מאמץ <m>{effort}</m>}}",
+      "feelSub": "ממוצע {n, plural, one {האימון האחרון} other {<m>#</m> אימונים אחרונים}} · {pain, select, yes {דיווח על כאב} other {בלי כאב}}",
+      "feelNone": "עוד אין משוב מהאימונים",
+      "feelNoneSub": "{pain, select, yes {דיווח על כאב} other {בלי כאב}}",
+      "weekPart": " · <m>{done}</m> מתוך <m>{planned}</m> השבוע",
+      "body": "דופק <m>{rhr}</m>{sleep, select, none {} other { · שינה <m>{sleep}</m>}}",
+      "bodySleep": "שינה <m>{sleep}</m>",
+      "bodyNone": "עוד אין נתונים מהשעון",
+      "range": "הטווח הרגיל {gender, select, female {שלה} other {שלו}} <m>{range}</m>",
+      "rangeLearning": "לומד את הטווח {gender, select, female {שלה} other {שלו}}",
+      "above": "{n, plural, one {<m>#</m> בוקר} other {<m>#</m> בקרים}} מעל הטווח",
+      "inside": "✓ בתוך הטווח",
+      "paceTitle": "הצעת קצב: {kinds} מהר ב־<m>{sec}</m> שנ׳",
+      "paceTitleSlower": "הצעת קצב: {kinds} לאט ב־<m>{sec}</m> שנ׳",
+      "paceFrom": "<m>{to}</m> במקום <m>{from}</m>.",
+      "heldTitle": "הצעת קצב: הושהתה",
+      "heldSay": "{reasons}. כדאי שבוע קל לפני שמעלים קצב.",
+      "approve": "לאשר את הקצב החדש"
+    },
+    "gate": {
+      "form": "{gender, select, female {לא עייפה מדי} other {לא עייף מדי}} (<m>{form}</m>, {word})",
+      "formUnknown": "את העייפות עוד לומדים",
+      "pain": "בלי כאב",
+      "rhr": "והדופק לא מעל הטווח <m>3</m> בקרים",
+      "rhrUnknown": "ודופק המנוחה עוד נלמד",
+      "ok": "אפשר לאשר."
+    },
+    "sparkAria": "כושר ב־7 השבועות האחרונים, הישן משמאל"
   }
 }

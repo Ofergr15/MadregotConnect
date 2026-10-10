@@ -9,6 +9,7 @@ import { PACE_KINDS, PACE_MEANINGFUL_SEC, type KindEvidence, type PaceKind } fro
 import type { PaceSuggestionPayload, PaceUpdateResponse } from '@/lib/academy/coach-tools-payload';
 import { BarButton, CARD, FlowOverlay, FlowScreen, PrimaryButton, RICH, clockText } from '../book/ui';
 import { dayMonth, signed } from './shared';
+import { GateSentence } from '../readiness/shared';
 
 // ── הצעת קצב (mockup academy-coach-tools.html, phone 2) ────────────────────────────────
 //
@@ -16,6 +17,8 @@ import { dayMonth, signed } from './shared';
 // dates), what would change (today against proposed, only the kinds that moved, easy kept
 // as the reference row), and the three decisions. Nothing changes for the trainee until a
 // button is pressed; the route recomputes the suggestion and takes the numbers from there.
+// A pace-up comes with the readiness gate said out loud (C2's sentence: "לא עייף מדי (−9,
+// שומר), בלי כאב, והדופק לא מעל הטווח 3 בקרים. אפשר לאשר.") — a held one never reaches here.
 
 const GREEN = '#118A43';
 const AMBER = '#C2610C';
@@ -124,6 +127,12 @@ export function PaceSuggestionScreen({ suggestion, onClose, onDone }: {
             {ev.hr === 'missing' ? t('pace.hrMissing') : faster ? t('pace.hrFlatFaster') : t('pace.hrFlatSlower')}
           </p>
         </div>
+
+        {faster && suggestion.readiness && (
+          <p className="rounded-2xl bg-[#E5F6EC] px-4 py-3 text-[14.5px] leading-snug text-[#0E7A3C]" role="note">
+            ✓ <GateSentence readiness={suggestion.readiness} />
+          </p>
+        )}
 
         <div className={cn(CARD, 'overflow-hidden')}>
           <div className="grid grid-cols-[1fr_84px_84px] items-center bg-[#F7F7FA] px-4 py-1.5 text-[13px] font-bold text-ink-400">

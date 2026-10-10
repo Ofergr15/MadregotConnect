@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import {
-  ArrowLeftRight, CalendarX, ClipboardList, Copy, Gauge, MessageSquare, Plus, Sparkles, Timer, Trophy, TrendingUp, UserPlus, Users, Watch,
+  ArrowLeftRight, CalendarX, ChevronLeft, ClipboardList, Copy, Gauge, MessageSquare, PauseCircle, Plus, Sparkles, Timer, Trophy, TrendingUp, UserPlus, Users, Watch,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { COMPLIANCE_HEX } from '@/lib/academy/compliance';
 import type { TraineeStrip } from '@/lib/academy/coach-tools-payload';
+import type { ReadinessAlert } from '@/lib/academy/readiness-board';
 import { cn } from '@/lib/utils';
 import { EmptyState, SkeletonList } from '@/components/ui';
 import {
@@ -27,6 +28,10 @@ import { memberCoachIds } from '@/lib/academy/members';
 //   quick actions trainee · coach for a trainee · coach
 //   waiting       "מחכה לך", most urgent first, one button each
 //
+// Above all of it, only when there is one: the readiness alert (trainee-experience-v2 C1) as
+// a story card — the most tired trainee, whose pace-up suggestion is held — into the
+// readiness board (?tab=readiness).
+//
 // Presentational: the shell (AcademyShell) owns the fetches, the suggestion and
 // the waiting list, so the badges on the areas bar and the rows here are the
 // same numbers.
@@ -38,7 +43,7 @@ const VIOLET = '#5B21D6';
 
 export function AcademyHome({
   data, isLoading, prev, home, waiting, suggestion, suggestionBusy, capacity, isManager,
-  onSquare, onSuggestion, onSuggestionMore, onQuick, onWaiting, strips, onStrip,
+  onSquare, onSuggestion, onSuggestionMore, onQuick, onWaiting, strips, onStrip, readinessAlert, readinessHeld, onReadiness,
 }: {
   data: AcademyMembersResponse | undefined;
   isLoading: boolean;
@@ -58,6 +63,11 @@ export function AcademyHome({
   /** This week per trainee, as colour squares (the coach tools' payload). */
   strips?: TraineeStrip[];
   onStrip?: (athleteId: string) => void;
+  /** GET /api/academy/readiness's alert, when there is one. */
+  readinessAlert?: ReadinessAlert | null;
+  /** Their pace-up suggestion is held right now (the coach tools' `paused`). */
+  readinessHeld?: boolean;
+  onReadiness?: () => void;
 }) {
   const [allWaiting, setAllWaiting] = useState(false);
   const members = useMemo(() => data?.members ?? [], [data]);
@@ -78,6 +88,8 @@ export function AcademyHome({
 
   return (
     <div className="space-y-2.5" dir="rtl">
+      {readinessAlert && onReadiness && <ReadinessStory alert={readinessAlert} held={!!readinessHeld} onOpen={onReadiness} />}
+
       {/* 1 · Growth */}
       <section className="rounded-card bg-card px-3 pb-2.5 pt-3" aria-label="מתאמנים באקדמיה">
         <div className="flex items-end justify-between gap-2">
@@ -253,6 +265,25 @@ function TraineeStrips({ strips, onOpen }: { strips: TraineeStrip[]; onOpen?: (a
 
 // ── Pieces ──────────────────────────────────────────────────────────────────
 
+/** The readiness alert, as one tappable card into the board (the board says what to do). */
+function ReadinessStory({ alert, held, onOpen }: { alert: ReadinessAlert; held: boolean; onOpen: () => void }) {
+  const ta = useTranslations('readiness.alert');
+  const gender = alert.gender ?? 'other';
+  const first = alert.name.split(' ')[0] || alert.name;
+  const key = alert.reasons.includes('veryTired') && alert.reasons.includes('rhr') ? 'both' : alert.reasons.includes('veryTired') ? 'veryTired' : 'rhr';
+  const tags = { m: (c: React.ReactNode) => <bdi dir="ltr">{c}</bdi>, bdi: (c: React.ReactNode) => <bdi>{c}</bdi> };
+  return (
+    <button type="button" onClick={onOpen}
+      className="flex min-h-[64px] w-full items-center gap-2.5 rounded-card bg-[#FDE7E5] py-2.5 pe-2 ps-3.5 text-start active:opacity-90">
+      <span className="min-w-0 flex-1">
+        <b className="block text-[14px] font-black leading-snug text-ink-700">{ta.rich(key, { ...tags, name: first, gender, n: Math.max(3, alert.aboveRun) })}</b>
+        <small className="mt-0.5 block text-2xs leading-snug text-ink-500">{held ? ta('held', { gender }) : ta('plain')} · {ta('story')}</small>
+      </span>
+      <ChevronLeft className="h-4 w-4 shrink-0 text-ink-400" />
+    </button>
+  );
+}
+
 function Mini({ value, label, tone }: { value: React.ReactNode; label: string; tone?: 'slow' | 'violet' }) {
   return (
     <div className="flex items-baseline justify-center gap-1.5 rounded-xl bg-page/60 px-2 py-1.5">
@@ -306,9 +337,10 @@ const WAITING_ICON: Record<WaitingKind, { icon: React.ComponentType<{ className?
   pace: { icon: Gauge, cls: 'bg-accent-600/15 text-accent-900' },
   missed: { icon: CalendarX, cls: 'bg-[#FDF0E2] text-[#8A4308]' },
   copy: { icon: Copy, cls: 'bg-[#ECEBFF] text-[#5B21D6]' },
+  paused: { icon: PauseCircle, cls: 'bg-[#FDF0E2] text-[#8A4308]' },
 };
 
-const TOOL_KINDS = new Set<WaitingKind>(['pace', 'missed', 'copy']);
+const TOOL_KINDS = new Set<WaitingKind>(['pace', 'missed', 'copy', 'paused']);
 
 function WaitingRow({ item, onClick }: { item: WaitingItem; onClick: () => void }) {
   const { icon: Icon, cls } = WAITING_ICON[item.kind];

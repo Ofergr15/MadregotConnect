@@ -181,8 +181,9 @@ export function initialsLine(names: string[], shown = 2): string {
 
 export type WaitingKind =
   | 'threads' | 'dispatch' | 'form' | 'registrations' | 'stuck' | 'approvals' | 'results'
-  // The coach tools (lib/academy/coach-tools.ts): a pace suggestion, a missed week, next week empty.
-  | 'pace' | 'missed' | 'copy';
+  // The coach tools (lib/academy/coach-tools.ts): a pace suggestion, a missed week, next week empty,
+  // and a pace-up suggestion the readiness gate holds (lib/academy/readiness-board.ts).
+  | 'pace' | 'missed' | 'copy' | 'paused';
 
 export interface WaitingTarget {
   section: AcademySection;
@@ -191,7 +192,7 @@ export interface WaitingTarget {
   /** Open the club registrations queue (folded into the candidates). */
   registrations?: boolean;
   /** A coach-tools row: which screen it opens and for whom. */
-  tool?: { kind: 'pace' | 'missed' | 'copy'; athleteId?: string };
+  tool?: { kind: 'pace' | 'missed' | 'copy' | 'paused'; athleteId?: string };
 }
 
 export interface WaitingItem {
@@ -214,7 +215,9 @@ const BAND: Record<WaitingKind, number> = {
   threads: 6, form: 5, dispatch: 4,
   // A decision about a trainee's training, below a watch that missed a workout and above
   // paperwork — in the mockup's order: the pace, the missed week, then the empty week.
-  pace: 3.6, missed: 3.5,
+  // A held suggestion sits right under the live ones: there is nothing to approve, but the
+  // trainee it is about needs a look.
+  pace: 3.6, paused: 3.55, missed: 3.5,
   stuck: 3, approvals: 3, copy: 2.5, registrations: 2, results: 1,
 };
 

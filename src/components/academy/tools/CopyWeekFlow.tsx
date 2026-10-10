@@ -27,11 +27,18 @@ import { ChangeWords, Nums, Segmented, WeekSquares, signed, weekRange } from './
 
 type Step = 'where' | 'review';
 
-export function CopyWeekFlow({ athleteId, weekStart, preselect, onClose, onDone }: {
+export function CopyWeekFlow({ athleteId, weekStart, preselect, only, initialMode = 'same', onClose, onDone }: {
   athleteId: string;
   weekStart: string;
   /** Trainees to tick to begin with (the home's "next week is empty for N"). */
   preselect?: string[];
+  /**
+   * Exactly these ticked, empty next week or not (C1's "לבנות שבוע קל": the tired trainee
+   * alone — what would be replaced still says so on their row).
+   */
+  only?: string[];
+  /** The progression chosen to begin with: C1 opens on the light week. */
+  initialMode?: Progression;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -41,7 +48,7 @@ export function CopyWeekFlow({ athleteId, weekStart, preselect, onClose, onDone 
   const [step, setStep] = useState<Step>('where');
   const [many, setMany] = useState<'next' | 'more'>('next');
   const [n, setN] = useState(2);
-  const [mode, setMode] = useState<Progression>('same');
+  const [mode, setMode] = useState<Progression>(initialMode);
   const [picked, setPicked] = useState<Set<string> | null>(null);
   const [send, setSend] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -53,10 +60,11 @@ export function CopyWeekFlow({ athleteId, weekStart, preselect, onClose, onDone 
   // Ticked to begin with: the empty ones (or the ones the home pointed at, when still empty).
   useEffect(() => {
     if (!data || picked) return;
+    if (only?.length) { setPicked(new Set(only.filter(id => data.candidates.some(c => c.id === id)))); return; }
     const empty = defaults.filter(d => d.ticked).map(d => d.id);
     const start = preselect?.length ? empty.filter(id => preselect.includes(id)) : empty;
     setPicked(new Set(start.length ? start : empty));
-  }, [data, defaults, preselect, picked]);
+  }, [data, defaults, preselect, only, picked]);
 
   const chosen = useMemo(() => (data && picked ? data.candidates.filter(c => picked.has(c.id)) : []), [data, picked]);
 

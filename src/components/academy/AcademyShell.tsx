@@ -46,6 +46,11 @@ import { CoachesBoard } from './CoachesBoard';
 import { PaceSuggestionScreen } from './tools/PaceSuggestionScreen';
 import { MissedWeekScreen } from './tools/MissedWeekScreen';
 import { CopyWeekFlow } from './tools/CopyWeekFlow';
+import { ReadinessBoard } from './readiness/ReadinessBoard';
+import { TraineeReadiness } from './readiness/TraineeReadiness';
+import { useReasonsText } from './readiness/shared';
+import type { ReadinessListResponse } from '@/lib/academy/readiness-board';
+import type { Progression } from '@/lib/academy/coach-tools';
 import { iso } from './tools/shared';
 import { WEEKDAY_KEYS } from './book/WeekBoard';
 import { snoozeUntil } from '@/lib/academy/coach-tools';
@@ -125,8 +130,12 @@ export function AcademyShell({
   // opened them, so a screen stays up after its row leaves the list.
   const [paceOpen, setPaceOpen] = useState<PaceSuggestionPayload | null>(null);
   const [missedOpen, setMissedOpen] = useState<MissedPayload | null>(null);
-  const [copyOpen, setCopyOpen] = useState<{ athleteId: string; weekStart: string; preselect?: string[] } | null>(null);
+  const [copyOpen, setCopyOpen] = useState<{ athleteId: string; weekStart: string; preselect?: string[]; only?: string[]; mode?: Progression } | null>(null);
+  // The coach's readiness (trainee-experience-v2 C1/C2): one trainee's sheet over the board.
+  const [readinessOpen, setReadinessOpen] = useState<{ athleteId: string; name: string } | null>(null);
   const tt = useTranslations('academyTools');
+  const tr = useTranslations('readiness');
+  const reasonsText = useReasonsText();
   const router = useRouter();
 
   const area: AcademyArea | null = AREA_OF[section];
@@ -143,8 +152,13 @@ export function AcademyShell({
   const { data: inbox } = useApi<Inbox>('/api/academy/threads/inbox');
   const { data: dispatch } = useApi<DispatchReport>(section === 'overview' ? `/api/academy/dispatch?weekStart=${thisWeek}` : null);
   const { data: tools, mutate: refreshTools } = useApi<CoachToolsResponse>(
-    section === 'overview' ? `/api/academy/coach-tools${scopeQ ? `?${scopeQ}` : ''}` : null,
+    section === 'overview' || section === 'readiness' ? `/api/academy/coach-tools${scopeQ ? `?${scopeQ}` : ''}` : null,
   );
+  // The home's story card: the same answer the readiness board reads (SWR shares it).
+  const { data: readiness, mutate: refreshReadiness } = useApi<ReadinessListResponse>(
+    section === 'overview' ? `/api/academy/readiness${scopeQ ? `?${scopeQ}` : ''}` : null,
+  );
+  const heldIds = useMemo(() => new Set((tools?.paused ?? []).map((p) => p.athleteId)), [tools]);
   const manager = isManager && members?.scope !== 'coach' && !scopeCoach;
   const { data: people, mutate: refreshPeople } = useApi<AcademyPeopleResponse>(manager && addOpen ? '/api/academy/members/people' : null);
 
@@ -235,6 +249,17 @@ export function AcademyShell({
         target: { section: 'overview', tool: { kind: 'missed', athleteId: m.athleteId } },
       });
     }
+    // A pace-up suggestion the readiness gate holds: nothing to approve, a trainee to look at.
+    // The alert's trainee is on the story card above already.
+    for (const p of tools.paused ?? []) {
+      if (p.athleteId === readiness?.alert?.athleteId) continue;
+      rows.push({
+        key: `paused:${p.athleteId}`, kind: 'paused', ageHours: null, action: tr('paused.action'),
+        title: tr('paused.title', { name: firstName(p.name) }),
+        sub: reasonsText(p.reasons, null),
+        target: { section: 'readiness', tool: { kind: 'paused', athleteId: p.athleteId } },
+      });
+    }
     const e = tools.emptyNext;
     if (e && e.sourceId && !isHidden(store, e.key, nowMs)) {
       rows.push({
@@ -245,7 +270,7 @@ export function AcademyShell({
       });
     }
     return rows;
-  }, [tools, store, tt]);
+  }, [tools, store, tt, tr, reasonsText, readiness]);
 
   const waiting: WaitingItem[] = useMemo(() => buildWaiting({
     now: now.toISOString(),
@@ -299,6 +324,12 @@ export function AcademyShell({
       if (tool.kind === 'missed') { setMissedOpen(tools.missed.find((m) => m.athleteId === tool.athleteId) ?? null); return; }
       if (tool.kind === 'copy' && tool.athleteId) {
         setCopyOpen({ athleteId: tool.athleteId, weekStart: tools.thisWeek, preselect: tools.emptyNext?.trainees.map((x) => x.id) });
+        return;
+      }
+      if (tool.kind === 'paused' && tool.athleteId) {
+        const name = tools.paused?.find((p) => p.athleteId === tool.athleteId)?.name ?? '';
+        go('readiness');
+        setReadinessOpen({ athleteId: tool.athleteId, name });
         return;
       }
     }
@@ -411,6 +442,18 @@ export function AcademyShell({
             onWaiting={onWaiting}
             strips={tools?.strips}
             onStrip={(id) => router.push(`/dashboard/academy/week?athleteId=${encodeURIComponent(id)}`)}
+            readinessAlert={readiness?.alert}
+            readinessHeld={!!readiness?.alert && heldIds.has(readiness.alert.athleteId)}
+            onReadiness={() => go('readiness')}
+          />
+        ) : section === 'readiness' ? (
+          <ReadinessBoard
+            scope={scopeQ}
+            heldIds={heldIds}
+            onOpen={(r) => setReadinessOpen({ athleteId: r.athleteId, name: r.name })}
+            // "לבנות שבוע קל": this week copied to next, light, for that trainee alone.
+            onLightWeek={(id) => setCopyOpen({ athleteId: id, weekStart: thisWeek, only: [id], mode: 'light' })}
+            onWrite={openThread}
           />
         ) : section === 'members' ? (
           traineeFilter ? (
@@ -473,6 +516,14 @@ export function AcademyShell({
       </div>
 
       {/* ── The coach tools ── */}
+      {readinessOpen && (
+        <TraineeReadiness
+          athleteId={readinessOpen.athleteId}
+          name={readinessOpen.name}
+          onClose={() => setReadinessOpen(null)}
+          onApprove={(sug) => setPaceOpen(sug)}
+        />
+      )}
       {paceOpen && (
         <PaceSuggestionScreen
           suggestion={paceOpen}
@@ -482,6 +533,7 @@ export function AcademyShell({
             // test (the key carries the test date). The server agrees once 141 is pasted.
             saveStore({ ...readStore(), [paceOpen.key]: action === 'snooze' ? { until: snoozeUntil(Date.now()) } : { dismissed: true } });
             void refreshTools();
+            void refreshReadiness();
           }}
         />
       )}
@@ -499,6 +551,8 @@ export function AcademyShell({
           athleteId={copyOpen.athleteId}
           weekStart={copyOpen.weekStart}
           preselect={copyOpen.preselect}
+          only={copyOpen.only}
+          initialMode={copyOpen.mode}
           onClose={() => setCopyOpen(null)}
           onDone={() => void refreshTools()}
         />

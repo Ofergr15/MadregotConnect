@@ -270,6 +270,8 @@ export const FLOW_STEPS: FlowStep[] = [
       { label: 'תור המשוב', href: '/preview/academy-queue', kind: 'preview' },
       { label: 'מסך הפידבק', href: '/preview/academy-feedback', kind: 'preview' },
       { label: 'מה המתאמן מקבל', href: '/preview/academy-trainee-card', kind: 'preview' },
+      // Before the next week is built: who is ready for more (trainee-experience-v2 C1).
+      { label: 'מוכנות המתאמנים', href: '/dashboard/academy?tab=readiness', kind: 'app' },
     ],
     questions: ['מה נחשב "אימון מפתח" ומה נחשב חריגה — בניסוח שלך.'],
   },

@@ -11,14 +11,15 @@ import type { ParsedWorkout } from '@/lib/ai/types';
 import { loadTrainees, loadTraineeWeeks } from './book-server';
 import { ZONE_INTENSITY, resolveIntensity } from './library';
 import {
-  activeAdjust, copyWeek, detectMissed, detectPaceSuggestion, isMissedDecided, isPaceSnoozed, missedKey, pickNote,
-  preselectMissed, type CoachDecision, type PaceKind,
+  activeAdjust, copyWeek, detectMissed, detectPaceSuggestion, gatePaceSuggestion, isMissedDecided, isPaceSnoozed, missedKey, pickNote,
+  preselectMissed, type CoachDecision, type PaceKind, type PaceSuggestion,
 } from './coach-tools';
 import {
   loadDecisions, loadEvidence, loadNotes, loadTestBasis, type TestBasis,
 } from './coach-tools-server';
+import { loadReadinessInputs, type ReadinessRead } from './readiness-server';
 import type {
-  CoachToolsResponse, EmptyNextPayload, MissedPayload, PaceSuggestionPayload, TraineeStrip,
+  CoachToolsResponse, EmptyNextPayload, MissedPayload, PaceReadiness, PaceSuggestionPayload, PausedPacePayload, TraineeStrip,
 } from './coach-tools-payload';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,7 +52,28 @@ export interface CoachToolsContext {
   stored: boolean;
 }
 
-export async function buildCoachTools(supabase: Db, athleteIds: string[], opts: { now?: Date; withMissedKm?: boolean } = {}): Promise<CoachToolsResponse & { context: CoachToolsContext }> {
+/** What the pace screen and C2 say about a suggestion that goes through. */
+export function paceReadinessOf(read: ReadinessRead): PaceReadiness {
+  const i = read.inputs;
+  return {
+    form: i.pmcToday?.form ?? null,
+    bandKey: i.bandKey,
+    rhrFlag: i.rhr.streak.flag,
+    rhrKnown: !!i.rhr.range,
+    pain: i.pain7,
+    feelKey: i.feelFace != null ? `trainee.feel.faces.${i.feelFace}` : null,
+    gender: read.gender,
+  };
+}
+
+export async function buildCoachTools(supabase: Db, athleteIds: string[], opts: {
+  now?: Date;
+  withMissedKm?: boolean;
+  /** False under view-as: the readiness read prices loads in memory and stores nothing. */
+  write?: boolean;
+  /** Readiness already read by the caller (C2), so it is not read twice. */
+  readiness?: Record<string, ReadinessRead>;
+} = {}): Promise<CoachToolsResponse & { context: CoachToolsContext }> {
   const now = opts.now ?? new Date();
   const today = israelToday(now);
   const thisWeek = planWeekStartOf(today);
@@ -72,7 +94,7 @@ export async function buildCoachTools(supabase: Db, athleteIds: string[], opts: 
   const decisions = decided.rows;
 
   // ── Pace ──
-  const pace: PaceSuggestionPayload[] = [];
+  const found: Array<{ id: string; sug: PaceSuggestion; testDate: string }> = [];
   for (const id of ids) {
     const b = basis[id];
     if (!b) continue;
@@ -85,9 +107,27 @@ export async function buildCoachTools(supabase: Db, athleteIds: string[], opts: 
       sessions: evidence[id]?.paceSessions ?? [],
       fallbackCurrent: zoneCurrent(b.thresholdSec, active.adjust),
     });
-    if (!sug) continue;
-    if (isPaceSnoozed(decisions, id, b.testDate, now.getTime())) continue;
-    pace.push(sug);
+    if (sug) found.push({ id, sug, testDate: b.testDate });
+  }
+  // The readiness gate (spec §3.6), read only for the trainees with a suggestion — usually
+  // none or one, so the home pays nothing for it on most days. Before the snooze check: a
+  // held suggestion is listed as held whatever was decided about it.
+  const need = found.map(f => f.id).filter(id => !opts.readiness?.[id]);
+  const readiness: Record<string, ReadinessRead> = {
+    ...(opts.readiness ?? {}),
+    ...(need.length ? await loadReadinessInputs(supabase, need, today, { write: opts.write ?? true }) : {}),
+  };
+  const pace: PaceSuggestionPayload[] = [];
+  const paused: PausedPacePayload[] = [];
+  for (const { id, sug, testDate } of found) {
+    const read = readiness[id];
+    const gated = read ? gatePaceSuggestion(sug, read.inputs.gate) : { held: false as const, suggestion: sug };
+    if (gated.held) {
+      paused.push({ athleteId: id, name: sug.name, reasons: gated.reasons });
+      continue;
+    }
+    if (isPaceSnoozed(decisions, id, testDate, now.getTime())) continue;
+    pace.push(read ? { ...sug, readiness: paceReadinessOf(read) } : sug);
   }
 
   // ── Missed ──
@@ -165,7 +205,7 @@ export async function buildCoachTools(supabase: Db, athleteIds: string[], opts: 
   }).sort((a, b) => a.name.localeCompare(b.name));
 
   return {
-    today, thisWeek, nextWeek, stored: decided.stored, pace, missed, emptyNext, strips,
+    today, thisWeek, nextWeek, stored: decided.stored, pace, paused, missed, emptyNext, strips,
     context: { basis, decisions, stored: decided.stored },
   };
 }
