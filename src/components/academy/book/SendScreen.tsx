@@ -38,7 +38,7 @@ export function SendScreen({ data, draft, day, primary, onBack, onClose }: {
 }) {
   const t = useTranslations('workoutBook');
   const T = data.trainee.thresholdSec;
-  const pace = mainPace(draft.model, T);
+  const pace = mainPace(draft.model, T, data.trainee.paceAdjust);
   const isReps = draft.model ? draft.model[mainStepIndex(draft.model)]?.kind === 'reps' : false;
 
   const eligible = (o: DayPlanData['others'][number]) => !o.busy && !!o.thresholdSec;
@@ -133,7 +133,7 @@ export function SendScreen({ data, draft, day, primary, onBack, onClose }: {
               const can = eligible(o);
               const on = picked.has(o.id);
               const result = results[o.id];
-              const theirPace = can ? mainPace(draft.model, o.thresholdSec) : null;
+              const theirPace = can ? mainPace(draft.model, o.thresholdSec, o.paceAdjust) : null;
               const toggle = () => {
                 if (!can || finished) return;
                 setPicked(prev => {

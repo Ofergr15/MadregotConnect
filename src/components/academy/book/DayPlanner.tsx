@@ -1,5 +1,6 @@
 'use client';
 
+import type { PaceAdjust } from '@/lib/academy/pace-kinds';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -63,12 +64,12 @@ export function draftSteps(draft: Draft) {
 }
 
 /** "החזרות ב־4:05" — the one pace that says what the session is. */
-export function mainPace(model: BookStep[] | null, thresholdSec: number | null): { sec: number; reps: boolean } | null {
+export function mainPace(model: BookStep[] | null, thresholdSec: number | null, adjust?: PaceAdjust | null): { sec: number; reps: boolean } | null {
   if (!model || !thresholdSec) return null;
   const i = mainStepIndex(model);
   const step = model[i];
   if (!step || (step.kind !== 'reps' && step.kind !== 'run') || !step.effort) return null;
-  return { sec: effortPace(step.effort, thresholdSec), reps: step.kind === 'reps' };
+  return { sec: effortPace(step.effort, thresholdSec, adjust), reps: step.kind === 'reps' };
 }
 
 export function DayPlanner({ athleteId, date, onClose, onDone }: {
@@ -173,6 +174,7 @@ export function DayPlanner({ athleteId, date, onClose, onDone }: {
         <QuickTextScreen
           traineeName={data.trainee.name}
           thresholdSec={T}
+          paceAdjust={data.trainee.paceAdjust}
           onCancel={() => setScreen('choose')}
           onContinue={d => { setDraft(d); go('adjust'); }}
         />
@@ -181,6 +183,7 @@ export function DayPlanner({ athleteId, date, onClose, onDone }: {
         <AdjustScreen
           draft={draft}
           thresholdSec={T}
+          paceAdjust={data.trainee.paceAdjust}
           traineeName={data.trainee.name}
           dayLabel={day}
           sending={sending}
@@ -225,7 +228,7 @@ function ChooseScreen({
   const first = name.split(' ')[0] || name;
   const totals = useMemo(() => (today?.model ? bookTotals(today.model, T) : null), [today, T]);
   const bar = useMemo(() => (today?.model ? profileBar(today.model, T) : []), [today, T]);
-  const pace = mainPace(today?.model ?? null, T);
+  const pace = mainPace(today?.model ?? null, T, data.trainee.paceAdjust);
   const existing = data.existing[0];
 
   return (

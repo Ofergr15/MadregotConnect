@@ -3,6 +3,7 @@ import type { LibraryKind, LibraryStep } from '@/lib/academy/library';
 import type { BookStep } from '@/lib/academy/book-steps';
 import type { SeniorPick } from '@/lib/academy/senior-pick';
 import type { Lane } from '@/lib/academy/group-lane';
+import type { PaceAdjust } from '@/lib/academy/pace-kinds';
 
 /** GET /api/academy/day-plan */
 export interface DayPlanData {
@@ -16,13 +17,15 @@ export interface DayPlanData {
     lane: Lane;
     bandLane: Lane | null;
     thresholdSec: number | null;
+    /** The coach's pace update in force that week (`{}` = none). Every pace drawn goes through it. */
+    paceAdjust?: PaceAdjust;
     hasGarmin: boolean;
   };
   lanesDiffer: boolean;
   hasClubWeek: boolean;
   senior: SeniorPick;
   existing: ParsedWorkout[];
-  others: Array<{ id: string; name: string; thresholdSec: number | null; hasGarmin: boolean; lane: Lane | null; busy: boolean }>;
+  others: Array<{ id: string; name: string; thresholdSec: number | null; paceAdjust?: PaceAdjust; hasGarmin: boolean; lane: Lane | null; busy: boolean }>;
 }
 
 /** The workout on its way from a source to the watch. */

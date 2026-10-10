@@ -33,24 +33,14 @@ import {
 } from './book-steps';
 import { resolveLibraryWorkout, type LibraryStep } from './library';
 import type { ComplianceColor } from './compliance';
+import { PACE_KINDS, kindShift, paceKindOf, type PaceAdjust, type PaceKind } from './pace-kinds';
 
 // ── Kinds ──────────────────────────────────────────────────────────────────────────────
 
-export type PaceKind = 'reps' | 'tempo' | 'easy';
-export const PACE_KINDS: readonly PaceKind[] = ['reps', 'tempo', 'easy'];
-
-/** Sec/km per kind. Negative = faster. A missing kind is 0. */
-export type PaceAdjust = Partial<Record<PaceKind, number>>;
-
-export function paceKindOfPct(pct: number): PaceKind {
-  const tone = toneOfPct(pct);
-  return tone === 'f' ? 'reps' : tone === 't' ? 'tempo' : 'easy';
-}
-
-/** The kind of a pace for a trainee with this threshold. */
-export function paceKindOf(paceSec: number, thresholdSec: number): PaceKind {
-  return paceKindOfPct((thresholdSec / paceSec) * 100);
-}
+// The kinds, and which kind a pace is, live in ./pace-kinds so the book's screens use the
+// very same rule.
+export { PACE_KINDS, paceKindOf, paceKindOfPct, kindShift } from './pace-kinds';
+export type { PaceAdjust, PaceKind } from './pace-kinds';
 
 const centre = (min?: number, max?: number): number | null => {
   const a = typeof min === 'number' && min > 0 ? min : null;
@@ -318,8 +308,8 @@ function shiftStep(step: WorkoutStep, thresholdSec: number, target: PaceAdjust, 
   const c = centre(out.targetPaceMinPerKm, out.targetPaceMaxPerKm)!;
   // Classified on the pace as it stands; an update is at most 15 s/km, so the boundary
   // between kinds is not crossed by the update itself in any real case.
-  const kind = paceKindOf(c, thresholdSec);
-  const by = (target[kind] ?? 0) - (applied[kind] ?? 0);
+  // The same classification the book's screens show a pace with (pace-kinds.ts).
+  const by = kindShift(c, thresholdSec, target) - kindShift(c, thresholdSec, applied);
   if (!by) return out;
   if (typeof out.targetPaceMinPerKm === 'number') out.targetPaceMinPerKm = clamp(out.targetPaceMinPerKm + by);
   if (typeof out.targetPaceMaxPerKm === 'number') out.targetPaceMaxPerKm = clamp(out.targetPaceMaxPerKm + by);

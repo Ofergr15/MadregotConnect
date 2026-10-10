@@ -509,3 +509,24 @@ export async function loadPaceUpdateCard(supabase: Db, athleteId: string, today 
     return none;
   }
 }
+
+/**
+ * The pace update in force for each trainee in the plan week `weekStart` — what the book's
+ * day flow resolves with. `{}` before the week the update applies from, without migration
+ * 139, or on any failed read: the book then resolves exactly as it always has.
+ */
+export async function loadPaceAdjusts(supabase: Db, athleteIds: string[], weekStart: string): Promise<Record<string, PaceAdjust>> {
+  const out: Record<string, PaceAdjust> = Object.fromEntries(athleteIds.map(id => [id, {}]));
+  if (!athleteIds.length) return out;
+  try {
+    const [basis, decided] = await Promise.all([loadTestBasis(supabase, athleteIds), loadDecisions(supabase, athleteIds)]);
+    if (!decided.stored || !decided.rows.length) return out;
+    for (const id of athleteIds) {
+      const a = activeAdjust(decided.rows.filter(d => d.athleteId === id), basis[id]?.testDate ?? null);
+      if (a.fromWeek && weekStart >= a.fromWeek) out[id] = a.adjust;
+    }
+  } catch (err) {
+    console.error('pace adjusts read failed (resolving without them):', err);
+  }
+  return out;
+}

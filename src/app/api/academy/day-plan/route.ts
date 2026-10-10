@@ -14,6 +14,8 @@ import {
   hasAbsolutePaces, resolveLibraryWorkout, type LibraryStep,
 } from '@/lib/academy/library';
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
+import { applyPaceAdjust } from '@/lib/academy/coach-tools';
+import { loadPaceAdjusts } from '@/lib/academy/coach-tools-server';
 import { revalidateWeeklyPlans } from '@/lib/plans/cache';
 import { pushWeekToAthlete } from '@/lib/garmin/push-week';
 import type { ParsedWorkout } from '@/lib/ai/types';
@@ -72,12 +74,15 @@ export async function GET(request: Request) {
     const rosterIds = visible === null ? await allAcademyTraineeIds(supabase) : [...visible];
     const ids = [...new Set([athleteId, ...rosterIds])];
 
-    const [trainees, thresholds, weeks, club, refs] = await Promise.all([
+    const [trainees, thresholds, weeks, club, refs, adjusts] = await Promise.all([
       loadTrainees(supabase, ids),
       loadThresholds(supabase, ids),
       loadTraineeWeeks(supabase, ids, weekStart),
       loadClubWeek(supabase, weekStart),
       loadLaneReferences(supabase),
+      // The coach's pace update in force that week (coach tools, migration 139): every pace
+      // the screens draw and every pace sent goes through it. `{}` = none = as before.
+      loadPaceAdjusts(supabase, ids, weekStart),
     ]);
 
     const me = trainees.find(t => t.id === athleteId);
@@ -93,6 +98,7 @@ export async function GET(request: Request) {
         id: t.id,
         name: t.name,
         thresholdSec: thresholds[t.id] ?? null,
+        paceAdjust: adjusts[t.id] ?? {},
         hasGarmin: t.hasGarmin,
         lane: laneForBand(t.bandNumber),
         busy: hasWorkoutOn(weeks[t.id]?.workouts ?? [], dayOfWeek),
@@ -110,6 +116,7 @@ export async function GET(request: Request) {
         lane,
         bandLane,
         thresholdSec: thresholds[athleteId] ?? null,
+        paceAdjust: adjusts[athleteId] ?? {},
         hasGarmin: !!me?.hasGarmin,
       },
       lanesDiffer: club ? lanesDiffer(club) : false,
@@ -164,11 +171,12 @@ export async function POST(request: Request) {
     const dayOfWeek = dayOfWeekOf(date);
     const allowed = recipients.filter((_, i) => !access[i]!.denied);
 
-    const [trainees, thresholds, weeks, settings] = await Promise.all([
+    const [trainees, thresholds, weeks, settings, adjusts] = await Promise.all([
       loadTrainees(supabase, allowed),
       loadThresholds(supabase, allowed),
       loadTraineeWeeks(supabase, allowed, weekStart),
       loadAcademySettings(),
+      loadPaceAdjusts(supabase, allowed, weekStart),
     ]);
     const byId = new Map(trainees.map(t => [t.id, t]));
 
@@ -201,7 +209,11 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const resolved = resolveLibraryWorkout({ name, notes, steps }, { thresholdPaceSec: decision.thresholdSec, dayOfWeek });
+      // Their own threshold, then their pace update — the same function and marker as the
+      // stored weeks (coach-tools.ts), so a later update moves this session by the difference.
+      // No update: `applyPaceAdjust` hands the workout back untouched.
+      const plain = resolveLibraryWorkout({ name, notes, steps }, { thresholdPaceSec: decision.thresholdSec, dayOfWeek });
+      const resolved = plain ? applyPaceAdjust(plain, decision.thresholdSec, adjusts[decision.id] ?? {}) : null;
       if (!resolved) {
         results.push({ athleteId: decision.id, name: label, status: 'skipped', reason: 'no-test' });
         continue;

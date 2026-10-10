@@ -1,5 +1,6 @@
 'use client';
 
+import type { PaceAdjust } from '@/lib/academy/pace-kinds';
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
@@ -23,16 +24,18 @@ import type { Draft } from './types';
 
 const LOUD: AssumptionCode[] = ['rest-ambiguous', 'bare-seconds', 'bare-minutes', 'second-work', 'rest-default'];
 
-export function QuickTextScreen({ traineeName, thresholdSec, onCancel, onContinue }: {
+export function QuickTextScreen({ traineeName, thresholdSec, paceAdjust, onCancel, onContinue }: {
   traineeName: string;
   thresholdSec: number | null;
+  /** The coach's pace update in force: a typed pace is what the watch gets after it. */
+  paceAdjust?: PaceAdjust | null;
   onCancel: () => void;
   onContinue: (draft: Draft) => void;
 }) {
   const t = useTranslations('workoutBook');
   const [text, setText] = useState('');
   const parse = useMemo(() => parseQuickText(text), [text]);
-  const book = useMemo(() => quickToBook(parse, thresholdSec), [parse, thresholdSec]);
+  const book = useMemo(() => quickToBook(parse, thresholdSec, paceAdjust), [parse, thresholdSec, paceAdjust]);
   const steps = book.steps;
   const totals = steps.length ? bookTotals(steps, thresholdSec) : null;
   const loud = parse.assumptions.filter(a => LOUD.includes(a.code));
@@ -40,7 +43,7 @@ export function QuickTextScreen({ traineeName, thresholdSec, onCancel, onContinu
   const mainEffort = main && (main.kind === 'reps' || main.kind === 'run') ? main.effort : null;
   // "הקצב 4:05 נשמר כ'מהיר ל־Shahar'" — said only when a pace was actually typed.
   const typedPace = parse.steps.some(s => s.kind !== 'rest' && s.effort?.kind === 'pace');
-  const mainPace = mainEffort && thresholdSec ? effortPace(mainEffort, thresholdSec) : null;
+  const mainPace = mainEffort && thresholdSec ? effortPace(mainEffort, thresholdSec, paceAdjust) : null;
   const ready = steps.length > 0 && !book.needsThreshold;
 
   const go = () => {
@@ -81,7 +84,7 @@ export function QuickTextScreen({ traineeName, thresholdSec, onCancel, onContinu
       {steps.length > 0 && (
         <>
           <SectionLabel>{t('understood')}</SectionLabel>
-          <StepLines steps={steps} thresholdSec={thresholdSec} />
+          <StepLines steps={steps} thresholdSec={thresholdSec} paceAdjust={paceAdjust} />
           <ProfileBar segments={profileBar(steps, thresholdSec)} />
           {totals && (
             <p className="px-1 text-13 leading-normal text-ink-400">

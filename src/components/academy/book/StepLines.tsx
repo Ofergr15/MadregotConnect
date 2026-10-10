@@ -1,5 +1,6 @@
 'use client';
 
+import type { PaceAdjust } from '@/lib/academy/pace-kinds';
 import { useTranslations } from 'next-intl';
 import { Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -51,13 +52,13 @@ export function useStepLines() {
   const effortWord = (effort: Effort | null) => (effort?.zone ? t(`zone.${effort.zone}`) : '');
 
   /** Every step as lines. `thresholdSec` null → efforts are shown as % of threshold. */
-  return (steps: BookStep[], thresholdSec: number | null, { editable = false } = {}): Line[] => {
+  return (steps: BookStep[], thresholdSec: number | null, { editable = false, adjust }: { editable?: boolean; adjust?: PaceAdjust | null } = {}): Line[] => {
     const paceParts = (effort: Effort | null): Part[] => {
       if (!effort) return [];
       if (!thresholdSec) {
         return [{ field: 'pace', text: `${Math.round(centrePct(effort.intensity))}%` }, { text: t('ofThreshold') }];
       }
-      return [{ text: t('at'), glue: true }, { field: 'pace', text: clockText(effortPace(effort, thresholdSec)) }];
+      return [{ text: t('at'), glue: true }, { field: 'pace', text: clockText(effortPace(effort, thresholdSec, adjust)) }];
     };
 
     const lines: Line[] = [];
@@ -81,7 +82,7 @@ export function useStepLines() {
           else if (step.effort?.zone) parts.push({ text: effortWord(step.effort) });
           lines.push({
             key: `${i}`, step: i, tone, parts,
-            pace: step.effort && thresholdSec ? effortPace(step.effort, thresholdSec) : null,
+            pace: step.effort && thresholdSec ? effortPace(step.effort, thresholdSec, adjust) : null,
             paceMuted: tone === 'e',
           });
           break;
@@ -99,7 +100,7 @@ export function useStepLines() {
           else if (step.effort?.zone) parts.push({ text: effortWord(step.effort) });
           lines.push({
             key: `${i}`, step: i, tone, parts,
-            pace: step.effort && thresholdSec ? effortPace(step.effort, thresholdSec) : null,
+            pace: step.effort && thresholdSec ? effortPace(step.effort, thresholdSec, adjust) : null,
             paceMuted: false,
           });
           if (step.rest) {
@@ -145,10 +146,12 @@ export function useStepLines() {
  * read-only list of "הבנתי כך" and of the trainee's own workout, with the pace at the end.
  */
 export function StepLines({
-  steps, thresholdSec, selected, onTap, onNudge, className,
+  steps, thresholdSec, paceAdjust, selected, onTap, onNudge, className,
 }: {
   steps: BookStep[];
   thresholdSec: number | null;
+  /** The coach's pace update in force for this trainee: the paces shown are the ones sent. */
+  paceAdjust?: PaceAdjust | null;
   selected?: FieldRef | null;
   onTap?: (ref: FieldRef) => void;
   onNudge?: (ref: FieldRef, sign: 1 | -1) => void;
@@ -157,7 +160,7 @@ export function StepLines({
   const t = useTranslations('workoutBook');
   const build = useStepLines();
   const editable = !!onTap;
-  const lines = build(steps, thresholdSec, { editable });
+  const lines = build(steps, thresholdSec, { editable, adjust: paceAdjust });
 
   return (
     <div className={cn(CARD, 'overflow-hidden', className)}>
@@ -239,8 +242,8 @@ export function StepLines({
 }
 
 /** The value a field shows in the quick row / the wheel. */
-export function fieldDisplay(steps: BookStep[], ref: FieldRef, thresholdSec: number | null): string {
-  const value = fieldValue(steps, ref, thresholdSec);
+export function fieldDisplay(steps: BookStep[], ref: FieldRef, thresholdSec: number | null, adjust?: PaceAdjust | null): string {
+  const value = fieldValue(steps, ref, thresholdSec, adjust);
   return value === null ? '—' : formatField(steps, ref, value, thresholdSec);
 }
 

@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { decideRecipients, hasWorkoutOn, mergeDay } from '@/lib/academy/day-send';
 import { effortFromPace, effortFromZone, toLibrarySteps, type BookStep } from '@/lib/academy/book-steps';
+import { resolveLibraryWorkout } from '@/lib/academy/library';
+import { applyPaceAdjust } from '@/lib/academy/coach-tools';
+import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
+import { mainPace } from '@/components/academy/book/DayPlanner';
 
 // ── The pure half ─────────────────────────────────────────────────────────────────────
 
@@ -79,6 +83,7 @@ vi.mock('@/lib/garmin/push-week', () => ({
 }));
 
 type Row = Record<string, any>;
+const tables: { decisions: { data: Row[] | null; error: unknown }; tests: Row[] } = { decisions: { data: [], error: null }, tests: [] };
 const writes: Array<{ table: string; op: string; row: Row; id?: unknown }> = [];
 const tokens: Row[] = [];
 function query(table: string) {
@@ -96,7 +101,12 @@ function query(table: string) {
     maybeSingle: async () => ({ data: table === 'academy_workout_library' ? { use_count: 3 } : null, error: null }),
     then: (ok: (v: unknown) => unknown) => {
       if (op !== 'select') writes.push({ table, op, row, id });
-      return Promise.resolve(table === 'athletes' && op === 'select' ? { data: tokens, error: null } : { data: [], error: null }).then(ok);
+      const answer = table === 'athletes' && op === 'select' ? { data: tokens, error: null }
+        // The coach tools' reads (migration 139 and the tests it is keyed to).
+        : table === 'academy_coach_decisions' ? tables.decisions
+          : table === 'academy_tests' && op === 'select' ? { data: tables.tests, error: null }
+            : { data: [], error: null };
+      return Promise.resolve(answer).then(ok);
     },
   };
   return q;
@@ -132,6 +142,8 @@ describe('POST /api/academy/day-plan', () => {
       alon: { planId: 'plan-a', workouts: [{ dayOfWeek: 2, name: 'his', steps: [{ order: 1, type: 'active', durationType: 'distance', durationValue: 8000, targetType: 'no_target' }] }] },
     };
     tokens.push({ id: 'shahar', garmin_auth: { token: 'x' }, is_academy: true });
+    tables.decisions = { data: [], error: null };
+    tables.tests = [];
   });
 
   it('refuses absolute paces in the body', async () => {
@@ -197,5 +209,52 @@ describe('POST /api/academy/day-plan', () => {
     const write = writes.find(w => w.id === 'plan-a')!;
     expect(write.row.parsed_workouts.workouts).toHaveLength(1);
     expect(write.row.parsed_workouts.workouts[0].name).toBe('x');
+  });
+
+  // ── The coach's pace update (coach tools, migration 139) ──
+  const update = (changes: Record<string, number>, weekStart = '2026-10-11') => {
+    tables.tests = [{ athlete_id: 'shahar', test_date: '2026-09-01', duration_sec: 1800, distance_m: 6667, excluded_reason: null, status: 'approved' }];
+    tables.decisions = { data: [{ athlete_id: 'shahar', kind: 'pace', action: 'apply', basis_test_date: '2026-09-01', week_start: weekStart, changes, created_at: '2026-10-10T08:00:00Z', coach: { name: 'Sahar' } }], error: null };
+  };
+  const shaharRep = () => {
+    const w = writes.find(x => x.table === 'weekly_plans' && x.op === 'update' && x.id === 'plan-s')!;
+    const tue = (w.row.parsed_workouts.workouts as ParsedWorkout[]).find(d => d.dayOfWeek === 2)!;
+    return { tue, rep: tue.steps[1].repeatSteps![0] };
+  };
+
+  it('sends at the pace update in force: the pace the screen shows is the pace stored, with the marker', async () => {
+    update({ reps: -7 });
+    await post({ date: '2026-10-13', recipients: ['shahar'], workout: { name: '5 × 1 ק״מ', notes: null, steps: toLibrarySteps(model) } });
+    const { tue, rep } = shaharRep();
+    const sent = Math.round((rep.targetPaceMinPerKm! + rep.targetPaceMaxPerKm!) / 2);
+    expect(sent).toBe(238);
+    // The adjust screen and the send screen draw the same number.
+    expect(mainPace(model, 270, { reps: -7 })!.sec).toBe(sent);
+    expect(tue.paceAdjust).toEqual({ reps: -7 });
+    // The warmup is easy and stays where the test puts it.
+    expect(tue.steps[0].targetPaceMinPerKm).toBe(resolveLibraryWorkout({ name: 'x', notes: null, steps: toLibrarySteps(model) }, { thresholdPaceSec: 270, dayOfWeek: 2 })!.steps[0].targetPaceMinPerKm);
+    // A later update moves it by the difference only, never twice.
+    expect(applyPaceAdjust(tue, 270, { reps: -7 })).toBe(tue);
+    expect(applyPaceAdjust(tue, 270, { reps: -10 }).steps[1].repeatSteps![0].targetPaceMinPerKm).toBe(rep.targetPaceMinPerKm! - 3);
+  });
+
+  it('an update that applies from a later week does not touch this one', async () => {
+    update({ reps: -7 }, '2026-10-18');
+    await post({ date: '2026-10-13', recipients: ['shahar'], workout: { name: 'x', notes: null, steps: toLibrarySteps(model) } });
+    const { tue, rep } = shaharRep();
+    expect(Math.round((rep.targetPaceMinPerKm! + rep.targetPaceMaxPerKm!) / 2)).toBe(245);
+    expect(tue.paceAdjust).toBeUndefined();
+  });
+
+  it('without 139 the week written is byte-identical to the book without the coach tools', async () => {
+    tables.decisions = { data: null, error: { code: '42P01', message: 'relation "academy_coach_decisions" does not exist' } };
+    tables.tests = [{ athlete_id: 'shahar', test_date: '2026-09-01', duration_sec: 1800, distance_m: 6667, excluded_reason: null, status: 'approved' }];
+    const steps = toLibrarySteps(model);
+    await post({ date: '2026-10-13', recipients: ['shahar'], workout: { name: '5 × 1 ק״מ', notes: null, steps } });
+    const w = writes.find(x => x.table === 'weekly_plans' && x.op === 'update' && x.id === 'plan-s')!;
+    const expected = normalizeParsedWorkouts({
+      workouts: mergeDay(state.weeks.shahar.workouts, resolveLibraryWorkout({ name: '5 × 1 ק״מ', notes: null, steps }, { thresholdPaceSec: 270, dayOfWeek: 2 })!),
+    });
+    expect(JSON.stringify(w.row.parsed_workouts)).toBe(JSON.stringify(expected));
   });
 });

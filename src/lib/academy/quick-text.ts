@@ -37,6 +37,7 @@
  */
 
 import type { DraftZone } from './library-draft';
+import { unshiftPace, type PaceAdjust } from './pace-kinds';
 import {
   effortFromPct,
   effortFromZone,
@@ -501,13 +502,18 @@ export function parseQuickText(input: string): QuickParse {
 
 // ── Into the book ──────────────────────────────────────────────────────────────────────
 
-function effortFor(effort: QuickEffort | null, thresholdSec: number | null): { effort: Effort | null; missing: boolean } {
+function effortFor(effort: QuickEffort | null, thresholdSec: number | null, adjust?: PaceAdjust | null): { effort: Effort | null; missing: boolean } {
   if (!effort || effort.kind === 'open') return { effort: null, missing: false };
   if (effort.kind === 'zone') return { effort: effortFromZone(effort.zone), missing: false };
   if (!thresholdSec) return { effort: null, missing: true };
-  if (effort.min === effort.max) return { effort: effortFromPct((thresholdSec / effort.min) * 100), missing: false };
-  const fastPct = (thresholdSec / effort.min) * 100;
-  const slowPct = (thresholdSec / effort.max) * 100;
+  // A typed pace is what the watch gets: with a pace update in force the stored effort is
+  // the one that comes out at the typed number after it (pace-kinds.ts). No update = as typed.
+  const by = (effort.min + effort.max) / 2 - unshiftPace((effort.min + effort.max) / 2, thresholdSec, adjust);
+  const min = effort.min - by;
+  const max = effort.max - by;
+  if (min === max) return { effort: effortFromPct((thresholdSec / min) * 100), missing: false };
+  const fastPct = (thresholdSec / min) * 100;
+  const slowPct = (thresholdSec / max) * 100;
   const out = effortFromPct((fastPct + slowPct) / 2, Math.max(TYPED_HALF_WIDTH_PCT, (fastPct - slowPct) / 2));
   return { effort: out, missing: false };
 }
@@ -527,11 +533,11 @@ export interface QuickBook {
  * This is the step that makes a typed workout reusable: `ב-4:05` for Shahar is stored as
  * Shahar's 110%, and the next trainee who is sent it gets their own 110%.
  */
-export function quickToBook(parse: QuickParse, thresholdSec: number | null): QuickBook {
+export function quickToBook(parse: QuickParse, thresholdSec: number | null, adjust?: PaceAdjust | null): QuickBook {
   let needsThreshold = false;
   const steps = parse.steps.map((step): BookStep => {
     if (step.kind === 'rest') return { kind: 'rest', length: step.length, mode: step.mode };
-    const { effort, missing } = effortFor(step.effort, thresholdSec);
+    const { effort, missing } = effortFor(step.effort, thresholdSec, adjust);
     if (missing) needsThreshold = true;
     if (step.kind === 'reps') {
       return { kind: 'reps', count: step.count, work: step.work, effort, rest: step.rest };

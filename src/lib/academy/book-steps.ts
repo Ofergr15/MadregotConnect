@@ -31,9 +31,12 @@
  */
 
 import type { WorkoutStep } from '@/lib/ai/types';
+import { kindShift, toneOfPct as sharedToneOfPct, unshiftPace, type PaceAdjust } from './pace-kinds';
+import { MAX_PACE_SEC_PER_KM, MIN_PACE_SEC_PER_KM } from './repace';
 import {
   ZONE_INTENSITY,
   paceFromPct,
+  resolveIntensity,
   type LibraryKind,
   type LibraryStep,
   type RelativeIntensity,
@@ -116,23 +119,37 @@ export function effortFromPct(pct: number, halfWidth = TYPED_HALF_WIDTH_PCT): Ef
   };
 }
 
-/** `ב-4:05` for a trainee with threshold `thresholdSec` → their effort. */
-export function effortFromPace(paceSec: number, thresholdSec: number): Effort {
-  return effortFromPct((thresholdSec / paceSec) * 100);
+/**
+ * `ב-4:05` for a trainee with threshold `thresholdSec` → their effort. With a coach's pace
+ * update in force (`adjust`, lib/academy/pace-kinds.ts) the typed pace is what the watch
+ * gets, so the effort is the one that comes out at 4:05 AFTER the update.
+ */
+export function effortFromPace(paceSec: number, thresholdSec: number, adjust?: PaceAdjust | null, halfWidth = TYPED_HALF_WIDTH_PCT): Effort {
+  return effortFromPct((thresholdSec / unshiftPace(paceSec, thresholdSec, adjust)) * 100, halfWidth);
 }
 
-/** The pace a step shows: the CENTRE of its band, so a typed `4:05` reads back as `4:05`. */
-export function effortPace(effort: Effort, thresholdSec: number): number {
-  return paceFromPct(thresholdSec, centrePct(effort.intensity));
+/** The centre of the band a watch is given for this effort — what the pace update classifies. */
+function bandCentre(effort: Effort, thresholdSec: number): number {
+  const { min, max } = resolveIntensity(thresholdSec, effort.intensity);
+  return (min + max) / 2;
+}
+
+/**
+ * The pace a step shows: the CENTRE of its band, so a typed `4:05` reads back as `4:05` —
+ * moved by the coach's pace update when one is in force, by the same rule that moves the
+ * resolved workout (`applyPaceAdjust` in coach-tools.ts). No update = exactly as before.
+ */
+export function effortPace(effort: Effort, thresholdSec: number, adjust?: PaceAdjust | null): number {
+  const base = paceFromPct(thresholdSec, centrePct(effort.intensity));
+  const by = kindShift(bandCentre(effort, thresholdSec), thresholdSec, adjust);
+  return by ? Math.min(MAX_PACE_SEC_PER_KM, Math.max(MIN_PACE_SEC_PER_KM, base + by)) : base;
 }
 
 /** The bar's three tones. Thresholds are the mockup's own colour split. */
 export type Tone = 'e' | 't' | 'f' | 'r';
 
 export function toneOfPct(pct: number): Exclude<Tone, 'r'> {
-  if (pct < 88) return 'e';
-  if (pct <= 103) return 't';
-  return 'f';
+  return sharedToneOfPct(pct);
 }
 
 export function toneOf(effort: Effort | null): Exclude<Tone, 'r'> {
@@ -566,7 +583,7 @@ export function quickFields(steps: BookStep[]): FieldRef[] {
  * A field's raw value: a count, metres/seconds for a length, sec/km for a pace (or a
  * percentage when there is no threshold to turn it into one).
  */
-export function fieldValue(steps: BookStep[], ref: FieldRef, thresholdSec: number | null): number | null {
+export function fieldValue(steps: BookStep[], ref: FieldRef, thresholdSec: number | null, adjust?: PaceAdjust | null): number | null {
   const step = steps[ref.step];
   if (!step) return null;
   switch (ref.field) {
@@ -581,7 +598,7 @@ export function fieldValue(steps: BookStep[], ref: FieldRef, thresholdSec: numbe
     case 'pace': {
       const effort = step.kind === 'reps' || step.kind === 'run' ? step.effort : null;
       if (!effort) return null;
-      return thresholdSec ? effortPace(effort, thresholdSec) : centrePct(effort.intensity);
+      return thresholdSec ? effortPace(effort, thresholdSec, adjust) : centrePct(effort.intensity);
     }
     case 'rest':
       return step.kind === 'reps' && step.rest ? step.rest.length.value : null;
@@ -645,7 +662,7 @@ function cloneSteps(steps: BookStep[]): BookStep[] {
 }
 
 /** Set a field to an exact value (the wheel), keeping everything else about the step. */
-export function setField(steps: BookStep[], ref: FieldRef, value: number, thresholdSec: number | null): BookStep[] {
+export function setField(steps: BookStep[], ref: FieldRef, value: number, thresholdSec: number | null, adjust?: PaceAdjust | null): BookStep[] {
   const next = cloneSteps(steps);
   const step = next[ref.step];
   if (!step) return steps;
@@ -666,10 +683,9 @@ export function setField(steps: BookStep[], ref: FieldRef, value: number, thresh
       const half = step.effort
         ? (step.effort.intensity.fastPct - step.effort.intensity.slowPct) / 2
         : TYPED_HALF_WIDTH_PCT;
-      const pct = thresholdSec
-        ? (thresholdSec / clamp(value, LIMITS.pace)) * 100
-        : clamp(value, LIMITS.pct);
-      step.effort = effortFromPct(pct, half);
+      step.effort = thresholdSec
+        ? effortFromPace(clamp(value, LIMITS.pace), thresholdSec, adjust, half)
+        : effortFromPct(clamp(value, LIMITS.pct), half);
       break;
     }
     case 'rest':
@@ -686,9 +702,9 @@ export function setField(steps: BookStep[], ref: FieldRef, value: number, thresh
 }
 
 /** One tap of + (`sign = 1`) or − on a field. */
-export function nudgeField(steps: BookStep[], ref: FieldRef, sign: 1 | -1, thresholdSec: number | null): BookStep[] {
+export function nudgeField(steps: BookStep[], ref: FieldRef, sign: 1 | -1, thresholdSec: number | null, adjust?: PaceAdjust | null): BookStep[] {
   const step = steps[ref.step];
-  const value = fieldValue(steps, ref, thresholdSec);
+  const value = fieldValue(steps, ref, thresholdSec, adjust);
   if (!step || value === null) return steps;
   let delta: number;
   switch (ref.field) {
@@ -716,12 +732,12 @@ export function nudgeField(steps: BookStep[], ref: FieldRef, sign: 1 | -1, thres
   }
   // Snap onto the grid first, so 1050 + 100 is 1100 and not 1150.
   const snapped = sign > 0 ? Math.floor(value / delta) * delta + delta : Math.ceil(value / delta) * delta - delta;
-  return setField(steps, ref, ref.field === 'pace' ? value + sign * delta : snapped, thresholdSec);
+  return setField(steps, ref, ref.field === 'pace' ? value + sign * delta : snapped, thresholdSec, adjust);
 }
 
 /** The wheel's rows for a field, centred on the current value. */
-export function wheelOptions(steps: BookStep[], ref: FieldRef, thresholdSec: number | null): number[] {
-  const value = fieldValue(steps, ref, thresholdSec);
+export function wheelOptions(steps: BookStep[], ref: FieldRef, thresholdSec: number | null, adjust?: PaceAdjust | null): number[] {
+  const value = fieldValue(steps, ref, thresholdSec, adjust);
   if (value === null) return [];
   const range = (from: number, to: number, by: number) => {
     const out: number[] = [];

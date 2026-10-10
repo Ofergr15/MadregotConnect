@@ -1,5 +1,6 @@
 'use client';
 
+import type { PaceAdjust } from '@/lib/academy/pace-kinds';
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Minus, Plus } from 'lucide-react';
@@ -26,10 +27,12 @@ import type { Draft } from './types';
 // send screen — an accidental + on a canon entry must not rewrite what everybody pushes.
 
 export function AdjustScreen({
-  draft, thresholdSec, traineeName, dayLabel, sending, sendError, onCancel, onChange, onSend,
+  draft, thresholdSec, paceAdjust, traineeName, dayLabel, sending, sendError, onCancel, onChange, onSend,
 }: {
   draft: Draft;
   thresholdSec: number | null;
+  /** The coach's pace update in force: every pace shown and set is the one the watch gets. */
+  paceAdjust?: PaceAdjust | null;
   traineeName: string;
   dayLabel: string;
   sending: boolean;
@@ -45,9 +48,10 @@ export function AdjustScreen({
   const [adding, setAdding] = useState(false);
   const model = draft.model;
   const T = thresholdSec;
+  const A = paceAdjust ?? null;
 
   const setModel = (next: BookStep[]) => onChange({ ...draft, model: next });
-  const nudge = (ref: FieldRef, sign: 1 | -1) => { if (model) setModel(nudgeField(model, ref, sign, T)); };
+  const nudge = (ref: FieldRef, sign: 1 | -1) => { if (model) setModel(nudgeField(model, ref, sign, T, A)); };
   const tap = (ref: FieldRef) => {
     if (selected && selected.step === ref.step && selected.field === ref.field) setWheel(ref);
     else setSelected(ref);
@@ -116,7 +120,7 @@ export function AdjustScreen({
                   {/* Not a button: three cells share 354px, and a third target between the
                       two 44px halos would be a target nobody can hit. The wheel for these is
                       a second tap on the same number in the sentences below. */}
-                  <N className="shrink-0 text-[19px] font-black tracking-tight text-ink-900">{fieldDisplay(model, ref, T)}</N>
+                  <N className="shrink-0 text-[19px] font-black tracking-tight text-ink-900">{fieldDisplay(model, ref, T, A)}</N>
                   <StepperButton sign={1} onClick={() => nudge(ref, 1)} />
                 </div>
               </div>
@@ -126,7 +130,7 @@ export function AdjustScreen({
 
         <SectionLabel>{model ? t('stepsHint') : t('stepsReadOnly')}</SectionLabel>
         {model ? (
-          <StepLines steps={model} thresholdSec={T} selected={selected} onTap={tap} onNudge={nudge} />
+          <StepLines steps={model} thresholdSec={T} paceAdjust={A} selected={selected} onTap={tap} onNudge={nudge} />
         ) : (
           <p className={cn(CARD, 'px-4 py-3 text-sm text-ink-500')}>{t('notEditable')}</p>
         )}
@@ -168,11 +172,11 @@ export function AdjustScreen({
       {wheel && model && (
         <Wheel
           title={t(`wheel.${wheel.field}`)}
-          options={wheelOptions(model, wheel, T)}
-          value={fieldValue(model, wheel, T) ?? 0}
+          options={wheelOptions(model, wheel, T, A)}
+          value={fieldValue(model, wheel, T, A) ?? 0}
           format={v => formatField(model, wheel, v, T)}
           onClose={() => setWheel(null)}
-          onPick={v => { setModel(setField(model, wheel, v, T)); setWheel(null); }}
+          onPick={v => { setModel(setField(model, wheel, v, T, A)); setWheel(null); }}
         />
       )}
     </div>
