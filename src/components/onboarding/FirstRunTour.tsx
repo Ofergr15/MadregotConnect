@@ -260,6 +260,14 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   // Arrow x is a viewport coordinate, so it needs no RTL mirroring — it points at
   // wherever the element physically is.
   const arrowLeft = hole ? Math.min(Math.max(hole.left + hole.width / 2 - 7, 30), viewportW - 44) : viewportW / 2 - 7;
+  // Width and x. On a phone this is the full width less the 18px gutters, exactly
+  // as before. On a computer it used to be the WHOLE window (1400px of copy under
+  // a 520px column); now it is the target's width (360..560), centred under it.
+  const calloutW = Math.min(viewportW - 36, Math.max(hole?.width ?? 0, 360), 560);
+  const calloutLeft = hole
+    ? Math.min(Math.max(hole.left + hole.width / 2 - calloutW / 2, 18), viewportW - 18 - calloutW)
+    : (viewportW - calloutW) / 2;
+  const placedStyle: React.CSSProperties = { ...calloutStyle, left: calloutLeft, width: calloutW };
 
   return (
     <div className="fixed inset-0 z-[60]" dir="rtl">
@@ -291,13 +299,13 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
       )}
 
       <div
-        className="absolute inset-x-[18px] rounded-[20px] bg-card px-4 py-3.5 text-start shadow-[0_18px_40px_-14px_rgba(0,0,0,0.6)]"
-        style={calloutStyle}
+        className="absolute rounded-[20px] bg-card px-4 py-3.5 text-start shadow-[0_18px_40px_-14px_rgba(0,0,0,0.6)]"
+        style={placedStyle}
       >
         <span
           aria-hidden="true"
           className="absolute h-3.5 w-3.5 rotate-45 bg-card"
-          style={below ? { top: -7, left: arrowLeft - 18 } : { bottom: -7, left: arrowLeft - 18 }}
+          style={below ? { top: -7, left: arrowLeft - calloutLeft } : { bottom: -7, left: arrowLeft - calloutLeft }}
         />
         <p className="text-2xs font-bold tracking-wide text-brand-600">
           {t('tourStepOf', { step: index + 1, total: steps.length })}

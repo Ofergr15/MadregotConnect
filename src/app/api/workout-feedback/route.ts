@@ -261,7 +261,8 @@ export async function GET(request: Request) {
         .filter((m): m is NonNullable<typeof m> => m !== null)
         .sort((a, b) => (b.startTime || '').localeCompare(a.startTime || ''));
 
-      await markThreadsRead(supabase, feedbackRows, caller.athleteId);
+      // Not while an admin views the app as this coach (lib/auth/view-as.ts).
+      if (!caller.viewingAsBy) await markThreadsRead(supabase, feedbackRows, caller.athleteId);
 
       return NextResponse.json({
         items,

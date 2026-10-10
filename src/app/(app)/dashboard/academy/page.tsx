@@ -11,8 +11,8 @@ import { useAthleteId } from '@/lib/use-athlete-id';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 import { getActiveViewRole, getStoredView } from '@/lib/role-views';
-import { getViewedPerson, type ViewedPerson } from '@/lib/view-as-person';
-import { ViewAsBanner } from '@/components/academy/AcademyAdmin';
+import { getViewedPerson, isViewingPerson, type ViewedPerson } from '@/lib/view-as-person';
+import { hasRole } from '@/lib/auth/roles';
 import { readAcademyDeepLink } from '@/lib/academy/deep-links';
 
 // The academy centre. Three audiences, three lenses off the same route:
@@ -52,14 +52,15 @@ export default function AcademyPage() {
   useEffect(() => {
     if (previewRole) { setEmail(''); return; }
     const stored = localStorage.getItem('athlete_email') || localStorage.getItem('coach_email') || '';
-    if (stored) { setEmail(stored); return; }
+    // Not the session's address while viewing as somebody: that one is the admin's.
+    if (stored || isViewingPerson()) { setEmail(stored); return; }
     getSupabase().auth.getSession()
       .then(({ data }) => setEmail(data.session?.user?.email || ''))
       .catch(() => setEmail(''));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const { data: meData, isLoading: roleLoading } = useApi<{ role?: string }>(
+  const { data: meData, isLoading: roleLoading } = useApi<{ role?: string; roles?: string[] }>(
     !previewRole && email ? '/api/auth/me' : null,
   );
   // The account's own view switch (role-views.ts). Not a preview: identity and
@@ -67,8 +68,9 @@ export default function AcademyPage() {
   // borrows for it; "coach" on a manager's account narrows the payload to their
   // own trainees (the server honours that — it only ever narrows).
   const activeView = previewRole ? null : getStoredView();
-  // Viewing the academy as a particular person (lib/auth/view-as.ts): their role,
-  // as the server resolves it, decides the lens — not the super user's own.
+  // Viewing the app as a particular person (lib/auth/view-as.ts): their role, as
+  // the server resolves it, decides the lens — not the admin's own. The banner
+  // that says so is the shell's (ViewAsBanner), on every screen, not this page's.
   const [viewed, setViewed] = useState<ViewedPerson | null>(null);
   useEffect(() => { setViewed(getViewedPerson()); }, []);
   const { data: viewer } = useApi<{ role: string; roles: string[]; isStaff: boolean; isManager: boolean }>(
@@ -118,7 +120,6 @@ export default function AcademyPage() {
         {/* Passed raw, not `|| null`: `null` means "haven't read storage yet"
             and `''` means "read it, nobody's signed in" — collapsing the two
             would leave an anonymous visitor on a skeleton that never resolves. */}
-        {viewed && <ViewAsBanner person={viewed} />}
         <AcademyMyView
           athleteId={viewed ? viewed.id : myAthleteId}
           openThread={deepLink.thread === 'mine'}
@@ -133,12 +134,11 @@ export default function AcademyPage() {
     // On a phone the shell's <main> already pads this page, so the page adds no
     // padding of its own there.
     <div className="max-w-5xl mx-auto sm:px-6 lg:px-8 sm:py-8">
-      {viewed && <ViewAsBanner person={viewed} />}
       <AcademyShell
         isManager={isManager}
         scopeCoach={activeView === 'coach'}
         canEditRoles={role === 'admin'}
-        canViewAs={!viewed && isSuperUser(email)}
+        canViewAs={!viewed && (isSuperUser(email) || hasRole(meData, 'admin'))}
         myAthleteId={myAthleteId}
         linkTab={linkTab}
         linkThread={linkThread}

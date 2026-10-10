@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { canApprove, isSuperUser, STAFF_ROLES } from '@/lib/constants';
 import { isCoreRunner } from '@/lib/core-runner';
 import { pickAthleteRow, stravaIdFromAuthEmail } from '@/lib/auth/athlete-identity';
-import { heldRoles, holdsStaffRole } from '@/lib/auth/roles';
+import { hasRole, heldRoles, holdsStaffRole } from '@/lib/auth/roles';
 import { membershipFor, type Membership } from '@/lib/auth/membership';
 import { blockedFromApp, pathnameOf, requiresApproval } from '@/lib/auth/approval-gate';
 import { looksLikeAthleteId, VIEW_AS_HEADER, viewAsApplies } from '@/lib/auth/view-as';
@@ -69,8 +69,9 @@ export interface SessionUser {
    */
   isCoreRunner: boolean;
   /**
-   * Set when the super user is viewing the academy as this athlete (view-as.ts):
-   * their real email. Routes that write as a side effect of a read check it.
+   * Set when an admin is viewing the app as this athlete (lib/auth/view-as.ts):
+   * the admin's real email. Routes that write as a side effect of a read check it
+   * and skip the write.
    */
   viewingAsBy?: string;
 }
@@ -296,13 +297,13 @@ function athleteSessionUser(athlete: AthleteRow, email: string, approvalKnown: b
 }
 
 /**
- * "View as this person" (lib/auth/view-as.ts): the super user's verified session,
- * answered as the athlete they picked. Only for the academy's reads; the header
- * means nothing anywhere else, or from anyone else.
+ * "View as this person" (lib/auth/view-as.ts): an admin's verified session,
+ * answered as the athlete they picked. The header means nothing from anybody who
+ * is not an admin, and nothing on the deny-listed paths.
  */
 async function viewAsSession(request: Request, real: SessionUser): Promise<AuthResult | null> {
   const asId = request.headers.get(VIEW_AS_HEADER);
-  if (!asId || !real.isSuperUser || !viewAsApplies(pathnameOf(request))) return null;
+  if (!asId || !mayViewAs(real) || !viewAsApplies(pathnameOf(request))) return null;
   if (!looksLikeAthleteId(asId)) return { ok: false, status: 400, error: 'Bad view-as id' };
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return { ok: false, status: 403, error: 'view_as_read_only' };
@@ -314,6 +315,15 @@ async function viewAsSession(request: Request, real: SessionUser): Promise<AuthR
   // approver list) carries the real user's privileges into the view.
   const user = athleteSessionUser(athlete, athlete.email || '', approvalKnown);
   return { ok: true, user: { ...user, isSuperUser: false, canApprove: false, viewingAsBy: real.email } };
+}
+
+/**
+ * May this (real) session view the app as somebody else? Admins: the role, held
+ * as primary or extra, or the super user — the same test the admin-only routes
+ * make (admin/roles, admin/notifications).
+ */
+export function mayViewAs(user: Pick<SessionUser, 'isSuperUser' | 'role' | 'roles'>): boolean {
+  return user.isSuperUser || hasRole(user, 'admin');
 }
 
 /** The uncached resolution: verify the JWT, then find the membership row. */

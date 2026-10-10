@@ -3379,5 +3379,30 @@
         "cta": "בקש חזרה"
       }
     }
+  },
+  "viewAs": {
+    "title": "להתחבר בתור",
+    "intro": "רואים את כל האפליקציה בדיוק כמו אצלו. לקריאה בלבד: לא שולחים, לא שומרים ולא מסמנים שום דבר בשמו.",
+    "segPerson": "אדם",
+    "segRole": "תפקיד",
+    "search": "חיפוש לפי שם",
+    "recent": "אחרונים",
+    "noResults": "לא נמצא",
+    "loadFailed": "לא הצלחנו לטעון את הרשימה",
+    "withCoach": "אצל {coach}",
+    "trainees": "{count, plural, one {מתאמן אחד} other {# מתאמנים}}",
+    "tag_admin": "אדמין",
+    "tag_academy_manager": "מנהל אקדמיה",
+    "tag_academy_coach": "מאמן אקדמיה",
+    "tag_coach": "מאמן",
+    "tag_trainee": "מתאמן אקדמיה",
+    "tag_runner": "רץ",
+    "bannerAs": "מחובר בתור {name}",
+    "readOnly": "קריאה בלבד",
+    "exit": "יציאה",
+    "blockedToast": "קריאה בלבד: אפשר לראות מה {name} רואה, לא לשלוח בשמו",
+    "chatHidden": "הצ׳אט לא מוצג בזמן צפייה בתור {name}",
+    "viewing": "צופה בתור {name}",
+    "openPicker": "להתחבר בתור…"
   }
 }

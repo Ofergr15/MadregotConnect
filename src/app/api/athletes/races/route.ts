@@ -18,13 +18,13 @@ export const dynamic = 'force-dynamic';
 async function authorize(
   request: Request,
   athleteId: string,
-): Promise<{ denied: Response | null; email: string }> {
+): Promise<{ denied: Response | null; email: string; viewing: boolean }> {
   const { denied, caller } = await resolveVerifiedCaller(request);
-  if (denied) return { denied, email: '' };
+  if (denied) return { denied, email: '', viewing: false };
   if (!mayActFor(caller, athleteId)) {
-    return { denied: NextResponse.json({ error: 'forbidden' }, { status: 403 }), email: '' };
+    return { denied: NextResponse.json({ error: 'forbidden' }, { status: 403 }), email: '', viewing: false };
   }
-  return { denied: null, email: caller.email };
+  return { denied: null, email: caller.email, viewing: !!caller.viewingAsBy };
 }
 
 export async function GET(request: Request) {
@@ -36,10 +36,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
     }
 
-    const { denied } = await authorize(request, athleteId);
+    const { denied, viewing } = await authorize(request, athleteId);
     if (denied) return denied;
 
-    try {
+    // The recompute writes (matches, then possibly a badge and its push), so an
+    // admin viewing the app as somebody (lib/auth/view-as.ts) reads what is stored.
+    if (!viewing) try {
       const { matched } = await recomputeRaceMatches(supabase, athleteId);
       // A newly auto-matched race can complete a race_count badge (e.g.
       // "First Race"). Only bother checking when something actually changed

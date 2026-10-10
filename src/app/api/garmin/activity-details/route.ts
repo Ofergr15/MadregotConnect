@@ -211,12 +211,13 @@ export async function GET(request: Request) {
       if (lapsWorthStoring(lapData)) laps = narrowLaps(lapData);
     } catch { /* laps are optional */ }
 
-    // Cache splits, laps, and enrichment data to DB
+    // Cache splits, laps, and enrichment data to DB — except while an admin views
+    // the app as this athlete (lib/auth/view-as.ts), which writes nothing.
     const updatePayload: any = { ...enrichData };
     if (splits.length > 0) updatePayload.splits = splits;
     if (laps.length > 0) updatePayload.laps = laps;
 
-    if (Object.keys(updatePayload).length > 0) {
+    if (Object.keys(updatePayload).length > 0 && !caller.viewingAsBy) {
       const { error: updErr } = await supabase
         .from('athlete_activities')
         .update(updatePayload)

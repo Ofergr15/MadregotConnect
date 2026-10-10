@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader2, MessageCircleOff } from 'lucide-react';
 import type { Channel as StreamChannel, StreamChat } from 'stream-chat';
 import { getSupabase } from '@/lib/supabase/client';
-import { apiHeaders } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
+import { useTranslations } from 'next-intl';
+import { announceReadOnly, isViewingPerson } from '@/lib/view-as-person';
 import { useConnectedStreamClient, useStreamToken, type StreamTokenData } from '@/lib/stream/client';
 // From `stream/constants`, not `stream/server`: that module holds the service-role
 // client and pulling it into a client component drags the secret side of Stream into
@@ -59,19 +61,64 @@ interface OpenedThread {
   seat: ThreadSeat;
 }
 
-export function AcademyThreadPanel({
-  athleteId,
-  segments,
-  className,
-  layout,
-}: {
+interface PanelProps {
   /** Omit to open the signed-in trainee's own thread. */
   athleteId?: string;
   segments?: SegmentVerdict[];
   className?: string;
   /** See ThreadTranscript — `sheet` pins the composer and scrolls the transcript. */
   layout?: 'inline' | 'sheet';
-}) {
+}
+
+export function AcademyThreadPanel(props: PanelProps) {
+  // An admin viewing the app as somebody (lib/view-as-person.ts) never connects to
+  // Stream: that needs a Stream token FOR the viewed person, and a client holding
+  // one could send and mark read at Stream directly, past every check this app
+  // has. The history is read on the server instead, and the composer is greyed.
+  const [viewing] = useState(isViewingPerson);
+  return viewing ? <ReadOnlyAcademyThread {...props} /> : <LiveAcademyThreadPanel {...props} />;
+}
+
+/** The transcript from GET /api/academy/threads/messages, no Stream, nothing sent. */
+function ReadOnlyAcademyThread({ athleteId, segments, className, layout }: PanelProps) {
+  const t = useTranslations('viewAs');
+  const { data, error } = useApi<{ messages: ThreadMessage[]; seat: ThreadSeat; viewerId: string | null }>(
+    `/api/academy/threads/messages${athleteId ? `?athleteId=${encodeURIComponent(athleteId)}` : ''}`,
+  );
+  if (error) {
+    return (
+      <div className="flex items-center gap-2 py-6 text-xs text-ink-400" dir="rtl">
+        <MessageCircleOff className="h-3.5 w-3.5" />
+        {THREAD_ERROR_FALLBACK}
+      </div>
+    );
+  }
+  if (!data) {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-brand-600" />
+      </div>
+    );
+  }
+  return (
+    <ThreadTranscript
+      messages={data.messages}
+      viewerSeat={data.seat}
+      viewerId={data.viewerId}
+      segments={segments}
+      className={className}
+      layout={layout}
+      readOnly={{ label: t('readOnly'), onTap: announceReadOnly }}
+    />
+  );
+}
+
+function LiveAcademyThreadPanel({
+  athleteId,
+  segments,
+  className,
+  layout,
+}: PanelProps) {
   const [supabaseToken, setSupabaseToken] = useState<string | null>(null);
   const [thread, setThread] = useState<OpenedThread | null>(null);
   const [error, setError] = useState<string | null>(null);

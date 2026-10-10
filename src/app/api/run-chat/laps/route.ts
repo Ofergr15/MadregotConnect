@@ -41,8 +41,10 @@ export async function GET(request: NextRequest) {
 
     // `laps === null` means the sync never enriched this run (it only reaches
     // the newest ones). Enrich now so historical cards get the same table;
-    // enrichment stores `[]` when Strava has nothing, so this runs once.
-    if (activity.laps == null && activity.strava_activity_id) {
+    // enrichment stores `[]` when Strava has nothing, so this runs once. Never
+    // while an admin views the app as somebody (lib/auth/view-as.ts): enriching
+    // writes the row, the GPX and possibly a refreshed Strava token.
+    if (activity.laps == null && activity.strava_activity_id && !auth.user.viewingAsBy) {
       try {
         const enriched = await enrichActivityRowFromStrava(supabase, activity);
         if (enriched) {

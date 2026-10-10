@@ -88,8 +88,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     });
 
     // Mark this side caught-up. Best-effort — a failed stamp shouldn't hide
-    // the thread the viewer just successfully loaded.
-    try {
+    // the thread the viewer just successfully loaded. Never while an admin views
+    // the app as this person (lib/auth/view-as.ts): it would mark THEIR thread read.
+    if (!caller.viewingAsBy) try {
       const col = side.side === 'athlete' ? 'athlete_last_read_at' : 'coach_last_read_at';
       await supabase.from('workout_feedback').update({ [col]: new Date().toISOString() }).eq('id', id);
     } catch { /* best-effort */ }

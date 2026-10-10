@@ -78,7 +78,8 @@ describe('the real iPhone flow (measured on a phone, 2026-10-06)', () => {
 describe('where it shows', () => {
   it('replaces the install sheet while it is tried, and sits over the end of /join', () => {
     expect(read('components/InstallPrompt.tsx')).toMatch(/if \(v2\) \{\s+return \(\s+<InstallGuide/);
-    expect(read('app/join/[token]/page.tsx')).toMatch(/\{guideV2 && !guideClosed && <InstallGuide /);
+    // A computer gets "continue on the phone" there instead of the home-screen guide.
+    expect(read('app/join/[token]/page.tsx')).toMatch(/\{guideV2 && !guideClosed && \(computer[\s\S]{0,400}?<ContinueOnPhone [\s\S]{0,400}?<InstallGuide /);
     expect(read('lib/install/flag.ts')).toMatch(/export const ONBOARDING_V2_FOR_ALL = false;/);
   });
 

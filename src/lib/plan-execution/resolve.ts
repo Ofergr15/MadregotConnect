@@ -148,6 +148,7 @@ async function ensureLaps(
   supabase: SupabaseServer,
   row: ActivityRow,
   workout: ParsedWorkout,
+  readOnly = false,
 ): Promise<Lap[]> {
   if (hasStoredLaps(row.laps)) return normalizeStoredLaps(row.laps);
   if (!row.garmin_activity_id || !prescribesPace(workout)) return [];
@@ -166,8 +167,9 @@ async function ensureLaps(
     const laps = Array.isArray(raw) && raw.length > 1 ? normalizeStoredLaps(raw) : [];
 
     // Write back either way. `[]` is the "already asked" marker that stops every
-    // future open of this run from paying for the same empty answer.
-    await supabase
+    // future open of this run from paying for the same empty answer. Not when
+    // read-only (an admin viewing the app as this athlete).
+    if (!readOnly) await supabase
       .from('athlete_activities')
       .update({ laps })
       .eq('id', row.id)
@@ -298,6 +300,8 @@ export async function resolveExecutionVerdict(
   supabase: SupabaseServer,
   activityId: string,
   tolerances: AdherenceTolerances,
+  /** Persist nothing: no match rows, no cached laps (lib/auth/view-as.ts). */
+  opts: { readOnly?: boolean } = {},
 ): Promise<ExecutionVerdict | null> {
   const { data, error } = await supabase
     .from('athlete_activities')
@@ -308,8 +312,8 @@ export async function resolveExecutionVerdict(
   if (!data) return null;
 
   const row = data as unknown as ActivityRow;
-  const matched = await ensureMatchedWorkout(supabase, row.id, row.athlete_id);
+  const matched = await ensureMatchedWorkout(supabase, row.id, row.athlete_id, opts);
   const workout = matched?.workout ?? null;
-  const laps = workout ? await ensureLaps(supabase, row, workout) : [];
+  const laps = workout ? await ensureLaps(supabase, row, workout, !!opts.readOnly) : [];
   return verdictFor(row, workout, tolerances, laps);
 }

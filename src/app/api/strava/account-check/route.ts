@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
   }
 
-  const { denied } = await requireCallerForAthlete(request, athleteId);
+  const { denied, caller } = await requireCallerForAthlete(request, athleteId);
   if (denied) return denied;
 
   const supabase = createServerClient();
@@ -56,6 +56,16 @@ export async function GET(request: Request) {
   }
   if (!athlete.strava_auth) {
     return NextResponse.json({ linked: false });
+  }
+  // An admin viewing the app as this athlete (lib/auth/view-as.ts) does not get to
+  // call Strava with their credential: refreshing it would rewrite strava_auth.
+  if (caller.viewingAsBy) {
+    return NextResponse.json({
+      linked: true,
+      stravaAthleteId: athlete.strava_athlete_id ?? null,
+      checkable: false,
+      reason: 'view_as',
+    });
   }
 
   let auth: StravaTokens;

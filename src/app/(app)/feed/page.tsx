@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PenSquare, MessageSquare, AlertCircle, LogIn, Star, User, X } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
+import { isViewingPerson } from '@/lib/view-as-person';
 import { useTranslations, useFormatter } from 'next-intl';
 import { cn, dayKeyRelation, dayKeyToDate, feedDayKey, resolveGroup } from '@/lib/utils';
 import { useNavIdentity } from '@/lib/nav-items';
@@ -290,6 +291,10 @@ export default function FeedPage() {
     if (localStorage.getItem('coach_email')) setIsStaff(true);
 
     getSupabase().auth.getSession().then(async ({ data }) => {
+      // The session is the admin's while viewing the app as somebody
+      // (lib/view-as-person.ts): re-resolving it here would put the admin's own
+      // identity back over the one being viewed.
+      if (isViewingPerson()) return;
       const session = data.session;
       const email = session?.user?.email;
       const name = session?.user?.user_metadata?.full_name ||

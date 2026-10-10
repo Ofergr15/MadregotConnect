@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut, Bug, Users } from 'lucide-react';
+import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut, Bug, Users, UserSearch } from 'lucide-react';
+import { openViewAsChooser } from '@/lib/view-as-person';
 import { cn } from '@/lib/utils';
 import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
@@ -293,6 +294,8 @@ export function BottomTabBar() {
                     onClick={() => startViewAs(sc.mode)}
                   />
                 ))}
+                {/* A person rather than a role: the whole app as they see it. */}
+                <MoreCard icon={UserSearch} label="אדם…" active={false} onClick={() => { setMoreOpen(false); openViewAsChooser('person'); }} />
                 {viewMode && (
                   <MoreCard icon={LogOut} label="חזרה לתצוגה שלי" active={false} onClick={() => stopViewAs()} />
                 )}

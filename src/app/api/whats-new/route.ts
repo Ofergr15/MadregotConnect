@@ -58,9 +58,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: rel.error.message }, { status: 500 });
   }
   let releases = (rel.data ?? []) as ReleaseRow[];
-  await markShipped(supabase);
-  const recorded = await recordThisRelease(supabase, releases);
-  if (recorded) releases = [recorded, ...releases];
+  // Deploy bookkeeping, not the viewer's — but an admin viewing the app as
+  // somebody (lib/auth/view-as.ts) writes nothing, so the next real open does it.
+  if (!caller.viewingAsBy) {
+    await markShipped(supabase);
+    const recorded = await recordThisRelease(supabase, releases);
+    if (recorded) releases = [recorded, ...releases];
+  }
 
   const picksRes = await supabase.from('release_note_picks').select('note_id, featured, title, body');
   const picks = (picksRes.data ?? []) as NotePick[];

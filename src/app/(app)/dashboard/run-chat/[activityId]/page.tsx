@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import 'stream-chat-react/dist/css/index.css';
 import { accessToken } from '@/lib/auth/bearer-headers';
 import { useStreamTokenState } from '@/lib/stream/client';
+import { getViewedPerson, useViewAsReadOnly } from '@/lib/view-as-person';
 import type { MentionableCoach } from '@/components/run-chat/CoachMentionButton';
 import {
   ConnectedRunChat,
@@ -19,6 +20,26 @@ import '../run-chat.css';
 const SLOW_OPEN_MS = 15_000;
 
 export default function RunChatPage() {
+  // The run chat is Stream on the client, and connecting needs a Stream token for
+  // whoever is signed in — while an admin views the app as somebody
+  // (lib/view-as-person.ts) that would be the viewed person's, able to send and
+  // mark read at Stream directly. There is no server-side copy of this chat to
+  // show instead, so it says so.
+  const viewing = useViewAsReadOnly();
+  return viewing ? <ViewAsChatHidden /> : <LiveRunChatPage />;
+}
+
+function ViewAsChatHidden() {
+  const t = useTranslations('viewAs');
+  const name = getViewedPerson()?.name.split(' ')[0] ?? '';
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center px-6 text-center text-sm text-ink-400" dir="rtl" data-testid="view-as-chat-hidden">
+      {t('chatHidden', { name })}
+    </div>
+  );
+}
+
+function LiveRunChatPage() {
   const { activityId } = useParams<{ activityId: string }>();
   const router = useRouter();
   const t = useTranslations('runChat');

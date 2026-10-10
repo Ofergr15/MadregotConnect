@@ -1,6 +1,7 @@
 import { clearPersistedSWRCache } from '@/lib/swr-persist';
 import { clearSavedFeedPage } from '@/lib/feed/feed-cache';
 import { LEGACY_DASHBOARD_SYNC_PREFIX, STRAVA_OPEN_SYNC_PREFIX } from '@/lib/providers/open-sync';
+import { clearViewedPerson, RECENT_KEY } from '@/lib/view-as-person';
 
 // Every localStorage key that says "who is signed in" in this browser.
 //
@@ -30,6 +31,8 @@ export const IDENTITY_KEYS = [
   'garmin_ticket',
   'dashboard_synced',
   'dashboard_synced_with_garmin',
+  // The admin's "view as" recents (lib/view-as-person.ts).
+  RECENT_KEY,
 ] as const;
 
 /**
@@ -65,6 +68,9 @@ export function identityKeysToRemove(storedKeys: readonly string[]): string[] {
 /** Remove every identity key. No-op on the server. */
 export function clearIdentityKeys() {
   if (typeof window === 'undefined') return;
+  // First: while an admin views somebody, the overlay hides the real keys below
+  // (lib/view-as-person.ts), so a sign-out would otherwise remove nothing.
+  clearViewedPerson();
   for (const key of IDENTITY_KEYS) {
     localStorage.removeItem(key);
   }
