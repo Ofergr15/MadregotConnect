@@ -7,6 +7,8 @@ import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Check, Eye,
 import { InsetSection, InsetRow, Button } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { InstallGuide } from '@/components/install/InstallGuide';
+import { ContinueOnPhone } from '@/components/install/ContinueOnPhone';
+import { useIsComputer } from '@/lib/install/use-computer';
 import { usePreviewOnboardingV2 } from '@/lib/install/v2';
 import { isStandalone } from '@/lib/pwa';
 
@@ -80,6 +82,7 @@ export default function JoinPage() {
   // invite token no longer resolves) or 'error' (the link itself failed).
   const [stravaReturn, setStravaReturn] = useState<string | null>(null);
   const [step, setStep] = useState<'auth' | 'info' | 'garmin' | 'mfa' | 'connecting' | 'done'>('auth');
+  const computer = useIsComputer();
   // The illustrated install guide over the done screen, while it is tried (lib/install/v2).
   const guideV2 = usePreviewOnboardingV2();
   const [guideClosed, setGuideClosed] = useState(false);
@@ -255,7 +258,9 @@ export default function JoinPage() {
     if (guideV2) {
       setStep('connecting');
       persistProfile()
-        .then(() => setStep('done'))
+        // Nothing was connected on this path, so the done screen must not say
+        // "you're connected — your Garmin is linked" (it did, 2026-10-09).
+        .then(() => { setSkippedGarmin(true); setStep('done'); })
         .catch((err) => { setError(err instanceof Error ? err.message : String(err)); setStep('info'); });
       return;
     }
@@ -360,7 +365,10 @@ export default function JoinPage() {
   if (step === 'done') {
     return (
       <>
-      {guideV2 && !guideClosed && <InstallGuide canPrompt={false} onLater={() => setGuideClosed(true)} memberName={name || null} />}
+      {guideV2 && !guideClosed && (computer
+        // On a computer: no home-screen guide. Invite them to the phone, never block (ContinueOnPhone).
+        ? <ContinueOnPhone token={token} firstName={(name || '').split(/\s+/)[0] || null} onContinueHere={() => window.location.assign(`/welcome?t=${encodeURIComponent(token)}`)} />
+        : <InstallGuide canPrompt={false} onLater={() => setGuideClosed(true)} memberName={name || null} />)}
       <div className="min-h-screen bg-page flex items-center justify-center p-4">
         <div className="bg-card rounded-card border border-page p-6 sm:p-8 w-full max-w-md animate-fade-in">
           {/* Logo */}

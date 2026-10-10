@@ -1,14 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Activity, ClipboardList, Newspaper, User } from 'lucide-react';
 import { useOnboarding, markOnboarding } from '@/lib/onboarding/use-onboarding';
 import { TOUR_HOME, canStartTour, tourExitTarget } from '@/lib/onboarding/first-run-order';
 import { FIRST_RUN_EVENT, readFirstRunStage, setFirstRunStage } from '@/lib/onboarding/first-run-flow';
 import { useOnboardingV2 } from '@/lib/install/v2';
 import { useInstallStep } from './InstallStepProvider';
+import { useApi } from '@/lib/api';
+import { APP_VERSION } from '@/lib/version';
+import type { WhatsNewRelease } from '@/lib/release-notes';
+import { tourLatest, type TourLatestItem } from '@/lib/whats-new/tour-latest';
+import { WHATS_NEW_KEY, markSeen, readWhatsNewLedger } from '@/lib/whats-new/ledger';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The first-run guided tour. Runs once, ever (onboarding_tour_seen_at), for
@@ -65,7 +70,7 @@ const WELCOME_SCREENS = [
   { icon: User, labelKey: 'tourScreenProfile', bodyKey: 'tourScreenProfileBody' },
 ];
 
-type Phase = 'idle' | 'welcome' | 'preparing' | 'steps' | 'done';
+type Phase = 'idle' | 'welcome' | 'preparing' | 'steps' | 'latest' | 'done';
 
 export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boolean) => void }) {
   const t = useTranslations('setup');
@@ -82,6 +87,15 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   /** The steps whose anchors actually exist, snapshotted once. */
   const [steps, setSteps] = useState<TourStep[]>([]);
   const [index, setIndex] = useState(0);
+  // The tour's last screen: what's new lately, straight from What's new
+  // (lib/whats-new/tour-latest) — nothing to keep up to date by hand.
+  const locale = useLocale();
+  const { data: wn } = useApi<{ releases: WhatsNewRelease[] }>('/api/whats-new', { revalidateOnFocus: false });
+  const latest: TourLatestItem[] = useMemo(
+    () => (wn ? tourLatest(wn.releases ?? [], APP_VERSION, locale === 'en' ? 'en' : 'he') : []),
+    [wn, locale],
+  );
+  const [exitTarget, setExitTarget] = useState<string | null>(null);
   const [box, setBox] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
 
   // Arm on the first read that says this person hasn't seen it — and not before
@@ -97,7 +111,7 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   }, []);
 
   useEffect(() => {
-    onActiveChange?.(phase === 'welcome' || phase === 'preparing' || phase === 'steps');
+    onActiveChange?.(phase === 'welcome' || phase === 'preparing' || phase === 'steps' || phase === 'latest');
   }, [phase, onActiveChange]);
 
   const finish = useCallback(async () => {
@@ -150,6 +164,19 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
     return () => clearTimeout(timer);
   }, [phase, finish]);
 
+  /** End on "what's new lately" when there is any. True when it took over. */
+  const toLatest = useCallback((target: string | null) => {
+    if (latest.length === 0) return false;
+    // Shown here, so the What's new sheet does not announce the same three again.
+    try {
+      const ledger = readWhatsNewLedger(localStorage.getItem(WHATS_NEW_KEY));
+      localStorage.setItem(WHATS_NEW_KEY, JSON.stringify(markSeen(ledger, latest.map((i) => i.slug))));
+    } catch { /* private mode */ }
+    setExitTarget(target);
+    setPhase('latest');
+    return true;
+  }, [latest]);
+
   const advance = useCallback(() => {
     if (index + 1 < steps.length) {
       setIndex(index + 1);
@@ -159,9 +186,19 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
     // still had to find and tap themselves; now the last press opens the
     // checklist itself (see tourExitTarget).
     const target = tourExitTarget(steps, index);
+    if (toLatest(target)) return;
     if (target) router.push(target);
     finish();
-  }, [index, steps, finish, router]);
+  }, [index, steps, finish, router, toLatest]);
+
+  /** "Skip" mid-tour still ends on what's new: one screen, and nobody misses the launch's news. */
+  const skip = useCallback(() => { if (!toLatest(null)) finish(); }, [toLatest, finish]);
+
+  const leaveLatest = useCallback((href?: string) => {
+    const to = href || exitTarget;
+    if (to) router.push(to);
+    finish();
+  }, [exitTarget, finish, router]);
 
   const step = phase === 'steps' ? steps[index] : null;
 
@@ -195,6 +232,31 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   }, [step]);
 
   if (phase === 'idle' || phase === 'done') return null;
+  if (phase === 'latest') {
+    return (
+      <div className="fixed inset-0 z-[60] flex flex-col justify-end md:items-center md:justify-center md:p-6" dir="rtl" role="dialog" aria-modal="true" aria-labelledby="tour-latest-title" data-testid="tour-latest">
+        <div className="absolute inset-0 bg-ink-900/[0.86]" />
+        <div className="relative max-h-[92dvh] w-full overflow-y-auto rounded-t-card bg-card px-4 pb-6 pt-2.5 text-start md:max-w-[520px] md:rounded-card md:pt-5">
+          <div className="mx-auto mb-3.5 h-1 w-9 rounded-pill bg-ink-300 md:hidden" />
+          <p className="text-2xs font-bold tracking-wide text-brand-600">{t('tourLatestKicker')}</p>
+          <h2 id="tour-latest-title" className="mt-1 text-xl font-bold text-ink-700">{t('tourLatestTitle')}</h2>
+          <p className="mt-1 text-13 font-light leading-relaxed text-ink-400">{t('tourLatestBody')}</p>
+          {latest.map((item) => (
+            <button key={item.slug} type="button" onClick={() => leaveLatest(item.href)} className="mt-3 flex w-full items-start gap-3 rounded-2xl bg-page/60 p-3 text-start active:bg-page">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card text-lg" aria-hidden>{item.icon}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold text-ink-700">{item.title}</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-ink-500">{item.body}</span>
+              </span>
+            </button>
+          ))}
+          <button type="button" onClick={() => leaveLatest()} className="mt-5 min-h-[52px] w-full rounded-pill bg-brand-600 text-base font-bold text-white active:bg-brand-700">
+            {t('tourLatestDone')}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ── Welcome ───────────────────────────────────────────────────────────────
   if (phase === 'welcome' || phase === 'preparing') {
@@ -260,6 +322,14 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   // Arrow x is a viewport coordinate, so it needs no RTL mirroring — it points at
   // wherever the element physically is.
   const arrowLeft = hole ? Math.min(Math.max(hole.left + hole.width / 2 - 7, 30), viewportW - 44) : viewportW / 2 - 7;
+  // Width and x. On a phone this is the full width less the 18px gutters, exactly
+  // as before. On a computer it used to be the WHOLE window (1400px of copy under
+  // a 520px column); now it is the target's width (360..560), centred under it.
+  const calloutW = Math.min(viewportW - 36, Math.max(hole?.width ?? 0, 360), 560);
+  const calloutLeft = hole
+    ? Math.min(Math.max(hole.left + hole.width / 2 - calloutW / 2, 18), viewportW - 18 - calloutW)
+    : (viewportW - calloutW) / 2;
+  const placedStyle: React.CSSProperties = { ...calloutStyle, left: calloutLeft, width: calloutW };
 
   return (
     <div className="fixed inset-0 z-[60]" dir="rtl">
@@ -291,13 +361,13 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
       )}
 
       <div
-        className="absolute inset-x-[18px] rounded-[20px] bg-card px-4 py-3.5 text-start shadow-[0_18px_40px_-14px_rgba(0,0,0,0.6)]"
-        style={calloutStyle}
+        className="absolute rounded-[20px] bg-card px-4 py-3.5 text-start shadow-[0_18px_40px_-14px_rgba(0,0,0,0.6)]"
+        style={placedStyle}
       >
         <span
           aria-hidden="true"
           className="absolute h-3.5 w-3.5 rotate-45 bg-card"
-          style={below ? { top: -7, left: arrowLeft - 18 } : { bottom: -7, left: arrowLeft - 18 }}
+          style={below ? { top: -7, left: arrowLeft - calloutLeft } : { bottom: -7, left: arrowLeft - calloutLeft }}
         />
         <p className="text-2xs font-bold tracking-wide text-brand-600">
           {t('tourStepOf', { step: index + 1, total: steps.length })}
@@ -315,7 +385,7 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
             ))}
           </span>
           {index + 1 < steps.length && (
-            <button type="button" onClick={finish} className="min-h-[36px] px-1 text-xs font-light text-ink-400">
+            <button type="button" onClick={skip} className="min-h-[36px] px-1 text-xs font-light text-ink-400">
               {t('tourSkip')}
             </button>
           )}

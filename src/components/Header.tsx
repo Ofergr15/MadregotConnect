@@ -12,6 +12,8 @@ import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { resolveNavItems, type TabPermission } from '@/lib/nav-items';
 import { getViewMode, stopViewAs, useIsSuperUser, MAINTENANCE_MODE, STAFF_ROLES } from '@/lib/impersonation';
 import { activeNavRole } from '@/lib/role-views';
+import { hasRole } from '@/lib/auth/roles';
+import { isViewingPerson, openViewAsChooser } from '@/lib/view-as-person';
 import { RoleSwitcher, useRoleViews, ViewBadge, ViewMenuRow, ViewSwitchToast } from '@/components/RoleSwitcher';
 import { RoleWelcome } from '@/components/RoleWelcome';
 import { InsetSection, InsetRow, Sheet, Spinner } from '@/components/ui';
@@ -129,7 +131,11 @@ export function Header() {
 
     const supabase = getSupabase();
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
+      // The session is still the admin's while viewing the app as somebody
+      // (lib/view-as-person.ts); the name above is the one being viewed.
+      if (session?.user && isViewingPerson()) {
+        if (session.user.email) setUserEmail(session.user.email);
+      } else if (session?.user) {
         const fullName = session.user.user_metadata?.full_name;
         if (fullName) setUserName(fullName);
         if (session.user.email) setUserEmail(session.user.email);
@@ -145,6 +151,10 @@ export function Header() {
   // nav as if we had that role (the maintenance scenario is handled by the gate,
   // not here — it leaves the role untouched).
   const viewMode = typeof window !== 'undefined' ? getViewMode() : null;
+  // "View as this person" (lib/view-as-person.ts): any admin may, and while it is
+  // on the eye stays — /api/auth/me now answers as the person, who is no admin.
+  const viewingPerson = typeof window !== 'undefined' && isViewingPerson();
+  const canViewAs = isSuper || hasRole(meData, 'admin') || viewingPerson;
   const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
   // The super user (Ofer) always gets full admin-level nav, regardless of their
   // stored DB role (which may just be 'runner') — so admin-only tabs like
@@ -380,12 +390,14 @@ export function Header() {
               <SearchIcon className="h-4.5 w-4.5" />
             </Link>
 
-            {isSuper && (
+            {canViewAs && (
               <button
-                onClick={() => (viewMode ? stopViewAs() : window.dispatchEvent(new Event('open-view-as')))}
+                onClick={() => (viewMode ? stopViewAs() : openViewAsChooser())}
                 className={cn(
                   'relative group p-2 rounded-lg transition-colors',
-                  viewMode ? 'text-accent-red hover:text-accent-red hover:bg-page' : 'text-band-3 hover:text-band-3 hover:bg-page',
+                  viewMode ? 'text-accent-red hover:text-accent-red hover:bg-page'
+                    : viewingPerson ? 'text-[#B45309] bg-[#FEF3C7] hover:bg-[#FEF3C7]'
+                    : 'text-band-3 hover:text-band-3 hover:bg-page',
                 )}
                 title={viewMode ? th('exitViewAs') : th('viewAsUser')}
                 aria-label={viewMode ? th('exitViewAs') : th('viewAsUser')}
@@ -561,6 +573,22 @@ export function Header() {
                 )}
               </Link>
             )}
+            {/* The eye, on the phone too — one tap to "view as", and while a person
+                view is on it stays lit, so switching to somebody else is one tap. */}
+            {canViewAs && !viewMode && (
+              <button
+                type="button"
+                onClick={() => openViewAsChooser()}
+                aria-label={th('viewAsUser')}
+                data-testid="view-as-eye"
+                className={cn(
+                  'flex items-center justify-center w-11 h-11 rounded-full active:scale-95 transition-transform',
+                  viewingPerson ? 'bg-[#FEF3C7] text-[#B45309]' : 'bg-card text-band-3',
+                )}
+              >
+                <Eye className="h-5 w-5" />
+              </button>
+            )}
             <Link
               href="/dashboard/search"
               aria-label={t('search')}
@@ -649,13 +677,13 @@ export function Header() {
             {/* Inset-grouped account actions */}
             <InsetSection>
               <InsetRow icon={User} iconBg={'bg-brand-600'} label={t('profile')} href="/dashboard/profile" onClick={() => setMobileMenuOpen(false)} />
-              {isSuper && (
+              {canViewAs && (
                 <InsetRow
                   icon={viewMode ? LogOut : Eye}
                   iconBg={viewMode ? 'bg-accent-red' : 'bg-band-3'}
                   label={th('viewAsUser')}
                   sublabel={viewMode ? th('viewAsActive') : undefined}
-                  onClick={() => { setMobileMenuOpen(false); window.dispatchEvent(new Event('open-view-as')); }}
+                  onClick={() => { setMobileMenuOpen(false); openViewAsChooser(); }}
                 />
               )}
             </InsetSection>

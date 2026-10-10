@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Eye, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
@@ -13,6 +14,8 @@ import {
   MAINTENANCE_MODE,
   VIEW_AS_SCENARIOS,
 } from '@/lib/impersonation';
+import { getViewedPerson, stopViewingAs, clearViewedPerson } from '@/lib/view-as-person';
+import { ViewAsPersonPicker } from '@/components/ViewAsPersonPicker';
 
 // Super-user "view as" control. Always mounted in the root layout (a sibling of
 // MaintenanceGate, outside the intl provider) so it can overlay the maintenance
@@ -27,7 +30,18 @@ import {
 // tap instead of avatar → menu → row → this sheet. This chooser stays as the
 // desktop entry point and as the only route to the maintenance-screen scenario.
 // Non-super-users get nothing.
+//
+// Two tabs since 2026-10-09: "אדם" — view the whole app as one member, read-only
+// (lib/view-as-person.ts, for any admin) — and "תפקיד", the role scenarios above,
+// unchanged and still the super user's alone. The person tab's list is gated on
+// the server, so the sheet itself can open for anybody who dispatched the event;
+// only admins have a button that does.
+
+/** `detail` of the 'open-view-as' event: which tab to open on. */
+export type ViewAsTab = 'person' | 'role';
+
 export function ImpersonationBar() {
+  const t = useTranslations('viewAs');
   const isSuper = useIsSuperUser();
   const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState<string | null>(null);
@@ -35,6 +49,8 @@ export function ImpersonationBar() {
   // answered yet (or can't) — otherwise a preview could strand you in it.
   const [previewing, setPreviewing] = useState(false);
   const [chooserOpen, setChooserOpen] = useState(false);
+  const [tab, setTab] = useState<ViewAsTab>('person');
+  const [viewingPerson, setViewingPerson] = useState(false);
   // True when the maintenance gate is currently blocking the REAL super user and
   // no scenario is active — then the Header eye button is hidden behind the gate.
   const [gateBlockingMe, setGateBlockingMe] = useState(false);
@@ -44,6 +60,7 @@ export function ImpersonationBar() {
     const current = getViewMode();
     setMode(current);
     if (current) setPreviewing(true);
+    setViewingPerson(!!getViewedPerson());
   }, []);
 
   // Is the maintenance gate currently blocking the REAL super user? Only worth
@@ -66,14 +83,24 @@ export function ImpersonationBar() {
     return () => { live = false; };
   }, [isSuper, mode]);
 
-  // Open the chooser when the Header eye button dispatches 'open-view-as'.
+  // Open the chooser when the Header eye button (or the academy's ⚙) dispatches
+  // 'open-view-as'; a CustomEvent's detail can name the tab.
   useEffect(() => {
-    const open = () => setChooserOpen(true);
+    const open = (e: Event) => {
+      const want = (e as CustomEvent<ViewAsTab | undefined>).detail;
+      setTab(want === 'role' || want === 'person' ? want : 'person');
+      setChooserOpen(true);
+    };
     window.addEventListener('open-view-as', open);
     return () => window.removeEventListener('open-view-as', open);
   }, []);
 
-  if (!mounted || !(isSuper || previewing)) return null;
+  if (!mounted) return null;
+  const roleTab = isSuper || previewing;
+  const shownTab: ViewAsTab = roleTab ? tab : 'person';
+  // A role scenario from inside a person view: end the person view first, or the
+  // role would be drawn over somebody else's data.
+  const pickRole = (m: string) => { clearViewedPerson(); startViewAs(m); };
 
   return (
     <>
@@ -87,7 +114,7 @@ export function ImpersonationBar() {
           behind the gate, so surface a reachable trigger here. */}
       {!mode && gateBlockingMe && (
         <button
-          onClick={() => setChooserOpen(true)}
+          onClick={() => { setTab('role'); setChooserOpen(true); }}
           // Band 3 with white text: it floats over the maintenance gate, which is
           // now light, so the old dark amber gradient carried ink-700 text on a
           // brown fill — dark on dark. Kept a warning colour rather than the brand
@@ -98,13 +125,46 @@ export function ImpersonationBar() {
         </button>
       )}
 
-      {/* Scenario chooser */}
-      <Sheet open={chooserOpen} onOpenChange={setChooserOpen} title="תצוגה כמשתמש">
+      {/* Person / role chooser */}
+      <Sheet open={chooserOpen} onOpenChange={setChooserOpen} title={t('title')}>
         <div dir="rtl">
-          <p className="px-1 pt-1 text-xs text-ink-400 leading-relaxed">
-            נשארים מחוברים כ‑Ofer — בוחרים איזו תצוגה לראות:
-          </p>
+          <p className="px-1 pt-1 text-center text-xs text-ink-400 leading-relaxed">{t('intro')}</p>
 
+          {roleTab && (
+            <div role="tablist" className="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-page p-1">
+              {(['person', 'role'] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  role="tab"
+                  aria-selected={shownTab === k}
+                  onClick={() => setTab(k)}
+                  className={cn(
+                    'min-h-[36px] rounded-lg text-sm font-bold transition-colors',
+                    shownTab === k ? 'bg-card text-ink-700 shadow-sm' : 'text-ink-400',
+                  )}
+                >
+                  {k === 'person' ? t('segPerson') : t('segRole')}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {shownTab === 'person' && (
+            <div className="pt-3">
+              <ViewAsPersonPicker open={chooserOpen} />
+              {viewingPerson && (
+                <button
+                  onClick={() => stopViewingAs()}
+                  className="w-full flex items-center justify-center gap-2 mt-3 px-4 py-3 border-t border-page text-sm font-bold text-ink-500 hover:text-ink-900 hover:bg-page/50 transition-colors"
+                >
+                  <LogOut className="h-4 w-4" /> {t('exit')}
+                </button>
+              )}
+            </div>
+          )}
+
+          {shownTab === 'role' && (
           <div className="pt-3 grid grid-cols-2 gap-2">
             {VIEW_AS_SCENARIOS.map((s) => {
               const Icon = s.icon;
@@ -113,7 +173,7 @@ export function ImpersonationBar() {
               return (
                 <button
                   key={s.mode}
-                  onClick={() => startViewAs(s.mode)}
+                  onClick={() => pickRole(s.mode)}
                   className={cn(
                     'flex flex-col items-center justify-center gap-2 py-4 rounded-xl border transition-colors',
                     isMaint ? 'col-span-2' : '',
@@ -129,7 +189,9 @@ export function ImpersonationBar() {
             })}
           </div>
 
-          {mode && (
+          )}
+
+          {shownTab === 'role' && mode && (
             <button
               onClick={() => stopViewAs()}
               className="w-full flex items-center justify-center gap-2 mt-3 px-4 py-3 border-t border-page text-sm font-bold text-ink-500 hover:text-ink-900 hover:bg-page/50 transition-colors"
@@ -138,9 +200,11 @@ export function ImpersonationBar() {
             </button>
           )}
 
-          <div className="mt-3 px-4 py-2.5 border-t border-page text-[11px] text-ink-400 text-center leading-relaxed">
-            תצוגה בלבד — שמירת נתונים מושבתת במצב זה.
-          </div>
+          {shownTab === 'role' && (
+            <div className="mt-3 px-4 py-2.5 border-t border-page text-[11px] text-ink-400 text-center leading-relaxed">
+              תצוגה בלבד — שמירת נתונים מושבתת במצב זה.
+            </div>
+          )}
         </div>
       </Sheet>
     </>

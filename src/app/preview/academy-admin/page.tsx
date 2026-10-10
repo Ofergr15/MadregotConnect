@@ -5,8 +5,7 @@ import { useState } from 'react';
 import { ChevronDown, LayoutDashboard } from 'lucide-react';
 import { AcademyCard } from '@/components/admin/AcademyCard';
 import { AcademyOverview, AcademyWeekArrows, AcademyWeekLabel } from '@/components/academy/AcademyOverview';
-import { AcademyAdminButton, CoachesSheet, ViewAsBanner } from '@/components/academy/AcademyAdmin';
-import { getViewedPerson } from '@/lib/view-as-person';
+import { AcademyAdminButton, CoachesSheet } from '@/components/academy/AcademyAdmin';
 import type { AcademyMember, AcademyMembersResponse } from '@/components/academy/types';
 import { planWeekStartOf } from '@/lib/utils';
 
@@ -122,7 +121,6 @@ export default function PreviewAcademyAdmin() {
       <main id="app-main" className="mx-auto w-full max-w-7xl flex-1 min-h-0 overflow-y-auto px-4 pt-5 pb-4">
         {card && <div className="mb-6"><AcademyCard /></div>}
         <div className="mx-auto max-w-5xl">
-          {typeof window !== 'undefined' && getViewedPerson() && <ViewAsBanner person={getViewedPerson()!} />}
           <div className="mb-2 flex items-center justify-between gap-4">
             <div className="min-w-0"><h1 className="text-2xl font-extrabold tracking-tight text-ink-700">אקדמיה</h1><AcademyWeekLabel weekStart={weekStart} /></div>
             <div className="flex shrink-0 items-center gap-1">

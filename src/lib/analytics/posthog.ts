@@ -1,4 +1,5 @@
 import type { PostHog } from 'posthog-js';
+import { isViewingPerson } from '@/lib/view-as-person';
 
 /**
  * Lazy loader for posthog-js.
@@ -22,8 +23,10 @@ export function loadPostHog(): Promise<PostHog | null> {
   if (pending) return pending;
 
   const projectToken = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
-  // Keep local development and unconfigured deployments free of analytics noise.
-  if (!projectToken) {
+  // Keep local development and unconfigured deployments free of analytics noise —
+  // and an admin viewing the app as somebody (lib/view-as-person.ts) out of it
+  // entirely: every event would be recorded as, and identify, the viewed person.
+  if (!projectToken || isViewingPerson()) {
     pending = Promise.resolve(null);
     return pending;
   }

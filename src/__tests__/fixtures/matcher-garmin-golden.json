@@ -1,0 +1,98 @@
+{
+  "rows": [
+    {
+      "activity_id": "x-0",
+      "athlete_id": "a-1",
+      "weekly_plan_id": "p-1",
+      "workout_key": "day-0-part-1-single",
+      "group_number": 2,
+      "match_method": "garmin_workout",
+      "score": 100,
+      "evidence": {
+        "reason": "garmin_workout_id",
+        "garminWorkoutId": "9001",
+        "deliveryId": "d-0"
+      }
+    },
+    {
+      "activity_id": "x-1",
+      "athlete_id": "a-1",
+      "weekly_plan_id": "p-1",
+      "workout_key": "day-1-part-1-single",
+      "group_number": 2,
+      "match_method": "auto",
+      "score": 91.09,
+      "evidence": {
+        "activityDistanceM": 7900,
+        "expectedDistanceM": 8000,
+        "distanceDifferenceM": 100,
+        "distanceToleranceM": 640,
+        "activityOrder": 1,
+        "partIndex": 1,
+        "matchedNameTokens": [],
+        "dayDelta": 0,
+        "plannedDayOfWeek": 1
+      }
+    },
+    {
+      "activity_id": "x-2",
+      "athlete_id": "a-1",
+      "weekly_plan_id": "p-1",
+      "workout_key": "day-2-part-1-single",
+      "group_number": 2,
+      "match_method": "auto",
+      "score": 92.4,
+      "evidence": {
+        "activityDistanceM": 12100,
+        "expectedDistanceM": 12000,
+        "distanceDifferenceM": 100,
+        "distanceToleranceM": 960,
+        "activityOrder": 1,
+        "partIndex": 1,
+        "matchedNameTokens": [],
+        "dayDelta": 0,
+        "plannedDayOfWeek": 2
+      }
+    },
+    {
+      "activity_id": "x-4",
+      "athlete_id": "a-1",
+      "weekly_plan_id": "p-1",
+      "workout_key": "day-4-part-1-single",
+      "group_number": 2,
+      "match_method": "auto",
+      "score": 95,
+      "evidence": {
+        "activityDistanceM": 6000,
+        "expectedDistanceM": 6000,
+        "distanceDifferenceM": 0,
+        "distanceToleranceM": 480,
+        "activityOrder": 1,
+        "partIndex": 1,
+        "matchedNameTokens": [],
+        "dayDelta": 0,
+        "plannedDayOfWeek": 4
+      }
+    },
+    {
+      "activity_id": "x-5",
+      "athlete_id": "a-1",
+      "weekly_plan_id": "p-1",
+      "workout_key": "day-6-part-1-single",
+      "group_number": 2,
+      "match_method": "manual",
+      "score": null,
+      "evidence": null
+    }
+  ],
+  "confirmed": [
+    [
+      "d-0",
+      true
+    ],
+    [
+      "d-2",
+      false
+    ]
+  ]
+}

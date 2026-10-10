@@ -8,6 +8,7 @@ import { Eye, LogIn, Wrench } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 import { apiHeaders, useApi } from '@/lib/api';
+import { openViewAsChooser } from '@/lib/view-as-person';
 
 // Public routes the gate must NEVER cover — otherwise a logged-out user (e.g.
 // Ofer in the installed PWA, which has its own session separate from Safari)
@@ -194,7 +195,7 @@ export function MaintenanceGate() {
             can switch scenarios without hunting for the tiny floating pill. */}
         {isSuper && (
           <button
-            onClick={() => window.dispatchEvent(new Event('open-view-as'))}
+            onClick={() => openViewAsChooser('role')}
             // ui/Button's `secondary` now, not `primary`: turning the window off
             // is the one thing you're meant to tap on this screen, and two solid
             // brand buttons stacked would say they matter equally.

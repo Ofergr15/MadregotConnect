@@ -91,7 +91,8 @@ export async function accessToken(): Promise<string | null> {
 export async function bearerHeaders(includeJson = true): Promise<Record<string, string>> {
   const token = await accessToken();
   // "View as this person" (lib/auth/view-as.ts): sent on every request, and the
-  // server decides where it counts — the academy, for the super user, reads only.
+  // server decides where it counts — every /api/ read but its deny-list, for an
+  // admin only. Writes never leave the browser while viewing (lib/view-as-person.ts).
   const viewing = getViewedPerson();
   return {
     ...(includeJson ? { 'Content-Type': 'application/json' } : {}),

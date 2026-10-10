@@ -63,6 +63,12 @@ export interface VerifiedCaller {
    * `role = 'core_runner'`, so callers should ask this and not compare the role.
    */
   isCoreRunner: boolean;
+  /**
+   * Set while an admin views the app as this caller (lib/auth/view-as.ts). A GET
+   * that writes as a side effect — a read mark, a cache fill, a token refresh —
+   * checks it and skips the write.
+   */
+  viewingAsBy?: string;
 }
 
 /**
@@ -136,6 +142,7 @@ export async function resolveVerifiedCaller(
       role: auth.user.role,
       roles: auth.user.roles ?? [auth.user.role],
       isCoreRunner: auth.user.isCoreRunner,
+      ...(auth.user.viewingAsBy ? { viewingAsBy: auth.user.viewingAsBy } : {}),
     },
   };
 }

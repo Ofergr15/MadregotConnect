@@ -83,6 +83,7 @@ export function ThreadTranscript({
   error = null,
   className,
   layout = 'inline',
+  readOnly,
 }: {
   messages: ThreadMessage[];
   /** Which seat is looking. Their own messages are the ones that sit on the end. */
@@ -105,6 +106,11 @@ export function ThreadTranscript({
    * The parent must give a `sheet` a bounded height (flex-1 min-h-0).
    */
   layout?: 'inline' | 'sheet';
+  /**
+   * Draw the composer greyed with this label instead of a working one — an admin
+   * viewing the app as somebody (lib/view-as-person.ts). Tapping it says why.
+   */
+  readOnly?: { label: string; onTap: () => void };
 }) {
   const [draft, setDraft] = useState('');
   const [shown, setShown] = useState(THREAD_PAGE);
@@ -177,7 +183,23 @@ export function ThreadTranscript({
 
       {error && <p className="mt-1 text-[11px] text-accent-red-ink">{error}</p>}
 
-      {onSend && (
+      {readOnly && (
+        <button
+          type="button"
+          onClick={readOnly.onTap}
+          data-testid="thread-composer-readonly"
+          className={cn('mt-2 flex w-full items-center gap-2', isSheet && 'shrink-0 border-t border-page pt-2')}
+        >
+          <span className="flex min-h-[44px] flex-1 items-center rounded-xl border border-page bg-page/60 px-3 text-base text-ink-400">
+            {readOnly.label}
+          </span>
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-page text-ink-300">
+            <Send className="h-4 w-4" />
+          </span>
+        </button>
+      )}
+
+      {onSend && !readOnly && (
         <div className={cn('mt-2 flex items-end gap-2', isSheet && 'shrink-0 border-t border-page pt-2')}>
           <textarea
             value={draft}

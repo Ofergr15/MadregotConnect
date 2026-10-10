@@ -6,6 +6,7 @@ import { mutate } from 'swr';
 import { BellRing, HeartHandshake, MessageCircle, CalendarCheck } from 'lucide-react';
 import { isIosDevice, subscribeToPush } from '@/lib/pwa';
 import { useOnboardingV2 } from '@/lib/install/v2';
+import { isComputer } from '@/lib/install/platform';
 import { IosPermissionPreview } from '@/components/install/IosPermissionPreview';
 import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
 import { ONBOARDING_KEY, useOnboarding } from '@/lib/onboarding/use-onboarding';
@@ -52,7 +53,9 @@ export function NotificationsStep() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    setShow(canShowNotificationsStep(data, installAnswered, readPermission()));
+    // Never on a computer: the coach's notifications are a phone thing, and the
+    // member is invited to the phone instead (lib/install/platform isComputer).
+    setShow(!isComputer() && canShowNotificationsStep(data, installAnswered, readPermission()));
   }, [data, installAnswered]);
 
   /** Gone for good: they enabled it, or asked not to be offered again. */

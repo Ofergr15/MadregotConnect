@@ -1,12 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { looksLikeAthleteId, viewAsApplies } from '@/lib/auth/view-as';
+import { looksLikeAthleteId, viewAsApplies, viewAsTag, VIEW_AS_DENY } from '@/lib/auth/view-as';
 
-// "View as this person" (lib/auth/view-as.ts): the super user's token plus
-// `x-view-as: <athleteId>` is answered as that athlete — on the academy's reads
-// only, and never for anybody else's token.
+// "View as this person" (lib/auth/view-as.ts): an admin's token plus
+// `x-view-as: <athleteId>` is answered as that athlete — on every /api/ read but
+// the deny-list, and never for a non-admin's token.
 
 const OFER = { id: '00000000-0000-4000-8000-000000000001', email: 'grosfeldofer@gmail.com', name: 'Ofer', role: 'admin', status: 'active', approved: true };
 const DANA = { id: '00000000-0000-4000-8000-0000000000da', email: 'dana@x.com', name: 'Dana', role: 'academy_coach', status: 'active', approved: true, is_super_user: false };
+const ADMIN = { id: '00000000-0000-4000-8000-0000000000ad', email: 'admin2@x.com', name: 'Second Admin', role: 'runner', extra_roles: ['admin'], status: 'active', approved: true, is_super_user: false };
 const RUNNER = { id: '00000000-0000-4000-8000-0000000000aa', email: 'runner@x.com', name: 'Runner', role: 'runner', status: 'active', approved: true };
 let me: Record<string, unknown>;
 
@@ -21,7 +22,7 @@ vi.mock('@/lib/supabase/server', () => ({
         select: () => chain, order: () => chain, limit: () => chain, or: () => chain,
         eq: (col: string, v: unknown) => { filters.push([col, v]); return chain; },
         then: (resolve: (v: unknown) => unknown) => {
-          const all = [OFER, DANA, RUNNER];
+          const all = [OFER, DANA, RUNNER, ADMIN];
           const byId = filters.find(([c]) => c === 'id');
           const byEmail = filters.find(([c]) => c === 'email');
           const rows = byId ? all.filter((r) => r.id === byId[1]) : byEmail ? all.filter((r) => r.email === byEmail[1]) : [];
@@ -69,17 +70,55 @@ describe('view as this person', () => {
     }
   });
 
-  it('means nothing outside the academy: the super user stays themselves', async () => {
-    for (const path of ['/api/feed', '/api/auth/me', '/api/athletes']) {
+  it('applies to the whole app, /api/auth/me included', async () => {
+    for (const path of ['/api/feed', '/api/auth/me', '/api/athletes', '/api/notifications/unread', '/api/academy/members']) {
       const r = await requireSession(req(path, DANA.id));
-      expect(r.ok && r.user.athleteId).toBe(OFER.id);
+      expect(r.ok && r.user.athleteId).toBe(DANA.id);
+      expect(r.ok && r.user.viewingAsBy).toBe(OFER.email);
     }
   });
 
-  it('means nothing from anybody but the super user', async () => {
-    me = RUNNER;
-    const r = await requireSession(req('/api/academy/members', DANA.id));
+  it('is honoured for an admin who is not the super user (role held as an extra)', async () => {
+    me = ADMIN;
+    const r = await requireSession(req('/api/feed', RUNNER.id));
     expect(r.ok && r.user.athleteId).toBe(RUNNER.id);
+    expect(r.ok && r.user.viewingAsBy).toBe(ADMIN.email);
+  });
+
+  it('refuses every write anywhere in the app while viewing', async () => {
+    for (const path of ['/api/feed/like', '/api/workout-feedback/x/messages', '/api/academy/threads/messages', '/api/push/subscribe']) {
+      const r = await requireSession(req(path, DANA.id, 'POST'));
+      expect(!r.ok && r.status).toBe(403);
+      expect(!r.ok && r.error).toBe('view_as_read_only');
+    }
+  });
+
+  it('means nothing on the deny-listed paths: the admin stays themselves', async () => {
+    for (const path of ['/api/auth/silent-session', '/api/auth/device-token', '/api/auth/resolve-role', '/api/strava/callback',
+      '/api/garmin/sso-callback', '/api/cron/tick', '/api/maintenance', '/api/admin/view-as', '/api/dev/test-signin']) {
+      const r = await requireSession(req(path, DANA.id));
+      expect(r.ok && r.user.athleteId).toBe(OFER.id);
+      expect(r.ok && r.user.viewingAsBy).toBeUndefined();
+    }
+    // A write on a denied path is the admin's own (sign-out, silent re-auth).
+    const out = await requireSession(req('/api/auth/sign-out', DANA.id, 'POST'));
+    expect(out.ok && out.user.athleteId).toBe(OFER.id);
+  });
+
+  it('means nothing from anybody who is not an admin, an academy coach included', async () => {
+    for (const who of [RUNNER, DANA]) {
+      me = who;
+      clearSessionCache();
+      const target = who === RUNNER ? DANA.id : RUNNER.id;
+      for (const path of ['/api/academy/members', '/api/feed', '/api/auth/me']) {
+        const r = await requireSession(req(path, target));
+        expect(r.ok && r.user.athleteId).toBe(who.id);
+        expect(r.ok && r.user.viewingAsBy).toBeUndefined();
+      }
+      // Ignored, not refused: their own write still goes through as themselves.
+      const w = await requireSession(req('/api/feed/like', target, 'POST'));
+      expect(w.ok && w.user.athleteId).toBe(who.id);
+    }
   });
 
   it('refuses a malformed id and an unknown one', async () => {
@@ -91,9 +130,25 @@ describe('view as this person', () => {
 
   it('knows where it applies', () => {
     expect(viewAsApplies('/api/academy/members')).toBe(true);
-    expect(viewAsApplies('/api/academyx')).toBe(false);
-    expect(viewAsApplies('/api/auth/me')).toBe(false);
+    expect(viewAsApplies('/api/feed')).toBe(true);
+    expect(viewAsApplies('/api/auth/me')).toBe(true);
+    expect(viewAsApplies('/api/auth/silent-session')).toBe(false);
+    expect(viewAsApplies('/api/maintenance')).toBe(false);
+    // Whole segments, not string prefixes.
+    expect(viewAsApplies('/api/maintenancex')).toBe(true);
+    expect(viewAsApplies('/api/admin/view-as-other')).toBe(true);
+    expect(viewAsApplies('/feed')).toBe(false);
+    for (const p of VIEW_AS_DENY) expect(viewAsApplies(p.endsWith('/') ? `${p}x` : p)).toBe(false);
     expect(looksLikeAthleteId(DANA.id)).toBe(true);
     expect(looksLikeAthleteId("x' or 1=1")).toBe(false);
+  });
+
+  it('tags each person by the most specific role they hold', () => {
+    expect(viewAsTag(['runner', 'admin'], false)).toBe('admin');
+    expect(viewAsTag(['runner', 'academy_manager'], false)).toBe('academy_manager');
+    expect(viewAsTag(['academy_coach'], false)).toBe('academy_coach');
+    expect(viewAsTag(['coach'], true)).toBe('coach');
+    expect(viewAsTag(['runner'], true)).toBe('trainee');
+    expect(viewAsTag(['runner'], false)).toBe('runner');
   });
 });

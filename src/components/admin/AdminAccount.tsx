@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { LogOut, ShieldCheck, Stamp, IdCard, Tag, Smartphone, Undo2 } from 'lucide-react';
+import { Eye, LogOut, ShieldCheck, Stamp, IdCard, Tag, Smartphone, Undo2 } from 'lucide-react';
+import { openViewAsChooser } from '@/lib/view-as-person';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { APP_VERSION } from '@/lib/version';
@@ -47,6 +48,7 @@ interface Me {
 export function AdminAccount() {
   const t = useTranslations('adminAccount');
   const tCommon = useTranslations('common');
+  const tv = useTranslations('viewAs');
   const { data: me } = useApi<Me>('/api/auth/me');
 
   // Identity as the rest of the app reads it (same keys as the Header) — the
@@ -127,6 +129,12 @@ export function AdminAccount() {
           value={me ? (me.canApprove ? yes : no) : '—'}
           valueSuccess={!!me?.canApprove}
         />
+      </InsetSection>
+
+      {/* A person, not a role: the whole app as one member sees it, read-only.
+          Any admin; the role previews below stay the super user's. */}
+      <InsetSection header={tv('title')}>
+        <InsetRow icon={Eye} iconBg="bg-[#B45309]" label={tv('openPicker')} onClick={() => openViewAsChooser('person')} />
       </InsetSection>
 
       {/* Only the super-user can preview a role at all, so the section hides for

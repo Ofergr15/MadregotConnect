@@ -64,7 +64,9 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'forbidden' }, { status: 403 });
       }
 
-      const verdict = await resolveExecutionVerdict(supabase, activityId, tolerances);
+      // Read-only while an admin views the app as somebody (lib/auth/view-as.ts):
+      // the verdict is computed, and no match or lap cache is written for it.
+      const verdict = await resolveExecutionVerdict(supabase, activityId, tolerances, { readOnly: !!caller.viewingAsBy });
       if (!verdict) return NextResponse.json({ error: 'not found' }, { status: 404 });
       return NextResponse.json({ verdict });
     }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { computeSetupState } from '@/lib/onboarding/setup-tasks';
+import { phoneAppState } from '@/lib/onboarding/phone-app';
 import { KIT_SIZE_COLUMNS_100, kitSizeSetupInput } from '@/lib/kit-sizes';
 
 export const dynamic = 'force-dynamic';
@@ -135,6 +136,7 @@ export async function GET(request: Request) {
       completed: !!completedAt,
       completedAt,
       ...state,
+      phoneApp: await phoneAppState(auth.user.athleteId, pushCount ?? 0, new URL(request.url).origin),
     });
   } catch (err) {
     console.error('Failed to resolve onboarding state:', err);

@@ -10,6 +10,12 @@ import {
 } from './garmin-workout-matches';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { fetchAllRows } from '@/lib/supabase/paginate';
+import {
+  anyProviderPlan,
+  pairByProviderPlanId,
+  type ActivityWithProviderPlan,
+  type AppleDeliveredWorkout,
+} from '@/lib/watch/plan-matches';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
@@ -23,12 +29,24 @@ type SupabaseServer = ReturnType<typeof createServerClient>;
  * `activity_plan_matches` is unique on the activity and on the plan slot: only one
  * of the three can hold a given pair.
  */
-export type MatchMethod = 'manual' | 'garmin_workout' | 'auto';
+export type MatchMethod = 'manual' | 'garmin_workout' | 'apple_workout' | 'auto';
 
-/** Both derived methods are recomputed from scratch; only `manual` is preserved. */
-const DERIVED_METHODS: MatchMethod[] = ['auto', 'garmin_workout'];
+/**
+ * Every derived method is recomputed from scratch; only `manual` is preserved.
+ * `apple_workout` (migration 138) is the Apple Watch twin of `garmin_workout`:
+ * the run carried the plan id of the workout we scheduled (lib/watch/plan-matches.ts).
+ */
+const DERIVED_METHODS: MatchMethod[] = ['auto', 'garmin_workout', 'apple_workout'];
 
-type ActivityRow = MatchableActivity & ActivityWithGarminWorkout;
+type ActivityRow = MatchableActivity & ActivityWithGarminWorkout & ActivityWithProviderPlan;
+
+/**
+ * Migration 138's `provider_plan_id`, remembered as missing for a while once a
+ * select has said so, so a database without it pays one failed query per
+ * instance per 10 minutes rather than one per match.
+ */
+const PROVIDER_PLAN_RETRY_MS = 10 * 60_000;
+let providerPlanMissingUntil = 0;
 
 /**
  * The athlete's activities, with the Garmin workout id when the database has that
@@ -70,6 +88,15 @@ async function loadActivities(
       .range(from, to)
       .returns<ActivityRow[]>();
 
+  if (Date.now() >= providerPlanMissingUntil) {
+    try {
+      return await fetchAllRows<ActivityRow>(page(`${columns}, garmin_workout_id, provider_plan_id`));
+    } catch (error) {
+      // Pre-138: no provider_plan_id. Everything below is exactly the old chain.
+      if (!isMissingColumn(error, 'provider_plan_id')) throw error;
+      providerPlanMissingUntil = Date.now() + PROVIDER_PLAN_RETRY_MS;
+    }
+  }
   try {
     return await fetchAllRows<ActivityRow>(page(`${columns}, garmin_workout_id`));
   } catch (error) {
@@ -107,13 +134,37 @@ async function loadDeliveries(
 }
 
 /**
+ * The Apple deliveries for this plan, keyed by the plan id the phone scheduled.
+ * Only asked for when one of the week's runs actually carries a plan id — so an
+ * athlete with no Apple uploads (every Garmin and Strava athlete) costs nothing.
+ * [] on any error: exact attribution degrades to the heuristic, never fails it.
+ */
+async function loadAppleDeliveries(
+  supabase: SupabaseServer,
+  planId: string,
+  athleteId: string,
+  activities: ActivityWithProviderPlan[],
+): Promise<AppleDeliveredWorkout[]> {
+  if (!anyProviderPlan(activities)) return [];
+  const { data, error } = await supabase
+    .from('workout_deliveries')
+    .select('id, provider_plan_id, workout_key')
+    .eq('plan_id', planId)
+    .eq('athlete_id', athleteId)
+    .eq('provider', 'apple')
+    .not('provider_plan_id', 'is', null);
+  if (error) return [];
+  return (data || []) as AppleDeliveredWorkout[];
+}
+
+/**
  * Stamp the moment we learned the watch had these workouts. Best-effort by
  * design — this is a record of something that already happened, and failing to
  * write it must not cost the match it came from.
  */
 async function markDeviceConfirmed(
   supabase: SupabaseServer,
-  matches: GarminWorkoutMatch[],
+  matches: Array<Pick<GarminWorkoutMatch, 'deliveryId'>>,
 ): Promise<void> {
   if (matches.length === 0) return;
   // `.is(..., null)` so the stamp keeps the FIRST sighting: this is when the watch
@@ -254,6 +305,26 @@ export async function findComputedActivityMatch(
       }
     }
 
+    const appleConfirmed = pairByProviderPlanId(
+      weekActivities,
+      await loadAppleDeliveries(supabase, plan.id, athleteId, weekActivities),
+    ).find((match) => match.activityId === activityId);
+    if (appleConfirmed) {
+      const workout = groupPlan.workouts.find(
+        (candidate: ParsedWorkout) => candidate.workoutKey === appleConfirmed.workoutKey,
+      );
+      if (workout) {
+        return {
+          weeklyPlanId: plan.id,
+          workoutKey: appleConfirmed.workoutKey,
+          groupNumber,
+          score: 100,
+          matchMethod: 'apple_workout',
+          workout,
+        };
+      }
+    }
+
     const matches = matchActivityParts(weekActivities as MatchableActivity[], groupPlan.workouts);
     const hit = matches.find((match) => match.activityId === activityId);
     if (!hit) continue;
@@ -352,13 +423,34 @@ export async function matchAthleteActivities(
         ),
     );
 
+    // The Apple Watch's own attribution, on what is still unclaimed. Same rules
+    // as the Garmin one above; the two can't both hold a run (one source each).
+    const garminClaimedActivities = new Set(confirmed.map((match) => match.activityId));
+    const garminClaimedKeys = new Set(confirmed.map((match) => match.workoutKey));
+    const appleCandidates = weekActivities.filter(
+      (activity) => !manualActivityIds.has(activity.id) && !garminClaimedActivities.has(activity.id),
+    );
+    const appleConfirmed = pairByProviderPlanId(
+      appleCandidates,
+      await loadAppleDeliveries(supabase, plan.id, athleteId, appleCandidates),
+    ).filter(
+      (match) =>
+        !manualWorkoutKeys.has(match.workoutKey) &&
+        !garminClaimedKeys.has(match.workoutKey) &&
+        groupPlan.workouts.some(
+          (workout: ParsedWorkout) => workout.workoutKey === match.workoutKey,
+        ),
+    );
+
     const claimedActivityIds = new Set([
       ...manualActivityIds,
       ...confirmed.map((match) => match.activityId),
+      ...appleConfirmed.map((match) => match.activityId),
     ]);
     const claimedWorkoutKeys = new Set([
       ...manualWorkoutKeys,
       ...confirmed.map((match) => match.workoutKey),
+      ...appleConfirmed.map((match) => match.workoutKey),
     ]);
 
     const availableActivities = weekActivities.filter(
@@ -387,6 +479,20 @@ export async function matchAthleteActivities(
           deliveryId: match.deliveryId,
         },
       })),
+      ...appleConfirmed.map((match) => ({
+        activity_id: match.activityId,
+        athlete_id: athleteId,
+        weekly_plan_id: plan.id,
+        workout_key: match.workoutKey,
+        group_number: groupNumber,
+        match_method: 'apple_workout',
+        score: 100,
+        evidence: {
+          reason: 'provider_plan_id',
+          providerPlanId: match.providerPlanId,
+          deliveryId: match.deliveryId,
+        },
+      })),
       ...heuristic.map((match) => ({
         activity_id: match.activityId,
         athlete_id: athleteId,
@@ -408,7 +514,7 @@ export async function matchAthleteActivities(
       }
       throw insertError;
     }
-    await markDeviceConfirmed(supabase, confirmed);
+    await markDeviceConfirmed(supabase, [...confirmed, ...appleConfirmed]);
     matched += rows.length;
   }
 

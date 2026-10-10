@@ -1453,7 +1453,11 @@
     "tourSetupBody": "האחוז מראה מה עוד חסר: חיבור השעון, תמונה, פרטים אישיים ומידות. אפשר להיכנס בכל רגע ולהמשיך מאיפה שעצרת.",
     "taskInstall": "הוספה למסך הבית",
     "hintInstall": "כדי לקבל התראות ואפליקציה מלאה",
-    "ctaInstall": "התקנה"
+    "ctaInstall": "התקנה",
+    "tourLatestKicker": "ולסיום",
+    "tourLatestTitle": "מה חדש לאחרונה",
+    "tourLatestBody": "הדברים האחרונים שהוספנו לאפליקציה. לחיצה פותחת את המקום.",
+    "tourLatestDone": "סיום, בואו נרוץ"
   },
   "onboarding": {
     "completeSetup": "השלם את ההגדרה",
@@ -3631,5 +3635,30 @@
       "nameTaken": "יש בספר כבר אימון באחד השמות. נסו שוב."
     },
     "fromClubNote": "אין עדיין תוכנית אישית לשבוע הזה: זה השבוע של הבוגרת, בקצב של {name}."
+  },
+  "viewAs": {
+    "title": "להתחבר בתור",
+    "intro": "רואים את כל האפליקציה בדיוק כמו אצלו. לקריאה בלבד: לא שולחים, לא שומרים ולא מסמנים שום דבר בשמו.",
+    "segPerson": "אדם",
+    "segRole": "תפקיד",
+    "search": "חיפוש לפי שם",
+    "recent": "אחרונים",
+    "noResults": "לא נמצא",
+    "loadFailed": "לא הצלחנו לטעון את הרשימה",
+    "withCoach": "אצל {coach}",
+    "trainees": "{count, plural, one {מתאמן אחד} other {# מתאמנים}}",
+    "tag_admin": "אדמין",
+    "tag_academy_manager": "מנהל אקדמיה",
+    "tag_academy_coach": "מאמן אקדמיה",
+    "tag_coach": "מאמן",
+    "tag_trainee": "מתאמן אקדמיה",
+    "tag_runner": "רץ",
+    "bannerAs": "מחובר בתור {name}",
+    "readOnly": "קריאה בלבד",
+    "exit": "יציאה",
+    "blockedToast": "קריאה בלבד: אפשר לראות מה {name} רואה, לא לשלוח בשמו",
+    "chatHidden": "הצ׳אט לא מוצג בזמן צפייה בתור {name}",
+    "viewing": "צופה בתור {name}",
+    "openPicker": "להתחבר בתור…"
   }
 }

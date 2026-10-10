@@ -87,7 +87,7 @@ export function MemberSheet({
   onOpenThread?: (athleteId: string) => void;
   onOpenPlan?: (athleteId: string) => void;
   onOpenTests?: (athleteId: string) => void;
-  /** Super user only: "view as they see it" (lib/view-as-person). */
+  /** Admins only: "view as they see it" — the whole app, read-only (lib/view-as-person). */
   canViewAs?: boolean;
 }) {
   const t = useTranslations('academy');
@@ -256,7 +256,10 @@ export function MemberSheet({
                   icon={Eye}
                   iconBg="bg-ink-500"
                   label="לצפות כמו שהוא רואה"
-                  onClick={() => startViewingAs({ id: member.athleteId, name: member.name, kind: 'trainee' })}
+                  onClick={() => startViewingAs({
+                    id: member.athleteId, name: member.name, tag: 'trainee',
+                    email: member.email || null, groupId: member.groupId, avatarUrl: member.avatarUrl,
+                  }, '/dashboard/academy')}
                 />
               )}
             </InsetSection>

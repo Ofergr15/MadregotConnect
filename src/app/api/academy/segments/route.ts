@@ -252,8 +252,9 @@ export async function GET(request: Request) {
             const lapData = await client.getActivitySplits(Number(activity.garmin_activity_id));
             if (lapsWorthStoring(lapData)) {
               laps = narrowLaps(lapData);
-              // Best-effort cache back (ignore if column unmigrated).
-              await supabase.from('athlete_activities').update({ laps })
+              // Best-effort cache back (ignore if column unmigrated). Not while an
+              // admin views the app as somebody (lib/auth/view-as.ts): read-only.
+              if (!caller.viewingAsBy) await supabase.from('athlete_activities').update({ laps })
                 .eq('id', activity.id).then(() => {}, () => {});
             }
           }
@@ -262,7 +263,7 @@ export async function GET(request: Request) {
           if (!executedWorkout && isStamped(laps)) {
             executedWorkout = narrowExecutedWorkout(
               await client.getActivityWorkout(Number(activity.garmin_activity_id)));
-            if (executedWorkout) {
+            if (executedWorkout && !caller.viewingAsBy) {
               await supabase.from('athlete_activities')
                 .update({ executed_workout: executedWorkout })
                 .eq('id', activity.id).then(() => {}, () => {});

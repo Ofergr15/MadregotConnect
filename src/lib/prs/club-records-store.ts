@@ -211,15 +211,17 @@ export async function computeClubRecordsSnapshot(supabase: SupabaseServer): Prom
  */
 export async function getClubRecords(
   supabase: SupabaseServer,
-  opts: { refresh?: boolean } = {},
+  /** `readOnly`: serve a stale snapshot as it is — an admin viewing as somebody writes nothing. */
+  opts: { refresh?: boolean; readOnly?: boolean } = {},
 ): Promise<{ snapshot: ClubRecordsSnapshot; recomputed: boolean }> {
   const stored = await readClubRecords(supabase);
   const wants = isStale(stored) || (opts.refresh === true && refreshAllowed(stored));
   if (!wants && stored) return { snapshot: stored, recomputed: false };
+  if (opts.readOnly && stored) return { snapshot: stored, recomputed: false };
 
   try {
     const fresh = await computeClubRecordsSnapshot(supabase);
-    await writeClubRecords(supabase, fresh);
+    if (!opts.readOnly) await writeClubRecords(supabase, fresh);
     return { snapshot: fresh, recomputed: true };
   } catch (err) {
     if (stored) {

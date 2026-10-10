@@ -60,7 +60,7 @@ function helpLink(platform: InstallPlatform, step: number, name?: string | null)
   return `https://wa.me/${HELP_WHATSAPP}?text=${encodeURIComponent(text)}`;
 }
 
-function Qr({ url }: { url: string }) {
+export function Qr({ url }: { url: string }) {
   const svg = useMemo(() => {
     const q = qrcode(0, 'M');
     q.addData(url);
