@@ -112,3 +112,25 @@ export function weekdayOf(date: string): (typeof WEEKDAY_KEYS)[number] {
 export function monthName(date: string, locale: string): string {
   return new Date(`${date.slice(0, 10)}T12:00:00Z`).toLocaleDateString(locale === 'he' ? 'he-IL' : 'en-US', { month: 'long', timeZone: 'UTC' });
 }
+
+/** A number, a pace or a structure: `5 × 1`, `4:01–4:09`, `10.3`, `3 × 2`. */
+const STRUCTURE = /\d[\d.:,]*(?:\s*[×x–-]\s*\d[\d.:,]*)*/g;
+
+/**
+ * A session's name with every number run isolated LTR ("5 × 1 ק״מ" →
+ * `<bdi dir="ltr">5 × 1</bdi> ק״מ`, the mockup's markup), so the count stays on the left of
+ * the size whatever the paragraph direction. The names come from the book
+ * (`structureName`) and from coaches, so they are split here rather than in messages.
+ */
+export function StructureText({ text }: { text: string }) {
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(STRUCTURE)) {
+    const at = m.index ?? 0;
+    if (at > last) out.push(text.slice(last, at));
+    out.push(<bdi key={at} dir="ltr">{m[0]}</bdi>);
+    last = at + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return <bdi>{out}</bdi>;
+}

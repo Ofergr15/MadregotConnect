@@ -11,7 +11,7 @@ import type { WorkoutResponse } from '@/lib/academy/workout-extras';
 import type { ThreadMessage } from '@/components/academy/ThreadTranscript';
 import { FeedbackCard } from '@/components/academy/FeedbackCard';
 import { BarButton, FlowOverlay, FlowScreen, PrimaryButton } from '@/components/academy/book/ui';
-import { CARD, Chevron, RICH, SHADOW } from './ui';
+import { CARD, Chevron, RICH, SHADOW, StructureText } from './ui';
 
 // ── 6: how it felt, and what the coach says (mockup trainee-experience-v2, phone 6) ─────
 //
@@ -173,14 +173,14 @@ export function FeelAndTalk({ athleteId, date, dayLabel, workoutName, coachName,
 
         <div className="flex items-baseline justify-between gap-2 px-1">
           <span className="text-[12.5px] font-bold text-ink-400">{t('talk')}</span>
-          <Link href={academyThreadUrl({ recipientIsStaff: false, traineeId: athleteId })} className="-my-3 flex min-h-[44px] items-center gap-1 text-[13px] font-extrabold text-brand-600">
+          <Link href={academyThreadUrl({ recipientIsStaff: false, traineeId: athleteId })} className="relative z-10 -my-3 flex min-h-[44px] items-center gap-1 text-[13px] font-extrabold text-brand-600">
             {t('allTalk')} <Chevron />
           </Link>
         </div>
 
         <div className="flex flex-col gap-[7px]">
           <span className="self-center rounded-full bg-[#EBEBF0] px-2.5 py-1 text-[11.5px] text-ink-400">
-            {t.rich('ref', { ...RICH, name: workoutName, day: dayLabel })}
+            {t.rich('ref', { ...RICH, name: workoutName, day: dayLabel, bdi: () => <StructureText text={workoutName} /> })}
           </span>
           {messages.map(m => {
             if (m.feedback) {
@@ -220,8 +220,10 @@ export function FeelAndTalk({ athleteId, date, dayLabel, workoutName, coachName,
             onChange={e => setDraft(e.target.value)}
             placeholder={coachFirst ? t.markup('compose', { name: coachFirst, bdi: (c) => c }) : t('composeGeneric')}
             aria-label={t('send')}
-            dir="auto"
-            className="min-w-0 flex-1 bg-transparent text-[14px] text-ink-900 outline-none placeholder:text-ink-400"
+            // RTL while empty, so the Hebrew placeholder keeps "ל־Sahar" in order; what is
+            // typed then decides for itself.
+            dir={draft ? 'auto' : 'rtl'}
+            className="h-11 min-w-0 flex-1 bg-transparent text-[14px] text-ink-900 outline-none placeholder:text-ink-400"
           />
           <button type="submit" disabled={sending || !draft.trim()} aria-label={t('send')} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-600 text-white disabled:opacity-50">
             <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden><path d="M21 4L3 11.5l7 2.5 2.5 7z" fill="#fff" transform="translate(24 0) scale(-1 1)" /></svg>

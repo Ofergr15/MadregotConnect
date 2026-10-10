@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import type { TodayCard } from '@/lib/academy/trainee-today';
 import { ProfileBar } from '@/components/academy/book/ui';
-import { RICH, SHADOW, Tag, clock, km, weekdayOf } from './ui';
+import { RICH, SHADOW, StructureText, Tag, clock, km, weekdayOf } from './ui';
 
 // ── The day's session, or the rest day (mockup 1 / 1ב / 1ג) ──────────────────────────────
 //
@@ -42,7 +42,7 @@ export function TodayWorkoutCard({ card, when, coachName }: {
         <Tag tone="b">{t('dayTag', { when, day })}</Tag>
         {card.done ? <Tag tone="g">{t('doneTag')}</Tag> : card.onWatch ? <Tag tone="g">{t('onWatch')}</Tag> : null}
       </div>
-      <h2 className="mt-1.5 text-[28px] font-black leading-[1.15] text-ink-900"><bdi>{card.title}</bdi></h2>
+      <h2 className="mt-1.5 text-[28px] font-black leading-[1.15] text-ink-900"><StructureText text={card.title} /></h2>
       <p className="mt-[3px] text-[14.5px] text-ink-500"><Sub card={card} /></p>
       {card.bar.length > 0 && card.kind === 'quality' && <ProfileBar segments={card.bar} height={30} className="mt-[11px]" />}
       {card.note && (
@@ -76,7 +76,7 @@ export function RestCard({ date, when, next, prevKind }: {
       {next && (
         <div className="mt-3 border-t border-[#EFEFF4] pt-2.5">
           <p className="text-[12.5px] font-bold text-ink-400">{t('nextDay', { when: when === 'today' ? 'tomorrow' : 'other', day: tb(`day.${weekdayOf(next.date)}`) })}</p>
-          <p className="mt-0.5 text-[17px] font-black text-ink-900"><bdi>{next.title}</bdi></p>
+          <p className="mt-0.5 text-[17px] font-black text-ink-900"><StructureText text={next.title} /></p>
           <p className="text-[13px] leading-normal text-ink-500">
             <Sub card={next} compact />
             {next.onWatch && <> · {t('onWatch')}</>}

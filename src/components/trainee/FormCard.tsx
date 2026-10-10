@@ -33,7 +33,7 @@ export function FormCard({ form, when, gender, showBands }: {
       {form.status === 'learning' ? (
         <span className="text-[12.5px] font-bold text-ink-400">{t.rich('daysOf', { ...RICH, seen: form.daysSeen, total: LEARNING_DAYS })}</span>
       ) : (
-        <Link href={traineeProgressUrl()} className="-my-3 flex min-h-[44px] items-center gap-1 whitespace-nowrap text-[13px] font-extrabold text-brand-600">
+        <Link href={traineeProgressUrl()} className="relative z-10 -my-3 flex min-h-[44px] items-center gap-1 whitespace-nowrap text-[13px] font-extrabold text-brand-600">
           {t('progress')} <Chevron />
         </Link>
       )}

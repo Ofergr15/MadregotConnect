@@ -16,7 +16,7 @@ import { FormCard } from './FormCard';
 import { LoadSheet } from './LoadSheet';
 import { RaceLine } from './RaceLine';
 import { RestCard, TodayWorkoutCard } from './TodayWorkoutCard';
-import { CARD, Chevron, RICH, SHADOW, Tag, WEEKDAY_KEYS, dm } from './ui';
+import { CARD, Chevron, RICH, SHADOW, StructureText, Tag, WEEKDAY_KEYS, dm } from './ui';
 
 // ── The academy trainee's home (mockup trainee-experience-v2, phones 1, 1ב, 1ג) ─────────
 //
@@ -26,6 +26,10 @@ import { CARD, Chevron, RICH, SHADOW, Tag, WEEKDAY_KEYS, dm } from './ui';
 // last night against my own range, the race, and one button that opens the workout.
 // Everything is decided by GET /api/academy/today (lib/academy/trainee-today.ts); this
 // only draws it, in the mockup's order.
+//
+// The mockup's top bar holds the greeting, 💬 and 🔔; in the app the 🔔 is already in the
+// shell's header (components/Header.tsx) right above this row, so the row carries the
+// greeting, the coach and 💬 only — two bells on one screen would be two doors to one room.
 
 function greetingKey(): 'morning' | 'afternoon' | 'evening' {
   const h = israelNow().hour;
@@ -79,9 +83,6 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
             <bdi dir="ltr">{data.unread}</bdi>
           </b>
         )}
-      </Link>
-      <Link href="/dashboard/notifications" aria-label={t('notifications')} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#F1F2F7] text-[17px]">
-        <span aria-hidden>🔔</span>
       </Link>
     </div>
   );
@@ -140,7 +141,7 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
           <span className="min-w-0 flex-1 py-[9px]">
             <b className="block text-[14.5px] font-extrabold text-ink-900">
               {data.yesterday.title
-                ? t.rich('yesterday.title', { ...RICH, name: data.yesterday.title })
+                ? t.rich('yesterday.title', { ...RICH, name: data.yesterday.title, bdi: () => <StructureText text={data.yesterday!.title!} /> })
                 : t.rich('yesterday.titleKm', { ...RICH, km: data.yesterday.km })}
               {' · ⚡ '}<bdi dir="ltr">{data.yesterday.load}</bdi>
             </b>

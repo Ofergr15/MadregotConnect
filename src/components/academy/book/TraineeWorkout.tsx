@@ -15,7 +15,7 @@ import { WorkoutPlanSheet } from '../WorkoutPlanSheet';
 import { LoadSheet } from '@/components/trainee/LoadSheet';
 import { DoneTabs, WorkoutDone } from '@/components/trainee/WorkoutDone';
 import { FeelAndTalk } from '@/components/trainee/FeelAndTalk';
-import { monthName } from '@/components/trainee/ui';
+import { StructureText, monthName } from '@/components/trainee/ui';
 import { useTraineeV2 } from '@/lib/trainee/v2';
 import { BarButton, CARD, FlowOverlay, FlowScreen, PrimaryButton, ProfileBar, RICH, clockText, kmText } from './ui';
 import { StepLines } from './StepLines';
@@ -154,7 +154,7 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
           <p className="text-13 font-bold text-ink-400">
             {when && <>{when} · </>}{coachFirst ? t('fromCoach', { name: coachFirst }) : t('fromCoachGeneric')}
           </p>
-          <h2 className="text-28 font-black leading-tight text-ink-900"><bdi>{workout.name}</bdi></h2>
+          <h2 className="text-28 font-black leading-tight text-ink-900">{v2 ? <StructureText text={workout.name} /> : <bdi>{workout.name}</bdi>}</h2>
           {(totals || data?.expectedLoad) && (
             <p className="mt-1 text-[16px] text-ink-500">
               {totals && t.rich('volume', { ...RICH, km: kmText(totals.distanceM), min: Math.round(totals.durationSec / 60) })}
@@ -211,7 +211,7 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
                 <b className="block text-[16px] font-extrabold text-ink-900">{workout.onWatch ? tw('sentTitle') : tw('notSentTitle')}</b>
                 <small className="mt-0.5 block text-[13.5px] text-ink-400">
                   {workout.onWatch
-                    ? tw.rich('sentSub', { ...RICH, m: (c) => <bdi dir="ltr">{c}</bdi>, name: workout.name })
+                    ? tw.rich('sentSub', { ...RICH, m: (c) => <bdi dir="ltr">{c}</bdi>, name: workout.name, bdi: () => <StructureText text={workout.name} /> })
                     : tw('notSentSub')}
                 </small>
               </span>
