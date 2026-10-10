@@ -17,6 +17,7 @@ import { PUSH_STEP_DISMISS_KEY, PUSH_STEP_SESSION_SKIP_KEY, readPushPermission, 
 import { readFirstRunStage, setFirstRunStage } from '@/lib/onboarding/first-run-flow';
 import { useOnboardingV2 } from '@/lib/install/v2';
 import { IosPermissionPreview } from '@/components/install/IosPermissionPreview';
+import { useIsComputer } from '@/lib/install/use-computer';
 import './first-run.css';
 
 export type Stage = 'welcome' | 'push' | 'pushDone' | 'pushBlocked';
@@ -58,6 +59,9 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
   const [slow, setSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
+  // A computer (lib/install/platform isComputer): nothing was installed, and the
+  // coach's notifications live on the phone, so the push step is not asked here.
+  const computer = useIsComputer();
 
   useEffect(() => {
     if (previewStage) { setName('נועה'); return; }
@@ -76,13 +80,14 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
   }, [athleteId]);
 
   const fromWelcome = useCallback(() => {
+    if (computer) { toTour(); return; }
     // Nothing to ask on a phone that already answered, or cannot (a browser tab on
     // an iPhone): straight on to the tour.
     const p = readPushPermission();
     if (p === 'default') setStage('push');
     else if (p === 'denied') setStage('pushBlocked');
     else toTour();
-  }, [toTour]);
+  }, [toTour, computer]);
 
   const enable = async () => {
     setBusy(true);
@@ -112,8 +117,10 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
   if (!stage) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] overflow-y-auto bg-page" dir="rtl" role="dialog" aria-modal="true" aria-label="ברוכים הבאים">
-      <div className="mx-auto flex min-h-full max-w-md flex-col px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-[max(20px,env(safe-area-inset-top))]">
+    <div className={computer ? 'fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-ink-900/40 p-6' : 'fixed inset-0 z-[70] overflow-y-auto bg-page'} dir="rtl" role="dialog" aria-modal="true" aria-label="ברוכים הבאים">
+      <div className={computer
+        ? 'flex w-full max-w-[560px] flex-col rounded-[28px] bg-page p-6 shadow-[0_24px_60px_rgba(0,0,0,0.25)]'
+        : 'mx-auto flex min-h-full max-w-md flex-col px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-[max(20px,env(safe-area-inset-top))]'}>
         {stage === 'welcome' && (
           <>
             <div className="relative mt-2 overflow-hidden rounded-[28px] bg-gradient-to-br from-[#2b33ff] via-brand-600 to-[#6a5cff] px-5 pb-6 pt-7 text-center text-white shadow-[0_18px_40px_rgba(43,51,255,0.35)]">
@@ -123,17 +130,21 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-2xl font-black text-brand-600 shadow-[0_0_0_6px_rgba(255,255,255,0.25)]">
                 {(name || 'מ').slice(0, 1)}
               </div>
-              <p className="mt-4 text-2xs font-bold tracking-wide text-white/85">ההתקנה הצליחה · אתם בפנים</p>
+              <p className="mt-4 text-2xs font-bold tracking-wide text-white/85">{computer ? 'אתם בפנים' : 'ההתקנה הצליחה · אתם בפנים'}</p>
               <h1 className="mt-1 text-[28px] font-black leading-tight">{name ? `${name}, ברוכים הבאים` : 'ברוכים הבאים'}<br />למדרגות 🎉</h1>
-              <p className="mt-2 text-13 text-white/90">מועדון הריצה שלך, עכשיו בכיס</p>
+              <p className="mt-2 text-13 text-white/90">{computer ? 'מועדון הריצה שלך' : 'מועדון הריצה שלך, עכשיו בכיס'}</p>
             </div>
             <div className="mt-4 rounded-[22px] bg-card p-4 shadow-sm">
               <p className="text-sm font-black text-ink-700">3 דברים קטנים, ומתחילים לרוץ</p>
-              {[
+              {(computer ? [
+                ['🧭', 'סיור קצר באפליקציה', 'איפה התוכנית, הפיד והפרופיל', '40 שנ׳'],
+                ['⌚', 'השעון והפרופיל', 'כדי שהריצות ייכנסו לבד', 'דקה'],
+                ['📱', 'האפליקציה בטלפון', 'שם מקבלים התראות מהמאמן ותזכורות', 'דקה'],
+              ] : [
                 ['🔔', 'התראות', 'שהמאמן יוכל לכתוב לך', '30 שנ׳'],
                 ['🧭', 'סיור קצר באפליקציה', 'איפה התוכנית, הפיד והפרופיל', '40 שנ׳'],
                 ['⌚', 'השעון והפרופיל', 'כדי שהריצות ייכנסו לבד', 'דקה'],
-              ].map(([icon, title, sub, time], i) => (
+              ]).map(([icon, title, sub, time], i) => (
                 <div key={i} className="mt-3 flex items-center gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-page text-lg" aria-hidden>{icon}</span>
                   <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink-700">{title}</p><p className="text-xs text-ink-400">{sub}</p></div>
@@ -141,7 +152,7 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
                 </div>
               ))}
             </div>
-            <div className="mt-auto pt-6">
+            <div className={computer ? 'pt-5' : 'mt-auto pt-6'}>
               <button type="button" onClick={fromWelcome} className="min-h-[56px] w-full rounded-pill bg-brand-600 text-lg font-black text-white shadow-[0_10px_24px_rgba(67,56,255,0.35)] active:bg-brand-700">
                 יאללה, מתחילים
               </button>

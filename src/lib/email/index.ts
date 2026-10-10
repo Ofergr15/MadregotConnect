@@ -173,6 +173,31 @@ export async function notifyJoinReminder(user: { email: string; token: string; g
 }
 
 /**
+ * "Continue on the phone" (the /join screen on a computer, ContinueOnPhone): the
+ * same personal link, to open on the phone, where the install guide takes over.
+ */
+export async function notifyPhoneLink(user: { email: string; token: string; name?: string | null; athleteId?: string | null }): Promise<SendResult> {
+  const link = joinLinkV2(APP_URL, user.token, true);
+  const first = (user.name || '').split(/\s+/)[0] || '';
+  return sendEmail({
+    template: 'phone_link',
+    to: user.email,
+    subject: 'הקישור למדרגות, לפתיחה בטלפון 📱',
+    replyTo: ADMIN_EMAIL,
+    athleteId: user.athleteId ?? null,
+    html: renderEmail({
+      eyebrow: first ? `${first}, זה הקישור שביקשת` : 'הקישור שביקשת',
+      title: 'פותחים את המייל הזה בטלפון',
+      preheader: 'לחיצה אחת בטלפון, והוא ידריך אותך בהתקנה.',
+      paragraphs: ['בטלפון מגיעות ההתראות מהמאמן, התזכורות לפני אימון, והריצות נכנסות לבד מהשעון.'],
+      cta: { label: 'לפתיחה בטלפון ←', href: link },
+      afterCtaHtml: renderTip('💡 באייפון ההתקנה עובדת רק דרך <b>Safari</b>.'),
+      notes: ['משהו לא עובד? פשוט תשיבו למייל הזה, ונעזור.'],
+    }),
+  });
+}
+
+/**
  * The sign-in code (lib/auth/email-code). The code is the subject's first word, so
  * iOS offers it from the mail notification straight into the code field, and it
  * is big in the body for anyone typing it.
