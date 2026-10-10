@@ -187,7 +187,7 @@
     "signInWithApple": "התחברות עם Apple",
     "signInWithStrava": "התחברות עם Strava",
     "joinAcademy": "הצטרפו לאקדמיה",
-    "sinceLabel": "החל מ־",
+    "sinceLabel": "מאז",
     "statKm": "ק\"מ",
     "statWorkouts": "אימונים",
     "statHours": "שעות",
@@ -196,7 +196,11 @@
     "heroAlt": "רצי מדרגות",
     "teamRaceAlt": "צוות מדרגות רץ על המסלול",
     "teamGroupAlt": "צוות מדרגות בשעת זהב",
-    "runnersGroupAlt": "רץ בודק שעון"
+    "runnersGroupAlt": "רץ בודק שעון",
+    "joinClub": "מצטרפים למועדון",
+    "alreadyMember": "כבר חברים? כניסה",
+    "signIn": "כניסה",
+    "signInTitle": "כניסה למועדון"
   },
   "controlRoom": {
     "title": "חדר בקרה",

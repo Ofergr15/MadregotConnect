@@ -13,6 +13,7 @@ import { EmailCodeSheet } from '@/components/auth/EmailCodeSheet';
 import { InstallGuide } from '@/components/install/InstallGuide';
 import { usePreviewOnboardingV2 } from '@/lib/install/v2';
 import { detectInstallPlatform } from '@/lib/install/platform';
+import { PrimaryButton, SecondaryButton } from '@/components/onboarding/journey-ui';
 
 interface PublicStats {
   since?: string;
@@ -107,6 +108,9 @@ function StravaMark({ className = 'h-5 w-5' }: { className?: string }) {
   );
 }
 
+// /register reads `?onb=v2` (lib/install/v2) — the new joining journey.
+const JOIN_HREF = '/register?onb=v2';
+
 export default function HomePage() {
   const router = useRouter();
   const t = useTranslations('home');
@@ -118,6 +122,10 @@ export default function HomePage() {
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   // "No Strava? A code by email" (lib/auth/email-code): the way in for a member without Strava.
   const [showEmailCode, setShowEmailCode] = useState(false);
+  // "כבר חברים? כניסה": the landing's main action is joining (Ofer, 2026-10-10 —
+  // a stranger used to find only sign-in buttons). Members sign in from this
+  // sheet, which holds both ways in: Strava and the code by email.
+  const [showSignIn, setShowSignIn] = useState(false);
   const v2 = usePreviewOnboardingV2();
   const [installFirst, setInstallFirst] = useState(false);
   const [browserEscape, setBrowserEscape] = useState(false);
@@ -344,27 +352,22 @@ export default function HomePage() {
                 <img src="/images/logo-white.png" alt="Madregot After 2KM" className="h-6 w-6 sm:h-7 sm:w-7 object-contain" />
               </span>
               <div className="flex flex-col leading-none">
-                <span className="text-sm sm:text-base font-black uppercase tracking-tight">{t('madregot')}</span>
+                <span className="text-sm sm:text-base font-black uppercase tracking-tight rtl:tracking-normal">{t('madregot')}</span>
                 {/* 11px, up from 9. It wraps to two lines ("מועדון ריצה" / "AFTER 2KM") as it
                     always did — at 375 this bar also holds the Strava button and the locale
                     switch, and forcing one line pushes the button off the screen. The
                     tracking came down from 0.14em, which at 11px broke it into four rows. */}
-                <span className="text-2xs font-semibold uppercase tracking-[0.02em] text-ink-400 mt-0.5">{t('after2km')}</span>
+                <span className="text-2xs font-semibold uppercase tracking-[0.02em] rtl:tracking-normal text-ink-400 mt-0.5">{t('after2km')}</span>
               </div>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
               <LocaleSwitcher />
               <button
-                onClick={signIn}
-                disabled={signingIn}
-                className="inline-flex min-h-11 items-center justify-center gap-2.5 whitespace-nowrap rounded-full bg-[#FC4C02] px-4 text-sm font-bold text-ink-900 shadow-lg shadow-band-3/20 transition hover:bg-[#e34402] active:scale-[0.98] disabled:opacity-50 sm:px-5"
+                type="button"
+                onClick={() => setShowSignIn(true)}
+                className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-full border border-black/10 bg-white px-4 text-sm font-bold text-ink-900 transition active:scale-[0.98] sm:px-5"
               >
-                {signingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                  <>
-                    <StravaMark className="h-4 w-4" />
-                    {t('signInWithStrava')}
-                  </>
-                )}
+                {t('signIn')}
               </button>
             </div>
           </div>
@@ -386,6 +389,32 @@ export default function HomePage() {
 
         {/* Admin Login Sheet (triggered from footer) */}
         <EmailCodeSheet open={showEmailCode} onOpenChange={setShowEmailCode} />
+        <Sheet open={showSignIn} onOpenChange={setShowSignIn} title={t('signInTitle')}>
+          <div className="flex flex-col gap-3 pb-2">
+            <button
+              type="button"
+              onClick={signIn}
+              disabled={signingIn}
+              className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-full bg-[#FC4C02] px-6 text-base font-bold text-ink-900 shadow-xl shadow-band-3/20 transition hover:bg-[#e34402] active:scale-[0.99] disabled:opacity-50"
+            >
+              {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                <>
+                  <StravaMark className="h-5 w-5" />
+                  {t('signInWithStrava')}
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowSignIn(false); setShowEmailCode(true); }}
+              className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border-2 border-brand-600/25 bg-white px-6 text-[15px] font-bold text-brand-600 active:scale-[0.99]"
+            >
+              אין לי Strava · כניסה עם קוד במייל
+            </button>
+            {/* The page's error banner sits behind this sheet, so a failed Strava start is said here too. */}
+            {stravaError && <p role="alert" className="text-center text-sm font-semibold text-accent-red">{stravaError}</p>}
+          </div>
+        </Sheet>
         <Sheet open={showAdminLogin} onOpenChange={setShowAdminLogin} title={th('adminLogin')}>
           <form onSubmit={handleAdminLogin} className="space-y-3 pb-2">
             <input
@@ -415,7 +444,7 @@ export default function HomePage() {
         </Sheet>
 
         {/* Mobile Hero Image */}
-        <div className="lg:hidden px-4 sm:px-8 pt-4 pb-6 relative z-10">
+        <div className="lg:hidden px-4 sm:px-8 pt-3 pb-3 relative z-10">
           <Figure
             src="/images/hero-running.jpg"
             alt={t('heroAlt')}
@@ -426,44 +455,28 @@ export default function HomePage() {
         </div>
 
         {/* Hero Content */}
-        <div className="relative z-10 flex-1 flex items-center px-4 sm:px-8 lg:px-20 py-8 lg:py-0 lg:min-h-[74vh]">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-20 items-center w-full max-w-7xl mx-auto">
+        <div className="relative z-10 flex-1 flex items-center px-4 sm:px-8 lg:px-20 py-4 lg:py-0 lg:min-h-[74vh]">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-20 items-center w-full max-w-7xl mx-auto">
             {/* Text */}
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full bg-brand-600/10 text-brand-600 px-3.5 py-1.5 mb-6 sm:mb-8">
+              <div className="inline-flex items-center gap-2 rounded-full bg-brand-600/10 text-brand-600 px-3.5 py-1.5 mb-4 sm:mb-8">
                 <span className="h-1.5 w-1.5 rounded-full bg-brand-600"></span>
-                <span className="text-[11px] sm:text-xs font-black uppercase tracking-[0.18em]">{t('after2km')}</span>
+                <span className="text-[13px] sm:text-sm font-black uppercase tracking-[0.18em] rtl:tracking-normal">{t('after2km')}</span>
               </div>
-              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black uppercase leading-[0.9] tracking-tight text-brand-600 break-words hyphens-none">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black uppercase leading-[0.9] tracking-tight rtl:tracking-normal text-brand-600 break-words hyphens-none">
                 {t('redefining')}<br />
                 {t('running')}<br />
                 {t('culture')}
               </h1>
-              <div className="w-12 sm:w-16 h-1.5 bg-brand-600 mt-6 sm:mt-8 mb-4 sm:mb-6 rounded-full"></div>
+              <div className="w-12 sm:w-16 h-1.5 bg-brand-600 mt-4 sm:mt-8 mb-3 sm:mb-6 rounded-full"></div>
               <p className="text-lg sm:text-xl md:text-2xl text-ink-900 font-light leading-relaxed">
                 {t('connectingRunners')}<br />
                 {t('buildingCommunity')}
               </p>
-              <div className="flex flex-col gap-3 mt-8 sm:mt-10 sm:max-w-sm">
-                <button
-                  onClick={signIn}
-                  disabled={signingIn}
-                  className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-full bg-[#FC4C02] px-6 text-base font-bold text-ink-900 shadow-xl shadow-band-3/20 transition hover:bg-[#e34402] active:scale-[0.99] disabled:opacity-50"
-                >
-                  {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : (
-                    <>
-                      <StravaMark className="h-5 w-5" />
-                      {t('signInWithStrava')}
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowEmailCode(true)}
-                  className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border-2 border-brand-600/25 bg-white px-6 text-[15px] font-bold text-brand-600 active:scale-[0.99]"
-                >
-                  אין לי Strava · כניסה עם קוד במייל
-                </button>
+              {/* Joining is the main action; sign-in is the quiet second line. */}
+              <div className="flex flex-col gap-1 mt-6 sm:mt-10 sm:max-w-sm">
+                <PrimaryButton href={JOIN_HREF}>{t('joinClub')}</PrimaryButton>
+                <SecondaryButton onClick={() => setShowSignIn(true)}>{t('alreadyMember')}</SecondaryButton>
               </div>
             </div>
 
@@ -488,7 +501,7 @@ export default function HomePage() {
             {hasBandData && (
               <>
               {stats.since && (
-                <p className="text-center text-[11px] sm:text-xs font-bold uppercase tracking-[0.18em] text-ink-400 mb-3 sm:mb-4">
+                <p className="text-center text-[13px] sm:text-sm font-bold uppercase tracking-[0.18em] rtl:tracking-normal text-ink-400 mb-3 sm:mb-4">
                   {t('sinceLabel')} {fmtMonthYear(stats.since, locale)}
                 </p>
               )}
@@ -529,15 +542,15 @@ export default function HomePage() {
 
             {stats.topResults.length > 0 && (
               <div className="bg-white rounded-3xl border border-page shadow-sm p-6 sm:p-10 mt-3 sm:mt-6">
-                <div className="flex flex-col items-center gap-1 mb-8 sm:mb-10">
+                <div className="flex flex-col items-center gap-1 mb-5 sm:mb-10">
                   <div className="flex items-center gap-2">
                     <Trophy className="h-5 w-5 text-brand-600" />
-                    <h3 className="text-lg sm:text-2xl font-black uppercase tracking-tight text-ink-900">
+                    <h3 className="text-lg sm:text-2xl font-black uppercase tracking-tight rtl:tracking-normal text-ink-900">
                       {stats.topResults[0].test} — {t('topThree')}
                     </h3>
                   </div>
                   {stats.testDate && (
-                    <span className="text-[11px] sm:text-xs font-semibold text-ink-400">{fmtDate(stats.testDate, locale)}</span>
+                    <span className="text-[13px] sm:text-sm font-semibold text-ink-400">{fmtDate(stats.testDate, locale)}</span>
                   )}
                 </div>
                 <div className="flex items-end justify-center gap-3 sm:gap-8">
@@ -587,18 +600,18 @@ export default function HomePage() {
       )}
 
       {/* Who We Are */}
-      <section className="py-24 lg:py-32 px-4 sm:px-8 lg:px-20">
+      <section className="py-12 lg:py-32 px-4 sm:px-8 lg:px-20">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl sm:text-5xl md:text-6xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight text-brand-600 mb-8">
-            {t('whoWeAre')}<br />{t('weAre')}
+          <h2 className="text-3xl sm:text-5xl md:text-6xl lg:text-8xl font-black uppercase leading-[0.9] tracking-tight rtl:tracking-normal text-brand-600 mb-4 lg:mb-8">
+            {t('whoWeAre')}{' '}<br className="hidden lg:block" />{t('weAre')}
           </h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 mt-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-16 mt-6 lg:mt-12 items-center">
             <div>
-              <h3 className="text-2xl sm:text-3xl font-bold text-ink-900 mb-6">
+              <h3 className="text-2xl sm:text-3xl font-bold text-ink-900 mb-3 lg:mb-6">
                 {t('fromTwoRunners')}
               </h3>
-              <div className="w-16 h-1.5 bg-brand-600 mb-8 rounded-full"></div>
-              <p className="text-lg text-ink-400 leading-relaxed mb-6">
+              <div className="w-16 h-1.5 bg-brand-600 mb-4 lg:mb-8 rounded-full"></div>
+              <p className="text-lg text-ink-400 leading-relaxed mb-3 lg:mb-6">
                 {t('foundedDescription1')}
               </p>
               <p className="text-lg text-ink-400 leading-relaxed">
@@ -617,16 +630,16 @@ export default function HomePage() {
       </section>
 
       {/* Journey Timeline */}
-      <section className="py-24 lg:py-32 px-4 sm:px-8 lg:px-20 bg-white">
+      <section className="py-12 lg:py-32 px-4 sm:px-8 lg:px-20 bg-white">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl sm:text-5xl md:text-7xl font-black uppercase leading-[0.9] tracking-tight text-brand-600 mb-16">
-            {t('our')}<br />{t('journey')}
+          <h2 className="text-3xl sm:text-5xl md:text-7xl font-black uppercase leading-[0.9] tracking-tight rtl:tracking-normal text-brand-600 mb-8 lg:mb-16">
+            {t('our')}{' '}<br className="hidden lg:block" />{t('journey')}
           </h2>
 
           {/* Timeline */}
           <div className="relative">
             <div className="absolute top-8 inset-x-0 h-0.5 bg-gradient-to-r from-brand-600 to-brand-600/20 hidden sm:block"></div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8">
               <div className="group relative pt-12 rounded-2xl p-4 -m-4 transition-colors hover:bg-[#f0f0f0]">
                 <div className="absolute top-[26px] start-4 sm:start-4 w-3.5 h-3.5 rounded-full bg-brand-600 ring-4 ring-white"></div>
                 <div className="text-2xl font-black text-brand-600">{t('year2022')}</div>
@@ -657,12 +670,12 @@ export default function HomePage() {
       </section>
 
       {/* More Than a Running Team */}
-      <section className="py-24 lg:py-32 px-4 sm:px-8 lg:px-20">
+      <section className="py-12 lg:py-32 px-4 sm:px-8 lg:px-20">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-4xl md:text-5xl lg:text-7xl font-black uppercase leading-[0.9] tracking-tight text-brand-600 mb-6">
-            {t('moreThanA')}<br />{t('runningTeam')}
+          <h2 className="text-2xl sm:text-4xl md:text-5xl lg:text-7xl font-black uppercase leading-[0.9] tracking-tight rtl:tracking-normal text-brand-600 mb-3 lg:mb-6">
+            {t('moreThanA')}{' '}<br className="hidden lg:block" />{t('runningTeam')}
           </h2>
-          <p className="text-xl text-ink-400 mb-16 max-w-3xl">
+          <p className="text-xl text-ink-400 mb-6 lg:mb-16 max-w-3xl">
             {t('supportSystem')}
           </p>
 
@@ -742,31 +755,21 @@ export default function HomePage() {
       </section>
 
       {/* CTA */}
-      <section className="bg-[#f0f0f0] px-4 py-16 sm:px-8 sm:py-20 lg:px-20 lg:py-24">
-        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] bg-page px-6 py-16 text-center shadow-2xl sm:px-12 sm:py-20">
+      <section className="bg-[#f0f0f0] px-4 py-8 sm:px-8 sm:py-20 lg:px-20 lg:py-24">
+        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] bg-page px-6 py-10 text-center shadow-2xl sm:px-12 sm:py-20">
           <div className="pointer-events-none absolute -end-20 -top-24 h-72 w-72 rounded-full bg-[#FC4C02]/25 blur-3xl" aria-hidden="true"></div>
           <div className="pointer-events-none absolute -bottom-28 -start-16 h-72 w-72 rounded-full bg-brand-600/20 blur-3xl" aria-hidden="true"></div>
           <div className="relative mx-auto max-w-3xl">
-            <h2 className="text-3xl font-black uppercase tracking-tight text-ink-700 sm:text-5xl md:text-6xl">
+            <h2 className="text-3xl font-black uppercase tracking-tight rtl:tracking-normal text-ink-700 sm:text-5xl md:text-6xl">
               {t('readyToRun')}
             </h2>
-            <p className="mx-auto mt-5 max-w-xl text-base text-ink-500 sm:text-lg">
+            <p className="mx-auto mt-3 sm:mt-5 max-w-xl text-base text-ink-500 sm:text-lg">
               {t('joinCommunity')}
             </p>
-            <button
-              onClick={signIn}
-              disabled={signingIn}
-              className="mt-9 inline-flex min-h-14 w-full max-w-sm items-center justify-center gap-3 rounded-full bg-[#FC4C02] px-8 text-base font-bold text-ink-900 shadow-xl shadow-band-3/30 transition hover:bg-[#e34402] active:scale-[0.99] disabled:opacity-50 sm:text-lg"
-            >
-              {signingIn ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <>
-                  <StravaMark className="h-5 w-5" />
-                  {t('signInWithStrava')}
-                </>
-              )}
-            </button>
+            <div className="mx-auto mt-7 flex w-full max-w-sm flex-col gap-1 sm:mt-9">
+              <PrimaryButton href={JOIN_HREF}>{t('joinClub')}</PrimaryButton>
+              <SecondaryButton onClick={() => setShowSignIn(true)}>{t('alreadyMember')}</SecondaryButton>
+            </div>
           </div>
         </div>
       </section>
@@ -777,8 +780,8 @@ export default function HomePage() {
           <div className="flex items-center gap-3">
             <img src="/images/logo-white.png" alt="Madregot After 2KM" className="h-8 w-8 object-contain" />
             <div className="flex flex-col leading-tight">
-              <span className="text-base font-bold tracking-tight">{t('madregot')}</span>
-              <span className="text-xs font-medium tracking-wide text-white/70">{t('after2km')}</span>
+              <span className="text-base font-bold tracking-tight rtl:tracking-normal">{t('madregot')}</span>
+              <span className="text-[13px] font-medium tracking-wide rtl:tracking-normal text-white/70">{t('after2km')}</span>
             </div>
           </div>
           <div className="flex flex-col items-center sm:items-end gap-2">

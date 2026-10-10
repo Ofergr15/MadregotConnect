@@ -133,7 +133,7 @@ describe('the approval message', () => {
 
   it('the v2 mail: journey, steps, QR, Safari tip, and a reply that reaches a person', () => {
     const mail = read('lib/email/index.ts');
-    const v2 = mail.slice(mail.indexOf('if (user.v2) {'), mail.indexOf("subject: '✅ ההרשמה שלך למדרגות אושרה'"));
+    const v2 = mail.slice(mail.indexOf('if (user.v2) {'), mail.indexOf("subject: '✅ ההרשמה שלכם למדרגות אושרה'"));
     expect(v2).toMatch(/renderJourney\(2\)/);
     expect(v2).toMatch(/renderScanOnPhone\(`\$\{APP_URL\}\/api\/public\/qr\?t=/);
     expect(v2).toMatch(/replyTo: ADMIN_EMAIL/);

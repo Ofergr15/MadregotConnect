@@ -196,7 +196,11 @@
     "heroAlt": "Madregot runners",
     "teamRaceAlt": "Madregot team running on track",
     "teamGroupAlt": "Madregot team at golden hour",
-    "runnersGroupAlt": "Athlete checking watch"
+    "runnersGroupAlt": "Athlete checking watch",
+    "joinClub": "Join the club",
+    "alreadyMember": "Already a member? Sign in",
+    "signIn": "Sign in",
+    "signInTitle": "Sign in to the club"
   },
   "controlRoom": {
     "title": "Control Room",

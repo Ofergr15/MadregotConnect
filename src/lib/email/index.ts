@@ -3,6 +3,7 @@ import { joinLinkV2 } from '@/lib/install/flag';
 import { openInAppHref } from '@/lib/open-in-app';
 import { renderEmail, renderSetupProgress, renderJourney, renderSteps, renderScanOnPhone, renderTip, renderNextUp, esc, type SetupProgressRow } from './template';
 import { gapNames } from '@/lib/notifications/copy';
+import { resolveGroup } from '@/lib/utils';
 import { sendEmail, type SendResult } from './send';
 import { renderAcademyFormReceived } from './academy-form-received';
 import { newApplicantSubject, renderAcademyNewApplicant } from './academy-new-applicant';
@@ -31,6 +32,19 @@ export { sendEmail } from './send';
 export type { SendResult, SendStatus, OutboundEmail } from './send';
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'madregot.club@gmail.com';
+
+/** The first word of a roster name, or '' — the mails greet by first name. */
+const firstName = (name?: string | null) => (name || '').trim().split(/\s+/)[0] || '';
+
+/**
+ * The group as a member reads it, in Hebrew: "קבוצה 2", not the roster's "Group 2"
+ * (groupDisplayName is the app's canonical — English — label). A squad the club has
+ * named something else ("SUB 2:30" maps to its number; anything unknown) keeps its name.
+ */
+export function memberGroupName(name?: string | null): string {
+  const g = resolveGroup(name);
+  return g.index >= 0 ? `קבוצה ${g.index + 1}` : (name || '').trim();
+}
 
 // ── Legacy Google/Garmin onboarding ──────────────────────────────────────────────
 
@@ -62,19 +76,22 @@ export async function notifyAdminNewUser(user: {
 }
 
 export async function notifyUserApproved(user: { name: string; email: string }): Promise<SendResult> {
-  // Hebrew like every other member mail; it used to be the one English mail in the
-  // journey. Its readers are mostly Strava members (the address they left on the
-  // waiting screen), so the way back in is "sign in with Strava again".
-  const first = (user.name || '').trim().split(/\s+/)[0] || '';
+  // The approval mail for someone who is already signed in (a Strava member on the
+  // waiting screen, the address they left there): /api/admin/approve. A /register
+  // applicant gets notifyRegistrationApproved instead — that route marks the row
+  // approved, so this one returns "Already approved" and sends nothing: one approval
+  // mail per member. Same structure as that one: the tracker, the next step, one button.
+  const first = firstName(user.name);
   return sendEmail({
     template: 'user_approved',
     to: user.email,
-    subject: '✅ אושרת! ברוכים הבאים למדרגות',
+    subject: '✅ ההרשמה שלכם אושרה · ברוכים הבאים למדרגות',
     html: renderEmail({
-      eyebrow: 'מועדון הריצה של מדרגות',
-      title: first ? `${first}, אושרת 🎉` : 'אושרת 🎉',
+      eyebrow: 'ההרשמה אושרה',
+      title: first ? `${first}, ההרשמה שלכם אושרה 🎉` : 'ההרשמה שלכם אושרה 🎉',
       preheader: 'נכנסים לאפליקציה ומתחילים לרוץ איתנו.',
-      paragraphs: ['המאמן אישר את ההצטרפות שלך. פותחים את מדרגות ונכנסים כמו בפעם הקודמת (עם Strava אם נכנסת דרכו).'],
+      paragraphs: ['המאמן אישר את ההצטרפות. נשאר רק להיכנס.'],
+      bodyHtml: renderJourney(2) + renderNextUp('הבא בתור', 'פותחים את מדרגות בטלפון', 'מוסיפים אותה למסך הבית ונכנסים כמו בפעם הקודמת (עם Strava, אם נכנסתם כך).'),
       cta: { label: 'לפתיחת מדרגות ←', href: `${APP_URL}/feed` },
       notes: ['משהו לא עובד? פשוט תשיבו למייל הזה, ונעזור.'],
     }),
@@ -165,14 +182,14 @@ export async function notifyJoinReminder(user: { email: string; token: string; g
   return sendEmail({
     template: 'join_reminder',
     to: user.email,
-    subject: 'האפליקציה של מדרגות עוד מחכה לך 👟',
+    subject: 'האפליקציה של מדרגות עוד מחכה לכם 👟',
     replyTo: ADMIN_EMAIL,
     athleteId: user.athleteId ?? null,
     html: renderEmail({
       eyebrow: 'תזכורת קטנה',
       title: 'עוד צעד אחד, ואתם בפנים',
       preheader: 'ההתקנה לוקחת דקה, ואנחנו כאן אם משהו לא עובד.',
-      paragraphs: [`ראינו שעוד לא נכנסתם${user.groupName ? ` (${user.groupName})` : ''}. זה לוקח דקה, והמסך יראה בדיוק איך.`],
+      paragraphs: [`ראינו שעוד לא נכנסתם${user.groupName ? ` (${memberGroupName(user.groupName)})` : ''}. זה לוקח דקה, והמסך יראה בדיוק איך.`],
       bodyHtml: renderJourney(2),
       cta: { label: 'להתקנת האפליקציה ←', href: link },
       afterCtaHtml: renderScanOnPhone(`${APP_URL}/api/public/qr?t=${encodeURIComponent(user.token)}`)
@@ -188,7 +205,7 @@ export async function notifyJoinReminder(user: { email: string; token: string; g
  */
 export async function notifyPhoneLink(user: { email: string; token: string; name?: string | null; athleteId?: string | null }): Promise<SendResult> {
   const link = joinLinkV2(APP_URL, user.token, true);
-  const first = (user.name || '').split(/\s+/)[0] || '';
+  const first = firstName(user.name);
   return sendEmail({
     template: 'phone_link',
     to: user.email,
@@ -196,9 +213,9 @@ export async function notifyPhoneLink(user: { email: string; token: string; name
     replyTo: ADMIN_EMAIL,
     athleteId: user.athleteId ?? null,
     html: renderEmail({
-      eyebrow: first ? `${first}, זה הקישור שביקשת` : 'הקישור שביקשת',
+      eyebrow: first ? `${first}, זה הקישור שביקשתם` : 'הקישור שביקשתם',
       title: 'פותחים את המייל הזה בטלפון',
-      preheader: 'לחיצה אחת בטלפון, והוא ידריך אותך בהתקנה.',
+      preheader: 'לחיצה אחת בטלפון, והמסך ידריך אתכם בהתקנה.',
       paragraphs: ['בטלפון מגיעות ההתראות מהמאמן, התזכורות לפני אימון, והריצות נכנסות לבד מהשעון.'],
       cta: { label: 'לפתיחה בטלפון ←', href: link },
       afterCtaHtml: renderTip('💡 באייפון ההתקנה עובדת רק דרך <b>Safari</b>.'),
@@ -214,18 +231,19 @@ export async function notifyPhoneLink(user: { email: string; token: string; name
  */
 export async function notifyLoginCode(user: { email: string; code: string; name?: string | null; athleteId?: string | null }): Promise<SendResult> {
   const spaced = `${user.code.slice(0, 3)} ${user.code.slice(3)}`;
+  const first = firstName(user.name);
   return sendEmail({
     template: 'login_code',
     to: user.email,
-    subject: `${user.code} הוא קוד הכניסה שלך למדרגות`,
+    subject: `${user.code} הוא קוד הכניסה שלכם למדרגות`,
     athleteId: user.athleteId ?? null,
     html: renderEmail({
       eyebrow: 'כניסה לאפליקציה',
-      title: 'קוד הכניסה שלך',
+      title: first ? `${first}, זה קוד הכניסה שלכם` : 'קוד הכניסה שלכם',
       preheader: `${user.code} · בתוקף ל-10 דקות`,
       bodyHtml: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 40px; font-weight: 800; letter-spacing: 0.18em; color: #1D1E26; text-align: center; background-color: #F5F6FA; border-radius: 16px; padding: 18px 0; margin: 4px 0 14px;" dir="ltr">${esc(spaced)}</div>`,
       paragraphs: ['מקלידים את הקוד באפליקציה. הוא בתוקף ל-10 דקות.'],
-      notes: ['לא ביקשת קוד? אפשר להתעלם מהמייל, אף אחד לא נכנס בלעדיו.'],
+      notes: ['לא ביקשתם קוד? אפשר להתעלם מהמייל, אף אחד לא נכנס בלעדיו.'],
     }),
   });
 }
@@ -237,19 +255,19 @@ export async function notifyLoginCode(user: { email: string; code: string; name?
  * is nothing for them to do yet, and a button would invent something.
  */
 export async function notifyRegistrationReceived(user: { email: string; name?: string | null }): Promise<SendResult> {
-  const first = (user.name || '').split(/\s+/)[0] || '';
+  const first = firstName(user.name);
   return sendEmail({
     template: 'registration_received',
     to: user.email,
-    subject: `קיבלנו את הבקשה שלך${first ? `, ${first}` : ''} 🏃`,
+    subject: `קיבלנו את הבקשה שלכם${first ? `, ${first}` : ''} 🏃`,
     replyTo: ADMIN_EMAIL,
     html: renderEmail({
       eyebrow: 'מועדון הריצה של מדרגות',
-      title: `קיבלנו${first ? `, ${first}` : ''}. המדרגה הראשונה מאחורייך`,
-      preheader: 'הבקשה שלך אצלנו. בדרך כלל מאשרים תוך יום.',
-      paragraphs: ['הבקשה שלך הגיעה אלינו. ככה זה ממשיך מכאן:'],
-      bodyHtml: renderJourney(1) + renderNextUp('הבא בתור', 'אישור מהמנהלים', 'בדרך כלל תוך יום. נשלח לך מייל עם קישור אישי להתקנת האפליקציה.'),
-      notes: ['אין צורך לעשות שום דבר נוסף בינתיים.', 'שאלות? פשוט תשיבו למייל הזה.'],
+      title: `קיבלנו${first ? `, ${first}` : ''} 🙌`,
+      preheader: 'הבקשה אצלנו. בדרך כלל מאשרים תוך יום.',
+      paragraphs: ['הצעד הראשון מאחוריכם. ככה זה ממשיך מכאן:'],
+      bodyHtml: renderJourney(1) + renderNextUp('הבא בתור', 'אישור מהמאמן', 'בדרך כלל תוך יום. נשלח אליכם מייל עם קישור אישי להתקנת האפליקציה.'),
+      notes: ['אין צורך לעשות שום דבר בינתיים.', 'שאלות? פשוט תשיבו למייל הזה.'],
     }),
   });
 }
@@ -272,28 +290,32 @@ export async function notifyRegistrationApproved(user: {
   /** Onboarding v2 (lib/install/flag): the journey, the three install steps, a QR for a computer. */
   v2?: boolean;
 }): Promise<SendResult> {
+  // "ההרשמה שלכם אושרה 🎉 · שובצתם לקבוצה: קבוצה 2" — the group in Hebrew, and the
+  // same structure as notifyUserApproved: the tracker, the next step, one button.
+  const group = user.groupName ? memberGroupName(user.groupName) : '';
+  const placed = group ? `שובצתם לקבוצה: ${group}.` : '';
   if (user.v2) {
     const link = joinLinkV2(APP_URL, user.token, true);
     return sendEmail({
       template: 'registration_approved',
       to: user.email,
-      subject: '✅ אושרת! ככה מתקינים את האפליקציה של מדרגות',
+      subject: '✅ ההרשמה אושרה! ככה מתקינים את האפליקציה של מדרגות',
       // "Stuck? Just reply" has to reach a person.
       replyTo: ADMIN_EMAIL,
       athleteId: user.athleteId ?? null,
       signupRequestId: user.signupRequestId ?? null,
       html: renderEmail({
         eyebrow: 'ההרשמה אושרה',
-        title: 'ברוכים הבאים למדרגות! 🎉',
-        preheader: 'נשארה דקה אחת: להתקין את האפליקציה ולהיכנס.',
-        paragraphs: [
-          `ההרשמה שלך אושרה${user.groupName ? `, ${user.groupName}` : ''}. נשארה דקה אחת: להתקין את האפליקציה ולהיכנס.`,
-        ],
-        bodyHtml: renderJourney(2) + renderSteps([
-          { title: 'פותחים את הכפתור בטלפון', sub: 'לא במחשב' },
-          { title: 'מוסיפים למסך הבית', sub: 'המסך יראה לך בדיוק איך' },
-          { title: 'פותחים מהאייקון ונכנסים', sub: 'קוד קצר במייל' },
-        ]),
+        title: 'ההרשמה שלכם אושרה 🎉',
+        preheader: placed ? `${placed} נשארה דקה אחת: להתקין את האפליקציה ולהיכנס.` : 'נשארה דקה אחת: להתקין את האפליקציה ולהיכנס.',
+        paragraphs: [placed ? `${placed} ברוכים הבאים למדרגות!` : 'ברוכים הבאים למדרגות!'],
+        bodyHtml: renderJourney(2)
+          + renderNextUp('הבא בתור', 'מתקינים את האפליקציה בטלפון', 'דקה אחת, והמסך יראה לכם בדיוק איך.')
+          + renderSteps([
+            { title: 'פותחים את הכפתור בטלפון', sub: 'לא במחשב' },
+            { title: 'מוסיפים למסך הבית', sub: 'המסך יראה לכם בדיוק איך' },
+            { title: 'פותחים מהאייקון ונכנסים', sub: 'קוד קצר במייל' },
+          ]),
         cta: { label: 'להתקנת האפליקציה ←', href: link },
         afterCtaHtml: renderScanOnPhone(`${APP_URL}/api/public/qr?t=${encodeURIComponent(user.token)}`)
           + renderTip('💡 באייפון ההתקנה עובדת רק דרך <b>Safari</b>. אם המייל נפתח בתוך Gmail, המסך הראשון יסביר איך לעבור.'),
@@ -304,19 +326,17 @@ export async function notifyRegistrationApproved(user: {
   return sendEmail({
     template: 'registration_approved',
     to: user.email,
-    subject: '✅ ההרשמה שלך למדרגות אושרה',
+    subject: '✅ ההרשמה שלכם למדרגות אושרה',
     athleteId: user.athleteId ?? null,
     signupRequestId: user.signupRequestId ?? null,
     html: renderEmail({
       eyebrow: 'ההרשמה אושרה',
-      title: 'אושרת! 🎉',
-      preheader: 'נשאר להשלים כמה פרטים ולחבר את Strava — דקה וזה נגמר.',
-      paragraphs: [
-        `ההרשמה שלך למדרגות אושרה${user.groupName ? ` — ${user.groupName}` : ''}. נשאר רק להשלים כמה פרטים ולהתחבר עם Strava, וזה הכל.`,
-        'מי שהשעון שלו כבר מחובר אצלנו — נזהה את זה ונדלג על השלב.',
-      ],
-      cta: { label: 'להשלמת ההרשמה →', href: `${APP_URL}/join/${user.token}` },
-      notes: ['הקישור אישי — אל תעבירו אותו לאף אחד.'],
+      title: 'ההרשמה שלכם אושרה 🎉',
+      preheader: 'נשאר להשלים כמה פרטים ולהתחבר עם Strava. דקה וזה נגמר.',
+      paragraphs: [placed ? `${placed} ברוכים הבאים למדרגות!` : 'ברוכים הבאים למדרגות!'],
+      bodyHtml: renderJourney(2) + renderNextUp('הבא בתור', 'משלימים פרטים ומתחברים', 'כמה פרטים קצרים והתחברות עם Strava. מי שהשעון שלו כבר מחובר אצלנו, מדלג על השלב.'),
+      cta: { label: 'להשלמת ההרשמה ←', href: `${APP_URL}/join/${user.token}` },
+      notes: ['הקישור אישי, אל תעבירו אותו לאף אחד.'],
     }),
   });
 }
@@ -551,8 +571,6 @@ export interface BuiltEmail { subject: string; html: string }
 
 /** The display name the applicant's first mail arrives under; the address stays the club's. */
 export const ACADEMY_SENDER = 'האקדמיה של מדרגות';
-
-const firstName = (name?: string | null) => (name || '').trim().split(/\s+/)[0] || '';
 
 export function academyInviteEmail(p: { name?: string | null; url: string; note?: string | null; senderName?: string | null }): BuiltEmail {
   const who = firstName(p.name);
