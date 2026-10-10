@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { Activity, ChevronLeft, ClipboardList, Newspaper, User } from 'lucide-react';
+import { ChevronLeft, ClipboardList, Newspaper, User } from 'lucide-react';
 import { useOnboarding, markOnboarding } from '@/lib/onboarding/use-onboarding';
 import { TOUR_HOME, canStartTour, tourExitTarget } from '@/lib/onboarding/first-run-order';
 import { FIRST_RUN_EVENT, readFirstRunStage, setFirstRunStage } from '@/lib/onboarding/first-run-flow';
@@ -88,7 +88,6 @@ const SETTLE_TRIES = 3;
 // which a different set of words for the same tab would undo.
 const WELCOME_SCREENS = [
   { icon: Newspaper, labelKey: 'tourScreenFeed', bodyKey: 'tourScreenFeedBody' },
-  { icon: Activity, labelKey: 'tourScreenDashboard', bodyKey: 'tourScreenDashboardBody' },
   { icon: ClipboardList, labelKey: 'tourScreenProgram', bodyKey: 'tourScreenProgramBody' },
   { icon: User, labelKey: 'tourScreenProfile', bodyKey: 'tourScreenProfileBody' },
 ];

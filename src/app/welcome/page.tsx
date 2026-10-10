@@ -126,8 +126,8 @@ export default function WelcomePage() {
   // The address the code goes to: masked by the link, or the one they typed.
   const to = unknown ? typedEmail.trim() : who?.maskedEmail || '';
   const tip = computer ? 'אפשר להעתיק מהמייל ולהדביק כאן' : ios ? 'באייפון הוא יופיע מעל המקלדת, לוחצים עליו' : null;
-  // On a phone browser tab nothing is installed either: no install step, no ✓ on it.
-  const noInstallStep = computer || !standalone;
+  // A phone browser tab installed nothing: the step stays, drawn neutral, no ✓ on it.
+  const installSkipped = !computer && !standalone;
 
   const hero = (
     <JourneyHero
@@ -153,7 +153,7 @@ export default function WelcomePage() {
             </>
           }
         >
-          <JourneyTracker done={3} computer={noInstallStep} />
+          <JourneyTracker done={3} computer={computer} installSkipped={installSkipped} />
           <JourneyCard className="text-center">
             <p className="text-[15px] leading-relaxed" style={{ color: JOURNEY.body }}>
               שלחנו קוד אל <bdi dir="ltr" className="font-bold">{to}</bdi>
@@ -194,7 +194,7 @@ export default function WelcomePage() {
             </>
           }
         >
-          <JourneyTracker done={3} computer={noInstallStep} />
+          <JourneyTracker done={3} computer={computer} installSkipped={installSkipped} />
           <JourneyCard>
             <label htmlFor="welcome-email" className="mb-1 block text-[13px] font-bold" style={{ color: JOURNEY.soft }}>
               נשלח קוד של 6 ספרות למייל שאיתו נרשמתם
@@ -228,7 +228,7 @@ export default function WelcomePage() {
           </>
         }
       >
-        <JourneyTracker done={3} computer={noInstallStep} />
+        <JourneyTracker done={3} computer={computer} installSkipped={installSkipped} />
         <JourneyCard className="text-center">
           <p className="text-[14px]" style={{ color: JOURNEY.soft }}>נשלח לכם קוד של 6 ספרות אל</p>
           {who && <bdi dir="ltr" className="mt-0.5 block text-[16px] font-bold" style={{ color: JOURNEY.ink }}>{who.maskedEmail}</bdi>}

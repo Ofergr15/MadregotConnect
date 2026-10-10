@@ -108,7 +108,6 @@ function PendingApproval() {
       <JourneyScreen
         testId="pending-approval"
         hero={<JourneyHero eyebrow={t('pendingEyebrow')} title={t('pendingTitle')} subtitle={t('pendingSubtitle')} />}
-        actions={<SecondaryButton onClick={handleBackHome}>{t('backHome')}</SecondaryButton>}
       >
         <JourneyTracker done={1} computer={computer} />
         <NextCard label={t('pendingNextLabel')} title={t('pendingNextTitle')}>{t('pendingNextBody')}</NextCard>
@@ -144,6 +143,9 @@ function PendingApproval() {
         <JourneyCard className="py-3 [&>div]:mt-0 [&>div]:border-t-0 [&>div]:pt-0">
           <ClaimExistingAccount />
         </JourneyCard>
+        {/* Nothing to press while waiting. The one way out says what it does: it
+            signs out (it used to read "back to the home page"). */}
+        <SecondaryButton onClick={handleBackHome}>{t('pendingSignOut')}</SecondaryButton>
       </JourneyScreen>
       <ApprovalPushOptIn />
     </>

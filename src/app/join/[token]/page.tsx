@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Check, Eye, EyeOff } from 'lucide-react';
 import { InsetSection, InsetRow, Button } from '@/components/ui';
 import { cn, resolveGroup } from '@/lib/utils';
-import { InstallGuide } from '@/components/install/InstallGuide';
+import { InstallGuide, INSTALL_GUIDE_SEEN_KEY } from '@/components/install/InstallGuide';
 import { ContinueOnPhone } from '@/components/install/ContinueOnPhone';
 import { useIsComputer } from '@/lib/install/use-computer';
 import { usePreviewOnboardingV2 } from '@/lib/install/v2';
@@ -103,7 +103,13 @@ export default function JoinPage() {
   const computer = useIsComputer();
   // The illustrated install guide over the done screen, while it is tried (lib/install/v2).
   const guideV2 = usePreviewOnboardingV2();
-  const [guideClosed, setGuideClosed] = useState(false);
+  // A phone that already went through the guide (on the landing) is not walked
+  // through it again in full: it gets the "saved" screen, which offers it once more.
+  const [guideClosed, setGuideClosed] = useState(() => {
+    try { return typeof window !== 'undefined' && localStorage.getItem(INSTALL_GUIDE_SEEN_KEY) === '1'; } catch { return false; }
+  });
+  // "סיימתי" at the guide's last step: they say it is on the home screen now.
+  const [guideDone, setGuideDone] = useState(false);
   useEffect(() => { trackOnb('join_open', { token, once: true }); }, [token]);
   // Which end screen this member got, once it is on screen.
   useEffect(() => {
@@ -407,13 +413,22 @@ export default function JoinPage() {
       {guideV2 && !guideClosed && (computer
         // On a computer: no home-screen guide. Invite them to the phone, never block (ContinueOnPhone).
         ? <ContinueOnPhone token={token} firstName={(name || '').split(/\s+/)[0] || null} onContinueHere={() => { trackOnb('continue_on_computer', { token }); window.location.assign(`/welcome?t=${encodeURIComponent(token)}`); }} />
-        : <InstallGuide canPrompt={false} onLater={() => setGuideClosed(true)} memberName={name || null} />)}
+        : <InstallGuide canPrompt={false} onLater={() => setGuideClosed(true)} onDone={() => { setGuideDone(true); setGuideClosed(true); }} memberName={name || null} />)}
       {/* What is under the guide, and what "לא עכשיו" lands on. It used to be a
           "registration complete → to the dashboard" card, which contradicted the
           guide (there is no session yet on this path: v2 signs in once, at
           /welcome). Now it says the one true thing — saved, the install is next —
           and offers the guide again or the browser sign-in. */}
-      {guideV2 ? (
+      {guideV2 && guideDone ? (
+        <JourneyScreen
+          hero={<JourneyHero eyebrow={t('approvedEyebrow')} title={t('installedTitle')} subtitle={t('installedSub')} />}
+          actions={<SecondaryButton href={`/welcome?t=${encodeURIComponent(token)}`}>{t('savedBrowserCta')}</SecondaryButton>}
+        >
+          <JourneyTracker done={3} />
+          <NextCard label={t('nextUp')} title={t('installedNextTitle')}>{t('installedNextBody')}</NextCard>
+          <SecondaryButton onClick={() => { setGuideDone(false); setGuideClosed(false); }}>{t('installedNotThere')}</SecondaryButton>
+        </JourneyScreen>
+      ) : guideV2 ? (
         <JourneyScreen
           hero={<JourneyHero eyebrow={t('approvedEyebrow')} title={t('savedTitle')} subtitle={t('savedSub')} />}
           actions={

@@ -1422,6 +1422,7 @@
     "hintPersonalInfo": "Phone, date of birth and gender",
     "hintSizes": "Shirt and shoes, for club kit",
     "hintNotifications": "Workout reminders and news from your coach",
+    "hintNotificationsComputer": "Turned on in the app on your phone, where they arrive",
     "hintWatchDeclared": "You picked {source}, but there's no live connection and nothing is syncing",
     "hintWatchConnected": "Connected to {source}",
     "hintFilledOf": "{filled} of {total} fields filled",
@@ -1456,7 +1457,7 @@
     "destPersonalInfo": "Profile · Personal details",
     "destNotifications": "Profile · Notifications",
     "tourWelcomeTitle": "Welcome to Madregot 👋",
-    "tourWelcomeBody": "A one-minute tour, then you're on your own. There are four screens, and that's all:",
+    "tourWelcomeBody": "A one-minute tour, then you're on your own. These are the three main screens:",
     "tourScreenFeed": "Feed",
     "tourScreenFeedBody": "What the club is running, with likes, comments and photos.",
     "tourScreenDashboard": "Dashboard",
@@ -1558,7 +1559,8 @@
     "pendingNextTitle": "The coach approves",
     "pendingNextBody": "Usually within a day. The moment you are approved, this screen takes you in by itself.",
     "pendingWatchTitle": "Have a running watch or Strava?",
-    "pendingWatchSub": "Connect it after approval, in one tap"
+    "pendingWatchSub": "Connect it after approval, in one tap",
+    "pendingSignOut": "Sign out"
   },
   "join": {
     "joinYourTeam": "Join Your Team",
@@ -1621,7 +1623,12 @@
     "savedNextTitle": "Add it to the home screen",
     "savedNextBody": "So it opens like an app and the coach’s notifications arrive",
     "savedInstallCta": "Show me how",
-    "savedBrowserCta": "Continue in the browser for now"
+    "savedBrowserCta": "Continue in the browser for now",
+    "installedTitle": "Great, it’s on your home screen 🏠",
+    "installedSub": "From now on, open it from the icon, not the browser",
+    "installedNextTitle": "Open Madregot from the icon",
+    "installedNextBody": "Close the browser, tap the icon on your home screen and sign in with an email code",
+    "installedNotThere": "No icon? Show me again"
   },
   "joinAcademy": {
     "title": "Connect Your Garmin",

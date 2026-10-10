@@ -71,14 +71,17 @@ const STEPS = ['הרשמה', 'אישור', 'התקנה', 'כניסה'] as const;
  * The one progress tracker of the journey. `done` counts on the 4-step scale
  * (2 = registered + approved). `computer`: there is nothing to install on a
  * computer, so that step is not drawn (and the count shifts past it).
+ * `installSkipped`: a phone signing in from a browser tab. The step stays (the
+ * tracker keeps one shape on a phone) but is drawn neutral, never ticked.
  */
-export function JourneyTracker({ done, computer = false }: { done: number; computer?: boolean }) {
+export function JourneyTracker({ done, computer = false, installSkipped = false }: { done: number; computer?: boolean; installSkipped?: boolean }) {
   const steps = computer ? STEPS.filter((s) => s !== 'התקנה') : [...STEPS];
   const at = computer && done > 2 ? done - 1 : done;
   return (
     <ol className="flex items-start px-1" aria-label={`שלב ${Math.min(at + 1, steps.length)} מתוך ${steps.length}`}>
       {steps.map((label, i) => {
-        const isDone = i < at, isAt = i === at;
+        const skipped = installSkipped && label === 'התקנה' && i < at;
+        const isDone = i < at && !skipped, isAt = i === at;
         return (
           <li key={label} className="flex flex-1 items-start last:flex-none">
             <div className="flex w-14 flex-col items-center gap-1.5">
@@ -87,7 +90,7 @@ export function JourneyTracker({ done, computer = false }: { done: number; compu
                 style={isDone ? { background: JOURNEY.sun, borderColor: JOURNEY.sun, color: '#fff' }
                   : isAt ? { background: '#fff', borderColor: JOURNEY.dusk, color: JOURNEY.dusk }
                     : { background: '#fff', borderColor: JOURNEY.line, color: JOURNEY.muted }}
-              >{isDone ? '✓' : i + 1}</span>
+              >{isDone ? '✓' : skipped ? '–' : i + 1}</span>
               <span className="text-[13px] font-bold" style={{ color: isDone ? JOURNEY.sun : isAt ? JOURNEY.dusk : JOURNEY.muted }}>{label}</span>
             </div>
             {i < steps.length - 1 && <span aria-hidden className="mt-4 h-0.5 flex-1" style={{ background: i < at ? JOURNEY.sun : JOURNEY.line }} />}
@@ -102,7 +105,7 @@ export function JourneyTracker({ done, computer = false }: { done: number; compu
 export function NextCard({ label, title, children }: { label: string; title: ReactNode; children?: ReactNode }) {
   return (
     <div className="rounded-[20px] px-4 py-4 text-center" style={{ background: JOURNEY.tagBg }}>
-      <p className="text-[12px] font-extrabold tracking-wide" style={{ color: JOURNEY.tag }}>{label}</p>
+      <p className="text-[13px] font-extrabold" style={{ color: JOURNEY.tag }}>{label}</p>
       <p className="mt-1 text-[18px] font-black" style={{ color: JOURNEY.ink }}>{title}</p>
       {children && <div className="mt-1 text-[14px] leading-relaxed" style={{ color: JOURNEY.soft }}>{children}</div>}
     </div>

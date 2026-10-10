@@ -18,7 +18,7 @@
 // landing page on an iPhone (blocking). Every showing marks the device
 // (INSTALL_GUIDE_SEEN_KEY), so the app itself does not open it full screen again.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import { detectInstallPlatform, otherSafari, type InstallPlatform } from '@/lib/install/platform';
 import { stepsFor, VIDEO_STEP_MS, type InstallStep } from '@/lib/install/steps';
@@ -54,6 +54,8 @@ export interface InstallGuideProps {
   onInstall?: () => Promise<void>;
   /** "Not now" — back next visit. */
   onLater: () => void;
+  /** "סיימתי" on the last step: the member says they added it. Defaults to onLater. */
+  onDone?: () => void;
   /** "Don't offer again". Omitted where it makes no sense (the end of /join). */
   onNever?: () => void;
   /** Who is asking for help, for the pre-written WhatsApp message. */
@@ -176,7 +178,17 @@ interface BeforeInstallPrompt extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLater, onNever, memberName, forcePlatform, forceVideo, blocking, onEscape }: InstallGuideProps) {
+/**
+ * The English menu names in the steps ("(Add to Home Screen)") isolated as one
+ * left-to-right unit that never breaks: left to the bidi algorithm inside a Hebrew
+ * line, the parentheses flipped and the words split across two lines.
+ */
+function ltrParens(text: string): ReactNode {
+  return text.split(/(\([A-Za-z][^)]*\))/).map((part, i) =>
+    i % 2 ? <bdi key={i} dir="ltr" className="whitespace-nowrap">{part}</bdi> : part);
+}
+
+export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLater, onDone, onNever, memberName, forcePlatform, forceVideo, blocking, onEscape }: InstallGuideProps) {
   // Where no provider caught Chrome's install event (the end of /join), catch it here.
   const [own, setOwn] = useState<BeforeInstallPrompt | null>(null);
   useEffect(() => {
@@ -277,8 +289,8 @@ export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLate
                 </div>
               </div>
               <div className="text-center">
-                <h2 className="text-[18px] font-black leading-snug" style={{ color: JOURNEY.ink }}>{s.title}</h2>
-                <p className="mx-auto mt-1 max-w-[340px] text-[14px] leading-snug" style={{ color: JOURNEY.soft }}>{s.body}</p>
+                <h2 className="text-[18px] font-black leading-snug" style={{ color: JOURNEY.ink }}>{ltrParens(s.title)}</h2>
+                <p className="mx-auto mt-1 max-w-[340px] text-[14px] leading-snug" style={{ color: JOURNEY.soft }}>{ltrParens(s.body)}</p>
               </div>
             </>
           )}
@@ -314,7 +326,7 @@ export function InstallGuide({ canPrompt: given, onInstall: givenInstall, onLate
                 עכשיו סוגרים את הדפדפן, פותחים את האייקון של מדרגות במסך הבית, ונכנסים משם 🏠
               </p>
             ) : last ? (
-              <PrimaryButton onClick={onLater}>סיימתי</PrimaryButton>
+              <PrimaryButton onClick={onDone ?? onLater}>סיימתי</PrimaryButton>
             ) : (
               <PrimaryButton onClick={() => setStep(step + 1)}>עשיתי, הבא</PrimaryButton>
             )}

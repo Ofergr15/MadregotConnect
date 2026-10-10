@@ -443,20 +443,20 @@ export async function notifyEntryNudge(user: {
     template: 'entry_nudge',
     to: user.email,
     athleteId: user.athleteId ?? null,
-    subject: neverGotIn ? '👋 האפליקציה של מדרגות מחכה לך' : '⏳ נשאר לסדר כמה דברים באפליקציה',
+    subject: neverGotIn ? '👋 האפליקציה של מדרגות מחכה לכם' : '⏳ נשאר לסדר כמה דברים באפליקציה',
     html: renderEmail({
-      eyebrow: neverGotIn ? 'החשבון שלך מחכה' : 'כמעט שם',
-      title: neverGotIn ? `${hey}האפליקציה מחכה לך 👋` : `${hey}כמעט סיימת`,
+      eyebrow: neverGotIn ? 'החשבון שלכם מחכה' : 'כמעט שם',
+      title: neverGotIn ? `${hey}האפליקציה מחכה לכם 👋` : `${hey}כמעט סיימתם`,
       preheader: neverGotIn
-        ? 'החשבון מאושר, אבל האפליקציה עוד לא נפתחה אצלך. הקישור כאן פותר את זה.'
+        ? 'החשבון מאושר, אבל האפליקציה עוד לא נפתחה אצלכם. הקישור כאן פותר את זה.'
         : `נשאר ${missing.length > 1 ? 'כמה דברים קטנים' : 'דבר קטן אחד'} בפרופיל.`,
       paragraphs: neverGotIn
         ? [
-            'החשבון שלך במדרגות מאושר וממתין — אבל עוד לא נכנסת לאפליקציה.',
+            'החשבון שלכם במדרגות מאושר וממתין — אבל עוד לא נכנסתם לאפליקציה.',
             'הסיבה הנפוצה: התחברות מתוך אפליקציה אחרת (אינסטגרם, ווטסאפ) נפתחת בדפדפן פנימי שהאפליקציה לא רואה, ואז ההתחברות מצליחה והאפליקציה נשארת סגורה. הקישור למטה נפתח בדפדפן הרגיל של הטלפון, וזה פותר את זה.',
           ]
         : [
-            `נכנסת לאפליקציה, ונשאר עוד ${missing.length > 1 ? 'כמה דברים קטנים' : 'דבר קטן אחד'} כדי שהיא תעבוד בשבילך במלואה.`,
+            `נכנסתם לאפליקציה, ונשאר עוד ${missing.length > 1 ? 'כמה דברים קטנים' : 'דבר קטן אחד'} כדי שהיא תעבוד בשבילכם במלואה.`,
             // The list itself is drawn below when the caller passed the state. Only
             // when it didn't does it have to be said in a sentence.
             ...(user.setup
@@ -508,13 +508,13 @@ export async function notifySetupSnapshot(user: {
     template: 'setup_snapshot',
     to: user.email,
     athleteId: user.athleteId ?? null,
-    subject: `⏳ ${user.doneCount} מתוך ${user.total} — מה נשאר לך באפליקציה`,
+    subject: `⏳ ${user.doneCount} מתוך ${user.total} — מה נשאר לכם באפליקציה`,
     html: renderEmail({
       eyebrow: 'רבע שעה בפנים',
-      title: `${hey}ככה זה נראה אצלך עכשיו`,
+      title: `${hey}ככה זה נראה אצלכם עכשיו`,
       preheader: `${user.doneCount} מתוך ${user.total} מסודרים${left ? `, נשאר ${left}` : ''} — הכל מסומן כאן בפנים.`,
       paragraphs: [
-        'נכנסת לאפליקציה לפני רבע שעה — הנה מה שכבר מסודר ומה שלא, כדי שלא תישאר עם חצי אפליקציה.',
+        'נכנסתם לאפליקציה לפני רבע שעה — הנה מה שכבר מסודר ומה שלא, כדי שלא תישארו עם חצי אפליקציה.',
       ],
       bodyHtml: renderSetupProgress(user),
       cta: { label: 'להשלמת מה שנשאר →', href: `${APP_URL}/dashboard/profile` },

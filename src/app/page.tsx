@@ -361,7 +361,7 @@ export default function HomePage() {
                     always did — at 375 this bar also holds the Strava button and the locale
                     switch, and forcing one line pushes the button off the screen. The
                     tracking came down from 0.14em, which at 11px broke it into four rows. */}
-                <span className="text-2xs font-semibold uppercase tracking-[0.02em] rtl:tracking-normal text-ink-400 mt-0.5">{t('after2km')}</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.02em] rtl:tracking-normal text-ink-400 mt-0.5">{t('after2km')}</span>
               </div>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">

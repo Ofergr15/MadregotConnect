@@ -120,7 +120,7 @@ export function InstallPrompt() {
       <div className="mx-4 mt-2 flex shrink-0 items-center gap-2 rounded-[18px] ps-3" style={{ background: JOURNEY.tagBg }} dir="rtl" data-testid="install-strip">
         <span aria-hidden className="text-lg">📲</span>
         <button type="button" onClick={() => { setAsked(true); reopen(); }} className="min-h-[44px] min-w-0 flex-1 text-start text-[14px] font-bold leading-snug" style={{ color: JOURNEY.ink }}>
-          האפליקציה עוד לא על המסך הראשי · <span className="underline underline-offset-2" style={{ color: JOURNEY.tag }}>להתקנה</span>
+          האפליקציה עוד לא על המסך הראשי. <span className="whitespace-nowrap"><span className="underline underline-offset-2" style={{ color: JOURNEY.tag }}>להתקנה</span></span>
         </button>
         <button type="button" onClick={hide} aria-label="להסתיר לשבוע" className="min-h-[44px] min-w-[44px] text-lg" style={{ color: JOURNEY.soft }}>×</button>
       </div>

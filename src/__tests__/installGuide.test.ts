@@ -102,7 +102,7 @@ describe('where it shows', () => {
   it('one fixed bottom bar: "done, next" / "finished", and "looks different" as a full secondary', () => {
     const g = read('components/install/InstallGuide.tsx');
     expect(g).toMatch(/<PrimaryButton onClick=\{\(\) => setStep\(step \+ 1\)\}>עשיתי, הבא<\/PrimaryButton>/);
-    expect(g).toMatch(/<PrimaryButton onClick=\{onLater\}>סיימתי<\/PrimaryButton>/);
+    expect(g).toMatch(/<PrimaryButton onClick=\{onDone \?\? onLater\}>סיימתי<\/PrimaryButton>/);
     expect(g).toMatch(/<SecondaryButton onClick=\{\(\) => \{ setPlatform\(otherSafari\(platform\)\); setStep\(0\); \}\}>אצלי זה נראה אחרת<\/SecondaryButton>/);
     // The picture is capped so nothing is pushed below the fold.
     expect(g).toMatch(/maxHeight: '52dvh'/);

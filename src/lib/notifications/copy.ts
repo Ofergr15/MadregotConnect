@@ -863,7 +863,7 @@ export function snapshotRowCopy(
 ): { name: string; hint: string } {
   const he: Record<string, [string, string]> = {
     watch: ['חיבור שעון', row.done ? 'מחובר — האימונים נכנסים לבד' : 'גרמין או סטראבה, כדי שהאימונים ייכנסו לבד'],
-    photo: ['תמונת פרופיל', row.done ? 'יש' : 'כדי שיזהו אותך בפיד ובטבלאות'],
+    photo: ['תמונת פרופיל', row.done ? 'יש' : 'כדי שיזהו אתכם בפיד ובטבלאות'],
     personalInfo: ['פרטים אישיים', row.done ? 'מלאים' : 'טלפון, תאריך לידה ומין'],
     sizes: ['מידות', row.done ? 'מלאות' : 'חולצה ונעליים, בשביל ערכות הקבוצה'],
     notifications: ['התראות', row.done ? 'מופעלות' : 'תזכורות לאימון והודעות מהמאמן'],
@@ -882,7 +882,7 @@ export function snapshotRowCopy(
     return {
       name,
       hint: locale === 'he'
-        ? `בחרת ${src}, אבל אין חיבור פעיל והאימונים לא נכנסים`
+        ? `בחרתם ${src}, אבל אין חיבור פעיל והאימונים לא נכנסים`
         : `You chose ${src}, but there is no live connection and runs aren't arriving`,
     };
   }
