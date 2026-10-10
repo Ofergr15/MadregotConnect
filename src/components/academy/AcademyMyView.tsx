@@ -22,6 +22,7 @@ import { joinHebrewList } from '@/lib/academy/members';
 import { CoachAvatarStack } from './CoachAvatarStack';
 import { PaceUpdateCard } from './tools/PaceUpdateCard';
 import { KmCard } from '@/components/trainee/KmCard';
+import { JourneyTiles } from '@/components/trainee/JourneyTiles';
 
 // The academy as one of its trainees sees it — mockup academy-trainee-home-v4.
 //
@@ -322,8 +323,8 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
 }
 
 /**
- * "המסע שלי": the long-run numbers and the tests card. Also drawn under the trainee's board
- * (trainee/TraineeBoard.tsx) until the progress tab takes it over.
+ * "המסע שלי": the long-run numbers (trainee/JourneyTiles.tsx, shared with 7ג of the trainee
+ * experience v2) and the tests card.
  */
 export function MyJourney({ journey, athlete, invitation, testsRef, onRecorded }: {
   journey: NonNullable<TraineeHome['journey']>;
@@ -334,15 +335,7 @@ export function MyJourney({ journey, athlete, invitation, testsRef, onRecorded }
 }) {
   return (
     <section className="mt-5 flex flex-col gap-[7px]">
-      <h2 className="px-0.5 text-[15px] font-black text-ink-700">המסע שלי</h2>
-      <div className="grid grid-cols-3 gap-[7px]">
-        <JourneyTile value={journey.monthsWithUs != null ? String(journey.monthsWithUs) : '—'} label="חודשים איתנו" />
-        <JourneyTile value={String(journey.runs)} label="ריצות הושלמו" />
-        <JourneyTile value={String(journey.km)} label="ק״מ" />
-        <JourneyTile value={journey.planPct != null ? `${journey.planPct}%` : '—'} label="מהתוכנית בוצע" />
-        <JourneyTile value={String(journey.streakWeeks)} label="שבועות ברצף" />
-        <JourneyTile value={journey.longestKm != null ? fmtKm(journey.longestKm * 1000) : '—'} label="הכי ארוכה (ק״מ)" />
-      </div>
+      <JourneyTiles journey={journey} />
       {athlete?.athleteId && (
         <MyTestsCard
           ref={testsRef}
@@ -363,15 +356,6 @@ function PaceTile({ value, label, highlight }: { value: string; label: string; h
         <bdi dir="ltr">{value}</bdi>
       </b>
       <span className="block text-3xs text-ink-400">{label}</span>
-    </div>
-  );
-}
-
-function JourneyTile({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="rounded-[14px] bg-card px-2 py-[9px] text-center">
-      <b className="block text-[21px] font-black leading-tight text-ink-700"><bdi dir="ltr">{value}</bdi></b>
-      <span className="text-2xs text-ink-400">{label}</span>
     </div>
   );
 }

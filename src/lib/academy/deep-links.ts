@@ -7,7 +7,8 @@
 //
 //   ?thread=mine                      the trainee's own conversation, opened in its sheet
 //   ?tab=threads&thread=<traineeId>   staff: the threads tab with that trainee's open
-//   ?test=mine                        the trainee's test / invitation card, raised
+//   ?test=mine                        the trainee's test / invitation card, raised — under the
+//                                     trainee experience v2, the progress tab's 7ג instead
 //   ?tab=tests                        staff: the tests tab
 //   ?open=<YYYY-MM-DD>                the trainee's board with that day's workout open
 //   ?view=month                       the trainee's board on the month
@@ -100,4 +101,14 @@ export const TRAINEE_PROGRESS_PATH = `${ACADEMY_PATH}/progress`;
 
 export function traineeProgressUrl(view?: 'body' | 'tests'): string {
   return view ? `${TRAINEE_PROGRESS_PATH}?view=${view}` : TRAINEE_PROGRESS_PATH;
+}
+
+/**
+ * Where `?test=mine` goes under the trainee experience v2: the tests moved off the board to
+ * 7ג (`progress?view=tests`), so a test reminder tapped on the phone lands on them. Null
+ * when the page should handle the link itself — staff, or v2 off (the old home raises its
+ * own test card).
+ */
+export function traineeTestRedirect(link: Pick<AcademyDeepLink, 'test'>, opts: { traineeV2: boolean; isStaff: boolean }): string | null {
+  return link.test && opts.traineeV2 && !opts.isStaff ? traineeProgressUrl('tests') : null;
 }

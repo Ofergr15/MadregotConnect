@@ -55,7 +55,7 @@ const CHART_WEEKS = 12;
 const round1 = (meters: number) => Math.round(meters / 100) / 10;
 
 /** Pre-077 schemas have no pairing columns; the screen still renders without them. */
-const ME_COLS = 'id, name, avatar_url, is_academy, academy_coach_id, academy_band_id, academy_pace_offset_sec, academy_joined_on';
+const ME_COLS = 'id, name, gender, avatar_url, is_academy, academy_coach_id, academy_band_id, academy_pace_offset_sec, academy_joined_on';
 const ME_COLS_FALLBACK = 'id, name, avatar_url, is_academy';
 
 /**
@@ -257,7 +257,10 @@ export async function GET(request: Request) {
     const body: TraineeHome = {
       isMember: true,
       weekStart,
-      athlete: { athleteId: me.id, name: me.name, avatarUrl: me.avatar_url || null, hasWatch },
+      athlete: {
+        athleteId: me.id, name: me.name, avatarUrl: me.avatar_url || null, hasWatch,
+        gender: me.gender === 'female' || me.gender === 'male' ? me.gender : null,
+      },
       coach: coach ? { id: coach.id, name: coach.name, avatarUrl: coach.avatar_url || null } : null,
       coaches: coachRows.map((c) => ({ id: c.id, name: c.name, avatarUrl: c.avatar_url || null })),
       unread,

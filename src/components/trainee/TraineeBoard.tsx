@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GraduationCap } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -10,11 +10,8 @@ import { academyBoardUrl, type BoardView } from '@/lib/academy/deep-links';
 import { joinHebrewList } from '@/lib/academy/members';
 import { weekStartOf } from '@/lib/academy/pmc';
 import type { TraineeHome } from '@/lib/academy/trainee-home';
-import type { TestInvitation } from '@/lib/academy/testInvite';
 import { WeekBoard } from '@/components/academy/book/WeekBoard';
 import { AcademyThreadPanel } from '@/components/academy/AcademyThreadPanel';
-import { MyInvitation } from '@/components/academy/MyInvitation';
-import { MyJourney } from '@/components/academy/AcademyMyView';
 import { MonthBoard } from './MonthBoard';
 
 // ── "לוח": the trainee lens of /dashboard/academy under the trainee experience v2 ────────
@@ -24,16 +21,15 @@ import { MonthBoard } from './MonthBoard';
 // lands on the same thing a tap would. `?thread=mine` opens the conversation over the
 // board, as it did over the old academy home.
 //
-// Until the progress tab (package 4) takes them, the invitation, the journey tiles and the
-// tests card sit below the board, and `?test=mine` scrolls to them.
+// The tests, the invitation and the journey tiles live on the progress tab now (7ג,
+// trainee/ThresholdScreen.tsx); `?test=mine` is redirected there by the academy page.
 
-export function TraineeBoard({ athleteId, view, openDate, openThread = false, raiseTest = false }: {
+export function TraineeBoard({ athleteId, view, openDate, openThread = false }: {
   /** `null` while the id is still being read from storage; `''` once we've looked and found nobody. */
   athleteId: string | null;
   view: BoardView;
   openDate: string | null;
   openThread?: boolean;
-  raiseTest?: boolean;
 }) {
   const t = useTranslations('academy');
   const tw = useTranslations('trainee.week');
@@ -43,11 +39,6 @@ export function TraineeBoard({ athleteId, view, openDate, openThread = false, ra
   const [anchor, setAnchor] = useState<string | null>(openDate ? weekStartOf(openDate) : null);
   useEffect(() => { if (openDate) setAnchor(weekStartOf(openDate)); }, [openDate]);
   const [threadOpen, setThreadOpen] = useState(false);
-  const [hasInvitation, setHasInvitation] = useState(false);
-  const [invitation, setInvitation] = useState<TestInvitation | null>(null);
-  const [resultJustSent, setResultJustSent] = useState(false);
-  const testsRef = useRef<HTMLDivElement>(null);
-  const invitationRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading } = useApi<TraineeHome>(athleteId ? `/api/academy/me?athleteId=${encodeURIComponent(athleteId)}` : null);
 
@@ -57,15 +48,6 @@ export function TraineeBoard({ athleteId, view, openDate, openThread = false, ra
 
   // A push lands here with `?thread=mine`; followed when it flips, like the old home.
   useEffect(() => { if (openThread) setThreadOpen(true); }, [openThread]);
-
-  const loaded = !!data?.isMember;
-  useEffect(() => {
-    if (!raiseTest || !loaded) return;
-    const id = setTimeout(() => {
-      (hasInvitation ? invitationRef.current : testsRef.current)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 400);
-    return () => clearTimeout(id);
-  }, [raiseTest, loaded, hasInvitation]);
 
   if (athleteId === null || (!!athleteId && isLoading && !data)) {
     return <div className="p-4"><SkeletonList count={6} /></div>;
@@ -95,27 +77,6 @@ export function TraineeBoard({ athleteId, view, openDate, openThread = false, ra
           openDate={openDate}
           onView={v => go({ view: v })}
           onClosed={() => { if (openDate) go({ view: 'week', open: null }); }}
-        />
-      )}
-
-      {data?.athlete?.athleteId && (
-        <div ref={invitationRef} className={hasInvitation ? 'mt-3' : 'hidden'}>
-          <MyInvitation
-            athleteId={data.athlete.athleteId}
-            watchConnected={data.athlete.hasWatch}
-            onVisible={setHasInvitation}
-            onInvitation={setInvitation}
-            resultJustSent={resultJustSent}
-          />
-        </div>
-      )}
-      {data?.journey && (
-        <MyJourney
-          journey={data.journey}
-          athlete={data.athlete ?? null}
-          invitation={invitation}
-          testsRef={testsRef}
-          onRecorded={() => setResultJustSent(true)}
         />
       )}
 

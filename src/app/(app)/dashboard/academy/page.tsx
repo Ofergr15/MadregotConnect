@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { SkeletonList } from '@/components/ui';
 import { AcademyMyView } from '@/components/academy/AcademyMyView';
 import { AcademyShell } from '@/components/academy/AcademyShell';
@@ -13,7 +13,7 @@ import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 import { getActiveViewRole, getStoredView } from '@/lib/role-views';
 import { getViewedPerson, isViewingPerson, type ViewedPerson } from '@/lib/view-as-person';
 import { hasRole } from '@/lib/auth/roles';
-import { readAcademyDeepLink } from '@/lib/academy/deep-links';
+import { readAcademyDeepLink, traineeTestRedirect } from '@/lib/academy/deep-links';
 import { useTraineeV2 } from '@/lib/trainee/v2';
 import { TraineeBoard } from '@/components/trainee/TraineeBoard';
 
@@ -102,11 +102,15 @@ export default function AcademyPage() {
   const searchParams = useSearchParams();
   const deepLink = useMemo(() => readAcademyDeepLink(searchParams), [searchParams]);
   const traineeV2 = useTraineeV2();
+  const router = useRouter();
+  // A test reminder tapped under v2: the tests are on the progress tab (7ג) now.
+  const testRedirect = resolving ? null : traineeTestRedirect(deepLink, { traineeV2, isStaff });
+  useEffect(() => { if (testRedirect) router.replace(testRedirect); }, [testRedirect, router]);
   const valid: Tab[] = ['overview', 'threads', 'funnel', 'members', 'registrations', 'coaches', 'plans', 'book', 'dispatch', 'compliance', 'tests', 'stats', 'results', 'payments', 'settings', 'roster'];
   const linkTab = deepLink.tab && valid.includes(deepLink.tab as Tab) ? deepLink.tab : null;
   const linkThread = deepLink.thread && deepLink.thread !== 'mine' ? deepLink.thread : null;
 
-  if (resolving) {
+  if (resolving || testRedirect) {
     return (
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <SkeletonList count={5} />
@@ -123,7 +127,6 @@ export default function AcademyPage() {
           view={deepLink.view}
           openDate={deepLink.open}
           openThread={deepLink.thread === 'mine'}
-          raiseTest={deepLink.test}
         />
       </div>
     );

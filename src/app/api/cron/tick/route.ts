@@ -29,6 +29,7 @@ import { APPROVER_EMAILS, SUPER_USER_EMAIL } from '@/lib/constants';
 import { runJoinReminders } from '@/lib/onboarding/join-reminder';
 import { runPendingReminders } from '@/lib/onboarding/pending-reminder';
 import { dispatchDueTestReminders } from '@/lib/academy/testReminders-server';
+import { dispatchMorningReminders } from '@/lib/academy/morning-reminder-server';
 import { syncClubFollows } from '@/lib/follows/club-sync';
 import { qualityPush } from '@/lib/quality-session/server';
 import { PUSH_AT } from '@/lib/quality-session/model';
@@ -753,6 +754,11 @@ async function run(request: Request) {
   if (testReminders.sent) fired.push(`academyTestReminders → ${testReminders.sent}`);
   if (testReminders.withheld) fired.push(`academyTestRemindersWithheld → ${testReminders.withheld}`);
 
+  // The academy's morning reminder (screen 9): its own ledger, so a tick that runs twice
+  // sends it once. Never throws (lib/academy/morning-reminder-server.ts).
+  const morningReminders = await dispatchMorningReminders(supabase, now.toISOString());
+  if (morningReminders.sent) fired.push(`academyMorningReminders → ${morningReminders.sent}`);
+
   // precision (delegate to the existing scanner route).
   let scanned: unknown = null;
   try {
@@ -801,7 +807,7 @@ async function run(request: Request) {
     .eq('tick_at', tickAt);
   if (timingError) console.warn('[cron/tick] could not record timing:', timingError.message);
 
-  return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, resolvedReports, setupSnapshot, testReminders, scanned, durationMs });
+  return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, resolvedReports, setupSnapshot, testReminders, morningReminders, scanned, durationMs });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

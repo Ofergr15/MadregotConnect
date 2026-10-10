@@ -1,6 +1,6 @@
 import { shiftDate, thresholdOn, daysBetween, type TestPoint } from './load';
 import {
-  dailyLoads, lastWeeks, loadStatus, pmcSeries, pmcToday, weeklyLoads,
+  dailyLoads, lastWeeks, loadStatus, pmcSeries, pmcToday, pointOn, weekStartOf, weeklyLoads,
   type LoadRow, type LoadStatus, type WeeklyLoad,
 } from './pmc';
 import { formBand, rampWord, type FormBandKey, type RampWordKey } from './form-bands';
@@ -33,7 +33,16 @@ export interface LoadPayload {
   weekly: WeeklyLoad[];
   thresholdSec: number | null;
   basisTestDate: string | null;
+  /** The usable test before the basis one: 7's "4:12 במקום 4:21 · מהטסט של יולי". */
+  previousTest: { date: string; thresholdSec: number } | null;
   firstLoadDate: string | null;
+  /**
+   * Form per Sunday week over the range, oldest first (7's band strip): each week as of
+   * its Saturday, this week as of yesterday. Empty while the numbers are not ok.
+   */
+  formWeeks: Array<{ weekStart: string; form: number; band: FormBandKey }>;
+  /** The upcoming race, when there is one: 7 offers "עד המרוץ" only then. */
+  raceDate: string | null;
 }
 
 const r1 = (x: number) => Math.round(x * 10) / 10;
@@ -53,6 +62,7 @@ export function buildLoadPayload(input: {
   const firstLoadDate = priced[0] ?? null;
   const y = shiftDate(today, -1);
   const basis = thresholdOn(today, tests);
+  const previous = basis ? thresholdOn(shiftDate(basis.date, -1), tests) : null;
 
   const weeks = lastWeeks(today, WEEKS_SHOWN);
   const historyFrom = firstLoadDate ?? today;
@@ -85,6 +95,18 @@ export function buildLoadPayload(input: {
   const every = SAMPLE_EVERY[range];
   const sampled = series.filter(p => p.date >= from && daysBetween(p.date, y) % every === 0);
 
+  // One cell per Sunday week the range touches, from the full (unsampled) series.
+  const formWeeks: LoadPayload['formWeeks'] = [];
+  if (status.kind === 'ok' && series.length) {
+    for (let w = weekStartOf(from); w <= y; w = shiftDate(w, 7)) {
+      const end = shiftDate(w, 6) < y ? shiftDate(w, 6) : y;
+      if (end < series[0].date) continue;
+      const p = pointOn(series, end);
+      const form = Math.round(p.fitness - p.fatigue);
+      formWeeks.push({ weekStart: w, form, band: formBand(form).key });
+    }
+  }
+
   let todayOut: LoadPayload['today'] = null;
   if (status.kind === 'ok' && series.length) {
     const t = pmcToday(series, today);
@@ -107,6 +129,9 @@ export function buildLoadPayload(input: {
     weekly,
     thresholdSec: basis?.thresholdSec ?? null,
     basisTestDate: basis?.date ?? null,
+    previousTest: previous ? { date: previous.date, thresholdSec: previous.thresholdSec } : null,
     firstLoadDate,
+    formWeeks,
+    raceDate: input.raceDate && input.raceDate >= today ? input.raceDate : null,
   };
 }

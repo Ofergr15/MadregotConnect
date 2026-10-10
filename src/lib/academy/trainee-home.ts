@@ -87,7 +87,11 @@ export interface HomeJourney {
 export interface TraineeHome {
   isMember: boolean;
   weekStart: string;
-  athlete?: { athleteId: string; name: string; avatarUrl: string | null; hasWatch: boolean };
+  athlete?: {
+    athleteId: string; name: string; avatarUrl: string | null; hasWatch: boolean;
+    /** For the gendered copy of the progress screens (migration 057); null when unsaid. */
+    gender?: 'female' | 'male' | null;
+  };
   coach?: { id: string; name: string; avatarUrl: string | null } | null;
   /**
    * EVERY coach of this trainee (migration 135), first = `coach`. Absent on an

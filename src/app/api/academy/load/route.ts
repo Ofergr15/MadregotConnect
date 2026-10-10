@@ -41,7 +41,8 @@ export async function GET(request: Request) {
     const today = israelToday();
     const [{ rows, tests, stored, pending }, raceDate] = await Promise.all([
       athleteLoads(supabase, athleteId, { since: shiftDate(today, -BACKFILL_DAYS), write: !caller.viewingAsBy, today }),
-      range === 'race' ? loadRaceDate(supabase, athleteId) : Promise.resolve(null),
+      // Every range: screen 7 offers "עד המרוץ" only when there is a race.
+      loadRaceDate(supabase, athleteId),
     ]);
     const thisWeek = weekStartOf(today);
     const planned = await plannedLoads(supabase, athleteId, [thisWeek], thresholdOn(today, tests)?.thresholdSec ?? null);

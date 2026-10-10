@@ -1,32 +1,26 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { activityLocalDateStr, israelNow, israelToday, planWeekStartOf, resolveGroup } from '@/lib/utils';
+import { activityLocalDateStr, israelNow, israelToday, planWeekStartOf } from '@/lib/utils';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { mayCoach } from '@/lib/academy/pairing-server';
-import { pickPlan, planRowsFilter } from '@/lib/plans/scope';
-import { planEstimateOptions } from '@/lib/plans/step-estimate';
+import { planRowsFilter } from '@/lib/plans/scope';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
-import type { ParsedWorkout } from '@/lib/ai/types';
 import { toBand } from '@/lib/academy/bands';
 import { loadPaceUpdateCard } from '@/lib/academy/coach-tools-server';
-import { extractWorkouts, groupNumberFor } from '@/lib/academy/report';
 import { loadLaneReferences } from '@/lib/academy/book-server';
-import type { Lane } from '@/lib/academy/group-lane';
+import { dayCards } from '@/lib/academy/day-cards';
 import { goalCard } from '@/lib/academy/trainee-home';
-import { isRunType, plannedLoad, shiftDate, thresholdOn } from '@/lib/academy/load';
+import { isRunType, shiftDate } from '@/lib/academy/load';
 import { athleteLoads, BACKFILL_DAYS } from '@/lib/academy/load-server';
 import { loadCoachRows, loadGoalCharacterization, loadTraineeUnread } from '@/lib/academy/me-reads';
 import type { TestInvitation } from '@/lib/academy/testInvite';
 import {
-  buildTraineeToday, EVENING_LOOKAHEAD_HOUR, invitationSlot, mainWorkoutOf, todayCard, todayRace,
-  type TodayCard, type TraineeToday,
+  buildTraineeToday, EVENING_LOOKAHEAD_HOUR, invitationSlot, todayRace, type TraineeToday,
 } from '@/lib/academy/trainee-today';
 
 export const dynamic = 'force-dynamic';
 
-/** Restating paces needs A threshold; with no test, a typical one only sizes the session (week-board's). */
-const DISPLAY_REFERENCE = 300;
 /** The mornings the ranges are read over: 30 before the newest, plus the newest. */
 const NIGHTS = 31;
 
@@ -138,9 +132,7 @@ export async function GET(request: Request) {
 
     // ── The plan days ──
     const groupNames = new Map<string, string>(((groupsRes.data || []) as Array<{ id: string; name: string }>).map(g => [g.id, g.name]));
-    const groupNumber = groupNumberFor(me.group_id ?? null, groupNames);
     const tests = loads.tests;
-    const newest = tests.length ? tests[tests.length - 1].thresholdSec : null;
     const onWatch = new Set(
       ((deliveriesRes.data || []) as Array<{ workout_date: string; status: string }>)
         .filter(d => d.status === 'success')
@@ -148,46 +140,17 @@ export async function GET(request: Request) {
     );
     const acts = ((actsRes.error ? [] : actsRes.data) || []) as Array<{ id: string; start_time: string; distance: number | null; activity_type: string | null }>;
     const ranOn = (date: string) => acts.some(a => isRunType(a.activity_type) && activityLocalDateStr(a.start_time) === date);
-
-    const planRows = ((plansRes.error ? [] : plansRes.data) || []) as any[];
-    const planWeeks: Record<string, boolean> = {};
-    const workoutsByWeek = new Map<string, { workouts: ParsedWorkout[]; referenceSec: number; drawAtSec: number }>();
-    for (const weekStart of weekStarts) {
-      const plan = pickPlan(planRows.filter(p => String(p.week_start_date).slice(0, 10) === weekStart), athleteId);
-      const workouts = plan ? extractWorkouts(plan.parsed_workouts, groupNumber) : [];
-      planWeeks[weekStart] = workouts.length > 0;
-      if (!plan) continue;
-      // Whose paces the steps are in — week-board's rule: the trainee's own row is at their
-      // own threshold; the club's week at a squad lane's, restated to the trainee's.
-      let referenceSec = newest ?? DISPLAY_REFERENCE;
-      let drawAtSec = referenceSec;
-      if (!plan.athlete_id) {
-        const unified = Array.isArray((plan.parsed_workouts as { workouts?: unknown } | null)?.workouts);
-        const groupLane = resolveGroup(groupNames.get(me.group_id ?? '') ?? null).index + 1;
-        const lane = (unified ? 1 : groupLane >= 1 ? groupLane : 1) as Lane;
-        referenceSec = laneRefs[lane];
-        drawAtSec = newest ?? referenceSec;
-      }
-      workoutsByWeek.set(weekStart, { workouts, referenceSec, drawAtSec });
-    }
-
-    const cards: Record<string, TodayCard> = {};
-    for (const date of days) {
-      const week = workoutsByWeek.get(planWeekStartOf(date));
-      if (!week) continue;
-      const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
-      const workout = mainWorkoutOf(week.workouts.filter(w => w.dayOfWeek === dow));
-      if (!workout) continue;
-      const T = thresholdOn(date, tests)?.thresholdSec ?? null;
-      cards[date] = todayCard(workout, {
-        date,
-        referenceSec: week.referenceSec,
-        drawAtSec: week.drawAtSec,
-        onWatch: onWatch.has(date),
-        expectedLoad: T ? plannedLoad(workout.steps, T, planEstimateOptions(week.workouts)) : null,
-        done: date === today && ranOn(today),
-      });
-    }
+    const { cards, planWeeks } = dayCards({
+      dates: days,
+      athleteId,
+      groupId: me.group_id ?? null,
+      planRows: ((plansRes.error ? [] : plansRes.data) || []) as any[],
+      groupNames,
+      laneRefs,
+      tests,
+      onWatch,
+      doneOn: date => date === today && ranOn(today),
+    });
 
     // ── The invitation ──
     const inviteRow = inviteRes.error ? null : ((inviteRes.data || [])[0] as Record<string, unknown> | undefined) ?? null;

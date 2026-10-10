@@ -64,7 +64,14 @@ export function isMigrationMissing(error: { message?: string; code?: string } | 
  * extra key — `computeMutedAthleteIds` and `isKindMuted` both do, since they
  * only ever look up known category names.
  */
-export type SavedPrefs = Partial<Record<Category, boolean>> & { language?: string };
+export type SavedPrefs = Partial<Record<Category, boolean>> & {
+  language?: string;
+  /**
+   * The academy's morning reminder (trainee-experience-v2 screen 9): on or off, and when
+   * ("HH:MM", Israel, 5-minute grid). Absent = academy/morning-reminder.ts's default.
+   */
+  morningReminder?: { enabled: boolean; time: string };
+};
 
 // Merge a partial saved map over this reader's defaults so any category they
 // have never touched still reads as its baseline (see defaultsFor — all-on for
@@ -74,7 +81,7 @@ export type SavedPrefs = Partial<Record<Category, boolean>> & { language?: strin
 export function mergeWithDefaults(
   saved: SavedPrefs | null | undefined,
   isStaff?: boolean,
-): Record<Category, boolean> & { language?: string } {
+): Record<Category, boolean> & { language?: string; morningReminder?: { enabled: boolean; time: string } } {
   return { ...defaultsFor(isStaff), ...(saved || {}) };
 }
 
@@ -112,6 +119,10 @@ export const KIND_CATEGORY: Record<string, Category> = {
   // about the athlete's own training day, and they sit with `training_before` for the same reason.
   academy_test_before: 'workouts',
   academy_test_after: 'workouts',
+  // The academy's morning reminder (academy/morning-reminder.ts): what you run today. Its
+  // ledger rows (`academy_morning_ledger`) stay unmapped — isLedgerRow keeps them out of
+  // every badge anyway.
+  academy_morning: 'workouts',
   badge: 'achievements',
   plan_pushed: 'program',
   feedback_reply: 'coach',

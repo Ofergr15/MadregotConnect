@@ -9,6 +9,8 @@ import { Switch } from '@/components/ui';
 import { isInAppBrowser, isIosDevice, isStandalone, subscribeToPush } from '@/lib/pwa';
 import { pushEnvironment, type PushEnvironment } from '@/lib/push-environment';
 import { logClient } from '@/lib/client-log';
+import { useNavIdentity } from '@/lib/nav-items';
+import { MorningReminderRow, type MorningReminderValue } from '@/components/trainee/MorningReminderRow';
 
 type Category = 'workouts' | 'coach' | 'achievements' | 'program' | 'teammates' | 'news' | 'events' | 'management';
 type Language = 'he' | 'en';
@@ -57,7 +59,7 @@ const ROWS: { key: Category; icon: typeof Calendar; bg: string; staffOnly?: bool
 export function NotificationPrefs({ athleteId }: { athleteId: string }) {
   const t = useTranslations('notificationPrefs');
   const tInstall = useTranslations('install');
-  const { data, mutate } = useApi<{ prefs: Prefs; isStaff?: boolean }>(
+  const { data, mutate } = useApi<{ prefs: Prefs; isStaff?: boolean; morningReminder?: MorningReminderValue }>(
     athleteId ? `/api/athletes/notification-prefs?athleteId=${encodeURIComponent(athleteId)}` : null,
     // Disabled specifically here: this is what actually caused the "toggle it
     // off and it turns back on" bug — a revalidateOnFocus refetch racing a
@@ -71,6 +73,10 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
   const [saving, setSaving] = useState<Category | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const prefs = data?.prefs;
+  // The academy's morning reminder (trainee-experience-v2 screen 9) is a trainee's setting,
+  // shown under the trainee experience v2 only — the same gate as the board and progress.
+  const { isAcademyMember, isStaffView, traineeV2 } = useNavIdentity();
+  const showMorning = isAcademyMember && traineeV2 && !isStaffView && !!data?.morningReminder;
 
   // Push permission can be revoked (iOS Settings → Notifications → off) or
   // never granted in the first place — PushOptIn only ever offers to
@@ -392,6 +398,12 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
           />
         )}
       </InsetSection>
+      {showMorning && (
+        <InsetSection header={t('morningHeader')}>
+          <MorningReminderRow athleteId={athleteId} value={data!.morningReminder!}
+            onSaved={(morningReminder) => mutate(cur => (cur ? { ...cur, morningReminder } : cur), { revalidate: false })} />
+        </InsetSection>
+      )}
       <InsetSection header={t('categoriesHeader')}>
         {ROWS.filter((r) => !r.staffOnly || data?.isStaff).map(({ key, icon, bg, staffOnly }) => {
           const on = prefs[key];

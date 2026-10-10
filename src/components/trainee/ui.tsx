@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 // ── The trainee experience v2's shared pieces (mockup trainee-experience-v2.html) ──────
@@ -133,4 +133,53 @@ export function StructureText({ text }: { text: string }) {
   }
   if (last < text.length) out.push(text.slice(last));
   return <bdi>{out}</bdi>;
+}
+
+/**
+ * A segmented control in the mockup's `.seg` look: equal cells, 44 px tall, the chosen one
+ * white. `role="tablist"` like the board's week | month switch.
+ */
+export function Segmented<T extends string>({ value, options, onChange, label, className }: {
+  value: T;
+  options: Array<{ value: T; label: ReactNode }>;
+  onChange: (v: T) => void;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <div role="tablist" aria-label={label} className={cn('flex rounded-[13px] bg-[#E6E6EC] p-[3px]', className)}>
+      {options.map(o => (
+        <button
+          key={o.value}
+          type="button"
+          role="tab"
+          aria-selected={value === o.value}
+          onClick={() => { if (value !== o.value) onChange(o.value); }}
+          className={cn(
+            'h-11 min-w-0 flex-1 truncate rounded-[10px] px-1 text-[13.5px] font-extrabold',
+            value === o.value ? 'bg-white text-ink-900 shadow-[0_1px_3px_rgba(0,0,0,.08)]' : 'text-ink-400',
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** A box's measured inner width, so a chart is laid out at real pixels (no stretched rx). */
+export function useMeasuredWidth(initial: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(initial);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = Math.round(entry.contentRect.width);
+      if (w > 0) setWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return { ref, width };
 }

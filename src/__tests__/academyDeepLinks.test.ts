@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  academyBoardUrl, academyTestUrl, academyThreadUrl, readAcademyDeepLink, upgradeLegacyAcademyUrl,
+  academyBoardUrl, academyTestUrl, academyThreadUrl, readAcademyDeepLink, traineeProgressUrl, traineeTestRedirect, upgradeLegacyAcademyUrl,
 } from '@/lib/academy/deep-links';
 import { shapeInboxItem } from '@/lib/notifications/inbox';
 import { REMINDER_URL, reminderRow } from '@/lib/academy/testReminders';
@@ -96,5 +96,26 @@ describe('notifications already sent with the bare academy url', () => {
     expect(shapeInboxItem(row, '1970-01-01', { isStaff: false }).url).toBe('/dashboard/academy?thread=mine');
     // A caller that does not know the viewer gets the stored url.
     expect(shapeInboxItem(row, '1970-01-01').url).toBe('/dashboard/academy');
+  });
+});
+
+describe('?test=mine under the trainee experience v2', () => {
+  const link = readAcademyDeepLink(new URLSearchParams('test=mine'));
+
+  it('a trainee lands on the progress tab\'s tests (7ג)', () => {
+    expect(traineeTestRedirect(link, { traineeV2: true, isStaff: false })).toBe('/dashboard/academy/progress?view=tests');
+    expect(traineeProgressUrl('tests')).toBe('/dashboard/academy/progress?view=tests');
+    expect(traineeProgressUrl('body')).toBe('/dashboard/academy/progress?view=body');
+    expect(traineeProgressUrl()).toBe('/dashboard/academy/progress');
+  });
+
+  it('v2 off, staff, or no test link: the academy page handles it itself', () => {
+    expect(traineeTestRedirect(link, { traineeV2: false, isStaff: false })).toBeNull();
+    expect(traineeTestRedirect(link, { traineeV2: true, isStaff: true })).toBeNull();
+    expect(traineeTestRedirect(readAcademyDeepLink(new URLSearchParams('')), { traineeV2: true, isStaff: false })).toBeNull();
+  });
+
+  it('the test reminders still write ?test=mine, so both lenses can read it', () => {
+    expect(academyTestUrl({ recipientIsStaff: false })).toBe('/dashboard/academy?test=mine');
   });
 });

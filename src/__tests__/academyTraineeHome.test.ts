@@ -4,7 +4,7 @@ import {
   goalCard, journeyPlanStats, kmAverage, monthsBetween, plannedPaceOf, resolveTraineePaces, rowPace, rowStatus,
   stepTiles, weekDates,
 } from '@/lib/academy/trainee-home';
-import { ACADEMY_BOARD_ITEM, ACADEMY_ITEM, athletePrimaryOrder, resolveNavItems } from '@/lib/nav-items';
+import { ACADEMY_BOARD_ITEM, ACADEMY_ITEM, PROGRESS_ITEM, athletePrimaryOrder, resolveNavItems } from '@/lib/nav-items';
 
 const step = (s: Partial<WorkoutStep>): WorkoutStep => ({
   order: 0, type: 'active', durationType: 'distance', targetType: 'no_target', ...s,
@@ -184,11 +184,14 @@ describe('the phone tab bar for an academy member', () => {
   });
 
   describe('under the trainee experience v2', () => {
-    it('keeps the board right after home, one of the four flat tabs', () => {
-      expect(athletePrimaryOrder(ORDER, true, true)).toEqual(['feed', 'dashboard', 'academy', 'profile']);
+    it('puts the board and progress right after home: the four flat tabs, profile into More (D1)', () => {
+      const order = athletePrimaryOrder(ORDER, true, true);
+      expect(order.slice(0, 4)).toEqual(['feed', 'dashboard', 'academy', 'academy-progress']);
+      // Profile is still in the order, fifth — the bar takes four, so it lands in More.
+      expect(order).toEqual(['feed', 'dashboard', 'academy', 'academy-progress', 'profile']);
       // Even from an order that never held the program.
       expect(athletePrimaryOrder(['feed', 'dashboard', 'records', 'profile'], true, true))
-        .toEqual(['feed', 'dashboard', 'academy', 'records', 'profile']);
+        .toEqual(['feed', 'dashboard', 'academy', 'academy-progress', 'records', 'profile']);
     });
     it('changes nothing for a club runner', () => {
       expect(athletePrimaryOrder(ORDER, false, true)).toEqual(ORDER);
@@ -218,5 +221,20 @@ describe('the academy tab is the board for a trainee under v2', () => {
 
   it('on, for somebody outside the academy: no tab at all', () => {
     expect(academyOf(resolveNavItems({ ...base, isAcademyMember: false, effectiveRole: 'runner', traineeV2: true }))).toBeUndefined();
+  });
+
+  const progressOf = (items: ReturnType<typeof resolveNavItems>) => items.find(i => i.tab === 'academy-progress');
+
+  it('on: "התקדמות" is force-added for a trainee, right after the board', () => {
+    const items = resolveNavItems({ ...base, effectiveRole: 'runner', traineeV2: true });
+    expect(progressOf(items)).toBe(PROGRESS_ITEM);
+    expect(PROGRESS_ITEM).toMatchObject({ href: '/dashboard/academy/progress', tab: 'academy-progress', labelKey: 'progress' });
+    expect(items.findIndex(i => i.tab === 'academy-progress')).toBe(items.findIndex(i => i.tab === 'academy') + 1);
+  });
+
+  it('progress: never off, never for staff, never outside the academy', () => {
+    expect(progressOf(resolveNavItems({ ...base, effectiveRole: 'runner' }))).toBeUndefined();
+    expect(progressOf(resolveNavItems({ ...base, effectiveRole: 'academy_coach', traineeV2: true }))).toBeUndefined();
+    expect(progressOf(resolveNavItems({ ...base, isAcademyMember: false, effectiveRole: 'runner', traineeV2: true }))).toBeUndefined();
   });
 });

@@ -82,7 +82,8 @@
     "runTogether": "Run together",
     "people": "People",
     "contentHub": "Content",
-    "board": "Board"
+    "board": "Board",
+    "progress": "Progress"
   },
   "coachTools": {
     "title": "Coach Tools",
@@ -2258,7 +2259,8 @@
       "events": "Event and race reminders",
       "management": "Running the club"
     },
-    "managementHint": "Sign-up requests, problem reports and system alerts"
+    "managementHint": "Sign-up requests, problem reports and system alerts",
+    "morningHeader": "Morning reminder"
   },
   "attendance": {
     "title": "Coming to today's workout?",
@@ -4276,6 +4278,205 @@
         "easyNote": " The light bar is an easy week."
       },
       "error": "Couldn't load the month."
+    },
+    "progress": {
+      "title": "Progress",
+      "tabs": {
+        "label": "Show",
+        "progress": "Progress",
+        "tests": "Threshold",
+        "body": "Body"
+      },
+      "tile": {
+        "fitness": "Fitness",
+        "fitnessSub": "What you built over <m>6</m> weeks",
+        "fatigue": "Fatigue",
+        "fatigueSub": "From the last <m>7</m> days",
+        "form": "Form",
+        "open": "{name}: what is it"
+      },
+      "range": {
+        "label": "Chart range",
+        "6w": "6 weeks",
+        "3m": "3 months",
+        "race": "To the race"
+      },
+      "legend": {
+        "fitness": "Fitness",
+        "fatigue": "Fatigue"
+      },
+      "axis": "Oldest left · today right",
+      "today": "Today",
+      "aria": "Fitness and fatigue over {days} days, oldest on the left",
+      "strip": "Form by week",
+      "stripAria": "Form over {n} weeks, oldest on the left",
+      "ramp": {
+        "up": "Fitness rose <m>{n}</m> in the last week",
+        "down": "Fitness fell <m>{n}</m> in the last week",
+        "flat": "Fitness did not change in the last week",
+        "afterHeavy": "A week after a heavy week.",
+        "sinceUp": "Up <m>{n}</m> since {month}.",
+        "sinceDown": "Down <m>{n}</m> since {month}.",
+        "steady": "Keep following the plan."
+      },
+      "threshold": {
+        "title": "Threshold pace <m>{pace}</m> instead of <m>{prev}</m>",
+        "titleOnly": "Threshold pace <m>{pace}</m>",
+        "sub": "From the {month} test · chart and tests",
+        "faster": "▲ <m>{n}</m> s",
+        "slower": "▼ <m>{n}</m> s",
+        "none": "No test yet",
+        "noneSub": "Your first test sets your threshold · tests"
+      }
+    },
+    "metric": {
+      "title": {
+        "fitness": "Fitness <m>{n}</m>",
+        "fatigue": "Fatigue <m>{n}</m>",
+        "form": "Form <m>{n}</m>",
+        "ramp": "Build rate <m>{n}</m>"
+      },
+      "what": {
+        "fitness": "<b>What it is:</b> how much work your body is used to: the average daily load of the last <m>6</m> weeks. It rises slowly and falls slowly.",
+        "fatigue": "<b>What it is:</b> how much you loaded in the last few days. It rises fast after a heavy week and falls fast with rest.",
+        "form": "<b>What it is:</b> {gender, select, other {how fresh you are today.}} The fitness you built, minus the fatigue of the last few days.",
+        "ramp": "<b>What it is:</b> how much fitness rose in the last week. Rising too fast is the risk, not the load itself."
+      },
+      "how": {
+        "fitness": "<b>How it is computed:</b> a <m>42</m>-day moving average of the daily ⚡ load, as of yesterday: <m>{fitness}</m>. A week ago: <m>{weekAgo}</m>.",
+        "fatigue": "<b>How it is computed:</b> a <m>7</m>-day moving average of the daily ⚡ load, as of yesterday: <m>{fatigue}</m>. When it is above fitness (<m>{fitness}</m>), form is negative.",
+        "form": "<b>How it is computed:</b> fitness (<m>{fitness}</m>, a <m>42</m>-day average) minus fatigue (<m>{fatigue}</m>, a <m>7</m>-day average), as of yesterday. Today's run counts tomorrow.",
+        "ramp": "<b>How it is computed:</b> yesterday's fitness (<m>{fitness}</m>) minus fitness a week before (<m>{weekAgo}</m>)."
+      },
+      "here": "{gender, select, other {You are here}}",
+      "formNote": "Negative is not bad: in build weeks {gender, select, other {you are here}} most of the time. Before a race the coach lowers the load and form rises to \"fresh\".",
+      "rampNote": "The line: <b>above <m>8</m> a week</b> raises the injury risk. An easy week after one brings the rate back.",
+      "fatigueNote": "Fatigue is not a grade. It is what training does, and rest takes it down.",
+      "fitnessNote": "Fitness is built in weeks, not days. An easy week lowers it only a little.",
+      "rampBand": {
+        "tooFast": "Raises the injury risk",
+        "building": "Building at a good rate",
+        "maintaining": "Keeping your fitness",
+        "recovering": "Your body is recovering"
+      },
+      "atLeast": "<m>{n}</m> and up",
+      "atMost": "<m>{n}</m> and below",
+      "between": "<m>{lo}…{hi}</m>",
+      "ok": "Got it"
+    },
+    "tests": {
+      "back": "Progress",
+      "yours": "Your threshold pace",
+      "perKm": "per km",
+      "sinceFaster": "▲ <m>{n}</m> s since {month}",
+      "sinceSlower": "▼ <m>{n}</m> s since {month}",
+      "explain": "The pace you can hold for about an hour. Every pace in your workouts comes from it, and so does ⚡ load.",
+      "chart": "All tests",
+      "axis": "Oldest left · higher = faster",
+      "latest": "{month} · <m>{pace}</m>",
+      "latestFaster": "<m>{date}</m> · <m>{n}</m> s faster than the {prev} test",
+      "latestSlower": "<m>{date}</m> · <m>{n}</m> s slower than the {prev} test",
+      "latestSame": "<m>{date}</m> · the same as the {prev} test",
+      "latestFirst": "<m>{date}</m> · your first test, the baseline",
+      "none": "No test yet",
+      "noneSub": "Your first test is the baseline. Your paces come from it.",
+      "next": "🎯 Next test",
+      "journey": {
+        "title": "My journey",
+        "months": "Months with us",
+        "runs": "Runs done",
+        "km": "km",
+        "planPct": "Of the plan done",
+        "streak": "Weeks in a row",
+        "longest": "Longest (km)"
+      }
+    },
+    "body": {
+      "back": "Progress",
+      "rhr": "Resting HR · <m>{n}</m>",
+      "sleep": "Sleep · <m>{v}</m>",
+      "feel": "Feel · {word}",
+      "rhrNone": "Resting HR",
+      "sleepNone": "Sleep",
+      "feelNone": "Feel",
+      "rhrToday": "This morning",
+      "sleepToday": "Last night",
+      "ofDate": "From <m>{date}</m>",
+      "yours": "Your normal range <m>{range}</m>",
+      "noNights": "No data from the watch yet",
+      "feelSub": "Average of {n, plural, one {the last workout} other {the last <m>#</m> workouts}}",
+      "effort": " · effort <m>{v}/10</m>",
+      "feelNoneSub": "After a run, \"How did it feel?\" lands here",
+      "feelLow": "▼ Weak",
+      "seg": {
+        "label": "Which chart",
+        "rhr": "❤️ HR",
+        "sleep": "😴 Sleep",
+        "feel": "🙂 Feel"
+      },
+      "chart": {
+        "rhr": "Resting HR · <m>30</m> days",
+        "sleep": "Sleep · <m>30</m> days",
+        "feel": "Feel · last <m>{n}</m> workouts"
+      },
+      "todayRight": "Today on the right",
+      "oldLeft": "Oldest left",
+      "aria": {
+        "rhr": "Resting HR over the last 30 days, oldest on the left",
+        "sleep": "Sleep over the last 30 days, oldest on the left"
+      },
+      "legend": {
+        "range": "Your normal range <m>{range}</m>",
+        "rhrDot": "Morning",
+        "sleepDot": "Night",
+        "rhrOut": "Above the range",
+        "sleepOut": "Below the range"
+      },
+      "flag": {
+        "rhr": "<m>{v}</m> this morning",
+        "sleep": "<m>{v}</m> last night",
+        "date": "<m>{v}</m> · <m>{date}</m>"
+      },
+      "x": {
+        "month": "A month ago",
+        "twoWeeks": "Two weeks ago",
+        "today": "Today"
+      },
+      "advice": {
+        "streak": "<b>3 mornings in a row above the range.</b> Lower the intensity, and <bdi>{coach}</bdi> sees it before building your next week.",
+        "twice": "<b>Two mornings in a row above the range.</b> If tomorrow too, lower the intensity, and <bdi>{coach}</bdi> will see it before building your next week.",
+        "once": "<b>Above the range this morning, inside it yesterday. It happens.</b> If it happens <m>3</m> mornings in a row, lower the intensity, and <bdi>{coach}</bdi> will see it before building your next week.",
+        "inside": "<b>Your resting HR is inside your normal range.</b> If it is above it <m>3</m> mornings in a row, lower the intensity.",
+        "coach": "your coach"
+      },
+      "footer": "⌚ Pulled from Garmin every morning. Nothing to fill in."
+    },
+    "reminder": {
+      "title": "{when, select, tomorrow {Tomorrow:} other {Today:}} {title} at <m>{pace}</m>",
+      "titleNoPace": "{when, select, tomorrow {Tomorrow:} other {Today:}} {title}",
+      "km": "<m>{km}</m> km",
+      "min": "about <m>{min}</m> min",
+      "onWatch": "⌚ On your watch",
+      "notOnWatch": "Not on your watch yet",
+      "advice": {
+        "rhrBitHigh": "Your HR is a bit high this morning. It is fine to ease off.",
+        "rhrBitHighReps": "Your HR is a bit high this morning. If the reps feel heavy, it is fine to stop at <m>{n}</m>.",
+        "rhrHigh": "Your HR is high this morning. Ease off today.",
+        "rhrHighReps": "Your HR is high this morning. If the reps feel heavy, it is fine to stop at <m>{n}</m>.",
+        "sleepLow": "You slept less than usual. It is fine to ease off.",
+        "sleepLowReps": "You slept less than usual. If the reps feel heavy, it is fine to stop at <m>{n}</m>.",
+        "fresh": "Good form.",
+        "freshQuality": "Good form. A good day for reps."
+      },
+      "setting": {
+        "title": "⏰ Morning reminder",
+        "sub": "On workout days: what to run, at what pace, and that it is on the watch",
+        "time": "Time",
+        "timeAria": "Morning reminder time",
+        "toggleAria": "Morning reminder",
+        "evening": "From <m>12:00</m> the reminder is about tomorrow's workout",
+        "saveError": "Not saved. Please try again."
+      }
     }
   }
 }

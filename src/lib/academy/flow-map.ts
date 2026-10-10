@@ -148,6 +148,8 @@ export const FLOW_STEPS: FlowStep[] = [
     screens: [
       { label: 'הצד של הספורטאי', href: '/preview/academy-tests-mine', kind: 'preview' },
       { label: 'ממתין לאישור', href: '/preview/academy-tests-pending', kind: 'preview' },
+      // Where `?test=mine` lands a trainee under the trainee experience v2 (7ג).
+      { label: 'בפועל, אצל המתאמן', href: '/dashboard/academy/progress?view=tests', kind: 'app' },
     ],
     questions: [],
   },

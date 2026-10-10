@@ -5,7 +5,7 @@ import {
   Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Bug, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
   BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift, ShieldCheck, Gauge, Trophy,
-  UsersRound, Megaphone,
+  UsersRound, Megaphone, TrendingUp,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
@@ -38,6 +38,10 @@ export const ACADEMY_ITEM: NavItem = { href: '/dashboard/academy', tab: 'academy
 // route's trainee lens is their week and month there ("לוח", mockup screens 2/3), so the
 // tab says so. Same href and tab id, so active state and every deep link are unchanged.
 export const ACADEMY_BOARD_ITEM: NavItem = { href: '/dashboard/academy', tab: 'academy', labelKey: 'board', icon: CalendarDays };
+// "התקדמות" (mockup screens 7/7ג/8): the trainee's fitness, threshold and body, a tab of its
+// own next to the board under v2. Force-added like the academy tab, for the same reason —
+// membership is a flag, not a role, so no permission row can grant it.
+export const PROGRESS_ITEM: NavItem = { href: '/dashboard/academy/progress', tab: 'academy-progress', labelKey: 'progress', icon: TrendingUp };
 
 export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
@@ -246,6 +250,7 @@ export function resolveNavItems({
   if (traineeV2 && isAcademyMember && !STAFF_ROLES.includes(effectiveRole)) {
     const at = items.findIndex(i => i.tab === 'academy');
     if (at >= 0) items[at] = ACADEMY_BOARD_ITEM;
+    if (!items.some(i => i.tab === PROGRESS_ITEM.tab)) items.splice(at >= 0 ? at + 1 : items.length, 0, PROGRESS_ITEM);
   }
 
   if (!items.length && fallback) return [ALL_NAV_ITEMS[0], PROFILE_ITEM];
@@ -266,11 +271,13 @@ export function athletePrimaryOrder(order: readonly string[], isAcademyMember: b
   if (!isAcademyMember) return [...order];
   const out = order.map((tab) => (tab === 'program' ? 'academy' : tab));
   if (!traineeV2) return out.includes('academy') ? out : [...out, 'academy'];
-  // v2 (mockup tab bar: פיד · בית · לוח · …): the board sits right after home, whatever
-  // the base order held, so it is always one of the four flat tabs.
-  const rest = out.filter(tab => tab !== 'academy');
+  // v2 (mockup tab bar: פיד · בית · לוח · התקדמות · …): the board and progress sit right
+  // after home, whatever the base order held, so both are among the four flat tabs — and
+  // profile, fifth, moves into "More" (decision D1 in the build plan: the bar is 4 + More,
+  // the mockup draws 5 flat tabs).
+  const rest = out.filter(tab => tab !== 'academy' && tab !== 'academy-progress');
   const home = rest.indexOf('dashboard');
-  rest.splice(home >= 0 ? home + 1 : rest.length, 0, 'academy');
+  rest.splice(home >= 0 ? home + 1 : rest.length, 0, 'academy', 'academy-progress');
   return rest;
 }
 

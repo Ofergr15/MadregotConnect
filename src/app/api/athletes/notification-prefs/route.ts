@@ -4,6 +4,8 @@ import { CATEGORIES, defaultsFor, isMigrationMissing, mergeWithDefaults, type Sa
 import { isStaffRole } from '@/lib/constants';
 import { isSupportedNotificationLocale } from '@/lib/notifications/locale';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { readReminderPatch, readReminderPref } from '@/lib/academy/morning-reminder';
+import { TRAINEE_V2_FOR_ALL } from '@/lib/trainee/flag';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +30,10 @@ async function gate(request: Request, athleteId: string): Promise<Response | nul
   return null;
 }
 
-// GET /api/athletes/notification-prefs?athleteId=… → { prefs }
+// GET /api/athletes/notification-prefs?athleteId=… → { prefs, isStaff, morningReminder }
+//
+// `morningReminder` is the EFFECTIVE setting (academy/morning-reminder.ts readReminderPref):
+// the saved one, else the default once TRAINEE_V2_FOR_ALL is on — what the cron will do.
 export async function GET(request: Request) {
   try {
     const athleteId = new URL(request.url).searchParams.get('athleteId');
@@ -48,7 +53,7 @@ export async function GET(request: Request) {
     }
     const isStaff = isStaffRole(data?.role);
     const prefs = mergeWithDefaults(data?.notification_prefs as SavedPrefs | undefined, isStaff);
-    return NextResponse.json({ prefs, isStaff });
+    return NextResponse.json({ prefs, isStaff, morningReminder: readReminderPref(data?.notification_prefs, TRAINEE_V2_FOR_ALL) });
   } catch (err: unknown) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
@@ -102,6 +107,45 @@ export async function PUT(request: Request) {
     }
     const isStaff = isStaffRole(cur.data?.role);
     return NextResponse.json({ prefs: mergeWithDefaults(next, isStaff), isStaff });
+  } catch (err: unknown) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+  }
+}
+
+// The morning reminder's two fields (trainee-experience-v2 screen 9), in their own body so
+// neither the category toggles nor the language can be clobbered by them, nor they by
+// those. Validated by academy/morning-reminder.ts readReminderPatch (time snapped to the
+// 5-minute grid, anything else a 400), merged with every other key kept as it was.
+// PATCH /api/athletes/notification-prefs { athleteId, morningReminder: { enabled?, time? } }
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json().catch(() => null);
+    const athleteId = body && typeof body.athleteId === 'string' ? body.athleteId : '';
+    const patch = readReminderPatch(body);
+    if (!athleteId || !patch) {
+      return NextResponse.json({ error: 'athleteId and morningReminder { enabled: boolean, time: "HH:MM" } required' }, { status: 400 });
+    }
+    const denied = await gate(request, athleteId);
+    if (denied) return denied;
+    const supabase = createServerClient();
+    const cur = await supabase.from('athletes').select('role, notification_prefs').eq('id', athleteId).maybeSingle();
+    if (isMigrationMissing(cur.error)) {
+      return NextResponse.json({ error: 'notification_prefs not migrated (run migration 038)' }, { status: 501 });
+    }
+    if (cur.error) throw cur.error;
+    const saved = (cur.data?.notification_prefs || {}) as SavedPrefs;
+    // From what the cron does today, so a time-only change keeps the reminder as it was.
+    const morningReminder = { ...readReminderPref(saved, TRAINEE_V2_FOR_ALL), ...patch };
+    const next = { ...saved, morningReminder };
+    const { error } = await supabase.from('athletes').update({ notification_prefs: next }).eq('id', athleteId);
+    if (error) {
+      if (isMigrationMissing(error)) {
+        return NextResponse.json({ error: 'notification_prefs not migrated (run migration 038)' }, { status: 501 });
+      }
+      throw error;
+    }
+    const isStaff = isStaffRole(cur.data?.role);
+    return NextResponse.json({ prefs: mergeWithDefaults(next, isStaff), isStaff, morningReminder });
   } catch (err: unknown) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
