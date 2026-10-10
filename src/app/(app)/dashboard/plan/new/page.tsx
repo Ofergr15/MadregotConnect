@@ -39,6 +39,7 @@ import { WeekView } from '@/components/WeekView';
 import { QualityDayChip, QualityDaysCard, useQualityDays } from './QualityDays';
 import { slotKey, watchSentCopy, workoutLine } from '@/lib/notifications/watch-push-copy';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
+import { WatchPreview } from '@/components/WatchPreview';
 import { DayByDayReview } from '@/components/DayByDayReview';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
 import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
@@ -255,6 +256,7 @@ export default function WeeklyPlannerPage() {
 
   // --- Push ---
   const [showPush, setShowPush] = useState(false);
+  const [previewEditIdx, setPreviewEditIdx] = useState<number | null>(null);
   const [pushTab, setPushTab] = useState<PushTab>('all');
   // Which days to send. null = whole week (default); an array = only those days.
   const [pushDays, setPushDays] = useState<number[] | null>(null);
@@ -2075,6 +2077,17 @@ export default function WeeklyPlannerPage() {
         onConfirm={() => void doSyncFromProgram()}
       />
 
+      {/* Opened from the send sheet's watch preview: the unified editor on that
+          session, over the sheet, which is still there when it closes. */}
+      {previewEditIdx !== null && parsedPlan?.workouts[previewEditIdx] && (
+        <WorkoutEditorPanel
+          workout={parsedPlan.workouts[previewEditIdx]}
+          dayName={DAY_LABELS[parsedPlan.workouts[previewEditIdx].dayOfWeek]}
+          onChange={(w) => handleWorkoutChange(previewEditIdx, w)}
+          onClose={() => setPreviewEditIdx(null)}
+        />
+      )}
+
       {/* Push Modal */}
       <Sheet
         open={showPush}
@@ -2226,6 +2239,18 @@ export default function WeeklyPlannerPage() {
                         ))}
                       </ul>
                     )}
+
+                    {/* The workouts themselves, as the watch will show them — the last look
+                        before they go out (components/WatchPreview.tsx). */}
+                    <WatchPreview
+                      sessions={sessionsToSend as ParsedWorkout[]}
+                      grouped={groupedPlans}
+                      dayLabel={(w) => `${DAY_LABELS[w.dayOfWeek]}${(w.partCount ?? 1) > 1 ? ` · ${w.partIndex ?? 1}/${w.partCount}` : ''}`}
+                      onEdit={parsedPlan ? (w) => {
+                        const idx = pushSource.indexOf(w);
+                        if (idx >= 0 && parsedPlan.workouts[idx]) setPreviewEditIdx(idx);
+                      } : undefined}
+                    />
 
                     {/* CUSTOM WEEKS — one athlete's session on a different day.
                         Above the roster on purpose: it changes what is sent, not

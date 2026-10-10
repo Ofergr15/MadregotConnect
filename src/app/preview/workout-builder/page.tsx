@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { notFound } from 'next/navigation';
 
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
+import { WatchPreview } from '@/components/WatchPreview';
+import { splitIntoGroups } from '@/lib/ai/splitGroups';
 import type { ParsedWorkout } from '@/lib/ai/types';
 
 // ── The workout builder, on the workout that asked for it ─────────────────────────
@@ -44,6 +46,15 @@ export default function WorkoutBuilderPreview() {
       <button type="button" id="open-builder" onClick={() => setOpen(true)} className="rounded-full bg-brand-600 text-white px-4 py-2 font-bold">
         עריכה
       </button>
+      {/* The send sheet's preview of the same session, built from a 3-pack split of it. */}
+      <div id="watch-preview" className="bg-card rounded-card p-3 mt-4 max-w-sm">
+        <WatchPreview
+          sessions={splitIntoGroups({ workouts: [workout] }).group1.workouts}
+          grouped={splitIntoGroups({ workouts: [workout] })}
+          dayLabel={() => 'יום ראשון'}
+          onEdit={() => setOpen(true)}
+        />
+      </div>
       <pre id="saved" dir="ltr" className="mt-4 text-[10px] whitespace-pre-wrap">{JSON.stringify(workout.steps)}</pre>
       {open && (
         <WorkoutEditorPanel workout={workout} dayName="יום ראשון" onChange={setWorkout} onClose={() => setOpen(false)} />

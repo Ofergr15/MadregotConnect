@@ -763,7 +763,12 @@
     "dropHint": "גררו ⠿ כדי להזיז · אפשר גם לתוך חזרות ומחוצה להן",
     "structure": "מבנה האימון",
     "paceByPack": "לפי דבוקה",
-    "onePaceForAll": "קצב אחד לכולם"
+    "onePaceForAll": "קצב אחד לכולם",
+    "watchPreviewTitle": "מה יגיע לשעון",
+    "watchPreviewSub": "בדיוק כמו שהשעון יציג, זהה לכל הדבוקות",
+    "watchPreviewEdit": "עריכת האימון",
+    "watchPreviewHasHint": "יש מה לבדוק",
+    "watchPreviewRestHint": "מנוחה {duration} היא השלב האחרון בתוך החזרות ({n}×), אז היא תופיע אחרי כל סט, כולל האחרון."
   },
   "settings": {
     "title": "הגדרות",

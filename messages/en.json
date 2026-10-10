@@ -763,7 +763,12 @@
     "dropHint": "Drag ⠿ to move · into and out of repeats too",
     "structure": "Workout structure",
     "paceByPack": "Per pack",
-    "onePaceForAll": "One pace for all"
+    "onePaceForAll": "One pace for all",
+    "watchPreviewTitle": "What reaches the watch",
+    "watchPreviewSub": "Exactly as the watch will show it, the same for every pack",
+    "watchPreviewEdit": "Edit workout",
+    "watchPreviewHasHint": "Worth a look",
+    "watchPreviewRestHint": "A {duration} rest is the last step inside the repeat ({n}×), so it runs after every set, including the last."
   },
   "settings": {
     "title": "Settings",
