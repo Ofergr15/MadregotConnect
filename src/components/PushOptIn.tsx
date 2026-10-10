@@ -51,7 +51,11 @@ export function PushOptIn({ title, description }: { title?: string; description?
       if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
       const athleteId = localStorage.getItem('athlete_id');
       if (!athleteId) return;
-      const today = new Date().toISOString().slice(0, 10);
+      // Stamped with the account, not just the day: a device that signs in as
+      // someone else re-links its subscription at once. Day-only, the admin app
+      // signed in as Ofer and then as the admin kept delivering Ofer's pushes
+      // until the next day's heal (2026-10-10).
+      const today = `${new Date().toISOString().slice(0, 10)}|${athleteId}`;
       if (localStorage.getItem(HEAL_KEY) === today) return;
       healAttempted = true;
       ensurePushSubscription(athleteId)

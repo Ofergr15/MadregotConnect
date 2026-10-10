@@ -17,6 +17,7 @@ import { KIT_SIZE_COLUMNS_100, kitSizeSetupInput } from '@/lib/kit-sizes';
 import { realEmail } from '@/lib/admin/entry-queue';
 import { notifySetupSnapshot } from '@/lib/email';
 import { recipientsForKind } from '@/lib/notifications/routing';
+import { CLUB_ACCOUNT_ROLE } from '@/lib/notifications/prefs';
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { createAndSendSurvey, notifySurveyNonResponders, rsvpSettlesPaceGroup } from '@/lib/surveys';
 import { israelNow, israelToday, getPlanWeekStart, addDaysToDateStr } from '@/lib/utils';
@@ -720,7 +721,8 @@ async function run(request: Request) {
         const push = await qualityPush(supabase, today);
         if (push) {
           const [supers, byEmail, editors] = await Promise.all([
-            supabase.from('athletes').select('id').eq('is_super_user', true),
+            // The club's admin account is a super user too, but not a runner or an editor.
+            supabase.from('athletes').select('id').eq('is_super_user', true).or(`role.is.null,role.neq.${CLUB_ACCOUNT_ROLE}`),
             supabase.from('athletes').select('id').eq('email', SUPER_USER_EMAIL),
             storyEditorIds(supabase),
           ]);

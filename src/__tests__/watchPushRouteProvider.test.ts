@@ -62,7 +62,18 @@ describe('coach push by provider', () => {
     expect(body.results.map((r: any) => r.athleteId)).toEqual(['garmin-1', 'apple-1', 'none-1']);
     expect(h.garmin.map((a: any) => a.athlete.id)).toEqual(['garmin-1', 'none-1']);
     expect(h.apple.map((a: any) => [a.provider, a.athlete.id, a.paceTarget])).toEqual([['apple', 'apple-1', true]]);
-    // The Garmin call is the same call as before the refactor.
-    expect(Object.keys(h.garmin[0]).sort()).toEqual(['athlete', 'cleanDayOnce', 'paceTarget', 'planId', 'plannedWorkouts', 'supabase', 'weekStartDate']);
+    // The Garmin call is the same call as before the refactor, plus `notify`
+    // (the sheet's "notify athletes" switch), which is on unless the body says off.
+    expect(Object.keys(h.garmin[0]).sort()).toEqual(['athlete', 'cleanDayOnce', 'notify', 'paceTarget', 'planId', 'plannedWorkouts', 'supabase', 'weekStartDate']);
+    expect(h.garmin.every((a: any) => a.notify === true)).toBe(true);
+  });
+
+  it('a quiet send (notifyAthletes: false) tells no athlete', async () => {
+    h.garmin.length = 0;
+    await POST(new Request('http://x', {
+      method: 'POST',
+      body: JSON.stringify({ planId: 'p', weekStartDate: '2026-10-04', notifyAthletes: false, workouts: [{ dayOfWeek: 0, name: 'x', steps: [] }], athleteIds: ['garmin-1'] }),
+    }) as never);
+    expect(h.garmin.map((a: any) => a.notify)).toEqual([false]);
   });
 });

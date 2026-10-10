@@ -105,7 +105,7 @@ export async function GET(request: Request) {
           // is the club's decision and prefs are the person's — a screen that
           // showed only the first would keep promising a delivery that the send
           // path (filterByCategory) already drops.
-          muted: isKindMuted(k.kind, a.notification_prefs as Record<string, boolean> | null, isStaffRole(a.role)),
+          muted: isKindMuted(k.kind, a.notification_prefs as Record<string, boolean> | null, isStaffRole(a.role), a.role),
         }));
       return { ...k, roles, recipients };
     });

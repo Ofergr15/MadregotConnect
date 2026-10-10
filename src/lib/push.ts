@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID, isStaffRole } from '@/lib/constants';
 import { streamUnreadForAthlete, streamUnreadForAthletes } from './stream/unread';
 import { kudosScope, rsvpScope, signActionToken } from '@/lib/auth/action-token';
-import { defaultsFor, isKindMuted, isLedgerRow, type Category } from '@/lib/notifications/prefs';
+import { CLUB_ACCOUNT_ROLE, defaultsFor, isClubAccount, isKindMuted, isLedgerRow, type Category } from '@/lib/notifications/prefs';
 import {
   DEFAULT_NOTIFICATION_LOCALE,
   localeFromPrefs,
@@ -140,6 +140,7 @@ export function computeMutedAthleteIds(
 ): Set<string> {
   const muted = new Set<string>();
   for (const a of athleteRows) {
+    if (isClubAccount(a.role) && category !== 'management') { muted.add(a.id); continue; }
     const saved = a.notification_prefs?.[category];
     if (saved === false) { muted.add(a.id); continue; }
     if (saved === undefined && defaultsFor(isStaffRole(a.role))[category] === false) muted.add(a.id);
@@ -251,7 +252,7 @@ export function countsTowardBadge(
   // Staffness comes off the athlete row the caller already loaded for the
   // audience rule, so rule 3 agrees with filterByCategory on the send path even
   // for a reader who has never saved a single preference.
-  return !isKindMuted(notif.kind, prefs, isStaffRole(athlete.role));
+  return !isKindMuted(notif.kind, prefs, isStaffRole(athlete.role), athlete.role);
 }
 
 /**
@@ -593,7 +594,8 @@ export async function resolveAudience(
     const { data } = await supabase.from('athletes').select('id').eq('coach_id', COACH_ID).eq('is_academy', true);
     athleteIds = (data || []).map((a) => a.id);
   } else if (audienceType === 'all') {
-    const { data } = await supabase.from('athletes').select('id').eq('coach_id', COACH_ID);
+    // The club's own admin account is not a runner (prefs.ts isClubAccount).
+    const { data } = await supabase.from('athletes').select('id').eq('coach_id', COACH_ID).or(`role.is.null,role.neq.${CLUB_ACCOUNT_ROLE}`);
     athleteIds = (data || []).map((a) => a.id);
   }
 
@@ -1009,6 +1011,7 @@ export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<void> {
 /** All athlete ids of the club (for computing non-responders). */
 export async function allAthleteIds(): Promise<string[]> {
   const supabase = createServerClient();
-  const { data } = await supabase.from('athletes').select('id').eq('coach_id', COACH_ID);
+  // Not the club's own admin account: it is not a runner (prefs.ts isClubAccount).
+  const { data } = await supabase.from('athletes').select('id').eq('coach_id', COACH_ID).or(`role.is.null,role.neq.${CLUB_ACCOUNT_ROLE}`);
   return (data || []).map((a: { id: string }) => a.id);
 }

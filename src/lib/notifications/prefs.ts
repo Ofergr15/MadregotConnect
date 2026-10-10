@@ -25,6 +25,17 @@ export const DEFAULTS: Record<Category, boolean> = {
 export const STAFF_QUIET_CATEGORIES: readonly Category[] = ['teammates'];
 
 /**
+ * The club's own account (role 'admin' — "Madregot Admin", the admin app's
+ * login) is not a runner. Ofer, 2026-10-10: the admin must stop getting workout
+ * notifications and get only the broad, running-the-club ones. So for it every
+ * category except `management` is off, whatever its saved prefs say, and it is
+ * left out of the club's runner audiences (lib/push.ts resolveAudience 'all',
+ * allAthleteIds). Ofer's personal account is role 'runner' and is unaffected.
+ */
+export const CLUB_ACCOUNT_ROLE = 'admin';
+export const isClubAccount = (role: string | null | undefined) => role === CLUB_ACCOUNT_ROLE;
+
+/**
  * The all-categories baseline for this reader — everything on, minus the quiet
  * list for staff. Every "is this muted?" decision goes through here so the
  * send path, the badge counter and the Settings screen can't disagree about
@@ -143,9 +154,11 @@ export function isKindMuted(
   kind: string,
   prefs: Partial<Record<Category, boolean>> | null | undefined,
   isStaff?: boolean,
+  role?: string | null,
 ): boolean {
   const category = KIND_CATEGORY[kind];
   if (!category) return false;
+  if (isClubAccount(role) && category !== 'management') return true;
   const saved = prefs?.[category];
   if (saved === undefined) return defaultsFor(isStaff)[category] === false;
   return saved === false;
