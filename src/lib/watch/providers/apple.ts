@@ -1,3 +1,6 @@
+import { notifyAthlete } from '@/lib/push';
+import { watchSentCopy } from '@/lib/notifications/watch-push-copy';
+import { israelToday } from '@/lib/utils';
 import { randomUUID } from 'crypto';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import type { StoredPaceProfile } from '@/lib/garmin/types';
@@ -158,8 +161,21 @@ export const appleProvider: WatchProviderAdapter = {
         return { ...base, status: 'failed', error: 'Apple Watch delivery is not enabled yet' };
       }
       await enqueueAppleWeek(input);
-      // No "new workouts on your watch" push: they are not on the watch until the
-      // phone acks. Phase 2 wakes the app with a silent APNs instead.
+      // Step 1 of 2: "sent" — the workouts are queued for the iPhone, not yet on
+      // the watch. Step 2 ("on your watch") goes out from the device ack
+      // (api/device/deliveries/ack), once the phone confirms it scheduled them.
+      if (input.notify !== false) {
+        try {
+          await notifyAthlete({
+            athleteId: input.athlete.id,
+            kind: 'plan_pushed',
+            copy: (locale) => watchSentCopy(locale, input.plannedWorkouts, { ...input.pushCopy, weekStartDate: input.weekStartDate, today: israelToday() }),
+            url: '/dashboard/program',
+            tag: `plan-push-${input.planId || input.weekStartDate}`,
+            category: 'program',
+          });
+        } catch { /* best-effort — never let a push failure affect the delivery */ }
+      }
       return { ...base, status: 'success', queued: true };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';

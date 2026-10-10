@@ -64,7 +64,7 @@ describe('coach push by provider', () => {
     expect(h.apple.map((a: any) => [a.provider, a.athlete.id, a.paceTarget])).toEqual([['apple', 'apple-1', true]]);
     // The Garmin call is the same call as before the refactor, plus `notify`
     // (the sheet's "notify athletes" switch), which is on unless the body says off.
-    expect(Object.keys(h.garmin[0]).sort()).toEqual(['athlete', 'cleanDayOnce', 'notify', 'paceTarget', 'planId', 'plannedWorkouts', 'supabase', 'weekStartDate']);
+    expect(Object.keys(h.garmin[0]).sort()).toEqual(['athlete', 'cleanDayOnce', 'notify', 'paceTarget', 'planId', 'plannedWorkouts', 'pushCopy', 'supabase', 'weekStartDate']);
     expect(h.garmin.every((a: any) => a.notify === true)).toBe(true);
   });
 

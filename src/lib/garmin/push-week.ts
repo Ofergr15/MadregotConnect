@@ -5,7 +5,8 @@ import { ParsedWorkout } from '@/lib/ai/types';
 import { StoredPaceProfile } from '@/lib/garmin/types';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { notifyAthlete } from '@/lib/push';
-import { planPushedCopy } from '@/lib/notifications/copy';
+import { watchSentCopy, type WatchPushContext } from '@/lib/notifications/watch-push-copy';
+import { israelToday } from '@/lib/utils';
 
 /**
  * Putting one athlete's week onto their Garmin account.
@@ -48,6 +49,7 @@ export async function pushWeekToAthlete({
   paceTarget,
   notify = true,
   cleanDayOnce = false,
+  pushCopy,
 }: {
   supabase: ReturnType<typeof createServerClient>;
   athlete: PushTargetAthlete;
@@ -61,6 +63,8 @@ export async function pushWeekToAthlete({
    * they are holding the phone that just did it, so telling them is noise.
    */
   notify?: boolean;
+  /** What the push names: the coach's lines from the send sheet and the week's quality days. */
+  pushCopy?: WatchPushContext;
   /**
    * Clear a day's earlier workouts once, before its first session, instead of
    * before every session. On a two-a-day the per-session cleanup found the
@@ -222,7 +226,8 @@ export async function pushWeekToAthlete({
         await notifyAthlete({
           athleteId: athlete.id,
           kind: 'plan_pushed',
-          copy: (locale) => planPushedCopy(locale, { count: plannedWorkouts.length }),
+          // Names the workouts this athlete actually got — their own group's version.
+          copy: (locale) => watchSentCopy(locale, plannedWorkouts, { ...pushCopy, weekStartDate, today: israelToday() }),
           url: '/dashboard/program',
           tag: `plan-push-${planId || weekStartDate}`,
           category: 'program',

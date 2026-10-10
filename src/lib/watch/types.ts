@@ -1,3 +1,4 @@
+import type { WatchPushContext } from '@/lib/notifications/watch-push-copy';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import type { createServerClient } from '@/lib/supabase/server';
 import type { PushResult, PushTargetAthlete } from '@/lib/garmin/push-week';
@@ -33,6 +34,8 @@ export interface DeliverWeekInput {
   paceTarget: boolean;
   notify?: boolean;
   cleanDayOnce?: boolean;
+  /** What the "sent to your watch" push names (lib/notifications/watch-push-copy.ts). */
+  pushCopy?: WatchPushContext;
 }
 
 /**
