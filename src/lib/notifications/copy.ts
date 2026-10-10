@@ -1211,6 +1211,30 @@ export const SURVEY_PROMPT_BODY: Record<NotificationLocale, string> = {
   en: 'Tap to answer the survey',
 };
 
+/**
+ * To the approvers: tomorrow's pre-workout pushes are waiting for an OK
+ * (lib/notifications/approval.ts). Nothing goes to the runners until one of
+ * them approves; `reminder` is the second ask, shortly before the first push.
+ */
+export function approvalRequestCopy(
+  locale: NotificationLocale,
+  p: { day: number; hour: number; workoutName?: string | null; reminder?: boolean },
+): PushCopy {
+  const d = dayName(locale, p.day);
+  const hh = `${String(p.hour).padStart(2, '0')}:00`;
+  const name = (p.workoutName || '').trim();
+  if (locale === 'he') {
+    return {
+      title: p.reminder ? '🟡 עוד לא אושר: ההתראות לאימון מחר' : '🟡 לאישור: ההתראות לאימון מחר',
+      body: `${name ? `${name} · ` : ''}יום ${d}. התזכורת יוצאת ב-${hh} רק אחרי אישור. לחיצה לאישור`,
+    };
+  }
+  return {
+    title: p.reminder ? '🟡 Still waiting: tomorrow\'s session pushes' : '🟡 To approve: tomorrow\'s session pushes',
+    body: `${name ? `${name} · ` : ''}${d}. The reminder goes out at ${hh} only once approved. Tap to approve`,
+  };
+}
+
 export function surveyNudgeCopy(locale: NotificationLocale, p: { day: number }): PushCopy {
   return locale === 'he'
     ? {

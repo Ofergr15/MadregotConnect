@@ -119,6 +119,8 @@ export const KIND_CATEGORY: Record<string, Category> = {
   // the same notifyStaff fan-out now, so they belong to the same channel.
   store_order: 'management',
   feedback_alert: 'management',
+  // Tomorrow's pre-workout pushes waiting for an admin's OK (lib/notifications/approval.ts).
+  push_approval: 'management',
 };
 
 /**

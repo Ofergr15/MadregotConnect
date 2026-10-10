@@ -4,7 +4,7 @@ import { sendPushLocalized, resolveAudience, subscriptionsForAthletes, allAthlet
 import {
   trainingDayBeforeCopy, trainingEveningBeforeCopy, RSVP_ACTION_LABELS, newWeekProgramCopy,
   eventTomorrowCopy, eventClosingCopy, weeklyRecapCopy, surveyNudgeCopy, syncStalledCopy,
-  setupSnapshotCopy, snapshotRowCopy,
+  setupSnapshotCopy, snapshotRowCopy, approvalRequestCopy,
 } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
 import { reconcileResolvedReports } from '@/lib/feedback-notify';
@@ -33,6 +33,8 @@ import { qualityPush } from '@/lib/quality-session/server';
 import { PUSH_AT } from '@/lib/quality-session/model';
 import { storyEditorIds } from '@/lib/quality-session/access';
 import { cronPaused } from '@/lib/cron-pause';
+import { gateState, shouldAsk, stageDue, addDays, type ApprovalStore, type GateState } from '@/lib/notifications/approval';
+import { loadApprovals, qualityOf } from '@/lib/notifications/approval-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -152,9 +154,51 @@ async function run(request: Request) {
     });
   };
 
+  // Admin approval before the pre-workout pushes (lib/notifications/approval.ts).
+  // A read that fails leaves the gate open — the stages behave exactly as they
+  // did before approvals existed — rather than silently dropping every reminder.
+  let approvals: ApprovalStore | null = null;
+  try { approvals = await loadApprovals(supabase); } catch { approvals = null; }
+  const firstHour = Math.min(...[dayBefore.enabled ? dayBefore.hour : 99, eveningBefore.enabled ? eveningBefore.hour : 99]);
+  const lastHour = Math.max(dayBefore.enabled ? dayBefore.hour : -1, eveningBefore.enabled ? eveningBefore.hour : -1);
+
   // For each team day, check if "the day before" is today at the configured hour.
   for (const teamDay of teamDays) {
     const dayBeforeWeekday = (teamDay + 6) % 7; // day before the team day
+
+    // Does tomorrow's team day need an admin's OK first, and is there one.
+    // Only worked out on the day before, so the other six days cost nothing.
+    let gate: GateState = 'not_needed';
+    if (approvals && approvals.mode !== 'off' && weekday === dayBeforeWeekday && firstHour < 99) {
+      const teamDate = addDays(israelToday(now), 1);
+      try {
+        const quality = approvals.mode === 'quality' ? await qualityOf(supabase, teamDate) : null;
+        gate = gateState(approvals, teamDate, approvals.mode === 'team' || !!quality);
+        if (shouldAsk(gate, hour, firstHour, lastHour)) {
+          const reqTag = `approvalRequest:${teamDate}`;
+          const remTag = `approvalReminder:${teamDate}`;
+          const ask = async (tag: string, reminder: boolean) => {
+            const { sent } = await notifyStaff({
+              kind: 'push_approval',
+              url: `/dashboard/notifications/approve?date=${teamDate}`,
+              tag: `push-approval-${teamDate}`,
+              category: 'management',
+              copy: (locale) => approvalRequestCopy(locale, { day: teamDay, hour: firstHour, workoutName: quality?.name, reminder }),
+            });
+            await markFired(tag, sent);
+            fired.push(`${tag} → ${sent}`);
+          };
+          if (!(await already(reqTag))) await ask(reqTag, false);
+          else if (hour === firstHour - 1 && minute >= 45 && !(await already(remTag))) await ask(remTag, true);
+        }
+      } catch {
+        gate = 'not_needed';
+      }
+    }
+    // A stage's own hour, or (approved late) the rest of its window: the morning
+    // stages until the evening hour, the evening ones until 21:00.
+    const morningDue = stageDue(gate, hour, dayBefore.hour, eveningBefore.enabled ? eveningBefore.hour : 21);
+    const eveningDue = stageDue(gate, hour, eveningBefore.hour, 21);
     // The team day's OWN plan-week, not "today"'s — matters whenever the team
     // day is a Sunday: the day-before (today, Saturday) is still in last
     // week's plan-week, but the team day itself starts the next one. Using a
@@ -166,7 +210,7 @@ async function run(request: Request) {
     const teamDayWeekStart = getPlanWeekStart(teamDayDate);
 
     // Stage 1 — day before, at dayBefore.hour, to ALL.
-    if (dayBefore.enabled && weekday === dayBeforeWeekday && hour === dayBefore.hour) {
+    if (dayBefore.enabled && weekday === dayBeforeWeekday && morningDue) {
       const tag = `dayBefore:${teamDayWeekStart}:${teamDay}`;
       if (!(await already(tag))) {
         const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
@@ -202,7 +246,7 @@ async function run(request: Request) {
     }
 
     // Stage 2 — evening before, at eveningBefore.hour, to RSVP NON-responders.
-    if (eveningBefore.enabled && weekday === dayBeforeWeekday && hour === eveningBefore.hour) {
+    if (eveningBefore.enabled && weekday === dayBeforeWeekday && eveningDue) {
       const tag = `eveningBefore:${teamDayWeekStart}:${teamDay}`;
       if (!(await already(tag))) {
         // Who already answered for that team day this week? (also grab `attending`
@@ -264,7 +308,7 @@ async function run(request: Request) {
     // in this ledger row's body_he (reusing the same #ledger:<tag> shape as
     // markFired, just with real payload instead of the tag itself) so Stage
     // 4 can find it later today.
-    if (surveyTpl && dayBefore.enabled && weekday === dayBeforeWeekday && hour === dayBefore.hour) {
+    if (surveyTpl && dayBefore.enabled && weekday === dayBeforeWeekday && morningDue) {
       const tag = `paceSurvey:${weekStart}:${teamDay}`;
       if (!(await already(tag))) {
         const { survey, sent } = await createAndSendSurvey({
@@ -294,7 +338,7 @@ async function run(request: Request) {
     // tapped a group there at 05:31 was still getting an evening push asking
     // them to answer, which reads as the app not having heard them. Their
     // `workout_attendance` row for this team day counts as the answer.
-    if (surveyTpl && eveningBefore.enabled && weekday === dayBeforeWeekday && hour === eveningBefore.hour) {
+    if (surveyTpl && eveningBefore.enabled && weekday === dayBeforeWeekday && eveningDue) {
       const tag = `paceSurveyNudge:${weekStart}:${teamDay}`;
       if (!(await already(tag))) {
         const morningTag = `paceSurvey:${weekStart}:${teamDay}`;

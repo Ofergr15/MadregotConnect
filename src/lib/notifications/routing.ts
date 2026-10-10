@@ -99,6 +99,12 @@ export const ROUTED_KINDS: RoutedKind[] = [
     source: 'api/store/orders',
   },
   {
+    kind: 'push_approval',
+    label: 'אישור התראות לפני אימון',
+    hint: 'יום לפני אימון איכות — התזכורות לרצים ממתינות לאישור',
+    source: 'api/cron/tick',
+  },
+  {
     kind: 'workout_delivery_failed',
     label: 'אימון לא הגיע לשעון',
     hint: 'דחיפת אימון לגרמין נכשלה',
