@@ -42,6 +42,18 @@ const LOGO = `${APP_URL}/images/logo-white.png`;
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif";
 
+/**
+ * The academy's palette ("ג · שקיעה על המסלול", lib/email/academy-form-received),
+ * now the look of every member mail (Ofer, 2026-10-10: "the academy mail is much
+ * better — that's the design here too"). Same values, repeated here rather than
+ * imported, because that file imports esc() from this one.
+ */
+const D = {
+  page: '#FBF1EC', dusk: '#23208F', sun: '#F0643C', eyebrow: '#FFD9C9',
+  tag: '#C2461F', tagBg: '#FFEDE5', muted: '#A59C95', line: '#EDE3DC',
+  body: '#3A3B45', soft: '#5B5F73', ink: '#1D1E26', well: '#FBF6F3',
+};
+
 /** Interpolating a person's name or a group name into HTML is the whole attack
  *  surface here. Everything user-supplied goes through this. */
 export function esc(value: unknown): string {
@@ -79,6 +91,9 @@ export interface EmailBlocks {
   bodyHtml?: string;
   /** Raw HTML under the button and above the notes (the approval mail's QR and tip). */
   afterCtaHtml?: string;
+  /** The line above "צוות מדרגות" at the end of a member mail. `false` = no sign-off
+   *  (staff alerts). Default "נתראה בריצה,". */
+  signoff?: string | false;
 }
 
 export interface SetupProgressRow {
@@ -166,6 +181,93 @@ export function renderSetupProgress(state: {
  * to. Keep this lean: no web fonts, no background images, no `<style>` block.
  */
 export function renderEmail(blocks: EmailBlocks): string {
+  const dir = blocks.dir || 'rtl';
+  const rtl = dir === 'rtl';
+  // The English, admin-facing mails keep their own quiet shell; everything a member
+  // reads is in the academy's design (below), which Ofer picked as the club's look.
+  if (!rtl) return renderPlainEmail(blocks);
+
+  const preheader = blocks.preheader
+    ? `<div style="display: none; max-height: 0; overflow: hidden; mso-hide: all; font-size: 1px; line-height: 1px; color: ${D.page};">${esc(blocks.preheader)}&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;</div>`
+    : '';
+  const eyebrow = blocks.eyebrow
+    ? `<div style="font-family: ${FONT}; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; color: ${D.eyebrow}; margin-top: 12px;">${esc(blocks.eyebrow)}</div>`
+    : '';
+  const paragraphs = (blocks.paragraphs || [])
+    .map(p => `<p style="font-family: ${FONT}; font-size: 16px; color: ${D.body}; line-height: 1.8; margin: 0 0 14px;">${esc(p)}</p>`)
+    .join('');
+  const rowList = blocks.rows || [];
+  const rows = rowList.length
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${D.well}" style="border-collapse: separate; border-radius: 16px; margin: 6px 0 10px;">
+         <tr><td style="padding: 6px 18px;">
+           <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse;">
+             ${rowList.map(([label, value], i) => `
+             <tr>
+               <td style="font-family: ${FONT}; font-size: 13px; color: ${D.muted}; padding: 12px 0; text-align: right; ${i ? `border-top: 1px solid ${D.line};` : ''} white-space: nowrap;">${esc(label)}</td>
+               <td style="font-family: ${FONT}; font-size: 15px; font-weight: 700; color: ${D.ink}; padding: 12px 0; text-align: left; ${i ? `border-top: 1px solid ${D.line};` : ''}">${esc(value || '—')}</td>
+             </tr>`).join('')}
+           </table>
+         </td></tr>
+       </table>`
+    : '';
+  // Bulletproof pill: colour and radius on the <td>; the dusk end of the gradient is the solid fallback.
+  const cta = blocks.cta
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 22px auto 4px;">
+         <tr><td bgcolor="${D.dusk}" style="border-radius: 999px; background-color: ${D.dusk}; background-image: linear-gradient(135deg, ${D.dusk} 0%, #5B3FC4 100%);">
+           <a href="${esc(blocks.cta.href)}" style="display: inline-block; font-family: ${FONT}; font-size: 16px; font-weight: 800; color: #ffffff; text-decoration: none; padding: 15px 34px; border-radius: 999px;">${esc(blocks.cta.label)}</a>
+         </td></tr>
+       </table>`
+    : '';
+  const notes = (blocks.notes || []).length
+    ? `<div style="margin: 22px 0 0; padding: 14px 0 0; border-top: 1px solid ${D.line};">${(blocks.notes || []).map(n => `<p style="font-family: ${FONT}; font-size: 13px; color: ${D.muted}; line-height: 1.65; margin: 0 0 6px;">${esc(n)}</p>`).join('')}</div>`
+    : '';
+  const signoff = blocks.signoff === false ? '' : `<p style="font-family: ${FONT}; font-size: 16px; line-height: 1.7; color: ${D.body}; margin: 22px 0 0;">${esc(blocks.signoff || 'נתראה בריצה,')}<br /><b style="color: ${D.dusk}; font-size: 17px;">צוות מדרגות</b></p>`;
+
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>${esc(blocks.title)}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: ${D.page};">
+${preheader}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${D.page}" style="background-color: ${D.page};">
+<tr><td align="center" style="padding: 22px 12px 28px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 560px;">
+
+  <!-- the badge on the sunset (lib/email/academy-form-received): Outlook shows the dusk colour alone -->
+  <tr><td bgcolor="${D.dusk}" align="center" style="background-color: ${D.dusk}; background-image: linear-gradient(160deg, ${D.dusk} 0%, ${D.sun} 100%); border-radius: 26px 26px 0 0; padding: 30px 20px 28px;">
+    <img src="${LOGO}" width="112" height="112" alt="Madregot After 2KM Running Club" style="display: block; width: 112px; height: 112px; border: 0; margin: 0 auto;" />
+    ${eyebrow}
+    <div style="font-family: ${FONT}; font-size: 28px; font-weight: 800; color: #ffffff; line-height: 1.25; margin-top: 6px;">${esc(blocks.title)}</div>
+  </td></tr>
+
+  <tr><td bgcolor="#ffffff" dir="rtl" align="center" style="background-color: #ffffff; border-radius: 0 0 26px 26px; padding: 28px 22px 30px; text-align: center; font-family: ${FONT};">
+    ${paragraphs}
+    ${rows}
+    ${blocks.bodyHtml || ''}
+    ${cta}
+    ${blocks.afterCtaHtml || ''}
+    ${notes}
+    ${signoff}
+  </td></tr>
+
+  <tr><td align="center" style="padding: 20px 10px 0; font-family: ${FONT};">
+    <a href="${esc(APP_URL)}" dir="ltr" style="font-size: 11px; font-weight: 700; letter-spacing: 0.2em; color: ${D.muted}; text-decoration: none;">MADREGOT · AFTER 2KM · RUNNING CLUB</a>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+/** The pre-2026-10-10 shell, kept for the English admin mails. */
+function renderPlainEmail(blocks: EmailBlocks): string {
   const dir = blocks.dir || 'rtl';
   const rtl = dir === 'rtl';
   const align = rtl ? 'right' : 'left';
@@ -297,17 +399,32 @@ ${preheader}
  */
 export function renderJourney(done: number): string {
   const labels = ['הרשמה', 'אישור', 'התקנה', 'כניסה'];
+  // The academy tracker's look: done = sunset filled, current = dusk ring, later = quiet.
+  const seg = (color: string | null) => color
+    ? `<td valign="middle"><div style="height: 2px; background: ${color}; font-size: 0; line-height: 0;">&nbsp;</div></td>`
+    : '<td>&nbsp;</td>';
   const cells = labels.map((label, i) => {
     const isDone = i < done, isAt = i === done;
-    const bg = isDone ? BRAND : '#ffffff';
-    const border = isDone || isAt ? BRAND : '#D5D7E4';
-    const color = isDone ? '#ffffff' : isAt ? BRAND : '#9AA0B8';
-    return `<td align="center" style="width: 25%; padding: 0 2px;">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" width="28" height="28" bgcolor="${bg}" style="width: 28px; height: 28px; border-radius: 14px; border: 2px solid ${border}; font-family: ${FONT}; font-size: 13px; font-weight: 700; color: ${color};">${isDone ? '✓' : i + 1}</td></tr></table>
-      <div style="font-family: ${FONT}; font-size: 12px; font-weight: 700; color: ${isAt ? INK_900 : isDone ? BRAND : '#9AA0B8'}; margin-top: 5px;">${label}</div>
+    const look = isDone ? { fill: D.sun, text: '#ffffff', ring: D.sun, label: D.sun }
+      : isAt ? { fill: '#ffffff', text: D.dusk, ring: D.dusk, label: D.dusk }
+      : { fill: '#ffffff', text: D.muted, ring: D.line, label: D.muted };
+    const before = i === 0 ? null : i - 1 < done ? D.sun : D.line;
+    const after = i === labels.length - 1 ? null : isDone ? D.sun : D.line;
+    return `<td width="25%" align="center" valign="top" style="width: 25%;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="table-layout: fixed; width: 100%;">
+        <colgroup><col><col style="width: 36px;"><col></colgroup>
+        <tr>${seg(before)}
+          <td width="36" height="36" align="center" style="width: 36px; min-width: 36px; height: 36px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+              <td width="32" height="32" align="center" bgcolor="${look.fill}" style="width: 32px; min-width: 32px; height: 32px; box-sizing: border-box; border: 2px solid ${look.ring}; border-radius: 50%; background: ${look.fill}; font-family: Arial, sans-serif; font-size: 14px; font-weight: 800; color: ${look.text};">${isDone ? '✓' : i + 1}</td>
+            </tr></table>
+          </td>${seg(after)}
+        </tr>
+      </table>
+      <div style="font-family: ${FONT}; font-size: 12px; font-weight: 700; color: ${look.label}; margin-top: 8px; line-height: 1.35;">${label}</div>
     </td>`;
   }).join('');
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 6px 0 18px;"><tr>${cells}</tr></table>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="table-layout: fixed; width: 100%; margin: 6px 0 20px;"><tr>${cells}</tr></table>`;
 }
 
 /** Numbered steps in tinted wells, side by side — the "three things to do" of a mail. */
@@ -315,34 +432,34 @@ export function renderSteps(steps: Array<{ title: string; sub: string }>): strin
   const w = Math.floor(100 / steps.length);
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 4px 0 6px;"><tr>${steps.map((s, i) => `
     <td valign="top" style="width: ${w}%; padding: 0 3px;">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${WELL}" style="border-radius: 14px;"><tr><td align="center" style="padding: 12px 6px;">
-        <div style="display: inline-block; width: 24px; height: 24px; line-height: 24px; border-radius: 12px; background-color: ${BRAND}; color: #ffffff; font-family: ${FONT}; font-size: 12px; font-weight: 700;">${i + 1}</div>
-        <div style="font-family: ${FONT}; font-size: 13px; font-weight: 700; color: ${INK_900}; line-height: 1.35; margin-top: 6px;">${esc(s.title)}</div>
-        <div style="font-family: ${FONT}; font-size: 11.5px; color: ${INK_500}; line-height: 1.4; margin-top: 3px;">${esc(s.sub)}</div>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${D.tagBg}" style="border-radius: 16px;"><tr><td align="center" style="padding: 14px 6px;">
+        <div style="display: inline-block; width: 24px; height: 24px; line-height: 24px; border-radius: 12px; background-color: ${D.sun}; color: #ffffff; font-family: ${FONT}; font-size: 12px; font-weight: 700;">${i + 1}</div>
+        <div style="font-family: ${FONT}; font-size: 13px; font-weight: 700; color: ${D.ink}; line-height: 1.35; margin-top: 6px;">${esc(s.title)}</div>
+        <div style="font-family: ${FONT}; font-size: 11.5px; color: ${D.soft}; line-height: 1.4; margin-top: 3px;">${esc(s.sub)}</div>
       </td></tr></table>
     </td>`).join('')}</tr></table>`;
 }
 
 /** "Opened this on a computer? Scan it." — a QR image (an <img>, which every client draws) beside one line. */
 export function renderScanOnPhone(qrSrc: string): string {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${WELL}" style="border-radius: 14px; margin: 14px 0 0;"><tr>
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${D.well}" style="border-radius: 16px; margin: 16px 0 0; text-align: right;"><tr>
     <td width="96" style="width: 96px; padding: 10px;"><img src="${esc(qrSrc)}" width="84" height="84" alt="קוד QR לקישור" style="display: block; width: 84px; height: 84px; border: 0; background: #ffffff; border-radius: 8px;" /></td>
     <td style="padding: 10px 6px 10px 12px; font-family: ${FONT};">
-      <div style="font-size: 14px; font-weight: 700; color: ${INK_900};">פתחתם את המייל במחשב?</div>
-      <div style="font-size: 13px; color: ${INK_500}; line-height: 1.5; margin-top: 2px;">סורקים את הקוד במצלמה של הטלפון, וזה נפתח שם.</div>
+      <div style="font-size: 14px; font-weight: 700; color: ${D.ink};">פתחתם את המייל במחשב?</div>
+      <div style="font-size: 13px; color: ${D.soft}; line-height: 1.5; margin-top: 2px;">סורקים את הקוד במצלמה של הטלפון, וזה נפתח שם.</div>
     </td></tr></table>`;
 }
 
 /** A warm one-line tip in an amber well. */
 export function renderTip(html: string): string {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#FFF7ED" style="border-radius: 12px; margin: 12px 0 0;"><tr><td style="padding: 10px 14px; font-family: ${FONT}; font-size: 13px; color: #7C2D12; line-height: 1.55;">${html}</td></tr></table>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${D.tagBg}" style="border-radius: 14px; margin: 12px 0 0;"><tr><td align="center" style="padding: 11px 14px; font-family: ${FONT}; font-size: 13px; color: ${D.tag}; line-height: 1.55; text-align: center;">${html}</td></tr></table>`;
 }
 
 /** The "next up" card: a small caps label, one bold line, one quiet line. */
 export function renderNextUp(label: string, title: string, sub: string): string {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#EFEEFE" style="border-radius: 16px; margin: 0 0 6px;"><tr><td align="center" style="padding: 14px 16px; font-family: ${FONT};">
-    <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: ${BRAND};">${esc(label)}</div>
-    <div style="font-size: 17px; font-weight: 700; color: ${INK_900}; margin: 3px 0;">${esc(title)}</div>
-    <div style="font-size: 13px; color: ${INK_500}; line-height: 1.55;">${esc(sub)}</div>
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${D.tagBg}" style="border-radius: 18px; margin: 4px 0 8px;"><tr><td align="center" style="padding: 18px 18px 20px; font-family: ${FONT};">
+    <div style="font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: ${D.tag};">${esc(label)}</div>
+    <div style="font-size: 19px; font-weight: 800; color: ${D.ink}; margin-top: 6px;">${esc(title)}</div>
+    <div style="font-size: 14px; color: ${D.soft}; line-height: 1.65; margin-top: 4px;">${esc(sub)}</div>
   </td></tr></table>`;
 }

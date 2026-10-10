@@ -22,6 +22,7 @@ import { notifyAthlete } from '@/lib/push';
 import { approvalCopy } from '@/lib/notifications/copy';
 import { groupDisplayName } from '@/lib/utils';
 import { placeholderNameFromEmail } from '@/lib/signup';
+import { nameProblem, normalizeDisplayName } from '@/lib/names/latin';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +44,11 @@ export const dynamic = 'force-dynamic';
  * existing athlete row, and here there isn't one yet. The two must stay in step
  * on what approval implies (approved / approved_at / approved_by / status).
  */
+function approvedRosterName(req: { email: string; full_name?: string | null }): string {
+  const typed = (req.full_name || '').trim();
+  return typed && nameProblem(typed) === null ? normalizeDisplayName(typed) : placeholderNameFromEmail(req.email);
+}
+
 export async function POST(request: Request) {
   try {
     const auth = await requireSession(request);
@@ -69,7 +75,7 @@ export async function POST(request: Request) {
 
     const { data: reqRow, error: findError } = await supabase
       .from('signup_requests')
-      .select('id, email, group_id, status, athlete_id')
+      .select('id, email, group_id, status, athlete_id, full_name')
       .eq('id', id)
       .maybeSingle();
     if (findError) throw findError;
@@ -141,9 +147,11 @@ export async function POST(request: Request) {
     // and it only does that because `approved` is true here.
     const insertPayload: Record<string, unknown> = {
       coach_id: COACH_ID,
-      // See placeholderNameFromEmail(): the form never asks for a name, and
-      // /join/{token} overwrites this with the real one in the next step.
-      name: placeholderNameFromEmail(reqRow.email),
+      // The name they typed on /register when it is a usable roster name (Latin
+      // letters, lib/names/latin), else placeholderNameFromEmail(): /join/{token}
+      // asks again either way. It used to be the placeholder even when the form
+      // had a real name, so /join came up blank (2026-10-10, Ofer's own test).
+      name: approvedRosterName(reqRow as { email: string; full_name?: string | null }),
       email: reqRow.email,
       status: 'invited',
       invite_token: token,

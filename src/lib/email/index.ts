@@ -52,6 +52,7 @@ export async function notifyAdminNewUser(user: {
     to: ADMIN_EMAIL,
     subject: `🏃 New user waiting for approval: ${user.name}`,
     html: renderEmail({
+      signoff: false,
       dir: 'ltr',
       title: 'New user registration',
       rows: [['Name', user.name], ['Email', user.email], ['Auth', authStatus], ['Status', user.onboardingStatus]],
@@ -90,6 +91,7 @@ export async function notifyAdminUserApproved(
     to: admin.email,
     subject: `✅ User approved: ${user.name}`,
     html: renderEmail({
+      signoff: false,
       dir: 'ltr',
       title: 'User approved',
       paragraphs: [`${user.name} (${user.email}) has been approved and notified.`],
@@ -134,6 +136,7 @@ export async function notifyAdminNewSignupRequest(req: {
     to: APPROVER_EMAILS,
     subject: `🏃 New registration waiting: ${who}`,
     html: renderEmail({
+      signoff: false,
       dir: 'ltr',
       eyebrow: 'WAITING FOR APPROVAL',
       title: 'New registration',
@@ -708,6 +711,7 @@ export async function sendAcademyWeeklyReport(params: {
     to: params.to || ADMIN_EMAIL,
     subject: `🎓 Academy weekly report — ${fmt(weekStart)}–${fmt(weekEnd)}`,
     html: renderEmail({
+      signoff: false,
       dir: 'ltr',
       title: 'Academy weekly report',
       paragraphs: [`${fmt(weekStart)} – ${fmt(weekEnd)}`],

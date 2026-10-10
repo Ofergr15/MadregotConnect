@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { groupDisplayName } from '@/lib/utils';
 import { placeholderNameFromEmail } from '@/lib/signup';
+import { nameProblem, normalizeDisplayName } from '@/lib/names/latin';
+import { quoteFilterValue } from '@/lib/db/like';
 
 /**
  * GET /api/join/groups?token=… — everything /join/{token} needs to render.
@@ -78,11 +80,21 @@ export async function GET(req: NextRequest) {
     const email = athlete.email || '';
     const storedName = athlete.name || '';
     const isPlaceholder = !!email && storedName === placeholderNameFromEmail(email);
+    // Approved before the approval learned to use it: the name they typed on
+    // /register is on their request. Offered only when it is a usable roster name.
+    let typedName = '';
+    if (isPlaceholder || !storedName) {
+      const { data: req } = await supabase.from('signup_requests').select('full_name')
+        .or(`athlete_id.eq.${athlete.id},email.eq.${quoteFilterValue(email.toLowerCase())}`)
+        .not('full_name', 'is', null).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      const t = ((req as { full_name?: string | null } | null)?.full_name || '').trim();
+      if (t && nameProblem(t) === null) typedName = normalizeDisplayName(t);
+    }
 
     return NextResponse.json({
       groups: transformedGroups || [],
       athlete: {
-        name: isPlaceholder ? '' : storedName,
+        name: isPlaceholder || !storedName ? typedName : storedName,
         email,
         groupId: athlete.group_id || null,
         garminConnected: !!athlete.garmin_auth,
