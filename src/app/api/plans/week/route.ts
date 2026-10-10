@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { WEEKLY_PLANS_TAG } from '@/lib/plans/cache';
 import { COACH_ID } from '@/lib/constants';
-import { requireMember } from '@/lib/auth/self-or-staff';
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { pickPlan, planRowsFilter } from '@/lib/plans/scope';
 import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
 
 /**
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
     // Club-wide training content — every athlete's Program page reads it, so
     // membership is the bar, not staff. Gate before the 400 so an outsider
     // can't distinguish "bad param" from "not allowed".
-    const denied = await requireMember(req);
+    const { denied, caller } = await resolveVerifiedCaller(req);
     if (denied) return denied;
 
     const weekStart = req.nextUrl.searchParams.get('weekStart');
@@ -32,11 +33,13 @@ export async function GET(req: NextRequest) {
     // prefer 'pushed', same precedence as /api/dashboard/weekly.
     const { data: rows } = await supabase
       .from('weekly_plans')
-      .select('parsed_workouts, status, created_at')
+      .select('parsed_workouts, status, created_at, athlete_id')
       .eq('coach_id', COACH_ID)
+      .or(planRowsFilter(caller.athleteId))
       .eq('week_start_date', weekStart);
 
-    const plan = (rows || []).sort((a, b) => (a.status === 'pushed' ? -1 : b.status === 'pushed' ? 1 : 0))[0];
+    // The caller's own academy week first, never another trainee's (lib/plans/scope.ts).
+    const plan = pickPlan(rows, caller.athleteId);
 
     if (!plan) {
       return NextResponse.json({ hasPlan: false, weekStart, dailyDistances: [], sessions: [], typeDistribution: {}, weekTotalMin: 0, weekTotalMax: 0, trainingDays: 0 });

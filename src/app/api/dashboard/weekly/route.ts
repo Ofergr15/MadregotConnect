@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { WEEKLY_PLANS_TAG } from '@/lib/plans/cache';
 import { COACH_ID } from '@/lib/constants';
-import { requireMember } from '@/lib/auth/self-or-staff';
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { planRowsFilter, prefersPlan } from '@/lib/plans/scope';
 import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
 import { getDisplayWeekStart, extractWorkouts, getWorkoutKm, buildWeekBreakdown, dedupeWorkoutsByDay } from '@/lib/plans/workout-parsing';
 
@@ -18,8 +19,11 @@ export async function GET(request: Request) {
     // The coach's training plan — club-internal, and every athlete reads it, so
     // requireMember rather than requireStaff. Same static-render trade as the
     // leaderboard: the plan queries stay cached for 300s.
-    const denied = await requireMember(request);
+    const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
+    // The group plan plus the caller's own academy week, never another
+    // trainee's (lib/plans/scope.ts).
+    const me = caller.athleteId;
 
     const supabase = createServerClient({ revalidateSeconds: 300, cacheTags: [WEEKLY_PLANS_TAG] });
     const now = new Date();
@@ -33,18 +37,19 @@ export async function GET(request: Request) {
     // ascending order for the rest of the function's week-over-week math.
     const { data: plansDesc } = await supabase
       .from('weekly_plans')
-      .select('id, week_start_date, parsed_workouts, status, created_at')
+      .select('id, week_start_date, parsed_workouts, status, created_at, athlete_id')
       .eq('coach_id', COACH_ID)
+      .or(planRowsFilter(me))
       .order('week_start_date', { ascending: false })
       .limit(20);
     const plans = plansDesc ? [...plansDesc].reverse() : plansDesc;
 
-    // Deduplicate plans by week (prefer 'pushed' status)
+    // Deduplicate plans by week: the caller's own week first, then 'pushed'
     const plansByWeek = new Map<string, typeof plans extends (infer T)[] | null ? T : never>();
     if (plans) {
       for (const plan of plans) {
         const existing = plansByWeek.get(plan.week_start_date);
-        if (!existing || plan.status === 'pushed') {
+        if (prefersPlan(plan, existing, me)) {
           plansByWeek.set(plan.week_start_date, plan);
         }
       }

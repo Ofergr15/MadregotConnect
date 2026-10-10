@@ -6,6 +6,7 @@ import { resolveExecutionVerdict } from '@/lib/plan-execution/resolve';
 import { getPlanWeekStart } from '@/lib/utils';
 import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
 import { COACH_ID } from '@/lib/constants';
+import { pickPlan, planRowsFilter } from '@/lib/plans/scope';
 
 // Activities recorded within this many ms of each other are treated as one
 // session (e.g. a watch auto-splitting a long run around a pause, or a
@@ -15,18 +16,22 @@ const CLUSTER_GAP_MS = 90 * 60 * 1000;
 
 interface Act { id: string; garmin_activity_id: number; distance: number; activity_type: string | null; start_time: string; duration: number | null }
 
-/** The club's planned distance/type for one specific date, or null (rest day / no plan loaded). */
-export async function planTargetForDate(dateStr: string): Promise<{ min: number; max: number; type: string } | null> {
+/**
+ * The planned distance/type for one specific date, or null (rest day / no plan
+ * loaded). With an athlete, their own academy week wins over the club plan
+ * (lib/plans/scope.ts); without one, only the club plan is read.
+ */
+export async function planTargetForDate(dateStr: string, athleteId?: string | null): Promise<{ min: number; max: number; type: string } | null> {
   const supabase = createServerClient();
   const weekStart = getPlanWeekStart(new Date(`${dateStr}T12:00:00`));
-  const { data: plan } = await supabase
+  const { data: rows } = await supabase
     .from('weekly_plans')
-    .select('parsed_workouts')
+    .select('parsed_workouts, status, athlete_id')
     .eq('coach_id', COACH_ID)
+    .or(planRowsFilter(athleteId))
     .eq('week_start_date', weekStart)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order('created_at', { ascending: true });
+  const plan = pickPlan(rows, athleteId);
   if (!plan?.parsed_workouts) return null;
 
   const dow = new Date(`${dateStr}T12:00:00`).getDay();
@@ -63,10 +68,10 @@ function clusterByTime(acts: Act[]): Act[][] {
  *  time-clustered session's total distance best matches what was actually
  *  planned for that day, so an unrelated longer run later the same day can't
  *  outrank the real (but shorter, or split across recordings) planned session. */
-async function pickMainActivity(acts: Act[], dateStr: string): Promise<Act> {
+async function pickMainActivity(acts: Act[], dateStr: string, athleteId: string): Promise<Act> {
   if (acts.length === 1) return acts[0];
 
-  const target = await planTargetForDate(dateStr);
+  const target = await planTargetForDate(dateStr, athleteId);
   if (!target) {
     return acts.reduce((a, b) => ((b.distance ?? 0) > (a.distance ?? 0) ? b : a));
   }
@@ -159,7 +164,7 @@ export async function notifyMainWorkoutFeedback(opts: { athleteId: string; dateS
       .lt('start_time', `${opts.dateStr}T23:59:59.999`);
     if (!acts || acts.length === 0) return;
 
-    const main = await pickMainActivity(acts as Act[], opts.dateStr);
+    const main = await pickMainActivity(acts as Act[], opts.dateStr, opts.athleteId);
     const km = main.distance > 0 ? Math.round((main.distance / 1000) * 10) / 10 : null;
     const execution = await gradeForPush(main.id);
 

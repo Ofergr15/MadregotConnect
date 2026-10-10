@@ -14,14 +14,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const supabase = createServerClient();
     const { data: activity, error } = await supabase
       .from('athlete_activities')
-      .select('start_time, distance')
+      .select('start_time, distance, athlete_id')
       .eq('id', id)
       .maybeSingle();
     if (error) throw error;
     if (!activity || !activity.start_time) return NextResponse.json({ matched: false });
 
     const dateStr = activity.start_time.split('T')[0];
-    const target = await planTargetForDate(dateStr);
+    const target = await planTargetForDate(dateStr, activity.athlete_id);
     if (!target) return NextResponse.json({ matched: false });
 
     const targetMidKm = (target.min + target.max) / 2;
