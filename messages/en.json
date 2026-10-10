@@ -3660,5 +3660,57 @@
     "chatHidden": "Chat isn't shown while viewing as {name}",
     "viewing": "Viewing as {name}",
     "openPicker": "View as…"
+  },
+  "onbFunnel": {
+    "title": "How people join",
+    "subtitle": "Everyone who joined through the process since September: on which device, how long each step took, and who is stuck where.",
+    "noEvents": "Step tracking isn't active yet (migration 139). Until then only the timestamps already stored are shown.",
+    "loadError": "Couldn't load the data.",
+    "kpiMembers": "Joined",
+    "kpiToApproval": "To approval",
+    "kpiActivated": "Active within 48h",
+    "kpiActivatedHint": "signed in and connected a watch",
+    "kpiStuck": "Stuck",
+    "median": "median",
+    "funnelTitle": "The funnel",
+    "funnelHint": "How many reached each step, of those who registered, and how long it took from registering (median).",
+    "stage": {
+      "requested": "Registered",
+      "approved": "Approved",
+      "opened": "Signed in",
+      "watch": "Watch",
+      "push": "Notifications",
+      "tour": "Tour",
+      "setup": "Profile done"
+    },
+    "stuckTitle": "Stuck",
+    "stuckHint": "Who needs a hand now, and since when.",
+    "stuck": {
+      "awaiting_approval": "waiting for approval",
+      "approved_not_opened": "approved, never opened",
+      "no_watch": "no watch",
+      "no_push": "no notifications",
+      "computer_only": "computer only"
+    },
+    "devicesTitle": "Devices",
+    "devicesNone": "No device data yet. It's collected from now on.",
+    "device": {
+      "computer": "Computer",
+      "iphone": "iPhone",
+      "ipad": "iPad",
+      "android": "Android"
+    },
+    "membersTitle": "By member",
+    "colMember": "Member",
+    "colDevices": "Devices",
+    "tableHint": "The time beside each ✓ is measured from registering.",
+    "source": {
+      "public-form": "form",
+      "strava-login": "Strava",
+      "direct": "direct"
+    },
+    "minutes": "{n} min",
+    "hours": "{n}h",
+    "days": "{n} days"
   }
 }

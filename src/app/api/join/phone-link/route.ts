@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { notifyPhoneLink } from '@/lib/email';
+import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,7 @@ export async function POST(request: Request) {
   if ((count ?? 0) > 0) return NextResponse.json({ ok: true, throttled: true });
   const r = await notifyPhoneLink({ email: athlete.email, token, name: athlete.name, athleteId: athlete.id });
   if (!r.ok) return NextResponse.json({ error: 'send-failed' }, { status: 502 });
+  await recordOnbEvent({ step: 'phone_link_mailed', athleteId: athlete.id, device: deviceFromUa(request.headers.get('user-agent')) });
   const at = athlete.email.indexOf('@');
   return NextResponse.json({ ok: true, to: `${athlete.email.slice(0, 1)}•••${athlete.email.slice(at)}` });
 }

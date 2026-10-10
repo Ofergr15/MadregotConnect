@@ -9,7 +9,7 @@ describe('install first, then sign in once inside the app', () => {
   it('/join (v2) saves the details and goes to the guide, with no Strava or Garmin there', () => {
     const page = read('app/join/[token]/page.tsx');
     // …and the done screen knows nothing was connected (it used to say "your Garmin is linked").
-    expect(page).toMatch(/if \(guideV2\) \{\s+setStep\('connecting'\);\s+persistProfile\(\)[\s\S]{0,240}?\.then\(\(\) => \{ setSkippedGarmin\(true\); setStep\('done'\); \}\)/);
+    expect(page).toMatch(/if \(guideV2\) \{\s+setStep\('connecting'\);\s+persistProfile\(\)[\s\S]{0,240}?\.then\(\(\) => \{ (trackOnb\('join_saved', \{ token \}\); )?setSkippedGarmin\(true\); setStep\('done'\); \}\)/);
   });
 
   it('the icon added from /join opens the member\'s welcome; a phone that saved /join is forwarded', async () => {

@@ -11,6 +11,7 @@ import { ContinueOnPhone } from '@/components/install/ContinueOnPhone';
 import { useIsComputer } from '@/lib/install/use-computer';
 import { usePreviewOnboardingV2 } from '@/lib/install/v2';
 import { isStandalone } from '@/lib/pwa';
+import { trackOnb } from '@/lib/onboarding/track';
 
 // Local input primitive — see src/app/admin/login/page.tsx for why this is
 // duplicated locally instead of promoted to the shared ui/index.tsx.
@@ -86,6 +87,11 @@ export default function JoinPage() {
   // The illustrated install guide over the done screen, while it is tried (lib/install/v2).
   const guideV2 = usePreviewOnboardingV2();
   const [guideClosed, setGuideClosed] = useState(false);
+  useEffect(() => { trackOnb('join_open', { token, once: true }); }, [token]);
+  // Which end screen this member got, once it is on screen.
+  useEffect(() => {
+    if (step === 'done' && guideV2 && !guideClosed) trackOnb(computer ? 'continue_on_phone_shown' : 'install_guide_shown', { token, once: true });
+  }, [step, guideV2, guideClosed, computer, token]);
   const [error, setError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -260,7 +266,7 @@ export default function JoinPage() {
       persistProfile()
         // Nothing was connected on this path, so the done screen must not say
         // "you're connected — your Garmin is linked" (it did, 2026-10-09).
-        .then(() => { setSkippedGarmin(true); setStep('done'); })
+        .then(() => { trackOnb('join_saved', { token }); setSkippedGarmin(true); setStep('done'); })
         .catch((err) => { setError(err instanceof Error ? err.message : String(err)); setStep('info'); });
       return;
     }
@@ -367,7 +373,7 @@ export default function JoinPage() {
       <>
       {guideV2 && !guideClosed && (computer
         // On a computer: no home-screen guide. Invite them to the phone, never block (ContinueOnPhone).
-        ? <ContinueOnPhone token={token} firstName={(name || '').split(/\s+/)[0] || null} onContinueHere={() => window.location.assign(`/welcome?t=${encodeURIComponent(token)}`)} />
+        ? <ContinueOnPhone token={token} firstName={(name || '').split(/\s+/)[0] || null} onContinueHere={() => { trackOnb('continue_on_computer', { token }); window.location.assign(`/welcome?t=${encodeURIComponent(token)}`); }} />
         : <InstallGuide canPrompt={false} onLater={() => setGuideClosed(true)} memberName={name || null} />)}
       <div className="min-h-screen bg-page flex items-center justify-center p-4">
         <div className="bg-card rounded-card border border-page p-6 sm:p-8 w-full max-w-md animate-fade-in">

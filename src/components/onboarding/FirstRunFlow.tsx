@@ -19,6 +19,7 @@ import { useOnboardingV2 } from '@/lib/install/v2';
 import { IosPermissionPreview } from '@/components/install/IosPermissionPreview';
 import { useIsComputer } from '@/lib/install/use-computer';
 import './first-run.css';
+import { trackOnb } from '@/lib/onboarding/track';
 
 export type Stage = 'welcome' | 'push' | 'pushDone' | 'pushBlocked';
 
@@ -72,6 +73,7 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
     setAthleteId(id);
     setName(firstNameOf());
     setStage('welcome');
+    trackOnb('first_run_start', { once: true });
   }, [v2, data, installAnswered, stage, previewStage]);
 
   const toTour = useCallback(() => {
@@ -84,7 +86,7 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
     // Nothing to ask on a phone that already answered, or cannot (a browser tab on
     // an iPhone): straight on to the tour.
     const p = readPushPermission();
-    if (p === 'default') setStage('push');
+    if (p === 'default') { setStage('push'); trackOnb('push_prompted', { once: true }); }
     else if (p === 'denied') setStage('pushBlocked');
     else toTour();
   }, [toTour, computer]);
@@ -101,12 +103,13 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
         try { localStorage.setItem(PUSH_STEP_DISMISS_KEY, '1'); } catch { /* ignore */ }
         mutate(ONBOARDING_KEY);
         setStage('pushDone');
+        trackOnb('push_granted');
         // The proof: a real push to this phone, so they see what one looks like
         // and we see a delivery receipt.
         fetch('/api/push/test', { method: 'POST', headers: await apiHeaders(true), body: JSON.stringify({ athleteId }) }).catch(() => {});
         return;
       }
-      if (result.error === 'permission_denied') { setStage('pushBlocked'); return; }
+      if (result.error === 'permission_denied') { setStage('pushBlocked'); trackOnb('push_denied'); return; }
       setError(result.error ?? 'unknown');
     } finally {
       clearTimeout(slowTimer);
@@ -186,7 +189,7 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
                 onClick={() => {
                   // "Later" is a real answer: the old notifications sheet must not
                   // come straight back after the tour on this visit.
-                  try { sessionStorage.setItem(PUSH_STEP_SESSION_SKIP_KEY, '1'); recordPushStepSkipped(); } catch { /* ignore */ }
+                  try { sessionStorage.setItem(PUSH_STEP_SESSION_SKIP_KEY, '1'); recordPushStepSkipped(); } catch { /* ignore */ } trackOnb('push_later');
                   toTour();
                 }}
                 className="min-h-[48px] w-full text-sm font-bold text-ink-400"

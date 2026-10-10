@@ -4,6 +4,7 @@ import { encrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
 import { syncClubFollows } from '@/lib/follows/club-sync';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
 
 /**
  * Public sign-up / invite redemption. Deliberately NOT session-gated as a
@@ -120,6 +121,7 @@ export async function POST(req: NextRequest) {
         await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updateData.onboarding_status, hasGarmin: !!encryptedAuth });
       } catch {}
 
+      if (updateData.garmin_authed_at) await recordOnbEvent({ step: 'garmin_connected', athleteId: athlete.id, device: deviceFromUa(req.headers.get('user-agent')) });
       return NextResponse.json({ success: true, athlete: updated });
     }
 
@@ -180,6 +182,7 @@ export async function POST(req: NextRequest) {
         await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updatePayload.onboarding_status, hasGarmin: !!encryptedAuth });
       } catch {}
 
+      if (updatePayload.garmin_authed_at) await recordOnbEvent({ step: 'garmin_connected', athleteId: existing.id, device: deviceFromUa(req.headers.get('user-agent')) });
       return NextResponse.json({ success: true, athlete: updated });
     }
 
@@ -221,6 +224,7 @@ export async function POST(req: NextRequest) {
       await notifyAdminNewUser({ name, email, onboardingStatus: insertPayload.onboarding_status, hasGarmin: !!encryptedAuth });
     } catch {}
 
+    if (insertPayload.garmin_authed_at) await recordOnbEvent({ step: 'garmin_connected', athleteId: created.id, device: deviceFromUa(req.headers.get('user-agent')) });
     return NextResponse.json({ success: true, athlete: created });
   } catch (error: any) {
     return NextResponse.json(

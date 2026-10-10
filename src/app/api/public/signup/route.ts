@@ -7,6 +7,7 @@ import { notifyStaff } from '@/lib/notifications/staff';
 import { signupRequestCopy } from '@/lib/notifications/copy';
 import { groupDisplayName } from '@/lib/utils';
 import { isLikelyEmail, normaliseEmail, signupAlertName } from '@/lib/signup';
+import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -198,6 +199,11 @@ export async function POST(request: Request) {
     // over pending emails. Both are the same person pressing twice; the row that
     // won is the one we wanted, so this is a success, not a collision to report.
     if (insertError && insertError.code !== '23505') throw insertError;
+    // The funnel's first server-side step (lib/onboarding/events). Never allowed to fail the request.
+    try {
+      const { data: created } = await supabase.from('signup_requests').select('id').eq('email', email).eq('status', 'pending').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      await recordOnbEvent({ step: 'register_submitted', signupRequestId: (created as { id?: string } | null)?.id ?? null, device: deviceFromUa(request.headers.get('user-agent')) });
+    } catch { /* recording is best-effort */ }
 
     if (!insertError) {
       // This form asks for an address and a group and nothing else, so the local

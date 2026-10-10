@@ -6,6 +6,7 @@ import { releaseFromMaintenance } from '@/lib/maintenance-release';
 import { notifyUserApproved, notifyAdminUserApproved, notifyAcademyApproved } from '@/lib/email';
 import { notifyAthlete } from '@/lib/push';
 import { approvalCopy } from '@/lib/notifications/copy';
+import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -129,6 +130,7 @@ export async function POST(req: NextRequest) {
     } catch (closeErr) {
       console.error('Failed to close the approved athlete\'s signup request:', closeErr);
     }
+    await recordOnbEvent({ step: 'approved', athleteId, meta: { by: updates.approved_by ?? null } });
 
     // Email and push are independent channels for the same event — send
     // concurrently rather than one after the other. Each is isolated in its

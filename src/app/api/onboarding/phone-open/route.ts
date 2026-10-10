@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { authError, requireSession } from '@/lib/auth-session';
+import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,5 +16,6 @@ export async function POST(request: Request) {
     .update({ phone_app_opened_at: new Date().toISOString() })
     .eq('id', auth.user.athleteId)
     .is('phone_app_opened_at', null);
+  await recordOnbEvent({ step: 'phone_app_opened', athleteId: auth.user.athleteId, device: deviceFromUa(request.headers.get('user-agent')) });
   return NextResponse.json({ ok: true, recorded: !error });
 }
