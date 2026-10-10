@@ -57,7 +57,7 @@ import { cn, activityLocalDay, formatActivityTime, formatWeekRange, planWeekStar
 import { getSupabase } from '@/lib/supabase/client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useIsSuperUser } from '@/lib/impersonation';
-import { Sheet, ConfirmSheet, SegmentedControl, Button, InsetSection, InsetRow } from '@/components/ui';
+import { Sheet, ConfirmSheet, SegmentedControl, Button, InsetSection, InsetRow, Switch } from '@/components/ui';
 
 const HARDCODED_COACH_ID = '30f056a7-c651-490e-8356-615ea9eff097';
 
@@ -273,6 +273,8 @@ export default function WeeklyPlannerPage() {
   const [selectedAthleteIds, setSelectedAthleteIds] = useState<string[]>([]);
   const [athleteSearch, setAthleteSearch] = useState('');
   const [pushing, setPushing] = useState(false);
+  // Off = the week goes to the watches without the athletes' "workouts ready" push.
+  const [notifyAthletes, setNotifyAthletes] = useState(true);
   const [pushResults, setPushResults] = useState<PushResultItem[] | null>(null);
   // Which group is expanded in the "All Athletes" tab to reveal its members.
   const [expandedAllGroup, setExpandedAllGroup] = useState<string | null>(null);
@@ -1084,7 +1086,7 @@ export default function WeeklyPlannerPage() {
       const res = await fetch('/api/garmin/push-workouts', {
         method: 'POST',
         headers: await bearerHeaders(),
-        body: JSON.stringify({ planId: savedPlanId, weekStartDate, ...body }),
+        body: JSON.stringify({ planId: savedPlanId, weekStartDate, notifyAthletes, ...body }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -2528,6 +2530,21 @@ export default function WeeklyPlannerPage() {
                 </div>
 
                 {error && <ErrorBanner message={error} className="p-3" />}
+
+                <div className="flex items-center gap-3 rounded-xl bg-page px-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-ink-700">{t('notifyAthletesLabel')}</p>
+                    <p className="text-2xs text-ink-400 leading-relaxed">
+                      {notifyAthletes ? t('notifyAthletesOn') : t('notifyAthletesOff')}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={notifyAthletes}
+                    onChange={setNotifyAthletes}
+                    disabled={pushing}
+                    ariaLabel={t('notifyAthletesLabel')}
+                  />
+                </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-page">
                   <span className="text-sm text-ink-400">

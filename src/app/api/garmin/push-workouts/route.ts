@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     // below. The academy planner sends false for a trainee whose paces it could
     // not resolve, so an unresolved pace stays information instead of becoming a
     // pace-zone alarm on their watch.
-    const { planId, workouts, athleteIds, weekStartDate, paceAlerts: paceAlertsAllowed, batches, wholeWeek } = await req.json();
+    const { planId, workouts, athleteIds, weekStartDate, paceAlerts: paceAlertsAllowed, batches, wholeWeek, notifyAthletes } = await req.json();
 
     // THE WHOLE WEEK IN ONE REQUEST, for the super user until rollout (feedback
     // bb7fdd49). The planner sent one request per pace group from the phone, one
@@ -112,6 +112,12 @@ export async function POST(req: NextRequest) {
     // migration 138, so until then every athlete is routed as before.
     const appleIds = await appleCandidates(supabase, found);
 
+    // The coach can send a week quietly: the workouts still go to the watch, only
+    // the athlete's "your workouts are ready" push is skipped. `!== false` so every
+    // caller that doesn't send the field still notifies. The failure push below is
+    // not covered: it is the athlete's only way to learn their watch is empty.
+    const notify = notifyAthletes !== false;
+
     const deliver = async ({ athlete, plannedWorkouts }: (typeof tasks)[number]) => {
       // Three conditions, all required, and the request can only ever remove
       // one: the athlete is in the academy, the coach hasn't turned alerts off
@@ -134,6 +140,7 @@ export async function POST(req: NextRequest) {
           weekStartDate,
           planId: planId || null,
           paceTarget,
+          notify,
         })
         : await pushWeekToAthlete({
           supabase,
@@ -142,6 +149,7 @@ export async function POST(req: NextRequest) {
           weekStartDate,
           planId: planId || null,
           paceTarget,
+          notify,
           cleanDayOnce: auth.user.isSuperUser,
         });
       results.push(result);
