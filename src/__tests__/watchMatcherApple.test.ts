@@ -73,3 +73,11 @@ describe('Apple plan-id attribution', () => {
     )).toEqual([{ activityId: 'a', workoutKey: 'k', deliveryId: 'd', providerPlanId: PLAN_UUID }]);
   });
 });
+
+describe('the other importers defer to an Apple row', () => {
+  it('a Garmin sync that finds an Apple twin skips (twinVerdict only upgrades Strava)', async () => {
+    const { twinVerdict } = await import('@/lib/activity-dedup');
+    expect(twinVerdict({ id: 'x', source: 'apple', start_time: '2026-10-08T06:30:00Z', distance: 10000 })).toBe('skip');
+    expect(twinVerdict({ id: 'x', source: 'strava', start_time: '2026-10-08T06:30:00Z', distance: 10000 })).toBe('upgrade');
+  });
+});
