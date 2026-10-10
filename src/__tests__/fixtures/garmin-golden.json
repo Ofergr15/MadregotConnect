@@ -1,0 +1,5482 @@
+{
+  "fartlek|live|info": {
+    "workoutName": "יום ראשון",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 900,
+            "description": "15 דק׳ 4:30-5:30"
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 15,
+            "endConditionValue": 15,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "קל מתון - נוח"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 4,
+                "stepOrder": 4,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "מתון - בינוני"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 5,
+                "stepOrder": 5,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "בינוני - קשה"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "fartlek|live|alerts": {
+    "workoutName": "יום ראשון",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 6,
+              "workoutTargetTypeKey": "pace.zone"
+            },
+            "endConditionValue": 900,
+            "description": "15 דק׳ 4:30-5:30",
+            "targetValueOne": 3.7037037037037037,
+            "targetValueTwo": 3.0303030303030303
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 15,
+            "endConditionValue": 15,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "קל מתון - נוח"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 4,
+                "stepOrder": 4,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "מתון - בינוני"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 5,
+                "stepOrder": 5,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "בינוני - קשה"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "fartlek|zones|info": {
+    "workoutName": "יום ראשון",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 900,
+            "description": "15 דק׳ 4:30-5:30"
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 15,
+            "endConditionValue": 15,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "קל מתון - נוח"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 4,
+                "stepOrder": 4,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "מתון - בינוני"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 5,
+                "stepOrder": 5,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "בינוני - קשה"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "fartlek|zones|alerts": {
+    "workoutName": "יום ראשון",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 6,
+              "workoutTargetTypeKey": "pace.zone"
+            },
+            "endConditionValue": 900,
+            "description": "15 דק׳ 4:30-5:30",
+            "targetValueOne": 3.7037037037037037,
+            "targetValueTwo": 3.0303030303030303
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 15,
+            "endConditionValue": 15,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "קל מתון - נוח"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 4,
+                "stepOrder": 4,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "מתון - בינוני"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 5,
+                "stepOrder": 5,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "בינוני - קשה"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "fartlek|empty|info": {
+    "workoutName": "יום ראשון",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 900,
+            "description": "15 דק׳ 4:30-5:30"
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 15,
+            "endConditionValue": 15,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "קל מתון - נוח"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 4,
+                "stepOrder": 4,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "מתון - בינוני"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 5,
+                "stepOrder": 5,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "בינוני - קשה"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "fartlek|empty|alerts": {
+    "workoutName": "יום ראשון",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 6,
+              "workoutTargetTypeKey": "pace.zone"
+            },
+            "endConditionValue": 900,
+            "description": "15 דק׳ 4:30-5:30",
+            "targetValueOne": 3.7037037037037037,
+            "targetValueTwo": 3.0303030303030303
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 15,
+            "endConditionValue": 15,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "קל מתון - נוח"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 4,
+                "stepOrder": 4,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "מתון - בינוני"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 5,
+                "stepOrder": 5,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "בינוני - קשה"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "easyOpen|live|info": {
+    "workoutName": "יום שני",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 1,
+              "conditionTypeKey": "lap.button"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "description": "60-80 דקות 4:40-5:15"
+          }
+        ]
+      }
+    ]
+  },
+  "easyOpen|live|alerts": {
+    "workoutName": "יום שני",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 1,
+              "conditionTypeKey": "lap.button"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "description": "60-80 דקות 4:40-5:15"
+          }
+        ]
+      }
+    ]
+  },
+  "easyOpen|zones|info": {
+    "workoutName": "יום שני",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 1,
+              "conditionTypeKey": "lap.button"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "description": "60-80 דקות 4:40-5:15"
+          }
+        ]
+      }
+    ]
+  },
+  "easyOpen|zones|alerts": {
+    "workoutName": "יום שני",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 1,
+              "conditionTypeKey": "lap.button"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "description": "60-80 דקות 4:40-5:15"
+          }
+        ]
+      }
+    ]
+  },
+  "easyOpen|empty|info": {
+    "workoutName": "יום שני",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 1,
+              "conditionTypeKey": "lap.button"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "description": "60-80 דקות 4:40-5:15"
+          }
+        ]
+      }
+    ]
+  },
+  "easyOpen|empty|alerts": {
+    "workoutName": "יום שני",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 1,
+              "conditionTypeKey": "lap.button"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "description": "60-80 דקות 4:40-5:15"
+          }
+        ]
+      }
+    ]
+  },
+  "intervals|live|info": {
+    "workoutName": "אינטרוולים 6×400",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 6,
+            "endConditionValue": 6,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 400,
+                "description": "3:20"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 4,
+                "stepOrder": 4,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "recovery"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "הליכה"
+              }
+            ]
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 5,
+            "stepOrder": 5,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 1000
+          }
+        ]
+      }
+    ]
+  },
+  "intervals|live|alerts": {
+    "workoutName": "אינטרוולים 6×400",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 6,
+            "endConditionValue": 6,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 6,
+                  "workoutTargetTypeKey": "pace.zone"
+                },
+                "endConditionValue": 400,
+                "description": "3:20",
+                "targetValueOne": 5
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 4,
+                "stepOrder": 4,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "recovery"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "הליכה"
+              }
+            ]
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 5,
+            "stepOrder": 5,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 1000
+          }
+        ]
+      }
+    ]
+  },
+  "intervals|zones|info": {
+    "workoutName": "אינטרוולים 6×400",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 6,
+            "endConditionValue": 6,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 400,
+                "description": "3:20"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 4,
+                "stepOrder": 4,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "recovery"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "הליכה"
+              }
+            ]
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 5,
+            "stepOrder": 5,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 1000
+          }
+        ]
+      }
+    ]
+  },
+  "intervals|zones|alerts": {
+    "workoutName": "אינטרוולים 6×400",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 6,
+            "endConditionValue": 6,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 6,
+                  "workoutTargetTypeKey": "pace.zone"
+                },
+                "endConditionValue": 400,
+                "description": "3:20",
+                "targetValueOne": 5
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 4,
+                "stepOrder": 4,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "recovery"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "הליכה"
+              }
+            ]
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 5,
+            "stepOrder": 5,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 1000
+          }
+        ]
+      }
+    ]
+  },
+  "intervals|empty|info": {
+    "workoutName": "אינטרוולים 6×400",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 6,
+            "endConditionValue": 6,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 400,
+                "description": "3:20"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 4,
+                "stepOrder": 4,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "recovery"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "הליכה"
+              }
+            ]
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 5,
+            "stepOrder": 5,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 1000
+          }
+        ]
+      }
+    ]
+  },
+  "intervals|empty|alerts": {
+    "workoutName": "אינטרוולים 6×400",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 6,
+            "endConditionValue": 6,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 6,
+                  "workoutTargetTypeKey": "pace.zone"
+                },
+                "endConditionValue": 400,
+                "description": "3:20",
+                "targetValueOne": 5
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 4,
+                "stepOrder": 4,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "recovery"
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 60,
+                "description": "הליכה"
+              }
+            ]
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 5,
+            "stepOrder": 5,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 1000
+          }
+        ]
+      }
+    ]
+  },
+  "tempoDoubleWarmup|live|info": {
+    "workoutName": "טמפו",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 900,
+            "description": "קל"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 400,
+            "description": "האצות"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 3,
+            "stepOrder": 3,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 8000,
+            "description": "3:35-3:45 ג׳ל"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 4,
+            "stepOrder": 4,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 300
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 5,
+            "stepOrder": 5,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 1,
+              "conditionTypeKey": "lap.button"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "description": "מתיחות"
+          }
+        ]
+      }
+    ]
+  },
+  "tempoDoubleWarmup|live|alerts": {
+    "workoutName": "טמפו",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 900,
+            "description": "קל"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 400,
+            "description": "האצות"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 3,
+            "stepOrder": 3,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 6,
+              "workoutTargetTypeKey": "pace.zone"
+            },
+            "endConditionValue": 8000,
+            "description": "3:35-3:45 ג׳ל",
+            "targetValueOne": 4.651162790697675,
+            "targetValueTwo": 4.444444444444445
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 4,
+            "stepOrder": 4,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 300
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 5,
+            "stepOrder": 5,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 1,
+              "conditionTypeKey": "lap.button"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "description": "מתיחות"
+          }
+        ]
+      }
+    ]
+  },
+  "tempoDoubleWarmup|zones|info": {
+    "workoutName": "טמפו",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 900,
+            "description": "קל"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 400,
+            "description": "האצות"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 3,
+            "stepOrder": 3,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 8000,
+            "description": "3:35-3:45 ג׳ל"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 4,
+            "stepOrder": 4,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 300
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 5,
+            "stepOrder": 5,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 1,
+              "conditionTypeKey": "lap.button"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "description": "מתיחות"
+          }
+        ]
+      }
+    ]
+  },
+  "tempoDoubleWarmup|zones|alerts": {
+    "workoutName": "טמפו",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 900,
+            "description": "קל"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 400,
+            "description": "האצות"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 3,
+            "stepOrder": 3,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 6,
+              "workoutTargetTypeKey": "pace.zone"
+            },
+            "endConditionValue": 8000,
+            "description": "3:35-3:45 ג׳ל",
+            "targetValueOne": 4.651162790697675,
+            "targetValueTwo": 4.444444444444445
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 4,
+            "stepOrder": 4,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 300
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 5,
+            "stepOrder": 5,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 1,
+              "conditionTypeKey": "lap.button"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "description": "מתיחות"
+          }
+        ]
+      }
+    ]
+  },
+  "tempoDoubleWarmup|empty|info": {
+    "workoutName": "טמפו",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 900,
+            "description": "קל"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 400,
+            "description": "האצות"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 3,
+            "stepOrder": 3,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 8000,
+            "description": "3:35-3:45 ג׳ל"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 4,
+            "stepOrder": 4,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 300
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 5,
+            "stepOrder": 5,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 1,
+              "conditionTypeKey": "lap.button"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "description": "מתיחות"
+          }
+        ]
+      }
+    ]
+  },
+  "tempoDoubleWarmup|empty|alerts": {
+    "workoutName": "טמפו",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 900,
+            "description": "קל"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 400,
+            "description": "האצות"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 3,
+            "stepOrder": 3,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 6,
+              "workoutTargetTypeKey": "pace.zone"
+            },
+            "endConditionValue": 8000,
+            "description": "3:35-3:45 ג׳ל",
+            "targetValueOne": 4.651162790697675,
+            "targetValueTwo": 4.444444444444445
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 4,
+            "stepOrder": 4,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 300
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 5,
+            "stepOrder": 5,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 1,
+              "conditionTypeKey": "lap.button"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "description": "מתיחות"
+          }
+        ]
+      }
+    ]
+  },
+  "nestedRepeat|live|info": {
+    "workoutName": "סטים",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 3000
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 3,
+            "endConditionValue": 3,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "RepeatGroupDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 6,
+                  "stepTypeKey": "repeat"
+                },
+                "endCondition": {
+                  "conditionTypeId": 7,
+                  "conditionTypeKey": "iterations"
+                },
+                "numberOfIterations": 4,
+                "endConditionValue": 4,
+                "smartRepeat": false,
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "workoutSteps": [
+                  {
+                    "type": "ExecutableStepDTO",
+                    "stepId": 4,
+                    "stepOrder": 4,
+                    "childStepId": 3,
+                    "stepType": {
+                      "stepTypeId": 3,
+                      "stepTypeKey": "interval"
+                    },
+                    "endCondition": {
+                      "conditionTypeId": 3,
+                      "conditionTypeKey": "distance"
+                    },
+                    "targetType": {
+                      "workoutTargetTypeId": 1,
+                      "workoutTargetTypeKey": "no.target"
+                    },
+                    "endConditionValue": 200,
+                    "description": "3:10-3:15"
+                  },
+                  {
+                    "type": "ExecutableStepDTO",
+                    "stepId": 5,
+                    "stepOrder": 5,
+                    "childStepId": 3,
+                    "stepType": {
+                      "stepTypeId": 4,
+                      "stepTypeKey": "rest"
+                    },
+                    "endCondition": {
+                      "conditionTypeId": 3,
+                      "conditionTypeKey": "distance"
+                    },
+                    "targetType": {
+                      "workoutTargetTypeId": 1,
+                      "workoutTargetTypeKey": "no.target"
+                    },
+                    "endConditionValue": 200
+                  }
+                ]
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 6,
+                "stepOrder": 6,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "recovery"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 400,
+                "description": "ציפה"
+              }
+            ]
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 7,
+            "stepOrder": 7,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000
+          }
+        ]
+      }
+    ]
+  },
+  "nestedRepeat|live|alerts": {
+    "workoutName": "סטים",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 3000
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 3,
+            "endConditionValue": 3,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "RepeatGroupDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 6,
+                  "stepTypeKey": "repeat"
+                },
+                "endCondition": {
+                  "conditionTypeId": 7,
+                  "conditionTypeKey": "iterations"
+                },
+                "numberOfIterations": 4,
+                "endConditionValue": 4,
+                "smartRepeat": false,
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "workoutSteps": [
+                  {
+                    "type": "ExecutableStepDTO",
+                    "stepId": 4,
+                    "stepOrder": 4,
+                    "childStepId": 3,
+                    "stepType": {
+                      "stepTypeId": 3,
+                      "stepTypeKey": "interval"
+                    },
+                    "endCondition": {
+                      "conditionTypeId": 3,
+                      "conditionTypeKey": "distance"
+                    },
+                    "targetType": {
+                      "workoutTargetTypeId": 6,
+                      "workoutTargetTypeKey": "pace.zone"
+                    },
+                    "endConditionValue": 200,
+                    "description": "3:10-3:15",
+                    "targetValueOne": 5.2631578947368425,
+                    "targetValueTwo": 5.128205128205129
+                  },
+                  {
+                    "type": "ExecutableStepDTO",
+                    "stepId": 5,
+                    "stepOrder": 5,
+                    "childStepId": 3,
+                    "stepType": {
+                      "stepTypeId": 4,
+                      "stepTypeKey": "rest"
+                    },
+                    "endCondition": {
+                      "conditionTypeId": 3,
+                      "conditionTypeKey": "distance"
+                    },
+                    "targetType": {
+                      "workoutTargetTypeId": 1,
+                      "workoutTargetTypeKey": "no.target"
+                    },
+                    "endConditionValue": 200
+                  }
+                ]
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 6,
+                "stepOrder": 6,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "recovery"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 400,
+                "description": "ציפה"
+              }
+            ]
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 7,
+            "stepOrder": 7,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000
+          }
+        ]
+      }
+    ]
+  },
+  "nestedRepeat|zones|info": {
+    "workoutName": "סטים",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 3000
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 3,
+            "endConditionValue": 3,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "RepeatGroupDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 6,
+                  "stepTypeKey": "repeat"
+                },
+                "endCondition": {
+                  "conditionTypeId": 7,
+                  "conditionTypeKey": "iterations"
+                },
+                "numberOfIterations": 4,
+                "endConditionValue": 4,
+                "smartRepeat": false,
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "workoutSteps": [
+                  {
+                    "type": "ExecutableStepDTO",
+                    "stepId": 4,
+                    "stepOrder": 4,
+                    "childStepId": 3,
+                    "stepType": {
+                      "stepTypeId": 3,
+                      "stepTypeKey": "interval"
+                    },
+                    "endCondition": {
+                      "conditionTypeId": 3,
+                      "conditionTypeKey": "distance"
+                    },
+                    "targetType": {
+                      "workoutTargetTypeId": 1,
+                      "workoutTargetTypeKey": "no.target"
+                    },
+                    "endConditionValue": 200,
+                    "description": "3:10-3:15"
+                  },
+                  {
+                    "type": "ExecutableStepDTO",
+                    "stepId": 5,
+                    "stepOrder": 5,
+                    "childStepId": 3,
+                    "stepType": {
+                      "stepTypeId": 4,
+                      "stepTypeKey": "rest"
+                    },
+                    "endCondition": {
+                      "conditionTypeId": 3,
+                      "conditionTypeKey": "distance"
+                    },
+                    "targetType": {
+                      "workoutTargetTypeId": 1,
+                      "workoutTargetTypeKey": "no.target"
+                    },
+                    "endConditionValue": 200
+                  }
+                ]
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 6,
+                "stepOrder": 6,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "recovery"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 400,
+                "description": "ציפה"
+              }
+            ]
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 7,
+            "stepOrder": 7,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000
+          }
+        ]
+      }
+    ]
+  },
+  "nestedRepeat|zones|alerts": {
+    "workoutName": "סטים",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 3000
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 3,
+            "endConditionValue": 3,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "RepeatGroupDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 6,
+                  "stepTypeKey": "repeat"
+                },
+                "endCondition": {
+                  "conditionTypeId": 7,
+                  "conditionTypeKey": "iterations"
+                },
+                "numberOfIterations": 4,
+                "endConditionValue": 4,
+                "smartRepeat": false,
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "workoutSteps": [
+                  {
+                    "type": "ExecutableStepDTO",
+                    "stepId": 4,
+                    "stepOrder": 4,
+                    "childStepId": 3,
+                    "stepType": {
+                      "stepTypeId": 3,
+                      "stepTypeKey": "interval"
+                    },
+                    "endCondition": {
+                      "conditionTypeId": 3,
+                      "conditionTypeKey": "distance"
+                    },
+                    "targetType": {
+                      "workoutTargetTypeId": 6,
+                      "workoutTargetTypeKey": "pace.zone"
+                    },
+                    "endConditionValue": 200,
+                    "description": "3:10-3:15",
+                    "targetValueOne": 5.2631578947368425,
+                    "targetValueTwo": 5.128205128205129
+                  },
+                  {
+                    "type": "ExecutableStepDTO",
+                    "stepId": 5,
+                    "stepOrder": 5,
+                    "childStepId": 3,
+                    "stepType": {
+                      "stepTypeId": 4,
+                      "stepTypeKey": "rest"
+                    },
+                    "endCondition": {
+                      "conditionTypeId": 3,
+                      "conditionTypeKey": "distance"
+                    },
+                    "targetType": {
+                      "workoutTargetTypeId": 1,
+                      "workoutTargetTypeKey": "no.target"
+                    },
+                    "endConditionValue": 200
+                  }
+                ]
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 6,
+                "stepOrder": 6,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "recovery"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 400,
+                "description": "ציפה"
+              }
+            ]
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 7,
+            "stepOrder": 7,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000
+          }
+        ]
+      }
+    ]
+  },
+  "nestedRepeat|empty|info": {
+    "workoutName": "סטים",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 3000
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 3,
+            "endConditionValue": 3,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "RepeatGroupDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 6,
+                  "stepTypeKey": "repeat"
+                },
+                "endCondition": {
+                  "conditionTypeId": 7,
+                  "conditionTypeKey": "iterations"
+                },
+                "numberOfIterations": 4,
+                "endConditionValue": 4,
+                "smartRepeat": false,
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "workoutSteps": [
+                  {
+                    "type": "ExecutableStepDTO",
+                    "stepId": 4,
+                    "stepOrder": 4,
+                    "childStepId": 3,
+                    "stepType": {
+                      "stepTypeId": 3,
+                      "stepTypeKey": "interval"
+                    },
+                    "endCondition": {
+                      "conditionTypeId": 3,
+                      "conditionTypeKey": "distance"
+                    },
+                    "targetType": {
+                      "workoutTargetTypeId": 1,
+                      "workoutTargetTypeKey": "no.target"
+                    },
+                    "endConditionValue": 200,
+                    "description": "3:10-3:15"
+                  },
+                  {
+                    "type": "ExecutableStepDTO",
+                    "stepId": 5,
+                    "stepOrder": 5,
+                    "childStepId": 3,
+                    "stepType": {
+                      "stepTypeId": 4,
+                      "stepTypeKey": "rest"
+                    },
+                    "endCondition": {
+                      "conditionTypeId": 3,
+                      "conditionTypeKey": "distance"
+                    },
+                    "targetType": {
+                      "workoutTargetTypeId": 1,
+                      "workoutTargetTypeKey": "no.target"
+                    },
+                    "endConditionValue": 200
+                  }
+                ]
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 6,
+                "stepOrder": 6,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "recovery"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 400,
+                "description": "ציפה"
+              }
+            ]
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 7,
+            "stepOrder": 7,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000
+          }
+        ]
+      }
+    ]
+  },
+  "nestedRepeat|empty|alerts": {
+    "workoutName": "סטים",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 3000
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 3,
+            "endConditionValue": 3,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "RepeatGroupDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 6,
+                  "stepTypeKey": "repeat"
+                },
+                "endCondition": {
+                  "conditionTypeId": 7,
+                  "conditionTypeKey": "iterations"
+                },
+                "numberOfIterations": 4,
+                "endConditionValue": 4,
+                "smartRepeat": false,
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "workoutSteps": [
+                  {
+                    "type": "ExecutableStepDTO",
+                    "stepId": 4,
+                    "stepOrder": 4,
+                    "childStepId": 3,
+                    "stepType": {
+                      "stepTypeId": 3,
+                      "stepTypeKey": "interval"
+                    },
+                    "endCondition": {
+                      "conditionTypeId": 3,
+                      "conditionTypeKey": "distance"
+                    },
+                    "targetType": {
+                      "workoutTargetTypeId": 6,
+                      "workoutTargetTypeKey": "pace.zone"
+                    },
+                    "endConditionValue": 200,
+                    "description": "3:10-3:15",
+                    "targetValueOne": 5.2631578947368425,
+                    "targetValueTwo": 5.128205128205129
+                  },
+                  {
+                    "type": "ExecutableStepDTO",
+                    "stepId": 5,
+                    "stepOrder": 5,
+                    "childStepId": 3,
+                    "stepType": {
+                      "stepTypeId": 4,
+                      "stepTypeKey": "rest"
+                    },
+                    "endCondition": {
+                      "conditionTypeId": 3,
+                      "conditionTypeKey": "distance"
+                    },
+                    "targetType": {
+                      "workoutTargetTypeId": 1,
+                      "workoutTargetTypeKey": "no.target"
+                    },
+                    "endConditionValue": 200
+                  }
+                ]
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 6,
+                "stepOrder": 6,
+                "childStepId": 2,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "recovery"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 400,
+                "description": "ציפה"
+              }
+            ]
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 7,
+            "stepOrder": 7,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000
+          }
+        ]
+      }
+    ]
+  },
+  "zoneOnly|live|info": {
+    "workoutName": "שבת קל",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 12000,
+            "description": "ריצה קלה"
+          }
+        ]
+      }
+    ]
+  },
+  "zoneOnly|live|alerts": {
+    "workoutName": "שבת קל",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 12000,
+            "description": "ריצה קלה"
+          }
+        ]
+      }
+    ]
+  },
+  "zoneOnly|zones|info": {
+    "workoutName": "שבת קל",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 12000,
+            "description": "5:30-6:30 ריצה קלה"
+          }
+        ]
+      }
+    ]
+  },
+  "zoneOnly|zones|alerts": {
+    "workoutName": "שבת קל",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 6,
+              "workoutTargetTypeKey": "pace.zone"
+            },
+            "endConditionValue": 12000,
+            "description": "5:30-6:30 ריצה קלה",
+            "targetValueOne": 3.0303030303030303,
+            "targetValueTwo": 2.5641025641025643
+          }
+        ]
+      }
+    ]
+  },
+  "zoneOnly|empty|info": {
+    "workoutName": "שבת קל",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 12000,
+            "description": "ריצה קלה"
+          }
+        ]
+      }
+    ]
+  },
+  "zoneOnly|empty|alerts": {
+    "workoutName": "שבת קל",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 12000,
+            "description": "ריצה קלה"
+          }
+        ]
+      }
+    ]
+  },
+  "heartRate|live|info": {
+    "workoutName": "ריצת דופק",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2700
+          }
+        ]
+      }
+    ]
+  },
+  "heartRate|live|alerts": {
+    "workoutName": "ריצת דופק",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2700
+          }
+        ]
+      }
+    ]
+  },
+  "heartRate|zones|info": {
+    "workoutName": "ריצת דופק",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2700
+          }
+        ]
+      }
+    ]
+  },
+  "heartRate|zones|alerts": {
+    "workoutName": "ריצת דופק",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2700
+          }
+        ]
+      }
+    ]
+  },
+  "heartRate|empty|info": {
+    "workoutName": "ריצת דופק",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2700
+          }
+        ]
+      }
+    ]
+  },
+  "heartRate|empty|alerts": {
+    "workoutName": "ריצת דופק",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2700
+          }
+        ]
+      }
+    ]
+  },
+  "empty|live|info": {
+    "workoutName": "מנוחה פעילה",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": []
+      }
+    ]
+  },
+  "empty|live|alerts": {
+    "workoutName": "מנוחה פעילה",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": []
+      }
+    ]
+  },
+  "empty|zones|info": {
+    "workoutName": "מנוחה פעילה",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": []
+      }
+    ]
+  },
+  "empty|zones|alerts": {
+    "workoutName": "מנוחה פעילה",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": []
+      }
+    ]
+  },
+  "empty|empty|info": {
+    "workoutName": "מנוחה פעילה",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": []
+      }
+    ]
+  },
+  "empty|empty|alerts": {
+    "workoutName": "מנוחה פעילה",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": []
+      }
+    ]
+  },
+  "brokenRepeats|live|info": {
+    "workoutName": "שבור",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 5,
+            "endConditionValue": 5,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": []
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 5000
+          }
+        ]
+      }
+    ]
+  },
+  "brokenRepeats|live|alerts": {
+    "workoutName": "שבור",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 5,
+            "endConditionValue": 5,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": []
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 5000
+          }
+        ]
+      }
+    ]
+  },
+  "brokenRepeats|zones|info": {
+    "workoutName": "שבור",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 5,
+            "endConditionValue": 5,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": []
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 5000
+          }
+        ]
+      }
+    ]
+  },
+  "brokenRepeats|zones|alerts": {
+    "workoutName": "שבור",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 5,
+            "endConditionValue": 5,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": []
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 5000
+          }
+        ]
+      }
+    ]
+  },
+  "brokenRepeats|empty|info": {
+    "workoutName": "שבור",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 5,
+            "endConditionValue": 5,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": []
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 5000
+          }
+        ]
+      }
+    ]
+  },
+  "brokenRepeats|empty|alerts": {
+    "workoutName": "שבור",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 5,
+            "endConditionValue": 5,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": []
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 2,
+            "stepOrder": 2,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 5000
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p1-warmup|live|info": {
+    "workoutName": "חימום",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 1200
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p1-warmup|live|alerts": {
+    "workoutName": "חימום",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 1200
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p1-warmup|zones|info": {
+    "workoutName": "חימום",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 1200
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p1-warmup|zones|alerts": {
+    "workoutName": "חימום",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 1200
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p1-warmup|empty|info": {
+    "workoutName": "חימום",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 1200
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p1-warmup|empty|alerts": {
+    "workoutName": "חימום",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 1200
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p2-test|live|info": {
+    "workoutName": "טסט 2,000",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000,
+            "description": "3:20"
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p2-test|live|alerts": {
+    "workoutName": "טסט 2,000",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 6,
+              "workoutTargetTypeKey": "pace.zone"
+            },
+            "endConditionValue": 2000,
+            "description": "3:20",
+            "targetValueOne": 5
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p2-test|zones|info": {
+    "workoutName": "טסט 2,000",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000,
+            "description": "3:20"
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p2-test|zones|alerts": {
+    "workoutName": "טסט 2,000",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 6,
+              "workoutTargetTypeKey": "pace.zone"
+            },
+            "endConditionValue": 2000,
+            "description": "3:20",
+            "targetValueOne": 5
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p2-test|empty|info": {
+    "workoutName": "טסט 2,000",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 2000,
+            "description": "3:20"
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p2-test|empty|alerts": {
+    "workoutName": "טסט 2,000",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval"
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 6,
+              "workoutTargetTypeKey": "pace.zone"
+            },
+            "endConditionValue": 2000,
+            "description": "3:20",
+            "targetValueOne": 5
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p3-cooldown|live|info": {
+    "workoutName": "שחרור",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 600
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p3-cooldown|live|alerts": {
+    "workoutName": "שחרור",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 600
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p3-cooldown|zones|info": {
+    "workoutName": "שחרור",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 600
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p3-cooldown|zones|alerts": {
+    "workoutName": "שחרור",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 600
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p3-cooldown|empty|info": {
+    "workoutName": "שחרור",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 600
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p3-cooldown|empty|alerts": {
+    "workoutName": "שחרור",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown"
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time"
+            },
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "endConditionValue": 600
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p4-evening|live|info": {
+    "workoutName": "שני - ערב אופציה",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 6,
+            "endConditionValue": 6,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 2,
+                "stepOrder": 2,
+                "childStepId": 1,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 200
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 1,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "rest"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 200
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p4-evening|live|alerts": {
+    "workoutName": "שני - ערב אופציה",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 6,
+            "endConditionValue": 6,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 2,
+                "stepOrder": 2,
+                "childStepId": 1,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 200
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 1,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "rest"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 200
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p4-evening|zones|info": {
+    "workoutName": "שני - ערב אופציה",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 6,
+            "endConditionValue": 6,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 2,
+                "stepOrder": 2,
+                "childStepId": 1,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 200
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 1,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "rest"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 200
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p4-evening|zones|alerts": {
+    "workoutName": "שני - ערב אופציה",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 6,
+            "endConditionValue": 6,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 2,
+                "stepOrder": 2,
+                "childStepId": 1,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 200
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 1,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "rest"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 200
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p4-evening|empty|info": {
+    "workoutName": "שני - ערב אופציה",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 6,
+            "endConditionValue": 6,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 2,
+                "stepOrder": 2,
+                "childStepId": 1,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 200
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 1,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "rest"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 200
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "d1-p4-evening|empty|alerts": {
+    "workoutName": "שני - ערב אופציה",
+    "description": "Added by Madregot app",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running"
+    },
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running"
+        },
+        "workoutSteps": [
+          {
+            "type": "RepeatGroupDTO",
+            "stepId": 1,
+            "stepOrder": 1,
+            "childStepId": null,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat"
+            },
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations"
+            },
+            "numberOfIterations": 6,
+            "endConditionValue": 6,
+            "smartRepeat": false,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target"
+            },
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 2,
+                "stepOrder": 2,
+                "childStepId": 1,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 200
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepId": 3,
+                "stepOrder": 3,
+                "childStepId": 1,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "rest"
+                },
+                "endCondition": {
+                  "conditionTypeId": 3,
+                  "conditionTypeKey": "distance"
+                },
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target"
+                },
+                "endConditionValue": 200
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
