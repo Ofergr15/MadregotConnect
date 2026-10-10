@@ -2,14 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { Banknote, ChevronLeft, Eye, KeyRound, Link2, ListChecks, Search, Settings2, UsersRound } from 'lucide-react';
-import { startViewingAs, stopViewingAs, type ViewedPerson } from '@/lib/view-as-person';
+import { openViewAsChooser } from '@/lib/view-as-person';
 import { useIsSuperUser } from '@/lib/impersonation';
 import { useApi, apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Card, InsetRow, InsetSection, Sheet, Switch } from '@/components/ui';
 import type { AcademyCoachesResponse } from '@/app/api/academy/coaches/route';
 import { fmtRate, initialsOf, type AcademyMember } from './types';
-import { coachNameAmong, joinHebrewList, memberCoachIds, memberCoachNames, memberHasCoach } from '@/lib/academy/members';
+import { coachNameAmong, memberCoachIds, memberHasCoach } from '@/lib/academy/members';
 
 /**
  * The academy manager's controls, behind the ⚙ on the academy home so the home
@@ -44,9 +44,11 @@ export function AcademyAdminButton({
   onGoTab?: (tab: 'funnel' | 'plans' | 'members') => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [viewAsOpen, setViewAsOpen] = useState(false);
   const [testOpen, setTestOpen] = useState(false);
   const isSuper = useIsSuperUser();
+  // "View as" is the app's one mechanism now (lib/view-as-person.ts): this opens
+  // the eye button's chooser on its person tab, and it is any admin's.
+  const canViewAs = isSuper || canEditRoles;
   // One sheet at a time: the next one opens once this one has slid away. Opened in
   // the same tick, the drawer library drops the second open while the first is
   // still closing, and the tap appears to do nothing.
@@ -105,20 +107,19 @@ export function AcademyAdminButton({
           <InsetSection className="mb-0">
             <InsetRow icon={ListChecks} iconBg="bg-accent-600" label="בדיקת האקדמיה" sublabel="שלב אחרי שלב, עם מתאמנים אמיתיים"
               onClick={() => handOff(() => setTestOpen(true))} />
-            {isSuper && (
-              <InsetRow icon={Eye} iconBg="bg-[#5B21D6]" label="לצפות כמאמן או מתאמן" sublabel="לבדוק בדיוק מה הם רואים"
-                onClick={() => handOff(() => setViewAsOpen(true))} />
+            {canViewAs && (
+              <InsetRow icon={Eye} iconBg="bg-[#B45309]" label="להתחבר בתור מאמן או מתאמן" sublabel="כל האפליקציה, בדיוק מה שהם רואים"
+                onClick={() => handOff(() => openViewAsChooser('person'))} />
             )}
           </InsetSection>
         </div>
       </Sheet>
-      {isSuper && <ViewAsSheet open={viewAsOpen} onOpenChange={setViewAsOpen} members={members} />}
       <AcademyTestScript
         open={testOpen}
         onOpenChange={setTestOpen}
         members={members}
         onGoTab={onGoTab}
-        onViewAs={isSuper ? () => setViewAsOpen(true) : undefined}
+        onViewAs={canViewAs ? () => openViewAsChooser('person') : undefined}
       />
     </>
   );
@@ -336,70 +337,6 @@ function RegistrationSwitch() {
         trailing={<span className="shrink-0 text-xs font-bold text-brand-600">{copied ? 'הועתק' : 'העתקה'}</span>}
       />
     </InsetSection>
-  );
-}
-
-/**
- * Shown on every academy screen while the super user views it as somebody
- * (lib/auth/view-as.ts): who, and the way out. Read-only, and it says so, because
- * a button that does nothing in this mode would otherwise read as a bug.
- */
-export function ViewAsBanner({ person }: { person: ViewedPerson }) {
-  return (
-    <div className="mb-3 flex min-h-[48px] items-center gap-2 rounded-card bg-[#5B21D6] px-3 text-white">
-      <Eye className="h-4 w-4 shrink-0" />
-      <span className="min-w-0 flex-1 text-sm font-semibold leading-tight">
-        צופה כ־<bdi dir="auto">{person.name}</bdi> · {person.kind === 'coach' ? 'מאמן אקדמיה' : 'מתאמן'}
-        <span className="block text-3xs font-medium opacity-80">בדיוק מה שהוא רואה באקדמיה · לקריאה בלבד</span>
-      </span>
-      <button onClick={stopViewingAs} className="min-h-[36px] shrink-0 rounded-pill bg-white/20 px-3 text-xs font-bold">יציאה</button>
-    </div>
-  );
-}
-
-/** Pick whom to view the academy as: a coach, or a trainee. Super user only. */
-export function ViewAsSheet({ open, onOpenChange, members }: {
-  open: boolean; onOpenChange: (open: boolean) => void; members: AcademyMember[];
-}) {
-  const { data } = useApi<AcademyCoachesResponse>(open ? '/api/academy/coaches' : null);
-  const [query, setQuery] = useState('');
-  const q = query.trim().toLowerCase();
-  const people: Array<{ id: string; name: string; kind: 'coach' | 'trainee'; sub: string }> = [
-    ...(data?.coaches ?? []).map((c) => ({ id: c.id, name: c.name, kind: 'coach' as const, sub: c.trainees === 0 ? 'מאמן · אין מתאמנים' : c.trainees === 1 ? 'מאמן · מתאמן אחד' : `מאמן · ${c.trainees} מתאמנים` })),
-    ...members.filter((m) => m.approved).map((m) => ({
-      id: m.athleteId, name: m.name, kind: 'trainee' as const,
-      sub: memberCoachNames(m).filter(Boolean).length ? `מתאמן · אצל ${joinHebrewList(memberCoachNames(m).filter(Boolean).map((n) => n.split(' ')[0]))}` : 'מתאמן · בלי מאמן',
-    })),
-  ].filter((p) => !q || p.name.toLowerCase().includes(q));
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="לצפות כ…">
-      <p className="-mt-1 mb-3 text-center text-xs text-ink-400">האקדמיה בדיוק כמו שהוא רואה אותה, כולל הנתונים. לקריאה בלבד.</p>
-      <label className="mb-2 flex min-h-[44px] items-center gap-2 rounded-xl bg-card px-3">
-        <Search className="h-4 w-4 shrink-0 text-ink-400" />
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="חיפוש לפי שם"
-          className="min-w-0 flex-1 bg-transparent text-base text-ink-700 outline-none placeholder:text-ink-400" dir="auto" />
-      </label>
-      {!data ? (
-        <div className="h-32 animate-pulse rounded-card bg-card/60" />
-      ) : (
-        <Card className="max-h-[55vh] divide-y divide-page overflow-y-auto py-1">
-          {people.map((p) => (
-            <button key={`${p.kind}:${p.id}`} onClick={() => startViewingAs({ id: p.id, name: p.name, kind: p.kind })}
-              className="flex w-full min-h-[52px] items-center gap-3 py-2 text-start active:bg-page/60">
-              <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold',
-                p.kind === 'coach' ? 'bg-brand-600 text-white' : 'bg-brand-600/20 text-brand-600')}>{initialsOf(p.name)}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-ink-700" dir="auto">{p.name}</span>
-                <span className="block text-xs text-ink-400">{p.sub}</span>
-              </span>
-              <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />
-            </button>
-          ))}
-          {people.length === 0 && <p className="py-6 text-center text-sm text-ink-400">לא נמצא</p>}
-        </Card>
-      )}
-    </Sheet>
   );
 }
 

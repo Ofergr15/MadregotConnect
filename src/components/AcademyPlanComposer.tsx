@@ -8,6 +8,7 @@ import {
 import { cn, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { COACH_ID } from '@/lib/constants';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { announceReadOnly, useViewAsReadOnly } from '@/lib/view-as-person';
 import { formatPace } from '@/lib/garmin/pace';
 import { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
@@ -124,6 +125,9 @@ export function AcademyPlanComposer({ athletes, initialAthleteId = null }: {
   /** Seed the board with one trainee — the member sheet's "this week's plan". */
   initialAthleteId?: string | null;
 }) {
+  // An admin viewing the app as this coach (lib/view-as-person.ts) sees the board
+  // and the send button, greyed; a tap says why rather than sending.
+  const readOnly = useViewAsReadOnly();
   // One board, one or more recipients — "each week the coach decides whether to
   // push a specific workout to one or more athletes". Selection order matters:
   // the first pick is the trainee whose saved week seeds the board.
@@ -842,6 +846,13 @@ export function AcademyPlanComposer({ athletes, initialAthleteId = null }: {
         <span className="text-xs text-ink-400">
           {filledDays.length === 1 ? 'אימון אחד' : `${filledDays.length} אימונים`} · {selected.length === 1 ? 'מתאמן/ת אחד' : `${selected.length} מתאמנים`}
         </span>
+        {readOnly ? (
+          // Viewing as this coach: the same button, greyed, and a tap says why.
+          <Button variant="secondary" onClick={announceReadOnly} aria-disabled className="bg-page border-page text-ink-400">
+            <Send className="h-4 w-4" />
+            {selected.length === 1 ? `שליחה אל ${selected[0].name.split(' ')[0]}` : `שליחה ל־${selected.length}`}
+          </Button>
+        ) : (
         <Button
           variant="secondary"
           onClick={push}
@@ -859,6 +870,7 @@ export function AcademyPlanComposer({ athletes, initialAthleteId = null }: {
               ? `שליחה אל ${selected[0].name.split(' ')[0]}`
               : `שליחה ל־${selected.length}`}
         </Button>
+        )}
       </div>
 
       {/* Structured builder — reuses the same editor as the group planner. On save,

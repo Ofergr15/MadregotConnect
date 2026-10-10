@@ -120,12 +120,14 @@ export default async function RootLayout({
             {/* Inside the intl provider: the mandatory update sheet and its splash
                 have words. */}
             <UpdatePrompt />
+            {/* So does the view-as chooser's person tab. Fixed-position, so being
+                inside the provider changes nothing about how it overlays the gate. */}
+            <ImpersonationBar />
           </NextIntlClientProvider>
         </SerwistProvider>
         {process.env.NODE_ENV === 'development' && <DevServiceWorkerCleanup />}
         <AppSplash />
         <MaintenanceGate />
-        <ImpersonationBar />
         <DevIdentitySwitcher />
         <ClientEventReporter />
         <SpeedInsights />

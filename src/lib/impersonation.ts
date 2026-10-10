@@ -6,6 +6,7 @@ import { isSuperUser } from '@/lib/constants';
 import { stravaOpenSyncKey } from '@/lib/providers/open-sync';
 import { useApi } from '@/lib/api';
 import { getSupabase } from '@/lib/supabase/client';
+import { isViewingPerson } from '@/lib/view-as-person';
 
 // "View as" for the super user (Ofer — see SUPER_USER_EMAIL).
 //
@@ -152,5 +153,7 @@ export function useIsSuperUser(): boolean {
 
   // Only ever ORed to true, never assigned from the response: a failed request
   // or a signed-out moment must not yank a control the fast path already showed.
-  return emailSuper || !!data?.isSuper;
+  // Never while viewing the app as a person (lib/view-as-person.ts): the session's
+  // address is still the admin's, and the app being drawn is somebody else's.
+  return !isViewingPerson() && (emailSuper || !!data?.isSuper);
 }

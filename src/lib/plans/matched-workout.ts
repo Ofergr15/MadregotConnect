@@ -118,10 +118,16 @@ export async function ensureMatchedWorkout(
   supabase: SupabaseServer,
   activityId: string,
   athleteId: string,
+  /**
+   * Answer from what is stored, or computed in memory, and persist nothing — for
+   * an admin viewing the app as this athlete (lib/auth/view-as.ts).
+   */
+  opts: { readOnly?: boolean } = {},
 ): Promise<MatchedWorkout | null> {
   try {
     const existing = await lookup(supabase, activityId);
     if (existing) return existing;
+    if (opts.readOnly) return toMatchedWorkout(await findComputedActivityMatch(supabase, activityId, athleteId));
     await matchAthleteActivities(supabase, athleteId);
     const persisted = await lookup(supabase, activityId);
     if (persisted) return persisted;

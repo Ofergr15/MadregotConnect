@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { requireMember } from '@/lib/auth/self-or-staff';
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { getClubRecords } from '@/lib/prs/club-records-store';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,7 @@ export const maxDuration = 60;
 // The club's records, one ranked table per distance bucket (a798197f, f6c7b8dc).
 //
 // ── WHY THIS WIDENS NOTHING ────────────────────────────────────────────────
-// Gated `requireMember`, the SAME gate as /api/athletes/[id]/stats, which every
+// Gated as `requireMember` (resolveVerifiedCaller), the SAME gate as /api/athletes/[id]/stats, which every
 // member already uses to read any teammate's PRs from their profile. So this is
 // not new exposure: it is the data the app already shows one athlete at a time,
 // arranged as the table two reports asked for. It is still gated rather than
@@ -25,12 +25,14 @@ export const maxDuration = 60;
 // a club record.
 export async function GET(request: Request) {
   try {
-    const denied = await requireMember(request);
+    const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
 
     const supabase = createServerClient();
     const refresh = new URL(request.url).searchParams.get('refresh') === '1';
-    const { snapshot, recomputed } = await getClubRecords(supabase, { refresh });
+    // An admin viewing the app as somebody (lib/auth/view-as.ts) reads the stored
+    // snapshot and never rewrites it.
+    const { snapshot, recomputed } = await getClubRecords(supabase, { refresh, readOnly: !!caller.viewingAsBy });
 
     return NextResponse.json({ ...snapshot, recomputed });
   } catch (err: any) {

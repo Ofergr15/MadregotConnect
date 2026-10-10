@@ -3379,5 +3379,30 @@
         "cta": "Request"
       }
     }
+  },
+  "viewAs": {
+    "title": "View as",
+    "intro": "See the whole app exactly as they do. Read-only: nothing is sent, saved or marked in their name.",
+    "segPerson": "Person",
+    "segRole": "Role",
+    "search": "Search by name",
+    "recent": "Recent",
+    "noResults": "Nobody found",
+    "loadFailed": "Couldn't load the list",
+    "withCoach": "with {coach}",
+    "trainees": "{count, plural, one {1 trainee} other {# trainees}}",
+    "tag_admin": "Admin",
+    "tag_academy_manager": "Academy manager",
+    "tag_academy_coach": "Academy coach",
+    "tag_coach": "Coach",
+    "tag_trainee": "Academy trainee",
+    "tag_runner": "Runner",
+    "bannerAs": "Signed in as {name}",
+    "readOnly": "Read-only",
+    "exit": "Exit",
+    "blockedToast": "Read-only: you can see what {name} sees, not send as them",
+    "chatHidden": "Chat isn't shown while viewing as {name}",
+    "viewing": "Viewing as {name}",
+    "openPicker": "View as…"
   }
 }

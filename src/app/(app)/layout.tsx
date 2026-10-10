@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
+import { ViewAsBanner } from '@/components/ViewAsBanner';
+import { isViewingPerson } from '@/lib/view-as-person';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { PushOptIn } from '@/components/PushOptIn';
 import { ConnectDataSourcePopup } from '@/components/ConnectDataSourcePopup';
@@ -51,7 +53,11 @@ export default function AppLayout({
   // one on top of a spotlight would talk over it, and the push prompt in
   // particular burns a permission you only get to ask for once.
   const [tourActive, setTourActive] = useState(false);
-  const popupsAllowed = !isRunChat && !tourActive;
+  // None of them while an admin views the app as somebody (lib/view-as-person.ts):
+  // each one asks the person for something — a permission, a connection, a tour —
+  // and the admin cannot answer for them.
+  const [viewingPerson] = useState(isViewingPerson);
+  const popupsAllowed = !isRunChat && !tourActive && !viewingPerson;
 
   // App-icon badge self-heal. iOS PWAs can't reliably set the badge from a
   // background push, but the foreground path IS reliable — so: clear it when the
@@ -63,6 +69,8 @@ export default function AppLayout({
     const setFromServer = async () => {
       const id = localStorage.getItem('athlete_id');
       if (!id) { clear(); return; }
+      // The icon is this device's, i.e. the admin's — not the viewed person's count.
+      if (isViewingPerson()) return;
       try {
         // `keepalive` because this runs while the page is being torn down
         // (pagehide/backgrounding) and apiHeaders() has to await the session
@@ -302,7 +310,7 @@ export default function AppLayout({
         // No athlete row (a pure-admin account) records no runs anywhere, and the
         // super user's "view as" preview is read-only — the sync POST is blocked
         // for it, so asking would only ever collect a 403.
-        if (!athleteId || localStorage.getItem('view_as_role')) return;
+        if (!athleteId || localStorage.getItem('view_as_role') || isViewingPerson()) return;
         key = stravaOpenSyncKey(athleteId);
         if (!shouldSyncOnOpen(localStorage.getItem(key), Date.now())) return;
         // Stamped BEFORE the request, so React Strict Mode's double effect and a
@@ -395,6 +403,7 @@ export default function AppLayout({
         <div className={isRunChat ? 'hidden md:contents' : 'contents'}>
           <Header />
         </div>
+        <ViewAsBanner />
         {popupsAllowed && <InstallPrompt />}
         {/* Step 3 of the first run. Ordered after InstallPrompt for the same
             reason it checks `installAnswered` itself: on iOS a subscription made
@@ -412,7 +421,7 @@ export default function AppLayout({
             for both. */}
         {popupsAllowed && <StravaAccountConfirm />}
         {popupsAllowed && <ConnectDataSourcePopup />}
-        {!isRunChat && <FirstRunTour onActiveChange={setTourActive} />}
+        {!isRunChat && !viewingPerson && <FirstRunTour onActiveChange={setTourActive} />}
         <main
           // THE scroll container for the whole app — see lib/app-scroll.ts.
           // `min-h-0` is load-bearing: without it a flex child refuses to shrink

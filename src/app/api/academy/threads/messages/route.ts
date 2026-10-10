@@ -3,7 +3,7 @@ import { academyThreadUrl } from '@/lib/academy/deep-links';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { getStreamServerClient, CHANNEL_TYPE } from '@/lib/stream/server';
-import { academyChannelId } from '@/lib/academy/thread';
+import { academyChannelId, seatFor, toThreadMessages, type StreamMessageLike } from '@/lib/academy/thread';
 import { notifyAthlete } from '@/lib/push';
 import { academyThreadMessageCopy } from '@/lib/notifications/copy';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
@@ -13,6 +13,73 @@ export const dynamic = 'force-dynamic';
 
 /** A message longer than this is a document, not a message. */
 const TEXT_MAX = 2000;
+
+/** How much history the read-only transcript carries. */
+const HISTORY_LIMIT = 100;
+
+/**
+ * GET /api/academy/threads/messages?athleteId= — a thread's history, read on the
+ * server, for the one viewer who must not connect to Stream: an admin viewing the
+ * app as somebody (lib/auth/view-as.ts). Connecting would need a Stream token FOR
+ * the viewed person, which could send and mark read at Stream directly; reading
+ * here needs none, and `queryChannels` with no `user_id` touches nobody's read
+ * state and creates nothing (a channel that does not exist yet reads as empty).
+ *
+ * Same three-way gate as the POST: the trainee, any of their coaches, or the manager.
+ */
+export async function GET(request: Request) {
+  try {
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    const athleteId = new URL(request.url).searchParams.get('athleteId')?.trim() || caller.athleteId;
+    if (!athleteId) return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
+
+    const supabase = createServerClient();
+    const { data: trainee, error } = await supabase
+      .from('athletes')
+      .select('id, name, is_academy, academy_coach_id')
+      .eq('id', athleteId)
+      .maybeSingle();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!trainee) return NextResponse.json({ error: 'not found' }, { status: 404 });
+
+    const isSelf = caller.athleteId === trainee.id;
+    const coachIds = await coachIdsOf(supabase, trainee.id, trainee.academy_coach_id ?? null);
+    const isMentor = !!caller.athleteId && coachIds.includes(caller.athleteId);
+    if (!isAcademyManager(caller) && !isSelf && !isMentor) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+
+    let raw: StreamMessageLike[] = [];
+    let degraded = false;
+    try {
+      const stream = getStreamServerClient();
+      const [channel] = await stream.queryChannels(
+        { type: CHANNEL_TYPE, id: academyChannelId(trainee.id) },
+        [{ last_message_at: -1 }],
+        { limit: 1, message_limit: HISTORY_LIMIT, state: true, watch: false, presence: false },
+      );
+      raw = (channel?.state.messages ?? []) as unknown as StreamMessageLike[];
+    } catch (err: unknown) {
+      // A Stream outage must not blank the screen; same as the inbox, say so.
+      console.error('GET /api/academy/threads/messages — Stream unavailable:', err);
+      degraded = true;
+    }
+
+    return NextResponse.json({
+      athleteId: trainee.id,
+      name: trainee.name || trainee.id,
+      mentorIds: coachIds,
+      viewerId: caller.athleteId ?? null,
+      seat: seatFor(caller.athleteId, trainee.id, coachIds),
+      messages: toThreadMessages(raw, { athleteId: trainee.id, mentorId: coachIds }),
+      ...(degraded ? { degraded: true } : {}),
+    });
+  } catch (err: unknown) {
+    console.error('GET /api/academy/threads/messages error:', err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
+}
 
 /**
  * POST /api/academy/threads/messages — say something in a trainee's thread.

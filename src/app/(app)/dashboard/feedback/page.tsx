@@ -10,6 +10,7 @@ import { FeedbackThread } from '@/components/FeedbackThread';
 import { ExecutionQuality } from '@/components/activity/ExecutionQuality';
 import { useExecutionVerdict } from '@/components/activity/execution-context';
 import { apiHeaders } from '@/lib/api';
+import { announceReadOnly, useViewAsReadOnly } from '@/lib/view-as-person';
 
 const FEEL_FACES = ['😣', '😕', '😐', '🙂', '😄'];
 // Severity color per difficulty band (1-10) — inline hex, not Tailwind classes:
@@ -51,6 +52,8 @@ function RequiredTag({ show }: { show: boolean }) {
 
 function FeedbackForm() {
   const t = useTranslations('workoutFeedback');
+  // Greyed while an admin views the app as this runner (lib/view-as-person.ts).
+  const readOnly = useViewAsReadOnly();
   const params = useSearchParams();
   const router = useRouter();
   const activityId = params.get('activity') || '';
@@ -309,8 +312,10 @@ function FeedbackForm() {
 
       {submitError && <p className="mt-4 text-sm text-accent-red text-center" dir="rtl">{t('submitError')}</p>}
 
-      <button onClick={submit}
-        className="w-full mt-6 min-h-[52px] rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold flex items-center justify-center gap-2">
+      <button onClick={readOnly ? announceReadOnly : submit}
+        aria-disabled={readOnly || undefined}
+        className={cn('w-full mt-6 min-h-[52px] rounded-2xl font-bold flex items-center justify-center gap-2',
+          readOnly ? 'bg-page text-ink-400' : 'bg-brand-600 hover:bg-brand-700 text-white')}>
         {t('submit')}
       </button>
     </div>

@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Watch, Check, Upload, Loader2 } from 'lucide-react';
 import { useApi } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { announceReadOnly, useViewAsReadOnly } from '@/lib/view-as-person';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
 interface WatchState {
@@ -38,6 +40,8 @@ export function WatchStatus({ date }: { date: string }) {
   const t = useTranslations('watchStatus');
   const { data, mutate } = useApi<WatchState>('/api/my-watch');
   const [pushing, setPushing] = useState(false);
+  // Greyed while an admin views the app as this runner (lib/view-as-person.ts).
+  const readOnly = useViewAsReadOnly();
   const [failed, setFailed] = useState(false);
 
   const push = async () => {
@@ -72,9 +76,13 @@ export function WatchStatus({ date }: { date: string }) {
 
   return (
     <button
-      onClick={push}
+      onClick={readOnly ? announceReadOnly : push}
       disabled={pushing}
-      className="inline-flex min-h-[44px] items-center gap-1.5 px-3 rounded-xl text-xs font-bold text-ink-500 hover:text-ink-900 bg-page/50 hover:bg-ink-300/40 transition-colors disabled:opacity-60"
+      aria-disabled={readOnly || undefined}
+      className={cn(
+        'inline-flex min-h-[44px] items-center gap-1.5 px-3 rounded-xl text-xs font-bold bg-page/50 transition-colors disabled:opacity-60',
+        readOnly ? 'text-ink-300' : 'text-ink-500 hover:text-ink-900 hover:bg-ink-300/40',
+      )}
     >
       {pushing ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -6,6 +6,7 @@ import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settin
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { flowGroup, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
+import { isViewingPerson } from '@/lib/view-as-person';
 import { useApi } from '@/lib/api';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
@@ -47,7 +48,8 @@ export default function CoachToolsPage() {
   useEffect(() => {
     if (previewRole) return;
     const stored = localStorage.getItem('athlete_email') || localStorage.getItem('coach_email') || '';
-    if (stored) { setEmail(stored); return; }
+    // Not the session's address while viewing as somebody: that one is the admin's.
+    if (stored || isViewingPerson()) { setEmail(stored); return; }
     getSupabase().auth.getSession()
       .then(({ data }) => setEmail(data.session?.user?.email || ''))
       .catch(() => setEmail(''));

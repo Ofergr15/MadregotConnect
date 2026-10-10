@@ -1,4 +1,5 @@
 import { apiHeaders } from '@/lib/api';
+import { isViewingPerson } from '@/lib/view-as-person';
 
 /** True when running as the installed home-screen app, not a regular browser tab. */
 export function isStandalone(): boolean {
@@ -138,6 +139,9 @@ export async function ensurePushSubscription(
 ): Promise<{ ok: boolean; action: 'refreshed' | 'resubscribed' | 'skipped'; error?: string }> {
   try {
     if (!athleteId) return { ok: false, action: 'skipped', error: 'no_athlete' };
+    // Viewing the app as somebody (lib/view-as-person.ts): this device is the
+    // admin's, and naming it as the viewed person's would route THEIR pushes here.
+    if (isViewingPerson()) return { ok: false, action: 'skipped', error: 'view_as' };
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       return { ok: false, action: 'skipped', error: 'unsupported' };
     }
@@ -183,6 +187,10 @@ export async function ensurePushSubscription(
 export const SW_READY_TIMEOUT_MS = 20_000;
 
 export async function subscribeToPush(athleteId: string): Promise<{ ok: boolean; error?: string }> {
+  // Before anything touches the PushManager: the step below unsubscribes this
+  // device's current subscription, which while viewing the app as somebody is the
+  // ADMIN's own, and the save that would replace it is refused anyway.
+  if (isViewingPerson()) return { ok: false, error: 'view_as' };
   try {
     const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
     if (!vapid) return { ok: false, error: 'missing_vapid' };

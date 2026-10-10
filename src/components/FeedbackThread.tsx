@@ -5,6 +5,7 @@ import { Send, MessageCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { apiHeaders } from '@/lib/api';
+import { announceReadOnly, useViewAsReadOnly } from '@/lib/view-as-person';
 
 export interface ThreadMessage {
   id: string;
@@ -34,6 +35,7 @@ export interface ThreadMessage {
 // page (one thread, one request) still does.
 export function FeedbackThread({ feedbackId, viewerEmail, seed }: { feedbackId: string; viewerEmail: string; seed?: ThreadMessage[] }) {
   const t = useTranslations('feedbackThread');
+  const readOnly = useViewAsReadOnly();
   const seeded = seed !== undefined;
   const [messages, setMessages] = useState<ThreadMessage[]>(seed || []);
   const [loading, setLoading] = useState(!seeded);
@@ -140,12 +142,15 @@ export function FeedbackThread({ feedbackId, viewerEmail, seed }: { feedbackId: 
           className="flex-1 bg-page/60 border border-page rounded-xl px-3 py-2.5 text-base text-ink-700 placeholder:text-ink-400 resize-none focus:outline-none focus:border-brand-600 min-h-[44px]"
         />
         <button
-          onClick={handleSend}
-          disabled={!draft.trim() || sending}
+          // While an admin views the app as somebody (lib/view-as-person.ts) the
+          // button stays grey and a tap explains why instead of sending.
+          onClick={readOnly ? announceReadOnly : handleSend}
+          disabled={!readOnly && (!draft.trim() || sending)}
+          aria-disabled={readOnly || undefined}
           aria-label={t('send')}
           className={cn(
             'shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all',
-            draft.trim() && !sending ? 'bg-brand-600 text-white active:scale-90' : 'bg-page text-ink-400',
+            draft.trim() && !sending && !readOnly ? 'bg-brand-600 text-white active:scale-90' : 'bg-page text-ink-400',
           )}
         >
           <Send className="h-4 w-4" />
