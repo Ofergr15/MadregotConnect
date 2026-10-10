@@ -108,6 +108,8 @@ function ambiguousPairs(): Map<string, string[]> {
 const KNOWN_AMBIGUOUS: Record<string, string[]> = {
   'academy_billing->athletes': ['athlete_id', 'updated_by'],
   'academy_coach_history->athletes': ['athlete_id', 'coach_id'],
+  // 139: the trainee and the deciding coach. The one embed is hinted, `athletes!coach_id(name)`.
+  'academy_coach_decisions->athletes': ['athlete_id', 'coach_id'],
   'academy_coach_pay->athletes': ['coach_id', 'updated_by'],
   'academy_payments->athletes': ['athlete_id', 'marked_by'],
   'academy_test_analyses->academy_bands': ['band_id', 'recommended_band_id'],

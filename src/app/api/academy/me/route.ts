@@ -8,6 +8,7 @@ import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { readCharacterization } from '@/lib/academy/characterization';
 import { toBand } from '@/lib/academy/bands';
 import { thresholdPaceSec } from '@/lib/academy/tests';
+import { loadPaceUpdateCard } from '@/lib/academy/coach-tools-server';
 import { traineeUnreadCount } from '@/lib/academy/thread-server';
 import { getStreamServerClient } from '@/lib/stream/server';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
@@ -18,6 +19,7 @@ import {
   monthsBetween,
   plannedPaceOf,
   resolveTraineePaces,
+  withPaceUpdate,
   rowPace,
   rowStatus,
   stepTiles,
@@ -139,7 +141,7 @@ export async function GET(request: Request) {
     // Independent reads, side by side — each is small and the cost of this route is
     // the number of round trips it waits for, not the size of any one answer.
     const [
-      settings, adherence, history, journeyActs, watch, coachRes, bandRes, characterization, tests, feedbackRes, unread,
+      settings, adherence, history, journeyActs, watch, coachRes, bandRes, characterization, tests, feedbackRes, unread, paceUpdate,
     ] = await Promise.all([
       loadAcademySettings(),
       // The same shared implementation the coach's compliance table uses, so the
@@ -216,6 +218,8 @@ export async function GET(request: Request) {
       (async () => {
         try { return await traineeUnreadCount(getStreamServerClient(), athleteId); } catch { return 0; }
       })(),
+      // The coach's pace update (migration 139): the card, and the paces it moved.
+      loadPaceUpdateCard(supabase, athleteId, today),
     ]);
 
     const tolerances = settings.tolerances;
@@ -287,11 +291,12 @@ export async function GET(request: Request) {
       coaches: coachRows.map((c) => ({ id: c.id, name: c.name, avatarUrl: c.avatar_url || null })),
       unread,
       goal: goalCard(characterization, band, today),
-      paces: resolveTraineePaces({
+      paces: withPaceUpdate(resolveTraineePaces({
         band,
         athleteOffsetSec: typeof me.academy_pace_offset_sec === 'number' ? me.academy_pace_offset_sec : null,
         testThresholdSec: testThreshold,
-      }),
+      }), paceUpdate.adjust),
+      paceUpdate: paceUpdate.card,
       km: { weeks: chartWeeks, plannedKm, avgKm: kmAverage(chartWeeks) },
       week: {
         plannedCount: rows.length,

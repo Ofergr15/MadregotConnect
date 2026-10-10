@@ -7,6 +7,7 @@
 // that needs "today" is given it), no next-intl (copy is Hebrew, as in the sibling
 // academy components).
 
+import type { PaceUpdateCard } from './coach-tools-payload';
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { stepMetric, type StepUnits } from '@/lib/plans/step-display';
 import { GOAL_TYPES, type Characterization } from './characterization';
@@ -99,6 +100,8 @@ export interface TraineeHome {
   km?: { weeks: HomeKmWeek[]; plannedKm: number; avgKm: number | null };
   week?: { plannedCount: number; completedCount: number; workouts: HomeWorkout[] };
   journey?: HomeJourney;
+  /** "<coach> עדכן את הקצבים שלך" — the newest pace update, while fresh (migration 139). */
+  paceUpdate?: PaceUpdateCard | null;
 }
 
 // ── A week row ──────────────────────────────────────────────────────────────
@@ -356,5 +359,27 @@ export function resolveTraineePaces(input: {
     threshold: zonePace(threshold, 'threshold'),
     interval: zonePace(threshold, 'interval'),
     source,
+  };
+}
+
+/**
+ * The pace tiles with the coach's pace update in force (lib/academy/coach-tools.ts): reps
+ * move the interval tile, tempo moves tempo and threshold, easy moves easy — the same
+ * kinds the update re-resolved the planned sessions by.
+ */
+export function withPaceUpdate(
+  paces: HomePaces | null,
+  adjust: Partial<Record<'reps' | 'tempo' | 'easy', number>> | null | undefined,
+): HomePaces | null {
+  if (!paces || !adjust) return paces;
+  const by = (k: 'reps' | 'tempo' | 'easy') => adjust[k] ?? 0;
+  if (!by('reps') && !by('tempo') && !by('easy')) return paces;
+  const move = (v: number | null | undefined, d: number) => (typeof v === 'number' ? v + d : v);
+  return {
+    ...paces,
+    easy: move(paces.easy, by('easy')) as number,
+    tempo: move(paces.tempo, by('tempo')) as number,
+    threshold: move(paces.threshold, by('tempo')) as number,
+    interval: move(paces.interval, by('reps')) as number,
   };
 }

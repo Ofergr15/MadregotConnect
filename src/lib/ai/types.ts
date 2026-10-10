@@ -44,6 +44,12 @@ export interface ParsedWorkout {
    * read too) from re-applying a fix that was taken back.
    */
   autoFixes?: AutoFix[];
+  /**
+   * A coach's pace update already applied to this session's paces, sec/km per kind
+   * (`lib/academy/coach-tools.ts`). Kept on the workout so re-applying an update shifts by
+   * the difference and never twice. Absent = the paces are exactly as resolved from the test.
+   */
+  paceAdjust?: Partial<Record<'reps' | 'tempo' | 'easy', number>>;
   steps: WorkoutStep[];
 }
 

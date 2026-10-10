@@ -179,7 +179,10 @@ export function initialsLine(names: string[], shown = 2): string {
 
 // ── Waiting for you ─────────────────────────────────────────────────────────
 
-export type WaitingKind = 'threads' | 'dispatch' | 'form' | 'registrations' | 'stuck' | 'approvals' | 'results';
+export type WaitingKind =
+  | 'threads' | 'dispatch' | 'form' | 'registrations' | 'stuck' | 'approvals' | 'results'
+  // The coach tools (lib/academy/coach-tools.ts): a pace suggestion, a missed week, next week empty.
+  | 'pace' | 'missed' | 'copy';
 
 export interface WaitingTarget {
   section: AcademySection;
@@ -187,6 +190,8 @@ export interface WaitingTarget {
   candidateId?: string;
   /** Open the club registrations queue (folded into the candidates). */
   registrations?: boolean;
+  /** A coach-tools row: which screen it opens and for whom. */
+  tool?: { kind: 'pace' | 'missed' | 'copy'; athleteId?: string };
 }
 
 export interface WaitingItem {
@@ -206,7 +211,11 @@ export interface WaitingItem {
  * the paperwork is. Inside a band, the oldest first.
  */
 const BAND: Record<WaitingKind, number> = {
-  threads: 6, form: 5, dispatch: 4, stuck: 3, approvals: 3, registrations: 2, results: 1,
+  threads: 6, form: 5, dispatch: 4,
+  // A decision about a trainee's training, below a watch that missed a workout and above
+  // paperwork — in the mockup's order: the pace, the missed week, then the empty week.
+  pace: 3.6, missed: 3.5,
+  stuck: 3, approvals: 3, copy: 2.5, registrations: 2, results: 1,
 };
 
 export interface WaitingInput {
@@ -223,6 +232,11 @@ export interface WaitingInput {
   approvals?: Array<{ athleteId: string; name: string; submittedAt: string | null }>;
   registrations?: number;
   results?: number;
+  /**
+   * The coach-tools rows, already worded by the screen (their copy is in messages/*.json,
+   * with every number isolated), so only their place in the list is decided here.
+   */
+  tools?: Array<Omit<WaitingItem, 'target'> & { target: WaitingTarget }>;
 }
 
 const hoursSince = (iso: string | null | undefined, now: number): number | null => {
@@ -322,6 +336,8 @@ export function buildWaiting(input: WaitingInput): WaitingItem[] {
       target: { section: 'results' },
     });
   }
+
+  for (const item of input.tools ?? []) out.push(item);
 
   const score = (w: WaitingItem) => BAND[w.kind] * 1e6 + Math.min(999_999, w.ageHours ?? 0);
   return out.sort((a, b) => score(b) - score(a) || a.key.localeCompare(b.key));

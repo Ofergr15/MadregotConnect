@@ -140,6 +140,8 @@ function extractWorkouts(raw: any, groupNumber = 1): ParsedWorkout[] {
 export async function computeAcademyWeekAdherence(opts: {
   weekStart?: string | null;
   onlyAthleteId?: string | null;
+  /** Several athletes (a coach's own trainees). Applied with `onlyAthleteId` when both are set. */
+  onlyAthleteIds?: string[] | null;
   /**
    * Also grade each completed workout for ACCURACY — the ring's percentage, not
    * the adherence score. Opt-in because it widens the activity read to include
@@ -194,6 +196,10 @@ export async function computeAcademyWeekAdherence(opts: {
 
   let athletes: any[] = athRes.error ? [] : (athRes.data || []).filter((a: any) => a.is_academy);
   if (opts.onlyAthleteId) athletes = athletes.filter(a => a.id === opts.onlyAthleteId);
+  if (opts.onlyAthleteIds) {
+    const only = new Set(opts.onlyAthleteIds);
+    athletes = athletes.filter(a => only.has(a.id));
+  }
 
   if (!athletes.length) return { weekStart, weekEnd, athletes: [], tolerances };
 
@@ -226,7 +232,7 @@ export async function computeAcademyWeekAdherence(opts: {
       .from('athlete_activities')
       .select(
         'id, athlete_id, start_time, distance, duration, moving_duration, average_pace, activity_type'
-        + (opts.withExecution ? ', laps' : ''),
+        + (opts.withExecution ? ', laps, average_hr' : ''),
       )
       .in('athlete_id', athleteIds)
       .gte('start_time', `${weekStart}T00:00:00Z`)
@@ -290,6 +296,7 @@ export async function computeAcademyWeekAdherence(opts: {
       duration: Number(r.duration) || 0,
       movingDuration: r.moving_duration != null ? Number(r.moving_duration) : null,
       averagePace: r.average_pace != null ? Number(r.average_pace) : null,
+      ...(opts.withExecution ? { averageHr: r.average_hr != null ? Number(r.average_hr) : null } : {}),
       activityType: r.activity_type,
     });
     actualByAthlete.set(r.athlete_id, arr);

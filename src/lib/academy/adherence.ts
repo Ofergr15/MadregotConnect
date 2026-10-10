@@ -89,6 +89,8 @@ export interface ActualActivity {
   duration: number; // seconds (total elapsed)
   movingDuration?: number | null; // seconds
   averagePace?: number | null; // sec/km
+  /** Average HR of the run, bpm. Read only where something needs it (the pace suggestion). */
+  averageHr?: number | null;
   activityType?: string;
 }
 
