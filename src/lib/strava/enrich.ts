@@ -13,8 +13,10 @@ import {
   splitsToLaps,
   streamsToGpsPoints,
   streamsToGpx,
+  stravaErrorStatus,
   tokenNeedsRefresh,
   type StravaLap,
+  type StravaStreams,
   type StravaTokens,
 } from './client';
 
@@ -136,24 +138,37 @@ export async function enrichStravaActivity(
       if (fromSplits.length) laps = fromSplits;
     }
 
-    const streams = await client.getActivityStreams(stravaActivityId);
-    const gps_points = streamsToGpsPoints(streams);
-    const gpx = streamsToGpx(streams, {
-      name: activityName,
-      startTimeIso: new Date(startTimeLocal).toISOString(),
-      activityId: stravaActivityId,
+    // A run recorded with no track at all (treadmill, a manual entry) has no
+    // streams, and Strava answers 404 for them. That used to throw out of here,
+    // discard the laps and the detail fetched above, and leave `laps` null, so
+    // the laps backfill picked the same run again on every sync, forever (seen
+    // 2026-10-10: one activity retried every 5-15 minutes all day). A 404 here
+    // is an answer: "no streams". Anything else still fails the enrichment.
+    const streams: StravaStreams = await client.getActivityStreams(stravaActivityId).catch((streamErr) => {
+      if (stravaErrorStatus(streamErr) === 404) return {} as StravaStreams;
+      throw streamErr;
     });
+    const gps_points = streamsToGpsPoints(streams);
 
-    await ensureBucket(supabase);
-    const gpxPath = `${athleteId}/${stravaActivityId}.gpx`;
-    await supabase.storage
-      .from(BUCKET)
-      .upload(gpxPath, Buffer.from(gpx, 'utf8'), {
-        contentType: 'application/gpx+xml',
-        upsert: true,
+    // The GPX file only when there is a track to put in it.
+    let strava_gpx_url: string | null = null;
+    if (streams.latlng?.data?.length) {
+      const gpx = streamsToGpx(streams, {
+        name: activityName,
+        startTimeIso: new Date(startTimeLocal).toISOString(),
+        activityId: stravaActivityId,
       });
-    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(gpxPath);
-    const strava_gpx_url = urlData.publicUrl;
+      await ensureBucket(supabase);
+      const gpxPath = `${athleteId}/${stravaActivityId}.gpx`;
+      await supabase.storage
+        .from(BUCKET)
+        .upload(gpxPath, Buffer.from(gpx, 'utf8'), {
+          contentType: 'application/gpx+xml',
+          upsert: true,
+        });
+      const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(gpxPath);
+      strava_gpx_url = urlData.publicUrl;
+    }
 
     // `[]` (not null) when Strava has nothing, so callers know the run was
     // already looked at and do not burn API calls re-enriching it.
@@ -179,7 +194,7 @@ export async function enrichStravaActivity(
     }
     const patch: Record<string, unknown> = {
       ...corePatch,
-      strava_gpx_url,
+      ...(strava_gpx_url ? { strava_gpx_url } : {}),
       // Keep streams compact — drop latlng (already in gps_points) if huge
       strava_streams: {
         time: streams.time?.data?.length ?? 0,

@@ -114,3 +114,36 @@ describe('enrichStravaActivity geometry', () => {
     expect(patches[0]).not.toHaveProperty('has_polyline');
   });
 });
+
+// A run with no recorded track (treadmill, manual entry): Strava answers 404 for
+// its streams. That used to fail the whole enrichment and leave `laps` null, so
+// the laps backfill re-picked the same run on every sync, forever (2026-10-10).
+describe('enrichStravaActivity without streams', () => {
+  it('stores the laps it got, writes no GPX and no route, and does not fail', async () => {
+    const { StravaApiError } = await import('@/lib/strava/client');
+    const { supabase, patches } = fakeSupabase();
+    const client = {
+      getActivityLaps: vi.fn(async () => [{ distance: 1000, elapsed_time: 300, moving_time: 300, average_speed: 3.3 }]),
+      getActivity: vi.fn(async () => ({ splits_metric: [], calories: 320 })),
+      getActivityStreams: vi.fn(async () => { throw new StravaApiError(404, '{"message":"Resource Not Found"}'); }),
+    } as never;
+    const stored = await enrichStravaActivity(supabase, client, target);
+    expect(stored).not.toBeNull();
+    const patch = patches[0];
+    expect(patch.laps).toBeDefined();
+    expect(patch.calories).toBe(320);
+    expect(patch).not.toHaveProperty('strava_gpx_url');
+    expect(patch).not.toHaveProperty('gps_points');
+  });
+
+  it('any other streams failure still fails the enrichment, so it is retried', async () => {
+    const { StravaApiError } = await import('@/lib/strava/client');
+    const { supabase } = fakeSupabase();
+    const client = {
+      getActivityLaps: vi.fn(async () => []),
+      getActivity: vi.fn(async () => ({ splits_metric: [] })),
+      getActivityStreams: vi.fn(async () => { throw new StravaApiError(500, 'boom'); }),
+    } as never;
+    expect(await enrichStravaActivity(supabase, client, target)).toBeNull();
+  });
+});

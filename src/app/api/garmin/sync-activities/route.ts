@@ -71,6 +71,24 @@ const UPGRADES_PER_SYNC = 5;
 const BROADCAST_BUDGET_MS = 210_000;
 
 /**
+ * The budget above is checked BETWEEN athletes, so one Garmin call that never
+ * answers still ran the whole pass into the 300 s ceiling: on 2026-10-10 a run
+ * logged "refreshOauth2Token start" and nothing after it until the platform
+ * killed it (504), taking the Strava poll, the backfills and the km snapshot
+ * behind it down too. The list call is where the token refresh happens, so it
+ * gets its own limit: that athlete waits for the next tick, the rest go on.
+ */
+const GARMIN_CALL_TIMEOUT_MS = 45_000;
+
+function withTimeout<T>(work: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} timed out after ${Math.round(ms / 1000)}s`)), ms);
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+}
+
+/**
  * HTTP entry point. Anyone could previously trigger a full-club Garmin sync —
  * one unauthenticated POST per second was a free way to burn the club's Garmin
  * rate limit and push a feedback nudge at every athlete.
@@ -152,7 +170,7 @@ export async function runSyncRequest(request: Request) {
         const client = new GarminClient(athlete.garmin_auth as any);
         let activities;
         try {
-          activities = await client.getActivities(0, 100);
+          activities = await withTimeout(client.getActivities(0, 100), GARMIN_CALL_TIMEOUT_MS, 'Garmin activity list');
         } catch (fetchErr: any) {
           // A rejected credential is the one failure the athlete has to act on, and
           // until now it was indistinguishable from a Garmin blip: both landed in
