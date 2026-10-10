@@ -21,6 +21,32 @@ const DISTANCE_TOLERANCE = 0.1; // 10%
 const MIN_OVERLAP = 0.8;
 
 /**
+ * SAME CLOCK, ANY DISTANCE. Two recordings that start within two minutes of each
+ * other and cover at least 85% of the same wall clock are one run, whatever the
+ * two distances say. Measured 2026-10-10: five runs were showing twice in the feed
+ * (Garmin + Strava, identical start second) because the distances disagreed by
+ * more than DISTANCE_TOLERANCE — on a treadmill the member corrects the distance on
+ * Garmin (8,000 m) while Strava keeps the watch's estimate (9,238 m, +15%), and a
+ * time-only manual entry has no distance at all. Reps can't fall into this: they
+ * never share the clock (MIN_OVERLAP's whole reason), so this widens the distance
+ * rule only where the time evidence is overwhelming. It needs BOTH durations.
+ */
+const SAME_CLOCK_MS = 2 * 60 * 1000;
+const SAME_CLOCK_OVERLAP = 0.85;
+
+export function sameClock(
+  aStartMs: number,
+  aDurationS: number | null | undefined,
+  bStartMs: number,
+  bDurationS: number | null | undefined,
+): boolean {
+  if (!aDurationS || !bDurationS || aDurationS <= 0 || bDurationS <= 0) return false;
+  if (Math.abs(aStartMs - bStartMs) > SAME_CLOCK_MS) return false;
+  const overlapMs = Math.min(aStartMs + aDurationS * 1000, bStartMs + bDurationS * 1000) - Math.max(aStartMs, bStartMs);
+  return overlapMs > 0 && overlapMs / (Math.max(aDurationS, bDurationS) * 1000) >= SAME_CLOCK_OVERLAP;
+}
+
+/**
  * True when this athlete already has a DIFFERENT-source row for what's
  * clearly the same physical run — same start time (within WINDOW_MS) and
  * matching distance (within DISTANCE_TOLERANCE). Needed because Garmin can
@@ -217,14 +243,17 @@ export function findStoredMatch<T extends StoredActivity>(
   distanceMeters: number,
   durationSeconds?: number | null,
 ): T | null {
-  if (distanceMeters <= 0) return null;
   const start = new Date(startTimeLocal).getTime();
   if (Number.isNaN(start)) return null;
   return (
     stored.find((r) => {
-      if (!r.distance || !r.start_time) return false;
+      if (!r.start_time) return false;
       const t = new Date(r.start_time).getTime();
-      if (Number.isNaN(t) || Math.abs(t - start) > WINDOW_MS) return false;
+      if (Number.isNaN(t)) return false;
+      // The same wall clock settles it, distances or not (treadmill corrections, manual entries).
+      if (sameClock(t, r.duration, start, durationSeconds)) return true;
+      if (distanceMeters <= 0 || !r.distance) return false;
+      if (Math.abs(t - start) > WINDOW_MS) return false;
       if (Math.abs(r.distance - distanceMeters) / distanceMeters > DISTANCE_TOLERANCE) return false;
       // Last, and only ever narrowing: two runs that pass everything above and
       // still don't share the clock are consecutive reps, not two copies.
