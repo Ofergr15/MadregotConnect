@@ -6,6 +6,14 @@ import { useTranslations } from 'next-intl';
 import { Activity, Watch, X } from 'lucide-react';
 import { apiHeaders } from '@/lib/api';
 import { connectPromptVariant, type ConnectPromptVariant } from '@/lib/connect-prompt';
+import { useOnboarding } from '@/lib/onboarding/use-onboarding';
+import { useOnboardingV2 } from '@/lib/install/v2';
+import { nudgeAllowed, nudgeAllowedV2, nudgeDayKey, nudgeLedgerKey, readNudgeLedger, type NudgeLedger } from '@/lib/onboarding/nudge-ledger';
+import { JOURNEY, PrimaryButton, SecondaryButton } from '@/components/onboarding/journey-ui';
+
+/** "אחר כך" this many times and it stops asking (the old "אל תציגו שוב", by count). */
+const LATER_KEY = 'connect_data_source_later_count';
+const MAX_LATERS = 3;
 
 /**
  * First-run "connect your training data" nudge (roadmap flow #22, step 2).
@@ -30,11 +38,23 @@ import { connectPromptVariant, type ConnectPromptVariant } from '@/lib/connect-p
  * the common case rather than an edge one, so the Garmin ask has its own copy and
  * drops the manual-logging fallback, which would make no sense to somebody whose
  * runs are already flowing in.
+ *
+ * ONE PROMPT AT A TIME (journey audit, 2026-10-10). Right after the first run the
+ * feed stacked three asks: the install strip, the setup checklist ("5 things
+ * left", which leads with the watch) and this modal on top. So it now waits while
+ * the feed's setup checklist (SetupNudgeCard) may be showing — same conditions,
+ * same ledger — and when it does show it has one quiet way out, "אחר כך"; the
+ * manual-logging link and "don't show again" are gone. "Don't show again" is
+ * kept by count: the third "later" retires it, like the install offer's three.
  */
 export function ConnectDataSourcePopup() {
   const router = useRouter();
   const t = useTranslations('connectPrompt');
   const [variant, setVariant] = useState<ConnectPromptVariant>('none');
+  const { data: onboarding } = useOnboarding();
+  const v2 = useOnboardingV2();
+  // The feed's setup-checklist ledger (SetupNudgeCard), read once. null = not yet.
+  const [ledger, setLedger] = useState<NudgeLedger | null>(null);
 
   useEffect(() => {
     if (window.location.pathname.includes('/profile')) return;
@@ -57,6 +77,12 @@ export function ConnectDataSourcePopup() {
     const sessionDismissed = sessionStorage.getItem('connect_data_source_dismissed_session');
     if (sessionDismissed) return;
 
+    try {
+      setLedger(readNudgeLedger(localStorage.getItem(nudgeLedgerKey(athleteId))));
+    } catch {
+      setLedger({ days: [], skipped: true }); // private mode: the card can't show either
+    }
+
     let mounted = true;
     apiHeaders()
       .then(headers => fetch(`/api/athletes/me?id=${athleteId}`, { headers }))
@@ -69,6 +95,23 @@ export function ConnectDataSourcePopup() {
   }, []);
 
   if (variant === 'none') return null;
+  // Wait for the setup state, then stay out of the way while the checklist on the
+  // feed (SetupNudgeCard: same conditions) carries the ask. Hiding, not
+  // dismissing: the next visit decides again.
+  if (!onboarding || !ledger) return null;
+  const today = nudgeDayKey(new Date());
+  const nudgeMayShow = v2 ? nudgeAllowedV2(ledger, today) : nudgeAllowed(ledger, today);
+  const checklistUp =
+    onboarding.applicable &&
+    !onboarding.completed &&
+    !onboarding.allDone &&
+    onboarding.tourSeen &&
+    onboarding.tasks.some((task) => !task.done) &&
+    nudgeMayShow;
+  if (checklistUp) return null;
+  // The first run is still ahead, or just ending (the "seen" stamp is on its way):
+  // the tour hands over to the checklist, not to this.
+  if (onboarding.applicable && onboarding.migrated && !onboarding.tourSeen) return null;
 
   // Both asks share one "stop asking me" switch. Someone who said never when they
   // had nothing connected is not asked again for having connected only half of it.
@@ -76,11 +119,11 @@ export function ConnectDataSourcePopup() {
 
   const handleRemindLater = () => {
     sessionStorage.setItem('connect_data_source_dismissed_session', '1');
-    setVariant('none');
-  };
-
-  const handleDismissForever = () => {
-    localStorage.setItem('connect_data_source_dismissed', 'forever');
+    try {
+      const n = (Number(localStorage.getItem(LATER_KEY)) || 0) + 1;
+      localStorage.setItem(LATER_KEY, String(n));
+      if (n >= MAX_LATERS) localStorage.setItem('connect_data_source_dismissed', 'forever');
+    } catch { /* private mode */ }
     setVariant('none');
   };
 
@@ -90,65 +133,33 @@ export function ConnectDataSourcePopup() {
     router.push('/dashboard/profile?connectGarmin=1');
   };
 
-  const handleLogManually = () => {
-    sessionStorage.setItem('connect_data_source_dismissed_session', '1');
-    setVariant('none');
-    router.push('/dashboard/activities?logManual=1');
-  };
-
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
-      <div className="bg-card rounded-card border border-page p-6 w-full max-w-sm relative">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" dir="rtl">
+      <div className="relative w-full max-w-sm rounded-[28px] bg-white p-6">
         <button
           onClick={handleRemindLater}
-          className="absolute top-4 end-4 text-ink-400 hover:text-ink-900"
+          className="absolute top-2 end-2 flex h-11 w-11 items-center justify-center rounded-full"
+          style={{ color: JOURNEY.soft }}
           aria-label={t('close')}
         >
           <X className="h-5 w-5" />
         </button>
 
         <div className="flex flex-col items-center text-center">
-          <div className="bg-brand-600/20 w-14 h-14 rounded-full flex items-center justify-center mb-4">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full" style={{ background: JOURNEY.tagBg, color: JOURNEY.tag }}>
             {garminOnly
-              ? <Watch className="h-7 w-7 text-brand-600" />
-              : <Activity className="h-7 w-7 text-brand-600" />}
+              ? <Watch className="h-7 w-7" />
+              : <Activity className="h-7 w-7" />}
           </div>
 
-          <h2 className="text-lg font-bold text-ink-700">{t(garminOnly ? 'garminTitle' : 'title')}</h2>
-          <p className="text-sm text-ink-400 mt-2">
+          <h2 className="text-[20px] font-black" style={{ color: JOURNEY.ink }}>{t(garminOnly ? 'garminTitle' : 'title')}</h2>
+          <p className="mt-2 text-[15px] leading-relaxed" style={{ color: JOURNEY.soft }}>
             {t(garminOnly ? 'garminDescription' : 'description')}
           </p>
 
-          <button
-            onClick={handleConnect}
-            className="w-full mt-5 bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-3 rounded-lg transition-colors"
-          >
-            {t(garminOnly ? 'garminConnectNow' : 'connectNow')}
-          </button>
-
-          {/* Pointless for the Garmin ask: their runs already arrive from Strava. */}
-          {!garminOnly && (
-            <button
-              onClick={handleLogManually}
-              className="w-full mt-2 text-brand-600 hover:text-brand-700 text-sm py-1.5 transition-colors"
-            >
-              {t('logManually')}
-            </button>
-          )}
-
-          <div className="flex gap-3 mt-3 w-full">
-            <button
-              onClick={handleRemindLater}
-              className="flex-1 text-ink-400 hover:text-ink-900 text-sm py-2 transition-colors"
-            >
-              {t('remindLater')}
-            </button>
-            <button
-              onClick={handleDismissForever}
-              className="flex-1 text-ink-400 hover:text-ink-500 text-sm py-2 transition-colors"
-            >
-              {t(garminOnly ? 'noGarmin' : 'dontShowAgain')}
-            </button>
+          <div className="mt-5 flex w-full flex-col gap-1">
+            <PrimaryButton onClick={handleConnect}>{t(garminOnly ? 'garminConnectNow' : 'connectNow')}</PrimaryButton>
+            <SecondaryButton onClick={handleRemindLater}>{t('later')}</SecondaryButton>
           </div>
         </div>
       </div>

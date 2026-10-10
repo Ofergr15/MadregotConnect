@@ -44,3 +44,15 @@ describe('tourLatest', () => {
     }
   });
 });
+
+describe('entryIcon: each "what\'s new" tile gets its own icon', () => {
+  it('own emoji first, then the drawn screen, then where the row leads; ✨ only as a last resort', async () => {
+    const { entryIcon } = await import('@/lib/whats-new/tour-latest');
+    expect(entryIcon({ icon: '⭐', art: 'weekShare', href: '/feed' })).toBe('⭐');
+    expect(entryIcon({ art: 'weekShare', href: '/dashboard/profile' })).toBe('📅');
+    expect(entryIcon({ art: 'nextSession', href: '/dashboard/program' })).toBe('🏃');
+    expect(entryIcon({ href: '/dashboard/share?what=run' })).toBe('📸');
+    expect(entryIcon({ href: '/dashboard/share?what=week' })).toBe('📅');
+    expect(entryIcon({ href: '/somewhere-else' })).toBe('✨');
+  });
+});

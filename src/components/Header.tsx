@@ -155,6 +155,8 @@ export function Header() {
   // on the eye stays — /api/auth/me now answers as the person, who is no admin.
   const viewingPerson = typeof window !== 'undefined' && isViewingPerson();
   const canViewAs = isSuper || hasRole(meData, 'admin') || viewingPerson;
+  // The header's bug-report button (below): staff, admins and the super user.
+  const canReport = isSuper || isStaffRole || hasRole(meData, 'admin');
   const previewRole = viewMode && viewMode !== MAINTENANCE_MODE ? viewMode : null;
   // The super user (Ofer) always gets full admin-level nav, regardless of their
   // stored DB role (which may just be 'runner') — so admin-only tabs like
@@ -268,8 +270,14 @@ export function Header() {
                 it's revoked is exactly the state where somebody needs it. The
                 permission still decides whether it appears in the nav LISTS; this
                 entry point is unconditional, the same way Store and Benefits are.
-                It stays in the "More" sheet too, so muscle memory still works. */}
-            {(() => {
+                It stays in the "More" sheet too, so muscle memory still works.
+
+                STAFF ONLY in the header (journey audit, 2026-10-10): a brand-new
+                member's first screen had a bug beside the logo, which reads as "this
+                app is broken" before they have run once. Members keep the channel —
+                the "More" sheet card is still unconditional — the header button is
+                for staff, admins and the super user. */}
+            {canReport && (() => {
               const isActive = pathname === '/dashboard/review';
               return (
                 <>
@@ -318,6 +326,9 @@ export function Header() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    // The first-run tour walks the tabs (FirstRunTour); on a computer
+                    // these are the tabs. Same anchors as the phone's BottomTabBar.
+                    data-tour={`tab-${item.tab}`}
                     className={cn(
                       'relative group flex items-center justify-center w-11 h-11 transition-all',
                       'rounded-pill',
@@ -542,9 +553,8 @@ export function Header() {
               Navigation lives in the bottom tab bar; these are the only header
               actions on the phone. */}
           <div className="md:hidden flex items-center gap-2">
-            {/* Before the bell, not after: this is the loudest thing in the
-                header on purpose, and the eye lands on the start of the row.
-                Self-hiding — see SetupPill. */}
+            {/* Before the bell, not after: the eye lands on the start of the row.
+                A brand-colour ring now, not a red alarm. Self-hiding — see SetupPill. */}
             {isAthlete && <SetupPill />}
             {isAthlete && (
               <Link

@@ -196,7 +196,7 @@ describe('tourExitTarget', () => {
   const STEPS = [{ anchor: 'upcomingWorkout' }, { anchor: 'tabbar' }, { anchor: 'setupCard' }];
 
   it('hands off into the setup checklist when the tour ends on the setup card', () => {
-    expect(tourExitTarget(STEPS, 2)).toBe(`${TOUR_HOME}?tab=setup`);
+    expect(tourExitTarget(STEPS, 2)).toBe('/dashboard/profile?tab=setup');
   });
 
   it('just closes when some other step ended up last', () => {
@@ -205,6 +205,10 @@ describe('tourExitTarget', () => {
     // neither workout card nor week strip — so any step can land last, and only
     // the setup one has somewhere to hand off to.
     expect(tourExitTarget([{ anchor: 'upcomingWorkout' }, { anchor: 'tabbar' }], 1)).toBeNull();
+  });
+
+  it('the tour runs on the feed, so the first run ends there (not on the profile)', () => {
+    expect(TOUR_HOME).toBe('/feed');
   });
 
   it('does not navigate mid-tour', () => {

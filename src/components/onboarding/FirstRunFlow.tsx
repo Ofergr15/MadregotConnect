@@ -5,10 +5,20 @@
 // notifications step with the phone's own popup shown in advance, a real test
 // push when it worked, and the hand-off to the tour. One full-screen sequence, so
 // nothing else pops up in the middle of it.
+//
+// Drawn in the joining journey's one look (journey-ui: sunset header, cream page,
+// one primary pill). The welcome lists ONLY the steps that will actually run on
+// this device (journey audit, 2026-10-10: it promised notifications in a browser
+// tab that can't be asked, and "the watch and the profile", which never ran):
+//   · notifications — only when this device can be asked (askablePush below);
+//   · the tour — always;
+//   · the watch — only while none is connected. The next thing after the tour is
+//     then the feed's setup checklist, which leads with it, and the "connect your
+//     data" popup waits while that checklist is up (ConnectDataSourcePopup).
 
 import { useCallback, useEffect, useState } from 'react';
 import { mutate } from 'swr';
-import { subscribeToPush } from '@/lib/pwa';
+import { isIosDevice, isStandalone, subscribeToPush } from '@/lib/pwa';
 import { apiHeaders } from '@/lib/api';
 import { logClient } from '@/lib/client-log';
 import { useOnboarding, ONBOARDING_KEY } from '@/lib/onboarding/use-onboarding';
@@ -18,6 +28,7 @@ import { readFirstRunStage, setFirstRunStage } from '@/lib/onboarding/first-run-
 import { useOnboardingV2 } from '@/lib/install/v2';
 import { IosPermissionPreview } from '@/components/install/IosPermissionPreview';
 import { useIsComputer } from '@/lib/install/use-computer';
+import { JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, PrimaryButton, SecondaryButton } from './journey-ui';
 import './first-run.css';
 import { trackOnb } from '@/lib/onboarding/track';
 
@@ -39,14 +50,17 @@ function firstNameOf(): string {
   }
 }
 
-function Dots({ at }: { at: 0 | 1 | 2 }) {
-  return (
-    <div className="flex justify-center gap-1.5" aria-label={`שלב ${at + 1} מתוך 3`}>
-      {[0, 1, 2].map((i) => (
-        <i key={i} className={`h-1.5 rounded-full transition-all ${i === at ? 'w-6 bg-brand-600' : i < at ? 'w-1.5 bg-accent-600' : 'w-1.5 bg-ink-300'}`} />
-      ))}
-    </div>
-  );
+/**
+ * Can THIS device be asked for notifications right now? Not on a computer (the
+ * coach's notifications live on the phone), not when the browser has no push or
+ * already answered, and not in an iPhone's Safari tab — a subscription made there
+ * is page-origin for good (lib/onboarding/first-run-order). The welcome's list and
+ * the step after it both read this, so the list never promises a step that won't run.
+ */
+function askablePush(computer: boolean): boolean {
+  if (computer) return false;
+  if (readPushPermission() !== 'default') return false;
+  return !(isIosDevice() && !isStandalone());
 }
 
 /** `previewStage`: /preview/first-run only — draw that screen, skip every gate. */
@@ -63,6 +77,16 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
   // A computer (lib/install/platform isComputer): nothing was installed, and the
   // coach's notifications live on the phone, so the push step is not asked here.
   const computer = useIsComputer();
+  // Read on the client once the welcome arms (window APIs), see askablePush.
+  const [canAskPush, setCanAskPush] = useState(false);
+  const [standalone, setStandalone] = useState(false);
+  useEffect(() => {
+    if (stage !== 'welcome') return;
+    setCanAskPush(askablePush(computer));
+    setStandalone(isStandalone());
+  }, [stage, computer]);
+  // The watch row only while nothing is connected (the setup task "watch").
+  const needsWatch = !!data && data.applicable && !!data.tasks?.some((task) => task.key === 'watch' && !task.done);
 
   useEffect(() => {
     if (previewStage) { setName('נועה'); return; }
@@ -84,10 +108,9 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
   const fromWelcome = useCallback(() => {
     if (computer) { toTour(); return; }
     // Nothing to ask on a phone that already answered, or cannot (a browser tab on
-    // an iPhone): straight on to the tour.
-    const p = readPushPermission();
-    if (p === 'default') { setStage('push'); trackOnb('push_prompted', { once: true }); }
-    else if (p === 'denied') setStage('pushBlocked');
+    // an iPhone): straight on to the tour. Same test as the welcome's list.
+    if (askablePush(computer)) { setStage('push'); trackOnb('push_prompted', { once: true }); }
+    else if (readPushPermission() === 'denied') setStage('pushBlocked');
     else toTour();
   }, [toTour, computer]);
 
@@ -119,123 +142,130 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
 
   if (!stage) return null;
 
-  return (
-    <div className={computer ? 'fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-ink-900/40 p-6' : 'fixed inset-0 z-[70] overflow-y-auto bg-page'} dir="rtl" role="dialog" aria-modal="true" aria-label="ברוכים הבאים">
-      <div className={computer
-        ? 'flex w-full max-w-[560px] flex-col rounded-[28px] bg-page p-6 shadow-[0_24px_60px_rgba(0,0,0,0.25)]'
-        : 'mx-auto flex min-h-full max-w-md flex-col px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-[max(20px,env(safe-area-inset-top))]'}>
-        {stage === 'welcome' && (
-          <>
-            <div className="relative mt-2 overflow-hidden rounded-[28px] bg-gradient-to-br from-[#2b33ff] via-brand-600 to-[#6a5cff] px-5 pb-6 pt-7 text-center text-white shadow-[0_18px_40px_rgba(43,51,255,0.35)]">
-              {CONFETTI.map(([x, y, c, r], i) => (
-                <i key={i} aria-hidden className="frf-confetti absolute block h-3 w-2 rounded-[2px]" style={{ left: `${x}%`, top: `${y}%`, background: c, transform: `rotate(${r}deg)`, animationDelay: `${i * 90}ms` }} />
-              ))}
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-2xl font-black text-brand-600 shadow-[0_0_0_6px_rgba(255,255,255,0.25)]">
-                {(name || 'מ').slice(0, 1)}
-              </div>
-              <p className="mt-4 text-2xs font-bold tracking-wide text-white/85">{computer ? 'אתם בפנים' : 'ההתקנה הצליחה · אתם בפנים'}</p>
-              <h1 className="mt-1 text-[28px] font-black leading-tight">{name ? `${name}, ברוכים הבאים` : 'ברוכים הבאים'}<br />למדרגות 🎉</h1>
-              <p className="mt-2 text-13 text-white/90">{computer ? 'מועדון הריצה שלך' : 'מועדון הריצה שלך, עכשיו בכיס'}</p>
-            </div>
-            <div className="mt-4 rounded-[22px] bg-card p-4 shadow-sm">
-              <p className="text-sm font-black text-ink-700">3 דברים קטנים, ומתחילים לרוץ</p>
-              {(computer ? [
-                ['🧭', 'סיור קצר באפליקציה', 'איפה התוכנית, הפיד והפרופיל', '40 שנ׳'],
-                ['⌚', 'השעון והפרופיל', 'כדי שהריצות ייכנסו לבד', 'דקה'],
-                ['📱', 'האפליקציה בטלפון', 'שם מקבלים התראות מהמאמן ותזכורות', 'דקה'],
-              ] : [
-                ['🔔', 'התראות', 'שהמאמן יוכל לכתוב לך', '30 שנ׳'],
-                ['🧭', 'סיור קצר באפליקציה', 'איפה התוכנית, הפיד והפרופיל', '40 שנ׳'],
-                ['⌚', 'השעון והפרופיל', 'כדי שהריצות ייכנסו לבד', 'דקה'],
-              ]).map(([icon, title, sub, time], i) => (
-                <div key={i} className="mt-3 flex items-center gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-page text-lg" aria-hidden>{icon}</span>
-                  <div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink-700">{title}</p><p className="text-xs text-ink-400">{sub}</p></div>
-                  <span className="text-2xs font-bold text-ink-400">{time}</span>
+  const pushSteps = canAskPush ? 3 : 2;
+  const stepsLeft: Array<[string, string, string, string]> = [
+    ...(canAskPush ? [['🔔', 'התראות', 'שהמאמן יוכל לכתוב לכם', '30 שנ׳'] as [string, string, string, string]] : []),
+    ['🧭', 'סיור של דקה', 'פיד, תוכנית, פרופיל', '40 שנ׳'],
+    ...(needsWatch ? [['⌚', 'חיבור השעון', 'כדי שהריצות ייכנסו לבד', 'דקה'] as [string, string, string, string]] : []),
+  ];
+  const countLine = stepsLeft.length === 1 ? 'עוד דבר אחד קטן, ומתחילים לרוץ' : `עוד ${stepsLeft.length} דברים קטנים, ומתחילים לרוץ`;
+
+  // The step counter of the notifications screens, in the journey's colours.
+  const dots = (at: number) => (
+    // Spans, not divs: JourneyHero puts the eyebrow inside a <p>.
+    <span className="mb-1 flex justify-center gap-1.5" role="img" aria-label={`שלב ${at + 1} מתוך ${pushSteps}`}>
+      {Array.from({ length: pushSteps }, (_, i) => (
+        <i key={i} className={`block h-1.5 rounded-full transition-all ${i === at ? 'w-6' : 'w-1.5'}`} style={{ background: i === at ? '#fff' : i < at ? JOURNEY.eyebrow : 'rgba(255,255,255,0.4)' }} />
+      ))}
+    </span>
+  );
+
+  let screen: React.ReactNode = null;
+
+  if (stage === 'welcome') {
+    screen = (
+      <JourneyScreen
+        hero={(
+          <div className="relative overflow-hidden rounded-b-[28px] md:rounded-b-none md:rounded-t-[28px]">
+            <JourneyHero
+              badge={(
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-2xl font-black shadow-[0_0_0_6px_rgba(255,255,255,0.25)]" style={{ color: JOURNEY.dusk }}>
+                  {(name || 'מ').slice(0, 1)}
                 </div>
-              ))}
-            </div>
-            <div className={computer ? 'pt-5' : 'mt-auto pt-6'}>
-              <button type="button" onClick={fromWelcome} className="min-h-[56px] w-full rounded-pill bg-brand-600 text-lg font-black text-white shadow-[0_10px_24px_rgba(67,56,255,0.35)] active:bg-brand-700">
-                יאללה, מתחילים
-              </button>
-            </div>
-          </>
+              )}
+              eyebrow={!computer && standalone ? 'ההתקנה הצליחה · אתם בפנים' : 'אתם בפנים'}
+              title={<>{name ? `${name}, ברוכים הבאים` : 'ברוכים הבאים'} 🎉</>}
+              subtitle="למדרגות, מועדון הריצה שלכם"
+            />
+            {CONFETTI.map(([x, y, c, r], i) => (
+              <i key={i} aria-hidden className="frf-confetti pointer-events-none absolute block h-3 w-2 rounded-[2px]" style={{ left: `${x}%`, top: `${y}%`, background: c, transform: `rotate(${r}deg)`, animationDelay: `${i * 90}ms` }} />
+            ))}
+          </div>
         )}
+        actions={<PrimaryButton onClick={fromWelcome}>יאללה, מתחילים</PrimaryButton>}
+      >
+        <JourneyCard className="md:border md:border-[#EDE3DC]">
+          <p className="text-[15px] font-black" style={{ color: JOURNEY.ink }}>{countLine}</p>
+          <div className="mt-1">
+            {stepsLeft.map(([icon, title, sub, time]) => (
+              <JourneyRow key={title} icon={icon} title={title} sub={sub} end={<span className="mt-2.5 text-13 font-bold" style={{ color: JOURNEY.muted }}>{time}</span>} />
+            ))}
+          </div>
+        </JourneyCard>
+      </JourneyScreen>
+    );
+  }
 
-        {stage === 'push' && (
+  if (stage === 'push') {
+    screen = (
+      <JourneyScreen
+        hero={<JourneyHero compact eyebrow={dots(0)} title="שהמאמן יוכל לכתוב לכם" subtitle="התראה כשהמאמן מגיב למשוב, כשמישהו מהקבוצה נותן לייק, ותזכורת יום לפני אימון." />}
+        actions={(
           <>
-            <div className="mt-3"><Dots at={0} /></div>
-            <div className="mt-6 text-center">
-              <div className="frf-bell mx-auto flex h-20 w-20 items-center justify-center rounded-[26px] bg-brand-600/10 text-4xl" aria-hidden>🔔</div>
-              <h2 className="mt-4 text-[23px] font-black leading-tight text-ink-700">שהמאמן יוכל לכתוב לך</h2>
-              <p className="mx-auto mt-2 max-w-[310px] text-sm leading-relaxed text-ink-500">
-                התראה כשהמאמן מגיב למשוב שלך, כשמישהו נותן לך kudos, ותזכורת יום לפני אימון.
-              </p>
-            </div>
-            <IosPermissionPreview />
-            {busy && slow && !error && <p className="mt-4 text-center text-xs text-ink-400">מסיימים להכין את האפליקציה בפעם הראשונה, עוד רגע…</p>}
-            {error && (
-              <p role="alert" className="mt-4 text-center text-xs font-semibold text-accent-red">
-                {error === 'sw_not_ready' ? 'האפליקציה עוד מסיימת להתקין ברקע. נסו שוב בעוד דקה.' : 'זה לא עבד. בדקו את החיבור ונסו שוב.'}
-              </p>
-            )}
-            <div className="mt-auto flex flex-col gap-2.5 pt-6">
-              <button type="button" onClick={enable} disabled={busy} className="min-h-[56px] w-full rounded-pill bg-brand-600 text-lg font-black text-white active:bg-brand-700 disabled:opacity-60">
-                {busy ? 'מפעילים…' : error ? 'לנסות שוב' : 'הפעלת התראות'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  // "Later" is a real answer: the old notifications sheet must not
-                  // come straight back after the tour on this visit.
-                  try { sessionStorage.setItem(PUSH_STEP_SESSION_SKIP_KEY, '1'); recordPushStepSkipped(); } catch { /* ignore */ } trackOnb('push_later');
-                  toTour();
-                }}
-                className="min-h-[48px] w-full text-sm font-bold text-ink-400"
-              >
-                אחר כך
-              </button>
-            </div>
+            <PrimaryButton onClick={enable} disabled={busy}>
+              {busy ? 'מפעילים…' : error ? 'לנסות שוב' : 'הפעלת התראות'}
+            </PrimaryButton>
+            <SecondaryButton
+              onClick={() => {
+                // "Later" is a real answer: the old notifications sheet must not
+                // come straight back after the tour on this visit.
+                try { sessionStorage.setItem(PUSH_STEP_SESSION_SKIP_KEY, '1'); recordPushStepSkipped(); } catch { /* ignore */ } trackOnb('push_later');
+                toTour();
+              }}
+            >
+              אחר כך
+            </SecondaryButton>
           </>
         )}
+      >
+        <div className="frf-bell mx-auto mt-2 flex h-20 w-20 items-center justify-center rounded-[26px] text-4xl" style={{ background: JOURNEY.tagBg }} aria-hidden>🔔</div>
+        <IosPermissionPreview />
+        {busy && slow && !error && <p className="text-center text-13" style={{ color: JOURNEY.soft }}>מסיימים להכין את האפליקציה בפעם הראשונה, עוד רגע…</p>}
+        {error && (
+          <p role="alert" className="text-center text-13 font-bold" style={{ color: JOURNEY.red }}>
+            {error === 'sw_not_ready' ? 'האפליקציה עוד מסיימת להתקין ברקע. נסו שוב בעוד דקה.' : 'זה לא עבד. כדאי לבדוק את החיבור ולנסות שוב.'}
+          </p>
+        )}
+      </JourneyScreen>
+    );
+  }
 
-        {stage === 'pushDone' && (
-          <>
-            <div className="mt-3"><Dots at={1} /></div>
-            <div className="mt-8 text-center">
-              <div className="frf-pop mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-accent-600 text-4xl font-black text-white shadow-[0_12px_30px_rgba(22,163,74,0.35)]">✓</div>
-              <h2 className="mt-5 text-[23px] font-black text-ink-700">מעולה, ההתראות פעילות</h2>
-              <p className="mx-auto mt-2 max-w-[300px] text-sm leading-relaxed text-ink-500">שלחנו לך עכשיו התראת ניסיון, כדי שתראו איך זה נראה. היא תקפוץ בעוד שנייה.</p>
-            </div>
-            <div className="frf-push mx-auto mt-6 flex w-full max-w-[340px] items-center gap-3 rounded-[22px] bg-white/90 p-3 shadow-[0_12px_30px_rgba(20,24,60,0.14)] ring-1 ring-black/5" aria-hidden>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/images/icon-192.png" alt="" className="h-10 w-10 rounded-[10px]" />
-              <div className="min-w-0 flex-1 text-start"><p className="text-13 font-bold text-ink-700">מדרגות</p><p className="text-xs text-ink-500">👋 ככה תשמעו מהמאמן ומהקבוצה</p></div>
-              <span className="self-start text-3xs text-ink-400">עכשיו</span>
-            </div>
-            <div className="mt-auto pt-6">
-              <button type="button" onClick={toTour} className="min-h-[56px] w-full rounded-pill bg-brand-600 text-lg font-black text-white active:bg-brand-700">לסיור קצר באפליקציה</button>
-            </div>
-          </>
-        )}
+  if (stage === 'pushDone') {
+    screen = (
+      <JourneyScreen
+        hero={<JourneyHero compact eyebrow={dots(1)} title="מעולה, ההתראות פעילות" subtitle="שלחנו עכשיו התראת ניסיון, כדי שתראו איך זה נראה. היא תקפוץ בעוד שנייה." />}
+        actions={<PrimaryButton onClick={toTour}>לסיור קצר באפליקציה</PrimaryButton>}
+      >
+        <div className="frf-pop mx-auto mt-4 flex h-20 w-20 items-center justify-center rounded-full text-4xl font-black text-white" style={{ background: JOURNEY.sun, boxShadow: '0 12px 30px rgba(240,100,60,0.35)' }}>✓</div>
+        <div className="frf-push mx-auto mt-4 flex w-full max-w-[340px] items-center gap-3 rounded-[22px] bg-white p-3 shadow-[0_12px_30px_rgba(20,24,60,0.14)] ring-1 ring-black/5" aria-hidden>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/icon-192.png" alt="" className="h-10 w-10 rounded-[10px]" />
+          <div className="min-w-0 flex-1 text-start"><p className="text-13 font-bold" style={{ color: JOURNEY.ink }}>מדרגות</p><p className="text-13" style={{ color: JOURNEY.soft }}>👋 ככה תשמעו מהמאמן ומהקבוצה</p></div>
+          <span className="self-start text-13" style={{ color: JOURNEY.muted }}>עכשיו</span>
+        </div>
+      </JourneyScreen>
+    );
+  }
 
-        {stage === 'pushBlocked' && (
-          <>
-            <div className="mt-3"><Dots at={0} /></div>
-            <div className="mt-8 text-center">
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[26px] bg-[#FFF1E8] text-4xl" aria-hidden>🔕</div>
-              <h2 className="mt-5 text-[22px] font-black text-ink-700">ההתראות כבויות בטלפון</h2>
-              <p className="mx-auto mt-2 max-w-[310px] text-sm leading-relaxed text-ink-500">
-                אפשר להדליק אותן בכל רגע: הגדרות ← מדרגות ← הודעות ← לאפשר הודעות. בינתיים נמשיך.
-              </p>
-            </div>
-            <div className="mt-auto pt-6">
-              <button type="button" onClick={toTour} className="min-h-[56px] w-full rounded-pill bg-brand-600 text-lg font-black text-white active:bg-brand-700">להמשיך לסיור</button>
-            </div>
-          </>
-        )}
-      </div>
+  if (stage === 'pushBlocked') {
+    screen = (
+      <JourneyScreen
+        hero={<JourneyHero compact eyebrow={dots(0)} title="ההתראות כבויות בטלפון" subtitle="אפשר להדליק אותן בכל רגע, ובינתיים ממשיכים." />}
+        actions={<PrimaryButton onClick={toTour}>להמשיך לסיור</PrimaryButton>}
+      >
+        <div className="mx-auto mt-2 flex h-20 w-20 items-center justify-center rounded-[26px] text-4xl" style={{ background: JOURNEY.tagBg }} aria-hidden>🔕</div>
+        <JourneyCard>
+          <JourneyRow icon="⚙️" title="איך מדליקים" sub="הגדרות ← מדרגות ← הודעות ← לאפשר הודעות" />
+        </JourneyCard>
+      </JourneyScreen>
+    );
+  }
+
+  return (
+    // The whole sequence covers the app on both layouts; JourneyScreen draws a
+    // full page on a phone and one centred card on a computer.
+    <div className="fixed inset-0 z-[70] overflow-y-auto" role="dialog" aria-modal="true" aria-label="ברוכים הבאים">
+      {screen}
     </div>
   );
 }

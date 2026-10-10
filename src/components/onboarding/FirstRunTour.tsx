@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { Activity, ClipboardList, Newspaper, User } from 'lucide-react';
+import { Activity, ChevronLeft, ClipboardList, Newspaper, User } from 'lucide-react';
 import { useOnboarding, markOnboarding } from '@/lib/onboarding/use-onboarding';
 import { TOUR_HOME, canStartTour, tourExitTarget } from '@/lib/onboarding/first-run-order';
 import { FIRST_RUN_EVENT, readFirstRunStage, setFirstRunStage } from '@/lib/onboarding/first-run-flow';
@@ -15,15 +15,22 @@ import type { WhatsNewRelease } from '@/lib/release-notes';
 import { tourLatest, type TourLatestItem } from '@/lib/whats-new/tour-latest';
 import { WHATS_NEW_KEY, markSeen, readWhatsNewLedger } from '@/lib/whats-new/ledger';
 import { trackOnb } from '@/lib/onboarding/track';
+import { JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, PrimaryButton } from './journey-ui';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The first-run guided tour. Runs once, ever (onboarding_tour_seen_at), for
 // everyone — all 28 club members are on the platform but none has been shown
 // around it, so "new members only" would mean 26 of them never get this.
 //
-// A welcome sheet naming the four screens, then a spotlight over each of a few
-// things that are ACTUALLY on the page, then a hand-off to the setup card, which
-// is the one piece that outlives the tour.
+// A welcome sheet naming the four screens, then a spotlight over the real tabs —
+// feed → program (or academy) → profile — one line each, then "what's new
+// lately", ending on the feed.
+//
+// It used to run on /dashboard/profile and spotlight cards there ("your next
+// workout") while the profile tab was the one lit up, and it ended on the
+// profile (journey audit, 2026-10-10). The tabs are on every screen, on the
+// phone in the BottomTabBar and on a computer in the Header's nav — both carry
+// `data-tour="tab-<tab>"`, and the tour picks whichever copy is visible.
 //
 // It never taps anything on the athlete's behalf and it writes nothing except
 // the "seen" stamp. Skippable at every step.
@@ -39,26 +46,41 @@ interface TourStep {
   anchor: string;
   titleKey: string;
   bodyKey: string;
-  /** Corner radius of the cut-out, matching the element underneath. */
-  radius: number;
+  /** Corner radius of the cut-out. Absent: read off the element (a round header
+   *  button and a square tab-bar slot need different ones). */
+  radius?: number;
   /** Fixed elements must not be scrolled to — scrollIntoView on the tab bar
    *  yanks the page for no reason, since it's already in view by definition. */
   isFixed?: boolean;
 }
 
+// An academy member's bar has Academy where Program would be (nav-items
+// athletePrimaryOrder); whichever of the two is on screen is the one shown.
 const STEPS: TourStep[] = [
-  { anchor: 'upcomingWorkout', titleKey: 'tourWorkoutTitle', bodyKey: 'tourWorkoutBody', radius: 25 },
-  { anchor: 'weekStrip', titleKey: 'tourWeekTitle', bodyKey: 'tourWeekBody', radius: 14 },
-  { anchor: 'tabbar', titleKey: 'tourTabsTitle', bodyKey: 'tourTabsBody', radius: 0, isFixed: true },
-  { anchor: 'setupCard', titleKey: 'tourSetupTitle', bodyKey: 'tourSetupBody', radius: 25 },
+  { anchor: 'tab-feed', titleKey: 'tourTabFeedTitle', bodyKey: 'tourTabFeedBody', isFixed: true },
+  { anchor: 'tab-program', titleKey: 'tourTabProgramTitle', bodyKey: 'tourTabProgramBody', isFixed: true },
+  { anchor: 'tab-academy', titleKey: 'tourTabAcademyTitle', bodyKey: 'tourTabAcademyBody', isFixed: true },
+  { anchor: 'tab-profile', titleKey: 'tourTabProfileTitle', bodyKey: 'tourTabProfileBody', isFixed: true },
 ];
 
+/**
+ * The VISIBLE element carrying an anchor. Each tab is in the DOM twice — the
+ * Header's nav (hidden below md) and the BottomTabBar (md:hidden) — and a plain
+ * querySelector would return the hidden header copy on a phone.
+ */
+function findAnchor(anchor: string): HTMLElement | null {
+  const all = Array.from(document.querySelectorAll<HTMLElement>(`[data-tour="${anchor}"]`));
+  return all.find((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }) ?? null;
+}
+
 /** Padding around the highlighted element, so the cut-out breathes. */
-const HOLE_PAD = 6;
+const HOLE_PAD = 4;
 /** Roughly how tall a callout gets — decides whether it sits above or below. */
-const CALLOUT_H = 190;
-/** How long to let the profile screen's own reads land before snapshotting. */
+const CALLOUT_H = 210;
+/** How long to let the screen (and the nav's permission read) land before snapshotting. */
 const SETTLE_MS = 900;
+/** The nav renders once its permissions resolve; look again this many times before giving up. */
+const SETTLE_TRIES = 3;
 
 // The four athlete tabs, in the order the tab bar reads them
 // (BottomTabBar's ATHLETE_PRIMARY_ORDER), with the same icons and the same names
@@ -97,7 +119,7 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
     [wn, locale],
   );
   const [exitTarget, setExitTarget] = useState<string | null>(null);
-  const [box, setBox] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const [box, setBox] = useState<{ top: number; left: number; width: number; height: number; radius: number } | null>(null);
 
   // Arm on the first read that says this person hasn't seen it — and not before
   // the install step has been answered ("add to the home screen, THEN start
@@ -152,9 +174,13 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   // workout card and the week strip are absent for an athlete with no plan yet.
   useEffect(() => {
     if (phase !== 'preparing') return;
-    const timer = setTimeout(() => {
-      const present = STEPS.filter((step) => document.querySelector(`[data-tour="${step.anchor}"]`));
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const look = () => {
+      tries += 1;
+      const present = STEPS.filter((step) => findAnchor(step.anchor));
       if (present.length === 0) {
+        if (tries < SETTLE_TRIES) { timer = setTimeout(look, SETTLE_MS); return; }
         finish();
         return;
       }
@@ -162,7 +188,8 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
       setIndex(0);
       setPhase('steps');
       trackOnb('tour_start', { once: true, meta: { steps: present.length } });
-    }, SETTLE_MS);
+    };
+    timer = setTimeout(look, SETTLE_MS);
     return () => clearTimeout(timer);
   }, [phase, finish]);
 
@@ -202,17 +229,18 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
   }, [toLatest, finish, index, steps.length]);
 
   const leaveLatest = useCallback((href?: string) => {
-    const to = href || exitTarget;
+    // "לפיד, בואו נרוץ" lands on the feed — the first run ends there.
+    const to = href || exitTarget || (pathname !== TOUR_HOME ? TOUR_HOME : null);
     if (to) router.push(to);
     finish();
-  }, [exitTarget, finish, router]);
+  }, [exitTarget, finish, router, pathname]);
 
   const step = phase === 'steps' ? steps[index] : null;
 
   // Bring the target into view once per step.
   useEffect(() => {
     if (!step || step.isFixed) return;
-    document.querySelector(`[data-tour="${step.anchor}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    findAnchor(step.anchor)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [step]);
 
   // Track the target every frame so the cut-out stays glued to it through the
@@ -224,10 +252,11 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
     if (!step) return;
     let raf = 0;
     const tick = () => {
-      const el = document.querySelector(`[data-tour="${step.anchor}"]`);
+      const el = findAnchor(step.anchor);
       const r = el?.getBoundingClientRect();
-      const next = r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null;
-      const sig = next ? `${Math.round(next.top)}:${Math.round(next.left)}:${Math.round(next.width)}:${Math.round(next.height)}` : '';
+      const css = el ? parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0 : 0;
+      const next = r ? { top: r.top, left: r.left, width: r.width, height: r.height, radius: Math.max(css, 16) } : null;
+      const sig = next ? `${Math.round(next.top)}:${Math.round(next.left)}:${Math.round(next.width)}:${Math.round(next.height)}:${Math.round(next.radius)}` : '';
       if (sig !== lastSig.current) {
         lastSig.current = sig;
         setBox(next);
@@ -240,27 +269,28 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
 
   if (phase === 'idle' || phase === 'done') return null;
   if (phase === 'latest') {
+    // The tour's last screen in the journey's one look (journey-ui): the sunset
+    // header, one card per item with its own icon and a chevron that says it
+    // opens, and the one primary pill back to the feed.
     return (
-      <div className="fixed inset-0 z-[60] flex flex-col justify-end md:items-center md:justify-center md:p-6" dir="rtl" role="dialog" aria-modal="true" aria-labelledby="tour-latest-title" data-testid="tour-latest">
-        <div className="absolute inset-0 bg-ink-900/[0.86]" />
-        <div className="relative max-h-[92dvh] w-full overflow-y-auto rounded-t-card bg-card px-4 pb-6 pt-2.5 text-start md:max-w-[520px] md:rounded-card md:pt-5">
-          <div className="mx-auto mb-3.5 h-1 w-9 rounded-pill bg-ink-300 md:hidden" />
-          <p className="text-2xs font-bold tracking-wide text-brand-600">{t('tourLatestKicker')}</p>
-          <h2 id="tour-latest-title" className="mt-1 text-xl font-bold text-ink-700">{t('tourLatestTitle')}</h2>
-          <p className="mt-1 text-13 font-light leading-relaxed text-ink-400">{t('tourLatestBody')}</p>
+      <div className="fixed inset-0 z-[60] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="tour-latest-title" data-testid="tour-latest">
+        <JourneyScreen
+          hero={<JourneyHero compact eyebrow={t('tourLatestKicker')} title={<span id="tour-latest-title">{t('tourLatestTitle')}</span>} subtitle={t('tourLatestBody')} />}
+          actions={<PrimaryButton onClick={() => leaveLatest()}>{t('tourLatestDone')}</PrimaryButton>}
+        >
           {latest.map((item) => (
-            <button key={item.slug} type="button" onClick={() => { trackOnb('latest_clicked', { meta: { slug: item.slug } }); leaveLatest(item.href); }} className="mt-3 flex w-full items-start gap-3 rounded-2xl bg-page/60 p-3 text-start active:bg-page">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card text-lg" aria-hidden>{item.icon}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-bold text-ink-700">{item.title}</span>
-                <span className="mt-0.5 block text-xs leading-relaxed text-ink-500">{item.body}</span>
-              </span>
+            <button key={item.slug} type="button" onClick={() => { trackOnb('latest_clicked', { meta: { slug: item.slug } }); leaveLatest(item.href); }} className="block w-full text-start active:opacity-70">
+              <JourneyCard className="border border-[#EDE3DC] py-2">
+                <JourneyRow
+                  icon={item.icon}
+                  title={item.title}
+                  sub={item.body}
+                  end={<ChevronLeft className="mt-2.5 h-5 w-5 shrink-0" style={{ color: JOURNEY.muted }} aria-hidden />}
+                />
+              </JourneyCard>
             </button>
           ))}
-          <button type="button" onClick={() => leaveLatest()} className="mt-5 min-h-[52px] w-full rounded-pill bg-brand-600 text-base font-bold text-white active:bg-brand-700">
-            {t('tourLatestDone')}
-          </button>
-        </div>
+        </JourneyScreen>
       </div>
     );
   }
@@ -298,7 +328,8 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
           <button
             type="button"
             onClick={finish}
-            className="mt-1.5 flex min-h-[40px] w-full items-center justify-center text-13 font-light text-ink-400"
+            className="mt-1.5 flex min-h-[46px] w-full items-center justify-center text-[15px] font-bold underline underline-offset-2"
+            style={{ color: JOURNEY.soft }}
           >
             {t('tourSkipWelcome')}
           </button>
@@ -353,11 +384,13 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
             left: hole.left,
             width: hole.width,
             height: hole.height,
-            borderRadius: step.radius,
+            borderRadius: step.radius ?? (box ? box.radius + HOLE_PAD : 16),
             // Neutral ink, not the old navy: the scrim STAYS dark (a spotlight tour needs
             // the cut-out to be the only lit thing on screen) but it now dims towards the
-            // light system's ink-900 rather than a blue-black.
-            boxShadow: '0 0 0 9999px rgba(29, 30, 38, 0.78)',
+            // light system's ink-900 rather than a blue-black. The cut-out itself is
+            // edged with a thin white ring — the old thick grey frame (the page showing
+            // through a wide padding) read as a second card around the target.
+            boxShadow: '0 0 0 2px rgba(255, 255, 255, 0.95), 0 0 0 9999px rgba(29, 30, 38, 0.78)',
           }}
         />
       ) : (
@@ -376,30 +409,32 @@ export function FirstRunTour({ onActiveChange }: { onActiveChange?: (active: boo
           className="absolute h-3.5 w-3.5 rotate-45 bg-card"
           style={below ? { top: -7, left: arrowLeft - calloutLeft } : { bottom: -7, left: arrowLeft - calloutLeft }}
         />
-        <p className="text-2xs font-bold tracking-wide text-brand-600">
+        <p className="text-13 font-bold" style={{ color: JOURNEY.tag }}>
           {t('tourStepOf', { step: index + 1, total: steps.length })}
         </p>
-        <h3 className="mt-1 text-[17px] font-bold text-ink-700">{t(step.titleKey)}</h3>
-        <p className="mt-1.5 text-13 font-light leading-relaxed text-ink-500">{t(step.bodyKey)}</p>
+        <h3 className="mt-1 text-[18px] font-black" style={{ color: JOURNEY.ink }}>{t(step.titleKey)}</h3>
+        <p className="mt-1 text-[15px] leading-relaxed" style={{ color: JOURNEY.soft }}>{t(step.bodyKey)}</p>
 
         <div className="mt-3.5 flex items-center gap-2.5">
           <span className="me-auto flex items-center gap-1.5">
             {steps.map((s, i) => (
               <span
                 key={s.anchor}
-                className={i === index ? 'block h-1.5 w-4 rounded-pill bg-brand-600' : 'block h-1.5 w-1.5 rounded-full bg-ink-300'}
+                className={i === index ? 'block h-1.5 w-4 rounded-pill' : 'block h-1.5 w-1.5 rounded-full'}
+                style={{ background: i === index ? JOURNEY.dusk : JOURNEY.line }}
               />
             ))}
           </span>
           {index + 1 < steps.length && (
-            <button type="button" onClick={skip} className="min-h-[36px] px-1 text-xs font-light text-ink-400">
+            <button type="button" onClick={skip} className="min-h-[44px] px-3 text-[15px] font-bold underline underline-offset-2" style={{ color: JOURNEY.soft }}>
               {t('tourSkip')}
             </button>
           )}
           <button
             type="button"
             onClick={advance}
-            className="inline-flex min-h-[36px] items-center rounded-pill bg-brand-600 px-4 text-13 font-bold text-white active:bg-brand-700"
+            className="inline-flex min-h-[44px] items-center rounded-full px-6 text-[15px] font-black text-white active:opacity-90"
+            style={{ background: `linear-gradient(135deg, ${JOURNEY.dusk} 0%, #5B3FC4 100%)` }}
           >
             {index + 1 < steps.length ? t('tourNext') : t('tourFinish')}
           </button>
