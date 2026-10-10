@@ -20,6 +20,7 @@ import { BidiText } from '@/components/BidiText';
 import { WorkoutPlanSheet } from './WorkoutPlanSheet';
 import { joinHebrewList } from '@/lib/academy/members';
 import { CoachAvatarStack } from './CoachAvatarStack';
+import { PaceUpdateCard } from './tools/PaceUpdateCard';
 
 // The academy as one of its trainees sees it — mockup academy-trainee-home-v4.
 //
@@ -204,6 +205,9 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
           </button>
         </div>
       </div>
+
+      {/* ── My coach updated my paces (coach tools, phone 6) ── */}
+      {data?.paceUpdate && <PaceUpdateCard card={data.paceUpdate} />}
 
       {/* ── What I'm training for ── */}
       {data?.goal && (

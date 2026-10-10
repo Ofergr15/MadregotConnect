@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   CalendarDays, ChevronLeft, ChevronRight, Home, MessageSquare, Plus, Search, TrendingUp, UserPlus, Users, X,
 } from 'lucide-react';
@@ -18,7 +20,7 @@ import {
 } from '@/lib/academy/areas';
 import { buildWaiting, todayLine, weekSquares, type AcademyHomeResponse, type WaitingItem } from '@/lib/academy/home';
 import {
-  buildSuggestions, dismissSuggestion, freeSeats, nextSuggestion, snoozeUntilTomorrow,
+  buildSuggestions, dismissSuggestion, freeSeats, isHidden, nextSuggestion, snoozeUntilTomorrow,
   SUGGESTION_STORE_KEY, type Suggestion, type SuggestionStore,
 } from '@/lib/academy/suggestions';
 import { DEFAULT_COACH_CAPACITY } from '@/lib/academy/settings';
@@ -41,6 +43,13 @@ import {
   PeopleSearchSheet, QuickActionSheet, SHEET_HANDOFF_MS, SuggestionSheet, type QuickFlow, type SearchHit,
 } from './AcademyQuickSheets';
 import { CoachesBoard } from './CoachesBoard';
+import { PaceSuggestionScreen } from './tools/PaceSuggestionScreen';
+import { MissedWeekScreen } from './tools/MissedWeekScreen';
+import { CopyWeekFlow } from './tools/CopyWeekFlow';
+import { iso } from './tools/shared';
+import { WEEKDAY_KEYS } from './book/WeekBoard';
+import { snoozeUntil } from '@/lib/academy/coach-tools';
+import type { CoachToolsResponse, MissedPayload, PaceSuggestionPayload } from '@/lib/academy/coach-tools-payload';
 import { PlansWeekStatus } from './PlansWeekStatus';
 import { memberCoachIds, memberCoachNames } from '@/lib/academy/members';
 import {
@@ -112,6 +121,13 @@ export function AcademyShell({
   const [funnelKey, setFunnelKey] = useState(0);
   const [store, setStore] = useState<SuggestionStore>({});
   useEffect(() => { setStore(readStore()); }, []);
+  // The coach tools' screens (mockup academy-coach-tools.html). Held as the payload that
+  // opened them, so a screen stays up after its row leaves the list.
+  const [paceOpen, setPaceOpen] = useState<PaceSuggestionPayload | null>(null);
+  const [missedOpen, setMissedOpen] = useState<MissedPayload | null>(null);
+  const [copyOpen, setCopyOpen] = useState<{ athleteId: string; weekStart: string; preselect?: string[] } | null>(null);
+  const tt = useTranslations('academyTools');
+  const router = useRouter();
 
   const area: AcademyArea | null = AREA_OF[section];
   const scopeQ = scopeCoach ? 'scope=coach' : '';
@@ -126,6 +142,9 @@ export function AcademyShell({
   const { data: home, mutate: refreshHome } = useApi<AcademyHomeResponse>(`/api/academy/home${scopeQ ? `?${scopeQ}` : ''}`);
   const { data: inbox } = useApi<Inbox>('/api/academy/threads/inbox');
   const { data: dispatch } = useApi<DispatchReport>(section === 'overview' ? `/api/academy/dispatch?weekStart=${thisWeek}` : null);
+  const { data: tools, mutate: refreshTools } = useApi<CoachToolsResponse>(
+    section === 'overview' ? `/api/academy/coach-tools${scopeQ ? `?${scopeQ}` : ''}` : null,
+  );
   const manager = isManager && members?.scope !== 'coach' && !scopeCoach;
   const { data: people, mutate: refreshPeople } = useApi<AcademyPeopleResponse>(manager && addOpen ? '/api/academy/members/people' : null);
 
@@ -179,6 +198,55 @@ export function AcademyShell({
   // ── Waiting, suggestions, badges ──────────────────────────────────────────
   const awaiting = useMemo(() => (inbox?.rows ?? []).filter((r) => r.reason === 'awaiting_reply'), [inbox]);
   const resendRows = useMemo(() => (dispatch?.needsAttention ?? []).filter((r) => RESEND_STATES.has(r.state)), [dispatch]);
+  // The coach tools' rows, worded here (messages/*.json) with every number isolated. Hidden
+  // on this device when snoozed or decided — the server hides them too once 139 records it.
+  const toolRows = useMemo(() => {
+    if (!tools) return [];
+    const nowMs = Date.now();
+    const firstName = (n: string) => n.split(' ')[0] || n;
+    const rows: Parameters<typeof buildWaiting>[0]['tools'] = [];
+    for (const p of tools.pace) {
+      if (isHidden(store, p.key, nowMs)) continue;
+      const lead = p.kinds[0];
+      const kinds = p.kinds.map((k) => tt(`kindIn.${k.kind}`)).join(tt('waiting.and'));
+      rows.push({
+        key: p.key, kind: 'pace', ageHours: null, action: tt('waiting.paceAction'),
+        title: tt(lead.direction === 'faster' ? 'waiting.paceFaster' : 'waiting.paceSlower', { name: firstName(p.name), kinds }),
+        sub: tt('waiting.paceSub', {
+          moved: iso(lead.moved), of: iso(lead.sessions.length), sec: iso(Math.abs(lead.deltaSec)),
+          dir: tt(lead.direction === 'faster' ? 'waiting.faster' : 'waiting.slower'),
+        }),
+        target: { section: 'overview', tool: { kind: 'pace', athleteId: p.athleteId } },
+      });
+    }
+    for (const m of tools.missed) {
+      if (isHidden(store, m.key, nowMs)) continue;
+      const what = (s: MissedPayload['sessions'][number]) =>
+        s.isLong ? 'long' : s.label === 'טמפו' ? 'tempo' : /×/.test(s.label) ? 'reps' : 'run';
+      const list = m.sessions.filter((s) => s.color === 'red')
+        .map((s) => tt('waiting.missedOf', { what: tt(`what.${what(s)}`), day: tt(`dayOn.${WEEKDAY_KEYS[s.dayOfWeek]}`) }))
+        .join(tt('waiting.and'));
+      rows.push({
+        key: m.key, kind: 'missed', ageHours: null, action: tt('waiting.missedAction'),
+        title: m.rule === 'long'
+          ? tt('waiting.missedLong', { name: firstName(m.name) })
+          : tt(m.weekStart === tools.thisWeek ? 'waiting.missedThis' : 'waiting.missedLast', { name: firstName(m.name), missed: iso(m.missed), planned: iso(m.planned) }),
+        sub: list,
+        target: { section: 'overview', tool: { kind: 'missed', athleteId: m.athleteId } },
+      });
+    }
+    const e = tools.emptyNext;
+    if (e && e.sourceId && !isHidden(store, e.key, nowMs)) {
+      rows.push({
+        key: e.key, kind: 'copy', ageHours: null, action: tt('waiting.copyAction'),
+        title: e.trainees.length === 1 ? tt('waiting.copyOne', { name: firstName(e.trainees[0].name) }) : tt('waiting.copyMany', { count: iso(e.trainees.length) }),
+        sub: tt('waiting.copySub'),
+        target: { section: 'overview', tool: { kind: 'copy', athleteId: e.sourceId } },
+      });
+    }
+    return rows;
+  }, [tools, store, tt]);
+
   const waiting: WaitingItem[] = useMemo(() => buildWaiting({
     now: now.toISOString(),
     threads: awaiting.map((r) => ({ athleteId: r.athleteId, name: r.name, waitingHours: r.waitingHours })),
@@ -188,7 +256,8 @@ export function AcademyShell({
     approvals: home?.approvals,
     registrations: manager ? members?.pending.registrations : 0,
     results: members?.pending.results,
-  }), [now, awaiting, resendRows, manager, home, members]);
+    tools: toolRows,
+  }), [now, awaiting, resendRows, manager, home, members, toolRows]);
 
   const suggestions = useMemo(() => buildSuggestions({
     members: roster, coaches, capacity, isManager: manager,
@@ -224,6 +293,15 @@ export function AcademyShell({
   };
 
   const onWaiting = (w: WaitingItem) => {
+    const tool = w.target.tool;
+    if (tool && tools) {
+      if (tool.kind === 'pace') { setPaceOpen(tools.pace.find((p) => p.athleteId === tool.athleteId) ?? null); return; }
+      if (tool.kind === 'missed') { setMissedOpen(tools.missed.find((m) => m.athleteId === tool.athleteId) ?? null); return; }
+      if (tool.kind === 'copy' && tool.athleteId) {
+        setCopyOpen({ athleteId: tool.athleteId, weekStart: tools.thisWeek, preselect: tools.emptyNext?.trainees.map((x) => x.id) });
+        return;
+      }
+    }
     if (w.target.candidateId) { openFunnelCard(w.target.candidateId); return; }
     if (w.target.threadId) { openThread(w.target.threadId); return; }
     go(w.target.section);
@@ -331,6 +409,8 @@ export function AcademyShell({
             onSuggestionMore={setMore}
             onQuick={onQuick}
             onWaiting={onWaiting}
+            strips={tools?.strips}
+            onStrip={(id) => router.push(`/dashboard/academy/week?athleteId=${encodeURIComponent(id)}`)}
           />
         ) : section === 'members' ? (
           traineeFilter ? (
@@ -391,6 +471,38 @@ export function AcademyShell({
           <AcademySettingsPanel />
         ) : null}
       </div>
+
+      {/* ── The coach tools ── */}
+      {paceOpen && (
+        <PaceSuggestionScreen
+          suggestion={paceOpen}
+          onClose={() => setPaceOpen(null)}
+          onDone={(action) => {
+            // The device remembers too: "לא עכשיו" for two weeks, an update until the next
+            // test (the key carries the test date). The server agrees once 139 is pasted.
+            saveStore({ ...readStore(), [paceOpen.key]: action === 'snooze' ? { until: snoozeUntil(Date.now()) } : { dismissed: true } });
+            void refreshTools();
+          }}
+        />
+      )}
+      {missedOpen && (
+        <MissedWeekScreen
+          missed={missedOpen}
+          thisWeek={thisWeek}
+          onClose={() => setMissedOpen(null)}
+          onDone={() => { saveStore({ ...readStore(), [missedOpen.key]: { dismissed: true } }); void refreshTools(); }}
+          onTalk={(id) => { setMissedOpen(null); openThread(id); }}
+        />
+      )}
+      {copyOpen && (
+        <CopyWeekFlow
+          athleteId={copyOpen.athleteId}
+          weekStart={copyOpen.weekStart}
+          preselect={copyOpen.preselect}
+          onClose={() => setCopyOpen(null)}
+          onDone={() => void refreshTools()}
+        />
+      )}
 
       {/* ── Sheets ── */}
       <PeopleSearchSheet open={searchOpen} onOpenChange={setSearchOpen} members={roster} coaches={coaches}

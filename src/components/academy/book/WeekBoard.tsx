@@ -11,6 +11,7 @@ import type { WeekBoard as WeekBoardData, WeekBoardWorkout } from '@/lib/academy
 import { N, ProfileBar, RICH, clockText, hoursText, kmText } from './ui';
 import { DayPlanner } from './DayPlanner';
 import { TraineeWorkout } from './TraineeWorkout';
+import { CopyWeekFlow } from '../tools/CopyWeekFlow';
 
 // ── השבוע (mockup phone 4) — the same screen for the trainee and the coach ───────────────
 //
@@ -50,6 +51,8 @@ export function WeekBoard({ athleteId, initialWeek }: { athleteId: string; initi
   );
   const [open, setOpen] = useState<WeekBoardWorkout | null>(null);
   const [planning, setPlanning] = useState<string | null>(null);
+  const [copying, setCopying] = useState(false);
+  const tt = useTranslations('academyTools.copy');
 
   const next = useMemo(() => data?.workouts.find(w => w.date >= data.today && w.compliance.color === 'grey') ?? null, [data]);
 
@@ -115,6 +118,17 @@ export function WeekBoard({ athleteId, initialWeek }: { athleteId: string; initi
             </button>
           ))}
         </div>
+      )}
+
+      {/* The coach tools: this week, copied forward or to other trainees. Their own plan only. */}
+      {data.canPlan && !data.fromClub && data.workouts.length > 0 && (
+        <button type="button" onClick={() => setCopying(true)}
+          className="flex h-12 w-full items-center justify-center rounded-2xl bg-white text-[15.5px] font-extrabold text-brand-600 shadow-sm">
+          {tt('weekButton')}
+        </button>
+      )}
+      {copying && (
+        <CopyWeekFlow athleteId={athleteId} weekStart={weekStart} onClose={() => setCopying(false)} onDone={() => void mutate()} />
       )}
 
       {open && (

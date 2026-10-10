@@ -2,8 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import {
-  ArrowLeftRight, ClipboardList, MessageSquare, Plus, Sparkles, Timer, Trophy, TrendingUp, UserPlus, Users, Watch,
+  ArrowLeftRight, CalendarX, ClipboardList, Copy, Gauge, MessageSquare, Plus, Sparkles, Timer, Trophy, TrendingUp, UserPlus, Users, Watch,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { COMPLIANCE_HEX } from '@/lib/academy/compliance';
+import type { TraineeStrip } from '@/lib/academy/coach-tools-payload';
 import { cn } from '@/lib/utils';
 import { EmptyState, SkeletonList } from '@/components/ui';
 import {
@@ -35,7 +38,7 @@ const VIOLET = '#5B21D6';
 
 export function AcademyHome({
   data, isLoading, prev, home, waiting, suggestion, suggestionBusy, capacity, isManager,
-  onSquare, onSuggestion, onSuggestionMore, onQuick, onWaiting,
+  onSquare, onSuggestion, onSuggestionMore, onQuick, onWaiting, strips, onStrip,
 }: {
   data: AcademyMembersResponse | undefined;
   isLoading: boolean;
@@ -52,6 +55,9 @@ export function AcademyHome({
   onSuggestionMore: (s: Suggestion) => void;
   onQuick: (key: QuickKey) => void;
   onWaiting: (item: WaitingItem) => void;
+  /** This week per trainee, as colour squares (the coach tools' payload). */
+  strips?: TraineeStrip[];
+  onStrip?: (athleteId: string) => void;
 }) {
   const [allWaiting, setAllWaiting] = useState(false);
   const members = useMemo(() => data?.members ?? [], [data]);
@@ -192,7 +198,56 @@ export function AcademyHome({
           </div>
         </>
       )}
+
+      {/* 6 · Each trainee's week, as the week list draws it (coach tools, phone 1) */}
+      {!!strips?.length && <TraineeStrips strips={strips} onOpen={onStrip} />}
     </div>
+  );
+}
+
+const STRIPS_SHOWN = 4;
+
+function TraineeStrips({ strips, onOpen }: { strips: TraineeStrip[]; onOpen?: (athleteId: string) => void }) {
+  const t = useTranslations('academyTools.strips');
+  const [all, setAll] = useState(false);
+  const shown = all ? strips : strips.slice(0, STRIPS_SHOWN);
+  return (
+    <>
+      <div className="mx-1 -mb-0.5 mt-0.5 flex items-baseline justify-between">
+        <b className="text-[15px] font-black text-ink-700">{t('title')}</b>
+        {strips.length > STRIPS_SHOWN && (
+          <button type="button" onClick={() => setAll((v) => !v)} className="-my-3 min-h-[44px] px-1 text-xs font-extrabold text-brand-600">
+            {all ? t('less') : t('all')}
+          </button>
+        )}
+      </div>
+      <div className="overflow-hidden rounded-card bg-card">
+        {shown.map((s) => (
+          <button
+            key={s.athleteId}
+            type="button"
+            onClick={() => onOpen?.(s.athleteId)}
+            aria-label={t('openWeek', { name: s.name })}
+            className="flex min-h-[58px] w-full items-center gap-2.5 border-b border-page/70 px-3 py-2 text-start last:border-0 active:bg-page/40"
+          >
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#ECEBFF] text-xs font-black text-[#5B21D6]">{initialsLine([s.name], 1)}</span>
+            <span className="min-w-0 flex-1">
+              <b className="block truncate text-sm font-extrabold text-ink-700"><bdi>{s.name}</bdi></b>
+              <small className="block text-2xs text-ink-400">
+                {s.planned ? t.rich('count', { done: s.done, planned: s.planned, m: (c) => <bdi dir="ltr">{c}</bdi> }) : t('none')}
+              </small>
+            </span>
+            <span className="flex shrink-0 gap-1" aria-hidden>
+              {s.colors.slice(0, 7).map((c, i) => (
+                <i key={i} className="block h-[26px] w-[26px] overflow-hidden rounded-lg bg-page/70 shadow-[inset_0_0_0_1px_rgba(20,22,40,.06)]">
+                  <i className="block h-[4px]" style={{ background: COMPLIANCE_HEX[c] }} />
+                </i>
+              ))}
+            </span>
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -248,6 +303,9 @@ const WAITING_ICON: Record<WaitingKind, { icon: React.ComponentType<{ className?
   stuck: { icon: Timer, cls: 'bg-band-3/15 text-band-3-ink' },
   approvals: { icon: TrendingUp, cls: 'bg-band-3/15 text-band-3-ink' },
   results: { icon: Trophy, cls: 'bg-band-3/15 text-band-3-ink' },
+  pace: { icon: Gauge, cls: 'bg-accent-600/15 text-accent-900' },
+  missed: { icon: CalendarX, cls: 'bg-[#FDF0E2] text-[#8A4308]' },
+  copy: { icon: Copy, cls: 'bg-[#ECEBFF] text-[#5B21D6]' },
 };
 
 function WaitingRow({ item, onClick }: { item: WaitingItem; onClick: () => void }) {
