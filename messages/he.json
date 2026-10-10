@@ -1452,7 +1452,11 @@
     "tourSetupBody": "האחוז מראה מה עוד חסר: חיבור השעון, תמונה, פרטים אישיים ומידות. אפשר להיכנס בכל רגע ולהמשיך מאיפה שעצרת.",
     "taskInstall": "הוספה למסך הבית",
     "hintInstall": "כדי לקבל התראות ואפליקציה מלאה",
-    "ctaInstall": "התקנה"
+    "ctaInstall": "התקנה",
+    "tourLatestKicker": "ולסיום",
+    "tourLatestTitle": "מה חדש לאחרונה",
+    "tourLatestBody": "הדברים האחרונים שהוספנו לאפליקציה. לחיצה פותחת את המקום.",
+    "tourLatestDone": "סיום, בואו נרוץ"
   },
   "onboarding": {
     "completeSetup": "השלם את ההגדרה",

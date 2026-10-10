@@ -1452,7 +1452,11 @@
     "tourSetupBody": "The percentage shows what's left: your watch, a photo, personal details and sizes. Come back any time and pick up where you stopped.",
     "taskInstall": "Add to home screen",
     "hintInstall": "For notifications and the full app",
-    "ctaInstall": "Install"
+    "ctaInstall": "Install",
+    "tourLatestKicker": "And finally",
+    "tourLatestTitle": "What's new lately",
+    "tourLatestBody": "The latest things we added to the app. Tap one to open it.",
+    "tourLatestDone": "Done, let's run"
   },
   "onboarding": {
     "completeSetup": "Complete Your Setup",
