@@ -97,6 +97,12 @@ export interface WorkoutStep {
   targetHrMaxPct?: number; // Group ❶
   group2HeartRate?: GroupHeartRate;
   group3HeartRate?: GroupHeartRate;
+  /**
+   * All three packs' paces for this step, attached only while a club week is being
+   * sent to a watch (lib/plans/watch-paces.ts) so the watch can print every pack's
+   * pace, not just the runner's own. Never stored on a plan.
+   */
+  groupPaces?: [GroupPace, GroupPace, GroupPace];
   notes?: string;
   repeatCount?: number;
   repeatSteps?: WorkoutStep[];

@@ -81,10 +81,12 @@ export function stepPaceTokens(step: PacedStep): [string, string, string] {
 
 /**
  * Club pace notation: Group 1 plain, Group 2 single brackets, Group 3 double
- * brackets — e.g. "3:30 (3:40) ((3:50))". Groups without a pace are skipped.
+ * brackets — e.g. "3:30 (3:40) ((3:50))". Groups without a pace are skipped, and a
+ * pace all three packs share (a warm-up) is written once: "4:40-5:15", not three times.
  */
 export function joinGroupPaces(tokens: [string, string, string]): string {
   const [a, b, c] = tokens;
+  if (a && b === a && c === a) return a;
   const parts: string[] = [];
   if (a) parts.push(a);
   if (b) parts.push(`(${b})`);

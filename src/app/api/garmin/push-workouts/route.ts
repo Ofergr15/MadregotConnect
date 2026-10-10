@@ -4,6 +4,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { ParsedWorkout } from '@/lib/ai/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
+import { withGroupPaces } from '@/lib/plans/watch-paces';
 import { notifyAthlete } from '@/lib/push';
 import { deliveryFailedCopy, watchDisconnectedCopy } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
@@ -99,8 +100,21 @@ export async function POST(req: NextRequest) {
     // keys are deterministic, so normalizing again is a no-op on anything that
     // already has them. See lib/plans/normalize-plan.ts.
     const found = athletes;
+    // A club week goes to the watch with every pack's pace on each step, not only the
+    // runner's own (lib/plans/watch-paces.ts). The packs' copies are the saved plan's.
+    // Best effort: without it the watch shows the runner's own pace, as before —
+    // never a reason for the week not to arrive.
+    let storedPlan: unknown = null;
+    if (planId) {
+      try {
+        const { data: planRow } = await supabase.from('weekly_plans').select('parsed_workouts').eq('id', planId).maybeSingle();
+        storedPlan = planRow?.parsed_workouts ?? null;
+      } catch {
+        storedPlan = null;
+      }
+    }
     const tasks = jobs.flatMap((b) => {
-      const plannedWorkouts = normalizeWorkoutParts({ workouts: b.workouts }).workouts;
+      const plannedWorkouts = withGroupPaces(normalizeWorkoutParts({ workouts: b.workouts }).workouts, storedPlan);
       return found.filter((a) => b.athleteIds.includes(a.id)).map((athlete) => ({ athlete, plannedWorkouts }));
     });
 

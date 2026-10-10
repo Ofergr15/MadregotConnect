@@ -1,6 +1,7 @@
 import { ParsedWorkout, WorkoutStep } from '../ai/types';
 import { GarminWorkout, GarminWorkoutStep, StoredPaceProfile } from './types';
 import { formatPace, getPaceForZone, paceToMetersPerSecond } from './pace';
+import { groupPaceText, notesWithoutPace } from '../plans/group-pace-text';
 
 export interface ConvertOptions {
   // When true, pace steps also get a Garmin pace-zone TARGET (workoutTargetTypeId 6),
@@ -168,6 +169,13 @@ export function buildStepDescription(
   step: WorkoutStep,
   paceProfile: StoredPaceProfile
 ): string | undefined {
+  // A club week carries every pack's pace (lib/plans/watch-paces.ts): print those,
+  // and keep the rest of the coach's note after them.
+  if (step.groupPaces) {
+    const mine = step.targetPaceMinPerKm ? { min: step.targetPaceMinPerKm, max: step.targetPaceMaxPerKm ?? step.targetPaceMinPerKm } : null;
+    const rest = notesWithoutPace(step.notes, mine);
+    return [groupPaceText(step.groupPaces), rest].filter(Boolean).join(' ');
+  }
   const notes = step.notes?.trim();
   const label = buildPaceLabel(step, paceProfile);
   const notesHavePace = !!notes && /\d+:\d{2}/.test(notes);

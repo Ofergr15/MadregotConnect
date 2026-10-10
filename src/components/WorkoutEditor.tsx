@@ -14,6 +14,7 @@ import {
   withIds, stripIds, locate, moveStep, insertAt, removeStep, updateStep, duplicateStep, unwrapRepeat,
   remapAutoFixes, parseDistance, parseTime, parsePace, durationBoxText, durationNudge,
   defaultDistanceUnit, defaultTimeUnit, chartSeconds, chartIntensity, mmss, newId,
+  packPaces, allPacksSame, setPackPaces, clearPace, type PackPaces,
   type DraftStep, type Slot, type DistanceUnit, type TimeUnit,
 } from '@/lib/plans/step-tree';
 
@@ -222,6 +223,9 @@ const plain = (type: WorkoutStep['type'], durationType: WorkoutStep['durationTyp
   _id: newId(), order: 0, type, durationType, durationValue,
   targetType: pace ? 'pace' : 'no_target',
   targetPaceMinPerKm: pace?.[0], targetPaceMaxPerKm: pace?.[1], notes,
+  // All three packs, same pace until the coach splits it — never ❶ alone.
+  group2Pace: pace ? { min: pace[0], max: pace[1] } : undefined,
+  group3Pace: pace ? { min: pace[0], max: pace[1] } : undefined,
 });
 
 function blockStep(k: Block, restNote: string): DraftStep {
@@ -440,6 +444,100 @@ function UnitSwitch<U extends string>({ value, options, onChange }: { value: U; 
   );
 }
 
+const PACK_MARK = ['❶', '❷', '❸'];
+
+/**
+ * The pace of a step, for all three packs. One row while the packs share a pace (a
+ * warm-up) — typing there sets all three; "לפי דבוקה" opens a row per pack. A range
+ * ("+ טווח") applies to every pack. Editing the numbers drops the pace text from the
+ * note, so the note can never disagree with them.
+ */
+function PackPaceEditor({ step, onPatch }: { step: DraftStep; onPatch: (fn: (s: DraftStep) => DraftStep) => void }) {
+  const t = useTranslations('workoutEditor');
+  const paces = packPaces(step);
+  const [split, setSplit] = useState(() => !!paces && !allPacksSame(paces));
+  useEffect(() => {
+    const p = packPaces(step);
+    setSplit(!!p && !allPacksSame(p));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step._id]);
+
+  if (!paces) {
+    return (
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="text-xs font-semibold text-ink-400 w-12">{t('pace')}</span>
+        {step.targetZone && step.targetZone !== 'no_target' && (
+          <span className="text-sm font-semibold text-brand-600">{zoneLabel(step.targetZone, t)}</span>
+        )}
+        <button type="button"
+          onClick={() => onPatch((s) => setPackPaces(s, [{ min: 285, max: 285 }, { min: 285, max: 285 }, { min: 285, max: 285 }]))}
+          className="rounded-xl border-[1.5px] border-dashed border-ink-300 px-3 py-1.5 text-xs font-semibold text-ink-500">
+          {t('addPace')}
+        </button>
+      </div>
+    );
+  }
+
+  const isRange = paces.some((p) => p.max !== p.min);
+  const rows = split ? [0, 1, 2] : [0];
+  const write = (fn: (p: PackPaces) => void) => onPatch((s) => {
+    const next = (packPaces(s) ?? paces).map((x) => ({ ...x })) as PackPaces;
+    fn(next);
+    return setPackPaces(s, next);
+  });
+  // A row edits its own pack once split; before that, the one row is every pack.
+  const set = (row: number, field: 'min' | 'max', v: number) => write((next) => {
+    for (const j of split ? [row] : [0, 1, 2]) {
+      next[j][field] = v;
+      if (!isRange) next[j].max = next[j].min;
+      if (next[j].max < next[j].min) { if (field === 'min') next[j].max = v; else next[j].min = v; }
+    }
+  });
+
+  return (
+    <div className="mb-2.5">
+      {rows.map((row) => (
+        <div key={row} className="flex items-center gap-2 mb-1.5">
+          <span className="text-xs font-semibold text-ink-400 w-12">{split ? PACK_MARK[row] : t('pace')}</span>
+          <div dir="ltr" className="flex items-center gap-1">
+            <TypedNumber
+              label={`${PACK_MARK[row]} ${isRange ? t('fromFast') : t('pacePerKm')}`} text={fmtPace(paces[row].min)}
+              onNudge={(d) => set(row, 'min', Math.max(120, paces[row].min + d * 5))}
+              onCommit={(txt) => { const v = parsePace(txt); if (v === null) return false; set(row, 'min', v); return true; }}
+            />
+            {isRange && (
+              <>
+                <span className="text-ink-400 px-0.5">–</span>
+                <TypedNumber
+                  label={`${PACK_MARK[row]} ${t('toSlow')}`} text={fmtPace(paces[row].max)}
+                  onNudge={(d) => set(row, 'max', Math.max(paces[row].min, paces[row].max + d * 5))}
+                  onCommit={(txt) => { const v = parsePace(txt); if (v === null) return false; set(row, 'max', v); return true; }}
+                />
+              </>
+            )}
+          </div>
+        </div>
+      ))}
+      <div className="flex gap-3 ps-14 flex-wrap">
+        <button type="button" className="text-xs font-semibold text-ink-400"
+          onClick={() => write((next) => next.forEach((x) => { x.max = isRange ? x.min : x.min + 10; }))}>
+          {isRange ? t('single') : t('addRange')}
+        </button>
+        <button type="button" className="text-xs font-semibold text-brand-600"
+          onClick={() => {
+            if (split) { write((next) => { next[1] = { ...next[0] }; next[2] = { ...next[0] }; }); setSplit(false); }
+            else setSplit(true);
+          }}>
+          {split ? t('onePaceForAll') : t('paceByPack')}
+        </button>
+        <button type="button" className="text-xs font-semibold text-ink-400" onClick={() => onPatch(clearPace)}>
+          {t('noPace')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function StepPanel({ step, insideRepeat, onPatch, onDuplicate, onDelete, onUnwrap, onClose }: {
   step: DraftStep; insideRepeat: boolean;
   onPatch: (fn: (s: DraftStep) => DraftStep) => void;
@@ -490,8 +588,6 @@ function StepPanel({ step, insideRepeat, onPatch, onDuplicate, onDelete, onUnwra
 
   const unit = step.durationType === 'distance' ? distUnit : timeUnit;
   const canPace = step.type !== 'rest';
-  const hasPace = canPace && !!step.targetPaceMinPerKm;
-  const isRange = hasPace && !!step.targetPaceMaxPerKm && step.targetPaceMaxPerKm !== step.targetPaceMinPerKm;
   const typeOptions = (PICK_TYPES as readonly string[]).includes(step.type) ? PICK_TYPES : [...PICK_TYPES, step.type];
 
   return (
@@ -500,10 +596,10 @@ function StepPanel({ step, insideRepeat, onPatch, onDuplicate, onDelete, onUnwra
       <SegmentedControl<string>
         className="mb-2"
         value={step.type}
-        onChange={(v) => onPatch((s) => ({
-          ...s, type: v as WorkoutStep['type'],
-          ...(v === 'rest' ? { targetType: 'no_target' as const, targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined, targetZone: undefined } : {}),
-        }))}
+        onChange={(v) => onPatch((s) => {
+          const typed = { ...s, type: v as WorkoutStep['type'] };
+          return v === 'rest' ? clearPace(typed) : typed;
+        })}
         options={typeOptions.map((ty) => ({ value: ty, label: stepLabel(ty, t) }))}
       />
       <SegmentedControl<WorkoutStep['durationType']>
@@ -542,62 +638,7 @@ function StepPanel({ step, insideRepeat, onPatch, onDuplicate, onDelete, onUnwra
         </div>
       )}
 
-      {canPace && (
-        <div className="flex items-center gap-2 mb-2.5 flex-wrap">
-          <span className="text-xs font-semibold text-ink-400 w-12">{t('pace')}</span>
-          {step.targetZone && step.targetZone !== 'no_target' && !hasPace ? (
-            <span className="text-sm font-semibold text-brand-600">{zoneLabel(step.targetZone, t)}</span>
-          ) : null}
-          {hasPace ? (
-            <>
-              <div dir="ltr" className="flex items-center gap-1">
-                <TypedNumber
-                  label={isRange ? t('fromFast') : t('pacePerKm')} text={fmtPace(step.targetPaceMinPerKm!)}
-                  onNudge={(d) => onPatch((s) => {
-                    const min = Math.max(120, (s.targetPaceMinPerKm || 0) + d * 5);
-                    return { ...s, targetPaceMinPerKm: min, targetPaceMaxPerKm: isRange ? Math.max(min, s.targetPaceMaxPerKm || min) : min };
-                  })}
-                  onCommit={(txt) => {
-                    const v = parsePace(txt); if (v === null) return false;
-                    onPatch((s) => ({ ...s, targetType: 'pace', targetZone: undefined, targetPaceMinPerKm: v, targetPaceMaxPerKm: isRange ? Math.max(v, s.targetPaceMaxPerKm || v) : v }));
-                    return true;
-                  }}
-                />
-                {isRange && (
-                  <>
-                    <span className="text-ink-400 px-0.5">–</span>
-                    <TypedNumber
-                      label={t('toSlow')} text={fmtPace(step.targetPaceMaxPerKm!)}
-                      onNudge={(d) => onPatch((s) => ({ ...s, targetPaceMaxPerKm: Math.max(s.targetPaceMinPerKm || 0, (s.targetPaceMaxPerKm || 0) + d * 5) }))}
-                      onCommit={(txt) => {
-                        const v = parsePace(txt); if (v === null) return false;
-                        onPatch((s) => ({ ...s, targetPaceMaxPerKm: Math.max(v, s.targetPaceMinPerKm || v), targetPaceMinPerKm: Math.min(v, s.targetPaceMinPerKm || v) }));
-                        return true;
-                      }}
-                    />
-                  </>
-                )}
-              </div>
-              <div className="flex gap-2 ms-auto">
-                <button type="button" className="text-xs font-semibold text-ink-400"
-                  onClick={() => onPatch((s) => ({ ...s, targetPaceMaxPerKm: isRange ? s.targetPaceMinPerKm : (s.targetPaceMinPerKm || 210) + 10 }))}>
-                  {isRange ? t('single') : t('addRange')}
-                </button>
-                <button type="button" className="text-xs font-semibold text-ink-400"
-                  onClick={() => onPatch((s) => ({ ...s, targetType: 'no_target', targetZone: undefined, targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined }))}>
-                  {t('noPace')}
-                </button>
-              </div>
-            </>
-          ) : (
-            <button type="button"
-              onClick={() => onPatch((s) => ({ ...s, targetType: 'pace', targetZone: undefined, targetPaceMinPerKm: 285, targetPaceMaxPerKm: 285 }))}
-              className="rounded-xl border-[1.5px] border-dashed border-ink-300 px-3 py-1.5 text-xs font-semibold text-ink-500">
-              {t('addPace')}
-            </button>
-          )}
-        </div>
-      )}
+      {canPace && <PackPaceEditor step={step} onPatch={onPatch} />}
 
       <input
         type="text"

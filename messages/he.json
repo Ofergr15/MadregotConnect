@@ -757,7 +757,9 @@
     "times": "פעמים",
     "dragHandle": "גרירה להזזה",
     "dropHint": "גררו ⠿ כדי להזיז · אפשר גם לתוך חזרות ומחוצה להן",
-    "structure": "מבנה האימון"
+    "structure": "מבנה האימון",
+    "paceByPack": "לפי דבוקה",
+    "onePaceForAll": "קצב אחד לכולם"
   },
   "settings": {
     "title": "הגדרות",

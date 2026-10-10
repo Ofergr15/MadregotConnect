@@ -10,7 +10,7 @@
 // is addressed by a draft-only `_id` (positions shift under a drag; ids don't), a drop
 // target is a `Slot`, and `stripIds` turns the draft back into plain WorkoutSteps.
 
-import type { AutoFix, WorkoutStep } from '@/lib/ai/types';
+import type { AutoFix, GroupPace, WorkoutStep } from '@/lib/ai/types';
 
 export type DraftStep = Omit<WorkoutStep, 'repeatSteps'> & { _id: string; repeatSteps?: DraftStep[] };
 
@@ -268,4 +268,55 @@ export function chartIntensity(s: WorkoutStep): number {
   if (s.type === 'recovery') return 0.28;
   if (!s.targetPaceMinPerKm) return s.type === 'interval' ? 0.92 : s.type === 'warmup' ? 0.4 : 0.55;
   return Math.max(0.25, Math.min(1, (380 - s.targetPaceMinPerKm) / (380 - 200)));
+}
+
+// ── the three packs' paces ──────────────────────────────────────────────────────
+// A step's pace is three paces, one per pack: ❶ on the step itself, ❷/❸ in
+// group2Pace/group3Pace. The builder always reads and writes all three, so a new
+// block or an edited pace never leaves ❷/❸ behind (the editor used to set ❶ only,
+// and the watch then had nothing to show the other packs).
+
+export type PackPaces = [GroupPace, GroupPace, GroupPace];
+
+export function packPaces(s: WorkoutStep): PackPaces | null {
+  if (!s.targetPaceMinPerKm) return null;
+  const g1 = { min: s.targetPaceMinPerKm, max: s.targetPaceMaxPerKm ?? s.targetPaceMinPerKm };
+  return [g1, s.group2Pace ?? g1, s.group3Pace ?? g1];
+}
+
+export const allPacksSame = (p: PackPaces): boolean =>
+  p.every((x) => x.min === p[0].min && x.max === p[0].max);
+
+// Pace text in a note ("4:15 (4:25) ((4:35))", "4:40-5:15"). Durations ("1:40:00")
+// are not paces and are left alone.
+const PACE_IN_NOTE = /(?<![\d:])\d{1,2}:\d{2}(?:\s*[-–—]\s*\d{1,2}:\d{2})?(?![\d:])/g;
+
+/** The note without its pace text — once the numbers are edited, the note's copy is stale. */
+export function stripPaceText(notes: string | undefined): string | undefined {
+  if (!notes) return notes;
+  const out = notes
+    .replace(PACE_IN_NOTE, '')
+    .replace(/\(\(\s*\)\)|\(\s*\)/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s,·–-]+|[\s,·–-]+$/g, '')
+    .trim();
+  return out || undefined;
+}
+
+export function setPackPaces<S extends WorkoutStep>(s: S, p: PackPaces): S {
+  const norm = (x: GroupPace): GroupPace => ({ min: Math.min(x.min, x.max), max: Math.max(x.min, x.max) });
+  const [a, b, c] = p.map(norm) as PackPaces;
+  return {
+    ...s, targetType: 'pace', targetZone: undefined,
+    targetPaceMinPerKm: a.min, targetPaceMaxPerKm: a.max, group2Pace: b, group3Pace: c,
+    notes: stripPaceText(s.notes),
+  };
+}
+
+export function clearPace<S extends WorkoutStep>(s: S): S {
+  return {
+    ...s, targetType: 'no_target', targetZone: undefined,
+    targetPaceMinPerKm: undefined, targetPaceMaxPerKm: undefined, group2Pace: undefined, group3Pace: undefined,
+    notes: stripPaceText(s.notes),
+  };
 }

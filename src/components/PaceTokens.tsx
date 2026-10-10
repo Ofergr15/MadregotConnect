@@ -40,6 +40,15 @@ export function PaceTokens({
   className?: string;
 }) {
   if (!tokens.some(Boolean)) return null;
+  // One pace for all three packs (a warm-up) is shown once, not three times.
+  if (tokens[0] && tokens[1] === tokens[0] && tokens[2] === tokens[0]) {
+    const one = SIZES[size];
+    return (
+      <span dir="ltr" className={cn('inline-flex items-baseline whitespace-nowrap tabular-nums', className)}>
+        <span className={cn(one.lead, highlight !== undefined ? 'font-bold text-brand-600' : 'font-semibold text-ink-700')}>{tokens[0]}</span>
+      </span>
+    );
+  }
   const s = SIZES[size];
 
   // A plan can carry a pace for ❶ only while the viewer sits in ❸. Highlighting

@@ -86,7 +86,7 @@ IMPORTANT: You MUST output ALL 3 group paces when present:
 - group2Pace = Group ❷ (single brackets)
 - group3Pace = Group ❸ (double brackets)
 
-If only one pace is given (no brackets notation), only set targetPaceMin/Max. Leave group2Pace and group3Pace as null.
+If only one pace is given (no brackets notation), it applies to ALL three groups: set group2Pace and group3Pace to that same pace. Every step that has a pace MUST have all three — targetPaceMin/Max, group2Pace and group3Pace — never null.
 
 ## Table/PDF Format with Numbered Groups
 
@@ -110,7 +110,7 @@ Example with ranges:
   ❸: "4:36 ק״מ 6"  |  ❷: "4:24 ק״מ 6"  |  ❶: "4:15 ק״מ 6"
 → { "durationType": "distance", "durationValue": 6000, "targetPaceMinPerKm": 255, "targetPaceMaxPerKm": 255, "group2Pace": {"min": 264, "max": 264}, "group3Pace": {"min": 276, "max": 276} }
 
-If all 3 columns have the SAME pace (e.g., easy runs, warmup at 5:00), set group2Pace and group3Pace to null.
+If all 3 columns have the SAME pace (e.g., easy runs, warmup at 5:00), set group2Pace and group3Pace to that same pace — NOT null. Runners switch packs mid-run, so every paced step carries all three groups' paces, even when they are identical.
 
 ## Multiple separately recorded parts on one day
 

@@ -4,6 +4,7 @@ import { authError, requireAthlete } from '@/lib/auth-session';
 import { COACH_ID } from '@/lib/constants';
 import { getDisplayWeekStart } from '@/lib/plans/workout-parsing';
 import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
+import { withGroupPaces } from '@/lib/plans/watch-paces';
 import { paceGroupKeyFor } from '@/lib/plans/pace-group';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { pushWeekToAthlete } from '@/lib/garmin/push-week';
@@ -196,7 +197,8 @@ export async function POST(request: Request) {
     if (variant.length === 0) {
       return NextResponse.json({ error: 'no-workouts' }, { status: 409 });
     }
-    const plannedWorkouts = normalizeWorkoutParts({ workouts: variant }).workouts;
+    // Every pack's pace on the watch, not only this runner's (lib/plans/watch-paces.ts).
+    const plannedWorkouts = withGroupPaces(normalizeWorkoutParts({ workouts: variant }).workouts, plan.parsed_workouts);
 
     // Pace-zone ALERTS are an academy affordance and a coach setting; a self-push
     // must not be a way around either. Same three conditions the coach route
