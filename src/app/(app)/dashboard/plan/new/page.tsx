@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
 import { QualityDayChip, QualityDaysCard, useQualityDays } from './QualityDays';
+import { PlanVerifyCard } from './PlanVerifyCard';
 import { slotKey, watchSentCopy, workoutLine } from '@/lib/notifications/watch-push-copy';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 import { WatchPreview } from '@/components/WatchPreview';
@@ -1775,6 +1776,8 @@ export default function WeeklyPlannerPage() {
             {error && <ErrorBanner message={error} className="mb-4" />}
 
             {superUser && <QualityDaysCard state={qualityDays} />}
+
+            <PlanVerifyCard week={weekStartDate} enabled={!!currentPlan} version={`${currentPlan?.id}:${lastSavedAt?.getTime()}`} />
 
             <WeekView
               workouts={parsedPlan.workouts}
