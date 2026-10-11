@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireStaff } from '@/lib/auth/self-or-staff';
 import { COACH_ID } from '@/lib/constants';
 import { israelToday } from '@/lib/utils';
-import { REPORT_RUN_TYPES, israelDateOf } from '@/lib/reports/last-7-days';
+import { REPORT_RUN_TYPES, runDateOf } from '@/lib/reports/last-7-days';
 import type { Person } from '@/lib/admin/people';
 import { REMOVED_STATUS } from '@/lib/admin/entry-queue';
 import { fetchAllRows } from '@/lib/supabase/paginate';
@@ -81,7 +81,7 @@ export async function GET(request: Request) {
 
     const lastRun = new Map<string, string>();
     for (const r of (runs.data || []) as { athlete_id: string; start_time: string }[]) {
-      const day = israelDateOf(r.start_time);
+      const day = runDateOf(r.start_time);
       const seen = lastRun.get(r.athlete_id);
       if (!seen || day > seen) lastRun.set(r.athlete_id, day);
     }

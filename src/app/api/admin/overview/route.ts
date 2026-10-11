@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireStaff } from '@/lib/auth/self-or-staff';
 import { COACH_ID } from '@/lib/constants';
 import { getPlanWeekStart, israelDateAnchor, israelToday, toISODate, weekStartOn } from '@/lib/utils';
-import { REPORT_RUN_TYPES, israelDateOf } from '@/lib/reports/last-7-days';
+import { REPORT_RUN_TYPES, runDateOf } from '@/lib/reports/last-7-days';
 import { summariseClubWeek } from '@/lib/admin/club-week';
 import { fetchAppOpens } from '@/lib/analytics/posthog-server';
 
@@ -161,7 +161,7 @@ export async function GET(request: Request) {
       memberIds,
       runs: ((recentRuns.data || []) as { athlete_id: string; start_time: string; distance: number | null }[])
         .filter(r => (r.distance ?? 0) > 0)
-        .map(r => ({ athleteId: r.athlete_id, day: israelDateOf(r.start_time), km: (r.distance ?? 0) / 1000 })),
+        .map(r => ({ athleteId: r.athlete_id, day: runDateOf(r.start_time), km: (r.distance ?? 0) / 1000 })),
       opens: appOpens,
     });
 
