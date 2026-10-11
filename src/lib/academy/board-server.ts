@@ -9,15 +9,17 @@
  *             the thread's messages tagged with that day (screen 6's `workout_date`). The
  *             thread is ONE Stream channel query per week; when Stream fails, the count is
  *             the review alone, so a Stream outage costs a number and not the board.
- *   pr        lib/academy/workout-extras.ts `personalRecord`, the rule the workout screen's
- *             medal uses, so the row and the screen it opens cannot disagree. Its season of
- *             runs (with laps) is read once per week, and only when a run of this week is
- *             long enough to hold a record at all.
+ *   pr        lib/academy/records.ts (through `personalRecord`), the rule the workout
+ *             screen's medal and the coach's readiness line use, so the row, the screen it
+ *             opens and C1 cannot disagree — a 1 km rep counts. Its season of runs (with
+ *             laps) is read once per week, and only when a run of this week is a kilometre
+ *             or more.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CHANNEL_TYPE, getStreamServerClient } from '@/lib/stream/server';
-import { computeDistanceBests, filterQualifyingRuns } from '@/lib/prs/pr-buckets';
+import { filterQualifyingRuns } from '@/lib/prs/pr-buckets';
+import { RECORD_MIN_M } from './records';
 import { academyChannelId, type StreamMessageLike } from './thread';
 import { personalRecord } from './workout-extras';
 import { shiftDate } from './load';
@@ -27,9 +29,8 @@ type Db = SupabaseClient<any, any, any>;
 
 /** The thread's history read for the counts — the transcript's own window. */
 export const THREAD_WINDOW = 100;
-/** The PR window and floor, as /api/academy/workout reads them. */
+/** The PR window and floor, as /api/academy/workout reads them (records.ts: 1 km and up). */
 const PR_DAYS = 365;
-const PR_MIN_M = 4950;
 const PR_RUNS_MAX = 200;
 
 export interface RowMarks {
@@ -37,7 +38,7 @@ export interface RowMarks {
   feel?: number;
   /** The coach's review + the messages about the day. Absent at 0. */
   comments?: number;
-  /** The PR bucket key (`5k`, `10k`, `hm`, `fm`) of a record set on this run. */
+  /** The record bucket key (`1k`, `5k`, `10k`, `hm`, `fm`) of a record set on this run. */
   pr?: string;
 }
 
@@ -120,7 +121,7 @@ export async function loadBoardMarks(
 
   // ── 🙂, and the trainee's note ──
   const garminIds = acts.map(a => a.garmin_activity_id).filter((g: unknown) => g != null).map(Number);
-  const runs = acts.filter(a => computeDistanceBests(filterQualifyingRuns([a])).some(b => b.seconds != null));
+  const runs = filterQualifyingRuns(acts).filter(a => a.distance >= RECORD_MIN_M);
   const [feelRes, seasonRes] = await Promise.all([
     garminIds.length
       ? supabase
@@ -129,14 +130,14 @@ export async function loadBoardMarks(
         .eq('athlete_id', athleteId)
         .in('garmin_activity_id', garminIds)
       : Promise.resolve({ data: [], error: null }),
-    // ── 🏅: only a run that holds a 5K-or-longer effort can be a record ──
+    // ── 🏅: only a run of a kilometre or more can hold a record (records.ts) ──
     runs.length
       ? supabase
         .from('athlete_activities')
         .select('id, start_time, activity_type, distance, duration, laps')
         .eq('athlete_id', athleteId)
         .gte('start_time', `${shiftDate(weekStart, -PR_DAYS)}T00:00:00Z`)
-        .gte('distance', PR_MIN_M)
+        .gte('distance', RECORD_MIN_M)
         .order('start_time', { ascending: false })
         .limit(PR_RUNS_MAX)
       : Promise.resolve({ data: [], error: null }),

@@ -1,7 +1,8 @@
 import { activityLocalDateStr, israelToday } from '@/lib/utils';
 import { smoothPath, xAt } from '@/lib/charts/timeline';
-import { bestSegmentSeconds, type LapLike } from '@/lib/prs/best-segment';
-import { PR_BUCKETS, computeDistanceBests, filterQualifyingRuns } from '@/lib/prs/pr-buckets';
+import type { LapLike } from '@/lib/prs/best-segment';
+import { bestIn, RECORD_BUCKETS } from './records';
+import { filterQualifyingRuns } from '@/lib/prs/pr-buckets';
 import { daysBetween, shiftDate } from './load';
 import {
   dailyLoads, loadStatus, loadWeeks, pmcSeries, pmcToday, pointOn, projectSeries, weekStartOf,
@@ -145,27 +146,13 @@ export interface RecordRun {
   laps?: LapLike[] | null;
 }
 
-/**
- * The buckets a record can be in, shortest first: the fastest kilometre inside a run (a
- * rep, mockup 5: "שיא חדש ל־1 ק״מ") and then the profile's PR buckets (lib/prs/pr-buckets,
- * 5K and up). The shortest wins the one line — a 5K "inside" a reps session is reps and
- * jogs, while the fastest rep is the record a coach means.
- */
-export const RECORD_BUCKETS: ReadonlyArray<{ key: string; meters: number }> = [
-  { key: '1k', meters: 1000 },
-  ...PR_BUCKETS.map(b => ({ key: b.key, meters: b.meters })),
-];
-
-function bestIn(run: RecordRun, bucket: { key: string; meters: number }): number | null {
-  if (bucket.key === '1k') return bestSegmentSeconds(run.laps, 1000);
-  const found = computeDistanceBests(filterQualifyingRuns([run])).find(b => b.key === bucket.key);
-  return found?.seconds ?? null;
-}
+export { RECORD_BUCKETS };
 
 /**
  * A record set today or yesterday: the run's best in a bucket beats every EARLIER run in
  * `season`, and an earlier one exists (a first 10K is a first, not a record). Newest run
- * first, shortest bucket first.
+ * first, shortest bucket first — the buckets and the best-in rule of lib/academy/
+ * records.ts, which screen 5's medal and the week row's mark use too.
  */
 export function recentRecord(recent: RecordRun[], season: RecordRun[], today: string): { bucket: string; daysAgo: number } | null {
   const runs = filterQualifyingRuns(recent)

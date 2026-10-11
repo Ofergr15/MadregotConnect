@@ -137,10 +137,31 @@ describe('personalRecord', () => {
   const km = (n: number, paceSec: number) => Array.from({ length: n }, () => ({ distance: 1000, duration: paceSec }));
   const run = (id: string, date: string, paceSec: number) => ({ id, start_time: `${date}T07:00:00`, activity_type: 'running', distance: 10000, duration: 10 * paceSec, laps: km(10, paceSec) });
 
-  it('a 10K faster than every other run in the window, beating an earlier one, is a medal', () => {
+  it('a 10K faster than every other run in the window, beating an earlier one, is a medal — the shortest bucket first', () => {
     const today = run('t', '2026-10-13', 250);
     const pr = personalRecord(today, [run('a', '2026-05-01', 262), run('b', '2026-08-01', 258)]);
-    expect(pr).toMatchObject({ bucket: '5k', value: 1250, previous: 1290, previousDate: '2026-08-01' });
+    // Its fastest kilometre is the record a coach means (mockup 5: "שיא חדש ל־1 ק״מ").
+    expect(pr).toMatchObject({ bucket: '1k', value: 250, previous: 258, previousDate: '2026-08-01', rep: 1 });
+  });
+
+  it('a 5K record where the kilometre is no faster', () => {
+    // Same best kilometre (one fast lap each), but today's 5K as a whole is faster.
+    const steady = (id: string, date: string, laps: number[]) => ({
+      id, start_time: `${date}T07:00:00`, activity_type: 'running', distance: 1000 * laps.length,
+      duration: laps.reduce((a, b) => a + b, 0), laps: laps.map(d => ({ distance: 1000, duration: d })),
+    });
+    const pr = personalRecord(steady('t', '2026-10-13', [250, 255, 255, 255, 255]), [steady('a', '2026-08-01', [250, 270, 270, 270, 270])]);
+    expect(pr).toMatchObject({ bucket: '5k', value: 1270, previous: 1330 });
+  });
+
+  it('the 1 km record names the rep that set it', () => {
+    const reps = (id: string, date: string, paces: number[]) => ({
+      id, start_time: `${date}T07:00:00`, activity_type: 'running', distance: 1000 * paces.length + 1200 * (paces.length - 1),
+      duration: paces.reduce((a, b) => a + b, 0) + 600 * (paces.length - 1),
+      laps: paces.flatMap((p, i) => [{ distance: 1000, duration: p }, ...(i < paces.length - 1 ? [{ distance: 1200, duration: 600 }] : [])]),
+    });
+    const pr = personalRecord(reps('t', '2026-10-13', [244, 243, 242, 241, 236]), [reps('a', '2026-09-01', [245, 244, 243, 242, 239])]);
+    expect(pr).toMatchObject({ bucket: '1k', value: 236, previous: 239, rep: 5 });
   });
 
   it('no medal when a later run was faster, or when nothing earlier was beaten', () => {

@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { COMPLIANCE_HEX, meterFraction, type ComplianceColor } from '@/lib/academy/compliance';
 import { mainStepIndex, profileBar } from '@/lib/academy/book-steps';
-import { PR_BUCKETS } from '@/lib/prs/pr-buckets';
+import { RECORD_BUCKETS } from '@/lib/academy/records';
 import type { BoardView } from '@/lib/academy/deep-links';
 import type { WeekBoard, WeekBoardWorkout } from '@/lib/academy/week-board';
 import { N, ProfileBar, clockText, hoursText, kmText } from '@/components/academy/book/ui';
@@ -157,7 +157,7 @@ export function WeekRowV2({ w, board, isNext, onOpen }: {
   if (w.marks?.feel != null) marks.push(<span key="feel">{FACES[w.marks.feel]} {tf(String(w.marks.feel) as never)}</span>);
   if (w.marks?.comments) marks.push(<span key="talk">{t.rich('comments', { m, n: w.marks.comments })}</span>);
   if (w.marks?.pr) {
-    const bucket = PR_BUCKETS.some(b => b.key === w.marks!.pr) ? td(`bucket.${w.marks.pr}` as never) : w.marks.pr;
+    const bucket = RECORD_BUCKETS.some(b => b.key === w.marks!.pr) ? td(`bucket.${w.marks.pr}` as never) : w.marks.pr;
     marks.push(<span key="pr">{t('pr', { bucket })}</span>);
   }
 

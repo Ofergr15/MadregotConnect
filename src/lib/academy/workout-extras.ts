@@ -9,7 +9,8 @@
 // Keys and numbers only, never Hebrew.
 
 import type { WorkoutStep } from '@/lib/ai/types';
-import { computeDistanceBests, filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
+import type { RunActivityRow } from '@/lib/prs/pr-buckets';
+import { recordOn, type RecordRunLike } from './records';
 import { planEstimateOptions } from '@/lib/plans/step-estimate';
 import type { WorkoutAdherenceRow } from './report';
 import type { WorkoutSheet } from './workout-sheet';
@@ -57,6 +58,8 @@ export interface WorkoutPr {
   value: number;
   previous: number;
   previousDate: string;
+  /** The rep that set a 1 km record (1-based). */
+  rep?: number;
 }
 
 export interface WorkoutExtras {
@@ -119,25 +122,13 @@ export function feelPrefillOf(act: { perceived_feel?: number | null; perceived_r
 }
 
 /**
- * A personal record set on THIS run: for some PR bucket (lib/prs/pr-buckets — 5K and up,
- * the same table the profile shows), this run's best beats every other run in the window,
- * AND an earlier run in that bucket exists for it to have beaten. A first-ever 10K is not
- * a medal; it is a first.
+ * A personal record set on THIS run — lib/academy/records.ts `recordOn`, the one rule the
+ * week row's 🏅 and the coach's readiness line use too: the fastest kilometre inside the
+ * run (a rep: "החזרה החמישית") or a PR bucket of 5K and up, beating every earlier run and
+ * not beaten since.
  */
 export function personalRecord(run: RunActivityRow & { id: string }, others: Array<RunActivityRow & { id: string }>): WorkoutPr | null {
-  const mine = computeDistanceBests(filterQualifyingRuns([run]));
-  const rest = filterQualifyingRuns(others.filter(o => o.id !== run.id));
-  const earlier = computeDistanceBests(rest.filter(o => o.start_time < run.start_time));
-  const all = computeDistanceBests(rest);
-  for (let i = 0; i < mine.length; i++) {
-    const m = mine[i];
-    const prev = earlier[i];
-    if (m.seconds == null || prev.seconds == null || !prev.date) continue;
-    if (all[i].seconds != null && all[i].seconds! <= m.seconds) continue;
-    if (m.seconds >= prev.seconds) continue;
-    return { bucket: m.key, meters: m.meters, value: m.seconds, previous: prev.seconds, previousDate: prev.date.slice(0, 10) };
-  }
-  return null;
+  return recordOn(run as RecordRunLike & { id: string }, others as Array<RecordRunLike & { id: string }>);
 }
 
 /** The plan/done/diff table, the verdict line and the reps chart. Null until the run is in. */

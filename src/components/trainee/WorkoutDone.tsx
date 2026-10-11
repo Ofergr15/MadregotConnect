@@ -4,7 +4,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import type { DoneRow, WorkoutResponse } from '@/lib/academy/workout-extras';
-import { PR_BUCKETS } from '@/lib/prs/pr-buckets';
+import { RECORD_BUCKETS } from '@/lib/academy/records';
 import { RepsChart } from './RepsChart';
 import { C, CARD, RICH, clock, km, monthName, signedText } from './ui';
 
@@ -113,10 +113,12 @@ export function WorkoutDone({ data, onLoad }: {
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#F5C542] text-[17px]" aria-hidden>🏅</div>
           <div className="min-w-0">
             <b className="block text-[14.5px] font-black text-ink-900">
-              {t.rich('pr', { ...RICH, bucket: PR_BUCKETS.some(b => b.key === data.pr!.bucket) ? t(`bucket.${data.pr.bucket}` as never) : data.pr.bucket })}
+              {t.rich('pr', { ...RICH, bucket: RECORD_BUCKETS.some(b => b.key === data.pr!.bucket) ? t(`bucket.${data.pr.bucket}` as never) : data.pr.bucket })}
             </b>
             <small className="block text-[12.5px] text-ink-500">
-              {t.rich('prSub', { ...RICH, value: clock(data.pr.value), previous: clock(data.pr.previous), month: monthName(data.pr.previousDate, locale) })}
+              {data.pr.rep != null
+                ? t.rich('prSubRep', { ...RICH, n: data.pr.rep, value: clock(data.pr.value), previous: clock(data.pr.previous), month: monthName(data.pr.previousDate, locale) })
+                : t.rich('prSub', { ...RICH, value: clock(data.pr.value), previous: clock(data.pr.previous), month: monthName(data.pr.previousDate, locale) })}
             </small>
           </div>
         </div>

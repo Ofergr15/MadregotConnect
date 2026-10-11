@@ -4198,8 +4198,10 @@
       "repN": "Rep {n}",
       "pr": "New best for <bdi>{bucket}</bdi>",
       "prSub": "<m>{value}</m> instead of the previous best <m>{previous}</m> ({month})",
+      "prSubRep": "{n, select, other {Rep <m>{n}</m>}}, <m>{value}</m> instead of <m>{previous}</m> ({month})",
       "loading": "Loading the run…",
       "bucket": {
+        "1k": "1 km",
         "5k": "5K",
         "10k": "10K",
         "hm": "half marathon",

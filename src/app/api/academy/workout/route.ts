@@ -11,12 +11,11 @@ import { MAX_HR_DAYS, shiftDate, type TestPoint } from '@/lib/academy/load';
 import { ACTIVITY_LOAD_COLUMNS, activityLoadBreakdown, loadTestsFor, maxHrNow } from '@/lib/academy/load-server';
 import { buildWorkoutExtras, personalRecord, type WorkoutExtras } from '@/lib/academy/workout-extras';
 import { loadPlanBasis } from '@/lib/academy/book-server';
-import { computeDistanceBests, filterQualifyingRuns } from '@/lib/prs/pr-buckets';
+import { filterQualifyingRuns } from '@/lib/prs/pr-buckets';
+import { RECORD_MIN_M } from '@/lib/academy/records';
 
 /** How far back a personal record is looked for — the PR table's own window is a season. */
 const PR_DAYS = 365;
-/** The shortest PR bucket (5K) less its 1% — a shorter run can hold no record. */
-const PR_MIN_M = 4950;
 const PR_RUNS_MAX = 200;
 
 /**
@@ -55,7 +54,8 @@ async function loadExtras(
 
     const steps = row.detail?.workout.steps ?? [];
     const hasCap = steps.some(s => (s.repeatSteps?.length ? s.repeatSteps : [s]).some(x => Number(x.targetHrMaxPct) > 0));
-    const ownBests = act ? computeDistanceBests(filterQualifyingRuns([act])).some(b => b.seconds != null) : false;
+    // records.ts: a kilometre is the shortest record (a rep), so a shorter run holds none.
+    const ownBests = act ? filterQualifyingRuns([act]).length > 0 && act.distance >= RECORD_MIN_M : false;
 
     const [breakdown, feedbackRes, historyRes, prRes] = await Promise.all([
       act ? activityLoadBreakdown(supabase, athleteId, act, { write: input.write, tests }) : Promise.resolve(null),
@@ -74,15 +74,15 @@ async function loadExtras(
           .eq('athlete_id', athleteId)
           .gte('start_time', `${shiftDate(israelToday(), -MAX_HR_DAYS)}T00:00:00Z`)
         : Promise.resolve({ data: null, error: null }),
-      // Only a run that holds a 5K-or-longer effort can be a record; only then are the
-      // season's other runs (with their laps) read.
+      // Only a run of a kilometre or more can be a record; only then are the season's
+      // other runs (with their laps) read.
       ownBests
         ? supabase
           .from('athlete_activities')
           .select('id, start_time, activity_type, distance, duration, laps')
           .eq('athlete_id', athleteId)
           .gte('start_time', `${shiftDate(date, -PR_DAYS)}T00:00:00Z`)
-          .gte('distance', PR_MIN_M)
+          .gte('distance', RECORD_MIN_M)
           .order('start_time', { ascending: false })
           .limit(PR_RUNS_MAX)
         : Promise.resolve({ data: null, error: null }),

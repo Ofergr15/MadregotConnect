@@ -47,12 +47,12 @@ export interface LapLike {
  * Strava-sourced segment ~10% slower than the identical Garmin one, so the same
  * run would produce two different PRs depending on which sync won.
  */
-function lapSeconds(lap: LapLike): number {
+export function lapSeconds(lap: LapLike): number {
   const v = lap.duration ?? lap.moving_time ?? lap.elapsed_time;
   return typeof v === 'number' && v > 0 ? v : 0;
 }
 
-function lapMeters(lap: LapLike): number {
+export function lapMeters(lap: LapLike): number {
   const v = lap.distance;
   return typeof v === 'number' && v > 0 ? v : 0;
 }
