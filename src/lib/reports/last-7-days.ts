@@ -1,4 +1,4 @@
-import { israelToday, addDaysToDateStr } from '@/lib/utils';
+import { activityLocalDateStr, israelToday, addDaysToDateStr } from '@/lib/utils';
 
 /**
  * "The last 7 days" — the rolling window behind the Saturday 18:00 push and the
@@ -100,9 +100,24 @@ export const REPORT_RUN_TYPES = [
   'running', 'trail_running', 'treadmill_running', 'track_running', 'virtual_run',
 ];
 
-/** Israel's calendar date for an activity's start instant. */
-export function israelDateOf(startTime: string): string {
-  return israelToday(new Date(startTime));
+/**
+ * Israel's calendar date for a GENUINE instant — a notification's sent_at, a
+ * registration's created_at. Not for a run's `start_time`: see runDateOf.
+ */
+export function israelDateOf(instant: string): string {
+  return israelToday(new Date(instant));
+}
+
+/**
+ * The day a run happened on. `start_time` is the watch's own wall clock stored as
+ * if it were UTC (Convention A, lib/utils — both syncs write startTimeLocal /
+ * start_date_local, and prod's names agree: "Night Run" at 21–22, "Evening" at
+ * 18–20), so its date is its own date part. Read as an instant through
+ * israelDateOf it gained three hours, and every run after 21:00 was counted on
+ * the next day — in this report, on the overview and in the people list.
+ */
+export function runDateOf(startTime: string): string {
+  return activityLocalDateStr(startTime);
 }
 
 /**
@@ -128,7 +143,7 @@ export function buildLast7Report(acts: ReportActivity[], today: string): Last7Re
   for (const a of acts) {
     if (!(Number(a.distance) > 0)) continue;
     if (a.activity_type && !REPORT_RUN_TYPES.includes(a.activity_type)) continue;
-    const day = byDate.get(israelDateOf(a.start_time));
+    const day = byDate.get(runDateOf(a.start_time));
     if (!day) continue;
     day.km += Number(a.distance) / 1000;
     day.seconds += Number(a.duration) || 0;

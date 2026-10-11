@@ -8,7 +8,8 @@ import { ActivityFeed } from '@/components/ActivityFeed';
 // One shared row shape (this page had its own near-identical copy) — the feed
 // card and the [activityId] detail page read the same fields off it.
 import type { ActivityEntry } from '@/components/activity/types';
-import { activityWeekStart, cn, formatWeekRange, getActivityWeekStart, israelDateAnchor, israelToday, shiftWeekStart } from '@/lib/utils';
+import { activityWeekStart, cn, formatWeekRange, israelDateAnchor, israelToday, MONDAY_WEEK, shiftWeekStart, weekStartDayOf, weekStartOn, type WeekStartDay } from '@/lib/utils';
+import { useApi } from '@/lib/api';
 import { fetchActivities as fetchActivitiesScoped } from '@/lib/activities-client';
 import { Spinner, BigStat } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -53,8 +54,8 @@ const DAY_KEY_BY_WEEKDAY = ['daySun', 'dayMon', 'dayTue', 'dayWed', 'dayThu', 'd
  *
  * `israelDateAnchor` rather than a bare `new Date()` — see `planWeekStartOf`.
  */
-function getCurrentActivityWeek(offset: number): string {
-  return shiftWeekStart(getActivityWeekStart(israelDateAnchor()), offset);
+function getCurrentActivityWeek(offset: number, startDay: WeekStartDay = MONDAY_WEEK): string {
+  return shiftWeekStart(weekStartOn(israelDateAnchor(), startDay), offset);
 }
 
 /**
@@ -145,9 +146,22 @@ export default function ActivitiesPage() {
     });
   };
 
+  // The member's own week, as they chose it on the profile (WeekStartSetting) —
+  // the same choice the feed's highlight card, the profile and the summary already
+  // follow. This screen stayed Monday–Sunday, so for a Sunday-week member its weekly
+  // km disagreed with the card above the feed: report 66cd0d25's mismatch again,
+  // for the members who had asked for the other week. A coach looking at the whole
+  // club stays on Monday, like every other multi-athlete screen. Same SWR key as the
+  // profile, so this is a cache read, not a new request.
+  const { data: meData } = useApi<{ athlete?: { weekStartDay?: WeekStartDay } }>(
+    !isCoach && athleteId ? `/api/athletes/me?id=${encodeURIComponent(athleteId)}` : null,
+    { revalidateOnFocus: false },
+  );
+  const startDay: WeekStartDay = isCoach ? MONDAY_WEEK : weekStartDayOf(meData?.athlete?.weekStartDay);
+
   // Hoisted above the effects because the fetch is now scoped to this week, so
   // the week is an input to it rather than something only the render needs.
-  const weekStartDate = getCurrentActivityWeek(weekOffset);
+  const weekStartDate = getCurrentActivityWeek(weekOffset, startDay);
 
   useEffect(() => {
     const coachEmail = localStorage.getItem('coach_email');
@@ -335,7 +349,7 @@ export default function ActivitiesPage() {
     // and off the header total, while the day strip below — which buckets on the
     // string, correctly — still drew its bar. Same helper the summary API uses.
     const weekActivities = filteredActivities.filter(
-      a => activityWeekStart(a.start_time) === weekStartDate,
+      a => activityWeekStart(a.start_time, startDay) === weekStartDate,
     );
 
     const daily = Array.from({ length: 7 }, (_, i) => {
@@ -364,7 +378,7 @@ export default function ActivitiesPage() {
     const totalElevation = weekActivities.reduce((s, a) => s + (a.elevation_gain || 0), 0);
 
     return { daily, totalKm, totalRuns, totalDuration, avgPace, totalCalories, avgHR, totalElevation, weekActivities };
-  }, [filteredActivities, weekStartDate]);
+  }, [filteredActivities, weekStartDate, startDay]);
 
   const maxDist = Math.max(...weekData.daily.map(d => d.distance), 1);
 

@@ -49,13 +49,15 @@ describe('buildLast7Report — the window', () => {
 });
 
 describe('buildLast7Report — which day a run lands in', () => {
-  it('buckets by the Israel date, not the UTC one', () => {
-    // 22:30 Israel on the 16th is 19:30 UTC the same day, but 00:30 Israel on the
-    // 17th is 21:30 UTC on the 16th — that one belongs to the 17th.
+  // start_time is the watch's own wall clock stored as if UTC (Convention A), so
+  // "21:30Z" IS 21:30 in Israel on the 16th. This test used to assert the opposite
+  // (that it was 00:30 on the 17th), which moved every run after 21:00 to the next
+  // day; prod's run names ("Night Run" stored at 21–22) show the field is local.
+  it("buckets a late-evening run on the day it was run", () => {
     const r = buildLast7Report([run('2026-09-16T21:30:00Z', 5, 1500)], '2026-09-19');
     const byDate = Object.fromEntries(r.days.map((d) => [d.date, d.km]));
-    expect(byDate['2026-09-17']).toBeCloseTo(5);
-    expect(byDate['2026-09-16']).toBe(0);
+    expect(byDate['2026-09-16']).toBeCloseTo(5);
+    expect(byDate['2026-09-17']).toBe(0);
   });
 
   it('adds up two runs on the same day', () => {

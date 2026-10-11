@@ -127,9 +127,12 @@ describe('/api/my-watch scope', () => {
   });
 
   it('does not let a self-push grant itself pace-zone alarms', () => {
-    // Academy-only and coach-toggleable, both checked server-side — the client
-    // has no field it could send to turn alerting on.
-    expect(route).toMatch(/is_academy\b[\s\S]{0,40}&& paceAlerts/);
+    // The self-push only ever sends the club's week, and a club week carries the
+    // three-pack text, never an alarm on the runner's own pack pace (2026-10-11:
+    // the watch showed 4:35 instead of "4:15 (4:25) ((4:35))"). Nothing the
+    // client sends can turn it on.
+    expect(route).toMatch(/\.is\('athlete_id', null\)/);
+    expect(route).toMatch(/const paceTarget = false;/);
   });
 
   it('stays silent to the person who just tapped the button', () => {

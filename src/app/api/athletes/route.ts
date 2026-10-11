@@ -233,7 +233,14 @@ export async function PUT(request: Request) {
     }
 
     const updates: Record<string, any> = {};
-    if (groupId !== undefined) updates.group_id = groupId;
+    if (groupId !== undefined) {
+      updates.group_id = groupId;
+      // A move made here is final: it cancels a change the member scheduled for
+      // Saturday (#96). Left in place, the tick applied the pending group on top
+      // of the coach's move and quietly undid it.
+      updates.pending_group_id = null;
+      updates.pending_group_from = null;
+    }
     if (status) updates.status = status;
     if (isAcademy !== undefined) updates.is_academy = isAcademy;
 

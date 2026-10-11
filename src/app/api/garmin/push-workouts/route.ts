@@ -23,7 +23,7 @@ export const maxDuration = 300;
 /** Athletes delivered at once on the whole-week path. Each has their own Garmin account. */
 const AT_ONCE = 3;
 
-interface Batch { workouts: ParsedWorkout[]; athleteIds: string[] }
+interface Batch { workouts: ParsedWorkout[]; athleteIds: string[]; removedKeys?: string[] }
 
 // Staff-only. This writes workouts onto athletes' actual Garmin watches and
 // push-notifies each of them, so an open handler let anyone spam the whole club's
@@ -107,10 +107,13 @@ export async function POST(req: NextRequest) {
     // Best effort: without it the watch shows the runner's own pace, as before —
     // never a reason for the week not to arrive.
     let storedPlan: unknown = null;
+    // A club week (no athlete_id) never carries pace-zone alarms — see deliver().
+    let clubWeek = false;
     if (planId) {
       try {
-        const { data: planRow } = await supabase.from('weekly_plans').select('parsed_workouts').eq('id', planId).maybeSingle();
+        const { data: planRow } = await supabase.from('weekly_plans').select('parsed_workouts, athlete_id').eq('id', planId).maybeSingle();
         storedPlan = planRow?.parsed_workouts ?? null;
+        clubWeek = !!planRow && !planRow.athlete_id;
       } catch {
         storedPlan = null;
       }
@@ -138,7 +141,8 @@ export async function POST(req: NextRequest) {
         const plannedWorkouts = own?.length
           ? withGroupPaces(normalizeWorkoutParts({ workouts: own }).workouts, storedPlan)
           : sent;
-        return { athlete, plannedWorkouts };
+        const removedKeys = Array.isArray(b.removedKeys) ? b.removedKeys.filter((k): k is string => typeof k === 'string').slice(0, 20) : [];
+        return { athlete, plannedWorkouts, removedKeys };
       });
     });
 
@@ -180,13 +184,18 @@ export async function POST(req: NextRequest) {
     }
     const pushCopy = { lines, qualityDows };
 
-    const deliver = async ({ athlete, plannedWorkouts }: (typeof tasks)[number]) => {
+    const deliver = async ({ athlete, plannedWorkouts, removedKeys }: (typeof tasks)[number]) => {
       // Three conditions, all required, and the request can only ever remove
       // one: the athlete is in the academy, the coach hasn't turned alerts off
       // academy-wide, and the caller didn't say the paces in this payload are
       // unresolved. `!== false` rather than a truthy test so every existing
       // caller — none of which sends the field — behaves exactly as before.
-      const paceTarget = !!(athlete as any).is_academy && paceAlerts && paceAlertsAllowed !== false;
+      //
+      // And never on the club's week. An academy athlete in a club pack got their own
+      // pack's pace as a pace-zone TARGET on every step, so the watch showed "4:35"
+      // as the step's number and the three-pack text "4:15 (4:25) ((4:35))" only as
+      // a note (Ofer, 2026-10-11). Alarms belong to a trainee's own academy week.
+      const paceTarget = !clubWeek && !!(athlete as any).is_academy && paceAlerts && paceAlertsAllowed !== false;
       // The delivery itself lives in lib/garmin/push-week.ts — the athlete's own
       // one-tap push (POST /api/my-watch) calls the same function, so there is one
       // set of rules about when a delivery may be called a success.
@@ -215,6 +224,7 @@ export async function POST(req: NextRequest) {
           notify,
           pushCopy,
           cleanDayOnce: true,
+          removedKeys,
         });
       results.push(result);
 
