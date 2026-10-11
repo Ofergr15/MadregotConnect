@@ -178,6 +178,12 @@ export function workoutDone(input: {
    * "כ־51 דק׳" — so the plan column says the same. Else the grade's.
    */
   planTotals?: { distanceM: number; durationSec: number } | null;
+  /**
+   * The trainee has a test, so an estimated planned time is in their own paces. Without
+   * one it would be a lane pace's minutes: the plan column shows a time only when the plan
+   * prescribed it ("40 דק׳").
+   */
+  paceKnown?: boolean;
 }): WorkoutDone | null {
   const { row, sheet } = input;
   if (!row.completed || !row.actual) return null;
@@ -200,7 +206,10 @@ export function workoutDone(input: {
   }
   const actualSec = sheet.time?.actualSec ?? row.duration.actual;
   if (actualSec && actualSec > 0) {
-    const plannedSec = input.planTotals?.durationSec || sheet.time?.plannedSec || row.duration.planned || null;
+    const prescribed = !!sheet.time && !sheet.time.estimated;
+    const plannedSec = input.paceKnown === false && !prescribed
+      ? null
+      : input.planTotals?.durationSec || sheet.time?.plannedSec || row.duration.planned || null;
     // Coloured only when time was a prescription (a "40 דק׳" run) and the grade says it was
     // missed or overrun; a km session's minutes are an estimate, and slower or faster than it
     // is the pace row's to say.
@@ -339,6 +348,7 @@ export function buildWorkoutExtras(input: {
     actualLoad: input.actualLoad,
     hr: { cap, actual: input.activity?.average_hr ?? row.actual?.averageHr ?? null },
     planTotals: planTotals && planTotals.durationSec > 0 ? { distanceM: planTotals.distanceM, durationSec: planTotals.durationSec } : null,
+    paceKnown: !!T,
   });
 
   return {
