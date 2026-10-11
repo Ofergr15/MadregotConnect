@@ -400,7 +400,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
       </InsetSection>
       {showMorning && (
         <InsetSection header={t('morningHeader')}>
-          <MorningReminderRow athleteId={athleteId} value={data!.morningReminder!}
+          <MorningReminderRow athleteId={athleteId} value={data!.morningReminder!} pushOn={permission === 'granted'}
             onSaved={(morningReminder) => mutate(cur => (cur ? { ...cur, morningReminder } : cur), { revalidate: false })} />
         </InsetSection>
       )}

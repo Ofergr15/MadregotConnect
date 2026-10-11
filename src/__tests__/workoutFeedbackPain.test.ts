@@ -18,10 +18,12 @@ vi.mock('@/lib/auth/self-or-staff', () => ({
   requireStaffCaller: async () => ({ denied: null }),
 }));
 const notifyStaff = vi.fn(async (_o: unknown) => {});
-vi.mock('@/lib/notifications/staff', () => ({ notifyStaff: (o: unknown) => notifyStaff(o) }));
+const MANAGER = uid();
+vi.mock('@/lib/notifications/staff', () => ({ notifyStaff: (o: unknown) => notifyStaff(o), academyManagerIds: async () => [MANAGER] }));
 const notifyAthlete = vi.fn(async (_o: any) => {});
 vi.mock('@/lib/push', () => ({ notifyAthlete: (o: unknown) => notifyAthlete(o) }));
-vi.mock('@/lib/academy/trainee-coaches', () => ({ coachIdsOf: async () => [RINA] }));
+let coachesOf: string[] = [RINA];
+vi.mock('@/lib/academy/trainee-coaches', () => ({ coachIdsOf: async () => coachesOf }));
 
 const { POST } = await import('@/app/api/workout-feedback/route');
 const post = (body: Record<string, unknown>) => POST(new Request('http://x/api/workout-feedback', {
@@ -42,6 +44,7 @@ beforeEach(() => {
   db.tables.athlete_activities.push({ id: uid(), athlete_id: OTHER, garmin_activity_id: 888 });
   notifyStaff.mockClear();
   notifyAthlete.mockClear();
+  coachesOf = [RINA];
 });
 
 describe('a pain report', () => {
@@ -51,6 +54,14 @@ describe('a pain report', () => {
     expect(notifyAthlete).toHaveBeenCalledTimes(1);
     expect(notifyAthlete.mock.calls[0][0]).toMatchObject({ athleteId: RINA, kind: 'feedback_alert', category: 'coach' });
     expect(db.tables.workout_feedback).toHaveLength(1);
+  });
+
+  it('a trainee with no coach: the academy managers get it, and the answer says so (issue 8)', async () => {
+    coachesOf = [];
+    const res = await post({ feel: 2, difficulty: 6, pain: true });
+    expect(await res.json()).toMatchObject({ success: true, painTo: 'managers', noCoach: true });
+    expect(notifyAthlete).toHaveBeenCalledTimes(1);
+    expect(notifyAthlete.mock.calls[0][0]).toMatchObject({ athleteId: MANAGER, kind: 'feedback_alert' });
   });
 
   it('is sent once: saving the same answer again alerts nobody', async () => {

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { GarminClient } from '@/lib/garmin/client';
 import { israelToday } from '@/lib/utils';
+import { isPartialNight } from '@/lib/academy/normal-range';
 
 /**
  * The nightly sleep + resting-HR pull (#69).
@@ -47,13 +48,20 @@ const dayGap = (from: string, to: string) =>
 
 type StoredNight = { date: string; sleep_seconds: number | null; resting_hr: number | null; fetched_at?: string | null };
 
-/** The dates in the window with no value yet, newest first. */
+/**
+ * The dates in the window with no value yet, newest first — and a night that arrived cut
+ * short (normal-range.ts `isPartialNight`: sleep without the morning's RHR on a watch that
+ * records it, or under 3 hours read before 07:00), which is asked again so it is whole by
+ * the time anyone judges it.
+ */
 export function missingNights(
   today: string,
   stored: StoredNight[],
   lookback: number = LOOKBACK_DAYS,
 ): string[] {
-  const done = new Set(stored.filter(r => r.sleep_seconds != null || r.resting_hr != null).map(r => r.date));
+  const done = new Set(stored
+    .filter(r => (r.sleep_seconds != null || r.resting_hr != null) && !(r.date >= daysBefore(today, 1) && isPartialNight(r, stored)))
+    .map(r => r.date));
   const out: string[] = [];
   for (let i = 0; i < lookback; i++) {
     const d = daysBefore(today, i);
@@ -127,6 +135,8 @@ export async function sweepWellness(supabase: SupabaseClient, today = israelToda
   let fetched = 0;
   let stored = 0;
   let backfilled = 0;
+  /** Nights Garmin answered with an error (not "nothing that night"). */
+  let nightErrors = 0;
   const failed: string[] = [];
 
   // ── What each athlete has, and who gets tonight's deep passes ──
@@ -162,7 +172,8 @@ export async function sweepWellness(supabase: SupabaseClient, today = israelToda
       if (lookback > LOOKBACK_DAYS) backfilled += 1;
 
       const client = new GarminClient(athlete.garmin_auth as any);
-      const rows = [];
+      const rows: Array<{ athlete_id: string; date: string; sleep_seconds: number | null; resting_hr: number | null; fetched_at: string }> = [];
+      let errors = 0;
       for (const date of nights) {
         try {
           const w = await client.getWellness(date);
@@ -173,7 +184,20 @@ export async function sweepWellness(supabase: SupabaseClient, today = israelToda
             fetched_at: new Date().toISOString(),
           });
         } catch {
-          // One night failing (Garmin 5xx, rate limit) must not cost the rest.
+          // One night failing (Garmin 5xx, rate limit) must not cost the rest — but it is
+          // counted, so a sweep where every call threw does not read as a clean night.
+          errors += 1;
+        }
+      }
+      nightErrors += errors;
+      if (errors && !rows.length) failed.push(`${athlete.id}: all ${errors} night${errors === 1 ? '' : 's'} failed`);
+      // A deep pass leaves its record even when Garmin failed every call: one empty row for
+      // the deep window's oldest night (never over a stored value), which `lastDeepPassAt`
+      // reads, so the same trainees are not deep-passed again every night.
+      if (lookback > LOOKBACK_DAYS && !rows.some(r => dayGap(r.date, r.fetched_at) > LOOKBACK_DAYS)) {
+        const oldest = daysBefore(today, BACKFILL_LOOKBACK_DAYS - 1);
+        if (!have.some(r => r.date === oldest && (r.sleep_seconds != null || r.resting_hr != null)) && !rows.some(r => r.date === oldest)) {
+          rows.push({ athlete_id: athlete.id, date: oldest, sleep_seconds: null, resting_hr: null, fetched_at: new Date().toISOString() });
         }
       }
       if (rows.length) {
@@ -185,7 +209,7 @@ export async function sweepWellness(supabase: SupabaseClient, today = israelToda
       failed.push(`${athlete.id}: ${(e as Error).message}`);
     }
   }
-  return { athletes: list.length, fetched, stored, backfilled, failed };
+  return { athletes: list.length, fetched, stored, backfilled, nightErrors, failed };
 }
 
 /**

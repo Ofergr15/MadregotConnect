@@ -967,7 +967,17 @@ export type NotifyAthleteOptions = NotifyAthleteBase &
     | { copy: (locale: NotificationLocale) => { title: string; body: string }; title?: never; body?: never }
   );
 
-export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<void> {
+/**
+ * What one notifyAthlete call reached: the athlete's push subscriptions, and how many
+ * accepted the push (null when the send itself failed, so nobody knows). A caller that
+ * counts "sent" counts `delivered`, not the call.
+ */
+export interface NotifyResult {
+  subscriptions: number;
+  delivered: number | null;
+}
+
+export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<NotifyResult> {
   // The recipient's language, resolved once and used for both the push and the
   // history row — they must agree, or opening the app would undo the setting.
   const { title, body } = opts.copy
@@ -980,8 +990,10 @@ export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<void> {
   // first would make the row match the same query, double-counting it and
   // inflating the OS app-icon badge by 1 on every call.
   let byAthlete: Record<string, number> | undefined;
+  let subscriptions = 0;
   try {
     const subs = await subscriptionsForAthletes([opts.athleteId]);
+    subscriptions = subs.length;
     if (subs.length > 0) {
       ({ byAthlete } = await sendPushDetailed(subs, {
         title,
@@ -1006,6 +1018,7 @@ export async function notifyAthlete(opts: NotifyAthleteOptions): Promise<void> {
     body,
     url: opts.url,
   }], byAthlete);
+  return { subscriptions, delivered: byAthlete ? byAthlete[opts.athleteId] ?? 0 : null };
 }
 
 /** All athlete ids of the club (for computing non-responders). */

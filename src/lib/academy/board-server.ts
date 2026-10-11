@@ -19,7 +19,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CHANNEL_TYPE, getStreamServerClient } from '@/lib/stream/server';
 import { filterQualifyingRuns } from '@/lib/prs/pr-buckets';
-import { RECORD_MIN_M } from './records';
+import { RECORD_DAYS, RECORD_MIN_M } from './records';
+import { readAll } from './load-server';
 import { academyChannelId, replyDates, type StreamMessageLike } from './thread';
 import { personalRecord } from './workout-extras';
 import { shiftDate } from './load';
@@ -29,9 +30,21 @@ type Db = SupabaseClient<any, any, any>;
 
 /** The thread's history read for the counts — the transcript's own window. */
 export const THREAD_WINDOW = 100;
-/** The PR window and floor, as /api/academy/workout reads them (records.ts: 1 km and up). */
-const PR_DAYS = 365;
-const PR_RUNS_MAX = 200;
+/** The PR window and floor, as /api/academy/workout reads them (records.ts: 1 km and up), read whole. */
+const PR_DAYS = RECORD_DAYS;
+
+/**
+ * The keys a run's "איך הרגשת?" can be stored under: its garmin_activity_id, and — for a
+ * Strava run later upgraded in place to its Garmin twin — the `-strava_activity_id` it was
+ * answered under before the upgrade (U12), so the answer is not orphaned.
+ */
+export function feedbackKeysOf(act: { garmin_activity_id?: unknown; strava_activity_id?: unknown }): number[] {
+  const out: number[] = [];
+  if (act.garmin_activity_id != null && Number.isFinite(Number(act.garmin_activity_id))) out.push(Number(act.garmin_activity_id));
+  const s = Number(act.strava_activity_id);
+  if (act.strava_activity_id != null && Number.isFinite(s) && s > 0 && !out.includes(-s)) out.push(-s);
+  return out;
+}
 
 export interface RowMarks {
   /** 0–4 (חלש מאוד … חזק מאוד), the trainee's own answer. */
@@ -109,7 +122,7 @@ export async function loadBoardMarks(
     ids.length
       ? supabase
         .from('athlete_activities')
-        .select('id, garmin_activity_id, start_time, activity_type, distance, duration, laps')
+        .select('id, garmin_activity_id, strava_activity_id, start_time, activity_type, distance, duration, laps')
         .eq('athlete_id', athleteId)
         .in('id', ids)
       : Promise.resolve({ data: [], error: null }),
@@ -134,7 +147,7 @@ export async function loadBoardMarks(
   if (!acts.length) return { byActivity, commentsByDate, threadRead: !!thread };
 
   // ── 🙂, and the trainee's note ──
-  const garminIds = acts.map(a => a.garmin_activity_id).filter((g: unknown) => g != null).map(Number);
+  const garminIds = [...new Set(acts.flatMap(a => feedbackKeysOf(a)))];
   const runs = filterQualifyingRuns(acts).filter(a => a.distance >= RECORD_MIN_M);
   const [feelRes, seasonRes] = await Promise.all([
     garminIds.length
@@ -146,14 +159,15 @@ export async function loadBoardMarks(
       : Promise.resolve({ data: [], error: null }),
     // ── 🏅: only a run of a kilometre or more can hold a record (records.ts) ──
     runs.length
-      ? supabase
+      ? readAll<any>((from, to) => supabase
         .from('athlete_activities')
         .select('id, start_time, activity_type, distance, duration, laps')
         .eq('athlete_id', athleteId)
         .gte('start_time', `${shiftDate(weekStart, -PR_DAYS)}T00:00:00Z`)
         .gte('distance', RECORD_MIN_M)
         .order('start_time', { ascending: false })
-        .limit(PR_RUNS_MAX)
+        .order('id', { ascending: true })
+        .range(from, to), 200)
       : Promise.resolve({ data: [], error: null }),
   ]);
   const feelBy = new Map<number, { feel: number | null; comment: string | null }>();
@@ -163,7 +177,8 @@ export async function loadBoardMarks(
   const season = (seasonRes.error ? [] : seasonRes.data || []).map(toRun);
 
   for (const a of acts) {
-    const fb = a.garmin_activity_id != null ? feelBy.get(Number(a.garmin_activity_id)) : undefined;
+    // The run's own key first, then the pre-upgrade Strava key.
+    const fb = feedbackKeysOf(a).map(k => feelBy.get(k)).find(Boolean);
     const marks: { feel?: number; pr?: string; comment?: string } = {};
     if (fb?.feel != null && Number.isFinite(Number(fb.feel))) marks.feel = Math.min(4, Math.max(0, Math.round(Number(fb.feel))));
     if (fb?.comment?.trim()) marks.comment = fb.comment.trim();

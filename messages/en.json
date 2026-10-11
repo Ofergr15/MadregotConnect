@@ -4268,7 +4268,12 @@
         "fast": "▲ Faster than the range",
         "slow": "▼ Slower than the range",
         "range": "Range <m>{range}</m>",
-        "none": "No laps for this workout."
+        "none": "No laps for this workout.",
+        "why": {
+          "manual": "A manual entry has no laps.",
+          "stravaPending": "The laps haven't come from Strava yet. They appear here when they do.",
+          "autoLapOff": "The run has a single lap: Auto Lap is off on the watch. Turn it on to see every kilometre here."
+        }
       }
     },
     "feel": {
@@ -4288,7 +4293,7 @@
       "effortScale": "<m>1</m> very easy · <m>10</m> max",
       "pain": "Pain or discomfort?",
       "painSub": "{gender, select, other {If so, <bdi>{name}</bdi> gets notified}}",
-      "painSubGeneric": "If so, your coach gets notified",
+      "painSubGeneric": "No coach assigned yet. If so, the report goes to the academy managers",
       "talk": "The conversation about this workout",
       "allTalk": "Whole conversation",
       "ref": "🏃 <bdi>{name}</bdi> · {day}",
@@ -4455,7 +4460,8 @@
         "fatigue": "Fatigue",
         "fatigueSub": "From the last <m>7</m> days",
         "form": "Form",
-        "open": "{name}: what is it"
+        "open": "{name}: what is it",
+        "formTomorrow": "As of yesterday · tomorrow <m>{n}</m>"
       },
       "range": {
         "label": "Chart range",
@@ -4648,7 +4654,8 @@
         "timeAria": "Morning reminder time",
         "toggleAria": "Morning reminder",
         "evening": "From <m>12:00</m> the reminder is about tomorrow's workout",
-        "saveError": "Not saved. Please try again."
+        "saveError": "Not saved. Please try again.",
+        "noPush": "Notifications are off on this device, so the reminder won't reach it. Turn them on above."
       }
     }
   },

@@ -8,15 +8,19 @@ import { buildWorkoutSheet } from '@/lib/academy/workout-sheet';
 import { toRoute } from '@/lib/feed/project';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { MAX_HR_DAYS, shiftDate, type TestPoint } from '@/lib/academy/load';
-import { ACTIVITY_LOAD_COLUMNS, activityLoadBreakdown, loadTestsFor, maxHrNow } from '@/lib/academy/load-server';
+import { ACTIVITY_LOAD_COLUMNS, activityLoadBreakdown, loadTestsFor, maxHrNow, readAll } from '@/lib/academy/load-server';
 import { buildWorkoutExtras, personalRecord, type WorkoutExtras } from '@/lib/academy/workout-extras';
 import { loadPlanBasis } from '@/lib/academy/book-server';
+import { feedbackKeysOf } from '@/lib/academy/board-server';
 import { filterQualifyingRuns } from '@/lib/prs/pr-buckets';
-import { RECORD_MIN_M } from '@/lib/academy/records';
+import { RECORD_DAYS, RECORD_MIN_M } from '@/lib/academy/records';
 
-/** How far back a personal record is looked for — the PR table's own window is a season. */
-const PR_DAYS = 365;
-const PR_RUNS_MAX = 200;
+/**
+ * How far back a personal record is looked for — the PR table's own window is a season,
+ * read WHOLE (paged): a cap of the newest 200 runs left a 380-run trainee's season-best
+ * 3:25 out of the pool and gave a 3:40 "שיא חדש … במקום 5:20".
+ */
+const PR_DAYS = RECORD_DAYS;
 
 /**
  * Screens 4, 5 and 6's additions (lib/academy/workout-extras.ts): the expected ⚡ and its
@@ -38,7 +42,7 @@ async function loadExtras(
     const [testsBy, actRes] = await Promise.all([
       loadTestsFor(supabase, [athleteId]),
       actId
-        ? read(`${ACTIVITY_LOAD_COLUMNS}, garmin_activity_id, perceived_feel, perceived_rpe`).then(async (r) => (
+        ? read(`${ACTIVITY_LOAD_COLUMNS}, garmin_activity_id, strava_activity_id, source, perceived_feel, perceived_rpe`).then(async (r) => (
           r.error && isMissingColumn(r.error) ? read(`${ACTIVITY_LOAD_COLUMNS}, garmin_activity_id`) : r))
         : Promise.resolve({ data: null, error: null }),
     ]);
@@ -59,13 +63,17 @@ async function loadExtras(
 
     const [breakdown, feedbackRes, historyRes, prRes] = await Promise.all([
       act ? activityLoadBreakdown(supabase, athleteId, act, { write: input.write, tests }) : Promise.resolve(null),
-      act?.garmin_activity_id != null
+      // The run's own key, or the -strava key it was answered under before an upgrade (U12).
+      act && feedbackKeysOf(act).length
         ? supabase
           .from('workout_feedback')
-          .select('feel, difficulty, pain')
+          .select('feel, difficulty, pain, garmin_activity_id')
           .eq('athlete_id', athleteId)
-          .eq('garmin_activity_id', Number(act.garmin_activity_id))
-          .maybeSingle()
+          .in('garmin_activity_id', feedbackKeysOf(act))
+          .then(r => ({
+            error: r.error,
+            data: ((r.data || []) as any[]).sort((x, y) => feedbackKeysOf(act).indexOf(Number(x.garmin_activity_id)) - feedbackKeysOf(act).indexOf(Number(y.garmin_activity_id)))[0] ?? null,
+          }))
         : Promise.resolve({ data: null, error: null }),
       hasCap
         ? supabase
@@ -77,14 +85,15 @@ async function loadExtras(
       // Only a run of a kilometre or more can be a record; only then are the season's
       // other runs (with their laps) read.
       ownBests
-        ? supabase
+        ? readAll<any>((from, to) => supabase
           .from('athlete_activities')
           .select('id, start_time, activity_type, distance, duration, laps')
           .eq('athlete_id', athleteId)
           .gte('start_time', `${shiftDate(date, -PR_DAYS)}T00:00:00Z`)
           .gte('distance', RECORD_MIN_M)
           .order('start_time', { ascending: false })
-          .limit(PR_RUNS_MAX)
+          .order('id', { ascending: true })
+          .range(from, to), 200)
         : Promise.resolve({ data: null, error: null }),
     ]);
     const basis = await basisP;

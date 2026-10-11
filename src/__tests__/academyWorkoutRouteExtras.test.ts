@@ -66,7 +66,7 @@ function report(completed: boolean) {
 }
 
 const SCHEMA: Record<string, string[]> = {
-  athlete_activities: ['id', 'athlete_id', 'garmin_activity_id', 'start_time', 'activity_type', 'distance', 'duration', 'moving_duration', 'average_hr', 'max_hr', 'laps', 'splits', 'perceived_feel', 'perceived_rpe', 'location_name', 'route_preview', 'source'],
+  athlete_activities: ['id', 'athlete_id', 'garmin_activity_id', 'start_time', 'activity_type', 'distance', 'duration', 'moving_duration', 'average_hr', 'max_hr', 'laps', 'splits', 'perceived_feel', 'perceived_rpe', 'location_name', 'route_preview', 'source', 'strava_activity_id'],
   academy_tests: ['id', 'athlete_id', 'test_date', 'protocol', 'duration_sec', 'distance_m', 'excluded_reason', 'status'],
   academy_workout_feedback: ['athlete_id', 'workout_date', 'note', 'rendered', 'author_id'],
   workout_feedback: ['athlete_id', 'garmin_activity_id', 'feel', 'difficulty', 'pain'],
@@ -131,7 +131,7 @@ describe('after the run (5, 6)', () => {
     expect(body.pr).toBeNull();
     expect(body.feelPrefill).toEqual({ feel: 3, effort: 7 });
     expect(body.feedback).toBeNull();
-    expect(body.activity).toEqual({ id: ACT, garminId: 777 });
+    expect(body.activity).toEqual({ id: ACT, garminId: 777, lapsWhy: null });
     // The run's ⚡ is stored (migration 142).
     expect(db.tables.activity_loads).toHaveLength(1);
   });

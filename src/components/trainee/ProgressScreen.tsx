@@ -65,7 +65,7 @@ export function ProgressScreen({ athleteId, gender, testsHref, bodyHref, journey
   return (
     <div className="flex flex-col gap-2.5" dir="rtl">
       {now ? (
-        <MetricTiles numbers={now} gender={gender} onOpen={setSheet} />
+        <MetricTiles numbers={now} gender={gender} onOpen={setSheet} tomorrowForm={data.formTomorrow} />
       ) : (
         <LearningCard status={data.status} />
       )}
@@ -194,11 +194,13 @@ function LearningCard({ status }: { status: LoadPayload['status'] }) {
  * 7ב. Shared with the coach's C2 (readiness/TraineeReadiness.tsx), which words the fitness
  * line its own way ("שומר, אחרי שבוע עמוס").
  */
-export function MetricTiles({ numbers: now, gender, onOpen, fitnessSub }: {
+export function MetricTiles({ numbers: now, gender, onOpen, fitnessSub, tomorrowForm }: {
   numbers: { fitness: number; fatigue: number; form: number; ramp: number; band: FormBandKey };
   gender: string;
   onOpen: (m: Metric) => void;
   fitnessSub?: React.ReactNode;
+  /** The home's "למחר" number: said under this one ("נכון לאתמול · מחר +2") when it differs. */
+  tomorrowForm?: number | null;
 }) {
   const t = useTranslations('trainee.progress');
   const tt = useTranslations();
@@ -211,7 +213,9 @@ export function MetricTiles({ numbers: now, gender, onOpen, fitnessSub }: {
         value={<bdi dir="ltr">{now.fatigue}</bdi>} sub={t.rich('tile.fatigueSub', RICH)} />
       <MetricTile color={BAND_COLOR[now.band]} tint={BAND_TILE[now.band]?.bg} onOpen={() => onOpen('form')} label={t('tile.form')}
         value={<bdi dir="ltr">{signed(now.form)}</bdi>} valueColor={BAND_TILE[now.band]?.ink}
-        sub={tt(FORM_BANDS.find(b => b.key === now.band)!.longKey as never, { gender } as never)} />
+        sub={tomorrowForm != null && tomorrowForm !== now.form
+          ? t.rich('tile.formTomorrow', { ...RICH, n: signed(tomorrowForm) })
+          : tt(FORM_BANDS.find(b => b.key === now.band)!.longKey as never, { gender } as never)} />
     </div>
   );
 }

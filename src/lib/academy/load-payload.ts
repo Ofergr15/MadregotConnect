@@ -43,6 +43,12 @@ export interface LoadPayload {
   formWeeks: Array<{ weekStart: string; form: number; band: FormBandKey }>;
   /** The upcoming race, when there is one: 7 offers "עד המרוץ" only then. */
   raceDate: string | null;
+  /**
+   * Tomorrow morning's form — today's load in (0 on a rest day): the number the home
+   * titles "איך אתה מגיע למחר". Screen 7 prints it beside its own "as of yesterday" form so
+   * the two numbers on one morning are explained, not contradictory. Null unless ok.
+   */
+  formTomorrow: number | null;
 }
 
 const r1 = (x: number) => Math.round(x * 10) / 10;
@@ -104,7 +110,11 @@ export function buildLoadPayload(input: {
   }
 
   let todayOut: LoadPayload['today'] = null;
+  let formTomorrow: number | null = null;
   if (status.kind === 'ok' && series.length) {
+    const throughToday = pmcSeries(daily.filter(d => d.date <= today));
+    const last = throughToday[throughToday.length - 1];
+    if (last && last.date === today) formTomorrow = Math.round(last.fitness - last.fatigue);
     const t = pmcToday(series, today);
     // This week as the coach planned it (G2): "שבוע קל" rather than "מתאושש".
     const easyWeek = weekly.length ? weekly[weekly.length - 1].weekStart === weekStartOf(today) && weekly[weekly.length - 1].easy : false;
@@ -130,5 +140,6 @@ export function buildLoadPayload(input: {
     firstLoadDate,
     formWeeks,
     raceDate: input.raceDate && input.raceDate >= today ? input.raceDate : null,
+    formTomorrow,
   };
 }

@@ -89,7 +89,7 @@ const { GET } = await import('@/app/api/academy/week-board/route');
 const get = () => GET(new Request(`http://x/api/academy/week-board?athleteId=${TRAINEE}&weekStart=${SUN}`));
 
 const SCHEMA: Record<string, string[]> = {
-  athlete_activities: ['id', 'athlete_id', 'garmin_activity_id', 'start_time', 'activity_type', 'distance', 'duration', 'moving_duration', 'average_hr', 'max_hr', 'laps', 'splits', 'source'],
+  athlete_activities: ['id', 'athlete_id', 'garmin_activity_id', 'start_time', 'activity_type', 'distance', 'duration', 'moving_duration', 'average_hr', 'max_hr', 'laps', 'splits', 'source', 'strava_activity_id'],
   academy_tests: ['id', 'athlete_id', 'test_date', 'protocol', 'duration_sec', 'distance_m', 'excluded_reason', 'status'],
   athlete_wellness: ['athlete_id', 'date', 'resting_hr', 'sleep_seconds'],
   athletes: ['id', 'group_id', 'name', 'academy_coach_id', 'gender'],

@@ -6,7 +6,7 @@ import { COACH_ID, isStaffRole } from '@/lib/constants';
 import { activityLocalDateStr, activityLocalMinutes, israelNow, israelToday, planWeekStartOf } from '@/lib/utils';
 import { isKindMuted } from '@/lib/notifications/prefs';
 import type { NotificationLocale } from '@/lib/notifications/locale';
-import { notifyAthlete } from '@/lib/push';
+import { notifyAthlete, subscriptionsForAthletes } from '@/lib/push';
 import { fetchNight } from '@/lib/wellness/sweep';
 import { TRAINEE_V2_FOR_ALL } from '@/lib/trainee/flag';
 import { loadLaneReferences } from './book-server';
@@ -224,8 +224,11 @@ export async function dispatchMorningReminders(db: Db, nowIso: string = new Date
           form,
         });
         if (!decision.send) { skip(decision.reason); continue; }
+        // No device can receive it: an inbox-only "reminder" is not a reminder, and must
+        // not be counted as sent (the tick used to report a send that reached nobody).
+        if (!(await subscriptionsForAthletes([person.id]).catch(() => [{}])).length) { skip('noSubscription'); continue; }
 
-        await notifyAthlete({
+        const delivery = await notifyAthlete({
           athleteId: person.id,
           kind: 'academy_morning',
           category: 'workouts',
@@ -252,7 +255,8 @@ export async function dispatchMorningReminders(db: Db, nowIso: string = new Date
         });
         if (ledgerErr) console.error('[morning-reminder] ledger write failed:', ledgerErr.message);
         sentAlready.add(url);
-        result.sent += 1;
+        if (delivery.delivered === 0) skip('notDelivered');
+        else result.sent += 1;
       } catch (err) {
         console.error('[morning-reminder] failed for', person.id, err);
       }

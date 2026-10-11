@@ -23,6 +23,7 @@ import {
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { DATA_FEED_COLUMNS, DATA_FEED_COLUMNS_FALLBACK, nightFeed, runFeed, type DataFeed } from './data-feed';
 import { shiftDate, thresholdOn } from './load';
+import { RECORD_DAYS, RECORD_MIN_M } from './records';
 import { plannedWeeksFor, type PmcPoint } from './pmc';
 import type { WellnessNight } from './normal-range';
 import { computeAcademyWeekAdherence } from './report';
@@ -36,8 +37,7 @@ type Db = SupabaseClient<any, any, any>;
 
 /** Activities priced per trainee per read: C1 opens for everyone at once, so less than a screen's 300. */
 export const READINESS_MAX_NEW = 100;
-/** How far back a record has to beat (mockup 5: "במקום השיא הקודם 3:59 (מאי)"). */
-export const RECORD_DAYS = 365;
+export { RECORD_DAYS };
 const RECORD_COLUMNS = 'id, athlete_id, start_time, activity_type, distance, duration, laps';
 
 export interface ReadinessRead {
@@ -96,12 +96,19 @@ async function loadRecords(db: Db, ids: string[], today: string): Promise<Record
   }
   const who = [...recentBy.keys()];
   if (!who.length) return out;
-  const { data: season, error: sErr } = await db
+  // The whole season of every trainee who ran, paged and totally ordered: one unpaged read
+  // across trainees passed the 1,000-row cap and silently dropped a trainee's season best,
+  // which made yesterday's slower rep "🏅 a record" on C1. The same distance floor as
+  // screen 5's (records.ts RECORD_MIN_M), so the two agree.
+  const { data: season, error: sErr } = await readAll<any>((from, to) => db
     .from('athlete_activities')
     .select(RECORD_COLUMNS)
     .in('athlete_id', who)
     .gte('start_time', `${shiftDate(today, -RECORD_DAYS)}T00:00:00Z`)
-    .gte('distance', 1000);
+    .gte('distance', RECORD_MIN_M)
+    .order('start_time', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to), 200);
   if (sErr || !season) return out;
   for (const id of who) {
     out[id] = recentRecord(recentBy.get(id) ?? [], (season as any[]).filter(s => String(s.athlete_id) === id) as RecordRun[], today);

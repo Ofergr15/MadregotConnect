@@ -176,7 +176,12 @@ export function reminderLines(input: {
 
 // ── The decision ───────────────────────────────────────────────────────────────────────
 
-export type SkipReason = 'disabled' | 'notDue' | 'muted' | 'noPlan' | 'noWorkout' | 'sent' | 'alreadyRan';
+/**
+ * `noSubscription`: the reminder is on but no device of theirs can receive a push — not
+ * sent, not ledgered, not counted as sent (the server's skip, not `decideMorningReminder`'s).
+ * `notDelivered`: every device refused it.
+ */
+export type SkipReason = 'disabled' | 'notDue' | 'muted' | 'noPlan' | 'noWorkout' | 'sent' | 'alreadyRan' | 'noSubscription' | 'notDelivered';
 
 export type ReminderDecision =
   | { send: true; workoutDate: string; lines: ReminderLines }

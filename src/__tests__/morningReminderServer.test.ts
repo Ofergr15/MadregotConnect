@@ -21,7 +21,11 @@ const day = (offset: number) => {
 };
 
 const notifyAthlete = vi.fn(async (_opts: any) => {});
-vi.mock('@/lib/push', () => ({ notifyAthlete: (o: any) => notifyAthlete(o) }));
+let subscriptions = 1;
+vi.mock('@/lib/push', () => ({
+  notifyAthlete: async (o: any) => { await notifyAthlete(o); return { subscriptions, delivered: subscriptions }; },
+  subscriptionsForAthletes: async () => Array.from({ length: subscriptions }, () => ({})),
+}));
 const fetchNight = vi.fn(async (..._a: unknown[]) => null as null | { sleep_seconds: number | null; resting_hr: number | null });
 vi.mock('@/lib/wellness/sweep', () => ({ fetchNight: (...a: unknown[]) => fetchNight(...a) }));
 
@@ -87,6 +91,21 @@ beforeEach(() => {
 });
 
 describe('dispatchMorningReminders', () => {
+  it('the reminder is on but no device can receive a push: skipped as noSubscription, not sent, no ledger (issue 22)', async () => {
+    seed();
+    plan(SHAHAR, [FIVE_BY_ONE]);
+    subscriptions = 0;
+    try {
+      const r = await dispatchMorningReminders(db.client as never, SIX_AM);
+      expect(r.sent).toBe(0);
+      expect(r.skipped.noSubscription).toBe(1);
+      expect(notifyAthlete).not.toHaveBeenCalled();
+      expect(db.tables.scheduled_notifications.filter(n => n.kind === LEDGER_KIND)).toHaveLength(0);
+    } finally {
+      subscriptions = 1;
+    }
+  });
+
   it('06:00 on a workout day: exactly one push, with screen 9\'s lines, and a ledger row', async () => {
     seed();
     plan(SHAHAR, [FIVE_BY_ONE]);

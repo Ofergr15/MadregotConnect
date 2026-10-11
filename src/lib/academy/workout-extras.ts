@@ -75,7 +75,26 @@ export interface WorkoutExtras {
   feelPrefill: { feel: number | null; effort: number | null } | null;
   feedback: { feel: number | null; difficulty: number | null; pain: boolean | null } | null;
   /** What screen 6 posts to /api/workout-feedback and opens the map with. */
-  activity: { id: string; garminId: number | null } | null;
+  activity: { id: string; garminId: number | null; lapsWhy?: LapsWhy | null } | null;
+}
+
+/**
+ * Why a done run has no laps to tabulate (screen 5's "הקפות" tab), from where it came:
+ * a manual entry has none; a Strava run's laps arrive after the run (or never); a watch
+ * run with one lap (or none) is a watch whose Auto Lap is off. Null when it has laps.
+ */
+export type LapsWhy = 'manual' | 'stravaPending' | 'autoLapOff' | 'unknown';
+
+export function lapsWhy(act: { source?: string | null; laps?: unknown; splits?: unknown } | null | undefined): LapsWhy | null {
+  if (!act) return null;
+  const laps = Array.isArray(act.laps) ? act.laps : null;
+  const splits = Array.isArray(act.splits) ? act.splits : null;
+  if ((laps && laps.length > 1) || (splits && splits.length > 1)) return null;
+  const source = String(act.source ?? '');
+  if (source === 'manual') return 'manual';
+  if (source === 'strava') return act.laps == null ? 'stravaPending' : 'autoLapOff';
+  if (source === 'garmin' || source === 'apple') return 'autoLapOff';
+  return 'unknown';
 }
 
 const WORK_ZONES = new Set(['tempo', 'threshold', 'interval', 'sprint', 'marathon_pace']);
@@ -277,6 +296,7 @@ export function buildWorkoutExtras(input: {
   maxHr: number | null;
   activity: {
     id: string; garmin_activity_id?: number | null; perceived_feel?: number | null; perceived_rpe?: number | null; average_hr?: number | null;
+    source?: string | null; laps?: unknown; splits?: unknown;
   } | null;
   pr: WorkoutPr | null;
   ownFeedback: { feel?: number | null; difficulty?: number | null; pain?: boolean | null } | null;
@@ -330,7 +350,7 @@ export function buildWorkoutExtras(input: {
     feedback: input.ownFeedback
       ? { feel: input.ownFeedback.feel ?? null, difficulty: input.ownFeedback.difficulty ?? null, pain: input.ownFeedback.pain ?? null }
       : null,
-    activity: input.activity ? { id: input.activity.id, garminId: input.activity.garmin_activity_id ?? null } : null,
+    activity: input.activity ? { id: input.activity.id, garminId: input.activity.garmin_activity_id ?? null, lapsWhy: lapsWhy(input.activity) } : null,
   };
 }
 

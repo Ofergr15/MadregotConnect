@@ -23,10 +23,12 @@ const HOURS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'));
 const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
 const SELECT = 'h-11 min-w-[56px] rounded-xl bg-[#F1F2F7] px-2 text-center text-[15px] font-extrabold text-ink-900 disabled:opacity-40';
 
-export function MorningReminderRow({ athleteId, value, onSaved }: {
+export function MorningReminderRow({ athleteId, value, onSaved, pushOn = true }: {
   athleteId: string;
   value: MorningReminderValue;
   onSaved?: (next: MorningReminderValue) => void;
+  /** Push is allowed on this device. Off: the reminder would reach the inbox only, and it says so. */
+  pushOn?: boolean;
 }) {
   const t = useTranslations('trainee.reminder.setting');
   const [state, setState] = useState<MorningReminderValue>(value);
@@ -83,6 +85,7 @@ export function MorningReminderRow({ athleteId, value, onSaved }: {
         </div>
       </div>
       {Number(hh) >= 12 && state.enabled && <p className="mt-1.5 text-xs text-ink-400">{t.rich('evening', RICH)}</p>}
+      {state.enabled && !pushOn && <p className="mt-1.5 text-xs font-bold text-[#A8510A]">{t('noPush')}</p>}
       {error && <p className="mt-1.5 text-xs text-accent-red">{t('saveError')}</p>}
     </div>
   );

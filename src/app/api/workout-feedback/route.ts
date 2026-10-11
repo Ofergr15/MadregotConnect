@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { feedbackAlertCopy } from '@/lib/notifications/copy';
-import { notifyStaff } from '@/lib/notifications/staff';
+import { academyManagerIds, notifyStaff } from '@/lib/notifications/staff';
 import { notifyAthlete } from '@/lib/push';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
 import { academyThreadUrl } from '@/lib/academy/deep-links';
@@ -409,6 +409,9 @@ export async function POST(request: Request) {
     const hardNew = difficulty != null && difficulty >= 9 && !(Number(before?.difficulty) >= 9);
     const askNew = wantsFeedback === true && before?.wants_feedback !== true;
     const flag = painNew || hardNew || askNew;
+    // Who a pain report reaches: the trainee's own coaches, or — a trainee with no coach —
+    // the academy's managers. Said back to the screen, never a silent { success: true }.
+    let painTo: 'coach' | 'managers' | null = null;
     if (flag) {
       // Same row already loaded for the alert's name — widen to avatar_url too
       // (no new join/table) so the coach's push shows the flagging athlete's
@@ -439,7 +442,12 @@ export async function POST(request: Request) {
       // Best-effort: a trainee with no coach, or a lookup that fails, costs only this.
       if (painNew) {
         try {
-          const coaches = (await coachIdsOf(supabase, athleteId)).filter(id => id !== athleteId);
+          let coaches = (await coachIdsOf(supabase, athleteId)).filter(id => id !== athleteId);
+          painTo = 'coach';
+          if (!coaches.length) {
+            coaches = (await academyManagerIds()).filter(id => id !== athleteId);
+            painTo = 'managers';
+          }
           await Promise.all(coaches.map(coachId => notifyAthlete({
             athleteId: coachId,
             kind: 'feedback_alert',
@@ -454,7 +462,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, ...(painTo ? { painTo, noCoach: painTo === 'managers' } : {}) });
   } catch (err: unknown) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }

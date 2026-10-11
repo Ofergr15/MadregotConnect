@@ -17,6 +17,9 @@ export const RECORD_BUCKETS: ReadonlyArray<{ key: string; meters: number }> = [
   ...PR_BUCKETS.map(b => ({ key: b.key, meters: b.meters })),
 ];
 
+/** How far back a record has to beat: the season, read whole (mockup 5: "במקום השיא הקודם 3:59 (מאי)"). */
+export const RECORD_DAYS = 365;
+
 /** The shortest run that can hold any record (the 1 km bucket, less a GPS percent). */
 export const RECORD_MIN_M = 990;
 

@@ -163,7 +163,9 @@ export function DoneTabs({ value, activityId, onChange }: {
 export function DoneLapsTable({ data }: { data: WorkoutResponse }) {
   const t = useTranslations('trainee.done.laps');
   const laps = doneLaps(data.done, data.sheet.chart);
-  if (!laps) return <p className={cn(CARD, 'px-4 py-6 text-center text-sm text-ink-400')}>{t('none')}</p>;
+  // Why there are none, from where the run came — never a bare "no laps".
+  const why = data.activity?.lapsWhy;
+  if (!laps) return <p className={cn(CARD, 'px-4 py-6 text-center text-sm text-ink-400')}>{why && why !== 'unknown' ? t(`why.${why}`) : t('none')}</p>;
   const tone = (r: DoneLapRow) => (r.tone === 'fast' ? C.good : r.tone === 'slow' ? C.warn : C.goodM);
   return (
     <section className={cn(CARD, 'overflow-hidden text-ink-900')}>

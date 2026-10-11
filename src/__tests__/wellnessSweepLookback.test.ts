@@ -14,7 +14,7 @@ vi.mock('@/lib/garmin/client', () => ({
 
 const {
   BACKFILL_LOOKBACK_DAYS, BACKFILL_RETRY_DAYS, LOOKBACK_DAYS, WELLNESS_BACKFILL_PER_RUN, deepPassPicks, fetchNight, lastDeepPassAt, missingNights,
-  needsDeepPass, storedNightCount, sweepWellness,
+  needsDeepPass, storedNightCount, sweepWellness, daysBefore,
 } = await import('@/lib/wellness/sweep');
 
 const TODAY = '2026-10-13';
@@ -111,6 +111,44 @@ describe('who gets the deep pass', () => {
       vi.useRealTimers();
       getWellness.mockImplementation(async (date: string) => ({ sleepSeconds: 25000, restingHr: date.endsWith('13') ? 51 : 48 }));
     }
+  });
+});
+
+describe('a sweep where Garmin throws on every call (issue 29)', () => {
+  it('counts the errors as failed and records the deep pass, so the same trainees are not deep-passed again tomorrow', async () => {
+    getWellness.mockClear();
+    getWellness.mockImplementation(async () => { throw new Error('Garmin 503'); });
+    const db = createMemoryDb({
+      schema: {
+        athletes: ['id', 'garmin_auth', 'is_academy', 'status'],
+        athlete_wellness: ['athlete_id', 'date', 'sleep_seconds', 'resting_hr', 'fetched_at'],
+      },
+      unique: { athlete_wellness: [['athlete_id', 'date']] },
+    });
+    const trainees = Array.from({ length: 3 }, () => uid());
+    for (const id of trainees) db.tables.athletes.push({ id, garmin_auth: 'x', is_academy: true, status: 'active' });
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-10-13T05:40:00Z'));
+      const first = await sweepWellness(db.client as never, '2026-10-13');
+      expect(first.fetched).toBe(0);
+      expect(first.nightErrors).toBe(3 * 30);
+      expect(first.failed).toHaveLength(3);
+      vi.setSystemTime(new Date('2026-10-14T05:40:00Z'));
+      const second = await sweepWellness(db.client as never, '2026-10-14');
+      expect(second.backfilled).toBe(0);
+    } finally {
+      vi.useRealTimers();
+      getWellness.mockImplementation(async (date: string) => ({ sleepSeconds: 25000, restingHr: date.endsWith('13') ? 51 : 48 }));
+    }
+  });
+
+  it('a night that arrived cut short (sleep, no RHR, on a watch that records RHR) is asked again', () => {
+    const stored = [
+      { date: TODAY, sleep_seconds: 6600, resting_hr: null },
+      ...Array.from({ length: 6 }, (_, i) => ({ date: daysBefore(TODAY, i + 1), sleep_seconds: 25200, resting_hr: 50 })),
+    ];
+    expect(missingNights(TODAY, stored)).toEqual([TODAY]);
   });
 });
 
