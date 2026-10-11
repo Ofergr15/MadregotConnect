@@ -6,6 +6,7 @@ import { notifyAthlete } from '@/lib/push';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
 import { academyThreadUrl } from '@/lib/academy/deep-links';
 import { requireCallerForAthlete, requireStaffCaller } from '@/lib/auth/self-or-staff';
+import { parseFeedbackInput } from '@/lib/feedback-scales';
 
 export const dynamic = 'force-dynamic';
 
@@ -337,11 +338,15 @@ export async function GET(request: Request) {
 // POST /api/workout-feedback  { athleteId, activityId, difficulty, feel, pain, painDetail, wantsFeedback }
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { athleteId, activityId, difficulty, feel, pain, painDetail, wantsFeedback, comment } = body;
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') return NextResponse.json({ error: 'invalid body' }, { status: 400 });
+    const { athleteId, activityId, painDetail, comment } = body;
     if (!athleteId) {
       return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
     }
+    const parsed = parseFeedbackInput(body);
+    if (!parsed.ok) return NextResponse.json({ error: `${parsed.field} out of range` }, { status: 400 });
+    const { difficulty, feel, pain, wantsFeedback } = parsed.value;
 
     // The row is keyed on athlete_id, so without this anyone could file (or
     // overwrite, via the upsert) a pain report in someone else's name.
@@ -350,6 +355,22 @@ export async function POST(request: Request) {
 
     const supabase = createServerClient();
     const garminActivityId = activityId ? Number(activityId) : null;
+    if (garminActivityId != null && !Number.isSafeInteger(garminActivityId)) {
+      return NextResponse.json({ error: 'activityId invalid' }, { status: 400 });
+    }
+
+    // …and the run has to be theirs: otherwise a trainee files a feel (or a pain alert to
+    // their own coach) about another trainee's activity, under their own name.
+    if (garminActivityId != null) {
+      const { data: owned, error: ownErr } = await supabase
+        .from('athlete_activities')
+        .select('id')
+        .eq('athlete_id', athleteId)
+        .eq('garmin_activity_id', garminActivityId)
+        .limit(1);
+      if (ownErr) throw ownErr;
+      if (!owned?.length) return NextResponse.json({ error: 'activity not found' }, { status: 404 });
+    }
 
     // What was saved before, so a re-save of the same answer does not alert anyone twice:
     // each flag below fires only when it turns on.
@@ -371,9 +392,9 @@ export async function POST(request: Request) {
         {
           athlete_id: athleteId,
           garmin_activity_id: garminActivityId,
-          difficulty: difficulty ?? null,
-          feel: feel ?? null,
-          pain: pain ?? null,
+          difficulty,
+          feel,
+          pain,
           pain_detail: painDetail || null,
           wants_feedback: wantsFeedback ?? null,
           comment: comment || null,
@@ -398,7 +419,7 @@ export async function POST(request: Request) {
         .eq('id', athleteId)
         .maybeSingle();
       const name = athlete?.name || 'רץ/ה';
-      const reason = pain ? 'דיווח/ה על כאב' : (difficulty >= 9 ? 'קושי גבוה מאוד' : 'ביקש/ה משוב');
+      const reason = pain ? 'דיווח/ה על כאב' : (difficulty != null && difficulty >= 9 ? 'קושי גבוה מאוד' : 'ביקש/ה משוב');
       // Was a hand-rolled fan-out over APPROVER_EMAILS that sent a push and
       // persisted NOTHING — so a coach whose phone was off never found out an
       // athlete had reported pain, and the club's own admin (synthetic Strava

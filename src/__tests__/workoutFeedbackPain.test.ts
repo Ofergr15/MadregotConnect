@@ -9,6 +9,7 @@ import { createMemoryDb, uid } from './helpers/memory-db';
 
 const TRAINEE = uid();
 const RINA = uid();
+const OTHER = uid();
 
 let db: ReturnType<typeof createMemoryDb>;
 vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => db.client }));
@@ -32,10 +33,13 @@ beforeEach(() => {
     schema: {
       workout_feedback: ['id', 'athlete_id', 'garmin_activity_id', 'difficulty', 'feel', 'pain', 'pain_detail', 'wants_feedback', 'comment'],
       athletes: ['id', 'name', 'avatar_url'],
+      athlete_activities: ['id', 'athlete_id', 'garmin_activity_id'],
     },
     defaults: { workout_feedback: () => ({ id: uid() }) },
   });
   db.tables.athletes.push({ id: TRAINEE, name: 'Dana', avatar_url: null });
+  db.tables.athlete_activities.push({ id: uid(), athlete_id: TRAINEE, garmin_activity_id: 777 });
+  db.tables.athlete_activities.push({ id: uid(), athlete_id: OTHER, garmin_activity_id: 888 });
   notifyStaff.mockClear();
   notifyAthlete.mockClear();
 });
@@ -60,6 +64,29 @@ describe('a pain report', () => {
 
   it('no pain, nothing to tell', async () => {
     await post({ feel: 3, difficulty: 5, pain: false });
+    expect(notifyStaff).not.toHaveBeenCalled();
+    expect(notifyAthlete).not.toHaveBeenCalled();
+  });
+});
+
+describe('what the route refuses', () => {
+  it('a feel outside 0–4, a difficulty outside 1–10, a pain that is not a boolean — 400, nothing stored, nobody told', async () => {
+    for (const bad of [{ feel: 9 }, { feel: -1 }, { feel: 2.5 }, { feel: 'x' }, { difficulty: 11 }, { difficulty: 0 }, { pain: 'yes' }, { wantsFeedback: 1 }]) {
+      expect((await post(bad)).status, JSON.stringify(bad)).toBe(400);
+    }
+    expect(db.tables.workout_feedback).toHaveLength(0);
+    expect(notifyStaff).not.toHaveBeenCalled();
+  });
+
+  it('null and absent answers are fine', async () => {
+    expect((await post({ feel: null, difficulty: null, pain: null })).status).toBe(200);
+    expect((await post({ feel: 0, difficulty: 10 })).status).toBe(200);
+  });
+
+  it('another trainee\'s activity id: 404, no row on it, no pain alert to the caller\'s coach', async () => {
+    expect((await post({ activityId: 888, pain: true })).status).toBe(404);
+    expect((await post({ activityId: 999, feel: 3 })).status).toBe(404);
+    expect(db.tables.workout_feedback).toHaveLength(0);
     expect(notifyStaff).not.toHaveBeenCalled();
     expect(notifyAthlete).not.toHaveBeenCalled();
   });

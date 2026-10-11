@@ -48,3 +48,30 @@ export function rpeLabel(v: number | null | undefined): string {
   if (v <= 8) return 'קשה';
   return 'קשה מאוד';
 }
+
+/**
+ * POST /api/workout-feedback's answers, checked: feel an integer 0–4, difficulty 1–10, pain
+ * and wantsFeedback booleans — each also absent or null. One out-of-range feel would lift
+ * the average the readiness check holds a pace suggestion on, and a difficulty of 11 would
+ * page the staff (≥ 9), so anything else is refused, never clamped. Migration 143 holds the
+ * table to the same ranges.
+ */
+export type FeedbackInput = { feel: number | null; difficulty: number | null; pain: boolean | null; wantsFeedback: boolean | null };
+
+export function parseFeedbackInput(body: Record<string, unknown>): { ok: true; value: FeedbackInput } | { ok: false; field: string } {
+  const int = (v: unknown, lo: number, hi: number) => v == null || (Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi);
+  const bool = (v: unknown) => v == null || typeof v === 'boolean';
+  if (!int(body.feel, 0, 4)) return { ok: false, field: 'feel' };
+  if (!int(body.difficulty, 1, 10)) return { ok: false, field: 'difficulty' };
+  if (!bool(body.pain)) return { ok: false, field: 'pain' };
+  if (!bool(body.wantsFeedback)) return { ok: false, field: 'wantsFeedback' };
+  return {
+    ok: true,
+    value: {
+      feel: (body.feel as number | null | undefined) ?? null,
+      difficulty: (body.difficulty as number | null | undefined) ?? null,
+      pain: (body.pain as boolean | null | undefined) ?? null,
+      wantsFeedback: (body.wantsFeedback as boolean | null | undefined) ?? null,
+    },
+  };
+}

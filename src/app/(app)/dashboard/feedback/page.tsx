@@ -112,7 +112,12 @@ function FeedbackForm() {
           // captured, and a difficulty:0 submit would violate the 1-10
           // invariant src/lib/feedback-scales.ts already assumes everywhere else.
           if (data.watchRpe != null) setDifficulty(Math.min(Math.max(Math.round(data.watchRpe), 1), 10));
-          if (data.watchFeel != null) setFeel(Math.round(data.watchFeel));
+          // Feel the same way into 0–4 (a raw Garmin 0–100 that skipped the sync's division
+          // reads /25, as feelPrefillOf does) — the route refuses anything outside it.
+          if (data.watchFeel != null) {
+            const f = data.watchFeel > 4 ? data.watchFeel / 25 : data.watchFeel;
+            setFeel(Math.min(Math.max(Math.round(f), 0), 4));
+          }
         }
       })
       .catch(() => {})
