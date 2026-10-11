@@ -109,4 +109,25 @@ describe('computeDistanceBests with laps', () => {
     expect(fiveK.seconds).toBe(Math.round(1298 * (5000 / 5010)));
     expect(fiveK.fromSegment).toBe(false);
   });
+
+  // Garmin keeps a standing rest as its own lap: 0 m, 90 s. Dropping it like an empty
+  // lap joined the reps across it into a "continuous" 5K with the rest left out.
+  it('does not join reps across a standing rest into one continuous stretch', () => {
+    const rep = { distance: 1000, duration: 200 };
+    const stand = { distance: 0, duration: 90 };
+    const intervals = [rep, stand, rep, stand, rep, stand, rep, stand, rep];
+    expect(bestSegmentSeconds(intervals, 5000)).toBeNull();
+    expect(bestSegmentSeconds(intervals, 1000)).toBe(200);
+  });
+
+  it('still finds the stretch on one side of a stop', () => {
+    const km = (s: number) => ({ distance: 1000, duration: s });
+    const laps = [km(300), km(300), { distance: 0, duration: 120 }, km(250), km(250), km(250), km(250), km(250)];
+    expect(bestSegmentSeconds(laps, 5000)).toBe(1250);
+    expect(bestSegmentSeconds(laps, 2000)).toBe(500);
+  });
+
+  it('a lap with no distance and no time is still just ignored', () => {
+    expect(bestSegmentSeconds([{ distance: 1000, duration: 200 }, { distance: 0, duration: 0 }, { distance: 1000, duration: 200 }], 2000)).toBe(400);
+  });
 });

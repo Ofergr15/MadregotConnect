@@ -68,12 +68,29 @@ export function bestSegmentSeconds(
 ): number | null {
   if (!Array.isArray(laps) || laps.length === 0 || targetMeters <= 0) return null;
 
-  const usable: Array<{ m: number; s: number }> = [];
+  // A lap with time but no distance is a stop — a standing rest between reps, or a
+  // treadmill pause — and the stretch on either side of it was NOT run
+  // consecutively. Such laps used to be dropped like empty ones, which joined the
+  // reps across them: 5 × (1 km in 3:20 + 90 s standing) became "a continuous 5K in
+  // 16:40", with the 7½ minutes of rest gone, onto the PR, the club records and the
+  // badge. A stop now ends the stretch; each stretch is searched on its own.
+  const stretches: Array<Array<{ m: number; s: number }>> = [[]];
   for (const lap of laps) {
     const m = lapMeters(lap);
     const s = lapSeconds(lap);
-    if (m > 0 && s > 0) usable.push({ m, s });
+    if (m > 0 && s > 0) stretches[stretches.length - 1].push({ m, s });
+    else if (m === 0 && s > 0 && stretches[stretches.length - 1].length > 0) stretches.push([]);
   }
+
+  let best: number | null = null;
+  for (const usable of stretches) {
+    const found = bestInStretch(usable, targetMeters);
+    if (found !== null && (best === null || found < best)) best = found;
+  }
+  return best === null ? null : Math.round(best);
+}
+
+function bestInStretch(usable: Array<{ m: number; s: number }>, targetMeters: number): number | null {
   if (usable.length === 0) return null;
 
   let best: number | null = null;
@@ -99,5 +116,5 @@ export function bestSegmentSeconds(
     if (!reached) break;
   }
 
-  return best === null ? null : Math.round(best);
+  return best;
 }
