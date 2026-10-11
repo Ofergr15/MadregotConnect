@@ -110,5 +110,6 @@ export function traineeProgressUrl(view?: 'body' | 'tests'): string {
  * own test card).
  */
 export function traineeTestRedirect(link: Pick<AcademyDeepLink, 'test'>, opts: { traineeV2: boolean; isStaff: boolean }): string | null {
-  return link.test && opts.traineeV2 && !opts.isStaff ? traineeProgressUrl('tests') : null;
+  // `test=mine` rides along so 7ג scrolls the next test / the tests card into view.
+  return link.test && opts.traineeV2 && !opts.isStaff ? `${traineeProgressUrl('tests')}&test=mine` : null;
 }

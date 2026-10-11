@@ -12,6 +12,8 @@ import { LEARNING_DAYS } from '@/lib/academy/pmc';
 import { rampSentence, rangeOptions, thresholdRow, type Metric } from '@/lib/academy/progress';
 import { FitnessChart, FAT, FIT } from './FitnessChart';
 import { FormStrip } from './FormStrip';
+import { JourneyTiles } from './JourneyTiles';
+import type { HomeJourney } from '@/lib/academy/trainee-home';
 import { MetricSheet } from './MetricSheet';
 import { BAND_TILE, CARD, Chevron, RICH, SHADOW, Segmented, Tag, clock, monthName, type TagTone } from './ui';
 
@@ -21,7 +23,8 @@ import { BAND_TILE, CARD, Chevron, RICH, SHADOW, Segmented, Tag, clock, monthNam
 // tap away from what it means (7ב); one chart with two lines, time running left to right so
 // fitness climbs toward "היום"; form as a strip of band colours per week (never bars under
 // zero); one sentence about the build rate, whose word opens the sheet with the "above 8 a
-// week" line; and the threshold pace, a row into 7ג.
+// week" line; the threshold pace, a row into 7ג, and the body, a row into 8; below the
+// fold the journey tiles ("המסע שלי"). The form strip opens the bands' sheet too.
 //
 // Every number is GET /api/academy/load's, the same diary the home and the board read.
 // While the engine is still learning the trainee (fewer than 42 days) or the runs carry
@@ -31,7 +34,15 @@ import { BAND_TILE, CARD, Chevron, RICH, SHADOW, Segmented, Tag, clock, monthNam
 const RAMP_TONE: Record<string, TagTone> = { tooFast: 'w', building: 'g', maintaining: 'n', recovering: 'b', easyWeek: 'b' };
 const BAND_COLOR = Object.fromEntries(FORM_BANDS.map(b => [b.key, b.color]));
 
-export function ProgressScreen({ athleteId, gender, testsHref }: { athleteId: string; gender: string; testsHref: string }) {
+export function ProgressScreen({ athleteId, gender, testsHref, bodyHref, journey }: {
+  athleteId: string;
+  gender: string;
+  testsHref: string;
+  /** 8, the body screen — a row under the threshold one. */
+  bodyHref?: string;
+  /** "המסע שלי", below the cards (the mockup's build notes: under screen 7's cards). */
+  journey?: HomeJourney | null;
+}) {
   const t = useTranslations('trainee.progress');
   const tt = useTranslations();
   const locale = useLocale();
@@ -74,7 +85,7 @@ export function ProgressScreen({ athleteId, gender, testsHref }: { athleteId: st
             {data.formWeeks.length > 0 && (
               <>
                 <div className="mb-[5px] mt-2.5 text-[12.5px] font-bold text-ink-400">{t('strip')}</div>
-                <FormStrip weeks={data.formWeeks} gender={gender} />
+                <FormStrip weeks={data.formWeeks} gender={gender} onOpen={() => setSheet('form')} />
               </>
             )}
           </div>
@@ -125,7 +136,19 @@ export function ProgressScreen({ athleteId, gender, testsHref }: { athleteId: st
           )}
           <span aria-hidden className="grid h-11 w-6 shrink-0 place-items-center text-ink-300"><Chevron className="h-[14px] w-[9px]" /></span>
         </Link>
+        {bodyHref && (
+          <Link href={bodyHref} className="flex min-h-[56px] items-center gap-[11px] border-t border-[#EFEFF4] px-3.5">
+            <span aria-hidden className="w-6 shrink-0 text-center text-[19px]">❤️</span>
+            <span className="min-w-0 flex-1 py-[9px]">
+              <b className="block text-[14.5px] font-extrabold text-ink-900">{t('bodyRow')}</b>
+              <small className="mt-px block text-[12.5px] text-ink-400">{t('bodyRowSub')}</small>
+            </span>
+            <span aria-hidden className="grid h-11 w-6 shrink-0 place-items-center text-ink-300"><Chevron className="h-[14px] w-[9px]" /></span>
+          </Link>
+        )}
       </div>
+
+      {journey && <div className="mt-3"><JourneyTiles journey={journey} /></div>}
 
       {now && (
         // Kept mounted once opened, on the last metric, so the sheet animates out.

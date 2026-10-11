@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
@@ -9,33 +9,48 @@ import type { TrendSeries } from '@/lib/academy/tests';
 import type { TestInvitation } from '@/lib/academy/testInvite';
 import type { TraineeHome } from '@/lib/academy/trainee-home';
 import { sinceFirstTest } from '@/lib/academy/progress';
-import { ImprovementChart } from '@/components/academy/ImprovementChart';
 import { MyInvitation } from '@/components/academy/MyInvitation';
 import { MyTestsCard } from '@/components/academy/MyTestsCard';
-import { JourneyTiles } from './JourneyTiles';
+import { ThresholdChart } from './ThresholdChart';
 import { CARD, RICH, Tag, clock, dm, monthName } from './ui';
 
 // ── 7ג: קצב הסף והטסטים (trainee-experience-v2 phone 7ג, TP's fitness history · tests) ──
 //
-// "Am I faster": the threshold pace every pace and every ⚡ stands on, how far it moved
-// since the first test, and the improvement graph from the old academy home, returned AS IS
-// (ImprovementChart: first test on the left, faster = higher, so a threshold that improves
-// climbs toward today — the same direction as every other chart). Under it the latest
-// test, the next one (MyInvitation, unchanged), the tests card with its entry form, and
-// below the fold the journey tiles that used to close the old home.
+// "Am I faster": the threshold pace every pace and every ⚡ stands on and how far it moved
+// since the first test (▲ = faster, the one sign on this screen), the chart of every test
+// (ThresholdChart: first test on the left, faster higher), the latest test and the next one
+// (MyInvitation, unchanged). The full tests card with its entry form ("שליחת טסט למאמן")
+// is one tap away under "כל הטסטים ושליחת תוצאה", and opens by itself when the trainee
+// arrives to send a result (?test=mine). The journey tiles live on screen 7.
 
 const PROTOCOL = '30min';
 
 interface TestsResponse { trend?: TrendSeries; tableMissing?: boolean }
 
-export function ThresholdScreen({ athleteId, home }: { athleteId: string; home: TraineeHome | null }) {
+export function ThresholdScreen({ athleteId, home, focusTests = false }: {
+  athleteId: string;
+  home: TraineeHome | null;
+  /** Arrived by ?test=mine: the next test / the tests card is the point, so it is in view. */
+  focusTests?: boolean;
+}) {
   const t = useTranslations('trainee.tests');
   const tp = useTranslations('trainee.progress');
   const locale = useLocale();
   const [hasInvitation, setHasInvitation] = useState(false);
   const [invitation, setInvitation] = useState<TestInvitation | null>(null);
   const [resultJustSent, setResultJustSent] = useState(false);
+  const [more, setMore] = useState(focusTests);
+  const focusRef = useRef<HTMLDivElement>(null);
   const { data, error } = useApi<TestsResponse>(`/api/academy/tests?protocol=${PROTOCOL}&athleteId=${encodeURIComponent(athleteId)}`);
+
+  // A deep link to the tests scrolls the invitation (or the tests card) into view once the
+  // screen has its content, whatever sits above it.
+  const ready = !!data || !!error;
+  useEffect(() => {
+    if (!focusTests || !ready) return;
+    const id = window.setTimeout(() => focusRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 80);
+    return () => window.clearTimeout(id);
+  }, [focusTests, ready, hasInvitation]);
 
   if (!data && !error) return <SkeletonList count={4} />;
   const trend = data?.trend ?? null;
@@ -68,10 +83,7 @@ export function ThresholdScreen({ athleteId, home }: { athleteId: string; home: 
         <p className="text-13 leading-normal text-ink-500">{latest ? t('explain') : t('noneSub')}</p>
       </div>
 
-      {trend && points.length > 0 && (
-        // Unchanged: its own card, its own table. Only the heading says what the axes mean.
-        <ImprovementChart trend={trend} heading={t('chart')} subtitle={t('axis')} className={CARD} />
-      )}
+      {points.length > 0 && <ThresholdChart points={points.map(p => ({ date: p.date, paceSec: p.paceSec as number }))} />}
 
       {latest && (
         <div className={cn(CARD, 'flex min-h-[56px] items-center gap-[11px] px-3.5')}>
@@ -98,6 +110,7 @@ export function ThresholdScreen({ athleteId, home }: { athleteId: string; home: 
       )}
 
       {/* The next test: the invitation card itself, unchanged, under its heading. */}
+      <div ref={focusRef} className="scroll-mt-3" />
       <div className={hasInvitation ? 'flex flex-col gap-1.5' : 'hidden'}>
         <h2 className="px-0.5 text-[15px] font-black text-ink-700">{t('next')}</h2>
         <MyInvitation
@@ -109,15 +122,23 @@ export function ThresholdScreen({ athleteId, home }: { athleteId: string; home: 
         />
       </div>
 
-      <MyTestsCard
-        athleteId={athleteId}
-        name={home?.athlete?.name ?? ''}
-        invitation={invitation}
-        protocol={PROTOCOL}
-        onRecorded={() => setResultJustSent(true)}
-      />
-
-      {home?.journey && <div className="mt-3"><JourneyTiles journey={home.journey} /></div>}
+      <button
+        type="button"
+        onClick={() => setMore(m => !m)}
+        aria-expanded={more}
+        className="flex min-h-[44px] items-center justify-center gap-1 text-[15px] font-bold text-brand-600"
+      >
+        {more ? t('less') : t('more')}
+      </button>
+      {more && (
+        <MyTestsCard
+          athleteId={athleteId}
+          name={home?.athlete?.name ?? ''}
+          invitation={invitation}
+          protocol={PROTOCOL}
+          onRecorded={() => setResultJustSent(true)}
+        />
+      )}
     </div>
   );
 }

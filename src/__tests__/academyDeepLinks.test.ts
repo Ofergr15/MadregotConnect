@@ -103,7 +103,7 @@ describe('?test=mine under the trainee experience v2', () => {
   const link = readAcademyDeepLink(new URLSearchParams('test=mine'));
 
   it('a trainee lands on the progress tab\'s tests (7ג)', () => {
-    expect(traineeTestRedirect(link, { traineeV2: true, isStaff: false })).toBe('/dashboard/academy/progress?view=tests');
+    expect(traineeTestRedirect(link, { traineeV2: true, isStaff: false })).toBe('/dashboard/academy/progress?view=tests&test=mine');
     expect(traineeProgressUrl('tests')).toBe('/dashboard/academy/progress?view=tests');
     expect(traineeProgressUrl('body')).toBe('/dashboard/academy/progress?view=body');
     expect(traineeProgressUrl()).toBe('/dashboard/academy/progress');

@@ -81,7 +81,7 @@ export function MetricSheet({ open, onOpenChange, metric, numbers, gender, easyW
                   <b className={cn('w-24 shrink-0 text-[14px] font-extrabold', on ? 'text-[#0E7A3C]' : 'text-ink-900')}>{tt(b.wordKey as never)}</b>
                   <span className="min-w-0 text-[12.5px] text-ink-400">
                     {tt(b.meaningKey as never)}
-                    {on && <> · <b className="text-[12.5px] font-extrabold text-ink-900">{t('here', { gender })}</b></>}
+                    {on && <> <b className="inline-block whitespace-nowrap rounded-md bg-white px-1.5 text-[12px] font-extrabold text-ink-900">{t('here', { gender })}</b></>}
                   </span>
                   <em className={cn('ms-auto whitespace-nowrap text-[12.5px] font-bold not-italic', on ? 'text-[#0E7A3C]' : 'text-ink-400')}>{range(b.min, b.max)}</em>
                 </li>
@@ -100,7 +100,7 @@ export function MetricSheet({ open, onOpenChange, metric, numbers, gender, easyW
                   <b className={cn('w-24 shrink-0 text-[14px] font-extrabold', on ? 'text-[#0E7A3C]' : 'text-ink-900')}>{tt(`trainee.ramp.${b.key}` as never)}</b>
                   <span className="min-w-0 text-[12.5px] text-ink-400">
                     {t(`rampBand.${b.key}`)}
-                    {on && <> · <b className="text-[12.5px] font-extrabold text-ink-900">{t('here', { gender })}</b></>}
+                    {on && <> <b className="inline-block whitespace-nowrap rounded-md bg-white px-1.5 text-[12px] font-extrabold text-ink-900">{t('here', { gender })}</b></>}
                   </span>
                   <em className={cn('ms-auto whitespace-nowrap text-[12.5px] font-bold not-italic', on ? 'text-[#0E7A3C]' : 'text-ink-400')}>{range(b.min, b.max)}</em>
                 </li>

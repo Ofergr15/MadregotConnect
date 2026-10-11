@@ -4425,6 +4425,9 @@
       "today": "Today",
       "aria": "Fitness and fatigue over {days} days, oldest on the left",
       "strip": "Form by week",
+      "bodyRow": "Body · resting HR and sleep",
+      "bodyRowSub": "Against your own normal range",
+      "back": "Progress",
       "stripAria": "Form over {n} weeks, oldest on the left",
       "ramp": {
         "up": "Fitness rose <m>{n}</m> in the last week",
@@ -4497,6 +4500,9 @@
       "none": "No test yet",
       "noneSub": "Your first test is the baseline. Your paces come from it.",
       "next": "🎯 Next test",
+      "more": "All tests, and sending a result",
+      "less": "Close",
+      "chartAria": "Threshold pace at every test, oldest on the left, faster higher",
       "journey": {
         "title": "My journey",
         "months": "Months with us",
