@@ -226,7 +226,8 @@ export function metricMissing(
   field: RangeField,
   feed: DataFeed | null | undefined,
 ): MetricMissing | null {
-  const clean = cleanNights(nights).filter(n => n.date <= today);
+  // A row with neither value is no night (a deep pass's empty marker, a night not worn).
+  const clean = cleanNights(nights).filter(n => n.date <= today && (plausible('sleep_seconds', n.sleep_seconds) || plausible('resting_hr', n.resting_hr)));
   if (feedBroken(feed) && feed.provider === 'garmin') return { reason: 'feed', feed: feed.kind, days: feed.days };
   const withValue = clean.filter(n => plausible(field, n[field])).sort((a, b) => b.date.localeCompare(a.date));
   if (!withValue.length) {

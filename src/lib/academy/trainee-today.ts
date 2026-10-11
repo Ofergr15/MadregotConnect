@@ -183,7 +183,8 @@ export function invitationSlot(inv: Pick<TestInvitation, 'confirmedSlot' | 'prop
 // ── The form card ────────────────────────────────────────────────────────────────────────
 
 export type TodayForm =
-  | { status: 'ok'; value: number; band: FormBandKey; sentenceKey: string }
+  /** `basis: 'hr'`: no usable test, so every load under it is estimated by heart rate (D5). */
+  | { status: 'ok'; value: number; band: FormBandKey; sentenceKey: string; basis?: 'hr' }
   | { status: 'learning'; daysSeen: number; daysLeft: number; cause: 'new' | 'unpriced' }
   | { status: 'insufficient' }
   /** Runs still being priced: no number until they all are. */
@@ -442,11 +443,13 @@ export function buildTraineeToday(input: TodayInput): TraineeToday {
   // says so (NO_PLAN_SENTENCE); the number is as of the morning the card is titled for.
   const formAsOf = focus === 'tomorrow' || dayState === 'rest' ? tomorrow : today;
   const runFeed = input.feed?.run ?? null;
-  const form = todayForm({
+  const priced = todayForm({
     rows: input.loads, tests: input.tests, today, day, asOf: formAsOf, focus,
     gate: { feed: runFeed, pending: input.pending ?? 0 },
     noPlan: dayState === 'noPlan',
   });
+  // A number standing on heart rate alone says so (1ג's "הערכה לפי דופק").
+  const form: TodayForm = priced.status === 'ok' && !input.hasUsableTest ? { ...priced, basis: 'hr' } : priced;
   const invite = showInvitation({ invitation: input.invitation, slotDate: input.invitationDate, hasUsableTest: input.hasUsableTest, today })
     ? { slot: invitationSlot(input.invitation!)!, status: input.invitation!.status }
     : null;

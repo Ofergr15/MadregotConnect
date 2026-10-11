@@ -99,6 +99,11 @@ export function WorkoutDone({ data, onLoad }: {
         </div>
       )}
 
+      {/* No ⚡ for this run: why, and what fixes it — never a silently missing row (12). */}
+      {done.noLoad && (
+        <p className={cn(CARD, 'px-4 py-3 text-[13px] font-bold leading-snug text-ink-500')}>⚡ {t('noLoad')}</p>
+      )}
+
       {done.reps.length >= 2 && done.band && (
         <section className={cn(CARD, 'px-4 py-3.5 text-ink-900')}>
           <div className="flex items-baseline justify-between gap-2">

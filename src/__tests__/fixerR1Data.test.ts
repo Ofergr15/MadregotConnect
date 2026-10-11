@@ -77,6 +77,10 @@ describe('nights (issues 9, 10, 17, 18)', () => {
     expect(metricMissing([], TODAY, 'sleep_seconds', { kind: 'none' })).toEqual({ reason: 'noGarmin' });
     expect(metricMissing([], TODAY, 'resting_hr', garmin)).toEqual({ reason: 'neverWorn' });
   });
+  it('empty rows (a deep pass that found nothing) are no nights: still "never worn", not "not measured"', () => {
+    expect(metricMissing([{ date: shiftDate(TODAY, -29), sleep_seconds: null, resting_hr: null }], TODAY, 'sleep_seconds', garmin)).toEqual({ reason: 'neverWorn' });
+  });
+
   it('30 nights without sleep: the watch does not measure it — not "learning" forever', () => {
     const nights = nightsFor(30, 0, () => ({ sleep_seconds: null, resting_hr: 50 }));
     expect(metricMissing(nights, TODAY, 'sleep_seconds', garmin)).toEqual({ reason: 'notMeasured' });

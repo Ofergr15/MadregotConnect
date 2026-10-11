@@ -241,6 +241,26 @@ describe('buildTraineeToday', () => {
     expect(buildTraineeToday(base({ planWeeks: {} })).dayState).toBe('noPlan');
   });
 
+  it('no published plan: the form sentence assumes no rest day (issue 24)', () => {
+    const out = buildTraineeToday(base({ planWeeks: {}, evening: true }));
+    expect(out.dayState).toBe('noPlan');
+    expect(out.form.status === 'ok' && out.form.sentenceKey).toBe('trainee.home.form.noPlanSay');
+  });
+
+  it('a broken Garmin feed: no number, and the reason (issue 1)', () => {
+    const out = buildTraineeToday(base({
+      cards: { [TODAY]: card(TODAY) },
+      feed: { run: { kind: 'failed', provider: 'garmin', days: 10 }, night: { kind: 'failed', provider: 'garmin', days: 10 } },
+    }));
+    expect(out.form).toEqual({ status: 'noFeed', feed: 'failed', provider: 'garmin', days: 10 });
+    expect(out.body.missing.rhr).toMatchObject({ reason: 'feed', feed: 'failed' });
+  });
+
+  it('runs still waiting to be priced: computing, not a number (issue 4)', () => {
+    const out = buildTraineeToday(base({ cards: { [TODAY]: card(TODAY) }, pending: 80 }));
+    expect(out.form).toEqual({ status: 'computing', pending: 80 });
+  });
+
   it('from 20:00 the home is about tomorrow', () => {
     const tomorrow = shiftDate(TODAY, 1);
     const out = buildTraineeToday(base({ evening: true, cards: { [TODAY]: card(TODAY), [tomorrow]: card(tomorrow) } }));

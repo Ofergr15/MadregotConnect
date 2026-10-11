@@ -4138,7 +4138,8 @@
         "computing": "Pricing your runs",
         "computingSay": "{n, plural, one {One more run in line.} other {<m>#</m> more runs in line.}} The number appears once they are all priced, next time you open.",
         "learningUnpricedSay": "Your older runs are not counted: there was no test for them, and the watch sends no resting HR to estimate from. The count starts at the first run that can be priced.",
-        "noPlanSay": "Next week's plan is not published yet, so there is nothing to say about the day yet."
+        "noPlanSay": "Next week's plan is not published yet, so there is nothing to say about the day yet.",
+        "hrEstimate": "Estimated from heart rate: no test yet"
       },
       "body": {
         "sleep": "😴 Sleep",
@@ -4275,7 +4276,8 @@
           "stravaPending": "The laps haven't come from Strava yet. They appear here when they do.",
           "autoLapOff": "The run has a single lap: Auto Lap is off on the watch. Turn it on to see every kilometre here."
         }
-      }
+      },
+      "noLoad": "No load worked out: it needs a test, or a run with heart rate."
     },
     "feel": {
       "back": "Summary",

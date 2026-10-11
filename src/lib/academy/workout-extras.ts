@@ -50,6 +50,8 @@ export interface WorkoutDone {
   table: DoneRow[];
   reps: Array<{ paceSec: number; tone: 'in' | 'fast' | 'slow' }>;
   band: { min: number; max: number } | null;
+  /** The run carries no ⚡: no test to price its pace and no heart rate to estimate it. Said on 5. */
+  noLoad?: boolean;
 }
 
 export interface WorkoutPr {
@@ -264,6 +266,7 @@ export function workoutDone(input: {
   else if (distKind === 'on') verdictKey = 'onPlan';
 
   return {
+    ...(input.actualLoad == null ? { noLoad: true } : {}),
     verdictKey,
     verdictTone: verdictKey === 'short' || verdictKey === 'slow' || verdictKey === 'onPlanSlow' ? 'warn' : 'good',
     detail: {

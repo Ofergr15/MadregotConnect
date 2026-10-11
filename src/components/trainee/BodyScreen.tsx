@@ -53,11 +53,13 @@ export function BodyScreen({ athleteId, coachName }: { athleteId: string; coachN
     return (
       <Row emoji={kind === 'rhr' ? '❤️' : '😴'}
         title={value ? t.rich(kind, { ...RICH, n: value, v: value }) : t(`${kind}None`)}
-        sub={why && (!p.latest || p.missing?.reason !== 'old') ? <>{why.title}{why.sub && <> · {why.sub}</>}</> : !p.latest ? t('noNights') : (
+        sub={!p.latest ? (why ? <>{why.title}{why.sub && <> · {why.sub}</>}</> : t('noNights')) : (
           <>
             {p.isToday ? t(kind === 'rhr' ? 'rhrToday' : 'sleepToday') : t.rich('ofDate', { ...RICH, date: dm(p.latest.date) })}
             {' · '}
-            {range ? t.rich('yours', { ...RICH, range }) : tt.rich('trainee.range.learning', { ...RICH, n: (p.range as { learning: number }).learning })}
+            {/* A value with no verdict says why (old, partial, a stopped connection), never the range as if judged. */}
+            {why && p.missing?.reason !== 'old' ? why.title
+              : range ? t.rich('yours', { ...RICH, range }) : tt.rich('trainee.range.learning', { ...RICH, n: (p.range as { learning: number }).learning })}
           </>
         )}
         tag={p.verdict ? <Tag tone={bad ? 'w' : 'g'}>{tt(verdictKey(kind, p.verdict) as never)}</Tag> : null} />

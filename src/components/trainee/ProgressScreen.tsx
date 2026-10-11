@@ -65,7 +65,11 @@ export function ProgressScreen({ athleteId, gender, testsHref, bodyHref, journey
   return (
     <div className="flex flex-col gap-2.5" dir="rtl">
       {now ? (
-        <MetricTiles numbers={now} gender={gender} onOpen={setSheet} tomorrowForm={data.formTomorrow} />
+        <>
+          <MetricTiles numbers={now} gender={gender} onOpen={setSheet} tomorrowForm={data.formTomorrow} />
+          {/* No test: every ⚡ under these numbers is estimated by heart rate — said, not hidden. */}
+          {data.thresholdSec == null && <p className="px-1 text-[12.5px] font-bold text-ink-400">{tt('trainee.home.form.hrEstimate')}</p>}
+        </>
       ) : (
         <LearningCard status={data.status} />
       )}

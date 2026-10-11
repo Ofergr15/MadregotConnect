@@ -77,7 +77,7 @@ function MissingChip({ kind, missing, wide }: { kind: 'sleep' | 'rhr' | 'both'; 
   return (
     <Link
       href={traineeProgressUrl('body')}
-      className={cn('min-h-[56px] rounded-2xl bg-white px-3 py-2.5 leading-snug', SHADOW, wide ? 'w-full' : 'flex-1')}
+      className={cn('block min-h-[56px] rounded-2xl bg-white px-3 py-2.5 leading-snug', SHADOW, wide ? 'w-full' : 'min-w-0 flex-1')}
     >
       <span className="block truncate whitespace-nowrap text-[12.5px] font-bold text-ink-400">
         {kind === 'both' ? `${t('home.body.sleep')} · ${t('home.body.rhr')}` : t(`home.body.${kind}`)}
