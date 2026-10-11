@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  centrePct, effortPace, fieldValue, toneOf,
+  centrePct, effortPace, fieldValue, toneOf, traineeRepsTone,
   type BookStep, type Effort, type FieldName, type FieldRef, type Length, type Tone,
 } from '@/lib/academy/book-steps';
 import { CARD, N, Stripe, clockText, kmText } from './ui';
@@ -54,7 +54,7 @@ export function useStepLines() {
   const effortWord = (effort: Effort | null) => (effort?.zone ? t(`zone.${effort.zone}`) : '');
 
   /** Every step as lines. `thresholdSec` null → efforts are shown as % of threshold. */
-  return (steps: BookStep[], thresholdSec: number | null, { editable = false, adjust }: { editable?: boolean; adjust?: PaceAdjust | null } = {}): Line[] => {
+  return (steps: BookStep[], thresholdSec: number | null, { editable = false, adjust, trainee = false }: { editable?: boolean; adjust?: PaceAdjust | null; trainee?: boolean } = {}): Line[] => {
     const paceParts = (effort: Effort | null): Part[] => {
       if (!effort) return [];
       if (!thresholdSec) {
@@ -90,7 +90,9 @@ export function useStepLines() {
           break;
         }
         case 'reps': {
-          const tone = toneOf(step.effort);
+          // The trainee screens tone a rep faster than threshold as fast, and name it so
+          // ("מהיר", never "סף" beside a full-brand stripe) — traineeRepsTone.
+          const tone = trainee ? traineeRepsTone(step.effort) : toneOf(step.effort);
           const { value, unit } = lengthText(step.work, 'metres', u);
           const parts: Part[] = [
             { field: 'count', text: String(step.count) },
@@ -99,6 +101,7 @@ export function useStepLines() {
             ...(unit ? [{ text: unit }] : []),
           ];
           if (editable) parts.push(...paceParts(step.effort));
+          else if (trainee && tone === 'f' && toneOf(step.effort) !== 'f') parts.push({ text: t('zone.interval') });
           else if (step.effort?.zone) parts.push({ text: effortWord(step.effort) });
           lines.push({
             key: `${i}`, step: i, tone, parts, role: 'reps',
@@ -176,7 +179,7 @@ export function StepLines({
   const tw = useTranslations('trainee.workout');
   const build = useStepLines();
   const editable = !!onTap;
-  const lines = build(steps, thresholdSec, { editable, adjust: paceAdjust });
+  const lines = build(steps, thresholdSec, { editable, adjust: paceAdjust, trainee });
   // The trainee variant numbers every line but the recovery between reps.
   const numbers = new Map<string, number>();
   if (trainee) {

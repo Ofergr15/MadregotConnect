@@ -156,6 +156,18 @@ export function toneOf(effort: Effort | null): Exclude<Tone, 'r'> {
   return effort ? toneOfPct(centrePct(effort.intensity)) : 'e';
 }
 
+/**
+ * The trainee screens' tone of a repeat's WORK leg (trainee-experience-v2 phones 1, 2, 4):
+ * a rep faster than threshold is the fast block, full brand at full height ("5 × 1 ק״מ
+ * ב־4:05" against a 4:12 threshold is 103% — the book's split calls that tempo, and the
+ * week's key session drew like an easy-ish day). A rep at or slower than threshold (cruise
+ * intervals) stays tempo. The book's own screens keep `toneOf`; the coach tools' kinds do too.
+ */
+export function traineeRepsTone(effort: Effort | null): Exclude<Tone, 'r'> {
+  const tone = toneOf(effort);
+  return tone === 't' && effort && centrePct(effort.intensity) > 100 ? 'f' : tone;
+}
+
 // ── LibraryStep ⇄ BookStep ─────────────────────────────────────────────────────────────
 
 const MODE_NOTE: Record<RestMode, string> = { jog: 'ג׳וג', walk: 'הליכה', stand: 'עמידה' };
@@ -479,7 +491,7 @@ function restPiece(rest: { length: Length; mode: RestMode | null }, thresholdSec
 }
 
 /** Every atomic piece of the session in order, repeats expanded. */
-function pieces(steps: BookStep[], thresholdSec: number): Piece[] {
+function pieces(steps: BookStep[], thresholdSec: number, trainee = false): Piece[] {
   const out: Piece[] = [];
   for (const step of steps) {
     switch (step.kind) {
@@ -487,7 +499,7 @@ function pieces(steps: BookStep[], thresholdSec: number): Piece[] {
         out.push(piecesOfLength(step.length, stepPace(step.effort, thresholdSec), toneOf(step.effort)));
         break;
       case 'reps': {
-        const work = piecesOfLength(step.work, stepPace(step.effort, thresholdSec), toneOf(step.effort));
+        const work = piecesOfLength(step.work, stepPace(step.effort, thresholdSec), trainee ? traineeRepsTone(step.effort) : toneOf(step.effort));
         const rest = step.rest ? restPiece(step.rest, thresholdSec) : null;
         for (let i = 0; i < step.count; i++) {
           out.push(work);
@@ -545,8 +557,9 @@ export interface BarSegment { tone: Tone; weight: number }
  * merged (a warmup written as two steps is one block of green, as it is on the mockup).
  * An open block gets the weight of ten minutes so it is visible rather than absent.
  */
-export function profileBar(steps: BookStep[], thresholdSec: number | null): BarSegment[] {
-  const list = pieces(steps, thresholdSec ?? ESTIMATE_THRESHOLD_SEC);
+export function profileBar(steps: BookStep[], thresholdSec: number | null, opts: { trainee?: boolean } = {}): BarSegment[] {
+  // `trainee`: the reps toned as the trainee screens draw them (traineeRepsTone).
+  const list = pieces(steps, thresholdSec ?? ESTIMATE_THRESHOLD_SEC, !!opts.trainee);
   const out: BarSegment[] = [];
   for (const p of list) {
     const weight = p.known ? p.sec : 600;

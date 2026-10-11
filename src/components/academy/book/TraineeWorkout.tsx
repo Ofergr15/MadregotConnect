@@ -179,7 +179,7 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
         {model ? (
           <>
             <div className={cn(CARD, v2 ? 'px-[14px] py-3' : 'p-[18px]')}>
-              <ProfileBar segments={profileBar(model, T)} size="lg" palette={v2 ? 'trainee' : undefined} height={v2 ? 40 : undefined} />
+              <ProfileBar segments={profileBar(model, T, { trainee: v2 })} size="lg" palette={v2 ? 'trainee' : undefined} height={v2 ? 40 : undefined} />
             </div>
             <StepLines steps={model} thresholdSec={T} rangeFor={v2 ? rangeFor : undefined} trainee={v2} />
           </>

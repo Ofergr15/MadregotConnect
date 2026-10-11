@@ -187,7 +187,7 @@ export function WeekRowV2({ w, board, isNext, onOpen }: {
             {parts.map((p, i) => <span key={i}>{i > 0 && ' · '}{p}</span>)}
           </small>
         )}
-        {isNext && isToday && model && <ProfileBar segments={profileBar(model, board.thresholdSec)} height={16} className="mt-1.5" palette="trainee" />}
+        {isNext && isToday && model && <ProfileBar segments={profileBar(model, board.thresholdSec, { trainee: true })} height={16} className="mt-1.5" palette="trainee" />}
         {marks.length > 0 && (
           <span className="mt-1 flex items-center gap-3 text-xs text-ink-400">{marks}</span>
         )}

@@ -21,6 +21,7 @@ import {
   structureName,
   toLibrarySteps,
   toneOfPct,
+  traineeRepsTone,
   wheelOptions,
   type BookStep,
 } from '@/lib/academy/book-steps';
@@ -163,6 +164,20 @@ describe('totals and the bar', () => {
 
   it('marks an estimate when there is no test', () => {
     expect(bookTotals(mockup(), null).estimated).toBe(true);
+  });
+
+  it('the trainee screens tone a rep faster than threshold as fast (4:05 against a 4:12 threshold)', () => {
+    const reps = (pct: number): BookStep[] => [{ kind: 'reps', count: 5, work: { measure: 'distance', value: 1000 }, effort: { intensity: { fastPct: pct + 1, slowPct: pct - 1 } }, rest: null } as BookStep];
+    const at = (pct: number, trainee: boolean) => profileBar(reps(pct), 252, { trainee }).map(s => s.tone).join('');
+    // 252 / 245 = 102.9%: the book's split says tempo (one merged block); the trainee's bar
+    // says fast, one block a rep.
+    expect(at(102.9, false)).toBe('t');
+    expect(at(102.9, true)).toBe('fffff');
+    // At threshold (cruise intervals) it stays tempo on both.
+    expect(at(100, true)).toBe('t');
+    expect(traineeRepsTone({ intensity: { fastPct: 104, slowPct: 102 } } as never)).toBe('f');
+    expect(traineeRepsTone({ intensity: { fastPct: 80, slowPct: 76 } } as never)).toBe('e');
+    expect(traineeRepsTone(null)).toBe('e');
   });
 
   it('draws e, then alternating f and r, then e — no rest after the last rep', () => {

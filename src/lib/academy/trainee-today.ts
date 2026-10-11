@@ -125,7 +125,7 @@ export function todayCard(
     paceSec,
     paceOf,
     kind,
-    bar: model ? profileBar(model, ctx.drawAtSec) : [],
+    bar: model ? profileBar(model, ctx.drawAtSec, { trainee: true }) : [],
     note: workout.description?.trim() || null,
     onWatch: ctx.onWatch,
     expectedLoad: ctx.expectedLoad != null && ctx.expectedLoad > 0 ? Math.round(ctx.expectedLoad) : null,
