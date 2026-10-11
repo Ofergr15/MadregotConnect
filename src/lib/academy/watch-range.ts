@@ -6,14 +6,33 @@
  * When the plan row already stores a real range (min and max both set and different),
  * that is what Garmin was sent, so that is what the screen prints.
  *
- * Screen 4 prints it only for work steps. This does NOT change what
- * lib/garmin/converter.ts writes — it describes the range, it does not set it.
+ * This is what lib/garmin/converter.ts writes on the academy path (`paceTarget`) as the
+ * step's pace zone, and what screen 4 prints (work steps only), so the watch and the
+ * screen cannot disagree. `watchRangeKind` decides work or easy for both.
  */
 
 export const WORK_PCT = 1.5;
 export const EASY_PCT = 5;
 
 export type RangeKind = 'work' | 'easy';
+
+const WORK_ZONES = new Set(['tempo', 'threshold', 'interval', 'sprint', 'marathon_pace']);
+
+/**
+ * Work or easy, from the step alone (the converter has no threshold): warmup, cooldown and
+ * the jogs are easy; an interval step, a work zone, or an unzoned step inside a repeat is
+ * work; any other step is easy.
+ */
+export function watchRangeKind(
+  step: { type?: string | null; targetZone?: string | null },
+  inRepeat = false,
+): RangeKind {
+  const type = step.type ?? '';
+  if (type === 'warmup' || type === 'cooldown' || type === 'recovery' || type === 'rest') return 'easy';
+  if (type === 'interval') return 'work';
+  if (step.targetZone) return WORK_ZONES.has(step.targetZone) ? 'work' : 'easy';
+  return inRepeat ? 'work' : 'easy';
+}
 
 export function watchRange(
   step: { targetPaceMinPerKm?: number | null; targetPaceMaxPerKm?: number | null },

@@ -2,6 +2,7 @@ import { ParsedWorkout, WorkoutStep } from '../ai/types';
 import { GarminWorkout, GarminWorkoutStep, StoredPaceProfile } from './types';
 import { formatPace, getPaceForZone, paceToMetersPerSecond } from './pace';
 import { groupPaceText, notesWithoutPace } from '../plans/group-pace-text';
+import { watchRange, watchRangeKind } from '../academy/watch-range';
 
 export interface ConvertOptions {
   // When true, pace steps also get a Garmin pace-zone TARGET (workoutTargetTypeId 6),
@@ -49,7 +50,8 @@ function convertStep(
   num: StepNumbering,
   opts: ConvertOptions = {},
   /** The enclosing repeat group's `stepId`, when this step is one of its children. */
-  childStepId: number | null = null
+  childStepId: number | null = null,
+  inRepeat = false
 ): GarminWorkoutStep {
   const stepOrder = ++num.order;
   const stepId = ++num.id;
@@ -70,7 +72,7 @@ function convertStep(
       smartRepeat: false,
       targetType: { workoutTargetTypeId: 1, workoutTargetTypeKey: 'no.target' },
       workoutSteps: step.repeatSteps.map((s) =>
-        convertStep(s, paceProfile, num, opts, stepId)
+        convertStep(s, paceProfile, num, opts, stepId, true)
       ),
     };
   }
@@ -110,13 +112,17 @@ function convertStep(
   // the watch actively alerts when off-pace. targetValueOne = faster pace (higher
   // m/s), targetValueTwo = slower pace. We keep the description too, so the pace is
   // both enforced and shown.
+  //
+  // A single pace becomes the range of spec §3.8 (lib/academy/watch-range.ts): ±1.5% on
+  // a work step, ±5% on an easy one — the "טווח בשעון 4:01–4:09" screen 4 prints. A real
+  // range the coach wrote is sent as written.
   if (opts.paceTarget && step.targetType === 'pace') {
     if (step.targetPaceMinPerKm) {
-      const hasRange = !!step.targetPaceMaxPerKm && step.targetPaceMaxPerKm !== step.targetPaceMinPerKm;
+      const range = watchRange(step, watchRangeKind(step, inRepeat));
       garminStep.targetType = { workoutTargetTypeId: 6, workoutTargetTypeKey: 'pace.zone' };
-      garminStep.targetValueOne = paceToMetersPerSecond(step.targetPaceMinPerKm);
-      if (hasRange) {
-        garminStep.targetValueTwo = paceToMetersPerSecond(step.targetPaceMaxPerKm!);
+      garminStep.targetValueOne = paceToMetersPerSecond(range ? range.min : step.targetPaceMinPerKm);
+      if (range && range.max !== range.min) {
+        garminStep.targetValueTwo = paceToMetersPerSecond(range.max);
       }
     } else if (step.targetZone) {
       const paceRange = getPaceForZone(step.targetZone, paceProfile);

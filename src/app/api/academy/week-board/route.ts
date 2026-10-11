@@ -1,28 +1,25 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { addDaysToDateStr, israelToday, planWeekStartOf, resolveGroup } from '@/lib/utils';
+import { addDaysToDateStr, israelToday, planWeekStartOf } from '@/lib/utils';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { mayCoach } from '@/lib/academy/pairing-server';
-import { loadClubWeek, loadLaneReferences, loadThresholds, loadTraineeWeeks } from '@/lib/academy/book-server';
-import type { Lane } from '@/lib/academy/group-lane';
+import { loadPlanBasis, loadThresholds } from '@/lib/academy/book-server';
 import { computeAcademyWeekAdherence } from '@/lib/academy/report';
 import { weekTotals } from '@/lib/academy/compliance';
 import { absoluteToLibrary, fromLibrarySteps, structureName } from '@/lib/academy/book-steps';
 import type { WeekBoard, WeekBoardWorkout } from '@/lib/academy/week-board';
 import { boardRow, offLineOf, restDaysOf } from '@/lib/academy/board';
 import { loadBoardMarks, rowMarks } from '@/lib/academy/board-server';
-import { plannedLoad, shiftDate, thresholdOn } from '@/lib/academy/load';
+import { plannedLoad, restateOptions, restateSteps, shiftDate, thresholdOn } from '@/lib/academy/load';
 import { athleteLoads, BACKFILL_DAYS } from '@/lib/academy/load-server';
 import { loadStatus } from '@/lib/academy/pmc';
+import { DISPLAY_REFERENCE } from '@/lib/academy/plan-basis';
 import { planEstimateOptions } from '@/lib/plans/step-estimate';
 import type { ParsedWorkout } from '@/lib/ai/types';
 
 export const dynamic = 'force-dynamic';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Restating paces needs A threshold; with no test, a typical one only names the session. */
-const DISPLAY_REFERENCE = 300;
 
 /**
  * The reps' pace, but only when it was read off the WORK. On a session cut short the effort
@@ -126,29 +123,21 @@ export async function GET(request: Request) {
     // at the trainee's own threshold, they read as the session at THEIR pace, which is
     // exactly what screen 1 offers to send; drawn as stored, an academy beginner would see
     // a sub-2:30 squad's 3:05 reps as their plan.
-    const weeks = await loadTraineeWeeks(supabase, [athleteId], weekStart);
-    const fromClub = rows.length > 0 && !weeks[athleteId]?.planId;
-    let referenceSec = thresholdSec ?? DISPLAY_REFERENCE;
-    if (fromClub) {
-      const [club, refs, group] = await Promise.all([
-        loadClubWeek(supabase, weekStart),
-        loadLaneReferences(supabase),
-        supabase.from('athletes').select('groups!group_id(name)').eq('id', athleteId).maybeSingle(),
-      ]);
-      const unified = Array.isArray((club as { workouts?: unknown } | null)?.workouts);
-      const groupLane = resolveGroup((group.data as { groups?: { name?: string } } | null)?.groups?.name).index + 1;
-      const lane = (unified ? 1 : groupLane >= 1 ? groupLane : 1) as Lane;
-      referenceSec = refs[lane];
-    }
+    const basis = rows.length > 0 ? await loadPlanBasis(supabase, athleteId, weekStart, thresholdSec) : null;
+    const fromClub = !!basis?.fromClub;
+    const referenceSec = basis?.referenceSec ?? thresholdSec ?? DISPLAY_REFERENCE;
     // A planned pace in the steps' own terms → the trainee's.
-    const toTrainee = (sec: number | null) => (sec && fromClub && thresholdSec ? Math.round((sec * thresholdSec) / referenceSec) : sec);
+    const scale = basis?.scale ?? 1;
+    const toTrainee = (sec: number | null) => (sec && scale !== 1 ? Math.round(sec * scale) : sec);
+    // The same factor restates the steps the ⚡ is priced over: a club week priced as stored
+    // would be the lane's session against the trainee's threshold.
 
     // ⚡: the stored load of each run, and the plan priced at the threshold valid TODAY,
     // over the same steps and estimate options /api/academy/load's planned week uses.
     const loadOf = new Map((loads?.rows ?? []).map(r => [r.activityId, r.load]));
     const loadT = loads ? thresholdOn(today, loads.tests)?.thresholdSec ?? null : null;
     const parsed = rows.map(r => r.detail?.workout).filter(Boolean) as ParsedWorkout[];
-    const estimate = planEstimateOptions(parsed);
+    const estimate = restateOptions(planEstimateOptions(parsed), scale);
     const marks = await marksP;
     /** Each row's planned ⚡ unrounded, for the week's sum. */
     const planRaw: number[] = [];
@@ -162,7 +151,7 @@ export async function GET(request: Request) {
       const { plannedM } = graded;
       const activityId = row.actual?.id ? String(row.actual.id) : null;
       const runLoad = row.completed && activityId ? loadOf.get(activityId) : undefined;
-      const planLoad = loadT && steps.length ? plannedLoad(steps, loadT, estimate) : 0;
+      const planLoad = loadT && steps.length ? plannedLoad(restateSteps(steps, scale), loadT, estimate) : 0;
       planRaw.push(row.detail?.workout.optional ? 0 : planLoad);
       const plannedPace = row.pace.plannedMin && row.pace.plannedMax
         ? Math.round((row.pace.plannedMin + row.pace.plannedMax) / 2)

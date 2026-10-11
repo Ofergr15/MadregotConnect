@@ -102,17 +102,33 @@ describe('convertToGarminWorkout — pace as info, not an alerting target', () =
 });
 
 describe('convertToGarminWorkout — academy pace-zone target (paceTarget:true)', () => {
-  it('emits a pace-zone target with a single bound for a single pace', () => {
+  it('a single pace on a work step is sent as the ±1.5% watch range screen 4 prints', () => {
     const s = convertSingle(
       { targetType: 'pace', targetPaceMinPerKm: 200, notes: '3:20' },
       { paceTarget: true }
     );
     expect(s.targetType.workoutTargetTypeId).toBe(6);
     expect(s.targetType.workoutTargetTypeKey).toBe('pace.zone');
-    expect(s.targetValueOne).toBeCloseTo(paceToMetersPerSecond(200));
-    expect(s.targetValueTwo).toBeUndefined(); // single pace → no slow bound
+    // 3:20 ± 1.5% → 3:17–3:23 (lib/academy/watch-range.ts).
+    expect(s.targetValueOne).toBeCloseTo(paceToMetersPerSecond(197));
+    expect(s.targetValueTwo).toBeCloseTo(paceToMetersPerSecond(203));
     // Pace still shown as text alongside the enforced target
     expect(s.description).toBe('3:20');
+  });
+
+  it('a single pace on an easy step gets ±5%', () => {
+    const s = convertSingle(
+      { type: 'warmup', targetType: 'pace', targetPaceMinPerKm: 340 },
+      { paceTarget: true }
+    );
+    expect(s.targetValueOne).toBeCloseTo(paceToMetersPerSecond(323));
+    expect(s.targetValueTwo).toBeCloseTo(paceToMetersPerSecond(357));
+  });
+
+  it('without alerts nothing changes: info-only, no zone', () => {
+    const s = convertSingle({ targetType: 'pace', targetPaceMinPerKm: 200, notes: '3:20' });
+    expect(s.targetType.workoutTargetTypeKey).toBe('no.target');
+    expect(s.targetValueOne).toBeUndefined();
   });
 
   it('emits both bounds for a genuine pace range', () => {
@@ -163,7 +179,8 @@ describe('convertToGarminWorkout — academy pace-zone target (paceTarget:true)'
     expect(s.type).toBe('RepeatGroupDTO');
     const child = s.workoutSteps![0];
     expect(child.targetType.workoutTargetTypeKey).toBe('pace.zone');
-    expect(child.targetValueOne).toBeCloseTo(paceToMetersPerSecond(200));
+    expect(child.targetValueOne).toBeCloseTo(paceToMetersPerSecond(197));
+    expect(child.targetValueTwo).toBeCloseTo(paceToMetersPerSecond(203));
   });
 });
 
@@ -234,7 +251,7 @@ describe('convertToGarminWorkout — a pace_profile with no zone paces (producti
       LIVE_PROFILE,
     );
     expect(s.targetType.workoutTargetTypeKey).toBe('pace.zone');
-    expect(s.targetValueOne).toBeCloseTo(paceToMetersPerSecond(200));
+    expect(s.targetValueOne).toBeCloseTo(paceToMetersPerSecond(197));
     expect(s.description).toBe('3:20');
   });
 });

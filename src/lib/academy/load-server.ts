@@ -25,8 +25,11 @@ import { planEstimateOptions } from '@/lib/plans/step-estimate';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { thresholdPaceSec } from './tests';
 import { extractWorkouts, groupNumberFor } from './report';
+import { loadLaneReferences } from './book-server';
+import { planPaceBasis } from './plan-basis';
 import {
-  LOAD_VERSION, MAX_HR_DAYS, activityBreakdown, activityLoad, isRunType, maxHrOf, plannedLoad, shiftDate, thresholdOn,
+  LOAD_VERSION, MAX_HR_DAYS, activityBreakdown, activityLoad, isRunType, maxHrOf, plannedLoad, restateOptions, restateSteps,
+  shiftDate, thresholdOn,
   type ActivityBreakdown, type LoadActivity, type LoadSource, type TestPoint,
 } from './load';
 
@@ -486,7 +489,9 @@ export async function sweepActivityLoads(
  * The planned load of each of the given plan weeks (and of each day), over the trainee's
  * OWN plan row when there is one, else the club plan in their group's variant
  * (lib/plans/scope.ts — never another trainee's week). Priced at threshold `T`: the test
- * valid today, as the paces are. Optional sessions ("ערב - אופציה") are not counted.
+ * valid today, as the paces are. A club week's steps are in a squad lane's paces, so they
+ * are restated to the trainee's first (lib/academy/plan-basis.ts, the week board's rule).
+ * Optional sessions ("ערב - אופציה") are not counted.
  */
 export async function plannedLoads(
   supabase: Db,
@@ -497,7 +502,7 @@ export async function plannedLoads(
   const byWeek: Record<string, number> = {};
   const byDate: Record<string, number> = {};
   if (!T || !weekStarts.length) return { byWeek, byDate };
-  const [athRes, groupsRes, plansRes] = await Promise.all([
+  const [athRes, groupsRes, plansRes, laneRefs] = await Promise.all([
     supabase.from('athletes').select('group_id').eq('id', athleteId).maybeSingle(),
     supabase.from('groups').select('id, name'),
     supabase
@@ -507,20 +512,26 @@ export async function plannedLoads(
       .or(planRowsFilter(athleteId))
       .in('week_start_date', weekStarts)
       .order('created_at', { ascending: true }),
+    loadLaneReferences(supabase as never).catch(() => null),
   ]);
   if (plansRes.error || !plansRes.data) return { byWeek, byDate };
   const groupNames = new Map<string, string>(((groupsRes.data || []) as any[]).map(g => [g.id, g.name]));
-  const groupNumber = groupNumberFor((athRes.data as any)?.group_id ?? null, groupNames);
+  const groupId = (athRes.data as any)?.group_id ?? null;
+  const groupNumber = groupNumberFor(groupId, groupNames);
 
   for (const weekStart of weekStarts) {
     const plan = pickPlan((plansRes.data as any[]).filter(p => String(p.week_start_date).slice(0, 10) === weekStart), athleteId);
     if (!plan) continue;
     const workouts: ParsedWorkout[] = extractWorkouts(plan.parsed_workouts, groupNumber);
-    const opts = planEstimateOptions(workouts);
+    const { scale } = planPaceBasis({
+      planAthleteId: plan.athlete_id, parsedWorkouts: plan.parsed_workouts,
+      groupName: groupNames.get(groupId ?? '') ?? null, laneRefs, thresholdSec: T,
+    });
+    const opts = restateOptions(planEstimateOptions(workouts), scale);
     let week = 0;
     for (const w of workouts) {
       if (w.optional) continue;
-      const load = plannedLoad(w.steps, T, opts);
+      const load = plannedLoad(restateSteps(w.steps, scale), T, opts);
       if (!(load > 0)) continue;
       const date = shiftDate(weekStart, w.dayOfWeek);
       byDate[date] = (byDate[date] ?? 0) + load;

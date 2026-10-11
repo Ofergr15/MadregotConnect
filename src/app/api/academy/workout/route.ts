@@ -10,6 +10,7 @@ import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { MAX_HR_DAYS, shiftDate, type TestPoint } from '@/lib/academy/load';
 import { ACTIVITY_LOAD_COLUMNS, activityLoadBreakdown, loadTestsFor, maxHrNow } from '@/lib/academy/load-server';
 import { buildWorkoutExtras, personalRecord, type WorkoutExtras } from '@/lib/academy/workout-extras';
+import { loadPlanBasis } from '@/lib/academy/book-server';
 import { computeDistanceBests, filterQualifyingRuns } from '@/lib/prs/pr-buckets';
 
 /** How far back a personal record is looked for — the PR table's own window is a season. */
@@ -43,6 +44,10 @@ async function loadExtras(
         : Promise.resolve({ data: null, error: null }),
     ]);
     const tests: TestPoint[] = testsBy[athleteId] || [];
+    // A club week's steps are in a lane's paces: restated to the trainee's newest threshold
+    // (what the board draws them at) before they are priced or given a watch range.
+    const basisP = loadPlanBasis(supabase, athleteId, sundayOf(date), tests.length ? tests[tests.length - 1].thresholdSec : null)
+      .catch(() => null);
     const raw = (actRes.error ? null : actRes.data) as any;
     // PostgREST hands a NUMERIC column back as a string; the PR maths compares numbers.
     const toRun = (a: any) => ({ ...a, distance: Number(a.distance) || 0, duration: Number(a.duration) || 0 });
@@ -82,6 +87,7 @@ async function loadExtras(
           .limit(PR_RUNS_MAX)
         : Promise.resolve({ data: null, error: null }),
     ]);
+    const basis = await basisP;
     const history = (historyRes.error ? null : historyRes.data) as any[] | null;
     const others = (prRes.error ? null : prRes.data) as any[] | null;
 
@@ -90,6 +96,7 @@ async function loadExtras(
       sheet: input.sheet,
       date,
       tests,
+      paceScale: basis?.scale ?? 1,
       actualLoad: breakdown?.load ?? null,
       maxHr: history ? maxHrNow(history, israelToday()) : null,
       activity: act,

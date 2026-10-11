@@ -49,7 +49,8 @@ describe('plannedParts', () => {
     expect(parts.map(p => p.labelKey.split('.').pop())).toEqual(['warmup', 'work', 'jog', 'cooldown']);
     expect(parts.reduce((s, p) => s + p.load, 0)).toBe(Math.round(plannedLoad(SCREEN4, 252)));
     expect(parts[1].params).toMatchObject({ count: 5, distM: 1000, paceSec: 245 });
-    expect(parts[2].params).toMatchObject({ count: 5, sec: 120 });
+    // The jogs are BETWEEN the reps: four of them (mockup 5ב "4 × 2:00").
+    expect(parts[2].params).toMatchObject({ count: 4, sec: 120 });
   });
 
   it('nothing without a threshold', () => {
@@ -91,6 +92,29 @@ describe('workoutDone', () => {
     expect(done.band).toEqual({ min: 241, max: 249 });
     expect(done.reps.map(r => r.tone)).toEqual(['in', 'in', 'in', 'in', 'fast']);
     expect(done.detail).toMatchObject({ actual: 241, target: 245, reps: true, inRange: 4, of: 5, lastFaster: true });
+  });
+
+  it('the plan column is the card\'s own estimate; equal-looking figures have no difference', () => {
+    const { row, sheet } = rowAndSheet([244, 243]);
+    (row as any).actual.distance = 10340;
+    (row as any).distance.actual = 10340;
+    const done = workoutDone({
+      row, sheet, steps: [], expectedLoad: null, actualLoad: null, hr: { cap: null, actual: null },
+      planTotals: { distanceM: 10260, durationSec: 3065 },
+    })!;
+    // 10.3 against 10.3 as printed: no "+0.1".
+    expect(done.table[0]).toMatchObject({ planned: 10260, done: 10340, diff: 0 });
+    expect(done.table[1]).toMatchObject({ planned: 3065, diff: -43 });
+  });
+
+  it('the time difference is coloured only when time was prescribed and missed', () => {
+    const { row, sheet } = rowAndSheet([244]);
+    (sheet.time as any).estimated = true;
+    const est = workoutDone({ row, sheet, steps: [], expectedLoad: null, actualLoad: null, hr: { cap: null, actual: null } })!;
+    expect(est.table[1].tone).toBe('muted');
+    (sheet.time as any).estimated = false;
+    (sheet.time as any).verdict = { kind: 'more', delta: 180 };
+    expect(workoutDone({ row, sheet, steps: [], expectedLoad: null, actualLoad: null, hr: { cap: null, actual: null } })!.table[1].tone).toBe('warn');
   });
 
   it('a run cut short reads short, in the warning tone', () => {

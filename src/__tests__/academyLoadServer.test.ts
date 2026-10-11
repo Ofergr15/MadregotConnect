@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { laneReferences } from '@/lib/academy/senior-pick';
 import { COACH_ID } from '@/lib/constants';
 import { LOAD_VERSION, shiftDate } from '@/lib/academy/load';
 import {
@@ -263,10 +264,15 @@ describe('plannedLoads', () => {
     expect(Object.keys(r.byDate)).toEqual(['2026-10-13']);
   });
 
-  it('falls back to the group plan, and is empty without a threshold', async () => {
+  it('falls back to the group plan restated to the trainee\'s paces, and is empty without a threshold', async () => {
     const db = setup();
     db.tables.weekly_plans.push({ id: uid(), coach_id: COACH_ID, athlete_id: null, week_start_date: '2026-10-11', parsed_workouts: { group2: week(300) }, status: 'pushed', created_at: '2026-10-01' });
-    expect(Math.round((await plannedLoads(db.client, db.athlete, ['2026-10-11'], 252)).byWeek['2026-10-11'])).toBe(Math.round(100 * (1500 / 3600) * (252 / 300) ** 2));
+    // The club's 5:00 is written for lane 1's reference; at the trainee's 4:12 it is
+    // 5:00 × 252 / ref — the session as the board draws it for them.
+    const ref = laneReferences()[1];
+    const mine = Math.round(300 * (252 / ref));
+    const expected = 100 * ((5 * mine) / 3600) * (252 / mine) ** 2;
+    expect(Math.round((await plannedLoads(db.client, db.athlete, ['2026-10-11'], 252)).byWeek['2026-10-11'])).toBe(Math.round(expected));
     expect(await plannedLoads(db.client, db.athlete, ['2026-10-11'], null)).toEqual({ byWeek: {}, byDate: {} });
   });
 });

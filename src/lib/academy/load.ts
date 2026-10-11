@@ -252,29 +252,98 @@ export function activityLoad(act: LoadActivity, ctx: LoadContext): LoadResult {
 
 const mid = (r: { min: number; max: number }) => (r.min + r.max) / 2;
 
+const isJog = (step: WorkoutStep) => step.type === 'recovery' || step.type === 'rest';
+
 /**
- * The same formula over a planned workout's steps: each leaf step at the midpoint of its
- * time (distance × pace for a km step) and the midpoint of its pace band, the estimator
- * every other plan figure uses (lib/plans/step-estimate.ts). Unrounded.
+ * A plan's steps restated by `scale` (the trainee's threshold ÷ the one the paces were
+ * written for — week-board's `toTrainee`): a club week's steps carry a squad lane's paces,
+ * and priced as stored, a beginner's ⚡ would be the lane's session against their own
+ * threshold. Only the pace fields move; a distance step's time follows from them. Scale 1
+ * (or none) hands the same array back.
  */
-export function plannedLoad(steps: WorkoutStep[] | null | undefined, T: number, opts: EstimateOptions = {}): number {
-  if (!(T > 0) || !steps?.length) return 0;
-  let sum = 0;
-  const visit = (step: WorkoutStep, times: number) => {
-    if (step.repeatCount && step.repeatSteps?.length) {
-      for (const sub of step.repeatSteps) visit(sub, times * step.repeatCount);
-      return;
-    }
+export function restateSteps(steps: WorkoutStep[] | null | undefined, scale = 1): WorkoutStep[] {
+  if (!steps?.length) return [];
+  if (!(scale > 0) || Math.abs(scale - 1) < 1e-9) return steps;
+  const at = (sec: number | undefined) => (sec && sec > 0 ? Math.round(sec * scale) : sec);
+  const one = (step: WorkoutStep): WorkoutStep => ({
+    ...step,
+    ...(step.targetPaceMinPerKm ? { targetPaceMinPerKm: at(step.targetPaceMinPerKm) } : {}),
+    ...(step.targetPaceMaxPerKm ? { targetPaceMaxPerKm: at(step.targetPaceMaxPerKm) } : {}),
+    ...(step.repeatSteps?.length ? { repeatSteps: step.repeatSteps.map(one) } : {}),
+  });
+  return steps.map(one);
+}
+
+/** The estimate options' fallback bands restated by the same `scale`. */
+export function restateOptions(opts: EstimateOptions = {}, scale = 1): EstimateOptions {
+  if (!(scale > 0) || Math.abs(scale - 1) < 1e-9) return opts;
+  const band = (r?: { min: number; max: number }) => (r ? { min: r.min * scale, max: r.max * scale } : undefined);
+  return {
+    ...opts,
+    ...(opts.easyBand ? { easyBand: band(opts.easyBand) } : {}),
+    ...(opts.recoveryBand ? { recoveryBand: band(opts.recoveryBand) } : {}),
+  };
+}
+
+/** One leaf step of a plan as run: how many times, and each time's seconds and pace. */
+export interface PlannedLeg {
+  step: WorkoutStep;
+  times: number;
+  sec: number;
+  paceSec: number;
+}
+
+/**
+ * The plan's leaf steps, each at the midpoint of its time (distance × pace for a km step)
+ * and of its pace band — the estimator every other plan figure uses (lib/plans/
+ * step-estimate.ts). A repeat's trailing jog is BETWEEN the reps (mockup 1/4: "5 × 1 ק״מ"
+ * draws four jogs, "בין החזרות"), so it counts one time fewer than the reps; the card's
+ * minutes, the plan column of screen 5 and the ⚡ are all read off these legs.
+ */
+export function plannedLegs(steps: WorkoutStep[] | null | undefined, opts: EstimateOptions = {}): PlannedLeg[] {
+  const out: PlannedLeg[] = [];
+  const leaf = (step: WorkoutStep, times: number) => {
+    if (!(times > 0)) return;
     const time = stepTimeRange(step, opts);
     if (time.from === 'none') return;
     const sec = mid(time.range);
-    const pace = mid(stepPaceBand(step, opts).range);
-    if (!(sec > 0) || !(pace > 0)) return;
-    const f = clampIf(T / pace);
-    sum += times * 100 * (sec / 3600) * f * f;
+    const paceSec = mid(stepPaceBand(step, opts).range);
+    if (!(sec > 0) || !(paceSec > 0)) return;
+    out.push({ step, times, sec, paceSec });
   };
-  for (const step of steps) visit(step, 1);
-  return sum;
+  const visit = (step: WorkoutStep, times: number) => {
+    if (step.repeatCount && step.repeatSteps?.length) {
+      const subs = step.repeatSteps;
+      subs.forEach((sub, j) => {
+        const between = j === subs.length - 1 && subs.length > 1 && isJog(sub) && !sub.repeatCount;
+        visit(sub, times * (between ? step.repeatCount! - 1 : step.repeatCount!));
+      });
+      return;
+    }
+    leaf(step, times);
+  };
+  for (const step of steps ?? []) visit(step, 1);
+  return out;
+}
+
+/** The planned session's distance and moving time, from `plannedLegs`. */
+export function plannedTotals(steps: WorkoutStep[] | null | undefined, opts: EstimateOptions = {}): { distanceM: number; durationSec: number } {
+  let distanceM = 0;
+  let durationSec = 0;
+  for (const l of plannedLegs(steps, opts)) {
+    durationSec += l.times * l.sec;
+    distanceM += l.times * (l.sec / l.paceSec) * 1000;
+  }
+  return { distanceM: Math.round(distanceM), durationSec: Math.round(durationSec) };
+}
+
+/** The same formula over a planned workout's legs (`plannedLegs`). Unrounded. */
+export function plannedLoad(steps: WorkoutStep[] | null | undefined, T: number, opts: EstimateOptions = {}): number {
+  if (!(T > 0) || !steps?.length) return 0;
+  return plannedLegs(steps, opts).reduce((sum, l) => {
+    const f = clampIf(T / l.paceSec);
+    return sum + l.times * 100 * (l.sec / 3600) * f * f;
+  }, 0);
 }
 
 // ── The 5ב breakdown ───────────────────────────────────────────────────────────────────
@@ -392,41 +461,24 @@ export function loadParts(segments: LoadSegment[], basis: number | HrBasis, grou
 /**
  * The 5ב lines of a PLANNED workout (screen 4's "⚡ עומס צפוי"), one per step of the plan:
  * a repeat's work and its recovery as two lines ("5 × 1000", "4 × 2:00"), the warmup and
- * the cooldown as one each. Priced exactly as `plannedLoad`, then rounded so the lines add
- * up to the number on the ⚡.
+ * the cooldown as one each. Priced exactly as `plannedLoad` (the same legs), then rounded
+ * so the lines add up to the number on the ⚡.
  */
 export function plannedParts(steps: WorkoutStep[] | null | undefined, T: number, opts: EstimateOptions = {}): LoadPart[] {
   if (!(T > 0) || !steps?.length) return [];
-  type Acc = { kind: PartKind; raw: number; count: number; sec: number; distM: number };
-  const parts: Acc[] = [];
-  const leaf = (step: WorkoutStep) => {
-    const time = stepTimeRange(step, opts);
-    if (time.from === 'none') return null;
-    const sec = mid(time.range);
-    const pace = mid(stepPaceBand(step, opts).range);
-    if (!(sec > 0) || !(pace > 0)) return null;
-    const f = clampIf(T / pace);
-    return { sec, distM: (sec / pace) * 1000, load: 100 * (sec / 3600) * f * f, f };
-  };
   const kindOf = (step: WorkoutStep, f: number): PartKind => {
     if (step.type === 'warmup') return 'warmup';
     if (step.type === 'cooldown') return 'cooldown';
-    if (step.type === 'recovery' || step.type === 'rest') return 'jog';
+    if (isJog(step)) return 'jog';
     return f >= WORK_IF || step.type === 'interval' ? 'work' : 'run';
   };
-  const add = (step: WorkoutStep, times: number) => {
-    const l = leaf(step);
-    if (!l) return;
-    parts.push({ kind: kindOf(step, l.f), raw: times * l.load, count: times, sec: l.sec, distM: l.distM });
-  };
-  for (const step of steps) {
-    if (step.repeatCount && step.repeatSteps?.length) {
-      // Every rep with its recovery, as `plannedLoad` counts them, so the lines sum to it.
-      for (const sub of step.repeatSteps) add(sub, step.repeatCount);
-    } else {
-      add(step, 1);
-    }
-  }
+  const parts = plannedLegs(steps, opts).map((l) => {
+    const f = clampIf(T / l.paceSec);
+    return {
+      kind: kindOf(l.step, f), raw: l.times * 100 * (l.sec / 3600) * f * f, count: l.times, sec: l.sec,
+      distM: (l.sec / l.paceSec) * 1000,
+    };
+  });
   const rounded = largestRemainder(parts.map(p => p.raw));
   return parts.map((p, k) => ({
     labelKey: `trainee.loadSheet.part.${p.kind}`,

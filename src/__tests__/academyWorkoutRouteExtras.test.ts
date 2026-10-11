@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { assessWorkout, buildPlannedWorkout, DEFAULT_TOLERANCES } from '@/lib/academy/adherence';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { createMemoryDb, uid } from './helpers/memory-db';
+import { COACH_ID } from '@/lib/constants';
+import { laneReferences } from '@/lib/academy/senior-pick';
 
 /**
  * GET /api/academy/workout — the trainee-experience-v2 additions beside the sheet
@@ -69,7 +71,9 @@ const SCHEMA: Record<string, string[]> = {
   academy_workout_feedback: ['athlete_id', 'workout_date', 'note', 'rendered', 'author_id'],
   workout_feedback: ['athlete_id', 'garmin_activity_id', 'feel', 'difficulty', 'pain'],
   athlete_wellness: ['athlete_id', 'date', 'resting_hr'],
-  athletes: ['id', 'name'],
+  athletes: ['id', 'name', 'group_id'],
+  groups: ['id', 'name', 'coach_id'],
+  weekly_plans: ['id', 'coach_id', 'athlete_id', 'week_start_date', 'parsed_workouts', 'created_at'],
   activity_loads: ['activity_id', 'athlete_id', 'activity_date', 'load', 'source', 'threshold_sec', 'basis_test_date', 'formula_version', 'computed_at'],
 };
 
@@ -84,6 +88,8 @@ beforeEach(() => {
     distance: 10332, duration: 3046, moving_duration: 3046, average_hr: 164, max_hr: 181, laps: LAPS, splits: null,
     perceived_feel: 3, perceived_rpe: 7, location_name: 'הירקון', route_preview: null,
   });
+  // The trainee's own week: its paces are theirs, as stored.
+  db.tables.weekly_plans.push({ id: uid(), coach_id: COACH_ID, athlete_id: TRAINEE, week_start_date: '2026-10-11', parsed_workouts: { workouts: [WORKOUT] }, created_at: '2026-10-10' });
   computeAcademyWeekAdherence.mockResolvedValue(report(true));
   as();
 });
@@ -93,12 +99,25 @@ describe('before the run (4)', () => {
     computeAcademyWeekAdherence.mockResolvedValue(report(false));
     const body = await (await get()).json();
     expect(body.sheet.date).toBe(DATE);
-    expect(body.expectedLoad).toBeGreaterThanOrEqual(61);
-    expect(body.expectedLoad).toBeLessThanOrEqual(63);
+    expect(body.expectedLoad).toBeGreaterThanOrEqual(59);
+    expect(body.expectedLoad).toBeLessThanOrEqual(61);
     expect(body.expectedParts.reduce((s: number, p: { load: number }) => s + p.load, 0)).toBe(body.expectedLoad);
     expect(body.steps.map((s: { watchRange: unknown }) => s.watchRange)).toEqual([null, { min: 241, max: 249 }, null]);
     expect(body.why).toEqual({ targetSec: 245, thresholdSec: 252, basisTestDate: '2026-09-16' });
     expect(body.done).toBeNull();
+  });
+});
+
+describe('a club week (no plan of their own)', () => {
+  it('is restated to the trainee\'s paces: the ⚡, the watch range and "why" are all theirs', async () => {
+    computeAcademyWeekAdherence.mockResolvedValue(report(false));
+    db.tables.weekly_plans.length = 0;
+    db.tables.weekly_plans.push({ id: uid(), coach_id: COACH_ID, athlete_id: null, week_start_date: '2026-10-11', parsed_workouts: { workouts: [WORKOUT] }, created_at: '2026-10-10' });
+    const body = await (await get()).json();
+    const scale = 252 / laneReferences()[1];
+    const reps = Math.round(245 * scale);
+    expect(body.why.targetSec).toBe(reps);
+    expect(body.steps[1].watchRange).toEqual({ min: Math.round(reps * 0.985), max: Math.round(reps * 1.015) });
   });
 });
 

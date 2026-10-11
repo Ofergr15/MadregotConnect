@@ -13,8 +13,10 @@ import { computeDistanceBests, filterQualifyingRuns, type RunActivityRow } from 
 import { planEstimateOptions } from '@/lib/plans/step-estimate';
 import type { WorkoutAdherenceRow } from './report';
 import type { WorkoutSheet } from './workout-sheet';
-import { plannedLoad, plannedParts, thresholdOn, type LoadPart, type TestPoint } from './load';
-import { watchRange } from './watch-range';
+import {
+  plannedLoad, plannedParts, plannedTotals, restateOptions, restateSteps, thresholdOn, type LoadPart, type TestPoint,
+} from './load';
+import { watchRange, watchRangeKind } from './watch-range';
 
 export interface WatchStep {
   /** The plan step's type (a repeat reports its work step's). */
@@ -97,7 +99,9 @@ export function watchSteps(steps: WorkoutStep[] | null | undefined, T: number | 
       ? step.repeatSteps.find(s => s.type !== 'recovery' && s.type !== 'rest') ?? step.repeatSteps[0]
       : step;
     const work = isWorkStep(leaf, T) || (!!step.repeatCount && leaf.type !== 'recovery');
-    return { type: leaf.type, work, watchRange: work ? watchRange(leaf, 'work') : null };
+    // The range the converter wrote for this step (its own work-or-easy rule), so the screen
+    // prints what the watch holds.
+    return { type: leaf.type, work, watchRange: work ? watchRange(leaf, watchRangeKind(leaf, !!step.repeatCount)) : null };
   });
 }
 
@@ -144,32 +148,44 @@ export function workoutDone(input: {
   expectedLoad: number | null;
   actualLoad: number | null;
   hr: { cap: number | null; actual: number | null };
+  /**
+   * The session's size from the ⚡'s own legs (load.ts `plannedTotals`) — the "כ־51 דק׳"
+   * of the card and of screen 4, so the plan column says the same. Else the grade's.
+   */
+  planTotals?: { distanceM: number; durationSec: number } | null;
 }): WorkoutDone | null {
   const { row, sheet } = input;
   if (!row.completed || !row.actual) return null;
   const table: DoneRow[] = [];
 
-  const plannedM = (row.distance.plannedMin + row.distance.plannedMax) / 2;
+  const plannedM = input.planTotals?.distanceM || (row.distance.plannedMin + row.distance.plannedMax) / 2;
   const actualM = row.distance.actual ?? row.actual.distance;
   if (actualM > 0) {
     const kind = sheet.distance.verdict?.kind ?? 'on';
+    // The difference of the two figures AS PRINTED (one decimal of a km): 10.3 against 10.3
+    // is no difference, whatever the metres under them say.
+    const tenth = (m: number) => Math.round(m / 100) * 100;
     table.push({
       key: 'distance',
       planned: plannedM > 0 ? Math.round(plannedM) : null,
       done: Math.round(actualM),
-      diff: plannedM > 0 ? Math.round(actualM - plannedM) : null,
+      diff: plannedM > 0 ? tenth(actualM) - tenth(plannedM) : null,
       tone: kind === 'less' ? 'warn' : 'good',
     });
   }
   const actualSec = sheet.time?.actualSec ?? row.duration.actual;
   if (actualSec && actualSec > 0) {
-    const plannedSec = sheet.time?.plannedSec ?? (row.duration.planned || null);
+    const plannedSec = input.planTotals?.durationSec || sheet.time?.plannedSec || row.duration.planned || null;
+    // Coloured only when time was a prescription (a "40 דק׳" run) and the grade says it was
+    // missed or overrun; a km session's minutes are an estimate, and slower or faster than it
+    // is the pace row's to say.
+    const kind = sheet.time && !sheet.time.estimated ? sheet.time.verdict?.kind : null;
     table.push({
       key: 'time',
       planned: plannedSec ? Math.round(plannedSec) : null,
       done: Math.round(actualSec),
-      diff: plannedSec ? Math.round(actualSec - plannedSec) : null,
-      tone: sheet.time?.verdict?.kind === 'less' ? 'warn' : 'good',
+      diff: plannedSec ? Math.round(actualSec) - Math.round(plannedSec) : null,
+      tone: kind === 'less' || kind === 'more' ? 'warn' : kind === 'on' ? 'good' : 'muted',
     });
   }
   const pace = sheet.pace;
@@ -247,6 +263,12 @@ export function buildWorkoutExtras(input: {
   sheet: WorkoutSheet;
   date: string;
   tests: TestPoint[];
+  /**
+   * The factor that restates the plan's paces to the trainee's (lib/academy/plan-basis.ts):
+   * 1 for their own plan; a club week's lane paces otherwise. Prices the ⚡ and sets the
+   * watch range in the paces screen 4 prints.
+   */
+  paceScale?: number;
   actualLoad: number | null;
   maxHr: number | null;
   activity: {
@@ -257,17 +279,20 @@ export function buildWorkoutExtras(input: {
 }): WorkoutExtras {
   const { row, date } = input;
   const workout = row.detail?.workout ?? null;
-  const steps = workout?.steps ?? [];
+  const scale = input.paceScale && input.paceScale > 0 ? input.paceScale : 1;
+  const raw = workout?.steps ?? [];
+  const steps = restateSteps(raw, scale);
   const basis = thresholdOn(date, input.tests);
   const T = basis?.thresholdSec ?? null;
-  const opts = workout ? planEstimateOptions([workout]) : {};
+  const opts = restateOptions(workout ? planEstimateOptions([workout]) : {}, scale);
   const expected = T && steps.length ? plannedLoad(steps, T, opts) : 0;
   const expectedLoad = expected > 0 ? Math.round(expected) : null;
   const ws = watchSteps(steps, T);
+  const planTotals = steps.length ? plannedTotals(steps, opts) : null;
 
   const plannedMin = row.pace.plannedMin;
   const plannedMax = row.pace.plannedMax ?? plannedMin;
-  const targetSec = plannedMin != null && plannedMax != null ? Math.round((plannedMin + plannedMax) / 2) : null;
+  const targetSec = plannedMin != null && plannedMax != null ? Math.round(((plannedMin + plannedMax) / 2) * scale) : null;
 
   // The HR cap: the plan's own ceiling in bpm, when a step states one as % of max HR.
   const capPct = steps.flatMap(s => (s.repeatSteps?.length ? s.repeatSteps : [s]))
@@ -286,6 +311,7 @@ export function buildWorkoutExtras(input: {
       expectedLoad,
       actualLoad: input.actualLoad,
       hr: { cap, actual: input.activity?.average_hr ?? row.actual?.averageHr ?? null },
+      planTotals: planTotals && planTotals.durationSec > 0 ? planTotals : null,
     }),
     pr: input.pr,
     feelPrefill: feelPrefillOf(input.activity),

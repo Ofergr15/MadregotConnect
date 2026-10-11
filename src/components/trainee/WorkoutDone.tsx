@@ -28,8 +28,8 @@ function Diff({ row }: { row: DoneRow }) {
   const t = useTranslations('trainee.done');
   if (row.key === 'hr') return <span>{row.tone === 'good' ? '✓' : '▲'}</span>;
   if (row.diff == null) return <span />;
+  if (row.diff === 0) return <span>✓</span>;
   if (row.key === 'pace') {
-    if (row.diff === 0) return <span>✓</span>;
     return <span>{t.rich(row.diff > 0 ? 'faster' : 'slower', { ...RICH, n: Math.abs(row.diff) })}</span>;
   }
   const text = row.key === 'distance'

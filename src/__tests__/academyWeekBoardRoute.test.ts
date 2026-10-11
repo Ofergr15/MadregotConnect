@@ -65,7 +65,9 @@ const ROWS = [
 vi.mock('@/lib/academy/report', () => ({
   computeAcademyWeekAdherence: async () => ({ weekStart: SUN, weekEnd: addDays(SUN, 6), tolerances: {}, athletes: [{ athleteId: TRAINEE, name: 'Shahar', week: { workouts: ROWS } }] }),
 }));
+let basis = { fromClub: false, referenceSec: 252, drawAtSec: 252, scale: 1 };
 vi.mock('@/lib/academy/book-server', () => ({
+  loadPlanBasis: async () => basis,
   loadThresholds: async () => ({ [TRAINEE]: 252 }),
   loadTraineeWeeks: async () => ({ [TRAINEE]: { planId: 'own' } }),
   loadClubWeek: async () => null,
@@ -177,6 +179,20 @@ describe('the v2 week', () => {
     expect(body.loadOk).toBe(true);
     // Priced on the way, and stored.
     expect(db.tables.activity_loads.length).toBeGreaterThan(20);
+  });
+
+  it('a club week is priced in the trainee\'s paces, not the lane\'s', async () => {
+    const own = await (await get()).json();
+    // The lane writes its paces for a 4:12 threshold; this trainee's is 5:02 (× 1.2).
+    basis = { fromClub: true, referenceSec: 252, drawAtSec: 302, scale: 302 / 252 };
+    try {
+      const club = await (await get()).json();
+      expect(club.fromClub).toBe(true);
+      // Restated, the same session is slower: a lower intensity, so less ⚡ per km.
+      expect(club.workouts[0].plannedLoad).toBeLessThan(own.workouts[0].plannedLoad);
+    } finally {
+      basis = { fromClub: false, referenceSec: 252, drawAtSec: 252, scale: 1 };
+    }
   });
 
   it('says how the cut run went, and in the trainee\'s own words', async () => {

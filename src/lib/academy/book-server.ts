@@ -15,6 +15,7 @@ import type { ParsedWorkout } from '@/lib/ai/types';
 import { thresholdPaceSec } from './tests';
 import { laneReferences } from './senior-pick';
 import type { Lane } from './group-lane';
+import { planPaceBasis, type PlanBasis } from './plan-basis';
 
 type Supabase = ReturnType<typeof createServerClient>;
 
@@ -102,6 +103,35 @@ export async function loadTraineeWeeks(
     out[row.athlete_id] = { planId: String(row.id), workouts: Array.isArray(workouts) ? workouts : [] };
   }
   return out;
+}
+
+/**
+ * Whose paces a trainee's week is in, for a route that has the graded rows but not the
+ * plan row (lib/academy/plan-basis.ts): their own plan → as stored; else the club's week at
+ * their lane's reference, restated to `thresholdSec`.
+ */
+export async function loadPlanBasis(
+  supabase: Supabase,
+  athleteId: string,
+  weekStart: string,
+  thresholdSec: number | null,
+): Promise<PlanBasis> {
+  const weeks = await loadTraineeWeeks(supabase, [athleteId], weekStart);
+  if (weeks[athleteId]?.planId) {
+    return planPaceBasis({ planAthleteId: athleteId, parsedWorkouts: null, groupName: null, laneRefs: null, thresholdSec });
+  }
+  const [club, refs, group] = await Promise.all([
+    loadClubWeek(supabase, weekStart),
+    loadLaneReferences(supabase),
+    supabase.from('athletes').select('groups!group_id(name)').eq('id', athleteId).maybeSingle(),
+  ]);
+  return planPaceBasis({
+    planAthleteId: null,
+    parsedWorkouts: club,
+    groupName: (group.data as { groups?: { name?: string } } | null)?.groups?.name ?? null,
+    laneRefs: refs,
+    thresholdSec,
+  });
 }
 
 export interface RosterTrainee {

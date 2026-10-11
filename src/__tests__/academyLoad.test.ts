@@ -62,7 +62,7 @@ describe('mockup 5ב at T = 4:12', () => {
 });
 
 describe('the planned load of screen 4', () => {
-  it('2 km @5:40, 5 × (1000 @4:05 + 2:00 jog), 2 km @5:40 is 62 ± 1', () => {
+  it('2 km @5:40, 5 × 1000 @4:05 with 2:00 jogs between, 2 km @5:40 is 60 ± 1 (four jogs, mockup 5ב)', () => {
     const steps: WorkoutStep[] = [
       { order: 1, type: 'warmup', durationType: 'distance', durationValue: 2000, targetType: 'pace', targetPaceMinPerKm: 340 },
       {
@@ -74,7 +74,7 @@ describe('the planned load of screen 4', () => {
       },
       { order: 3, type: 'cooldown', durationType: 'distance', durationValue: 2000, targetType: 'pace', targetPaceMinPerKm: 340 },
     ];
-    expect(Math.abs(Math.round(plannedLoad(steps, T)) - 62)).toBeLessThanOrEqual(1);
+    expect(Math.abs(Math.round(plannedLoad(steps, T)) - 60)).toBeLessThanOrEqual(1);
   });
 
   it('is nothing without a threshold or steps', () => {

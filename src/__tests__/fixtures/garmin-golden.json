@@ -1159,7 +1159,8 @@
                 },
                 "endConditionValue": 400,
                 "description": "3:20",
-                "targetValueOne": 5
+                "targetValueOne": 5.0761421319796955,
+                "targetValueTwo": 4.926108374384237
               },
               {
                 "type": "ExecutableStepDTO",
@@ -1400,7 +1401,8 @@
                 },
                 "endConditionValue": 400,
                 "description": "3:20",
-                "targetValueOne": 5
+                "targetValueOne": 5.0761421319796955,
+                "targetValueTwo": 4.926108374384237
               },
               {
                 "type": "ExecutableStepDTO",
@@ -1641,7 +1643,8 @@
                 },
                 "endConditionValue": 400,
                 "description": "3:20",
-                "targetValueOne": 5
+                "targetValueOne": 5.0761421319796955,
+                "targetValueTwo": 4.926108374384237
               },
               {
                 "type": "ExecutableStepDTO",
@@ -4607,7 +4610,8 @@
             },
             "endConditionValue": 2000,
             "description": "3:20",
-            "targetValueOne": 5
+            "targetValueOne": 5.0761421319796955,
+            "targetValueTwo": 4.926108374384237
           }
         ]
       }
@@ -4686,7 +4690,8 @@
             },
             "endConditionValue": 2000,
             "description": "3:20",
-            "targetValueOne": 5
+            "targetValueOne": 5.0761421319796955,
+            "targetValueTwo": 4.926108374384237
           }
         ]
       }
@@ -4765,7 +4770,8 @@
             },
             "endConditionValue": 2000,
             "description": "3:20",
-            "targetValueOne": 5
+            "targetValueOne": 5.0761421319796955,
+            "targetValueTwo": 4.926108374384237
           }
         ]
       }
