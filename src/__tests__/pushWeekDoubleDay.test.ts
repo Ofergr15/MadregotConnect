@@ -90,16 +90,18 @@ describe('a day with two workouts', () => {
     expect(garmin.deleted.sort()).toEqual(['1', '2', '3']);
   });
 
-  it('is how it was for everyone else until rollout: the evening deletes the morning', async () => {
+  it('without it, the evening deletes the morning (why it is always on now)', async () => {
     await push([], false);
     expect(garmin.deleted).toEqual(['2']);
     expect(garmin.account.has('2')).toBe(false);
   });
 
-  it('is on for the super user only, on both ways of sending', async () => {
+  // Was super-user-only "until rollout": an athlete's own "put it on my watch" and
+  // any other coach's send still lost the morning run of every two-a-day.
+  it('is on for every sender, on both ways of sending', async () => {
     const { readFileSync } = await import('fs');
     for (const f of ['src/app/api/garmin/push-workouts/route.ts', 'src/app/api/my-watch/route.ts']) {
-      expect(readFileSync(f, 'utf8')).toMatch(/cleanDayOnce: auth\.user\.isSuperUser,/);
+      expect(readFileSync(f, 'utf8')).toMatch(/cleanDayOnce: true,/);
     }
   });
 });

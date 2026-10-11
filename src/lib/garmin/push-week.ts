@@ -70,7 +70,7 @@ export async function pushWeekToAthlete({
    * before every session. On a two-a-day the per-session cleanup found the
    * morning run this same push had just created and deleted it off Garmin, so
    * only the evening reached the watch while both rows said success (feedback
-   * c2fc7174). True only when the super user sends, until it is rolled out.
+   * c2fc7174). Every sender passes true; false only reproduces the old bug.
    */
   cleanDayOnce?: boolean;
 }): Promise<PushResult> {

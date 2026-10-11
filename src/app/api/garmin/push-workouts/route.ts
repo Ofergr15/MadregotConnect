@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
           paceTarget,
           notify,
           pushCopy,
-          cleanDayOnce: auth.user.isSuperUser,
+          cleanDayOnce: true,
         });
       results.push(result);
 

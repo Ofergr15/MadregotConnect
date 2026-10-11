@@ -96,7 +96,8 @@ describe('the whole week in one request', () => {
     expect(h.peak).toBe(1);
     expect(h.planUpdates).toEqual([]);
     expect(h.kept).toEqual([]);
-    expect(h.delivered.every(d => !d.cleanDayOnce)).toBe(true);
+    // A two-a-day keeps both sessions whoever sends it.
+    expect(h.delivered.every(d => d.cleanDayOnce)).toBe(true);
   });
 
   it('is asked for by the planner only when the super user sends', async () => {
