@@ -28,7 +28,7 @@ function Chip({ kind, chip, today }: { kind: 'sleep' | 'rhr'; chip: BodyChip; to
   return (
     <Link
       href={traineeProgressUrl('body')}
-      className={cn('min-h-[56px] flex-1 rounded-2xl bg-white px-3 py-2.5', SHADOW)}
+      className={cn('min-h-[56px] flex-1 rounded-2xl bg-white px-3 py-2.5 leading-snug', SHADOW)}
     >
       {/* The badge sits in the title row on both tiles (mockup 1), never wrapped above the
           number: the label gives way first. */}

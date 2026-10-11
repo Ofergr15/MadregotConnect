@@ -85,7 +85,8 @@ export function FormCard({ form, when, gender, showBands }: {
         </div>
         <div className="min-w-0">
           <p className="text-[16px] font-black text-ink-900">{tt(strip(band.longKey) as never, { gender: g } as never)}</p>
-          <p className="text-[13px] leading-normal text-ink-500">{tt(strip(form.sentenceKey) as never, { gender: g } as never)}</p>
+          {/* Two lines at most (mockup 1): the copy is written to fit, the clamp keeps it so. */}
+          <p className="line-clamp-2 text-[13px] leading-normal text-ink-500">{tt(strip(form.sentenceKey) as never, { gender: g } as never)}</p>
         </div>
       </div>
       {showBands && (

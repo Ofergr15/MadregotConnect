@@ -19,7 +19,7 @@ import { FormCard } from './FormCard';
 import { LoadSheet } from './LoadSheet';
 import { RaceLine } from './RaceLine';
 import { RestCard, TodayWorkoutCard } from './TodayWorkoutCard';
-import { CARD, Chevron, RICH, SHADOW, StructureText, Tag, WEEKDAY_KEYS, dm } from './ui';
+import { CARD, Chevron, RICH, SHADOW, StructureText, TOP_BAR, Tag, WEEKDAY_KEYS, dm } from './ui';
 
 // ── The academy trainee's home (mockup trainee-experience-v2, phones 1, 1ב, 1ג) ─────────
 //
@@ -79,7 +79,7 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
   const coachFirst = data?.coach?.name.split(' ')[0] ?? null;
 
   const header = (
-    <div className={cn('flex items-center gap-2', !viewingAs && 'safe-top md:pt-0')}>
+    <div className={cn('flex items-center gap-2', !viewingAs && TOP_BAR)}>
       <h1 className="min-w-0 flex-1 truncate text-[21px] font-black text-ink-900">{t.rich(`greeting.${greeting}`, { ...RICH, name })}</h1>
       {!viewingAs && <SetupPill className="md:hidden" />}
       <Link
@@ -178,7 +178,9 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
       {openDate && (
         // Pinned to the bottom of the scroll box, which ends at the tab bar: the mockup's
         // .foot, on screen at first open however long the cards above it run.
-        <div className="pointer-events-none sticky bottom-0 z-10 -mx-4 bg-gradient-to-t from-page from-70% to-transparent px-4 pb-1 pt-3">
+        // !-mb-4 (over the parent's space-y): the scroll box's own bottom padding taken back,
+        // so a home that fits ends at the button instead of scrolling 16px of nothing.
+        <div className="pointer-events-none sticky bottom-0 z-10 -mx-4 !-mb-4 bg-gradient-to-t from-page from-70% to-transparent px-4 pb-1 pt-3 md:!mb-0">
           <button
             type="button"
             onClick={() => setOpening(openDate)}

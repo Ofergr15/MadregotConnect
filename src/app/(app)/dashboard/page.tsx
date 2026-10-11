@@ -643,7 +643,10 @@ export default function DashboardPage() {
   })();
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-5 sm:space-y-6">
+    // The trainee home (mockup 1) sits on the scroll box's own 16px margins and top, like
+    // the board and the progress tab — a second px-4/py-5 here made it 32px in from each
+    // edge and pushed the race line under the pinned button.
+    <div className={cn('max-w-2xl mx-auto space-y-5 sm:space-y-6', showTraineeHome ? 'sm:px-6 sm:py-8' : 'px-4 sm:px-6 py-5 sm:py-8')}>
 
       {/* ═══ LARGE TITLE (native home header) — the trainee home brings its own greeting ═══ */}
       {!showTraineeHome && <div className="flex items-center justify-between">
