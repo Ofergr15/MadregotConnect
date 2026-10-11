@@ -399,7 +399,7 @@ export default function NotificationsInboxPage() {
                         icon={Footprints}
                         iconBg="bg-ink-300"
                         label={tn('runsFolded', { n: entry.items.length })}
-                        sublabel={`${names.slice(0, 3).join(', ')}${more > 0 ? ` ${tn('runsMore', { n: more })}` : ''} · ${open ? tn('runsClose') : tn('runsOpen')}`}
+                        sublabel={[names.length ? `${names.slice(0, 3).join(', ')}${more > 0 ? ` ${tn('runsMore', { n: more })}` : ''}` : '', open ? tn('runsClose') : tn('runsOpen')].filter(Boolean).join(' · ')}
                         labelClamp
                         sublabelClamp
                         onClick={() => setOpenFolds((prev) => {
