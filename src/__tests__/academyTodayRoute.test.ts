@@ -52,7 +52,7 @@ const SCHEMA: Record<string, string[]> = {
   weekly_plans: ['id', 'coach_id', 'athlete_id', 'week_start_date', 'parsed_workouts', 'status', 'created_at'],
   workout_deliveries: ['athlete_id', 'workout_date', 'status'],
   athlete_wellness: ['athlete_id', 'date', 'sleep_seconds', 'resting_hr'],
-  athlete_activities: ['id', 'athlete_id', 'start_time', 'activity_type', 'distance', 'duration', 'moving_duration', 'average_hr', 'max_hr', 'laps', 'splits'],
+  athlete_activities: ['id', 'athlete_id', 'start_time', 'activity_type', 'distance', 'duration', 'moving_duration', 'average_hr', 'max_hr', 'laps', 'splits', 'source'],
   academy_tests: ['id', 'athlete_id', 'test_date', 'protocol', 'duration_sec', 'distance_m', 'excluded_reason', 'status'],
   academy_test_invitations: ['id', 'athlete_id', 'protocol', 'proposed_slots', 'confirmed_slot', 'status', 'created_at'],
   academy_candidates: ['id', 'athlete_id'],

@@ -1,3 +1,4 @@
+import { withoutTwins } from './twins';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { activityLocalDateStr, addDaysToDateStr, planWeekStartOf, resolveGroup } from '@/lib/utils';
@@ -231,7 +232,7 @@ export async function computeAcademyWeekAdherence(opts: {
     supabase
       .from('athlete_activities')
       .select(
-        'id, athlete_id, start_time, distance, duration, moving_duration, average_pace, activity_type'
+        'id, athlete_id, start_time, distance, duration, moving_duration, average_pace, activity_type, source'
         + (opts.withExecution ? ', laps, average_hr' : ''),
       )
       .in('athlete_id', athleteIds)
@@ -286,7 +287,8 @@ export async function computeAcademyWeekAdherence(opts: {
 
   const actualByAthlete = new Map<string, ActualActivity[]>();
   const lapsByActivity = new Map<string, Lap[]>();
-  for (const r of (acts.data || []) as any[]) {
+  // A run recorded twice (Garmin + its Strava copy) is one run (twins.ts).
+  for (const r of withoutTwins((acts.data || []) as any[])) {
     if (opts.withExecution) lapsByActivity.set(r.id, normalizeStoredLaps(r.laps));
     const arr = actualByAthlete.get(r.athlete_id) || [];
     arr.push({
@@ -471,7 +473,7 @@ export async function computeAthleteWeekHistory(opts: {
       .order('created_at', { ascending: false }),
     supabase
       .from('athlete_activities')
-      .select('id, start_time, distance, duration, moving_duration, average_pace, activity_type')
+      .select('id, start_time, distance, duration, moving_duration, average_pace, activity_type, source')
       .eq('athlete_id', opts.athleteId)
       .gte('start_time', `${fromWeek}T00:00:00Z`)
       .lte('start_time', `${lastDay}T23:59:59Z`),
@@ -512,7 +514,7 @@ export async function computeAthleteWeekHistory(opts: {
   }
 
   const actsByWeek = new Map<string, ActualActivity[]>();
-  for (const r of (actsRes.error ? [] : actsRes.data || []) as any[]) {
+  for (const r of withoutTwins((actsRes.error ? [] : actsRes.data || []) as any[])) {
     if (!r.start_time) continue;
     const date = activityLocalDateStr(r.start_time);
     const week = sundayOf(date);

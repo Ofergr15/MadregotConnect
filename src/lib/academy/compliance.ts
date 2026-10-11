@@ -84,6 +84,12 @@ export interface WeekTotalsInput {
   actualM: number | null;
   plannedSec: number | null;
   actualSec: number | null;
+  /**
+   * Not a prescribed session: an optional one or a day before joining (not planned,
+   * its run's km still counted as done), or a run no session claimed (`unplanned`:
+   * done km and time only).
+   */
+  notPlanned?: boolean;
 }
 
 export interface WeekTotals {
@@ -102,12 +108,15 @@ export interface WeekTotals {
  * so the bar can pass 100%, which is a true statement about the week.
  */
 export function weekTotals(rows: WeekTotalsInput[]): WeekTotals {
-  const out: WeekTotals = { plannedKm: 0, doneKm: 0, plannedCount: rows.length, doneCount: 0, plannedSec: 0, doneSec: 0 };
+  const out: WeekTotals = { plannedKm: 0, doneKm: 0, plannedCount: 0, doneCount: 0, plannedSec: 0, doneSec: 0 };
   for (const r of rows) {
-    out.plannedKm += (r.plannedM ?? 0) / 1000;
-    out.plannedSec += r.plannedSec ?? 0;
+    if (!r.notPlanned) {
+      out.plannedCount += 1;
+      out.plannedKm += (r.plannedM ?? 0) / 1000;
+      out.plannedSec += r.plannedSec ?? 0;
+    }
     if (r.completed) {
-      out.doneCount += 1;
+      if (!r.notPlanned) out.doneCount += 1;
       out.doneKm += (r.actualM ?? 0) / 1000;
       out.doneSec += r.actualSec ?? 0;
     }

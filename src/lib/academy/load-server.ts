@@ -29,6 +29,7 @@ import { thresholdPaceSec } from './tests';
 import { extractWorkouts, groupNumberFor } from './report';
 import { loadLaneReferences } from './book-server';
 import { planPaceBasis } from './plan-basis';
+import { twinIds, type TwinCandidate } from './twins';
 import {
   LOAD_VERSION, MAX_HR_DAYS, activityBreakdown, activityLoad, isRunType, maxHrOf, plannedLoad, restateOptions, restateSteps,
   shiftDate, thresholdOn,
@@ -58,8 +59,8 @@ const LIST_PAGE = 1000;
 const RHR_DAYS = 30;
 const RHR_MIN_MORNINGS = 3;
 
-const LIGHT_COLUMNS = 'id, start_time, activity_type, max_hr, average_hr';
-const HEAVY_COLUMNS = 'id, start_time, activity_type, distance, duration, moving_duration, average_hr, max_hr, laps, splits';
+const LIGHT_COLUMNS = 'id, start_time, activity_type, max_hr, average_hr, distance, duration, source';
+const HEAVY_COLUMNS = 'id, start_time, activity_type, distance, duration, moving_duration, average_hr, max_hr, laps, splits, source';
 
 /** One priced activity, as stored or as computed. */
 export interface ActivityLoadRow {
@@ -232,7 +233,10 @@ export async function readAll<T>(page: (from: number, to: number) => PromiseLike
   }
 }
 
-interface LightAct { id: string; start_time: string; activity_type: string | null; max_hr: number | null; average_hr?: number | null }
+interface LightAct {
+  id: string; start_time: string; activity_type: string | null; max_hr: number | null; average_hr?: number | null;
+  distance?: number | null; duration?: number | null; source?: string | null;
+}
 
 /**
  * Of the activities stored as `pace_avg`, the ones that now carry laps or per-km splits
@@ -273,10 +277,14 @@ export function maxHrNow(
 function priceAll(
   athleteId: string,
   acts: Array<LoadActivity & { id: string }>,
-  ctx: { tests: TestPoint[]; nights: Array<{ date: string; resting_hr: number | null }>; maxHr: number | null },
+  ctx: { tests: TestPoint[]; nights: Array<{ date: string; resting_hr: number | null }>; maxHr: number | null; twins?: Set<string> },
 ): ActivityLoadRow[] {
   return acts.map((a) => {
     const date = activityLocalDateStr(a.start_time);
+    // The second copy of one run (twins.ts) carries no load: the run is priced once.
+    if (ctx.twins?.has(String(a.id))) {
+      return { activityId: String(a.id), athleteId, date, load: null, source: 'not_run', thresholdSec: null, basisTestDate: null, version: LOAD_VERSION };
+    }
     const r = activityLoad(a, {
       tests: ctx.tests,
       rhr: rhrOn(ctx.nights, date),
@@ -401,9 +409,13 @@ export async function ensureActivityLoads(
   const hrBasis = maxHr != null && nights.some(n => Number(n.resting_hr) > 0);
   const averaged = listRes.data.filter(a => existing.get(String(a.id))?.source === 'pace_avg').map(a => String(a.id));
   const withLaps = averaged.length ? await lapsArrived(supabase, averaged) : new Set<string>();
+  const twins = twinIds(listRes.data as TwinCandidate[]);
   const todo = listRes.data.filter((a) => {
     const row = existing.get(String(a.id));
-    return !row || isStale(row, expectedBasis(a, tests), hrBasis && Number(a.average_hr) > 0, withLaps.has(String(a.id)));
+    if (!row) return true;
+    // A twin stored with a load (priced before it was recognised) is priced again as none.
+    if (twins.has(String(a.id))) return row.source !== 'not_run';
+    return isStale(row, expectedBasis(a, tests), hrBasis && Number(a.average_hr) > 0, withLaps.has(String(a.id)));
   });
   const batch = opts.newestFirst ? todo.slice(Math.max(0, todo.length - maxNew)) : todo.slice(0, maxNew);
 
@@ -415,7 +427,7 @@ export async function ensureActivityLoads(
       console.error('activity laps for loads failed:', error);
       break;
     }
-    rows.push(...priceAll(athleteId, (data || []) as any[], { tests, nights, maxHr }));
+    rows.push(...priceAll(athleteId, (data || []) as any[], { tests, nights, maxHr, twins }));
   }
 
   let wrote = 0;
@@ -468,7 +480,7 @@ async function computeInMemory(supabase: Db, athleteIds: string[], since: string
   const out: ActivityLoadRow[] = [];
   for (const id of athleteIds) {
     const acts = actsRes.data.filter((a: any) => a.athlete_id === id);
-    out.push(...priceAll(id, acts, { tests: testsBy[id] || [], nights: nightsBy.get(id) || [], maxHr: maxHrNow(acts, today) }));
+    out.push(...priceAll(id, acts, { tests: testsBy[id] || [], nights: nightsBy.get(id) || [], maxHr: maxHrNow(acts, today), twins: twinIds(acts) }));
   }
   return out;
 }

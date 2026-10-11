@@ -23,7 +23,7 @@ const israelDay = (offset = 0) => {
 const TODAY = israelDay();
 
 const SCHEMA: Record<string, string[]> = {
-  athlete_activities: ['id', 'athlete_id', 'start_time', 'activity_type', 'distance', 'duration', 'moving_duration', 'average_hr', 'max_hr', 'laps', 'splits'],
+  athlete_activities: ['id', 'athlete_id', 'start_time', 'activity_type', 'distance', 'duration', 'moving_duration', 'average_hr', 'max_hr', 'laps', 'splits', 'source'],
   academy_tests: ['id', 'athlete_id', 'test_date', 'protocol', 'duration_sec', 'distance_m', 'excluded_reason', 'status'],
   athlete_wellness: ['athlete_id', 'date', 'resting_hr', 'sleep_seconds'],
   workout_feedback: ['athlete_id', 'feel', 'difficulty', 'pain', 'created_at'],

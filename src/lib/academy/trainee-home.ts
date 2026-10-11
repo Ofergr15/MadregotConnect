@@ -7,6 +7,7 @@
 // that needs "today" is given it), no next-intl (copy is Hebrew, as in the sibling
 // academy components).
 
+import type { TestState } from './test-state';
 import type { PaceUpdateCard } from './coach-tools-payload';
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { stepMetric, type StepUnits } from '@/lib/plans/step-display';
@@ -87,6 +88,8 @@ export interface HomeJourney {
 export interface TraineeHome {
   isMember: boolean;
   weekStart: string;
+  /** What the tests allow (test-state.ts): 7ג's "ממתין לאישור", "צריך טסט של 30 דקות", "טסט ישן". */
+  test?: TestState;
   athlete?: {
     athleteId: string; name: string; avatarUrl: string | null; hasWatch: boolean;
     /** For the gendered copy of the progress screens (migration 057); null when unsaid. */

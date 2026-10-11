@@ -25,6 +25,34 @@ export interface BoardRow {
   plannedSec: number | null;
   actualSec: number | null;
   compliance: Compliance;
+  /**
+   * Why a session not run is not "לא בוצע": `optional` (an "ערב - אופציה" — said even when
+   * it was run), `beforeJoin` (the day is before the trainee joined the academy), `noData`
+   * (the watch stopped sending, so a run may well have happened). Never red, never in
+   * the planned totals.
+   */
+  excuse?: RowExcuse;
+}
+
+export type RowExcuse = 'optional' | 'beforeJoin' | 'noData';
+
+/** What can excuse a session (`boardRow`'s fourth argument). */
+export interface BoardRowContext {
+  optional?: boolean;
+  /** athletes.academy_joined_on: days before it are not graded. */
+  joinedOn?: string | null;
+  /** The first day the watch stopped sending (data-feed.ts): days from it are not "not done". */
+  feedLostOn?: string | null;
+}
+
+/** The excuse for a session, or none (pure, `boardRow`'s rule). */
+export function rowExcuse(date: string, today: string, completed: boolean, ctx?: BoardRowContext | null): RowExcuse | undefined {
+  if (!ctx) return undefined;
+  if (ctx.optional) return 'optional';
+  if (completed) return undefined;
+  if (ctx.joinedOn && date < ctx.joinedOn) return 'beforeJoin';
+  if (ctx.feedLostOn && date >= ctx.feedLostOn && date < today) return 'noData';
+  return undefined;
 }
 
 /**
@@ -36,14 +64,27 @@ export interface BoardRow {
  * when given, the board prints and grades THAT, so "10.6 ק״מ · כ־51 דק׳" on the home is
  * not "11 ק״מ" on the board. The adherence row's own estimate is the fallback.
  */
-export function boardRow(row: BoardRowInput, today: string, size?: { distanceM: number; durationSec: number } | null): BoardRow {
+export function boardRow(
+  row: BoardRowInput,
+  today: string,
+  size?: { distanceM: number; durationSec: number } | null,
+  ctx?: BoardRowContext | null,
+): BoardRow {
   const plannedM = (size?.distanceM || (row.distance.plannedMin + row.distance.plannedMax) / 2) || null;
   const plannedSec = (size?.durationSec || row.duration.planned) || null;
+  const excuse = rowExcuse(row.date, today, row.completed, ctx);
+  if (excuse && !row.completed) {
+    return {
+      plannedM, actualM: null, plannedSec, actualSec: null, excuse,
+      compliance: { color: 'grey', caret: null, ratio: null, measure: null },
+    };
+  }
   return {
     plannedM,
     actualM: row.distance.actual,
     plannedSec,
     actualSec: row.duration.actual,
+    ...(excuse ? { excuse } : {}),
     compliance: complianceOf({
       date: row.date,
       today,
@@ -162,11 +203,13 @@ export function leadingDays(month: string): number {
 export function monthDays(input: {
   month: string;
   today: string;
-  sessions: Array<{ date: string; color: ComplianceColor; actualM: number | null }>;
+  sessions: Array<{ date: string; color: ComplianceColor; actualM: number | null; excuse?: RowExcuse }>;
   raceDate?: string | null;
 }): MonthDay[] {
   const byDate = new Map<string, Array<{ color: ComplianceColor; actualM: number | null }>>();
   for (const s of input.sessions) {
+    // A day before the trainee joined is not a day of their plan: left uncoloured.
+    if (s.excuse === 'beforeJoin') continue;
     const list = byDate.get(s.date) ?? [];
     list.push(s);
     byDate.set(s.date, list);

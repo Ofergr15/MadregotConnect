@@ -2,7 +2,8 @@
 
 import type { WorkoutStep } from '@/lib/ai/types';
 import type { Compliance, WeekTotals } from './compliance';
-import type { OffLine } from './board';
+import type { OffLine, RowExcuse } from './board';
+import type { TestState } from './test-state';
 import type { RowMarks } from './board-server';
 
 export interface WeekBoardWorkout {
@@ -37,6 +38,17 @@ export interface WeekBoardWorkout {
   comment?: string | null;
   /** An optional session ("ערב - אופציה"): not counted in the week's planned load. */
   optional?: boolean;
+  /** Why a session not run is not "לא בוצע" (board.ts `RowExcuse`). */
+  excuse?: RowExcuse;
+}
+
+/** A run no session claimed: its own row, counted in the done totals. */
+export interface WeekBoardUnplanned {
+  activityId: string;
+  date: string;
+  distanceM: number | null;
+  durationSec: number | null;
+  load: number | null;
 }
 
 /** A day of the week with nothing planned: a thin "מנוחה" row. */
@@ -69,5 +81,13 @@ export interface WeekBoard {
   restDays?: WeekBoardRestDay[];
   /** The load numbers mean something yet (lib/academy/pmc.ts loadStatus is `ok`): the ⚡ tile shows. */
   loadOk?: boolean;
+  /** Runs no session claimed (v2). */
+  unplanned?: WeekBoardUnplanned[];
+  /** What the tests allow (test-state.ts): screen 4's "צריך טסט" line. */
+  test?: TestState;
+  /** A workout can reach the watch (Garmin connected): else 4 says it won't. */
+  canWatch?: boolean;
+  /** athletes.academy_joined_on. */
+  joinedOn?: string | null;
   canPlan: boolean;
 }

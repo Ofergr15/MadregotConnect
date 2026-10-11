@@ -16,6 +16,10 @@ import { loadStatus } from '@/lib/academy/pmc';
 import { DISPLAY_REFERENCE } from '@/lib/academy/plan-basis';
 import { planEstimateOptions } from '@/lib/plans/step-estimate';
 import type { ParsedWorkout } from '@/lib/ai/types';
+import { loadAthleteFeeds } from '@/lib/academy/data-feed-server';
+import { feedBroken } from '@/lib/academy/data-feed';
+import { loadTestState } from '@/lib/academy/test-state';
+import { isMissingColumn } from '@/lib/supabase/schema-drift';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,7 +83,7 @@ export async function GET(request: Request) {
         console.error('week-board loads failed (the week still answers):', err);
         return null;
       });
-    const [report, deliveries, me, thresholds, loads] = await Promise.all([
+    const [report, deliveries, me, thresholds, loads, feeds, test] = await Promise.all([
       computeAcademyWeekAdherence({ weekStart, onlyAthleteId: athleteId, keepDetail: true }),
       supabase
         .from('workout_deliveries')
@@ -87,10 +91,19 @@ export async function GET(request: Request) {
         .eq('athlete_id', athleteId)
         .gte('workout_date', weekStart)
         .lte('workout_date', weekEnd),
-      supabase.from('athletes').select('id, name, academy_coach_id').eq('id', athleteId).maybeSingle(),
+      supabase.from('athletes').select('id, name, academy_coach_id, academy_joined_on').eq('id', athleteId).maybeSingle()
+        .then(res => (res.error && isMissingColumn(res.error)
+          ? supabase.from('athletes').select('id, name, academy_coach_id').eq('id', athleteId).maybeSingle()
+          : res)),
       loadThresholds(supabase, [athleteId]),
       loadsP,
+      loadAthleteFeeds(supabase, athleteId),
+      loadTestState(supabase, athleteId, today),
     ]);
+    // What excuses a session from "לא בוצע": a day before joining, an optional session,
+    // a day after the watch stopped sending (data-feed.ts).
+    const joinedOn = ((me.data as { academy_joined_on?: string | null } | null)?.academy_joined_on ?? null)?.slice(0, 10) ?? null;
+    const feedLostOn = feedBroken(feeds.run) && feeds.run.days != null ? shiftDate(today, -feeds.run.days) : null;
     const thresholdSec = thresholds[athleteId] ?? null;
 
     let coachName: string | null = null;
@@ -151,12 +164,14 @@ export async function GET(request: Request) {
       const model = steps.length ? fromLibrarySteps(absoluteToLibrary(steps, referenceSec).steps) : null;
       // Sized as the home card sizes it (day-cards → todayCard): the same steps, reference
       // and threshold, so the row, the card and screen 4 print one number.
-      const graded = boardRow(row, today, sessionSize(steps, referenceSec, basis?.drawAtSec ?? referenceSec));
+      const optional = !!row.detail?.workout.optional;
+      const graded = boardRow(row, today, sessionSize(steps, referenceSec, basis?.drawAtSec ?? referenceSec), { optional, joinedOn, feedLostOn });
       const { plannedM } = graded;
       const activityId = row.actual?.id ? String(row.actual.id) : null;
       const runLoad = row.completed && activityId ? loadOf.get(activityId) : undefined;
       const planLoad = loadT && steps.length ? plannedLoad(restateSteps(steps, scale), loadT, estimate) : 0;
-      planRaw.push(row.detail?.workout.optional ? 0 : planLoad);
+      // Neither an optional session nor a day before joining is planned load.
+      planRaw.push(optional || graded.excuse === 'beforeJoin' ? 0 : planLoad);
       const plannedPace = row.pace.plannedMin && row.pace.plannedMax
         ? Math.round((row.pace.plannedMin + row.pace.plannedMax) / 2)
         : null;
@@ -185,15 +200,31 @@ export async function GET(request: Request) {
         marks: marks ? rowMarks(marks, row.date, row.completed ? activityId : null) : {},
         offLine: offLineOf(graded),
         comment: (row.completed && activityId ? marks?.byActivity.get(activityId)?.comment : null) ?? null,
-        ...(row.detail?.workout.optional ? { optional: true } : {}),
+        ...(optional ? { optional: true } : {}),
+        ...(graded.excuse ? { excuse: graded.excuse } : {}),
       };
     });
+
+    // The week's runs no session claimed — a run on a rest day, the second run of a day:
+    // their own rows ("ריצה לא מתוכננת"), in the done km, time and ⚡ (issue 25).
+    const unplanned = (report.athletes[0]?.week.unmatched ?? []).map(a => ({
+      activityId: String(a.id),
+      date: a.date,
+      distanceM: a.distance || null,
+      durationSec: (a.movingDuration ?? a.duration) || null,
+      load: loadOf.get(String(a.id)) != null ? Math.round(loadOf.get(String(a.id)) as number) : null,
+    })).sort((x, y) => x.date.localeCompare(y.date));
 
     // The week's ⚡: planned = the plan's non-optional sessions summed unrounded and then
     // rounded, exactly as /api/academy/load sums this week's dashed frame, so the tile and
     // the bar print one number. Done = what the matched runs stored.
     const plannedLoadSum = planRaw.reduce((a, b) => a + b, 0);
-    const doneLoadSum = workouts.reduce((a, w) => a + (w.load ?? 0), 0);
+    // Done = EVERY priced run of the week, planned or not — exactly what the month view's
+    // weekly bar sums (load-payload `weekly`), so the tile and the bar print one number.
+    const weekEndSoFar = weekEnd < today ? weekEnd : today;
+    const doneLoadSum = (loads?.rows ?? [])
+      .filter(r => r.date >= weekStart && r.date <= weekEndSoFar && r.load != null)
+      .reduce((a, r) => a + (r.load ?? 0), 0);
 
     const body: WeekBoard = {
       weekStart,
@@ -206,19 +237,29 @@ export async function GET(request: Request) {
       referenceSec,
       fromClub,
       totals: {
-        ...weekTotals(workouts.map(w => ({
-          completed: w.compliance.color !== 'red' && w.compliance.color !== 'grey',
-          plannedM: w.plannedM,
-          actualM: w.actualM,
-          plannedSec: w.plannedSec,
-          actualSec: w.actualSec,
-        }))),
+        ...weekTotals([
+          ...workouts.map(w => ({
+            completed: w.compliance.color !== 'red' && w.compliance.color !== 'grey',
+            plannedM: w.plannedM,
+            actualM: w.actualM,
+            plannedSec: w.plannedSec,
+            actualSec: w.actualSec,
+            notPlanned: w.excuse === 'optional' || w.excuse === 'beforeJoin',
+          })),
+          ...unplanned.map(u => ({ completed: true, plannedM: null, actualM: u.distanceM, plannedSec: null, actualSec: u.durationSec, notPlanned: true })),
+        ]),
         plannedLoad: loadT && plannedLoadSum > 0 ? Math.round(plannedLoadSum) : null,
         doneLoad: loads ? Math.round(doneLoadSum) : null,
       },
       workouts,
       restDays: restDaysOf(weekStart, workouts.map(w => w.date)),
-      loadOk: !!loads && loadStatus(loads.rows, today).kind === 'ok',
+      unplanned,
+      // The ⚡ tile only on numbers that mean something: not on a broken feed, not while
+      // runs are still being priced.
+      loadOk: !!loads && loadStatus(loads.rows, today, { feed: feeds.run, pending: loads.pending }).kind === 'ok',
+      test,
+      canWatch: feeds.canWatch,
+      joinedOn,
       // The coach plans from this screen; the trainee only reads it.
       canPlan: caller.athleteId !== athleteId && (caller.isStaff || caller.isSuperUser),
     };

@@ -78,9 +78,17 @@ export function ThresholdScreen({ athleteId, home, focusTests = false }: {
             </div>
           </>
         ) : (
-          <p className="text-[16px] font-black text-ink-900">{t('none')}</p>
+          // No usable test: which kind of "no" — none, waiting for approval, or only a 2000 m.
+          <p className="text-[16px] font-black text-ink-900">
+            {home?.test?.kind === 'pending' ? t('pending') : home?.test?.kind === 'otherProtocol' ? t('otherProtocol') : t('none')}
+          </p>
         )}
-        <p className="text-13 leading-normal text-ink-500">{latest ? t('explain') : t('noneSub')}</p>
+        <p className="text-13 leading-normal text-ink-500">
+          {latest ? t('explain') : home?.test?.kind === 'pending' ? t('pendingSub') : home?.test?.kind === 'otherProtocol' ? t('otherProtocolSub') : t('noneSub')}
+        </p>
+        {latest && home?.test?.kind === 'ok' && home.test.old && (
+          <p className="mt-1 text-[13px] font-bold leading-snug text-[#A8510A]">{t.rich('old', { ...RICH, months: Math.round(home.test.ageDays / 30) })}</p>
+        )}
       </div>
 
       {points.length > 0 && <ThresholdChart points={points.map(p => ({ date: p.date, paceSec: p.paceSec as number }))} />}

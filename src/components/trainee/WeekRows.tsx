@@ -7,7 +7,8 @@ import { COMPLIANCE_HEX, meterFraction, type ComplianceColor } from '@/lib/acade
 import { mainStepIndex, profileBar } from '@/lib/academy/book-steps';
 import { RECORD_BUCKETS } from '@/lib/academy/records';
 import type { BoardView } from '@/lib/academy/deep-links';
-import type { WeekBoard, WeekBoardWorkout } from '@/lib/academy/week-board';
+import type { WeekBoard, WeekBoardUnplanned, WeekBoardWorkout } from '@/lib/academy/week-board';
+import Link from 'next/link';
 import { N, ProfileBar, clockText, hoursText, kmText } from '@/components/academy/book/ui';
 import { WEEKDAY_KEYS, workoutModel } from '@/components/academy/book/WeekBoard';
 import { FACES } from './FeelAndTalk';
@@ -78,6 +79,33 @@ export function WeekTilesV2({ board }: { board: WeekBoard }) {
   );
 }
 
+/**
+ * A run no session claimed (a run on a rest day, a day's second run): its own row, in the
+ * done totals, opening the run's own page (map, laps) — screen 5 is a plan-vs-done screen.
+ */
+export function WeekUnplannedRow({ u }: { u: WeekBoardUnplanned }) {
+  const t = useTranslations('trainee.week');
+  const tb = useTranslations('workoutBook');
+  const dow = new Date(`${u.date}T12:00:00Z`).getUTCDay();
+  const m = (chunks: ReactNode) => <N>{chunks}</N>;
+  return (
+    <Link href={`/dashboard/activities/${u.activityId}`} className={cn('flex min-h-[56px] w-full overflow-hidden rounded-2xl bg-white text-start', SHADOW)}>
+      <span aria-hidden className="w-[7px] shrink-0 bg-[#9A9BA6]" />
+      <span className="w-[42px] shrink-0 pt-2.5 text-center text-[11.5px] font-bold text-ink-400">
+        {tb(`dayShort.${WEEKDAY_KEYS[dow]}`)}
+        <b className="block text-[17px] font-black text-ink-900"><N>{Number(u.date.slice(8, 10))}</N></b>
+      </span>
+      <span className="min-w-0 flex-1 py-[9px] pe-3 leading-snug">
+        <b className="block truncate text-[15px] font-extrabold text-ink-900">{t('unplanned')}</b>
+        <small className="block text-[12.5px] text-ink-400">
+          {u.distanceM ? t.rich('km', { m, km: kmText(u.distanceM) }) : null}
+          {u.load != null && <>{u.distanceM ? ' · ' : ''}{t.rich('load', { m, load: u.load })}</>}
+        </small>
+      </span>
+    </Link>
+  );
+}
+
 /** A day with nothing planned: one thin grey line. */
 export function WeekRestRow({ date }: { date: string }) {
   const t = useTranslations('trainee.week');
@@ -116,7 +144,8 @@ export function WeekRowV2({ w, board, isNext, onOpen }: {
   const m = (chunks: ReactNode) => <N>{chunks}</N>;
 
   let status: ReactNode = null;
-  if (c.color === 'green') status = <small className="shrink-0 text-[12.5px] font-extrabold text-[#0E7A3C]">{t('onPlan')}</small>;
+  if (w.excuse && !ran) status = <Tag tone="n" className="shrink-0">{t(`excuse.${w.excuse}`)}</Tag>;
+  else if (c.color === 'green') status = <small className="shrink-0 text-[12.5px] font-extrabold text-[#0E7A3C]">{t('onPlan')}</small>;
   else if (c.color === 'red') status = <small className="shrink-0 text-[12.5px] font-extrabold" style={{ color: C.bad }}>{t('missed')}</small>;
   else if (w.offLine) {
     status = (
@@ -152,7 +181,8 @@ export function WeekRowV2({ w, board, isNext, onOpen }: {
     }
   }
   if (!ran && isToday && w.onWatch) parts.push(<span key="watch">{t('onWatch')}</span>);
-  const load = ran ? w.load : c.color === 'grey' ? w.plannedLoad : null;
+  // An excused session (optional, before joining, no data) carries no planned ⚡.
+  const load = ran ? w.load : c.color === 'grey' && !w.excuse ? w.plannedLoad : null;
   if (load != null) parts.push(<span key="load">{t.rich('load', { m, load })}</span>);
 
   const marks: ReactNode[] = [];

@@ -11,6 +11,8 @@ import { shiftDate } from '@/lib/academy/load';
 import { loadPlanBasis, loadThresholds } from '@/lib/academy/book-server';
 import { sessionSize } from '@/lib/academy/book-steps';
 import { DISPLAY_REFERENCE } from '@/lib/academy/plan-basis';
+import { loadAthleteFeeds } from '@/lib/academy/data-feed-server';
+import { feedBroken } from '@/lib/academy/data-feed';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,12 +50,19 @@ export async function GET(request: Request) {
     const weeks: string[] = [];
     for (let w = weekStartOf(dates[0]); w <= dates[dates.length - 1]; w = shiftDate(w, 7)) weeks.push(w);
     const supabase = createServerClient();
-    const [reports, raceDate, thresholds] = await Promise.all([
+    const [reports, raceDate, thresholds, me, feeds] = await Promise.all([
       Promise.all(weeks.map(weekStart => computeAcademyWeekAdherence({ weekStart, onlyAthleteId: athleteId, keepDetail: true }))),
       loadRaceDate(supabase, athleteId),
       // The sizes only; a failure here grades on the adherence row's own estimate.
       loadThresholds(supabase, [athleteId]).catch(() => ({} as Record<string, number | null>)),
+      // The excuses only; a read that fails grades every day as before.
+      Promise.resolve().then(() => supabase.from('athletes').select('academy_joined_on').eq('id', athleteId).maybeSingle())
+        .catch(() => ({ data: null, error: true })),
+      loadAthleteFeeds(supabase, athleteId),
     ]);
+    // The week board's excuses (board.ts rowExcuse): before joining, optional, no data.
+    const joinedOn = me.error ? null : ((me.data as { academy_joined_on?: string | null } | null)?.academy_joined_on ?? null)?.slice(0, 10) ?? null;
+    const feedLostOn = feedBroken(feeds.run) && feeds.run.days != null ? shiftDate(today, -feeds.run.days) : null;
     const thresholdSec = thresholds[athleteId] ?? null;
     // Each week sized the way its week board sizes it (whose paces the steps are in), so a
     // day cannot be green here and yellow in its week.
@@ -66,8 +75,10 @@ export async function GET(request: Request) {
       .filter(({ row }) => row.date.startsWith(month))
       .map(({ row, basis }) => {
         const referenceSec = basis?.referenceSec ?? thresholdSec ?? DISPLAY_REFERENCE;
-        const graded = boardRow(row, today, sessionSize(row.detail?.workout.steps, referenceSec, basis?.drawAtSec ?? referenceSec));
-        return { date: row.date, color: graded.compliance.color, actualM: graded.actualM };
+        const graded = boardRow(row, today, sessionSize(row.detail?.workout.steps, referenceSec, basis?.drawAtSec ?? referenceSec), {
+          optional: !!row.detail?.workout.optional, joinedOn, feedLostOn,
+        });
+        return { date: row.date, color: graded.compliance.color, actualM: graded.actualM, excuse: graded.excuse };
       });
     const days = monthDays({ month, today, sessions, raceDate });
     const body: MonthBoardPayload = {

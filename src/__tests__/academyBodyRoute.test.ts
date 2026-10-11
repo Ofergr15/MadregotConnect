@@ -46,7 +46,7 @@ function seed(withWellness = true) {
     schema: {
       ...(withWellness ? { athlete_wellness: ['athlete_id', 'date', 'sleep_seconds', 'resting_hr'] } : {}),
       workout_feedback: ['id', 'athlete_id', 'garmin_activity_id', 'feel', 'difficulty', 'created_at'],
-      athlete_activities: ['id', 'athlete_id', 'garmin_activity_id', 'start_time'],
+      athlete_activities: ['id', 'athlete_id', 'garmin_activity_id', 'start_time', 'source'],
     },
   });
   if (withWellness) {

@@ -89,7 +89,7 @@ const { GET } = await import('@/app/api/academy/week-board/route');
 const get = () => GET(new Request(`http://x/api/academy/week-board?athleteId=${TRAINEE}&weekStart=${SUN}`));
 
 const SCHEMA: Record<string, string[]> = {
-  athlete_activities: ['id', 'athlete_id', 'garmin_activity_id', 'start_time', 'activity_type', 'distance', 'duration', 'moving_duration', 'average_hr', 'max_hr', 'laps', 'splits'],
+  athlete_activities: ['id', 'athlete_id', 'garmin_activity_id', 'start_time', 'activity_type', 'distance', 'duration', 'moving_duration', 'average_hr', 'max_hr', 'laps', 'splits', 'source'],
   academy_tests: ['id', 'athlete_id', 'test_date', 'protocol', 'duration_sec', 'distance_m', 'excluded_reason', 'status'],
   athlete_wellness: ['athlete_id', 'date', 'resting_hr', 'sleep_seconds'],
   athletes: ['id', 'group_id', 'name', 'academy_coach_id', 'gender'],
@@ -155,7 +155,8 @@ describe('the v2 week', () => {
   it('keeps every field the coach\'s screen reads', async () => {
     const body = await (await get()).json();
     expect(body).toMatchObject({ weekStart: SUN, athlete: { id: TRAINEE, name: 'Shahar' }, coachName: 'Sahar Ben Ami', thresholdSec: 252, fromClub: false });
-    expect(body.totals).toMatchObject({ plannedCount: 4, doneCount: 2, plannedKm: 29, doneKm: 16.2 });
+    // The optional evening (5 km) is neither a planned session nor planned km (issue 13).
+    expect(body.totals).toMatchObject({ plannedCount: 3, doneCount: 2, plannedKm: 24, doneKm: 16.2 });
     for (const w of body.workouts) {
       expect(w).toEqual(expect.objectContaining({
         date: expect.any(String), dayOfWeek: expect.any(Number), name: expect.any(String), compliance: expect.any(Object),

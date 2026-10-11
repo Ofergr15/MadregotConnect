@@ -16,6 +16,7 @@ import { LoadSheet } from '@/components/trainee/LoadSheet';
 import { DoneLapsTable, DoneTabs, WorkoutDone, type DoneTab } from '@/components/trainee/WorkoutDone';
 import { FeelAndTalk } from '@/components/trainee/FeelAndTalk';
 import { StructureText, dm as dmOf, monthName } from '@/components/trainee/ui';
+import { NeedsTest } from '@/components/trainee/TodayWorkoutCard';
 import { useTraineeV2 } from '@/lib/trainee/v2';
 import { BarButton, CARD, FlowOverlay, FlowScreen, PrimaryButton, ProfileBar, RICH, clockText, kmText } from './ui';
 import { StepLines } from './StepLines';
@@ -161,6 +162,10 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
             {when && <>{when} · </>}{coachFirst ? t('fromCoach', { name: coachFirst }) : t('fromCoachGeneric')}
           </p>
           <h2 className="text-28 font-black leading-tight text-ink-900">{v2 ? <StructureText text={workout.name} /> : <bdi>{workout.name}</bdi>}</h2>
+          {v2 && !T && <NeedsTest test={board.test} className="mt-1.5" />}
+          {v2 && board.test?.kind === 'ok' && board.test.old && (
+            <p className="mt-1.5 text-[13px] font-bold leading-snug text-[#A8510A]">{tw.rich('oldTest', { ...RICH, months: Math.round(board.test.ageDays / 30) })}</p>
+          )}
           {(size || data?.expectedLoad) && (
             <p className="mt-1 text-[16px] text-ink-500">
               {size && t.rich('volume', { ...RICH, km: kmText(size.distanceM), min: Math.round(size.durationSec / 60) })}
@@ -181,7 +186,8 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
             <div className={cn(CARD, v2 ? 'px-[14px] py-3' : 'p-[18px]')}>
               <ProfileBar segments={profileBar(model, T, { trainee: v2 })} size="lg" palette={v2 ? 'trainee' : undefined} height={v2 ? 40 : undefined} />
             </div>
-            <StepLines steps={model} thresholdSec={T} rangeFor={v2 ? rangeFor : undefined} trainee={v2} />
+            {/* No watch range for a trainee whose watch cannot receive the workout (Strava-only). */}
+            <StepLines steps={model} thresholdSec={T} rangeFor={v2 && board.canWatch !== false ? rangeFor : undefined} trainee={v2} />
           </>
         ) : (
           <p className={cn(CARD, 'px-4 py-3 text-sm text-ink-500')}>{t('stepsUnavailable')}</p>
@@ -212,7 +218,16 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
               </span>
             </div>
           )}
-          {v2 ? (
+          {v2 && board.canWatch === false ? (
+            // No Garmin to send to: never "the coach will send it".
+            <div className="flex min-h-[56px] items-center gap-3 px-[18px] py-2">
+              <span aria-hidden className="w-6 shrink-0 text-center text-[19px]">⌚</span>
+              <span className="min-w-0 flex-1">
+                <b className="block text-[16px] font-extrabold text-ink-900">{tw('noWatchTitle')}</b>
+                <small className="mt-0.5 block text-[13.5px] text-ink-400">{tw('noWatchSub')}</small>
+              </span>
+            </div>
+          ) : v2 ? (
             <div className="flex min-h-[56px] items-center gap-3 px-[18px] py-2">
               <span aria-hidden className="w-6 shrink-0 text-center text-[19px]">⌚</span>
               <span className="min-w-0 flex-1">

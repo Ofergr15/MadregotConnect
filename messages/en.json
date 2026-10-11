@@ -4203,7 +4203,10 @@
       "notSentTitle": "Not on the watch yet",
       "notSentSub": "Your coach sends it before the workout",
       "doneTitle": "{day} · done",
-      "feelButton": "How did it feel?"
+      "feelButton": "How did it feel?",
+      "noWatchTitle": "No Garmin connected",
+      "noWatchSub": "The workout won't be sent to a watch. Run by the paces here.",
+      "oldTest": "Your last test was <m>{months}</m> months ago; a new one is worth it."
     },
     "done": {
       "tabs": {
@@ -4368,7 +4371,13 @@
       "empty": "No workouts this week.",
       "error": "Couldn't load the week.",
       "thread": "Conversation with {name}",
-      "threadMine": "My conversation"
+      "threadMine": "My conversation",
+      "excuse": {
+        "optional": "Optional",
+        "beforeJoin": "Before you joined",
+        "noData": "No data from the watch"
+      },
+      "unplanned": "Unplanned run"
     },
     "month": {
       "title": "{month} <m>{year}</m>",
@@ -4428,7 +4437,9 @@
         "pickedEasy": " · easy week",
         "pickAria": "Pick a week on the load chart"
       },
-      "error": "Couldn't load the month."
+      "error": "Couldn't load the month.",
+      "kmLearning": "Still learning you",
+      "kmLearningSay": "After <m>{n}</m> weeks of runs, your km chart appears here."
     },
     "progress": {
       "title": "Progress",
@@ -4546,7 +4557,12 @@
         "planPct": "Of the plan done",
         "streak": "Weeks in a row",
         "longest": "Longest (km)"
-      }
+      },
+      "old": "Your last test was <m>{months}</m> months ago; a new one is worth it.",
+      "pending": "Your test is waiting for the coach",
+      "pendingSub": "Once approved, your paces and load are worked out from it.",
+      "otherProtocol": "A 30-minute test is needed",
+      "otherProtocolSub": "A 2000 m test is not enough to work out threshold, paces and load."
     },
     "body": {
       "back": "Progress",

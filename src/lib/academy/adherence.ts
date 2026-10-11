@@ -60,6 +60,11 @@ export interface PlannedWorkout {
    * activity_plan_matches already holds instead of it re-guessing by date.
    */
   workoutKey?: string;
+  /**
+   * An optional session ("ערב - אופציה"): graded when it is run, never counted as planned
+   * and never "not done" — the screens, the counts and the reminder agree on that.
+   */
+  optional?: boolean;
   distanceMin: number; // meters
   distanceMax: number; // meters
   durationSec: number; // estimated planned moving time
@@ -121,11 +126,14 @@ export interface WorkoutAdherence {
 }
 
 export interface WeekAdherence {
+  /** Prescribed sessions only: an optional one is not "planned". */
   plannedCount: number;
   completedCount: number;
   completionRate: number; // 0..1
   avgScore: number; // 0..1 across planned workouts
   workouts: WorkoutAdherence[];
+  /** The week's runs no session claimed (a run on a rest day, a second run): shown on their own. */
+  unmatched?: ActualActivity[];
 }
 
 // ── Planned-metric extraction ───────────────────────────────────────────────
@@ -327,6 +335,7 @@ export function buildPlannedWorkout(workout: ParsedWorkout, date: string): Plann
     date,
     name: workout.name,
     workoutKey: workout.workoutKey,
+    ...(workout.optional ? { optional: true } : {}),
     distanceMin: Math.round(distanceMin),
     distanceMax: Math.round(distanceMax),
     durationSec,
@@ -487,9 +496,11 @@ export function assessWeek(
     return assessWorkout(p, match, tol);
   });
 
-  const plannedCount = workouts.length;
-  const completedCount = workouts.filter(w => w.completed).length;
-  const avgScore = plannedCount ? workouts.reduce((acc, w) => acc + w.score, 0) / plannedCount : 0;
+  // An optional session counts neither as planned nor as done-of-planned (U10).
+  const prescribed = workouts.filter(w => !w.planned.optional);
+  const plannedCount = prescribed.length;
+  const completedCount = prescribed.filter(w => w.completed).length;
+  const avgScore = plannedCount ? prescribed.reduce((acc, w) => acc + w.score, 0) / plannedCount : 0;
 
   return {
     plannedCount,
@@ -497,5 +508,6 @@ export function assessWeek(
     completionRate: plannedCount ? completedCount / plannedCount : 0,
     avgScore,
     workouts,
+    unmatched: runs.filter(a => !used.has(a.id)),
   };
 }

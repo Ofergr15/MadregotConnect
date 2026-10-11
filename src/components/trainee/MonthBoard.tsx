@@ -14,6 +14,9 @@ import { N } from '@/components/academy/book/ui';
 import { BoardViewSwitch } from './WeekRows';
 import { WeeklyLoadChart } from './WeeklyLoadChart';
 import { KmCard } from './KmCard';
+
+/** Weeks with running before the km chart says anything (fewer is one bar on an empty axis). */
+const KM_MIN_WEEKS = 3;
 import { CARD, TOP_BAR, WEEKDAY_KEYS } from './ui';
 
 // ── החודש (trainee-experience-v2 screen 3) ───────────────────────────────────────────────
@@ -121,6 +124,15 @@ export function MonthBoard({ athleteId, initialMonth, onView, onOpenDay, topBar 
 
       {loadOk ? (
         <WeeklyLoadChart weekly={load!.weekly} />
+      ) : home?.km && home.week && home.km.weeks.filter(w => w.km > 0).length < KM_MIN_WEEKS ? (
+        // A few weeks in, a 12-week chart is one bar on an empty axis: said instead.
+        <div className={cn(CARD, 'flex min-h-14 items-center gap-[11px] px-3.5')}>
+          <span aria-hidden className="w-6 shrink-0 text-center text-[19px]">⏳</span>
+          <div className="min-w-0 flex-1 py-[9px]">
+            <b className="block text-[14.5px] font-extrabold text-ink-900">{t('kmLearning')}</b>
+            <small className="mt-px block text-[12.5px] leading-snug text-ink-400">{t.rich('kmLearningSay', { m, n: KM_MIN_WEEKS })}</small>
+          </div>
+        </div>
       ) : home?.km && home.week ? (
         <KmCard
           weeks={home.km.weeks}

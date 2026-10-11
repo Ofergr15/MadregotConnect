@@ -14,7 +14,7 @@ import { TraineeWorkout } from './TraineeWorkout';
 import { CopyWeekFlow } from '../tools/CopyWeekFlow';
 import { useTraineeV2 } from '@/lib/trainee/v2';
 import type { BoardView } from '@/lib/academy/deep-links';
-import { BoardViewSwitch, WeekRestRow, WeekRowV2, WeekTilesV2, ComplianceLegend } from '@/components/trainee/WeekRows';
+import { BoardViewSwitch, WeekRestRow, WeekRowV2, WeekTilesV2, WeekUnplannedRow, ComplianceLegend } from '@/components/trainee/WeekRows';
 import { TOP_BAR } from '@/components/trainee/ui';
 
 // ── השבוע (mockup phone 4) — the same screen for the trainee and the coach ───────────────
@@ -80,7 +80,7 @@ export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed, 
   const [copying, setCopying] = useState(false);
   const tt = useTranslations('academyTools.copy');
 
-  const next = useMemo(() => data?.workouts.find(w => w.date >= data.today && w.compliance.color === 'grey') ?? null, [data]);
+  const next = useMemo(() => data?.workouts.find(w => w.date >= data.today && w.compliance.color === 'grey' && !w.excuse) ?? null, [data]);
 
   // A deep link to one day: opened once, when its week arrives.
   const [opened, setOpened] = useState<string | null>(null);
@@ -91,6 +91,11 @@ export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed, 
     const w = data.workouts.find(x => x.date === openDate);
     setOpened(openDate);
     if (w) setOpen(w);
+    // A day with only an unplanned run opens that run's own page (issue 25).
+    else {
+      const u = data.unplanned?.find(x => x.date === openDate);
+      if (u) window.location.assign(`/dashboard/activities/${u.activityId}`);
+    }
   }, [openDate, opened, data]);
   const close = () => {
     setOpen(null);
@@ -140,10 +145,12 @@ export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed, 
           )}
           {days.map((d) => {
             const list = data.workouts.filter(w => w.date === d);
+            const extra = (data.unplanned ?? []).filter(u => u.date === d).map(u => <WeekUnplannedRow key={u.activityId} u={u} />);
             if (!list.length) {
+              if (extra.length) return extra;
               return data.restDays?.some(r => r.date === d) ? <WeekRestRow key={d} date={d} /> : null;
             }
-            return list.map(w => (
+            return [...list.map(w => (
               <WeekRowV2
                 key={`${w.date}-${w.name}`}
                 w={w}
@@ -151,7 +158,7 @@ export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed, 
                 isNext={next?.date === w.date}
                 onOpen={() => setOpen(w)}
               />
-            ));
+            )), ...extra];
           })}
           {data.workouts.length > 0 && <ComplianceLegend />}
         </>

@@ -4,7 +4,8 @@ import { fmtKm } from '@/lib/academy/pace-verdict';
 
 // Moved here unchanged from AcademyMyView (2026-10-11), so the month board can show it in
 // place of the weekly ⚡ bars while a trainee's load is still being learned
-// (trainee-experience-v2 screen 3: never an empty chart).
+// (trainee-experience-v2 screen 3: never an empty chart). The plan prints in whole km, as
+// the week board's tile does ("מתוך 66"), from the same sizes.
 
 // ── The km chart ────────────────────────────────────────────────────────────
 // Time runs left to right whatever the page direction: it is an SVG, and a
@@ -50,7 +51,7 @@ export function KmCard({ weeks, plannedKm, avgKm, doneKm, isCurrentWeek, complet
       <div className="flex items-baseline justify-between gap-2">
         <b className="text-[15px] font-black text-ink-700">
           {isCurrentWeek ? 'השבוע' : 'בשבוע'} <bdi dir="ltr">{fmtKm(doneKm * 1000)}</bdi>{' '}
-          <span className="text-xs font-semibold text-ink-400">מתוך <bdi dir="ltr">{fmtKm(plannedKm * 1000)}</bdi> ק״מ</span>
+          <span className="text-xs font-semibold text-ink-400">מתוך <bdi dir="ltr">{fmtKm(Math.round(plannedKm) * 1000)}</bdi> ק״מ</span>
         </b>
         <span className="shrink-0 text-xs font-bold text-ink-400">{completed} מתוך {planned} אימונים</span>
       </div>

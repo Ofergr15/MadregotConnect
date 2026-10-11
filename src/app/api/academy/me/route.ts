@@ -3,6 +3,11 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { addDaysToDateStr, israelToday, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { computeAcademyWeekAdherence, computeAthleteWeekHistory, sundayOf } from '@/lib/academy/report';
+import { loadPlanBasis } from '@/lib/academy/book-server';
+import { sessionSize } from '@/lib/academy/book-steps';
+import { boardRow } from '@/lib/academy/board';
+import { DISPLAY_REFERENCE } from '@/lib/academy/plan-basis';
+import { testStateOf, type TestRow } from '@/lib/academy/test-state';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { toBand } from '@/lib/academy/bands';
@@ -169,13 +174,13 @@ export async function GET(request: Request) {
       // 108's `status` may be absent; then every row counts, as everywhere else.
       supabase
         .from('academy_tests')
-        .select('test_date, duration_sec, distance_m, excluded_reason, status')
+        .select('test_date, duration_sec, distance_m, excluded_reason, status, protocol')
         .eq('athlete_id', athleteId)
         .order('test_date', { ascending: false })
         .limit(10)
         .then((res) => (res.error
           ? supabase.from('academy_tests')
-            .select('test_date, duration_sec, distance_m, excluded_reason')
+            .select('test_date, duration_sec, distance_m, excluded_reason, protocol')
             .eq('athlete_id', athleteId)
             .order('test_date', { ascending: false })
             .limit(10)
@@ -201,16 +206,28 @@ export async function GET(request: Request) {
       ((feedbackRes as { data: Array<{ workout_date: string }> | null }).data || []).map((r) => r.workout_date),
     );
 
+    // 30-minute tests only, as every other pace and ⚡ (load-server loadTestsFor,
+    // book-server loadThresholds): a 2000 m test's pace is far above threshold, and
+    // standing in for it would make this screen's paces faster than the board's.
     const latestTest = (((tests as { data: any[] | null }).data) || [])
-      .filter((t) => !t.excluded_reason && (t.status ?? 'approved') === 'approved')[0];
+      .filter((t) => !t.excluded_reason && (t.status ?? 'approved') === 'approved' && (t.protocol ?? '30min') === '30min')[0];
     const testThreshold = latestTest
       ? thresholdPaceSec({ durationSec: Number(latestTest.duration_sec), distanceM: Number(latestTest.distance_m) })
       : null;
 
     // ── This week, row by row ──
     const rows = adherence.athletes[0]?.week.workouts ?? [];
-    const workouts: HomeWorkout[] = rows.map((w) => {
-      const plannedM = Math.round((w.distance.plannedMin + w.distance.plannedMax) / 2);
+    // Sized exactly as the week board sizes them (book-steps sessionSize at the plan's pace
+    // basis, the trainee's own threshold), so "השבוע 18.3 מתוך 65.8" here is the board's
+    // "מתוך 66" — and an optional session or a day before joining is not planned km.
+    const sizeT = testThreshold ? Math.round(testThreshold) : null;
+    const basis = rows.length ? await loadPlanBasis(supabase, athleteId, weekStart, sizeT).catch(() => null) : null;
+    const referenceSec = basis?.referenceSec ?? sizeT ?? DISPLAY_REFERENCE;
+    const sized = rows.map(w => boardRow(w, today, sessionSize(w.detail?.workout.steps, referenceSec, basis?.drawAtSec ?? referenceSec), {
+      optional: !!w.detail?.workout.optional, joinedOn,
+    }));
+    const workouts: HomeWorkout[] = rows.map((w, i) => {
+      const plannedM = Math.round(sized[i].plannedM ?? (w.distance.plannedMin + w.distance.plannedMax) / 2);
       const out: HomeWorkout = {
         date: w.date,
         name: w.name,
@@ -224,7 +241,7 @@ export async function GET(request: Request) {
         }),
         plannedM,
         actualM: w.distance.actual,
-        plannedDurationSec: w.duration.planned > 0 ? w.duration.planned : null,
+        plannedDurationSec: sized[i].plannedSec ?? (w.duration.planned > 0 ? w.duration.planned : null),
         pace: w.completed
           ? rowPace({
             averagePace: w.pace.actual,
@@ -240,7 +257,7 @@ export async function GET(request: Request) {
       if (w.date === today && w.detail?.workout) out.steps = stepTiles(w.detail.workout);
       return out;
     });
-    const plannedKm = round1(workouts.reduce((sum, w) => sum + w.plannedM, 0));
+    const plannedKm = round1(workouts.reduce((sum, w, i) => (sized[i].excuse === 'optional' || sized[i].excuse === 'beforeJoin' ? sum : sum + w.plannedM), 0));
 
     // ── The km chart: twelve plan weeks ending at the week on screen ──
     const chartWeeks = history
@@ -257,6 +274,7 @@ export async function GET(request: Request) {
     const body: TraineeHome = {
       isMember: true,
       weekStart,
+      test: testStateOf((((tests as { data: any[] | null }).data) || []) as TestRow[], today),
       athlete: {
         athleteId: me.id, name: me.name, avatarUrl: me.avatar_url || null, hasWatch,
         gender: me.gender === 'female' || me.gender === 'male' ? me.gender : null,

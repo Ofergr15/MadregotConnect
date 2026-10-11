@@ -66,7 +66,7 @@ function report(completed: boolean) {
 }
 
 const SCHEMA: Record<string, string[]> = {
-  athlete_activities: ['id', 'athlete_id', 'garmin_activity_id', 'start_time', 'activity_type', 'distance', 'duration', 'moving_duration', 'average_hr', 'max_hr', 'laps', 'splits', 'perceived_feel', 'perceived_rpe', 'location_name', 'route_preview'],
+  athlete_activities: ['id', 'athlete_id', 'garmin_activity_id', 'start_time', 'activity_type', 'distance', 'duration', 'moving_duration', 'average_hr', 'max_hr', 'laps', 'splits', 'perceived_feel', 'perceived_rpe', 'location_name', 'route_preview', 'source'],
   academy_tests: ['id', 'athlete_id', 'test_date', 'protocol', 'duration_sec', 'distance_m', 'excluded_reason', 'status'],
   academy_workout_feedback: ['athlete_id', 'workout_date', 'note', 'rendered', 'author_id'],
   workout_feedback: ['athlete_id', 'garmin_activity_id', 'feel', 'difficulty', 'pain'],
