@@ -142,6 +142,7 @@ export async function GET(request: Request) {
         .map((r: any) => shapeInboxItem(r, since, { isStaff: isStaffRole(a.role) })),
       a.notification_prefs as Record<string, boolean> | null,
       isStaffRole(a.role),
+      a.role,
     );
     // Merged bursts are composed here rather than at send time, so they need
     // the athlete's notification language too.
