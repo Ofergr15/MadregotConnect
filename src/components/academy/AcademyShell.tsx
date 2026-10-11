@@ -373,9 +373,15 @@ export function AcademyShell({
   const subTabs = area ? subTabsOf(area, manager) : [];
   const subCount: Partial<Record<AcademySection, number>> = { members: approvedCount, funnel: funnelLive, coaches: coachCount };
 
+  // C1 (trainee-experience-v2) lists every trainee above the fold: on the readiness board the
+  // title row folds away — the areas bar and the "מוכנות" tab already say where this is —
+  // and its search moves to the end of the tab row.
+  const compact = section === 'readiness';
+  const searchButton = <RoundButton label="חיפוש" onClick={() => setSearchOpen(true)}><Search className="h-5 w-5" /></RoundButton>;
+
   return (
     <div dir="rtl">
-      <div className="mb-2.5 flex items-center gap-2">
+      <div className={cn('mb-2.5 flex items-center gap-2', compact && 'hidden')}>
         {!area && (
           <button type="button" onClick={() => go('overview')} aria-label="חזרה לבית"
             className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-card text-ink-500"><ChevronRight className="h-5 w-5" /></button>
@@ -390,7 +396,7 @@ export function AcademyShell({
             <RoundButton label="השבוע הבא" onClick={() => setDispatchWeek(shiftWeek(dispatchWeek, 1))} disabled={dispatchWeek >= thisWeek}><ChevronLeft className="h-5 w-5" /></RoundButton>
           </span>
         )}
-        <RoundButton label="חיפוש" onClick={() => setSearchOpen(true)}><Search className="h-5 w-5" /></RoundButton>
+        {searchButton}
         {area === 'people' && manager && (
           <RoundButton label="פעולה מהירה" onClick={() => setQuick('menu')} primary><Plus className="h-5 w-5" /></RoundButton>
         )}
@@ -409,17 +415,20 @@ export function AcademyShell({
       <AreasBar value={area} badges={badges} onChange={(a) => go(defaultSectionOf(a))} />
 
       {subTabs.length > 1 && (
-        <div className="mt-2.5 flex rounded-[13px] bg-ink-300/30 p-[3px]" role="tablist">
-          {subTabs.map((t) => {
-            const on = t.section === section;
-            const n = subCount[t.section];
-            return (
-              <button key={t.section} type="button" role="tab" aria-selected={on} onClick={() => go(t.section)}
-                className={cn('min-h-[44px] flex-1 rounded-[10px] text-[13px] font-extrabold', on ? 'bg-card text-ink-700 shadow-sm' : 'text-ink-400')}>
-                {t.label}{n !== undefined && <em className="ms-1 not-italic opacity-55 tabular-nums">{n}</em>}
-              </button>
-            );
-          })}
+        <div className="mt-2.5 flex items-center gap-2">
+          <div className="flex flex-1 rounded-[13px] bg-ink-300/30 p-[3px]" role="tablist">
+            {subTabs.map((t) => {
+              const on = t.section === section;
+              const n = subCount[t.section];
+              return (
+                <button key={t.section} type="button" role="tab" aria-selected={on} onClick={() => go(t.section)}
+                  className={cn('min-h-[44px] flex-1 rounded-[10px] text-[13px] font-extrabold', on ? 'bg-card text-ink-700 shadow-sm' : 'text-ink-400')}>
+                  {t.label}{n !== undefined && <em className="ms-1 not-italic opacity-55 tabular-nums">{n}</em>}
+                </button>
+              );
+            })}
+          </div>
+          {compact && searchButton}
         </div>
       )}
 
