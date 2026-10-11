@@ -223,6 +223,8 @@
     "systemStatus": "מצב המערכת",
     "notificationRouting": "התראות ניהול",
     "notificationRoutingHint": "מי מקבל דיווח על באג, כאב או הרשמה",
+    "dataCheck": "בדיקת נתונים של המתאמנים",
+    "dataCheckHint": "מה יש לכל מתאמן ומה הוא יראה",
     "maintenanceMode": "מצב תחזוקה",
     "on": "פעיל",
     "off": "כבוי",

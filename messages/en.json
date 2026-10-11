@@ -223,6 +223,8 @@
     "systemStatus": "System status",
     "notificationRouting": "Management alerts",
     "notificationRoutingHint": "Who receives a bug report, pain flag or sign-up",
+    "dataCheck": "Trainee data check",
+    "dataCheckHint": "What each trainee has and will see",
     "maintenanceMode": "Maintenance mode",
     "on": "On",
     "off": "Off",

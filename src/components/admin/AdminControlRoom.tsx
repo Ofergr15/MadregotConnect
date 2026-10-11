@@ -1,6 +1,7 @@
 'use client';
 
-import { ChevronLeft, Wrench, RefreshCw, BellRing } from 'lucide-react';
+import { ChevronLeft, Wrench, RefreshCw, BellRing, Database } from 'lucide-react';
+import { useIsSuperUser } from '@/lib/impersonation';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -62,6 +63,7 @@ export function AdminControlRoom({
   rosterDay?: number;
 }) {
   const t = useTranslations('controlRoom');
+  const isSuper = useIsSuperUser();
   // The דורש טיפול list lives in its own component (AdminAttention) because the
   // admin's TRAINING home shows it too — see that file. SWR shares this request
   // with it, so the numbers here and there can never disagree.
@@ -94,6 +96,17 @@ export function AdminControlRoom({
       )}
 
       <InsetSection header={t('systemStatus')}>
+        {/* What each trainee's data will show on the new trainee screens
+            (/dashboard/data-check). Super user only, like the page itself. */}
+        {isSuper && (
+          <InsetRow
+            icon={Database}
+            iconBg="bg-brand-600"
+            label={t('dataCheck')}
+            sublabel={t('dataCheckHint')}
+            href="/dashboard/data-check"
+          />
+        )}
         {/* Who hears the alerts this screen's top section is made of. It sits
             here rather than under דורש טיפול because it is a setting, not a
             chore — but it belongs on this screen: an admin who wonders why a bug
