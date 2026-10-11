@@ -21,10 +21,19 @@ export const LOOKBACK_DAYS = 7;
  * and a week of lookback never gets there for someone who joined with history on the
  * watch. So a trainee short of that gets ONE deep pass of BACKFILL_LOOKBACK_DAYS — a few a
  * night, so the cron stays well inside its 300 s (about 30 Garmin calls each).
+ *
+ * ONE, and then not again for BACKFILL_RETRY_DAYS: a watch that records no sleep (or is not
+ * worn at night) stays short of 14 nights whatever is asked, and re-asking Garmin 30 nights
+ * of nothing every night would also hold the run's few slots against everyone after it.
+ * The record that a pass happened needs no column — the pass stores every night it asked
+ * for, nulls included, and only a deep pass ever stores a night fetched more than a week
+ * after it (`lastDeepPassAt`). The slots go to whoever was deep-passed longest ago, never
+ * first.
  */
 export const BACKFILL_LOOKBACK_DAYS = 30;
 export const BACKFILL_MIN_NIGHTS = 14;
 export const WELLNESS_BACKFILL_PER_RUN = 5;
+export const BACKFILL_RETRY_DAYS = 30;
 
 /** YYYY-MM-DD `n` days before `date`. */
 export function daysBefore(date: string, n: number): string {
@@ -33,7 +42,10 @@ export function daysBefore(date: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-type StoredNight = { date: string; sleep_seconds: number | null; resting_hr: number | null };
+const dayGap = (from: string, to: string) =>
+  Math.round((Date.parse(`${to.slice(0, 10)}T00:00:00Z`) - Date.parse(`${from.slice(0, 10)}T00:00:00Z`)) / 86_400_000);
+
+type StoredNight = { date: string; sleep_seconds: number | null; resting_hr: number | null; fetched_at?: string | null };
 
 /** The dates in the window with no value yet, newest first. */
 export function missingNights(
@@ -57,13 +69,40 @@ export function storedNightCount(today: string, stored: StoredNight[], days: num
 }
 
 /**
- * How far back to look for this athlete tonight: the deep pass for an academy trainee whose
- * range is still being learned while this run has room for one more, else the week.
+ * When this athlete last had a deep pass (YYYY-MM-DD), or null for never: the latest
+ * `fetched_at` of a night fetched more than LOOKBACK_DAYS after it — the week's sweep
+ * never reaches that far back, so only a deep pass writes one.
  */
-export function lookbackFor(input: { isAcademy: boolean; storedIn30: number; backfillsSoFar: number }): number {
-  return input.isAcademy && input.storedIn30 < BACKFILL_MIN_NIGHTS && input.backfillsSoFar < WELLNESS_BACKFILL_PER_RUN
-    ? BACKFILL_LOOKBACK_DAYS
-    : LOOKBACK_DAYS;
+export function lastDeepPassAt(stored: StoredNight[]): string | null {
+  let last: string | null = null;
+  for (const r of stored) {
+    if (!r.fetched_at) continue;
+    const at = String(r.fetched_at).slice(0, 10);
+    if (dayGap(r.date, at) > LOOKBACK_DAYS && (!last || at > last)) last = at;
+  }
+  return last;
+}
+
+/**
+ * Who may have a deep pass tonight: an academy trainee whose range is still being learned
+ * and who has not had one in BACKFILL_RETRY_DAYS.
+ */
+export function needsDeepPass(input: { isAcademy: boolean; storedIn30: number; lastDeepPass: string | null; today: string }): boolean {
+  return input.isAcademy
+    && input.storedIn30 < BACKFILL_MIN_NIGHTS
+    && (input.lastDeepPass == null || dayGap(input.lastDeepPass, input.today) >= BACKFILL_RETRY_DAYS);
+}
+
+/**
+ * The run's WELLNESS_BACKFILL_PER_RUN slots: never-passed first, then the longest ago, the
+ * athlete order breaking ties — so one stuck trainee can never hold a slot two runs in a
+ * row against the ones after it.
+ */
+export function deepPassPicks(candidates: Array<{ id: string; lastDeepPass: string | null }>, slots = WELLNESS_BACKFILL_PER_RUN): Set<string> {
+  const order = candidates
+    .map((c, i) => ({ ...c, i }))
+    .sort((a, b) => (a.lastDeepPass ?? '') < (b.lastDeepPass ?? '') ? -1 : (a.lastDeepPass ?? '') > (b.lastDeepPass ?? '') ? 1 : a.i - b.i);
+  return new Set(order.slice(0, slots).map(c => c.id));
 }
 
 export async function sweepWellness(supabase: SupabaseClient, today = israelToday()) {
@@ -82,25 +121,43 @@ export async function sweepWellness(supabase: SupabaseClient, today = israelToda
   }
   if (error) throw error;
 
-  const since = daysBefore(today, BACKFILL_LOOKBACK_DAYS - 1);
+  // A deep pass up to BACKFILL_RETRY_DAYS ago stored nights up to BACKFILL_LOOKBACK_DAYS
+  // before it; read that far so the record of the last pass is in view.
+  const since = daysBefore(today, BACKFILL_RETRY_DAYS + BACKFILL_LOOKBACK_DAYS - 1);
   let fetched = 0;
   let stored = 0;
   let backfilled = 0;
   const failed: string[] = [];
 
-  for (const athlete of (athletes || []) as Array<{ id: string; garmin_auth: unknown; is_academy?: boolean | null }>) {
+  // ── What each athlete has, and who gets tonight's deep passes ──
+  const list = (athletes || []) as Array<{ id: string; garmin_auth: unknown; is_academy?: boolean | null }>;
+  const haves = new Map<string, StoredNight[]>();
+  const candidates: Array<{ id: string; lastDeepPass: string | null }> = [];
+  for (const athlete of list) {
     try {
       const { data: have } = await supabase
         .from('athlete_wellness')
-        .select('date, sleep_seconds, resting_hr')
+        .select('date, sleep_seconds, resting_hr, fetched_at')
         .eq('athlete_id', athlete.id)
         .gte('date', since);
-      const lookback = lookbackFor({
-        isAcademy: !!athlete.is_academy,
-        storedIn30: storedNightCount(today, have || []),
-        backfillsSoFar: backfilled,
-      });
-      const nights = missingNights(today, have || [], lookback);
+      const rows = (have || []) as StoredNight[];
+      haves.set(athlete.id, rows);
+      const lastDeepPass = lastDeepPassAt(rows);
+      if (needsDeepPass({ isAcademy: !!athlete.is_academy, storedIn30: storedNightCount(today, rows), lastDeepPass, today })) {
+        candidates.push({ id: athlete.id, lastDeepPass });
+      }
+    } catch (e) {
+      failed.push(`${athlete.id}: ${(e as Error).message}`);
+    }
+  }
+  const deep = deepPassPicks(candidates);
+
+  for (const athlete of list) {
+    const have = haves.get(athlete.id);
+    if (!have) continue;
+    try {
+      const lookback = deep.has(athlete.id) ? BACKFILL_LOOKBACK_DAYS : LOOKBACK_DAYS;
+      const nights = missingNights(today, have, lookback);
       if (nights.length === 0) continue;
       if (lookback > LOOKBACK_DAYS) backfilled += 1;
 
@@ -128,7 +185,7 @@ export async function sweepWellness(supabase: SupabaseClient, today = israelToda
       failed.push(`${athlete.id}: ${(e as Error).message}`);
     }
   }
-  return { athletes: (athletes || []).length, fetched, stored, backfilled, failed };
+  return { athletes: list.length, fetched, stored, backfilled, failed };
 }
 
 /**
