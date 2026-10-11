@@ -28,6 +28,8 @@ interface Line {
   key: string;
   step: number;
   tone: Tone;
+  /** What the line is, for the trainee variant's number and sub-line. */
+  role: 'warmup' | 'main' | 'cooldown' | 'reps' | 'between' | 'rest' | 'hr';
   parts: Part[];
   /** The pace printed at the end of a read-only line. */
   pace: number | null;
@@ -81,7 +83,7 @@ export function useStepLines() {
           if (showPace) parts.push(...paceParts(step.effort));
           else if (step.effort?.zone) parts.push({ text: effortWord(step.effort) });
           lines.push({
-            key: `${i}`, step: i, tone, parts,
+            key: `${i}`, step: i, tone, parts, role: step.role === 'warmup' || step.role === 'cooldown' ? step.role : 'main',
             pace: step.effort && thresholdSec ? effortPace(step.effort, thresholdSec, adjust) : null,
             paceMuted: tone === 'e',
           });
@@ -99,7 +101,7 @@ export function useStepLines() {
           if (editable) parts.push(...paceParts(step.effort));
           else if (step.effort?.zone) parts.push({ text: effortWord(step.effort) });
           lines.push({
-            key: `${i}`, step: i, tone, parts,
+            key: `${i}`, step: i, tone, parts, role: 'reps',
             pace: step.effort && thresholdSec ? effortPace(step.effort, thresholdSec, adjust) : null,
             paceMuted: false,
           });
@@ -108,7 +110,7 @@ export function useStepLines() {
             const restParts: Part[] = [{ text: t('role.rest') }, { field: 'rest', text: rest.value }];
             if (rest.unit) restParts.push({ text: rest.unit });
             if (step.rest.mode) restParts.push({ text: t(`mode.${step.rest.mode}`) });
-            lines.push({ key: `${i}r`, step: i, tone: 'r', parts: restParts, pace: null, paceMuted: true });
+            lines.push({ key: `${i}r`, step: i, tone: 'r', parts: restParts, role: 'between', pace: null, paceMuted: true });
           }
           break;
         }
@@ -117,12 +119,12 @@ export function useStepLines() {
           const parts: Part[] = [{ text: t('role.rest') }, { field: 'length', text: rest.value }];
           if (rest.unit) parts.push({ text: rest.unit });
           if (step.mode) parts.push({ text: t(`mode.${step.mode}`) });
-          lines.push({ key: `${i}`, step: i, tone: 'r', parts, pace: null, paceMuted: true });
+          lines.push({ key: `${i}`, step: i, tone: 'r', parts, role: 'rest', pace: null, paceMuted: true });
           break;
         }
         case 'hr':
           lines.push({
-            key: `${i}`, step: i, tone: 't', pace: null, paceMuted: true,
+            key: `${i}`, step: i, tone: 't', pace: null, paceMuted: true, role: 'hr',
             parts: [
               { text: t('hr') },
               { field: 'hrMin', text: String(step.minPct) },
@@ -146,10 +148,17 @@ export function useStepLines() {
  * read-only list of "הבנתי כך" and of the trainee's own workout, with the pace at the end.
  */
 export function StepLines({
-  steps, thresholdSec, paceAdjust, selected, onTap, onNudge, rangeFor, className,
+  steps, thresholdSec, paceAdjust, selected, onTap, onNudge, rangeFor, trainee = false, className,
 }: {
   steps: BookStep[];
   thresholdSec: number | null;
+  /**
+   * The trainee experience's screen 4 (mockup trainee-experience-v2): numbered steps ("1 ·
+   * חימום 2 ק״מ קל"), each with its one sub-line (how to run it, the watch range, "לאט ככל
+   * שצריך"), the recovery said as "בין החזרות:", the brand ramp, and rows tight enough for
+   * the whole screen to fit a phone. Read-only.
+   */
+  trainee?: boolean;
   /**
    * The range a WORK step carries on the watch (trainee-experience-v2 screen 4: "טווח
    * בשעון 4:01–4:09"), printed under work lines only — the warmup and the cooldown get a
@@ -168,6 +177,18 @@ export function StepLines({
   const build = useStepLines();
   const editable = !!onTap;
   const lines = build(steps, thresholdSec, { editable, adjust: paceAdjust });
+  // The trainee variant numbers every line but the recovery between reps.
+  const numbers = new Map<string, number>();
+  if (trainee) {
+    let n = 0;
+    for (const l of lines) if (l.role !== 'between') numbers.set(l.key, (n += 1));
+  }
+  const subOf = (line: Line): string | null => {
+    if (!trainee) return null;
+    if (line.role === 'warmup') return tw('stepSubWarmup');
+    if (line.role === 'between' || line.role === 'rest') return tw('stepSubJog');
+    return null;
+  };
 
   return (
     <div className={cn(CARD, 'overflow-hidden', className)}>
@@ -179,15 +200,19 @@ export function StepLines({
           <div
             key={line.key}
             className={cn(
-              'flex min-h-[51px] items-center gap-2.5 border-b border-[#EFEFF4] px-4 py-[11px] text-[17px] leading-[1.45] last:border-0',
+              'flex items-center gap-2.5 border-b border-[#EFEFF4] px-4 last:border-0',
+              trainee ? 'min-h-[44px] py-[7px] text-[15.5px] leading-[1.35]' : 'min-h-[51px] py-[11px] text-[17px] leading-[1.45]',
+              trainee && line.role === 'reps' && 'bg-[#F5F6FF]',
               isSelected && 'bg-[#F7F8FF]',
             )}
           >
-            <Stripe tone={line.tone} />
-            <div className="min-w-0 flex-1 text-ink-900">
+            <Stripe tone={line.tone} palette={trainee ? 'trainee' : undefined} />
+            <div className={cn('min-w-0 flex-1 text-ink-900', trainee && 'font-bold')}>
               <span>
-              {line.parts.map((part, j) => {
-                const prev = line.parts[j - 1];
+              {numbers.has(line.key) && <span><N>{numbers.get(line.key)}</N> · </span>}
+              {trainee && line.role === 'between' && <span className="ms-3">{tw('stepBetween')} </span>}
+              {(trainee && line.role === 'between' ? line.parts.slice(1) : line.parts).map((part, j, parts) => {
+                const prev = parts[j - 1];
                 const space = j > 0 && !(prev && 'glue' in prev && prev.glue) ? ' ' : '';
                 // The `×` between two numbers gets air on both sides, so the count's tap
                 // halo and the rep length's do not meet over it.
@@ -225,15 +250,19 @@ export function StepLines({
               {(() => {
                 const work = !editable && rangeFor && line.pace !== null && line.tone !== 'e' && line.tone !== 'r' && !line.key.endsWith('r');
                 const range = work ? rangeFor!(line.step, line.pace!) : null;
-                return range ? (
-                  <small className="mt-px block text-[12.5px] leading-snug text-ink-400">
-                    {tw.rich('watchRange', {
-                      range: `${clockText(range.min)}–${clockText(range.max)}`,
-                      m: (c) => <bdi dir="ltr">{c}</bdi>,
-                      b: (c) => <b className="font-extrabold text-ink-900">{c}</b>,
-                    })}
-                  </small>
-                ) : null;
+                if (range) {
+                  return (
+                    <small className="mt-px block text-[12.5px] font-normal leading-snug text-ink-400">
+                      {tw.rich('watchRange', {
+                        range: `${clockText(range.min)}–${clockText(range.max)}`,
+                        m: (c) => <bdi dir="ltr">{c}</bdi>,
+                        b: (c) => <b className="font-extrabold text-ink-900">{c}</b>,
+                      })}
+                    </small>
+                  );
+                }
+                const sub = subOf(line);
+                return sub ? <small className={cn('mt-px block text-[12.5px] font-normal leading-snug text-ink-400', line.role === 'between' && 'ms-3')}>{sub}</small> : null;
               })()}
             </div>
             {editable && isSelected && onNudge && selected && (

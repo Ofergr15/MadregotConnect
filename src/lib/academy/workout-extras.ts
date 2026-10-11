@@ -64,6 +64,8 @@ export interface WorkoutPr {
 
 export interface WorkoutExtras {
   expectedLoad: number | null;
+  /** The session's km and minutes from the ⚡'s own legs — the home card's "כ־51 דק׳". */
+  planTotals: { distanceM: number; durationSec: number } | null;
   /** The planned ⚡ broken into the plan's steps, for the sheet opened before the run. */
   expectedParts: LoadPart[];
   steps: WatchStep[];
@@ -292,6 +294,7 @@ export function buildWorkoutExtras(input: {
 
   return {
     expectedLoad,
+    planTotals: planTotals && planTotals.durationSec > 0 ? planTotals : null,
     expectedParts: T && steps.length ? plannedParts(steps, T, opts) : [],
     steps: ws,
     why: targetSec && basis ? { targetSec, thresholdSec: basis.thresholdSec, basisTestDate: basis.date } : null,

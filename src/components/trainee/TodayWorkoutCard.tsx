@@ -44,7 +44,7 @@ export function TodayWorkoutCard({ card, when, coachName }: {
       </div>
       <h2 className="mt-1.5 text-[28px] font-black leading-[1.15] text-ink-900"><StructureText text={card.title} /></h2>
       <p className="mt-[3px] text-[14.5px] text-ink-500"><Sub card={card} /></p>
-      {card.bar.length > 0 && card.kind === 'quality' && <ProfileBar segments={card.bar} height={30} className="mt-[11px]" />}
+      {card.bar.length > 0 && card.kind === 'quality' && <ProfileBar segments={card.bar} height={30} className="mt-[11px]" palette="trainee" />}
       {card.note && (
         <p className="mt-[11px] rounded-xl bg-[#F7F7FA] px-[11px] py-2 text-[13.5px] leading-[1.45] text-ink-500">
           {coachName && <b className="text-ink-900"><bdi>{coachName}</bdi>: </b>}
@@ -81,7 +81,7 @@ export function RestCard({ date, when, next, prevKind }: {
             <Sub card={next} compact />
             {next.onWatch && <> · {t('onWatch')}</>}
           </p>
-          {next.bar.length > 0 && <ProfileBar segments={next.bar} height={16} className="mt-[7px]" />}
+          {next.bar.length > 0 && <ProfileBar segments={next.bar} height={16} className="mt-[7px]" palette="trainee" />}
         </div>
       )}
     </section>

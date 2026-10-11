@@ -29,17 +29,29 @@ export const RICH = {
 };
 
 const TONE_COLOR = { e: '#8FD3AA', t: '#F4B556', f: '#EF5B4C', r: '#E1E2E9' } as const;
+/**
+ * The trainee experience's ramp (trainee-experience-v2 --easy/--tempo/--fast/--rest): one
+ * brand hue, light for easy, full brand for the reps, grey for the jogs. Green and orange
+ * mean "as planned" and "changed" on those screens (the row strips, the month dashes), so
+ * the structure there must not borrow them for intensity.
+ */
+const TONE_TRAINEE = { e: '#C9CDF6', t: '#8C94FF', f: '#1525FF', r: '#E6E7EE' } as const;
 const TONE_HEIGHT = { e: 0.42, t: 0.7, f: 1, r: 0.2 } as const;
 export const TONE_STRIPE = TONE_COLOR;
+export type BarPalette = 'book' | 'trainee';
+const paletteOf = (p: BarPalette | undefined) => (p === 'trainee' ? TONE_TRAINEE : TONE_COLOR);
 
 /** The session drawn as blocks: width = time, height = effort. */
-export function ProfileBar({ segments, size = 'md', height: forced, className }: {
+export function ProfileBar({ segments, size = 'md', height: forced, className, palette }: {
   segments: BarSegment[];
   size?: 'sm' | 'md' | 'lg';
   /** Overrides the size's height, for the week card's 20px full-width bar. */
   height?: number;
   className?: string;
+  /** `trainee`: the trainee experience's brand ramp; the book's zone colours otherwise. */
+  palette?: BarPalette;
 }) {
+  const colors = paletteOf(palette);
   const height = forced ?? (size === 'sm' ? 20 : size === 'lg' ? 44 : 34);
   return (
     <div
@@ -51,7 +63,7 @@ export function ProfileBar({ segments, size = 'md', height: forced, className }:
         <i
           key={i}
           className={cn('block', size === 'sm' ? 'rounded-[3px]' : 'rounded-t-[6px] rounded-b-[3px]')}
-          style={{ flex: s.weight, height: `${TONE_HEIGHT[s.tone] * 100}%`, background: TONE_COLOR[s.tone], minWidth: 2 }}
+          style={{ flex: s.weight, height: `${TONE_HEIGHT[s.tone] * 100}%`, background: colors[s.tone], minWidth: 2 }}
         />
       ))}
     </div>
@@ -176,8 +188,8 @@ export function SectionLabel({ children }: { children: ReactNode }) {
   return <h2 className="-mb-1.5 mt-0.5 px-1 text-sm font-extrabold text-ink-400">{children}</h2>;
 }
 
-export function Stripe({ tone }: { tone: keyof typeof TONE_COLOR }) {
-  return <span aria-hidden className="w-1.5 shrink-0 self-stretch rounded" style={{ background: TONE_COLOR[tone] }} />;
+export function Stripe({ tone, palette }: { tone: keyof typeof TONE_COLOR; palette?: BarPalette }) {
+  return <span aria-hidden className="w-1.5 shrink-0 self-stretch rounded" style={{ background: paletteOf(palette)[tone] }} />;
 }
 
 // ── Number formatting (numbers only — the words are in messages/*.json) ─────────────────

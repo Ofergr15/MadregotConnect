@@ -4167,6 +4167,9 @@
     "workout": {
       "expectedLoad": "⚡ expected load <b><m>{load}</m></b>",
       "watchRange": "Watch range <b><m>{range}</m></b>",
+      "stepBetween": "Between reps:",
+      "stepSubWarmup": "Comfortably, don't chase the pace",
+      "stepSubJog": "As slowly as you need",
       "whyTitle": "Why <m>{pace}</m>?",
       "whyFaster": "<m>{n}</m> s faster than your threshold (<m>{threshold}</m>), from your {month} test",
       "whySlower": "<m>{n}</m> s slower than your threshold (<m>{threshold}</m>), from your {month} test",

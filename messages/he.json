@@ -4167,6 +4167,9 @@
     "workout": {
       "expectedLoad": "⚡ עומס צפוי <b><m>{load}</m></b>",
       "watchRange": "טווח בשעון <b><m>{range}</m></b>",
+      "stepBetween": "בין החזרות:",
+      "stepSubWarmup": "בנוחות, בלי לרדוף אחרי הקצב",
+      "stepSubJog": "לאט ככל שצריך",
       "whyTitle": "למה <m>{pace}</m>?",
       "whyFaster": "<m>{n}</m> שנ׳ מהר מקצב הסף שלך (<m>{threshold}</m>), מהטסט של {month}",
       "whySlower": "<m>{n}</m> שנ׳ לאט מקצב הסף שלך (<m>{threshold}</m>), מהטסט של {month}",

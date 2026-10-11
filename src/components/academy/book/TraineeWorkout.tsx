@@ -15,7 +15,7 @@ import { WorkoutPlanSheet } from '../WorkoutPlanSheet';
 import { LoadSheet } from '@/components/trainee/LoadSheet';
 import { DoneTabs, WorkoutDone } from '@/components/trainee/WorkoutDone';
 import { FeelAndTalk } from '@/components/trainee/FeelAndTalk';
-import { StructureText, monthName } from '@/components/trainee/ui';
+import { StructureText, dm as dmOf, monthName } from '@/components/trainee/ui';
 import { useTraineeV2 } from '@/lib/trainee/v2';
 import { BarButton, CARD, FlowOverlay, FlowScreen, PrimaryButton, ProfileBar, RICH, clockText, kmText } from './ui';
 import { StepLines } from './StepLines';
@@ -78,7 +78,7 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
 
   const why = data?.why ?? null;
   const askCoach = (
-    <PrimaryButton secondary onClick={openThread}>
+    <PrimaryButton secondary={!v2} onClick={openThread}>
       💬 {isCoach
         ? t('writeTo', { name: board.athlete.name.split(' ')[0] })
         : coachFirst ? t('askCoach', { name: coachFirst }) : t('askCoachGeneric')}
@@ -143,25 +143,29 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
 
   // ── 4: before the run ──
   const delta = why ? why.thresholdSec - why.targetSec : 0;
+  // The card's own estimate (the ⚡'s legs) once the extras are in, so screen 4 says the
+  // "כ־51 דק׳" the home did; the book's totals until then and without v2.
+  const size = v2 && data?.planTotals ? data.planTotals : totals;
   return (
     <FlowOverlay label={t('workoutLabel')}>
       <FlowScreen
-        title={day}
+        title={v2 ? <>{day} <bdi dir="ltr">{dmOf(workout.date)}</bdi></> : day}
         leading={<BarButton onClick={onClose}><ChevronRight className="h-5 w-5" />{t('back.week')}</BarButton>}
         trailing={onChange ? <BarButton strong onClick={onChange}>{t('change')}</BarButton> : undefined}
         footer={askCoach}
+        className={v2 ? 'gap-2' : undefined}
       >
         <div>
           <p className="text-13 font-bold text-ink-400">
             {when && <>{when} · </>}{coachFirst ? t('fromCoach', { name: coachFirst }) : t('fromCoachGeneric')}
           </p>
           <h2 className="text-28 font-black leading-tight text-ink-900">{v2 ? <StructureText text={workout.name} /> : <bdi>{workout.name}</bdi>}</h2>
-          {(totals || data?.expectedLoad) && (
+          {(size || data?.expectedLoad) && (
             <p className="mt-1 text-[16px] text-ink-500">
-              {totals && t.rich('volume', { ...RICH, km: kmText(totals.distanceM), min: Math.round(totals.durationSec / 60) })}
+              {size && t.rich('volume', { ...RICH, km: kmText(size.distanceM), min: Math.round(size.durationSec / 60) })}
               {data?.expectedLoad && (
                 <>
-                  {totals && ' · '}
+                  {size && ' · '}
                   <button type="button" onClick={() => setLoadOpen(true)} className="relative text-ink-500 underline decoration-dotted underline-offset-[3px] after:absolute after:-inset-x-1 after:-inset-y-3 after:content-['']">
                     {tw.rich('expectedLoad', { ...RICH, load: data.expectedLoad, m: (c) => <bdi dir="ltr">{c}</bdi> })}
                   </button>
@@ -173,15 +177,17 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
 
         {model ? (
           <>
-            <div className={cn(CARD, 'p-[18px]')}><ProfileBar segments={profileBar(model, T)} size="lg" /></div>
-            <StepLines steps={model} thresholdSec={T} rangeFor={v2 ? rangeFor : undefined} />
+            <div className={cn(CARD, v2 ? 'px-[14px] py-3' : 'p-[18px]')}>
+              <ProfileBar segments={profileBar(model, T)} size="lg" palette={v2 ? 'trainee' : undefined} height={v2 ? 40 : undefined} />
+            </div>
+            <StepLines steps={model} thresholdSec={T} rangeFor={v2 ? rangeFor : undefined} trainee={v2} />
           </>
         ) : (
           <p className={cn(CARD, 'px-4 py-3 text-sm text-ink-500')}>{t('stepsUnavailable')}</p>
         )}
 
         {workout.note && (
-          <div className={cn(CARD, 'p-[18px] text-[15px] leading-normal text-ink-500')}>
+          <div className={cn(CARD, v2 ? 'px-4 py-3 text-[14.5px] leading-snug' : 'p-[18px] text-[15px] leading-normal', 'text-ink-500')}>
             {coachFirst && <b className="text-ink-900"><bdi>{coachFirst}</bdi>: </b>}
             <span dir="auto">{workout.note}</span>
           </div>
@@ -189,7 +195,7 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
 
         <div className={cn(CARD, 'overflow-hidden')}>
           {why && (
-            <div className="flex min-h-[56px] items-center gap-3 border-b border-[#EFEFF4] px-[18px] py-2.5">
+            <div className={cn('flex min-h-[56px] items-center gap-3 border-b border-[#EFEFF4] px-[18px]', v2 ? 'py-2' : 'py-2.5')}>
               <span aria-hidden className="w-6 shrink-0 text-center text-[19px]">🎯</span>
               <span className="min-w-0 flex-1">
                 <b className="block text-[16px] font-extrabold text-ink-900">{tw.rich('whyTitle', { ...RICH, pace: clockText(why.targetSec), m: (c) => <bdi dir="ltr">{c}</bdi> })}</b>
@@ -206,7 +212,7 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
             </div>
           )}
           {v2 ? (
-            <div className="flex min-h-[64px] items-center gap-3 px-[18px] py-3">
+            <div className="flex min-h-[56px] items-center gap-3 px-[18px] py-2">
               <span aria-hidden className="w-6 shrink-0 text-center text-[19px]">⌚</span>
               <span className="min-w-0 flex-1">
                 <b className="block text-[16px] font-extrabold text-ink-900">{workout.onWatch ? tw('sentTitle') : tw('notSentTitle')}</b>
