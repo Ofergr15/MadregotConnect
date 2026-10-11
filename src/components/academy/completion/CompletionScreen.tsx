@@ -91,14 +91,14 @@ export function CompletionScreen({ scopeQ, bands, coaches, approvals, onClose, o
         {/* Right under the summary, on the first screen however long the list runs (the mockup's
             five rows put it there; a real academy's 28 pushed it several screens down). */}
         {s && s.needTest > 0 && (
-          <section className={cn(CARD, 'flex min-h-[64px] items-center gap-3 px-4 py-2.5')}>
-            <span aria-hidden className="text-[24px]">📨</span>
+          <section className={cn(CARD, 'flex min-h-[64px] items-center gap-2.5 px-3.5 py-2.5')}>
+            <span aria-hidden className="text-[20px]">📨</span>
             <span className="min-w-0 flex-1">
               <b className="block text-[16px] font-extrabold text-ink-900">{t('askTitle')}</b>
-              <small className="mt-0.5 block text-[13.5px] leading-snug text-ink-400">
+              <small className="mt-0.5 block text-[12.5px] leading-snug text-ink-400">
                 {sent
                   ? t.rich(sent.asked ? 'askSent' : 'askNone', { n: sent.asked, already: sent.already, m })
-                  : t.rich('askSub', { n: s.needTest, m })}
+                  : t('askSub')}
               </small>
             </span>
             {!sent && (
@@ -130,15 +130,17 @@ export function CompletionScreen({ scopeQ, bands, coaches, approvals, onClose, o
                       // A submission waiting (any protocol): the form opens on it, and the save replaces it.
                       else setOpen({ person: r, correcting: !!r.pendingTest });
                     }}
-                    className="flex min-h-[64px] w-full items-center gap-3 border-b border-[#EFEFF4] px-4 py-2.5 text-start last:border-0 active:bg-page/40">
+                    className="flex min-h-[64px] w-full items-center gap-2.5 border-b border-[#EFEFF4] px-3.5 py-2.5 text-start last:border-0 active:bg-page/40">
                     <Avatar text={initials(r.name)} />
                     <span className="min-w-0 flex-1">
                       <b className="block truncate text-[15px] font-extrabold text-ink-900"><bdi>{r.name}</bdi></b>
-                      <span className="mt-0.5 flex flex-wrap gap-1">
+                      {/* One chip line, the mockup's even rhythm: the line is one chip high, so a chip
+                          that would wrap drops out whole (completionRow already leaves room). */}
+                      <span className="mt-0.5 flex h-5 flex-wrap gap-x-1 gap-y-2 overflow-hidden [&>*]:leading-4">
                         {r.chips.length ? r.chips.map((c, i) => <RowChip key={i} chip={c} />) : <ChipPill tone="have">{t('readyChip')}</ChipPill>}
                       </span>
                     </span>
-                    <span className="shrink-0 text-[15.5px] font-extrabold text-brand-600">
+                    <span className="shrink-0 text-[14px] font-extrabold text-brand-600">
                       {r.action === 'approve' ? t('approve') : r.ready ? t('edit') : t('complete')} <Chevron className="h-[11px] w-[7px]" />
                     </span>
                   </button>

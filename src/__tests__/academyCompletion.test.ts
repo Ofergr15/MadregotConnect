@@ -28,6 +28,29 @@ describe('completionRow', () => {
     expect(askable(r)).toBe(false);
   });
 
+  it('an approved 30-minute test and a newer 2000 m waiting: still ready, nothing to ask (round 2, issue 2)', () => {
+    const r = completionRow(person({ tests: [
+      { test_date: shiftDate(TODAY, -1), protocol: '2000m', status: 'pending', duration_sec: 470, distance_m: 2000 },
+      t30(27),
+    ] }), TODAY);
+    expect(r).toMatchObject({ ready: true, test: 'ok', missing: [], chips: [], action: 'complete' });
+  });
+
+  it('a long test chip leaves room for every gap, not for what they have (round 2, issue 3: one chip line)', () => {
+    const keys = (r: ReturnType<typeof completionRow>) => r.chips.map(c => [c.key, c.tone]);
+    // "טסט ישן · מאי" + "דבוקה 4" + "מטרה" wrapped: the band they have is the one left out.
+    expect(keys(completionRow(person({ tests: [t30(150)], hasGoal: false }), TODAY))).toEqual([['test', 'missing'], ['goal', 'missing']]);
+    expect(keys(completionRow(person({ tests: [{ test_date: shiftDate(TODAY, -5), protocol: '2000m', status: 'approved', duration_sec: 470, distance_m: 2000 }], hasGoal: false }), TODAY)))
+      .toEqual([['test', 'missing'], ['goal', 'missing']]);
+    expect(keys(completionRow(person({ tests: [t30(2, { status: 'pending' })], hasGoal: false }), TODAY))).toEqual([['test', 'pending'], ['goal', 'missing']]);
+    // With only the old test missing, the band still fills the row; a short "טסט" chip keeps three.
+    expect(keys(completionRow(person({ tests: [t30(150)] }), TODAY))).toEqual([['test', 'missing'], ['band', 'have']]);
+    expect(keys(completionRow(person({ tests: [], hasGoal: false }), TODAY))).toEqual([['test', 'missing'], ['band', 'have'], ['goal', 'missing']]);
+    // Gaps are never dropped for the rule: a long test chip with band and coach missing shows all three.
+    expect(keys(completionRow(person({ tests: [t30(150)], bandNumber: null, coachIds: [], coachNames: [] }), TODAY)))
+      .toEqual([['test', 'missing'], ['band', 'missing'], ['coach', 'missing']]);
+  });
+
   it('ready = an approved 30-minute test, a band and a coach', () => {
     const r = completionRow(person(), TODAY);
     expect(r).toMatchObject({ ready: true, missing: [], incomplete: false, test: 'ok', chips: [] });

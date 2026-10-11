@@ -123,8 +123,21 @@ describe('?test=mine under the trainee experience v2', () => {
 });
 
 describe('testEntryUrl — where "לבקש מכולם" lands', () => {
+  const entry = readAcademyDeepLink(new URLSearchParams('test=entry'));
+
+  it('a v2 trainee who got the classic link is moved to the home, where the entry card is', () => {
+    // TRAINEE_V2_FOR_ALL off, v2 on for this one trainee: the board has no entry card.
+    expect(entry.entry).toBe(true);
+    expect(traineeTestRedirect(entry, { traineeV2: true, isStaff: false })).toBe('/dashboard?test=entry');
+  });
+
+  it('v2 off or staff: the classic page raises its own card', () => {
+    expect(traineeTestRedirect(entry, { traineeV2: false, isStaff: false })).toBeNull();
+    expect(traineeTestRedirect(entry, { traineeV2: true, isStaff: true })).toBeNull();
+  });
+
   it('the v2 home, else the academy tab scrolled to the entry card', () => {
-    expect(testEntryUrl({ traineeV2: true })).toBe('/dashboard');
+    expect(testEntryUrl({ traineeV2: true })).toBe('/dashboard?test=entry');
     expect(testEntryUrl({ traineeV2: false })).toBe('/dashboard/academy?test=entry');
   });
 });

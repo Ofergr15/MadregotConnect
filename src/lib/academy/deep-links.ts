@@ -9,6 +9,8 @@
 //   ?tab=threads&thread=<traineeId>   staff: the threads tab with that trainee's open
 //   ?test=mine                        the trainee's test / invitation card, raised — under the
 //                                     trainee experience v2, the progress tab's 7ג instead
+//   ?test=entry                       the "לבקש מכולם" request's entry card — under v2, the
+//                                     home's (/dashboard?test=entry) instead
 //   ?tab=tests                        staff: the tests tab
 //   ?open=<YYYY-MM-DD>                the trainee's board with that day's workout open
 //   ?view=month                       the trainee's board on the month
@@ -109,18 +111,27 @@ export function traineeProgressUrl(view?: 'body' | 'tests'): string {
   return view ? `${TRAINEE_PROGRESS_PATH}?view=${view}` : TRAINEE_PROGRESS_PATH;
 }
 
+/** The v2 trainee home with its "חסר לנו הטסט האחרון שלך" card raised (TraineeToday reads it). */
+export const TRAINEE_ENTRY_URL = '/dashboard?test=entry';
+
 /**
- * Where `?test=mine` goes under the trainee experience v2: the tests moved off the board to
- * 7ג (`progress?view=tests`), so a test reminder tapped on the phone lands on them. Null
- * when the page should handle the link itself — staff, or v2 off (the old home raises its
- * own test card).
+ * Where `?test=mine` / `?test=entry` go under the trainee experience v2: the tests moved
+ * off the board to 7ג (`progress?view=tests`), and the entry card lives on the v2 home
+ * (TraineeToday) — the board has none — so a test reminder or a "לבקש מכולם" request
+ * tapped on the phone lands where its card is. Null when the page should handle the link
+ * itself — staff, or v2 off (the old home raises its own cards).
  */
-export function traineeTestRedirect(link: Pick<AcademyDeepLink, 'test'>, opts: { traineeV2: boolean; isStaff: boolean }): string | null {
+export function traineeTestRedirect(link: Pick<AcademyDeepLink, 'test' | 'entry'>, opts: { traineeV2: boolean; isStaff: boolean }): string | null {
+  if (!opts.traineeV2 || opts.isStaff) return null;
   // `test=mine` rides along so 7ג scrolls the next test / the tests card into view.
-  return link.test && opts.traineeV2 && !opts.isStaff ? `${traineeProgressUrl('tests')}&test=mine` : null;
+  if (link.test) return `${traineeProgressUrl('tests')}&test=mine`;
+  // The flag can be on for one trainee while TRAINEE_V2_FOR_ALL is off, so the request's
+  // link is the classic one and this is where such a trainee gets moved to the home.
+  if (link.entry) return TRAINEE_ENTRY_URL;
+  return null;
 }
 
 /** Where the "לבקש מכולם" request lands: the v2 home (the card is near its top), else the academy tab's card. */
 export function testEntryUrl(opts: { traineeV2: boolean }): string {
-  return opts.traineeV2 ? '/dashboard' : `${ACADEMY_PATH}?test=entry`;
+  return opts.traineeV2 ? TRAINEE_ENTRY_URL : `${ACADEMY_PATH}?test=entry`;
 }

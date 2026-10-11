@@ -4841,7 +4841,7 @@
       "allReady": "Everyone is ready",
       "empty": "No trainees in the academy yet",
       "askTitle": "Ask everyone to fill it in",
-      "askSub": "Everyone missing a test (<m>{n}</m>) gets a request in the app",
+      "askSub": "Everyone missing a test gets a request in the app",
       "askSent": "Sent to <m>{n}</m>{already, plural, =0 {} other { · <m>#</m> already asked}}",
       "askNone": "Everyone was already asked{already, plural, =0 {} other { (<m>#</m>)}}. Not sent again.",
       "askSend": "Send",

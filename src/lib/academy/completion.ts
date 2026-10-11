@@ -78,6 +78,12 @@ export function testGap(state: TestState): TestGap {
 const ORDER: ItemKey[] = ['test', 'band', 'coach', 'goal'];
 /** Chips shown per row: every gap, then what they do have, to three. */
 export const MAX_CHIPS = 3;
+/**
+ * The test chips with long labels ("טסט ישן · מאי", "רק טסט 2000", "טסט ממתין לאישור") take
+ * two of the three places when the row is filled with what they have: three chips with one of
+ * them did not fit the row's one line on a phone, and "מטרה" dropped to a line of its own.
+ */
+const LONG_TEST: ReadonlySet<TestGap> = new Set(['old', 'otherProtocol', 'pending']);
 
 export function completionRow(input: CompletionInput, today: string): CompletionRow {
   const state = testStateOf(input.tests, today);
@@ -93,10 +99,12 @@ export function completionRow(input: CompletionInput, today: string): Completion
     ? { key, tone: test === 'pending' ? 'pending' : 'missing', gap: test, ...(testDate && test === 'old' ? { date: testDate } : {}) }
     : { key, tone: 'missing' });
   // What they have, to fill the row to three: the band (with its number) and the coach. Only
-  // on a row that is missing something — a ready row has nothing to explain.
+  // on a row that is missing something — a ready row has nothing to explain. Every gap is
+  // shown before any of these; a long test chip leaves room for one less.
   if (gaps.length) {
-    if (input.bandNumber !== null && chips.length < MAX_CHIPS) chips.push({ key: 'band', tone: 'have', bandNumber: input.bandNumber });
-    if (input.coachIds.length && chips.length < MAX_CHIPS) chips.push({ key: 'coach', tone: 'have' });
+    const room = MAX_CHIPS - (LONG_TEST.has(test) && gaps.includes('test') ? 1 : 0);
+    if (input.bandNumber !== null && chips.length < room) chips.push({ key: 'band', tone: 'have', bandNumber: input.bandNumber });
+    if (input.coachIds.length && chips.length < room) chips.push({ key: 'coach', tone: 'have' });
   }
   chips.sort((a, b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key));
 

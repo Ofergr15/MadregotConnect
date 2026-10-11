@@ -298,16 +298,28 @@ function priceAll(
 }
 
 /** What the stale rule expects a row's basis to be: the test valid that day (none for a non-run). */
-function expectedBasis(act: { start_time: string; activity_type: string | null }, tests: TestPoint[]): string | null {
+function expectedBasis(act: { start_time: string; activity_type: string | null }, tests: TestPoint[]): ExpectedBasis {
   if (!isRunType(act.activity_type)) return null;
-  return thresholdOn(activityLocalDateStr(act.start_time), tests)?.date ?? null;
+  const t = thresholdOn(activityLocalDateStr(act.start_time), tests);
+  return t ? { date: t.date, thresholdSec: t.thresholdSec } : null;
 }
+
+/** The test a row should stand on: its date, and the threshold it gives. A bare date = date only. */
+export type ExpectedBasis = { date: string; thresholdSec: number } | string | null;
+
+/** `threshold_sec` is stored NUMERIC(6,1): anything within its rounding is the same threshold. */
+const THRESHOLD_TOLERANCE_SEC = 0.06;
 
 /**
  * Is a stored row stale? Its formula is older, or the test valid on its date is not the
  * one it was priced against — a new test, an excluded one, or an HR row a test now covers
  * (stored with no basis, now there is one). A row from the stored `not_run` side only
  * goes stale with the formula.
+ *
+ * The same test DATE is not enough: staff correcting an approved test re-save the same day
+ * with a new distance (POST /api/academy/tests overwrites the row), and every ⚡ priced on
+ * the old threshold has to move with it. So a pace-priced row whose stored threshold is not
+ * the one its basis test gives now is stale too.
  *
  * `lapsNow`: a `pace_avg` row whose activity now has laps or splits (`lapsArrived`).
  *
@@ -317,8 +329,8 @@ function expectedBasis(act: { start_time: string; activity_type: string | null }
  * on runs that were never going to be re-read.
  */
 export function isStale(
-  row: { formula_version?: number | null; basis_test_date?: string | null; source?: string | null },
-  expected: string | null,
+  row: { formula_version?: number | null; basis_test_date?: string | null; source?: string | null; threshold_sec?: number | string | null },
+  expected: ExpectedBasis,
   hrNow = false,
   lapsNow = false,
 ): boolean {
@@ -327,7 +339,13 @@ export function isStale(
   if (row.source === 'none' && hrNow) return true;
   // Priced as one average segment, and the laps (or splits) have arrived since.
   if (row.source === 'pace_avg' && lapsNow) return true;
-  return (row.basis_test_date ? String(row.basis_test_date).slice(0, 10) : null) !== expected;
+  const expectedDate = expected && typeof expected === 'object' ? expected.date : expected;
+  if ((row.basis_test_date ? String(row.basis_test_date).slice(0, 10) : null) !== expectedDate) return true;
+  // Same day, corrected test: only a pace-priced row carries a threshold (an HR row's is null).
+  if (expected && typeof expected === 'object' && row.threshold_sec != null && row.threshold_sec !== '') {
+    return Math.abs(Number(row.threshold_sec) - expected.thresholdSec) > THRESHOLD_TOLERANCE_SEC;
+  }
+  return false;
 }
 
 const toStoredRow = (r: ActivityLoadRow) => ({
@@ -390,7 +408,7 @@ export async function ensureActivityLoads(
       .range(from, to)),
     readAll<any>((from, to) => supabase
       .from(ACTIVITY_LOADS_TABLE)
-      .select('activity_id, source, basis_test_date, formula_version')
+      .select('activity_id, source, basis_test_date, formula_version, threshold_sec')
       .eq('athlete_id', athleteId)
       .order('activity_id', { ascending: true })
       .range(from, to)),

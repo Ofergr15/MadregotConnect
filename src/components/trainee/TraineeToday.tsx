@@ -64,6 +64,10 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
   // for that day — the same payload the week screen hands it.
   const [opening, setOpening] = useState<string | null>(null);
   const [entryTyping, setEntryTyping] = useState(false);
+  // `?test=entry` (the "לבקש מכולם" push, deep-links.ts): raise the entry card. Read once on
+  // mount from window.location — the dashboard page has no Suspense boundary.
+  const [raiseEntry, setRaiseEntry] = useState(false);
+  useEffect(() => { setRaiseEntry(new URLSearchParams(window.location.search).get('test') === 'entry'); }, []);
   const { data: board } = useApi<WeekBoard>(
     opening ? `/api/academy/week-board?athleteId=${encodeURIComponent(athleteId)}&weekStart=${planWeekStartOf(opening)}` : null,
   );
@@ -141,7 +145,7 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
       {/* "חסר לנו הטסט האחרון שלך" (academy-existing-trainees, phone 4), in place of the card's
           "🎯 צריך טסט" line that left nothing to do: find it in the watch or type it, sent to the
           coach for approval; "ממתין לאישור" until then. */}
-      {entryCard && <TestEntryCard athleteId={athleteId} onSent={() => void mutate()} onTyping={setEntryTyping} />}
+      {entryCard && <TestEntryCard athleteId={athleteId} onSent={() => void mutate()} onTyping={setEntryTyping} raise={raiseEntry} />}
 
       {invite && (
         <Link href={academyTestUrl({ recipientIsStaff: false })} className={cn(CARD, 'flex min-h-[56px] items-center gap-[11px] px-3.5')}>

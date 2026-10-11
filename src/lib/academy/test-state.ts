@@ -11,9 +11,13 @@ import { daysBetween } from './load';
  * say which of these it is, never print a lane's pace as the trainee's own:
  *
  * - `none`: no test at all;
- * - `pending`: a test is in, waiting for the coach's approval. Any protocol: a trainee who
- *   sent a 2000 m has sent something, and "חסר לנו הטסט" (or "לבקש מכולם") again would ask
- *   for what is already waiting. `protocol` says when it is not a 30-minute one;
+ * - `pending`: a test is in, waiting for the coach's approval. A 30-minute one newer than the
+ *   approved test always; one of another protocol (a 2000 m) only when there is no CURRENT
+ *   30-minute test — none approved, or an old one — since a 2000 m never gives a threshold:
+ *   to a trainee without paces it is something already sent ("חסר לנו הטסט" again would ask
+ *   for what is waiting), but in front of a recent 30-minute test it changes nothing, and
+ *   the trainee stays `ok` (with `pendingOther`, so a screen can still say it is waiting).
+ *   `protocol` says when it is not a 30-minute one;
  * - `otherProtocol`: only a 2000 m (or other) test. DECIDED: it does not stand in — the
  *   threshold is the 30-minute test's average pace, and a 2000 m effort is far above it,
  *   so its pace as a threshold would make every zone too fast. The screen asks for a
@@ -21,7 +25,7 @@ import { daysBetween } from './load';
  * - `ok`: there is one; `old` once it is `OLD_TEST_DAYS` old ("כדאי טסט חדש").
  */
 export type TestState =
-  | { kind: 'ok'; date: string; ageDays: number; old: boolean }
+  | { kind: 'ok'; date: string; ageDays: number; old: boolean; pendingOther?: { protocol: string; date: string } }
   | { kind: 'pending'; date: string; protocol?: string }
   | { kind: 'otherProtocol'; protocol: string; date: string }
   | { kind: 'none' };
@@ -46,22 +50,30 @@ export function testStateOf(rows: TestRow[], today: string): TestState {
   };
   const thirty = sorted.filter(r => (r.protocol ?? '30min') === '30min' && usable(r));
   const approved = thirty.find(r => (r.status ?? 'approved') === 'approved');
-  // A newer test waiting for approval is said even when an older one stands — of any protocol.
-  const pending = sorted.find(r => (r.status ?? 'approved') !== 'approved' && usable(r));
-  if (approved && (!pending || String(pending.test_date) <= String(approved.test_date))) {
-    const date = String(approved.test_date).slice(0, 10);
+  const isPending = (r: TestRow) => (r.status ?? 'approved') !== 'approved' && usable(r);
+  const okOf = (row: TestRow): TestState => {
+    const date = String(row.test_date).slice(0, 10);
     const ageDays = daysBetween(date, today);
     return { kind: 'ok', date, ageDays, old: ageDays >= OLD_TEST_DAYS };
+  };
+  // A newer 30-minute test waiting for approval is said even when an older one stands.
+  const pendingThirty = thirty.find(r => (r.status ?? 'approved') !== 'approved');
+  const pendingOther = sorted.find(r => (r.protocol ?? '30min') !== '30min' && isPending(r));
+  if (pendingThirty && (!approved || String(pendingThirty.test_date) > String(approved.test_date))) {
+    return { kind: 'pending', date: String(pendingThirty.test_date).slice(0, 10) };
   }
-  if (pending) {
-    const protocol = pending.protocol ?? '30min';
-    return { kind: 'pending', date: String(pending.test_date).slice(0, 10), ...(protocol !== '30min' ? { protocol } : {}) };
+  const current = approved ? okOf(approved) : null;
+  if (current && current.kind === 'ok' && !current.old) {
+    // A 2000 m waiting in front of a recent 30-minute test: the paces stand, the trainee is ready.
+    return pendingOther && String(pendingOther.test_date) > String(approved!.test_date)
+      ? { ...current, pendingOther: { protocol: String(pendingOther.protocol), date: String(pendingOther.test_date).slice(0, 10) } }
+      : current;
   }
-  if (approved) {
-    const date = String(approved.test_date).slice(0, 10);
-    const ageDays = daysBetween(date, today);
-    return { kind: 'ok', date, ageDays, old: ageDays >= OLD_TEST_DAYS };
+  // No current 30-minute test: whatever was sent is what is waiting.
+  if (pendingOther && (!approved || String(pendingOther.test_date) > String(approved.test_date))) {
+    return { kind: 'pending', date: String(pendingOther.test_date).slice(0, 10), protocol: String(pendingOther.protocol) };
   }
+  if (current) return current;
   const other = sorted.find(r => (r.protocol ?? '30min') !== '30min' && (r.status ?? 'approved') === 'approved');
   if (other) return { kind: 'otherProtocol', protocol: String(other.protocol), date: String(other.test_date).slice(0, 10) };
   return { kind: 'none' };

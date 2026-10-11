@@ -92,6 +92,22 @@ describe('ensureActivityLoads', () => {
     expect(db.tables.activity_loads.find(x => x.activity_id === before)).toMatchObject({ threshold_sec: 261 });
   });
 
+  it('a test corrected on the same day re-prices the runs it covers (round 2, issue 5)', async () => {
+    const db = setup();
+    const t = test30(db.athlete, '2026-08-12', 7000); // 257.1
+    db.tables.academy_tests.push(t);
+    const a = addRun(db, '2026-09-10');
+    await ensureActivityLoads(db.client, db.athlete, { today: TODAY });
+    const before = Number(db.tables.activity_loads.find(x => x.activity_id === a)!.threshold_sec);
+    expect(before).toBe(257);
+    // Staff re-save the same day at 7500 m: POST /api/academy/tests overwrites the row.
+    t.distance_m = 7500; // 240
+    const r = await ensureActivityLoads(db.client, db.athlete, { today: TODAY });
+    expect(r.rows.map(x => x.activityId)).toEqual([a]);
+    expect(db.tables.activity_loads.find(x => x.activity_id === a)).toMatchObject({ threshold_sec: 240, basis_test_date: '2026-08-12' });
+    expect((await ensureActivityLoads(db.client, db.athlete, { today: TODAY })).rows).toEqual([]);
+  });
+
   it('an HR-priced run becomes a pace run once a test covers it; an excluded test re-prices back', async () => {
     const db = setup();
     for (let d = 1; d <= 5; d += 1) db.tables.athlete_wellness.push({ athlete_id: db.athlete, date: `2026-09-2${d}`, resting_hr: 50 });
@@ -139,6 +155,18 @@ describe('ensureActivityLoads', () => {
     expect(isStale(none, null)).toBe(false);
     expect(isStale(none, null, true)).toBe(true);
     expect(isStale({ ...none, source: 'hr' }, null, true)).toBe(false);
+  });
+
+  it('same basis date, different threshold is stale; the stored rounding is not (round 2, issue 5)', () => {
+    const pace = { formula_version: LOAD_VERSION, basis_test_date: '2026-08-12', source: 'pace', threshold_sec: 257.1 };
+    expect(isStale(pace, { date: '2026-08-12', thresholdSec: 240 })).toBe(true);
+    // NUMERIC(6,1): 257.142857… is stored as 257.1, and comes back as a string.
+    expect(isStale(pace, { date: '2026-08-12', thresholdSec: 1800 / 7 })).toBe(false);
+    expect(isStale({ ...pace, threshold_sec: '257.1' }, { date: '2026-08-12', thresholdSec: 1800 / 7 })).toBe(false);
+    // An HR row carries no threshold: the corrected distance does not touch its load.
+    expect(isStale({ ...pace, source: 'hr', threshold_sec: null }, { date: '2026-08-12', thresholdSec: 240 })).toBe(false);
+    // A bare date still compares the date only.
+    expect(isStale(pace, '2026-08-12')).toBe(false);
   });
 
   it('a row from an older formula is stale', () => {

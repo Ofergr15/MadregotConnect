@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { canReceiveWatch, nightFeed, runFeed } from '@/lib/academy/data-feed';
 import { testStateOf } from '@/lib/academy/test-state';
 import { gateStatus, loadStatus } from '@/lib/academy/pmc';
-import { isRunType, shiftDate } from '@/lib/academy/load';
+import { daysBetween, isRunType, shiftDate } from '@/lib/academy/load';
 import { isStale, mapLimit, withRetry } from '@/lib/academy/load-server';
 import { cleanNights, isPartialNight, metricMissing, normalRange, plausible } from '@/lib/academy/normal-range';
 import { bodyChips } from '@/lib/academy/trainee-today';
@@ -73,6 +73,18 @@ describe('tests (issues 2, 28)', () => {
       t30('2026-10-05'),
       { test_date: '2026-10-01', protocol: '2000m', status: 'pending', duration_sec: 470, distance_m: 2000 },
     ], TODAY)).toMatchObject({ kind: 'ok' });
+  });
+  it('a recent approved 30-minute test stands in front of a newer pending 2000 m (round 2, issue 2)', () => {
+    const p2000 = { test_date: '2026-10-08', protocol: '2000m', status: 'pending', duration_sec: 470, distance_m: 2000 };
+    // A 2000 m never gives a threshold, so it cannot take the paces away: ready, with the waiting one said.
+    expect(testStateOf([p2000, t30('2026-09-20')], TODAY)).toEqual({
+      kind: 'ok', date: '2026-09-20', ageDays: daysBetween('2026-09-20', TODAY), old: false,
+      pendingOther: { protocol: '2000m', date: '2026-10-08' },
+    });
+    // An OLD approved test: the 2000 m sent is what is waiting (do not ask again).
+    expect(testStateOf([p2000, t30(shiftDate(TODAY, -150))], TODAY)).toEqual({ kind: 'pending', date: '2026-10-08', protocol: '2000m' });
+    // A newer pending 30-minute test still wins over an approved one.
+    expect(testStateOf([t30('2026-10-09', 'pending'), t30('2026-09-20')], TODAY)).toEqual({ kind: 'pending', date: '2026-10-09' });
   });
   it('only a 2000 m test asks for a 30-minute one', () => {
     expect(testStateOf([{ test_date: '2026-09-13', protocol: '2000m', status: 'approved', duration_sec: 480, distance_m: 2000 }], TODAY))

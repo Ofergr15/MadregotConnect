@@ -726,6 +726,19 @@ describe('repricing, the watch source and "לתקן"', () => {
     expect(scheduleReprice).not.toHaveBeenCalled();
   });
 
+  it('a same-day correction by staff overwrites the row and reprices (round 2, issue 5)', async () => {
+    asManager();
+    await post(body(MINE, 7000));
+    scheduleReprice.mockReset();
+    const fixed = await (await post(body(MINE, 7500))).json();
+    expect(fixed.repricing).toBe(true);
+    expect(db.academy_tests.filter(r => r.athlete_id === MINE)).toHaveLength(1);
+    expect(db.academy_tests[0]).toMatchObject({ distance_m: 7500, status: 'approved' });
+    // The job finds the change: load-server isStale compares the threshold, not only the date
+    // (academyLoadServer.test.ts, "a test corrected on the same day").
+    expect(scheduleReprice).toHaveBeenCalledWith(MINE);
+  });
+
   it('approving a submission reprices the trainee it belongs to', async () => {
     asRunner(MINE);
     await post(body(MINE, 7000));

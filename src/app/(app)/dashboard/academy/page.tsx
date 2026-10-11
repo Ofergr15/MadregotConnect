@@ -103,7 +103,8 @@ export default function AcademyPage() {
   const deepLink = useMemo(() => readAcademyDeepLink(searchParams), [searchParams]);
   const traineeV2 = useTraineeV2();
   const router = useRouter();
-  // A test reminder tapped under v2: the tests are on the progress tab (7ג) now.
+  // A test reminder or a "לבקש מכולם" request tapped under v2: the tests are on the progress
+  // tab (7ג) now, and the entry card is on the home, not the board.
   const testRedirect = resolving ? null : traineeTestRedirect(deepLink, { traineeV2, isStaff });
   useEffect(() => { if (testRedirect) router.replace(testRedirect); }, [testRedirect, router]);
   const valid: Tab[] = ['overview', 'threads', 'funnel', 'members', 'registrations', 'coaches', 'plans', 'book', 'dispatch', 'readiness', 'compliance', 'tests', 'stats', 'results', 'payments', 'settings', 'roster'];
