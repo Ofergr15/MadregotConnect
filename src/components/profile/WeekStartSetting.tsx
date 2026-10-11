@@ -37,6 +37,17 @@ export function WeekStartSetting({ athleteId, value, onSaved }: {
   const t = useTranslations('profile');
   const [day, setDay] = useState<WeekStartDay>(value);
   const [saving, setSaving] = useState(false);
+  // Follow `value` when it changes. The profile mounts this as soon as it knows the
+  // athlete (from localStorage), before /api/athletes/me answers, so `value` starts
+  // as the MONDAY_WEEK fallback; useState kept that first value, and an athlete who
+  // had chosen Sunday saw "Monday" — and tapping Monday did nothing, since it was
+  // already "selected". Not while a save is in flight, which owns `day` until it
+  // settles.
+  const [seen, setSeen] = useState<WeekStartDay>(value);
+  if (value !== seen && !saving) {
+    setSeen(value);
+    setDay(value);
+  }
 
   const pick = async (next: WeekStartDay) => {
     if (next === day || saving) return;
