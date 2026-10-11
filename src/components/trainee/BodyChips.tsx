@@ -30,9 +30,11 @@ function Chip({ kind, chip, today }: { kind: 'sleep' | 'rhr'; chip: BodyChip; to
       href={traineeProgressUrl('body')}
       className={cn('min-h-[56px] flex-1 rounded-2xl bg-white px-3 py-2.5', SHADOW)}
     >
-      <span className="flex flex-wrap items-center justify-between gap-1">
-        <span className="whitespace-nowrap text-[12.5px] font-bold text-ink-400">{t(`home.body.${kind}`)}</span>
-        {chip.verdict && <Tag tone={TONE[chip.verdict] ?? 'n'}>{t(`range.${kind}.${chip.verdict}` as never)}</Tag>}
+      {/* The badge sits in the title row on both tiles (mockup 1), never wrapped above the
+          number: the label gives way first. */}
+      <span className="flex items-center justify-between gap-1">
+        <span className="min-w-0 truncate whitespace-nowrap text-[12.5px] font-bold text-ink-400">{t(`home.body.${kind}`)}</span>
+        {chip.verdict && <span className="shrink-0"><Tag tone={TONE[chip.verdict] ?? 'n'}>{t(`range.${kind}.${chip.verdict}` as never)}</Tag></span>}
       </span>
       <b className="block text-[17px] font-black text-ink-900">
         <bdi dir="ltr">{value}</bdi>

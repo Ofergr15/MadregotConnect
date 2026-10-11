@@ -791,7 +791,10 @@ export default function DashboardPage() {
           Profile → Statistics, not duplicated here. Shown for anyone with an
           athlete profile, including a coach who's also a runner — not just
           "pure" athletes. ═══ */}
-      {athleteId && (
+      {/* The trainee home (TraineeToday) is screen 1 of the mockup and ends at the race line
+          and its button: the club's strip and standings are not part of it, and the strip's
+          "X/4 ימי אימון" counted a different week than the trainee's own board. */}
+      {athleteId && !showTraineeHome && (
         <>
           {!!summary?.weekStreak && (
             <Card variant="muted">
@@ -824,7 +827,7 @@ export default function DashboardPage() {
           "what happened", and a ranking is a control-panel readout. Renders for
           coaches too (athleteId is null for a coach with no athlete profile, in
           which case the card simply has no "me" row to highlight). ═══ */}
-      <WeeklyLeaderboardCard athleteId={athleteId} />
+      {!showTraineeHome && <WeeklyLeaderboardCard athleteId={athleteId} />}
 
       {/* Coach's "no plan at all" fallback already has its own upload CTA
           above; the athlete case already gets NextWorkoutCard's own built-in

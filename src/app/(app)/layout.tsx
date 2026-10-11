@@ -35,6 +35,7 @@ import {
   restoreAppScroll,
 } from '@/lib/app-scroll';
 import { cn } from '@/lib/utils';
+import { useShellHeaderHidden } from '@/lib/shell-chrome';
 
 // Shared shell for every signed-in surface — /dashboard/* and /feed — via the
 // (app) route group, so navigating between them keeps one mounted layout
@@ -59,6 +60,8 @@ export default function AppLayout({
   // and the admin cannot answer for them.
   const [viewingPerson] = useState(isViewingPerson);
   const popupsAllowed = !isRunChat && !tourActive && !viewingPerson;
+  // A screen with its own top row (the academy trainee's home) folds the phone header away.
+  const headerFolded = useShellHeaderHidden();
 
   // App-icon badge self-heal. iOS PWAs can't reliably set the badge from a
   // background push, but the foreground path IS reliable — so: clear it when the
@@ -401,7 +404,7 @@ export default function AppLayout({
         className="flex flex-col h-[100dvh] overflow-hidden"
       >
         <PullToRefresh />
-        <div className={isRunChat ? 'hidden md:contents' : 'contents'}>
+        <div className={isRunChat || headerFolded ? 'hidden md:contents' : 'contents'}>
           <Header />
         </div>
         <ViewAsBanner />

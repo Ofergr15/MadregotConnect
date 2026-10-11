@@ -4101,6 +4101,7 @@
         "evening": "ערב טוב, <bdi>{name}</bdi>"
       },
       "threadLabel": "השיחה עם המאמן",
+      "bellLabel": "התראות",
       "unread": "{n, plural, one {הודעה אחת שלא נקראה} other {<m>#</m> הודעות שלא נקראו}}",
       "notifications": "התראות",
       "dayTag": "{when, select, today {היום} other {מחר}} · {day}",

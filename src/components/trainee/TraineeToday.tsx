@@ -8,7 +8,10 @@ import { cn, israelNow, israelToday, planWeekStartOf } from '@/lib/utils';
 import { academyTestUrl, academyThreadUrl } from '@/lib/academy/deep-links';
 import type { TraineeToday as TodayPayload } from '@/lib/academy/trainee-today';
 import type { WeekBoard } from '@/lib/academy/week-board';
-import { CoachAvatarStack } from '@/components/academy/CoachAvatarStack';
+import { Bell } from 'lucide-react';
+import { SetupPill } from '@/components/onboarding/SetupPill';
+import { isViewingPerson } from '@/lib/view-as-person';
+import { useHideShellHeader } from '@/lib/shell-chrome';
 import { PaceUpdateCard } from '@/components/academy/tools/PaceUpdateCard';
 import { TraineeWorkout } from '@/components/academy/book/TraineeWorkout';
 import { BodyChips } from './BodyChips';
@@ -27,9 +30,12 @@ import { CARD, Chevron, RICH, SHADOW, StructureText, Tag, WEEKDAY_KEYS, dm } fro
 // Everything is decided by GET /api/academy/today (lib/academy/trainee-today.ts); this
 // only draws it, in the mockup's order.
 //
-// The mockup's top bar holds the greeting, 💬 and 🔔; in the app the 🔔 is already in the
-// shell's header (components/Header.tsx) right above this row, so the row carries the
-// greeting, the coach and 💬 only — two bells on one screen would be two doors to one room.
+// The mockup's top bar is ONE row: the greeting, 💬 and 🔔. So on the phone this home folds
+// the shell's header away while it is mounted (lib/shell-chrome.ts) and carries the bell
+// itself (the same /dashboard/notifications door, the same unread count); the account menu
+// and search stay one tap away on the tab bar. Under view-as the shell header stays — its
+// eye is how the super user switches person. The main button is pinned just above the
+// tab bar (the mockup's .foot), so it is on screen at first open.
 
 function greetingKey(): 'morning' | 'afternoon' | 'evening' {
   const h = israelNow().hour;
@@ -56,6 +62,10 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
     opening ? `/api/academy/week-board?athleteId=${encodeURIComponent(athleteId)}&weekStart=${planWeekStartOf(opening)}` : null,
   );
   const [loadOf, setLoadOf] = useState<string | null>(null);
+  const [viewingAs] = useState(isViewingPerson);
+  useHideShellHeader(!viewingAs);
+  const { data: inbox } = useApi<{ count?: number }>(`/api/notifications/unread?athleteId=${encodeURIComponent(athleteId)}`);
+  const bellCount = inbox?.count || 0;
   const [greeting, setGreeting] = useState<'morning' | 'afternoon' | 'evening'>('morning');
   useEffect(() => setGreeting(greetingKey()), []);
 
@@ -69,9 +79,9 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
   const coachFirst = data?.coach?.name.split(' ')[0] ?? null;
 
   const header = (
-    <div className="flex items-center gap-2">
+    <div className={cn('flex items-center gap-2', !viewingAs && 'safe-top md:pt-0')}>
       <h1 className="min-w-0 flex-1 truncate text-[21px] font-black text-ink-900">{t.rich(`greeting.${greeting}`, { ...RICH, name })}</h1>
-      {data?.coach && <CoachAvatarStack coaches={[data.coach]} size={36} />}
+      {!viewingAs && <SetupPill className="md:hidden" />}
       <Link
         href={academyThreadUrl({ recipientIsStaff: false, traineeId: athleteId })}
         aria-label={data?.unread ? `${t('threadLabel')} · ${t('unread', { n: data.unread })}` : t('threadLabel')}
@@ -84,6 +94,20 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
           </b>
         )}
       </Link>
+      {!viewingAs && (
+        <Link
+          href="/dashboard/notifications"
+          aria-label={bellCount ? `${t('bellLabel')} · ${bellCount}` : t('bellLabel')}
+          className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#F1F2F7] text-brand-600 md:hidden"
+        >
+          <Bell className="h-5 w-5" aria-hidden />
+          {bellCount > 0 && (
+            <b className="absolute left-0 top-0 h-[17px] min-w-[17px] rounded-[9px] bg-[#E5484D] px-1 text-center text-[10px] leading-[17px] text-white">
+              <bdi dir="ltr">{bellCount}</bdi>
+            </b>
+          )}
+        </Link>
+      )}
     </div>
   );
 
@@ -152,19 +176,23 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
       )}
 
       {openDate && (
-        <button
-          type="button"
-          onClick={() => setOpening(openDate)}
-          disabled={!!opening && !workout}
-          className={cn(
-            'flex h-[52px] w-full items-center justify-center gap-1.5 rounded-[15px] text-[16px] font-extrabold disabled:opacity-60',
-            data.dayState === 'rest' ? cn('bg-white text-brand-600', SHADOW) : 'bg-brand-600 text-white',
-          )}
-        >
-          {opening && !workout
-            ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            : data.dayState === 'rest' ? t('openTomorrow') : data.card?.done ? t('openDone') : t('open')}
-        </button>
+        // Pinned to the bottom of the scroll box, which ends at the tab bar: the mockup's
+        // .foot, on screen at first open however long the cards above it run.
+        <div className="sticky bottom-0 z-10 -mx-4 bg-gradient-to-t from-page from-70% to-transparent px-4 pb-1 pt-3">
+          <button
+            type="button"
+            onClick={() => setOpening(openDate)}
+            disabled={!!opening && !workout}
+            className={cn(
+              'flex h-[52px] w-full items-center justify-center gap-1.5 rounded-[15px] text-[16px] font-extrabold disabled:opacity-60',
+              data.dayState === 'rest' ? cn('bg-white text-brand-600', SHADOW) : 'bg-brand-600 text-white',
+            )}
+          >
+            {opening && !workout
+              ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              : data.dayState === 'rest' ? t('openTomorrow') : data.card?.done ? t('openDone') : t('open')}
+          </button>
+        </div>
       )}
 
       {workout && board && <TraineeWorkout workout={workout} board={board} onClose={() => setOpening(null)} />}

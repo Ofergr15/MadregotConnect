@@ -4101,6 +4101,7 @@
         "evening": "Good evening, <bdi>{name}</bdi>"
       },
       "threadLabel": "Conversation with your coach",
+      "bellLabel": "Notifications",
       "unread": "{n, plural, one {One unread message} other {<m>#</m> unread messages}}",
       "notifications": "Notifications",
       "dayTag": "{when, select, today {Today ·} other {Tomorrow ·}} {day}",

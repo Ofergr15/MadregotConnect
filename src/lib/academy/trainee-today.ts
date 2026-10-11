@@ -16,6 +16,7 @@ import {
   type BarSegment, type BookStep,
 } from './book-steps';
 import { shiftDate, type LoadSource, type TestPoint } from './load';
+import { wordFirstTitle } from './title-order';
 import { buildLoadPayload } from './load-payload';
 import { formBand, formSentenceKey, isHeavyWeek, type DayKind, type FormBandKey } from './form-bands';
 import {
@@ -123,7 +124,7 @@ export function todayCard(
   return {
     date: ctx.date,
     dayOfWeek: workout.dayOfWeek,
-    title: model ? structureName(model) : workout.name,
+    title: wordFirstTitle(model ? structureName(model) : workout.name),
     distanceM: totals && totals.distanceM > 0 ? totals.distanceM : null,
     durationSec: totals && totals.durationSec > 0 ? totals.durationSec : null,
     paceSec,

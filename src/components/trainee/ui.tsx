@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { wordFirstTitle } from '@/lib/academy/title-order';
 import { cn } from '@/lib/utils';
 
 // ── The trainee experience v2's shared pieces (mockup trainee-experience-v2.html) ──────
@@ -122,7 +123,8 @@ const STRUCTURE = /\d[\d.:,]*(?:\s*[×x–-]\s*\d[\d.:,]*)*/g;
  * the size whatever the paragraph direction. The names come from the book
  * (`structureName`) and from coaches, so they are split here rather than in messages.
  */
-export function StructureText({ text }: { text: string }) {
+export function StructureText({ text: raw }: { text: string }) {
+  const text = wordFirstTitle(raw);
   const out: ReactNode[] = [];
   let last = 0;
   for (const m of text.matchAll(STRUCTURE)) {
