@@ -111,6 +111,10 @@ async function loadContext(athleteId: string) {
     .select('id, parsed_workouts, status')
     .eq('coach_id', COACH_ID)
     .eq('week_start_date', weekStartDate)
+    // The club's week only. A trainee's own academy week is a weekly_plans row too
+    // (athlete_id set) and would otherwise compete for limit(1) — one runner's tap
+    // could have sent another trainee's personal plan.
+    .is('athlete_id', null)
     // A week can hold a draft and a pushed plan; the pushed one is the real one,
     // and 'pushed' sorts after 'draft' and 'partial'.
     .order('status', { ascending: false })
@@ -204,7 +208,13 @@ export async function POST(request: Request) {
     // must not be a way around either. Same three conditions the coach route
     // applies, minus the per-request veto, which only the planner can know about.
     const { paceAlerts } = await loadAcademySettings();
-    const paceTarget = !!(athlete as { is_academy?: boolean }).is_academy && paceAlerts;
+    // This is always the club's week (see the query above), and a club week never
+    // carries pace-zone alarms, even for an academy athlete: the watch made the
+    // runner's own pack pace the step's big number (4:35) and the three-pack text
+    // ("4:15 (4:25) ((4:35))") a footnote, the opposite of what the club runs on.
+    // Alarms are for an academy trainee's own week, sent from the academy screens.
+    void paceAlerts;
+    const paceTarget = false;
 
     // Garmin exactly as before; Apple queues the week for the athlete's iPhone app.
     const result = provider === 'apple'
