@@ -114,7 +114,7 @@ async function detail(request: Request, athleteId: string) {
       ? { ...i.pmcToday, bandKey: i.bandKey, rampWordKey: i.rampWordKey, heavyLastWeek: i.heavyLastWeek }
       : null,
     series: weeklySeries(read.series, today),
-    projection: projectionOf({ pmc: { status: i.status, series: read.series }, today, ranToday, plannedByDate: planned.byDate }),
+    projection: projectionOf({ pmc: { status: i.status, series: read.series }, today, ranToday, plannedByDate: planned.byDate, held: i.gate.paused }),
     feel: {
       face: i.feelFace,
       effort: i.effortAvg4,
@@ -124,7 +124,10 @@ async function detail(request: Request, athleteId: string) {
       weekPlanned: week?.planned ?? 0,
     },
     body: {
-      rhr: { today: i.rhr.today, isToday: i.rhr.isToday, range: i.rhr.range, aboveRun: i.rhr.streak.aboveRun, flag: i.rhr.streak.flag },
+      rhr: {
+        today: i.rhr.today, isToday: i.rhr.isToday, date: i.rhr.date, missing: i.rhr.missing, judged: i.rhr.judged,
+        range: i.rhr.range, aboveRun: i.rhr.streak.aboveRun, flag: i.rhr.streak.flag,
+      },
       sleep: i.sleep,
     },
     pace: {

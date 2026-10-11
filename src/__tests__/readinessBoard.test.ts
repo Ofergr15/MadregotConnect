@@ -117,6 +117,16 @@ describe('C2: 8 weeks and the projection', () => {
     expect(ranHard.projectedForm).toBeLessThan(asPlanned.projectedForm);
   });
 
+  it('a held trainee (RHR / pain) is never told "יש מקום להוסיף" (round 2)', () => {
+    const plannedByDate: Record<string, number> = { [TODAY]: 62, '2026-10-15': 70, '2026-10-17': 92 };
+    week(330).forEach((v, i) => { if (v) plannedByDate[shiftDate('2026-10-18', i)] = v; });
+    expect(projectionOf({ pmc: p, today: TODAY, ranToday: null, plannedByDate, held: true })!.verdict).toBe('hold');
+    const heavy: Record<string, number> = {};
+    for (let i = 0; i < 12; i += 1) heavy[shiftDate(TODAY, i)] = 170;
+    // "Take load off" already agrees with the hold.
+    expect(projectionOf({ pmc: p, today: TODAY, ranToday: null, plannedByDate: heavy, held: true })!.verdict).toBe('warn');
+  });
+
   it('warns at −30 or below, and has no next-week load without a plan', () => {
     const heavy: Record<string, number> = {};
     for (let i = 0; i < 12; i += 1) heavy[shiftDate(TODAY, i)] = 170;
@@ -188,6 +198,34 @@ describe('buildReadinessInputs + the gate', () => {
     const { inputs } = buildReadinessInputs({ rows, nights: mornings([...calmRhr.slice(0, 27), 58, 59, 60]), feedback: [], today: TODAY });
     expect(inputs.rhr.streak.flag).toBe(true);
     expect(inputs.gate.reasons).toEqual(['rhr']);
+  });
+
+  it('a night from a feed that stopped keeps its date and why, and is not judged (round 2, C2)', () => {
+    const old = mornings(calmRhr, shiftDate(TODAY, -16));
+    const { inputs } = buildReadinessInputs({
+      rows, nights: old, feedback: [], today: TODAY,
+      nightFeed: { kind: 'stale', provider: 'garmin', days: 16 },
+    });
+    // The night is 16 days old: shown with its date, never tagged ✓ as this morning's.
+    expect(inputs.rhr.today).not.toBeNull();
+    expect(inputs.rhr.isToday).toBe(false);
+    expect(inputs.rhr.date).toBe(shiftDate(TODAY, -16));
+    expect(inputs.rhr.missing).toEqual({ reason: 'feed', feed: 'stale', days: 16 });
+    expect(inputs.rhr.judged).toBe(false);
+    expect(inputs.sleep).toMatchObject({ date: shiftDate(TODAY, -16), judged: false, missing: { reason: 'feed' } });
+    // A fresh, sending watch: judged, no reason.
+    const fresh = buildReadinessInputs({ rows, nights: mornings(calmRhr), feedback: [], today: TODAY, nightFeed: { kind: 'ok', provider: 'garmin' } }).inputs;
+    expect(fresh.rhr).toMatchObject({ isToday: true, date: TODAY, missing: null, judged: true });
+  });
+
+  it('pain yesterday: painDaysAgo 1, and C1\'s row says it (round 2)', () => {
+    const { inputs } = buildReadinessInputs({ rows, nights: [], feedback: [{ pain: true, created_at: `${shiftDate(TODAY, -1)}T10:00:00Z` }], today: TODAY });
+    expect(inputs.pain7).toBe(true);
+    expect(inputs.painDaysAgo).toBe(1);
+    const [row] = readinessRows([{ athleteId: 'a', name: 'S Pain', gender: null }], { a: inputs }, { a: { done: 2, planned: 5 } }, null);
+    expect(row.highlight).toEqual({ kind: 'pain', when: 'yesterday', days: 1 });
+    expect(row.paused).toBe(true);
+    expect(buildReadinessInputs({ rows, nights: [], feedback: [], today: TODAY }).inputs.painDaysAgo).toBeNull();
   });
 
   it('pain in the last 7 days pauses it; pain 8 days ago does not', () => {

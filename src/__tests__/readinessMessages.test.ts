@@ -19,7 +19,7 @@ const tags = { m: (c: unknown) => c, b: (c: unknown) => c, bdi: (c: unknown) => 
 const PARAMS = {
   n: 3, name: 'Yoav', form: '−9', word: 'שומר', load: 330, done: 3, planned: 5, effort: '6.5', rhr: 51, sleep: '7:12',
   range: '46–50', sec: 4, to: '4:01', from: '4:05', kinds: 'החזרות', reasons: 'x', weeks: 8, when: 'היום', race: '10 ק״מ',
-  heavy: 'yes', pain: 'no', provider: 'garmin',
+  heavy: 'yes', pain: 'no', provider: 'garmin', date: '11.10',
 };
 
 describe('readiness messages', () => {
@@ -42,7 +42,7 @@ describe('readiness messages', () => {
       for (const b of FORM_BANDS) expect(r.chip[b.key], b.key).toBeTruthy();
       for (const b of RECORD_BUCKETS) expect(r.highlight.pr[b.key], b.key).toBeTruthy();
       for (const k of ['veryTired', 'rhr', 'pain', 'feel']) expect(r.reason[k]).toBeTruthy();
-      for (const k of ['room', 'inRange', 'warn', 'noPlan']) expect(r.detail.say[k]).toBeTruthy();
+      for (const k of ['room', 'inRange', 'warn', 'noPlan', 'hold', 'holdTail']) expect(r.detail.say[k]).toBeTruthy();
     });
   }
 

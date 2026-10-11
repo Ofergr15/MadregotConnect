@@ -34,14 +34,14 @@ vi.mock('@/lib/academy/coach-tools-server', () => ({
 
 const ok: ReadinessInputs = {
   status: { kind: 'ok' }, pmcToday: { fitness: 47, fatigue: 56, form: -9, ramp: 1 }, bandKey: 'maintain', rampWordKey: 'maintaining',
-  heavyLastWeek: true, spark: [40, 47], rhr: { range: { lo: 46, hi: 50 }, today: 51, isToday: true, streak: { flag: false, aboveRun: 1 } },
-  sleep: { last: 25920, range: { lo: 24000, hi: 28200 } }, pain7: false, feelAvg4: 3, feelFace: 3, effortAvg4: 6.5, feelN: 4,
+  heavyLastWeek: true, spark: [40, 47], rhr: { range: { lo: 46, hi: 50 }, today: 51, isToday: true, date: '2026-09-15', missing: null, judged: true, streak: { flag: false, aboveRun: 1 } },
+  sleep: { last: 25920, range: { lo: 24000, hi: 28200 }, date: '2026-09-15', missing: null, judged: true }, pain7: false, painDaysAgo: null, feelAvg4: 3, feelFace: 3, effortAvg4: 6.5, feelN: 4,
   raceDays: null, raceName: null, daysSinceRun: 0, prToday: null, gate: { paused: false, reasons: [] },
 };
 const READS: Record<string, ReadinessInputs> = {
   tired: { ...ok, pmcToday: { ...ok.pmcToday!, form: -32 }, bandKey: 'veryTired', gate: { paused: true, reasons: ['veryTired'] } },
   rhr: { ...ok, rhr: { ...ok.rhr, streak: { flag: true, aboveRun: 3 } }, gate: { paused: true, reasons: ['rhr'] } },
-  pain: { ...ok, pain7: true, gate: { paused: true, reasons: ['pain'] } },
+  pain: { ...ok, pain7: true, painDaysAgo: 1, gate: { paused: true, reasons: ['pain'] } },
   feel: { ...ok, feelAvg4: 1, feelFace: 1, gate: { paused: true, reasons: ['feel'] } },
   ok,
   // Learning: the gate itself never names form (readiness.ts), so a −45 here pauses nothing.

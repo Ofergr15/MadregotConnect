@@ -15,7 +15,8 @@ import { BarButton, FlowOverlay, FlowScreen, PrimaryButton, clockText } from '..
 import { MetricTiles } from '@/components/trainee/ProgressScreen';
 import { MetricSheet } from '@/components/trainee/MetricSheet';
 import { FAT, FIT, FitnessChart } from '@/components/trainee/FitnessChart';
-import { CARD, Tag } from '@/components/trainee/ui';
+import { CARD, Tag, dm } from '@/components/trainee/ui';
+import { missingText } from '@/components/trainee/BodyChips';
 import { GateSentence, M, MB, useReasonsText } from './shared';
 
 // ── מתאמן אחד (trainee-experience-v2 C2, TP Coach: PMC + future) ────────────────────────
@@ -77,6 +78,9 @@ function Body({ data, onMetric }: { data: ReadinessDetailResponse; onMetric: (m:
   const gender = data.gender ?? 'other';
   const n = data.numbers;
   const p = data.projection;
+  const reasonsText = useReasonsText();
+  // The gate holds the pace-up: the projection never says "יש מקום להוסיף" then.
+  const holdReasons = data.pace.gate.paused ? reasonsText(data.pace.gate.reasons, data.gender) : null;
 
   return (
     <>
@@ -102,8 +106,9 @@ function Body({ data, onMetric }: { data: ReadinessDetailResponse; onMetric: (m:
             <p className={cn('mt-1.5 text-[13px] leading-normal', p.verdict === 'warn' ? 'font-bold text-[#A8510A]' : 'text-ink-500')}>
               {t.rich(p.nextWeekLoad == null ? 'say.noPlan' : `say.${p.verdict}`, {
                 ...MB, gender, load: p.nextWeekLoad ?? 0, form: signed(p.projectedForm),
-                word: tc(formBand(p.projectedForm).key, { gender }),
+                word: tc(formBand(p.projectedForm).key, { gender }), reasons: holdReasons ?? '',
               })}
+              {p.nextWeekLoad == null && holdReasons && t.rich('say.holdTail', { ...MB, reasons: holdReasons })}
             </p>
           )}
         </div>
@@ -123,6 +128,18 @@ function FeelRow({ data }: { data: ReadinessDetailResponse }) {
   const t = useTranslations('readiness.detail');
   const tt = useTranslations();
   const f = data.feel;
+  // Runs are not arriving: neither "בלי כאב" nor "0 מתוך 5" is known — say what is missing.
+  if (data.status.kind === 'noFeed') {
+    return (
+      <div className="flex min-h-[56px] items-center gap-[11px] border-b border-[#EFEFF4] px-3.5">
+        <span aria-hidden className="w-6 shrink-0 text-center text-[19px]">⌚</span>
+        <span className="min-w-0 flex-1 py-[9px]">
+          <b className="block text-[14.5px] font-extrabold text-ink-900">{t('feelNoFeed', { provider: data.status.provider })}</b>
+          <small className="mt-px block text-[12.5px] leading-snug text-ink-400">{t('feelNoFeedSub')}</small>
+        </span>
+      </div>
+    );
+  }
   const week = f.weekPlanned > 0 ? <span className="whitespace-nowrap">{t.rich('weekPart', { ...M, done: f.weekDone, planned: f.weekPlanned })}</span> : null;
   const bad = f.pain || (f.face != null && f.face <= 1);
   return (
@@ -152,9 +169,16 @@ function FeelRow({ data }: { data: ReadinessDetailResponse }) {
 
 function BodyRow({ data }: { data: ReadinessDetailResponse }) {
   const t = useTranslations('readiness.detail');
+  const tt = useTranslations();
   const gender = data.gender ?? 'other';
   const { rhr, sleep } = data.body;
   const sleepText = sleep.last != null ? fmtSleep(sleep.last) : null;
+  // Screen 8's rule: a night that is old, cut short or from a connection that stopped is
+  // shown with its date and why — never "✓ בתוך הטווח" as if it were this morning.
+  const shownMissing = rhr.today != null ? rhr.missing : sleepText ? sleep.missing : (rhr.missing ?? sleep.missing);
+  const date = rhr.today != null ? rhr.date : sleepText ? sleep.date : null;
+  const why = shownMissing ? missingText(tt, rhr.today != null ? 'rhr' : 'sleep', shownMissing) : null;
+  const ofDate = date && date !== data.today ? <>{t.rich('bodyOf', { ...M, date: dm(date) })} · </> : null;
   return (
     <div className="flex min-h-[56px] items-center gap-[11px] px-3.5">
       <span aria-hidden className="w-6 shrink-0 text-center text-[19px]">❤️</span>
@@ -162,15 +186,19 @@ function BodyRow({ data }: { data: ReadinessDetailResponse }) {
         <b className="block text-[14.5px] font-extrabold text-ink-900">
           {rhr.today != null
             ? t.rich('body', { ...M, rhr: rhr.today, sleep: sleepText ?? 'none' })
-            : sleepText ? t.rich('bodySleep', { ...M, sleep: sleepText }) : t('bodyNone')}
+            : sleepText ? t.rich('bodySleep', { ...M, sleep: sleepText }) : why ? why.title : t('bodyNone')}
         </b>
-        {(rhr.today != null || sleepText) && (
+        {(rhr.today != null || sleepText) ? (
           <small className="mt-px block text-[12.5px] leading-snug text-ink-400">
-            {rhr.range ? t.rich('range', { ...M, gender, range: `${rhr.range.lo}–${rhr.range.hi}` }) : t('rangeLearning', { gender })}
+            {ofDate}
+            {why && shownMissing?.reason !== 'old' ? why.title
+              : rhr.range ? t.rich('range', { ...M, gender, range: `${rhr.range.lo}–${rhr.range.hi}` }) : t('rangeLearning', { gender })}
           </small>
-        )}
+        ) : why?.sub ? (
+          <small className="mt-px block text-[12.5px] leading-snug text-ink-400">{why.sub}</small>
+        ) : null}
       </span>
-      {rhr.range && rhr.today != null && (
+      {rhr.range && rhr.today != null && rhr.judged && (
         rhr.aboveRun > 0
           ? <Tag tone="w">{t.rich('above', { ...M, n: rhr.aboveRun })}</Tag>
           : <Tag tone="g">{t('inside')}</Tag>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkoutStep } from '@/lib/ai/types';
 import { plannedLoad, plannedParts } from '@/lib/academy/load';
-import { feelPrefillOf, medalRep, personalRecord, watchSteps, workoutDone } from '@/lib/academy/workout-extras';
+import { feelPrefillOf, medalRep, noLoadReason, personalRecord, watchSteps, workoutDone } from '@/lib/academy/workout-extras';
 import type { WorkoutAdherenceRow } from '@/lib/academy/report';
 import type { WorkoutSheet } from '@/lib/academy/workout-sheet';
 
@@ -125,6 +125,17 @@ describe('workoutDone', () => {
     expect(done.verdictTone).toBe('warn');
     expect(done.table.find(r => r.key === 'load')).toBeUndefined();
     expect(done.table.find(r => r.key === 'hr')).toBeUndefined();
+  });
+
+  it('no ⚡: a run WITH heart rate is "the estimate is learning", never "a run with heart rate" (round 2, new3)', () => {
+    const { row, sheet } = rowAndSheet([250]);
+    const withHr = workoutDone({ row, sheet, steps: [], expectedLoad: null, actualLoad: null, hr: { cap: null, actual: 149 } })!;
+    expect(withHr.noLoad).toBe('hrLearning');
+    const noHr = workoutDone({ row, sheet, steps: [], expectedLoad: null, actualLoad: null, hr: { cap: null, actual: null } })!;
+    expect(noHr.noLoad).toBe('noHr');
+    expect(workoutDone({ row, sheet, steps: [], expectedLoad: null, actualLoad: 40, hr: { cap: null, actual: 149 } })!.noLoad).toBeUndefined();
+    expect(noLoadReason(0)).toBe('noHr');
+    expect(noLoadReason(undefined)).toBe('noHr');
   });
 
   it('nothing before the run', () => {

@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import type { DoneRow, WorkoutResponse } from '@/lib/academy/workout-extras';
 import { RECORD_BUCKETS } from '@/lib/academy/records';
 import { doneLaps, type DoneLapRow } from '@/lib/trainee/done-laps';
+import { MAX_HR_MIN_RUNS } from '@/lib/academy/load';
 import { RepsChart } from './RepsChart';
 import { C, CARD, RICH, clock, km, monthName, signedText } from './ui';
 
@@ -101,7 +102,7 @@ export function WorkoutDone({ data, onLoad }: {
 
       {/* No ⚡ for this run: why, and what fixes it — never a silently missing row (12). */}
       {done.noLoad && (
-        <p className={cn(CARD, 'px-4 py-3 text-[13px] font-bold leading-snug text-ink-500')}>⚡ {t('noLoad')}</p>
+        <p className={cn(CARD, 'px-4 py-3 text-[13px] font-bold leading-snug text-ink-500')}>⚡ {done.noLoad === 'hrLearning' ? t.rich('noLoadHrLearning', { ...RICH, n: MAX_HR_MIN_RUNS }) : t('noLoad')}</p>
       )}
 
       {done.reps.length >= 2 && done.band && (

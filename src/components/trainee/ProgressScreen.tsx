@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
+import { hrEstimateKey } from '@/lib/academy/test-state';
 import { SkeletonList } from '@/components/ui';
 import { FORM_BANDS, signed, type FormBandKey } from '@/lib/academy/form-bands';
 import type { LoadPayload, LoadRange } from '@/lib/academy/load-payload';
@@ -58,6 +59,7 @@ export function ProgressScreen({ athleteId, gender, testsHref, bodyHref, journey
   const now = data.today;
   const ramp = rampSentence(data);
   const threshold = thresholdRow(data);
+  const noTest = data.testKind === 'pending' ? 'pending' : data.testKind === 'otherProtocol' ? 'other' : 'none';
   const easyWeek = data.weekly.length ? data.weekly[data.weekly.length - 1].easy : false;
   const options = rangeOptions(data.raceDate);
   const shownRange = options.includes(range) ? range : '3m';
@@ -68,7 +70,7 @@ export function ProgressScreen({ athleteId, gender, testsHref, bodyHref, journey
         <>
           <MetricTiles numbers={now} gender={gender} onOpen={setSheet} tomorrowForm={data.formTomorrow} />
           {/* No test: every ⚡ under these numbers is estimated by heart rate — said, not hidden. */}
-          {data.thresholdSec == null && <p className="px-1 text-[12.5px] font-bold text-ink-400">{tt('trainee.home.form.hrEstimate')}</p>}
+          {data.thresholdSec == null && <p className="px-1 text-[12.5px] font-bold text-ink-400">{tt(`trainee.home.form.${hrEstimateKey(data.testKind)}`)}</p>}
         </>
       ) : (
         <LearningCard status={data.status} />
@@ -129,8 +131,9 @@ export function ProgressScreen({ athleteId, gender, testsHref, bodyHref, journey
               </>
             ) : (
               <>
-                <b className="block text-[14.5px] font-extrabold text-ink-900">{t('threshold.none')}</b>
-                <small className="mt-px block text-[12.5px] text-ink-400">{t('threshold.noneSub')}</small>
+                {/* A test waiting for the coach, or a 2000 m one, is not "עוד אין טסט". */}
+                <b className="block text-[14.5px] font-extrabold text-ink-900">{t(`threshold.${noTest}`)}</b>
+                <small className="mt-px block text-[12.5px] text-ink-400">{t(`threshold.${noTest}Sub`)}</small>
               </>
             )}
           </span>

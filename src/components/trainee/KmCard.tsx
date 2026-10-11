@@ -16,7 +16,7 @@ import { fmtKm } from '@/lib/academy/pace-verdict';
 
 const MONTHS = ['ינו׳', 'פבר׳', 'מרץ', 'אפר׳', 'מאי', 'יוני', 'יולי', 'אוג׳', 'ספט׳', 'אוק׳', 'נוב׳', 'דצמ׳'];
 
-export function KmCard({ weeks, plannedKm, avgKm, doneKm, isCurrentWeek, completed, planned }: {
+export function KmCard({ weeks, plannedKm, avgKm, doneKm, isCurrentWeek, completed, planned, muted = false }: {
   weeks: Array<{ weekStart: string; km: number }>;
   plannedKm: number;
   avgKm: number | null;
@@ -24,6 +24,8 @@ export function KmCard({ weeks, plannedKm, avgKm, doneKm, isCurrentWeek, complet
   isCurrentWeek: boolean;
   completed: number;
   planned: number;
+  /** The run feed stopped: the done side is greyed, and a zero is "—", never a confident 0. */
+  muted?: boolean;
 }) {
   const W = 330, base = 54, y0 = 6, r = 4;
   const n = Math.max(weeks.length, 1);
@@ -50,10 +52,13 @@ export function KmCard({ weeks, plannedKm, avgKm, doneKm, isCurrentWeek, complet
     <div className="rounded-2xl bg-card px-3 pb-1.5 pt-2">
       <div className="flex items-baseline justify-between gap-2">
         <b className="text-[15px] font-black text-ink-700">
-          {isCurrentWeek ? 'השבוע' : 'בשבוע'} <bdi dir="ltr">{fmtKm(doneKm * 1000)}</bdi>{' '}
+          {isCurrentWeek ? 'השבוע' : 'בשבוע'}{' '}
+          <bdi dir="ltr" className={muted ? 'text-ink-300' : undefined}>{muted && doneKm <= 0 ? '—' : fmtKm(doneKm * 1000)}</bdi>{' '}
           <span className="text-xs font-semibold text-ink-400">מתוך <bdi dir="ltr">{fmtKm(Math.round(plannedKm) * 1000)}</bdi> ק״מ</span>
         </b>
-        <span className="shrink-0 text-xs font-bold text-ink-400">{completed} מתוך {planned} אימונים</span>
+        <span className="shrink-0 text-xs font-bold text-ink-400">
+          <bdi dir="ltr" className={muted ? 'text-ink-300' : undefined}>{muted && completed <= 0 ? '—' : completed}</bdi> מתוך <bdi dir="ltr">{planned}</bdi> אימונים
+        </span>
       </div>
       <svg viewBox={`0 0 ${W} 64`} className="mt-1 block h-16 w-full overflow-visible" role="img"
         aria-label={`ק״מ ב־${weeks.length} השבועות האחרונים`}>

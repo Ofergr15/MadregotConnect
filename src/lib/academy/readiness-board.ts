@@ -9,11 +9,11 @@ import {
   type DailyLoad, type LoadRow, type LoadStatus, type PmcPoint, type StatusGate,
 } from './pmc';
 import { formBand, isHeavyWeek, rampWord, type FormBandKey, type RampWordKey } from './form-bands';
-import { isLearning, type RangeResult, type WellnessNight } from './normal-range';
+import { isLearning, type MetricMissing, type RangeResult, type WellnessNight } from './normal-range';
 import { buildBodyPayload } from './body';
 import type { DataFeed } from './data-feed';
 import {
-  projectionVerdict, readinessGate, readinessHighlight, type GateReason, type Highlight,
+  projectionVerdict, readinessGate, readinessHighlight, type GateReason, type Highlight, type ProjectionVerdict,
 } from './readiness';
 import type { PaceSuggestionPayload } from './coach-tools-payload';
 
@@ -194,10 +194,18 @@ export interface ReadinessInputs {
     /** The newest morning within the window (this morning, or the latest synced). */
     today: number | null;
     isToday: boolean;
+    /** The morning `today` is from (null with none). */
+    date: string | null;
+    /** body.ts: why the value is not fresh and judged (a stopped feed, old, partial…). */
+    missing: MetricMissing | null;
+    /** The trainee's screen 8 gives it a verdict: only then may C2 tag it ✓ / ▲. */
+    judged: boolean;
     streak: { flag: boolean; aboveRun: number };
   };
-  sleep: { last: number | null; range: { lo: number; hi: number } | null };
+  sleep: { last: number | null; range: { lo: number; hi: number } | null; date: string | null; missing: MetricMissing | null; judged: boolean };
   pain7: boolean;
+  /** Days since the newest pain report of the last 7 (0 = today); null with none. */
+  painDaysAgo: number | null;
   feelAvg4: number | null;
   /** The face the average rounds to, 0 (חלש מאוד) … 4 (חזק מאוד). */
   feelFace: number | null;
@@ -232,7 +240,13 @@ export function buildReadinessInputs(input: {
 
   const painFrom = shiftDate(today, -(PAIN_DAYS - 1));
   // `created_at` is a real instant (not an activity's local-as-UTC clock): its Israel day.
-  const pain7 = input.feedback.some(f => f.pain === true && !!f.created_at && israelToday(new Date(f.created_at)) >= painFrom);
+  const painDays = input.feedback
+    .filter(f => f.pain === true && !!f.created_at)
+    .map(f => israelToday(new Date(f.created_at!)))
+    .filter(d => d >= painFrom && d <= today)
+    .sort();
+  const pain7 = painDays.length > 0;
+  const painDaysAgo = pain7 ? daysBetween(painDays[painDays.length - 1], today) : null;
 
   const runs = input.rows.filter(r => RUN_SOURCES.has(r.source) && r.date <= today).map(r => r.date).sort();
   const lastRun = runs[runs.length - 1] ?? null;
@@ -259,10 +273,20 @@ export function buildReadinessInputs(input: {
         range: rangeOf(body.rhr.range),
         today: body.rhr.latest?.value ?? null,
         isToday: body.rhr.isToday,
+        date: body.rhr.latest?.date ?? null,
+        missing: body.rhr.missing,
+        judged: body.rhr.verdict != null,
         streak: body.rhr.streak,
       },
-      sleep: { last: body.sleep.latest?.value ?? null, range: rangeOf(body.sleep.range) },
+      sleep: {
+        last: body.sleep.latest?.value ?? null,
+        range: rangeOf(body.sleep.range),
+        date: body.sleep.latest?.date ?? null,
+        missing: body.sleep.missing,
+        judged: body.sleep.verdict != null,
+      },
       pain7,
+      painDaysAgo,
       feelAvg4: body.feel?.avg ?? null,
       feelFace: body.feel?.face ?? null,
       effortAvg4: body.feel?.effort ?? null,
@@ -359,6 +383,7 @@ export function readinessRows(
       form: i.pmcToday?.form ?? null,
       ramp: i.pmcToday?.ramp ?? null,
       rhrFlag: t.athleteId === alertId ? false : i.rhr.streak.flag,
+      painDaysAgo: i.painDaysAgo ?? null,
       pr: i.prToday,
       race: i.raceDays != null ? { name: i.raceName, daysLeft: i.raceDays } : null,
       daysSinceRun: i.daysSinceRun,
@@ -390,7 +415,7 @@ export interface Projection {
   nextWeekLoad: number | null;
   /** Form the morning after next Saturday: F − A at its end, rounded. */
   projectedForm: number;
-  verdict: 'warn' | 'inRange' | 'room';
+  verdict: ProjectionVerdict;
 }
 
 /**
@@ -406,6 +431,8 @@ export function projectionOf(input: {
   /** The load actually run today (null = not run yet). */
   ranToday: number | null;
   plannedByDate: Record<string, number>;
+  /** readinessGate paused: the sentence holds instead of "יש מקום להוסיף". */
+  held?: boolean;
 }): Projection | null {
   const { pmc, today } = input;
   if (pmc.status.kind !== 'ok' || !pmc.series.length) return null;
@@ -429,7 +456,7 @@ export function projectionOf(input: {
     series: dates.map(d => ({ date: d, fitness: r1(at(d).fitness), fatigue: r1(at(d).fatigue) })),
     nextWeekLoad: next > 0 ? Math.round(next) : null,
     projectedForm,
-    verdict: projectionVerdict(projectedForm),
+    verdict: projectionVerdict(projectedForm, !!input.held),
   };
 }
 
@@ -462,8 +489,15 @@ export interface ReadinessDetailResponse {
     weekPlanned: number;
   };
   body: {
-    rhr: { today: number | null; isToday: boolean; range: { lo: number; hi: number } | null; aboveRun: number; flag: boolean };
-    sleep: { last: number | null; range: { lo: number; hi: number } | null };
+    /**
+     * `date` / `missing` / `judged` are screen 8's (body.ts): an old night, a partial one or
+     * one from a connection that stopped is shown with its date and why, never tagged.
+     */
+    rhr: {
+      today: number | null; isToday: boolean; date: string | null; missing: MetricMissing | null; judged: boolean;
+      range: { lo: number; hi: number } | null; aboveRun: number; flag: boolean;
+    };
+    sleep: { last: number | null; range: { lo: number; hi: number } | null; date: string | null; missing: MetricMissing | null; judged: boolean };
   };
   pace: {
     /** The suggestion as the coach tools make it, with its readiness; null when there is none or it is held. */

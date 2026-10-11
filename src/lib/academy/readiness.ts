@@ -50,6 +50,8 @@ export function feelAverage(
 export type Highlight =
   /** The watch stopped sending: the coach is told before anything the numbers would say. */
   | { kind: 'noFeed'; feed: 'failed' | 'stale'; provider: 'garmin' | 'strava'; days: number | null }
+  /** Pain reported on a run in the last 7 days: the pace-up is held for it, so the row says it. */
+  | { kind: 'pain'; when: 'today' | 'yesterday' | 'days'; days: number }
   | { kind: 'veryTiredRhr' }
   | { kind: 'rampTooFast'; ramp: number }
   | { kind: 'pr'; bucket: string; when: 'today' | 'yesterday' }
@@ -59,7 +61,8 @@ export type Highlight =
 
 /**
  * The ONE fact a C1 row shows, by priority: the watch stopped sending (no number can be
- * trusted then), very tired with high RHR, then building too
+ * trusted then), pain reported in the last 7 days (the gate holds the pace-up for it, and
+ * the row must not stay silent about why), very tired with high RHR, then building too
  * fast (ramp ≥ 9), a PR today or yesterday, a race within 7 days, no run for 7+ days.
  */
 export function readinessHighlight(input: {
@@ -68,12 +71,16 @@ export function readinessHighlight(input: {
   form: number | null;
   ramp: number | null;
   rhrFlag: boolean;
+  /** Days since the newest pain report within the last 7 (0 = today); null with none. */
+  painDaysAgo?: number | null;
   pr?: { bucket: string; daysAgo: number } | null;
   race?: { name: string | null; daysLeft: number } | null;
   daysSinceRun?: number | null;
 }): Highlight {
   const ok = input.status === 'ok';
   if (input.noFeed) return { kind: 'noFeed', feed: input.noFeed.feed, provider: input.noFeed.provider, days: input.noFeed.days };
+  const pd = input.painDaysAgo;
+  if (pd != null && pd >= 0 && pd < 7) return { kind: 'pain', when: pd === 0 ? 'today' : pd === 1 ? 'yesterday' : 'days', days: pd };
   if (ok && input.form != null && formBand(input.form).key === 'veryTired' && input.rhrFlag) return { kind: 'veryTiredRhr' };
   if (ok && input.ramp != null && Math.round(input.ramp) >= 9) return { kind: 'rampTooFast', ramp: Math.round(input.ramp) };
   if (input.pr && input.pr.daysAgo >= 0 && input.pr.daysAgo <= 1) {
@@ -109,14 +116,21 @@ export function sortReadiness<T extends { name: string; form: number | null; wee
   });
 }
 
+export type ProjectionVerdict = 'warn' | 'inRange' | 'room' | 'hold';
+
 /**
  * C2's sentence on the projected form at the end of next week: `warn` when it would be
  * very tired (≤ −30), `inRange` while it is working hard in the right range, `room` when
  * there is room to add load (mockup: "−3: שומר ✓. יש מקום להוסיף קצת עומס").
+ *
+ * `held` (readinessGate paused: RHR above the range 3 mornings, pain, very tired, a weak
+ * feel): never `room` or "carry on" — the board, the alert and the pace card all say hold,
+ * so the projection says `hold` ("לא מוסיפים עומס השבוע"). `warn` stays: it says the same.
  */
-export function projectionVerdict(projectedForm: number): 'warn' | 'inRange' | 'room' {
+export function projectionVerdict(projectedForm: number, held = false): ProjectionVerdict {
   const key = formBand(projectedForm).key;
   if (key === 'veryTired') return 'warn';
+  if (held) return 'hold';
   if (key === 'working') return 'inRange';
   return 'room';
 }

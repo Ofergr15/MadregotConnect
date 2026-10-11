@@ -5,6 +5,7 @@ import type { Compliance, WeekTotals } from './compliance';
 import type { OffLine, RowExcuse } from './board';
 import type { TestState } from './test-state';
 import type { RowMarks } from './board-server';
+import type { DataFeed } from './data-feed';
 
 export interface WeekBoardWorkout {
   date: string;
@@ -87,6 +88,12 @@ export interface WeekBoard {
   test?: TestState;
   /** A workout can reach the watch (Garmin connected): else 4 says it won't. */
   canWatch?: boolean;
+  /**
+   * The run feed stopped (failed or stale) within or before this week: the tiles' "done"
+   * side is not the whole truth, and the board says so (missing-data rule). Null when runs
+   * are arriving, or the week ended before the feed stopped.
+   */
+  feedGap?: Extract<DataFeed, { kind: 'failed' | 'stale' }> | null;
   /** athletes.academy_joined_on. */
   joinedOn?: string | null;
   canPlan: boolean;

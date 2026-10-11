@@ -131,7 +131,7 @@ export async function GET(request: Request) {
       // Yesterday's and today's runs: today's "done", yesterday's km.
       supabase
         .from('athlete_activities')
-        .select('id, start_time, distance, activity_type')
+        .select('id, start_time, distance, activity_type, average_hr')
         .eq('athlete_id', athleteId)
         .gte('start_time', `${shiftDate(today, -2)}T00:00:00Z`),
       // Whether runs and nights still arrive, and whether a workout can reach the watch.
@@ -148,7 +148,7 @@ export async function GET(request: Request) {
         .filter(d => d.status === 'success')
         .map(d => String(d.workout_date).slice(0, 10)),
     );
-    const acts = ((actsRes.error ? [] : actsRes.data) || []) as Array<{ id: string; start_time: string; distance: number | null; activity_type: string | null }>;
+    const acts = ((actsRes.error ? [] : actsRes.data) || []) as Array<{ id: string; start_time: string; distance: number | null; activity_type: string | null; average_hr?: number | null }>;
     const ranOn = (date: string) => acts.some(a => isRunType(a.activity_type) && activityLocalDateStr(a.start_time) === date);
     const { cards, planWeeks } = dayCards({
       dates: days,
@@ -212,6 +212,7 @@ export async function GET(request: Request) {
       race,
       yesterdayTitle: cards[days[0]]?.title ?? null,
       distances: Object.fromEntries(acts.map(a => [a.id, Number(a.distance) || 0])),
+      avgHr: Object.fromEntries(acts.map(a => [a.id, Number(a.average_hr) > 0 ? Number(a.average_hr) : null])),
     });
     return NextResponse.json(body);
   } catch (error: unknown) {

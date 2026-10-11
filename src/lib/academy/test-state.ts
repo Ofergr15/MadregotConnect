@@ -62,6 +62,21 @@ export function testStateOf(rows: TestRow[], today: string): TestState {
   return { kind: 'none' };
 }
 
+/**
+ * The "הערכה לפי דופק" line's key under a number standing on heart rate, by what the tests
+ * are: a test waiting for the coach is not "עוד אין טסט", and neither is a 2000 m one —
+ * the line must agree with the test line above it.
+ */
+export type HrEstimateKey = 'hrEstimate' | 'hrEstimatePending' | 'hrEstimateOther' | 'hrEstimateOk';
+export function hrEstimateKey(kind: TestState['kind'] | null | undefined): HrEstimateKey {
+  switch (kind) {
+    case 'pending': return 'hrEstimatePending';
+    case 'otherProtocol': return 'hrEstimateOther';
+    case 'ok': return 'hrEstimateOk';
+    default: return 'hrEstimate';
+  }
+}
+
 /** A pending test in front of an approved one still has paces: only the lack of one blocks them. */
 export const hasPaces = (s: TestState) => s.kind === 'ok';
 

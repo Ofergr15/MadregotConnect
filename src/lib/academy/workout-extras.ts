@@ -50,8 +50,19 @@ export interface WorkoutDone {
   table: DoneRow[];
   reps: Array<{ paceSec: number; tone: 'in' | 'fast' | 'slow' }>;
   band: { min: number; max: number } | null;
-  /** The run carries no ⚡: no test to price its pace and no heart rate to estimate it. Said on 5. */
-  noLoad?: boolean;
+  /**
+   * The run carries no ⚡, and why (said on 5 — it must not ask for what the run already has):
+   * `noHr` the run has no heart rate (and no test prices its pace); `hrLearning` it HAS heart
+   * rate, but the estimate needs a max HR from MAX_HR_MIN_RUNS runs and the resting HR.
+   */
+  noLoad?: NoLoadReason;
+}
+
+export type NoLoadReason = 'noHr' | 'hrLearning';
+
+/** Why a run has no ⚡: it has heart rate (the estimate is still learning) or it has none. */
+export function noLoadReason(averageHr: number | null | undefined): NoLoadReason {
+  return Number(averageHr) > 0 ? 'hrLearning' : 'noHr';
 }
 
 export interface WorkoutPr {
@@ -275,7 +286,7 @@ export function workoutDone(input: {
   else if (distKind === 'on') verdictKey = 'onPlan';
 
   return {
-    ...(input.actualLoad == null ? { noLoad: true } : {}),
+    ...(input.actualLoad == null ? { noLoad: noLoadReason(input.hr.actual) } : {}),
     verdictKey,
     verdictTone: verdictKey === 'short' || verdictKey === 'slow' || verdictKey === 'onPlanSlow' ? 'warn' : 'good',
     detail: {

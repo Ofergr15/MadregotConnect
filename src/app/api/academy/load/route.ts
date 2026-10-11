@@ -8,6 +8,7 @@ import { shiftDate, thresholdOn } from '@/lib/academy/load';
 import { plannedWeeksFor } from '@/lib/academy/pmc';
 import { athleteLoads, BACKFILL_DAYS, loadRaceDate, plannedLoads } from '@/lib/academy/load-server';
 import { buildLoadPayload, LOAD_RANGES, type LoadRange } from '@/lib/academy/load-payload';
+import { loadTestState } from '@/lib/academy/test-state';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,11 +49,16 @@ export async function GET(request: Request) {
     ]);
     // Every shown week's plan, and the 4 before: this week's dashed bar, and "שבוע קל" only
     // for a week the coach planned easy.
-    const planned = await plannedLoads(supabase, athleteId, plannedWeeksFor(today), thresholdOn(today, tests)?.thresholdSec ?? null);
+    const T = thresholdOn(today, tests)?.thresholdSec ?? null;
+    const [planned, testState] = await Promise.all([
+      plannedLoads(supabase, athleteId, plannedWeeksFor(today), T),
+      // Only without a usable test: which "הערכה לפי דופק" line (none / pending / 2000 m).
+      T == null ? loadTestState(supabase, athleteId, today) : Promise.resolve(null),
+    ]);
 
     // A broken feed or runs still being priced withhold the numbers (pmc.ts gateStatus).
     const payload = buildLoadPayload({ rows, tests, today, range, raceDate, plannedByWeek: planned.byWeek, gate: { feed: feeds.run, pending } });
-    return NextResponse.json({ ...payload, stored, pending });
+    return NextResponse.json({ ...payload, testKind: testState?.kind ?? null, stored, pending });
   } catch (error: unknown) {
     console.error('Academy load error:', error);
     return NextResponse.json({ error: 'Failed to load the training load' }, { status: 500 });

@@ -16,6 +16,8 @@ import { PaceUpdateCard } from '@/components/academy/tools/PaceUpdateCard';
 import { TraineeWorkout } from '@/components/academy/book/TraineeWorkout';
 import { BodyChips } from './BodyChips';
 import { FormCard } from './FormCard';
+import { MAX_HR_MIN_RUNS } from '@/lib/academy/load';
+import { hrEstimateKey } from '@/lib/academy/test-state';
 import { LoadSheet } from './LoadSheet';
 import { RaceLine } from './RaceLine';
 import { RestCard, TodayWorkoutCard } from './TodayWorkoutCard';
@@ -54,6 +56,8 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
   const t = useTranslations('trainee.home');
   const tb = useTranslations('workoutBook');
   const ts = useTranslations('trainee.loadSheet');
+  const td = useTranslations('trainee.done');
+  const tf = useTranslations('trainee.home.form');
   const { data, error } = useApi<TodayPayload>(`/api/academy/today?athleteId=${encodeURIComponent(athleteId)}`, { keepPreviousData: true });
   // The workout screen (4/5) is the board's own overlay, so it opens on the board's row
   // for that day — the same payload the week screen hands it.
@@ -153,13 +157,28 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
         </section>
       )}
 
-      <FormCard form={data.form} when={data.dayState === 'rest' ? 'tomorrow' : when} gender={data.athlete.gender} showBands={data.dayState === 'workout'} />
+      <FormCard form={data.form} when={data.dayState === 'rest' ? 'tomorrow' : when} gender={data.athlete.gender} showBands={data.dayState === 'workout'} testKind={data.test?.kind ?? null} />
 
       <BodyChips sleep={data.body.sleep} rhr={data.body.rhr} missing={data.body.missing} today={today} />
 
       {data.race && <RaceLine race={data.race} showBuild={data.dayState === 'workout'} />}
 
-      {data.yesterday && (
+      {data.yesterday && data.yesterday.load == null ? (
+        // Yesterday's run could not be priced: still shown, with its km and why (missing-data rule).
+        <div className={cn(CARD, 'flex min-h-[56px] w-full items-center gap-[11px] px-3.5')}>
+          <span aria-hidden className="w-6 shrink-0 text-center text-[19px]">🏃</span>
+          <span className="min-w-0 flex-1 py-[9px]">
+            <b className="block text-[14.5px] font-extrabold text-ink-900">
+              {data.yesterday.title
+                ? t.rich('yesterday.title', { ...RICH, name: data.yesterday.title, bdi: () => <StructureText text={data.yesterday!.title!} /> })
+                : t.rich('yesterday.titleKm', { ...RICH, km: data.yesterday.km })}
+            </b>
+            <small className="mt-px block text-[12.5px] leading-snug text-ink-400">
+              ⚡ {data.yesterday.noLoad === 'hrLearning' ? td.rich('noLoadHrLearning', { ...RICH, n: MAX_HR_MIN_RUNS }) : td('noLoad')}
+            </small>
+          </span>
+        </div>
+      ) : data.yesterday && (
         <button type="button" onClick={() => setLoadOf(data.yesterday!.activityId)} className={cn(CARD, 'flex min-h-[56px] w-full items-center gap-[11px] px-3.5 text-start')}>
           <span aria-hidden className="w-6 shrink-0 text-center text-[19px]">🏃</span>
           <span className="min-w-0 flex-1 py-[9px]">
@@ -169,7 +188,12 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
                 : t.rich('yesterday.titleKm', { ...RICH, km: data.yesterday.km })}
               {' · ⚡ '}<bdi dir="ltr">{data.yesterday.load}</bdi>
             </b>
-            <small className="mt-px block text-[12.5px] text-ink-400">{ts(`source.${data.yesterday.source}` as never)}</small>
+            <small className="mt-px block text-[12.5px] text-ink-400">
+              {/* An HR estimate while a test waits (or is 2000 m) does not say "עוד אין טסט". */}
+              {data.yesterday.source === 'hr' && data.test && (data.test.kind === 'pending' || data.test.kind === 'otherProtocol')
+                ? tf(hrEstimateKey(data.test.kind))
+                : ts(`source.${data.yesterday.source}` as never)}
+            </small>
           </span>
           {(data.yesterday.source === 'hr' || data.yesterday.source === 'pace_avg') && <Tag tone="n">{t('yesterday.estimate')}</Tag>}
         </button>

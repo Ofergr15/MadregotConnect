@@ -1,3 +1,4 @@
+import type { TestState } from './test-state';
 import { shiftDate, thresholdOn, daysBetween, type TestPoint } from './load';
 import {
   dailyLoads, loadStatus, loadWeeks, pmcSeries, pmcToday, pointOn, weekStartOf,
@@ -22,6 +23,11 @@ export { LOAD_WEEKS as WEEKS_SHOWN } from './pmc';
 
 export interface LoadPayload {
   status: LoadStatus;
+  /**
+   * test-state.ts kind, read only when no usable test stands (the route's): the "הערכה לפי
+   * דופק" line under HR-estimated numbers says pending / 2000 m, not "עוד אין טסט".
+   */
+  testKind?: TestState['kind'] | null;
   range: LoadRange;
   /** As of yesterday; null while learning or with insufficient data (never a 0). */
   today: {

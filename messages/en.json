@@ -4139,7 +4139,10 @@
         "computingSay": "{n, plural, one {One more run in line.} other {<m>#</m> more runs in line.}} The number appears once they are all priced, next time you open.",
         "learningUnpricedSay": "Your older runs are not counted: there was no test for them, and the watch sends no resting HR to estimate from. The count starts at the first run that can be priced.",
         "noPlanSay": "Next week's plan is not published yet, so there is nothing to say about what is coming.",
-        "hrEstimate": "Estimated from heart rate: no test yet"
+        "hrEstimate": "Estimated from heart rate: no test yet",
+        "hrEstimatePending": "Estimated from heart rate until the test is approved",
+        "hrEstimateOther": "Estimated from heart rate: a 30-minute test is needed",
+        "hrEstimateOk": "Estimated from heart rate"
       },
       "body": {
         "sleep": "😴 Sleep",
@@ -4277,7 +4280,8 @@
           "autoLapOff": "The run has a single lap: Auto Lap is off on the watch. Turn it on to see every kilometre here."
         }
       },
-      "noLoad": "No load worked out: it needs a test, or a run with heart rate."
+      "noLoad": "No load worked out: it needs a test, or a run with heart rate.",
+      "noLoadHrLearning": "No load yet: without a test, the heart-rate estimate starts after <m>{n}</m> runs with heart rate. A test prices it at once."
     },
     "feel": {
       "back": "Summary",
@@ -4385,7 +4389,8 @@
         "beforeJoin": "Before you joined",
         "noData": "No data from the watch"
       },
-      "unplanned": "Unplanned run"
+      "unplanned": "Unplanned run",
+      "noFeedSay": "{feed, select, failed {New runs are not arriving, so what is done here is incomplete. They will arrive once you reconnect.} other {New runs are not arriving, so what is done here is incomplete. They will arrive when the watch syncs.}}"
     },
     "month": {
       "title": "{month} <m>{year}</m>",
@@ -4500,7 +4505,11 @@
         "faster": "▲ <m>{n}</m> s",
         "slower": "▼ <m>{n}</m> s",
         "none": "No test yet",
-        "noneSub": "Your first test sets your threshold · tests"
+        "noneSub": "Your first test sets your threshold · tests",
+        "pending": "The test is waiting for the coach's approval",
+        "pendingSub": "Once approved, the threshold pace shows here · Tests",
+        "other": "A 30-minute test is needed",
+        "otherSub": "The threshold pace comes only from a 30-minute test · Tests"
       }
     },
     "metric": {
@@ -4715,7 +4724,8 @@
       "week": "<m>{done}</m> of <m>{planned}</m> this week",
       "weekNone": "No plan this week",
       "noFeedFailed": "⌚ {provider, select, strava {Strava disconnected} other {Garmin disconnected}}",
-      "noFeedStale": "⌚ {provider, select, strava {No runs from Strava} other {No Garmin data}} for {n, plural, one {a day} other {<m>#</m> days}}"
+      "noFeedStale": "⌚ {provider, select, strava {No runs from Strava} other {No Garmin data}} for {n, plural, one {a day} other {<m>#</m> days}}",
+      "pain": "🩹 Reported pain {when, select, today {earlier today} yesterday {a day ago} other {<m>{n}</m> days ago}}"
     },
     "when": {
       "today": "today",
@@ -4754,7 +4764,9 @@
         "room": "If {gender, select, female {she runs} other {he runs}} what you planned to the end of next week, load <m>{load}</m> next week, form will be about <b><m>{form}</m></b>: {word} ✓. There is room to add a little load.",
         "inRange": "If {gender, select, female {she runs} other {he runs}} what you planned to the end of next week, load <m>{load}</m> next week, form will be about <b><m>{form}</m></b>: {word}, in the right range ✓. Carry on with the plan.",
         "warn": "If {gender, select, female {she runs} other {he runs}} what you planned to the end of next week, load <m>{load}</m> next week, form will be about <b><m>{form}</m></b>: {word}. Take some load off next week.",
-        "noPlan": "Next week has no plan yet. Without more workouts, form will be about <b><m>{form}</m></b>: {word}."
+        "noPlan": "Next week has no plan yet. Without more workouts, form will be about <b><m>{form}</m></b>: {word}.",
+        "hold": "If {gender, select, female {she runs} other {he runs}} what you planned to the end of next week, load <m>{load}</m> next week, form will be about <b><m>{form}</m></b>: {word}. <b>{reasons}: no added load this week.</b>",
+        "holdTail": " <b>{reasons}: no added load this week.</b>"
       },
       "feel": "Feel: {word}{effort, select, none {} other { · effort <m>{effort}</m>}}",
       "feelSub": "Average of {n, plural, one {the last run} other {the last <m>#</m> runs}} · {pain, select, yes {reported pain} other {no pain}}",
@@ -4773,7 +4785,10 @@
       "paceFrom": "<m>{to}</m> instead of <m>{from}</m>.",
       "heldTitle": "Pace suggestion: on hold",
       "heldSay": "{reasons}. An easy week first, before the pace goes up.",
-      "approve": "Approve the new pace"
+      "approve": "Approve the new pace",
+      "feelNoFeed": "{provider, select, strava {No runs from Strava} other {Runs are not arriving from Garmin}}",
+      "feelNoFeedSub": "Feel, pain and this week's sessions will show once the watch syncs again",
+      "bodyOf": "From <m>{date}</m>"
     },
     "gate": {
       "form": "{gender, select, other {Not too tired}} (<m>{form}</m>, {word})",

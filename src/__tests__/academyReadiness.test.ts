@@ -46,13 +46,20 @@ describe('feelAverage', () => {
 describe('readinessHighlight', () => {
   const base = { status: 'ok' as const, form: -9, ramp: 1, rhrFlag: false };
 
-  it('very tired with a high RHR outranks everything', () => {
+  it('very tired with a high RHR outranks everything but a stopped feed and pain', () => {
     expect(readinessHighlight({ ...base, form: -32, ramp: 10, rhrFlag: true, pr: { bucket: '1k', daysAgo: 0 } }))
       .toEqual({ kind: 'veryTiredRhr' });
   });
 
   it('then building too fast, a PR, a race this week, a long gap', () => {
     expect(readinessHighlight({ ...base, form: -32, ramp: 10 })).toEqual({ kind: 'rampTooFast', ramp: 10 });
+    // Pain (round 2): right after a stopped feed, before everything the numbers say.
+    expect(readinessHighlight({ ...base, form: -32, ramp: 10, rhrFlag: true, painDaysAgo: 1, pr: { bucket: '1k', daysAgo: 0 } }))
+      .toEqual({ kind: 'pain', when: 'yesterday', days: 1 });
+    expect(readinessHighlight({ ...base, painDaysAgo: 0 })).toEqual({ kind: 'pain', when: 'today', days: 0 });
+    expect(readinessHighlight({ ...base, painDaysAgo: 4 })).toEqual({ kind: 'pain', when: 'days', days: 4 });
+    expect(readinessHighlight({ ...base, painDaysAgo: 1, noFeed: { feed: 'stale', provider: 'garmin', days: 5 } }).kind).toBe('noFeed');
+    expect(readinessHighlight({ ...base, painDaysAgo: null }).kind).not.toBe('pain');
     expect(readinessHighlight({ ...base, pr: { bucket: '1k', daysAgo: 0 } })).toEqual({ kind: 'pr', bucket: '1k', when: 'today' });
     expect(readinessHighlight({ ...base, pr: { bucket: '5k', daysAgo: 2 }, race: { name: '10 ק״מ', daysLeft: 4 } }))
       .toEqual({ kind: 'race', name: '10 ק״מ', daysLeft: 4 });
@@ -93,5 +100,9 @@ describe('projectionVerdict', () => {
     expect(projectionVerdict(-30)).toBe('warn');
     expect(projectionVerdict(-20)).toBe('inRange');
     expect(projectionVerdict(-3)).toBe('room');
+    // Held by the gate: never "room" (or "carry on"); "warn" already says take load off.
+    expect(projectionVerdict(-3, true)).toBe('hold');
+    expect(projectionVerdict(-20, true)).toBe('hold');
+    expect(projectionVerdict(-30, true)).toBe('warn');
   });
 });

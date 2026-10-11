@@ -7,6 +7,7 @@ import { FORM_BANDS, signed } from '@/lib/academy/form-bands';
 import { LEARNING_DAYS } from '@/lib/academy/pmc';
 import type { TodayForm } from '@/lib/academy/trainee-today';
 import { traineeProgressUrl } from '@/lib/academy/deep-links';
+import { hrEstimateKey, type TestState } from '@/lib/academy/test-state';
 import { BAND_TILE, CARD, Chevron, RICH } from './ui';
 import { ReconnectLink, useNoNumberText } from './NoNumberCard';
 
@@ -17,8 +18,10 @@ import { ReconnectLink, useNoNumberText } from './NoNumberCard';
 // are in, the honest "still learning you, N more days" instead (1ג); with too many runs
 // that could not be priced, "not enough data". Never a 0.
 
-export function FormCard({ form, when, gender, showBands }: {
+export function FormCard({ form, when, gender, showBands, testKind }: {
   form: TodayForm;
+  /** test-state.ts: the "הערכה לפי דופק" line agrees with the test line (pending, 2000 m). */
+  testKind?: TestState['kind'] | null;
   when: 'today' | 'tomorrow';
   gender: 'male' | 'female' | null;
   /** The 5-band scale — on a workout day (mockup 1); the rest day's card is shorter (1ב). */
@@ -110,7 +113,7 @@ export function FormCard({ form, when, gender, showBands }: {
           <p className="text-[16px] font-black text-ink-900">{tt(strip(band.longKey) as never, { gender: g } as never)}</p>
           {/* Two lines at most (mockup 1): the copy is written to fit, the clamp keeps it so. */}
           <p className="line-clamp-2 text-[13px] leading-normal text-ink-500">{tt(strip(form.sentenceKey) as never, { gender: g } as never)}</p>
-          {form.basis === 'hr' && <p className="text-[12px] font-bold text-ink-400">{t('hrEstimate')}</p>}
+          {form.basis === 'hr' && <p className="text-[12px] font-bold text-ink-400">{t(hrEstimateKey(testKind))}</p>}
         </div>
       </div>
       {showBands && (

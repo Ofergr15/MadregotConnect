@@ -143,6 +143,8 @@ export function HighlightLine({ row, today }: { row: Pick<ReadinessRow, 'highlig
   switch (h.kind) {
     case 'noFeed':
       return <>{h.feed === 'failed' ? t('noFeedFailed', { provider: h.provider }) : t.rich('noFeedStale', { ...M, provider: h.provider, n: h.days ?? 0 })}</>;
+    case 'pain':
+      return <>{t.rich('pain', { ...M, when: h.when, n: h.days })}</>;
     case 'veryTiredRhr':
       return <>{t('veryTiredRhr', { gender })}</>;
     case 'rampTooFast':

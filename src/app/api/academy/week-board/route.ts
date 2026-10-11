@@ -261,6 +261,7 @@ export async function GET(request: Request) {
       loadOk: !!loads && loadStatus(loads.rows, today, { feed: feeds.run, pending: loads.pending }).kind === 'ok',
       test,
       canWatch: feeds.canWatch,
+      feedGap: feedBroken(feeds.run) && (feedLostOn == null || weekEnd >= feedLostOn) ? feeds.run : null,
       joinedOn,
       // The coach plans from this screen; the trainee only reads it.
       canPlan: caller.athleteId !== athleteId && (caller.isStaff || caller.isSuperUser),

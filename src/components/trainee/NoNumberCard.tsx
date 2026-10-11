@@ -56,3 +56,29 @@ export function ReconnectLink() {
     </Link>
   );
 }
+
+/**
+ * The run feed stopped: said ABOVE the done-of-planned tiles (2) and the month's km card
+ * (3), so their "0 מתוך 5" never reads as zero done. The reconnect link for the trainee.
+ */
+export function FeedGapNotice({ feed, provider, days, reconnect }: {
+  feed: 'failed' | 'stale';
+  provider: 'garmin' | 'strava';
+  days: number | null;
+  reconnect: boolean;
+}) {
+  const t = useTranslations('trainee.home.form');
+  const tw = useTranslations('trainee.week');
+  return (
+    <div role="status" className="flex items-start gap-[11px] rounded-[18px] bg-[#FDF0E2] px-3.5 py-2.5">
+      <span aria-hidden className="w-6 shrink-0 pt-0.5 text-center text-[19px]">⌚</span>
+      <div className="min-w-0 flex-1">
+        <b className="block text-[14.5px] font-extrabold text-ink-900">
+          {feed === 'failed' ? t('noFeed.failed', { provider }) : t.rich('noFeed.stale', { ...RICH, provider, n: days ?? 0 })}
+        </b>
+        <small className="mt-px block text-[12.5px] leading-snug text-[#A8510A]">{tw('noFeedSay', { feed })}</small>
+        {reconnect && <ReconnectLink />}
+      </div>
+    </div>
+  );
+}

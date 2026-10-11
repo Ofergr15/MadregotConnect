@@ -14,6 +14,7 @@ import { N } from '@/components/academy/book/ui';
 import { BoardViewSwitch } from './WeekRows';
 import { WeeklyLoadChart } from './WeeklyLoadChart';
 import { KmCard } from './KmCard';
+import { FeedGapNotice } from './NoNumberCard';
 
 /** Weeks with running before the km chart says anything (fewer is one bar on an empty axis). */
 const KM_MIN_WEEKS = 3;
@@ -51,6 +52,8 @@ export function MonthBoard({ athleteId, initialMonth, onView, onOpenDay, topBar 
   const { data, error } = useApi<MonthBoardPayload>(`/api/academy/month?${q}${month ? `&month=${month}` : ''}`, { keepPreviousData: true });
   const { data: load } = useApi<LoadPayload>(`/api/academy/load?${q}&range=6w`);
   const loadOk = load?.status.kind === 'ok' && load.weekly.length >= 2;
+  // The run feed stopped (pmc.ts gateStatus): said above the km card, whose done side greys.
+  const gap = load?.status.kind === 'noFeed' ? load.status : null;
   // The km card is the fallback, so its (heavier) source is read only when it is needed.
   const { data: home } = useApi<TraineeHome>(load && !loadOk ? `/api/academy/me?${q}` : null);
 
@@ -122,6 +125,8 @@ export function MonthBoard({ athleteId, initialMonth, onView, onOpenDay, topBar 
         })}
       </div>
 
+      {gap && <FeedGapNotice feed={gap.feed} provider={gap.provider} days={gap.days} reconnect />}
+
       {loadOk ? (
         <WeeklyLoadChart weekly={load!.weekly} />
       ) : home?.km && home.week && home.km.weeks.filter(w => w.km > 0).length < KM_MIN_WEEKS ? (
@@ -142,6 +147,7 @@ export function MonthBoard({ athleteId, initialMonth, onView, onOpenDay, topBar 
           isCurrentWeek
           completed={home.week.completedCount}
           planned={home.week.plannedCount}
+          muted={!!gap}
         />
       ) : null}
 

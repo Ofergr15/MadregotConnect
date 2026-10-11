@@ -176,6 +176,16 @@ describe('todayRace and todayYesterday', () => {
       .toEqual({ activityId: 'y', title: 'קל 5 ק״מ', km: 5, load: 31, source: 'hr' });
     expect(todayYesterday({ rows, distances: {}, today: shiftDate(TODAY, 2), title: null })).toBeNull();
   });
+
+  it('a run that could not be priced is still yesterday\'s row, with its km and why (round 2, new3)', () => {
+    const rows = [{ activityId: 'y', date: shiftDate(TODAY, -1), load: null, source: 'none' as const }];
+    expect(todayYesterday({ rows, distances: { y: 6230 }, avgHr: { y: 149 }, today: TODAY, title: null }))
+      .toEqual({ activityId: 'y', title: null, km: 6.2, load: null, source: 'none', noLoad: 'hrLearning' });
+    expect(todayYesterday({ rows, distances: { y: 6230 }, today: TODAY, title: null })!.noLoad).toBe('noHr');
+    // A priced run the same day carries the row, as before.
+    const both = [...rows, { activityId: 'p', date: shiftDate(TODAY, -1), load: 20, source: 'hr' as const }];
+    expect(todayYesterday({ rows: both, distances: { y: 6230, p: 3000 }, today: TODAY, title: null })).toMatchObject({ activityId: 'p', load: 20 });
+  });
 });
 
 describe('buildTraineeToday', () => {

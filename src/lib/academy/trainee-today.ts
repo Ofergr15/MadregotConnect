@@ -8,6 +8,7 @@
 // components/trainee. No DB, no clock (every function that needs "today" is given it), no
 // next-intl (keys and numbers only; the components translate with the trainee's gender).
 
+import { noLoadReason, type NoLoadReason } from './workout-extras';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import type { PaceUpdateCard } from './coach-tools-payload';
 import type { TestInvitation } from './testInvite';
@@ -327,8 +328,11 @@ export interface TodayYesterday {
   /** The planned session's name when yesterday had one ("קל 5 ק״מ"), else null. */
   title: string | null;
   km: number;
-  load: number;
+  /** Null: yesterday's run could not be priced yet — `noLoad` says why. */
+  load: number | null;
   source: LoadSource;
+  /** Why the run has no ⚡ (workout-extras.ts): it has HR and the estimate is learning, or it has none. */
+  noLoad?: NoLoadReason;
 }
 
 /**
@@ -339,12 +343,28 @@ export interface TodayYesterday {
 export function todayYesterday(input: {
   rows: Array<LoadRow & { activityId: string }>;
   distances: Record<string, number>;
+  /** The runs' average HR by activity id: a run that has one is not told "ריצה עם דופק". */
+  avgHr?: Record<string, number | null>;
   today: string;
   title: string | null;
 }): TodayYesterday | null {
   const y = shiftDate(input.today, -1);
   const priced = input.rows.filter(r => r.date === y && r.load != null && r.source !== 'not_run' && r.source !== 'none');
-  if (!priced.length) return null;
+  if (!priced.length) {
+    // A run that could not be priced is still yesterday's run: its km and why there is no
+    // ⚡ (never a silently dropped row — missing-data rule).
+    const unpriced = input.rows.filter(r => r.date === y && r.source === 'none');
+    if (!unpriced.length) return null;
+    const main = [...unpriced].sort((a, b) => (input.distances[b.activityId] ?? 0) - (input.distances[a.activityId] ?? 0))[0];
+    return {
+      activityId: main.activityId,
+      title: input.title,
+      km: Math.round((input.distances[main.activityId] ?? 0) / 100) / 10,
+      load: null,
+      source: 'none',
+      noLoad: noLoadReason(input.avgHr?.[main.activityId] ?? null),
+    };
+  }
   const main = [...priced].sort((a, b) => (input.distances[b.activityId] ?? 0) - (input.distances[a.activityId] ?? 0))[0];
   return {
     activityId: main.activityId,
@@ -417,6 +437,8 @@ export interface TodayInput {
   race: TodayRace | null;
   yesterdayTitle: string | null;
   distances: Record<string, number>;
+  /** Average HR by activity id (yesterday's unpriced run says why it has no ⚡). */
+  avgHr?: Record<string, number | null>;
 }
 
 /** Everything the home draws, decided. */
@@ -472,7 +494,7 @@ export function buildTraineeToday(input: TodayInput): TraineeToday {
     test: input.test ?? (input.hasUsableTest ? { kind: 'ok', date: input.tests[input.tests.length - 1]?.date ?? today, ageDays: 0, old: false } : { kind: 'none' }),
     feed: input.feed ?? { run: { kind: 'none' }, night: { kind: 'none' } },
     canWatch: input.canWatch ?? true,
-    yesterday: form.status === 'ok' ? null : todayYesterday({ rows: input.loads, distances: input.distances, today, title: input.yesterdayTitle }),
+    yesterday: form.status === 'ok' ? null : todayYesterday({ rows: input.loads, distances: input.distances, avgHr: input.avgHr, today, title: input.yesterdayTitle }),
     weekStart: input.weekStartOf(date),
   };
 }

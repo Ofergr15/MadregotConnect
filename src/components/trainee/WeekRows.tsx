@@ -13,6 +13,7 @@ import { N, ProfileBar, clockText, hoursText, kmText } from '@/components/academ
 import { WEEKDAY_KEYS, workoutModel } from '@/components/academy/book/WeekBoard';
 import { FACES } from './FeelAndTalk';
 import { C, SHADOW, StructureText, Tag } from './ui';
+import { FeedGapNotice } from './NoNumberCard';
 
 // ── The week board's v2 pieces (trainee-experience-v2 screen 2) ───────────────────────────
 //
@@ -46,15 +47,16 @@ export function BoardViewSwitch({ view, onChange }: { view: BoardView; onChange:
   );
 }
 
-function Tile({ label, done, planned, fraction }: { label: string; done: string; planned: string; fraction: number }) {
+function Tile({ label, done, planned, fraction, muted = false }: { label: string; done: string; planned: string; fraction: number; muted?: boolean }) {
   const t = useTranslations('trainee.week.tile');
   return (
     <div className={TILE}>
       <small className="block text-[11.5px] font-bold text-ink-400">{label}</small>
-      <b className="block text-[18px] font-black leading-[1.2] text-ink-900"><N>{done}</N></b>
+      {/* muted: the run feed stopped, so "done" is not the whole truth — grey, never a confident 0. */}
+      <b className={cn('block text-[18px] font-black leading-[1.2]', muted ? 'text-ink-300' : 'text-ink-900')}><N>{done}</N></b>
       <em className="block whitespace-nowrap text-[11px] not-italic text-ink-400">{t.rich('of', { m: (c) => <N>{c}</N>, planned })}</em>
       <div className="mt-[5px] h-[5px] overflow-hidden rounded-full bg-[#F4F4F8]">
-        <i className="block h-full rounded-full bg-brand-600" style={{ width: `${Math.round(fraction * 100)}%` }} />
+        <i className={cn('block h-full rounded-full', muted ? 'bg-ink-300' : 'bg-brand-600')} style={{ width: `${Math.round(fraction * 100)}%` }} />
       </div>
     </div>
   );
@@ -64,19 +66,25 @@ function Tile({ label, done, planned, fraction }: { label: string; done: string;
 export function WeekTilesV2({ board }: { board: WeekBoard }) {
   const t = useTranslations('trainee.week.tile');
   const { totals } = board;
+  const gap = board.feedGap ?? null;
   const showLoad = !!board.loadOk && totals.plannedLoad != null && totals.doneLoad != null;
+  // The feed stopped: a zero is not known to be a zero ("—"); what did arrive stays, greyed.
+  const doneText = (zero: boolean, text: string) => (gap && zero ? '—' : text);
   return (
-    <div className={cn('grid gap-[7px]', showLoad ? 'grid-cols-4' : 'grid-cols-3')}>
-      {/* The plan in whole kilometres, as the mockup prints it ("16.3 · מתוך 55"): a session
-          sized by its legs is 10.6 km, and "מתוך 44.6" reads as a measurement. */}
-      <Tile label={t('km')} done={kmText(totals.doneKm * 1000)} planned={kmText(Math.round(totals.plannedKm) * 1000)} fraction={meterFraction(totals.doneKm, totals.plannedKm)} />
-      <Tile label={t('workouts')} done={String(totals.doneCount)} planned={String(totals.plannedCount)} fraction={meterFraction(totals.doneCount, totals.plannedCount)} />
-      {/* No test: the plan's minutes are unknown (they come from a pace), so "—", not "0:00". */}
-      <Tile label={t('time')} done={hoursText(totals.doneSec)} planned={totals.plannedSec > 0 || !totals.plannedCount ? hoursText(totals.plannedSec) : '—'} fraction={meterFraction(totals.doneSec, totals.plannedSec)} />
-      {showLoad && (
-        <Tile label={t('load')} done={String(totals.doneLoad)} planned={String(totals.plannedLoad)} fraction={meterFraction(totals.doneLoad!, totals.plannedLoad!)} />
-      )}
-    </div>
+    <>
+      {gap && <FeedGapNotice feed={gap.kind} provider={gap.provider} days={gap.days} reconnect={!board.canPlan} />}
+      <div className={cn('grid gap-[7px]', showLoad ? 'grid-cols-4' : 'grid-cols-3')}>
+        {/* The plan in whole kilometres, as the mockup prints it ("16.3 · מתוך 55"): a session
+            sized by its legs is 10.6 km, and "מתוך 44.6" reads as a measurement. */}
+        <Tile muted={!!gap} label={t('km')} done={doneText(totals.doneKm <= 0, kmText(totals.doneKm * 1000))} planned={kmText(Math.round(totals.plannedKm) * 1000)} fraction={meterFraction(totals.doneKm, totals.plannedKm)} />
+        <Tile muted={!!gap} label={t('workouts')} done={doneText(totals.doneCount <= 0, String(totals.doneCount))} planned={String(totals.plannedCount)} fraction={meterFraction(totals.doneCount, totals.plannedCount)} />
+        {/* No test: the plan's minutes are unknown (they come from a pace), so "—", not "0:00". */}
+        <Tile muted={!!gap} label={t('time')} done={doneText(totals.doneSec <= 0, hoursText(totals.doneSec))} planned={totals.plannedSec > 0 || !totals.plannedCount ? hoursText(totals.plannedSec) : '—'} fraction={meterFraction(totals.doneSec, totals.plannedSec)} />
+        {showLoad && (
+          <Tile label={t('load')} done={String(totals.doneLoad)} planned={String(totals.plannedLoad)} fraction={meterFraction(totals.doneLoad!, totals.plannedLoad!)} />
+        )}
+      </div>
+    </>
   );
 }
 
