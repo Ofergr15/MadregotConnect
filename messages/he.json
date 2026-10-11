@@ -4222,7 +4222,7 @@
       "effort": "כמה קשה היה?",
       "effortScale": "<m>1</m> קל מאוד · <m>10</m> מקסימום",
       "pain": "כאב או אי נוחות?",
-      "painSub": "אם כן, <bdi>{name}</bdi> מקבל התראה",
+      "painSub": "אם כן, <bdi>{name}</bdi> {gender, select, female {מקבלת} other {מקבל}} התראה",
       "painSubGeneric": "אם כן, המאמן מקבל התראה",
       "talk": "השיחה על האימון הזה",
       "allTalk": "כל השיחה",

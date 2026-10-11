@@ -131,6 +131,7 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
             dayLabel={day}
             workoutName={workout.name}
             coachName={board.coachName}
+            coachGender={board.coachGender ?? null}
             data={data}
             onClose={() => setFeeling(false)}
             onSaved={() => void mutate()}

@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { feedbackAlertCopy } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
+import { notifyAthlete } from '@/lib/push';
+import { coachIdsOf } from '@/lib/academy/trainee-coaches';
+import { academyThreadUrl } from '@/lib/academy/deep-links';
 import { requireCallerForAthlete, requireStaffCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
@@ -346,13 +349,28 @@ export async function POST(request: Request) {
     if (denied) return denied;
 
     const supabase = createServerClient();
+    const garminActivityId = activityId ? Number(activityId) : null;
+
+    // What was saved before, so a re-save of the same answer does not alert anyone twice:
+    // each flag below fires only when it turns on.
+    type Before = { pain?: boolean | null; difficulty?: number | null; wants_feedback?: boolean | null };
+    let before: Before | null = null;
+    if (garminActivityId != null) {
+      const { data: prev } = await supabase
+        .from('workout_feedback')
+        .select('pain, difficulty, wants_feedback')
+        .eq('athlete_id', athleteId)
+        .eq('garmin_activity_id', garminActivityId)
+        .maybeSingle();
+      before = (prev as Before | null) ?? null;
+    }
 
     const { error } = await supabase
       .from('workout_feedback')
       .upsert(
         {
           athlete_id: athleteId,
-          garmin_activity_id: activityId ? Number(activityId) : null,
+          garmin_activity_id: garminActivityId,
           difficulty: difficulty ?? null,
           feel: feel ?? null,
           pain: pain ?? null,
@@ -366,7 +384,10 @@ export async function POST(request: Request) {
 
     // Team alert (PRD §1): high difficulty (>=9), reported pain, or an explicit
     // request for feedback → push the coaches so they can reach out.
-    const flag = (difficulty != null && difficulty >= 9) || pain === true || wantsFeedback === true;
+    const painNew = pain === true && before?.pain !== true;
+    const hardNew = difficulty != null && difficulty >= 9 && !(Number(before?.difficulty) >= 9);
+    const askNew = wantsFeedback === true && before?.wants_feedback !== true;
+    const flag = painNew || hardNew || askNew;
     if (flag) {
       // Same row already loaded for the alert's name — widen to avatar_url too
       // (no new join/table) so the coach's push shows the flagging athlete's
@@ -392,6 +413,24 @@ export async function POST(request: Request) {
         icon: athlete?.avatar_url?.trim() || undefined,
         copy: (locale) => feedbackAlertCopy(locale, { athleteName: name, reason }),
       });
+      // An academy trainee's own coaches hear about pain too (screen 6: "אם כן, Rina מקבלת
+      // התראה") — the staff routing above reaches the club's admins, not the 1:1 coach.
+      // Best-effort: a trainee with no coach, or a lookup that fails, costs only this.
+      if (painNew) {
+        try {
+          const coaches = (await coachIdsOf(supabase, athleteId)).filter(id => id !== athleteId);
+          await Promise.all(coaches.map(coachId => notifyAthlete({
+            athleteId: coachId,
+            kind: 'feedback_alert',
+            url: academyThreadUrl({ recipientIsStaff: true, traineeId: athleteId }),
+            tag: `feedback-alert-${athleteId}`,
+            category: 'coach',
+            actorAthleteId: athleteId,
+            icon: athlete?.avatar_url?.trim() || undefined,
+            copy: (locale) => feedbackAlertCopy(locale, { athleteName: name, reason }),
+          }).catch(() => {})));
+        } catch { /* best-effort */ }
+      }
     }
 
     return NextResponse.json({ success: true });

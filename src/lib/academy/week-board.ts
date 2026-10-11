@@ -51,6 +51,8 @@ export interface WeekBoard {
   today: string;
   athlete: { id: string; name: string };
   coachName: string | null;
+  /** The coach's gender, for the verbs that name them ("Rina מקבלת התראה"). Optional: older payloads. */
+  coachGender?: string | null;
   /** The trainee's 30-minute threshold — what the steps are drawn against. Null: no test. */
   thresholdSec: number | null;
   /** The threshold the steps' paces were written for: the trainee's own, or a club lane's. */

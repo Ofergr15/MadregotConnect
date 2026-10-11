@@ -4222,7 +4222,7 @@
       "effort": "How hard was it?",
       "effortScale": "<m>1</m> very easy · <m>10</m> max",
       "pain": "Pain or discomfort?",
-      "painSub": "If so, <bdi>{name}</bdi> gets notified",
+      "painSub": "{gender, select, other {If so, <bdi>{name}</bdi> gets notified}}",
       "painSubGeneric": "If so, your coach gets notified",
       "talk": "The conversation about this workout",
       "allTalk": "Whole conversation",

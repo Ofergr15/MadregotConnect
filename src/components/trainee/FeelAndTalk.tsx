@@ -29,13 +29,14 @@ interface ThreadPayload {
   messages: ThreadMessage[];
 }
 
-export function FeelAndTalk({ athleteId, date, dayLabel, workoutName, coachName, data, onClose, onSaved }: {
+export function FeelAndTalk({ athleteId, date, dayLabel, workoutName, coachName, coachGender, data, onClose, onSaved }: {
   athleteId: string;
   date: string;
   /** "שלישי". */
   dayLabel: string;
   workoutName: string;
   coachName: string | null;
+  coachGender?: string | null;
   data: WorkoutResponse;
   onClose: () => void;
   onSaved?: () => void;
@@ -94,6 +95,10 @@ export function FeelAndTalk({ athleteId, date, dayLabel, workoutName, coachName,
   };
 
   const messages = thread?.messages ?? [];
+  // The answer is stored against the run (workout_feedback is keyed on its activity id;
+  // every source has one — Strava, Apple and manual runs carry a synthetic id). Without a
+  // run there is nothing to answer about, so the form is not offered.
+  const canAnswer = data.activity?.garminId != null;
   const coachFirst = coachName?.split(' ')[0] ?? null;
 
   return (
@@ -106,11 +111,11 @@ export function FeelAndTalk({ athleteId, date, dayLabel, workoutName, coachName,
         footer={
           <>
             {failed && <p className="text-center text-[13px] font-bold text-[#8A4308]">{t('saveFailed')}</p>}
-            <PrimaryButton onClick={save} busy={busy} disabled={feel == null && effort == null && !pain}>{t('save')}</PrimaryButton>
+            {canAnswer && <PrimaryButton onClick={save} busy={busy} disabled={feel == null && effort == null && !pain}>{t('save')}</PrimaryButton>}
           </>
         }
       >
-        <section className={cn(CARD, 'px-4 py-3.5')}>
+        {canAnswer && <section className={cn(CARD, 'px-4 py-3.5')}>
           <div className="flex items-baseline justify-between gap-2">
             <h2 className="text-[15px] font-extrabold text-ink-900">{t('feel')}</h2>
             {fromWatch && <span className="text-[12.5px] font-bold text-ink-400">{t('fromWatch')}</span>}
@@ -154,7 +159,7 @@ export function FeelAndTalk({ athleteId, date, dayLabel, workoutName, coachName,
             <div>
               <h2 className="text-[15px] font-extrabold text-ink-900">{t('pain')}</h2>
               <p className="text-[12.5px] font-semibold text-ink-400">
-                {coachFirst ? t.rich('painSub', { ...RICH, name: coachFirst }) : t('painSubGeneric')}
+                {coachFirst ? t.rich('painSub', { ...RICH, name: coachFirst, gender: coachGender === 'female' ? 'female' : 'other' }) : t('painSubGeneric')}
               </p>
             </div>
             <button
@@ -170,7 +175,7 @@ export function FeelAndTalk({ athleteId, date, dayLabel, workoutName, coachName,
               </span>
             </button>
           </div>
-        </section>
+        </section>}
 
         <div className="flex items-baseline justify-between gap-2 px-1">
           <span className="text-[12.5px] font-bold text-ink-400">{t('talk')}</span>

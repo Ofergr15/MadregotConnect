@@ -94,10 +94,12 @@ export async function GET(request: Request) {
     const thresholdSec = thresholds[athleteId] ?? null;
 
     let coachName: string | null = null;
+    let coachGender: string | null = null;
     const coachId = (me.data as { academy_coach_id?: string | null } | null)?.academy_coach_id;
     if (coachId) {
-      const { data } = await supabase.from('athletes').select('name').eq('id', coachId).maybeSingle();
+      const { data } = await supabase.from('athletes').select('name, gender').eq('id', coachId).maybeSingle();
       coachName = (data as { name?: string } | null)?.name ?? null;
+      coachGender = (data as { gender?: string | null } | null)?.gender ?? null;
     }
 
     const onWatch = new Set(
@@ -197,6 +199,7 @@ export async function GET(request: Request) {
       today,
       athlete: { id: athleteId, name: (me.data as { name?: string } | null)?.name ?? report.athletes[0]?.name ?? '' },
       coachName,
+      coachGender,
       thresholdSec,
       referenceSec,
       fromClub,
