@@ -119,6 +119,27 @@ describe('ensureActivityLoads', () => {
     expect(db.tables.activity_loads.every(x => x.load > 0)).toBe(true);
   });
 
+  it('runs stored with no load before a max HR existed are priced again once a 3rd run brings one', async () => {
+    const db = setup();
+    for (let d = 1; d <= 5; d += 1) db.tables.athlete_wellness.push({ athlete_id: db.athlete, date: `2026-10-0${d}`, resting_hr: 57 });
+    addRun(db, '2026-09-24', 5, 370); addRun(db, '2026-09-30', 5, 370);
+    await ensureActivityLoads(db.client, db.athlete, { today: '2026-10-01' });
+    expect(db.tables.activity_loads.map(x => x.source)).toEqual(['none', 'none']);
+    addRun(db, '2026-10-06', 5, 370);
+    const r = await ensureActivityLoads(db.client, db.athlete, { today: TODAY });
+    expect(r.rows).toHaveLength(3);
+    expect(db.tables.activity_loads.every(x => x.source === 'hr' && x.load > 0)).toBe(true);
+    // Priced: nothing is stale any more, so the next read prices nothing.
+    expect((await ensureActivityLoads(db.client, db.athlete, { today: TODAY })).rows).toHaveLength(0);
+  });
+
+  it('a none row is stale only when the HR basis now exists for it', () => {
+    const none = { formula_version: LOAD_VERSION, basis_test_date: null, source: 'none' };
+    expect(isStale(none, null)).toBe(false);
+    expect(isStale(none, null, true)).toBe(true);
+    expect(isStale({ ...none, source: 'hr' }, null, true)).toBe(false);
+  });
+
   it('a row from an older formula is stale', () => {
     expect(isStale({ formula_version: LOAD_VERSION - 1, basis_test_date: null, source: 'hr' }, null)).toBe(true);
     expect(isStale({ formula_version: LOAD_VERSION, basis_test_date: '2026-09-16', source: 'pace' }, '2026-09-16')).toBe(false);

@@ -132,27 +132,33 @@ export type LoadStatus =
  * Whether the numbers mean anything yet.
  *
  * - `learning`: fewer than 42 days since the first priced run (mockup 1ג "19 מתוך 42
- *   ימים · לומד אותך, עוד 23 ימים"). With no priced run at all, also learning — unless
- *   there are runs and none of them could be priced, which is `insufficient`.
- * - `insufficient`: more than 20% of the last 42 days' runs have no load. `not_run`
- *   (bike, swim, gym) is not a run and does not count either way.
+ *   ימים · לומד אותך, עוד 23 ימים"). With no priced run yet, the days count from the
+ *   first run of any kind: a new trainee's first runs may wait on a max HR (it needs 3
+ *   runs) and are priced once it exists, so they are learning, not missing.
+ * - `insufficient`: more than 20% of the last 42 days' runs have no load, once the
+ *   learning days are over. `not_run` (bike, swim, gym) is not a run and does not count
+ *   either way.
  */
 export function loadStatus(rows: LoadRow[], today: string): LoadStatus {
   const windowFrom = shiftDate(today, -LEARNING_DAYS);
   let first: string | null = null;
+  let firstRun: string | null = null;
   let runs = 0;
   let unpriced = 0;
   for (const r of rows) {
     if (r.date > today) continue;
     if (PRICED.has(r.source) && r.load != null && (!first || r.date < first)) first = r.date;
+    if (RUNS.has(r.source) && (!firstRun || r.date < firstRun)) firstRun = r.date;
     if (r.date >= windowFrom && r.date < today && RUNS.has(r.source)) {
       runs += 1;
       if (r.source === 'none' || r.load == null) unpriced += 1;
     }
   }
-  if (!first) return runs > 0 ? { kind: 'insufficient' } : { kind: 'learning', daysLeft: LEARNING_DAYS, daysSeen: 0 };
-  const daysSeen = daysBetween(first, today);
+  const start = first ?? firstRun;
+  if (!start) return { kind: 'learning', daysLeft: LEARNING_DAYS, daysSeen: 0 };
+  const daysSeen = daysBetween(start, today);
   if (daysSeen < LEARNING_DAYS) return { kind: 'learning', daysLeft: LEARNING_DAYS - daysSeen, daysSeen };
+  if (!first) return { kind: 'insufficient' };
   if (runs > 0 && unpriced / runs > INSUFFICIENT_SHARE) return { kind: 'insufficient' };
   return { kind: 'ok' };
 }

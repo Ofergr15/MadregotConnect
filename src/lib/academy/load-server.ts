@@ -49,7 +49,7 @@ const LIST_PAGE = 1000;
 const RHR_DAYS = 30;
 const RHR_MIN_MORNINGS = 3;
 
-const LIGHT_COLUMNS = 'id, start_time, activity_type, max_hr';
+const LIGHT_COLUMNS = 'id, start_time, activity_type, max_hr, average_hr';
 const HEAVY_COLUMNS = 'id, start_time, activity_type, distance, duration, moving_duration, average_hr, max_hr, laps, splits';
 
 /** One priced activity, as stored or as computed. */
@@ -166,7 +166,7 @@ async function readAll<T>(page: (from: number, to: number) => PromiseLike<{ data
   }
 }
 
-interface LightAct { id: string; start_time: string; activity_type: string | null; max_hr: number | null }
+interface LightAct { id: string; start_time: string; activity_type: string | null; max_hr: number | null; average_hr?: number | null }
 
 /**
  * Max HR for the HR fallback: as of TODAY, over the last 180 days, for every run priced
@@ -212,13 +212,20 @@ function expectedBasis(act: { start_time: string; activity_type: string | null }
  * one it was priced against — a new test, an excluded one, or an HR row a test now covers
  * (stored with no basis, now there is one). A row from the stored `not_run` side only
  * goes stale with the formula.
+ *
+ * `hrNow`: the heart-rate basis (a max HR and a resting HR) exists today and this run
+ * carries heart rate. A run stored as `none` before it existed — a new trainee's first two
+ * runs, priced before a third gave a max — is priced again then, or "learning" would wait
+ * on runs that were never going to be re-read.
  */
 export function isStale(
   row: { formula_version?: number | null; basis_test_date?: string | null; source?: string | null },
   expected: string | null,
+  hrNow = false,
 ): boolean {
   if ((Number(row.formula_version) || 0) < LOAD_VERSION) return true;
   if (row.source === 'not_run') return false;
+  if (row.source === 'none' && hrNow) return true;
   return (row.basis_test_date ? String(row.basis_test_date).slice(0, 10) : null) !== expected;
 }
 
@@ -297,13 +304,14 @@ export async function ensureActivityLoads(
 
   const tests = testsBy[athleteId] || [];
   const existing = new Map<string, any>(existingRes.data.map((r: any) => [String(r.activity_id), r]));
-  const todo = listRes.data.filter((a) => {
-    const row = existing.get(String(a.id));
-    return !row || isStale(row, expectedBasis(a, tests));
-  });
-  const batch = opts.newestFirst ? todo.slice(Math.max(0, todo.length - maxNew)) : todo.slice(0, maxNew);
   const maxHr = maxHrNow(listRes.data, today);
   const nights = nightsBy.get(athleteId) || [];
+  const hrBasis = maxHr != null && nights.some(n => Number(n.resting_hr) > 0);
+  const todo = listRes.data.filter((a) => {
+    const row = existing.get(String(a.id));
+    return !row || isStale(row, expectedBasis(a, tests), hrBasis && Number(a.average_hr) > 0);
+  });
+  const batch = opts.newestFirst ? todo.slice(Math.max(0, todo.length - maxNew)) : todo.slice(0, maxNew);
 
   const rows: ActivityLoadRow[] = [];
   for (let i = 0; i < batch.length; i += PAGE) {
