@@ -6,6 +6,7 @@ import { israelToday } from '@/lib/utils';
 import { REPORT_RUN_TYPES, israelDateOf } from '@/lib/reports/last-7-days';
 import type { Person } from '@/lib/admin/people';
 import { REMOVED_STATUS } from '@/lib/admin/entry-queue';
+import { fetchAllRows } from '@/lib/supabase/paginate';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -59,13 +60,19 @@ export async function GET(request: Request) {
         .or(NOT_ADMIN)
         .order('name'),
       supabase.from('groups').select('id, name').eq('coach_id', COACH_ID),
-      supabase
+      // Every run in the window, paged. `.limit(5000)` read as "enough" but PostgREST
+      // returns at most 1000 rows, and the club logs ~1,600 activities in 60 days:
+      // a member whose latest run fell outside the newest thousand showed as "no
+      // run in 60 days" (lib/supabase/paginate.ts, with the id tiebreak it asks for).
+      fetchAllRows<{ athlete_id: string; start_time: string }>((from, to) => supabase
         .from('athlete_activities')
         .select('athlete_id, start_time')
         .in('activity_type', REPORT_RUN_TYPES)
         .gte('start_time', since)
         .order('start_time', { ascending: false })
-        .limit(5000),
+        .order('id', { ascending: true })
+        .range(from, to))
+        .then((data) => ({ data, error: null }), (error) => ({ data: null, error })),
       supabase.from('push_subscriptions').select('athlete_id, last_success_at'),
     ]);
     if (athletes.error) throw athletes.error;
