@@ -19,8 +19,21 @@ describe('talkCounts', () => {
       { text: 'last week', workout_date: '2026-10-08' },
       { text: 'untagged' },
       { text: 'Saturday', workout_date: END },
-    ], WEEK, END);
+    ], WEEK, END, 'shahar');
     expect(Object.fromEntries(counts)).toEqual({ '2026-10-13': 2, [END]: 1 });
+  });
+
+  it('the coach\'s untagged reply to a tagged message counts for that workout; not after an untagged one or two days on', () => {
+    const at = (h: number) => new Date(Date.UTC(2026, 9, 13, 9) + h * 3_600_000).toISOString();
+    const counts = talkCounts([
+      { text: 'רואה! שיא', created_at: at(1), user: { id: 'sahar' } },
+      { text: 'האחרונה הרגישה קלה', created_at: at(0), user: { id: 'shahar' }, workout_date: '2026-10-13' },
+      { text: 'משהו אחר', created_at: at(2), user: { id: 'shahar' } },
+      { text: 'ענית לזה?', created_at: at(3), user: { id: 'sahar' } },
+      { text: 'שאלה על חמישי', created_at: at(4), user: { id: 'shahar' }, workout_date: '2026-10-15' },
+      { text: 'לאט מדי', created_at: at(60), user: { id: 'sahar' } },
+    ], WEEK, END, 'shahar');
+    expect(Object.fromEntries(counts)).toEqual({ '2026-10-13': 2, '2026-10-15': 1 });
   });
 });
 

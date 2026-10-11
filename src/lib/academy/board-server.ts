@@ -20,7 +20,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { CHANNEL_TYPE, getStreamServerClient } from '@/lib/stream/server';
 import { filterQualifyingRuns } from '@/lib/prs/pr-buckets';
 import { RECORD_MIN_M } from './records';
-import { academyChannelId, type StreamMessageLike } from './thread';
+import { academyChannelId, replyDates, type StreamMessageLike } from './thread';
 import { personalRecord } from './workout-extras';
 import { shiftDate } from './load';
 
@@ -52,13 +52,27 @@ export interface BoardMarks {
 }
 
 /**
- * Count the thread's messages tagged with each day of the week, the coach's review cards
- * excluded (they are counted from Postgres, which is their source of truth).
+ * Count the thread's messages about each day of the week — tagged, or a coach's reply to a
+ * tagged one (replyDates) — the coach's review cards excluded (they are counted from
+ * Postgres, which is their source of truth).
  */
-export function talkCounts(messages: StreamMessageLike[], weekStart: string, weekEnd: string): Map<string, number> {
+export function talkCounts(messages: StreamMessageLike[], weekStart: string, weekEnd: string, athleteId: string): Map<string, number> {
   const out = new Map<string, number>();
-  for (const m of messages) {
-    const date = typeof m.workout_date === 'string' ? m.workout_date : null;
+  // Oldest first, so a coach's untagged reply counts for the workout it answers (replyDates).
+  const sorted = messages
+    .map(m => {
+      const t = m.created_at ? new Date(m.created_at).getTime() : NaN;
+      return { m, at: Number.isNaN(t) ? '' : new Date(t).toISOString() };
+    })
+    .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  const dates = replyDates(sorted.map(({ m, at }) => ({
+    at,
+    fromTrainee: (m.user?.id ?? m.user_id ?? null) === athleteId,
+    workoutDate: typeof m.workout_date === 'string' ? m.workout_date : null,
+    review: !!m.academy_feedback,
+  })));
+  for (const [i, { m }] of sorted.entries()) {
+    const date = dates[i];
     if (!date || date < weekStart || date > weekEnd) continue;
     if (m.academy_feedback || !(m.text ?? '').trim()) continue;
     out.set(date, (out.get(date) ?? 0) + 1);
@@ -109,7 +123,7 @@ export async function loadBoardMarks(
   ]);
 
   // ── 💬 ──
-  const commentsByDate = thread ? talkCounts(thread, weekStart, weekEnd) : new Map<string, number>();
+  const commentsByDate = thread ? talkCounts(thread, weekStart, weekEnd, athleteId) : new Map<string, number>();
   // A missing table (migration 103 is hand-applied) reads as "no reviews", never an error.
   for (const r of (reviewsRes.error ? [] : reviewsRes.data || []) as Array<{ workout_date: string }>) {
     const date = String(r.workout_date).slice(0, 10);

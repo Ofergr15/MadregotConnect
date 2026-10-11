@@ -216,13 +216,40 @@ export function toThreadMessages(
 /** How many of a workout's own messages screen 6 shows under the coach's review. */
 export const WORKOUT_MESSAGES_SHOWN = 2;
 
+/** How long after a trainee's message about a workout an untagged staff reply still answers it. */
+export const REPLY_INHERITS_HOURS = 48;
+
+/**
+ * The workout each message is about, the coach's reply included. Only screen 6 tags a
+ * message; the coach answers from the ordinary thread panel, so the answer carries no date
+ * and the conversation about the workout could never show it ("Sahar: רואה! שיא…", mockup
+ * 6). A staff message with no date of its own is about the workout of the trainee's last
+ * message, when that one was tagged and is under REPLY_INHERITS_HOURS old — until the
+ * trainee writes something untagged. The review cards keep their own date and leave the
+ * conversation as it was. `items` oldest first; the answer is aligned with them.
+ */
+export function replyDates(items: ReadonlyArray<{ at: string; fromTrainee: boolean; workoutDate: string | null; review?: boolean }>): Array<string | null> {
+  let open: { date: string; at: number } | null = null;
+  return items.map(m => {
+    const at = new Date(m.at).getTime();
+    if (m.review) return m.workoutDate;
+    if (m.fromTrainee) {
+      open = m.workoutDate ? { date: m.workoutDate, at } : null;
+      return m.workoutDate;
+    }
+    if (m.workoutDate) return m.workoutDate;
+    return open && at - open.at <= REPLY_INHERITS_HOURS * 3_600_000 ? open.date : null;
+  });
+}
+
 /**
  * The conversation about one workout (mockup 6): the coach's review of that day first,
- * then the last `n` messages tagged with it, oldest first. `messages` as `toThreadMessages`
- * returns them.
+ * then the last `n` messages about it (tagged, or a coach's reply to a tagged one —
+ * `replyDates`), oldest first. `messages` as `toThreadMessages` returns them.
  */
 export function messagesForWorkout(messages: ThreadMessage[], workoutDate: string, n = WORKOUT_MESSAGES_SHOWN): ThreadMessage[] {
-  const about = messages.filter(m => m.workoutDate === workoutDate);
+  const dates = replyDates(messages.map(m => ({ at: m.at, fromTrainee: m.seat === 'trainee', workoutDate: m.workoutDate ?? null, review: !!m.feedback })));
+  const about = messages.filter((_, i) => dates[i] === workoutDate);
   const review = [...about].reverse().find(m => !!m.feedback) ?? null;
   const talk = about.filter(m => !m.feedback && m.text).slice(-n);
   return review ? [review, ...talk] : talk;

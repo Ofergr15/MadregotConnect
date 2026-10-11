@@ -67,6 +67,21 @@ describe('messagesForWorkout', () => {
     expect(messagesForWorkout(all, '2026-10-12')).toEqual([]);
   });
 
+  it('the coach\'s answer from the ordinary thread panel (no date) shows under the trainee\'s message', () => {
+    const thread = [
+      review('2026-10-13', '2026-10-13T09:00:00Z'),
+      msg('q', 'shahar', 'האחרונה הרגישה קלה מדי', '2026-10-13T09:20:00Z', '2026-10-13'),
+      msg('a', 'sahar', 'רואה! שיא ל־1 ק״מ', '2026-10-13T11:00:00Z'),
+      msg('x', 'shahar', 'ומחר?', '2026-10-13T12:00:00Z'),
+      msg('b', 'sahar', 'מחר קל', '2026-10-13T12:05:00Z'),
+    ];
+    const all = toThreadMessages(thread as never, { athleteId: 'shahar', mentorId: ['sahar'] });
+    expect(messagesForWorkout(all, '2026-10-13').map(m => m.id)).toEqual(['fb-2026-10-13', 'q', 'a']);
+    // Two days later it is a new subject, not the answer.
+    const late = toThreadMessages([thread[1], msg('c', 'sahar', 'אגב', '2026-10-15T12:00:00Z')] as never, { athleteId: 'shahar', mentorId: ['sahar'] });
+    expect(messagesForWorkout(late, '2026-10-13').map(m => m.id)).toEqual(['q']);
+  });
+
   it('a message carries the day it was sent from; the review carries its own', () => {
     const all = toThreadMessages(channelMessages as never, { athleteId: 'shahar', mentorId: ['sahar'] });
     expect(all.find(m => m.id === 'm2')?.workoutDate).toBe('2026-10-13');
