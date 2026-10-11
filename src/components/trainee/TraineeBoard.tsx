@@ -12,6 +12,8 @@ import { weekStartOf } from '@/lib/academy/pmc';
 import type { TraineeHome } from '@/lib/academy/trainee-home';
 import { WeekBoard } from '@/components/academy/book/WeekBoard';
 import { AcademyThreadPanel } from '@/components/academy/AcademyThreadPanel';
+import { isViewingPerson } from '@/lib/view-as-person';
+import { useHideShellHeader } from '@/lib/shell-chrome';
 import { MonthBoard } from './MonthBoard';
 
 // ── "לוח": the trainee lens of /dashboard/academy under the trainee experience v2 ────────
@@ -39,6 +41,10 @@ export function TraineeBoard({ athleteId, view, openDate, openThread = false }: 
   const [anchor, setAnchor] = useState<string | null>(openDate ? weekStartOf(openDate) : null);
   useEffect(() => { if (openDate) setAnchor(weekStartOf(openDate)); }, [openDate]);
   const [threadOpen, setThreadOpen] = useState(false);
+  // Like the home and the progress tab: the board's own title row is the top bar (mockup
+  // 2 and 3), so the app header does not push Saturday and the legend off the screen.
+  const [viewingAs] = useState(isViewingPerson);
+  useHideShellHeader(!viewingAs);
 
   const { data, isLoading } = useApi<TraineeHome>(athleteId ? `/api/academy/me?athleteId=${encodeURIComponent(athleteId)}` : null);
 
@@ -61,12 +67,15 @@ export function TraineeBoard({ athleteId, view, openDate, openThread = false }: 
   const self = data?.athlete?.athleteId ?? athleteId;
 
   return (
-    <div className="flex flex-col gap-2.5" dir="rtl">
+    // -mb-4: the scroll box's bottom padding taken back, as on the home, so a week whose
+    // Saturday and legend fit (mockup 2) does not scroll.
+    <div className="-mb-4 flex flex-col gap-2.5 md:mb-0" dir="rtl">
       {view === 'month' ? (
         <MonthBoard
           athleteId={self}
           onView={v => go({ view: v })}
           onOpenDay={date => go({ view: 'week', open: date })}
+          topBar={!viewingAs}
         />
       ) : (
         <WeekBoard
@@ -77,6 +86,7 @@ export function TraineeBoard({ athleteId, view, openDate, openThread = false }: 
           openDate={openDate}
           onView={v => go({ view: v })}
           onClosed={() => { if (openDate) go({ view: 'week', open: null }); }}
+          topBar={!viewingAs}
         />
       )}
 

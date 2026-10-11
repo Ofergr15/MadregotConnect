@@ -14,7 +14,7 @@ import { N } from '@/components/academy/book/ui';
 import { BoardViewSwitch } from './WeekRows';
 import { WeeklyLoadChart } from './WeeklyLoadChart';
 import { KmCard } from './KmCard';
-import { CARD, WEEKDAY_KEYS } from './ui';
+import { CARD, TOP_BAR, WEEKDAY_KEYS } from './ui';
 
 // ── החודש (trainee-experience-v2 screen 3) ───────────────────────────────────────────────
 //
@@ -32,8 +32,10 @@ function monthWord(month: string, locale: string): string {
   return new Date(`${month}-15T12:00:00Z`).toLocaleDateString(locale === 'he' ? 'he-IL' : 'en-US', { month: 'long', timeZone: 'UTC' });
 }
 
-export function MonthBoard({ athleteId, initialMonth, onView, onOpenDay }: {
+export function MonthBoard({ athleteId, initialMonth, onView, onOpenDay, topBar = false }: {
   athleteId: string;
+  /** The shell's phone header is folded away: the month's title row is the top bar. */
+  topBar?: boolean;
   initialMonth?: string | null;
   onView: (view: BoardView) => void;
   /** A day with a session was tapped. */
@@ -65,7 +67,7 @@ export function MonthBoard({ athleteId, initialMonth, onView, onOpenDay }: {
 
   return (
     <div className="space-y-2.5" dir="rtl">
-      <div className="flex items-center justify-between">
+      <div className={cn('flex items-center justify-between', topBar && TOP_BAR)}>
         <button type="button" onClick={() => setMonth(shiftMonth(shown, -1))} aria-label={t('prev')}
           className="grid h-11 w-11 place-items-center rounded-full text-brand-600">
           <ChevronRight className="h-6 w-6" />

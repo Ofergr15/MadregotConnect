@@ -15,6 +15,7 @@ import { CopyWeekFlow } from '../tools/CopyWeekFlow';
 import { useTraineeV2 } from '@/lib/trainee/v2';
 import type { BoardView } from '@/lib/academy/deep-links';
 import { BoardViewSwitch, WeekRestRow, WeekRowV2, WeekTilesV2, ComplianceLegend } from '@/components/trainee/WeekRows';
+import { TOP_BAR } from '@/components/trainee/ui';
 
 // ── השבוע (mockup phone 4) — the same screen for the trainee and the coach ───────────────
 //
@@ -51,7 +52,7 @@ export function workoutModel(w: Pick<WeekBoardWorkout, 'steps'>, referenceSec: n
   return fromLibrarySteps(absoluteToLibrary(w.steps, referenceSec).steps);
 }
 
-export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed }: {
+export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed, topBar = false }: {
   athleteId: string;
   initialWeek?: string | null;
   /** `?open=<date>`: that day's workout opens as soon as the week has loaded. */
@@ -60,6 +61,11 @@ export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed }
   onView?: (view: BoardView) => void;
   /** The opened workout was closed (the board clears `?open=`). */
   onClosed?: () => void;
+  /**
+   * The shell's phone header is folded away (the trainee's own board, as mockup 2 draws it):
+   * the week's title row is the top bar, under the status bar.
+   */
+  topBar?: boolean;
 }) {
   const t = useTranslations('workoutBook');
   const tw = useTranslations('trainee.week');
@@ -103,7 +109,7 @@ export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed }
 
   return (
     <div className="space-y-2.5" dir="rtl">
-      <div className="flex items-center justify-between">
+      <div className={cn('flex items-center justify-between', topBar && TOP_BAR)}>
         <button type="button" onClick={() => setWeek(addDaysToDateStr(weekStart, -7))} aria-label={t('prevWeek')}
           className="grid h-11 w-11 place-items-center rounded-full text-brand-600">
           <ChevronRight className="h-6 w-6" />

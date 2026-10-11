@@ -16,6 +16,7 @@ import { useHideShellHeader } from '@/lib/shell-chrome';
 import { ProgressScreen } from '@/components/trainee/ProgressScreen';
 import { ThresholdScreen } from '@/components/trainee/ThresholdScreen';
 import { BodyScreen } from '@/components/trainee/BodyScreen';
+import { TOP_BAR } from '@/components/trainee/ui';
 
 // "התקדמות" — the trainee's progress tab (trainee-experience-v2 screens 7, 7ג, 8):
 //
@@ -61,7 +62,7 @@ function Progress() {
   const folded = !viewingAs && !linked;
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-2.5 sm:px-6 sm:py-8" dir="rtl">
-      <div className={cn('relative flex min-h-[44px] items-center justify-center', folded && 'safe-top md:pt-0')}>
+      <div className={cn('relative flex min-h-[44px] items-center justify-center', folded && TOP_BAR)}>
         {view !== 'progress' && (
           <Link href={hrefFor('progress')} replace scroll={false}
             className="absolute start-0 flex min-h-[44px] items-center gap-0.5 text-[16px] font-bold text-brand-600">

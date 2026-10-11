@@ -31,6 +31,12 @@ export const C = {
 
 export const SHADOW = 'shadow-[0_1px_2px_rgba(20,22,40,.04),0_6px_18px_rgba(20,22,40,.06)]';
 export const CARD = cn('rounded-[20px] bg-white', SHADOW);
+/**
+ * A trainee screen's own top row, standing in for the folded app header (lib/shell-chrome):
+ * the status-bar inset, then the mockup's 56px bar — the scroll box's own 20px top padding
+ * taken back, so the first card starts where mockups 1–3 draw it. Phone only.
+ */
+export const TOP_BAR = 'safe-top -mt-5 min-h-[56px] md:mt-0 md:min-h-0 md:pt-0';
 
 /** The number tile's tint per form band (mockup 1: `.num.g`). */
 export const BAND_TILE: Record<string, { bg: string; ink: string }> = {

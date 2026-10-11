@@ -66,7 +66,9 @@ export function WeekTilesV2({ board }: { board: WeekBoard }) {
   const showLoad = !!board.loadOk && totals.plannedLoad != null && totals.doneLoad != null;
   return (
     <div className={cn('grid gap-[7px]', showLoad ? 'grid-cols-4' : 'grid-cols-3')}>
-      <Tile label={t('km')} done={kmText(totals.doneKm * 1000)} planned={kmText(totals.plannedKm * 1000)} fraction={meterFraction(totals.doneKm, totals.plannedKm)} />
+      {/* The plan in whole kilometres, as the mockup prints it ("16.3 · מתוך 55"): a session
+          sized by its legs is 10.6 km, and "מתוך 44.6" reads as a measurement. */}
+      <Tile label={t('km')} done={kmText(totals.doneKm * 1000)} planned={kmText(Math.round(totals.plannedKm) * 1000)} fraction={meterFraction(totals.doneKm, totals.plannedKm)} />
       <Tile label={t('workouts')} done={String(totals.doneCount)} planned={String(totals.plannedCount)} fraction={meterFraction(totals.doneCount, totals.plannedCount)} />
       <Tile label={t('time')} done={hoursText(totals.doneSec)} planned={hoursText(totals.plannedSec)} fraction={meterFraction(totals.doneSec, totals.plannedSec)} />
       {showLoad && (
@@ -177,7 +179,9 @@ export function WeekRowV2({ w, board, isNext, onOpen }: {
         {day}
         <b className={cn('block text-[17px] font-black', isToday ? 'text-brand-600' : 'text-ink-900')}><N>{Number(w.date.slice(8, 10))}</N></b>
       </span>
-      <span className="min-w-0 flex-1 py-[9px] pe-3">
+      {/* The mockup's rows set at its own line height (`normal`), not the app's 1.5: seven
+          rows, the tiles and the legend fit one phone screen only at that. */}
+      <span className="min-w-0 flex-1 py-[9px] pe-3 leading-snug">
         <span className="flex items-baseline justify-between gap-2">
           <b className="truncate text-[15px] font-extrabold text-ink-900"><StructureText text={w.name} /></b>
           {status}
