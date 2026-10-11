@@ -34,6 +34,13 @@ describe('the change', () => {
     expect(ROUTE).toMatch(/const from = groupId \? groupChangeDate\(israelToday\(\)\) : null;/);
   });
 
+  // A coach's move used to leave the member's pending change in place, and the
+  // tick then applied it on top — undoing the coach.
+  it("is cancelled when a coach moves the member, so the tick can't undo the move", () => {
+    const route = readFileSync(new URL('../app/api/athletes/route.ts', import.meta.url), 'utf8');
+    expect(route).toMatch(/updates\.group_id = groupId;\s*\/\/[\s\S]{0,300}updates\.pending_group_id = null;\s*updates\.pending_group_from = null;/);
+  });
+
   it('is applied by the tick once due, and clears itself', () => {
     expect(TICK).toMatch(/\.lte\('pending_group_from', today\)/);
     expect(TICK).toMatch(/update\(\{ group_id: a\.pending_group_id, pending_group_id: null, pending_group_from: null \}\)/);
