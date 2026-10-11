@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { StructureText, clock, km, signedText } from '@/components/trainee/ui';
+import { NumberRuns, StructureText, clock, km, signedText } from '@/components/trainee/ui';
 
 /**
  * The trainee screens' number atoms: every structure isolated LTR inside a Hebrew name
@@ -14,6 +14,15 @@ describe('StructureText', () => {
     expect(renderToStaticMarkup(<StructureText text="6 ק״מ קל" />)).toBe('<bdi>קל <bdi dir="ltr">6</bdi> ק״מ</bdi>');
     expect(renderToStaticMarkup(<StructureText text="סדרות 400–1200" />)).toBe('<bdi>סדרות <bdi dir="ltr">400–1200</bdi></bdi>');
     expect(renderToStaticMarkup(<StructureText text="ארוכה" />)).toBe('<bdi>ארוכה</bdi>');
+  });
+});
+
+describe('NumberRuns (a run\'s own name on its page)', () => {
+  it('isolates the number runs and keeps the words where they were', () => {
+    expect(renderToStaticMarkup(<NumberRuns text="5 × 1 ק״מ" />)).toBe('<bdi><bdi dir="ltr">5 × 1</bdi> ק״מ</bdi>');
+    // No word-first reordering here, unlike the session titles.
+    expect(renderToStaticMarkup(<NumberRuns text="6 ק״מ קל" />)).toBe('<bdi><bdi dir="ltr">6</bdi> ק״מ קל</bdi>');
+    expect(renderToStaticMarkup(<NumberRuns text="Morning Run" />)).toBe('<bdi>Morning Run</bdi>');
   });
 });
 
