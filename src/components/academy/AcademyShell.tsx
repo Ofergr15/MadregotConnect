@@ -415,7 +415,7 @@ export function AcademyShell({
             const n = subCount[t.section];
             return (
               <button key={t.section} type="button" role="tab" aria-selected={on} onClick={() => go(t.section)}
-                className={cn('min-h-[38px] flex-1 rounded-[10px] text-[13px] font-extrabold', on ? 'bg-card text-ink-700 shadow-sm' : 'text-ink-400')}>
+                className={cn('min-h-[44px] flex-1 rounded-[10px] text-[13px] font-extrabold', on ? 'bg-card text-ink-700 shadow-sm' : 'text-ink-400')}>
                 {t.label}{n !== undefined && <em className="ms-1 not-italic opacity-55 tabular-nums">{n}</em>}
               </button>
             );

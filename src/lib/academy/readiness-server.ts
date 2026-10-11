@@ -4,7 +4,8 @@
  * readiness-board.ts's, pure.
  *
  * ONE parallel round for any number of trainees: their loads (priced first where missing,
- * at most 100 each — never stored under view-as), the diary those loads make, 44 mornings
+ * at most 100 each and the newest first, so a history still being priced is short of its
+ * oldest runs rather than its last month — never stored under view-as), the diary those loads make, 44 mornings
  * of wellness, 28 days of "איך הרגשת?", the race from the characterization call, and the
  * last two days' runs with the season behind them for a record. Before migration 142 the
  * loads come from load-server.ts's in-memory fallback, so the gate still has a form to
@@ -125,7 +126,7 @@ export async function loadReadinessInputs(
     // stored row below, as athleteLoads does, so the numbers are the same either way.
     Promise.all(ids.map(id => safe(
       hasActivityLoadsTable(db).then(has => (has
-        ? testsP.then(tests => ensureActivityLoads(db, id, { maxNew: READINESS_MAX_NEW, write, today, tests: tests[id] || [] }))
+        ? testsP.then(tests => ensureActivityLoads(db, id, { maxNew: READINESS_MAX_NEW, write, today, tests: tests[id] || [], newestFirst: true }))
         : null)),
       null,
       'load pricing',

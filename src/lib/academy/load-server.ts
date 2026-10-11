@@ -252,7 +252,18 @@ export interface EnsureResult {
 export async function ensureActivityLoads(
   supabase: Db,
   athleteId: string,
-  opts: { maxNew?: number; write?: boolean; today?: string; tests?: TestPoint[] } = {},
+  opts: {
+    maxNew?: number;
+    write?: boolean;
+    today?: string;
+    tests?: TestPoint[];
+    /**
+     * Price the NEWEST missing first. The coach's board prices at most 100 per trainee on
+     * one open; what is left over should be the oldest runs (whose weight on today's
+     * numbers has all but decayed), not the last month's.
+     */
+    newestFirst?: boolean;
+  } = {},
 ): Promise<EnsureResult> {
   const maxNew = opts.maxNew ?? MAX_NEW;
   const write = opts.write ?? true;
@@ -290,7 +301,7 @@ export async function ensureActivityLoads(
     const row = existing.get(String(a.id));
     return !row || isStale(row, expectedBasis(a, tests));
   });
-  const batch = todo.slice(0, maxNew);
+  const batch = opts.newestFirst ? todo.slice(Math.max(0, todo.length - maxNew)) : todo.slice(0, maxNew);
   const maxHr = maxHrNow(listRes.data, today);
   const nights = nightsBy.get(athleteId) || [];
 

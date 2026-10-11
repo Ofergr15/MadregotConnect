@@ -153,6 +153,15 @@ describe('loadReadinessInputs', () => {
     expect(out[CALM].inputs.prToday).toEqual({ bucket: '1k', daysAgo: 0 });
   });
 
+  it('prices the NEWEST first: a long history still being priced is short of its oldest runs', async () => {
+    for (let i = 300; i > 70; i -= 2) run(CALM, i, 8, 340);
+    await loadReadinessInputs(db.client as any, [CALM], TODAY, { write: true });
+    const dates = db.tables.activity_loads.filter(r => r.athlete_id === CALM).map(r => String(r.activity_date)).sort();
+    expect(dates).toHaveLength(100);
+    expect(dates[dates.length - 1]).toBe(israelDay(-2));
+    expect(dates[0] > israelDay(-300)).toBe(true);
+  });
+
   it('nothing asked, nothing read', async () => {
     expect(await loadReadinessInputs(db.client as any, [], TODAY)).toEqual({});
     expect(db.log).toHaveLength(0);

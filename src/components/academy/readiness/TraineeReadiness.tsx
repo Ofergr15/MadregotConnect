@@ -122,7 +122,7 @@ function FeelRow({ data }: { data: ReadinessDetailResponse }) {
   const t = useTranslations('readiness.detail');
   const tt = useTranslations();
   const f = data.feel;
-  const week = f.weekPlanned > 0 ? t.rich('weekPart', { ...M, done: f.weekDone, planned: f.weekPlanned }) : null;
+  const week = f.weekPlanned > 0 ? <span className="whitespace-nowrap">{t.rich('weekPart', { ...M, done: f.weekDone, planned: f.weekPlanned })}</span> : null;
   const bad = f.pain || (f.face != null && f.face <= 1);
   return (
     <div className="flex min-h-[56px] items-center gap-[11px] border-b border-[#EFEFF4] px-3.5">
