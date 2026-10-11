@@ -10,6 +10,7 @@ import {
   type NotificationLocale,
 } from '@/lib/notifications/locale';
 import { KUDOS_ACTION_LABEL, teammateActivityCopy } from '@/lib/notifications/copy';
+import { siblingGhosts, type SubHealth } from '@/lib/push-ghosts';
 
 /**
  * Given the maintenance allowlist (lowercased emails) and the athlete rows for
@@ -504,6 +505,28 @@ export async function sendPushDetailed(
   if (subs.length === 0) {
     console.warn(`[push] category "${payload.category}" muted by all ${beforeCategory} recipient(s) of "${payload.title}"`);
     return empty;
+  }
+
+  // Ghosts a working sibling exposes (lib/push-ghosts.ts): deleted, and not sent to.
+  // Best effort — a failed lookup sends to everything, as before.
+  try {
+    const ids = [...new Set(subs.map((s) => s.athlete_id).filter(Boolean))];
+    if (ids.length > 0) {
+      const { data: health } = await supabase
+        .from('push_subscriptions')
+        .select('id, athlete_id, created_at, last_success_at')
+        .in('athlete_id', ids);
+      const ghosts = siblingGhosts((health || []) as SubHealth[]);
+      if (ghosts.length > 0) {
+        await supabase.from('push_subscriptions').delete().in('id', ghosts);
+        const gone = new Set(ghosts);
+        subs = subs.filter((s) => !gone.has(s.id));
+        console.warn(`[push] pruned ${ghosts.length} endpoint(s) a confirming sibling proves dead`);
+        if (subs.length === 0) return empty;
+      }
+    }
+  } catch {
+    // keep going with every endpoint
   }
 
   // Badge is a per-athlete unread count (unless the caller pinned one explicitly).
