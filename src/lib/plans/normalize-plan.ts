@@ -167,7 +167,8 @@ export function normalizeWorkoutParts(plan: ParsedWeeklyPlan): ParsedWeeklyPlan 
 
       return {
         ...workout,
-        workoutKey: `day-${workout.dayOfWeek}-part-${partIndex}-${partKind}`,
+        // In a one-athlete custom week every session keeps its club-week key.
+        workoutKey: workout.originalKey ?? `day-${workout.dayOfWeek}-part-${partIndex}-${partKind}`,
         partIndex,
         partCount,
         partKind,

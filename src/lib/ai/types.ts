@@ -8,6 +8,15 @@ export interface ParsedWorkout {
   description?: string;
   /** Stable across all three group variants; used by activity matching and clipboard paths. */
   workoutKey?: string;
+  /**
+   * Set on every session of a one-athlete custom week (lib/plans/push-selection.ts
+   * remapForAthlete): the key it had in the club's week. normalizeWorkoutParts keeps
+   * it, because the key is rebuilt from the day and the parts on that day — so a
+   * session moved Wed→Mon became Monday's key, and Monday's own session, now
+   * sharing its day, was renumbered too. Both were then recorded, matched and
+   * paced as a session they are not.
+   */
+  originalKey?: string;
   /** 1-based position when a day contains separately recorded workout parts. */
   partIndex?: number;
   partCount?: number;
