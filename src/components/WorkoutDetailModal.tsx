@@ -63,7 +63,7 @@ function getStepColor(step: any): string {
   return '#969696';
 }
 
-function summarizeSteps(steps: any[]): any[] {
+export function summarizeSteps(steps: any[]): any[] {
   const summary: any[] = [];
 
   for (const step of steps) {
@@ -89,12 +89,10 @@ function summarizeSteps(steps: any[]): any[] {
       }
       summary.push({ type: 'repeat', count: step.repeatCount, notes: step.notes, substeps: step.repeatSteps });
     } else if (step.type === 'warmup' || step.type === 'cooldown') {
-      const prev = summary[summary.length - 1];
-      if (prev?.type === 'phase' && prev.phase === step.type) {
-        prev.steps.push(step);
-      } else {
-        summary.push({ type: 'phase', phase: step.type, steps: [step] });
-      }
+      // One block per segment. Consecutive warm-ups used to fold into one block that
+      // drew only its first step, so a coach's two-part warm-up ("2 ק״מ 5:00" then
+      // "3 ק״מ 4:40") showed as 2 km here while the watch got both (feedback #104).
+      summary.push({ type: 'phase', phase: step.type, steps: [step] });
     } else if (step.type === 'rest' || step.type === 'recovery') {
       summary.push({ type: 'rest', step });
     } else {
