@@ -48,15 +48,35 @@ export async function repriceAthlete(
 }
 
 /**
+ * Trainees with a reprice running in this instance, and whether another was asked for meanwhile.
+ * Two saves in a row (a coach's test, then an approval) must not run two overlapping write loops
+ * for one trainee — the one that read fewer tests could write last. The second request only marks
+ * the running job to go round once more, so the last write always saw the last test.
+ */
+const inFlight = new Map<string, { again: boolean }>();
+
+/**
  * Reprice after the response. Never throws and never delays the caller: outside a request
- * (a script, a test) `after` is unavailable and the job simply runs detached.
+ * (a script, a test) `after` is unavailable and the job simply runs detached. One job per
+ * trainee at a time (`inFlight`).
  */
 export function scheduleReprice(athleteId: string, run: (db: Db, id: string) => Promise<unknown> = repriceAthlete): void {
   const job = async () => {
+    const running = inFlight.get(athleteId);
+    if (running) { running.again = true; return; }
+    const me = { again: false };
+    inFlight.set(athleteId, me);
     try {
-      await run(createServerClient(), athleteId);
-    } catch (err) {
-      console.error('reprice after test failed for', athleteId, err);
+      do {
+        me.again = false;
+        try {
+          await run(createServerClient(), athleteId);
+        } catch (err) {
+          console.error('reprice after test failed for', athleteId, err);
+        }
+      } while (me.again);
+    } finally {
+      inFlight.delete(athleteId);
     }
   };
   try {

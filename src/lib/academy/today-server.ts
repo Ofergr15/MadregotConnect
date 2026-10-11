@@ -8,6 +8,7 @@ import { loadPaceUpdateCard } from './coach-tools-server';
 import { loadLaneReferences } from './book-server';
 import { dayCards } from './day-cards';
 import { goalCard } from './trainee-home';
+import { goalTimeText } from './goal';
 import { isRunType, shiftDate } from './load';
 import { athleteLoads, BACKFILL_DAYS } from './load-server';
 import { loadCoachRows, loadGoalCharacterization, loadTraineeUnread } from './me-reads';
@@ -170,7 +171,8 @@ export async function loadTraineeToday(
     goal: goalCard(characterization, band, today),
     raceName: characterization?.targetRace ?? null,
     raceDate: characterization?.targetRaceDate ?? null,
-    bandGoal: band?.paceProfile?.marathonGoal || band?.goal || null,
+    // The trainee's own goal time (migration 144) before the band's.
+    bandGoal: (characterization?.goalTimeSec ? goalTimeText(characterization.goalTimeSec) : null) || band?.paceProfile?.marathonGoal || band?.goal || null,
   });
 
   const coach = coaches.data[0] ?? null;

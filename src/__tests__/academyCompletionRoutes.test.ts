@@ -165,11 +165,30 @@ describe('POST /api/academy/completion/request', () => {
     expect(notified.map(n => n.athleteId).sort()).toEqual([SHAHAR, YOAV].sort());
     expect(notified[0].title).toBe('🎯 חסר לנו הטסט האחרון שלך');
     expect(notified[0].body).toMatch(/^Sahar מבקש: /);
-    expect(notified[0].url).toBe('/dashboard/academy?test=mine');
+    expect(notified[0].url).toBe('/dashboard/academy?test=entry');
 
     const second = await (await request.POST(req('/api/academy/completion/request', { method: 'POST' }))).json();
     expect(second).toMatchObject({ asked: 0, already: 2 });
     expect(notified).toHaveLength(2);
+  });
+
+  it('two taps at once send once: the second reads the first\'s rows', async () => {
+    asCoach();
+    const [a, b] = await Promise.all([
+      request.POST(req('/api/academy/completion/request', { method: 'POST' })).then(r => r.json()),
+      request.POST(req('/api/academy/completion/request', { method: 'POST' })).then(r => r.json()),
+    ]);
+    expect(a.asked + b.asked).toBe(2);
+    expect(notified).toHaveLength(2);
+    expect(db.tables.scheduled_notifications.filter(n => n.audience_id === SHAHAR)).toHaveLength(1);
+  });
+
+  it('a trainee whose 2000 m waits for approval is not asked again', async () => {
+    db.tables.academy_tests.push({ id: uid(), athlete_id: SHAHAR, test_date: '2026-10-10', protocol: '2000m', duration_sec: 470, distance_m: 2000, avg_hr: null, activity_id: null, excluded_reason: null, status: 'pending', submitted_at: '2026-10-10T18:00:00Z' });
+    asCoach();
+    const first = await (await request.POST(req('/api/academy/completion/request', { method: 'POST' }))).json();
+    expect(first).toMatchObject({ asked: 1 });
+    expect(notified.map(n => n.athleteId)).toEqual([YOAV]);
   });
 
   it('a coach never reaches another coach\'s trainee', async () => {
@@ -217,6 +236,16 @@ describe('GET /api/academy/tests/entry', () => {
 
     db.tables.academy_tests[db.tables.academy_tests.length - 1].status = 'approved';
     expect((await (await entry.GET(req(`/api/academy/tests/entry?athleteId=${SHAHAR}`))).json()).show).toBe('none');
+  });
+
+  it('a 2000 m sent from the card reads "ממתין לאישור" too, and the list says "לאשר" on it', async () => {
+    db.tables.academy_tests.push({ id: uid(), athlete_id: SHAHAR, test_date: '2026-10-10', protocol: '2000m', duration_sec: 470, distance_m: 2000, avg_hr: null, activity_id: null, excluded_reason: null, status: 'pending', submitted_at: '2026-10-10T18:00:00Z' });
+    asTrainee(SHAHAR);
+    const card = await (await entry.GET(req(`/api/academy/tests/entry?athleteId=${SHAHAR}`))).json();
+    expect(card).toMatchObject({ show: 'pending', test: { kind: 'pending', date: '2026-10-10', protocol: '2000m' } });
+    asCoach();
+    const row = (await (await completion.GET(req('/api/academy/completion'))).json()).rows.find((r: any) => r.athleteId === SHAHAR);
+    expect(row).toMatchObject({ test: 'pending', action: 'approve', pendingTest: { protocol: '2000m', status: 'pending' } });
   });
 
   it('nobody else\'s card', async () => {

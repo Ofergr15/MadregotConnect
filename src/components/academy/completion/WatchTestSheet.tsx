@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { olderTests, type FinderResult, type TestCandidate } from '@/lib/academy/test-finder';
+import { olderTests, recordedKey, type FinderResult, type TestCandidate } from '@/lib/academy/test-finder';
 import { Sheet } from '@/components/ui';
 import { clock, km } from '@/components/trainee/ui';
 import { CARD, PrimaryButton } from '../book/ui';
@@ -13,28 +13,45 @@ import { shortDay } from './shared';
 // ── "למשוך מהשעון" (mockup academy-existing-trainees, phone 3) ──────────────────────────
 //
 // The runs of the last six months that look like a test (lib/academy/test-finder.ts), up to
-// three, the likeliest first and preselected. Choosing one fills the form; the older ones of
-// the same protocol can ride along as past tests, so the improvement graph has a history from
-// the first day. Nothing is saved here — the form's own save posts them.
+// three, the likeliest first and preselected. Choosing one fills the form; on the staff form the
+// older ones of the same protocol can ride along as past tests, so the improvement graph has a
+// history from the first day. Nothing is saved here — the form's own save posts them.
+//
+// A run whose day is already on record is shown ("כבר שמור") and cannot be taken: that row may be
+// the coach's measured number, and taking the run would overwrite it with the watch's estimate.
+// Nor does it ride along as an older one (olderTests leaves recorded days out).
 
 type WatchResponse = FinderResult & { windowDays: number; recorded: string[] };
 
-export function WatchTestSheet({ athleteId, open, onOpenChange, onPick }: {
+export function WatchTestSheet({ athleteId, open, onOpenChange, onPick, onType, name, allowOlder = false }: {
   athleteId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPick: (chosen: TestCandidate, older: TestCandidate[]) => void;
+  /** "להקליד" when nothing was found: closes the sheet and opens the typed fields. */
+  onType?: () => void;
+  /** The trainee's first name, for the staff title "Shahar · איזו ריצה הייתה הטסט?". */
+  name?: string;
+  /**
+   * "Also save the older ones": the staff form only. A trainee's older runs would each be one
+   * more submission waiting in the coach's "מחכה לך", and approving the main one would leave
+   * them there.
+   */
+  allowOlder?: boolean;
 }) {
   const t = useTranslations('completion.watch');
   const { data, error } = useApi<WatchResponse>(open ? `/api/academy/tests/watch?athleteId=${encodeURIComponent(athleteId)}` : null);
   const candidates = useMemo(() => data?.candidates ?? [], [data]);
+  const recorded = useMemo(() => data?.recorded ?? [], [data]);
+  const takeable = useMemo(() => candidates.filter(c => !recorded.includes(recordedKey(c))), [candidates, recorded]);
   const [chosen, setChosen] = useState<string | null>(null);
   const [keepOlder, setKeepOlder] = useState(true);
-  useEffect(() => { if (candidates.length && !chosen) setChosen(candidates[0].activityId); }, [candidates, chosen]);
+  useEffect(() => { if (takeable.length && !chosen) setChosen(takeable[0].activityId); }, [takeable, chosen]);
   useEffect(() => { if (!open) setChosen(null); }, [open]);
 
-  const pick = candidates.find(c => c.activityId === chosen) ?? null;
-  const older = pick ? olderTests(candidates, pick.activityId) : [];
+  const pick = takeable.find(c => c.activityId === chosen) ?? null;
+  const older = pick && allowOlder ? olderTests(candidates, pick.activityId, recorded) : [];
+  const nothing = !!data && !takeable.length;
 
   const sub = (c: TestCandidate) => {
     const m = (x: React.ReactNode) => <bdi dir="ltr">{x}</bdi>;
@@ -49,17 +66,25 @@ export function WatchTestSheet({ athleteId, open, onOpenChange, onPick }: {
     <Sheet
       open={open}
       onOpenChange={onOpenChange}
-      title={t('title')}
+      title={name ? t.rich('ask', { name, bdi: (c) => <bdi>{c}</bdi> }) : t('title')}
       titleClassName="text-start text-[22px] font-black"
       footer={pick ? (
         <div className="px-4 pb-3 pt-1">
           <PrimaryButton className="w-full" onClick={() => { onPick(pick, keepOlder ? older : []); onOpenChange(false); }}>
-            {t.rich('take', { date: shortDay(pick.date), pace: clock(pick.paceSec), m: (c) => <bdi dir="ltr">{c}</bdi> })}
+            {/* One span: the button is a flex row with a gap, and the rich text's pieces would each be an item. */}
+            <span>{t.rich('take', { date: shortDay(pick.date), pace: clock(pick.paceSec), m: (c) => <bdi dir="ltr">{c}</bdi> })}</span>
+          </PrimaryButton>
+        </div>
+      ) : nothing ? (
+        <div className="px-4 pb-3 pt-1">
+          <PrimaryButton className="w-full" secondary={!onType} onClick={() => { onOpenChange(false); onType?.(); }}>
+            {onType ? t('typeIt') : t('close')}
           </PrimaryButton>
         </div>
       ) : undefined}
     >
       <div className="space-y-3" dir="rtl">
+        {name && <h3 className="text-[15px] font-extrabold text-ink-400">{t('title')}</h3>}
         <p className="text-[14.5px] leading-snug text-ink-500">{t.rich('intro', { n: Math.round((data?.windowDays ?? 183) / 30.5), m: (c) => <bdi dir="ltr">{c}</bdi> })}</p>
 
         {!data && !error && <div className="h-[180px] animate-pulse rounded-[22px] bg-page/60" aria-busy="true" />}
@@ -70,15 +95,18 @@ export function WatchTestSheet({ athleteId, open, onOpenChange, onPick }: {
             {t(`empty.${data.emptyReason ?? 'none'}`)}
           </p>
         )}
+        {data && candidates.length > 0 && !takeable.length && (
+          <p className="px-1 text-[14px] leading-snug text-ink-500">{t('allSaved')}</p>
+        )}
 
         {candidates.length > 0 && (
           <div className={cn(CARD, 'overflow-hidden')} role="radiogroup" aria-label={t('title')}>
             {candidates.map((c) => {
-              const on = chosen === c.activityId;
-              const saved = data?.recorded.includes(`${c.date}:${c.protocol}`);
+              const saved = recorded.includes(recordedKey(c));
+              const on = !saved && chosen === c.activityId;
               return (
-                <button key={c.activityId} type="button" role="radio" aria-checked={on} onClick={() => setChosen(c.activityId)}
-                  className="flex min-h-[64px] w-full items-center gap-3 border-b border-[#EFEFF4] px-4 py-2.5 text-start last:border-0">
+                <button key={c.activityId} type="button" role="radio" aria-checked={on} onClick={() => setChosen(c.activityId)} disabled={saved}
+                  className="flex min-h-[64px] w-full items-center gap-3 border-b border-[#EFEFF4] px-4 py-2.5 text-start last:border-0 disabled:opacity-60">
                   <span aria-hidden className={cn('grid h-6 w-6 shrink-0 place-items-center rounded-full border-2', on ? 'border-brand-600 bg-brand-600' : 'border-ink-300')}>
                     {on && <i className="block h-2.5 w-2.5 rounded-full bg-white" />}
                   </span>

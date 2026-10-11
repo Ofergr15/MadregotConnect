@@ -6,6 +6,7 @@ import { isMissingColumn, isMissingTable, withoutColumns } from '@/lib/supabase/
 import { israelToday } from '@/lib/utils';
 import { settleInvitationForTest } from '@/lib/academy/settle-invitation-server';
 import { scheduleReprice } from '@/lib/academy/reprice-server';
+import { MAX_PAST, checkTestInput, readAvgHr } from '@/lib/academy/test-input';
 import {
   buildRegistry,
   buildTrend,
@@ -292,6 +293,7 @@ export async function POST(request: Request) {
     const protocol = String(body.protocol || DEFAULT_PROTOCOL);
     const durationSec = Number(body.durationSec);
     const distanceM = Number(body.distanceM);
+    const avgHr = readAvgHr(body.avgHr);
 
     if (!athleteId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return NextResponse.json({ error: 'athleteId and date=YYYY-MM-DD are required' }, { status: 400 });
@@ -301,6 +303,12 @@ export async function POST(request: Request) {
     if (!(durationSec > 0) || !(distanceM > 0)) {
       return NextResponse.json({ error: 'durationSec and distanceM must both be positive' }, { status: 400 });
     }
+    // A real day, not after today, a known protocol, an HR the table's check allows, and from a
+    // trainee a pace a runner runs (lib/academy/test-input.ts) — a 400 naming the field, never
+    // the database's 500.
+    const today = israelToday();
+    const checked = checkTestInput({ date, protocol, durationSec, distanceM, avgHr }, today, { staff: isStaff });
+    if (!checked.ok) return NextResponse.json({ error: checked.error, field: checked.field }, { status: 400 });
 
     const supabase = createServerClient();
 
@@ -367,7 +375,7 @@ export async function POST(request: Request) {
       protocol,
       duration_sec: durationSec,
       distance_m: distanceM,
-      avg_hr: body.avgHr == null ? null : Number(body.avgHr),
+      avg_hr: avgHr,
       activity_id: activityId,
       // Empty string is not a reason. Trimmed to null so a blank field cannot silently
       // exclude a test from the trend it was recorded for. Staff only — see the header.
@@ -452,6 +460,14 @@ export async function POST(request: Request) {
       if (dropErr) console.error('POST /api/academy/tests: dropping the corrected submission failed:', dropErr);
     }
 
+    // "Also save the older ones" (mockup academy-existing-trainees, phone 3): the watch's older
+    // test-like runs, as past tests, in the same request so the trainee is repriced once.
+    // Staff only — a trainee's would each be one more card in the coach's queue. And only into
+    // days with nothing on record: ON CONFLICT DO NOTHING, never the correction upsert above,
+    // because the row already there may be the coach's measured number or one excluded from
+    // the trend on purpose, and a watch estimate must not replace either.
+    const pastSaved = data && isStaff ? await savePast(supabase, athleteId, body.past, today, row) : 0;
+
     // A staff entry counts from now, so the loads priced on the old basis (or on heart rate,
     // without any test) are stale: repriced after the response (lib/academy/reprice-server.ts).
     // A trainee's submission counts toward nothing until it is approved — that is PATCH's job.
@@ -460,6 +476,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       test: data ? toTestRow(data) : null,
+      pastSaved,
+      // Staff only (a trainee's implausible pace is a 400): saved, but worth a second look.
+      implausible: checked.implausible,
       repricing,
       // The screen must not say "saved, here is your new pace" for something nobody has
       // looked at yet.
@@ -471,6 +490,75 @@ export async function POST(request: Request) {
     console.error('POST /api/academy/tests error:', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
+}
+
+/**
+ * The past tests a staff save carries (`body.past`), each checked like the main one and written
+ * only where that day and protocol hold nothing. Best effort: a bad or clashing entry is skipped,
+ * never a failure of the save it rode on. Returns how many were written.
+ */
+async function savePast(
+  supabase: ReturnType<typeof createServerClient>,
+  athleteId: string,
+  raw: unknown,
+  today: string,
+  main: Record<string, unknown>,
+): Promise<number> {
+  if (!Array.isArray(raw) || !raw.length) return 0;
+  const now = new Date().toISOString();
+  const rows: Record<string, unknown>[] = [];
+  const seen = new Set<string>([`${main.test_date}:${main.protocol}`]);
+  for (const p of raw.slice(0, MAX_PAST) as Array<Record<string, unknown>>) {
+    const input = {
+      date: String(p?.date || ''),
+      protocol: String(p?.protocol || DEFAULT_PROTOCOL),
+      durationSec: Number(p?.durationSec),
+      distanceM: Number(p?.distanceM),
+      avgHr: readAvgHr(p?.avgHr),
+    };
+    const key = `${input.date}:${input.protocol}`;
+    if (seen.has(key) || !checkTestInput(input, today, { staff: true }).ok) continue;
+    seen.add(key);
+    let activityId = typeof p.activityId === 'string' && p.activityId ? p.activityId : null;
+    if (activityId) {
+      const { data: run } = await supabase.from('athlete_activities').select('id').eq('id', activityId).eq('athlete_id', athleteId).maybeSingle();
+      if (!run) activityId = null;
+    }
+    rows.push({
+      athlete_id: athleteId,
+      test_date: input.date,
+      protocol: input.protocol,
+      duration_sec: input.durationSec,
+      distance_m: input.distanceM,
+      avg_hr: input.avgHr,
+      activity_id: activityId,
+      excluded_reason: null,
+      notes: null,
+      author_id: main.author_id ?? null,
+      status: 'approved',
+      submitted_by: null,
+      submitted_at: null,
+      approved_by: main.approved_by ?? null,
+      approved_at: now,
+      updated_at: now,
+    });
+  }
+  let written = 0;
+  for (const r of rows) {
+    let res: { data: unknown; error: unknown } = await supabase
+      .from('academy_tests')
+      .upsert(r, { onConflict: 'athlete_id,test_date,protocol', ignoreDuplicates: true })
+      .select('id');
+    if (res.error && isMissingColumn(res.error)) {
+      res = await supabase
+        .from('academy_tests')
+        .upsert(withoutColumns([r], ['status', 'submitted_by', 'submitted_at', 'approved_by', 'approved_at'])[0], { onConflict: 'athlete_id,test_date,protocol', ignoreDuplicates: true })
+        .select('id');
+    }
+    if (res.error) console.error('POST /api/academy/tests: a past test failed:', res.error);
+    else written += Array.isArray(res.data) ? res.data.length : res.data ? 1 : 0;
+  }
+  return written;
 }
 
 /**
@@ -550,12 +638,12 @@ export async function PATCH(request: Request) {
       .eq('id', testId);
     if (error) return NextResponse.json({ error: 'Failed to approve the test' }, { status: 500 });
 
-    // Now the number counts, so now the invitation is done. This is the moment the board's
-    // `מחכים לך` row disappears on its own — see `lib/academy/settleInvitation.ts` — and it
-    // cannot fail the approval it follows.
     // The number prices their plan from now: reprice the loads it makes stale, after the response.
     scheduleReprice(String(target.athlete_id));
 
+    // Now the number counts, so now the invitation is done. This is the moment the board's
+    // `מחכים לך` row disappears on its own — see `lib/academy/settleInvitation.ts` — and it
+    // cannot fail the approval it follows.
     const settlement = await settleInvitationForTest(supabase, String(target.athlete_id), {
       id: testId,
       protocol: String(target.protocol || DEFAULT_PROTOCOL),

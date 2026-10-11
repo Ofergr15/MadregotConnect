@@ -145,6 +145,7 @@ export default function AcademyPage() {
           athleteId={viewed ? viewed.id : myAthleteId}
           openThread={deepLink.thread === 'mine'}
           raiseTest={deepLink.test}
+          raiseEntry={deepLink.entry}
         />
       </div>
     );

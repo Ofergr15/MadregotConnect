@@ -121,6 +121,21 @@ describe('findTestRuns', () => {
     expect(r.candidates[0].durationSec).toBe(Math.round(430 * 2000 / 2010));
   });
 
+  it('a run named "טסט 2000" with no 2000 m lap is never a 30-minute test (lap-less Strava, manual entry)', () => {
+    // 6 km in 31:40 — inside the 25-40 minute window that makes a run named "טסט" the test itself.
+    const strava = run({ source: 'strava', activity_name: 'טסט 2000', distance: 6000, duration: 1900, moving_duration: 1900, laps: null });
+    const manual = run({ source: 'manual', activity_name: '2k test', distance: 5500, duration: 1700, moving_duration: 1700, laps: [] });
+    const r = findTestRuns([easy(20), easy(10), strava, manual], TODAY);
+    expect(r.candidates.filter(c => c.protocol === '30min')).toHaveLength(0);
+    expect(r.candidates).toHaveLength(0);
+    // A longer "טסט 2000" with km laps: the 30-minute laps rule does not take it either.
+    const laps = run({ activity_name: 'טסט 2000', lapsOf: Array.from({ length: 8 }, () => lap(1, 250)) });
+    expect(findTestRuns([easy(20), easy(10), laps], TODAY).candidates).toHaveLength(0);
+    // …while a run that IS ~2000 m still is one.
+    const whole = run({ activity_name: 'טסט 2000', distance: 2005, duration: 455, moving_duration: 455, laps: null });
+    expect(findTestRuns([whole], TODAY).candidates[0]).toMatchObject({ protocol: '2000m', distanceM: 2000 });
+  });
+
   it('ranked: named first, then harder, then newer — and at most three', () => {
     const named = run({ activity_name: 'טסט', daysAgo: 60, distance: 6800, duration: 1800, moving_duration: 1800, laps: [] });
     const tempo = (daysAgo: number, pace: number) => run({ daysAgo, activity_name: 'טמפו', lapsOf: Array.from({ length: 7 }, () => lap(1, pace)).concat([lap(0.2, pace)]) });
@@ -137,5 +152,11 @@ describe('olderTests', () => {
     const list = [mk('2026-09-14'), mk('2026-07-06'), mk('2026-05-18'), mk('2026-05-18'), mk('2026-06-01', '2000m'), mk('2026-10-01')];
     expect(olderTests(list, '2026-09-1430min').map((c: any) => c.date)).toEqual(['2026-05-18', '2026-07-06']);
     expect(olderTests(list, 'nope')).toEqual([]);
+  });
+  it('a day already on record is left out, so the coach\'s measured (or excluded) test is never overwritten', () => {
+    const mk = (date: string) => ({ activityId: date, date, protocol: '30min' } as any);
+    const list = [mk('2026-09-14'), mk('2026-07-06'), mk('2026-05-18')];
+    // 18.05 is on record (approved, excluded from the trend): only 06.07 rides along.
+    expect(olderTests(list, '2026-09-14', ['2026-05-18:30min', '2026-07-06:2000m']).map((c: any) => c.date)).toEqual(['2026-07-06']);
   });
 });

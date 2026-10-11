@@ -65,7 +65,8 @@ export function TestApprovalCard({ approval, onDecided, onCorrect }: {
         <Row label={approval.protocol === '2000m' ? t('time') : t('distance')}>
           {approval.protocol === '2000m'
             ? m(clock(approval.durationSec))
-            : t.rich('km', { km: (approval.distanceM / 1000).toFixed(2), m })}
+            // LTR as a whole, like the form and the watch sheet: "7.12 ק״מ", number then unit.
+            : <bdi dir="ltr">{t.rich('km', { km: (approval.distanceM / 1000).toFixed(2), m })}</bdi>}
         </Row>
         <Row label={t('hr')}>{approval.avgHr ? m(approval.avgHr) : <span className="text-ink-300">{t('noHr')}</span>}</Row>
         <Row label={t('vsBand')}>

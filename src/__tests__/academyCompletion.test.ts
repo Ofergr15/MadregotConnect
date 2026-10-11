@@ -21,6 +21,13 @@ const person = (over: Partial<CompletionInput> = {}): CompletionInput => ({
 });
 
 describe('completionRow', () => {
+  it('a 2000 m waiting for approval is "pending" with "לאשר", and nobody asks for it again', () => {
+    const r = completionRow(person({ tests: [{ test_date: shiftDate(TODAY, -1), protocol: '2000m', status: 'pending', duration_sec: 470, distance_m: 2000 }] }), TODAY);
+    expect(r).toMatchObject({ test: 'pending', action: 'approve', missing: ['test'] });
+    expect(r.chips[0]).toMatchObject({ key: 'test', tone: 'pending' });
+    expect(askable(r)).toBe(false);
+  });
+
   it('ready = an approved 30-minute test, a band and a coach', () => {
     const r = completionRow(person(), TODAY);
     expect(r).toMatchObject({ ready: true, missing: [], incomplete: false, test: 'ok', chips: [] });

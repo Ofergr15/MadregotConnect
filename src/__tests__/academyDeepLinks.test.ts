@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  academyBoardUrl, academyTestUrl, academyThreadUrl, readAcademyDeepLink, traineeProgressUrl, traineeTestRedirect, upgradeLegacyAcademyUrl,
+  academyBoardUrl, academyTestUrl, testEntryUrl, academyThreadUrl, readAcademyDeepLink, traineeProgressUrl, traineeTestRedirect, upgradeLegacyAcademyUrl,
 } from '@/lib/academy/deep-links';
 import { shapeInboxItem } from '@/lib/notifications/inbox';
 import { REMINDER_URL, reminderRow } from '@/lib/academy/testReminders';
@@ -35,12 +35,14 @@ describe('the urls a sender writes', () => {
 
 describe('the page reading them', () => {
   const params = (q: string) => new URLSearchParams(q);
-  const none = { open: null, view: 'week' };
+  const none = { open: null, view: 'week', entry: false };
   it('reads the three parameters', () => {
     expect(readAcademyDeepLink(params('thread=mine'))).toEqual({ tab: null, thread: 'mine', test: false, ...none });
     expect(readAcademyDeepLink(params('tab=threads&thread=t1'))).toEqual({ tab: 'threads', thread: 't1', test: false, ...none });
     expect(readAcademyDeepLink(params('test=mine'))).toEqual({ tab: null, thread: null, test: true, ...none });
     expect(readAcademyDeepLink(params(''))).toEqual({ tab: null, thread: null, test: false, ...none });
+    // The request's own value: the entry card, not the tests card.
+    expect(readAcademyDeepLink(params('test=entry'))).toMatchObject({ test: false, entry: true });
   });
 
   it('reads the board: a day to open and the month view', () => {
@@ -117,5 +119,12 @@ describe('?test=mine under the trainee experience v2', () => {
 
   it('the test reminders still write ?test=mine, so both lenses can read it', () => {
     expect(academyTestUrl({ recipientIsStaff: false })).toBe('/dashboard/academy?test=mine');
+  });
+});
+
+describe('testEntryUrl — where "לבקש מכולם" lands', () => {
+  it('the v2 home, else the academy tab scrolled to the entry card', () => {
+    expect(testEntryUrl({ traineeV2: true })).toBe('/dashboard');
+    expect(testEntryUrl({ traineeV2: false })).toBe('/dashboard/academy?test=entry');
   });
 });

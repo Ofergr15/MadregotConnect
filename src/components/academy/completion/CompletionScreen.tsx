@@ -80,53 +80,16 @@ export function CompletionScreen({ scopeQ, bands, coaches, approvals, onClose, o
               <b className="text-[19px] font-black text-ink-900">{t.rich('ready', { ready: s.ready, total: s.total, m })}</b>
               {s.missing > 0 && <span className="text-[14px] font-extrabold text-ink-400">{t.rich('missingCount', { n: s.missing, m })}</span>}
             </div>
-            <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#EFEFF4]" dir="ltr" role="progressbar" aria-valuemin={0} aria-valuemax={s.total} aria-valuenow={s.ready}>
-              <i className="ms-auto block h-full rounded-full bg-[#1FA55B]" style={{ width: `${s.total ? (s.ready / s.total) * 100 : 0}%`, marginLeft: 'auto' }} />
+            {/* RTL like the page: the fill starts at the right (start) edge, as the mockup draws it. */}
+            <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-[#EFEFF4]" role="progressbar" aria-valuemin={0} aria-valuemax={s.total} aria-valuenow={s.ready}>
+              <i className="block h-full rounded-full bg-[#1FA55B]" style={{ width: `${s.total ? (s.ready / s.total) * 100 : 0}%` }} />
             </div>
             <p className="mt-2 text-[14px] font-semibold leading-snug text-ink-500">{t('readyMeans')}</p>
           </section>
         )}
 
-        {data && rows.length > 0 && (
-          <>
-            <div className="-mb-2 flex items-baseline justify-between px-1">
-              <h2 className="text-sm font-extrabold text-ink-400">
-                {all ? t.rich('allHead', { n: rows.length, m }) : t.rich('missingHead', { n: shown.length, m })}
-              </h2>
-              <button type="button" onClick={() => setAll(v => !v)} className="-my-3 min-h-[44px] min-w-[44px] px-1 text-[14px] font-extrabold text-brand-600">
-                {all ? t('onlyMissing') : t('all')}
-              </button>
-            </div>
-            {shown.length > 0 ? (
-              <div className={cn(CARD, 'overflow-hidden')}>
-                {shown.map(r => (
-                  <button key={r.athleteId} type="button"
-                    onClick={() => {
-                      const card = r.action === 'approve' ? approvals?.find(a => a.athleteId === r.athleteId) : null;
-                      if (card) setApproving(card);
-                      else setOpen({ person: r, correcting: r.test === 'pending' });
-                    }}
-                    className="flex min-h-[64px] w-full items-center gap-3 border-b border-[#EFEFF4] px-4 py-2.5 text-start last:border-0 active:bg-page/40">
-                    <Avatar text={initials(r.name)} />
-                    <span className="min-w-0 flex-1">
-                      <b className="block truncate text-[16.5px] font-extrabold text-ink-900"><bdi>{r.name}</bdi></b>
-                      <span className="mt-1 flex flex-wrap gap-1.5">
-                        {r.chips.length ? r.chips.map((c, i) => <RowChip key={i} chip={c} />) : <ChipPill tone="have">{t('readyChip')}</ChipPill>}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-[15.5px] font-extrabold text-brand-600">
-                      {r.action === 'approve' ? t('approve') : r.ready ? t('edit') : t('complete')} <Chevron className="h-[11px] w-[7px]" />
-                    </span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className={cn(CARD, 'px-4 py-4 text-[15px] font-bold text-[#0E7A3C]')}>✓ {t('allReady')}</p>
-            )}
-          </>
-        )}
-        {data && rows.length === 0 && <p className={cn(CARD, 'px-4 py-4 text-[15px] text-ink-500')}>{t('empty')}</p>}
-
+        {/* Right under the summary, on the first screen however long the list runs (the mockup's
+            five rows put it there; a real academy's 28 pushed it several screens down). */}
         {s && s.needTest > 0 && (
           <section className={cn(CARD, 'flex min-h-[64px] items-center gap-3 px-4 py-2.5')}>
             <span aria-hidden className="text-[24px]">📨</span>
@@ -147,6 +110,46 @@ export function CompletionScreen({ scopeQ, bands, coaches, approvals, onClose, o
           </section>
         )}
         {sendFailed && <p className="px-1 text-[14px] font-bold text-accent-red-ink" role="alert">{t('askFailed')}</p>}
+        {data && rows.length > 0 && (
+          <>
+            <div className="-mb-2 flex items-baseline justify-between px-1">
+              <h2 className="text-sm font-extrabold text-ink-400">
+                {all ? t.rich('allHead', { n: rows.length, m }) : t.rich('missingHead', { n: shown.length, m })}
+              </h2>
+              <button type="button" onClick={() => setAll(v => !v)} className="-my-3 min-h-[44px] min-w-[44px] px-1 text-[14px] font-extrabold text-brand-600">
+                {all ? t('onlyMissing') : t('all')}
+              </button>
+            </div>
+            {shown.length > 0 ? (
+              <div className={cn(CARD, 'overflow-hidden')}>
+                {shown.map(r => (
+                  <button key={r.athleteId} type="button"
+                    onClick={() => {
+                      const card = r.action === 'approve' ? approvals?.find(a => a.athleteId === r.athleteId) : null;
+                      if (card) setApproving(card);
+                      // A submission waiting (any protocol): the form opens on it, and the save replaces it.
+                      else setOpen({ person: r, correcting: !!r.pendingTest });
+                    }}
+                    className="flex min-h-[64px] w-full items-center gap-3 border-b border-[#EFEFF4] px-4 py-2.5 text-start last:border-0 active:bg-page/40">
+                    <Avatar text={initials(r.name)} />
+                    <span className="min-w-0 flex-1">
+                      <b className="block truncate text-[15px] font-extrabold text-ink-900"><bdi>{r.name}</bdi></b>
+                      <span className="mt-0.5 flex flex-wrap gap-1">
+                        {r.chips.length ? r.chips.map((c, i) => <RowChip key={i} chip={c} />) : <ChipPill tone="have">{t('readyChip')}</ChipPill>}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-[15.5px] font-extrabold text-brand-600">
+                      {r.action === 'approve' ? t('approve') : r.ready ? t('edit') : t('complete')} <Chevron className="h-[11px] w-[7px]" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className={cn(CARD, 'px-4 py-4 text-[15px] font-bold text-[#0E7A3C]')}>✓ {t('allReady')}</p>
+            )}
+          </>
+        )}
+        {data && rows.length === 0 && <p className={cn(CARD, 'px-4 py-4 text-[15px] text-ink-500')}>{t('empty')}</p>}
       </FlowScreen>
 
       <Sheet open={!!approving} onOpenChange={(o) => { if (!o) setApproving(null); }} title={t('approveTitle')}>

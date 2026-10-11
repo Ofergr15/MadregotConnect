@@ -41,6 +41,8 @@ export type SquareKey = 'onPlan' | 'behind' | 'notRun';
 export type QuickKey = 'add' | 'move' | 'coach';
 
 const VIOLET = '#5B21D6';
+/** Test approval cards drawn on the home before "הכל". */
+const MAX_CARDS = 2;
 
 export function AcademyHome({
   data, isLoading, prev, home, waiting, suggestion, suggestionBusy, capacity, isManager,
@@ -96,7 +98,11 @@ export function AcademyHome({
   const cards = approvalCards ?? [];
   const rowsWaiting = cards.length ? waiting.filter((w) => w.kind !== 'approvals') : waiting;
   const shownWaiting = allWaiting ? rowsWaiting : rowsWaiting.slice(0, 3);
+  // The approval cards are ~210px each: at most two on the home, the rest under the same "הכל"
+  // as the rows — after "לבקש מכולם" to a whole list, a dozen of them would be the whole home.
+  const shownCards = allWaiting ? cards : cards.slice(0, MAX_CARDS);
   const waitingCount = rowsWaiting.length + cards.length;
+  const more = rowsWaiting.length > 3 || cards.length > MAX_CARDS;
 
   return (
     <div className="space-y-2.5" dir="rtl">
@@ -211,13 +217,13 @@ export function AcademyHome({
         <>
           <div className="mx-1 -mb-0.5 mt-0.5 flex items-baseline justify-between">
             <b className="text-[15px] font-black text-ink-700">מחכה לך · <bdi dir="ltr">{waitingCount}</bdi></b>
-            {rowsWaiting.length > 3 && (
-              <button type="button" onClick={() => setAllWaiting((v) => !v)} className="-my-3 min-h-[44px] px-1 text-xs font-extrabold text-brand-600">
+            {more && (
+              <button type="button" onClick={() => setAllWaiting((v) => !v)} className="-my-3 min-h-[44px] min-w-[44px] px-1 text-xs font-extrabold text-brand-600">
                 {allWaiting ? 'פחות' : 'הכל'}
               </button>
             )}
           </div>
-          {cards.map((a) => (
+          {shownCards.map((a) => (
             <TestApprovalCard key={a.testId} approval={a} onDecided={() => onApprovalDecided?.()} onCorrect={(x) => onApprovalCorrect?.(x)} />
           ))}
           {/* What approving does, once under the cards (the mockup's green note). */}

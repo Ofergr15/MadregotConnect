@@ -60,6 +60,20 @@ describe('tests (issues 2, 28)', () => {
   it('a test waiting for approval is pending, not "no test"', () => {
     expect(testStateOf([t30('2026-10-01', 'pending')], TODAY)).toEqual({ kind: 'pending', date: '2026-10-01' });
   });
+  it('a pending 2000 m is a submission waiting, not "no test" (any protocol)', () => {
+    expect(testStateOf([{ test_date: '2026-10-01', protocol: '2000m', status: 'pending', duration_sec: 470, distance_m: 2000 }], TODAY))
+      .toEqual({ kind: 'pending', date: '2026-10-01', protocol: '2000m' });
+    // …and an approved 2000 m behind it does not hide it.
+    expect(testStateOf([
+      { test_date: '2026-10-01', protocol: '2000m', status: 'pending', duration_sec: 470, distance_m: 2000 },
+      { test_date: '2026-09-13', protocol: '2000m', status: 'approved', duration_sec: 480, distance_m: 2000 },
+    ], TODAY)).toMatchObject({ kind: 'pending', protocol: '2000m' });
+    // A standing 30-minute test newer than the waiting 2000 m still stands.
+    expect(testStateOf([
+      t30('2026-10-05'),
+      { test_date: '2026-10-01', protocol: '2000m', status: 'pending', duration_sec: 470, distance_m: 2000 },
+    ], TODAY)).toMatchObject({ kind: 'ok' });
+  });
   it('only a 2000 m test asks for a 30-minute one', () => {
     expect(testStateOf([{ test_date: '2026-09-13', protocol: '2000m', status: 'approved', duration_sec: 480, distance_m: 2000 }], TODAY))
       .toEqual({ kind: 'otherProtocol', protocol: '2000m', date: '2026-09-13' });

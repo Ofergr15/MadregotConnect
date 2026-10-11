@@ -78,3 +78,36 @@ describe('scheduleReprice', () => {
     expect(run).toHaveBeenCalledWith({}, 'a2');
   });
 });
+
+describe('scheduleReprice — one job per trainee', () => {
+  it('a second request while one runs does not start a second loop; the running one goes round once more', async () => {
+    afterFn.mockImplementation(() => { throw new Error('outside a request scope'); });
+    let release!: () => void;
+    const first = new Promise<void>((r) => { release = r; });
+    const run = vi.fn()
+      .mockImplementationOnce(() => first)
+      .mockResolvedValue(undefined);
+    scheduleReprice('a3', run);
+    scheduleReprice('a3', run);
+    scheduleReprice('a3', run);
+    await Promise.resolve();
+    expect(run).toHaveBeenCalledTimes(1);
+    release();
+    await new Promise((r) => setTimeout(r, 0));
+    // Asked for twice more while running: one more round, not two.
+    expect(run).toHaveBeenCalledTimes(2);
+    // Done: the next request runs again.
+    scheduleReprice('a3', run);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(run).toHaveBeenCalledTimes(3);
+  });
+
+  it('another trainee is not held behind the first', async () => {
+    afterFn.mockImplementation(() => { throw new Error('outside a request scope'); });
+    const run = vi.fn().mockImplementation(() => new Promise(() => {}));
+    scheduleReprice('b1', run);
+    scheduleReprice('b2', run);
+    await Promise.resolve();
+    expect(run.mock.calls.map((c) => c[1])).toEqual(['b1', 'b2']);
+  });
+});

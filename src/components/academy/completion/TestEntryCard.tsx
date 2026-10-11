@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -34,7 +34,20 @@ interface EntryResponse {
 
 const BOX = 'rounded-[22px] bg-white shadow-[0_1px_2px_rgba(20,22,40,.04),0_8px_22px_rgba(20,22,40,.06)]';
 
-export function TestEntryCard({ athleteId, onSent }: { athleteId: string; onSent?: () => void }) {
+/** The card's anchor: the "לבקש מכולם" push opens `?test=entry`, and the home scrolls here. */
+export const TEST_ENTRY_ID = 'test-entry';
+
+export function TestEntryCard({ athleteId, onSent, onTyping, raise = false }: {
+  athleteId: string;
+  onSent?: () => void;
+  /**
+   * The typed fields opened or closed. The v2 home hides its sticky "לפתוח את האימון" while they
+   * are open, so "לשלוח" is the one primary on screen (the mockup's only foot button).
+   */
+  onTyping?: (open: boolean) => void;
+  /** Scroll the card into view once it is drawn (the request push's `?test=entry`). */
+  raise?: boolean;
+}) {
   const t = useTranslations('completion.self');
   const tg = useTranslations('completion.goal');
   const readOnly = useViewAsReadOnly();
@@ -47,15 +60,25 @@ export function TestEntryCard({ athleteId, onSent }: { athleteId: string; onSent
   const [goalError, setGoalError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const shown = !!data?.isMember && data.show !== 'none';
+  const typing = shown && data?.show === 'missing' && mode === 'type';
+  useEffect(() => { onTyping?.(typing); }, [typing, onTyping]);
+  const raised = useRef(false);
+  useEffect(() => {
+    if (!raise || !shown || raised.current) return;
+    raised.current = true;
+    boxRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [raise, shown]);
 
-  if (!data?.isMember || data.show === 'none') return null;
+  if (!shown || !data) return null;
   const coach = data.coach?.name.split(' ')[0] ?? null;
   const m = (c: React.ReactNode) => <bdi dir="ltr">{c}</bdi>;
   const bdi = (c: React.ReactNode) => <bdi>{c}</bdi>;
 
   if (data.show === 'pending' && data.test?.kind === 'pending') {
     return (
-      <div className={cn(BOX, 'flex min-h-[56px] items-center gap-[11px] px-3.5 py-2.5')} role="status">
+      <div ref={boxRef} id={TEST_ENTRY_ID} className={cn(BOX, 'flex min-h-[56px] items-center gap-[11px] px-3.5 py-2.5')} role="status">
         <span aria-hidden className="w-6 shrink-0 text-center text-[19px]">⏳</span>
         <span className="min-w-0 flex-1">
           <b className="block text-[14.5px] font-extrabold text-ink-900">{t.rich('pendingTitle', { date: shortDay(data.test.date), m })}</b>
@@ -73,12 +96,9 @@ export function TestEntryCard({ athleteId, onSent }: { athleteId: string; onSent
     if (!body) return;
     setBusy(true); setError(null);
     try {
+      // The one test only: the older watch runs are the staff form's (WatchTestSheet allowOlder),
+      // or each would be one more card waiting in the coach's "מחכה לך".
       await sendJson('POST', '/api/academy/tests', body);
-      for (const c of draft.older) {
-        await sendJson('POST', '/api/academy/tests', {
-          athleteId, date: c.date, protocol: c.protocol, durationSec: c.durationSec, distanceM: c.distanceM, avgHr: c.avgHr, activityId: c.activityId,
-        }).catch(() => null);
-      }
       setMode('closed');
       setDraft(emptyDraft());
       await mutate();
@@ -108,7 +128,7 @@ export function TestEntryCard({ athleteId, onSent }: { athleteId: string; onSent
   const goalText = goal ? goalSummary(goal, (g) => tg(`types.${g}`)) : null;
 
   return (
-    <div className="space-y-2.5">
+    <div ref={boxRef} id={TEST_ENTRY_ID} className="scroll-mt-3 space-y-2.5">
       <section className={cn(BOX, 'border-2 border-brand-600 px-4 py-[15px]')}>
         <div className="flex items-start gap-3">
           <span aria-hidden className="text-[26px] leading-none">🎯</span>
@@ -145,8 +165,9 @@ export function TestEntryCard({ athleteId, onSent }: { athleteId: string; onSent
               {goal && hasGoal(goal) ? t('goalEdit') : t('goalAdd')} <Chevron className="h-[11px] w-[7px]" />
             </span>
           </button>
+          {!draft.date && draft.measured && <p className="-mt-1 px-1 text-[13px] font-bold text-[#A8510A]">{t('dateFirst')}</p>}
           <PrimaryButton className="w-full" onClick={() => void send()} busy={busy} disabled={readOnly || !draftHasTest(draft)}>
-            {coach ? t.rich('send', { name: coach, bdi }) : t('sendCoach')}
+            <span>{coach ? t.rich('send', { name: coach, bdi }) : t('sendCoach')}</span>
           </PrimaryButton>
         </>
       )}
@@ -156,14 +177,20 @@ export function TestEntryCard({ athleteId, onSent }: { athleteId: string; onSent
         athleteId={athleteId}
         open={watchOpen}
         onOpenChange={setWatchOpen}
-        onPick={(c, older) => {
-          setDraft({ protocol: c.protocol, date: c.date, measured: measuredText(c), avgHr: c.avgHr ? String(c.avgHr) : '', activityId: c.activityId, older });
+        onPick={(c) => {
+          setDraft({ protocol: c.protocol, date: c.date, measured: measuredText(c), avgHr: c.avgHr ? String(c.avgHr) : '', activityId: c.activityId, older: [] });
           setMode('type');
         }}
+        onType={() => { setMode('type'); focusMeasured(); }}
       />
       {goal && (
         <GoalSheet open={goalOpen} onOpenChange={setGoalOpen} goal={goal} busy={goalBusy} error={goalError} onDone={(g) => void saveGoal(g)} />
       )}
     </div>
   );
+}
+
+/** After the watch sheet closes on "להקליד": the measured field, once the fields are drawn. */
+export function focusMeasured() {
+  setTimeout(() => document.getElementById('test-measured')?.focus(), 350);
 }

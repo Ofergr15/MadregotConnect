@@ -11,7 +11,7 @@
 //     watch stopped a few seconds either side). A longer named run — a warm-up, the test, a
 //     jog home — is searched with the laps rule below for the 30 minutes inside it. A named
 //     run that is ~2000 m, or whose name says 2000 and that has a ~2000 m lap, is a 2000 m
-//     candidate.
+//     candidate; a run named 2000 without such a lap is nothing (never a 30-minute test).
 //
 //  2. **By laps.** A test nobody named is 30 continuous, hard minutes: consecutive laps that
 //     add up to 28-32 minutes, no lap in them more than `CONTINUOUS_SPREAD` slower than the
@@ -198,9 +198,10 @@ export function findTestRuns(activities: FinderActivity[], today: string): Finde
       // A 2000 m: the run itself is ~2000 m, or the name says 2000 and one lap is. A 2 km
       // warm-up lap inside an ordinary "טסט" is not one — hence the name, not just the lap.
       const runIs2k = dist >= TWO_K.min && dist <= TWO_K.max;
+      const namedTwoK = TWO_K_NAME.test(String(a.activity_name));
       const twoKLap = runIs2k
         ? { duration: sec, distance: dist, averageHR: runHr }
-        : TWO_K_NAME.test(String(a.activity_name))
+        : namedTwoK
           ? laps.filter(l => l.distance >= TWO_K.min && l.distance <= TWO_K.max)
             .sort((x, y) => x.duration / x.distance - y.duration / y.distance)[0] ?? null
           : null;
@@ -213,6 +214,11 @@ export function findTestRuns(activities: FinderActivity[], today: string): Finde
         });
         continue;
       }
+      // The name says 2000 and no lap is one (a Strava run without laps, a manual entry): the
+      // 2000 m is in there somewhere and cannot be found. Never the 30-minute rules below — a
+      // warm-up, the 2000 and a jog home scaled to 30:00 would become a threshold that prices
+      // every zone.
+      if (namedTwoK) continue;
       if (sec >= NAMED_MIN_SEC && sec <= NAMED_MAX_SEC) {
         const distanceM = at30(dist, sec);
         out.push({
@@ -255,16 +261,24 @@ export function findTestRuns(activities: FinderActivity[], today: string): Finde
   return { candidates, scanned: runs.length, noLaps, stravaNoLaps, emptyReason };
 }
 
+/** The key GET /api/academy/tests/watch lists the tests already on record by: `date:protocol`. */
+export const recordedKey = (c: Pick<TestCandidate, 'date' | 'protocol'>) => `${c.date}:${c.protocol}`;
+
 /**
  * "Also save the older ones as past tests": the candidates of the same protocol older than the
  * chosen one, oldest first, one per day (the table holds one test per day and protocol).
+ *
+ * A day already on record (`recorded`, `date:protocol`) is left out: that row may be the
+ * coach's measured number, or one thrown out of the trend on purpose, and a watch estimate
+ * must never stand in for it. POST /api/academy/tests `past` refuses to overwrite one too.
  */
-export function olderTests(candidates: TestCandidate[], chosenId: string): TestCandidate[] {
+export function olderTests(candidates: TestCandidate[], chosenId: string, recorded: readonly string[] = []): TestCandidate[] {
   const chosen = candidates.find(c => c.activityId === chosenId);
   if (!chosen) return [];
   const seen = new Set<string>([chosen.date]);
+  const onRecord = new Set(recorded);
   return candidates
-    .filter(c => c.protocol === chosen.protocol && c.date < chosen.date)
+    .filter(c => c.protocol === chosen.protocol && c.date < chosen.date && !onRecord.has(recordedKey(c)))
     .sort((a, b) => a.date.localeCompare(b.date))
     .filter((c) => (seen.has(c.date) ? false : (seen.add(c.date), true)));
 }

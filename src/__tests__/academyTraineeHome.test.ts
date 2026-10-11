@@ -144,6 +144,9 @@ describe('goalCard', () => {
 
   it('with nothing said there is no card, and a race already run has no countdown', () => {
     expect(goalCard(null, null, '2026-10-06')).toBeNull();
+    // The trainee's own goal time (migration 144, screens 2 and 4) is shown, before the band's.
+    expect(goalCard({ goalType: 'half', targetRace: 'טבריה', targetRaceDate: null, goalTimeSec: 6300 }, { goal: 'סאב 2', paceProfile: {} }, '2026-10-06')?.subtitle)
+      .toBe('היעד: חצי מרתון · 1:45:00');
     expect(goalCard({ goalType: 'full', targetRace: 'ת״א', targetRaceDate: '2026-02-01' }, null, '2026-10-06')?.daysLeft).toBeNull();
   });
 });

@@ -25,16 +25,19 @@ export interface TestDraft {
   older: TestCandidate[];
 }
 
-export const emptyDraft = (): TestDraft => ({ protocol: '30min', date: israelToday(), measured: '', avgHr: '', activityId: null, older: [] });
+// The day starts empty ("לבחור"), not today: a trainee who only types the distance would send
+// "the last test" dated today, and the coach would approve a test nobody ran today.
+export const emptyDraft = (): TestDraft => ({ protocol: '30min', date: '', measured: '', avgHr: '', activityId: null, older: [] });
 
+/** A number and a day: nothing is sent without both. */
 export function draftHasTest(d: TestDraft): boolean {
-  return !!entryPreview(d.protocol, d.measured).row;
+  return !!d.date && !!entryPreview(d.protocol, d.measured).row;
 }
 
 /** The POST /api/academy/tests body for a draft, or null while it has no number yet. */
 export function draftBody(d: TestDraft, athleteId: string): Record<string, unknown> | null {
   const { row } = entryPreview(d.protocol, d.measured);
-  if (!row) return null;
+  if (!row || !d.date) return null;
   const hr = parseAvgHr(d.avgHr);
   return {
     athleteId, date: d.date, protocol: row.protocol, durationSec: row.durationSec, distanceM: row.distanceM,
@@ -42,7 +45,7 @@ export function draftBody(d: TestDraft, athleteId: string): Record<string, unkno
   };
 }
 
-export function TestFields({ draft, onChange, self, showHr, name, sendTo }: {
+export function TestFields({ draft, onChange, self, showHr, name, gender, sendTo }: {
   draft: TestDraft;
   onChange: (d: TestDraft) => void;
   /** The trainee's own card: "מתי", "כמה רצת ב־30 דקות", "קצב הסף שלך". */
@@ -50,6 +53,8 @@ export function TestFields({ draft, onChange, self, showHr, name, sendTo }: {
   showHr?: boolean;
   /** Whose threshold, on the staff form. */
   name?: string;
+  /** Theirs, for "…והעומס שלו / שלה". */
+  gender?: string | null;
   /** The coach a trainee's entry goes to, for "יישלח ל־Sahar לאישור". */
   sendTo?: string | null;
 }) {
@@ -77,7 +82,9 @@ export function TestFields({ draft, onChange, self, showHr, name, sendTo }: {
         <FieldRow label={self ? t('whenSelf') : t('date')} htmlFor="test-date">
           {/* The native date picker, dressed as the mockup's blue value: the label shows dd.mm.yyyy. */}
           <span className="relative inline-flex h-11 items-center">
-            <b className="pointer-events-none text-[16px] font-extrabold text-brand-600"><bdi dir="ltr">{formDate(draft.date)}</bdi></b>
+            {draft.date
+              ? <b className="pointer-events-none text-[16px] font-extrabold text-brand-600"><bdi dir="ltr">{formDate(draft.date)}</bdi></b>
+              : <b className="pointer-events-none text-[16px] font-extrabold text-ink-300">{t('pickDate')}</b>}
             <input
               id="test-date"
               type="date"
@@ -90,6 +97,8 @@ export function TestFields({ draft, onChange, self, showHr, name, sendTo }: {
           </span>
         </FieldRow>
         <FieldRow label={thirty ? (self ? t('distanceSelf') : t('distance')) : (self ? t('timeSelf') : t('time'))} htmlFor="test-measured">
+          {/* As wide as what is typed, so "7.12 ק״מ" starts at the value edge like the date and the HR
+              above and below it. The placeholder is a neutral dash, and the unit greys with it. */}
           <span className="flex items-baseline gap-1" dir="ltr">
             <input
               id="test-measured"
@@ -97,10 +106,12 @@ export function TestFields({ draft, onChange, self, showHr, name, sendTo }: {
               autoComplete="off"
               value={draft.measured}
               onChange={(e) => set({ measured: e.target.value })}
-              placeholder={thirty ? '7.12' : '7:05'}
-              className={cn(FIELD_INPUT, 'w-[84px] text-right')}
+              placeholder="—"
+              aria-label={thirty ? (self ? t('distanceSelf') : t('distance')) : (self ? t('timeSelf') : t('time'))}
+              className={cn(FIELD_INPUT, 'tabular-nums')}
+              style={{ width: `max(44px, ${Math.max(draft.measured.length, 3) + 0.5}ch)` }}
             />
-            {thirty && <span className="text-[16px] font-extrabold text-brand-600">{t('km')}</span>}
+            {thirty && <span className={cn('text-[16px] font-extrabold', draft.measured ? 'text-brand-600' : 'text-ink-300')}>{t('km')}</span>}
           </span>
         </FieldRow>
         {showHr && (
@@ -127,7 +138,7 @@ export function TestFields({ draft, onChange, self, showHr, name, sendTo }: {
           title={self ? t('thresholdSelf') : t.rich('thresholdOf', { name: name ?? '', bdi: (c) => <bdi>{c}</bdi> })}
           sub={preview.implausible ? t('implausible')
             : self ? (sendTo ? t.rich('sendTo', { name: sendTo, bdi: (c) => <bdi>{c}</bdi> }) : t('sendToCoach'))
-              : t('thresholdSub', { gender: 'other' })}
+              : t('thresholdSub', { gender: gender === 'female' || gender === 'male' ? gender : 'other' })}
         />
       ) : (
         <ThresholdBox

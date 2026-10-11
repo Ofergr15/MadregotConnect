@@ -92,7 +92,8 @@ export function FormCard({ form, when, gender, showBands, testKind }: {
           <div className="grid h-[58px] w-[58px] shrink-0 place-items-center rounded-[17px] bg-[#F0F0F4] text-[22px]" aria-hidden>⌚</div>
           <div className="min-w-0">
             <p className="text-[16px] font-black text-ink-900">{t('insufficient')}</p>
-            <p className="text-[13px] leading-normal text-ink-500">{t('insufficientSay')}</p>
+            {/* A test waiting for the coach is not "בלי טסט": the line agrees with the test card above. */}
+            <p className="text-[13px] leading-normal text-ink-500">{t(testKind === 'pending' ? 'insufficientSayPending' : 'insufficientSay')}</p>
           </div>
         </div>
       </section>

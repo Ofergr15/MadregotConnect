@@ -62,13 +62,15 @@ function weekRange(weekStart: string): string {
     : `${dm(first)}–${dm(last)}`;
 }
 
-export function AcademyMyView({ athleteId, openThread = false, raiseTest = false }: {
+export function AcademyMyView({ athleteId, openThread = false, raiseTest = false, raiseEntry = false }: {
   /** `null` while the id is still being read from storage; `''` once we've looked and found nobody. */
   athleteId: string | null;
   /** `?thread=mine` — a push about the conversation was tapped: open it. */
   openThread?: boolean;
   /** `?test=mine` — a test reminder was tapped: bring the test card into view. */
   raiseTest?: boolean;
+  /** `?test=entry` — the "לבקש מכולם" request was tapped: bring the entry card into view. */
+  raiseEntry?: boolean;
 }) {
   const t = useTranslations('academy');
   const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()));
@@ -214,7 +216,7 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
 
       {/* ── "חסר לנו הטסט האחרון שלך" (academy-existing-trainees, phone 4): renders only while
           there is no usable test, and says "ממתין לאישור" once one is sent. ── */}
-      {data?.athlete?.athleteId && <TestEntryCard athleteId={data.athlete.athleteId} onSent={() => setResultJustSent(true)} />}
+      {data?.athlete?.athleteId && <TestEntryCard athleteId={data.athlete.athleteId} onSent={() => setResultJustSent(true)} raise={raiseEntry} />}
 
       {/* ── What I'm training for ── */}
       {data?.goal && (

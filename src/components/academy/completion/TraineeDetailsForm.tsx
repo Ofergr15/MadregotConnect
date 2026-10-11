@@ -14,6 +14,8 @@ import { FieldRow, ValueButton, WatchButton, sendJson } from './shared';
 import { TestFields, draftBody, draftHasTest, emptyDraft, type TestDraft } from './TestFields';
 import { WatchTestSheet } from './WatchTestSheet';
 import { GoalSheet, goalSummary } from './GoalSheet';
+import { focusMeasured } from './TestEntryCard';
+import { InviteToTestSheet } from '../InviteToTestSheet';
 
 // ── להשלים למתאמן אחד (mockup academy-existing-trainees, phone 2) ───────────────────────
 //
@@ -24,6 +26,10 @@ import { GoalSheet, goalSummary } from './GoalSheet';
 // Each half saves through the door that already guards it: the test through the tests route,
 // the band through PUT /api/academy/bands and the coach through PUT /api/academy/coach (both
 // manager-only — a coach sees those two rows read-only), the goal through PUT /api/academy/goal.
+//
+// No usable test (none, 2000 only, old): "לקבוע טסט חדש" opens the test-invitation sheet the test
+// board uses (InviteToTestSheet → POST /api/academy/test-invitation), so the reminders and the
+// settlement on the result are the ones every invitation already has.
 
 export interface PickBand { id: string; bandNumber: number }
 export interface PickCoach { coachId: string; coachName: string }
@@ -63,6 +69,12 @@ export function TraineeDetailsForm({ person, bands, coaches, canAssign, goalsSto
   const [goalOpen, setGoalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [invited, setInvited] = useState(false);
+  // An old test, a 2000 m only, or none, and nothing waiting: the next test is worth scheduling.
+  const canSchedule = (person.test === 'old' || person.test === 'none' || person.test === 'otherProtocol') && !person.pendingTest;
 
   const band = bands.find(b => b.id === bandId) ?? null;
   const coachName = coaches.find(c => c.coachId === coachId)?.coachName ?? person.coachNames[0] ?? null;
@@ -85,14 +97,17 @@ export function TraineeDetailsForm({ person, bands, coaches, canAssign, goalsSto
       if (testDirty && draftHasTest(draft)) {
         const body = draftBody(draft, person.athleteId)!;
         try {
-          await sendJson('POST', '/api/academy/tests', { ...body, ...(correcting && person.pendingTest ? { replacesTestId: person.pendingTest.testId } : {}) });
-          // The older test-like runs, as past tests: best effort, a day already on record is skipped.
-          for (const c of draft.older) {
-            await sendJson('POST', '/api/academy/tests', {
-              athleteId: person.athleteId, date: c.date, protocol: c.protocol, durationSec: c.durationSec, distanceM: c.distanceM,
-              avgHr: c.avgHr, activityId: c.activityId,
-            }).catch(() => null);
-          }
+          // The older test-like runs ride along as `past`, in the same request: the trainee is
+          // repriced once, and the server writes them only into days with nothing on record.
+          await sendJson('POST', '/api/academy/tests', {
+            ...body,
+            ...(correcting && person.pendingTest ? { replacesTestId: person.pendingTest.testId } : {}),
+            ...(draft.older.length ? {
+              past: draft.older.map(c => ({
+                date: c.date, protocol: c.protocol, durationSec: c.durationSec, distanceM: c.distanceM, avgHr: c.avgHr, activityId: c.activityId,
+              })),
+            } : {}),
+          });
         } catch { failed.push(t('failTest')); }
       }
       if (canAssign && bandId !== person.bandId) {
@@ -122,12 +137,13 @@ export function TraineeDetailsForm({ person, bands, coaches, canAssign, goalsSto
         trailing={<BarButton strong onClick={() => void save()} disabled={!canSave}>{t('save')}</BarButton>}
         footer={(
           <PrimaryButton onClick={() => void save()} busy={busy} disabled={!canSave}>
-            {readyAfter ? t.rich('saveReady', { name: first, bdi: (c) => <bdi>{c}</bdi> }) : t('saveOnly')}
+            {/* One span: the button is a flex row with a gap, and the rich text's pieces would each be an item. */}
+            <span>{readyAfter ? t.rich('saveReady', { name: first, bdi: (c) => <bdi>{c}</bdi> }) : t('saveOnly')}</span>
           </PrimaryButton>
         )}
       >
         <SectionLabel>{correcting ? t('correcting') : t('lastTest')}</SectionLabel>
-        <TestFields draft={draft} onChange={changeDraft} showHr name={first} />
+        <TestFields draft={draft} onChange={changeDraft} showHr name={first} gender={person.gender} />
         <WatchButton onClick={() => setWatchOpen(true)}>
           <span aria-hidden>⌚</span> {t('fromWatch')}
         </WatchButton>
@@ -136,11 +152,23 @@ export function TraineeDetailsForm({ person, bands, coaches, canAssign, goalsSto
             ✓ {t('fromWatchPicked')}{draft.older.length > 0 && <> · {t.rich('olderToo', { n: draft.older.length, m: (c) => <bdi dir="ltr">{c}</bdi> })}</>}
           </p>
         )}
+        {canSchedule && (
+          invited
+            ? <p className="-mt-1 px-1 text-[13px] font-bold text-[#0E7A3C]" role="status">✓ {t.rich('scheduled', { name: first, bdi: (c) => <bdi>{c}</bdi> })}</p>
+            : (
+              <button type="button" onClick={() => { setInviteError(null); setInviteOpen(true); }} disabled={readOnly}
+                className="-mt-1 flex min-h-[44px] items-center gap-1.5 self-start px-1 text-[15px] font-extrabold text-brand-600 disabled:opacity-50">
+                <span aria-hidden>📅</span> {person.test === 'old' ? t('scheduleOld') : t('schedule')}
+              </button>
+            )
+        )}
 
         <SectionLabel>{t('rest')}</SectionLabel>
         <div className={cn(CARD, 'overflow-hidden')}>
+          {/* The invisible select covers the whole row (FieldRow is relative), not just the digit:
+              tapping anywhere on "דבוקה … 5" opens it. */}
           <FieldRow label={t('band')}>
-            <span className="relative inline-flex">
+            <span className="inline-flex">
               <ValueButton empty={!band} disabled={!canAssign} label={t('band')}>
                 {band ? <bdi dir="ltr">{band.bandNumber}</bdi> : t('choose')}
               </ValueButton>
@@ -159,7 +187,7 @@ export function TraineeDetailsForm({ person, bands, coaches, canAssign, goalsSto
             </ValueButton>
           </FieldRow>
           <FieldRow label={t('coach')}>
-            <span className="relative inline-flex">
+            <span className="inline-flex">
               <ValueButton empty={!coachName} disabled={!coachEditable} label={t('coach')}>
                 {person.coachIds.length > 1 ? <bdi>{person.coachNames.filter(Boolean).join(', ')}</bdi> : coachName ? <bdi>{coachName}</bdi> : t('choose')}
               </ValueButton>
@@ -182,12 +210,29 @@ export function TraineeDetailsForm({ person, bands, coaches, canAssign, goalsSto
         athleteId={person.athleteId}
         open={watchOpen}
         onOpenChange={setWatchOpen}
+        name={first}
+        allowOlder
+        onType={focusMeasured}
         onPick={(c, older) => {
           setDraft({
             protocol: c.protocol, date: c.date, measured: measuredText(c), avgHr: c.avgHr ? String(c.avgHr) : '',
             activityId: c.activityId, older,
           });
           setTestDirty(true);
+        }}
+      />
+      <InviteToTestSheet
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+        target={inviteOpen ? { athleteId: person.athleteId, name: person.name } : null}
+        busy={inviting}
+        error={inviteError}
+        onSend={(offer) => {
+          setInviting(true); setInviteError(null);
+          sendJson('POST', '/api/academy/test-invitation', { athleteId: person.athleteId, protocol: offer.protocol, slots: offer.slots })
+            .then(() => { setInvited(true); setInviteOpen(false); onSaved(); })
+            .catch((e: { status?: number }) => setInviteError(e.status === 409 ? t('scheduleExists') : t('scheduleFailed')))
+            .finally(() => setInviting(false));
         }}
       />
       <GoalSheet open={goalOpen} onOpenChange={setGoalOpen} goal={goal} onDone={(g) => { setGoal(g); setGoalDirty(true); setGoalOpen(false); }} />

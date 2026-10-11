@@ -12,6 +12,7 @@ import type { PaceUpdateCard } from './coach-tools-payload';
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { stepMetric, type StepUnits } from '@/lib/plans/step-display';
 import { GOAL_TYPES, type Characterization } from './characterization';
+import { goalTimeText } from './goal';
 import { effectiveOffsetSec, type AcademyBand } from './bands';
 import { ZONE_INTENSITY, resolveIntensity } from './library';
 import { paceVerdict, type PaceVerdict } from './pace-verdict';
@@ -297,12 +298,13 @@ export function monthsBetween(from: string | null | undefined, to: string): numb
  * states one, the band's own goal — "sub-3", "סביב 3:30".
  */
 export function goalCard(
-  c: Pick<Characterization, 'goalType' | 'targetRace' | 'targetRaceDate'> | null | undefined,
+  c: (Pick<Characterization, 'goalType' | 'targetRace' | 'targetRaceDate'> & { goalTimeSec?: number | null }) | null | undefined,
   band: Pick<AcademyBand, 'goal' | 'paceProfile'> | null | undefined,
   today: string,
 ): HomeGoal | null {
   const goalLabel = c?.goalType ? GOAL_TYPES.find((g) => g.value === c.goalType)?.label ?? null : null;
-  const bandGoal = band?.paceProfile?.marathonGoal || band?.goal || null;
+  // The trainee's own goal time (migration 144) is theirs; the band's is the group's.
+  const bandGoal = (c?.goalTimeSec ? goalTimeText(c.goalTimeSec) : null) || band?.paceProfile?.marathonGoal || band?.goal || null;
   const race = c?.targetRace || null;
   if (!race && !goalLabel) return null;
 

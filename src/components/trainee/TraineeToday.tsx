@@ -63,6 +63,7 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
   // The workout screen (4/5) is the board's own overlay, so it opens on the board's row
   // for that day — the same payload the week screen hands it.
   const [opening, setOpening] = useState<string | null>(null);
+  const [entryTyping, setEntryTyping] = useState(false);
   const { data: board } = useApi<WeekBoard>(
     opening ? `/api/academy/week-board?athleteId=${encodeURIComponent(athleteId)}&weekStart=${planWeekStartOf(opening)}` : null,
   );
@@ -140,7 +141,7 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
       {/* "חסר לנו הטסט האחרון שלך" (academy-existing-trainees, phone 4), in place of the card's
           "🎯 צריך טסט" line that left nothing to do: find it in the watch or type it, sent to the
           coach for approval; "ממתין לאישור" until then. */}
-      {entryCard && <TestEntryCard athleteId={athleteId} onSent={() => void mutate()} />}
+      {entryCard && <TestEntryCard athleteId={athleteId} onSent={() => void mutate()} onTyping={setEntryTyping} />}
 
       {invite && (
         <Link href={academyTestUrl({ recipientIsStaff: false })} className={cn(CARD, 'flex min-h-[56px] items-center gap-[11px] px-3.5')}>
@@ -206,7 +207,8 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
         </button>
       )}
 
-      {openDate && (
+      {/* Hidden while the test card's fields are open: its "לשלוח" is then the one primary on screen. */}
+      {openDate && !entryTyping && (
         // Pinned to the bottom of the scroll box, which ends at the tab bar: the mockup's
         // .foot, on screen at first open however long the cards above it run.
         // !-mb-4 (over the parent's space-y): the scroll box's own bottom padding taken back,

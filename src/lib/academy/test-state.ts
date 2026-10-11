@@ -11,7 +11,9 @@ import { daysBetween } from './load';
  * say which of these it is, never print a lane's pace as the trainee's own:
  *
  * - `none`: no test at all;
- * - `pending`: a 30-minute test is in, waiting for the coach's approval;
+ * - `pending`: a test is in, waiting for the coach's approval. Any protocol: a trainee who
+ *   sent a 2000 m has sent something, and "חסר לנו הטסט" (or "לבקש מכולם") again would ask
+ *   for what is already waiting. `protocol` says when it is not a 30-minute one;
  * - `otherProtocol`: only a 2000 m (or other) test. DECIDED: it does not stand in — the
  *   threshold is the 30-minute test's average pace, and a 2000 m effort is far above it,
  *   so its pace as a threshold would make every zone too fast. The screen asks for a
@@ -20,7 +22,7 @@ import { daysBetween } from './load';
  */
 export type TestState =
   | { kind: 'ok'; date: string; ageDays: number; old: boolean }
-  | { kind: 'pending'; date: string }
+  | { kind: 'pending'; date: string; protocol?: string }
   | { kind: 'otherProtocol'; protocol: string; date: string }
   | { kind: 'none' };
 
@@ -44,14 +46,17 @@ export function testStateOf(rows: TestRow[], today: string): TestState {
   };
   const thirty = sorted.filter(r => (r.protocol ?? '30min') === '30min' && usable(r));
   const approved = thirty.find(r => (r.status ?? 'approved') === 'approved');
-  // A newer test waiting for approval is said even when an older one stands.
-  const pending = thirty.find(r => (r.status ?? 'approved') !== 'approved');
+  // A newer test waiting for approval is said even when an older one stands — of any protocol.
+  const pending = sorted.find(r => (r.status ?? 'approved') !== 'approved' && usable(r));
   if (approved && (!pending || String(pending.test_date) <= String(approved.test_date))) {
     const date = String(approved.test_date).slice(0, 10);
     const ageDays = daysBetween(date, today);
     return { kind: 'ok', date, ageDays, old: ageDays >= OLD_TEST_DAYS };
   }
-  if (pending) return { kind: 'pending', date: String(pending.test_date).slice(0, 10) };
+  if (pending) {
+    const protocol = pending.protocol ?? '30min';
+    return { kind: 'pending', date: String(pending.test_date).slice(0, 10), ...(protocol !== '30min' ? { protocol } : {}) };
+  }
   if (approved) {
     const date = String(approved.test_date).slice(0, 10);
     const ageDays = daysBetween(date, today);

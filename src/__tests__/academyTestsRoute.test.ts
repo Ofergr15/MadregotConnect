@@ -60,6 +60,7 @@ class Query implements PromiseLike<{ data: Row[] | null; error: unknown }> {
   private orderBy: { column: string; ascending: boolean } | null = null;
   private pending: Row | null = null;
   private conflict: string[] = [];
+  private ignoreDuplicates = false;
   private patch: Row | null = null;
   private deleting = false;
 
@@ -92,8 +93,9 @@ class Query implements PromiseLike<{ data: Row[] | null; error: unknown }> {
     return this;
   }
 
-  upsert(row: Row, opts?: { onConflict?: string }) {
+  upsert(row: Row, opts?: { onConflict?: string; ignoreDuplicates?: boolean }) {
     this.pending = row;
+    this.ignoreDuplicates = !!opts?.ignoreDuplicates;
     this.conflict = (opts?.onConflict || '').split(',').map(s => s.trim()).filter(Boolean);
     return this;
   }
@@ -104,6 +106,8 @@ class Query implements PromiseLike<{ data: Row[] | null; error: unknown }> {
     const existing = this.conflict.length
       ? db[this.table].find(r => this.conflict.every(key => r[key] === row[key]))
       : undefined;
+    // ON CONFLICT DO NOTHING: the row on record stays exactly as it was, and nothing comes back.
+    if (existing && this.ignoreDuplicates) return [];
     if (existing) {
       Object.assign(existing, row);
       return [existing];
@@ -763,5 +767,68 @@ describe('repricing, the watch source and "לתקן"', () => {
     asRunner(MINE);
     await post(body(MINE, 7000, { date: day(1), replacesTestId: String(db.academy_tests[0].id) }));
     expect(db.academy_tests).toHaveLength(2);
+  });
+});
+
+describe('"also save the older ones" — past tests ride on the save, and never overwrite', () => {
+  const past = (date: string, meters: number, over: Row = {}) => ({ date, protocol: '30min', durationSec: 1800, distanceM: meters, avgHr: null, ...over });
+
+  it('an approved, excluded test on record survives "save the older ones"', async () => {
+    asCoach();
+    // 18.05-style: measured by hand, then thrown out of the trend on purpose.
+    await post(body(MINE, 6400, { date: day(150), excludedReason: 'GPS בעייתי' }));
+    const res = await (await post(body(MINE, 7120, { past: [past(day(150), 6862), past(day(90), 6900)] }))).json();
+    expect(res.pastSaved).toBe(1);
+    const onRecord = db.academy_tests.find(r => r.test_date === day(150))!;
+    expect(onRecord).toMatchObject({ distance_m: 6400, excluded_reason: 'GPS בעייתי', status: 'approved' });
+    expect(db.academy_tests.find(r => r.test_date === day(90))).toMatchObject({ distance_m: 6900, status: 'approved' });
+    expect(db.academy_tests).toHaveLength(3);
+  });
+
+  it('one save with older tests reprices once, not once per test', async () => {
+    asManager();
+    await post(body(MINE, 7120, { past: [past(day(60), 6900), past(day(120), 6800)] }));
+    expect(scheduleReprice).toHaveBeenCalledTimes(1);
+    expect(db.academy_tests).toHaveLength(3);
+  });
+
+  it('a trainee\'s past list is ignored: one submission, one card in the coach\'s queue', async () => {
+    asRunner(MINE);
+    const res = await (await post(body(MINE, 7000, { past: [past(day(60), 6900), past(day(120), 6800)] }))).json();
+    expect(res.pastSaved).toBe(0);
+    expect(db.academy_tests).toHaveLength(1);
+  });
+
+  it('a bad past entry is skipped, never failing the save it rode on', async () => {
+    asManager();
+    const res = await post(body(MINE, 7120, { past: [past('2026-13-40', 6900), past(day(30), 6900, { avgHr: 999 }), past(day(40), 6950)] }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).pastSaved).toBe(1);
+  });
+});
+
+describe('POST — the input is checked on the server, 400 with the field', () => {
+  const status = async (over: Row, as: () => void = asManager) => {
+    as();
+    const res = await post(body(MINE, 7120, over));
+    return { status: res.status, field: (await res.json()).field };
+  };
+  it('an impossible date, a future one, an unknown protocol, an HR out of range', async () => {
+    expect(await status({ date: '2026-13-40' })).toEqual({ status: 400, field: 'date' });
+    expect(await status({ date: day(-5) })).toEqual({ status: 400, field: 'date' });
+    expect(await status({ protocol: 'banana' })).toEqual({ status: 400, field: 'protocol' });
+    expect(await status({ avgHr: 999 })).toEqual({ status: 400, field: 'avgHr' });
+    expect(db.academy_tests).toHaveLength(0);
+  });
+  it('a 70 m "30 minutes": refused from a trainee, saved with a warning from staff', async () => {
+    expect(await status({ distanceM: 70 }, () => asRunner(MINE))).toEqual({ status: 400, field: 'pace' });
+    asManager();
+    const res = await (await post(body(MINE, 70))).json();
+    expect(res.implausible).toBe(true);
+    expect(db.academy_tests).toHaveLength(1);
+  });
+  it('a trainee may send only the two protocols the card offers', async () => {
+    expect(await status({ protocol: '5000m', distanceM: 5000, durationSec: 1300 }, () => asRunner(MINE))).toEqual({ status: 400, field: 'protocol' });
+    expect((await status({ protocol: '5000m', distanceM: 5000, durationSec: 1300 })).status).toBe(200);
   });
 });

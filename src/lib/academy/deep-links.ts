@@ -62,6 +62,11 @@ export interface AcademyDeepLink {
   thread: string | null;
   /** The trainee asked to see their test card. */
   test: boolean;
+  /**
+   * `test=entry`: the "לבקש מכולם" request (academy-existing-trainees) — the "חסר לנו הטסט
+   * האחרון שלך" card near the top, not the tests card at the bottom that `test=mine` scrolls to.
+   */
+  entry: boolean;
   /** The trainee's board: a day whose workout opens on arrival (YYYY-MM-DD), else null. */
   open: string | null;
   /** The trainee's board: which of its two views. */
@@ -78,6 +83,7 @@ export function readAcademyDeepLink(params: { get(name: string): string | null }
     tab: params.get('tab'),
     thread: thread ? thread : null,
     test: params.get('test') === 'mine',
+    entry: params.get('test') === 'entry',
     open: DATE.test(params.get('open') || '') ? params.get('open') : null,
     view: params.get('view') === 'month' ? 'month' : 'week',
   };
@@ -112,4 +118,9 @@ export function traineeProgressUrl(view?: 'body' | 'tests'): string {
 export function traineeTestRedirect(link: Pick<AcademyDeepLink, 'test'>, opts: { traineeV2: boolean; isStaff: boolean }): string | null {
   // `test=mine` rides along so 7ג scrolls the next test / the tests card into view.
   return link.test && opts.traineeV2 && !opts.isStaff ? `${traineeProgressUrl('tests')}&test=mine` : null;
+}
+
+/** Where the "לבקש מכולם" request lands: the v2 home (the card is near its top), else the academy tab's card. */
+export function testEntryUrl(opts: { traineeV2: boolean }): string {
+  return opts.traineeV2 ? '/dashboard' : `${ACADEMY_PATH}?test=entry`;
 }

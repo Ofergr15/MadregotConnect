@@ -30,10 +30,13 @@ export function shortDay(date: string): string {
   return `${d}.${m}`;
 }
 
-/** A label on the right, its value on the left, 52px — one row of the form's card (phone 2). */
+/**
+ * A label on the right, its value on the left, 52px — one row of the form's card (phone 2).
+ * Relative, so a value that is an invisible `<select>` (band, coach) can cover the whole row.
+ */
 export function FieldRow({ label, children, htmlFor }: { label: ReactNode; children: ReactNode; htmlFor?: string }) {
   return (
-    <div className="flex min-h-[52px] items-center gap-3 border-b border-[#EFEFF4] px-4 last:border-0">
+    <div className="relative flex min-h-[52px] items-center gap-3 border-b border-[#EFEFF4] px-4 last:border-0">
       <label htmlFor={htmlFor} className="min-w-0 flex-1 text-[16px] font-bold text-ink-900">{label}</label>
       <div className="flex shrink-0 items-center justify-end">{children}</div>
     </div>
@@ -50,7 +53,7 @@ export function ValueButton({ children, empty, onClick, disabled, label }: {
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className={cn('-my-1 min-h-[44px] max-w-[190px] truncate text-[16px] font-extrabold disabled:cursor-default',
+      className={cn('-my-1 min-h-[44px] min-w-[44px] max-w-[190px] truncate text-end text-[16px] font-extrabold disabled:cursor-default',
         empty ? 'text-ink-300' : disabled ? 'text-ink-700' : 'text-brand-600')}
     >
       {children}
@@ -87,7 +90,7 @@ export const CHIP_TONE = {
 } as const;
 
 export function ChipPill({ tone, children }: { tone: keyof typeof CHIP_TONE; children: ReactNode }) {
-  return <span className={cn('inline-block whitespace-nowrap rounded-lg px-2 py-[3px] text-[12.5px] font-extrabold', CHIP_TONE[tone])}>{children}</span>;
+  return <span className={cn('inline-block whitespace-nowrap rounded-lg px-[7px] py-[2px] text-[11.5px] font-extrabold', CHIP_TONE[tone])}>{children}</span>;
 }
 
 export function Avatar({ text }: { text: string }) {

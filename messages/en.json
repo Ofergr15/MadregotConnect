@@ -4144,7 +4144,8 @@
         "hrEstimate": "Estimated from heart rate: no test yet",
         "hrEstimatePending": "Estimated from heart rate until the test is approved",
         "hrEstimateOther": "Estimated from heart rate: a 30-minute test is needed",
-        "hrEstimateOk": "Estimated from heart rate"
+        "hrEstimateOk": "Estimated from heart rate",
+        "insufficientSayPending": "Some recent runs have no heart rate. Your test is waiting for your coach's approval, and once approved their pace is priced too."
       },
       "body": {
         "sleep": "😴 Sleep",
@@ -4873,12 +4874,13 @@
       "hrInvalid": "Average HR must be between 80 and 230.",
       "thresholdOf": "<bdi>{name}</bdi>'s threshold pace",
       "thresholdSelf": "Your threshold pace",
-      "thresholdSub": "Every pace and the load come from it",
+      "thresholdSub": "{gender, select, female {Every pace and her load come from it} male {Every pace and his load come from it} other {Every pace and the load come from it}}",
       "sendTo": "Sent to <bdi>{name}</bdi> for approval",
       "sendToCoach": "Sent to your coach for approval",
       "implausible": "This pace doesn't look right. Distance in km instead of metres?",
       "twoKTitle": "2000 m pace",
-      "twoKSub": "Kept on the graph, but it sets no threshold. That needs a 30-minute test."
+      "twoKSub": "Kept on the graph, but it sets no threshold. That needs a 30-minute test.",
+      "pickDate": "Choose"
     },
     "watch": {
       "title": "Runs that look like a test",
@@ -4898,7 +4900,11 @@
         "noRuns": "No runs from the watch in the last 6 months. You can type the test in.",
         "noLaps": "The runs of the last 6 months came without laps (usually from Strava), so 30 continuous minutes can't be found in them. A run called \"test\" would have been. You can type the test in.",
         "none": "No run looks like a test: none is called \"test\", and none has 30 continuous fast minutes. You can type the test in."
-      }
+      },
+      "ask": "<bdi>{name}</bdi> · which run was the test?",
+      "typeIt": "Type it",
+      "close": "Close",
+      "allSaved": "Every run we found is already saved as a test. You can type a different one."
     },
     "goal": {
       "title": "Goal",
@@ -4936,12 +4942,17 @@
       "bandOption": "Band {n}",
       "goalEmpty": "Race and time",
       "managerOnly": "The band and the coach are set by the academy manager.",
-      "goalsNotSetUp": "Saving a goal needs the database update (144).",
+      "goalsNotSetUp": "Saving a goal isn't available yet.",
       "failTest": "the test",
       "failBand": "the band",
       "failCoach": "the coach",
       "failGoal": "the goal",
-      "failed": "Not saved: {what}. The rest was saved."
+      "failed": "Not saved: {what}. The rest was saved.",
+      "schedule": "Schedule a new test",
+      "scheduleOld": "The test is old · schedule a new one",
+      "scheduled": "A test invitation was sent to <bdi>{name}</bdi>",
+      "scheduleExists": "There is already an open test invitation. See it on the test board.",
+      "scheduleFailed": "The invitation wasn't sent. Try again."
     },
     "approve": {
       "sent": "{name} sent a test",
@@ -4990,7 +5001,8 @@
       "exists": "A test is already recorded for that day. Ask your coach to change it.",
       "error": "Couldn't send. Try again.",
       "goalNotSetUp": "Saving a goal isn't available yet.",
-      "subOther": "We have a <m>2000</m> m test, but it sets no threshold. With a <m>30</m>-minute test we'll work out personal paces for every workout."
+      "subOther": "We have a <m>2000</m> m test, but it sets no threshold. With a <m>30</m>-minute test we'll work out personal paces for every workout.",
+      "dateFirst": "Choose when the test was."
     }
   }
 }

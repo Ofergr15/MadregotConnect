@@ -34,6 +34,8 @@ export interface StoredTestView {
 
 export interface CompletionPerson extends CompletionRow {
   bandId: string | null;
+  /** For the form's "…והעומס שלו / שלה". */
+  gender: string | null;
   coachIds: string[];
   goal: Goal;
   /** The newest approved test (any protocol), to prefill the form. */
@@ -71,7 +73,7 @@ function view(row: Record<string, any>): StoredTestView {
 async function readRoster(db: Db, visible: Set<string> | null) {
   const { data, error } = await db
     .from('athletes')
-    .select('id, name, is_academy, approved, status, academy_coach_id, academy_band_id, academy_bands(band_number)')
+    .select('id, name, gender, is_academy, approved, status, academy_coach_id, academy_band_id, academy_bands(band_number)')
     .eq('coach_id', COACH_ID);
   if (error) return { error };
   const rows = ((data || []) as any[])
@@ -136,6 +138,7 @@ export async function loadCompletion(db: Db, visible: Set<string> | null, today:
     return {
       ...r,
       bandId: byId.get(r.athleteId)?.academy_band_id ?? null,
+      gender: byId.get(r.athleteId)?.gender ?? null,
       coachIds: coachMap.get(r.athleteId) ?? [],
       goal: goals.goals.get(r.athleteId)!.goal,
       lastTest: approved ? view(approved) : null,
