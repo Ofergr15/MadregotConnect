@@ -25,7 +25,7 @@ vi.mock('@/lib/push', () => ({ notifyAthlete: (o: any) => notifyAthlete(o) }));
 const fetchNight = vi.fn(async (..._a: unknown[]) => null as null | { sleep_seconds: number | null; resting_hr: number | null });
 vi.mock('@/lib/wellness/sweep', () => ({ fetchNight: (...a: unknown[]) => fetchNight(...a) }));
 
-const { dispatchMorningReminders, LEDGER_KIND } = await import('@/lib/academy/morning-reminder-server');
+const { dispatchMorningReminders, LEDGER_KIND, ranBefore, reminderTag } = await import('@/lib/academy/morning-reminder-server');
 
 const SHAHAR = uid();
 const DANA = uid();
@@ -35,7 +35,7 @@ const SCHEMA: Record<string, string[]> = {
   athletes: ['id', 'coach_id', 'name', 'role', 'status', 'group_id', 'is_academy', 'notification_prefs', 'garmin_auth'],
   groups: ['id', 'name', 'coach_id'],
   weekly_plans: ['id', 'coach_id', 'athlete_id', 'week_start_date', 'parsed_workouts', 'status', 'created_at'],
-  workout_deliveries: ['athlete_id', 'workout_date', 'status'],
+  workout_deliveries: ['athlete_id', 'workout_date', 'status', 'plan_id'],
   scheduled_notifications: ['id', 'kind', 'title_he', 'body_he', 'audience_type', 'audience_id', 'schedule_type', 'status', 'last_sent_at', 'sent_count', 'url'],
   athlete_activities: ['id', 'athlete_id', 'start_time', 'activity_type', 'distance', 'duration', 'moving_duration', 'average_hr', 'max_hr', 'laps', 'splits'],
   athlete_wellness: ['athlete_id', 'date', 'sleep_seconds', 'resting_hr', 'fetched_at'],
@@ -167,6 +167,38 @@ describe('dispatchMorningReminders', () => {
     const r = await dispatchMorningReminders(db.client as never, SIX_AM);
     expect(notifyAthlete).not.toHaveBeenCalled();
     expect(r.skipped.alreadyRan).toBe(1);
+  });
+
+  it('no push after a 05:30 run for a 06:00 reminder: start_time is the watch\'s wall clock, not an instant', async () => {
+    seed();
+    plan(SHAHAR, [FIVE_BY_ONE]);
+    // 05:30 local, stored as if UTC (the real instant was 02:30Z).
+    db.tables.athlete_activities.push({ id: uid(), athlete_id: SHAHAR, start_time: '2026-10-13T05:30:00+00:00', activity_type: 'running', distance: 10000, duration: 3000 });
+    const r = await dispatchMorningReminders(db.client as never, SIX_AM);
+    expect(notifyAthlete).not.toHaveBeenCalled();
+    expect(r.skipped.alreadyRan).toBe(1);
+  });
+
+  it('ranBefore compares the wall clock with the send minute', () => {
+    expect(ranBefore('2026-10-13T05:30:00+00:00', TODAY, 6 * 60)).toBe(true);
+    expect(ranBefore('2026-10-13T06:30:00', TODAY, 6 * 60)).toBe(false);
+    expect(ranBefore('2026-10-12T05:30:00+00:00', TODAY, 6 * 60)).toBe(false);
+  });
+
+  it('after the coach\'s own watch push for the day, the reminder takes its tag (one notification)', async () => {
+    seed();
+    plan(SHAHAR, [FIVE_BY_ONE]);
+    db.tables.workout_deliveries[0].plan_id = 'plan-1';
+    db.tables.scheduled_notifications.push({ id: uid(), kind: 'plan_pushed', audience_type: 'athlete', audience_id: SHAHAR, schedule_type: 'now', status: 'sent', last_sent_at: '2026-10-12T19:00:00Z', sent_count: 1, url: '/dashboard/program' });
+    await dispatchMorningReminders(db.client as never, SIX_AM);
+    expect(notifyAthlete).toHaveBeenCalledTimes(1);
+    expect(notifyAthlete.mock.calls[0][0].tag).toBe('plan-push-plan-1');
+  });
+
+  it('reminderTag: its own per-day tag unless the coach pushed in the last day', () => {
+    expect(reminderTag({ athleteId: 'a', workoutDate: TODAY, coachPushed: false, delivery: { plan_id: 'p' } })).toBe(`academy-day-a-${TODAY}`);
+    expect(reminderTag({ athleteId: 'a', workoutDate: TODAY, coachPushed: true, delivery: null })).toBe(`academy-day-a-${TODAY}`);
+    expect(reminderTag({ athleteId: 'a', workoutDate: TODAY, coachPushed: true, delivery: { plan_id: null } })).toBe(`plan-push-${WEEK}`);
   });
 
   it('no push when the workouts category is muted', async () => {

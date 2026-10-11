@@ -329,6 +329,12 @@ export function activityLocalHour(startTime: string): number {
   return parseActivityInstant(startTime).getUTCHours();
 }
 
+/** Athlete-local minutes since midnight (0..1439) of an activity, by its UTC parts. */
+export function activityLocalMinutes(startTime: string): number {
+  const d = parseActivityInstant(startTime);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
+
 /** Athlete-local weekday (0=Sun..6=Sat) of an activity. */
 export function activityLocalDay(startTime: string): number {
   return parseActivityInstant(startTime).getUTCDay();

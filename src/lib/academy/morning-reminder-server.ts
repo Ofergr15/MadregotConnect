@@ -3,7 +3,7 @@ import { createTranslator } from 'next-intl';
 import he from '../../../messages/he.json';
 import en from '../../../messages/en.json';
 import { COACH_ID, isStaffRole } from '@/lib/constants';
-import { activityLocalDateStr, israelNow, israelToday, planWeekStartOf } from '@/lib/utils';
+import { activityLocalDateStr, activityLocalMinutes, israelNow, israelToday, planWeekStartOf } from '@/lib/utils';
 import { isKindMuted } from '@/lib/notifications/prefs';
 import type { NotificationLocale } from '@/lib/notifications/locale';
 import { notifyAthlete } from '@/lib/push';
@@ -62,6 +62,38 @@ export function renderReminder(lines: ReminderLines, locale: NotificationLocale)
   } as any));
 }
 
+/** A coach's plan push this recent is "today's": the reminder folds into it. */
+export const PLAN_PUSH_MERGE_MS = 24 * 3600 * 1000;
+
+/**
+ * The reminder's notification tag (spec §3.7: "deduplicated against the existing day-send
+ * push … the reminder merges into it"). When the coach's own "sent to your watch" push for
+ * this workout went out in the last day, the reminder takes ITS tag (push-week.ts:
+ * `plan-push-<planId | week>`), so the phone replaces that notification with this one —
+ * which says the same and more — instead of showing two. Otherwise its own per-day tag.
+ */
+export function reminderTag(input: {
+  athleteId: string;
+  workoutDate: string;
+  coachPushed: boolean;
+  delivery: { plan_id?: string | null } | null;
+}): string {
+  if (input.coachPushed && input.delivery) {
+    return `plan-push-${input.delivery.plan_id || planWeekStartOf(input.workoutDate)}`;
+  }
+  return `academy-day-${input.athleteId}-${input.workoutDate}`;
+}
+
+/**
+ * Did a run start on `today` at or before `nowMin` (Israel minutes)? Compared in the
+ * wall-clock frame: start_time is the watch's local time stored as if it were UTC, so its
+ * UTC parts ARE the Israel clock — set against the real instant, a 05:30 run would read as
+ * 08:30 and a 06:00 reminder would still tell the trainee what to run.
+ */
+export function ranBefore(startTime: string, today: string, nowMin: number): boolean {
+  return activityLocalDateStr(startTime) === today && activityLocalMinutes(startTime) <= nowMin;
+}
+
 export async function dispatchMorningReminders(db: Db, nowIso: string = new Date().toISOString()): Promise<MorningReminderResult> {
   const result: MorningReminderResult = { due: 0, sent: 0, skipped: {} };
   const skip = (reason: SkipReason) => { result.skipped[reason] = (result.skipped[reason] ?? 0) + 1; };
@@ -98,15 +130,19 @@ export async function dispatchMorningReminders(db: Db, nowIso: string = new Date
     const weekStarts = [...new Set(targets.map(d => planWeekStartOf(d)))];
     const urls = due.map(d => reminderLedgerUrl(d.id, d.target));
 
-    const [groupPlans, ownPlans, groupsRes, laneRefs, deliveriesRes, ledgerRes, actsRes, nightsRes, testsBy, loads] = await Promise.all([
+    const [groupPlans, ownPlans, groupsRes, laneRefs, deliveriesRes, ledgerRes, planPushRes, actsRes, nightsRes, testsBy, loads] = await Promise.all([
       db.from('weekly_plans').select('week_start_date, parsed_workouts, status, athlete_id, created_at')
         .eq('coach_id', COACH_ID).is('athlete_id', null).in('week_start_date', weekStarts),
       db.from('weekly_plans').select('week_start_date, parsed_workouts, status, athlete_id, created_at')
         .eq('coach_id', COACH_ID).in('athlete_id', ids).in('week_start_date', weekStarts),
       db.from('groups').select('id, name'),
       loadLaneReferences(db as never),
-      db.from('workout_deliveries').select('athlete_id, workout_date, status').in('athlete_id', ids).in('workout_date', targets),
+      db.from('workout_deliveries').select('athlete_id, workout_date, status, plan_id').in('athlete_id', ids).in('workout_date', targets),
       db.from('scheduled_notifications').select('url').eq('kind', LEDGER_KIND).in('url', urls),
+      // The coach's own "sent to your watch" push (push-week.ts, kind plan_pushed) of the
+      // last day: the reminder then takes its tag, so the phone shows ONE notification.
+      db.from('scheduled_notifications').select('audience_id, last_sent_at').eq('kind', 'plan_pushed').in('audience_id', ids)
+        .gte('last_sent_at', new Date(now.getTime() - PLAN_PUSH_MERGE_MS).toISOString()),
       db.from('athlete_activities').select('athlete_id, start_time, activity_type')
         .in('athlete_id', ids).gte('start_time', `${shiftDate(today, -1)}T00:00:00Z`),
       db.from('athlete_wellness').select('athlete_id, date, sleep_seconds, resting_hr')
@@ -121,6 +157,7 @@ export async function dispatchMorningReminders(db: Db, nowIso: string = new Date
     const groupNames = new Map<string, string>(((groupsRes.data || []) as any[]).map(g => [g.id, g.name]));
     const sentAlready = new Set(((ledgerRes.error ? [] : ledgerRes.data) || []).map((r: any) => String(r.url)));
     const deliveries = (deliveriesRes.error ? [] : deliveriesRes.data || []) as any[];
+    const planPushedTo = new Set(((planPushRes.error ? [] : planPushRes.data) || []).map((r: any) => String(r.audience_id)));
     const acts = (actsRes.error ? [] : actsRes.data || []) as any[];
     const nights = (nightsRes.error ? [] : nightsRes.data || []) as any[];
     let nightFetches = 0;
@@ -130,8 +167,7 @@ export async function dispatchMorningReminders(db: Db, nowIso: string = new Date
         const onWatch = new Set(deliveries
           .filter(d => d.athlete_id === person.id && d.status === 'success')
           .map(d => String(d.workout_date).slice(0, 10)));
-        const ranToday = acts.some(a => a.athlete_id === person.id && isRunType(a.activity_type)
-          && activityLocalDateStr(a.start_time) === today && Date.parse(a.start_time) <= now.getTime());
+        const ranToday = acts.some(a => a.athlete_id === person.id && isRunType(a.activity_type) && ranBefore(a.start_time, today, nowMin));
         const tests = testsBy[person.id] || [];
         const { cards, planWeeks } = dayCards({
           dates: [person.target],
@@ -192,7 +228,13 @@ export async function dispatchMorningReminders(db: Db, nowIso: string = new Date
           athleteId: person.id,
           kind: 'academy_morning',
           category: 'workouts',
-          tag: `academy-day-${person.id}-${decision.workoutDate}`,
+          tag: reminderTag({
+            athleteId: person.id,
+            workoutDate: decision.workoutDate,
+            coachPushed: planPushedTo.has(person.id),
+            delivery: deliveries.find(d => d.athlete_id === person.id && d.status === 'success'
+              && String(d.workout_date).slice(0, 10) === decision.workoutDate) ?? null,
+          }),
           url: academyBoardUrl({ open: decision.workoutDate }),
           copy: locale => renderReminder(decision.lines, locale),
         });
