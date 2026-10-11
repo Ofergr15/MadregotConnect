@@ -54,6 +54,13 @@ export function createMemoryDb(opts: MemoryDbOptions) {
     if (!columns || columns.trim() === '*') return { ...row };
     const out: Row = {};
     for (const raw of columns.split(',').map((c) => c.trim()).filter(Boolean)) {
+      // `alias:col->N`: the Nth element of a JSON array column (PostgREST's arrow).
+      const arrow = /^(\w+):(\w+)->(\d+)$/.exec(raw);
+      if (arrow) {
+        const [, alias, col, n] = arrow;
+        out[alias] = Array.isArray(row[col]) ? row[col][Number(n)] ?? null : null;
+        continue;
+      }
       const embed = /^(\w+)(?:!inner)?\(([^)]*)\)$/.exec(raw);
       if (embed) {
         const [, parent, inner] = embed;
@@ -71,6 +78,7 @@ export function createMemoryDb(opts: MemoryDbOptions) {
     return columns
       .split(',')
       .map((c) => c.trim())
+      .map((c) => c.replace(/^\w+:(\w+)->\d+$/, '$1'))
       .filter((c) => c && c !== '*' && !/\(/.test(c));
   }
 

@@ -3,11 +3,9 @@ import { createServerClient } from '@/lib/supabase/server';
 import { activityLocalDateStr, israelToday } from '@/lib/utils';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { mayCoach } from '@/lib/academy/pairing-server';
-import { shiftDate } from '@/lib/academy/load';
-import { RANGE_DAYS } from '@/lib/academy/normal-range';
 import { buildBodyPayload } from '@/lib/academy/body';
 import { loadAthleteFeeds } from '@/lib/academy/data-feed-server';
-import { isMissingColumn } from '@/lib/supabase/schema-drift';
+import { readBodyNights } from '@/lib/academy/body-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,18 +37,9 @@ export async function GET(request: Request) {
 
     const supabase = createServerClient();
     const today = israelToday();
-    const [nightsRes, feedbackRes, feeds] = await Promise.all([
+    const [nights, feedbackRes, feeds] = await Promise.all([
       // The window the ranges stand on (30 before the newest morning) plus that morning.
-      supabase
-        .from('athlete_wellness')
-        .select('date, sleep_seconds, resting_hr, fetched_at')
-        .eq('athlete_id', athleteId)
-        .gte('date', shiftDate(today, -(RANGE_DAYS * 2)))
-        .lte('date', today)
-        .then(res => (res.error && isMissingColumn(res.error)
-          ? supabase.from('athlete_wellness').select('date, sleep_seconds, resting_hr').eq('athlete_id', athleteId)
-            .gte('date', shiftDate(today, -(RANGE_DAYS * 2))).lte('date', today)
-          : res)),
+      readBodyNights(supabase, athleteId, today),
       supabase
         .from('workout_feedback')
         .select('feel, difficulty, created_at, garmin_activity_id')
@@ -61,12 +50,6 @@ export async function GET(request: Request) {
       loadAthleteFeeds(supabase, athleteId),
     ]);
 
-    const nights = ((nightsRes.error ? [] : nightsRes.data) || []).map((n: any) => ({
-      date: String(n.date).slice(0, 10),
-      sleep_seconds: n.sleep_seconds ?? null,
-      resting_hr: n.resting_hr ?? null,
-      fetched_at: n.fetched_at ?? null,
-    }));
     const feedback = ((feedbackRes.error ? [] : feedbackRes.data) || []) as any[];
     // Each answer dated by its run (start_time is the watch's wall clock: its UTC date is
     // the run's local day), not by when it was typed.

@@ -533,11 +533,19 @@ export async function loadDailyRows(
 export async function athleteLoads(
   supabase: Db,
   athleteId: string,
-  opts: { since: string; write: boolean; today?: string },
+  opts: {
+    since: string; write: boolean; today?: string;
+    /**
+     * Price EVERY run in memory and read nothing stored (the admin data-coverage check): the
+     * numbers the trainee's next open settles on, with nothing written and nothing left
+     * pending. Implies no write.
+     */
+    inMemory?: boolean;
+  },
 ): Promise<{ rows: DailyRow[]; tests: TestPoint[]; stored: boolean; pending: number }> {
   const today = opts.today ?? israelToday();
   const tests = (await loadTestsFor(supabase, [athleteId]))[athleteId] || [];
-  if (await hasActivityLoadsTable(supabase)) {
+  if (!opts.inMemory && (await hasActivityLoadsTable(supabase))) {
     // A long history is priced in rounds (MAX_NEW each, oldest first) until nothing is
     // left, so the first open of a 380-run trainee is not read off its oldest 300 runs.
     // Under view-as nothing is stored, so one round prices the same rows each time:
