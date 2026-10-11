@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -8,7 +9,7 @@ import { SkeletonList } from '@/components/ui';
 import { shiftDate } from '@/lib/academy/load';
 import { sortReadiness, type ReadinessSort } from '@/lib/academy/readiness';
 import type { ReadinessAlert, ReadinessListResponse, ReadinessRow } from '@/lib/academy/readiness-board';
-import { CARD, Segmented, StructureText, weekdayOf } from '@/components/trainee/ui';
+import { CARD, Segmented, StructureText, TOP_BAR, weekdayOf } from '@/components/trainee/ui';
 import { FitnessSpark } from './FitnessSpark';
 import { FormChip, M, MB, SPARK_COLOR } from './shared';
 
@@ -23,7 +24,7 @@ import { FormChip, M, MB, SPARK_COLOR } from './shared';
 //
 // GET /api/academy/readiness, scoped by the server exactly as the coach tools are.
 
-export function ReadinessBoard({ scope, heldIds, onOpen, onLightWeek, onWrite }: {
+export function ReadinessBoard({ scope, heldIds, onOpen, onLightWeek, onWrite, topBar }: {
   /** `scope=coach` for a manager's coach view. */
   scope: string;
   /** Trainees whose pace-up suggestion the coach tools hold right now (the alert says so). */
@@ -31,6 +32,11 @@ export function ReadinessBoard({ scope, heldIds, onOpen, onLightWeek, onWrite }:
   onOpen: (row: ReadinessRow) => void;
   onLightWeek: (athleteId: string) => void;
   onWrite: (athleteId: string) => void;
+  /**
+   * On a phone the title row is the screen's top bar (the shell folds the header, the areas
+   * bar and the sub-tabs): the way back to the academy home at the start, search at the end.
+   */
+  topBar?: { onBack: () => void; search: ReactNode; backLabel: string };
 }) {
   const t = useTranslations('readiness');
   const { data, error } = useApi<ReadinessListResponse>(`/api/academy/readiness${scope ? `?${scope}` : ''}`);
@@ -41,7 +47,18 @@ export function ReadinessBoard({ scope, heldIds, onOpen, onLightWeek, onWrite }:
 
   return (
     <div className="flex flex-col gap-2.5" dir="rtl">
-      <h2 className="text-center text-[17px] font-extrabold text-ink-900">{t.rich('title', { ...M, n: data.rows.length })}</h2>
+      {topBar ? (
+        <div className={cn('relative flex items-center justify-between', TOP_BAR)}>
+          <button type="button" onClick={topBar.onBack} aria-label={topBar.backLabel}
+            className="grid h-11 w-11 place-items-center rounded-full text-brand-600 md:invisible">
+            <ChevronRight className="h-6 w-6" />
+          </button>
+          <h2 className="text-[17px] font-extrabold text-ink-900">{t.rich('title', { ...M, n: data.rows.length })}</h2>
+          <span className="md:invisible">{topBar.search}</span>
+        </div>
+      ) : (
+        <h2 className="text-center text-[17px] font-extrabold text-ink-900">{t.rich('title', { ...M, n: data.rows.length })}</h2>
+      )}
 
       {data.alert && (
         <AlertCard alert={data.alert} held={!!heldIds?.has(data.alert.athleteId)} onLightWeek={onLightWeek} onWrite={onWrite} />

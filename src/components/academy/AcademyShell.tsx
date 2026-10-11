@@ -7,6 +7,8 @@ import {
   CalendarDays, ChevronLeft, ChevronRight, Home, MessageSquare, Plus, Search, TrendingUp, UserPlus, Users, X,
 } from 'lucide-react';
 import { cn, israelToday } from '@/lib/utils';
+import { isViewingPerson } from '@/lib/view-as-person';
+import { useHideShellHeader } from '@/lib/shell-chrome';
 import { useApi } from '@/lib/api';
 import { Sheet } from '@/components/ui';
 import { WeeklyReview } from '@/components/academy/WeeklyReview';
@@ -105,6 +107,10 @@ export function AcademyShell({
   const [now] = useState(() => new Date());
   const thisWeek = sundayOf(now);
   const [section, setSection] = useState<AcademySection>('overview');
+  // C1 on a phone is one screen under one title row (mockup): the app header folds away
+  // there, as on the trainee's own screens. Not while an admin views the app as somebody.
+  const [viewingAs] = useState(isViewingPerson);
+  useHideShellHeader(section === 'readiness' && !viewingAs);
   const [dispatchWeek, setDispatchWeek] = useState(thisWeek);
 
   // Sheets and jumps.
@@ -374,8 +380,9 @@ export function AcademyShell({
   const subCount: Partial<Record<AcademySection, number>> = { members: approvedCount, funnel: funnelLive, coaches: coachCount };
 
   // C1 (trainee-experience-v2) lists every trainee above the fold: on the readiness board the
-  // title row folds away — the areas bar and the "מוכנות" tab already say where this is —
-  // and its search moves to the end of the tab row.
+  // title row folds away, and on a phone the areas bar and the sub-tabs with it — the board's
+  // own "המתאמנים שלי · N" row is the top bar, with the way back home and the search. On a
+  // wider screen the tabs stay and the search moves to the end of the tab row.
   const compact = section === 'readiness';
   const searchButton = <RoundButton label="חיפוש" onClick={() => setSearchOpen(true)}><Search className="h-5 w-5" /></RoundButton>;
 
@@ -412,10 +419,12 @@ export function AcademyShell({
         )}
       </div>
 
-      <AreasBar value={area} badges={badges} onChange={(a) => go(defaultSectionOf(a))} />
+      <div className={cn(compact && 'hidden md:block')}>
+        <AreasBar value={area} badges={badges} onChange={(a) => go(defaultSectionOf(a))} />
+      </div>
 
       {subTabs.length > 1 && (
-        <div className="mt-2.5 flex items-center gap-2">
+        <div className={cn('mt-2.5 flex items-center gap-2', compact && 'hidden md:flex')}>
           <div className="flex flex-1 rounded-[13px] bg-ink-300/30 p-[3px]" role="tablist">
             {subTabs.map((t) => {
               const on = t.section === section;
@@ -432,7 +441,7 @@ export function AcademyShell({
         </div>
       )}
 
-      <div className="mt-2.5">
+      <div className={cn('mt-2.5', compact && 'mt-0 md:mt-2.5')}>
         {section === 'overview' ? (
           <AcademyHome
             data={members}
@@ -463,6 +472,7 @@ export function AcademyShell({
             // "לבנות שבוע קל": this week copied to next, light, for that trainee alone.
             onLightWeek={(id) => setCopyOpen({ athleteId: id, weekStart: thisWeek, only: [id], mode: 'light' })}
             onWrite={openThread}
+            topBar={{ onBack: () => go('overview'), search: searchButton, backLabel: 'חזרה לבית' }}
           />
         ) : section === 'members' ? (
           traineeFilter ? (
