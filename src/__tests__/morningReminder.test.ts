@@ -134,7 +134,7 @@ describe('what it says', () => {
     const { title, body } = renderReminder(lines, 'he');
     const plain = (s: string) => s.replace(/[⁦-⁩]/g, '');
     expect(plain(title)).toBe('היום: 5 × 1 ק״מ ב־4:05');
-    expect(plain(body)).toBe('10.3 ק״מ · כ־51 דק׳ · ⌚ כבר בשעון\nהדופק קצת גבוה הבוקר. אם החזרות כבדות, מותר לעצור ב־4.');
+    expect(plain(body)).toBe('10.3 ק״מ · כ־51 דק׳ · ⌚ נשלח ל־Garmin\nהדופק קצת גבוה הבוקר. אם החזרות כבדות, מותר לעצור ב־4.');
     // "5 × 1" and "4:05" each sit inside LRI … PDI, so the lock screen keeps their order.
     expect(title).toContain('⁦5 × 1⁩');
     expect(title).toContain('⁦4:05⁩');

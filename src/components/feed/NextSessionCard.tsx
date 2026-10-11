@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { israelClock, watchDayState, type WatchDay } from '@/lib/watch/day-status';
 import { Check, ChevronLeft, ChevronRight, Link2, Moon, Sun, Watch } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { addDaysToDateStr, israelNow, israelToday } from '@/lib/utils';
@@ -53,6 +54,7 @@ interface WatchState {
   garminConnected: boolean;
   hasPlan: boolean;
   onWatch: string[];
+  days?: Record<string, WatchDay>;
 }
 
 interface FeedActivity {
@@ -150,6 +152,12 @@ export function NextSessionCard() {
   // reads as a fault rather than as a fact.
   const watchKnown = !!watch && watch.garminConnected && watch.hasPlan;
   const onWatch = watchKnown && watch.onWatch.includes(next.date);
+  // Same three honest states as WatchStatus (lib/watch/day-status).
+  const watchState = !onWatch ? 'none' : watchDayState(watch?.days?.[next.date] ?? { sentAt: '', updatedAt: null, ran: false });
+  const watchDay = watch?.days?.[next.date];
+  const watchLabel = watchState === 'ran' ? tw('ran')
+    : watchState === 'updated' ? `${tw('updated', { time: watchDay?.updatedAt ? israelClock(watchDay.updatedAt) : '' })} · ${tw('updatedHint')}`
+      : watchState === 'sent' ? `${tw('sent')} · ${tw('sentHint')}` : tw('notOnWatch');
 
   const Chevron = rtl ? ChevronLeft : ChevronRight;
 
@@ -219,10 +227,13 @@ export function NextSessionCard() {
 
         {watchKnown && (
           <span
-            title={onWatch ? tw('onWatch') : tw('notOnWatch')}
-            aria-label={onWatch ? tw('onWatch') : tw('notOnWatch')}
+            title={watchLabel}
+            aria-label={watchLabel}
             className={`flex flex-none items-center gap-0.5 rounded-lg px-1.5 py-1 ${
-              onWatch ? 'bg-accent-600/10 text-accent-900' : 'bg-accent-red/10 text-accent-red'
+              watchState === 'ran' ? 'bg-accent-600/10 text-accent-900'
+                : watchState === 'updated' ? 'bg-[#FFF3D6] text-[#8A5A00]'
+                  : watchState === 'sent' ? 'bg-brand-600/10 text-brand-600'
+                    : 'bg-accent-red/10 text-accent-red'
             }`}
           >
             <Watch className="h-3.5 w-3.5" />

@@ -59,6 +59,8 @@ import {
 import { cn, activityLocalDay, formatActivityTime, formatWeekRange, israelToday, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { resendWarning, type SentDay } from '@/lib/plans/resend-warning';
+import { israelClock } from '@/lib/watch/day-status';
 import { useIsSuperUser } from '@/lib/impersonation';
 import { Sheet, ConfirmSheet, SegmentedControl, Button, InsetSection, InsetRow, Switch } from '@/components/ui';
 
@@ -456,6 +458,22 @@ export default function WeeklyPlannerPage() {
     };
     fetchData();
   }, [showPush]);
+
+  // When each date of this plan was last confirmed on Garmin, for the re-send
+  // warning (lib/plans/resend-warning). Read each time the sheet opens.
+  const [sentDays, setSentDays] = useState<Record<string, SentDay>>({});
+  useEffect(() => {
+    if (!showPush || !savedPlanId) return;
+    let live = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/plans/${savedPlanId}/sent-days`, { headers: await bearerHeaders(false) });
+        const d = res.ok ? await res.json() : null;
+        if (live && d?.days) setSentDays(d.days);
+      } catch { /* no warning is the quiet default */ }
+    })();
+    return () => { live = false; };
+  }, [showPush, savedPlanId]);
 
   // --- Handlers ---
 
@@ -1307,6 +1325,20 @@ export default function WeeklyPlannerPage() {
 
   // WHICH sessions, not just how many — the sheet names them now.
   const sessionsToSend = useMemo(() => selectedSessions(pushSource, pushDays), [pushSource, pushDays]);
+
+  // Re-sending a session runners already have, close to it: say what that does.
+  const resend = useMemo(() => {
+    if (!weekStartDate) return null;
+    const dates = [...new Set((sessionsToSend as ParsedWorkout[]).map((w) => {
+      const d = new Date(`${weekStartDate}T12:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + w.dayOfWeek);
+      return d.toISOString().slice(0, 10);
+    }))];
+    return resendWarning(dates, sentDays);
+  }, [sessionsToSend, sentDays, weekStartDate]);
+  // The update push is the runners' only way to learn they must sync again, so a
+  // warned re-send turns it on (the coach can still switch it off).
+  useEffect(() => { if (resend) setNotifyAthletes(true); }, [resend]);
 
   // The whole week, for the custom-week editor: moving Wednesday's session to
   // Monday is a reason to look at a day the chips have not selected.
@@ -2601,6 +2633,15 @@ export default function WeeklyPlannerPage() {
                 </div>
 
                 {error && <ErrorBanner message={error} className="p-3" />}
+
+                {resend && (
+                  <div className="flex items-start gap-2.5 rounded-xl bg-[#FFF3D6] px-3 py-2.5 text-[#8A5A00]" role="status">
+                    <span aria-hidden className="text-base leading-none">⚠️</span>
+                    <p className="text-13 leading-relaxed">
+                      {t('resendWarning', { athletes: resend.athletes, time: israelClock(resend.lastSentAt), hours: resend.hoursToSession })}
+                    </p>
+                  </div>
+                )}
 
                 <div className="rounded-xl bg-page px-3 py-2.5">
                   <div className="flex items-center gap-3">

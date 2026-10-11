@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { useIsSuperUser } from '@/lib/impersonation';
 import { Sheet, Spinner } from '@/components/ui';
-import { splitByApproval, type ApprovalRow, type ShownNote, type WhatsNewRelease } from '@/lib/release-notes';
+import { splitByApproval, unstarredForMembers, type ApprovalRow, type ShownNote, type WhatsNewRelease } from '@/lib/release-notes';
 
 interface Data {
   staff: boolean;
@@ -105,6 +105,19 @@ export default function WhatsNewPage() {
     <div className="pb-10">
       <h1 className="mb-1 text-2xl font-black text-ink-900">{t('title')}</h1>
       <p className="mb-5 text-13 text-ink-500">{t('pageLead')}</p>
+
+      {/* Members see only starred notes. Say when they have been waiting. */}
+      {data.staff && (() => {
+        const { notes, since } = unstarredForMembers(data.releases);
+        if (notes.length === 0) return null;
+        const sinceDay = since ? new Date(since).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', timeZone: 'Asia/Jerusalem' }) : null;
+        return (
+          <div className="mb-5 rounded-2xl bg-accent-red/10 px-4 py-3 text-accent-red-ink" role="status">
+            <p className="text-sm font-bold">{t('unstarredTitle', { count: notes.length })}</p>
+            <p className="mt-0.5 text-13">{sinceDay ? t('unstarredSince', { date: sinceDay }) : t('unstarredNever')}</p>
+          </div>
+        );
+      })()}
 
       {data.staff && (() => {
         const approval = data.approval ?? null;

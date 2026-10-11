@@ -96,6 +96,13 @@ export interface WatchPushContext extends LineOptions {
   weekStartDate?: string;
   /** Today in Israel (YYYY-MM-DD). */
   today?: string;
+  /**
+   * This send replaced workouts the athlete already had for those days. Each
+   * re-send deletes the earlier copy on Garmin, so a watch that synced it has a
+   * workout that no longer exists until it syncs again (Sunday 2026-10-11: three
+   * sends in 23 minutes, 8 of 15 ran it from the watch). The push says so.
+   */
+  updated?: boolean;
 }
 
 function dateOf(weekStart: string, dow: number): string {
@@ -116,6 +123,18 @@ function whenWord(dow: number, locale: NotificationLocale, ctx: WatchPushContext
 
 /** The push after a delivery Garmin confirmed (or an Apple week queued): which workouts, by name. */
 export function watchSentCopy(locale: NotificationLocale, workouts: ParsedWorkout[], ctx: WatchPushContext = {}): PushCopy {
+  const base = sentCopy(locale, workouts, ctx);
+  if (!ctx.updated || workouts.length === 0) return base;
+  const he = locale === 'he';
+  const days = [...new Set(workouts.map((w) => w.dayOfWeek))];
+  const title = days.length === 1
+    ? (he ? `⟳ אימון יום ${DAYS[locale][days[0]]} עודכן` : `⟳ ${DAYS[locale][days[0]]}'s workout was updated`)
+    : (he ? `⟳ ${workouts.length} אימונים עודכנו` : `⟳ ${workouts.length} workouts were updated`);
+  const sync = he ? 'פותחים את Garmin Connect כדי שהגרסה החדשה תגיע לשעון' : 'Open Garmin Connect so the new version reaches your watch';
+  return { title, body: clip(`${sync} · ${base.body}`) };
+}
+
+function sentCopy(locale: NotificationLocale, workouts: ParsedWorkout[], ctx: WatchPushContext): PushCopy {
   const ws = [...workouts].sort((a, b) => a.dayOfWeek - b.dayOfWeek || (a.partIndex ?? 1) - (b.partIndex ?? 1));
   const he = locale === 'he';
   const n = ws.length;

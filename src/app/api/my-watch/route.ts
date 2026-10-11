@@ -10,6 +10,7 @@ import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { pushWeekToAthlete } from '@/lib/garmin/push-week';
 import { appleCandidates, deliverWeek, resolveWatchProvider, type WatchProvider } from '@/lib/watch';
 import type { ParsedWorkout } from '@/lib/ai/types';
+import { watchDays, type WatchDay } from '@/lib/watch/day-status';
 
 /**
  * "Is this week's training actually on my watch?" — and, if it isn't, the one tap
@@ -53,6 +54,12 @@ interface WatchState {
   /** Dates (YYYY-MM-DD) Garmin has CONFIRMED. 'pending' is deliberately not here. */
   onWatch: string[];
   /**
+   * Per confirmed date: when it was last sent, whether a later send replaced an
+   * earlier one, and whether a run came in stamped with it (lib/watch/day-status).
+   * `onWatch` above stays for older bundles.
+   */
+  days: Record<string, WatchDay>;
+  /**
    * Where this athlete's workouts go (lib/watch). 'apple' only for an athlete with
    * no Garmin link and a registered iPhone app; additive, nothing renders it yet.
    */
@@ -80,7 +87,7 @@ async function readWatchState(
 
   const { data } = await supabase
     .from('workout_deliveries')
-    .select('workout_date')
+    .select('workout_date, created_at, device_confirmed_at')
     .eq('athlete_id', athleteId)
     .eq('status', 'success')
     .gte('workout_date', weekStartDate)
@@ -91,6 +98,7 @@ async function readWatchState(
     weekStartDate,
     hasPlan,
     onWatch: [...new Set((data || []).map((r: { workout_date: string }) => r.workout_date))].sort(),
+    days: watchDays(data || []),
     provider,
   };
 }

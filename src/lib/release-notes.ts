@@ -158,3 +158,20 @@ export function releaseEntries(releases: WhatsNewRelease[], appVersion: string):
         };
       }));
 }
+
+/**
+ * Member notes that shipped after the last starred one and are still unstarred —
+ * what members could have been told and weren't. Ofer, 2026-10-11: a member asked
+ * why he never sees what's new; the last star was 09-30, and 15 member notes had
+ * shipped since. `since` = the release day of the newest starred note (null =
+ * never starred anything in the window).
+ */
+export function unstarredForMembers(releases: WhatsNewRelease[]): { notes: ShownNote[]; since: string | null } {
+  const starredDays = releases.filter(r => r.notes.some(n => n.featured)).map(r => r.released_at).sort();
+  const since = starredDays.at(-1) ?? null;
+  const notes = releases
+    .filter(r => !since || r.released_at > since)
+    .flatMap(r => r.notes)
+    .filter(n => n.audience !== 'staff' && !n.featured);
+  return { notes, since };
+}

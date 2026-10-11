@@ -122,7 +122,7 @@ describe('dispatchMorningReminders', () => {
     const plain = (s: string) => s.replace(/[⁦-⁩]/g, '');
     const he = opts.copy('he');
     expect(plain(he.title)).toBe('היום: 5 × 1 ק״מ ב־4:05');
-    expect(plain(he.body).split('\n')[0]).toMatch(/^10(\.\d)? ק״מ · כ־\d+ דק׳ · ⌚ כבר בשעון$/);
+    expect(plain(he.body).split('\n')[0]).toMatch(/^10(\.\d)? ק״מ · כ־\d+ דק׳ · ⌚ נשלח ל־Garmin$/);
     expect(plain(he.body).split('\n')[1]).toBe('הדופק קצת גבוה הבוקר. אם החזרות כבדות, מותר לעצור ב־4.');
 
     const ledger = db.tables.scheduled_notifications.filter(n => n.kind === LEDGER_KIND);

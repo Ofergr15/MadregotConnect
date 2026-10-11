@@ -166,11 +166,13 @@ describe('the feed box', () => {
     expect(card).toMatch(/watch\.garminConnected && watch\.hasPlan/);
   });
 
-  it('is a green tick beside the watch, or a red watch — icon only', () => {
+  it('is a tick beside the watch, or a red watch — icon only, in the honest state colour', () => {
     expect(card).toMatch(/onWatch && <Check/);
     expect(card).toMatch(/text-accent-red/);
+    // sent (blue) / updated (amber) / ran (green): lib/watch/day-status.
+    expect(card).toMatch(/watchDayState\(/);
     // The words live in aria-label/title so the pill stays an icon.
-    expect(card).toMatch(/aria-label=\{onWatch \? tw\('onWatch'\) : tw\('notOnWatch'\)\}/);
+    expect(card).toMatch(/aria-label=\{watchLabel\}/);
   });
 
   it('banners a two-a-day morning yellow and evening purple', () => {

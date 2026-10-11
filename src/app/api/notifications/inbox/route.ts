@@ -16,6 +16,8 @@ import { isStaffRole, mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-o
 
 export const dynamic = 'force-dynamic';
 
+const INBOX_WINDOW = 150;
+
 /**
  * Resolve the interactive rows' own state — kudos already given, RSVP already
  * answered — in two queries for the whole page instead of one request per row
@@ -111,6 +113,9 @@ export async function GET(request: Request) {
     // An active athlete can accumulate more than 50 ledger rows over time
     // (post-workout-prompt dedup, RSVP-reminder dedup, etc.), which used to
     // consume the entire page and hide every real notification behind them.
+    // 150, not 50: the page folds each day's "X finished a run" into one row
+    // (lib/notifications/history foldRuns), and at ~30 of those a day a 50-row
+    // window was under two days of history (Eyal, 2026-10-11).
     let { data, error } = await supabase
       .from('scheduled_notifications')
       .select('id, kind, title_he, body_he, url, last_sent_at, actor_athlete_id, actor:actor_athlete_id ( name, avatar_url )')
@@ -118,7 +123,7 @@ export async function GET(request: Request) {
       .or(orClause)
       .not('url', 'like', '#ledger:%')
       .order('last_sent_at', { ascending: false })
-      .limit(50)
+      .limit(INBOX_WINDOW)
       .returns<Record<string, any>[]>();
     if (error?.code === '42703' || error?.code === 'PGRST200') {
       // actor_athlete_id not migrated yet — degrade to the pre-071 shape.
@@ -129,7 +134,7 @@ export async function GET(request: Request) {
         .or(orClause)
         .not('url', 'like', '#ledger:%')
         .order('last_sent_at', { ascending: false })
-        .limit(50)
+        .limit(INBOX_WINDOW)
         .returns<Record<string, any>[]>());
     }
     if (error) throw error;

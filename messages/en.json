@@ -552,7 +552,8 @@
     "moreCount": "+{count} more",
     "editDayTooltip": "Edit {day}",
     "addWorkoutTooltip": "Add a workout for {day}",
-    "stepsCount": "{count} steps"
+    "stepsCount": "{count} steps",
+    "resendWarning": "{athletes} runners already got this workout (last at {time}), and the session is in about {hours} hours. Sending again deletes the earlier version on Garmin: whoever already synced will have to sync again, and whoever doesn't will run without it. The \"updated, sync again\" notification has been turned on."
   },
   "publishReview": {
     "statSessions": "Sessions this week",
@@ -2293,7 +2294,11 @@
       "yesterday": "Yesterday",
       "thisWeek": "This week",
       "older": "Older"
-    }
+    },
+    "runsFolded": "{n} runs from the club",
+    "runsMore": "and {n} more",
+    "runsOpen": "tap to open",
+    "runsClose": "tap to close"
   },
   "notificationPrefs": {
     "pushHeader": "Push",
@@ -3088,11 +3093,24 @@
     "invalidField": "Check the highlighted field and try again."
   },
   "watchStatus": {
-    "onWatch": "On your watch ✓",
-    "notOnWatch": "Not on your watch",
+    "onWatch": "Sent to Garmin ✓",
+    "notOnWatch": "Not sent to your watch yet",
     "sendToWatch": "Send to watch",
     "sending": "Sending…",
-    "failed": "Didn’t send — try again"
+    "failed": "Didn’t send — try again",
+    "sent": "Sent to Garmin",
+    "sentHint": "sync your watch",
+    "updated": "Updated at {time}",
+    "updatedHint": "sync again",
+    "ran": "You ran it from the watch",
+    "sheetTitle": "How the workout gets to your watch",
+    "sheetBody": "The workout is already on your Garmin account. Your watch only gets it when it syncs with your phone.",
+    "sheetUpdated": "The coach updated this workout at {time}. If your watch synced before that, sync again to get the new version.",
+    "step1": "Open Garmin Connect on your phone, near the watch",
+    "step2": "Wait for the sync, or pull down on the main screen",
+    "step3": "On the watch: Training → Training calendar → the workout's day",
+    "openGarmin": "Open the Garmin Connect calendar",
+    "close": "Close"
   },
   "update": {
     "title": "New version",
@@ -3152,7 +3170,10 @@
       "logo": "Logo",
       "text": "Text",
       "background": "Background"
-    }
+    },
+    "unstarredTitle": "{count, plural, one {One member update is waiting for a star} other {# member updates are waiting for a star}}",
+    "unstarredSince": "Members only see starred notes. The last star was on {date}, and they have seen nothing new since. The stars are next to each note below.",
+    "unstarredNever": "Members only see starred notes, and nothing is starred yet. The stars are next to each note below."
   },
   "shareSheet": {
     "titleWorkout": "Share your run",
@@ -3677,7 +3698,7 @@
     "addOn": "Add:",
     "onPlan": "On plan",
     "missed": "Missed",
-    "onWatchShort": "On watch ✓",
+    "onWatchShort": "Sent to Garmin ✓",
     "notOnWatch": "Not on the watch yet",
     "ofPlannedKm": "<m>{actual}</m> of <m>{planned}</m> km",
     "ofPlannedMin": "<m>{actual}</m> of <m>{planned}</m> min",
@@ -3686,8 +3707,8 @@
     "fromCoach": "From {name}",
     "fromCoachGeneric": "From your coach",
     "stepsUnavailable": "This workout's steps can't be shown here.",
-    "onWatchTitle": "On the watch",
-    "onWatchSub": "Sent to Garmin · it will appear under \"Workouts\"",
+    "onWatchTitle": "Sent to Garmin",
+    "onWatchSub": "Your watch gets it on its next sync with your phone",
     "notOnWatchTitle": "Not on the watch yet",
     "notOnWatchSub": "Not sent yet, or the watch isn't connected",
     "planVsActual": "Plan vs actual",
@@ -4107,7 +4128,7 @@
       "unread": "{n, plural, one {One unread message} other {<m>#</m> unread messages}}",
       "notifications": "Notifications",
       "dayTag": "{when, select, today {Today ·} other {Tomorrow ·}} {day}",
-      "onWatch": "⌚ On your watch",
+      "onWatch": "⌚ Sent to Garmin",
       "notOnWatch": "Not on the watch yet",
       "doneTag": "✓ Done",
       "onPlanTag": "As planned",
@@ -4206,7 +4227,7 @@
       "whySame": "Right at your threshold, from your {month} test",
       "sentTitle": "Sent to Garmin",
       "sentSub": "On the watch: <m>Workouts</m> › \"<bdi>{name}</bdi>\"",
-      "onWatchTag": "✓ On watch",
+      "onWatchTag": "✓ Sent to Garmin",
       "notSentTitle": "Not on the watch yet",
       "notSentSub": "Your coach sends it before the workout",
       "doneTitle": "{day} · done",
@@ -4367,7 +4388,7 @@
       "onPlan": "✓ On plan",
       "missed": "Missed",
       "today": "Today",
-      "onWatch": "⌚ On watch",
+      "onWatch": "⌚ Sent to Garmin",
       "offKm": "{caret} <m>{actual}</m> km instead of <m>{planned}</m>",
       "offMin": "{caret} <m>{actual}</m> min instead of <m>{planned}</m>",
       "km": "<m>{km}</m> km",
@@ -4650,7 +4671,7 @@
       "titleNoPace": "{when, select, tomorrow {Tomorrow:} other {Today:}} {title}",
       "km": "<m>{km}</m> km",
       "min": "about <m>{min}</m> min",
-      "onWatch": "⌚ On your watch",
+      "onWatch": "⌚ Sent to Garmin",
       "notOnWatch": "Not on your watch yet",
       "advice": {
         "rhrBitHigh": "Your HR is a bit high this morning. It is fine to ease off.",

@@ -285,7 +285,7 @@ export async function pushWeekToAthlete({
           athleteId: athlete.id,
           kind: 'plan_pushed',
           // Names the workouts this athlete actually got — their own group's version.
-          copy: (locale) => watchSentCopy(locale, plannedWorkouts, { ...pushCopy, weekStartDate, today: israelToday() }),
+          copy: (locale) => watchSentCopy(locale, plannedWorkouts, { ...pushCopy, weekStartDate, today: israelToday(), updated: replacedRowIds.length > 0 }),
           url: '/dashboard/program',
           tag: `plan-push-${planId || weekStartDate}`,
           category: 'program',

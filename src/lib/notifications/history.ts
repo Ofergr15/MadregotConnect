@@ -91,3 +91,56 @@ export function rsvpTarget(it: Pick<HistoryItem, 'kind' | 'url'>): { weekStart: 
   const m = it.url.match(/[?&]rsvp=([^&:]+):(\d)/);
   return m ? { weekStart: m[1], day: Number(m[2]) } : null;
 }
+
+// ─── Folding "X finished a run" ────────────────────────────────────────────
+// Eyal, 2026-10-11: 296 `kudos_activity` rows since 10-01, about 30 a day, in a
+// 50-row inbox — so a coach reply, a "sent to Garmin", a reminder or a survey was
+// gone within two days. A day with FOLD_MIN or more of them becomes one row,
+// placed where the newest of them was, that opens in place to the runs (each
+// keeping its kudos button). Fewer than that stay as they are.
+
+export const FOLD_MIN = 3;
+
+export type InboxEntry =
+  | { type: 'item'; item: HistoryItem }
+  | { type: 'runs'; key: string; items: HistoryItem[] };
+
+/** The calendar day in Israel, which is the day the club lives in. */
+function israelDay(iso: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date(iso));
+}
+
+/** `items` newest-first, as the inbox returns them. */
+export function foldRuns(items: HistoryItem[]): InboxEntry[] {
+  const perDay = new Map<string, HistoryItem[]>();
+  for (const it of items) {
+    if (it.kind !== 'kudos_activity') continue;
+    const d = israelDay(it.sentAt);
+    perDay.set(d, [...(perDay.get(d) ?? []), it]);
+  }
+  const out: InboxEntry[] = [];
+  const placed = new Set<string>();
+  for (const it of items) {
+    if (it.kind === 'kudos_activity') {
+      const d = israelDay(it.sentAt);
+      const day = perDay.get(d)!;
+      if (day.length >= FOLD_MIN) {
+        if (!placed.has(d)) { placed.add(d); out.push({ type: 'runs', key: `runs:${d}`, items: day }); }
+        continue;
+      }
+    }
+    out.push({ type: 'item', item: it });
+  }
+  return out;
+}
+
+/** Distinct first names of the runners in a fold, newest first. */
+export function foldNames(items: HistoryItem[]): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const it of items) {
+    const n = (it.actorName || '').trim().split(/\s+/)[0];
+    if (n && !seen.has(n)) { seen.add(n); names.push(n); }
+  }
+  return names;
+}

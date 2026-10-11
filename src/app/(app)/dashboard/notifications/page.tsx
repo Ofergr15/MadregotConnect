@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck, ThumbsUp, CheckCircle2, XCircle, SlidersHorizontal } from 'lucide-react';
+import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck, ThumbsUp, CheckCircle2, XCircle, SlidersHorizontal, Footprints } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi, apiHeaders } from '@/lib/api';
 import { useAthleteId } from '@/lib/use-athlete-id';
@@ -18,6 +18,8 @@ import {
   styleKindFor,
   kudosActivityId,
   rsvpTarget,
+  foldRuns,
+  foldNames,
 } from '@/lib/notifications/history';
 
 // Locale-aware relative time — "now" / "N min/hours/days ago" — routed through
@@ -292,6 +294,57 @@ export default function NotificationsInboxPage() {
     });
   };
 
+  // Which folded days of runs are open (foldRuns). Session-only.
+  const [openFolds, setOpenFolds] = useState<Set<string>>(() => new Set());
+
+  const renderRow = (it: Item) => {
+    const { Icon, tile } = styleFor(it);
+    const unread = isUnread(it);
+    const kudosId = kudosActivityId(it);
+    const rsvp = rsvpTarget(it);
+    return (
+      <div key={it.id} className="relative">
+        {unread && <span className="absolute start-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-brand-600 z-10" aria-hidden="true" />}
+        <InsetRow
+          icon={Icon}
+          iconBg={tile}
+          avatarUrl={it.actorAvatarUrl || undefined}
+          label={it.title}
+          sublabel={it.body}
+          // Here the sublabel IS the notification — the body of the
+          // coach's reply, the workout the reminder is about — and
+          // one truncated line showed a quarter of it: a reply
+          // needing 650px got 185px at 393px, and at 375px even
+          // "מגיעים? האימון מתחיל ב-19:00 באצטדיון" was cut. Two
+          // lines, still bounded. Same for the title above it, which
+          // is the sentence the athlete actually reads.
+          sublabelClamp
+          labelClamp
+          onClick={() => router.push(it.url || '/dashboard')}
+          trailing={
+            kudosId && athleteId ? (
+              <div className="flex flex-col items-end gap-1.5">
+                <span className="text-xs text-ink-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
+                <KudosButton activityId={kudosId} athleteId={athleteId} initialGiven={it.kudosGiven} />
+              </div>
+            ) : rsvp && athleteId ? (
+              <div className="flex flex-col items-end gap-1.5">
+                <span className="text-xs text-ink-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
+                <RsvpInlineButtons
+                  weekStart={rsvp.weekStart}
+                  day={rsvp.day}
+                  athleteId={athleteId}
+                  initialAttending={it.rsvpAttending}
+                />
+              </div>
+            ) : undefined
+          }
+          value={(kudosId || rsvp) ? undefined : timeAgo(it.sentAt, tn, dateLocale)}
+        />
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-5 flex items-center justify-between">
@@ -331,50 +384,33 @@ export default function NotificationsInboxPage() {
         <div className="space-y-5">
           {sections.map(({ bucket, items: sectionItems }) => (
             <InsetSection key={bucket} header={tn(`dateSections.${bucket}`)}>
-              {sectionItems.map((it) => {
-                const { Icon, tile } = styleFor(it);
-                const unread = isUnread(it);
-                const kudosId = kudosActivityId(it);
-                const rsvp = rsvpTarget(it);
+              {foldRuns(sectionItems).map((entry) => {
+                if (entry.type === 'item') return renderRow(entry.item);
+                // A day of "X finished a run", folded (lib/notifications/history foldRuns).
+                const open = openFolds.has(entry.key);
+                const names = foldNames(entry.items);
+                const more = names.length - 3;
+                const unread = entry.items.some(isUnread);
                 return (
-                  <div key={it.id} className="relative">
-                    {unread && <span className="absolute start-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-brand-600 z-10" aria-hidden="true" />}
-                    <InsetRow
-                      icon={Icon}
-                      iconBg={tile}
-                      avatarUrl={it.actorAvatarUrl || undefined}
-                      label={it.title}
-                      sublabel={it.body}
-                      // Here the sublabel IS the notification — the body of the
-                      // coach's reply, the workout the reminder is about — and
-                      // one truncated line showed a quarter of it: a reply
-                      // needing 650px got 185px at 393px, and at 375px even
-                      // "מגיעים? האימון מתחיל ב-19:00 באצטדיון" was cut. Two
-                      // lines, still bounded. Same for the title above it, which
-                      // is the sentence the athlete actually reads.
-                      sublabelClamp
-                      labelClamp
-                      onClick={() => router.push(it.url || '/dashboard')}
-                      trailing={
-                        kudosId && athleteId ? (
-                          <div className="flex flex-col items-end gap-1.5">
-                            <span className="text-xs text-ink-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
-                            <KudosButton activityId={kudosId} athleteId={athleteId} initialGiven={it.kudosGiven} />
-                          </div>
-                        ) : rsvp && athleteId ? (
-                          <div className="flex flex-col items-end gap-1.5">
-                            <span className="text-xs text-ink-400 shrink-0">{timeAgo(it.sentAt, tn, dateLocale)}</span>
-                            <RsvpInlineButtons
-                              weekStart={rsvp.weekStart}
-                              day={rsvp.day}
-                              athleteId={athleteId}
-                              initialAttending={it.rsvpAttending}
-                            />
-                          </div>
-                        ) : undefined
-                      }
-                      value={(kudosId || rsvp) ? undefined : timeAgo(it.sentAt, tn, dateLocale)}
-                    />
+                  <div key={entry.key}>
+                    <div className="relative">
+                      {unread && <span className="absolute start-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-brand-600 z-10" aria-hidden="true" />}
+                      <InsetRow
+                        icon={Footprints}
+                        iconBg="bg-ink-300"
+                        label={tn('runsFolded', { n: entry.items.length })}
+                        sublabel={`${names.slice(0, 3).join(', ')}${more > 0 ? ` ${tn('runsMore', { n: more })}` : ''} · ${open ? tn('runsClose') : tn('runsOpen')}`}
+                        labelClamp
+                        sublabelClamp
+                        onClick={() => setOpenFolds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(entry.key)) next.delete(entry.key); else next.add(entry.key);
+                          return next;
+                        })}
+                        value={timeAgo(entry.items[0].sentAt, tn, dateLocale)}
+                      />
+                    </div>
+                    {open && <div className="border-s-2 border-page ms-4">{entry.items.map(renderRow)}</div>}
                   </div>
                 );
               })}

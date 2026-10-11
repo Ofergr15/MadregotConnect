@@ -552,7 +552,8 @@
     "moreCount": "+{count} עוד",
     "editDayTooltip": "ערוך {day}",
     "addWorkoutTooltip": "הוסף אימון ל{day}",
-    "stepsCount": "{count} שלבים"
+    "stepsCount": "{count} שלבים",
+    "resendWarning": "{athletes} רצים כבר קיבלו את האימון הזה (אחרון ב־{time}), והאימון בעוד כ־{hours} שעות. שליחה חוזרת מוחקת את הגרסה הקודמת ב־Garmin: מי שהשעון שלו כבר הסתנכרן יצטרך לסנכרן שוב, ומי שלא, ירוץ בלי האימון. ההתראה \"האימון עודכן, לסנכרן שוב\" הופעלה."
   },
   "publishReview": {
     "statSessions": "אימונים בשבוע",
@@ -2293,7 +2294,11 @@
       "yesterday": "אתמול",
       "thisWeek": "השבוע",
       "older": "מוקדם יותר"
-    }
+    },
+    "runsFolded": "{n} ריצות של הקבוצה",
+    "runsMore": "ועוד {n}",
+    "runsOpen": "לפתיחה",
+    "runsClose": "לסגירה"
   },
   "notificationPrefs": {
     "pushHeader": "פוש",
@@ -3088,11 +3093,24 @@
     "invalidField": "בדקו את השדה המסומן ונסו שוב."
   },
   "watchStatus": {
-    "onWatch": "בשעון ✓",
-    "notOnWatch": "לא בשעון",
+    "onWatch": "נשלח ל־Garmin ✓",
+    "notOnWatch": "עוד לא נשלח לשעון",
     "sendToWatch": "שליחה לשעון",
     "sending": "שולח…",
-    "failed": "לא נשלח — נסו שוב"
+    "failed": "לא נשלח — נסו שוב",
+    "sent": "נשלח ל־Garmin",
+    "sentHint": "לסנכרן את השעון",
+    "updated": "עודכן ב־{time}",
+    "updatedHint": "לסנכרן שוב",
+    "ran": "רצתם מהשעון",
+    "sheetTitle": "איך האימון מגיע לשעון",
+    "sheetBody": "האימון כבר בחשבון Garmin שלכם. השעון מקבל אותו רק כשהוא מסתנכרן עם הטלפון.",
+    "sheetUpdated": "המאמן עדכן את האימון ב־{time}. אם השעון כבר הסתנכרן לפני כן, צריך לסנכרן שוב כדי לקבל את הגרסה החדשה.",
+    "step1": "פותחים את Garmin Connect בטלפון, ליד השעון",
+    "step2": "מחכים לסנכרון, או מושכים למטה במסך הראשי",
+    "step3": "בשעון: אימונים ← לוח אימונים ← היום של האימון",
+    "openGarmin": "ללוח האימונים ב־Garmin Connect",
+    "close": "סגירה"
   },
   "update": {
     "title": "גרסה חדשה",
@@ -3152,7 +3170,10 @@
       "logo": "לוגו",
       "text": "טקסט",
       "background": "רקע"
-    }
+    },
+    "unstarredTitle": "{count, plural, one {עדכון אחד לחברים מחכה לכוכב} other {# עדכונים לחברים מחכים לכוכב}}",
+    "unstarredSince": "חברים רואים רק מה שמסומן בכוכב. הכוכב האחרון היה ב־{date}, ומאז לא הוצג להם שום חידוש. הכוכבים ליד כל עדכון למטה.",
+    "unstarredNever": "חברים רואים רק מה שמסומן בכוכב, ועוד לא סומן כלום. הכוכבים ליד כל עדכון למטה."
   },
   "shareSheet": {
     "titleWorkout": "שיתוף האימון",
@@ -3677,7 +3698,7 @@
     "addOn": "להוסיף:",
     "onPlan": "לפי התוכנית",
     "missed": "לא בוצע",
-    "onWatchShort": "בשעון ✓",
+    "onWatchShort": "נשלח ל־Garmin ✓",
     "notOnWatch": "עוד לא בשעון",
     "ofPlannedKm": "<m>{actual}</m> מ־<m>{planned}</m> ק״מ",
     "ofPlannedMin": "<m>{actual}</m> מ־<m>{planned}</m> דק׳",
@@ -3686,8 +3707,8 @@
     "fromCoach": "מ־{name}",
     "fromCoachGeneric": "מהמאמן",
     "stepsUnavailable": "את השלבים של האימון הזה אי אפשר להציג כאן.",
-    "onWatchTitle": "בשעון",
-    "onWatchSub": "נשלח לגרמין · יופיע ב״אימונים״",
+    "onWatchTitle": "נשלח ל־Garmin",
+    "onWatchSub": "השעון יקבל אותו בסנכרון הבא עם הטלפון",
     "notOnWatchTitle": "עוד לא בשעון",
     "notOnWatchSub": "המאמן עוד לא שלח, או שהשעון לא מחובר",
     "planVsActual": "תוכנית מול ביצוע",
@@ -4107,7 +4128,7 @@
       "unread": "{n, plural, one {הודעה אחת שלא נקראה} other {<m>#</m> הודעות שלא נקראו}}",
       "notifications": "התראות",
       "dayTag": "{when, select, today {היום} other {מחר}} · {day}",
-      "onWatch": "⌚ כבר בשעון",
+      "onWatch": "⌚ נשלח ל־Garmin",
       "notOnWatch": "עוד לא בשעון",
       "doneTag": "✓ בוצע",
       "onPlanTag": "לפי התוכנית",
@@ -4206,7 +4227,7 @@
       "whySame": "בדיוק בקצב הסף שלך, מהטסט של {month}",
       "sentTitle": "נשלח לגרמין",
       "sentSub": "בשעון: <m>Workouts</m> ‹ \"<bdi>{name}</bdi>\"",
-      "onWatchTag": "✓ בשעון",
+      "onWatchTag": "✓ נשלח ל־Garmin",
       "notSentTitle": "עוד לא בשעון",
       "notSentSub": "המאמן ישלח לפני האימון",
       "doneTitle": "{day} · בוצע",
@@ -4367,7 +4388,7 @@
       "onPlan": "✓ לפי התוכנית",
       "missed": "לא בוצע",
       "today": "היום",
-      "onWatch": "⌚ בשעון",
+      "onWatch": "⌚ נשלח ל־Garmin",
       "offKm": "{caret} <m>{actual}</m> ק״מ במקום <m>{planned}</m>",
       "offMin": "{caret} <m>{actual}</m> דק׳ במקום <m>{planned}</m>",
       "km": "<m>{km}</m> ק״מ",
@@ -4650,7 +4671,7 @@
       "titleNoPace": "{when, select, tomorrow {מחר} other {היום}}: {title}",
       "km": "<m>{km}</m> ק״מ",
       "min": "כ־<m>{min}</m> דק׳",
-      "onWatch": "⌚ כבר בשעון",
+      "onWatch": "⌚ נשלח ל־Garmin",
       "notOnWatch": "עוד לא בשעון",
       "advice": {
         "rhrBitHigh": "הדופק קצת גבוה הבוקר. אפשר להוריד עצימות.",
