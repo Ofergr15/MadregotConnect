@@ -168,12 +168,13 @@ export interface WeeklyLoad {
   done: number;
   /** The planned load (E2), when the week has a plan we priced; else null. */
   planned: number | null;
+  /** The coach PLANNED it easy (spec G2, §3.4). Never judged from what was done. */
   easy: boolean;
 }
 
 /**
- * A planned easy week: its load (planned, or done when there is no plan) at or below
- * 0.75 × the mean of the previous (up to 4) weeks. No previous weeks → not easy.
+ * A planned easy week: its planned load at or below 0.75 × the mean of the previous (up
+ * to 4) weeks. No previous weeks → not easy.
  */
 export function isEasyWeek(value: number, prev: number[]): boolean {
   const last = prev.slice(-4).filter(v => Number.isFinite(v));
@@ -184,18 +185,19 @@ export function isEasyWeek(value: number, prev: number[]): boolean {
 
 /**
  * The weekly bars (mockup 3): each Sunday week's done load, its planned load where
- * known, and whether it is an easy week. `weeks` are Sunday starts, oldest first.
- * The previous weeks an easy week is judged against are their DONE loads, which
- * exist for every past week; `priorDone` supplies the weeks before the first bar.
- * A week still running (it holds `today`) with no plan is never easy: its done load is
- * only the days so far.
+ * known, and whether the coach planned it easy. `weeks` are Sunday starts, oldest first.
+ *
+ * "שבוע קל" is the coach's word, so only a PRICED PLAN can make a week easy: a week the
+ * trainee under-ran (ill, travelling, a bike ride for the reps) is just a lower bar. The
+ * weeks it is judged against count at their plan where they had one, else at what was
+ * done; `priorDone` supplies those values for the weeks before the first bar.
  */
 export function weeklyLoads(
   daily: DailyLoad[],
   plannedByWeek: Record<string, number | undefined>,
   weeks: string[],
   priorDone: number[] = [],
-  today?: string,
+  _today?: string,
 ): WeeklyLoad[] {
   const doneOf = (start: string) => {
     const end = shiftDate(start, 6);
@@ -206,11 +208,42 @@ export function weeklyLoads(
     const done = Math.round(doneOf(weekStart));
     const p = plannedByWeek[weekStart];
     const planned = p != null && p > 0 ? Math.round(p) : null;
-    const running = !!today && today <= shiftDate(weekStart, 6);
-    const easy = planned != null ? isEasyWeek(planned, history) : !running && isEasyWeek(done, history);
-    history.push(done);
+    const easy = planned != null && isEasyWeek(planned, history);
+    history.push(planned ?? done);
     return { weekStart, done, planned, easy };
   });
+}
+
+/** Bars shown on screen 3, and weeks before them an easy week is judged against. */
+export const LOAD_WEEKS = 8;
+export const PRIOR_WEEKS = 4;
+
+/** Every Sunday week `loadWeeks` needs a plan priced for, oldest first (the 4 prior + the 8 shown). */
+export function plannedWeeksFor(today: string): string[] {
+  return lastWeeks(today, LOAD_WEEKS + PRIOR_WEEKS);
+}
+
+/**
+ * The 8 weekly bars as every screen shows them — the trainee's 3 and 7, and the coach's
+ * C1/C2 (so "שבוע קל" is the same word on both sides). A week before the first priced run
+ * is not a 0, it is no data: dropped from the bars and from the prior weeks.
+ */
+export function loadWeeks(
+  daily: DailyLoad[],
+  plannedByWeek: Record<string, number | undefined>,
+  today: string,
+  firstLoadDate: string | null,
+): WeeklyLoad[] {
+  const all = plannedWeeksFor(today);
+  const weeks = all.slice(PRIOR_WEEKS);
+  const has = (w: string) => firstLoadDate != null && shiftDate(w, 6) >= firstLoadDate;
+  const prior = all.slice(0, PRIOR_WEEKS).filter(has).map((w) => {
+    const p = plannedByWeek[w];
+    if (p != null && p > 0) return p;
+    const end = shiftDate(w, 6);
+    return daily.reduce((s, d) => (d.date >= w && d.date <= end ? s + d.load : s), 0);
+  });
+  return weeklyLoads(daily, plannedByWeek, weeks, prior, today).filter(w => has(w.weekStart));
 }
 
 /** The Sunday that starts `date`'s plan week (planWeekStartOf, without a clock or a zone). */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { shiftDate } from '@/lib/academy/load';
-import type { LoadRow } from '@/lib/academy/pmc';
+import { plannedWeeksFor, type LoadRow } from '@/lib/academy/pmc';
 import { fitnessChart } from '@/lib/academy/progress';
 import {
   SPARK, buildReadinessInputs, initialsOf, pmcOf, projectionOf, readinessAlert, readinessRows, recentRecord,
@@ -47,6 +47,14 @@ describe('pmcOf: the trainee\'s own numbers', () => {
     // The 435 week after ~370 average: "אחרי שבוע עמוס".
     expect(p.heavyLastWeek).toBe(true);
     expect(p.series[p.series.length - 1].date).toBe(shiftDate(TODAY, -1));
+  });
+
+  it('a falling ramp in a week the coach planned easy is "שבוע קל", as on the trainee\'s screen', () => {
+    const rows = mockupDiary().filter(r => r.date < shiftDate(TODAY, -9));
+    expect(pmcOf(rows, TODAY).rampWordKey).toBe('recovering');
+    const planned = Object.fromEntries(plannedWeeksFor(TODAY).map(w => [w, 360]));
+    planned['2026-10-11'] = 150;
+    expect(pmcOf(rows, TODAY, { plannedByWeek: planned }).rampWordKey).toBe('easyWeek');
   });
 
   it('says nothing while learning: no numbers, no band', () => {

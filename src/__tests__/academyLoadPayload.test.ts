@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { shiftDate } from '@/lib/academy/load';
+import { plannedWeeksFor } from '@/lib/academy/pmc';
 import { buildLoadPayload } from '@/lib/academy/load-payload';
 import type { LoadRow } from '@/lib/academy/pmc';
 
@@ -43,10 +44,20 @@ describe('buildLoadPayload', () => {
   });
 
   it('8 Sunday weeks, this week with its planned load', () => {
-    const p = buildLoadPayload({ rows: steady(), tests: TESTS, today: TODAY, range: '6w', plannedThisWeek: 313.4 });
+    const p = buildLoadPayload({ rows: steady(), tests: TESTS, today: TODAY, range: '6w', plannedByWeek: { '2026-10-11': 313.4 } });
     expect(p.weekly).toHaveLength(8);
     expect(p.weekly[7]).toMatchObject({ weekStart: '2026-10-11', planned: 313 });
     expect(p.weekly.slice(0, 7).every(w => w.planned === null)).toBe(true);
+  });
+
+  it('"שבוע קל" only for a week the coach planned easy — this week included, and the ramp word follows', () => {
+    const weeks = plannedWeeksFor(TODAY);
+    const full = Object.fromEntries(weeks.map(w => [w, 400]));
+    const under = buildLoadPayload({ rows: steady(), tests: TESTS, today: TODAY, range: '6w', plannedByWeek: full });
+    expect(under.weekly.some(w => w.easy)).toBe(false);
+    const easy = buildLoadPayload({ rows: steady(), tests: TESTS, today: TODAY, range: '6w', plannedByWeek: { ...full, '2026-10-11': 200 } });
+    expect(easy.weekly[7]).toMatchObject({ planned: 200, easy: true });
+    if (easy.today && easy.today.ramp <= -1) expect(easy.today.rampWord).toBe('easyWeek');
   });
 
   it('learning: no numbers (never a 0), and no bars before the first run', () => {

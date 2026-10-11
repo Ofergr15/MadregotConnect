@@ -30,6 +30,10 @@ export interface WeeklyBar {
   planned: { value: number; y: number; h: number } | null;
   tone: 'past' | 'easy' | 'now';
   isNow: boolean;
+  /** The coach planned it easy — this week's dashed frame carries "שבוע קל" too. */
+  easy: boolean;
+  /** This week's planned load (also when no frame is drawn), for the tap line. */
+  plannedValue: number | null;
 }
 
 export interface WeeklyChart {
@@ -67,9 +71,26 @@ export function weeklyLoadChart(weekly: WeeklyBarInput[], opts: Partial<ChartBox
       planned: plannedValue != null ? { value: plannedValue, y: y(plannedValue), h: baseY - y(plannedValue) } : null,
       tone: isNow ? 'now' : w.easy ? 'easy' : 'past',
       isNow,
+      easy: w.easy,
+      plannedValue: isNow ? plannedValue : null,
     };
   });
   return { width, height, barW, baseY, bars, avg, avgY: avg != null ? y(avg) : null };
+}
+
+/**
+ * The bar a tap at `x` (px from the chart's left) means: the nearest centre. The whole
+ * chart is one tap target — eight bars in a phone's width are ~40px apart, under the 44px
+ * floor each — and the line under it names the week picked.
+ */
+export function nearestBar(chart: Pick<WeeklyChart, 'bars'>, x: number): number {
+  let best = -1;
+  let dist = Infinity;
+  chart.bars.forEach((b, i) => {
+    const d = Math.abs(b.x - x);
+    if (d < dist) { dist = d; best = i; }
+  });
+  return best;
 }
 
 export type LoadCompare = 'wellBelow' | 'below' | 'same' | 'above' | 'wellAbove';
@@ -94,6 +115,8 @@ export interface WeeklySentence {
   afterHeavy: boolean;
   /** An easy week is drawn (the light bar), so the sentence says what it is. */
   easyShown: boolean;
+  /** This week is planned easy (its dashed frame says so). */
+  easyNow: boolean;
 }
 
 /** The one sentence under the bars; null when there is no average to compare with. */
@@ -108,8 +131,9 @@ export function weeklySentence(weekly: WeeklyBarInput[]): WeeklySentence | null 
   const beforeMean = before.length ? before.reduce((a, b) => a + b, 0) / before.length : 0;
   const afterHeavy = beforeMean > 0 && last > HEAVY_SHARE * beforeMean;
   const easyShown = past.some(w => w.easy);
+  const easyNow = now.easy && now.planned != null && now.planned > 0;
   if (now.planned != null && now.planned > 0) {
-    return { key: `vs.${compareToAverage(now.planned, avg)}`, params: { planned: now.planned, avg }, afterHeavy, easyShown };
+    return { key: `vs.${compareToAverage(now.planned, avg)}`, params: { planned: now.planned, avg }, afterHeavy, easyShown, easyNow };
   }
-  return { key: 'noPlan', params: { done: now.done, avg }, afterHeavy: false, easyShown };
+  return { key: 'noPlan', params: { done: now.done, avg }, afterHeavy: false, easyShown, easyNow: false };
 }

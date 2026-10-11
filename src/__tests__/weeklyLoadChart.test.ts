@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareToAverage, weeklyLoadChart, weeklySentence } from '@/lib/charts/weekly-load';
+import { compareToAverage, nearestBar, weeklyLoadChart, weeklySentence } from '@/lib/charts/weekly-load';
 
 /**
  * The month board's weekly ⚡ bars (trainee-experience-v2 screen 3). The mockup's eight
@@ -54,7 +54,7 @@ describe('weeklyLoadChart — time runs left to right (G1)', () => {
 describe('weeklySentence — planned against the average', () => {
   it('the mockup: 313 a little below 348, after a heavy week, with an easy week shown', () => {
     expect(weeklySentence(WEEKLY)).toEqual({
-      key: 'vs.below', params: { planned: 313, avg: 348 }, afterHeavy: true, easyShown: true,
+      key: 'vs.below', params: { planned: 313, avg: 348 }, afterHeavy: true, easyShown: true, easyNow: false,
     });
   });
 
@@ -73,5 +73,24 @@ describe('weeklySentence — planned against the average', () => {
     expect(compareToAverage(350, 348)).toBe('same');
     expect(compareToAverage(380, 348)).toBe('above');
     expect(compareToAverage(420, 348)).toBe('wellAbove');
+  });
+});
+
+describe('a planned easy THIS week, and the tap (M2)', () => {
+  const easyNow = WEEKLY.map((w, i) => (i === 7 ? { ...w, planned: 200, easy: true } : { ...w, easy: false }));
+
+  it('this week stays in its own colour; its dashed frame carries the easy mark and the sentence says so', () => {
+    const chart = weeklyLoadChart(easyNow);
+    expect(chart.bars[7]).toMatchObject({ tone: 'now', easy: true, plannedValue: 200 });
+    expect(chart.bars[7].planned?.value).toBe(200);
+    const s = weeklySentence(easyNow)!;
+    expect(s).toMatchObject({ easyNow: true, easyShown: false });
+  });
+
+  it('a tap anywhere picks the nearest bar', () => {
+    const chart = weeklyLoadChart(WEEKLY);
+    expect(nearestBar(chart, 0)).toBe(0);
+    expect(nearestBar(chart, 326)).toBe(7);
+    expect(nearestBar(chart, chart.bars[3].x + 5)).toBe(3);
   });
 });

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
-import { CHART, weeklyLoadChart, weeklySentence, type WeeklyBarInput } from '@/lib/charts/weekly-load';
+import { CHART, nearestBar, weeklyLoadChart, weeklySentence, type WeeklyBarInput } from '@/lib/charts/weekly-load';
 import { N } from '@/components/academy/book/ui';
 import { CARD, dm } from './ui';
 
@@ -14,7 +14,8 @@ import { CARD, dm } from './ui';
 // week is solid for what is done so far inside a dashed frame for what is planned, with
 // the planned number flagged; an easy week is the light bar with "שבוע קל"; the dotted
 // line is the average of the complete weeks. Every label is an HTML span over the LTR
-// SVG, never <text>. One sentence under it compares the plan with the average.
+// SVG, never <text>. One sentence under it compares the plan with the average. A tap on
+// the chart picks the nearest bar and the line under the axis prints its value (spec M2).
 //
 // Drawn only when there is something to draw: the board shows KmCard instead while the
 // load is still being learned (MonthBoard decides).
@@ -48,6 +49,8 @@ export function WeeklyLoadChart({ weekly }: { weekly: WeeklyBarInput[] }) {
     b: (c: ReactNode) => <b className="font-extrabold text-ink-900">{c}</b>,
   };
   const half = chart.barW / 2;
+  const [picked, setPicked] = useState<number | null>(null);
+  const sel = picked != null ? chart.bars[picked] ?? null : null;
 
   return (
     <div className={cn(CARD, 'px-4 py-3.5')}>
@@ -63,17 +66,21 @@ export function WeeklyLoadChart({ weekly }: { weekly: WeeklyBarInput[] }) {
             <g key={b.weekStart}>
               {b.planned && (
                 <rect x={b.x - half} y={b.planned.y} width={chart.barW} height={b.planned.h} rx={6}
-                  fill="#F3F4FF" stroke="#8F98FF" strokeDasharray="4 3" strokeWidth={1.5} />
+                  fill={b.easy ? '#F7F8FF' : '#F3F4FF'} stroke={b.easy ? '#C9CEFF' : '#8F98FF'} strokeDasharray="4 3" strokeWidth={1.5} />
               )}
               {b.h > 0 && <rect x={b.x - half} y={b.y} width={chart.barW} height={b.h} rx={6} fill={FILL[b.tone]} />}
+              {sel === b && (
+                <rect x={b.x - half - 2.5} y={Math.min(b.y, b.planned?.y ?? b.y) - 2.5} width={chart.barW + 5}
+                  height={chart.baseY - Math.min(b.y, b.planned?.y ?? b.y) + 2.5} rx={8} fill="none" stroke="#16171F" strokeWidth={1.5} />
+              )}
             </g>
           ))}
           {chart.avgY != null && (
             <line x1={0} x2={chart.width} y1={chart.avgY} y2={chart.avgY} stroke="#16171F" strokeOpacity={0.35} strokeDasharray="2 4" strokeWidth={1.5} />
           )}
         </svg>
-        {chart.bars.filter(b => b.tone === 'easy').map(b => (
-          <Flag key={`e${b.weekStart}`} x={b.x} y={b.y - 3} className="text-ink-400">{t('easy')}</Flag>
+        {chart.bars.filter(b => b.easy && (b.tone === 'easy' || b.planned)).map(b => (
+          <Flag key={`e${b.weekStart}`} x={b.x} y={b.planned ? b.planned.y - 17 : b.y - 3} className="text-ink-400">{t('easy')}</Flag>
         ))}
         {chart.bars.filter(b => b.planned).map(b => (
           <Flag key={`p${b.weekStart}`} x={b.x} y={b.planned!.y - 3} className="text-brand-600"><N>{b.planned!.value}</N></Flag>
@@ -84,6 +91,12 @@ export function WeeklyLoadChart({ weekly }: { weekly: WeeklyBarInput[] }) {
             {t.rich('avg', { ...rich, avg: chart.avg })}
           </span>
         )}
+        <button type="button" aria-label={t('pickAria')} className="absolute inset-0 cursor-pointer"
+          onClick={(e) => {
+            const box = e.currentTarget.getBoundingClientRect();
+            const i = nearestBar(chart, e.clientX - box.left);
+            setPicked(i === picked ? null : i);
+          }} />
       </div>
       <div dir="ltr" className="relative mt-[3px] h-4">
         {chart.bars.map(b => (
@@ -94,12 +107,24 @@ export function WeeklyLoadChart({ weekly }: { weekly: WeeklyBarInput[] }) {
           </span>
         ))}
       </div>
+      <p className="mt-1 min-h-[18px] text-[12.5px] text-ink-500" aria-live="polite">
+        {sel ? (
+          <>
+            {sel.isNow
+              ? t.rich('pickedNow', { ...rich, done: sel.done })
+              : t.rich('pickedWeek', { ...rich, date: dm(sel.weekStart), done: sel.done })}
+            {sel.plannedValue != null && t.rich('pickedPlanned', { ...rich, planned: sel.plannedValue })}
+            {sel.easy && t('pickedEasy')}
+          </>
+        ) : <span className="text-ink-400">{t('tapHint')}</span>}
+      </p>
       {sentence && (
         <p className="mt-1.5 text-13 leading-normal text-ink-500">
           {t.rich(sentence.key as 'noPlan', { ...rich, ...sentence.params } as never)}
           {sentence.afterHeavy && t('afterHeavy')}
           {t('end')}
           {sentence.easyShown && t('easyNote')}
+          {sentence.easyNow && t('easyNowNote')}
         </p>
       )}
     </div>

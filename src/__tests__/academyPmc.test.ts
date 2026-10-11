@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { shiftDate } from '@/lib/academy/load';
 import {
-  dailyLoads, isEasyWeek, lastWeeks, loadStatus, pmcSeries, pmcToday, projectSeries, weekStartOf, weeklyLoads,
+  dailyLoads, isEasyWeek, lastWeeks, loadStatus, loadWeeks, plannedWeeksFor, pmcSeries, pmcToday, projectSeries, weekStartOf, weeklyLoads,
   FATIGUE_DAYS, FITNESS_DAYS, type LoadRow,
 } from '@/lib/academy/pmc';
 
@@ -96,12 +96,23 @@ describe('the mockup\'s numbers', () => {
     expect(Math.abs(end.fatigue - 50)).toBeLessThanOrEqual(1);
   });
 
-  it('the 232 week is the easy one, and no other is', () => {
+  it('a low DONE week is not "easy": only the coach\'s plan makes it one', () => {
     const daily = dailyLoads(rows, first, TODAY);
     const weeks = lastWeeks('2026-10-10', 11);
-    const bars = weeklyLoads(daily, {}, weeks, [], TODAY);
-    expect(bars.find(b => b.weekStart === '2026-09-13')).toMatchObject({ done: 232, easy: true });
+    expect(weeklyLoads(daily, {}, weeks, [], TODAY).some(b => b.easy)).toBe(false);
+    const planned = Object.fromEntries(weeks.map(w => [w, w === '2026-09-13' ? 232 : 330]));
+    const bars = weeklyLoads(daily, planned, weeks, [], TODAY);
+    expect(bars.find(b => b.weekStart === '2026-09-13')).toMatchObject({ done: 232, planned: 232, easy: true });
     expect(bars.filter(b => b.easy).map(b => b.weekStart)).toEqual(['2026-09-13']);
+  });
+
+  it('loadWeeks: 8 bars, judged against the 4 weeks before them at their plan', () => {
+    const daily = dailyLoads(rows, first, TODAY);
+    const all = plannedWeeksFor(TODAY);
+    expect(all).toHaveLength(12);
+    const bars = loadWeeks(daily, { ...Object.fromEntries(all.map(w => [w, 330])), '2026-10-11': 200 }, TODAY, first);
+    expect(bars).toHaveLength(8);
+    expect(bars[7]).toMatchObject({ weekStart: '2026-10-11', planned: 200, easy: true });
   });
 
   it('this week\'s bar is the planned load when there is one, and not easy at 313 vs ~348', () => {

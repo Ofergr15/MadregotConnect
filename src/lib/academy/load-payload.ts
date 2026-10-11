@@ -1,6 +1,6 @@
 import { shiftDate, thresholdOn, daysBetween, type TestPoint } from './load';
 import {
-  dailyLoads, lastWeeks, loadStatus, pmcSeries, pmcToday, pointOn, weekStartOf, weeklyLoads,
+  dailyLoads, loadStatus, loadWeeks, pmcSeries, pmcToday, pointOn, weekStartOf,
   type LoadRow, type LoadStatus, type WeeklyLoad,
 } from './pmc';
 import { formBand, rampWord, type FormBandKey, type RampWordKey } from './form-bands';
@@ -18,7 +18,7 @@ const RANGE_DAYS: Record<Exclude<LoadRange, 'race'>, number> = { '6w': 42, '3m':
 const SAMPLE_EVERY: Record<LoadRange, number> = { '6w': 1, '3m': 3, race: 3 };
 /** The race range starts this long before the race (16 weeks of build). */
 export const RACE_BUILD_DAYS = 16 * 7;
-export const WEEKS_SHOWN = 8;
+export { LOAD_WEEKS as WEEKS_SHOWN } from './pmc';
 
 export interface LoadPayload {
   status: LoadStatus;
@@ -53,8 +53,11 @@ export function buildLoadPayload(input: {
   today: string;
   range: LoadRange;
   raceDate?: string | null;
-  /** Planned load of this week (E2), when it has a plan. */
-  plannedThisWeek?: number | null;
+  /**
+   * Planned load (E2) per Sunday week, for the shown weeks and the 4 before them
+   * (`plannedWeeksFor`): this week's dashed bar, and which weeks the coach planned easy.
+   */
+  plannedByWeek?: Record<string, number | undefined>;
 }): LoadPayload {
   const { rows, tests, today } = input;
   const status = loadStatus(rows, today);
@@ -64,19 +67,10 @@ export function buildLoadPayload(input: {
   const basis = thresholdOn(today, tests);
   const previous = basis ? thresholdOn(shiftDate(basis.date, -1), tests) : null;
 
-  const weeks = lastWeeks(today, WEEKS_SHOWN);
   const historyFrom = firstLoadDate ?? today;
   const daily = dailyLoads(rows, historyFrom, today);
   const series = firstLoadDate && firstLoadDate <= y ? pmcSeries(daily.filter(d => d.date <= y)) : [];
-
-  const priorWeeks = [4, 3, 2, 1].map(k => shiftDate(weeks[0], -7 * k));
-  const priorDone = priorWeeks
-    .filter(w => firstLoadDate != null && shiftDate(w, 6) >= firstLoadDate)
-    .map(w => daily.reduce((s, d) => (d.date >= w && d.date <= shiftDate(w, 6) ? s + d.load : s), 0));
-  const thisWeek = weeks[weeks.length - 1];
-  const weekly = weeklyLoads(daily, { [thisWeek]: input.plannedThisWeek ?? undefined }, weeks, priorDone, today)
-    // A week before the first priced run is not a 0, it is no data: drop it.
-    .filter(w => firstLoadDate != null && shiftDate(w.weekStart, 6) >= firstLoadDate);
+  const weekly = loadWeeks(daily, input.plannedByWeek ?? {}, today, firstLoadDate);
 
   let range = input.range;
   let from: string;
@@ -110,7 +104,8 @@ export function buildLoadPayload(input: {
   let todayOut: LoadPayload['today'] = null;
   if (status.kind === 'ok' && series.length) {
     const t = pmcToday(series, today);
-    const easyWeek = weekly.length ? weekly[weekly.length - 1].easy : false;
+    // This week as the coach planned it (G2): "שבוע קל" rather than "מתאושש".
+    const easyWeek = weekly.length ? weekly[weekly.length - 1].weekStart === weekStartOf(today) && weekly[weekly.length - 1].easy : false;
     todayOut = {
       fitness: Math.round(t.fitness),
       fatigue: Math.round(t.fatigue),

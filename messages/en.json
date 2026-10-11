@@ -4357,7 +4357,14 @@
         "noPlan": "This week so far <b><m>{done}</m></b>, your average <b><m>{avg}</m></b>",
         "afterHeavy": ", after a heavy week",
         "end": ".",
-        "easyNote": " The light bar is an easy week."
+        "easyNote": " The light bar is an easy week.",
+        "easyNowNote": " This week is planned as an easy week.",
+        "tapHint": "Tap a bar to see its number",
+        "pickedWeek": "Week of <m>{date}</m>: ⚡ <b><m>{done}</m></b>",
+        "pickedNow": "This week so far: ⚡ <b><m>{done}</m></b>",
+        "pickedPlanned": " · planned <m>{planned}</m>",
+        "pickedEasy": " · easy week",
+        "pickAria": "Pick a week on the load chart"
       },
       "error": "Couldn't load the month."
     },

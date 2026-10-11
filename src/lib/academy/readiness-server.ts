@@ -16,9 +16,9 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { activityLocalDateStr, planWeekStartOf } from '@/lib/utils';
-import { BACKFILL_DAYS, ensureActivityLoads, hasActivityLoadsTable, loadDailyRows, loadTestsFor, type DailyRow } from './load-server';
-import { shiftDate } from './load';
-import type { PmcPoint } from './pmc';
+import { BACKFILL_DAYS, ensureActivityLoads, hasActivityLoadsTable, loadDailyRows, loadTestsFor, plannedLoads, type DailyRow } from './load-server';
+import { shiftDate, thresholdOn } from './load';
+import { plannedWeeksFor, type PmcPoint } from './pmc';
 import type { WellnessNight } from './normal-range';
 import { computeAcademyWeekAdherence } from './report';
 import {
@@ -121,7 +121,7 @@ export async function loadReadinessInputs(
   const safe = <T>(p: PromiseLike<T>, fallback: T, what: string): Promise<T> =>
     Promise.resolve(p).catch((err) => { console.error(`readiness ${what} failed:`, err); return fallback; });
 
-  const [ensured, daily, nightsRes, feedbackRes, races, peopleRes, records] = await Promise.all([
+  const [ensured, daily, nightsRes, feedbackRes, races, peopleRes, records, planned] = await Promise.all([
     // The pricing and the read run side by side; whatever this call prices overrides the
     // stored row below, as athleteLoads does, so the numbers are the same either way.
     Promise.all(ids.map(id => safe(
@@ -146,7 +146,14 @@ export async function loadReadinessInputs(
     safe(loadRaces(db, ids, today), {}, 'races'),
     safe(db.from('athletes').select('id, name, gender, is_academy, status').in('id', ids), { data: null, error: true } as any, 'people'),
     safe(loadRecords(db, ids, today), {}, 'records'),
+    // Each trainee's planned weeks, so the ramp word says "שבוע קל" when the coach planned it.
+    Promise.all(ids.map(id => safe(
+      testsP.then(tests => plannedLoads(db, id, plannedWeeksFor(today), thresholdOn(today, tests[id] || [])?.thresholdSec ?? null)),
+      { byWeek: {}, byDate: {} },
+      'planned loads',
+    ))),
   ]);
+  const plannedBy = new Map(ids.map((id, k) => [id, planned[k].byWeek]));
 
   const fresh = new Map<string, DailyRow>();
   for (const e of ensured) {
@@ -167,6 +174,7 @@ export async function loadReadinessInputs(
     const myFeedback: FeedbackRow[] = feedback.filter(f => String(f.athlete_id) === id);
     const { inputs, series } = buildReadinessInputs({
       rows: mine, nights: myNights, feedback: myFeedback, race: races[id] ?? null, record: records[id] ?? null, today,
+      plannedByWeek: plannedBy.get(id),
     });
     const p = people.get(id);
     out[id] = {

@@ -4,7 +4,7 @@ import { israelToday } from '@/lib/utils';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { mayCoach } from '@/lib/academy/pairing-server';
 import { shiftDate, thresholdOn } from '@/lib/academy/load';
-import { weekStartOf } from '@/lib/academy/pmc';
+import { plannedWeeksFor } from '@/lib/academy/pmc';
 import { athleteLoads, BACKFILL_DAYS, loadRaceDate, plannedLoads } from '@/lib/academy/load-server';
 import { buildLoadPayload, LOAD_RANGES, type LoadRange } from '@/lib/academy/load-payload';
 
@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
  *
  * The trainee's fitness, fatigue and form (mockup 7/7ב, the weekly bars of 3, the coach's
  * C2): the numbers as of yesterday, the series behind the chart, 8 Sunday weeks of done
- * load with this week's planned load (E2), and the test the loads stand on.
+ * load with each week's planned load (E2), and the test the loads stand on.
  *
  * WHO: the trainee, their coaches and the manager — `mayCoach`, the academy's 1:1 line,
  * the same as /api/academy/workout.
@@ -44,12 +44,11 @@ export async function GET(request: Request) {
       // Every range: screen 7 offers "עד המרוץ" only when there is a race.
       loadRaceDate(supabase, athleteId),
     ]);
-    const thisWeek = weekStartOf(today);
-    const planned = await plannedLoads(supabase, athleteId, [thisWeek], thresholdOn(today, tests)?.thresholdSec ?? null);
+    // Every shown week's plan, and the 4 before: this week's dashed bar, and "שבוע קל" only
+    // for a week the coach planned easy.
+    const planned = await plannedLoads(supabase, athleteId, plannedWeeksFor(today), thresholdOn(today, tests)?.thresholdSec ?? null);
 
-    const payload = buildLoadPayload({
-      rows, tests, today, range, raceDate, plannedThisWeek: planned.byWeek[thisWeek] ?? null,
-    });
+    const payload = buildLoadPayload({ rows, tests, today, range, raceDate, plannedByWeek: planned.byWeek });
     return NextResponse.json({ ...payload, stored, pending });
   } catch (error: unknown) {
     console.error('Academy load error:', error);

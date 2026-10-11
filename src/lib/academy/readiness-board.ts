@@ -4,7 +4,7 @@ import { bestSegmentSeconds, type LapLike } from '@/lib/prs/best-segment';
 import { PR_BUCKETS, computeDistanceBests, filterQualifyingRuns } from '@/lib/prs/pr-buckets';
 import { daysBetween, shiftDate } from './load';
 import {
-  dailyLoads, loadStatus, pmcSeries, pmcToday, pointOn, projectSeries, weekStartOf,
+  dailyLoads, loadStatus, loadWeeks, pmcSeries, pmcToday, pointOn, projectSeries, weekStartOf,
   type DailyLoad, type LoadRow, type LoadStatus, type PmcPoint,
 } from './pmc';
 import { formBand, isHeavyWeek, rampWord, type FormBandKey, type RampWordKey } from './form-bands';
@@ -54,7 +54,12 @@ export interface Pmc {
   heavyLastWeek: boolean;
 }
 
-export function pmcOf(rows: LoadRow[], today: string): Pmc {
+/**
+ * `plannedByWeek` (plannedLoads over `plannedWeeksFor(today)`): the ramp word says "שבוע
+ * קל" for a week the coach planned easy, exactly as the trainee's own screens do
+ * (load-payload.ts) — the coach sees the same numbers and the same words.
+ */
+export function pmcOf(rows: LoadRow[], today: string, opts: { plannedByWeek?: Record<string, number | undefined> } = {}): Pmc {
   const status = loadStatus(rows, today);
   const priced = rows.filter(r => r.load != null && r.date <= today).map(r => r.date).sort();
   const first = priced[0] ?? null;
@@ -73,12 +78,15 @@ export function pmcOf(rows: LoadRow[], today: string): Pmc {
     return { status, series, today: null, bandKey: null, rampWordKey: null, heavyLastWeek };
   }
   const t = pmcToday(series, today);
+  const weeks = loadWeeks(daily, opts.plannedByWeek ?? {}, today, first);
+  const now = weeks[weeks.length - 1];
+  const easyWeek = !!now && now.weekStart === thisWeek && now.easy;
   return {
     status,
     series,
     today: { fitness: Math.round(t.fitness), fatigue: Math.round(t.fatigue), form: Math.round(t.form), ramp: Math.round(t.ramp) },
     bandKey: formBand(t.form).key,
-    rampWordKey: rampWord(t.ramp).key,
+    rampWordKey: rampWord(t.ramp, { easyWeek }).key,
     heavyLastWeek,
   };
 }
@@ -223,9 +231,11 @@ export function buildReadinessInputs(input: {
   race?: { name: string | null; date: string } | null;
   record?: { bucket: string; daysAgo: number } | null;
   today: string;
+  /** Planned load per Sunday week (`plannedWeeksFor`), for the easy-week ramp word. */
+  plannedByWeek?: Record<string, number | undefined>;
 }): { inputs: ReadinessInputs; series: PmcPoint[] } {
   const { today } = input;
-  const pmc = pmcOf(input.rows, today);
+  const pmc = pmcOf(input.rows, today, { plannedByWeek: input.plannedByWeek });
   const body = buildBodyPayload({ nights: input.nights, today, feedback: input.feedback });
 
   const painFrom = shiftDate(today, -(PAIN_DAYS - 1));
