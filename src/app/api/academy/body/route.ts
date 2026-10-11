@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { israelToday } from '@/lib/utils';
+import { activityLocalDateStr, israelToday } from '@/lib/utils';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { mayCoach } from '@/lib/academy/pairing-server';
 import { shiftDate } from '@/lib/academy/load';
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
         .lte('date', today),
       supabase
         .from('workout_feedback')
-        .select('feel, difficulty, created_at')
+        .select('feel, difficulty, created_at, garmin_activity_id')
         .eq('athlete_id', athleteId)
         .order('created_at', { ascending: false })
         .limit(FEEDBACK_ROWS),
@@ -58,8 +58,22 @@ export async function GET(request: Request) {
       sleep_seconds: n.sleep_seconds ?? null,
       resting_hr: n.resting_hr ?? null,
     }));
-    const feedback = (feedbackRes.error ? [] : feedbackRes.data) || [];
-    return NextResponse.json({ today, ...buildBodyPayload({ nights, today, feedback: feedback as any[] }) });
+    const feedback = ((feedbackRes.error ? [] : feedbackRes.data) || []) as any[];
+    // Each answer dated by its run (start_time is the watch's wall clock: its UTC date is
+    // the run's local day), not by when it was typed.
+    const runIds = [...new Set(feedback.map(f => f.garmin_activity_id).filter((v: unknown) => v != null))];
+    if (runIds.length) {
+      const { data: runs, error: runsErr } = await supabase
+        .from('athlete_activities')
+        .select('garmin_activity_id, start_time')
+        .eq('athlete_id', athleteId)
+        .in('garmin_activity_id', runIds);
+      if (!runsErr) {
+        const dayOf = new Map(((runs || []) as any[]).map(r => [String(r.garmin_activity_id), activityLocalDateStr(String(r.start_time))]));
+        for (const f of feedback) f.run_date = dayOf.get(String(f.garmin_activity_id)) ?? null;
+      }
+    }
+    return NextResponse.json({ today, ...buildBodyPayload({ nights, today, feedback }) });
   } catch (error: unknown) {
     console.error('Academy body error:', error);
     return NextResponse.json({ error: 'Failed to load the body screen' }, { status: 500 });

@@ -45,7 +45,8 @@ function seed(withWellness = true) {
   db = createMemoryDb({
     schema: {
       ...(withWellness ? { athlete_wellness: ['athlete_id', 'date', 'sleep_seconds', 'resting_hr'] } : {}),
-      workout_feedback: ['id', 'athlete_id', 'feel', 'difficulty', 'created_at'],
+      workout_feedback: ['id', 'athlete_id', 'garmin_activity_id', 'feel', 'difficulty', 'created_at'],
+      athlete_activities: ['id', 'athlete_id', 'garmin_activity_id', 'start_time'],
     },
   });
   if (withWellness) {
@@ -82,6 +83,22 @@ describe('GET /api/academy/body', () => {
       expect(body.feel).toMatchObject({ face: 3, effort: 6.5, n: 4 });
       expect(body.featured).toBe('rhr');
     }
+  });
+
+  it('an answer is dated by its run, not by the day it was typed', async () => {
+    seed();
+    db.tables.workout_feedback.length = 0;
+    // Two runs, both answered on the evening of the first one's day (lab: 11.10 and 12.10).
+    db.tables.athlete_activities.push(
+      { id: uid(), athlete_id: TRAINEE, garmin_activity_id: 11, start_time: `${day(-2)}T18:30:00+00:00` },
+      { id: uid(), athlete_id: TRAINEE, garmin_activity_id: 12, start_time: `${day(-1)}T06:30:00+00:00` },
+    );
+    db.tables.workout_feedback.push(
+      { id: uid(), athlete_id: TRAINEE, garmin_activity_id: 11, feel: 3, difficulty: 6, created_at: `${day(-2)}T19:00:00Z` },
+      { id: uid(), athlete_id: TRAINEE, garmin_activity_id: 12, feel: 4, difficulty: 7, created_at: `${day(-2)}T19:05:00Z` },
+    );
+    const body = await (await get(`athleteId=${TRAINEE}`)).json();
+    expect(body.feel.recent.map((r: { date: string }) => r.date)).toEqual([day(-2), day(-1)]);
   });
 
   it('before the wellness table: an answer, with nothing to show yet', async () => {

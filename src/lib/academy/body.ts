@@ -5,6 +5,7 @@ import {
 } from './normal-range';
 import { feelAverage, FEEL_RUNS } from './readiness';
 import { xAt } from '@/lib/charts/timeline';
+import { israelToday } from '@/lib/utils';
 
 /**
  * "הגוף" (trainee-experience-v2 screen 8, TP Health Insights): resting HR and sleep against
@@ -98,8 +99,11 @@ export function featuredMetric(p: Pick<BodyPayload, 'rhr' | 'sleep' | 'feel'>): 
 export function buildBodyPayload(input: {
   nights: WellnessNight[];
   today: string;
-  /** workout_feedback rows, any order. */
-  feedback: Array<{ feel?: number | null; difficulty?: number | null; created_at?: string | null }>;
+  /**
+   * workout_feedback rows, any order. `run_date` is the day of the run the answer is about
+   * (its activity's local date); without it, the Israel day the answer was saved.
+   */
+  feedback: Array<{ feel?: number | null; difficulty?: number | null; created_at?: string | null; run_date?: string | null }>;
 }): BodyPayload {
   const { nights, today } = input;
   const rhrPanel = panel(nights, today, 'resting_hr');
@@ -107,9 +111,13 @@ export function buildBodyPayload(input: {
   const streak = rhrStreak(nights.filter(n => n.date <= today && n.date >= shiftDate(today, -RANGE_DAYS)), rhrPanel.range);
   const sleep = panel(nights, today, 'sleep_seconds');
 
+  // An answer is dated by its run: feedback typed the morning after still belongs to
+  // yesterday's run. `created_at` is a real instant, so its fallback day is Israel's.
+  const dayOf = (f: { created_at?: string | null; run_date?: string | null }) =>
+    f.run_date ? String(f.run_date).slice(0, 10) : f.created_at ? israelToday(new Date(f.created_at)) : '';
   const answered = input.feedback
     .filter(f => f.feel != null && Number.isFinite(Number(f.feel)))
-    .sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))
+    .sort((a, b) => dayOf(b).localeCompare(dayOf(a)) || String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))
     .slice(0, FEEL_RUNS);
   const avg = feelAverage(answered, FEEL_RUNS);
   const efforts = answered.map(f => Number(f.difficulty)).filter(v => v >= 1 && v <= 10);
@@ -119,7 +127,7 @@ export function buildBodyPayload(input: {
     effort: efforts.length ? Math.round((efforts.reduce((a, b) => a + b, 0) / efforts.length) * 10) / 10 : null,
     n: answered.length,
     recent: [...answered].reverse().map(f => ({
-      date: String(f.created_at ?? '').slice(0, 10),
+      date: dayOf(f),
       feel: Math.max(0, Math.min(4, Math.round(Number(f.feel)))),
       difficulty: Number(f.difficulty) >= 1 && Number(f.difficulty) <= 10 ? Number(f.difficulty) : null,
     })),
