@@ -5,6 +5,8 @@ import { ParsedWorkout } from '@/lib/ai/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
 import { withGroupPaces } from '@/lib/plans/watch-paces';
+import { paceGroupKeyFor, type PaceGroupKey } from '@/lib/plans/pace-group';
+import { COACH_ID } from '@/lib/constants';
 import { notifyAthlete } from '@/lib/push';
 import { deliveryFailedCopy, watchDisconnectedCopy } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
     // below. The academy planner sends false for a trainee whose paces it could
     // not resolve, so an unresolved pace stays information instead of becoming a
     // pace-zone alarm on their watch.
-    const { planId, workouts, athleteIds, weekStartDate, paceAlerts: paceAlertsAllowed, batches, wholeWeek, notifyAthletes, notifyLines } = await req.json();
+    const { planId, workouts, athleteIds, weekStartDate, paceAlerts: paceAlertsAllowed, batches, wholeWeek, notifyAthletes, notifyLines, byAthleteGroup } = await req.json();
 
     // THE WHOLE WEEK IN ONE REQUEST, for the super user until rollout (feedback
     // bb7fdd49). The planner sent one request per pace group from the phone, one
@@ -113,9 +115,31 @@ export async function POST(req: NextRequest) {
         storedPlan = null;
       }
     }
+    // `byAthleteGroup`: the caller names the plan and the people, and each person
+    // gets their OWN pack's copy of it from the saved plan — the rule the athlete's
+    // own push (my-watch) already follows. The history screen's re-push used to send
+    // group1's copy to everyone, so a pack-❸ runner got pack ❶'s paces as their
+    // targets. Without the flag the caller's workouts go as sent, as before.
+    const grouped = byAthleteGroup === true && !!storedPlan && typeof storedPlan === 'object' && 'group1' in storedPlan
+      ? (storedPlan as Record<PaceGroupKey, { workouts?: ParsedWorkout[] }>)
+      : null;
+    let packOf: ((groupId: string | null | undefined) => PaceGroupKey) | null = null;
+    if (grouped) {
+      const { data: groups } = await supabase.from('groups').select('id, pace_profile').eq('coach_id', COACH_ID);
+      const sources = (groups || []).map((g: { id: string; pace_profile: { marathonGoal?: number | null } | null }) => ({
+        id: g.id, marathonGoal: g.pace_profile?.marathonGoal ?? null,
+      }));
+      packOf = (groupId) => paceGroupKeyFor(sources, groupId);
+    }
     const tasks = jobs.flatMap((b) => {
-      const plannedWorkouts = withGroupPaces(normalizeWorkoutParts({ workouts: b.workouts }).workouts, storedPlan);
-      return found.filter((a) => b.athleteIds.includes(a.id)).map((athlete) => ({ athlete, plannedWorkouts }));
+      const sent = withGroupPaces(normalizeWorkoutParts({ workouts: b.workouts }).workouts, storedPlan);
+      return found.filter((a) => b.athleteIds.includes(a.id)).map((athlete) => {
+        const own = grouped && packOf ? grouped[packOf(athlete.group_id)]?.workouts : null;
+        const plannedWorkouts = own?.length
+          ? withGroupPaces(normalizeWorkoutParts({ workouts: own }).workouts, storedPlan)
+          : sent;
+        return { athlete, plannedWorkouts };
+      });
     });
 
     // Academy pace-zone alerts are on by default but coach-toggleable in settings.
