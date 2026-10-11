@@ -30,19 +30,65 @@ export interface RecordRunLike {
   activity_name?: string | null;
 }
 
-/** A run's best time in a bucket, seconds, or null. */
+/**
+ * No human runs a kilometre faster than this (2:30/km — the floor step-estimate puts on a
+ * pace read out of prose). A lap faster than it is a GPS spike: Tal's easy 10 km with one
+ * "1:40" kilometre is not a record, and must not become one on screen 5, the week row or C1.
+ */
+export const PLAUSIBLE_PACE_FLOOR_S = 150;
+
+/** Is this lap a pace a person can run? Laps with no distance or time are left to the callers. */
+function plausible(lap: LapLike): boolean {
+  const m = lapMeters(lap);
+  const s = lapSeconds(lap);
+  return !(m > 0 && s > 0) || (s / m) * 1000 >= PLAUSIBLE_PACE_FLOOR_S;
+}
+
+/**
+ * The laps split at every impossible one: a stretch is only continuous between spikes, so a
+ * window never runs through one (and never "skips" it, which would shorten the distance).
+ */
+function plausibleStretches(laps: LapLike[]): LapLike[][] {
+  const out: LapLike[][] = [[]];
+  for (const lap of laps) {
+    if (plausible(lap)) out[out.length - 1].push(lap);
+    else out.push([]);
+  }
+  return out.filter(c => c.length > 0);
+}
+
+/** A run's best time in a bucket, seconds, or null. A GPS-spike lap never counts. */
 export function bestIn(run: RecordRunLike, bucket: { key: string; meters: number }): number | null {
-  if (bucket.key === '1k') return bestSegmentSeconds(run.laps, 1000);
+  const laps = Array.isArray(run.laps) ? run.laps : null;
+  const spiked = !!laps && laps.some(l => !plausible(l));
+  if (bucket.key === '1k' || spiked) {
+    // With a spike in it the whole run is no measure either (its average holds the spike):
+    // only the stretches between spikes can hold a time.
+    let best: number | null = null;
+    for (const stretch of laps ? (spiked ? plausibleStretches(laps) : [laps]) : []) {
+      const s = bestSegmentSeconds(stretch, bucket.meters);
+      if (s != null && (best == null || s < best)) best = s;
+    }
+    return best;
+  }
   const found = computeDistanceBests(filterQualifyingRuns([run])).find(b => b.key === bucket.key);
-  return found?.seconds ?? null;
+  const sec = found?.seconds ?? null;
+  // A whole run with no laps, scaled to the bucket: the same floor on its average.
+  return sec != null && sec / (bucket.meters / 1000) >= PLAUSIBLE_PACE_FLOOR_S ? sec : null;
 }
 
 /** A lap this close to 1 km is a rep of it (the watch's auto-lap or a 1000 m step). */
 const REP_TOLERANCE = 0.05;
 
+/** The watch's own marks for a lap that is not the work: never numbered as a rep. */
+const NOT_A_REP = new Set(['WARMUP', 'COOLDOWN', 'RECOVERY', 'REST']);
+
 /**
  * Which rep of 1 km the best kilometre was (1-based), when the run's kilometre laps hold
  * it: "החזרה החמישית". Null when the fastest kilometre spans laps (a steady run).
+ *
+ * The warm-up's auto-lapped kilometres are not reps (Shahar's 2 × 1 km WARMUP made rep 5
+ * "the seventh"), so a lap the watch marked warm-up, cool-down or recovery is not counted.
  */
 export function repOfBest(laps: LapLike[] | null | undefined, bestSec: number): number | null {
   if (!Array.isArray(laps)) return null;
@@ -51,6 +97,9 @@ export function repOfBest(laps: LapLike[] | null | undefined, bestSec: number): 
     const m = lapMeters(lap);
     const s = lapSeconds(lap);
     if (!(m > 0 && s > 0) || Math.abs(m - 1000) > 1000 * REP_TOLERANCE) continue;
+    const kind = (lap as { intensityType?: unknown }).intensityType;
+    if (typeof kind === 'string' && NOT_A_REP.has(kind.toUpperCase())) continue;
+    if (!plausible(lap)) continue;
     n += 1;
     if (Math.abs(s * (1000 / m) - bestSec) < 1) return n;
   }

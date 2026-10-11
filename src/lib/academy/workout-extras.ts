@@ -133,6 +133,17 @@ export function personalRecord(run: RunActivityRow & { id: string }, others: Arr
   return recordOn(run as RecordRunLike & { id: string }, others as Array<RecordRunLike & { id: string }>);
 }
 
+/**
+ * The medal numbers its rep the way the reps chart right above it does: when the chart has
+ * the reps, the record's rep is the chart's bar of that pace (one second either way). A
+ * record no chart bar holds keeps the laps' own count.
+ */
+export function medalRep(pr: WorkoutPr | null, done: WorkoutDone | null): WorkoutPr | null {
+  if (!pr || pr.bucket !== '1k' || !done?.reps.length) return pr;
+  const i = done.reps.findIndex(r => Math.abs(r.paceSec - pr.value) <= 1);
+  return i >= 0 ? { ...pr, rep: i + 1 } : pr;
+}
+
 /** The plan/done/diff table, the verdict line and the reps chart. Null until the run is in. */
 export function workoutDone(input: {
   row: WorkoutAdherenceRow;
@@ -297,22 +308,24 @@ export function buildWorkoutExtras(input: {
     .map(s => Number(s.targetHrMaxPct) || 0).filter(v => v > 0);
   const cap = capPct.length && input.maxHr ? Math.round((Math.max(...capPct) / 100) * input.maxHr) : null;
 
+  const done = workoutDone({
+    row,
+    sheet: input.sheet,
+    steps: ws,
+    expectedLoad,
+    actualLoad: input.actualLoad,
+    hr: { cap, actual: input.activity?.average_hr ?? row.actual?.averageHr ?? null },
+    planTotals: planTotals && planTotals.durationSec > 0 ? { distanceM: planTotals.distanceM, durationSec: planTotals.durationSec } : null,
+  });
+
   return {
     expectedLoad,
     planTotals: planTotals && planTotals.durationSec > 0 ? { distanceM: planTotals.distanceM, durationSec: planTotals.durationSec } : null,
     expectedParts: T && steps.length ? plannedParts(steps, T, opts) : [],
     steps: ws,
     why: targetSec && basis ? { targetSec, thresholdSec: basis.thresholdSec, basisTestDate: basis.date } : null,
-    done: workoutDone({
-      row,
-      sheet: input.sheet,
-      steps: ws,
-      expectedLoad,
-      actualLoad: input.actualLoad,
-      hr: { cap, actual: input.activity?.average_hr ?? row.actual?.averageHr ?? null },
-      planTotals: planTotals && planTotals.durationSec > 0 ? { distanceM: planTotals.distanceM, durationSec: planTotals.durationSec } : null,
-    }),
-    pr: input.pr,
+    done,
+    pr: medalRep(input.pr, done),
     feelPrefill: feelPrefillOf(input.activity),
     feedback: input.ownFeedback
       ? { feel: input.ownFeedback.feel ?? null, difficulty: input.ownFeedback.difficulty ?? null, pain: input.ownFeedback.pain ?? null }

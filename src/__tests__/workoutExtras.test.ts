@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkoutStep } from '@/lib/ai/types';
 import { plannedLoad, plannedParts } from '@/lib/academy/load';
-import { feelPrefillOf, personalRecord, watchSteps, workoutDone } from '@/lib/academy/workout-extras';
+import { feelPrefillOf, medalRep, personalRecord, watchSteps, workoutDone } from '@/lib/academy/workout-extras';
 import type { WorkoutAdherenceRow } from '@/lib/academy/report';
 import type { WorkoutSheet } from '@/lib/academy/workout-sheet';
 
@@ -162,6 +162,41 @@ describe('personalRecord', () => {
     });
     const pr = personalRecord(reps('t', '2026-10-13', [244, 243, 242, 241, 236]), [reps('a', '2026-09-01', [245, 244, 243, 242, 239])]);
     expect(pr).toMatchObject({ bucket: '1k', value: 236, previous: 239, rep: 5 });
+  });
+
+  it('the warm-up\'s auto-lapped kilometres are not reps: rep 5 stays the fifth', () => {
+    const warm = [{ distance: 1000, duration: 340, intensityType: 'WARMUP' }, { distance: 1000, duration: 340, intensityType: 'WARMUP' }];
+    const reps = (id: string, date: string, paces: number[]) => ({
+      id, start_time: `${date}T07:00:00`, activity_type: 'running', distance: 2000 + 1000 * paces.length + 400 * (paces.length - 1),
+      duration: 680 + paces.reduce((a, b) => a + b, 0) + 150 * (paces.length - 1),
+      laps: [...warm, ...paces.flatMap((p, i) => [
+        { distance: 1000, duration: p, intensityType: 'INTERVAL' },
+        ...(i < paces.length - 1 ? [{ distance: 400, duration: 150, intensityType: 'RECOVERY' }] : []),
+      ])],
+    });
+    const pr = personalRecord(reps('t', '2026-10-13', [244, 243, 242, 241, 236]), [reps('a', '2026-09-01', [245, 244, 243, 242, 239])]);
+    expect(pr).toMatchObject({ bucket: '1k', value: 236, rep: 5 });
+  });
+
+  it('a GPS-spike lap in an easy run is no record (faster than 2:30/km)', () => {
+    const today = run('t', '2026-10-12', 330);
+    today.laps[4] = { distance: 1000, duration: 100 };
+    expect(personalRecord(today, [run('a', '2026-10-08', 230)])).toBeNull();
+    // Against a slower history it is the real kilometres that count, never the spike's 1:40.
+    expect(personalRecord(today, [run('a', '2026-10-01', 335)])).toMatchObject({ bucket: '1k', value: 330 });
+  });
+
+  it('a spike in an EARLIER run does not stand as the record to beat', () => {
+    const before = run('a', '2026-10-01', 260);
+    before.laps[2] = { distance: 1000, duration: 90 };
+    expect(personalRecord(run('t', '2026-10-13', 250), [before])).toMatchObject({ bucket: '1k', value: 250, previous: 260 });
+  });
+
+  it('the medal\'s rep is the reps chart\'s bar of that pace', () => {
+    const done = { reps: [{ paceSec: 244, tone: 'in' }, { paceSec: 236, tone: 'fast' }] } as any;
+    expect(medalRep({ bucket: '1k', meters: 1000, value: 236, previous: 239, previousDate: '2026-09-01', rep: 4 }, done)?.rep).toBe(2);
+    expect(medalRep({ bucket: '5k', meters: 5000, value: 1200, previous: 1230, previousDate: '2026-09-01' }, done)?.rep).toBeUndefined();
+    expect(medalRep(null, done)).toBeNull();
   });
 
   it('no medal when a later run was faster, or when nothing earlier was beaten', () => {
