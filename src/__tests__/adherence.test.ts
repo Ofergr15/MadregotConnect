@@ -186,6 +186,19 @@ describe('assessWeek — matching + rollup', () => {
     expect(week.workouts[1].completed).toBe(false);
   });
 
+  it('a bike ride on a run day is the run not done, not a far-over-plan run', () => {
+    const activities: ActualActivity[] = [
+      { id: 'bike', date: '2026-07-15', distance: 40000, duration: 5400, averagePace: 135, activityType: 'cycling' },
+      { id: 'run', date: '2026-07-13', distance: 8000, duration: 2400, averagePace: 300, activityType: 'running' },
+    ];
+    const week = assessWeek(planned, activities);
+    expect(week.workouts[0].actual?.id).toBe('run');
+    expect(week.workouts[1].completed).toBe(false);
+    // Even when the matcher attributed it.
+    const keyed = assessWeek(planned, activities, undefined, new Map([['k', ['bike']]]));
+    expect(keyed.workouts[1].completed).toBe(false);
+  });
+
   it('does not reuse the same activity for two planned workouts on the same day', () => {
     const samedayPlan = [
       buildPlannedWorkout(workout([{ type: 'active', durationType: 'distance', durationValue: 5000, targetType: 'pace', targetPaceMinPerKm: 300, targetPaceMaxPerKm: 300 }], { name: 'AM' }), '2026-07-13'),

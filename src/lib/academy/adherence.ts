@@ -1,5 +1,9 @@
 import { ParsedWorkout, WorkoutStep } from '../ai/types';
 import { ASSUMED_PACE, stepDistanceRange } from '../plans/step-estimate';
+import { PR_RUN_TYPES } from '../prs/pr-buckets';
+
+/** What counts as a run when grading a plan (pr-buckets' list). */
+const RUN_TYPES = new Set(PR_RUN_TYPES);
 
 // ── Adherence engine ────────────────────────────────────────────────────────
 // Pure functions that compare a coach's PLANNED workouts to what an academy
@@ -448,13 +452,17 @@ export function assessWeek(
   tol: AdherenceTolerances = DEFAULT_TOLERANCES,
   attribution?: Map<string, string[]>,
 ): WeekAdherence {
+  // Only runs are graded against a run plan: a 40 km ride on a reps day is that session
+  // not done, not "far over plan" — and its km are not the week's. The same list PRs, the
+  // weekly km and the load engine use (an untyped activity counts as a run there too).
+  const runs = activities.filter(a => !a.activityType || RUN_TYPES.has(a.activityType));
   const byDate = new Map<string, ActualActivity[]>();
-  for (const a of activities) {
+  for (const a of runs) {
     const arr = byDate.get(a.date) || [];
     arr.push(a);
     byDate.set(a.date, arr);
   }
-  const byId = new Map(activities.map(a => [a.id, a]));
+  const byId = new Map(runs.map(a => [a.id, a]));
 
   const used = new Set<string>();
   const attributed = new Map<PlannedWorkout, ActualActivity>();
