@@ -105,3 +105,27 @@ describe('a day with two workouts', () => {
     }
   });
 });
+
+// A custom week moves a session after the club week already went out: the club week
+// put Wednesday's tempo on Wednesday, the re-push puts it on Monday. Cleaning by the
+// new day alone left the Wednesday copy on the watch beside the Monday one.
+describe('a session moved to another day and sent again', () => {
+  beforeEach(() => { garmin.account.clear(); garmin.next = 1; garmin.deleted = []; });
+
+  const send = (rows: Row[], plannedWorkouts: unknown[]) => pushWeekToAthlete({
+    supabase: fakeDb(rows), athlete: { id: 'a1', name: 'A', garmin_auth: {} },
+    plannedWorkouts: plannedWorkouts as never[], weekStartDate: '2026-09-27', planId: 'p1',
+    paceTarget: false, notify: false, cleanDayOnce: true,
+  });
+
+  it('takes the old copy off the watch, and leaves the other days alone', async () => {
+    const rows: Row[] = [];
+    await send(rows, [{ dayOfWeek: 1, workoutKey: 'day-1-part-1-single' }, { dayOfWeek: 3, workoutKey: 'day-3-part-1-single' }]);
+    expect([...garmin.account].sort()).toEqual(['1', '2']); // Mon = 1, Wed = 2
+    // Only the moved session is re-sent: Wednesday's tempo, now on Monday.
+    await send(rows, [{ dayOfWeek: 1, workoutKey: 'day-3-part-1-single' }]);
+    expect(garmin.deleted).toContain('2');                  // the Wednesday copy
+    expect(garmin.account.has('2')).toBe(false);
+    expect(garmin.account.has('3')).toBe(true);             // the new Monday copy
+  });
+});

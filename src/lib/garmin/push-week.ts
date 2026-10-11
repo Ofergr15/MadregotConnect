@@ -138,6 +138,32 @@ export async function pushWeekToAthlete({
         }
       }
 
+      // The same session sent earlier on ANOTHER day — a custom week moved it
+      // (Wed→Mon) after the club week had gone out. The cleanup above only looks at
+      // the day it is going to now, so the Wednesday copy stayed on the watch beside
+      // the new Monday one. Found by its key, which a moved session keeps
+      // (originalKey, lib/plans/push-selection.ts); this push's own workouts are
+      // never touched.
+      if (planId && workout.workoutKey) {
+        const { data: elsewhere } = await supabase
+          .from('workout_deliveries')
+          .select('id, garmin_workout_id')
+          .eq('plan_id', planId)
+          .eq('athlete_id', athlete.id)
+          .eq('workout_key', workout.workoutKey)
+          .neq('workout_date', dateStr)
+          .not('garmin_workout_id', 'is', null)
+          .neq('garmin_workout_id', '');
+        for (const old of elsewhere || []) {
+          if (deliveredWorkoutIds.includes(old.garmin_workout_id)) continue;
+          try {
+            await garmin.deleteWorkout(old.garmin_workout_id);
+          } catch {
+            // best-effort, as above
+          }
+        }
+      }
+
       const workoutId = await garmin.createWorkout(garminWorkout);
       // Throws if Garmin says it scheduled a different day than we asked for.
       await garmin.scheduleWorkout(workoutId, dateStr);
