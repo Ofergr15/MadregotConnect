@@ -5,8 +5,10 @@ import { usePreviewOnboardingV2 } from '@/lib/install/v2';
 import { RegisterReceived } from './RegisterReceived';
 import { Check, CheckCircle2, Mail } from 'lucide-react';
 import { Button, LoadingBlock } from '@/components/ui';
-import { cn } from '@/lib/utils';
+import { cn, resolveGroup } from '@/lib/utils';
 import { trackOnb } from '@/lib/onboarding/track';
+import { hasNonLatinLetters } from '@/lib/names/latin';
+import { JOURNEY, JourneyHero, JourneyScreen, PrimaryButton } from '@/components/onboarding/journey-ui';
 
 /**
  * /register — the shareable public sign-up page. THE ONE TO SEND PEOPLE.
@@ -72,8 +74,22 @@ interface Group {
   marathonGoal?: string;
 }
 
-/** "דבוקה 1/2/3" — the club calls them that out loud, and this page is Hebrew-only. */
+/** "דבוקה 1/2/3" — the club calls them that out loud, and this page is Hebrew-only.
+ *  The old (pre-v2) photo form only; the v2 journey says "קבוצה N" (groupNameHe). */
 const groupLabel = (g: Group) => (g.index >= 0 ? `דבוקה ${g.index + 1}` : g.name);
+
+/** The v2 journey's one name for a pace group: "קבוצה N", or the club's own name. */
+function groupNameHe(g: { index?: number; name: string }): string {
+  const i = typeof g.index === 'number' ? g.index : resolveGroup(g.name).index;
+  return i >= 0 ? `קבוצה ${i + 1}` : g.name;
+}
+
+/** "SUB 2:30" → "יעד מרתון תת 2:30"; empty when the group has no goal set. */
+function goalHe(goal?: string): string {
+  const g = (goal || '').trim();
+  if (!g) return '';
+  return `יעד מרתון ${g.replace(/^sub\s*/i, 'תת ')}`;
+}
 
 // When the app opens to the club — Thursday, 20:00 Israel time (moved a day later
 // than the original Wednesday on 2026-09-05). This is a LAUNCH date, not a training
@@ -215,23 +231,7 @@ function HeroBackdrop() {
  * so it passes AA while looking broken. The only reliable check is to project the
  * star's position in the source JPEG through object-cover and compare rectangles.
  */
-function HeroHeading({ v2 = false }: { v2?: boolean }) {
-  // Onboarding v2: what the club IS replaces the launch countdown, which has
-  // long since run out (it still promised "Thursday at 20:00").
-  if (v2) {
-    return (
-      <div className="flex-[2] min-h-0 flex flex-col items-center justify-start text-center">
-        <img src="/images/logo-white.png" alt="מדרגות — After 2KM Running Club" className="hero-mark w-auto object-contain" />
-        <div className={cn('hero-mark-gap w-full', TEXT_ON_PHOTO)}>
-          <p className="text-2xs short:text-3xs font-bold tracking-wide text-white/85">מועדון הריצה של מדרגות</p>
-          <h1 className="mt-1 text-[27px] short:text-[23px] font-black leading-tight text-white">מצטרפים לרוץ איתנו</h1>
-          <p className="mx-auto mt-1.5 max-w-[300px] text-13 short:text-[12px] leading-relaxed text-white/90">
-            תוכנית שבועית מהמאמן, הריצות שלך מהשעון, והקבוצה כולה במקום אחד.
-          </p>
-        </div>
-      </div>
-    );
-  }
+function HeroHeading() {
   return (
     // `justify-start`, not `justify-center`. Centring inside flex-1 pinned the
     // mark to the middle of whatever space was left over, which on a tall phone
@@ -603,6 +603,102 @@ export default function RegisterPage() {
     );
   }
 
+  if (v2) {
+    // Onboarding v2: the joining journey's one look (components/onboarding/journey-ui),
+    // the same sunset header the "we got it" screen, the approval mail and the
+    // sign-in all carry. The photo layout below stays for the old flow.
+    const fieldCls = 'h-[52px] w-full rounded-2xl border bg-white px-4 text-base focus:outline-none';
+    const fieldStyle = { borderColor: JOURNEY.line, color: JOURNEY.ink };
+    const nameNotLatin = !!fullName.trim() && hasNonLatinLetters(fullName);
+    return (
+      // The form wraps the whole screen so the submit pill in the bottom bar
+      // (JourneyScreen's `actions`) is inside it.
+      <form onSubmit={submit}>
+        <JourneyScreen
+          testId="register-v2"
+          hero={<JourneyHero title="מצטרפים לרוץ איתנו" subtitle="דקה, ואנחנו חוזרים אליכם" />}
+          actions={
+            <>
+              <PrimaryButton type="submit" disabled={submitting}>{submitting ? 'שולחים…' : 'שליחת הבקשה'}</PrimaryButton>
+              <p className="pt-1 text-center text-[13px] font-semibold" style={{ color: JOURNEY.soft }}>
+                ✓ בחינם · ✓ בלי סיסמה · ✓ מאשרים בדרך כלל תוך יום
+              </p>
+            </>
+          }
+        >
+          <div>
+            <label htmlFor="reg-name" className="mb-1 block text-[13px] font-bold" style={{ color: JOURNEY.soft }}>שם מלא</label>
+            <input
+              id="reg-name" type="text" autoComplete="name" required value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              // Roster names are Latin (lib/names/latin): it is how the name reads on
+              // the watch and on Strava, and how the coach finds the runner.
+              placeholder="שם מלא באנגלית"
+              className={fieldCls} style={fieldStyle}
+            />
+            {nameNotLatin && <p className="mt-1 text-[13px]" style={{ color: JOURNEY.soft }}>באותיות באנגלית, בבקשה. למשל Noa Levi</p>}
+          </div>
+          <div>
+            <label htmlFor="reg-email" className="mb-1 block text-[13px] font-bold" style={{ color: JOURNEY.soft }}>מייל</label>
+            <input
+              id="reg-email" type="email" inputMode="email" autoComplete="email" required value={email}
+              onChange={e => setEmail(e.target.value)}
+              // LTR once there is an address in it; the Hebrew placeholder reads right-aligned.
+              dir={email ? 'ltr' : 'rtl'}
+              placeholder="המייל שלכם"
+              className={cn(fieldCls, email ? 'text-left' : 'text-right')} style={fieldStyle}
+            />
+          </div>
+          <div>
+            <label htmlFor="reg-phone" className="sr-only">טלפון</label>
+            <input
+              id="reg-phone" type="tel" inputMode="tel" autoComplete="tel" value={phone}
+              onChange={e => setPhone(e.target.value)}
+              dir={phone ? 'ltr' : 'rtl'}
+              placeholder="טלפון (לא חובה) · למקרה שנצטרך לחזור אליכם"
+              className={cn(fieldCls, 'text-right')} style={fieldStyle}
+            />
+          </div>
+
+          {/* One term for the club's groups on every journey screen: קבוצת קצב. A
+              PREFERENCE, so optional — group_id is nullable and the coach assigns
+              it at approval either way, hence the "not sure" row. */}
+          <fieldset>
+            <legend className="mb-1 block text-[13px] font-bold" style={{ color: JOURNEY.soft }}>קבוצת קצב</legend>
+            <div className="flex flex-col gap-2">
+              {[...groups.map(g => ({ id: g.id, title: groupNameHe(g), sub: goalHe(g.marathonGoal) })), { id: '', title: 'לא בטוחים?', sub: 'המאמן יחליט' }].map(o => {
+                const selected = groupId === o.id;
+                return (
+                  <label
+                    key={o.id || 'unsure'}
+                    className="flex min-h-[52px] cursor-pointer items-center gap-3 rounded-2xl border-2 bg-white px-4"
+                    style={{ borderColor: selected ? JOURNEY.dusk : JOURNEY.line }}
+                  >
+                    <input type="radio" name="group" checked={selected} onChange={() => setGroupId(o.id)} className="sr-only" />
+                    <span className="min-w-0 flex-1 text-[15px]" style={{ color: JOURNEY.ink }}>
+                      <b>{o.title}</b>{o.sub && <span style={{ color: JOURNEY.soft }}> · {o.sub}</span>}
+                    </span>
+                    <span
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2"
+                      style={selected ? { background: JOURNEY.dusk, borderColor: JOURNEY.dusk } : { borderColor: JOURNEY.line }}
+                      aria-hidden="true"
+                    >
+                      {selected && <Check className="h-3.5 w-3.5 text-white" strokeWidth={3.5} />}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          {error && (
+            <p role="alert" className="rounded-2xl px-4 py-2.5 text-center text-[14px] font-bold text-white" style={{ background: JOURNEY.red }}>{error}</p>
+          )}
+        </JourneyScreen>
+      </form>
+    );
+  }
+
   return (
     <div className="relative min-h-viewport" dir="rtl">
       <HeroBackdrop />
@@ -611,26 +707,9 @@ export default function RegisterPage() {
           hold all of this is gone: the form IS the page now, which is why the
           hero above it is `flex-1` and takes every pixel of slack. */}
       <div className="relative max-w-md mx-auto min-h-viewport flex flex-col px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] short:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-        <HeroHeading v2={v2} />
+        <HeroHeading />
 
         <form onSubmit={submit}>
-          {v2 && (
-            <>
-              <label htmlFor="reg-name" className="sr-only">שם מלא</label>
-              <div className={cn('mb-2.5 flex items-center h-[52px] short:h-[48px] border-white/25 px-4 focus-within:border-white', FIELD)}>
-                <input
-                  id="reg-name"
-                  type="text"
-                  autoComplete="name"
-                  required
-                  value={fullName}
-                  onChange={e => setFullName(e.target.value)}
-                  placeholder="שם מלא"
-                  className="flex-1 min-w-0 h-full bg-transparent border-0 p-0 text-base text-white placeholder-white/60 focus:outline-none focus:ring-0"
-                />
-              </div>
-            </>
-          )}
           {/* No visible label — the placeholder and the envelope say what this is,
               and on a page with one field a label above it is a row of type that
               buys nothing. The <label> is still here for screen readers. */}
@@ -662,25 +741,6 @@ export default function RegisterPage() {
                 the side the input is on. */}
             <Mail className="ms-3 h-4 w-4 shrink-0 text-white/70" aria-hidden="true" />
           </div>
-          {v2 && (
-            <>
-              <label htmlFor="reg-phone" className="sr-only">טלפון</label>
-              <div className={cn('mt-2.5 flex items-center h-[52px] short:h-[48px] border-white/25 px-4 focus-within:border-white', FIELD)}>
-                <input
-                  id="reg-phone"
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  dir="ltr"
-                  value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                  placeholder="טלפון · רק אם תצטרכו עזרה"
-                  className="flex-1 min-w-0 h-full bg-transparent border-0 p-0 text-base text-white placeholder-white/60 text-right focus:outline-none focus:ring-0"
-                />
-              </div>
-            </>
-          )}
-
           {/* "מועדפת" is carrying real weight: the picker used to have a
               "לא בטוח/ה — שהמאמן יחליט" row, which was both the escape hatch AND
               the thing that made the question look answerable-by-skipping. With
@@ -688,8 +748,8 @@ export default function RegisterPage() {
               required, and an unsure runner would guess rather than leave it. A
               PREFERENCE is obviously optional, and group_id is nullable — the
               coach assigns it at approval either way. */}
-          <p className={cn(v2 ? 'mt-4 short:mt-2 mb-2.5 short:mb-1.5' : 'mt-6 short:mt-2.5 mb-3.5 short:mb-2', 'text-center text-2xs short:text-3xs text-white/90', TEXT_ON_PHOTO)}>
-            {v2 ? <>איזו דבוקה מתאימה לך? <span className="text-white/70">לא בטוחים? המאמן יעזור</span></> : 'בחרו דבוקה מועדפת'}
+          <p className={cn('mt-6 short:mt-2.5 mb-3.5 short:mb-2 text-center text-2xs short:text-3xs text-white/90', TEXT_ON_PHOTO)}>
+            בחרו דבוקה מועדפת
           </p>
 
           {/* Three abreast, each with a dial. The radio input itself is visually
@@ -744,13 +804,6 @@ export default function RegisterPage() {
               );
             })}
           </div>
-          {v2 && (
-            <label className={cn('mt-2 flex items-center justify-center h-[44px] cursor-pointer', FIELD, groupId === '' ? 'border-band-3 bg-band-3/25' : 'border-white/25')}>
-              <input type="radio" name="group" checked={groupId === ''} onChange={() => setGroupId('')} className="sr-only" />
-              <span className={cn('text-2xs font-semibold', groupId === '' ? 'text-band-3' : 'text-white')}>לא יודע/ת · המאמן יחליט</span>
-            </label>
-          )}
-
           {/* Solid red fill rather than red text: `accent-red` is tuned for AA on
               the app's light surfaces and measures under 2:1 on a dark photo, so
               the error would have been the least readable thing on screen. */}
@@ -768,7 +821,7 @@ export default function RegisterPage() {
             className="mt-5 short:mt-2.5 w-full h-[60px] short:h-[54px] rounded-pill bg-band-3 text-white hover:bg-band-3/90 text-[19px] font-bold shadow-[0_6px_22px_rgba(255,83,21,0.45)]"
           >
             {submitting && <LoadingBlock size={20} className="py-0" />}
-            {submitting ? 'שולח…' : v2 ? 'שליחת הבקשה' : 'שליחה'}
+            {submitting ? 'שולח…' : 'שליחה'}
           </Button>
         </form>
 
@@ -802,20 +855,12 @@ export default function RegisterPage() {
             all of these to the same value is what made this area look crowded in
             the first place. Every pixel added here comes out of the hero, which is
             `flex-1` — so it costs nothing else and cannot cause a scroll. */}
-        {v2 ? (
-          <p className={cn('mt-4 short:mt-2.5 px-2 text-center text-2xs short:text-3xs font-semibold leading-relaxed text-white', TEXT_ON_PHOTO)}>
-            ✓ בחינם · ✓ בלי סיסמה · ✓ מאשרים בדרך כלל תוך יום
+          <p className={cn('mt-5 short:mt-3 px-2 text-center text-2xs short:text-3xs font-semibold leading-relaxed text-white', TEXT_ON_PHOTO)}>
+            ההרשמה לרצי האקדמיה תיפתח מספר ימים לאחר ההשקה.
           </p>
-        ) : (
-          <>
-            <p className={cn('mt-5 short:mt-3 px-2 text-center text-2xs short:text-3xs font-semibold leading-relaxed text-white', TEXT_ON_PHOTO)}>
-              ההרשמה לרצי האקדמיה תיפתח מספר ימים לאחר ההשקה.
-            </p>
-            <p className={cn('mt-2 px-2 text-center text-2xs short:text-3xs leading-relaxed text-white/80', TEXT_ON_PHOTO)}>
-              ההרשמה טעונה אישור של מנהלי המדרגות.
-            </p>
-          </>
-        )}
+          <p className={cn('mt-2 px-2 text-center text-2xs short:text-3xs leading-relaxed text-white/80', TEXT_ON_PHOTO)}>
+            ההרשמה טעונה אישור של מנהלי המדרגות.
+          </p>
 
         <PoweredBy />
       </div>

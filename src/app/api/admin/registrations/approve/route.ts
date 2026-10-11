@@ -16,7 +16,7 @@ async function contactOf(supabase: ReturnType<typeof createServerClient>, id: st
   if (error || !data) return {};
   return { fullName: data.full_name ?? null, whatsapp: whatsappNumber(data.phone) };
 }
-import { notifyRegistrationApproved } from '@/lib/email';
+import { notifyUserApproved, notifyRegistrationApproved } from '@/lib/email';
 import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
 import { notifyAthlete } from '@/lib/push';
 import { approvalCopy } from '@/lib/notifications/copy';
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
 
     const { data: reqRow, error: findError } = await supabase
       .from('signup_requests')
-      .select('id, email, group_id, status, athlete_id, full_name')
+      .select('id, email, group_id, status, athlete_id, full_name, notify_email')
       .eq('id', id)
       .maybeSingle();
     if (findError) throw findError;
@@ -268,7 +268,19 @@ export async function POST(request: Request) {
       // Resend with it would produce a refusal that reads on the queue as a delivery
       // problem to go and fix, when the truth is that nothing needed sending: this
       // person is already inside (see `activated`) and got a push instead.
-      emailReason = 'no-address';
+      //
+      // …unless they left a real address on the waiting screen (notify_email,
+      // migration 140): an iPhone Safari tab can't take a push, and they are the
+      // members who waited and were lost. The same "you're in" mail as
+      // /api/admin/approve sends them.
+      const left = (reqRow as { notify_email?: string | null }).notify_email;
+      if (left) {
+        const mail = await notifyUserApproved({ name: existing?.name || reqRow.full_name || '', email: left });
+        emailed = mail.ok;
+        emailReason = mail.ok ? null : mail.code;
+      } else {
+        emailReason = 'no-address';
+      }
     } else {
       const mail = await notifyRegistrationApproved({
         email: reqRow.email,

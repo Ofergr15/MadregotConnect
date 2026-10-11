@@ -1,10 +1,15 @@
 // The install guide's steps per platform — the words and which picture goes with
-// each. One list feeds both the step-by-step guide and the short video that opens
-// before it, so the two can never tell a member different things.
+// each. One list feeds both the step-by-step guide and the drawn video (now only
+// on /preview/install), so the two can never tell a member different things.
+//
+// Hebrew first in every title (2026-10-10): the club's phones are mostly set to
+// Hebrew, so the Hebrew label is the one they will see; the English iOS label
+// stays in parentheses for the phones that are not.
 //
 // `point` is where the real browser control sits on the PHYSICAL screen, outside
-// the page: the guide draws a pulsing arrow at that edge of the viewport, toward
-// the button the member actually has to press. Only where it cannot be wrong: a
+// the page: the guide draws a pulsing arrow at that edge of its own layout (in
+// the flow, the last thing in the bottom bar — never over the instructions),
+// toward the button the member actually has to press. Only where it cannot be wrong: a
 // phone set to Hebrew mirrors its toolbars, so a corner can be either corner, and
 // an arrow at the wrong one is worse than none. Safari's Share, in the middle of
 // the bottom bar, is the one place that is the same both ways.
@@ -77,27 +82,27 @@ const IOS26_BOTTOM: InstallStep[] = [
       shot: { src: '/images/install/ios-share.jpg', ring: { x: 48.7, y: 94.2, w: 13, h: 6, round: true } },
     },
     {
-      title: 'לוחצים "View More" (החץ למטה)',
-      body: 'בחלון שנפתח, העיגול האחרון בשורה התחתונה. בטלפון בעברית: "עוד".',
+      title: 'לוחצים על "עוד" (View More)',
+      body: 'בחלון שנפתח, העיגול האחרון בשורה התחתונה, זה עם החץ למטה.',
       scene: 'share-sheet',
       point: null,
-      caption: 'לוחצים View More (החץ למטה)',
+      caption: 'לוחצים על "עוד" (View More)',
       shot: { src: '/images/install/ios-view-more.jpg', ring: { x: 82.8, y: 89.2, w: 15, h: 7, round: true } },
     },
     {
-      title: 'בוחרים "Add to Home Screen"',
-      body: 'השורה האחרונה ברשימה, עם הריבוע והפלוס. בטלפון בעברית: "הוספה למסך הבית".',
+      title: 'בוחרים "הוספה למסך הבית" (Add to Home Screen)',
+      body: 'השורה האחרונה ברשימה, עם הריבוע והפלוס.',
       scene: 'share-sheet',
       point: null,
-      caption: 'בוחרים Add to Home Screen',
+      caption: 'בוחרים "הוספה למסך הבית" (Add to Home Screen)',
       shot: { src: '/images/install/ios-add-to-home.jpg', ring: { x: 50, y: 94.4, w: 92, h: 5.5 } },
     },
     {
-      title: 'משאירים את המתג דלוק, ולוחצים "Add"',
-      body: 'המתג "Open as Web App" צריך להיות ירוק. אחר כך הכפתור הכחול למעלה.',
+      title: 'משאירים את המתג דלוק, ולוחצים "הוספה" (Add)',
+      body: 'המתג של "פתיחה כאפליקציה" (Open as Web App) צריך להיות ירוק. אחר כך הכפתור הכחול למעלה.',
       scene: 'add-confirm',
       point: null,
-      caption: 'משאירים את המתג דלוק, ולוחצים Add',
+      caption: 'משאירים את המתג דלוק, ולוחצים "הוספה" (Add)',
       shot: { src: '/images/install/ios-add.jpg', ring: { x: 88, y: 11.5, w: 20, h: 5.5, round: true } },
     },
     {
@@ -130,11 +135,11 @@ export const INSTALL_STEPS: Record<Exclude<InstallPlatform, 'standalone' | 'desk
       caption: 'לוחצים על ☰ בשורה למטה',
     },
     {
-      title: 'בוחרים "Share" (שיתוף)',
+      title: 'בוחרים "שיתוף" (Share)',
       body: 'בתפריט שנפתח, השורה עם הריבוע והחץ למעלה.',
       scene: 'safari26-share',
       point: null,
-      caption: 'בוחרים Share',
+      caption: 'בוחרים "שיתוף" (Share)',
     },
     ...IOS26_BOTTOM.slice(1),
   ],

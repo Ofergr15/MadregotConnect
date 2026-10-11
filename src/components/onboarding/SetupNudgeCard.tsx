@@ -18,6 +18,7 @@ import {
   skipNudgeForToday,
 } from '@/lib/onboarding/nudge-ledger';
 import { useOnboardingV2 } from '@/lib/install/v2';
+import { useIsComputer } from '@/lib/install/use-computer';
 import { ProgressRing } from './ProgressRing';
 import {
   SETUP_CHECKLIST_HREF,
@@ -79,7 +80,10 @@ export function SetupNudgeCard() {
     }
   }, []);
 
-  const open = data?.applicable ? data.tasks.filter((task) => !task.done) : [];
+  // Notifications are a phone thing: a computer is never asked for the permission,
+  // so the row isn't offered there (it still counts in the score).
+  const computer = useIsComputer();
+  const open = data?.applicable ? data.tasks.filter((task) => !task.done && !(computer && task.key === 'notifications')) : [];
   const visible =
     !!data &&
     data.applicable &&

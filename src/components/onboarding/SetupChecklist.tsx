@@ -6,6 +6,7 @@ import { Check, Download } from 'lucide-react';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { BackNav, Spinner } from '@/components/ui';
 import { useOnboarding } from '@/lib/onboarding/use-onboarding';
+import { useIsComputer } from '@/lib/install/use-computer';
 import { useInstallStep } from './InstallStepProvider';
 import type { SetupTask, SetupInfoItem } from '@/lib/onboarding/setup-tasks';
 import { ProgressRing } from './ProgressRing';
@@ -84,6 +85,8 @@ export function SetupChecklist({
   const open = data.tasks.filter((task) => !task.done);
   const done = data.tasks.filter((task) => task.done);
 
+  // A computer is never asked for the notification permission: that row says where it is done instead.
+  const computer = useIsComputer();
   const taskRow = (task: SetupTask) => {
     const Icon = TASK_ICON[task.key];
     // The declared source is the sublabel either way. When it's set but there are
@@ -98,7 +101,10 @@ export function SetupChecklist({
           ? t('hintWatchConnected', { source })
           : task.meta?.total
             ? t('hintFilledOf', { filled: task.meta.filled ?? 0, total: task.meta.total })
-            : t(TASK_HINT_KEY[task.key]);
+            : computer && task.key === 'notifications' && !task.done
+              ? t('hintNotificationsComputer')
+              : t(TASK_HINT_KEY[task.key]);
+    const phoneOnly = computer && task.key === 'notifications' && !task.done;
 
     return (
       <InsetRow
@@ -107,9 +113,9 @@ export function SetupChecklist({
         iconBg={task.done ? 'bg-accent-600' : 'bg-brand-600'}
         label={t(TASK_LABEL_KEY[task.key])}
         sublabel={sublabel}
-        value={task.done ? t(TASK_DONE_KEY[task.key]) : t(TASK_CTA_KEY[task.key])}
+        value={task.done ? t(TASK_DONE_KEY[task.key]) : phoneOnly ? undefined : t(TASK_CTA_KEY[task.key])}
         valueSuccess={task.done}
-        onClick={handler(TASK_DESTINATION[task.key])}
+        onClick={phoneOnly ? undefined : handler(TASK_DESTINATION[task.key])}
       />
     );
   };

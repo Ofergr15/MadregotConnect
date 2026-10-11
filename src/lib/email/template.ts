@@ -191,7 +191,7 @@ export function renderEmail(blocks: EmailBlocks): string {
     ? `<div style="display: none; max-height: 0; overflow: hidden; mso-hide: all; font-size: 1px; line-height: 1px; color: ${D.page};">${esc(blocks.preheader)}&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;</div>`
     : '';
   const eyebrow = blocks.eyebrow
-    ? `<div style="font-family: ${FONT}; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; color: ${D.eyebrow}; margin-top: 12px;">${esc(blocks.eyebrow)}</div>`
+    ? `<div style="font-family: ${FONT}; font-size: 13px; font-weight: 700; color: ${D.eyebrow}; margin-top: 12px;">${esc(blocks.eyebrow)}</div>`
     : '';
   const paragraphs = (blocks.paragraphs || [])
     .map(p => `<p style="font-family: ${FONT}; font-size: 16px; color: ${D.body}; line-height: 1.8; margin: 0 0 14px;">${esc(p)}</p>`)
@@ -458,7 +458,7 @@ export function renderTip(html: string): string {
 /** The "next up" card: a small caps label, one bold line, one quiet line. */
 export function renderNextUp(label: string, title: string, sub: string): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${D.tagBg}" style="border-radius: 18px; margin: 4px 0 8px;"><tr><td align="center" style="padding: 18px 18px 20px; font-family: ${FONT};">
-    <div style="font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: ${D.tag};">${esc(label)}</div>
+    <div style="font-size: 12px; font-weight: 800; color: ${D.tag};">${esc(label)}</div>
     <div style="font-size: 19px; font-weight: 800; color: ${D.ink}; margin-top: 6px;">${esc(title)}</div>
     <div style="font-size: 14px; color: ${D.soft}; line-height: 1.65; margin-top: 4px;">${esc(sub)}</div>
   </td></tr></table>`;

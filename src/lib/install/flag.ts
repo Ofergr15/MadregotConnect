@@ -1,3 +1,4 @@
+import { memberGroupName } from '@/lib/utils';
 // The one switch for onboarding v2 (the install guide, its video, the new approval
 // mail and WhatsApp message). Its own module, with no 'use client', so the server
 // routes that build the approval mail can read it too. Flip to ship to everyone.
@@ -12,7 +13,7 @@ export function joinLinkV2(appUrl: string, token: string, v2: boolean): string {
 export function approvalWhatsAppText(link: string, groupName?: string | null, name?: string | null): string {
   const first = (name || '').trim().split(/\s+/)[0];
   return [
-    `היי${first ? ` ${first}` : ''}! 👋 כאן ממדרגות. אושרת להצטרף${groupName ? `, ${groupName}` : ''} 🎉`,
+    `היי${first ? ` ${first}` : ''}! 👋 כאן ממדרגות. ההרשמה אושרה${groupName ? `, ${memberGroupName(groupName)}` : ''} 🎉`,
     '',
     'ככה מתקינים את האפליקציה (דקה אחת):',
     '1. לוחצים על הקישור כאן למטה',
@@ -20,6 +21,6 @@ export function approvalWhatsAppText(link: string, groupName?: string | null, na
     '',
     link,
     '',
-    'נתקעת? פשוט תענו להודעה הזאת 🙂',
+    'נתקעתם? פשוט תענו להודעה הזאת 🙂',
   ].join('\n');
 }

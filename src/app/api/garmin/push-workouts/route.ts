@@ -1,8 +1,10 @@
+import { loadQualityWorkout } from '@/lib/quality-session/server';
 import { NextRequest, NextResponse, after } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { ParsedWorkout } from '@/lib/ai/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
+import { withGroupPaces } from '@/lib/plans/watch-paces';
 import { notifyAthlete } from '@/lib/push';
 import { deliveryFailedCopy, watchDisconnectedCopy } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
@@ -36,7 +38,7 @@ export async function POST(req: NextRequest) {
     // below. The academy planner sends false for a trainee whose paces it could
     // not resolve, so an unresolved pace stays information instead of becoming a
     // pace-zone alarm on their watch.
-    const { planId, workouts, athleteIds, weekStartDate, paceAlerts: paceAlertsAllowed, batches, wholeWeek, notifyAthletes } = await req.json();
+    const { planId, workouts, athleteIds, weekStartDate, paceAlerts: paceAlertsAllowed, batches, wholeWeek, notifyAthletes, notifyLines } = await req.json();
 
     // THE WHOLE WEEK IN ONE REQUEST, for the super user until rollout (feedback
     // bb7fdd49). The planner sent one request per pace group from the phone, one
@@ -98,8 +100,21 @@ export async function POST(req: NextRequest) {
     // keys are deterministic, so normalizing again is a no-op on anything that
     // already has them. See lib/plans/normalize-plan.ts.
     const found = athletes;
+    // A club week goes to the watch with every pack's pace on each step, not only the
+    // runner's own (lib/plans/watch-paces.ts). The packs' copies are the saved plan's.
+    // Best effort: without it the watch shows the runner's own pace, as before —
+    // never a reason for the week not to arrive.
+    let storedPlan: unknown = null;
+    if (planId) {
+      try {
+        const { data: planRow } = await supabase.from('weekly_plans').select('parsed_workouts').eq('id', planId).maybeSingle();
+        storedPlan = planRow?.parsed_workouts ?? null;
+      } catch {
+        storedPlan = null;
+      }
+    }
     const tasks = jobs.flatMap((b) => {
-      const plannedWorkouts = normalizeWorkoutParts({ workouts: b.workouts }).workouts;
+      const plannedWorkouts = withGroupPaces(normalizeWorkoutParts({ workouts: b.workouts }).workouts, storedPlan);
       return found.filter((a) => b.athleteIds.includes(a.id)).map((athlete) => ({ athlete, plannedWorkouts }));
     });
 
@@ -117,6 +132,29 @@ export async function POST(req: NextRequest) {
     // caller that doesn't send the field still notifies. The failure push below is
     // not covered: it is the athlete's only way to learn their watch is empty.
     const notify = notifyAthletes !== false;
+
+    // What that push names (lib/notifications/watch-push-copy.ts): the coach's own
+    // line per session from the send sheet, and which of the days sent are this
+    // week's quality days (the ⭐), decided the same way as the 07:30 push.
+    const lines: Record<string, string> = {};
+    if (notifyLines && typeof notifyLines === 'object' && !Array.isArray(notifyLines)) {
+      for (const [k, v] of Object.entries(notifyLines as Record<string, unknown>).slice(0, 20)) {
+        if (/^[0-6]:\d{1,2}$/.test(k) && typeof v === 'string' && v.trim()) lines[k] = v.trim().slice(0, 80);
+      }
+    }
+    const sentDows = [...new Set(jobs.flatMap((b) => (b.workouts || []).map((w: { dayOfWeek: number }) => w.dayOfWeek)))]
+      .filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6);
+    const qualityDows: number[] = [];
+    if (notify && weekStartDate) {
+      await Promise.all(sentDows.map(async (dow) => {
+        try {
+          const d = new Date(`${weekStartDate}T12:00:00Z`);
+          d.setUTCDate(d.getUTCDate() + dow);
+          if (await loadQualityWorkout(supabase, d.toISOString().slice(0, 10))) qualityDows.push(dow);
+        } catch { /* no ⭐ is the safe default */ }
+      }));
+    }
+    const pushCopy = { lines, qualityDows };
 
     const deliver = async ({ athlete, plannedWorkouts }: (typeof tasks)[number]) => {
       // Three conditions, all required, and the request can only ever remove
@@ -141,6 +179,7 @@ export async function POST(req: NextRequest) {
           planId: planId || null,
           paceTarget,
           notify,
+          pushCopy,
         })
         : await pushWeekToAthlete({
           supabase,
@@ -150,6 +189,7 @@ export async function POST(req: NextRequest) {
           planId: planId || null,
           paceTarget,
           notify,
+          pushCopy,
           cleanDayOnce: auth.user.isSuperUser,
         });
       results.push(result);

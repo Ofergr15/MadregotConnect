@@ -141,6 +141,9 @@ export function BottomTabBar() {
       <Link
         key={href}
         href={href}
+        // The first-run tour walks the real tabs (FirstRunTour). The Header's
+        // desktop nav carries the same anchors, so the tour finds whichever is shown.
+        data-tour={tab ? `tab-${tab}` : undefined}
         onClick={() => { try { navigator.vibrate?.(8); } catch { /* no-op */ } if (tab) seeTabs([tab]); }}
         aria-label={ariaLabel}
         className={cn(
@@ -165,8 +168,8 @@ export function BottomTabBar() {
           (banking-app reference) so it's still clear what each icon is — no
           elevated FAB, no bold/weight jump on the active tab. */}
       <nav
-        // Anchor for the first-run tour's "these are your tabs" step (see
-        // FirstRunTour). md:hidden, so the step self-skips on desktop.
+        // The whole bar's anchor. The tour now points at the single tabs
+        // (data-tour="tab-<tab>" on each item); kept for anything that looks for the bar.
         data-tour="tabbar"
         // ── NOT POSITIONED AT ALL. Fourth attempt, and the first one that isn't
         // a CSS trick on this element.

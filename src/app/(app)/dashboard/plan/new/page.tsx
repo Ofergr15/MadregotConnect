@@ -37,7 +37,10 @@ import {
 } from 'lucide-react';
 import { WeekView } from '@/components/WeekView';
 import { QualityDayChip, QualityDaysCard, useQualityDays } from './QualityDays';
+import { PlanVerifyCard } from './PlanVerifyCard';
+import { slotKey, watchSentCopy, workoutLine } from '@/lib/notifications/watch-push-copy';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
+import { WatchPreview } from '@/components/WatchPreview';
 import { DayByDayReview } from '@/components/DayByDayReview';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
 import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
@@ -53,7 +56,7 @@ import {
   dayMapChanges,
   type DayMap,
 } from '@/lib/plans/push-selection';
-import { cn, activityLocalDay, formatActivityTime, formatWeekRange, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
+import { cn, activityLocalDay, formatActivityTime, formatWeekRange, israelToday, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase/client';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useIsSuperUser } from '@/lib/impersonation';
@@ -254,6 +257,7 @@ export default function WeeklyPlannerPage() {
 
   // --- Push ---
   const [showPush, setShowPush] = useState(false);
+  const [previewEditIdx, setPreviewEditIdx] = useState<number | null>(null);
   const [pushTab, setPushTab] = useState<PushTab>('all');
   // Which days to send. null = whole week (default); an array = only those days.
   const [pushDays, setPushDays] = useState<number[] | null>(null);
@@ -275,6 +279,9 @@ export default function WeeklyPlannerPage() {
   const [pushing, setPushing] = useState(false);
   // Off = the week goes to the watches without the athletes' "workouts ready" push.
   const [notifyAthletes, setNotifyAthletes] = useState(true);
+  // The coach's own line per session for that push, by slotKey (lib/notifications/watch-push-copy.ts).
+  const [notifyLines, setNotifyLines] = useState<Record<string, string>>({});
+  const [editingLine, setEditingLine] = useState<string | null>(null);
   const [pushResults, setPushResults] = useState<PushResultItem[] | null>(null);
   // Which group is expanded in the "All Athletes" tab to reveal its members.
   const [expandedAllGroup, setExpandedAllGroup] = useState<string | null>(null);
@@ -786,13 +793,43 @@ export default function WeeklyPlannerPage() {
   // groupedPlans is re-derived from this immediately after every edit so
   // saving/pushing/Clipboard Studio (all still genuinely per-group) keep
   // working against correct, current data.
+  // An edit confirmed in the workout editor is written to the plan right away.
+  // It used to live only in this screen's state until "save draft" or publish, so
+  // leaving the app after editing a session threw the edit away. Only the workouts
+  // are sent — never a status — so a published week stays published. Saves run one
+  // after another, so a slow earlier save can't land after (and undo) a later one.
+  const persistQueue = useRef<Promise<void>>(Promise.resolve());
+  const persistPlan = (next: GroupedWeeklyPlans) => {
+    if (!savedPlanId) return;
+    const planId = savedPlanId;
+    persistQueue.current = persistQueue.current.then(async () => {
+      try {
+        const res = await fetch('/api/plans', {
+          method: 'PUT',
+          headers: await bearerHeaders(),
+          body: JSON.stringify({ plan_id: planId, parsed_workouts: next }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || t('errors.failedToSaveDraft'));
+        }
+        setLastSavedAt(new Date());
+        setWeekPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, parsed_workouts: next } : p)));
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : t('errors.failedToSaveDraft'));
+      }
+    });
+  };
+
   const handleWorkoutChange = (index: number, workout: ParsedWorkout) => {
     if (!parsedPlan || !groupedPlans) return;
     const newWorkouts = [...parsedPlan.workouts];
     newWorkouts[index] = workout;
     const updatedUnified = { ...parsedPlan, workouts: newWorkouts };
+    const nextGrouped = applyUnifiedEditsToGroups(groupedPlans, updatedUnified);
     setParsedPlan(updatedUnified);
-    setGroupedPlans(applyUnifiedEditsToGroups(groupedPlans, updatedUnified));
+    setGroupedPlans(nextGrouped);
+    persistPlan(nextGrouped);
   };
 
   // Clipboard Studio edits ONE group's already-split, publish-ready steps
@@ -805,7 +842,9 @@ export default function WeeklyPlannerPage() {
     const groupKey = `group${activeGroup}` as keyof GroupedWeeklyPlans;
     const newWorkouts = [...groupedPlans[groupKey].workouts];
     newWorkouts[workoutIndex] = workout;
-    setGroupedPlans({ ...groupedPlans, [groupKey]: { workouts: newWorkouts } });
+    const nextGrouped = { ...groupedPlans, [groupKey]: { workouts: newWorkouts } };
+    setGroupedPlans(nextGrouped);
+    persistPlan(nextGrouped);
   };
 
   /**
@@ -828,6 +867,7 @@ export default function WeeklyPlannerPage() {
       next[key] = { workouts };
     }
     setGroupedPlans(next);
+    persistPlan(next);
   };
 
   const loadClipboardPreview = useCallback(async (workout: ParsedWorkout) => {
@@ -1086,7 +1126,7 @@ export default function WeeklyPlannerPage() {
       const res = await fetch('/api/garmin/push-workouts', {
         method: 'POST',
         headers: await bearerHeaders(),
-        body: JSON.stringify({ planId: savedPlanId, weekStartDate, notifyAthletes, ...body }),
+        body: JSON.stringify({ planId: savedPlanId, weekStartDate, notifyAthletes, notifyLines, ...body }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -1737,6 +1777,8 @@ export default function WeeklyPlannerPage() {
 
             {superUser && <QualityDaysCard state={qualityDays} />}
 
+            <PlanVerifyCard week={weekStartDate} enabled={!!currentPlan} version={`${currentPlan?.id}:${lastSavedAt?.getTime()}`} />
+
             <WeekView
               workouts={parsedPlan.workouts}
               editable={editMode}
@@ -2038,6 +2080,17 @@ export default function WeeklyPlannerPage() {
         onConfirm={() => void doSyncFromProgram()}
       />
 
+      {/* Opened from the send sheet's watch preview: the unified editor on that
+          session, over the sheet, which is still there when it closes. */}
+      {previewEditIdx !== null && parsedPlan?.workouts[previewEditIdx] && (
+        <WorkoutEditorPanel
+          workout={parsedPlan.workouts[previewEditIdx]}
+          dayName={DAY_LABELS[parsedPlan.workouts[previewEditIdx].dayOfWeek]}
+          onChange={(w) => handleWorkoutChange(previewEditIdx, w)}
+          onClose={() => setPreviewEditIdx(null)}
+        />
+      )}
+
       {/* Push Modal */}
       <Sheet
         open={showPush}
@@ -2189,6 +2242,18 @@ export default function WeeklyPlannerPage() {
                         ))}
                       </ul>
                     )}
+
+                    {/* The workouts themselves, as the watch will show them — the last look
+                        before they go out (components/WatchPreview.tsx). */}
+                    <WatchPreview
+                      sessions={sessionsToSend as ParsedWorkout[]}
+                      grouped={groupedPlans}
+                      dayLabel={(w) => `${DAY_LABELS[w.dayOfWeek]}${(w.partCount ?? 1) > 1 ? ` · ${w.partIndex ?? 1}/${w.partCount}` : ''}`}
+                      onEdit={parsedPlan ? (w) => {
+                        const idx = pushSource.indexOf(w);
+                        if (idx >= 0 && parsedPlan.workouts[idx]) setPreviewEditIdx(idx);
+                      } : undefined}
+                    />
 
                     {/* CUSTOM WEEKS — one athlete's session on a different day.
                         Above the roster on purpose: it changes what is sent, not
@@ -2531,19 +2596,81 @@ export default function WeeklyPlannerPage() {
 
                 {error && <ErrorBanner message={error} className="p-3" />}
 
-                <div className="flex items-center gap-3 rounded-xl bg-page px-3 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-ink-700">{t('notifyAthletesLabel')}</p>
-                    <p className="text-2xs text-ink-400 leading-relaxed">
-                      {notifyAthletes ? t('notifyAthletesOn') : t('notifyAthletesOff')}
-                    </p>
+                <div className="rounded-xl bg-page px-3 py-2.5">
+                  <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-ink-700">{t('notifyAthletesLabel')}</p>
+                      <p className="text-2xs text-ink-400 leading-relaxed">
+                        {notifyAthletes ? t('notifyAthletesOn') : t('notifyAthletesOff')}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={notifyAthletes}
+                      onChange={setNotifyAthletes}
+                      disabled={pushing}
+                      ariaLabel={t('notifyAthletesLabel')}
+                    />
                   </div>
-                  <Switch
-                    checked={notifyAthletes}
-                    onChange={setNotifyAthletes}
-                    disabled={pushing}
-                    ariaLabel={t('notifyAthletesLabel')}
-                  />
+
+                  {/* What the push will call each session — built from the plan
+                      (type or the coach's name · km · duration), editable here. */}
+                  {notifyAthletes && sessionsToSend.length > 0 && (() => {
+                    const ctx = { qualityDows: qualityDays.q?.days ?? [], lines: notifyLines, weekStartDate, today: israelToday() };
+                    const preview = watchSentCopy('he', sessionsToSend as ParsedWorkout[], ctx);
+                    return (
+                      <div className="mt-2.5 border-t border-card pt-2">
+                        <p className="text-2xs font-bold text-ink-400">{t('notifyLinesTitle')}</p>
+                        <ul className="mt-1">
+                          {(sessionsToSend as ParsedWorkout[]).map((w) => {
+                            const key = slotKey(w);
+                            const auto = workoutLine(w, 'he', { qualityDows: ctx.qualityDows });
+                            return (
+                              <li key={key} className="flex min-h-[44px] items-center gap-2 border-b border-card last:border-0">
+                                <span className="w-12 shrink-0 text-2xs font-bold text-ink-500">
+                                  {DAY_LABELS[w.dayOfWeek]}{w.partKind === 'evening' ? ` ${t('notifyEvening')}` : ''}
+                                </span>
+                                {editingLine === key ? (
+                                  <input
+                                    autoFocus
+                                    dir="auto"
+                                    maxLength={80}
+                                    defaultValue={notifyLines[key] ?? auto}
+                                    onBlur={(e) => {
+                                      const v = e.target.value.trim();
+                                      setNotifyLines((prev) => {
+                                        const next = { ...prev };
+                                        if (!v || v === auto) delete next[key]; else next[key] = v;
+                                        return next;
+                                      });
+                                      setEditingLine(null);
+                                    }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                    className="min-h-[36px] min-w-0 flex-1 rounded-lg border border-page bg-card px-2 text-13 text-ink-700"
+                                  />
+                                ) : (
+                                  <span className="min-w-0 flex-1 truncate text-13 font-semibold text-ink-700" dir="auto">
+                                    {notifyLines[key] ?? auto}
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingLine(editingLine === key ? null : key)}
+                                  aria-label={t('notifyLineEdit')}
+                                  className="grid h-11 w-11 shrink-0 place-items-center text-brand-600"
+                                >
+                                  <Edit3 className="h-4 w-4" />
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <div className="mt-2 rounded-lg bg-card px-2.5 py-2">
+                          <p className="text-13 font-bold text-ink-700" dir="auto">{preview.title}</p>
+                          <p className="text-2xs leading-relaxed text-ink-500" dir="auto">{preview.body}</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-page">

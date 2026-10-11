@@ -70,8 +70,17 @@ export function resetInstallOffer(): void {
  */
 export const OFFER_SETTLE_MS = 2500;
 
-/** Where the tour runs. Anywhere else and its first step has nothing to point at. */
-export const TOUR_HOME = '/dashboard/profile';
+/**
+ * Where the tour runs, and where the first run ends. It used to be the profile
+ * page, so the tour explained "your next workout" with the profile tab lit and
+ * the first run ended on the profile (journey audit, 2026-10-10). The tour now
+ * walks the real tabs (feed → program → profile), which are on every screen, and
+ * the feed is the app's home — so that is where it runs and where it lands.
+ */
+export const TOUR_HOME = '/feed';
+
+/** The setup checklist (components/onboarding/task-meta SETUP_CHECKLIST_HREF). */
+const SETUP_CHECKLIST = '/dashboard/profile?tab=setup';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Step 3: notifications.
@@ -203,7 +212,7 @@ export function canStartTour(data: OnboardingState | undefined, installAnswered:
  * up last.
  */
 export function tourExitTarget(steps: { anchor: string }[], index: number): string | null {
-  return steps[index]?.anchor === 'setupCard' ? `${TOUR_HOME}?tab=setup` : null;
+  return steps[index]?.anchor === 'setupCard' ? SETUP_CHECKLIST : null;
 }
 
 

@@ -94,7 +94,7 @@ describe('what it says', () => {
     const setup = computeSetupState({ ...EMPTY, dataSource: 'garmin' });
     const watch = snapshotRows(setup).find((r) => r.key === 'watch');
     expect(watch?.source).toBe('garmin');
-    expect(snapshotRowCopy('he', watch!).hint).toContain('בחרת Garmin');
+    expect(snapshotRowCopy('he', watch!).hint).toContain('בחרתם Garmin');
   });
 
   it('describes a finished row as a state, not as a chore', () => {

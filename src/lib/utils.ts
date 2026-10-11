@@ -567,3 +567,13 @@ export function isRecentlyPublished(publishedAt?: string | null): boolean {
   if (!publishedAt) return false;
   return Date.now() - new Date(publishedAt).getTime() < NEW_PLAN_WINDOW_MS;
 }
+
+/**
+ * The member-facing Hebrew name of a pace group: "Group 2" / "SUB 2:35" → "קבוצה 2";
+ * anything resolveGroup doesn't recognise is kept as written. One place, so the
+ * mails, the WhatsApp approval text and the join screens never disagree.
+ */
+export function memberGroupName(name?: string | null): string {
+  const g = resolveGroup(name);
+  return g.index >= 0 ? `קבוצה ${g.index + 1}` : (name || '').trim();
+}

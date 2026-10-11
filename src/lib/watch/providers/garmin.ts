@@ -24,6 +24,7 @@ export const garminProvider: WatchProviderAdapter = {
       paceTarget: input.paceTarget,
       notify: input.notify,
       cleanDayOnce: input.cleanDayOnce,
+      pushCopy: input.pushCopy,
     });
     return { ...result, provider: 'garmin' };
   },
