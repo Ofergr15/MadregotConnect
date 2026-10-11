@@ -4041,6 +4041,27 @@
       "detraining_easy": "Fitness is starting to drop. Every planned run rebuilds it.",
       "detraining_rest": "Fitness is starting to drop. After the rest, back to the plan."
     },
+    "formSentenceTomorrow": {
+      "veryTired_quality": "Fatigue is high. Talk to your coach before tomorrow's reps.",
+      "veryTired_easy": "Fatigue is high. Keep tomorrow truly easy, don't chase the pace.",
+      "veryTired_rest": "Fatigue is high. Tomorrow's rest matters.",
+      "working_quality": "Building fitness, in the right range. Keep to the plan.",
+      "working_quality_heavy": "After a heavy week, fatigue is high but in range. Keep to the plan and listen to your body in tomorrow's reps.",
+      "working_easy": "Building fitness, in the right range. Tomorrow is easy, and that is part of the build.",
+      "working_easy_heavy": "After a heavy week, tomorrow's easy run is exactly what you need.",
+      "working_rest": "{gender, select, other {Tomorrow is a rest day. It lowers fatigue, and after it you'll arrive fresher.}}",
+      "maintain_quality": "Maintaining fitness. Good for tomorrow's reps, keep to the plan.",
+      "maintain_quality_heavy": "{gender, select, other {After a heavy week, moderately tired. Good for tomorrow's reps, keep to the plan.}}",
+      "maintain_easy": "Maintaining fitness. An easy run tomorrow as planned.",
+      "maintain_easy_heavy": "After a heavy week, an easy run tomorrow is exactly what you need.",
+      "maintain_rest": "{gender, select, other {Tomorrow is a rest day. It lowers fatigue, and after it you'll arrive fresher.}}",
+      "fresh_quality": "{gender, select, other {Fresh and ready. Tomorrow is a good day for reps.}}",
+      "fresh_easy": "Nicely fresh. An easy run tomorrow as planned, nothing extra.",
+      "fresh_rest": "Nicely fresh. Tomorrow's rest keeps it that way.",
+      "detraining_quality": "Fitness is starting to drop. Tomorrow's reps bring it back.",
+      "detraining_easy": "Fitness is starting to drop. Every planned run rebuilds it.",
+      "detraining_rest": "Fitness is starting to drop. After tomorrow's rest, back to the plan."
+    },
     "range": {
       "sleep": {
         "veryLittle": "Very little sleep",

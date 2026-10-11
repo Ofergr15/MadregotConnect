@@ -217,6 +217,26 @@ describe('buildTraineeToday', () => {
     expect(out.form.status === 'ok' && out.form.sentenceKey).toMatch(/_rest$/);
   });
 
+  it('the rest day\'s "למחר" form is tomorrow\'s: today\'s 0 load is in it (mockup −9 → −10)', () => {
+    const tomorrow = shiftDate(TODAY, 1);
+    const rest = buildTraineeToday(base({ cards: { [tomorrow]: card(tomorrow) } }));
+    const asOfToday = todayForm({ rows: rowsFor(120), tests: [{ date: '2026-01-01', thresholdSec: 252 }], today: TODAY, day: 'rest' });
+    const asOfTomorrow = todayForm({ rows: rowsFor(120), tests: [{ date: '2026-01-01', thresholdSec: 252 }], today: TODAY, day: 'rest', asOf: tomorrow });
+    expect(rest.form).toEqual(asOfTomorrow);
+    // A day of rest after daily ~50 runs: fatigue falls faster than fitness, so form rises.
+    if (asOfToday.status === 'ok' && asOfTomorrow.status === 'ok') expect(asOfTomorrow.value).toBeGreaterThan(asOfToday.value);
+  });
+
+  it('after 20:00 the form includes today\'s run and the sentence speaks of tomorrow', () => {
+    const tomorrow = shiftDate(TODAY, 1);
+    const ran = [...rowsFor(120), { activityId: 'tonight', date: TODAY, load: 120, source: 'pace' as const }];
+    const out = buildTraineeToday(base({ evening: true, loads: ran, cards: { [TODAY]: card(TODAY), [tomorrow]: card(tomorrow) } }));
+    const morning = buildTraineeToday(base({ loads: ran, cards: { [TODAY]: card(TODAY) } }));
+    expect(out.form.status === 'ok' && out.form.sentenceKey).toMatch(/^trainee\.formSentenceTomorrow\./);
+    expect(morning.form.status === 'ok' && morning.form.sentenceKey).toMatch(/^trainee\.formSentence\./);
+    if (out.form.status === 'ok' && morning.form.status === 'ok') expect(out.form.value).toBeLessThan(morning.form.value);
+  });
+
   it('a week with no plan at all is "no plan"', () => {
     expect(buildTraineeToday(base({ planWeeks: {} })).dayState).toBe('noPlan');
   });

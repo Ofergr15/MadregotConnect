@@ -185,9 +185,17 @@ export type TodayForm =
  * The number, the word and the sentence (mockup 1/1ב), or the honest "still learning you"
  * (1ג). The sentence follows the band, what the focus day is, and whether last week was
  * heavy ("אחרי שבוע עמוס, עייף במידה").
+ *
+ * `asOf` is the day the card speaks for. The card titled "איך אתה מגיע למחר" (a rest day,
+ * or any evening) is TOMORROW's form: F − A as of tonight, today's real load included (0
+ * on a rest day) — mockup 1 → 1ב: −9 on Tuesday is −10 under "למחר" on Wednesday's rest.
+ * `focus` picks the sentence said about tomorrow.
  */
-export function todayForm(input: { rows: LoadRow[]; tests: TestPoint[]; today: string; day: DayKind }): TodayForm {
-  const payload = buildLoadPayload({ rows: input.rows, tests: input.tests, today: input.today, range: '6w' });
+export function todayForm(input: {
+  rows: LoadRow[]; tests: TestPoint[]; today: string; day: DayKind; asOf?: string; focus?: 'today' | 'tomorrow';
+}): TodayForm {
+  const asOf = input.asOf ?? input.today;
+  const payload = buildLoadPayload({ rows: input.rows, tests: input.tests, today: asOf, range: '6w' });
   const status: LoadStatus = payload.status;
   if (status.kind === 'learning') return { status: 'learning', daysSeen: status.daysSeen, daysLeft: status.daysLeft };
   if (status.kind === 'insufficient' || !payload.today) return { status: 'insufficient' };
@@ -200,7 +208,7 @@ export function todayForm(input: { rows: LoadRow[]; tests: TestPoint[]; today: s
     status: 'ok',
     value: payload.today.form,
     band,
-    sentenceKey: formSentenceKey({ band, heavyLastWeek: isHeavyWeek(lastWeek, prev4), day: input.day }),
+    sentenceKey: formSentenceKey({ band, heavyLastWeek: isHeavyWeek(lastWeek, prev4), day: input.day, focus: input.focus }),
   };
 }
 
@@ -370,7 +378,10 @@ export function buildTraineeToday(input: TodayInput): TraineeToday {
     isAcademy: true,
   });
   const day: DayKind = dayState === 'workout' && card ? card.kind : 'rest';
-  const form = todayForm({ rows: input.loads, tests: input.tests, today, day });
+  // The form card speaks for the day the home titles it with: tomorrow on a rest day and
+  // every evening (TraineeToday's "איך אתה מגיע למחר"), today otherwise.
+  const formAsOf = focus === 'tomorrow' || dayState === 'rest' ? tomorrow : today;
+  const form = todayForm({ rows: input.loads, tests: input.tests, today, day, asOf: formAsOf, focus });
   const invite = showInvitation({ invitation: input.invitation, slotDate: input.invitationDate, hasUsableTest: input.hasUsableTest, today })
     ? { slot: invitationSlot(input.invitation!)!, status: input.invitation!.status }
     : null;

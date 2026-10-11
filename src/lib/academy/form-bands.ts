@@ -84,9 +84,14 @@ export type DayKind = 'quality' | 'easy' | 'rest';
  * today is; the "after a heavy week" variant exists only where it changes the advice
  * (working/maintain on a running day). A very tired trainee is never cheered.
  */
-export function formSentenceKey(input: { band: FormBandKey; heavyLastWeek: boolean; day: DayKind }): string {
+/**
+ * `focus: 'tomorrow'` (the home after 20:00, about tomorrow's session): the same advice,
+ * said about tomorrow ("מתאים לחזרות של מחר"), never "של היום" for a day that is over.
+ */
+export function formSentenceKey(input: { band: FormBandKey; heavyLastWeek: boolean; day: DayKind; focus?: 'today' | 'tomorrow' }): string {
   const heavy = input.heavyLastWeek && input.day !== 'rest' && (input.band === 'working' || input.band === 'maintain');
-  return `trainee.formSentence.${input.band}_${input.day}${heavy ? '_heavy' : ''}`;
+  const group = input.focus === 'tomorrow' ? 'formSentenceTomorrow' : 'formSentence';
+  return `trainee.${group}.${input.band}_${input.day}${heavy ? '_heavy' : ''}`;
 }
 
 /** Every key `formSentenceKey` can return — the messages test walks it. */
@@ -94,7 +99,9 @@ export function allFormSentenceKeys(): string[] {
   const out = new Set<string>();
   for (const b of FORM_BANDS) {
     for (const day of ['quality', 'easy', 'rest'] as DayKind[]) {
-      for (const heavyLastWeek of [false, true]) out.add(formSentenceKey({ band: b.key, heavyLastWeek, day }));
+      for (const heavyLastWeek of [false, true]) {
+        for (const focus of ['today', 'tomorrow'] as const) out.add(formSentenceKey({ band: b.key, heavyLastWeek, day, focus }));
+      }
     }
   }
   return [...out];

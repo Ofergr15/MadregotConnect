@@ -206,7 +206,8 @@ export async function dispatchMorningReminders(db: Db, nowIso: string = new Date
               };
             }
           }
-          const f = loads.stored && todayForm({ rows: loads.rows.filter(r => r.athleteId === person.id), tests, today, day: card.kind });
+          // The form of the day announced: an evening preview speaks for tomorrow (today's run in).
+          const f = loads.stored && todayForm({ rows: loads.rows.filter(r => r.athleteId === person.id), tests, today, day: card.kind, asOf: person.target });
           if (f && f.status === 'ok') form = { form: f.value, band: f.band };
         }
 
