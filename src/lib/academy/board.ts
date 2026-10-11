@@ -31,10 +31,14 @@ export interface BoardRow {
  * One planned session as the board shows it: the planned and done distance and time, and
  * its compliance colour. Measured on what the plan was written in (complianceOf): a
  * session whose time the plan never stated is judged on distance.
+ *
+ * `size` is the session as the home card and screen 4 size it (book-steps sessionSize):
+ * when given, the board prints and grades THAT, so "10.6 ק״מ · כ־51 דק׳" on the home is
+ * not "11 ק״מ" on the board. The adherence row's own estimate is the fallback.
  */
-export function boardRow(row: BoardRowInput, today: string): BoardRow {
-  const plannedM = (row.distance.plannedMin + row.distance.plannedMax) / 2 || null;
-  const plannedSec = row.duration.planned || null;
+export function boardRow(row: BoardRowInput, today: string, size?: { distanceM: number; durationSec: number } | null): BoardRow {
+  const plannedM = (size?.distanceM || (row.distance.plannedMin + row.distance.plannedMax) / 2) || null;
+  const plannedSec = (size?.durationSec || row.duration.planned) || null;
   return {
     plannedM,
     actualM: row.distance.actual,

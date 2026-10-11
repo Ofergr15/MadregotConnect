@@ -6,7 +6,7 @@ import { mayCoach } from '@/lib/academy/pairing-server';
 import { loadPlanBasis, loadThresholds } from '@/lib/academy/book-server';
 import { computeAcademyWeekAdherence } from '@/lib/academy/report';
 import { weekTotals } from '@/lib/academy/compliance';
-import { absoluteToLibrary, fromLibrarySteps, structureName } from '@/lib/academy/book-steps';
+import { absoluteToLibrary, fromLibrarySteps, sessionSize, structureName } from '@/lib/academy/book-steps';
 import type { WeekBoard, WeekBoardWorkout } from '@/lib/academy/week-board';
 import { boardRow, offLineOf, restDaysOf } from '@/lib/academy/board';
 import { loadBoardMarks, rowMarks } from '@/lib/academy/board-server';
@@ -149,7 +149,9 @@ export async function GET(request: Request) {
       // Named from the structure, the way the book names it (`6 × 800 מ׳`) — the club's own
       // titles are day names (`שלישי`), which the row already says.
       const model = steps.length ? fromLibrarySteps(absoluteToLibrary(steps, referenceSec).steps) : null;
-      const graded = boardRow(row, today);
+      // Sized as the home card sizes it (day-cards → todayCard): the same steps, reference
+      // and threshold, so the row, the card and screen 4 print one number.
+      const graded = boardRow(row, today, sessionSize(steps, referenceSec, basis?.drawAtSec ?? referenceSec));
       const { plannedM } = graded;
       const activityId = row.actual?.id ? String(row.actual.id) : null;
       const runLoad = row.completed && activityId ? loadOf.get(activityId) : undefined;

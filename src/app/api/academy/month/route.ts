@@ -8,6 +8,9 @@ import { boardRow, monthDates, monthDays, monthSummary, type MonthBoardPayload }
 import { loadRaceDate } from '@/lib/academy/load-server';
 import { weekStartOf } from '@/lib/academy/pmc';
 import { shiftDate } from '@/lib/academy/load';
+import { loadPlanBasis, loadThresholds } from '@/lib/academy/book-server';
+import { sessionSize } from '@/lib/academy/book-steps';
+import { DISPLAY_REFERENCE } from '@/lib/academy/plan-basis';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,16 +48,25 @@ export async function GET(request: Request) {
     const weeks: string[] = [];
     for (let w = weekStartOf(dates[0]); w <= dates[dates.length - 1]; w = shiftDate(w, 7)) weeks.push(w);
     const supabase = createServerClient();
-    const [reports, raceDate] = await Promise.all([
-      Promise.all(weeks.map(weekStart => computeAcademyWeekAdherence({ weekStart, onlyAthleteId: athleteId }))),
+    const [reports, raceDate, thresholds] = await Promise.all([
+      Promise.all(weeks.map(weekStart => computeAcademyWeekAdherence({ weekStart, onlyAthleteId: athleteId, keepDetail: true }))),
       loadRaceDate(supabase, athleteId),
+      // The sizes only; a failure here grades on the adherence row's own estimate.
+      loadThresholds(supabase, [athleteId]).catch(() => ({} as Record<string, number | null>)),
     ]);
+    const thresholdSec = thresholds[athleteId] ?? null;
+    // Each week sized the way its week board sizes it (whose paces the steps are in), so a
+    // day cannot be green here and yellow in its week.
+    const bases = await Promise.all(weeks.map((weekStart, i) => ((reports[i].athletes[0]?.week.workouts ?? []).length
+      ? loadPlanBasis(supabase, athleteId, weekStart, thresholdSec).catch(() => null)
+      : Promise.resolve(null))));
 
     const sessions = reports
-      .flatMap(r => r.athletes[0]?.week.workouts ?? [])
-      .filter(row => row.date.startsWith(month))
-      .map((row) => {
-        const graded = boardRow(row, today);
+      .flatMap((r, i) => (r.athletes[0]?.week.workouts ?? []).map(row => ({ row, basis: bases[i] })))
+      .filter(({ row }) => row.date.startsWith(month))
+      .map(({ row, basis }) => {
+        const referenceSec = basis?.referenceSec ?? thresholdSec ?? DISPLAY_REFERENCE;
+        const graded = boardRow(row, today, sessionSize(row.detail?.workout.steps, referenceSec, basis?.drawAtSec ?? referenceSec));
         return { date: row.date, color: graded.compliance.color, actualM: graded.actualM };
       });
     const days = monthDays({ month, today, sessions, raceDate });

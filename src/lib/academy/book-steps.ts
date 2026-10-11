@@ -524,6 +524,20 @@ export function bookTotals(steps: BookStep[], thresholdSec: number | null): Book
   };
 }
 
+/**
+ * One planned session's size as the trainee is shown it — the home card, screen 4, screen
+ * 5's plan column and the week board all size it here: the stored steps through the book
+ * model at the reference they were written for, drawn at the trainee's threshold. Null with
+ * no steps or no length.
+ */
+export function sessionSize(steps: WorkoutStep[] | null | undefined, referenceSec: number, drawAtSec: number): { distanceM: number; durationSec: number } | null {
+  if (!steps?.length) return null;
+  const model = fromLibrarySteps(absoluteToLibrary(steps, referenceSec).steps);
+  if (!model) return null;
+  const t = bookTotals(model, drawAtSec);
+  return t.durationSec > 0 || t.distanceM > 0 ? { distanceM: t.distanceM, durationSec: t.durationSec } : null;
+}
+
 export interface BarSegment { tone: Tone; weight: number }
 
 /**

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { dayCards, type DayCardsInput } from '@/lib/academy/day-cards';
 import { plannedLoad } from '@/lib/academy/load';
+import { boardRow } from '@/lib/academy/board';
+import { sessionSize } from '@/lib/academy/book-steps';
+import { planPaceBasis } from '@/lib/academy/plan-basis';
 
 /**
  * lib/academy/day-cards.ts — the planned day as the card the home draws, shared by
@@ -94,5 +97,31 @@ describe('dayCards', () => {
     const card = dayCards(input([own], { tests: [] })).cards[TUE];
     expect(card.expectedLoad).toBeNull();
     expect(card.paceSec).toBe(245);
+  });
+});
+
+describe('the home card and the week board size one session alike (W1/W2)', () => {
+  it('5 × 1 km: the board row prints and grades the card\'s km and minutes, not the adherence estimate', () => {
+    for (const [owner, repSec] of [[ME, 245], [null, 230]] as const) {
+      const plan = { week_start_date: WEEK, athlete_id: owner, parsed_workouts: { workouts: [reps(2, repSec)] }, created_at: '2026-10-10' };
+      const card = dayCards(input([plan])).cards[TUE];
+      // The week-board route's basis for the same week (loadPlanBasis → planPaceBasis).
+      const basis = planPaceBasis({ planAthleteId: owner, parsedWorkouts: plan.parsed_workouts, groupName: null, laneRefs: LANES, thresholdSec: 252 });
+      const size = sessionSize(reps(2, repSec).steps, basis.referenceSec, basis.drawAtSec);
+      // The adherence engine's own estimate counts five jogs.
+      const row = {
+        date: TUE, completed: false,
+        distance: { plannedMin: 11000, plannedMax: 11000, actual: null },
+        duration: { planned: card.durationSec! + 120, actual: null, estimated: true },
+      };
+      const graded = boardRow(row, '2026-10-12', size);
+      expect(graded.plannedM).toBe(card.distanceM);
+      expect(graded.plannedSec).toBe(card.durationSec);
+    }
+  });
+
+  it('without steps the board keeps the adherence row\'s size', () => {
+    const row = { date: TUE, completed: false, distance: { plannedMin: 8000, plannedMax: 8000, actual: null }, duration: { planned: 2640, actual: null, estimated: true } };
+    expect(boardRow(row, '2026-10-12', sessionSize([], 252, 252))).toMatchObject({ plannedM: 8000, plannedSec: 2640 });
   });
 });

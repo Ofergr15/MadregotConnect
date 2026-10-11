@@ -18,6 +18,8 @@ vi.mock('@/lib/academy/pairing-server', () => ({
 }));
 vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => ({}) }));
 
+vi.mock('@/lib/academy/book-server', () => ({ loadPlanBasis: async () => null, loadThresholds: async () => ({ [TRAINEE]: 252 }) }));
+
 let race: string | null = null;
 vi.mock('@/lib/academy/load-server', () => ({ loadRaceDate: async () => race }));
 
