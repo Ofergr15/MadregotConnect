@@ -126,6 +126,8 @@ export const KIND_CATEGORY: Record<string, Category> = {
   badge: 'achievements',
   plan_pushed: 'program',
   feedback_reply: 'coach',
+  // "לבקש מכולם" (academy/test-request.ts): the coach asking for the trainee's last test.
+  academy_test_request: 'coach',
   // Club-wide announcements and surveys.
   custom: 'news',
   survey: 'news',

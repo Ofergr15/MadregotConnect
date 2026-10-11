@@ -6,6 +6,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getStreamServerClient } from '@/lib/stream/server';
 import { readCharacterization, type Characterization } from './characterization';
+import { GOALS_TABLE } from './goal-server';
+import { hasGoal, readGoal } from './goal';
 import { traineeUnreadCount } from './thread-server';
 import { coachIdsOf } from './trainee-coaches';
 
@@ -34,6 +36,19 @@ export async function loadCoachRows(supabase: Db, athleteId: string, legacyCoach
  * note, which the goal card has no use for.
  */
 export async function loadGoalCharacterization(supabase: Db, athleteId: string): Promise<Characterization | null> {
+  // Migration 144's own goal row first: a trainee who was in the academy before the funnel has
+  // no candidate row at all, and a goal set since the call is the one they train for now.
+  // A missing table (144 not pasted) or any read error falls through to the call's answers.
+  try {
+    const { data: own, error: ownErr } = await supabase
+      .from(GOALS_TABLE)
+      .select('goal_type, target_race, target_race_date')
+      .eq('athlete_id', athleteId)
+      .maybeSingle();
+    if (!ownErr && own && hasGoal(readGoal(own as Record<string, unknown>))) {
+      return readCharacterization({ candidate_id: '', ...(own as Record<string, unknown>) });
+    }
+  } catch { /* the characterization below */ }
   const { data: cands, error } = await supabase
     .from('academy_candidates')
     .select('id')

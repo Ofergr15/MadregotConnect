@@ -50,7 +50,9 @@ const db: {
   // reminders, and those are three writes across two tables.
   academy_test_invitations: Row[];
   scheduled_notifications: Row[];
-} = { athletes: [], academy_tests: [], academy_test_invitations: [], scheduled_notifications: [] };
+  /** For `activityId` ("מהשעון"): only the athlete's own run is kept as the source. */
+  athlete_activities: Row[];
+} = { athletes: [], academy_tests: [], academy_test_invitations: [], scheduled_notifications: [], athlete_activities: [] };
 let seq = 0;
 
 class Query implements PromiseLike<{ data: Row[] | null; error: unknown }> {
@@ -145,6 +147,11 @@ class Query implements PromiseLike<{ data: Row[] | null; error: unknown }> {
   }
 }
 
+// After a test counts, that trainee's loads are repriced (lib/academy/reprice-server.ts). The
+// reprice itself is tested there; here only WHO triggers it.
+const scheduleReprice = vi.fn();
+vi.mock('@/lib/academy/reprice-server', () => ({ scheduleReprice: (id: string) => scheduleReprice(id) }));
+
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({ from: (table: keyof typeof db) => new Query(table) }),
 }));
@@ -238,8 +245,10 @@ beforeEach(() => {
   db.academy_tests = [];
   db.academy_test_invitations = [];
   db.scheduled_notifications = [];
+  db.athlete_activities = [];
   seq = 0;
   resolveVerifiedCaller.mockReset();
+  scheduleReprice.mockReset();
 });
 
 // ── The loop ────────────────────────────────────────────────────────────────
@@ -693,5 +702,66 @@ describe('a recorded result settles the invitation that asked for it', () => {
     } finally {
       db.academy_test_invitations = original;
     }
+  });
+});
+
+// ── The existing-trainees form (mockup academy-existing-trainees, phones 2, 3 and 5) ────
+
+describe('repricing, the watch source and "לתקן"', () => {
+  it('a staff entry counts at once, so it reprices that trainee; a trainee\'s submission does not', async () => {
+    asCoach();
+    const saved = await (await post(body(MINE, 7120))).json();
+    expect(saved.repricing).toBe(true);
+    expect(scheduleReprice).toHaveBeenCalledWith(MINE);
+
+    scheduleReprice.mockReset();
+    asRunner(MINE);
+    const pending = await (await post(body(MINE, 7000, { date: day(1) }))).json();
+    expect(pending.pending).toBe(true);
+    expect(pending.repricing).toBe(false);
+    expect(scheduleReprice).not.toHaveBeenCalled();
+  });
+
+  it('approving a submission reprices the trainee it belongs to', async () => {
+    asRunner(MINE);
+    await post(body(MINE, 7000));
+    const id = String(db.academy_tests[0].id);
+    asCoach();
+    const res = await (await patch({ testId: id, action: 'approve' })).json();
+    expect(res.repricing).toBe(true);
+    expect(scheduleReprice).toHaveBeenCalledWith(MINE);
+  });
+
+  it('"מהשעון": the run is kept as the source only when it is that athlete\'s own', async () => {
+    db.athlete_activities = [{ id: 'run-mine', athlete_id: MINE }, { id: 'run-theirs', athlete_id: THEIRS }];
+    asManager();
+    await post(body(MINE, 7120, { activityId: 'run-mine' }));
+    expect(db.academy_tests[0].activity_id).toBe('run-mine');
+    await post(body(MINE, 7120, { activityId: 'run-theirs', date: day(2) }));
+    expect(db.academy_tests[1].activity_id).toBeNull();
+    // …and the pending queue says where a submission came from.
+    asRunner(MINE);
+    await post(body(MINE, 7050, { activityId: 'run-mine', date: day(3) }));
+    asManager();
+    const { pending } = await (await get()).json();
+    expect(pending[0].source).toBe('watch');
+  });
+
+  it('"לתקן": the coach\'s corrected save replaces the trainee\'s pending row on another day', async () => {
+    asRunner(MINE);
+    await post(body(MINE, 7000, { date: day(1) }));
+    const submitted = String(db.academy_tests[0].id);
+    asCoach();
+    await post(body(MINE, 7120, { date: day(2), replacesTestId: submitted }));
+    expect(db.academy_tests).toHaveLength(1);
+    expect(db.academy_tests[0]).toMatchObject({ distance_m: 7120, status: 'approved' });
+  });
+
+  it('a trainee cannot use replacesTestId to delete anything', async () => {
+    asCoach();
+    await post(body(MINE, 7120, { date: day(5) }));
+    asRunner(MINE);
+    await post(body(MINE, 7000, { date: day(1), replacesTestId: String(db.academy_tests[0].id) }));
+    expect(db.academy_tests).toHaveLength(2);
   });
 });

@@ -8,6 +8,7 @@
 //   waiting   "מחכה לך", one row per kind of work, most urgent first
 
 import type { AcademySection } from './areas';
+import type { BandCheck } from './completion';
 
 const addDays = (day: string, n: number) => {
   const d = new Date(`${day}T12:00:00Z`);
@@ -90,7 +91,7 @@ export interface AcademyHomeResponse {
   month: { joined: number; left: number };
   today: { count: number; firstAt: string | null };
   /** Test submissions waiting for a staff approval. */
-  approvals: Array<{ athleteId: string; name: string; submittedAt: string | null }>;
+  approvals: Array<{ athleteId: string; name: string; submittedAt: string | null } & Partial<ApprovalDetail>>;
   /** The funnel, manager only: null for a coach. */
   funnel: {
     live: number;
@@ -98,6 +99,24 @@ export interface AcademyHomeResponse {
     stuck: Array<{ id: string; name: string; since: string; waiting: string; days: number }>;
   } | null;
   coachCapacity: number;
+}
+
+/**
+ * What the coach's approval card (mockup academy-existing-trainees, phone 5) shows of one
+ * submission: what was sent, where from, and a check against the band.
+ */
+export interface ApprovalDetail {
+  testId: string;
+  date: string;
+  protocol: string;
+  durationSec: number;
+  distanceM: number;
+  avgHr: number | null;
+  /** The test's own pace (the threshold, for a 30-minute test). */
+  paceSec: number | null;
+  source: 'watch' | 'typed';
+  implausible: boolean;
+  bandCheck: BandCheck;
 }
 
 // ── Today ───────────────────────────────────────────────────────────────────

@@ -157,3 +157,36 @@ describe('GET /api/academy/home', () => {
     expect(performance.now() - t0).toBeLessThan(200);
   });
 });
+
+describe('the approval card\'s detail (academy-existing-trainees, phone 5)', () => {
+  it('what was sent, where from, and a check against their band', async () => {
+    db.academy_bands = [
+      { id: 'b4', band_number: 4, name: 'דבוקה 4', goal: null, pace_profile: { thresholdPaceSec: 250 } },
+      { id: 'b5', band_number: 5, name: 'דבוקה 5', goal: null, pace_profile: { thresholdPaceSec: 285 } },
+    ];
+    db.athletes.find((a) => a.id === 'a2')!.academy_band_id = 'b4';
+    db.academy_tests = [{
+      id: 't1', athlete_id: 'a2', status: 'pending', submitted_at: '2026-10-01T10:00:00Z', test_date: '2026-09-14',
+      protocol: '30min', duration_sec: 1800, distance_m: 7120, avg_hr: 171, activity_id: 'run-1',
+    }];
+    asManager();
+    const body = await (await get()).json();
+    expect(body.approvals).toEqual([{
+      athleteId: 'a2', name: 'a2', submittedAt: '2026-10-01T10:00:00Z',
+      testId: 't1', date: '2026-09-14', protocol: '30min', durationSec: 1800, distanceM: 7120, avgHr: 171,
+      paceSec: 253, source: 'watch', implausible: false, bandCheck: { kind: 'inRange', bandNumber: 4 },
+    }]);
+  });
+
+  it('a 2000 m is not placed against a band: it is no threshold', async () => {
+    db.academy_bands = [{ id: 'b4', band_number: 4, name: 'דבוקה 4', goal: null, pace_profile: { thresholdPaceSec: 250 } }];
+    db.athletes.find((a) => a.id === 'a2')!.academy_band_id = 'b4';
+    db.academy_tests = [{
+      id: 't2', athlete_id: 'a2', status: 'pending', submitted_at: null, test_date: '2026-09-14',
+      protocol: '2000m', duration_sec: 425, distance_m: 2000, avg_hr: null, activity_id: null,
+    }];
+    asManager();
+    const [a] = (await (await get()).json()).approvals;
+    expect(a).toMatchObject({ source: 'typed', bandCheck: { kind: 'noPace' } });
+  });
+});

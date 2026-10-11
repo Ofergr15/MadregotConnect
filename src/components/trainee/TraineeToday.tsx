@@ -21,6 +21,7 @@ import { hrEstimateKey } from '@/lib/academy/test-state';
 import { LoadSheet } from './LoadSheet';
 import { RaceLine } from './RaceLine';
 import { RestCard, TodayWorkoutCard } from './TodayWorkoutCard';
+import { TestEntryCard } from '@/components/academy/completion/TestEntryCard';
 import { CARD, Chevron, RICH, SHADOW, StructureText, TOP_BAR, Tag, WEEKDAY_KEYS, dm } from './ui';
 
 // ── The academy trainee's home (mockup trainee-experience-v2, phones 1, 1ב, 1ג) ─────────
@@ -58,7 +59,7 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
   const ts = useTranslations('trainee.loadSheet');
   const td = useTranslations('trainee.done');
   const tf = useTranslations('trainee.home.form');
-  const { data, error } = useApi<TodayPayload>(`/api/academy/today?athleteId=${encodeURIComponent(athleteId)}`, { keepPreviousData: true });
+  const { data, error, mutate } = useApi<TodayPayload>(`/api/academy/today?athleteId=${encodeURIComponent(athleteId)}`, { keepPreviousData: true });
   // The workout screen (4/5) is the board's own overlay, so it opens on the board's row
   // for that day — the same payload the week screen hands it.
   const [opening, setOpening] = useState<string | null>(null);
@@ -127,6 +128,7 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
   const when = data.focus;
   const today = israelToday();
   const invite = data.invitation ? slotParts(data.invitation.slot) : null;
+  const entryCard = !!data.test && (data.test.kind !== 'ok' || data.test.old);
   const openDate = data.dayState === 'workout' ? data.card?.date : data.dayState === 'rest' ? data.next?.date : null;
 
   return (
@@ -134,6 +136,11 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
       {header}
 
       {data.paceUpdate && <PaceUpdateCard card={data.paceUpdate} />}
+
+      {/* "חסר לנו הטסט האחרון שלך" (academy-existing-trainees, phone 4), in place of the card's
+          "🎯 צריך טסט" line that left nothing to do: find it in the watch or type it, sent to the
+          coach for approval; "ממתין לאישור" until then. */}
+      {entryCard && <TestEntryCard athleteId={athleteId} onSent={() => void mutate()} />}
 
       {invite && (
         <Link href={academyTestUrl({ recipientIsStaff: false })} className={cn(CARD, 'flex min-h-[56px] items-center gap-[11px] px-3.5')}>
@@ -147,9 +154,9 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
       )}
 
       {data.dayState === 'workout' && data.card ? (
-        <TodayWorkoutCard card={data.card} when={when} coachName={coachFirst} test={data.test} />
+        <TodayWorkoutCard card={data.card} when={when} coachName={coachFirst} test={data.test} needsTestLine={!entryCard} />
       ) : data.dayState === 'rest' ? (
-        <RestCard date={data.date} when={when} next={data.next} prevKind={data.prevKind} test={data.test} />
+        <RestCard date={data.date} when={when} next={data.next} prevKind={data.prevKind} test={data.test} needsTestLine={!entryCard} />
       ) : (
         <section className={cn('rounded-[22px] bg-white px-4 py-[15px]', SHADOW)}>
           <h2 className="text-[20px] font-black text-ink-900">{t('noPlan', { week: data.weekStart !== planWeekStartOf(today) ? 'next' : 'this' })}</h2>

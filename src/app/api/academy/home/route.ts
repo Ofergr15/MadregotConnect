@@ -9,7 +9,10 @@ import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { deriveLeft, type HistoryRow } from '@/lib/academy/manage';
 import { buildFunnel, type CandidateEvent, type CandidateRow } from '@/lib/academy/funnel';
 import { trendWeeks } from '@/lib/academy/trends';
-import { buildGrowth, monthMoves, todayTests, type AcademyHomeResponse } from '@/lib/academy/home';
+import { buildGrowth, monthMoves, todayTests, type AcademyHomeResponse, type ApprovalDetail } from '@/lib/academy/home';
+import { bandCheck, type CheckBand } from '@/lib/academy/completion';
+import { toBand } from '@/lib/academy/bands';
+import { paceLooksImplausible, thresholdPaceSec } from '@/lib/academy/tests';
 
 export type { AcademyHomeResponse } from '@/lib/academy/home';
 
@@ -45,11 +48,24 @@ export async function GET(request: Request) {
       return error ? [] : ((data || []) as Array<{ athlete_id: string; status: string | null; confirmed_slot: string | null }>);
     };
     const readPendingTests = async () => {
-      const { data, error } = await supabase
+      // The whole submission, for the approval card (phone 5 of academy-existing-trainees):
+      // what was sent and where from. The narrow read is the fallback for a fake or an older
+      // shape, so the "מחכה לך" row never disappears because a detail column did.
+      let res: any = await supabase
         .from('academy_tests')
-        .select('athlete_id, submitted_at')
+        .select('id, athlete_id, submitted_at, test_date, protocol, duration_sec, distance_m, avg_hr, activity_id')
         .eq('status', 'pending');
-      return error ? [] : ((data || []) as Array<{ athlete_id: string; submitted_at: string | null }>);
+      if (res.error && isMissingColumn(res.error)) {
+        res = await supabase.from('academy_tests').select('athlete_id, submitted_at').eq('status', 'pending');
+      }
+      return res.error ? [] : ((res.data || []) as Array<Record<string, any> & { athlete_id: string; submitted_at: string | null }>);
+    };
+    const readBands = async (): Promise<CheckBand[]> => {
+      const { data, error } = await supabase.from('academy_bands').select('id, band_number, name, goal, pace_profile');
+      return error ? [] : ((data || []) as any[]).map((r) => {
+        const b = toBand(r);
+        return { id: b.id, bandNumber: b.bandNumber, thresholdPaceSec: b.paceProfile.thresholdPaceSec ?? null };
+      });
     };
     const manager = isAcademyManager(caller);
     const readFunnel = async (): Promise<{ candidates: CandidateRow[]; events: CandidateEvent[] } | null> => {
@@ -71,22 +87,24 @@ export async function GET(request: Request) {
       };
     };
 
-    const [visible, athRes, history, invites, pendingTests, funnelRows, settings] = await Promise.all([
+    const [visible, athRes, history, invites, pendingTests, funnelRows, settings, bands] = await Promise.all([
       visibleTraineeIds(caller, request),
       Promise.resolve(supabase
         .from('athletes')
-        .select('id, name, is_academy, approved, status, academy_joined_on, academy_coach_id')
+        .select('id, name, is_academy, approved, status, academy_joined_on, academy_coach_id, academy_band_id')
         .eq('coach_id', COACH_ID)),
       readHistory(),
       readInvites(),
       readPendingTests(),
       readFunnel(),
       loadAcademySettings(),
+      readBands(),
     ]);
     if (athRes.error) return NextResponse.json({ error: 'Failed to read the roster' }, { status: 500 });
     const rows = (athRes.data || []) as any[];
     const names = new Map<string, string>(rows.map((r) => [r.id, r.name]));
 
+    const bandOf = new Map<string, string | null>(rows.map((r) => [r.id, r.academy_band_id ?? null]));
     const current = rows.filter((a) => a.is_academy && a.approved !== false && a.status !== 'removed' && (!visible || visible.has(a.id)));
     const currentIds = new Set(current.map((a) => a.id as string));
     const left = deriveLeft(rows, history, names, today)
@@ -124,7 +142,12 @@ export async function GET(request: Request) {
       ),
       approvals: pendingTests
         .filter((t) => currentIds.has(t.athlete_id))
-        .map((t) => ({ athleteId: t.athlete_id, name: names.get(t.athlete_id) || '', submittedAt: t.submitted_at ?? null }))
+        .map((t) => ({
+          athleteId: t.athlete_id,
+          name: names.get(t.athlete_id) || '',
+          submittedAt: t.submitted_at ?? null,
+          ...approvalDetail(t, bandOf.get(t.athlete_id) ?? null, bands),
+        }))
         .sort((a, b) => (a.submittedAt || '').localeCompare(b.submittedAt || '')),
       funnel,
       coachCapacity: settings.coachCapacity,
@@ -134,4 +157,27 @@ export async function GET(request: Request) {
     console.error('Academy home error:', error);
     return NextResponse.json({ error: 'Failed to load the academy home' }, { status: 500 });
   }
+}
+
+/** One pending row as the approval card reads it; nothing when the detail columns were not read. */
+function approvalDetail(t: Record<string, any>, bandId: string | null, bands: CheckBand[]): Partial<ApprovalDetail> {
+  if (!t.id || t.duration_sec == null || t.distance_m == null) return {};
+  const durationSec = Number(t.duration_sec);
+  const distanceM = Number(t.distance_m);
+  const protocol = String(t.protocol || '30min');
+  const raw = thresholdPaceSec({ durationSec, distanceM });
+  const paceSec = raw === null ? null : Math.round(raw);
+  return {
+    testId: String(t.id),
+    date: String(t.test_date).slice(0, 10),
+    protocol,
+    durationSec,
+    distanceM,
+    avgHr: t.avg_hr == null ? null : Number(t.avg_hr),
+    paceSec,
+    source: t.activity_id ? 'watch' : 'typed',
+    implausible: paceLooksImplausible(raw),
+    // Only a 30-minute test is a threshold (test-state.ts), so only it is placed against a band.
+    bandCheck: bandCheck(protocol === '30min' ? paceSec : null, bandId, bands),
+  };
 }

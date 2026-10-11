@@ -58,6 +58,10 @@ import { WEEKDAY_KEYS } from './book/WeekBoard';
 import { snoozeUntil } from '@/lib/academy/coach-tools';
 import type { CoachToolsResponse, MissedPayload, PaceSuggestionPayload } from '@/lib/academy/coach-tools-payload';
 import { PlansWeekStatus } from './PlansWeekStatus';
+import { CompletionScreen, useCompletion } from './completion/CompletionScreen';
+import { TraineeDetailsForm } from './completion/TraineeDetailsForm';
+import { hasDetail } from './completion/TestApprovalCard';
+import { CompletionEntry } from './completion/CompletionEntry';
 import { memberCoachIds, memberCoachNames } from '@/lib/academy/members';
 import {
   fmtRate, initialsOf, shiftWeek, sundayOf,
@@ -139,6 +143,10 @@ export function AcademyShell({
   const [copyOpen, setCopyOpen] = useState<{ athleteId: string; weekStart: string; preselect?: string[]; only?: string[]; mode?: Progression } | null>(null);
   // The coach's readiness (trainee-experience-v2 C1/C2): one trainee's sheet over the board.
   const [readinessOpen, setReadinessOpen] = useState<{ athleteId: string; name: string } | null>(null);
+  // Existing trainees (mockup academy-existing-trainees): the "השלמת פרטים" screen, and the
+  // one-trainee form opened by "לתקן" on a home approval card.
+  const [completionOpen, setCompletionOpen] = useState(false);
+  const [correctFor, setCorrectFor] = useState<string | null>(null);
   const tt = useTranslations('academyTools');
   const tr = useTranslations('readiness');
   const reasonsText = useReasonsText();
@@ -167,6 +175,14 @@ export function AcademyShell({
   const heldIds = useMemo(() => new Set((tools?.paused ?? []).map((p) => p.athleteId)), [tools]);
   const manager = isManager && members?.scope !== 'coach' && !scopeCoach;
   const { data: people, mutate: refreshPeople } = useApi<AcademyPeopleResponse>(manager && addOpen ? '/api/academy/members/people' : null);
+
+  const { data: completion, mutate: refreshCompletion } = useCompletion(scopeQ, section === 'members' || !!correctFor);
+  const approvalCards = useMemo(() => (home?.approvals ?? []).filter(hasDetail), [home]);
+  const pickBands = useMemo(() => (members?.bands ?? []).map((b) => ({ id: b.id, bandNumber: b.bandNumber })), [members]);
+  const pickCoaches = useMemo(() => (members?.coaches ?? [])
+    .filter((c): c is typeof c & { coachId: string } => !!c.coachId)
+    .map((c) => ({ coachId: c.coachId, coachName: c.coachName ?? '' })), [members]);
+  const correcting = correctFor ? completion?.rows.find((r) => r.athleteId === correctFor) ?? null : null;
 
   const roster = useMemo(() => members?.members ?? [], [members]);
   const coaches = useMemo(() => members?.coaches ?? [], [members]);
@@ -463,6 +479,9 @@ export function AcademyShell({
             readinessAlert={readiness?.alert}
             readinessHeld={!!readiness?.alert && heldIds.has(readiness.alert.athleteId)}
             onReadiness={() => go('readiness')}
+            approvalCards={approvalCards}
+            onApprovalDecided={() => { void reload(); void refreshCompletion(); }}
+            onApprovalCorrect={(a) => setCorrectFor(a.athleteId)}
           />
         ) : section === 'readiness' ? (
           <ReadinessBoard
@@ -478,6 +497,15 @@ export function AcademyShell({
           traineeFilter ? (
             <FilteredTrainees members={roster} filter={traineeFilter} onClear={() => setTraineeFilter(null)} onSelect={(m) => setSelectedId(m.athleteId)} />
           ) : (
+            <>
+            {completion && completion.summary.total > 0 && (
+              <CompletionEntry
+                ready={completion.summary.ready}
+                total={completion.summary.total}
+                missing={completion.summary.missing}
+                onOpen={() => setCompletionOpen(true)}
+              />
+            )}
             <AcademyMembers
               data={members}
               isLoading={membersLoading}
@@ -488,6 +516,7 @@ export function AcademyShell({
               myAthleteId={myAthleteId}
               embedded
             />
+            </>
           )
         ) : section === 'funnel' ? (
           <>
@@ -533,6 +562,30 @@ export function AcademyShell({
           <AcademySettingsPanel />
         ) : null}
       </div>
+
+      {/* ── Existing trainees: השלמת פרטים, and "לתקן" from a home approval card ── */}
+      {completionOpen && (
+        <CompletionScreen
+          scopeQ={scopeQ}
+          bands={pickBands}
+          coaches={pickCoaches}
+          approvals={approvalCards}
+          onClose={() => { setCompletionOpen(false); void refreshCompletion(); }}
+          onChanged={() => { void reload(); }}
+        />
+      )}
+      {correcting && completion && (
+        <TraineeDetailsForm
+          person={correcting}
+          correcting
+          bands={pickBands}
+          coaches={pickCoaches}
+          canAssign={completion.canAssign}
+          goalsStored={completion.goalsStored}
+          onClose={() => setCorrectFor(null)}
+          onSaved={() => { void reload(); void refreshCompletion(); }}
+        />
+      )}
 
       {/* ── The coach tools ── */}
       {readinessOpen && (

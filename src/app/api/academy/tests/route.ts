@@ -5,6 +5,7 @@ import { COACH_ID } from '@/lib/constants';
 import { isMissingColumn, isMissingTable, withoutColumns } from '@/lib/supabase/schema-drift';
 import { israelToday } from '@/lib/utils';
 import { settleInvitationForTest } from '@/lib/academy/settle-invitation-server';
+import { scheduleReprice } from '@/lib/academy/reprice-server';
 import {
   buildRegistry,
   buildTrend,
@@ -58,6 +59,8 @@ type StoredTest = TestRow & {
   status: 'approved' | 'pending';
   submittedBy: string | null;
   submittedAt: string | null;
+  /** The watch run it was read from ("מהשעון"), or null when it was typed. */
+  activityId: string | null;
 };
 
 function toStoredTest(row: any): StoredTest {
@@ -69,6 +72,7 @@ function toStoredTest(row: any): StoredTest {
     status: row.status === 'pending' ? 'pending' : 'approved',
     submittedBy: row.submitted_by ?? null,
     submittedAt: row.submitted_at ?? null,
+    activityId: row.activity_id ? String(row.activity_id) : null,
   };
 }
 
@@ -216,6 +220,7 @@ export async function GET(request: Request) {
         avgHr: t.avgHr ?? null,
         paceSec: thresholdPaceSec(t),
         submittedAt: t.submittedAt,
+        source: t.activityId ? 'watch' : 'typed',
         // Flags a submission the coach should look at twice before it prices a plan.
         implausible: paceLooksImplausible(thresholdPaceSec(t)),
       }))
@@ -341,6 +346,20 @@ export async function POST(request: Request) {
       }
     }
 
+    // "מהשעון": the run this test was read from (lib/academy/test-finder.ts). Kept only when it
+    // is that athlete's own run — it is what the approval card shows as the source, and a
+    // pointer at somebody else's activity would be a claim about a run they never ran.
+    let activityId: string | null = typeof body.activityId === 'string' && body.activityId ? body.activityId : null;
+    if (activityId) {
+      const { data: run } = await supabase
+        .from('athlete_activities')
+        .select('id')
+        .eq('id', activityId)
+        .eq('athlete_id', athleteId)
+        .maybeSingle();
+      if (!run) activityId = null;
+    }
+
     const now = new Date().toISOString();
     const row = {
       athlete_id: athleteId,
@@ -349,7 +368,7 @@ export async function POST(request: Request) {
       duration_sec: durationSec,
       distance_m: distanceM,
       avg_hr: body.avgHr == null ? null : Number(body.avgHr),
-      activity_id: body.activityId || null,
+      activity_id: activityId,
       // Empty string is not a reason. Trimmed to null so a blank field cannot silently
       // exclude a test from the trend it was recorded for. Staff only — see the header.
       excluded_reason: isStaff ? String(body.excludedReason || '').trim() || null : null,
@@ -419,8 +438,29 @@ export async function POST(request: Request) {
       })
       : null;
 
+    // "לתקן" on a trainee's submission: the coach saved the corrected numbers, so the pending row
+    // they replace goes — unless the correction landed on the same day and protocol, in which
+    // case the upsert above already overwrote it. Staff only, that trainee's own pending row only.
+    const replaces = isStaff && typeof body.replacesTestId === 'string' ? body.replacesTestId : '';
+    if (data && replaces && replaces !== String(data.id)) {
+      const { error: dropErr } = await supabase
+        .from('academy_tests')
+        .delete()
+        .eq('id', replaces)
+        .eq('athlete_id', athleteId)
+        .eq('status', 'pending');
+      if (dropErr) console.error('POST /api/academy/tests: dropping the corrected submission failed:', dropErr);
+    }
+
+    // A staff entry counts from now, so the loads priced on the old basis (or on heart rate,
+    // without any test) are stale: repriced after the response (lib/academy/reprice-server.ts).
+    // A trainee's submission counts toward nothing until it is approved — that is PATCH's job.
+    const repricing = !!data && isStaff;
+    if (repricing) scheduleReprice(athleteId);
+
     return NextResponse.json({
       test: data ? toTestRow(data) : null,
+      repricing,
       // The screen must not say "saved, here is your new pace" for something nobody has
       // looked at yet.
       pending: !isStaff,
@@ -513,6 +553,9 @@ export async function PATCH(request: Request) {
     // Now the number counts, so now the invitation is done. This is the moment the board's
     // `מחכים לך` row disappears on its own — see `lib/academy/settleInvitation.ts` — and it
     // cannot fail the approval it follows.
+    // The number prices their plan from now: reprice the loads it makes stale, after the response.
+    scheduleReprice(String(target.athlete_id));
+
     const settlement = await settleInvitationForTest(supabase, String(target.athlete_id), {
       id: testId,
       protocol: String(target.protocol || DEFAULT_PROTOCOL),
@@ -523,6 +566,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({
       testId,
       status: 'approved',
+      repricing: true,
       settledInvitationId: settlement?.kind === 'settle' ? settlement.invitationId : null,
     });
   } catch (err: unknown) {

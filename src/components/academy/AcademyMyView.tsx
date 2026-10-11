@@ -15,6 +15,7 @@ import { initialsOf, shiftWeek, sundayOf } from './types';
 import { AcademyThreadPanel } from './AcademyThreadPanel';
 import { MyInvitation } from './MyInvitation';
 import { MyTestsCard } from './MyTestsCard';
+import { TestEntryCard } from './completion/TestEntryCard';
 import { PaceText } from './PaceMark';
 import { BidiText } from '@/components/BidiText';
 import { WorkoutPlanSheet } from './WorkoutPlanSheet';
@@ -210,6 +211,10 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
 
       {/* ── My coach updated my paces (coach tools, phone 6) ── */}
       {data?.paceUpdate && <PaceUpdateCard card={data.paceUpdate} />}
+
+      {/* ── "חסר לנו הטסט האחרון שלך" (academy-existing-trainees, phone 4): renders only while
+          there is no usable test, and says "ממתין לאישור" once one is sent. ── */}
+      {data?.athlete?.athleteId && <TestEntryCard athleteId={data.athlete.athleteId} onSent={() => setResultJustSent(true)} />}
 
       {/* ── What I'm training for ── */}
       {data?.goal && (

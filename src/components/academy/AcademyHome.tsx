@@ -17,6 +17,7 @@ import {
 import type { Suggestion } from '@/lib/academy/suggestions';
 import type { AcademyMembersResponse } from './types';
 import { memberCoachIds } from '@/lib/academy/members';
+import { AfterApprovalNote, TestApprovalCard, type Approval } from './completion/TestApprovalCard';
 
 // The academy home, as phone 1 of the approved mockup (academy-manager-v5.html)
 // draws it, top to bottom:
@@ -44,6 +45,7 @@ const VIOLET = '#5B21D6';
 export function AcademyHome({
   data, isLoading, prev, home, waiting, suggestion, suggestionBusy, capacity, isManager,
   onSquare, onSuggestion, onSuggestionMore, onQuick, onWaiting, strips, onStrip, readinessAlert, readinessHeld, onReadiness,
+  approvalCards, onApprovalDecided, onApprovalCorrect,
 }: {
   data: AcademyMembersResponse | undefined;
   isLoading: boolean;
@@ -68,6 +70,13 @@ export function AcademyHome({
   /** Their pace-up suggestion is held right now (the coach tools' `paused`). */
   readinessHeld?: boolean;
   onReadiness?: () => void;
+  /**
+   * Test submissions with their detail (academy-existing-trainees, phone 5): drawn as cards at
+   * the top of "מחכה לך", in place of the one-line "טסט לאישור" row.
+   */
+  approvalCards?: Approval[];
+  onApprovalDecided?: () => void;
+  onApprovalCorrect?: (a: Approval) => void;
 }) {
   const [allWaiting, setAllWaiting] = useState(false);
   const members = useMemo(() => data?.members ?? [], [data]);
@@ -84,7 +93,10 @@ export function AcademyHome({
   const rate = data.team.completionRate;
   const prevRate = prev?.team.completionRate ?? null;
   const rateDiff = rate !== null && prevRate !== null ? Math.round((rate - prevRate) * 100) : null;
-  const shownWaiting = allWaiting ? waiting : waiting.slice(0, 3);
+  const cards = approvalCards ?? [];
+  const rowsWaiting = cards.length ? waiting.filter((w) => w.kind !== 'approvals') : waiting;
+  const shownWaiting = allWaiting ? rowsWaiting : rowsWaiting.slice(0, 3);
+  const waitingCount = rowsWaiting.length + cards.length;
 
   return (
     <div className="space-y-2.5" dir="rtl">
@@ -195,19 +207,26 @@ export function AcademyHome({
       )}
 
       {/* 5 · Waiting for you */}
-      {waiting.length > 0 && (
+      {waitingCount > 0 && (
         <>
           <div className="mx-1 -mb-0.5 mt-0.5 flex items-baseline justify-between">
-            <b className="text-[15px] font-black text-ink-700">מחכה לך · <bdi dir="ltr">{waiting.length}</bdi></b>
-            {waiting.length > 3 && (
+            <b className="text-[15px] font-black text-ink-700">מחכה לך · <bdi dir="ltr">{waitingCount}</bdi></b>
+            {rowsWaiting.length > 3 && (
               <button type="button" onClick={() => setAllWaiting((v) => !v)} className="-my-3 min-h-[44px] px-1 text-xs font-extrabold text-brand-600">
                 {allWaiting ? 'פחות' : 'הכל'}
               </button>
             )}
           </div>
-          <div className="overflow-hidden rounded-card bg-card">
-            {shownWaiting.map((w) => <WaitingRow key={w.key} item={w} onClick={() => onWaiting(w)} />)}
-          </div>
+          {cards.map((a) => (
+            <TestApprovalCard key={a.testId} approval={a} onDecided={() => onApprovalDecided?.()} onCorrect={(x) => onApprovalCorrect?.(x)} />
+          ))}
+          {/* What approving does, once under the cards (the mockup's green note). */}
+          {cards.length > 0 && <AfterApprovalNote name={cards.length === 1 ? cards[0].name.split(' ')[0] || null : null} />}
+          {shownWaiting.length > 0 && (
+            <div className="overflow-hidden rounded-card bg-card">
+              {shownWaiting.map((w) => <WaitingRow key={w.key} item={w} onClick={() => onWaiting(w)} />)}
+            </div>
+          )}
         </>
       )}
 
