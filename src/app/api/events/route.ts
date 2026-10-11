@@ -27,7 +27,19 @@ export async function GET(request: Request) {
     if (kind) query = query.eq('kind', kind);
     // "Upcoming from today" in Israel — a UTC date would still hide today's
     // event during the 00:00-03:00 window, or show yesterday's after 21:00.
-    query = query.gte('date', from || israelToday());
+    //
+    // By OVERLAP, not by start date: an event is in the range if it is still on
+    // when the range begins. Filtering `date >= from` dropped a camp from Jan 30 to
+    // Feb 2 out of February's grid entirely (the page draws every day an event
+    // covers, but was never given it), and an event already under way out of
+    // "upcoming". Ends on its own date when it has no end_date.
+    // `from` reaches a PostgREST filter string below, so it must be a plain date.
+    const isDate = (v: string | null) => v === null || /^\d{4}-\d{2}-\d{2}$/.test(v);
+    if (!isDate(from) || !isDate(to)) {
+      return NextResponse.json({ error: 'from/to must be YYYY-MM-DD' }, { status: 400 });
+    }
+    const lower = from || israelToday();
+    query = query.or(`end_date.gte.${lower},and(end_date.is.null,date.gte.${lower})`);
     if (to) query = query.lte('date', to);
 
     const { data, error } = await query.order('date', { ascending: true });
