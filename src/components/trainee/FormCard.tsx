@@ -8,6 +8,7 @@ import { LEARNING_DAYS } from '@/lib/academy/pmc';
 import type { TodayForm } from '@/lib/academy/trainee-today';
 import { traineeProgressUrl } from '@/lib/academy/deep-links';
 import { BAND_TILE, CARD, Chevron, RICH } from './ui';
+import { ReconnectLink, useNoNumberText } from './NoNumberCard';
 
 // ── "איך אתה מגיע להיום" (mockup 1 / 1ב / 1ג) ────────────────────────────────────────────
 //
@@ -39,6 +40,28 @@ export function FormCard({ form, when, gender, showBands }: {
       )}
     </div>
   );
+
+  const noNumber = useNoNumberText();
+  if (form.status === 'noFeed' || form.status === 'computing' || (form.status === 'learning' && form.cause === 'unpriced')) {
+    const text = noNumber(form.status === 'noFeed'
+      ? { kind: 'noFeed', feed: form.feed, provider: form.provider, days: form.days }
+      : form.status === 'computing'
+        ? { kind: 'computing', pending: form.pending }
+        : { kind: 'learning', daysLeft: form.daysLeft, daysSeen: form.daysSeen, cause: 'unpriced' });
+    return (
+      <section className={cn(CARD, 'px-4 py-3.5')}>
+        {header}
+        <div className="mt-2 flex items-center gap-3">
+          <div className="grid h-[58px] w-[58px] shrink-0 place-items-center rounded-[17px] bg-[#F0F0F4] text-[22px]" aria-hidden>{text.icon}</div>
+          <div className="min-w-0">
+            <p className="text-[16px] font-black text-ink-900">{text.title}</p>
+            <p className="text-[13px] leading-normal text-ink-500">{text.say}</p>
+            {text.action && <ReconnectLink />}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   if (form.status === 'learning') {
     return (

@@ -16,7 +16,12 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { activityLocalDateStr, planWeekStartOf } from '@/lib/utils';
-import { BACKFILL_DAYS, ensureActivityLoads, hasActivityLoadsTable, loadDailyRows, loadTestsFor, plannedLoads, type DailyRow } from './load-server';
+import {
+  BACKFILL_DAYS, FAN_OUT, ensureActivityLoads, hasActivityLoadsTable, loadDailyRows, loadTestsFor, mapLimit, plannedLoads, readAll,
+  type DailyRow,
+} from './load-server';
+import { isMissingColumn } from '@/lib/supabase/schema-drift';
+import { DATA_FEED_COLUMNS, DATA_FEED_COLUMNS_FALLBACK, nightFeed, runFeed, type DataFeed } from './data-feed';
 import { shiftDate, thresholdOn } from './load';
 import { plannedWeeksFor, type PmcPoint } from './pmc';
 import type { WellnessNight } from './normal-range';
@@ -41,6 +46,8 @@ export interface ReadinessRead {
   series: PmcPoint[];
   /** The per-activity loads it stands on (C2 needs today's). */
   rows: DailyRow[];
+  /** Whether runs are still arriving (data-feed.ts). */
+  feed?: DataFeed;
   name: string;
   gender: string | null;
   isAcademy: boolean;
@@ -102,6 +109,16 @@ async function loadRecords(db: Db, ids: string[], today: string): Promise<Record
   return out;
 }
 
+/** The people with their provider columns (before migration 101, without them). */
+async function readPeople(db: Db, ids: string[]) {
+  const base = 'id, name, gender, is_academy, status';
+  for (const cols of [`${base}, ${DATA_FEED_COLUMNS}`, `${base}, ${DATA_FEED_COLUMNS_FALLBACK}`]) {
+    const res = await db.from('athletes').select(cols).in('id', ids);
+    if (!(res.error && isMissingColumn(res.error))) return res;
+  }
+  return db.from('athletes').select(base).in('id', ids);
+}
+
 /**
  * Readiness for `ids`, as of `today` (an Israel date). `write: false` under view-as: the
  * missing loads are priced in memory and nothing is stored.
@@ -121,38 +138,48 @@ export async function loadReadinessInputs(
   const safe = <T>(p: PromiseLike<T>, fallback: T, what: string): Promise<T> =>
     Promise.resolve(p).catch((err) => { console.error(`readiness ${what} failed:`, err); return fallback; });
 
-  const [ensured, daily, nightsRes, feedbackRes, races, peopleRes, records, planned] = await Promise.all([
-    // The pricing and the read run side by side; whatever this call prices overrides the
-    // stored row below, as athleteLoads does, so the numbers are the same either way.
-    Promise.all(ids.map(id => safe(
-      hasActivityLoadsTable(db).then(has => (has
-        ? testsP.then(tests => ensureActivityLoads(db, id, { maxNew: READINESS_MAX_NEW, write, today, tests: tests[id] || [], newestFirst: true }))
-        : null)),
+  // The pricing goes first, FAN_OUT trainees at a time (41 side by side, each with its
+  // own reads, hung up sockets and gave C1 different numbers on every refresh), then the
+  // stored rows are read once. A load read that keeps failing throws: an error on the
+  // board, never a number from a different pricing path.
+  const has = await hasActivityLoadsTable(db);
+  const tests = await testsP;
+  const ensured = has
+    ? await mapLimit(ids, FAN_OUT, id => safe(
+      ensureActivityLoads(db, id, { maxNew: READINESS_MAX_NEW, write, today, tests: tests[id] || [], newestFirst: true }),
       null,
       'load pricing',
-    ))),
-    safe(loadDailyRows(db, ids, since, { today }), { rows: [] as DailyRow[], stored: false }, 'loads'),
-    safe(db
+    ))
+    : ids.map(() => null);
+  const [daily, nightsRes, feedbackRes, races, peopleRes, records, planned] = await Promise.all([
+    loadDailyRows(db, ids, since, { today }),
+    // Paged: 44 mornings × a coach's 41 trainees is past PostgREST's 1,000-row cap, and
+    // the rows past it were the NEWEST (a 3-morning RHR streak C2 saw and C1 did not).
+    safe(readAll<any>((from, to) => db
       .from('athlete_wellness')
       .select('athlete_id, date, sleep_seconds, resting_hr')
       .in('athlete_id', ids)
       .gte('date', shiftDate(today, -WELLNESS_DAYS))
-      .lte('date', today), { data: null, error: true } as any, 'wellness'),
+      .lte('date', today)
+      .order('date', { ascending: true })
+      .order('athlete_id', { ascending: true })
+      .range(from, to)), { data: null, error: true } as any, 'wellness'),
     safe(db
       .from('workout_feedback')
       .select('athlete_id, feel, difficulty, pain, created_at')
       .in('athlete_id', ids)
       .gte('created_at', `${shiftDate(today, -FEEDBACK_DAYS)}T00:00:00Z`), { data: null, error: true } as any, 'feedback'),
     safe(loadRaces(db, ids, today), {}, 'races'),
-    safe(db.from('athletes').select('id, name, gender, is_academy, status').in('id', ids), { data: null, error: true } as any, 'people'),
+    safe(readPeople(db, ids), { data: null, error: true } as any, 'people'),
     safe(loadRecords(db, ids, today), {}, 'records'),
     // Each trainee's planned weeks, so the ramp word says "שבוע קל" when the coach planned it.
-    Promise.all(ids.map(id => safe(
-      testsP.then(tests => plannedLoads(db, id, plannedWeeksFor(today), thresholdOn(today, tests[id] || [])?.thresholdSec ?? null)),
+    mapLimit(ids, FAN_OUT, id => safe(
+      plannedLoads(db, id, plannedWeeksFor(today), thresholdOn(today, tests[id] || [])?.thresholdSec ?? null),
       { byWeek: {}, byDate: {} },
       'planned loads',
-    ))),
+    )),
   ]);
+  const pendingBy = new Map(ids.map((id, k) => [id, ensured[k]?.pending ?? 0]));
   const plannedBy = new Map(ids.map((id, k) => [id, planned[k].byWeek]));
 
   const fresh = new Map<string, DailyRow>();
@@ -166,8 +193,11 @@ export async function loadReadinessInputs(
   const feedback = ((feedbackRes as any).error ? [] : (feedbackRes as any).data || []) as any[];
   const people = new Map<string, any>((((peopleRes as any).error ? [] : (peopleRes as any).data) || []).map((p: any) => [String(p.id), p]));
 
+  const now = Date.now();
   for (const id of ids) {
     const mine = rows.filter(r => r.athleteId === id).sort((a, b) => a.date.localeCompare(b.date));
+    const p = people.get(id);
+    const feed = runFeed(p ?? null, now);
     const myNights: WellnessNight[] = nights
       .filter(n => String(n.athlete_id) === id)
       .map(n => ({ date: String(n.date).slice(0, 10), sleep_seconds: n.sleep_seconds ?? null, resting_hr: n.resting_hr ?? null }));
@@ -175,12 +205,14 @@ export async function loadReadinessInputs(
     const { inputs, series } = buildReadinessInputs({
       rows: mine, nights: myNights, feedback: myFeedback, race: races[id] ?? null, record: records[id] ?? null, today,
       plannedByWeek: plannedBy.get(id),
+      gate: { feed, pending: pendingBy.get(id) ?? 0 },
+      nightFeed: nightFeed(p ?? null, now),
     });
-    const p = people.get(id);
     out[id] = {
       inputs,
       series,
       rows: mine,
+      feed,
       name: String(p?.name ?? ''),
       gender: p?.gender ?? null,
       isAcademy: p ? !!p.is_academy : true,

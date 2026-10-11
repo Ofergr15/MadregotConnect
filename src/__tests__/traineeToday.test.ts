@@ -126,7 +126,7 @@ const rowsFor = (days: number, source: 'pace' | 'hr' | 'none' = 'pace') =>
 
 describe('todayForm', () => {
   it('19 days of runs is learning: 19 of 42, 23 to go (1ג)', () => {
-    expect(todayForm({ rows: rowsFor(19, 'hr'), tests: [], today: TODAY, day: 'easy' })).toEqual({ status: 'learning', daysSeen: 19, daysLeft: 23 });
+    expect(todayForm({ rows: rowsFor(19, 'hr'), tests: [], today: TODAY, day: 'easy' })).toEqual({ status: 'learning', daysSeen: 19, daysLeft: 23, cause: 'new' });
   });
 
   it('a long history gives the number, its band and the sentence for the day', () => {
@@ -259,7 +259,7 @@ describe('buildTraineeToday', () => {
       invitationDate: '2026-10-20',
       distances: { a0: 5000 },
     }));
-    expect(out.form).toEqual({ status: 'learning', daysSeen: 19, daysLeft: 23 });
+    expect(out.form).toEqual({ status: 'learning', daysSeen: 19, daysLeft: 23, cause: 'new' });
     expect(out.invitation).toEqual({ slot: '2026-10-20T03:30:00Z', status: 'proposed' });
     expect(out.yesterday).toMatchObject({ load: 50, source: 'hr', km: 5 });
   });

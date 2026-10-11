@@ -63,7 +63,7 @@ describe('buildLoadPayload', () => {
   it('learning: no numbers (never a 0), and no bars before the first run', () => {
     const rows = steady(19);
     const p = buildLoadPayload({ rows, tests: [], today: TODAY, range: '6w' });
-    expect(p.status).toEqual({ kind: 'learning', daysLeft: 23, daysSeen: 19 });
+    expect(p.status).toEqual({ kind: 'learning', daysLeft: 23, daysSeen: 19, cause: 'new' });
     expect(p.today).toBeNull();
     expect(p.weekly.length).toBeLessThan(8);
     expect(p.weekly[0].weekStart <= shiftDate(TODAY, -19)).toBe(true);

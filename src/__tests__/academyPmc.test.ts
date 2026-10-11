@@ -142,7 +142,7 @@ describe('loadStatus', () => {
 
   it('19 days since the first priced run → learning, 23 days left', () => {
     const rows = [pace(shiftDate(TODAY, -19)), pace(shiftDate(TODAY, -10))];
-    expect(loadStatus(rows, TODAY)).toEqual({ kind: 'learning', daysLeft: 23, daysSeen: 19 });
+    expect(loadStatus(rows, TODAY)).toEqual({ kind: 'learning', daysLeft: 23, daysSeen: 19, cause: 'new' });
   });
 
   it('42 days → ok', () => {
@@ -158,14 +158,14 @@ describe('loadStatus', () => {
   });
 
   it('runs and none of them priced → learning while the first is under 42 days old, then insufficient', () => {
-    expect(loadStatus([pace(shiftDate(TODAY, -3), null, 'none')], TODAY)).toEqual({ kind: 'learning', daysLeft: 39, daysSeen: 3 });
+    expect(loadStatus([pace(shiftDate(TODAY, -3), null, 'none')], TODAY)).toEqual({ kind: 'learning', daysLeft: 39, daysSeen: 3, cause: 'new' });
     expect(loadStatus([pace(shiftDate(TODAY, -50), null, 'none')], TODAY)).toEqual({ kind: 'insufficient' });
     expect(loadStatus([], TODAY)).toEqual({ kind: 'learning', daysLeft: 42, daysSeen: 0 });
   });
 
   it('a new trainee with 2 unpriced runs out of 3 is learning, not insufficient', () => {
     const rows = [pace(shiftDate(TODAY, -10), null, 'none'), pace(shiftDate(TODAY, -6), null, 'none'), pace(shiftDate(TODAY, -2))];
-    expect(loadStatus(rows, TODAY)).toEqual({ kind: 'learning', daysLeft: 40, daysSeen: 2 });
+    expect(loadStatus(rows, TODAY)).toEqual({ kind: 'learning', daysLeft: 40, daysSeen: 2, cause: 'new' });
   });
 });
 

@@ -143,19 +143,19 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
       )}
 
       {data.dayState === 'workout' && data.card ? (
-        <TodayWorkoutCard card={data.card} when={when} coachName={coachFirst} />
+        <TodayWorkoutCard card={data.card} when={when} coachName={coachFirst} test={data.test} />
       ) : data.dayState === 'rest' ? (
-        <RestCard date={data.date} when={when} next={data.next} prevKind={data.prevKind} />
+        <RestCard date={data.date} when={when} next={data.next} prevKind={data.prevKind} test={data.test} />
       ) : (
         <section className={cn('rounded-[22px] bg-white px-4 py-[15px]', SHADOW)}>
-          <h2 className="text-[20px] font-black text-ink-900">{t('noPlan')}</h2>
-          <p className="mt-1 text-[14px] text-ink-500">{t('noPlanSay')}</p>
+          <h2 className="text-[20px] font-black text-ink-900">{t('noPlan', { week: data.weekStart !== planWeekStartOf(today) ? 'next' : 'this' })}</h2>
+          <p className="mt-1 text-[14px] text-ink-500">{t('noPlanSay', { when })}</p>
         </section>
       )}
 
       <FormCard form={data.form} when={data.dayState === 'rest' ? 'tomorrow' : when} gender={data.athlete.gender} showBands={data.dayState === 'workout'} />
 
-      <BodyChips sleep={data.body.sleep} rhr={data.body.rhr} today={today} />
+      <BodyChips sleep={data.body.sleep} rhr={data.body.rhr} missing={data.body.missing} today={today} />
 
       {data.race && <RaceLine race={data.race} showBuild={data.dayState === 'workout'} />}
 

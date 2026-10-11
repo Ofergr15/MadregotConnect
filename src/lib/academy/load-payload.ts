@@ -1,7 +1,7 @@
 import { shiftDate, thresholdOn, daysBetween, type TestPoint } from './load';
 import {
   dailyLoads, loadStatus, loadWeeks, pmcSeries, pmcToday, pointOn, weekStartOf,
-  type LoadRow, type LoadStatus, type WeeklyLoad,
+  type LoadRow, type LoadStatus, type StatusGate, type WeeklyLoad,
 } from './pmc';
 import { formBand, rampWord, type FormBandKey, type RampWordKey } from './form-bands';
 
@@ -58,9 +58,11 @@ export function buildLoadPayload(input: {
    * (`plannedWeeksFor`): this week's dashed bar, and which weeks the coach planned easy.
    */
   plannedByWeek?: Record<string, number | undefined>;
+  /** A broken data feed or runs still being priced withhold every number (pmc.ts `gateStatus`). */
+  gate?: StatusGate | null;
 }): LoadPayload {
   const { rows, tests, today } = input;
-  const status = loadStatus(rows, today);
+  const status = loadStatus(rows, today, input.gate);
   const priced = rows.filter(r => r.load != null && r.date <= today).map(r => r.date).sort();
   const firstLoadDate = priced[0] ?? null;
   const y = shiftDate(today, -1);

@@ -6,6 +6,8 @@ import { mayCoach } from '@/lib/academy/pairing-server';
 import { shiftDate } from '@/lib/academy/load';
 import { RANGE_DAYS } from '@/lib/academy/normal-range';
 import { buildBodyPayload } from '@/lib/academy/body';
+import { loadAthleteFeeds } from '@/lib/academy/data-feed-server';
+import { isMissingColumn } from '@/lib/supabase/schema-drift';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,26 +39,33 @@ export async function GET(request: Request) {
 
     const supabase = createServerClient();
     const today = israelToday();
-    const [nightsRes, feedbackRes] = await Promise.all([
+    const [nightsRes, feedbackRes, feeds] = await Promise.all([
       // The window the ranges stand on (30 before the newest morning) plus that morning.
       supabase
         .from('athlete_wellness')
-        .select('date, sleep_seconds, resting_hr')
+        .select('date, sleep_seconds, resting_hr, fetched_at')
         .eq('athlete_id', athleteId)
         .gte('date', shiftDate(today, -(RANGE_DAYS * 2)))
-        .lte('date', today),
+        .lte('date', today)
+        .then(res => (res.error && isMissingColumn(res.error)
+          ? supabase.from('athlete_wellness').select('date, sleep_seconds, resting_hr').eq('athlete_id', athleteId)
+            .gte('date', shiftDate(today, -(RANGE_DAYS * 2))).lte('date', today)
+          : res)),
       supabase
         .from('workout_feedback')
         .select('feel, difficulty, created_at, garmin_activity_id')
         .eq('athlete_id', athleteId)
         .order('created_at', { ascending: false })
         .limit(FEEDBACK_ROWS),
+      // Nights come from Garmin only: whether it is connected and still sending.
+      loadAthleteFeeds(supabase, athleteId),
     ]);
 
     const nights = ((nightsRes.error ? [] : nightsRes.data) || []).map((n: any) => ({
       date: String(n.date).slice(0, 10),
       sleep_seconds: n.sleep_seconds ?? null,
       resting_hr: n.resting_hr ?? null,
+      fetched_at: n.fetched_at ?? null,
     }));
     const feedback = ((feedbackRes.error ? [] : feedbackRes.data) || []) as any[];
     // Each answer dated by its run (start_time is the watch's wall clock: its UTC date is
@@ -73,7 +82,7 @@ export async function GET(request: Request) {
         for (const f of feedback) f.run_date = dayOf.get(String(f.garmin_activity_id)) ?? null;
       }
     }
-    return NextResponse.json({ today, ...buildBodyPayload({ nights, today, feedback }) });
+    return NextResponse.json({ today, source: feeds.night.kind === 'none' ? 'none' : 'garmin', ...buildBodyPayload({ nights, today, feedback, feed: feeds.night }) });
   } catch (error: unknown) {
     console.error('Academy body error:', error);
     return NextResponse.json({ error: 'Failed to load the body screen' }, { status: 500 });

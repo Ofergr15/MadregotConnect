@@ -92,11 +92,26 @@ describe('dayCards', () => {
     expect(planWeeks[WEEK]).toBe(false);
   });
 
-  it('without a test there is no ⚡ and the steps are drawn as stored', () => {
+  it('without a test there is no ⚡, no pace and no minutes: never a lane\'s pace printed as the trainee\'s (issue 2)', () => {
     const own = { week_start_date: WEEK, athlete_id: ME, parsed_workouts: { workouts: [reps(2, 245)] }, created_at: '2026-10-10' };
     const card = dayCards(input([own], { tests: [] })).cards[TUE];
     expect(card.expectedLoad).toBeNull();
-    expect(card.paceSec).toBe(245);
+    expect(card.paceBasis).toBe('none');
+    expect(card.paceSec).toBeNull();
+    expect(card.durationSec).toBeNull();
+    // The plan's distance still stands: it does not come from a pace.
+    expect(card.distanceM).toBeGreaterThan(0);
+    const club = { week_start_date: WEEK, athlete_id: null, parsed_workouts: { workouts: [reps(2, 185)] }, created_at: '2026-10-10' };
+    const fromClub = dayCards(input([club], { tests: [] })).cards[TUE];
+    expect(fromClub.paceSec).toBeNull();
+    expect(fromClub.paceBasis).toBe('none');
+  });
+
+  it('with a test the card is paced at the trainee\'s own threshold', () => {
+    const own = { week_start_date: WEEK, athlete_id: ME, parsed_workouts: { workouts: [reps(2, 245)] }, created_at: '2026-10-10' };
+    const card = dayCards(input([own])).cards[TUE];
+    expect(card.paceBasis).toBe('own');
+    expect(card.paceSec).toBeGreaterThan(0);
   });
 });
 

@@ -20,10 +20,12 @@ import { wordFirstTitle } from './title-order';
 import { buildLoadPayload } from './load-payload';
 import { formBand, formSentenceKey, isHeavyWeek, type DayKind, type FormBandKey } from './form-bands';
 import {
-  isLearning, normalRange, rhrVerdict, sleepVerdict,
-  type RangeField, type RhrVerdict, type SleepVerdict, type WellnessNight,
+  cleanNights, isLearning, metricMissing, normalRange, plausible, rhrVerdict, sleepVerdict,
+  type MetricMissing, type RangeField, type RhrVerdict, type SleepVerdict, type WellnessNight,
 } from './normal-range';
-import type { LoadRow, LoadStatus } from './pmc';
+import type { LoadRow, LoadStatus, StatusGate } from './pmc';
+import type { DataFeed } from './data-feed';
+import type { TestState } from './test-state';
 
 // ── Which kind of day ────────────────────────────────────────────────────────────────────
 
@@ -87,6 +89,12 @@ export interface TodayCard {
   expectedLoad: number | null;
   /** Today's run is in. */
   done: boolean;
+  /**
+   * `own`: paced at the trainee's own test. `none`: no usable test, so the steps are only
+   * the plan's shape — the pace and the minutes (which come from a pace) are withheld,
+   * never a squad lane's "3:05" printed as theirs.
+   */
+  paceBasis: 'own' | 'none';
 }
 
 /**
@@ -96,8 +104,9 @@ export interface TodayCard {
  */
 export function todayCard(
   workout: Pick<ParsedWorkout, 'dayOfWeek' | 'name' | 'steps' | 'description'>,
-  ctx: { date: string; referenceSec: number; drawAtSec: number; onWatch: boolean; expectedLoad: number | null; done: boolean },
+  ctx: { date: string; referenceSec: number; drawAtSec: number; onWatch: boolean; expectedLoad: number | null; done: boolean; ownPace?: boolean },
 ): TodayCard {
+  const own = ctx.ownPace ?? true;
   const steps = workout.steps ?? [];
   const model: BookStep[] | null = steps.length ? fromLibrarySteps(absoluteToLibrary(steps, ctx.referenceSec).steps) : null;
   let paceSec: number | null = null;
@@ -121,8 +130,8 @@ export function todayCard(
     dayOfWeek: workout.dayOfWeek,
     title: wordFirstTitle(model ? structureName(model) : workout.name),
     distanceM: totals && totals.distanceM > 0 ? totals.distanceM : null,
-    durationSec: totals && totals.durationSec > 0 ? totals.durationSec : null,
-    paceSec,
+    durationSec: own && totals && totals.durationSec > 0 ? totals.durationSec : null,
+    paceSec: own ? paceSec : null,
     paceOf,
     kind,
     bar: model ? profileBar(model, ctx.drawAtSec, { trainee: true }) : [],
@@ -130,6 +139,7 @@ export function todayCard(
     onWatch: ctx.onWatch,
     expectedLoad: ctx.expectedLoad != null && ctx.expectedLoad > 0 ? Math.round(ctx.expectedLoad) : null,
     done: ctx.done,
+    paceBasis: own ? 'own' : 'none',
   };
 }
 
@@ -174,8 +184,15 @@ export function invitationSlot(inv: Pick<TestInvitation, 'confirmedSlot' | 'prop
 
 export type TodayForm =
   | { status: 'ok'; value: number; band: FormBandKey; sentenceKey: string }
-  | { status: 'learning'; daysSeen: number; daysLeft: number }
-  | { status: 'insufficient' };
+  | { status: 'learning'; daysSeen: number; daysLeft: number; cause: 'new' | 'unpriced' }
+  | { status: 'insufficient' }
+  /** Runs still being priced: no number until they all are. */
+  | { status: 'computing'; pending: number }
+  /** The watch stopped sending: no number, and what to do about it. */
+  | { status: 'noFeed'; feed: 'failed' | 'stale'; provider: 'garmin' | 'strava'; days: number | null };
+
+/** The sentence when the focus day's week is not published: nothing is assumed about the day. */
+export const NO_PLAN_SENTENCE = 'trainee.home.form.noPlanSay';
 
 /**
  * The number, the word and the sentence (mockup 1/1ב), or the honest "still learning you"
@@ -189,12 +206,19 @@ export type TodayForm =
  */
 export function todayForm(input: {
   rows: LoadRow[]; tests: TestPoint[]; today: string; day: DayKind; asOf?: string; focus?: 'today' | 'tomorrow';
+  /** A broken feed or runs still being priced (pmc.ts gateStatus). */
+  gate?: StatusGate | null;
+  /** The focus day's week has no published plan: say so, never "the rest of tomorrow". */
+  noPlan?: boolean;
 }): TodayForm {
   const asOf = input.asOf ?? input.today;
-  const payload = buildLoadPayload({ rows: input.rows, tests: input.tests, today: asOf, range: '6w' });
+  const payload = buildLoadPayload({ rows: input.rows, tests: input.tests, today: asOf, range: '6w', gate: input.gate });
   const status: LoadStatus = payload.status;
-  if (status.kind === 'learning') return { status: 'learning', daysSeen: status.daysSeen, daysLeft: status.daysLeft };
+  if (status.kind === 'noFeed') return { status: 'noFeed', feed: status.feed, provider: status.provider, days: status.days };
+  if (status.kind === 'computing') return { status: 'computing', pending: status.pending };
+  if (status.kind === 'learning') return { status: 'learning', daysSeen: status.daysSeen, daysLeft: status.daysLeft, cause: status.cause ?? 'new' };
   if (status.kind === 'insufficient' || !payload.today) return { status: 'insufficient' };
+
   // Last COMPLETE week against the four before it. `weekly` ends with this week.
   const done = payload.weekly.map(w => w.done);
   const lastWeek = done.length >= 2 ? done[done.length - 2] : 0;
@@ -204,7 +228,9 @@ export function todayForm(input: {
     status: 'ok',
     value: payload.today.form,
     band,
-    sentenceKey: formSentenceKey({ band, heavyLastWeek: isHeavyWeek(lastWeek, prev4), day: input.day, focus: input.focus }),
+    sentenceKey: input.noPlan
+      ? NO_PLAN_SENTENCE
+      : formSentenceKey({ band, heavyLastWeek: isHeavyWeek(lastWeek, prev4), day: input.day, focus: input.focus }),
   };
 }
 
@@ -223,7 +249,7 @@ export interface BodyChip {
 
 function chip(nights: WellnessNight[], today: string, field: RangeField): BodyChip | null {
   const latest = [...nights]
-    .filter(n => n.date <= today && Number(n[field]) > 0)
+    .filter(n => n.date <= today && plausible(field, n[field]))
     .sort((a, b) => b.date.localeCompare(a.date))[0];
   if (!latest) return null;
   const value = Number(latest[field]);
@@ -234,10 +260,35 @@ function chip(nights: WellnessNight[], today: string, field: RangeField): BodyCh
   return { value, date: latest.date, verdict, range: { lo: Math.round(range.lo), hi: Math.round(range.hi) }, learning: null };
 }
 
-/** Sleep and resting HR against the trainee's own range; a night older than 3 days is not shown. */
-export function bodyChips(nights: WellnessNight[], today: string): { sleep: BodyChip | null; rhr: BodyChip | null } {
-  const fresh = (c: BodyChip | null) => (c && c.date >= shiftDate(today, -3) ? c : null);
-  return { sleep: fresh(chip(nights, today, 'sleep_seconds')), rhr: fresh(chip(nights, today, 'resting_hr')) };
+export interface BodyChipsOut {
+  sleep: BodyChip | null;
+  rhr: BodyChip | null;
+  /**
+   * Why a slot has no chip, or (a partial night) why its chip has no verdict. The home
+   * keeps both slots and says this instead of letting a chip vanish.
+   */
+  missing: { sleep: MetricMissing | null; rhr: MetricMissing | null };
+}
+
+/**
+ * Sleep and resting HR against the trainee's own range. A slot is never silently empty:
+ * a night older than 3 days, a field the watch never sends, no Garmin at all, a broken
+ * Garmin connection and a night cut short each come back as `missing` with its reason.
+ * A partial night keeps its sleep value, without a verdict, and no older RHR stands in.
+ * `feed` is the night feed (data-feed.ts `nightFeed`); without it, Garmin is assumed.
+ */
+export function bodyChips(nights: WellnessNight[], today: string, feed?: DataFeed | null): BodyChipsOut {
+  const clean = cleanNights(nights);
+  const missing = {
+    sleep: metricMissing(clean, today, 'sleep_seconds', feed),
+    rhr: metricMissing(clean, today, 'resting_hr', feed),
+  };
+  const sleep = missing.sleep && missing.sleep.reason !== 'partial' ? null : chip(clean, today, 'sleep_seconds');
+  return {
+    sleep: sleep && missing.sleep?.reason === 'partial' ? { ...sleep, verdict: null } : sleep,
+    rhr: missing.rhr ? null : chip(clean, today, 'resting_hr'),
+    missing,
+  };
 }
 
 // ── The race line ────────────────────────────────────────────────────────────────────────
@@ -324,8 +375,14 @@ export interface TraineeToday {
   paceUpdate: PaceUpdateCard | null;
   invitation: TodayInvitation | null;
   form: TodayForm;
-  body: { sleep: BodyChip | null; rhr: BodyChip | null };
+  body: BodyChipsOut;
   race: TodayRace | null;
+  /** What the tests allow (test-state.ts): the card's "צריך טסט" line, "ממתין לאישור". */
+  test: TestState;
+  /** Whether runs and nights still arrive (data-feed.ts). */
+  feed: { run: DataFeed; night: DataFeed };
+  /** A workout can be sent to the watch (Garmin connected): else 4 says it won't be. */
+  canWatch: boolean;
   /** Only while the numbers are being learned (1ג). */
   yesterday: TodayYesterday | null;
   /** Plan weeks the overlay opens (the focus day's and the next day's). */
@@ -348,6 +405,11 @@ export interface TodayInput {
   invitation: TestInvitation | null;
   invitationDate: string | null;
   hasUsableTest: boolean;
+  test?: TestState;
+  feed?: { run: DataFeed; night: DataFeed };
+  canWatch?: boolean;
+  /** Activities still waiting to be priced (load-server `pending`). */
+  pending?: number;
   loads: Array<LoadRow & { activityId: string }>;
   tests: TestPoint[];
   nights: WellnessNight[];
@@ -376,8 +438,15 @@ export function buildTraineeToday(input: TodayInput): TraineeToday {
   const day: DayKind = dayState === 'workout' && card ? card.kind : 'rest';
   // The form card speaks for the day the home titles it with: tomorrow on a rest day and
   // every evening (TraineeToday's "איך אתה מגיע למחר"), today otherwise.
+  // With no published plan the focus day is unknown — not a rest day — and the sentence
+  // says so (NO_PLAN_SENTENCE); the number is as of the morning the card is titled for.
   const formAsOf = focus === 'tomorrow' || dayState === 'rest' ? tomorrow : today;
-  const form = todayForm({ rows: input.loads, tests: input.tests, today, day, asOf: formAsOf, focus });
+  const runFeed = input.feed?.run ?? null;
+  const form = todayForm({
+    rows: input.loads, tests: input.tests, today, day, asOf: formAsOf, focus,
+    gate: { feed: runFeed, pending: input.pending ?? 0 },
+    noPlan: dayState === 'noPlan',
+  });
   const invite = showInvitation({ invitation: input.invitation, slotDate: input.invitationDate, hasUsableTest: input.hasUsableTest, today })
     ? { slot: invitationSlot(input.invitation!)!, status: input.invitation!.status }
     : null;
@@ -395,8 +464,11 @@ export function buildTraineeToday(input: TodayInput): TraineeToday {
     paceUpdate: input.paceUpdate,
     invitation: invite,
     form,
-    body: bodyChips(input.nights, today),
+    body: bodyChips(input.nights, today, input.feed?.night ?? null),
     race: input.race,
+    test: input.test ?? (input.hasUsableTest ? { kind: 'ok', date: input.tests[input.tests.length - 1]?.date ?? today, ageDays: 0, old: false } : { kind: 'none' }),
+    feed: input.feed ?? { run: { kind: 'none' }, night: { kind: 'none' } },
+    canWatch: input.canWatch ?? true,
     yesterday: form.status === 'ok' ? null : todayYesterday({ rows: input.loads, distances: input.distances, today, title: input.yesterdayTitle }),
     weekStart: input.weekStartOf(date),
   };

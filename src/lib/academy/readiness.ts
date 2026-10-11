@@ -48,6 +48,8 @@ export function feelAverage(
 }
 
 export type Highlight =
+  /** The watch stopped sending: the coach is told before anything the numbers would say. */
+  | { kind: 'noFeed'; feed: 'failed' | 'stale'; provider: 'garmin' | 'strava'; days: number | null }
   | { kind: 'veryTiredRhr' }
   | { kind: 'rampTooFast'; ramp: number }
   | { kind: 'pr'; bucket: string; when: 'today' | 'yesterday' }
@@ -56,11 +58,13 @@ export type Highlight =
   | { kind: 'none' };
 
 /**
- * The ONE fact a C1 row shows, by priority: very tired with high RHR, then building too
+ * The ONE fact a C1 row shows, by priority: the watch stopped sending (no number can be
+ * trusted then), very tired with high RHR, then building too
  * fast (ramp ≥ 9), a PR today or yesterday, a race within 7 days, no run for 7+ days.
  */
 export function readinessHighlight(input: {
   status: LoadStatus['kind'];
+  noFeed?: { feed: 'failed' | 'stale'; provider: 'garmin' | 'strava'; days: number | null } | null;
   form: number | null;
   ramp: number | null;
   rhrFlag: boolean;
@@ -69,6 +73,7 @@ export function readinessHighlight(input: {
   daysSinceRun?: number | null;
 }): Highlight {
   const ok = input.status === 'ok';
+  if (input.noFeed) return { kind: 'noFeed', feed: input.noFeed.feed, provider: input.noFeed.provider, days: input.noFeed.days };
   if (ok && input.form != null && formBand(input.form).key === 'veryTired' && input.rhrFlag) return { kind: 'veryTiredRhr' };
   if (ok && input.ramp != null && Math.round(input.ramp) >= 9) return { kind: 'rampTooFast', ramp: Math.round(input.ramp) };
   if (input.pr && input.pr.daysAgo >= 0 && input.pr.daysAgo <= 1) {

@@ -54,6 +54,16 @@ export function FormChip({ form, bandKey, status, gender }: {
           <b className="block text-[15px] font-black"><bdi dir="ltr">{signed(form)}</bdi></b>
           <span className="block text-[10.5px] font-bold">{t(bandKey, { gender: gender ?? 'other' })}</span>
         </>
+      ) : status.kind === 'noFeed' ? (
+        <>
+          <b className="block text-[12px] font-black">{t('noFeed')}</b>
+          <span className="block text-[10.5px] font-bold">{t('noFeedSub', { provider: status.provider })}</span>
+        </>
+      ) : status.kind === 'computing' ? (
+        <>
+          <b className="block text-[12px] font-black">{t('computing')}</b>
+          <span className="block text-[10.5px] font-bold">{t('computingSub')}</span>
+        </>
       ) : status.kind === 'learning' ? (
         <>
           <b className="block text-[13px] font-black">{t('learning')}</b>

@@ -125,8 +125,42 @@ export function pmcToday(series: PmcPoint[], today: string): PmcToday {
 
 export type LoadStatus =
   | { kind: 'ok' }
-  | { kind: 'learning'; daysLeft: number; daysSeen: number }
-  | { kind: 'insufficient' };
+  /**
+   * `cause: 'unpriced'`: the trainee has run for longer than this, but the older runs
+   * could not be priced (no test then, and no resting HR from the watch for the HR
+   * estimate), so the days count from the first run that could. Said as such, never as
+   * "new here".
+   */
+  | { kind: 'learning'; daysLeft: number; daysSeen: number; cause?: 'new' | 'unpriced' }
+  | { kind: 'insufficient' }
+  /** Runs still waiting to be priced: a number now would be missing the newest of them. */
+  | { kind: 'computing'; pending: number }
+  /** The watch stopped sending (credential refused, or no sync for days): no number. */
+  | { kind: 'noFeed'; feed: 'failed' | 'stale'; provider: 'garmin' | 'strava'; days: number | null };
+
+/** What can withhold the numbers whatever the rows say. */
+export interface StatusGate {
+  /** lib/academy/data-feed.ts `runFeed`. */
+  feed?: { kind: string; provider?: 'garmin' | 'strava'; days?: number | null } | null;
+  /** Activities not priced yet (load-server's `pending`). */
+  pending?: number;
+}
+
+/**
+ * The status after the gate: a broken feed first (the history simply ends, so every
+ * number decays toward "fresh"), then runs still being priced.
+ */
+export function gateStatus(status: LoadStatus, gate?: StatusGate | null): LoadStatus {
+  const feed = gate?.feed;
+  if (feed && (feed.kind === 'failed' || feed.kind === 'stale') && feed.provider) {
+    return { kind: 'noFeed', feed: feed.kind, provider: feed.provider, days: feed.days ?? null };
+  }
+  if (gate?.pending && gate.pending > 0) return { kind: 'computing', pending: gate.pending };
+  return status;
+}
+
+/** Days between the first run and the first priced one that make "learning" a pricing gap, not a new trainee. */
+export const UNPRICED_HISTORY_DAYS = 14;
 
 /**
  * Whether the numbers mean anything yet.
@@ -139,7 +173,11 @@ export type LoadStatus =
  *   learning days are over. `not_run` (bike, swim, gym) is not a run and does not count
  *   either way.
  */
-export function loadStatus(rows: LoadRow[], today: string): LoadStatus {
+export function loadStatus(rows: LoadRow[], today: string, gate?: StatusGate | null): LoadStatus {
+  return gateStatus(rowStatus(rows, today), gate);
+}
+
+function rowStatus(rows: LoadRow[], today: string): LoadStatus {
   const windowFrom = shiftDate(today, -LEARNING_DAYS);
   let first: string | null = null;
   let firstRun: string | null = null;
@@ -157,7 +195,10 @@ export function loadStatus(rows: LoadRow[], today: string): LoadStatus {
   const start = first ?? firstRun;
   if (!start) return { kind: 'learning', daysLeft: LEARNING_DAYS, daysSeen: 0 };
   const daysSeen = daysBetween(start, today);
-  if (daysSeen < LEARNING_DAYS) return { kind: 'learning', daysLeft: LEARNING_DAYS - daysSeen, daysSeen };
+  if (daysSeen < LEARNING_DAYS) {
+    const cause = first && firstRun && daysBetween(firstRun, first) >= UNPRICED_HISTORY_DAYS ? 'unpriced' : 'new';
+    return { kind: 'learning', daysLeft: LEARNING_DAYS - daysSeen, daysSeen, cause };
+  }
   if (!first) return { kind: 'insufficient' };
   if (runs > 0 && unpriced / runs > INSUFFICIENT_SHARE) return { kind: 'insufficient' };
   return { kind: 'ok' };

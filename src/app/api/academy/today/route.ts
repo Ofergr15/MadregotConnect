@@ -15,6 +15,8 @@ import { isRunType, shiftDate } from '@/lib/academy/load';
 import { athleteLoads, BACKFILL_DAYS } from '@/lib/academy/load-server';
 import { loadCoachRows, loadGoalCharacterization, loadTraineeUnread } from '@/lib/academy/me-reads';
 import type { TestInvitation } from '@/lib/academy/testInvite';
+import { loadAthleteFeeds } from '@/lib/academy/data-feed-server';
+import { loadTestState } from '@/lib/academy/test-state';
 import {
   buildTraineeToday, EVENING_LOOKAHEAD_HOUR, invitationSlot, todayRace, type TraineeToday,
 } from '@/lib/academy/trainee-today';
@@ -82,7 +84,7 @@ export async function GET(request: Request) {
 
     const [
       coaches, unread, paceUpdate, characterization, bandRes, loads, plansRes, groupsRes, laneRefs,
-      deliveriesRes, nightsRes, inviteRes, actsRes,
+      deliveriesRes, nightsRes, inviteRes, actsRes, feeds, testState,
     ] = await Promise.all([
       loadCoachRows(supabase, athleteId, me.academy_coach_id ?? null),
       loadTraineeUnread(athleteId),
@@ -110,10 +112,14 @@ export async function GET(request: Request) {
         .lte('workout_date', days[days.length - 1]),
       supabase
         .from('athlete_wellness')
-        .select('date, sleep_seconds, resting_hr')
+        .select('date, sleep_seconds, resting_hr, fetched_at')
         .eq('athlete_id', athleteId)
         .gte('date', shiftDate(today, -NIGHTS))
-        .lte('date', today),
+        .lte('date', today)
+        .then(res => (res.error && isMissingColumn(res.error)
+          ? supabase.from('athlete_wellness').select('date, sleep_seconds, resting_hr').eq('athlete_id', athleteId)
+            .gte('date', shiftDate(today, -NIGHTS)).lte('date', today)
+          : res)),
       // The open invitation (migration 112; a missing table reads as none).
       supabase
         .from('academy_test_invitations')
@@ -128,6 +134,10 @@ export async function GET(request: Request) {
         .select('id, start_time, distance, activity_type')
         .eq('athlete_id', athleteId)
         .gte('start_time', `${shiftDate(today, -2)}T00:00:00Z`),
+      // Whether runs and nights still arrive, and whether a workout can reach the watch.
+      loadAthleteFeeds(supabase, athleteId),
+      // Every test, every protocol and status: "צריך טסט", "ממתין לאישור", "טסט ישן".
+      loadTestState(supabase, athleteId, today),
     ]);
 
     // ── The plan days ──
@@ -190,10 +200,14 @@ export async function GET(request: Request) {
       invitation,
       invitationDate: Number.isFinite(slotMs) ? israelToday(new Date(slotMs)) : null,
       hasUsableTest: tests.length > 0,
+      test: testState,
+      feed: { run: feeds.run, night: feeds.night },
+      canWatch: feeds.canWatch,
+      pending: loads.pending,
       loads: loads.rows,
       tests,
       nights: ((nightsRes.error ? [] : nightsRes.data) || []).map((n: any) => ({
-        date: String(n.date).slice(0, 10), sleep_seconds: n.sleep_seconds ?? null, resting_hr: n.resting_hr ?? null,
+        date: String(n.date).slice(0, 10), sleep_seconds: n.sleep_seconds ?? null, resting_hr: n.resting_hr ?? null, fetched_at: n.fetched_at ?? null,
       })),
       race,
       yesterdayTitle: cards[days[0]]?.title ?? null,

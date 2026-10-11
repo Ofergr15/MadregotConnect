@@ -6,9 +6,11 @@
  * it, the `hasTraineeCoachesTable` way:
  *   - with the table, a read first prices what is missing or stale (`ensureActivityLoads`,
  *     at most 300 a call, oldest first) and stores it, then reads the stored rows;
- *   - without it, the loads are computed in memory over the last 100 days of laps and
- *     splits (`FALLBACK_DAYS`) and nothing is written. Every screen still has numbers, and
- *     "learning" covers whatever 100 days cannot.
+ *   - without it, the loads are computed in memory over the SAME 400 days the stored path
+ *     keeps (`FALLBACK_DAYS = BACKFILL_DAYS`) and nothing is written. A shorter window seeds
+ *     fitness at 0 a few months back and reads a long-history trainee several points
+ *     fresher than the stored path (heavy: −7 vs −2), so the numbers would jump on the
+ *     day 142 is pasted.
  * Under view-as (`write: false`) the missing rows are priced in memory and never stored.
  *
  * The ingest paths (Garmin sync, Strava webhook, Apple upload, manual) are untouched: a
@@ -40,8 +42,12 @@ export const ACTIVITY_LOADS_TABLE = 'activity_loads';
 
 /** How far back a stored history reaches. */
 export const BACKFILL_DAYS = 400;
-/** Without migration 142: how far back the in-memory pricing reads laps. */
-export const FALLBACK_DAYS = 100;
+/** Without migration 142: how far back the in-memory pricing reads laps — the stored path's window. */
+export const FALLBACK_DAYS = BACKFILL_DAYS;
+/** A screen prices at most this many rounds of MAX_NEW before it says "still computing". */
+export const SCREEN_ROUNDS = 3;
+/** Trainees priced side by side on a coach's board: a 41-trainee fan-out hung up sockets. */
+export const FAN_OUT = 4;
 /** At most this many activities priced per call (the rest wait for the next read or the sweep). */
 export const MAX_NEW = 300;
 /** Activities whose laps/splits are read in one query. */
@@ -71,20 +77,70 @@ export interface ActivityLoadRow {
 
 const tableSeen = new WeakMap<object, Promise<boolean>>();
 
-/** Is migration 142 there? Memoised per client, i.e. per request. */
+/** A read that failed for a reason other than a missing table or column: worth one more try. */
+export const isTransient = (error: unknown): boolean =>
+  !!error && !isMissingTable(error) && !isMissingColumn(error);
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+/**
+ * One PostgREST read, tried up to 3 times on a transient error (a socket hang-up, a
+ * timeout). A missing table or column answers at once: that is schema, not the network.
+ */
+export async function withRetry<T extends { error: unknown }>(read: () => PromiseLike<T>, tries = 3): Promise<T> {
+  let last: T | null = null;
+  for (let i = 0; i < tries; i += 1) {
+    try {
+      last = await read();
+    } catch (err) {
+      last = { data: null, error: err } as unknown as T;
+    }
+    if (!isTransient(last.error)) return last;
+    if (i < tries - 1) await sleep(150 * (i + 1));
+  }
+  return last as T;
+}
+
+/** `fn` over `items`, at most `limit` at a time, results in order. */
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, i: number) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+/**
+ * Is migration 142 there? Memoised per client, i.e. per request. Only a missing table
+ * says no: a probe that hung up is tried again, and if it keeps failing the read throws —
+ * a network error must never quietly switch the screen to the in-memory path (that gave
+ * C1 different numbers from one refresh to the next).
+ */
 export function hasActivityLoadsTable(supabase: Db): Promise<boolean> {
   const memo = tableSeen.get(supabase);
   if (memo) return memo;
   const probe = (async () => {
-    try {
-      const { error } = await supabase.from(ACTIVITY_LOADS_TABLE).select('activity_id').limit(1);
-      return !error;
-    } catch {
-      return false;
-    }
+    const { error } = await withRetry(() => supabase.from(ACTIVITY_LOADS_TABLE).select('activity_id').limit(1));
+    if (!error) return true;
+    if (isMissingTable(error)) return false;
+    tableSeen.delete(supabase);
+    throw new LoadReadError('activity_loads probe', error);
   })();
   tableSeen.set(supabase, probe);
   return probe;
+}
+
+/** A load read that kept failing: the route answers an error instead of a different number. */
+export class LoadReadError extends Error {
+  constructor(what: string, public cause: unknown) {
+    super(`${what} failed: ${(cause as { message?: string } | null)?.message ?? String(cause)}`);
+    this.name = 'LoadReadError';
+  }
 }
 
 // ── Inputs ─────────────────────────────────────────────────────────────────────────────
@@ -141,12 +197,15 @@ async function readNights(supabase: Db, athleteIds: string[], since: string): Pr
   const out = new Map<string, Array<{ date: string; resting_hr: number | null }>>();
   if (!athleteIds.length) return out;
   try {
-    const { data, error } = await supabase
+    // Paged: a coach's trainees over 430 days are far past PostgREST's 1,000-row cap.
+    const { data, error } = await readAll<any>((from, to) => supabase
       .from('athlete_wellness')
       .select('athlete_id, date, resting_hr')
       .in('athlete_id', athleteIds)
       .gte('date', since)
-      .order('date', { ascending: true });
+      .order('date', { ascending: true })
+      .order('athlete_id', { ascending: true })
+      .range(from, to));
     if (error || !data) return out;
     for (const r of data as any[]) {
       const arr = out.get(r.athlete_id) || [];
@@ -157,11 +216,15 @@ async function readNights(supabase: Db, athleteIds: string[], since: string): Pr
   return out;
 }
 
-/** Every page of a list query, `size` rows at a time. */
-async function readAll<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>, size = LIST_PAGE): Promise<{ data: T[]; error: unknown }> {
+/**
+ * Every page of a list query, `size` rows at a time, each page retried on a transient
+ * error. The query must have a total order (a unique last sort key), or rows that tie
+ * across a page boundary are read twice or not at all.
+ */
+export async function readAll<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>, size = LIST_PAGE): Promise<{ data: T[]; error: unknown }> {
   const all: T[] = [];
   for (let from = 0; ; from += size) {
-    const { data, error } = await page(from, from + size - 1);
+    const { data, error } = await withRetry(() => page(from, from + size - 1));
     if (error) return { data: all, error };
     const rows = data || [];
     all.push(...rows);
@@ -170,6 +233,28 @@ async function readAll<T>(page: (from: number, to: number) => PromiseLike<{ data
 }
 
 interface LightAct { id: string; start_time: string; activity_type: string | null; max_hr: number | null; average_hr?: number | null }
+
+/**
+ * Of the activities stored as `pace_avg`, the ones that now carry laps or per-km splits
+ * (Strava sends laps after the run is first stored): their one-segment estimate is stale.
+ * Two or more entries, so a single whole-run lap still reads as the average. Only the
+ * second element of each array is selected, never the laps themselves.
+ */
+async function lapsArrived(supabase: Db, ids: string[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await withRetry(() => supabase
+      .from('athlete_activities')
+      .select('id, lap2:laps->1, split2:splits->1')
+      .in('id', ids.slice(i, i + 200)));
+    if (error) {
+      console.error('laps check for pace_avg loads failed:', error);
+      return out;
+    }
+    for (const r of (data || []) as any[]) if (r.lap2 != null || r.split2 != null) out.add(String(r.id));
+  }
+  return out;
+}
 
 /**
  * Max HR for the HR fallback: as of TODAY, over the last 180 days, for every run priced
@@ -216,6 +301,8 @@ function expectedBasis(act: { start_time: string; activity_type: string | null }
  * (stored with no basis, now there is one). A row from the stored `not_run` side only
  * goes stale with the formula.
  *
+ * `lapsNow`: a `pace_avg` row whose activity now has laps or splits (`lapsArrived`).
+ *
  * `hrNow`: the heart-rate basis (a max HR and a resting HR) exists today and this run
  * carries heart rate. A run stored as `none` before it existed — a new trainee's first two
  * runs, priced before a third gave a max — is priced again then, or "learning" would wait
@@ -225,10 +312,13 @@ export function isStale(
   row: { formula_version?: number | null; basis_test_date?: string | null; source?: string | null },
   expected: string | null,
   hrNow = false,
+  lapsNow = false,
 ): boolean {
   if ((Number(row.formula_version) || 0) < LOAD_VERSION) return true;
   if (row.source === 'not_run') return false;
   if (row.source === 'none' && hrNow) return true;
+  // Priced as one average segment, and the laps (or splits) have arrived since.
+  if (row.source === 'pace_avg' && lapsNow) return true;
   return (row.basis_test_date ? String(row.basis_test_date).slice(0, 10) : null) !== expected;
 }
 
@@ -288,38 +378,39 @@ export async function ensureActivityLoads(
       .eq('athlete_id', athleteId)
       .gte('start_time', `${since}T00:00:00Z`)
       .order('start_time', { ascending: true })
+      .order('id', { ascending: true })
       .range(from, to)),
     readAll<any>((from, to) => supabase
       .from(ACTIVITY_LOADS_TABLE)
       .select('activity_id, source, basis_test_date, formula_version')
       .eq('athlete_id', athleteId)
+      .order('activity_id', { ascending: true })
       .range(from, to)),
     readNights(supabase, [athleteId], shiftDate(since, -RHR_DAYS)),
   ]);
   if (existingRes.error) {
-    if (!isMissingTable(existingRes.error)) console.error('activity_loads read failed:', existingRes.error);
-    return { rows: [], pending: 0, wrote: 0, stored: false };
+    if (isMissingTable(existingRes.error)) return { rows: [], pending: 0, wrote: 0, stored: false };
+    throw new LoadReadError('activity_loads read', existingRes.error);
   }
-  if (listRes.error) {
-    console.error('activity list for loads failed:', listRes.error);
-    return { rows: [], pending: 0, wrote: 0, stored: true };
-  }
+  if (listRes.error) throw new LoadReadError('activity list for loads', listRes.error);
 
   const tests = testsBy[athleteId] || [];
   const existing = new Map<string, any>(existingRes.data.map((r: any) => [String(r.activity_id), r]));
   const maxHr = maxHrNow(listRes.data, today);
   const nights = nightsBy.get(athleteId) || [];
   const hrBasis = maxHr != null && nights.some(n => Number(n.resting_hr) > 0);
+  const averaged = listRes.data.filter(a => existing.get(String(a.id))?.source === 'pace_avg').map(a => String(a.id));
+  const withLaps = averaged.length ? await lapsArrived(supabase, averaged) : new Set<string>();
   const todo = listRes.data.filter((a) => {
     const row = existing.get(String(a.id));
-    return !row || isStale(row, expectedBasis(a, tests), hrBasis && Number(a.average_hr) > 0);
+    return !row || isStale(row, expectedBasis(a, tests), hrBasis && Number(a.average_hr) > 0, withLaps.has(String(a.id)));
   });
   const batch = opts.newestFirst ? todo.slice(Math.max(0, todo.length - maxNew)) : todo.slice(0, maxNew);
 
   const rows: ActivityLoadRow[] = [];
   for (let i = 0; i < batch.length; i += PAGE) {
     const ids = batch.slice(i, i + PAGE).map(a => a.id);
-    const { data, error } = await supabase.from('athlete_activities').select(HEAVY_COLUMNS).in('id', ids);
+    const { data, error } = await withRetry(() => supabase.from('athlete_activities').select(HEAVY_COLUMNS).in('id', ids));
     if (error) {
       console.error('activity laps for loads failed:', error);
       break;
@@ -370,9 +461,10 @@ async function computeInMemory(supabase: Db, athleteIds: string[], since: string
       .in('athlete_id', athleteIds)
       .gte('start_time', `${from}T00:00:00Z`)
       .order('start_time', { ascending: true })
+      .order('id', { ascending: true })
       .range(a, b), PAGE),
   ]);
-  if (actsRes.error) console.error('activities for in-memory loads failed:', actsRes.error);
+  if (actsRes.error) throw new LoadReadError('activities for in-memory loads', actsRes.error);
   const out: ActivityLoadRow[] = [];
   for (const id of athleteIds) {
     const acts = actsRes.data.filter((a: any) => a.athlete_id === id);
@@ -400,6 +492,7 @@ export async function loadDailyRows(
       .in('athlete_id', athleteIds)
       .gte('activity_date', since)
       .order('activity_date', { ascending: true })
+      .order('activity_id', { ascending: true })
       .range(from, to));
     if (!error) {
       return {
@@ -413,7 +506,9 @@ export async function loadDailyRows(
         })),
       };
     }
-    console.error('activity_loads read failed:', error);
+    // The table is there and the read kept failing: an error, never the in-memory numbers
+    // (which would differ, and differ from the next refresh).
+    if (!isMissingTable(error)) throw new LoadReadError('activity_loads read', error);
   }
   return { rows: (await computeInMemory(supabase, athleteIds, since, today)).map(toDaily), stored: false };
 }
@@ -431,10 +526,20 @@ export async function athleteLoads(
   const today = opts.today ?? israelToday();
   const tests = (await loadTestsFor(supabase, [athleteId]))[athleteId] || [];
   if (await hasActivityLoadsTable(supabase)) {
-    const ensured = await ensureActivityLoads(supabase, athleteId, { write: opts.write, today, tests });
+    // A long history is priced in rounds (MAX_NEW each, oldest first) until nothing is
+    // left, so the first open of a 380-run trainee is not read off its oldest 300 runs.
+    // Under view-as nothing is stored, so one round prices the same rows each time:
+    // the leftovers then stay `pending` and the screen says it is still computing.
+    const priced: ActivityLoadRow[] = [];
+    let ensured = await ensureActivityLoads(supabase, athleteId, { write: opts.write, today, tests });
+    priced.push(...ensured.rows);
+    for (let round = 1; opts.write && ensured.pending > 0 && ensured.wrote > 0 && round < SCREEN_ROUNDS; round += 1) {
+      ensured = await ensureActivityLoads(supabase, athleteId, { write: true, today, tests });
+      priced.push(...ensured.rows);
+    }
     const { rows, stored } = await loadDailyRows(supabase, [athleteId], opts.since, { today });
     if (stored) {
-      const fresh = new Map(ensured.rows.filter(r => r.date >= opts.since).map(r => [r.activityId, toDaily(r)]));
+      const fresh = new Map(priced.filter(r => r.date >= opts.since).map(r => [r.activityId, toDaily(r)]));
       const merged = rows.filter(r => !fresh.has(r.activityId)).concat([...fresh.values()]);
       merged.sort((a, b) => a.date.localeCompare(b.date));
       return { rows: merged, tests, stored: true, pending: ensured.pending };
@@ -472,10 +577,17 @@ export async function sweepActivityLoads(
       break;
     }
     try {
-      const r = await ensureActivityLoads(supabase, id, { write: true });
-      result.athletes += 1;
+      // Until this athlete is settled or the budget is spent — a heavy history used to
+      // stop at one call's MAX_NEW and leave its newest runs for tomorrow night.
+      let r = await ensureActivityLoads(supabase, id, { write: true });
       result.priced += r.wrote;
+      while (r.pending > 0 && r.wrote > 0 && now() - start < opts.budgetMs) {
+        r = await ensureActivityLoads(supabase, id, { write: true });
+        result.priced += r.wrote;
+      }
+      result.athletes += 1;
       result.pending += r.pending;
+      if (r.pending > 0) result.timedOut = now() - start >= opts.budgetMs;
     } catch (err) {
       console.error('activity load sweep failed for', id, err);
     }

@@ -4126,8 +4126,19 @@
         "learning": "Learning you, {n, plural, one {one more day} other {<m>#</m> more days}}",
         "learningSay": "After <m>{total}</m> days of runs, one number and one word appear here. Until then, just run the plan.",
         "insufficient": "Not enough data",
-        "insufficientSay": "Some recent runs have neither pace nor heart rate, so this can't be computed. Running with your watch fixes it.",
-        "bandsLabel": "Where you are on the scale"
+        "insufficientSay": "Some recent runs have no heart rate, and without a test their pace cannot be priced. A test, or running with heart rate, fixes it.",
+        "bandsLabel": "Where you are on the scale",
+        "noFeed": {
+          "failed": "{provider, select, strava {Strava is disconnected} other {Garmin is disconnected}}",
+          "stale": "{provider, select, strava {No runs from Strava} other {No data from Garmin}} for {n, plural, one {a day} other {<m>#</m> days}}",
+          "traineeSay": "{feed, select, failed {Without the new runs there is no honest number. Reconnect in your profile and the runs will arrive.} other {Without the new runs there is no honest number. It comes back once the watch syncs.}}",
+          "coachSay": "{feed, select, failed {New runs are not arriving, so there is no honest number. They need to reconnect in their profile.} other {New runs are not arriving, so there is no honest number until the watch syncs.}}",
+          "reconnect": "Reconnect in your profile"
+        },
+        "computing": "Pricing your runs",
+        "computingSay": "{n, plural, one {One more run in line.} other {<m>#</m> more runs in line.}} The number appears once they are all priced, next time you open.",
+        "learningUnpricedSay": "Your older runs are not counted: there was no test for them, and the watch sends no resting HR to estimate from. The count starts at the first run that can be priced.",
+        "noPlanSay": "Next week's plan is not published yet, so there is nothing to say about the day yet."
       },
       "body": {
         "sleep": "😴 Sleep",
@@ -4135,7 +4146,18 @@
         "inRange": "Within your range",
         "yesterday": "Yesterday",
         "on": "on <m>{date}</m>",
-        "label": "Sleep and resting HR against your range"
+        "label": "Sleep and resting HR against your range",
+        "missing": {
+          "noGarmin": "Sleep and resting HR come only from Garmin",
+          "noGarminSub": "Without a connected Garmin there is no night data",
+          "neverWorn": "No sleep or heart-rate data from the watch",
+          "neverWornSub": "Sleep with the watch on",
+          "notMeasured": "{kind, select, sleep {The watch doesn't record sleep, or isn't worn at night} other {The watch doesn't record resting HR, or isn't worn at night}}",
+          "old": "No new night since <m>{date}</m>",
+          "partial": "Last night arrived cut short. It updates later today",
+          "feedFailed": "Garmin is disconnected. Reconnect in your profile",
+          "feedStale": "No data from Garmin for {n, plural, one {a day} other {<m>#</m> days}}"
+        }
       },
       "race": {
         "title": "<bdi>{name}</bdi> · {n, plural, =0 {race day} =1 {one day to go} other {<m>#</m> days to go}}",
@@ -4154,10 +4176,11 @@
       "open": "Open the workout",
       "openDone": "See the workout",
       "openTomorrow": "See tomorrow's workout",
-      "noPlan": "This week isn't published yet",
-      "noPlanSay": "Once your coach publishes the week, today's workout shows up here.",
+      "noPlan": "{week, select, next {Next week isn't published yet} other {This week isn't published yet}}",
+      "noPlanSay": "{when, select, tomorrow {When the coach publishes the week, tomorrow's workout appears here.} other {When the coach publishes the week, today's workout appears here.}}",
       "error": "Couldn't load today. Try again in a moment.",
-      "loading": "Loading…"
+      "loading": "Loading…",
+      "needsTest": "{state, select, pending {Your test is waiting for the coach to approve it. Your pace and load appear after.} otherProtocol {A 30-minute test is needed to work out pace and load. A 2000 m test is not enough for it.} other {A test is needed to work out pace and load.}}"
     },
     "club": {
       "rest": "Rest today",
@@ -4644,7 +4667,11 @@
       "learning": "Learning",
       "learningDays": "<m>{n}</m> days to go",
       "insufficient": "Not enough",
-      "insufficientSub": "data"
+      "insufficientSub": "data",
+      "noFeed": "No data",
+      "noFeedSub": "{provider, select, strava {from Strava} other {from Garmin}}",
+      "computing": "Pricing",
+      "computingSub": "runs"
     },
     "highlight": {
       "veryTiredRhr": "❤️ {gender, select, other {Very tired}}, and the HR is above the range",
@@ -4660,7 +4687,9 @@
       "raceUnnamed": "🏁 Race {when}",
       "noRun": "{gender, select, other {No run}} for <m>{n}</m> days",
       "week": "<m>{done}</m> of <m>{planned}</m> this week",
-      "weekNone": "No plan this week"
+      "weekNone": "No plan this week",
+      "noFeedFailed": "⌚ {provider, select, strava {Strava disconnected} other {Garmin disconnected}}",
+      "noFeedStale": "⌚ {provider, select, strava {No runs from Strava} other {No Garmin data}} for {n, plural, one {a day} other {<m>#</m> days}}"
     },
     "when": {
       "today": "today",

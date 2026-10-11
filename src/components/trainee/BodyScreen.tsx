@@ -8,6 +8,7 @@ import { SkeletonList } from '@/components/ui';
 import type { BodyMetric, BodyPayload, MetricPanel } from '@/lib/academy/body';
 import { fmtSleep, isLearning, verdictKey } from '@/lib/academy/normal-range';
 import { FACES } from './FeelAndTalk';
+import { missingText } from './BodyChips';
 import { RangeChart } from './RangeChart';
 import { C, CARD, RICH, Segmented, Tag, dm } from './ui';
 
@@ -22,7 +23,7 @@ import { C, CARD, RICH, Segmented, Tag, dm } from './ui';
 //
 // A morning not synced yet is not "this morning": the newest stored one is named by its date.
 
-type BodyResponse = BodyPayload & { today: string };
+type BodyResponse = BodyPayload & { today: string; source?: 'garmin' | 'none' };
 
 export function BodyScreen({ athleteId, coachName }: { athleteId: string; coachName: string | null }) {
   const t = useTranslations('trainee.body');
@@ -47,10 +48,12 @@ export function BodyScreen({ athleteId, coachName }: { athleteId: string; coachN
     const range = rangeText(p, kind);
     const value = p.latest ? (kind === 'sleep' ? fmtSleep(p.latest.value) : String(p.latest.value)) : null;
     const bad = kind === 'rhr' ? p.verdict === 'bitHigh' || p.verdict === 'high' : p.verdict === 'less' || p.verdict === 'veryLittle';
+    // What is missing, and what will bring it — never "no data yet" forever.
+    const why = p.missing ? missingText(tt, kind, p.missing) : null;
     return (
       <Row emoji={kind === 'rhr' ? '❤️' : '😴'}
         title={value ? t.rich(kind, { ...RICH, n: value, v: value }) : t(`${kind}None`)}
-        sub={!p.latest ? t('noNights') : (
+        sub={why && (!p.latest || p.missing?.reason !== 'old') ? <>{why.title}{why.sub && <> · {why.sub}</>}</> : !p.latest ? t('noNights') : (
           <>
             {p.isToday ? t(kind === 'rhr' ? 'rhrToday' : 'sleepToday') : t.rich('ofDate', { ...RICH, date: dm(p.latest.date) })}
             {' · '}
@@ -100,7 +103,9 @@ export function BodyScreen({ athleteId, coachName }: { athleteId: string; coachN
               </div>
             </>
           ) : (
-            <p className="mt-2 text-13 text-ink-400">{t('noNights')}</p>
+            <p className="mt-2 text-13 text-ink-400">
+              {data[shown].missing ? missingText(tt, shown, data[shown].missing!).title : t('noNights')}
+            </p>
           )}
         </div>
       ) : (
@@ -133,7 +138,13 @@ export function BodyScreen({ athleteId, coachName }: { athleteId: string; coachN
         </div>
       )}
 
-      <p className="text-center text-[12.5px] font-bold text-ink-400">{t('footer')}</p>
+      {/* Where the nights come from — said only when it is true (Garmin connected and sending). */}
+      <p className="text-center text-[12.5px] font-bold text-ink-400">
+        {data.source === 'none' ? tt('trainee.home.body.missing.noGarmin')
+          : data.rhr.missing?.reason === 'feed' ? missingText(tt, 'rhr', data.rhr.missing).title
+            : data.rhr.missing?.reason === 'neverWorn' ? `${tt('trainee.home.body.missing.neverWorn')}. ${tt('trainee.home.body.missing.neverWornSub')}`
+              : t('footer')}
+      </p>
     </div>
   );
 }

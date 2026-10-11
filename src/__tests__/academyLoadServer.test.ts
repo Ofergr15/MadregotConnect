@@ -184,7 +184,7 @@ describe('ensureActivityLoads', () => {
 });
 
 describe('before migration 142', () => {
-  it('detects the missing table and computes in memory over 100 days, writing nothing', async () => {
+  it('detects the missing table and computes in memory over the stored path\'s 400 days, writing nothing (issue 7)', async () => {
     const db = setup({ withTable: false });
     db.tables.academy_tests.push(test30(db.athlete, '2026-01-01', 7143));
     addRun(db, shiftDate(TODAY, -150));
@@ -193,7 +193,8 @@ describe('before migration 142', () => {
     expect(await hasActivityLoadsTable(db.client)).toBe(false);
     const { rows, stored } = await loadDailyRows(db.client, [db.athlete], shiftDate(TODAY, -400), { today: TODAY });
     expect(stored).toBe(false);
-    expect(rows.map(r => r.date)).toEqual([shiftDate(TODAY, -40), shiftDate(TODAY, -2)]);
+    // The same window the stored path keeps: a 150-day-old run is in it, as it would be stored.
+    expect(rows.map(r => r.date)).toEqual([shiftDate(TODAY, -150), shiftDate(TODAY, -40), shiftDate(TODAY, -2)]);
     expect(rows.every(r => r.source === 'pace' && r.load! > 0)).toBe(true);
     expect(db.log.some(l => l.op === 'upsert' || l.op === 'insert')).toBe(false);
     const heavy = db.log.find(l => l.table === 'athlete_activities' && l.columns?.includes('laps'));
@@ -289,3 +290,31 @@ describe('rhrOn', () => {
 function israelDay() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
+
+describe('a long history on its first open (issue 4)', () => {
+  it('athleteLoads prices round after round until nothing is pending, so the first number is the settled one', async () => {
+    const db = setup();
+    db.tables.academy_tests.push(test30(db.athlete, '2025-01-01', 7143));
+    for (let d = 1; d <= 380; d += 1) addRun(db, shiftDate(TODAY, -d));
+    const r = await athleteLoads(db.client, db.athlete, { since: shiftDate(TODAY, -400), write: true, today: TODAY });
+    expect(r.pending).toBe(0);
+    expect(r.rows).toHaveLength(380);
+    expect(db.tables.activity_loads).toHaveLength(380);
+  });
+
+  it('under view-as one round is priced and the rest stays pending (the screen says it is computing)', async () => {
+    const db = setup();
+    db.tables.academy_tests.push(test30(db.athlete, '2025-01-01', 7143));
+    for (let d = 1; d <= 380; d += 1) addRun(db, shiftDate(TODAY, -d));
+    const r = await athleteLoads(db.client, db.athlete, { since: shiftDate(TODAY, -400), write: false, today: TODAY });
+    expect(r.pending).toBe(80);
+  });
+
+  it('the nightly sweep settles a heavy history in one run instead of stopping at one call', async () => {
+    const db = setup();
+    db.tables.academy_tests.push(test30(db.athlete, '2025-01-01', 7143));
+    for (let d = 1; d <= 380; d += 1) addRun(db, shiftDate(TODAY, -d));
+    const r = await sweepActivityLoads(db.client, { athletes: [db.athlete], budgetMs: 60_000 });
+    expect(r).toMatchObject({ athletes: 1, priced: 380, pending: 0, timedOut: false });
+  });
+});

@@ -141,6 +141,8 @@ export function HighlightLine({ row, today }: { row: Pick<ReadinessRow, 'highlig
   const h = row.highlight;
   const gender = row.gender ?? 'other';
   switch (h.kind) {
+    case 'noFeed':
+      return <>{h.feed === 'failed' ? t('noFeedFailed', { provider: h.provider }) : t.rich('noFeedStale', { ...M, provider: h.provider, n: h.days ?? 0 })}</>;
     case 'veryTiredRhr':
       return <>{t('veryTiredRhr', { gender })}</>;
     case 'rampTooFast':

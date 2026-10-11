@@ -79,6 +79,8 @@ export function dayCards(input: DayCardsInput): { cards: Record<string, TodayCar
       onWatch: input.onWatch.has(date),
       expectedLoad: T ? plannedLoad(steps, T, opts) : null,
       done: input.doneOn(date),
+      // No test: the steps are the plan's shape at a lane's paces, not the trainee's.
+      ownPace: newest != null,
     });
   }
   return { cards, planWeeks };

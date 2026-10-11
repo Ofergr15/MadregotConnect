@@ -6,11 +6,12 @@ import { filterQualifyingRuns } from '@/lib/prs/pr-buckets';
 import { daysBetween, shiftDate } from './load';
 import {
   dailyLoads, loadStatus, loadWeeks, pmcSeries, pmcToday, pointOn, projectSeries, weekStartOf,
-  type DailyLoad, type LoadRow, type LoadStatus, type PmcPoint,
+  type DailyLoad, type LoadRow, type LoadStatus, type PmcPoint, type StatusGate,
 } from './pmc';
 import { formBand, isHeavyWeek, rampWord, type FormBandKey, type RampWordKey } from './form-bands';
 import { isLearning, type RangeResult, type WellnessNight } from './normal-range';
 import { buildBodyPayload } from './body';
+import type { DataFeed } from './data-feed';
 import {
   projectionVerdict, readinessGate, readinessHighlight, type GateReason, type Highlight,
 } from './readiness';
@@ -60,8 +61,8 @@ export interface Pmc {
  * קל" for a week the coach planned easy, exactly as the trainee's own screens do
  * (load-payload.ts) — the coach sees the same numbers and the same words.
  */
-export function pmcOf(rows: LoadRow[], today: string, opts: { plannedByWeek?: Record<string, number | undefined> } = {}): Pmc {
-  const status = loadStatus(rows, today);
+export function pmcOf(rows: LoadRow[], today: string, opts: { plannedByWeek?: Record<string, number | undefined>; gate?: StatusGate | null } = {}): Pmc {
+  const status = loadStatus(rows, today, opts.gate);
   const priced = rows.filter(r => r.load != null && r.date <= today).map(r => r.date).sort();
   const first = priced[0] ?? null;
   const y = shiftDate(today, -1);
@@ -220,10 +221,14 @@ export function buildReadinessInputs(input: {
   today: string;
   /** Planned load per Sunday week (`plannedWeeksFor`), for the easy-week ramp word. */
   plannedByWeek?: Record<string, number | undefined>;
+  /** The run feed and the runs not priced yet: either withholds the numbers (pmc.ts `gateStatus`). */
+  gate?: StatusGate | null;
+  /** The night feed (data-feed.ts `nightFeed`): a stopped watch's old nights are not judged. */
+  nightFeed?: DataFeed | null;
 }): { inputs: ReadinessInputs; series: PmcPoint[] } {
   const { today } = input;
-  const pmc = pmcOf(input.rows, today, { plannedByWeek: input.plannedByWeek });
-  const body = buildBodyPayload({ nights: input.nights, today, feedback: input.feedback });
+  const pmc = pmcOf(input.rows, today, { plannedByWeek: input.plannedByWeek, gate: input.gate });
+  const body = buildBodyPayload({ nights: input.nights, today, feedback: input.feedback, feed: input.nightFeed });
 
   const painFrom = shiftDate(today, -(PAIN_DAYS - 1));
   // `created_at` is a real instant (not an activity's local-as-UTC clock): its Israel day.
@@ -350,6 +355,7 @@ export function readinessRows(
     if (!i) return [];
     const highlight = readinessHighlight({
       status: i.status.kind,
+      noFeed: i.status.kind === 'noFeed' ? i.status : null,
       form: i.pmcToday?.form ?? null,
       ramp: i.pmcToday?.ramp ?? null,
       rhrFlag: t.athleteId === alertId ? false : i.rhr.streak.flag,

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { loadAthleteFeeds } from '@/lib/academy/data-feed-server';
 import { createServerClient } from '@/lib/supabase/server';
 import { israelToday } from '@/lib/utils';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
@@ -39,16 +40,18 @@ export async function GET(request: Request) {
 
     const supabase = createServerClient();
     const today = israelToday();
-    const [{ rows, tests, stored, pending }, raceDate] = await Promise.all([
+    const [{ rows, tests, stored, pending }, raceDate, feeds] = await Promise.all([
       athleteLoads(supabase, athleteId, { since: shiftDate(today, -BACKFILL_DAYS), write: !caller.viewingAsBy, today }),
       // Every range: screen 7 offers "עד המרוץ" only when there is a race.
       loadRaceDate(supabase, athleteId),
+      loadAthleteFeeds(supabase, athleteId),
     ]);
     // Every shown week's plan, and the 4 before: this week's dashed bar, and "שבוע קל" only
     // for a week the coach planned easy.
     const planned = await plannedLoads(supabase, athleteId, plannedWeeksFor(today), thresholdOn(today, tests)?.thresholdSec ?? null);
 
-    const payload = buildLoadPayload({ rows, tests, today, range, raceDate, plannedByWeek: planned.byWeek });
+    // A broken feed or runs still being priced withhold the numbers (pmc.ts gateStatus).
+    const payload = buildLoadPayload({ rows, tests, today, range, raceDate, plannedByWeek: planned.byWeek, gate: { feed: feeds.run, pending } });
     return NextResponse.json({ ...payload, stored, pending });
   } catch (error: unknown) {
     console.error('Academy load error:', error);

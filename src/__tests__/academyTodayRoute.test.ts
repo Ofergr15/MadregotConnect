@@ -202,11 +202,13 @@ describe('the day', () => {
       id: uid(), athlete_id: TRAINEE, protocol: '30min', proposed_slots: ['2026-10-20T03:30:00Z'], confirmed_slot: null, status: 'proposed', created_at: '2026-10-12T09:00:00Z',
     });
     const body = await (await get(`athleteId=${TRAINEE}`)).json();
-    expect(body.form).toEqual({ status: 'learning', daysSeen: 19, daysLeft: 23 });
+    expect(body.form).toEqual({ status: 'learning', daysSeen: 19, daysLeft: 23, cause: 'new' });
     expect(body.invitation).toEqual({ slot: '2026-10-20T03:30:00Z', status: 'proposed' });
     expect(body.yesterday).toMatchObject({ source: 'hr', km: 8 });
     expect(body.yesterday.load).toBeGreaterThan(0);
-    expect(body.card).toMatchObject({ kind: 'easy', paceSec: 370, expectedLoad: null });
+    // No test yet: the card names the session but prints no pace as theirs (issue 2).
+    expect(body.card).toMatchObject({ kind: 'easy', paceSec: null, paceBasis: 'none', expectedLoad: null });
+    expect(body.test).toEqual({ kind: 'none' });
   });
 
   it('under view-as the loads are priced in memory and nothing is written', async () => {

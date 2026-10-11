@@ -87,11 +87,20 @@ export interface LoadResult {
 const RUN_TYPES = new Set(PR_RUN_TYPES);
 
 /**
- * Is this a run? The same list PRs, weekly km and the leaderboards use (pr-buckets.ts).
- * An untyped activity counts as a run there too.
+ * Garmin running subtypes off pr-buckets' list. An ultra or an obstacle race is a run for
+ * the academy's load and grading: leaving them out made a trainee who logs trail ultras
+ * read "לומד אותך, עוד 6 ימים" after 40 days of runs.
+ */
+const EXTRA_RUN_TYPES = new Set(['ultra_run', 'obstacle_run', 'track_run', 'trail_run', 'virtual_running']);
+
+/**
+ * Is this a run? The list PRs, weekly km and the leaderboards use (pr-buckets.ts), plus
+ * the Garmin subtypes above and any other `*_running` key Garmin adds. An untyped activity
+ * counts as a run there too.
  */
 export function isRunType(type: string | null | undefined): boolean {
-  return !type || RUN_TYPES.has(type);
+  if (!type) return true;
+  return RUN_TYPES.has(type) || EXTRA_RUN_TYPES.has(type) || /_running$/.test(type);
 }
 
 const clampIf = (x: number) => Math.min(IF_MAX, Math.max(IF_MIN, x));

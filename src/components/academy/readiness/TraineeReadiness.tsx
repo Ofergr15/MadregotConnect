@@ -1,5 +1,6 @@
 'use client';
 
+import { useNoNumberText } from '@/components/trainee/NoNumberCard';
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronRight } from 'lucide-react';
@@ -210,13 +211,13 @@ function PaceCard({ data }: { data: ReadinessDetailResponse }) {
 }
 
 function LearningCard({ status }: { status: ReadinessDetailResponse['status'] }) {
-  const tf = useTranslations('trainee.home.form');
+  const noNumber = useNoNumberText();
+  if (status.kind === 'ok') return null;
+  const text = noNumber(status, 'coach');
   return (
     <div className={cn(CARD, 'px-4 py-3.5')}>
-      <p className="text-[16px] font-black text-ink-900">
-        {status.kind === 'learning' ? <>⏳ {tf.rich('learning', { ...M, n: status.daysLeft })}</> : tf('insufficient')}
-      </p>
-      {status.kind !== 'learning' && <p className="mt-1 text-[13px] leading-normal text-ink-500">{tf('insufficientSay')}</p>}
+      <p className="text-[16px] font-black text-ink-900">{text.icon} {text.title}</p>
+      <p className="mt-1 text-[13px] leading-normal text-ink-500">{text.say}</p>
     </div>
   );
 }

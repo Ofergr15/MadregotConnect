@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import type { TodayCard } from '@/lib/academy/trainee-today';
+import type { TestState } from '@/lib/academy/test-state';
 import { ProfileBar } from '@/components/academy/book/ui';
 import { RICH, SHADOW, StructureText, Tag, clock, km, weekdayOf } from './ui';
 
@@ -28,10 +29,18 @@ function Sub({ card, compact }: { card: TodayCard; compact?: boolean }) {
   );
 }
 
-export function TodayWorkoutCard({ card, when, coachName }: {
+/** The line in place of the pace and the minutes while there is no usable test. */
+export function NeedsTest({ test, className }: { test?: TestState | null; className?: string }) {
+  const t = useTranslations('trainee.home');
+  const state = test?.kind === 'pending' || test?.kind === 'otherProtocol' ? test.kind : 'none';
+  return <p className={cn('text-[13px] font-bold leading-snug text-[#A8510A]', className)}>🎯 {t('needsTest', { state })}</p>;
+}
+
+export function TodayWorkoutCard({ card, when, coachName, test }: {
   card: TodayCard;
   when: 'today' | 'tomorrow';
   coachName: string | null;
+  test?: TestState | null;
 }) {
   const t = useTranslations('trainee.home');
   const tb = useTranslations('workoutBook');
@@ -44,6 +53,7 @@ export function TodayWorkoutCard({ card, when, coachName }: {
       </div>
       <h2 className="mt-1.5 text-[28px] font-black leading-[1.15] text-ink-900"><StructureText text={card.title} /></h2>
       <p className="mt-[3px] text-[14.5px] text-ink-500"><Sub card={card} /></p>
+      {card.paceBasis === 'none' && <NeedsTest test={test} className="mt-1.5" />}
       {card.bar.length > 0 && card.kind === 'quality' && <ProfileBar segments={card.bar} height={30} className="mt-[11px]" palette="trainee" />}
       {card.note && (
         <p className="mt-[11px] rounded-xl bg-[#F7F7FA] px-[11px] py-2 text-[13.5px] leading-[1.45] text-ink-500">
@@ -55,11 +65,12 @@ export function TodayWorkoutCard({ card, when, coachName }: {
   );
 }
 
-export function RestCard({ date, when, next, prevKind }: {
+export function RestCard({ date, when, next, prevKind, test }: {
   date: string;
   when: 'today' | 'tomorrow';
   next: TodayCard | null;
   prevKind: TodayCard['kind'] | null;
+  test?: TestState | null;
 }) {
   const t = useTranslations('trainee.home');
   const tb = useTranslations('workoutBook');
@@ -81,6 +92,7 @@ export function RestCard({ date, when, next, prevKind }: {
             <Sub card={next} compact />
             {next.onWatch && <> · {t('onWatch')}</>}
           </p>
+          {next.paceBasis === 'none' && <NeedsTest test={test} className="mt-1" />}
           {next.bar.length > 0 && <ProfileBar segments={next.bar} height={16} className="mt-[7px]" palette="trainee" />}
         </div>
       )}

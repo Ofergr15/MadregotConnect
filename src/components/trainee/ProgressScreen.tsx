@@ -14,6 +14,7 @@ import { FitnessChart, FAT, FIT } from './FitnessChart';
 import { FormStrip } from './FormStrip';
 import { JourneyTiles } from './JourneyTiles';
 import type { HomeJourney } from '@/lib/academy/trainee-home';
+import { ReconnectLink, useNoNumberText } from './NoNumberCard';
 import { MetricSheet } from './MetricSheet';
 import { BAND_TILE, CARD, Chevron, RICH, SHADOW, Segmented, Tag, clock, monthName, type TagTone } from './ui';
 
@@ -162,7 +163,8 @@ export function ProgressScreen({ athleteId, gender, testsHref, bodyHref, journey
 /** In place of the numbers while the engine learns the trainee — the home's copy (1ג). */
 function LearningCard({ status }: { status: LoadPayload['status'] }) {
   const tf = useTranslations('trainee.home.form');
-  if (status.kind === 'learning') {
+  const noNumber = useNoNumberText();
+  if (status.kind === 'learning' && status.cause !== 'unpriced') {
     return (
       <div className={cn(CARD, 'px-4 py-3.5')}>
         <div className="flex items-baseline justify-between gap-2">
@@ -176,10 +178,13 @@ function LearningCard({ status }: { status: LoadPayload['status'] }) {
       </div>
     );
   }
+  if (status.kind === 'ok') return null;
+  const text = noNumber(status);
   return (
     <div className={cn(CARD, 'px-4 py-3.5')}>
-      <p className="text-[16px] font-black text-ink-900">{tf('insufficient')}</p>
-      <p className="mt-1 text-[13px] leading-normal text-ink-500">{tf('insufficientSay')}</p>
+      <p className="text-[16px] font-black text-ink-900">{text.icon} {text.title}</p>
+      <p className="mt-1 text-[13px] leading-normal text-ink-500">{text.say}</p>
+      {text.action && <ReconnectLink />}
     </div>
   );
 }

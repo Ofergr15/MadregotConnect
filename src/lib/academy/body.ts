@@ -1,8 +1,9 @@
 import { shiftDate } from './load';
 import {
-  RANGE_DAYS, isLearning, normalRange, rhrHighLine, rhrStreak, rhrVerdict, sleepVerdict,
-  type RangeResult, type RhrVerdict, type SleepVerdict, type WellnessNight,
+  FRESH_DAYS, RANGE_DAYS, cleanNights, isLearning, metricMissing, normalRange, plausible, rhrHighLine, rhrStreak, rhrVerdict, sleepVerdict,
+  type MetricMissing, type RangeResult, type RhrVerdict, type SleepVerdict, type WellnessNight,
 } from './normal-range';
+import type { DataFeed } from './data-feed';
 import { feelAverage, FEEL_RUNS } from './readiness';
 import { xAt } from '@/lib/charts/timeline';
 import { israelToday } from '@/lib/utils';
@@ -28,6 +29,12 @@ export interface MetricPanel {
   verdict: SleepVerdict | RhrVerdict | null;
   /** The 30 days the chart draws, oldest first, today included; missing mornings absent. */
   series: Array<{ date: string; value: number }>;
+  /**
+   * Why there is no fresh, judged value (normal-range.ts `metricMissing`): no Garmin, a
+   * broken connection, never worn at night, not measured, old, or a night cut short. An old
+   * or partial value still draws, without a verdict.
+   */
+  missing: MetricMissing | null;
 }
 
 export interface FeelPanel {
@@ -51,10 +58,10 @@ export interface BodyPayload {
   featured: BodyMetric;
 }
 
-function panel(nights: WellnessNight[], today: string, field: 'resting_hr' | 'sleep_seconds'): MetricPanel {
+function panel(nights: WellnessNight[], today: string, field: 'resting_hr' | 'sleep_seconds', feed?: DataFeed | null): MetricPanel {
   const from = shiftDate(today, -(RANGE_DAYS - 1));
   const recorded = nights
-    .filter(n => Number(n[field]) > 0 && n.date <= today)
+    .filter(n => plausible(field, n[field]) && n.date <= today)
     .sort((a, b) => a.date.localeCompare(b.date));
   const newest = recorded[recorded.length - 1] ?? null;
   // A morning older than the window is not "the latest" any more — it is no data.
@@ -62,7 +69,11 @@ function panel(nights: WellnessNight[], today: string, field: 'resting_hr' | 'sl
   // The range is the 30 days before the morning shown, so a late-synced night is judged
   // against the nights before it, not against itself.
   const range = normalRange(nights, latest?.date ?? today, field);
-  const verdict = latest
+  const missing = metricMissing(nights, today, field, feed);
+  // A night older than FRESH_DAYS, or one cut short, or any night on a connection that
+  // stopped, is not "✓ רגיל": it is drawn, and judged only when a fresh one arrives.
+  const judge = !!latest && !missing && latest.date >= shiftDate(today, -FRESH_DAYS);
+  const verdict = judge && latest
     ? field === 'resting_hr' ? rhrVerdict(latest.value, range) : sleepVerdict(latest.value, range)
     : null;
   return {
@@ -71,6 +82,7 @@ function panel(nights: WellnessNight[], today: string, field: 'resting_hr' | 'sl
     range,
     verdict,
     series: recorded.filter(n => n.date >= from).map(n => ({ date: n.date, value: Number(n[field]) })),
+    missing,
   };
 }
 
@@ -99,17 +111,25 @@ export function featuredMetric(p: Pick<BodyPayload, 'rhr' | 'sleep' | 'feel'>): 
 export function buildBodyPayload(input: {
   nights: WellnessNight[];
   today: string;
+  /** The night feed (data-feed.ts `nightFeed`); without it, Garmin is assumed. */
+  feed?: DataFeed | null;
   /**
    * workout_feedback rows, any order. `run_date` is the day of the run the answer is about
    * (its activity's local date); without it, the Israel day the answer was saved.
    */
   feedback: Array<{ feel?: number | null; difficulty?: number | null; created_at?: string | null; run_date?: string | null }>;
 }): BodyPayload {
-  const { nights, today } = input;
-  const rhrPanel = panel(nights, today, 'resting_hr');
-  // The streak runs over the window and the morning shown, oldest first.
-  const streak = rhrStreak(nights.filter(n => n.date <= today && n.date >= shiftDate(today, -RANGE_DAYS)), rhrPanel.range);
-  const sleep = panel(nights, today, 'sleep_seconds');
+  const { today } = input;
+  // A value no body produces (an RHR of 250, a 20-hour night) is a watch glitch: dropped
+  // before the range, the series and the axis (normal-range.ts `plausible`).
+  const nights = cleanNights(input.nights);
+  const rhrPanel = panel(nights, today, 'resting_hr', input.feed);
+  // The streak runs over the window and the morning shown, oldest first — and only on a
+  // connection still sending (a streak that ended when the watch went silent is history).
+  const streak = rhrPanel.missing?.reason === 'feed'
+    ? { flag: false, aboveRun: 0 }
+    : rhrStreak(nights.filter(n => n.date <= today && n.date >= shiftDate(today, -RANGE_DAYS)), rhrPanel.range);
+  const sleep = panel(nights, today, 'sleep_seconds', input.feed);
 
   // An answer is dated by its run: feedback typed the morning after still belongs to
   // yesterday's run. `created_at` is a real instant, so its fallback day is Israel's.
@@ -134,7 +154,7 @@ export function buildBodyPayload(input: {
   };
 
   const out = {
-    rhr: { ...rhrPanel, streak, advice: rhrAdvice(streak, rhrPanel.range) },
+    rhr: { ...rhrPanel, streak, advice: rhrPanel.verdict ? rhrAdvice(streak, rhrPanel.range) : null },
     sleep,
     feel,
   };
