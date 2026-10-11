@@ -78,9 +78,13 @@ export function clearMutedUnread(
   items: RawItem[],
   prefs: Record<string, boolean> | null | undefined,
   isStaff: boolean,
+  // The role too, as the badge passes it: the club account (CLUB_ACCOUNT_ROLE) has
+  // everything but management muted. Without it the bell said 0 while the inbox
+  // showed unread dots on every club-wide broadcast.
+  role?: string | null,
 ): RawItem[] {
   return items.map((it) =>
-    it.unread && isKindMuted(it.kind, prefs, isStaff) ? { ...it, unread: false } : it,
+    it.unread && isKindMuted(it.kind, prefs, isStaff, role) ? { ...it, unread: false } : it,
   );
 }
 

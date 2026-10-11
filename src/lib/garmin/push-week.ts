@@ -70,7 +70,7 @@ export async function pushWeekToAthlete({
    * before every session. On a two-a-day the per-session cleanup found the
    * morning run this same push had just created and deleted it off Garmin, so
    * only the evening reached the watch while both rows said success (feedback
-   * c2fc7174). True only when the super user sends, until it is rolled out.
+   * c2fc7174). Every sender passes true; false only reproduces the old bug.
    */
   cleanDayOnce?: boolean;
 }): Promise<PushResult> {
@@ -134,6 +134,32 @@ export async function pushWeekToAthlete({
             await garmin.deleteWorkout(old.garmin_workout_id);
           } catch {
             // best-effort — proceed to push the new one regardless
+          }
+        }
+      }
+
+      // The same session sent earlier on ANOTHER day — a custom week moved it
+      // (Wed→Mon) after the club week had gone out. The cleanup above only looks at
+      // the day it is going to now, so the Wednesday copy stayed on the watch beside
+      // the new Monday one. Found by its key, which a moved session keeps
+      // (originalKey, lib/plans/push-selection.ts); this push's own workouts are
+      // never touched.
+      if (planId && workout.workoutKey) {
+        const { data: elsewhere } = await supabase
+          .from('workout_deliveries')
+          .select('id, garmin_workout_id')
+          .eq('plan_id', planId)
+          .eq('athlete_id', athlete.id)
+          .eq('workout_key', workout.workoutKey)
+          .neq('workout_date', dateStr)
+          .not('garmin_workout_id', 'is', null)
+          .neq('garmin_workout_id', '');
+        for (const old of elsewhere || []) {
+          if (deliveredWorkoutIds.includes(old.garmin_workout_id)) continue;
+          try {
+            await garmin.deleteWorkout(old.garmin_workout_id);
+          } catch {
+            // best-effort, as above
           }
         }
       }

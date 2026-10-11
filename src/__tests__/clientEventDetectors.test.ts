@@ -286,6 +286,17 @@ describe('our own api answering 5xx', () => {
   it('never reports on its own endpoint, or a failing report reports itself', () => {
     expect(read('components/ClientEventReporter.tsx')).toMatch(/!p\.startsWith\('\/api\/client-events'\)/);
   });
+
+  // Every report used to come back 401: the route stores only a verified caller's
+  // events and the reporter sent no token (sendBeacon cannot carry one), so the
+  // five browser detectors ran nightly on an empty table and called it clean.
+  it('sends the session token with every report, including the one on the way out', () => {
+    const src = read('components/ClientEventReporter.tsx');
+    expect(src).toMatch(/bearerHeaders\(/);
+    expect(src).toMatch(/headers: \{ 'Content-Type': 'application\/json', \.\.\.auth \}/);
+    expect(src).not.toMatch(/navigator\.sendBeacon\(/);
+    expect(src).toMatch(/keepalive: true/);
+  });
 });
 
 describe('a run the data says is impossible', () => {

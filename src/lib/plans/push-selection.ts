@@ -29,6 +29,8 @@ export type PushSession = PushDayWorkout & {
   name?: string;
   /** Stable across all three pace-group variants — see ParsedWorkout. */
   workoutKey?: string;
+  /** The session's key in the club's week, kept through a custom week — see ParsedWorkout. */
+  originalKey?: string;
   partIndex?: number;
   partCount?: number;
 };
@@ -134,15 +136,20 @@ export function remapForAthlete<T extends PushSession>(
 ): T[] {
   if (!map || Object.keys(map).length === 0) return [...workouts];
   const out: T[] = [];
+  // Every session keeps the key it has in the club's week. The send's normalize
+  // rebuilds keys from the day and the parts on it, so without this a session moved
+  // Wed→Mon took Monday's key, and Monday's own session (two on one day now) was
+  // renumbered as well.
+  const keep = (w: T) => (w.workoutKey ? { ...w, originalKey: w.originalKey ?? w.workoutKey } : w);
   workouts.forEach((w, i) => {
     const to = map[sessionSlot(w, i)];
     if (to === undefined) {
-      out.push(w);
+      out.push(keep(w));
       return;
     }
     // Explicit null is "skip this one for them" — a real answer, not a gap.
     if (to === null) return;
-    out.push({ ...w, dayOfWeek: to });
+    out.push({ ...keep(w), dayOfWeek: to });
   });
   return out;
 }

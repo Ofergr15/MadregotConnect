@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { APP_VERSION } from '@/lib/version';
 import { MAX_BATCH, type ClientEventKind } from '@/lib/bugs/client-events';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
 /**
  * The half of the bug board that watches the browser.
@@ -76,25 +77,46 @@ export function ClientEventReporter() {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let disabled = false;        // set when the POST is refused, e.g. no session
 
+    // The session token, kept ready. /api/client-events only stores what a verified
+    // caller sends, and this used to post with no Authorization at all — every
+    // report in production came back 401 and nothing was ever stored, so the five
+    // browser detectors ran nightly on an empty table and called it clean. The
+    // header is fetched ahead of time because the last flush runs while the page
+    // is going away, when nothing can be awaited. Only the token: an error is the
+    // phone holder's, never the person an admin is viewing the app as.
+    let auth: Record<string, string> = {};
+    const refreshAuth = () =>
+      bearerHeaders(false)
+        .then(h => { auth = h.Authorization ? { Authorization: h.Authorization } : {}; })
+        .catch(() => undefined);
+    void refreshAuth();
+
     /** The path only. The query string is stripped HERE, before it can be sent. */
     const route = () => (path.current || window.location.pathname || '/').split('?')[0];
+
+    const post = (body: string) =>
+      fetch('/api/client-events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...auth },
+        body,
+        // On the way out of the page a normal fetch is cancelled with it — which is
+        // exactly when a crash report is most likely to exist. `keepalive` outlives
+        // the page the way sendBeacon does, and unlike sendBeacon it can carry the
+        // Authorization header the route needs.
+        keepalive: true,
+      });
 
     const flush = (beacon = false) => {
       if (!queue.length || disabled) return;
       const body = JSON.stringify({ events: queue.splice(0, MAX_BATCH) });
       try {
-        // On the way out of the page, a normal fetch is cancelled with it — which
-        // is exactly when a crash report is most likely to exist.
-        if (beacon && navigator.sendBeacon) {
-          navigator.sendBeacon('/api/client-events', new Blob([body], { type: 'application/json' }));
+        // Leaving: send now with the token already in hand.
+        if (beacon) {
+          void post(body).catch(() => undefined);
           return;
         }
-        void fetch('/api/client-events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body,
-          keepalive: true,
-        }).then(res => {
+        // Otherwise there is time to make sure the token is current first.
+        void refreshAuth().then(() => post(body)).then(res => {
           // 401 on the login page is the expected answer, not a problem: stop
           // trying for the rest of this page rather than posting into a 401 loop.
           if (res.status === 401 || res.status === 403) disabled = true;

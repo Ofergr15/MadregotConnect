@@ -25,7 +25,8 @@ export const dynamic = 'force-dynamic';
 // The writers in THIS file do clear it, since those are the edits somebody is
 // watching the result of.
 const MEMO_TTL_MS = 10_000;
-const memo = new Map<string, { body: unknown; expires: number }>();
+type GroupsBody = { groups: Array<{ athletes: Array<{ email: string | null }> }>; academyCount: number | null };
+const memo = new Map<string, { body: GroupsBody; expires: number }>();
 
 /** Called by this file's own POST/PUT/DELETE. */
 function clearGroupsMemo(): void {
@@ -46,6 +47,21 @@ async function requireStaff(request: Request) {
   return null;
 }
 
+/**
+ * The response for THIS caller. The memo below is keyed by coach only, and used to
+ * hold whichever caller's response came first: a staff read put every member's email
+ * in it, and a runner reading within the TTL was served the address book; a runner
+ * first and staff got blank emails. The memo now always holds the full body, and the
+ * staff-only field is taken out here, on both the fresh and the cached path.
+ */
+function forCaller<B extends { groups: Array<{ athletes: Array<{ email: string | null }> }> }>(body: B, isStaff: boolean): B {
+  if (isStaff) return body;
+  return {
+    ...body,
+    groups: body.groups.map((g) => ({ ...g, athletes: g.athletes.map((a) => ({ ...a, email: null })) })),
+  };
+}
+
 // GET - List all groups for the coach with athlete details
 export async function GET(request: Request) {
   try {
@@ -62,7 +78,7 @@ export async function GET(request: Request) {
     // be served from another's entry. (In practice it is always the default.)
     const hit = memo.get(coachId);
     if (hit && hit.expires > Date.now()) {
-      return NextResponse.json(hit.body);
+      return NextResponse.json(forCaller(hit.body, auth.user.isStaff));
     }
 
     const supabase = createServerClient();
@@ -148,10 +164,11 @@ export async function GET(request: Request) {
       const athletes = (Array.isArray(group.athletes) ? group.athletes : []).map((a: any) => ({
         id: a.id,
         name: a.name,
-        // Staff only. The screens that show an address (settings, the athletes
-        // list) are staff screens; a runner's Header and tab bar want the group
-        // names, and were being handed the club's whole address book to get them.
-        email: auth.user.isStaff ? a.email : null,
+        // Staff only — removed for everyone else by forCaller() on the way out.
+        // The screens that show an address (settings, the athletes list) are staff
+        // screens; a runner's Header and tab bar want the group names, and were
+        // being handed the club's whole address book to get them.
+        email: a.email ?? null,
         status: a.status,
         hasGarmin: garminIds.has(a.id),
         hasStrava: stravaIds.has(a.id),
@@ -184,7 +201,7 @@ export async function GET(request: Request) {
     // empty-club response to memoise.
     memo.set(coachId, { body, expires: Date.now() + MEMO_TTL_MS });
 
-    return NextResponse.json(body);
+    return NextResponse.json(forCaller(body, auth.user.isStaff));
   } catch (error) {
     console.error('Failed to fetch groups:', error);
     return NextResponse.json(

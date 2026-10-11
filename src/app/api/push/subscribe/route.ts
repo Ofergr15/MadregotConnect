@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
+import { SIBLING_SILENT_DAYS } from '@/lib/push-ghosts';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,16 +25,10 @@ export const dynamic = 'force-dynamic';
  */
 const GHOST_STALE_DAYS = 30;
 
-/**
- * How long another of the athlete's endpoints may stay silent while THIS one
- * confirms displays before it counts as a ghost. Short, because the evidence is
- * direct: every push goes to all of an athlete's endpoints at once, so a sibling
- * that showed nothing for days while this device showed what was sent is not
- * reaching anything. A live phone switched off that long gets its pushes held by
- * the push service and receipts them when it comes back; if it is pruned anyway,
- * it re-registers on its next app open, as above.
- */
-const SIBLING_SILENT_DAYS = 3;
+// How long a sibling may stay silent while a device confirms displays: shared with
+// the send path's prune, see lib/push-ghosts.ts. A live phone switched off that long
+// gets its pushes held by the push service and receipts them when it comes back; if
+// it is pruned anyway, it re-registers on its next app open.
 
 // Store (or refresh) a device's push subscription for an athlete.
 //

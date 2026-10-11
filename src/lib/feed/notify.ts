@@ -47,6 +47,27 @@ export function shouldNotifyFeedInteraction(input: FeedInteractionInput): boolea
   return !!authorAthleteId && authorAthleteId !== actorAthleteId;
 }
 
+/** The history kinds a like is stored under (likeAnnouncement): a run's ❤️ is a kudos. */
+const LIKE_KINDS = ['like', 'kudos'];
+
+/** Has `author` already been notified that `actor` liked this item? Errors count as "no". */
+async function alreadyToldOfLike(author: string, actor: string, feedItemId: string): Promise<boolean> {
+  try {
+    const { data } = await createServerClient()
+      .from('scheduled_notifications')
+      .select('id')
+      .eq('audience_type', 'athlete')
+      .eq('audience_id', author)
+      .eq('actor_athlete_id', actor)
+      .eq('url', `/feed?item=${feedItemId}`)
+      .in('kind', LIKE_KINDS)
+      .limit(1);
+    return (data || []).length > 0;
+  } catch {
+    return false;
+  }
+}
+
 /** Best-effort push to the author of a liked or commented feed item. */
 export async function notifyFeedInteraction(opts: {
   feedItemId: string;
@@ -64,6 +85,11 @@ export async function notifyFeedInteraction(opts: {
 
   const { isKudos, historyKind } = likeAnnouncement(itemType);
   const asKudos = kind === 'like' && isKudos;
+
+  // One like notification per person per item. Like → unlike → like used to tell
+  // the author again every time — a new row in their history and +1 on the badge
+  // for the same teammate on the same run. Comments are each new, so only likes.
+  if (kind === 'like' && await alreadyToldOfLike(authorAthleteId as string, actorAthleteId, feedItemId)) return;
 
   await notifyAthlete({
     athleteId: authorAthleteId as string,

@@ -44,11 +44,12 @@ export async function POST(request: Request) {
         .from('feed_likes')
         .insert({ feed_item_id: itemId, athlete_id: athleteId });
       // A double-tap race hits the UNIQUE(feed_item_id, athlete_id) constraint;
-      // that's already the desired end state, so treat it as success.
+      // that's already the desired end state, so treat it as success — but the
+      // request that won the race is the one that tells the author, not both.
       if (error && error.code !== '23505') throw error;
       liked = true;
 
-      await notifyFeedInteraction({
+      if (!error) await notifyFeedInteraction({
         feedItemId: itemId,
         authorAthleteId: meta.authorAthleteId,
         actorAthleteId: athleteId,

@@ -78,11 +78,10 @@ export default function HistoryPage() {
   ) => {
     setRepushError(null);
     try {
-      // Extract workouts from parsed_workouts. Current plans are grouped by
-      // pace group ({group1: {workouts: [...]}, ...}), each workout already
-      // carrying its own dayOfWeek — group1 is used here, same simplification
-      // executePush's own retryFailed already makes. Legacy flat day-keyed
-      // plans (pre-grouping) are supported as a fallback.
+      // Extract workouts from parsed_workouts — only the fallback now: for a plan
+      // grouped by pace pack the server sends each athlete their own pack's copy
+      // (`byAthleteGroup` below). This used to send group1 to everyone. Legacy flat
+      // day-keyed plans (pre-grouping) are still supported.
       const group1 = (parsedWorkouts as any)?.group1;
       const workouts = Array.isArray(group1?.workouts)
         ? group1.workouts
@@ -101,6 +100,9 @@ export default function HistoryPage() {
           planId,
           workouts,
           athleteIds,
+          // Each athlete gets their own pack's copy, picked on the server from the
+          // saved plan; `workouts` is only the fallback for a flat (pre-pack) plan.
+          byAthleteGroup: true,
           // Still a list-row field — only the two heavy JSON/text columns moved
           // to the detail fetch.
           weekStartDate: plans.find((p) => p.id === planId)?.week_start_date,

@@ -69,6 +69,17 @@ describe('clearMutedUnread', () => {
     actorName: null, actorAvatarUrl: null, ...over,
   });
 
+  // The badge mutes everything but management for the club account (role 'admin');
+  // the inbox didn't know the role, so the bell said 0 while the page showed dots.
+  it('agrees with the badge for the club account: only management stays unread', () => {
+    // 'custom' (a club-wide broadcast) is `news`, which staff defaults keep ON.
+    const rows = [item({ id: 'a', kind: 'custom' }), item({ id: 'b', kind: 'problem_report' })];
+    const out = clearMutedUnread(rows, null, true, 'admin');
+    expect(out.map((r) => [r.id, r.unread])).toEqual([['a', false], ['b', true]]);
+    // Any other staff role keeps its own defaults: the broadcast stays unread.
+    expect(clearMutedUnread([item({ kind: 'custom' })], null, true, 'coach')[0].unread).toBe(true);
+  });
+
   it('a muted kind stops being unread', () => {
     const [out] = clearMutedUnread([item()], { teammates: false }, false);
     expect(out.unread).toBe(false);
