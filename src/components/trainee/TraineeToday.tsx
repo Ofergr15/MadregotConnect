@@ -178,13 +178,13 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
       {openDate && (
         // Pinned to the bottom of the scroll box, which ends at the tab bar: the mockup's
         // .foot, on screen at first open however long the cards above it run.
-        <div className="sticky bottom-0 z-10 -mx-4 bg-gradient-to-t from-page from-70% to-transparent px-4 pb-1 pt-3">
+        <div className="pointer-events-none sticky bottom-0 z-10 -mx-4 bg-gradient-to-t from-page from-70% to-transparent px-4 pb-1 pt-3">
           <button
             type="button"
             onClick={() => setOpening(openDate)}
             disabled={!!opening && !workout}
             className={cn(
-              'flex h-[52px] w-full items-center justify-center gap-1.5 rounded-[15px] text-[16px] font-extrabold disabled:opacity-60',
+              'pointer-events-auto flex h-[52px] w-full items-center justify-center gap-1.5 rounded-[15px] text-[16px] font-extrabold disabled:opacity-60',
               data.dayState === 'rest' ? cn('bg-white text-brand-600', SHADOW) : 'bg-brand-600 text-white',
             )}
           >

@@ -14,9 +14,9 @@ import { recordOn, type RecordRunLike } from './records';
 import { planEstimateOptions } from '@/lib/plans/step-estimate';
 import type { WorkoutAdherenceRow } from './report';
 import type { WorkoutSheet } from './workout-sheet';
-import {
-  plannedLoad, plannedParts, plannedTotals, restateOptions, restateSteps, thresholdOn, type LoadPart, type TestPoint,
-} from './load';
+import { plannedLoad, plannedParts, restateOptions, restateSteps, thresholdOn, type LoadPart, type TestPoint } from './load';
+import { absoluteToLibrary, bookTotals, fromLibrarySteps } from './book-steps';
+import type { PlanBasis } from './plan-basis';
 import { watchRange, watchRangeKind } from './watch-range';
 
 export interface WatchStep {
@@ -64,7 +64,7 @@ export interface WorkoutPr {
 
 export interface WorkoutExtras {
   expectedLoad: number | null;
-  /** The session's km and minutes from the ⚡'s own legs — the home card's "כ־51 דק׳". */
+  /** The session's km and minutes as the home card sizes it (the book's totals) — its "כ־51 דק׳". */
   planTotals: { distanceM: number; durationSec: number } | null;
   /** The planned ⚡ broken into the plan's steps, for the sheet opened before the run. */
   expectedParts: LoadPart[];
@@ -142,8 +142,8 @@ export function workoutDone(input: {
   actualLoad: number | null;
   hr: { cap: number | null; actual: number | null };
   /**
-   * The session's size from the ⚡'s own legs (load.ts `plannedTotals`) — the "כ־51 דק׳"
-   * of the card and of screen 4, so the plan column says the same. Else the grade's.
+   * The session's size as the home card and screen 4 give it (book-steps bookTotals) — the
+   * "כ־51 דק׳" — so the plan column says the same. Else the grade's.
    */
   planTotals?: { distanceM: number; durationSec: number } | null;
 }): WorkoutDone | null {
@@ -257,11 +257,11 @@ export function buildWorkoutExtras(input: {
   date: string;
   tests: TestPoint[];
   /**
-   * The factor that restates the plan's paces to the trainee's (lib/academy/plan-basis.ts):
-   * 1 for their own plan; a club week's lane paces otherwise. Prices the ⚡ and sets the
-   * watch range in the paces screen 4 prints.
+   * Whose paces the plan's steps are in (lib/academy/plan-basis.ts): the trainee's own plan
+   * as stored; a club week's lane paces restated by `scale`. Prices the ⚡, sets the watch
+   * range in the paces screen 4 prints, and sizes the session as the home card does.
    */
-  paceScale?: number;
+  planBasis?: Pick<PlanBasis, 'referenceSec' | 'drawAtSec' | 'scale'> | null;
   actualLoad: number | null;
   maxHr: number | null;
   activity: {
@@ -272,7 +272,7 @@ export function buildWorkoutExtras(input: {
 }): WorkoutExtras {
   const { row, date } = input;
   const workout = row.detail?.workout ?? null;
-  const scale = input.paceScale && input.paceScale > 0 ? input.paceScale : 1;
+  const scale = input.planBasis?.scale && input.planBasis.scale > 0 ? input.planBasis.scale : 1;
   const raw = workout?.steps ?? [];
   const steps = restateSteps(raw, scale);
   const basis = thresholdOn(date, input.tests);
@@ -281,7 +281,12 @@ export function buildWorkoutExtras(input: {
   const expected = T && steps.length ? plannedLoad(steps, T, opts) : 0;
   const expectedLoad = expected > 0 ? Math.round(expected) : null;
   const ws = watchSteps(steps, T);
-  const planTotals = steps.length ? plannedTotals(steps, opts) : null;
+  // Sized exactly as the home card (trainee-today todayCard): the book's model at the
+  // reference the steps were written for, drawn at the trainee's threshold.
+  const ref = input.planBasis?.referenceSec ?? T ?? 300;
+  const drawAt = input.planBasis?.drawAtSec ?? ref;
+  const book = raw.length ? fromLibrarySteps(absoluteToLibrary(raw, ref).steps) : null;
+  const planTotals = book ? bookTotals(book, drawAt) : null;
 
   const plannedMin = row.pace.plannedMin;
   const plannedMax = row.pace.plannedMax ?? plannedMin;
@@ -294,7 +299,7 @@ export function buildWorkoutExtras(input: {
 
   return {
     expectedLoad,
-    planTotals: planTotals && planTotals.durationSec > 0 ? planTotals : null,
+    planTotals: planTotals && planTotals.durationSec > 0 ? { distanceM: planTotals.distanceM, durationSec: planTotals.durationSec } : null,
     expectedParts: T && steps.length ? plannedParts(steps, T, opts) : [],
     steps: ws,
     why: targetSec && basis ? { targetSec, thresholdSec: basis.thresholdSec, basisTestDate: basis.date } : null,
@@ -305,7 +310,7 @@ export function buildWorkoutExtras(input: {
       expectedLoad,
       actualLoad: input.actualLoad,
       hr: { cap, actual: input.activity?.average_hr ?? row.actual?.averageHr ?? null },
-      planTotals: planTotals && planTotals.durationSec > 0 ? planTotals : null,
+      planTotals: planTotals && planTotals.durationSec > 0 ? { distanceM: planTotals.distanceM, durationSec: planTotals.durationSec } : null,
     }),
     pr: input.pr,
     feelPrefill: feelPrefillOf(input.activity),

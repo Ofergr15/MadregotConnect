@@ -96,11 +96,7 @@ export interface TodayCard {
  */
 export function todayCard(
   workout: Pick<ParsedWorkout, 'dayOfWeek' | 'name' | 'steps' | 'description'>,
-  ctx: {
-    date: string; referenceSec: number; drawAtSec: number; onWatch: boolean; expectedLoad: number | null; done: boolean;
-    /** The session's size from the ⚡'s own legs (load.ts `plannedTotals`); else the book's totals. */
-    totals?: { distanceM: number; durationSec: number } | null;
-  },
+  ctx: { date: string; referenceSec: number; drawAtSec: number; onWatch: boolean; expectedLoad: number | null; done: boolean },
 ): TodayCard {
   const steps = workout.steps ?? [];
   const model: BookStep[] | null = steps.length ? fromLibrarySteps(absoluteToLibrary(steps, ctx.referenceSec).steps) : null;
@@ -120,7 +116,6 @@ export function todayCard(
     const t = bookTotals(model, ctx.drawAtSec);
     totals = { distanceM: t.distanceM, durationSec: t.durationSec };
   }
-  if (ctx.totals) totals = ctx.totals;
   return {
     date: ctx.date,
     dayOfWeek: workout.dayOfWeek,

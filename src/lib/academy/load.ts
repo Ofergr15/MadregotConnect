@@ -326,17 +326,6 @@ export function plannedLegs(steps: WorkoutStep[] | null | undefined, opts: Estim
   return out;
 }
 
-/** The planned session's distance and moving time, from `plannedLegs`. */
-export function plannedTotals(steps: WorkoutStep[] | null | undefined, opts: EstimateOptions = {}): { distanceM: number; durationSec: number } {
-  let distanceM = 0;
-  let durationSec = 0;
-  for (const l of plannedLegs(steps, opts)) {
-    durationSec += l.times * l.sec;
-    distanceM += l.times * (l.sec / l.paceSec) * 1000;
-  }
-  return { distanceM: Math.round(distanceM), durationSec: Math.round(durationSec) };
-}
-
 /** The same formula over a planned workout's legs (`plannedLegs`). Unrounded. */
 export function plannedLoad(steps: WorkoutStep[] | null | undefined, T: number, opts: EstimateOptions = {}): number {
   if (!(T > 0) || !steps?.length) return 0;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { dayCards, type DayCardsInput } from '@/lib/academy/day-cards';
-import { plannedLoad, plannedTotals } from '@/lib/academy/load';
+import { plannedLoad } from '@/lib/academy/load';
 
 /**
  * lib/academy/day-cards.ts — the planned day as the card the home draws, shared by
@@ -54,7 +54,8 @@ describe('dayCards', () => {
     expect(cards[TUE]).toMatchObject({ title: '5 × 1 ק״מ', paceSec: 245, paceOf: 'reps', kind: 'quality', onWatch: true, done: false });
     const steps = reps(2, 245).steps;
     expect(cards[TUE].expectedLoad).toBe(Math.round(plannedLoad(steps, 252)));
-    expect(cards[TUE].durationSec).toBe(plannedTotals(steps).durationSec);
+    // Sized by the book (the bar's four jogs): 2 × 11:20 + 5 × 4:05 + 4 × 2:00.
+    expect(cards[TUE].durationSec).toBe(2 * 680 + 5 * 245 + 4 * 120);
     // Wednesday has no session: no card (a rest day), the week still has a plan.
     expect(cards[WED]).toBeUndefined();
   });

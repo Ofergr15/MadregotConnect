@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkoutStep } from '@/lib/ai/types';
 import { DISPLAY_REFERENCE, planPaceBasis } from '@/lib/academy/plan-basis';
-import { plannedLegs, plannedLoad, plannedTotals, restateOptions, restateSteps } from '@/lib/academy/load';
+import { plannedLegs, plannedLoad, restateOptions, restateSteps } from '@/lib/academy/load';
 import { laneReferences } from '@/lib/academy/senior-pick';
 import { watchRange, watchRangeKind } from '@/lib/academy/watch-range';
 
@@ -70,15 +70,10 @@ describe('restateSteps', () => {
   });
 });
 
-describe('plannedLegs / plannedTotals', () => {
+describe('plannedLegs', () => {
   it('the jogs are between the reps: four, not five', () => {
     const legs = plannedLegs(REPS);
     expect(legs.map(l => l.times)).toEqual([1, 5, 4, 1]);
-  });
-
-  it('one estimate for the card\'s km and minutes', () => {
-    // 680 + 5 × 245 + 4 × 120 + 680 seconds; 2 + 5 + 4 × (120 / 480 × 1000 m) + 2 km.
-    expect(plannedTotals(REPS)).toEqual({ durationSec: 680 + 1225 + 480 + 680, distanceM: 10000 });
   });
 
   it('a lone jog in a repeat of one step still counts every time', () => {

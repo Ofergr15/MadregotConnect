@@ -3,7 +3,7 @@ import { planWeekStartOf } from '@/lib/utils';
 import { pickPlan } from '@/lib/plans/scope';
 import { planEstimateOptions } from '@/lib/plans/step-estimate';
 import type { Lane } from './group-lane';
-import { plannedLoad, plannedTotals, restateOptions, restateSteps, thresholdOn, type TestPoint } from './load';
+import { plannedLoad, restateOptions, restateSteps, thresholdOn, type TestPoint } from './load';
 import { DISPLAY_REFERENCE, planPaceBasis } from './plan-basis';
 import { extractWorkouts, groupNumberFor } from './report';
 import { mainWorkoutOf, todayCard, type TodayCard } from './trainee-today';
@@ -68,8 +68,8 @@ export function dayCards(input: DayCardsInput): { cards: Record<string, TodayCar
     const workout = mainWorkoutOf(week.workouts.filter(w => w.dayOfWeek === dow));
     if (!workout) continue;
     const T = thresholdOn(date, tests)?.thresholdSec ?? null;
-    // Priced and sized in the trainee's paces, over the legs the ⚡ uses, so "כ־51 דק׳" and
-    // "⚡ 62" are one estimate of one session.
+    // Priced in the trainee's paces, over the same legs (a repeat's last jog is between the
+    // reps, as the card's bar draws it), so "כ־51 דק׳" and "⚡ 62" count the same session.
     const steps = restateSteps(workout.steps, week.scale);
     const opts = restateOptions(planEstimateOptions(week.workouts), week.scale);
     cards[date] = todayCard(workout, {
@@ -78,7 +78,6 @@ export function dayCards(input: DayCardsInput): { cards: Record<string, TodayCar
       drawAtSec: week.drawAtSec,
       onWatch: input.onWatch.has(date),
       expectedLoad: T ? plannedLoad(steps, T, opts) : null,
-      totals: steps.length ? plannedTotals(steps, opts) : null,
       done: input.doneOn(date),
     });
   }

@@ -96,7 +96,7 @@ async function loadExtras(
       sheet: input.sheet,
       date,
       tests,
-      paceScale: basis?.scale ?? 1,
+      planBasis: basis,
       actualLoad: breakdown?.load ?? null,
       maxHr: history ? maxHrNow(history, israelToday()) : null,
       activity: act,
