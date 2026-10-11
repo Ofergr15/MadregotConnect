@@ -54,6 +54,7 @@ export function ActivityDetailBody({
   plannedContinuous = false,
   verdict = null,
   loadingVerdict = false,
+  mapOnly = false,
   className,
 }: {
   activity: ActivityEntry;
@@ -72,6 +73,11 @@ export function ActivityDetailBody({
   verdict?: ExecutionVerdict | null;
   /** That request still in flight — the card holds its height instead of popping in. */
   loadingVerdict?: boolean;
+  /**
+   * The trainee screen 5's "מפה וגרף": the map, the headline numbers and the pace and HR
+   * graphs, nothing that grades the run (screen 5 already did, in its own terms).
+   */
+  mapOnly?: boolean;
   className?: string;
 }) {
   const t = useTranslations('activities');
@@ -123,20 +129,22 @@ export function ActivityDetailBody({
           asked for? Everything below is the evidence for that answer — including,
           on a run with no reps to grade, the per-km chart that used to sit far
           below the map where nobody compared it to anything. */}
-      <ExecutionQuality
-        verdict={verdict}
-        splits={splits}
-        planned={planned}
-        plannedContinuous={plannedContinuous}
-        loading={loadingVerdict}
-      />
+      {!mapOnly && (
+        <ExecutionQuality
+          verdict={verdict}
+          splits={splits}
+          planned={planned}
+          plannedContinuous={plannedContinuous}
+          loading={loadingVerdict}
+        />
+      )}
 
       {/* And directly under the score: what a person said about it. The ring is the
           machine's reading of the same run, so putting the mentor's words anywhere
           else would let the two be read separately — which is exactly the split the
           academy's WhatsApp loop suffers from today. Renders nothing when the run
           was never reviewed, which is most runs. */}
-      <RunFeedback athleteId={act.athlete_id} startTime={act.start_time} />
+      {!mapOnly && <RunFeedback athleteId={act.athlete_id} startTime={act.start_time} />}
 
       {loading && !details && (
         <div className="flex items-center justify-center py-8">
@@ -195,6 +203,7 @@ export function ActivityDetailBody({
       </div>
 
       {/* Performance Grid */}
+      {!mapOnly && (<>
       {/* The tile icons are a per-metric palette, and `band-2` is the one member of it that
           cannot be used as a glyph anywhere: #159AFF is 2.95:1 on a card, which misses even the
           3:1 non-text bar that lets `band-3` (3.22:1) stay as delivered on the two tiles below.
@@ -276,6 +285,7 @@ export function ActivityDetailBody({
           </StatTile>
         )}
       </div>
+      </>)}
 
       {/* Charts - Full Width Stacked */}
       {splits.length >= 2 && (
@@ -283,9 +293,9 @@ export function ActivityDetailBody({
           {/* Once, not twice: when the accuracy card above took this chart as its
               evidence, drawing it again 600 px lower is the same picture with the
               plan comparison stripped of its context. */}
-          {!executionTakesPaceChart(verdict, splits, planned, plannedContinuous) && (
+          {(mapOnly || !executionTakesPaceChart(verdict, splits, planned, plannedContinuous)) && (
             <div className="bg-page/40 rounded-xl p-4 border border-page/20">
-              <PaceChart splits={splits} planned={planned || undefined} />
+              <PaceChart splits={splits} planned={mapOnly ? undefined : planned || undefined} />
             </div>
           )}
           {splits.some(s => s.averageHR) && (
@@ -293,19 +303,19 @@ export function ActivityDetailBody({
               <HRChart splits={splits} maxHR={maxHR} />
             </div>
           )}
-          {(['cadence', 'power'] as const).map(metric => hasSplitMetric(splits, metric) && (
+          {!mapOnly && (['cadence', 'power'] as const).map(metric => hasSplitMetric(splits, metric) && (
             <div key={metric} className="bg-page/40 rounded-xl p-4 border border-page/20">
               <SplitMetricChart splits={splits} metric={metric} />
             </div>
           ))}
-          {hasPerformanceCondition(splits) && (
+          {!mapOnly && hasPerformanceCondition(splits) && (
             <div className="bg-page/40 rounded-xl p-4 border border-page/20">
               <PerformanceConditionChart splits={splits} />
             </div>
           )}
           {/* Same test the chart itself applies — otherwise a run with no
               elevation on its laps leaves an empty bordered box behind. */}
-          {splits.some(s => s.elevationGain != null || s.elevationLoss != null) && (
+          {!mapOnly && splits.some(s => s.elevationGain != null || s.elevationLoss != null) && (
             <div className="bg-page/40 rounded-xl p-4 border border-page/20">
               <ElevationChart splits={splits} />
             </div>
@@ -314,11 +324,11 @@ export function ActivityDetailBody({
       )}
 
       {/* Splits Table */}
-      {splits.length > 0 && <SplitsTable splits={splits} />}
+      {!mapOnly && splits.length > 0 && <SplitsTable splits={splits} />}
 
       {/* Nothing but the headline numbers exist for this run. Say so, rather than
           ending on an empty stretch of page that reads as a loading failure. */}
-      {!loading && details && splits.length === 0 && routePoints.length <= 2 && (
+      {!mapOnly && !loading && details && splits.length === 0 && routePoints.length <= 2 && (
         <div className="rounded-card border border-page/30 bg-card/40 py-6 text-center">
           <Sparkles className="h-5 w-5 text-ink-400 mx-auto mb-1" />
           <p className="text-xs text-ink-400">

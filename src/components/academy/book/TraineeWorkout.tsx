@@ -13,7 +13,7 @@ import type { WeekBoard, WeekBoardWorkout } from '@/lib/academy/week-board';
 import type { WorkoutResponse } from '@/lib/academy/workout-extras';
 import { WorkoutPlanSheet } from '../WorkoutPlanSheet';
 import { LoadSheet } from '@/components/trainee/LoadSheet';
-import { DoneTabs, WorkoutDone } from '@/components/trainee/WorkoutDone';
+import { DoneLapsTable, DoneTabs, WorkoutDone, type DoneTab } from '@/components/trainee/WorkoutDone';
 import { FeelAndTalk } from '@/components/trainee/FeelAndTalk';
 import { StructureText, dm as dmOf, monthName } from '@/components/trainee/ui';
 import { useTraineeV2 } from '@/lib/trainee/v2';
@@ -51,6 +51,7 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
   const [sheet, setSheet] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);
   const [feeling, setFeeling] = useState(false);
+  const [doneTab, setDoneTab] = useState<DoneTab>('summary');
   const T = board.thresholdSec;
   const model = useMemo(() => workoutModel(workout, board.referenceSec), [workout, board.referenceSec]);
   const totals = model ? bookTotals(model, T) : null;
@@ -117,8 +118,8 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
           className="gap-2.5"
           footer={isCoach || !data ? askCoach : <PrimaryButton onClick={() => setFeeling(true)}>{tw('feelButton')}</PrimaryButton>}
         >
-          <DoneTabs activityId={data?.activity?.id ?? workout.activityId} onLaps={() => setSheet(true)} />
-          {data ? <WorkoutDone data={data} onLoad={() => setLoadOpen(true)} /> : (
+          <DoneTabs value={doneTab} activityId={data?.activity?.id ?? workout.activityId} onChange={setDoneTab} />
+          {data ? (doneTab === 'laps' ? <DoneLapsTable data={data} /> : <WorkoutDone data={data} onLoad={() => setLoadOpen(true)} />) : (
             <p className={cn(CARD, 'px-4 py-6 text-center text-sm text-ink-400')}>{t('loading')}</p>
           )}
         </FlowScreen>

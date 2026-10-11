@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import type { DoneRow, WorkoutResponse } from '@/lib/academy/workout-extras';
 import { RECORD_BUCKETS } from '@/lib/academy/records';
+import { doneLaps, type DoneLapRow } from '@/lib/trainee/done-laps';
 import { RepsChart } from './RepsChart';
 import { C, CARD, RICH, clock, km, monthName, signedText } from './ui';
 
@@ -12,7 +13,7 @@ import { C, CARD, RICH, clock, km, monthName, signedText } from './ui';
 //
 // One verdict line that is always visible, then the plan against what was done with the
 // difference (at most five rows), every rep against its watch range, and a medal only
-// when there is a real record. The map and the laps are one tap away in the tabs; the ⚡
+// when there is a real record. The laps are a tab on this screen, the map one tap away; the ⚡
 // row opens 5ב.
 
 function Cell({ row, field }: { row: DoneRow; field: 'planned' | 'done' }) {
@@ -127,22 +128,68 @@ export function WorkoutDone({ data, onLoad }: {
   );
 }
 
-/** The segmented "סיכום · מפה וגרף · הקפות" (mockup 5): the last two leave this screen. */
-export function DoneTabs({ activityId, onLaps }: { activityId: string | null; onLaps: () => void }) {
+export type DoneTab = 'summary' | 'map' | 'laps';
+
+/**
+ * The segmented "סיכום · מפה וגרף · הקפות" (mockup 5). The laps are a table on this screen
+ * (DoneLapsTable); the map and graph open the run's page in its map-only view, without the
+ * old page's own verdict, so nothing there contradicts this screen.
+ */
+export function DoneTabs({ value, activityId, onChange }: {
+  value: DoneTab;
+  activityId: string | null;
+  onChange: (tab: DoneTab) => void;
+}) {
   const t = useTranslations('trainee.done.tabs');
   const router = useRouter();
   const tab = 'h-11 flex-1 rounded-[10px] text-[13.5px] font-extrabold';
+  const on = 'bg-white text-ink-900 shadow-[0_1px_3px_rgba(0,0,0,.08)]';
   return (
     <div className="flex rounded-[13px] bg-[#E6E6EC] p-[3px]" role="tablist">
-      <button type="button" role="tab" aria-selected className={cn(tab, 'bg-white text-ink-900 shadow-[0_1px_3px_rgba(0,0,0,.08)]')}>{t('summary')}</button>
+      <button type="button" role="tab" aria-selected={value === 'summary'} onClick={() => onChange('summary')} className={cn(tab, value === 'summary' ? on : 'text-ink-400')}>{t('summary')}</button>
       <button
         type="button" role="tab" aria-selected={false} disabled={!activityId}
-        onClick={() => activityId && router.push(`/dashboard/activities/${activityId}`)}
+        onClick={() => activityId && router.push(`/dashboard/activities/${activityId}?view=map`)}
         className={cn(tab, 'text-ink-400 disabled:opacity-50')}
       >
         {t('map')}
       </button>
-      <button type="button" role="tab" aria-selected={false} onClick={onLaps} className={cn(tab, 'text-ink-400')}>{t('laps')}</button>
+      <button type="button" role="tab" aria-selected={value === 'laps'} onClick={() => onChange('laps')} className={cn(tab, value === 'laps' ? on : 'text-ink-400')}>{t('laps')}</button>
     </div>
+  );
+}
+
+/** "הקפות": every rep (or kilometre) against the same range the reps chart draws. */
+export function DoneLapsTable({ data }: { data: WorkoutResponse }) {
+  const t = useTranslations('trainee.done.laps');
+  const laps = doneLaps(data.done, data.sheet.chart);
+  if (!laps) return <p className={cn(CARD, 'px-4 py-6 text-center text-sm text-ink-400')}>{t('none')}</p>;
+  const tone = (r: DoneLapRow) => (r.tone === 'fast' ? C.good : r.tone === 'slow' ? C.warn : C.goodM);
+  return (
+    <section className={cn(CARD, 'overflow-hidden text-ink-900')}>
+      <div className="flex items-baseline justify-between gap-2 px-4 pb-1.5 pt-3">
+        <h3 className="text-[15px] font-extrabold">{t('title')}</h3>
+        {laps.band && (
+          <span className="text-[12.5px] font-bold text-ink-400">
+            {t.rich('range', { ...RICH, range: `${clock(laps.band.min)}–${clock(laps.band.max)}` })}
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-[.8fr_1fr_1.6fr] text-[14px]" role="table">
+        {([laps.mode === 'reps' ? 'colRep' : 'colKm', 'colPace', 'colRange'] as const).map(k => (
+          <div key={k} role="columnheader" className="bg-[#FAFAFC] px-4 py-1.5 text-[11.5px] font-extrabold text-ink-400">{t(k)}</div>
+        ))}
+        {laps.rows.map((r, i) => {
+          const cell = cn('flex min-h-[44px] items-center px-4', i < laps.rows.length - 1 && 'border-b border-[#EFEFF4]');
+          return (
+            <div key={r.n} role="row" className="contents">
+              <div className={cn(cell, 'font-extrabold')}><bdi dir="ltr">{r.n}</bdi></div>
+              <div className={cn(cell, 'font-black')}><bdi dir="ltr">{clock(r.paceSec)}</bdi></div>
+              <div className={cn(cell, 'font-extrabold')} style={{ color: tone(r) }}>{t(r.tone)}</div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }

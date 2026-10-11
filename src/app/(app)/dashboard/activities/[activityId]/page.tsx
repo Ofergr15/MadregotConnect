@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { AlertCircle, MessageCircle, Route, Share2 } from 'lucide-react';
 import { BackNav, Button, EmptyState, LoadingBlock } from '@/components/ui';
@@ -30,6 +30,10 @@ const HEBREW_DAYS = ['יום ראשון', 'יום שני', 'יום שלישי', 
 export default function ActivityDetailPage() {
   const { activityId } = useParams<{ activityId: string }>();
   const router = useRouter();
+  // `?view=map` — screen 5's "מפה וגרף" tab: the map and the pace/HR graphs only. Its own
+  // verdict, run-type tag and coloured splits answer "was it to plan" differently from the
+  // screen the trainee just came from, so they are not drawn there.
+  const mapOnly = useSearchParams()?.get('view') === 'map';
   const t = useTranslations('activities');
   const tc = useTranslations('common');
   const locale = useLocale();
@@ -89,10 +93,12 @@ export default function ActivityDetailPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-lg font-bold text-ink-700 truncate">{dayLabel}</h1>
-              <span className={cn('text-3xs font-bold px-2 py-0.5 rounded', runType.bg, runType.color)}>
-                {runType.label}
-              </span>
-              <PrBadge buckets={prRuns.get(act.id)} />
+              {!mapOnly && (
+                <span className={cn('text-3xs font-bold px-2 py-0.5 rounded', runType.bg, runType.color)}>
+                  {runType.label}
+                </span>
+              )}
+              {!mapOnly && <PrBadge buckets={prRuns.get(act.id)} />}
             </div>
             {/* The run's own name, and its owner's pencil (#92). */}
             <ActivityName activityId={act.id} name={act.activity_name} editable={isMyActivity} />
@@ -159,6 +165,7 @@ export default function ActivityDetailPage() {
         plannedContinuous={plannedContinuous}
         verdict={verdict}
         loadingVerdict={loading}
+        mapOnly={mapOnly}
       />
 
       {showShare && (

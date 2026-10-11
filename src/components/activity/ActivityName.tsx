@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Check, Loader2, Pencil, X } from 'lucide-react';
 import { fetchFeedItemByActivity, updateFeedItem } from '@/lib/feed-client';
+import { NumberRuns } from '@/components/trainee/ui';
 
 /**
  * The run's name on its own page, renamable by its owner (feedback #92).
@@ -100,7 +101,8 @@ export function ActivityName({
   return (
     <div className="flex min-w-0 items-center gap-1">
       <p className="truncate text-sm font-semibold text-ink-700" dir="auto">
-        {saved || t('activityNamePlaceholder')}
+        {/* Each number run isolated LTR, or "5 × 1 ק״מ" paints as "1 × 5". */}
+        {saved ? <NumberRuns text={saved} /> : t('activityNamePlaceholder')}
       </p>
       {editable && (
         <button

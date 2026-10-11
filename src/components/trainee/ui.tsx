@@ -124,7 +124,11 @@ const STRUCTURE = /\d[\d.:,]*(?:\s*[×x–-]\s*\d[\d.:,]*)*/g;
  * (`structureName`) and from coaches, so they are split here rather than in messages.
  */
 export function StructureText({ text: raw }: { text: string }) {
-  const text = wordFirstTitle(raw);
+  return <NumberRuns text={wordFirstTitle(raw)} />;
+}
+
+/** The isolation alone, the words left in their order: any run's name ("5 × 1 ק״מ"). */
+export function NumberRuns({ text }: { text: string }) {
   const out: ReactNode[] = [];
   let last = 0;
   for (const m of text.matchAll(STRUCTURE)) {

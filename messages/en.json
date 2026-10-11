@@ -4231,6 +4231,18 @@
         "10k": "10K",
         "hm": "half marathon",
         "fm": "marathon"
+      },
+      "laps": {
+        "title": "Laps",
+        "colRep": "Rep",
+        "colKm": "km",
+        "colPace": "Pace",
+        "colRange": "Against the range",
+        "in": "✓ In range",
+        "fast": "▲ Faster than the range",
+        "slow": "▼ Slower than the range",
+        "range": "Range <m>{range}</m>",
+        "none": "No laps for this workout."
       }
     },
     "feel": {
