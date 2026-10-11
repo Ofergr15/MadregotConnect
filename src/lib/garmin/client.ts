@@ -66,6 +66,7 @@ export class GarminClient {
     const data = (await this.gc.getSleepData(new Date(`${date}T12:00:00Z`))) as any;
     const sleep = Number(data?.dailySleepDTO?.sleepTimeSeconds);
     const rhr = Number(data?.restingHeartRate);
+    if (!(sleep > 0) && !(rhr > 0)) noteEmptyWellness(data);
     return {
       sleepSeconds: Number.isFinite(sleep) && sleep > 0 ? Math.round(sleep) : null,
       restingHr: Number.isFinite(rhr) && rhr > 0 ? Math.round(rhr) : null,
@@ -300,3 +301,21 @@ export class GarminClient {
     }
   }
 }
+
+// ── Diagnostics: what an empty wellness answer looked like (2026-10-11) ──────
+// Garmin answering 200 with no sleep and no resting HR is indistinguishable, in
+// the stored rows, from a watch not worn at night. The cron logs the top-level
+// keys of the first few such answers so a changed response shape shows up.
+const emptyShapes: string[] = [];
+function noteEmptyWellness(data: unknown) {
+  if (emptyShapes.length >= 3) return;
+  const keys = data && typeof data === 'object' ? Object.keys(data as object).slice(0, 12).join(',') : String(data);
+  const dto = (data as { dailySleepDTO?: Record<string, unknown> } | null)?.dailySleepDTO;
+  const dtoKeys = dto && typeof dto === 'object' ? Object.keys(dto).slice(0, 8).join(',') : 'none';
+  emptyShapes.push(`keys=[${keys}] dto=[${dtoKeys}]`);
+}
+/** The shapes noted since the last call, cleared on read. */
+export function emptyWellnessShapes(): string[] {
+  return emptyShapes.splice(0, emptyShapes.length);
+}
+
