@@ -1118,9 +1118,9 @@ export default function WeeklyPlannerPage() {
 
     const results: PushResultItem[] = [];
     const jobs: { workouts: ParsedWorkout[]; athleteIds: string[] }[] = [];
-    const send = async (workouts: ParsedWorkout[], athleteIds: string[]) => {
-      if (workouts.length === 0 || athleteIds.length === 0) return;
-      jobs.push({ workouts, athleteIds });
+    const send = async (workouts: ParsedWorkout[], athleteIds: string[], removedKeys: string[] = []) => {
+      if ((workouts.length === 0 && removedKeys.length === 0) || athleteIds.length === 0) return;
+      jobs.push({ workouts, athleteIds, ...(removedKeys.length ? { removedKeys } : {}) });
     };
     const post = async (body: Record<string, unknown>) => {
       const res = await fetch('/api/garmin/push-workouts', {
@@ -1139,7 +1139,13 @@ export default function WeeklyPlannerPage() {
     // Their own week, their own request — one athlete each.
     for (const a of athletes.filter((x) => hasCustomWeek(x.id))) {
       const sessions = selectedSessions(planFor(a).workouts, pushDays) as ParsedWorkout[];
-      await send(remapForAthlete(sessions, dayMaps[a.id]), [a.id]);
+      // Sessions skipped for them (mapped to null) go as removedKeys, so the copy an
+      // earlier club-week push put on their watch is taken off it.
+      const map = dayMaps[a.id] || {};
+      const removedKeys = sessions
+        .filter((w, i) => map[sessionSlot(w, i)] === null && w.workoutKey)
+        .map((w) => w.workoutKey as string);
+      await send(remapForAthlete(sessions, dayMaps[a.id]), [a.id], removedKeys);
     }
 
     // Everyone else, grouped so one request carries a whole pace group.

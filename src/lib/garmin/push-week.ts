@@ -50,6 +50,7 @@ export async function pushWeekToAthlete({
   notify = true,
   cleanDayOnce = false,
   pushCopy,
+  removedKeys = [],
 }: {
   supabase: ReturnType<typeof createServerClient>;
   athlete: PushTargetAthlete;
@@ -73,7 +74,18 @@ export async function pushWeekToAthlete({
    * c2fc7174). Every sender passes true; false only reproduces the old bug.
    */
   cleanDayOnce?: boolean;
+  /**
+   * Sessions of this plan taken OFF this athlete's week (a custom week's "skip"):
+   * their Garmin workouts are deleted and their delivery rows removed, from today
+   * on. A skipped session isn't in `plannedWorkouts`, so nothing else would ever
+   * take the copy an earlier push put on the watch.
+   */
+  removedKeys?: string[];
 }): Promise<PushResult> {
+  // Rows whose Garmin workout this push deleted to replace it. If the push then
+  // fails they are marked failed: they'd otherwise stay 'success', and the
+  // athlete's card would say a session is on the watch that this push removed.
+  const replacedRowIds: string[] = [];
   try {
     if (!athlete.garmin_auth) {
       return {
@@ -96,6 +108,24 @@ export async function pushWeekToAthlete({
     const deliveredWorkoutIds: string[] = [];
     const deliveryRowIds: string[] = [];
     const cleanedDays = new Set<string>();
+
+    if (planId && removedKeys.length > 0) {
+      const { data: gone } = await supabase
+        .from('workout_deliveries')
+        .select('id, garmin_workout_id')
+        .eq('plan_id', planId)
+        .eq('athlete_id', athlete.id)
+        .in('workout_key', removedKeys)
+        .gte('workout_date', israelToday());
+      for (const old of gone || []) {
+        try {
+          if (old.garmin_workout_id) await garmin.deleteWorkout(old.garmin_workout_id);
+          await supabase.from('workout_deliveries').delete().eq('id', old.id);
+        } catch {
+          // best-effort: a session that stays on the watch is the old behaviour
+        }
+      }
+    }
 
     for (const workout of plannedWorkouts) {
       const garminWorkout = convertToGarminWorkout(workout, paceProfile, { paceTarget });
@@ -132,6 +162,7 @@ export async function pushWeekToAthlete({
         for (const old of prior || []) {
           try {
             await garmin.deleteWorkout(old.garmin_workout_id);
+            replacedRowIds.push(old.id);
           } catch {
             // best-effort — proceed to push the new one regardless
           }
@@ -158,6 +189,7 @@ export async function pushWeekToAthlete({
           if (deliveredWorkoutIds.includes(old.garmin_workout_id)) continue;
           try {
             await garmin.deleteWorkout(old.garmin_workout_id);
+            replacedRowIds.push(old.id);
           } catch {
             // best-effort, as above
           }
@@ -278,6 +310,16 @@ export async function pushWeekToAthlete({
         status: 'failed',
         error_message: error.message,
       });
+      if (replacedRowIds.length > 0) {
+        try {
+          await supabase
+            .from('workout_deliveries')
+            .update({ status: 'failed', error_message: 'replaced by a push that then failed' })
+            .in('id', replacedRowIds);
+        } catch {
+          // best-effort
+        }
+      }
     }
     return {
       athleteId: athlete.id,

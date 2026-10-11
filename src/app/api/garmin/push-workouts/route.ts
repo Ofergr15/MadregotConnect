@@ -23,7 +23,7 @@ export const maxDuration = 300;
 /** Athletes delivered at once on the whole-week path. Each has their own Garmin account. */
 const AT_ONCE = 3;
 
-interface Batch { workouts: ParsedWorkout[]; athleteIds: string[] }
+interface Batch { workouts: ParsedWorkout[]; athleteIds: string[]; removedKeys?: string[] }
 
 // Staff-only. This writes workouts onto athletes' actual Garmin watches and
 // push-notifies each of them, so an open handler let anyone spam the whole club's
@@ -141,7 +141,8 @@ export async function POST(req: NextRequest) {
         const plannedWorkouts = own?.length
           ? withGroupPaces(normalizeWorkoutParts({ workouts: own }).workouts, storedPlan)
           : sent;
-        return { athlete, plannedWorkouts };
+        const removedKeys = Array.isArray(b.removedKeys) ? b.removedKeys.filter((k): k is string => typeof k === 'string').slice(0, 20) : [];
+        return { athlete, plannedWorkouts, removedKeys };
       });
     });
 
@@ -183,7 +184,7 @@ export async function POST(req: NextRequest) {
     }
     const pushCopy = { lines, qualityDows };
 
-    const deliver = async ({ athlete, plannedWorkouts }: (typeof tasks)[number]) => {
+    const deliver = async ({ athlete, plannedWorkouts, removedKeys }: (typeof tasks)[number]) => {
       // Three conditions, all required, and the request can only ever remove
       // one: the athlete is in the academy, the coach hasn't turned alerts off
       // academy-wide, and the caller didn't say the paces in this payload are
@@ -223,6 +224,7 @@ export async function POST(req: NextRequest) {
           notify,
           pushCopy,
           cleanDayOnce: true,
+          removedKeys,
         });
       results.push(result);
 
