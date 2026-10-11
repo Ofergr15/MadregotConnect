@@ -19,6 +19,8 @@ export const TWIN_DISTANCE = 0.15;
 
 export interface TwinCandidate {
   id: string;
+  /** Twins are one athlete's: two trainees on the same schedule are two runs. */
+  athlete_id?: string | null;
   start_time: string;
   distance?: number | null;
   duration?: number | null;
@@ -41,6 +43,7 @@ function overlapShare(a: TwinCandidate, b: TwinCandidate): number {
 
 export function areTwins(a: TwinCandidate, b: TwinCandidate): boolean {
   if (a.id === b.id) return false;
+  if (a.athlete_id != null && b.athlete_id != null && String(a.athlete_id) !== String(b.athlete_id)) return false;
   const sa = ms(a.start_time);
   const sb = ms(b.start_time);
   if (!Number.isFinite(sa) || !Number.isFinite(sb)) return false;

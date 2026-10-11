@@ -291,8 +291,9 @@ export async function GET(request: Request) {
       paceUpdate: paceUpdate.card,
       km: { weeks: chartWeeks, plannedKm, avgKm: kmAverage(chartWeeks) },
       week: {
-        plannedCount: rows.length,
-        completedCount: rows.filter((w) => w.completed).length,
+        // The engine's counts, as the board's: an optional session is not planned.
+        plannedCount: adherence.athletes[0]?.week.plannedCount ?? rows.length,
+        completedCount: adherence.athletes[0]?.week.completedCount ?? rows.filter((w) => w.completed).length,
         workouts,
       },
       journey: {

@@ -71,7 +71,8 @@ export function WeekTilesV2({ board }: { board: WeekBoard }) {
           sized by its legs is 10.6 km, and "מתוך 44.6" reads as a measurement. */}
       <Tile label={t('km')} done={kmText(totals.doneKm * 1000)} planned={kmText(Math.round(totals.plannedKm) * 1000)} fraction={meterFraction(totals.doneKm, totals.plannedKm)} />
       <Tile label={t('workouts')} done={String(totals.doneCount)} planned={String(totals.plannedCount)} fraction={meterFraction(totals.doneCount, totals.plannedCount)} />
-      <Tile label={t('time')} done={hoursText(totals.doneSec)} planned={hoursText(totals.plannedSec)} fraction={meterFraction(totals.doneSec, totals.plannedSec)} />
+      {/* No test: the plan's minutes are unknown (they come from a pace), so "—", not "0:00". */}
+      <Tile label={t('time')} done={hoursText(totals.doneSec)} planned={totals.plannedSec > 0 || !totals.plannedCount ? hoursText(totals.plannedSec) : '—'} fraction={meterFraction(totals.doneSec, totals.plannedSec)} />
       {showLoad && (
         <Tile label={t('load')} done={String(totals.doneLoad)} planned={String(totals.plannedLoad)} fraction={meterFraction(totals.doneLoad!, totals.plannedLoad!)} />
       )}

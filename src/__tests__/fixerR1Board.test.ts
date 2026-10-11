@@ -72,6 +72,11 @@ describe('a run recorded twice is one run (issue 14)', () => {
     const rep = (id: string, min: number) => ({ id, start_time: `2026-10-12T06:${String(min).padStart(2, '0')}:00`, distance: 2000, duration: 430, source: 'garmin' });
     expect(twinIds([rep('1', 0), rep('2', 9), rep('3', 18)]).size).toBe(0);
   });
+  it('two trainees on the same schedule are two runs, not twins', () => {
+    expect(areTwins({ ...g, athlete_id: 'A' }, { ...s, athlete_id: 'B' })).toBe(false);
+    expect(twinIds([{ ...g, athlete_id: 'A' }, { ...g, id: 'g2', athlete_id: 'B' }]).size).toBe(0);
+  });
+
   it('two runs the same morning, 40 minutes apart, are two runs', () => {
     expect(areTwins(g, { ...s, start_time: '2026-10-12T07:40:00' })).toBe(false);
   });

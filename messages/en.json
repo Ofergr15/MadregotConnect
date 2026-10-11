@@ -4206,7 +4206,8 @@
       "feelButton": "How did it feel?",
       "noWatchTitle": "No Garmin connected",
       "noWatchSub": "The workout won't be sent to a watch. Run by the paces here.",
-      "oldTest": "Your last test was <m>{months}</m> months ago; a new one is worth it."
+      "oldTest": "Your last test was <m>{months}</m> months ago; a new one is worth it.",
+      "volumeKm": "<b><m>{km}</m> km</b>"
     },
     "done": {
       "tabs": {

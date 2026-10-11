@@ -168,7 +168,10 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
           )}
           {(size || data?.expectedLoad) && (
             <p className="mt-1 text-[16px] text-ink-500">
-              {size && t.rich('volume', { ...RICH, km: kmText(size.distanceM), min: Math.round(size.durationSec / 60) })}
+              {/* No test: the minutes would be a lane pace's, so only the distance. */}
+              {size && (v2 && !T
+                ? tw.rich('volumeKm', { ...RICH, km: kmText(size.distanceM) })
+                : t.rich('volume', { ...RICH, km: kmText(size.distanceM), min: Math.round(size.durationSec / 60) }))}
               {data?.expectedLoad && (
                 <>
                   {size && ' · '}

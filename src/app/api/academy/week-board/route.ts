@@ -182,9 +182,11 @@ export async function GET(request: Request) {
         compliance: graded.compliance,
         plannedM,
         actualM: graded.actualM,
-        plannedSec: graded.plannedSec,
+        // Without a test of their own, the planned minutes and pace would be a lane's (the
+        // home card withholds them too): the distance stands, the rest waits for a test.
+        plannedSec: thresholdSec ? graded.plannedSec : null,
         actualSec: graded.actualSec,
-        plannedPace: toTrainee(plannedPace),
+        plannedPace: thresholdSec ? toTrainee(plannedPace) : null,
         // The work's pace where the reps were read; the whole run's only when the session
         // was graded against a whole-session band — never a run average set beside a rep
         // target, which would call every interval session slow.
