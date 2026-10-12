@@ -5034,5 +5034,20 @@
       "subOther": "יש לנו טסט <m>2000</m> מ׳, אבל ממנו לא נגזר קצב סף. עם טסט של <m>30</m> דקות נחשב לך קצבים אישיים לכל אימון.",
       "dateFirst": "צריך לבחור מתי היה הטסט."
     }
+  },
+  "nextSession": {
+    "areYouComing": "מגיעים {when}?",
+    "whoComing": "מי מגיע {when}",
+    "confirmed": "{count, plural, one {אחד כבר אישר} other {# כבר אישרו}}",
+    "coming": "מגיעים",
+    "comingWith": "מגיעים עם דבוקה",
+    "join": "להצטרף",
+    "switch": "מעבר",
+    "pace": "קצב",
+    "notThisTime": "לא הפעם",
+    "notComingSet": "סימנתם שלא מגיעים · אפשר לשנות",
+    "comingCollapsed": "מגיעים {when} · דבוקה {n}",
+    "notComingCollapsed": "לא מגיעים {when}",
+    "collapse": "מזעור"
   }
 }

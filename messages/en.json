@@ -5034,5 +5034,20 @@
       "subOther": "We have a <m>2000</m> m test, but it sets no threshold. With a <m>30</m>-minute test we'll work out personal paces for every workout.",
       "dateFirst": "Choose when the test was."
     }
+  },
+  "nextSession": {
+    "areYouComing": "Coming {when}?",
+    "whoComing": "Who's coming {when}",
+    "confirmed": "{count, plural, one {1 confirmed} other {# confirmed}}",
+    "coming": "Coming",
+    "comingWith": "Coming with pack",
+    "join": "Join",
+    "switch": "Switch",
+    "pace": "Pace",
+    "notThisTime": "Not this time",
+    "notComingSet": "You said you're not coming · you can change it",
+    "comingCollapsed": "Coming {when} · pack {n}",
+    "notComingCollapsed": "Not coming {when}",
+    "collapse": "Collapse"
   }
 }
