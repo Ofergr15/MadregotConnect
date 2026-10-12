@@ -256,7 +256,7 @@ export function NextSessionCard() {
                 {whenWord} · {dayNames[s.dayOfWeek]}
               </span>
               <span className="mt-0.5 block font-[ui-rounded,system-ui] text-[28px] font-bold leading-tight tracking-tight text-ink-900">
-                {timeText || titleText}
+                {timeText || typeLabel}
               </span>
             </span>
             <span className="flex shrink-0 items-center gap-1.5">
@@ -267,9 +267,11 @@ export function NextSessionCard() {
                   {kindLabel}
                 </span>
               )}
-              <span className="inline-flex h-7 items-center gap-1.5 rounded-pill px-2.5 text-xs font-bold" style={{ background: `${fill}22`, color: ink }}>
-                <span className="h-2 w-2 rounded-sm" style={{ background: fill }} />{typeLabel}
-              </span>
+              {timeText && (
+                <span className="inline-flex h-7 items-center gap-1.5 rounded-pill px-2.5 text-xs font-bold" style={{ background: `${fill}22`, color: ink }}>
+                  <span className="h-2 w-2 rounded-sm" style={{ background: fill }} />{typeLabel}
+                </span>
+              )}
               {watchKnown && (
                 <span title={watchLabel} aria-label={watchLabel} className={`flex h-7 items-center gap-0.5 rounded-pill px-2 ${
                   watchState === 'ran' ? 'bg-accent-600/10 text-accent-900' : watchState === 'updated' ? 'bg-[#FFF3D6] text-[#8A5A00]' : watchState === 'sent' ? 'bg-brand-600/10 text-brand-600' : 'bg-accent-red/10 text-accent-red'}`}>
@@ -284,7 +286,7 @@ export function NextSessionCard() {
             </span>
           </span>
           <span className="mt-2 flex items-baseline justify-between gap-3">
-            <span className="min-w-0 truncate text-lg font-extrabold text-ink-900">{timeText ? titleText : ''}</span>
+            <span className="min-w-0 truncate text-lg font-extrabold text-ink-900">{timeText ? titleText : (s.name && !/^\d/.test(s.name) && s.name !== typeLabel ? s.name : '')}</span>
             <span className="shrink-0 text-xs font-semibold text-ink-400"><bdi dir="ltr">{approx}{km}</bdi> {units.km}{s.durationSec ? <> · <bdi dir="ltr">{formatDurationClock(s.durationSec)}</bdi></> : null}</span>
           </span>
           {profile.length > 0 && (

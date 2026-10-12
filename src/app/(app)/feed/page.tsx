@@ -438,7 +438,7 @@ export default function FeedPage() {
             const visible = items.filter(item => item.id !== focusItem?.id);
             const entries = groupFeedItems(visible, myAthleteId);
             let lastDay = '';
-            return entries.map(entry => {
+            return entries.map((entry, idx) => {
               // A group sits at its newest member's position, so that member is
               // what the day rule reads. (items[0] is the viewer's own run when
               // they were on it, which isn't necessarily the newest — hence the
@@ -450,8 +450,14 @@ export default function FeedPage() {
               const day = feedDayKey(dayItem.occurredAt, dayItem.activity?.startTime);
               const opensDay = day !== lastDay;
               lastDay = day;
+              const pos = idx;
               return (
                 <Fragment key={entry.kind === 'group' ? entry.group.key : entry.item.id}>
+                  {/* The club's other cards live IN the feed now, between posts
+                      (feed redesign 2026-10-12): above it only the next session
+                      stays, so the first screen shows runs. Both self-hide. */}
+                  {pos === 3 && <div className="empty:hidden"><SquadStandings /></div>}
+                  {pos === 6 && <div className="empty:hidden"><UpcomingEvents /></div>}
                   {opensDay && <DayHeading dayKey={day} />}
                   {entry.kind === 'group' ? (
                     <GroupRunCard
@@ -598,22 +604,6 @@ export default function FeedPage() {
           so it costs no vertical space on a cold or empty account. */}
       <div className="mb-4 empty:mb-0">
         <FeedHighlightCard />
-      </div>
-
-      {/* ═══ SQUAD RIVALRY + WEEKLY LEADERBOARD — moved here from the (now
-          hero-only) home page. Feed is where "how's everyone doing" content
-          belongs; home is only "what do I do today". ═══ */}
-      <div className="mb-4 empty:mb-0">
-        <SquadStandings />
-      </div>
-
-      {/* ═══ WHAT'S COMING ═══
-          Below the rivalry card and above the composer: a member scrolling the
-          feed is being told what everyone DID, and this is the one block that
-          says what is about to happen. Renders nothing when all three lanes are
-          empty, so a quiet month costs no space. */}
-      <div className="mb-4 empty:mb-0">
-        <UpcomingEvents />
       </div>
 
       {/* Writing a post: a floating + on the phone (feed redesign 2026-10-12 —
