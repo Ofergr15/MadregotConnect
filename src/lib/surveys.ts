@@ -18,6 +18,8 @@ export async function createAndSendSurvey(opts: {
   audienceType: string;
   audienceId?: string | null;
   createdBy?: string | null;
+  /** false: create the poll without its own push (the caller's push asks it). */
+  push?: boolean;
 }): Promise<{ survey: { id: string; [key: string]: unknown }; sent: number }> {
   const supabase = createServerClient();
   const cleanOptionsHe = opts.optionsHe.map((o) => o.trim()).filter(Boolean);
@@ -57,6 +59,14 @@ export async function createAndSendSurvey(opts: {
     .select()
     .single();
   if (notifError) throw notifError;
+
+  if (opts.push === false) {
+    await supabase
+      .from('scheduled_notifications')
+      .update({ status: 'sent', last_sent_at: new Date().toISOString(), sent_count: 0 })
+      .eq('id', notifRow.id);
+    return { survey, sent: 0 };
+  }
 
   const subs = await resolveAudience(notifRow.audience_type, notifRow.audience_id);
   // The question is authored once but stored in both languages, so each

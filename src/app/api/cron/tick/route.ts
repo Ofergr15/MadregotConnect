@@ -211,13 +211,28 @@ async function run(request: Request) {
     teamDayDate.setDate(teamDayDate.getDate() + 1);
     const teamDayWeekStart = getPlanWeekStart(teamDayDate);
 
+    // Recurring pace-group poll template for this team day — a real editable
+    // row (recurring_survey_templates, migration 073), not hardcoded, so
+    // Tuesday and Friday can each be changed independently from the admin UI
+    // without a code deploy. Absent/inactive row = no poll for that day.
+    const { data: surveyTplRow } = await supabase
+      .from('recurring_survey_templates')
+      .select('question_he, question_en, options_he, options_en')
+      .eq('day_of_week', teamDay)
+      .eq('active', true)
+      .maybeSingle();
+    const surveyTpl = surveyTplRow
+      ? { questionHe: surveyTplRow.question_he, questionEn: surveyTplRow.question_en, optionsHe: surveyTplRow.options_he, optionsEn: surveyTplRow.options_en }
+      : null;
+
     // Stage 1 — day before, at dayBefore.hour, to ALL.
     if (dayBefore.enabled && weekday === dayBeforeWeekday && morningDue) {
       const tag = `dayBefore:${teamDayWeekStart}:${teamDay}`;
       if (!(await already(tag))) {
         const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
         const subs = await resolveAudience('all', null);
-        const build = (locale: NotificationLocale) => trainingDayBeforeCopy(locale, { day: teamDay });
+        // One push, both questions: the poll no longer sends its own (Stage 3).
+        const build = (locale: NotificationLocale) => trainingDayBeforeCopy(locale, { day: teamDay, askPack: !!surveyTpl });
         const { sent, byAthlete } = await sendPushLocalized(subs, (locale) => ({
           ...build(locale), url, tag,
           category: 'workouts',
@@ -266,7 +281,7 @@ async function run(request: Request) {
         const nonResponders = all.filter(id => !answeredIds.has(id));
         const subs = await subscriptionsForAthletes(nonResponders);
         const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
-        const build = (locale: NotificationLocale) => trainingEveningBeforeCopy(locale, { day: teamDay, goingCount });
+        const build = (locale: NotificationLocale) => trainingEveningBeforeCopy(locale, { day: teamDay, goingCount, askPack: !!surveyTpl });
         const { sent, byAthlete } = await sendPushLocalized(subs, (locale) => ({
           ...build(locale), url, tag,
           category: 'workouts',
@@ -290,20 +305,6 @@ async function run(request: Request) {
       }
     }
 
-    // Recurring pace-group poll template for this team day — a real editable
-    // row (recurring_survey_templates, migration 073), not hardcoded, so
-    // Tuesday and Friday can each be changed independently from the admin UI
-    // without a code deploy. Absent/inactive row = no poll for that day.
-    const { data: surveyTplRow } = await supabase
-      .from('recurring_survey_templates')
-      .select('question_he, question_en, options_he, options_en')
-      .eq('day_of_week', teamDay)
-      .eq('active', true)
-      .maybeSingle();
-    const surveyTpl = surveyTplRow
-      ? { questionHe: surveyTplRow.question_he, questionEn: surveyTplRow.question_en, optionsHe: surveyTplRow.options_he, optionsEn: surveyTplRow.options_en }
-      : null;
-
     // Stage 3 — pace-group poll, day before, at dayBefore.hour, to ALL. A
     // genuinely fresh Survey each week (never the plain reminder text) so
     // last week's answers can't carry over. The real survey id gets stashed
@@ -320,6 +321,11 @@ async function run(request: Request) {
           optionsEn: surveyTpl.optionsEn,
           audienceType: 'all',
           createdBy: 'cron',
+          // The day-before push (Stage 1) already asks "with which pack?" and opens
+          // the RSVP card that answers it. The poll still exists (results, the
+          // survey screen, the evening nudge), it just doesn't send a second push
+          // in the same minute.
+          push: false,
         });
         await supabase.from('scheduled_notifications').insert({
           kind: 'training_before', title_he: 'reminder', body_he: survey.id,
@@ -363,13 +369,17 @@ async function run(request: Request) {
           const answeredByRsvp = (rsvps || [])
             .filter(rsvpSettlesPaceGroup)
             .map((r: { athlete_id: string }) => r.athlete_id);
+          // Whoever hasn't RSVP'd at all just got Stage 2's push, which now asks the
+          // pack too. One evening push each: this nudge is only for a bare "yes".
+          const rsvpd = new Set((rsvps || []).map((r: { athlete_id: string }) => r.athlete_id));
+          const askedByStage2 = (await allAthleteIds()).filter((id) => !rsvpd.has(id));
 
           const sent = await notifySurveyNonResponders({
             surveyId,
             audienceType: 'all',
             copy: (locale) => surveyNudgeCopy(locale, { day: teamDay }),
             tag,
-            answeredElsewhere: answeredByRsvp,
+            answeredElsewhere: [...answeredByRsvp, ...askedByStage2],
           });
           await markFired(tag, sent);
           fired.push(`${tag} → ${sent}`);

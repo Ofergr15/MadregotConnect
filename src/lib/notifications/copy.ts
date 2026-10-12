@@ -435,8 +435,19 @@ export function shoeLimitCopy(
 
 // ── Training-day reminders (cron/tick) ────────────────────────────────────
 
-export function trainingDayBeforeCopy(locale: NotificationLocale, p: { day: number }): PushCopy {
+/**
+ * The day-before push. `askPack`: that day has a pace-group poll. It used to go
+ * out as a second push at the same minute (Ofer, 2026-10-12: "why would I send
+ * two notifications at once — merge them"), so this one asks both: the tap opens
+ * the home RSVP card, which asks "coming?" and "with which pack?" together.
+ */
+export function trainingDayBeforeCopy(locale: NotificationLocale, p: { day: number; askPack?: boolean }): PushCopy {
   const d = dayName(locale, p.day);
+  if (p.askPack) {
+    return locale === 'he'
+      ? { title: `מחר אימון קבוצתי, יום ${d} 🏃`, body: 'מגיעים? ועם איזו דבוקה? לחיצה לתשובה' }
+      : { title: `Group session tomorrow, ${d} 🏃`, body: 'Coming? And with which pack? Tap to answer' };
+  }
   return locale === 'he'
     ? { title: `תזכורת אימון ליום ${d} 🏃`, body: `מחר, יום ${d}, אימון קבוצתי — נתראה!` }
     : { title: `${d} session reminder 🏃`, body: `Tomorrow, ${d}, group session — see you there!` };
@@ -444,24 +455,25 @@ export function trainingDayBeforeCopy(locale: NotificationLocale, p: { day: numb
 
 export function trainingEveningBeforeCopy(
   locale: NotificationLocale,
-  p: { day: number; goingCount: number },
+  p: { day: number; goingCount: number; askPack?: boolean },
 ): PushCopy {
   const d = dayName(locale, p.day);
   if (locale === 'he') {
     const rsvpPhrase = p.goingCount === 1 ? 'חבר אחד כבר אישר הגעה' : `${p.goingCount} חברים כבר אישרו הגעה`;
+    const pack = p.askPack ? ' ועם איזו דבוקה' : '';
     return {
       title: 'מגיעים מחר לאימון? 🏟️',
       body: p.goingCount > 0
-        ? `${rsvpPhrase} לאימון יום ${d} — ומה איתך?`
-        : `עדכנו אותנו אם אתם מגיעים לאימון יום ${d}`,
+        ? `${rsvpPhrase} לאימון יום ${d}. ומה אתכם?${p.askPack ? ' ועם איזו דבוקה?' : ''}`
+        : `עדכנו אותנו אם אתם מגיעים לאימון יום ${d}${pack}`,
     };
   }
   const rsvpPhrase = p.goingCount === 1 ? '1 teammate has already confirmed' : `${p.goingCount} teammates have already confirmed`;
   return {
     title: 'Coming to training tomorrow? 🏟️',
     body: p.goingCount > 0
-      ? `${rsvpPhrase} for the ${d} session — how about you?`
-      : `Let us know if you're coming to the ${d} session`,
+      ? `${rsvpPhrase} for the ${d} session — how about you?${p.askPack ? ' And with which pack?' : ''}`
+      : `Let us know if you're coming to the ${d} session${p.askPack ? ', and with which pack' : ''}`,
   };
 }
 

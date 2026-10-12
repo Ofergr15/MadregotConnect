@@ -115,15 +115,24 @@ describe('Hebrew output is byte-identical to the pre-refactor call sites', () =>
     });
   });
 
+  it('day-before with a pack poll: one push asks both (Ofer, 2026-10-12)', () => {
+    expect(trainingDayBeforeCopy('he', { day: 2, askPack: true })).toEqual({
+      title: 'מחר אימון קבוצתי, יום שלישי 🏃',
+      body: 'מגיעים? ועם איזו דבוקה? לחיצה לתשובה',
+    });
+    expect(trainingEveningBeforeCopy('he', { day: 5, goingCount: 0, askPack: true }).body)
+      .toBe('עדכנו אותנו אם אתם מגיעים לאימון יום שישי ועם איזו דבוקה');
+  });
+
   it('evening-before nudge (api/cron/tick stage 2) — 0, 1 and many confirmed', () => {
     expect(trainingEveningBeforeCopy('he', { day: 5, goingCount: 0 })).toEqual({
       title: 'מגיעים מחר לאימון? 🏟️',
       body: 'עדכנו אותנו אם אתם מגיעים לאימון יום שישי',
     });
     expect(trainingEveningBeforeCopy('he', { day: 5, goingCount: 1 }).body)
-      .toBe('חבר אחד כבר אישר הגעה לאימון יום שישי — ומה איתך?');
+      .toBe('חבר אחד כבר אישר הגעה לאימון יום שישי. ומה אתכם?');
     expect(trainingEveningBeforeCopy('he', { day: 5, goingCount: 7 }).body)
-      .toBe('7 חברים כבר אישרו הגעה לאימון יום שישי — ומה איתך?');
+      .toBe('7 חברים כבר אישרו הגעה לאימון יום שישי. ומה אתכם?');
   });
 
   it('RSVP action buttons (api/cron/tick)', () => {
