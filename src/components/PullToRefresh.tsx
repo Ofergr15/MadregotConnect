@@ -25,7 +25,9 @@ const RESISTANCE = 0.5; // drag feels heavier than 1:1 finger movement
 
 export function PullToRefresh() {
   const pathname = usePathname();
-  const disabled = pathname.startsWith('/dashboard/run-chat/');
+  // /feed has its own pull (it refreshes the feed only). Both on one gesture
+  // meant a feed refetch AND a full page reload (feed perf trace, 2026-10-12).
+  const disabled = pathname.startsWith('/dashboard/run-chat/') || pathname === '/feed';
   const [pull, setPull] = useState(0); // current indicator offset in px
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef(0);

@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { AthleteLink } from '@/components/AthleteLink';
-import { SkeletonCard } from '@/components/ui';
 import { isEmptyUpcoming, type UpcomingBuckets } from '@/lib/events/upcoming';
 
 /**
@@ -42,7 +41,8 @@ export function UpcomingEvents() {
   const dateLocale = locale === 'he' ? 'he-IL' : 'en-US';
   const { data } = useApi<UpcomingBuckets>('/api/club/upcoming');
 
-  if (!data) return <SkeletonCard />; // true first load → shaped skeleton
+  // Same rule as SquadStandings: no skeleton that may collapse to nothing.
+  if (!data) return null;
   if (isEmptyUpcoming(data)) return null; // nothing on the horizon → no empty card
 
   // "Today" / "tomorrow" / "in N days" — a bare date makes the reader do the

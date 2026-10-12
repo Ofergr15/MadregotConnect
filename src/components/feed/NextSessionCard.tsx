@@ -6,7 +6,6 @@ import { israelClock, watchDayState, type WatchDay } from '@/lib/watch/day-statu
 import { Check, ChevronLeft, ChevronRight, Link2, Moon, Sun, Watch } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { addDaysToDateStr, israelNow, israelToday } from '@/lib/utils';
-import { fetchActivities } from '@/lib/activities-client';
 import {
   WORKOUT_TYPE_COLORS, WORKOUT_TYPE_TEXT_COLORS, planDayKey, type WeekSession,
 } from '@/lib/plans/workout-parsing';
@@ -71,7 +70,6 @@ export function NextSessionCard() {
 
   const { data: weekly } = useApi<WeeklyResponse>('/api/dashboard/weekly');
   const { data: watch } = useApi<WatchState>('/api/my-watch');
-  const [runsKmByDate, setRunsKmByDate] = useState<Record<string, number[]> | null>(null);
   const [detail, setDetail] = useState<WorkoutDetailSession | null>(null);
   const [viewGroup, setViewGroup] = useState(0);
 
@@ -82,28 +80,25 @@ export function NextSessionCard() {
     if (stored >= 0 && stored <= 2) setViewGroup(stored);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        // Today's runs only: "is the session done" is a question about today, and
-        // `since` is a date-only floor anyway.
-        const res = await fetchActivities({ selfOnly: true, since: todayKey });
-        const data = res.ok ? await res.json() : { activities: [] };
-        const byDate: Record<string, number[]> = {};
-        for (const a of (data.activities || []) as FeedActivity[]) {
-          // start_time is the athlete's own wall clock, so its date part IS the
-          // Israel day — no timezone maths, which would shift a 23:30 run.
-          const key = a.start_time.slice(0, 10);
-          (byDate[key] ||= []).push((a.distance || 0) / 1000);
-        }
-        if (!cancelled) setRunsKmByDate(byDate);
-      } catch {
-        if (!cancelled) setRunsKmByDate({});
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [todayKey]);
+  // Today's runs only: "is the session done" is a question about today, and
+  // `since` is a date-only floor anyway. Through the shared cache (useApi) so a
+  // reopen paints this card at once instead of popping it in above the feed a
+  // beat later (feed perf trace, 2026-10-12). Same URL fetchActivities builds.
+  const myId = typeof window !== 'undefined' ? localStorage.getItem('athlete_id') : null;
+  const { data: todayRuns, error: todayRunsError } = useApi<{ activities?: FeedActivity[] }>(
+    `/api/activities?${new URLSearchParams({ ...(myId ? { athleteId: myId } : {}), scope: 'self', since: todayKey })}`,
+  );
+  const runsKmByDate = useMemo(() => {
+    if (!todayRuns && !todayRunsError) return null;
+    const byDate: Record<string, number[]> = {};
+    for (const a of (todayRuns?.activities || []) as FeedActivity[]) {
+      // start_time is the athlete's own wall clock, so its date part IS the
+      // Israel day — no timezone maths, which would shift a 23:30 run.
+      const key = a.start_time.slice(0, 10);
+      (byDate[key] ||= []).push((a.distance || 0) / 1000);
+    }
+    return byDate;
+  }, [todayRuns, todayRunsError]);
 
   const next = useMemo(() => {
     if (!weekly?.hasPlan || !runsKmByDate) return null;

@@ -34,7 +34,7 @@ import { OnboardingTestReset } from '@/components/onboarding/OnboardingTestReset
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
-import { appScrollTop } from '@/lib/app-scroll';
+import { appScrollTop, scrollAppToTop } from '@/lib/app-scroll';
 
 const PAGE_SIZE = FEED_PAGE_SIZE;
 
@@ -192,9 +192,19 @@ export default function FeedPage() {
     academyCount?: number | null;
   }>('/api/groups');
 
-  const [myName, setMyName] = useState('');
-  const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
-  const [isStaff, setIsStaff] = useState(false);
+  // Read from the device on the FIRST render (same as the seeded page above):
+  // grouping and ordering depend on the viewer, so starting from null and filling
+  // it in an effect re-grouped the whole list a beat after it painted.
+  const stored = (k: string) => { try { return typeof window === 'undefined' ? null : localStorage.getItem(k); } catch { return null; } };
+  const [myName, setMyName] = useState(() => stored('athlete_name') || '');
+  const [myAthleteId, setMyAthleteId] = useState<string | null>(() => stored('athlete_id'));
+  const [isStaff, setIsStaff] = useState(() => !!stored('coach_email'));
+  // New items from a refresh that arrived while the reader was down the list:
+  // held behind a pill instead of pushing the list under their thumb.
+  const [pendingFresh, setPendingFresh] = useState<{ items: FeedItem[]; cursor: string | null; count: number } | null>(null);
+  // "Load more" waits for the first fresh page, or it pages from a stale cursor
+  // while that page is still in flight and the two answers overwrite each other.
+  const freshLoadedRef = useRef(false);
 
   // ── Deep link from a push ────────────────────────────────────────────────
   // "🏃 X finished a run" notifications carry the activity id, and tapping one
@@ -246,6 +256,15 @@ export default function FeedPage() {
   };
 
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const applyPendingFresh = useCallback(() => {
+    setPendingFresh(p => {
+      if (p) { setItems(p.items); setCursor(p.cursor); }
+      return null;
+    });
+    scrollAppToTop(true);
+  }, []);
   const hasMore = cursor !== null;
 
   // Pull-to-refresh (swipe down at the top of the feed) — the default native
@@ -377,8 +396,18 @@ export default function FeedPage() {
       const { items: page, nextCursor } = await (primed
         ? primed.catch(() => fetchFeed(null, PAGE_SIZE))
         : fetchFeed(null, PAGE_SIZE, activeTypes, squad));
-      setItems(page);
-      setCursor(nextCursor);
+      // A reader scrolled into a list on screen keeps it; what's new waits behind
+      // the "↑ N new" pill (applyPendingFresh). At the top, the swap is invisible.
+      const shown = itemsRef.current;
+      const newCount = shown.length ? page.findIndex(i => i.id === shown[0].id) : 0;
+      if (shown.length > 0 && appScrollTop() > 160 && newCount !== 0) {
+        setPendingFresh({ items: page, cursor: nextCursor, count: newCount > 0 ? newCount : page.length });
+      } else {
+        setItems(page);
+        setCursor(nextCursor);
+        setPendingFresh(null);
+      }
+      freshLoadedRef.current = true;
       // Only the unfiltered club feed is cached — a squad's page under the "all"
       // key would come back as everyone's feed on the next visit.
       if (activeTypes.length === 0 && !squad) {
@@ -395,7 +424,7 @@ export default function FeedPage() {
   }, [t, filter, squad]);
 
   const loadMore = useCallback(async () => {
-    if (loadingMore || !cursor) return;
+    if (loadingMore || !cursor || !freshLoadedRef.current) return;
     setLoadingMore(true);
     try {
       const { items: page, nextCursor } = await fetchFeed(cursor, PAGE_SIZE, activeTypes, squad);
@@ -427,7 +456,7 @@ export default function FeedPage() {
     return () => obs.disconnect();
   }, [hasMore, loadingMore, loading, loadMore]);
 
-  const handleDelete = async (item: FeedItem) => {
+  const handleDelete = useCallback(async (item: FeedItem) => {
     try {
       await deletePost(item.id);
       // Deleting the pinned run has to unpin it too, or the deep link keeps a
@@ -442,7 +471,8 @@ export default function FeedPage() {
       setDeleteError((err as Error).message || t('deleteError'));
       setTimeout(() => setDeleteError(null), 4000);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // The sheet hands back the tail of the thread as well as the count, so the
   // card's inline preview updates with it — write a comment, close the sheet, and
@@ -469,6 +499,52 @@ export default function FeedPage() {
     });
   };
 
+  // The list is the expensive part (every card, every route map). Built only
+  // when what it shows changes, not on every pull-to-refresh touchmove or
+  // sheet toggle, which used to re-render all of it per frame.
+  const openComment = useCallback((i: FeedItem) => setCommentItem(i), []);
+  const feedList = useMemo(() => {
+            const visible = items.filter(item => item.id !== focusItem?.id);
+            const entries = groupFeedItems(visible, myAthleteId);
+            let lastDay = '';
+            return entries.map(entry => {
+              // A group sits at its newest member's position, so that member is
+              // what the day rule reads. (items[0] is the viewer's own run when
+              // they were on it, which isn't necessarily the newest — hence the
+              // reduce rather than a plain index.)
+              const dayItem =
+                entry.kind === 'group'
+                  ? entry.group.items.reduce((a, b) => (a.occurredAt >= b.occurredAt ? a : b))
+                  : entry.item;
+              const day = feedDayKey(dayItem.occurredAt, dayItem.activity?.startTime);
+              const opensDay = day !== lastDay;
+              lastDay = day;
+              return (
+                <Fragment key={entry.kind === 'group' ? entry.group.key : entry.item.id}>
+                  {opensDay && <DayHeading dayKey={day} />}
+                  {entry.kind === 'group' ? (
+                    <GroupRunCard
+                      group={entry.group}
+                      myAthleteId={myAthleteId}
+                      isStaff={isStaff}
+                      onComment={openComment}
+                      onDelete={handleDelete}
+                    />
+                  ) : (
+                    <FeedCard
+                      item={entry.item}
+                      commentCount={entry.item.commentCount}
+                      myAthleteId={myAthleteId}
+                      isStaff={isStaff}
+                      onComment={openComment}
+                      onDelete={handleDelete}
+                    />
+                  )}
+                </Fragment>
+              );
+            });
+  }, [items, focusItem?.id, myAthleteId, isStaff, handleDelete, openComment]);
+
   return (
     <div
       className="max-w-xl mx-auto"
@@ -482,6 +558,16 @@ export default function FeedPage() {
           leaves a screen reader with nothing to announce on arrival and no
           landmark to skip to. Visual design unchanged. */}
       <h1 className="sr-only">{t('pageTitle')}</h1>
+
+      {pendingFresh && (
+        <button
+          type="button"
+          onClick={applyPendingFresh}
+          className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+76px)] z-30 -translate-x-1/2 inline-flex h-9 items-center gap-1.5 rounded-pill bg-ink-900 px-4 text-sm font-bold text-white shadow-lg active:opacity-90"
+        >
+          ↑ {t('newItems', { count: pendingFresh.count })}
+        </button>
+      )}
 
       {/* Pull-to-refresh affordance — grows with the swipe, shows a spinner
           while `refreshing` runs loadInitial(). */}
@@ -586,7 +672,7 @@ export default function FeedPage() {
       {/* ═══ SQUAD RIVALRY + WEEKLY LEADERBOARD — moved here from the (now
           hero-only) home page. Feed is where "how's everyone doing" content
           belongs; home is only "what do I do today". ═══ */}
-      <div className="mb-4">
+      <div className="mb-4 empty:mb-0">
         <SquadStandings />
       </div>
 
@@ -760,47 +846,7 @@ export default function FeedPage() {
               is deliberate: a club run recorded by eight people can straddle a
               pagination boundary, and grouping server-side per page would emit a
               group of five and then a group of three for the same run. */}
-          {(() => {
-            const visible = items.filter(item => item.id !== focusItem?.id);
-            const entries = groupFeedItems(visible, myAthleteId);
-            let lastDay = '';
-            return entries.map(entry => {
-              // A group sits at its newest member's position, so that member is
-              // what the day rule reads. (items[0] is the viewer's own run when
-              // they were on it, which isn't necessarily the newest — hence the
-              // reduce rather than a plain index.)
-              const dayItem =
-                entry.kind === 'group'
-                  ? entry.group.items.reduce((a, b) => (a.occurredAt >= b.occurredAt ? a : b))
-                  : entry.item;
-              const day = feedDayKey(dayItem.occurredAt, dayItem.activity?.startTime);
-              const opensDay = day !== lastDay;
-              lastDay = day;
-              return (
-                <Fragment key={entry.kind === 'group' ? entry.group.key : entry.item.id}>
-                  {opensDay && <DayHeading dayKey={day} />}
-                  {entry.kind === 'group' ? (
-                    <GroupRunCard
-                      group={entry.group}
-                      myAthleteId={myAthleteId}
-                      isStaff={isStaff}
-                      onComment={i => setCommentItem(i)}
-                      onDelete={handleDelete}
-                    />
-                  ) : (
-                    <FeedCard
-                      item={entry.item}
-                      commentCount={entry.item.commentCount}
-                      myAthleteId={myAthleteId}
-                      isStaff={isStaff}
-                      onComment={i => setCommentItem(i)}
-                      onDelete={handleDelete}
-                    />
-                  )}
-                </Fragment>
-              );
-            });
-          })()}
+          {feedList}
         </div>
       )}
 

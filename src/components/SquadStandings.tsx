@@ -6,7 +6,6 @@ import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { AthleteLink } from '@/components/AthleteLink';
-import { SkeletonList } from '@/components/ui';
 
 interface Squad {
   groupId: string;
@@ -55,7 +54,10 @@ export function SquadStandings() {
   // at once pushes the feed itself off the screen.
   const [openId, setOpenId] = useState<string | null>(null);
 
-  if (!data) return <SkeletonList count={3} />; // true first load → shaped skeleton
+  // Nothing until the answer (or the cached one) is in. A 3-row skeleton that
+  // then collapsed to nothing when fewer than 2 squads were active moved the
+  // whole feed up by ~190px (perf trace 2026-10-12).
+  if (!data) return null;
 
   const squads = data.squads ?? [];
 

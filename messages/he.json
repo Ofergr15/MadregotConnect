@@ -2554,7 +2554,8 @@
     "filterMine": "שלי",
     "filterFavorites": "מועדפים",
     "emptyFavoritesTitle": "אין עדיין מועדפים",
-    "emptyFavoritesBody": "היכנסו לפרופיל של חבר קבוצה ולחצו על הכוכב כדי לראות את הריצות שלו כאן."
+    "emptyFavoritesBody": "היכנסו לפרופיל של חבר קבוצה ולחצו על הכוכב כדי לראות את הריצות שלו כאן.",
+    "newItems": "{count, plural, one {פריט חדש אחד} other {# חדשים}}"
   },
   "feedHighlight": {
     "unit_distance_km": "ק״מ",

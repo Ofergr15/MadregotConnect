@@ -2554,7 +2554,8 @@
     "filterMine": "Mine",
     "filterFavorites": "Favorites",
     "emptyFavoritesTitle": "No favorites yet",
-    "emptyFavoritesBody": "Open a teammate’s profile and tap the star to follow their runs here."
+    "emptyFavoritesBody": "Open a teammate’s profile and tap the star to follow their runs here.",
+    "newItems": "{count, plural, one {1 new item} other {# new}}"
   },
   "feedHighlight": {
     "unit_distance_km": "km",

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import { Check, ChevronRight, X } from 'lucide-react';
-import { fetchFeedHighlight } from '@/lib/feed-client';
+import { useApi } from '@/lib/api';
 import { formatWeekRange } from '@/lib/utils';
 import {
   WEEK_DAYS,
@@ -233,11 +233,14 @@ function ChallengeRow({ challenge, onHide }: { challenge: HighlightChallenge; on
 export function FeedHighlightCard() {
   const t = useTranslations('feedHighlight');
   const locale = useLocale();
-  const [highlight, setHighlight] = useState<FeedHighlight | null>(null);
   const [dismissed, setDismissed] = useState<string | null>(null);
+  // Through the shared cache, so a reopen paints the card at once instead of
+  // inserting ~200px above the feed after the page has painted (perf trace
+  // 2026-10-12). Silent on failure: the feed below is the page.
+  const { data } = useApi<{ highlight: FeedHighlight | null }>('/api/feed/highlight');
+  const highlight = data?.highlight ?? null;
 
   useEffect(() => {
-    let cancelled = false;
     // Read here rather than in an initialiser: this component mounts during SSR
     // hydration and localStorage doesn't exist there.
     try {
@@ -245,11 +248,6 @@ export function FeedHighlightCard() {
     } catch {
       // Private-mode Safari throws on localStorage. Then the card just shows.
     }
-    fetchFeedHighlight()
-      .then(({ highlight: h }) => { if (!cancelled) setHighlight(h); })
-      // Silent: the feed below is the page, and this card failing is not news.
-      .catch(() => { /* no card */ });
-    return () => { cancelled = true; };
   }, []);
 
   if (!highlight) return null;

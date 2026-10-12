@@ -1,7 +1,6 @@
 'use client';
 
-import { getSupabase } from '@/lib/supabase/client';
-import { trySilentReauth } from '@/lib/auth/silent-reauth';
+import { accessToken } from '@/lib/auth/bearer-headers';
 import type { FeedItem, FeedLiker, FeedMedia } from '@/lib/feed/project';
 import type { FeedHighlight } from '@/lib/feed/highlight';
 
@@ -23,8 +22,10 @@ export interface FeedComment {
 }
 
 async function authHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
-  const { data } = await getSupabase().auth.getSession();
-  const token = data.session?.access_token || (await trySilentReauth());
+  // The cached token (lib/auth/bearer-headers): getSession() takes the auth lock,
+  // so the feed's own calls used to queue behind each other and behind every
+  // other caller on a cold open (feed perf trace, 2026-10-12).
+  const token = await accessToken();
   if (!token) throw new Error('NOT_SIGNED_IN');
   return { ...extra, Authorization: `Bearer ${token}` };
 }
