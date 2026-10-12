@@ -2555,7 +2555,15 @@
     "filterFavorites": "Favorites",
     "emptyFavoritesTitle": "No favorites yet",
     "emptyFavoritesBody": "Open a teammate’s profile and tap the star to follow their runs here.",
-    "newItems": "{count, plural, one {1 new item} other {# new}}"
+    "newItems": "{count, plural, one {1 new item} other {# new}}",
+    "scopeClub": "The club",
+    "scopeMine": "My runs",
+    "scopePacks": "Packs",
+    "scopeYours": "yours",
+    "scopeTitle": "What the feed shows",
+    "scopeClose": "Close",
+    "scopeWhat": "What to show",
+    "scopeReset": "Whole club"
   },
   "feedHighlight": {
     "unit_distance_km": "km",

@@ -3,7 +3,7 @@
 import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { PenSquare, MessageSquare, AlertCircle, LogIn, Star, User, X } from 'lucide-react';
+import { PenSquare, MessageSquare, AlertCircle, LogIn, Star, X } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { isViewingPerson } from '@/lib/view-as-person';
 import { useTranslations, useFormatter } from 'next-intl';
@@ -15,7 +15,6 @@ import { readSavedFeedPage, saveFeedPage } from '@/lib/feed/feed-cache';
 import { fetchFeed, deletePost, fetchFeedItem, fetchFeedItemByActivity, FEED_PAGE_SIZE, takePrimedFeedPage } from '@/lib/feed-client';
 import { feedFocusFromParams } from '@/lib/feed/deep-link';
 import { FAVORITES_SQUAD, MINE_SQUAD } from '@/lib/feed/squad-filter';
-import { useIsSuperUser } from '@/lib/impersonation';
 import { FeedCard } from '@/components/FeedCard';
 import { FeedCommentSheet } from '@/components/FeedCommentSheet';
 import { FeedComposer } from '@/components/FeedComposer';
@@ -35,6 +34,7 @@ import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
 import { appScrollTop, scrollAppToTop } from '@/lib/app-scroll';
+import { isDefaultScope, resetFeedScope, setFeedScope, useFeedScope } from '@/lib/feed/scope-store';
 
 const PAGE_SIZE = FEED_PAGE_SIZE;
 
@@ -53,76 +53,8 @@ const FILTERS = [
 
 type FilterKey = (typeof FILTERS)[number]['key'];
 
-/**
- * The squad chips, a second axis under the type chips (373ebe89: "add a filter on
- * the feed by squad 1/2/3/academy").
- *
- * A SECOND ROW rather than four more chips in the first one: the two questions are
- * independent — "just the runs, from my squad" is a real thing to ask — and seven
- * chips on one line wraps on a 352 px phone into something that reads like one
- * flat list of seven alternatives, which is exactly what it isn't.
- *
- * The list comes from /api/groups, which the Header already loads on every page,
- * so the chips cost nothing extra. `academy` is appended by hand because academy
- * membership is a flag and not a group — see lib/feed/squad-filter.ts.
- */
-const ACADEMY_CHIP = 'academy';
 
-/**
- * How many flagged athletes the academy needs before the feed offers to filter to
- * it (aae77577). One is the club's testing state, not an academy.
- */
-const MIN_ACADEMY_FOR_CHIP = 2;
 
-/**
- * One squad chip. Same shape as the type chips above it, with the squad's own
- * colour as the selected fill so the three דבוקות stay the colours they are
- * everywhere else in the app (GROUP_HEX via resolveGroup) — a squad filter that
- * highlighted in the app's ink would be the one place in the product where a
- * squad has no colour.
- */
-function SquadChip({
-  active,
-  onClick,
-  label,
-  hex,
-  icon: Icon,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  hex?: string;
-  /** Only the favourites and "mine" chips use one — see the chip row below. */
-  icon?: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      // shrink-0: the row scrolls horizontally, so a chip must keep its own width
-      // rather than being squeezed into an ellipsis by its neighbours.
-      className={cn(
-        // Drawn at 32 and hit at 48: the halo adds 8px above and below. The two
-        // chip rows sit 16px apart, so the halos meet without overlapping. 6px
-        // halos 12px apart met exactly and the audit probed 41.5 — the shared
-        // edge pixel went to the other row. A 44px chip would make the two rows a
-        // third of the first screen.
-        'shrink-0 rounded-full px-3.5 text-xs font-semibold transition-colors relative inline-flex h-8 items-center after:absolute after:inset-x-0 after:-inset-y-2 after:content-[""]',
-        Icon && 'gap-1',
-        active
-          ? hex
-            ? 'text-card'
-            : 'bg-ink-700 text-card'
-          : 'border border-page bg-card text-ink-400 hover:text-ink-500',
-      )}
-      style={active && hex ? { backgroundColor: hex } : undefined}
-    >
-      {Icon && <Icon className={cn('h-3 w-3', active && 'fill-current')} />}
-      {label}
-    </button>
-  );
-}
 
 /**
  * A date rule between days, so a long scroll reads as "Today / Yesterday /
@@ -182,11 +114,14 @@ export default function FeedPage() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [commentItem, setCommentItem] = useState<FeedItem | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterKey>('all');
-  /** A group id, `ACADEMY_CHIP`, or null for the whole club. */
-  const [squad, setSquad] = useState<string | null>(null);
-  /** "Only my workouts" (Sahar), for the super user until rollout. */
-  const showMine = useIsSuperUser();
+  // What the feed shows lives in a shared store: the control is the club logo in
+  // the Header (components/feed/FeedScopeButton), remembered on the device.
+  const scope = useFeedScope();
+  const filter: FilterKey = scope.kind;
+  /** A group id, ACADEMY_SQUAD, MINE_SQUAD, FAVORITES_SQUAD, or null for the whole club. */
+  const squad = scope.squad;
+  const setFilter = (k: FilterKey) => setFeedScope({ kind: k });
+  const setSquad = (s: string | null) => setFeedScope({ squad: s });
   const { data: groupsData } = useApi<{
     groups?: { id: string; name: string }[];
     academyCount?: number | null;
@@ -375,10 +310,6 @@ export default function FeedPage() {
       .sort((a, b) => (a.index < 0 ? 1 : a.index) - (b.index < 0 ? 1 : b.index));
   }, [groupsData, t]);
 
-  // Two, not one: a filter that can only ever return one person's runs is not a
-  // filter. See the chip below.
-  const academyCount = groupsData?.academyCount;
-  const showAcademyChip = academyCount == null || academyCount >= MIN_ACADEMY_FOR_CHIP;
 
   const loadInitial = useCallback(async () => {
     // Skip the loading gate when a cached page is already on screen — pull-to-
@@ -699,85 +630,21 @@ export default function FeedPage() {
         <PenSquare className="h-4 w-4 text-ink-400" />
       </div>
 
-      {/* ═══ What's in the feed — runs, or everything else ═══
-          "I just want to see the runs" and "did I miss an announcement?" are the
-          two ways people actually read this screen, and both used to mean
-          scrolling past the other one. */}
-      <div className="mb-4 flex items-center gap-2">
-        {FILTERS.map(f => (
+      {/* What is filtered, said once, with the way back (the control itself is
+          the club logo in the Header). */}
+      {!isDefaultScope(scope) && (
+        <div className="mb-3 flex items-center gap-2">
           <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            aria-pressed={filter === f.key}
-            className={cn(
-              // Same 32-drawn / 44-hit geometry as SquadChip above.
-              'px-3.5 rounded-full text-xs font-semibold transition-colors relative inline-flex h-8 items-center after:absolute after:inset-x-0 after:-inset-y-2 after:content-[""]',
-              filter === f.key
-                ? 'bg-ink-700 text-card'
-                : 'bg-card border border-page text-ink-400 hover:text-ink-500',
-            )}
+            type="button"
+            onClick={() => resetFeedScope()}
+            className="inline-flex h-8 items-center gap-2 rounded-pill bg-brand-600/10 ps-3 pe-1.5 text-13 font-bold text-brand-600"
           >
-            {t(f.labelKey)}
+            {[
+              squad ? (squadChips.find(c => c.id === squad)?.label ?? (squad === FAVORITES_SQUAD ? t('filterFavorites') : squad === MINE_SQUAD ? t('scopeMine') : t('filterAcademy'))) : t('scopeClub'),
+              filter !== 'all' ? t(FILTERS.find(x => x.key === filter)!.labelKey) : null,
+            ].filter(Boolean).join(' · ')}
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-card"><X className="h-3 w-3" /></span>
           </button>
-        ))}
-      </div>
-
-      {/* ═══ Whose feed — the whole club, one דבוקה, or the academy ═══
-          Reported as 373ebe89. Orthogonal to the row above, so "just the runs,
-          from my squad" is two taps and not a mode. Ordered by resolveGroup's
-          index (1/2/3) rather than by the roster's creation order, so the chips
-          read in the order the club names its squads. */}
-      {squadChips.length > 0 && (
-        <div className="-mt-2 mb-2 flex items-center gap-2 overflow-x-auto py-2">
-          {/* overflow-x-auto clips on both axes, so the chips' 8px halos need room
-              inside the scroll box: `py-2` makes it, `-mt-2 mb-2` puts the row
-              back where it was. */}
-          <SquadChip active={squad === null} onClick={() => setSquad(null)} label={t('filterSquadAll')} />
-          {/* Beside "everyone" rather than at the end: it is the other end of
-              the same question, the whole club or just me. */}
-          {showMine && (
-            <SquadChip
-              active={squad === MINE_SQUAD}
-              onClick={() => setSquad(MINE_SQUAD)}
-              label={t('filterMine')}
-              icon={User}
-            />
-          )}
-          {squadChips.map(chip => (
-            <SquadChip
-              key={chip.id}
-              active={squad === chip.id}
-              onClick={() => setSquad(chip.id)}
-              label={chip.label}
-              hex={chip.hex}
-            />
-          ))}
-          {/* aae77577: hidden until the academy actually has members. The filter
-              itself was never wrong — academy membership is the `is_academy` flag
-              and not a group — but with one flagged athlete the chip was a filter
-              down to one person, which reads as a bug rather than as a filter.
-              `undefined`/`null` means the count did not answer, and then the chip
-              stays: a failed read must not hide a working feature. */}
-          {showAcademyChip && (
-            <SquadChip
-              active={squad === ACADEMY_CHIP}
-              onClick={() => setSquad(ACADEMY_CHIP)}
-              label={t('filterAcademy')}
-            />
-          )}
-          {/* ff8d932e: "add to favorites for specific athletes, and then a
-              Favorites view". It belongs on THIS row and not in a mode of its
-              own — it answers the same question the squad chips do, whose runs
-              am I looking at. The chip is always here, even before the member
-              has favourited anybody, because the star that fills it lives on
-              teammate profiles and this is the only place that explains why it
-              is there; the empty state below says what to do next. */}
-          <SquadChip
-            active={squad === FAVORITES_SQUAD}
-            onClick={() => setSquad(FAVORITES_SQUAD)}
-            label={t('filterFavorites')}
-            icon={Star}
-          />
         </div>
       )}
 

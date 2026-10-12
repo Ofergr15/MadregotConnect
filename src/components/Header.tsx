@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { FeedScopeButton } from '@/components/feed/FeedScopeButton';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { User, LogOut, X, Bug, Bell, Eye, Search as SearchIcon } from 'lucide-react';
@@ -256,12 +257,14 @@ export function Header() {
                 margin pulls the layout box back. On the narrow screens where the
                 wordmark is hidden this link IS the 36px logo, and it's the
                 home button on all 32 signed-in pages. */}
+            {pathname === '/feed' ? <FeedScopeButton myGroupId={groupId} /> : (
             <Link href="/feed" className="flex items-center gap-2.5 -m-1 p-1">
               {/* The mark is a dark PNG; `brightness-0` flattens it to solid
                   black, which is what the page grey wants. */}
               <img src="/images/logo.png" alt="Madregot" className="h-9 w-9 object-contain brightness-0" />
               <span className="text-base font-bold tracking-tight hidden sm:inline">Madregot</span>
             </Link>
+            )}
             {/* ── SPEAK UP, next to the logo, on every screen size. ──
                 This is the club's only "something isn't working" channel, and it
                 used to be `hidden md:flex` — invisible on the phone, which is the

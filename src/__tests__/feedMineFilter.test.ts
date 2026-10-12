@@ -10,7 +10,6 @@ import { MINE_SQUAD, parseSquadParam } from '@/lib/feed/squad-filter';
  */
 
 const ROUTE = readFileSync('src/app/api/feed/route.ts', 'utf8');
-const PAGE = readFileSync('src/app/(app)/feed/page.tsx', 'utf8');
 
 describe('the "mine" feed filter', () => {
   it('reads "mine", and nothing near it', () => {
@@ -23,8 +22,9 @@ describe('the "mine" feed filter', () => {
     expect(ROUTE).toMatch(/if \(squad\?\.kind === 'mine'\) \{[\s\S]*?squadAuthorIds = \[auth\.user\.athleteId\];/);
   });
 
-  it('is offered to the super user only', () => {
-    expect(PAGE).toMatch(/const showMine = useIsSuperUser\(\);/);
-    expect(PAGE).toMatch(/\{showMine && \(\s*<SquadChip\s+active=\{squad === MINE_SQUAD\}/);
+  it('is offered to the super user only (the club-logo panel, feed redesign 2026-10-12)', () => {
+    const PANEL = readFileSync('src/components/feed/FeedScopeButton.tsx', 'utf8');
+    expect(PANEL).toMatch(/const showMine = useIsSuperUser\(\);/);
+    expect(PANEL).toMatch(/\{showMine && row\('mine', scope\.squad === MINE_SQUAD/);
   });
 });
