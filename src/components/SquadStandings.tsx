@@ -10,6 +10,8 @@ import { AthleteLink } from '@/components/AthleteLink';
 interface Squad {
   groupId: string;
   name: string;
+  /** 0..2 for the three packs, -1 for anything else (standings route). */
+  index: number;
   color: string;
   members: number;
   volumeKmPerMember: number;
@@ -48,6 +50,8 @@ interface GroupRoster {
 
 export function SquadStandings() {
   const t = useTranslations('squads');
+  // "דבוקה 1", the name the club uses everywhere else — not the roster's "Group 1".
+  const tf = useTranslations('feed');
   const { data } = useApi<{ squads: Squad[] }>('/api/groups/standings');
   const { data: groupsData } = useApi<{ groups?: GroupRoster[] }>('/api/groups');
   // One squad open at a time: the card sits in a feed, and three rosters expanded
@@ -117,7 +121,7 @@ export function SquadStandings() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                <span className="text-sm font-bold text-ink-700 truncate" dir="auto">{s.name}</span>
+                <span className="text-sm font-bold text-ink-700 truncate" dir="auto">{s.index >= 0 ? tf('filterSquadN', { n: s.index + 1 }) : s.name}</span>
               </div>
               {/* The chevron rides on the SECOND line. On the first it would take
                   the ~24px that the squad name needs at 375px, and truncating a

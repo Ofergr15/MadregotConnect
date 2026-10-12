@@ -616,8 +616,20 @@ export default function FeedPage() {
         <UpcomingEvents />
       </div>
 
+      {/* Writing a post: a floating + on the phone (feed redesign 2026-10-12 —
+          the row it replaces sat between the next-session card and the feed and
+          cost a whole row of the first screen). The computer keeps the row. */}
+      <button
+        type="button"
+        onClick={() => setComposerOpen(true)}
+        aria-label={t('composerPlaceholder')}
+        className="md:hidden fixed left-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-ink-900 text-white shadow-[0_12px_26px_rgba(0,0,0,0.28)] active:scale-95 transition-transform bottom-[calc(env(safe-area-inset-bottom)+92px)]"
+        data-testid="compose-fab"
+      >
+        <PenSquare className="h-6 w-6" />
+      </button>
       <div
-        className="mb-4 bg-card rounded-2xl border border-page p-3 flex items-center gap-3 cursor-pointer hover:bg-page/40 transition-colors active:scale-[0.98]"
+        className="hidden md:flex mb-4 bg-card rounded-2xl border border-page p-3 items-center gap-3 cursor-pointer hover:bg-page/40 transition-colors active:scale-[0.98]"
         onClick={() => setComposerOpen(true)}
       >
         <FeedAvatar

@@ -2,8 +2,8 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Heart, MessageCircle, MessagesSquare, Trash2, Route, MapPin, Mountain, Share2, Award, Flame, Gauge, ChevronRight } from 'lucide-react';
-import { activityDayRelation, cn, formatActivityDate, formatActivityTime } from '@/lib/utils';
+import { Heart, MessageCircle, MessagesSquare, Trash2, Route, MapPin, Mountain, Share2, Award, Flame, Gauge } from 'lucide-react';
+import { activityDayRelation, cn, formatActivityDate, formatActivityTime, resolveGroup } from '@/lib/utils';
 import { useTranslations, useFormatter, useLocale, useNow } from 'next-intl';
 import { toggleLike } from '@/lib/feed-client';
 import { FeedLikesSheet } from '@/components/FeedLikesSheet';
@@ -84,14 +84,26 @@ function WhenLabel({ item }: { item: FeedItem }) {
 /** Exported for GroupRunCard, which heads each runner's block with the same row
  *  so a grouped run and a solo run name their athlete identically. */
 export function AuthorRow({ item }: { item: FeedItem }) {
+  const t = useTranslations('feed');
+  // The pack's own colour around the face and beside its name, "דבוקה N" rather
+  // than the roster's "Group A - SUB 2:30" (feed redesign 2026-10-12): you see
+  // whose run it is before you read.
+  const pack = item.author.groupName ? resolveGroup(item.author.groupName) : null;
+  const packName = pack && pack.index >= 0 ? t('filterSquadN', { n: pack.index + 1 }) : item.author.groupName;
   const identity = (
     <>
-      <FeedAvatar name={item.author.name} url={item.author.avatarUrl} />
+      <span className="shrink-0 rounded-full" style={pack && pack.index >= 0 ? { boxShadow: `0 0 0 2px #fff, 0 0 0 4px ${pack.hex}` } : undefined}>
+        <FeedAvatar name={item.author.name} url={item.author.avatarUrl} className="h-10 w-10" />
+      </span>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-ink-700 leading-tight truncate">{item.author.name}</p>
-        <p className="text-xs text-ink-400 leading-tight">
-          {item.author.groupName ? `${item.author.groupName} · ` : ''}
+        <p className="text-[15px] font-bold text-ink-900 leading-tight truncate">{item.author.name}</p>
+        <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-400 leading-tight">
           <WhenLabel item={item} />
+          {packName && <>
+            <span aria-hidden>·</span>
+            {pack && pack.index >= 0 && <span className="h-1.5 w-1.5 rounded-full" style={{ background: pack.hex }} />}
+            {packName}
+          </>}
         </p>
       </div>
     </>
@@ -454,22 +466,24 @@ export function ActivityStatTiles({ act }: { act: NonNullable<FeedItem['activity
   const showMoving = !!movingStr && movingStr !== durationStr;
 
   return (
+    // Open numbers, not boxed tiles (feed redesign 2026-10-12): the three figures
+    // are the content, in a rounded face big enough to read at arm's length.
     <div className="grid grid-cols-3 gap-2 mb-3">
-      <div className="bg-page rounded-xl p-2.5 text-center">
-        <p className="text-3xs text-ink-400 font-medium mb-0.5">{t('statDistance')}</p>
-        <p className="text-base font-black text-ink-700 tabular-nums">
-          {distKm}<span className="text-3xs text-ink-400 ms-0.5">{t('km')}</span>
+      <div>
+        <p className="text-xs text-ink-400 mb-0.5">{t('statDistance')}</p>
+        <p className="font-[ui-rounded,system-ui] text-[23px] font-bold leading-none tracking-tight text-ink-900 tabular-nums">
+          {distKm}<span className="text-xs font-semibold text-ink-400 ms-0.5 tracking-normal">{t('km')}</span>
         </p>
       </div>
-      <div className="bg-page rounded-xl p-2.5 text-center">
-        <p className="text-3xs text-ink-400 font-medium mb-0.5">{t('statPace')}</p>
-        <p className="text-base font-black text-ink-700 tabular-nums">
-          {paceStr || '—'}<span className="text-3xs text-ink-400 ms-0.5">{t('perKm')}</span>
+      <div>
+        <p className="text-xs text-ink-400 mb-0.5">{t('statPace')}</p>
+        <p className="font-[ui-rounded,system-ui] text-[23px] font-bold leading-none tracking-tight text-ink-900 tabular-nums">
+          {paceStr || '—'}<span className="text-xs font-semibold text-ink-400 ms-0.5 tracking-normal">{t('perKm')}</span>
         </p>
       </div>
-      <div className="bg-page rounded-xl p-2.5 text-center">
-        <p className="text-3xs text-ink-400 font-medium mb-0.5">{t('statTime')}</p>
-        <p className="text-base font-black text-ink-700 tabular-nums">{durationStr}</p>
+      <div>
+        <p className="text-xs text-ink-400 mb-0.5">{t('statTime')}</p>
+        <p className="font-[ui-rounded,system-ui] text-[23px] font-bold leading-none tracking-tight text-ink-900 tabular-nums">{durationStr}</p>
         {showMoving && (
           <p className="text-2xs text-ink-400 tabular-nums mt-0.5">{movingStr} {t('statMoving')}</p>
         )}
@@ -562,7 +576,7 @@ function ActivityCard({
   const openDetail = () => router.push(`/dashboard/activities/${act.id}`);
 
   return (
-    <div className="bg-card rounded-card border border-page overflow-hidden">
+    <div className="bg-card rounded-[26px] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
       <div className="p-4">
         {/* AuthorRow stays outside the tap target — it has its own link to the
             runner's profile, and nesting the two would swallow it. */}
@@ -594,7 +608,7 @@ function ActivityCard({
           className="-mx-2 px-2 pt-1 pb-1 rounded-xl cursor-pointer transition-colors hover:bg-page/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
         >
           {act.activityName && (
-            <p className="text-sm text-ink-700 font-semibold mb-3">{act.activityName}</p>
+            <p className="text-lg text-ink-900 font-extrabold tracking-tight mb-2.5">{act.activityName}</p>
           )}
 
           <ActivityStatTiles act={act} />
@@ -614,18 +628,13 @@ function ActivityCard({
           <ActivityChips act={act} />
 
           {act.routePreview && act.routePreview.length > 2 && (
-            <div className="mb-3">
+            <div className="mb-3 overflow-hidden rounded-[20px]">
               {/* paceBands is null for runs with no cached splits, which just
                   means the plain line — the reader's colour-by-pace setting
                   applies wherever the data exists. */}
               <RouteMinimap points={act.routePreview} paces={act.paceBands} hd={act.routeHd} />
             </div>
           )}
-
-          <p className="flex items-center gap-1 mb-3 text-xs font-semibold text-brand-600">
-            {t('viewDetails')}
-            <ChevronRight className="h-3.5 w-3.5 rtl:rotate-180" />
-          </p>
         </div>
 
         {item.body && (
@@ -727,7 +736,7 @@ function PostCard({
   onDelete?: () => void;
 }) {
   return (
-    <div className="bg-card rounded-card border border-page overflow-hidden">
+    <div className="bg-card rounded-[26px] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
       <div className="p-4">
         <AuthorRow item={item} />
 

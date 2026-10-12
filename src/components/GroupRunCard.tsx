@@ -229,7 +229,7 @@ export function GroupRunCard({
   const collapsed = showAll ? [] : group.items.slice(EXPANDED_COUNT);
 
   return (
-    <div className="bg-card rounded-card border border-page overflow-hidden">
+    <div className="bg-card rounded-[26px] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
       <div className="p-4">
         <div className="flex items-start gap-3">
           <AvatarStack items={group.items} />
