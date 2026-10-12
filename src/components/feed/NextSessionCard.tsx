@@ -286,7 +286,7 @@ export function NextSessionCard() {
             </span>
           </span>
           <span className="mt-2 flex items-baseline justify-between gap-3">
-            <span className="min-w-0 truncate text-lg font-extrabold text-ink-900">{timeText ? titleText : (s.name && !/^\d/.test(s.name) && s.name !== typeLabel ? s.name : '')}</span>
+            <span className="min-w-0 truncate text-lg font-extrabold text-ink-900">{timeText ? titleText : (nameQualifier(s.name, dayNames) || '')}</span>
             <span className="shrink-0 text-xs font-semibold text-ink-400"><bdi dir="ltr">{approx}{km}</bdi> {units.km}{s.durationSec ? <> · <bdi dir="ltr">{formatDurationClock(s.durationSec)}</bdi></> : null}</span>
           </span>
           {profile.length > 0 && (

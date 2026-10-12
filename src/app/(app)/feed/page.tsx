@@ -28,6 +28,7 @@ import { SetupNudgeCard } from '@/components/onboarding/SetupNudgeCard';
 import { WeekSummaryCard } from '@/components/feed/WeekSummaryCard';
 import { QualitySessionRow } from '@/components/feed/QualitySessionRow';
 import { NextSessionCard } from '@/components/feed/NextSessionCard';
+import { PackStrip } from '@/components/feed/PackStrip';
 import { WhatsNewAutoSheet } from '@/components/whats-new/WhatsNewSheet';
 import { OnboardingTestReset } from '@/components/onboarding/OnboardingTestReset';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
@@ -649,6 +650,8 @@ export default function FeedPage() {
           </button>
         </div>
       )}
+
+      {squad && squadChips.some(c => c.id === squad) && <PackStrip groupId={squad} />}
 
       {deleteError && (
         <div className="mb-3 bg-accent-red/20 border border-accent-red/30 rounded-2xl px-4 py-3 text-center">

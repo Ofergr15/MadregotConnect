@@ -5049,5 +5049,23 @@
     "comingCollapsed": "Coming {when} · pack {n}",
     "notComingCollapsed": "Not coming {when}",
     "collapse": "Collapse"
+  },
+  "pack": {
+    "notFound": "Pack not found",
+    "back": "Back",
+    "membersCount": "{count} runners",
+    "thisWeek": "This week",
+    "kmTogether": "km together",
+    "runs": "runs",
+    "ran": "ran",
+    "board": "Leaderboard",
+    "kmThisWeek": "km this week",
+    "you": "You",
+    "members": "In the pack",
+    "openFeed": "The pack's feed",
+    "stripKm": "{km} km this week",
+    "stripRank": "You're #{rank}",
+    "stripRan": "{ran} of {members} ran this week",
+    "stripOpen": "Pack page"
   }
 }

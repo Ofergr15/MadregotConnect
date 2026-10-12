@@ -117,7 +117,7 @@ export async function GET(request: Request) {
           name,
           pace_profile,
           created_at,
-          athletes:athletes!group_id(id, name, email, status, data_source)
+          athletes:athletes!group_id(id, name, email, status, data_source, avatar_url)
         `)
         .eq('coach_id', coachId)
         .order('created_at', { ascending: true }),

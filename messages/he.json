@@ -5049,5 +5049,23 @@
     "comingCollapsed": "מגיעים {when} · דבוקה {n}",
     "notComingCollapsed": "לא מגיעים {when}",
     "collapse": "מזעור"
+  },
+  "pack": {
+    "notFound": "הדבוקה לא נמצאה",
+    "back": "חזרה",
+    "membersCount": "{count} רצים",
+    "thisWeek": "השבוע",
+    "kmTogether": "ק״מ יחד",
+    "runs": "ריצות",
+    "ran": "רצו",
+    "board": "הטבלה",
+    "kmThisWeek": "ק״מ השבוע",
+    "you": "אתם",
+    "members": "מי בדבוקה",
+    "openFeed": "לפיד של הדבוקה",
+    "stripKm": "{km} ק״מ השבוע",
+    "stripRank": "אתם במקום {rank}",
+    "stripRan": "{ran} מתוך {members} רצו השבוע",
+    "stripOpen": "לעמוד הדבוקה"
   }
 }
