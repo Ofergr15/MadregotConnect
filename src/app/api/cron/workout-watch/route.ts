@@ -4,15 +4,13 @@ import { subscriptionsForAthletes, sendPushLocalized } from '@/lib/push';
 import { workoutDetectedCopy } from '@/lib/notifications/copy';
 import { israelNow, israelToday, getPlanWeekStart } from '@/lib/utils';
 import { cronPaused } from '@/lib/cron-pause';
-import { pullRecentActivities } from '@/lib/watch/pull';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 // Early-morning workout detection. On team-workout days, from ~06:30 Israel
-// through the morning, pull fresh Garmin activities (the daily sync runs at
-// ~06:00 IL — too early for morning workouts) and, the moment a NEW activity
-// lands, push the athlete a teaser: "new workout detected — analyzing, more
+// through the morning, watch for NEW activities (fetched by /api/cron/sync every
+// 5 minutes) and, the moment one lands, push the athlete a teaser: "new workout detected — analyzing, more
 // info soon." Fires AT MOST ONCE per activity via the scheduled_notifications
 // ledger. Safe to ping every ~5-15 min (idempotent + window-gated).
 //
@@ -66,10 +64,15 @@ async function run(request: Request) {
   //    Skipped in dry-run so a test never triggers a live Garmin fetch.
   //    Per provider (lib/watch/pull.ts): Garmin is pulled here; Apple runs are
   //    uploaded by the athlete's phone and are already in the table below.
-  let synced: unknown = null;
-  if (!dryRun) {
-    synced = (await pullRecentActivities({ suppressPush: true })).garmin ?? null;
-  }
+  //
+  // NOT pulled here any more. The full Garmin sync for every athlete takes longer
+  // than this route's 60 s, so on a team day every run timed out before step 2
+  // (22 of 32 on 2026-10-13, 504 every quarter hour from 06:00) and the morning
+  // "new workout detected" push never went out. It was here because "the daily
+  // sync runs at ~06:00" — no longer true: /api/cron/sync walks every athlete
+  // every 5 minutes from 05:00 (300 s budget), so a run lands in the table within
+  // minutes and this route only has to notice it.
+  const synced: unknown = dryRun ? null : 'cron/sync';
 
   // 2) Ledger helpers — at-most-once per activity, namespaced by kind+tag.
   const already = async (tag: string): Promise<boolean> => {
