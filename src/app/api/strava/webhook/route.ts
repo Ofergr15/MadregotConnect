@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { runStravaSyncRequest } from '../sync-activities/route';
 
@@ -69,7 +69,18 @@ export async function POST(request: Request) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ athleteId: athlete.id }),
       });
-      await runStravaSyncRequest(syntheticRequest);
+      // After the ack, not before it. Strava wants the 200 within 2 seconds and
+      // retries when it doesn't come; this waited for the athlete's whole sync —
+      // seconds as a rule, and twice in two days past 60 s (504) — so every event
+      // was delivered, and synced, more than once. after() keeps the work alive
+      // past the response, within this route's maxDuration.
+      after(async () => {
+        try {
+          await runStravaSyncRequest(syntheticRequest);
+        } catch (err) {
+          console.error('Strava webhook sync failed:', err);
+        }
+      });
     }
   } catch (err) {
     console.error('Strava webhook sync failed:', err);
