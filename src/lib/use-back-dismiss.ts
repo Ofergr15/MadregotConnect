@@ -53,6 +53,16 @@ function backGate() {
 }
 
 /**
+ * Run `fn` once an overlay that is closing right now has popped its history entry — for a
+ * close handler that rewrites the address (launch N23: dropping `?thread=mine`). Rewritten
+ * straight away, the overlay's own back() then landed on the entry below, which still
+ * carried the old address. A tick first, so the closing overlay's effect has started it.
+ */
+export function afterOverlayClosed(fn: () => void): void {
+  setTimeout(() => backGate().whenSettled(fn), 0);
+}
+
+/**
  * Makes Back close an overlay instead of leaving the page.
  *
  * Nothing in this app used to put overlay state in history: every sheet, modal

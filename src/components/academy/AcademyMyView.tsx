@@ -26,6 +26,7 @@ import { PaceUpdateCard } from './tools/PaceUpdateCard';
 import { KmCard } from '@/components/trainee/KmCard';
 import { JourneyTiles } from '@/components/trainee/JourneyTiles';
 import { withoutParam } from '@/lib/academy/strip-param';
+import { afterOverlayClosed } from '@/lib/use-back-dismiss';
 
 // The academy as one of its trainees sees it — mockup academy-trainee-home-v4.
 //
@@ -336,8 +337,10 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
           setThreadOpen(open);
           // Closed: drop `?thread=mine`, so the next link to the thread reopens it (launch N23).
           if (!open) {
-            const next = withoutParam(window.location.href, 'thread');
-            if (next) router.replace(next, { scroll: false });
+            afterOverlayClosed(() => {
+              const next = withoutParam(window.location.href, 'thread');
+              if (next) router.replace(next, { scroll: false });
+            });
           }
         }}
         title={coachFirst ? `השיחה עם ${coachFirst}` : 'השיחה שלי'}

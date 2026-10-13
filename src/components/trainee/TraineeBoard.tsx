@@ -16,6 +16,7 @@ import { isViewingPerson } from '@/lib/view-as-person';
 import { useHideShellHeader } from '@/lib/shell-chrome';
 import { MonthBoard } from './MonthBoard';
 import { withoutParam } from '@/lib/academy/strip-param';
+import { afterOverlayClosed } from '@/lib/use-back-dismiss';
 
 // ── "לוח": the trainee lens of /dashboard/academy under the trainee experience v2 ────────
 //
@@ -97,8 +98,10 @@ export function TraineeBoard({ athleteId, view, openDate, openThread = false }: 
           setThreadOpen(open);
           // Closed: drop `?thread=mine`, so the next 💬 link reopens it (launch N23).
           if (!open) {
-            const next = withoutParam(window.location.href, 'thread');
-            if (next) router.replace(next, { scroll: false });
+            afterOverlayClosed(() => {
+              const next = withoutParam(window.location.href, 'thread');
+              if (next) router.replace(next, { scroll: false });
+            });
           }
         }}
         title={coachFirst ? tw('thread', { name: coachFirst }) : tw('threadMine')}
