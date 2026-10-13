@@ -13,7 +13,8 @@ import { israelToday } from '@/lib/utils';
 import { holdsAcademyCoachRole } from './coaches';
 import { applyAcademyMembership } from './membership-server';
 import { setPairCoaches, writeCoachPair } from './pairing-server';
-import { coachIdsByTrainee, coachesOf, hasTraineeCoachesTable, joinHebrewList, traineeIdsOfCoach } from './trainee-coaches';
+import { coachIdsByTrainee, coachIdsOf, coachesOf, hasTraineeCoachesTable, joinHebrewList, traineeIdsOfCoach } from './trainee-coaches';
+import { notifyBandSet, notifyRemoved } from './loop-notify';
 import {
   applicationDeletable, deriveLeft,
   type AcademyPeopleResponse, type AddableMember, type ApplicantRow, type BulkRequest, type DeleteRefusal,
@@ -250,6 +251,9 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
   /** coachId → trainee names, for the coaches taken off someone. */
   const fromCoaches = new Map<string, { trainees: string[] }>();
   const toTrainees: Array<{ athleteId: string; kind: string; copy: (locale: NotificationLocale) => PushCopy }> = [];
+  /** Trainees removed / given a band here: each is told, notify or not (launch BL8, N13). */
+  const removedTrainees: string[] = [];
+  const bandTrainees: string[] = [];
   const pushTo = (m: Map<string, { trainees: string[] }>, coachId: string, name: string) =>
     (m.get(coachId) ?? m.set(coachId, { trainees: [] }).get(coachId)!).trainees.push(name);
 
@@ -296,14 +300,19 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
     if (req.action === 'band') {
       if ((row.academy_band_id || null) === req.bandId) { results.push({ athleteId: id, ok: true, unchanged: true }); continue; }
       const { error } = await supabase.from('athletes').update({ academy_band_id: req.bandId }).eq('id', id).eq('coach_id', COACH_ID);
+      if (!error && req.bandId) bandTrainees.push(id);
       results.push({ athleteId: id, ok: !error, ...(error ? { error: 'write_failed' } : {}) });
       continue;
     }
 
     if (req.action === 'remove') {
+      // Their coaches BEFORE the pairing ends, so each is told (launch N13).
+      const leaving = await coachIdsOf(supabase, id, row.academy_coach_id ?? null).catch(() => [] as string[]);
       const { error } = await supabase.from('athletes').update({ is_academy: false }).eq('id', id).eq('coach_id', COACH_ID);
       if (error) { results.push({ athleteId: id, ok: false, error: 'write_failed' }); continue; }
       await applyAcademyMembership(supabase, id, false);
+      for (const c of leaving) pushTo(fromCoaches, c, row.name);
+      removedTrainees.push(id);
       results.push({ athleteId: id, ok: true });
       continue;
     }
@@ -337,6 +346,32 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
       copy: (locale) => (pairName ? academyCoachAssignedCopy(locale, { coach: pairName }) : academyJoinedCopy(locale, { by })),
     });
     results.push({ athleteId: id, ok: true, coachId: pairWith?.id ?? null, coachIds: startWith.map((c) => c.id) });
+  }
+
+  // Always, whatever `notify` says: leaving the academy and getting a band change what the
+  // trainee's app shows, and the coaches losing a trainee must not just watch them vanish.
+  {
+    const sends: Promise<unknown>[] = [];
+    for (const id of removedTrainees) sends.push(notifyRemoved({ athleteId: id, actorId: caller.athleteId }));
+    if (bandTrainees.length && req.bandId) {
+      const { data: band } = await supabase.from('academy_bands').select('name').eq('id', req.bandId).maybeSingle();
+      const bandName = (band as { name?: string } | null)?.name ?? null;
+      for (const id of bandTrainees) sends.push(notifyBandSet({ athleteId: id, actorId: caller.athleteId, band: bandName }));
+    }
+    if (req.action === 'remove' && !req.notify) {
+      for (const [coachId, { trainees }] of fromCoaches) {
+        if (coachId === caller.athleteId) continue;
+        sends.push(notifyAthlete({
+          athleteId: coachId,
+          kind: 'academy_trainee_removed',
+          actorAthleteId: caller.athleteId,
+          copy: (locale) => academyTraineeRemovedCopy(locale, { names: trainees }),
+          url: '/dashboard/academy?tab=members',
+          tag: 'academy-trainees',
+        }));
+      }
+    }
+    await Promise.allSettled(sends);
   }
 
   if (req.notify) {

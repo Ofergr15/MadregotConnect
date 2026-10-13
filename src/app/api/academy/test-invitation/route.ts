@@ -14,6 +14,7 @@ import {
 import type { TestInvitation } from '@/lib/academy/testInvite';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
+import { notifyTestConfirmed, notifyTestInvited } from '@/lib/academy/loop-notify';
 
 export const dynamic = 'force-dynamic';
 
@@ -271,6 +272,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to create the invitation' }, { status: 500 });
     }
 
+    // The trainee is TOLD (launch BL8): before this, an invitation sent nothing at all and
+    // the trainee learned of it only by opening the app. Best-effort.
+    await notifyTestInvited(supabase, { athleteId, actorId: caller.athleteId || null });
+
     return NextResponse.json({ invitation: readInvitation(data as unknown as Record<string, unknown>) });
   } catch {
     return NextResponse.json({ error: 'Failed to create the invitation' }, { status: 500 });
@@ -445,8 +450,30 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Failed to update the invitation' }, { status: 500 });
     }
 
+    // Who hears about it (launch BL8): the trainee's answer reaches their coaches, a coach's
+    // new times reach the trainee. Best-effort, after the write.
+    const bySelf = invite.athleteId === caller.athleteId;
+    if (action === 'confirm' && bySelf) {
+      await notifyTestConfirmed(supabase, { athleteId: invite.athleteId, slot: slotText(String(patch.confirmed_slot)) });
+    } else if (action === 'offer' && !bySelf) {
+      await notifyTestInvited(supabase, { athleteId: invite.athleteId, actorId: caller.athleteId || null });
+    }
+
     return NextResponse.json({ invitation: readInvitation(data as unknown as Record<string, unknown>) });
   } catch {
     return NextResponse.json({ error: 'Failed to update the invitation' }, { status: 500 });
+  }
+}
+
+/** "ה׳ 16.10 · 07:00" in Israel time, for the coach's push. */
+function slotText(iso: string): string | null {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  try {
+    return new Intl.DateTimeFormat('he-IL', {
+      timeZone: 'Asia/Jerusalem', weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(new Date(t));
+  } catch {
+    return null;
   }
 }

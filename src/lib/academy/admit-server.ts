@@ -10,7 +10,7 @@ import {
   type BuiltEmail, type SendResult,
 } from '@/lib/email';
 import { notifyAthlete } from '@/lib/push';
-import { approvalCopy } from '@/lib/notifications/copy';
+import { academyTraineesAssignedCopy, approvalCopy } from '@/lib/notifications/copy';
 import { inviteUrl, isInviteFresh } from './intake';
 import { isAcademyManager, setPairCoaches } from './pairing-server';
 import { coachIdsOf, hasTraineeCoachesTable, joinHebrewList } from './trainee-coaches';
@@ -230,6 +230,16 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
       url: '/dashboard',
       tag: 'approval',
     }).catch((err: unknown) => console.error('Accept: push failed:', err)),
+    // The coach(es) picked here are told they have a new trainee (launch BL8), as the members
+    // tab's "שיבוץ מאמנים" tells them — the manager herself excepted.
+    ...coaches.filter((c) => c.id !== caller.athleteId && !before.includes(c.id)).map((c) => notifyAthlete({
+      athleteId: c.id,
+      kind: 'academy_trainee_assigned',
+      actorAthleteId: caller.athleteId,
+      copy: (locale) => academyTraineesAssignedCopy(locale, { names: [card.name || athlete.name] }),
+      url: '/dashboard/academy?tab=members',
+      tag: 'academy-trainees',
+    }).catch((err: unknown) => console.error('Accept: coach push failed:', err))),
   ]);
 
   return NextResponse.json({ ok: true, coachId, coachIds, coachName, paired, released, acceptedAt: now, email });

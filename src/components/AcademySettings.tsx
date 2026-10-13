@@ -19,7 +19,7 @@ export function AcademySettingsPanel() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/academy/settings');
+        const res = await fetch('/api/academy/settings', { headers: await bearerHeaders(false) });
         const data = await res.json();
         // Spread over the defaults: a blob saved before a field existed (coachCapacity)
         // still renders that field with its default rather than an empty input.

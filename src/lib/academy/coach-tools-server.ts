@@ -16,6 +16,7 @@ import { isMissingColumn, isMissingTable } from '@/lib/supabase/schema-drift';
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
 import { revalidateWeeklyPlans } from '@/lib/plans/cache';
 import { pushWeekToAthlete } from '@/lib/garmin/push-week';
+import { sentPlanStatus } from '@/lib/plans/plan-status';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { thresholdPaceSec } from './tests';
 import { computeAcademyWeekAdherence, type WorkoutAdherenceRow } from './report';
@@ -323,14 +324,18 @@ async function planRowOf(supabase: Db, athleteId: string, weekStart: string): Pr
 export async function writeWeek(supabase: Db, write: WeekWrite, opts: { cleanDayOnce?: boolean } = {}): Promise<WeekWriteResult> {
   const parsed = normalizeParsedWorkouts({ workouts: write.workouts });
   const existing = await planRowOf(supabase, write.athleteId, write.weekStart);
+  // A coach's write here is a send: published watch or not (plan-status.ts sentPlanStatus).
+  const sentDays = new Set(write.pushDays);
+  const status = sentPlanStatus({ otherDays: parsed.workouts.some(w => !sentDays.has(w.dayOfWeek)) });
   const saved = existing
-    ? await supabase.from('weekly_plans').update({ parsed_workouts: parsed }).eq('id', existing.id).select('id').single()
+    // A re-price with nothing to send leaves an existing row's status as it was.
+    ? await supabase.from('weekly_plans').update({ parsed_workouts: parsed, ...(sentDays.size ? { status } : {}) }).eq('id', existing.id).select('id').single()
     : await supabase.from('weekly_plans').insert({
       coach_id: COACH_ID,
       week_start_date: write.weekStart,
       original_input: '[built in-app]',
       parsed_workouts: parsed,
-      status: 'draft',
+      status,
       athlete_id: write.athleteId,
     }).select('id').single();
   if (saved.error || !saved.data) {
@@ -363,6 +368,7 @@ export async function writeWeek(supabase: Db, write: WeekWrite, opts: { cleanDay
     await supabase.from('weekly_plans').update({ status: others ? 'partial' : 'pushed' }).eq('id', planId);
     return { athleteId: write.athleteId, weekStart: write.weekStart, status: 'sent' };
   }
+  await supabase.from('weekly_plans').update({ status: sentPlanStatus({ otherDays: true, delivered: false }) }).eq('id', planId);
   return { athleteId: write.athleteId, weekStart: write.weekStart, status: 'failed', stage: 'push', detail: push.error ?? null };
 }
 

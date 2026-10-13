@@ -461,7 +461,15 @@ export function AcademyPlanComposer({ athletes, initialAthleteId = null }: {
 
         if (!athlete.hasGarmin) {
           // Worth saving anyway: adherence works off the plan row, and a trainee
-          // on Strava has a plan to follow even with no watch to push to.
+          // on Strava has a plan to follow even with no watch to push to. And it is
+          // SENT — published, not a draft — or run detail and the matcher never read it
+          // (launch BL6 / N5).
+          if (planId) {
+            bearerHeaders().then((headers) => fetch('/api/plans', {
+              method: 'PUT', headers,
+              body: JSON.stringify({ plan_id: planId, status: 'pushed' }),
+            })).catch(() => {});
+          }
           outcomes.push({
             id: athlete.id, name: athlete.name, ok: !!planId,
             msg: planId ? `התוכנית נשמרה · אין גרמין מחובר, לא נשלח לשעון${skippedNote}` : 'שמירת התוכנית נכשלה',

@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { addDaysToDateStr, israelToday, planWeekStartOf } from '@/lib/utils';
 import { requireTraineeAccess } from '@/lib/academy/pairing-server';
-import { loadTraineeWeeks } from '@/lib/academy/book-server';
+import { loadSeniorSeed, loadTraineeWeeks } from '@/lib/academy/book-server';
+import { notifyMissedWeek } from '@/lib/academy/loop-notify';
 import { MISSED_OPTIONS, activeAdjust, copyWeek, type MissedOption } from '@/lib/academy/coach-tools';
 import {
   daysFrom, loadDecisions, loadTestBasis, recordDecision, writeWeek,
@@ -54,8 +55,14 @@ export async function POST(request: Request) {
     const adjust = activeAdjust(decisions.rows, b?.testDate ?? null).adjust;
 
     let changed: ParsedWorkout[] | null = null;
-    const open = new Set(daysFrom(targetWeek, today));
-    const targetWorkouts = target[athleteId]?.workouts ?? [];
+    // From TOMORROW on (launch N31): today and the days before it are what the trainee has
+    // already run or is running — the screen used to rewrite them with no notice.
+    const open = new Set(daysFrom(targetWeek, addDaysToDateStr(today, 1)));
+    // No row of their own for that week: they follow the senior week, which is what the
+    // untouched days keep (as day-plan seeds it, BL7) — not nothing.
+    const targetWorkouts = target[athleteId]?.planId
+      ? target[athleteId].workouts
+      : await loadSeniorSeed(supabase, athleteId, targetWeek, T).catch(() => [] as ParsedWorkout[]);
     if (option === 'light' || option === 'repeat') {
       const base = option === 'repeat' || !targetWorkouts.length ? (missed[athleteId]?.workouts ?? []) : targetWorkouts;
       if (!base.length) {
@@ -84,6 +91,12 @@ export async function POST(request: Request) {
       if (result.status === 'failed' && result.stage === 'save') {
         return NextResponse.json({ error: 'save-failed', detail: result.detail }, { status: 500 });
       }
+      // The trainee is told their plan moved (launch BL8), on the first day that changed.
+      const firstOpen = [...open].sort((a, b2) => a - b2)[0];
+      await notifyMissedWeek({
+        athleteId, actorId: caller.athleteId,
+        date: firstOpen != null ? addDaysToDateStr(targetWeek, firstOpen) : null,
+      });
     }
     const stored = await recordDecision(supabase, {
       athleteId, coachId: caller.athleteId, kind: 'missed', action: option,

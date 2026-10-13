@@ -7,6 +7,7 @@ import { getPlanWeekStart } from '@/lib/utils';
 import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
 import { COACH_ID } from '@/lib/constants';
 import { pickPlan, planRowsFilter } from '@/lib/plans/scope';
+import { ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
 
 // Activities recorded within this many ms of each other are treated as one
 // session (e.g. a watch auto-splitting a long run around a pause, or a
@@ -24,13 +25,17 @@ interface Act { id: string; garmin_activity_id: number; distance: number; activi
 export async function planTargetForDate(dateStr: string, athleteId?: string | null): Promise<{ min: number; max: number; type: string } | null> {
   const supabase = createServerClient();
   const weekStart = getPlanWeekStart(new Date(`${dateStr}T12:00:00`));
-  const { data: rows } = await supabase
-    .from('weekly_plans')
-    .select('parsed_workouts, status, athlete_id')
-    .eq('coach_id', COACH_ID)
-    .or(planRowsFilter(athleteId))
-    .eq('week_start_date', weekStart)
-    .order('created_at', { ascending: true });
+  const [{ data: rowsRaw }, ownCounts] = await Promise.all([
+    supabase
+      .from('weekly_plans')
+      .select('parsed_workouts, status, athlete_id')
+      .eq('coach_id', COACH_ID)
+      .or(planRowsFilter(athleteId))
+      .eq('week_start_date', weekStart)
+      .order('created_at', { ascending: true }),
+    ownPlanRowsCount(athleteId),
+  ]);
+  const rows = withoutOwnRows(rowsRaw, ownCounts);
   const plan = pickPlan(rows, athleteId);
   if (!plan?.parsed_workouts) return null;
 

@@ -7,6 +7,7 @@ import { getStreamServerClient } from '@/lib/stream/server';
 import { postAcademyTestSummary } from '@/lib/academy/thread-server';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
+import { notifyTestAnalysis } from '@/lib/academy/loop-notify';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,12 +98,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No athlete identity for the sender' }, { status: 400 });
     }
 
-    const delivery = await postAcademyTestSummary(getStreamServerClient(), supabase, {
-      athleteId: String(analysis.athlete_id),
-      authorStreamId: caller.athleteId,
-      testId,
-      summary,
-    });
+    // The Stream client is built INSIDE the guard (launch N25): with the keys missing or the
+    // service down, `getStreamServerClient()` throws, and outside a try that was a bare 500
+    // instead of the documented 502 `{delivered:false}` the screen knows how to say.
+    let delivery: { posted: boolean; updated?: boolean };
+    try {
+      delivery = await postAcademyTestSummary(getStreamServerClient(), supabase, {
+        athleteId: String(analysis.athlete_id),
+        authorStreamId: caller.athleteId,
+        testId,
+        summary,
+      });
+    } catch (err) {
+      console.error('test summary delivery failed:', err);
+      delivery = { posted: false };
+    }
 
     // Recorded only if it actually went. A `sent_at` written beside a failed send would tell the
     // next coach the trainee has been told — which is worse than the screen admitting it failed.
@@ -120,6 +130,10 @@ export async function POST(request: Request) {
     // pasted yet) is reported as a delivery that happened but was not recorded, which is exactly
     // what it is. Saying it failed would invite a resend of something the trainee already has.
     const recorded = !stampError;
+
+    // The thread alone pushed nothing: the trainee found the analysis only through the
+    // unread dot (launch BL8). Best-effort.
+    await notifyTestAnalysis(supabase, { athleteId: String(analysis.athlete_id), actorId: caller.athleteId });
     if (stampError && !isMissingColumn(stampError) && !isMissingTable(stampError)) {
       console.error('test summary delivery stamp failed:', stampError);
     }

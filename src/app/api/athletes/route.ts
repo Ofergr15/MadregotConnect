@@ -8,6 +8,7 @@ import { authError, requireSession, type SessionUser } from '@/lib/auth-session'
 import { athleteWriteError, denyAthleteWrite } from '@/lib/auth/athlete-write-scope';
 import { groupChangeDate } from '@/lib/groups/pending-change';
 import { applyAcademyMembership } from '@/lib/academy/membership-server';
+import { mayDeleteAthlete } from '@/lib/auth/delete-athlete-policy';
 
 const DEMO_COACH_ID = COACH_ID;
 
@@ -274,7 +275,7 @@ export async function PUT(request: Request) {
 // DELETE - Remove an athlete
 export async function DELETE(request: Request) {
   try {
-    const { denied } = await requireStaff(request);
+    const { denied, user } = await requireStaff(request);
     if (denied) return denied;
 
     const supabase = createServerClient();
@@ -289,12 +290,21 @@ export async function DELETE(request: Request) {
     }
 
     // Never allow deleting a protected account (e.g. the club/admin account).
-    const { data: target } = await supabase
+    let { data: target, error: targetError } = await supabase
       .from('athletes')
-      .select('email')
+      .select('email, approved, onboarding_status')
       .eq('id', id)
       .eq('coach_id', DEMO_COACH_ID)
       .maybeSingle();
+    if (targetError) {
+      // A schema without onboarding_status: the target reads as an ordinary member.
+      ({ data: target } = await supabase.from('athletes').select('email, approved').eq('id', id).eq('coach_id', DEMO_COACH_ID).maybeSingle() as any);
+    }
+
+    // Deleting a person is a club decision, not any staff session's (launch BL9 / N8a).
+    if (!user || !mayDeleteAthlete(user, (target as any) ?? null)) {
+      return NextResponse.json({ error: 'Not allowed to delete this athlete' }, { status: 403 });
+    }
 
     if (isProtectedEmail(target?.email)) {
       return NextResponse.json(

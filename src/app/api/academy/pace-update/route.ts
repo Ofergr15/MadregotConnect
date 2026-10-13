@@ -6,6 +6,7 @@ import { buildCoachTools } from '@/lib/academy/coach-tools-build';
 import { activeAdjust, addAdjust, adjustFor } from '@/lib/academy/coach-tools';
 import { recordDecision, reresolveFuturePlans } from '@/lib/academy/coach-tools-server';
 import type { PaceUpdateResponse } from '@/lib/academy/coach-tools-payload';
+import { notifyPaceUpdate } from '@/lib/academy/loop-notify';
 
 export const dynamic = 'force-dynamic';
 // Re-sending the planned weeks that are already on the watch: a few Garmin calls per week.
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
         athleteId, coachId: caller.athleteId, kind: 'pace', action: 'snooze',
         basisTestDate: basis.testDate, weekStart: null,
       });
+      if (!stored) return notStored(action);
       return NextResponse.json({ ok: true, stored, action } satisfies PaceUpdateResponse);
     }
 
@@ -85,9 +87,16 @@ export async function POST(request: Request) {
       },
     });
 
+    // Not recorded = the decisions table (migration 141) is missing. The coach used to see
+    // `ok:true` while nothing reached the trainee (launch N26): the card, the paces and every
+    // later re-price read the decision row. Say so, and change nothing.
+    if (!stored) return notStored(action);
+
     const resolved = await reresolveFuturePlans(supabase, {
       athleteId, fromWeek, thresholdSec: basis.thresholdSec, target, today, cleanDayOnce: caller.isSuperUser,
     });
+    // The trainee hears about it (launch BL8), not just a `plan_pushed` for the weeks re-sent.
+    await notifyPaceUpdate({ athleteId, actorId: caller.athleteId, faster: lead ? lead.direction === 'faster' : null });
     return NextResponse.json({
       ok: true, stored, action, changes, fromWeek, weeks: resolved.weeks, sent: resolved.sent,
     } satisfies PaceUpdateResponse);
@@ -95,4 +104,11 @@ export async function POST(request: Request) {
     console.error('pace-update error:', error);
     return NextResponse.json({ error: 'Failed to update the paces' }, { status: 500 });
   }
+}
+
+function notStored(action: PaceUpdateResponse['action']) {
+  return NextResponse.json(
+    { ok: false, stored: false, action, error: 'not-stored' } satisfies PaceUpdateResponse,
+    { status: 503 },
+  );
 }

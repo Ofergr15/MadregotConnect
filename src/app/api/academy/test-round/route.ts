@@ -6,6 +6,7 @@ import { isMissingTable } from '@/lib/supabase/schema-drift';
 import type { RoundOutcome } from '@/lib/academy/testRound';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { coachIdsByTrainee, coachesTrainee } from '@/lib/academy/trainee-coaches';
+import { notifyTestInvited } from '@/lib/academy/loop-notify';
 
 export const dynamic = 'force-dynamic';
 
@@ -155,6 +156,9 @@ export async function POST(request: Request) {
       if (reason === 'write_failed') console.error('test round insert failed:', error);
       outcome.failed.push({ athleteId, reason });
     }
+
+    // Each invited trainee is told (launch BL8). Best-effort, side by side.
+    await Promise.all(outcome.invited.map((id) => notifyTestInvited(supabase, { athleteId: id, actorId: caller.athleteId || null })));
 
     return NextResponse.json(outcome);
   } catch {

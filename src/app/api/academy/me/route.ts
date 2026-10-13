@@ -13,18 +13,17 @@ import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { toBand } from '@/lib/academy/bands';
 import { thresholdPaceSec } from '@/lib/academy/tests';
 import { loadPaceUpdateCard } from '@/lib/academy/coach-tools-server';
+import { traineePlanRow } from '@/lib/academy/me-plan-row';
 import { loadCoachRows, loadGoalCharacterization, loadTraineeUnread } from '@/lib/academy/me-reads';
 import {
   goalCard,
   journeyPlanStats,
   kmAverage,
   monthsBetween,
-  plannedPaceOf,
   resolveTraineePaces,
   withPaceUpdate,
   rowPace,
   rowStatus,
-  stepTiles,
   type HomeWorkout,
   type TraineeHome,
 } from '@/lib/academy/trainee-home';
@@ -228,9 +227,21 @@ export async function GET(request: Request) {
     }));
     const workouts: HomeWorkout[] = rows.map((w, i) => {
       const plannedM = Math.round(sized[i].plannedM ?? (w.distance.plannedMin + w.distance.plannedMax) / 2);
+      // In the trainee's own terms: the club week's lane paces restated to their
+      // threshold (none without one), and the session's name, not the weekday's.
+      const mine = traineePlanRow({
+        name: w.name,
+        workout: w.detail?.workout,
+        plannedMin: w.pace.comparedMin ?? w.pace.plannedMin,
+        plannedMax: w.pace.comparedMax ?? w.pace.plannedMax,
+        comparedMin: w.pace.comparedMin,
+        comparedMax: w.pace.comparedMax,
+        basis: basis ?? { scale: 1, referenceSec },
+        thresholdSec: sizeT,
+      });
       const out: HomeWorkout = {
         date: w.date,
-        name: w.name,
+        name: mine.name,
         status: rowStatus({
           date: w.date,
           today,
@@ -245,16 +256,18 @@ export async function GET(request: Request) {
         pace: w.completed
           ? rowPace({
             averagePace: w.pace.actual,
-            comparedMin: w.pace.comparedMin,
-            comparedMax: w.pace.comparedMax,
-            workPace: w.workPace ?? null,
+            comparedMin: mine.comparedMin,
+            comparedMax: mine.comparedMax,
+            workPace: sizeT && w.workPace
+              ? { ...w.workPace, min: Math.round(w.workPace.min * (basis?.scale ?? 1)), max: Math.round(w.workPace.max * (basis?.scale ?? 1)) }
+              : null,
             toleranceSec: tolerances.paceSec,
           })
           : null,
-        plannedPace: plannedPaceOf(w.pace.comparedMin ?? w.pace.plannedMin, w.pace.comparedMax ?? w.pace.plannedMax),
+        plannedPace: mine.plannedPace,
         hasFeedback: feedbackDays.has(w.date),
       };
-      if (w.date === today && w.detail?.workout) out.steps = stepTiles(w.detail.workout);
+      if (w.date === today && mine.tiles) out.steps = mine.tiles;
       return out;
     });
     const plannedKm = round1(workouts.reduce((sum, w, i) => (sized[i].excuse === 'optional' || sized[i].excuse === 'beforeJoin' ? sum : sum + w.plannedM), 0));

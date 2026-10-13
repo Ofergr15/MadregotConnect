@@ -8,6 +8,7 @@ import { laneForBand, lanesDiffer, type Lane } from '@/lib/academy/group-lane';
 import { pickSeniorDay } from '@/lib/academy/senior-pick';
 import {
   allAcademyTraineeIds, loadClubWeek, loadLaneReferences, loadThresholds, loadTrainees, loadTraineeWeeks,
+  loadSeniorSeed,
 } from '@/lib/academy/book-server';
 import { decideRecipients, hasWorkoutOn, mergeDay, type SkipReason } from '@/lib/academy/day-send';
 import {
@@ -18,6 +19,8 @@ import { applyPaceAdjust } from '@/lib/academy/coach-tools';
 import { loadPaceAdjusts } from '@/lib/academy/coach-tools-server';
 import { revalidateWeeklyPlans } from '@/lib/plans/cache';
 import { pushWeekToAthlete } from '@/lib/garmin/push-week';
+import { sentPlanStatus } from '@/lib/plans/plan-status';
+import { notifyPlanSaved } from '@/lib/academy/loop-notify';
 import type { ParsedWorkout } from '@/lib/ai/types';
 
 export const dynamic = 'force-dynamic';
@@ -220,17 +223,25 @@ export async function POST(request: Request) {
       }
 
       const week = weeks[decision.id] ?? { planId: null, workouts: [] };
-      const parsed = normalizeParsedWorkouts({ workouts: mergeDay(week.workouts, resolved) });
+      // No row of their own yet: they were following the senior week, so their new row
+      // starts as that week at their pace, and this day is merged into it (BL7).
+      const base = week.planId
+        ? week.workouts
+        : await loadSeniorSeed(supabase, decision.id, weekStart, decision.thresholdSec).catch(() => [] as ParsedWorkout[]);
+      const parsed = normalizeParsedWorkouts({ workouts: mergeDay(base, resolved) });
       const others = parsed.workouts.filter(w => w.dayOfWeek !== dayOfWeek).length;
       let planId = week.planId;
+      // Published by the send itself, watch or not (plan-status.ts sentPlanStatus): a
+      // draft is invisible to run detail, the feed badge and the matcher.
+      const status = sentPlanStatus({ otherDays: others > 0 });
       const write = planId
-        ? await supabase.from('weekly_plans').update({ parsed_workouts: parsed }).eq('id', planId).select('id').single()
+        ? await supabase.from('weekly_plans').update({ parsed_workouts: parsed, status }).eq('id', planId).select('id').single()
         : await supabase.from('weekly_plans').insert({
           coach_id: COACH_ID,
           week_start_date: weekStart,
           original_input: '[built in-app]',
           parsed_workouts: parsed,
-          status: 'draft',
+          status,
           athlete_id: decision.id,
         }).select('id').single();
       if (write.error || !write.data) {
@@ -245,6 +256,8 @@ export async function POST(request: Request) {
         // Saved anyway: their app and their adherence read the plan row, and a trainee on
         // Strava has a session to follow even with no watch to put it on.
         results.push({ athleteId: decision.id, name: label, status: 'saved' });
+        // No watch told them, so the app does (launch BL8).
+        await notifyPlanSaved({ athleteId: decision.id, actorId: caller.athleteId, date, days: 1, failedWatch: false });
         continue;
       }
 
@@ -266,7 +279,9 @@ export async function POST(request: Request) {
         await supabase.from('weekly_plans').update({ status: others ? 'partial' : 'pushed' }).eq('id', planId);
         results.push({ athleteId: decision.id, name: label, status: 'sent' });
       } else {
+        await supabase.from('weekly_plans').update({ status: sentPlanStatus({ otherDays: others > 0, delivered: false }) }).eq('id', planId);
         results.push({ athleteId: decision.id, name: label, status: 'failed', reason: 'push-failed', detail: push.error ?? null });
+        await notifyPlanSaved({ athleteId: decision.id, actorId: caller.athleteId, date, days: 1, failedWatch: true });
       }
     }
     if (assigned) revalidateWeeklyPlans();

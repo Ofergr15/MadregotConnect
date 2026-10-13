@@ -160,6 +160,16 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     };
 
+    // Was there a review here already? Decides "new review → push" when the thread can't
+    // say (Stream down: launch N25). A failed read just counts as new.
+    let existedBefore = false;
+    try {
+      let q = supabase.from('academy_workout_feedback').select('id').eq('athlete_id', athleteId).eq('workout_date', date);
+      q = row.activity_id ? q.eq('activity_id', row.activity_id) : q.is('activity_id', null);
+      const { data: prior } = await q.limit(1);
+      existedBefore = Array.isArray(prior) && prior.length > 0;
+    } catch { /* new */ }
+
     const { data, error } = await supabase
       .from('academy_workout_feedback')
       .upsert(row, { onConflict: 'athlete_id,workout_date,activity_id' })
@@ -186,10 +196,14 @@ export async function POST(request: Request) {
     //
     // Reported back rather than hidden, so the mentor's form can say "saved, not yet
     // delivered" instead of a green tick that means only half of what it looks like.
-    const delivery = auth.user.athleteId
-      ? await postAcademyFeedback(getStreamServerClient(), supabase, {
+    // The client is built inside the guard (launch N25): missing keys used to throw the raw
+    // "STREAM_API_KEY … not configured" out as a 500, and the push below was skipped although
+    // the review was saved.
+    const postIt = async () => {
+      try {
+        return await postAcademyFeedback(getStreamServerClient(), supabase, {
         athleteId,
-        authorStreamId: auth.user.athleteId,
+        authorStreamId: auth.user.athleteId as string,
         workoutDate: date,
         activityId: row.activity_id,
         workoutName: String(body.workoutName || '').slice(0, 200) || null,
@@ -198,7 +212,14 @@ export async function POST(request: Request) {
           sentAt: row.sent_at,
           mentorName: body.mentorName ? String(body.mentorName).slice(0, 60) : null,
         },
-      })
+      });
+      } catch (err) {
+        console.error('Academy feedback delivery failed:', err);
+        return { posted: false, updated: false, error: 'thread unavailable' };
+      }
+    };
+    const delivery = auth.user.athleteId
+      ? await postIt()
       // A staff account with no `athletes` row has no Stream identity to post as.
       // The review still saves; it just cannot be attributed to a person in a thread.
       : { posted: false, updated: false, error: 'no athlete identity for author' };
@@ -214,7 +235,10 @@ export async function POST(request: Request) {
     // fix a typo three times; `delivery.updated` is what tells the two apart, which is
     // the second reason that flag exists. Re-buzzing a trainee for an edit they cannot
     // even see is how people turn notifications off.
-    if (delivery.posted && !delivery.updated) {
+    // Delivered: the thread knows whether it was new. Not delivered: the row above does —
+    // the review is saved and the trainee still has to hear about it.
+    const isNewReview = delivery.posted ? !delivery.updated : !existedBefore;
+    if (isNewReview) {
       try {
         await notifyAthlete({
           athleteId,
@@ -239,7 +263,14 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ feedback: data ? toApi(data) : null, rendered, delivery });
+    return NextResponse.json({
+      feedback: data ? toApi(data) : null,
+      rendered,
+      delivery,
+      saved: true,
+      delivered: !!delivery.posted,
+      ...(delivery.posted ? {} : { message: 'המשוב נשמר, אבל עוד לא הגיע לשיחה. המתאמן קיבל התראה.' }),
+    });
   } catch (error: any) {
     console.error('Academy feedback POST error:', error);
     return NextResponse.json({ error: error.message || 'Failed to save feedback' }, { status: 500 });

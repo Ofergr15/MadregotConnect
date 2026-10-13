@@ -3,15 +3,24 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { normalizeSettings, DEFAULT_ACADEMY_SETTINGS } from '@/lib/academy/settings';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
-import { requireAcademyManager } from '@/lib/academy/pairing-server';
+import { isAcademyManager, requireAcademyManager } from '@/lib/academy/pairing-server';
+import { requireStaffCaller } from '@/lib/auth/self-or-staff';
 
 export const dynamic = 'force-dynamic';
 
 
-/** GET /api/academy/settings → the coach's academy settings (defaults if unset). */
-export async function GET() {
+/**
+ * GET /api/academy/settings → the coach's academy settings (defaults if unset).
+ *
+ * Staff only, and the report's recipient addresses for the manager only (launch BL9 / N8b):
+ * the route was anonymous, so anyone could read the weekly report's email list.
+ */
+export async function GET(request: Request) {
+  const { denied, caller } = await requireStaffCaller(request);
+  if (denied) return denied;
   const settings = await loadAcademySettings();
-  return NextResponse.json({ settings });
+  if (isAcademyManager(caller)) return NextResponse.json({ settings });
+  return NextResponse.json({ settings: { ...settings, report: { ...settings.report, recipients: [] } } });
 }
 
 /** PUT /api/academy/settings — upsert the settings blob. */

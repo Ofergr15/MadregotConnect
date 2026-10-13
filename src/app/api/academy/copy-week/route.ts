@@ -9,6 +9,7 @@ import {
 import {
   daysFrom, loadDecisions, loadTestBasis, recordDecision, weekCounts, writeWeek, type WeekWriteResult,
 } from '@/lib/academy/coach-tools-server';
+import { notifyPlanSaved } from '@/lib/academy/loop-notify';
 import type { CopyWeekResponse } from '@/lib/academy/coach-tools-payload';
 
 export const dynamic = 'force-dynamic';
@@ -155,6 +156,18 @@ export async function POST(request: Request) {
         results.push({ ...res, name: t.name, paced: copied.every(c => c.paced) });
       }
     }
+    // A trainee whose new weeks no watch announced (no Garmin, or the push failed) is told
+    // by the app (launch BL8): once per trainee, opening the board.
+    const unannounced = new Map<string, number>();
+    for (const r of results) {
+      if (r.status === 'saved' || (r.status === 'failed' && r.stage === 'push')) {
+        unannounced.set(r.athleteId, (unannounced.get(r.athleteId) ?? 0) + workouts.length);
+      }
+    }
+    await Promise.all([...unannounced].map(([athleteId, days]) => notifyPlanSaved({
+      athleteId, actorId: caller.athleteId, date: null, days,
+      failedWatch: results.some(r => r.athleteId === athleteId && r.status === 'failed'),
+    })));
     await recordDecision(supabase, {
       athleteId: sourceId, coachId: caller.athleteId, kind: 'copy', action: mode,
       basisTestDate: basis[sourceId]?.testDate ?? null, weekStart: sourceWeek,

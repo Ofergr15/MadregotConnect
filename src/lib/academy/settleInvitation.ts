@@ -46,6 +46,24 @@ export interface RecordedTest {
   date: string;
   /** False for a trainee's own unreviewed submission. */
   approved: boolean;
+  /**
+   * A coach typed this result in themselves (not an approval of a submission). Such an entry
+   * answers the open invitation even when it is dated a little before the invitation was
+   * created (launch N27): the trainee ran it the day before and the coach records it now —
+   * the invitation stayed 'confirmed' and its reminders kept nagging. Bounded by
+   * STAFF_EARLY_DAYS so a coach back-filling last season's history does not close this
+   * month's invitation.
+   */
+  enteredByStaff?: boolean;
+}
+
+/** How far before an invitation's day a coach's own entry still answers it. */
+export const STAFF_EARLY_DAYS = 14;
+
+function daysBefore(day: string, n: number): string {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
 }
 
 export type Settlement =
@@ -73,7 +91,8 @@ export function settlementFor(open: OpenInvitation | null, test: RecordedTest): 
   // Strictly before the day the invitation was created. The same day is allowed and has to be:
   // a coach who invites somebody in the morning and records the test that afternoon — the
   // phone-call case the route deliberately supports — is answering this invitation.
-  if (test.date < open.createdDay) return { kind: 'none', reason: 'predates_invitation' };
+  const earliest = test.enteredByStaff && test.approved ? daysBefore(open.createdDay, STAFF_EARLY_DAYS) : open.createdDay;
+  if (test.date < earliest) return { kind: 'none', reason: 'predates_invitation' };
   return test.approved
     ? { kind: 'settle', invitationId: open.id, testId: test.id, cancelReminders: reminders(open) }
     : { kind: 'hold', invitationId: open.id, cancelReminders: reminders(open) };

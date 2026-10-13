@@ -16,6 +16,8 @@ import { thresholdPaceSec } from './tests';
 import { laneReferences } from './senior-pick';
 import type { Lane } from './group-lane';
 import { planPaceBasis, type PlanBasis } from './plan-basis';
+import { extractWorkouts } from './report';
+import { restateSteps } from './load';
 
 type Supabase = ReturnType<typeof createServerClient>;
 
@@ -132,6 +134,44 @@ export async function loadPlanBasis(
     laneRefs: refs,
     thresholdSec,
   });
+}
+
+/**
+ * The senior (club) week a trainee with no plan of their own is following, restated to
+ * THEIR threshold — the seed of their personal row when a coach plans one day of such a
+ * week (launch report BL7 / N6). Without it the new row held only the day just sent, and
+ * the other sessions of the week silently disappeared from the trainee (6 sessions /
+ * 62.8 km became 1 / 10.2 km). Empty when there is no club week. Same lane and factor as
+ * the board draws it by (loadPlanBasis / planPaceBasis).
+ */
+export async function loadSeniorSeed(
+  supabase: Supabase,
+  athleteId: string,
+  weekStart: string,
+  thresholdSec: number | null,
+): Promise<ParsedWorkout[]> {
+  const [club, refs, group] = await Promise.all([
+    loadClubWeek(supabase, weekStart),
+    loadLaneReferences(supabase),
+    supabase.from('athletes').select('groups!group_id(name)').eq('id', athleteId).maybeSingle(),
+  ]);
+  if (!club) return [];
+  const groupName = (group.data as { groups?: { name?: string } } | null)?.groups?.name ?? null;
+  return seniorSeedWorkouts(club, groupName, refs, thresholdSec);
+}
+
+/** The pure half of loadSeniorSeed. */
+export function seniorSeedWorkouts(
+  club: unknown,
+  groupName: string | null,
+  refs: Record<Lane, number> | null,
+  thresholdSec: number | null,
+): ParsedWorkout[] {
+  const basis = planPaceBasis({ planAthleteId: null, parsedWorkouts: club, groupName, laneRefs: refs, thresholdSec });
+  const lane = resolveGroup(groupName).index + 1;
+  return extractWorkouts(club, lane >= 1 ? lane : 1)
+    .filter((w) => w && typeof w.dayOfWeek === 'number')
+    .map((w) => ({ ...w, steps: restateSteps(w.steps, basis.scale) }));
 }
 
 export interface RosterTrainee {

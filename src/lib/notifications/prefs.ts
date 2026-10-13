@@ -128,6 +128,18 @@ export const KIND_CATEGORY: Record<string, Category> = {
   feedback_reply: 'coach',
   // "לבקש מכולם" (academy/test-request.ts): the coach asking for the trainee's last test.
   academy_test_request: 'coach',
+  // The academy's test loop and plan sends (academy/loop-notify.ts, launch BL8).
+  academy_test_invite: 'coach',
+  academy_test_approved: 'coach',
+  academy_test_analysis: 'coach',
+  academy_band_set: 'coach',
+  academy_pace_update: 'coach',
+  academy_removed: 'coach',
+  academy_plan_saved: 'program',
+  academy_missed_week: 'program',
+  // To the coach: the trainee confirmed a test slot / submitted a result.
+  academy_test_confirmed: 'coach',
+  academy_test_submitted: 'coach',
   // Club-wide announcements and surveys.
   custom: 'news',
   survey: 'news',

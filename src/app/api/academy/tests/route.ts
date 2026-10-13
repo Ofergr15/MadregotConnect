@@ -18,6 +18,7 @@ import {
 } from '@/lib/academy/tests';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { coachIdsByTrainee, coachIdsOf, coachesTrainee } from '@/lib/academy/trainee-coaches';
+import { notifyTestApproved, notifyTestSubmitted } from '@/lib/academy/loop-notify';
 
 export const dynamic = 'force-dynamic';
 
@@ -443,6 +444,7 @@ export async function POST(request: Request) {
         protocol,
         date,
         approved: isStaff,
+        enteredByStaff: isStaff,
       })
       : null;
 
@@ -473,6 +475,12 @@ export async function POST(request: Request) {
     // A trainee's submission counts toward nothing until it is approved — that is PATCH's job.
     const repricing = !!data && isStaff;
     if (repricing) scheduleReprice(athleteId);
+
+    // Who hears about it (launch BL8): a trainee's submission reaches their coaches (it waits
+    // for their approval); a coach's entry for the trainee is an approved test, and the
+    // trainee is told their paces follow it now. Best-effort.
+    if (data && !isStaff) await notifyTestSubmitted(supabase, { athleteId });
+    else if (data && athleteId !== caller.athleteId) await notifyTestApproved({ athleteId, actorId: caller.athleteId || null });
 
     return NextResponse.json({
       test: data ? toTestRow(data) : null,
@@ -650,6 +658,8 @@ export async function PATCH(request: Request) {
       date: String(target.test_date).slice(0, 10),
       approved: true,
     });
+
+    await notifyTestApproved({ athleteId: String(target.athlete_id), actorId: caller.athleteId || null });
 
     return NextResponse.json({
       testId,

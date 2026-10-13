@@ -36,7 +36,12 @@ vi.mock('@/lib/auth/self-or-staff', () => ({
   mayActFor: () => true,
 }));
 
-const { GET } = await import('@/app/api/academy/benchmarks/route');
+// An academy coach's own trainees (launch BL9 / N8d): 'coach' coaches a1.
+vi.mock('@/lib/academy/trainee-coaches', () => ({
+  traineeIdsOfCoach: async (_s: unknown, coachId: string) => (coachId === 'coach' ? ['a1'] : []),
+}));
+
+const { GET, PATCH, DELETE } = await import('@/app/api/academy/benchmarks/route');
 const get = (q: string) => GET(new Request(`http://x/api/academy/benchmarks?${q}`));
 
 const as = (caller: Row) => resolveVerifiedCaller.mockResolvedValue({
@@ -72,10 +77,27 @@ describe('pending and all', () => {
     expect((await get('status=all')).status).toBe(401);
   });
 
-  it('staff see the whole queue', async () => {
-    as({ isStaff: true, athleteId: 'coach' });
+  it('club staff see the whole queue', async () => {
+    as({ isStaff: true, athleteId: 'coach', role: 'coach' });
     const body = await (await get('status=pending')).json();
     expect(body.results.map((r: Row) => r.id).sort()).toEqual(['r1', 'r3']);
+  });
+
+  it('an academy coach sees only their own trainees\' pending results (launch BL9)', async () => {
+    as({ isStaff: true, athleteId: 'coach', role: 'academy_coach' });
+    const body = await (await get('status=pending')).json();
+    expect(body.results.map((r: Row) => r.id)).toEqual(['r1']);
+    // …and the public board is still whole under status=all.
+    const all = await (await get('status=all')).json();
+    expect(all.results.map((r: Row) => r.id).sort()).toEqual(['r1', 'r2']);
+  });
+
+  it('an academy coach may not approve or delete another coach\'s trainee\'s result', async () => {
+    as({ isStaff: true, athleteId: 'coach', role: 'academy_coach' });
+    const patch = await PATCH(new Request('http://x/api/academy/benchmarks', { method: 'PATCH', body: JSON.stringify({ id: 'r3', action: 'approve' }) }));
+    expect(patch.status).toBe(403);
+    const del = await DELETE(new Request('http://x/api/academy/benchmarks?id=r3', { method: 'DELETE' }));
+    expect(del.status).toBe(403);
   });
 
   it('a runner may not read the queue, nor somebody else\'s pending result', async () => {

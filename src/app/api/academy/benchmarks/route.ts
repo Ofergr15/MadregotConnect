@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { staffAthleteScope } from '@/lib/academy/staff-scope';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,9 +37,13 @@ export async function GET(request: Request) {
     // staff's, plus the athlete asking for their OWN (ProfileBest shows a runner
     // their submission waiting for approval). "Own" is checked against the session:
     // an athleteId equal to the caller's, or a name equal to the caller's own name.
+    // The unvetted queue is scoped like every club-wide staff list (launch BL9 / N8d): an
+    // academy coach sees their own trainees' results, a manager the academy's.
+    let scope: Set<string> | null = null;
     if (status !== 'approved') {
       const { denied, caller } = await resolveVerifiedCaller(request);
       if (denied) return denied;
+      if (caller.isStaff && !caller.isSuperUser) scope = await staffAthleteScope(supabase, caller);
       if (!caller.isSuperUser && !caller.isStaff) {
         let self = !!caller.athleteId && !!athleteId && athleteId === caller.athleteId;
         if (!self && !athleteId && name && caller.athleteId) {
@@ -84,6 +89,8 @@ export async function GET(request: Request) {
 
     let results = ranked;
     if (status !== 'all') results = results.filter((r) => r.status === status);
+    // Approved rows are the public board; only what is not approved is narrowed.
+    if (scope) results = results.filter((r) => r.status === 'approved' || (!!r.athlete_id && scope!.has(r.athlete_id)));
     if (athleteId) results = results.filter((r) => r.athlete_id === athleteId);
     else if (name) results = results.filter((r) => (r.athlete_name || '').trim().toLowerCase() === name.trim().toLowerCase());
 
@@ -201,6 +208,9 @@ export async function PATCH(request: Request) {
     }
 
     const supabase = createServerClient();
+    // Only a result inside the caller's scope (launch BL9 / N8d).
+    const refused = await refuseOutOfScope(supabase, caller, String(id));
+    if (refused) return refused;
     if (action === 'reject') {
       const { error } = await supabase.from('benchmark_results').delete().eq('id', id).eq('coach_id', COACH_ID);
       if (error) throw error;
@@ -229,6 +239,9 @@ export async function DELETE(request: Request) {
     }
 
     const supabase = createServerClient();
+    // Only a result inside the caller's scope (launch BL9 / N8d).
+    const refused = await refuseOutOfScope(supabase, caller, String(id));
+    if (refused) return refused;
     const { error } = await supabase.from('benchmark_results').delete().eq('id', id).eq('coach_id', COACH_ID);
     if (error) throw error;
     return NextResponse.json({ success: true });
@@ -236,4 +249,18 @@ export async function DELETE(request: Request) {
     console.error('Benchmarks DELETE error:', error);
     return NextResponse.json({ error: error.message || 'Failed to delete result' }, { status: 500 });
   }
+}
+
+/** 403 unless the result's athlete is the caller's to manage (staff-scope.ts). */
+async function refuseOutOfScope(
+  supabase: ReturnType<typeof createServerClient>,
+  caller: Parameters<typeof staffAthleteScope>[1],
+  id: string,
+): Promise<Response | null> {
+  const scope = await staffAthleteScope(supabase, caller);
+  if (!scope) return null;
+  const { data } = await supabase.from('benchmark_results').select('athlete_id').eq('id', id).eq('coach_id', COACH_ID).maybeSingle();
+  const owner = (data as { athlete_id?: string | null } | null)?.athlete_id ?? null;
+  if (owner && scope.has(owner)) return null;
+  return NextResponse.json({ error: 'Not your trainee' }, { status: 403 });
 }

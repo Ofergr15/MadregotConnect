@@ -62,7 +62,11 @@ const state = {
   trainees: [] as Array<{ id: string; name: string; isAcademy: boolean; active: boolean; bandNumber: number | null; hasGarmin: boolean }>,
   thresholds: {} as Record<string, number | null>,
   weeks: {} as Record<string, { planId: string | null; workouts: ParsedWorkout[] }>,
+  /** The senior week a trainee with no row of their own is following (launch BL7). */
+  senior: [] as ParsedWorkout[],
 };
+const planSaved = vi.fn(async () => {});
+vi.mock('@/lib/academy/loop-notify', () => ({ notifyPlanSaved: (...a: unknown[]) => planSaved(...(a as [])) }));
 vi.mock('@/lib/academy/book-server', () => ({
   loadTrainees: async (_s: unknown, ids: string[]) => state.trainees.filter(t => ids.includes(t.id)),
   loadThresholds: async (_s: unknown, ids: string[]) => Object.fromEntries(ids.map(id => [id, state.thresholds[id] ?? null])),
@@ -70,6 +74,7 @@ vi.mock('@/lib/academy/book-server', () => ({
   loadClubWeek: async () => null,
   loadLaneReferences: async () => ({ 1: 203, 2: 209, 3: 223 }),
   allAcademyTraineeIds: async () => state.trainees.map(t => t.id),
+  loadSeniorSeed: async () => state.senior,
 }));
 vi.mock('@/lib/academy/settings-server', () => ({ loadAcademySettings: async () => ({ paceAlerts: true }) }));
 vi.mock('@/lib/plans/cache', () => ({ revalidateWeeklyPlans: () => {} }));
@@ -144,6 +149,8 @@ describe('POST /api/academy/day-plan', () => {
     tokens.push({ id: 'shahar', garmin_auth: { token: 'x' }, is_academy: true });
     tables.decisions = { data: [], error: null };
     tables.tests = [];
+    state.senior = [];
+    planSaved.mockClear();
   });
 
   it('refuses absolute paces in the body', async () => {
@@ -170,7 +177,12 @@ describe('POST /api/academy/day-plan', () => {
     expect(shaharWrite.row.parsed_workouts.workouts.map((w: ParsedWorkout) => w.dayOfWeek)).toEqual([0, 2]);
     // Yoav had no row: one is inserted for him.
     const yoavWrite = writes.find(w => w.table === 'weekly_plans' && w.op === 'insert')!;
-    expect(yoavWrite.row).toMatchObject({ athlete_id: 'yoav', week_start_date: '2026-10-11', status: 'draft' });
+    // Published by the send although no watch got it (launch BL6): a draft is invisible to
+    // run detail and the matcher. Only Tuesday in it → the whole week, 'pushed'.
+    expect(yoavWrite.row).toMatchObject({ athlete_id: 'yoav', week_start_date: '2026-10-11', status: 'pushed' });
+    // …and, with no watch to announce it, the app does (BL8): Yoav only.
+    expect(planSaved).toHaveBeenCalledTimes(1);
+    expect((planSaved.mock.calls[0] as unknown[])[0]).toMatchObject({ athleteId: 'yoav', date: '2026-10-13', failedWatch: false });
 
     // The pace each got is from THEIR threshold: Shahar 4:05, Yoav 4:32.
     const repOf = (workouts: ParsedWorkout[]) => workouts.find(w => w.dayOfWeek === 2)!.steps[1].repeatSteps![0];
@@ -189,6 +201,19 @@ describe('POST /api/academy/day-plan', () => {
     expect(writes.some(w => w.id === 'plan-a')).toBe(false);
     // The entry is counted once per trainee who got it.
     expect(writes.find(w => w.table === 'academy_workout_library')?.row.use_count).toBe(5);
+  });
+
+  it('a trainee on the senior week keeps the rest of that week when one day is planned (launch BL7)', async () => {
+    const run = (dayOfWeek: number, m: number): ParsedWorkout => ({ dayOfWeek, name: `d${dayOfWeek}`, steps: [{ order: 1, type: 'active', durationType: 'distance', durationValue: m, targetType: 'no_target' }] } as ParsedWorkout);
+    state.senior = [run(0, 10000), run(2, 12000), run(4, 8000), run(6, 20000)];
+    const res = await post({ date: '2026-10-13', recipients: ['yoav'], workout: { name: 'x', steps: toLibrarySteps(model) } });
+    expect((await res.json()).results[0]).toMatchObject({ athleteId: 'yoav', status: 'saved' });
+    const write = writes.find(w => w.table === 'weekly_plans' && w.op === 'insert')!;
+    const days = (write.row.parsed_workouts.workouts as ParsedWorkout[]).map(w => [w.dayOfWeek, w.name]);
+    // Sunday, Thursday and Saturday stay the senior sessions; Tuesday is the new one.
+    expect(days).toEqual([[0, 'd0'], [2, 'x'], [4, 'd4'], [6, 'd6']]);
+    // Other days in the row → 'partial', still published.
+    expect(write.row.status).toBe('partial');
   });
 
   it('a trainee the coach does not coach is not written to', async () => {

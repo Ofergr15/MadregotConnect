@@ -19,6 +19,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
  */
 
 const resolveVerifiedCaller = vi.fn();
+// The loop's pushes (launch BL8) are asserted here, not delivered: the real sender writes
+// history rows into `scheduled_notifications`, which is the table the reminder tests read.
+const loop = { invited: vi.fn(async () => {}), confirmed: vi.fn(async () => {}) };
+vi.mock('@/lib/academy/loop-notify', () => ({
+  notifyTestInvited: (...a: unknown[]) => loop.invited(...(a as [])),
+  notifyTestConfirmed: (...a: unknown[]) => loop.confirmed(...(a as [])),
+}));
 vi.mock('@/lib/auth/self-or-staff', () => ({
   resolveVerifiedCaller: (req: Request) => resolveVerifiedCaller(req),
 }));
@@ -242,6 +249,15 @@ beforeEach(() => {
 });
 
 describe('inviting somebody to test', () => {
+  it('tells the trainee when the invitation is created (launch BL8)', async () => {
+    loop.invited.mockClear();
+    asStaff();
+    const res = await post({ athleteId: 'a1', slots: [SOON] });
+    expect(res.status).toBe(200);
+    expect(loop.invited).toHaveBeenCalledTimes(1);
+    expect((loop.invited.mock.calls[0] as unknown[])[1]).toMatchObject({ athleteId: 'a1' });
+  });
+
   it('creates an invitation with the offered times in order', async () => {
     const res = await post({ athleteId: 'a1', slots: [SOON, ALT] });
     expect(res.status).toBe(200);
@@ -701,6 +717,19 @@ describe('the reminders a confirmed time arms', () => {
     expect(db.scheduled_notifications.every(r => r.status === 'cancelled')).toBe(true);
     expect(row.reminder_before_id).toBeNull();
     expect(row.reminder_after_id).toBeNull();
+  });
+
+  it('tells the trainee about new times and the coaches about a confirmed one (launch BL8)', async () => {
+    loop.invited.mockClear(); loop.confirmed.mockClear();
+    const row = seedInvitation();
+    asTrainee();
+    await patch({ id: row.id, action: 'confirm', slot: SOON });
+    expect(loop.confirmed).toHaveBeenCalledTimes(1);
+    expect((loop.confirmed.mock.calls[0] as unknown[])[1]).toMatchObject({ athleteId: row.athlete_id });
+    asStaff();
+    await patch({ id: row.id, action: 'offer', slots: [NOT_OFFERED] });
+    expect(loop.invited).toHaveBeenCalledTimes(1);
+    expect((loop.invited.mock.calls[0] as unknown[])[1]).toMatchObject({ athleteId: row.athlete_id });
   });
 
   it('still confirms the time when the reminder rows cannot be written', async () => {

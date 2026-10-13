@@ -5,6 +5,7 @@ import { COACH_ID } from '@/lib/constants';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { pickPlan, planRowsFilter } from '@/lib/plans/scope';
 import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
+import { ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
 
 /**
  * Structured breakdown for ONE arbitrary week — the Program page's native
@@ -31,12 +32,17 @@ export async function GET(req: NextRequest) {
     const supabase = createServerClient({ revalidateSeconds: 300, cacheTags: [WEEKLY_PLANS_TAG] });
     // A week can have more than one row (e.g. a draft + a pushed version) —
     // prefer 'pushed', same precedence as /api/dashboard/weekly.
-    const { data: rows } = await supabase
-      .from('weekly_plans')
-      .select('parsed_workouts, status, created_at, athlete_id')
-      .eq('coach_id', COACH_ID)
-      .or(planRowsFilter(caller.athleteId))
-      .eq('week_start_date', weekStart);
+    const [{ data: rowsRaw }, ownCounts] = await Promise.all([
+      supabase
+        .from('weekly_plans')
+        .select('parsed_workouts, status, created_at, athlete_id')
+        .eq('coach_id', COACH_ID)
+        .or(planRowsFilter(caller.athleteId))
+        .eq('week_start_date', weekStart),
+      // A trainee who left the academy reads the club's week again (scope-server.ts).
+      ownPlanRowsCount(caller.athleteId),
+    ]);
+    const rows = withoutOwnRows(rowsRaw, ownCounts);
 
     // The caller's own academy week first, never another trainee's (lib/plans/scope.ts).
     const plan = pickPlan(rows, caller.athleteId);

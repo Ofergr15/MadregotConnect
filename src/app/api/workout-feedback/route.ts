@@ -4,6 +4,7 @@ import { feedbackAlertCopy } from '@/lib/notifications/copy';
 import { academyManagerIds, notifyStaff } from '@/lib/notifications/staff';
 import { notifyAthlete } from '@/lib/push';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
+import { inScope, staffAthleteScope } from '@/lib/academy/staff-scope';
 import { academyThreadUrl } from '@/lib/academy/deep-links';
 import { requireCallerForAthlete, requireStaffCaller } from '@/lib/auth/self-or-staff';
 import { parseFeedbackInput } from '@/lib/feedback-scales';
@@ -172,9 +173,11 @@ export async function GET(request: Request) {
           .select('id, name, avatar_url, group_id, groups!group_id(name)')
           .eq('status', 'active'),
       ]);
-      const { data, error } = feedbackRes;
-      const activeAthletes = activeRes.data;
-      if (error) throw error;
+      if (feedbackRes.error) throw feedbackRes.error;
+      // An academy coach reads their own trainees' feedback, not the club's (launch BL9 / N8c).
+      const scope = await staffAthleteScope(supabase, caller);
+      const data = inScope(feedbackRes.data as any[] | null, scope, (r: any) => r.athlete_id);
+      const activeAthletes = inScope(activeRes.data as any[] | null, scope, (a: any) => a.id);
 
       // Attach the activity each feedback is about (name/type/distance/time).
       const actIds = Array.from(
