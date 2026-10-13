@@ -4264,6 +4264,8 @@
       },
       "detailReps": "החזרות ב־<m>{actual}</m> במקום <m>{target}</m>.",
       "detailRun": "בקצב <m>{actual}</m> במקום <m>{target}</m>.",
+      "detailRepsExact": "החזרות בדיוק בקצב, <m>{actual}</m>.",
+      "detailRunExact": "בדיוק בקצב, <m>{actual}</m>.",
       "inRange": "{inRange, plural, =0 {אף חזרה לא בטווח} one {חזרה אחת בטווח} other {<m>#</m> מתוך <m>{of}</m> בטווח}}{lastFaster, select, yes {, והאחרונה מהירה ממנו.} other {.}}",
       "col": {
         "plan": "תוכנית",

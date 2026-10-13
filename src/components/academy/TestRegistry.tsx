@@ -11,6 +11,7 @@ import { PendingTests, type PendingSubmission } from './PendingTests';
 import { TestRoundSheet } from './TestRoundSheet';
 import { TestAnalysisSheet } from './TestAnalysisSheet';
 import type { Direction, Registry, RegistryRow } from '@/lib/academy/tests';
+import { scoped } from '@/lib/academy/client-scope';
 
 /** The registry plus whatever is waiting on staff. `pending` is absent pre-migration 108. */
 type RegistryResponse = Registry & { pending?: PendingSubmission[] };
@@ -343,7 +344,7 @@ export function TestRegistry({
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/academy/tests?protocol=${encodeURIComponent(protocol)}`, {
+      const res = await fetch(scoped(`/api/academy/tests?protocol=${encodeURIComponent(protocol)}`), {
         headers: await apiHeaders(),
       });
       const data = await res.json();
@@ -435,7 +436,7 @@ export function TestRegistry({
  */
 export function usePendingTestsCount(protocol = '30min'): number {
   const { data } = useApi<RegistryResponse & { tableMissing?: boolean }>(
-    `/api/academy/tests?protocol=${encodeURIComponent(protocol)}`,
+    scoped(`/api/academy/tests?protocol=${encodeURIComponent(protocol)}`),
   );
   return pendingCountOf(data);
 }

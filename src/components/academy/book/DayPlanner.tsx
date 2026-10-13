@@ -20,6 +20,7 @@ import { AdjustScreen } from './AdjustScreen';
 import { QuickTextScreen } from './QuickTextScreen';
 import { SendScreen } from './SendScreen';
 import type { DayPlanData, Draft, SendResult } from './types';
+import { scoped } from '@/lib/academy/client-scope';
 
 // ── "מה ירוץ בשלישי?" — one trainee, one day (mockup phones 1 → 3) ───────────────────────
 //
@@ -81,7 +82,7 @@ export function DayPlanner({ athleteId, date, onClose, onDone }: {
 }) {
   const t = useTranslations('workoutBook');
   const { data, error } = useApi<DayPlanData>(
-    `/api/academy/day-plan?athleteId=${encodeURIComponent(athleteId)}&date=${date}`,
+    scoped(`/api/academy/day-plan?athleteId=${encodeURIComponent(athleteId)}&date=${date}`),
     { keepPreviousData: true },
   );
   const [screen, setScreen] = useState<Screen>('choose');

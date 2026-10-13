@@ -175,6 +175,7 @@ export default function AcademyPage() {
           openThread={deepLink.thread === 'mine'}
           raiseTest={deepLink.test}
           raiseEntry={deepLink.entry}
+          openDate={deepLink.open}
         />
       </div>
     );

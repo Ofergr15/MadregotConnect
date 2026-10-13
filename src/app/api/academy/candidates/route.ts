@@ -214,7 +214,7 @@ export async function GET(request: Request) {
         linkedFromForm: matches[String((r as any).id)]?.linkedFromForm ?? false,
         clubMatch: matches[String((r as any).id)]?.clubMatch ?? null,
       })),
-      events: (eventRows || []).map(toEvent),
+      events: await withRecorderNames(supabase, (eventRows || []).map(toEvent)),
       me: { canAdmit, isManager: isAcademyManager(caller), athleteId: caller.athleteId ?? null },
       coaches,
       multiCoach,
@@ -335,6 +335,19 @@ export async function PATCH(request: Request) {
       // the reader ignores keys it does not know, so a typo here would be a step that
       // silently never counts.
       if (!STAGE_KEYS.has(stage)) return NextResponse.json({ error: 'Unknown stage' }, { status: 400 });
+
+      // From 'signup' on, a step is something an ACCEPTED trainee did (launch N15). Stamping
+      // them on a card nobody accepted dropped it off the board while the athlete stayed
+      // unapproved — the applicant was lost. Before the accepted_at column, no check.
+      if (stageNeedsAccept(stage)) {
+        const { data: card, error: cardErr } = await supabase.from('academy_candidates').select('accepted_at').eq('id', id).maybeSingle();
+        if (!cardErr && card && !(card as { accepted_at?: string | null }).accepted_at) {
+          return NextResponse.json(
+            { error: 'not_accepted', message: 'צריך לקבל את המועמד לאקדמיה לפני השלב הזה' },
+            { status: 409 },
+          );
+        }
+      }
 
       const occurredAt = String(body?.occurredAt || '').trim();
       const when = occurredAt && Number.isFinite(Date.parse(occurredAt))
@@ -535,4 +548,36 @@ export async function PATCH(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Failed to update the candidate' }, { status: 500 });
   }
+}
+
+/** The stages an accepted trainee does: 'signup' and every one after it. */
+function stageNeedsAccept(stage: string): boolean {
+  const order = STAGES.map((st) => st.key as string);
+  const at = order.indexOf(stage);
+  return at >= 0 && at >= order.indexOf('signup');
+}
+
+/**
+ * A step's "who recorded it" as a NAME (launch N34): the column holds the staff account's
+ * email, or 'academy-form' for the form's own step, and the card printed either raw.
+ * Best-effort: an address nobody matches is dropped rather than shown.
+ */
+async function withRecorderNames(supabase: ReturnType<typeof createServerClient>, events: CandidateEvent[]): Promise<CandidateEvent[]> {
+  const emails = [...new Set(events.map((e) => e.recordedBy).filter((r): r is string => !!r && r.includes('@')))];
+  const names = new Map<string, string>();
+  if (emails.length) {
+    try {
+      const { data } = await supabase.from('athletes').select('email, name').in('email', emails);
+      for (const r of (data || []) as Array<{ email: string; name: string | null }>) {
+        const first = (r.name || '').trim().split(/\s+/)[0];
+        if (r.email && first) names.set(r.email.toLowerCase(), first);
+      }
+    } catch { /* names are a nicety */ }
+  }
+  return events.map((e) => {
+    const by = e.recordedBy || '';
+    if (!by) return e;
+    if (!by.includes('@')) return { ...e, recordedBy: by === 'academy-form' ? 'טופס' : by };
+    return { ...e, recordedBy: names.get(by.toLowerCase()) ?? null };
+  });
 }

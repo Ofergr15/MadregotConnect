@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, GraduationCap } from 'lucide-react';
 import { cn, israelToday } from '@/lib/utils';
@@ -24,6 +25,7 @@ import { CoachAvatarStack } from './CoachAvatarStack';
 import { PaceUpdateCard } from './tools/PaceUpdateCard';
 import { KmCard } from '@/components/trainee/KmCard';
 import { JourneyTiles } from '@/components/trainee/JourneyTiles';
+import { withoutParam } from '@/lib/academy/strip-param';
 
 // The academy as one of its trainees sees it — mockup academy-trainee-home-v4.
 //
@@ -62,7 +64,7 @@ function weekRange(weekStart: string): string {
     : `${dm(first)}–${dm(last)}`;
 }
 
-export function AcademyMyView({ athleteId, openThread = false, raiseTest = false, raiseEntry = false }: {
+export function AcademyMyView({ athleteId, openThread = false, raiseTest = false, raiseEntry = false, openDate = null }: {
   /** `null` while the id is still being read from storage; `''` once we've looked and found nobody. */
   athleteId: string | null;
   /** `?thread=mine` — a push about the conversation was tapped: open it. */
@@ -71,9 +73,15 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
   raiseTest?: boolean;
   /** `?test=entry` — the "לבקש מכולם" request was tapped: bring the entry card into view. */
   raiseEntry?: boolean;
+  /**
+   * `?open=YYYY-MM-DD` — the morning reminder (and the plan pushes) name a day: open that
+   * day's workout, on its week (launch N22; the classic home ignored it).
+   */
+  openDate?: string | null;
 }) {
   const t = useTranslations('academy');
-  const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()));
+  const router = useRouter();
+  const [weekStart, setWeekStart] = useState(() => (openDate ? sundayOf(new Date(`${openDate}T12:00:00`)) : sundayOf(new Date())));
   const [today] = useState(() => israelToday());
   /** Set by `MyInvitation`, so the top slot only takes room when there is a card in it. */
   const [hasInvitation, setHasInvitation] = useState(false);
@@ -105,6 +113,13 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
   // A push lands here with `?thread=mine`. Followed when it flips, so a second tap
   // while the screen is open opens the sheet again.
   useEffect(() => { if (openThread) openConversation(); }, [openThread, openConversation]);
+
+  // `?open=` — that day's sheet, on that day's week; followed when the link changes.
+  useEffect(() => {
+    if (!openDate) return;
+    setWeekStart(sundayOf(new Date(`${openDate}T12:00:00`)));
+    setSheetDate(openDate);
+  }, [openDate]);
 
   // `?test=mine`: the invitation (when there is one) sits at the very top already;
   // otherwise the tests card is below the fold and is scrolled to.
@@ -155,6 +170,7 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
           <MyInvitation
             athleteId={data.athlete.athleteId}
             watchConnected={data.athlete.hasWatch}
+            coachName={data.coach?.name ?? null}
             onVisible={setHasInvitation}
             onInvitation={setInvitation}
             resultJustSent={resultJustSent}
@@ -316,7 +332,14 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
           composer pinned under it, the older messages behind one tap. */}
       <Sheet
         open={threadOpen}
-        onOpenChange={setThreadOpen}
+        onOpenChange={(open) => {
+          setThreadOpen(open);
+          // Closed: drop `?thread=mine`, so the next link to the thread reopens it (launch N23).
+          if (!open) {
+            const next = withoutParam(window.location.href, 'thread');
+            if (next) router.replace(next, { scroll: false });
+          }
+        }}
         title={coachFirst ? `השיחה עם ${coachFirst}` : 'השיחה שלי'}
         className="h-[88dvh]"
         bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden pb-3"

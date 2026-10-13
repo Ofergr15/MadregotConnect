@@ -117,6 +117,13 @@ export function addDaysStr(dateStr: string, days: number): string {
  * Falls back to any group present, then to any nested `workouts` array, so an
  * unusual blob still yields a plan rather than nothing.
  */
+/** An academy row that is a trainee now: let in (not a waiting applicant) and still in the club. */
+export function isRosterTrainee(a: { is_academy?: boolean | null; approved?: boolean | null; status?: string | null }): boolean {
+  if (!a.is_academy) return false;
+  if (a.approved === false) return false;
+  return a.status !== 'disconnected' && a.status !== 'removed';
+}
+
 export function extractWorkouts(raw: any, groupNumber = 1): ParsedWorkout[] {
   if (!raw) return [];
   // Normalized so `workoutKey` is present even on plans published before the write
@@ -169,8 +176,13 @@ export async function computeAcademyWeekAdherence(opts: {
     // 1) Academy athletes (or a single requested one).
     supabase
       .from('athletes')
-      .select('id, name, is_academy, group_id')
-      .eq('coach_id', COACH_ID),
+      .select('id, name, is_academy, group_id, approved, status')
+      .eq('coach_id', COACH_ID)
+      // `approved`/`status` are old columns, but a schema without them must not empty the
+      // academy: the retry reads the roster as before.
+      .then((res) => (res.error
+        ? supabase.from('athletes').select('id, name, is_academy, group_id').eq('coach_id', COACH_ID)
+        : res)),
     // Which of the plan's three group variants each athlete is actually graded
     // against. One query for the whole table rather than per athlete — see
     // extractWorkouts for why using the wrong group misgrades pace.
@@ -196,6 +208,11 @@ export async function computeAcademyWeekAdherence(opts: {
   ]);
 
   let athletes: any[] = athRes.error ? [] : (athRes.data || []).filter((a: any) => a.is_academy);
+  // The academy's roster is its TRAINEES (launch N12): an applicant still waiting
+  // (approved=false) or a row that left the club is not one, and counted them in the
+  // weekly report, adherence, the queue, plans ("לבנות"), readiness and copy-week.
+  // One trainee asked for by id (their own screens) is answered as before.
+  if (!opts.onlyAthleteId) athletes = athletes.filter(isRosterTrainee);
   if (opts.onlyAthleteId) athletes = athletes.filter(a => a.id === opts.onlyAthleteId);
   if (opts.onlyAthleteIds) {
     const only = new Set(opts.onlyAthleteIds);

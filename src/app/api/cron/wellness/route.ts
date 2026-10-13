@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { sweepWellness } from '@/lib/wellness/sweep';
 import { cronPaused } from '@/lib/cron-pause';
 import { emptyWellnessShapes } from '@/lib/garmin/client';
+import { saveLastSweep, sweepSummary } from '@/lib/wellness/last-sweep';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -26,15 +27,15 @@ async function run(request: Request) {
   }
 
   try {
-    const result = await sweepWellness(createServerClient());
+    const supabase = createServerClient();
+    const result = await sweepWellness(supabase);
     // One line per run, so "the cron says 200" can be told apart from "nights were
     // actually stored" in the request logs (2026-10-11: trainees showed 2 nights in 30).
-    console.log('[wellness-sweep]', JSON.stringify({
-      athletes: result.athletes, fetched: result.fetched, stored: result.stored,
-      backfilled: result.backfilled, nightErrors: result.nightErrors,
-      failed: result.failed.length, firstFailures: result.failed.slice(0, 3).map(f => f.slice(0, 160)),
-      emptyShapes: emptyWellnessShapes(),
-    }));
+    // The Vercel CLI shows only a request's first log line, so the same summary is also
+    // kept in app_settings (lib/wellness/last-sweep.ts) for /dashboard/data-check.
+    const summary = sweepSummary(result, emptyWellnessShapes());
+    console.log('[wellness-sweep]', JSON.stringify(summary));
+    await saveLastSweep(supabase, summary);
     return NextResponse.json({ ok: true, ...result, failed: result.failed.length });
   } catch (error) {
     console.error('Wellness sweep error:', error);

@@ -19,6 +19,7 @@ import { readReminderPref } from '@/lib/academy/morning-reminder';
 import { lapsWhy, noLoadReason } from '@/lib/academy/workout-extras';
 import { loadTraineeToday } from '@/lib/academy/today-server';
 import { LEARNING_DAYS } from '@/lib/academy/pmc';
+import { lastSweepLine, loadLastSweep } from '@/lib/wellness/last-sweep';
 import {
   coverageText, screenVerdicts, type CoverageData, type CoverageRow, type LatestRun, type PlanSource,
 } from '@/lib/academy/data-coverage';
@@ -32,7 +33,7 @@ export const maxDuration = 60;
 const CONCURRENCY = 4;
 
 const MEMBER_COLS = `id, name, status, role, academy_band_id, notification_prefs, max_hr_bpm, ${DATA_FEED_COLUMNS}`;
-const MEMBER_COLS_FALLBACK = 'id, name, status, role, academy_band_id, notification_prefs, garmin_auth, strava_auth';
+const MEMBER_COLS_FALLBACK = 'id, name, status, approved, role, academy_band_id, notification_prefs, garmin_auth, strava_auth';
 
 /**
  * GET /api/admin/trainee-data-coverage[?format=text]
@@ -69,6 +70,8 @@ export async function GET(request: Request) {
   try {
     const format = new URL(request.url).searchParams.get('format');
     const supabase = createServerClient();
+    // The last wellness sweep, read beside everything else (lib/wellness/last-sweep.ts).
+    const lastSweepP = loadLastSweep(supabase);
     const now = new Date();
     const today = israelToday(now);
     const weekStart = planWeekStartOf(today);
@@ -81,11 +84,21 @@ export async function GET(request: Request) {
       if (res.error && isMissingColumn(res.error)) res = await read(MEMBER_COLS_FALLBACK);
       if (res.error) throw res.error;
       members = res.data || [];
+      // Not an applicant still waiting for the manager (launch N12): they have no data to
+      // check. A separate read, so a schema without `approved` still answers.
+      const waiting = await supabase.from('athletes').select('id').eq('coach_id', COACH_ID).eq('is_academy', true).eq('approved', false);
+      if (!waiting.error && waiting.data?.length) {
+        const out = new Set((waiting.data as Array<{ id: string }>).map((w) => String(w.id)));
+        members = members.filter((m: any) => !out.has(String(m.id)));
+      }
     }
     const ids = members.map(m => String(m.id));
     if (!ids.length) {
-      const empty = { today, generatedAt: now.toISOString(), count: 0, trainees: [] as CoverageRow[] };
-      return format === 'text' ? textResponse(coverageText([], empty)) : NextResponse.json(empty);
+      const lastWellnessSweep = await lastSweepP;
+      const empty = { today, generatedAt: now.toISOString(), count: 0, lastWellnessSweep, trainees: [] as CoverageRow[] };
+      return format === 'text'
+        ? textResponse(`${lastSweepLine(lastWellnessSweep)}\n\n${coverageText([], empty)}`)
+        : NextResponse.json(empty);
     }
 
     // ── Club-wide reads, one round ──
@@ -234,8 +247,11 @@ export async function GET(request: Request) {
       }
     });
 
-    const out = { today, generatedAt: now.toISOString(), count: rows.length, trainees: rows };
-    return format === 'text' ? textResponse(coverageText(rows, out)) : NextResponse.json(out);
+    const lastWellnessSweep = await lastSweepP;
+    const out = { today, generatedAt: now.toISOString(), count: rows.length, lastWellnessSweep, trainees: rows };
+    return format === 'text'
+      ? textResponse(`${lastSweepLine(lastWellnessSweep)}\n\n${coverageText(rows, out)}`)
+      : NextResponse.json(out);
   } catch (error: unknown) {
     console.error('trainee-data-coverage error:', error);
     return NextResponse.json({ error: 'Failed to build the coverage check' }, { status: 500 });

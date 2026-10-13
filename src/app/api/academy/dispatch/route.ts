@@ -48,9 +48,9 @@ export async function GET(request: Request) {
     if (!caller.isSuperUser && !caller.isStaff) {
       return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
     }
-    const isManager = isAcademyManager(caller);
-
     const url = new URL(request.url);
+    // `?scope=coach` narrows a manager in their coach view to their own trainees (launch N19).
+    const isManager = isAcademyManager(caller) && url.searchParams.get('scope') !== 'coach';
     const weekStart = url.searchParams.get('weekStart') || '';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
       return NextResponse.json({ error: 'weekStart=YYYY-MM-DD is required' }, { status: 400 });

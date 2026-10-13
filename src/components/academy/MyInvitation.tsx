@@ -56,8 +56,11 @@ export function MyInvitation({
   onVisible,
   onInvitation,
   resultJustSent,
+  coachName = null,
 }: {
   athleteId: string;
+  /** The trainee's coach, named in "what happens after" (ScheduledTest). */
+  coachName?: string | null;
   /** Whether a watch is linked — changes what the trainee has to do after the run. */
   watchConnected?: boolean;
   /** Tells the parent whether anything rendered, so it can drop text this screen replaces. */
@@ -148,6 +151,7 @@ export function MyInvitation({
         invitation={invitation}
         now={now}
         watchConnected={watchConnected}
+        coachName={coachName}
         busy={busy}
         onConfirm={slot => { void answer({ action: 'confirm', slot }); }}
         onAskOther={() => setAsking(true)}

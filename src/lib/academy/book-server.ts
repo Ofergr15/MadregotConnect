@@ -209,11 +209,16 @@ export async function loadTrainees(supabase: Supabase, athleteIds: string[]): Pr
 
 /** Every active academy trainee — the manager's roster. */
 export async function allAcademyTraineeIds(supabase: Supabase): Promise<string[]> {
-  const { data, error } = await supabase
+  let res: any = await supabase
     .from('athletes')
-    .select('id, is_academy, status')
+    .select('id, is_academy, status, approved')
     .eq('coach_id', COACH_ID)
     .eq('is_academy', true);
+  if (res.error && isMissingColumn(res.error)) {
+    res = await supabase.from('athletes').select('id, is_academy, status').eq('coach_id', COACH_ID).eq('is_academy', true);
+  }
+  const { data, error } = res;
   if (error || !data) return [];
-  return (data as any[]).filter(a => (a.status ?? 'active') === 'active').map(a => String(a.id));
+  // An applicant still waiting for the manager (approved=false) is not a trainee (launch N12).
+  return (data as any[]).filter(a => (a.status ?? 'active') === 'active' && a.approved !== false).map(a => String(a.id));
 }

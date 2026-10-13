@@ -313,6 +313,17 @@ export async function DELETE(request: Request) {
       );
     }
 
+    // The funnel card that pointed at this person is archived first (launch N16): deleting
+    // the athlete left it live on the board, an applicant with no account behind it.
+    // Best-effort, and harmless where the funnel tables are not there.
+    try {
+      await supabase
+        .from('academy_candidates')
+        .update({ archived_at: new Date().toISOString(), archived_reason: 'נדחה והוסר' })
+        .eq('athlete_id', id)
+        .is('archived_at', null);
+    } catch { /* no funnel */ }
+
     const { error } = await supabase
       .from('athletes')
       .delete()

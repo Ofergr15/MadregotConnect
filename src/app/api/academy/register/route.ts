@@ -17,7 +17,12 @@ export const dynamic = 'force-dynamic';
 // Every submit mails the admin and the typed address, so a script hammering this
 // public endpoint is a spam cannon. Five a minute from one address is more than a
 // person correcting a typo ever needs. Best effort per instance: see intake.ts.
+//
+// Keyed on the address AND the email (launch N32): a club event shares one Wi-Fi, and the
+// sixth applicant there got "Too many attempts". Five a minute per person stands; one
+// address as a whole is capped much higher, which still stops a script.
 const allowSubmit = createRateLimiter(5, 60_000);
+const allowFromIp = createRateLimiter(40, 60_000);
 
 /**
  * GET /api/academy/register?i={invite token} — the prefill for a personal link.
@@ -46,11 +51,13 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    if (!allowSubmit(clientIp(request.headers))) {
+    const body = await request.json().catch(() => null);
+    const ip = clientIp(request.headers);
+    const who = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+    if (!allowFromIp(ip) || !allowSubmit(`${ip}|${who}`)) {
       return NextResponse.json({ error: 'Too many attempts, try again in a minute' }, { status: 429 });
     }
 
-    const body = await request.json().catch(() => null);
     // The manager's switch (lib/academy/registration.ts). A coach's personal
     // invitation (the token from the funnel) gets through a closed door.
     if (!(await mayRegister(createServerClient(), body?.inviteToken))) {

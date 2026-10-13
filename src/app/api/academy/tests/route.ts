@@ -124,7 +124,8 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const protocol = url.searchParams.get('protocol') || DEFAULT_PROTOCOL;
     const athleteId = url.searchParams.get('athleteId');
-    const isManager = isAcademyManager(caller);
+    // `?scope=coach` narrows a manager in their coach view to their own trainees (launch N19).
+    const isManager = isAcademyManager(caller) && url.searchParams.get('scope') !== 'coach';
     const isStaff = caller.isSuperUser || caller.isStaff;
 
     // An athlete asking for their own graph is the trainee-facing case and is allowed.

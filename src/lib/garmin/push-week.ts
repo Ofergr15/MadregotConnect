@@ -7,6 +7,7 @@ import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { notifyAthlete } from '@/lib/push';
 import { watchSentCopy, type WatchPushContext } from '@/lib/notifications/watch-push-copy';
 import { israelToday } from '@/lib/utils';
+import { planPushedUrl } from '@/lib/academy/member-links';
 
 /**
  * Putting one athlete's week onto their Garmin account.
@@ -286,7 +287,9 @@ export async function pushWeekToAthlete({
           kind: 'plan_pushed',
           // Names the workouts this athlete actually got — their own group's version.
           copy: (locale) => watchSentCopy(locale, plannedWorkouts, { ...pushCopy, weekStartDate, today: israelToday(), updated: replacedRowIds.length > 0 }),
-          url: '/dashboard/program',
+          // An academy member's board on the first day sent, not the club's Program tab,
+          // which their nav does not show (launch N22).
+          url: planPushedUrl(athlete.is_academy, weekStartDate, plannedWorkouts.map((w) => w.dayOfWeek)),
           tag: `plan-push-${planId || weekStartDate}`,
           category: 'program',
         });

@@ -172,3 +172,27 @@ describe('buildQueue counts', () => {
     expect(q.totals).toEqual({ athletes: 2, pending: 1, missed: 1, reviewed: 1 });
   });
 });
+
+describe('launch N11 — today and the days after it are not missed yet', () => {
+  it('counts only sessions dated before today, and the week is not "missed" on its Tuesday', () => {
+    const q = buildQueue(report([{
+      athleteId: 'a', name: 'א',
+      workouts: [
+        workout({ date: '2026-09-13', completed: false }),
+        workout({ date: '2026-09-15', completed: false }),
+        workout({ date: '2026-09-17', completed: false }),
+      ],
+    }]), new Set(), { today: '2026-09-15' });
+    expect(q.rows[0].missedCount).toBe(1);
+    expect(q.totals.missed).toBe(1);
+  });
+
+  it('a run that carries pain or a note goes above a missed week', () => {
+    const q = buildQueue(report([
+      { athleteId: 'missed', name: 'א', workouts: [workout({ date: '2026-09-13', completed: false })] },
+      { athleteId: 'pain', name: 'ב', workouts: [paced('2026-09-14', 300)] },
+    ]), new Set(), { today: '2026-09-16', flagged: new Set(['pain|2026-09-14']) });
+    expect(q.rows.map(r => r.athleteId)).toEqual(['pain', 'missed']);
+    expect(q.rows[0].headline?.date).toBe('2026-09-14');
+  });
+});

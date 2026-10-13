@@ -63,7 +63,10 @@ export function WorkoutDone({ data, onLoad }: {
           <b className="block text-[16px] font-black text-ink-900">{t(`verdict.${done.verdictKey}`)}</b>
           {d.actual != null && d.target != null && (
             <small className="mt-px block text-[12.5px] leading-snug" style={{ color: warn ? C.warn : C.good }}>
-              {t.rich(d.reps ? 'detailReps' : 'detailRun', { ...RICH, actual: clock(d.actual), target: clock(d.target) })}
+              {/* "5:40 instead of 5:40" for a pace right on target (launch N34). */}
+              {clock(d.actual) === clock(d.target)
+                ? t.rich(d.reps ? 'detailRepsExact' : 'detailRunExact', { ...RICH, actual: clock(d.actual) })
+                : t.rich(d.reps ? 'detailReps' : 'detailRun', { ...RICH, actual: clock(d.actual), target: clock(d.target) })}
               {d.of > 0 && <> {t.rich('inRange', { ...RICH, inRange: d.inRange, of: d.of, lastFaster: d.lastFaster ? 'yes' : 'no' })}</>}
             </small>
           )}
@@ -141,10 +144,16 @@ export type DoneTab = 'summary' | 'map' | 'laps';
  * (DoneLapsTable); the map and graph open the run's page in its map-only view, without the
  * old page's own verdict, so nothing there contradicts this screen.
  */
-export function DoneTabs({ value, activityId, onChange }: {
+export function DoneTabs({ value, activityId, onChange, returnDate = null }: {
   value: DoneTab;
   activityId: string | null;
   onChange: (tab: DoneTab) => void;
+  /**
+   * The day this screen is about. Written into the current address as `?open=` before
+   * the map opens, so "חזרה" from the run's page comes back to this day instead of the
+   * bare board (launch N22). The history entry's own state is kept.
+   */
+  returnDate?: string | null;
 }) {
   const t = useTranslations('trainee.done.tabs');
   const router = useRouter();
@@ -155,7 +164,17 @@ export function DoneTabs({ value, activityId, onChange }: {
       <button type="button" role="tab" aria-selected={value === 'summary'} onClick={() => onChange('summary')} className={cn(tab, value === 'summary' ? on : 'text-ink-400')}>{t('summary')}</button>
       <button
         type="button" role="tab" aria-selected={false} disabled={!activityId}
-        onClick={() => activityId && router.push(`/dashboard/activities/${activityId}?view=map`)}
+        onClick={() => {
+          if (!activityId) return;
+          if (returnDate) {
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.set('open', returnDate);
+              window.history.replaceState(window.history.state, '', url.toString());
+            } catch { /* the map still opens */ }
+          }
+          router.push(`/dashboard/activities/${activityId}?view=map`);
+        }}
         className={cn(tab, 'text-ink-400 disabled:opacity-50')}
       >
         {t('map')}

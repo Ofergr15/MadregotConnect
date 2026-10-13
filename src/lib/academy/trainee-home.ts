@@ -304,7 +304,14 @@ export function goalCard(
 ): HomeGoal | null {
   const goalLabel = c?.goalType ? GOAL_TYPES.find((g) => g.value === c.goalType)?.label ?? null : null;
   // The trainee's own goal time (migration 144) is theirs; the band's is the group's.
-  const bandGoal = (c?.goalTimeSec ? goalTimeText(c.goalTimeSec) : null) || band?.paceProfile?.marathonGoal || band?.goal || null;
+  // The band's goal is a MARATHON time ("SUB 3:30"): beside a half-marathon or 10 km goal it
+  // was a wrong number (launch N30), so it is shown only for a marathon goal or none named.
+  const marathonGoalOk = !c?.goalType || c.goalType === 'full';
+  // A band goal written as a marathon time (2-6 hours, "SUB 3:30") is not a half's or a 10 km's.
+  const marathonish = (g: string | null | undefined) => !!g && /(^|\D)[2-6]:[0-5]\d(\D|$)/.test(g);
+  const bandGoal = (c?.goalTimeSec ? goalTimeText(c.goalTimeSec) : null)
+    || (marathonGoalOk ? band?.paceProfile?.marathonGoal || null : null)
+    || (marathonGoalOk || !marathonish(band?.goal) ? band?.goal || null : null);
   const race = c?.targetRace || null;
   if (!race && !goalLabel) return null;
 

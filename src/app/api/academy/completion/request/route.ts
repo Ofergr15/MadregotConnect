@@ -7,7 +7,7 @@ import { TRAINEE_V2_FOR_ALL } from '@/lib/trainee/flag';
 import { testEntryUrl } from '@/lib/academy/deep-links';
 import { visibleTraineeIds } from '@/lib/academy/pairing-server';
 import { loadCompletion } from '@/lib/academy/completion-server';
-import { TEST_REQUEST_KIND, testRequestCopy, whoToAsk, type PriorRequest } from '@/lib/academy/test-request';
+import { TEST_REQUEST_KIND, testRequestCopy, whoToAsk, isBrandNew, type PriorRequest } from '@/lib/academy/test-request';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -72,7 +72,7 @@ async function planAndSend(request: Request, caller: StaffCaller) {
       prior.push({ athleteId: String(r.audience_id), sentAt: String(r.last_sent_at || r.created_at || '') });
     }
   }
-  const plan = whoToAsk(payload.rows, prior);
+  const plan = whoToAsk(payload.rows, prior, await notToAsk(supabase, payload.rows, israelToday()));
 
   let sender: { name: string | null; gender: string | null } = { name: null, gender: null };
   if (caller.athleteId) {
@@ -101,4 +101,29 @@ async function planAndSend(request: Request, caller: StaffCaller) {
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, pending.length) }, worker));
 
   return NextResponse.json({ asked: plan.ask.length, already: plan.already.length, delivered });
+}
+
+/**
+ * Who "לבקש מכולם" must skip (launch N35): brand-new trainees with no test (they get a
+ * first-test invitation, not "חסר לנו הטסט האחרון שלך") and anyone with an open
+ * invitation. Best-effort reads: a failure skips nobody, as before.
+ */
+async function notToAsk(
+  supabase: ReturnType<typeof createServerClient>,
+  rows: Array<{ athleteId: string; test: import('@/lib/academy/completion').TestGap }>,
+  today: string,
+): Promise<Set<string>> {
+  const out = new Set<string>();
+  const ids = rows.map((r) => r.athleteId);
+  if (!ids.length) return out;
+  try {
+    const [joined, invites] = await Promise.all([
+      supabase.from('athletes').select('id, academy_joined_on').in('id', ids),
+      supabase.from('academy_test_invitations').select('athlete_id').in('athlete_id', ids).in('status', ['proposed', 'confirmed', 'other']),
+    ]);
+    const joinedOn = new Map(((joined.error ? [] : joined.data) || []).map((a: any) => [String(a.id), a.academy_joined_on ?? null]));
+    for (const r of rows) if (isBrandNew(r, joinedOn.get(r.athleteId), today)) out.add(r.athleteId);
+    for (const i of ((invites.error ? [] : invites.data) || []) as any[]) out.add(String(i.athlete_id));
+  } catch { /* skip nobody */ }
+  return out;
 }

@@ -15,6 +15,7 @@ import { AcademyThreadPanel } from '@/components/academy/AcademyThreadPanel';
 import { isViewingPerson } from '@/lib/view-as-person';
 import { useHideShellHeader } from '@/lib/shell-chrome';
 import { MonthBoard } from './MonthBoard';
+import { withoutParam } from '@/lib/academy/strip-param';
 
 // ── "לוח": the trainee lens of /dashboard/academy under the trainee experience v2 ────────
 //
@@ -92,7 +93,14 @@ export function TraineeBoard({ athleteId, view, openDate, openThread = false }: 
 
       <Sheet
         open={threadOpen}
-        onOpenChange={setThreadOpen}
+        onOpenChange={(open) => {
+          setThreadOpen(open);
+          // Closed: drop `?thread=mine`, so the next 💬 link reopens it (launch N23).
+          if (!open) {
+            const next = withoutParam(window.location.href, 'thread');
+            if (next) router.replace(next, { scroll: false });
+          }
+        }}
         title={coachFirst ? tw('thread', { name: coachFirst }) : tw('threadMine')}
         className="h-[88dvh]"
         bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden pb-3"

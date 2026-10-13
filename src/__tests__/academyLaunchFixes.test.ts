@@ -246,3 +246,116 @@ describe('BL8 / N7 — the loop\'s copy', () => {
     for (const kind of Object.values(LOOP_KINDS)) expect(KIND_CATEGORY[kind]).toBeTruthy();
   });
 });
+
+// ── The second wave (N12, N22-N24, N30, N32, N35, wellness diagnostic) ─────────────────
+
+import { isRosterTrainee } from '@/lib/academy/report';
+import { renamedForStructure } from '@/lib/academy/draft-name';
+import { withoutParam } from '@/lib/academy/strip-param';
+import { lastSweepLine, parseLastSweep, sweepSummary } from '@/lib/wellness/last-sweep';
+import { planPushedUrl } from '@/lib/academy/member-links';
+import { isBrandNew, whoToAsk } from '@/lib/academy/test-request';
+import { goalCard } from '@/lib/academy/trainee-home';
+import { scoped } from '@/lib/academy/client-scope';
+import { effortFromPace, effortFromZone, structureName, type BookStep } from '@/lib/academy/book-steps';
+
+describe('N12 — the roster is the trainees, not the applicants', () => {
+  it('drops a waiting applicant and a row that left the club', () => {
+    expect(isRosterTrainee({ is_academy: true, approved: true, status: 'active' })).toBe(true);
+    expect(isRosterTrainee({ is_academy: true, approved: false, status: 'invited' })).toBe(false);
+    expect(isRosterTrainee({ is_academy: true, approved: true, status: 'disconnected' })).toBe(false);
+    expect(isRosterTrainee({ is_academy: false, approved: true, status: 'active' })).toBe(false);
+    // An older schema without the columns still counts the member.
+    expect(isRosterTrainee({ is_academy: true })).toBe(true);
+  });
+});
+
+describe('N24 — a derived name follows the structure', () => {
+  const reps = (count: number): BookStep[] => [
+    { kind: 'reps', count, work: { measure: 'distance', value: 800 }, effort: effortFromPace(245, 255), rest: { length: { measure: 'time', value: 90 }, mode: 'jog' } },
+  ] as BookStep[];
+  it('8 × 800 becomes 9 × 800 when the reps change', () => {
+    const before = structureName(reps(8));
+    expect(renamedForStructure(before, reps(8), reps(9))).toBe(structureName(reps(9)));
+    expect(structureName(reps(9))).not.toBe(before);
+  });
+  it('a name somebody wrote stays', () => {
+    expect(renamedForStructure('טמפו של שלישי', reps(8), reps(9))).toBe('טמפו של שלישי');
+  });
+  it('a zone run renamed from its original too', () => {
+    const run = (m: number): BookStep[] => [{ kind: 'run', role: 'main', length: { measure: 'distance', value: m }, effort: effortFromZone('easy') }] as BookStep[];
+    expect(renamedForStructure(structureName(run(8000)), null, run(10000), run(8000))).toBe(structureName(run(10000)));
+  });
+});
+
+describe('N23 — closing the thread drops ?thread=mine', () => {
+  it('keeps everything else', () => {
+    expect(withoutParam('https://x/dashboard/academy?thread=mine&open=2026-10-13', 'thread')).toBe('/dashboard/academy?open=2026-10-13');
+    expect(withoutParam('https://x/dashboard/academy?thread=mine', 'thread')).toBe('/dashboard/academy');
+    expect(withoutParam('https://x/dashboard/academy', 'thread')).toBeNull();
+  });
+});
+
+describe('N22 — a watch push opens an academy member\'s board on the day sent', () => {
+  it('first day of the push, as a date', () => {
+    expect(planPushedUrl(true, '2026-10-11', [4, 2])).toBe('/dashboard/academy?open=2026-10-13');
+    expect(planPushedUrl(false, '2026-10-11', [2])).toBe('/dashboard/program');
+    expect(planPushedUrl(true, '2026-10-11', [])).toBe('/dashboard/academy');
+  });
+});
+
+describe('N19 — the coach view narrows every academy read', () => {
+  it('adds scope=coach once, and only when on', () => {
+    expect(scoped('/api/academy/queue?weekStart=2026-10-11', true)).toBe('/api/academy/queue?weekStart=2026-10-11&scope=coach');
+    expect(scoped('/api/academy/threads/inbox', true)).toBe('/api/academy/threads/inbox?scope=coach');
+    expect(scoped('/api/academy/threads/inbox?scope=coach', true)).toBe('/api/academy/threads/inbox?scope=coach');
+    expect(scoped('/api/academy/threads/inbox', false)).toBe('/api/academy/threads/inbox');
+  });
+});
+
+describe('N30 — the band\'s marathon time is not a half-marathon goal', () => {
+  const band = { goal: 'SUB 3:30', paceProfile: { marathonGoal: 'SUB 3:30' } } as never;
+  it('hidden beside a half, shown for a marathon', () => {
+    expect(goalCard({ goalType: 'half', targetRace: 'טבריה', targetRaceDate: null }, band, '2026-10-06')?.subtitle).toBe('היעד: חצי מרתון');
+    expect(goalCard({ goalType: 'full', targetRace: 'ולנסיה', targetRaceDate: null }, band, '2026-10-06')?.subtitle).toBe('היעד: מרתון · SUB 3:30');
+  });
+});
+
+describe('N35 — "לבקש מכולם" skips new trainees and open invitations', () => {
+  const rows = [
+    { athleteId: 'new', test: 'none' as const, testDate: null },
+    { athleteId: 'old', test: 'old' as const, testDate: '2026-01-01' },
+    { athleteId: 'invited', test: 'none' as const, testDate: null },
+  ];
+  it('asks only the one who should be asked', () => {
+    expect(whoToAsk(rows, [], new Set(['new', 'invited'])).ask).toEqual(['old']);
+    expect(whoToAsk(rows, []).ask).toEqual(['new', 'old', 'invited']);
+  });
+  it('brand new = no test and joined within the last month', () => {
+    expect(isBrandNew({ test: 'none' }, '2026-10-01', '2026-10-13')).toBe(true);
+    expect(isBrandNew({ test: 'none' }, '2026-06-01', '2026-10-13')).toBe(false);
+    expect(isBrandNew({ test: 'old' }, '2026-10-01', '2026-10-13')).toBe(false);
+    expect(isBrandNew({ test: 'none' }, null, '2026-10-13')).toBe(false);
+  });
+});
+
+describe('the wellness diagnostic — the last sweep, kept and read back', () => {
+  const s = sweepSummary(
+    { athletes: 25, fetched: 22, stored: 19, backfilled: 2, nightErrors: 3, failed: ['a: 401', 'b: timeout'] },
+    ['{sleep:null}'],
+    new Date('2026-10-13T05:40:00Z'),
+  );
+  it('round-trips through the app_settings text value', () => {
+    expect(parseLastSweep(JSON.stringify(s))).toEqual(s);
+    expect(parseLastSweep('not json')).toBeNull();
+    expect(parseLastSweep(null)).toBeNull();
+  });
+  it('prints one plain line with every count', () => {
+    const line = lastSweepLine(s);
+    expect(line.split('\n')).toHaveLength(1);
+    for (const n of ['25', '22', '19', '3']) expect(line).toContain(n);
+    expect(line).toContain('נכשלו 2');
+    expect(line).toContain('{sleep:null}');
+    expect(lastSweepLine(null)).toContain('אין רישום');
+  });
+});

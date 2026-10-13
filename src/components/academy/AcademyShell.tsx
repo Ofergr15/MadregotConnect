@@ -63,6 +63,7 @@ import { TraineeDetailsForm } from './completion/TraineeDetailsForm';
 import { hasDetail } from './completion/TestApprovalCard';
 import { CompletionEntry } from './completion/CompletionEntry';
 import { memberCoachIds, memberCoachNames } from '@/lib/academy/members';
+import { scoped, setAcademyCoachScope } from '@/lib/academy/client-scope';
 import {
   fmtRate, initialsOf, shiftWeek, sundayOf,
   type AcademyCoachSummary, type AcademyMember, type AcademyMembersResponse,
@@ -154,6 +155,8 @@ export function AcademyShell({
 
   const area: AcademyArea | null = AREA_OF[section];
   const scopeQ = scopeCoach ? 'scope=coach' : '';
+  // Every academy read below this shell narrows with it (lib/academy/client-scope.ts).
+  setAcademyCoachScope(scopeCoach);
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const { data: members, isLoading: membersLoading, mutate: refreshMembers } = useApi<AcademyMembersResponse>(
@@ -163,8 +166,8 @@ export function AcademyShell({
     section === 'overview' ? `/api/academy/members?weekStart=${shiftWeek(thisWeek, -1)}${scopeQ ? `&${scopeQ}` : ''}` : null,
   );
   const { data: home, mutate: refreshHome } = useApi<AcademyHomeResponse>(`/api/academy/home${scopeQ ? `?${scopeQ}` : ''}`);
-  const { data: inbox } = useApi<Inbox>('/api/academy/threads/inbox');
-  const { data: dispatch } = useApi<DispatchReport>(section === 'overview' ? `/api/academy/dispatch?weekStart=${thisWeek}` : null);
+  const { data: inbox } = useApi<Inbox>(scoped('/api/academy/threads/inbox', scopeCoach));
+  const { data: dispatch } = useApi<DispatchReport>(section === 'overview' ? scoped(`/api/academy/dispatch?weekStart=${thisWeek}`, scopeCoach) : null);
   const { data: tools, mutate: refreshTools } = useApi<CoachToolsResponse>(
     section === 'overview' || section === 'readiness' ? `/api/academy/coach-tools${scopeQ ? `?${scopeQ}` : ''}` : null,
   );

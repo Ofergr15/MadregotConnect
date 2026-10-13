@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Sheet } from '@/components/ui';
 import { useApi } from '@/lib/api';
 import { resolveNavItems, useNavIdentity } from '@/lib/nav-items';
+import { isViewingPerson } from '@/lib/view-as-person';
 import {
   addedTabs,
   getStoredView,
@@ -67,6 +68,10 @@ export function RoleWelcome({ name }: { name: string }) {
   const roles = me?.roles;
   useEffect(() => {
     if (ran.current || !roles || identity.previewRole) return;
+    // Viewing the app as somebody: `roles` are THEIRS, and recording them as this device's
+    // seen roles (or switching its view) leaked into the admin's own device — a false
+    // "ברוך הבא… עכשיו אתה גם…" afterwards (launch N14).
+    if (isViewingPerson()) return;
     ran.current = true;
 
     const params = new URLSearchParams(window.location.search);

@@ -14,6 +14,7 @@ import { StepLines, fieldDisplay, formatField } from './StepLines';
 import { Wheel } from './Wheel';
 import { useFavourites } from './BookPicker';
 import type { Draft } from './types';
+import { renamedForStructure } from '@/lib/academy/draft-name';
 
 // ── להתאים · הכל במסך אחד (mockup phone 2) ───────────────────────────────────────────────
 //
@@ -50,7 +51,8 @@ export function AdjustScreen({
   const T = thresholdSec;
   const A = paceAdjust ?? null;
 
-  const setModel = (next: BookStep[]) => onChange({ ...draft, model: next });
+  // A derived name follows the structure (launch N24); a written one stays.
+  const setModel = (next: BookStep[]) => onChange({ ...draft, model: next, name: renamedForStructure(draft.name, draft.model, next, draft.original) });
   const nudge = (ref: FieldRef, sign: 1 | -1) => { if (model) setModel(nudgeField(model, ref, sign, T, A)); };
   const tap = (ref: FieldRef) => {
     if (selected && selected.step === ref.step && selected.field === ref.field) setWheel(ref);

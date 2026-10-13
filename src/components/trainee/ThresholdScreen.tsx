@@ -124,6 +124,7 @@ export function ThresholdScreen({ athleteId, home, focusTests = false }: {
         <MyInvitation
           athleteId={athleteId}
           watchConnected={home?.athlete?.hasWatch}
+          coachName={home?.coach?.name ?? null}
           onVisible={setHasInvitation}
           onInvitation={setInvitation}
           resultJustSent={resultJustSent}

@@ -113,10 +113,23 @@ export async function PUT(request: Request) {
       ? [...before, 'academy_coach']
       : before.filter((r) => r !== 'academy_coach');
     const next = rolesToColumns(wanted, person.role);
-    const { error: writeError } = await supabase
-      .from('athletes')
-      .update({ role: next.role, extra_roles: next.extra_roles })
-      .eq('id', athleteId);
+    // The member role a staff primary replaces is not lost (launch N17). Granting turned a
+    // `core_runner` into `academy_coach` and taking it away fell back to plain `runner` —
+    // the core-squad perks and the academy trainee's own role were gone. The core squad
+    // has its own flag, so it is carried there; the way back picks the member role the
+    // row still implies.
+    const isCore = await coreRunnerFlag(supabase, athleteId);
+    const patch: Record<string, unknown> = { role: next.role, extra_roles: next.extra_roles };
+    if (body.coach && person.role === 'core_runner') patch.is_core_runner = true;
+    if (!body.coach && next.role === 'runner') {
+      patch.role = person.is_academy ? 'academy_user' : isCore ? 'core_runner' : 'runner';
+    }
+    let { error: writeError } = await supabase.from('athletes').update(patch).eq('id', athleteId);
+    if (writeError && 'is_core_runner' in patch) {
+      // Before migration 091 there is no flag column: write the roles alone.
+      const { is_core_runner: _c, ...rest } = patch; void _c;
+      ({ error: writeError } = await supabase.from('athletes').update(rest).eq('id', athleteId));
+    }
     if (writeError) throw writeError;
 
     if (body.coach) {
@@ -142,5 +155,16 @@ export async function PUT(request: Request) {
   } catch (error) {
     console.error('Academy coaches PUT error:', error);
     return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
+  }
+}
+
+/** `athletes.is_core_runner`, false when the column or the row is not there. */
+async function coreRunnerFlag(supabase: { from: (t: string) => any }, id: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from('athletes').select('is_core_runner').eq('id', id).maybeSingle();
+    if (error) return false;
+    return !!(data as { is_core_runner?: boolean } | null)?.is_core_runner;
+  } catch {
+    return false;
   }
 }

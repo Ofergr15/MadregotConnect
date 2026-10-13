@@ -73,7 +73,7 @@ export async function GET(request: Request) {
     const weekStart = planWeekStartOf(date);
     const dayOfWeek = dayOfWeekOf(date);
 
-    const visible = await visibleTraineeIds(caller);
+    const visible = await visibleTraineeIds(caller, request);
     const rosterIds = visible === null ? await allAcademyTraineeIds(supabase) : [...visible];
     const ids = [...new Set([athleteId, ...rosterIds])];
 

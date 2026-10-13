@@ -36,14 +36,18 @@ export async function GET(request: Request) {
       .maybeSingle();
     if (!me?.is_academy) return NextResponse.json({ isMember: false, show: 'none' });
 
-    const [test, coaches, goal] = await Promise.all([
+    const [test, coaches, goal, invited] = await Promise.all([
       loadTestState(supabase, athleteId, israelToday()),
       loadCoachRows(supabase, athleteId, me.academy_coach_id ?? null),
       loadGoal(supabase, athleteId),
+      hasOpenInvitation(supabase, athleteId),
     ]);
+    // An open invitation already asks for this test (launch N35): "חסר לנו הטסט האחרון שלך"
+    // next to it was the same request twice, in two different words.
     const show = test.kind === 'pending' ? 'pending'
-      : test.kind === 'none' || test.kind === 'otherProtocol' || (test.kind === 'ok' && test.old) ? 'missing'
-        : 'none';
+      : invited ? 'none'
+        : test.kind === 'none' || test.kind === 'otherProtocol' || (test.kind === 'ok' && test.old) ? 'missing'
+          : 'none';
     return NextResponse.json({
       isMember: true,
       show,
@@ -56,5 +60,19 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error('GET /api/academy/tests/entry error:', err);
     return NextResponse.json({ error: 'Failed to load' }, { status: 500 });
+  }
+}
+
+async function hasOpenInvitation(supabase: ReturnType<typeof createServerClient>, athleteId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('academy_test_invitations')
+      .select('id')
+      .eq('athlete_id', athleteId)
+      .in('status', ['proposed', 'confirmed', 'other'])
+      .limit(1);
+    return !error && Array.isArray(data) && data.length > 0;
+  } catch {
+    return false;
   }
 }

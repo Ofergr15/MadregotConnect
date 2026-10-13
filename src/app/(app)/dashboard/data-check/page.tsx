@@ -3,14 +3,19 @@
 import { useEffect, useState } from 'react';
 import { useIsSuperUser } from '@/lib/impersonation';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { useApi } from '@/lib/api';
 
 /**
  * /dashboard/data-check — the trainee data-coverage table as a page, so it is
- * opened rather than run from the console. Super user only; the route itself
+ * opened rather than run from the console. The super user and admins; the route itself
  * (api/admin/trainee-data-coverage) owns the admin gate and the view-as refusal.
  */
 export default function DataCheckPage() {
-  const isSuper = useIsSuperUser();
+  // The route admits the super user AND admins (launch N29): the page used to be blank for
+  // an admin who is not the super user.
+  const superUser = useIsSuperUser();
+  const { data: me } = useApi<{ role?: string; roles?: string[] }>(superUser ? null : '/api/auth/me');
+  const isSuper = superUser || me?.role === 'admin' || !!me?.roles?.includes('admin');
   const [text, setText] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 

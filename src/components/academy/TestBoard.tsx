@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Sheet } from '@/components/ui';
 import { initialsOf } from './types';
 import { InviteToTestSheet, type InviteTarget } from './InviteToTestSheet';
+import { scoped } from '@/lib/academy/client-scope';
 import {
   buildBoard,
   coachActionLabel,
@@ -332,7 +333,7 @@ export function TestBoard({ onSelectAthlete }: { onSelectAthlete?: (athleteId: s
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/academy/test-invitation/board', { headers: await apiHeaders() });
+      const res = await fetch(scoped('/api/academy/test-invitation/board'), { headers: await apiHeaders() });
       const data = await res.json();
       if (!res.ok) { setState('error'); return; }
       if (data?.tableMissing) { setState('missing'); return; }

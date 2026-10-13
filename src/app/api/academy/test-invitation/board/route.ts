@@ -58,7 +58,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
     }
 
-    const isManager = isAcademyManager(caller);
+    // `?scope=coach` narrows a manager in their coach view to their own trainees (launch N19).
+    const isManager = isAcademyManager(caller) && new URL(request.url).searchParams.get('scope') !== 'coach';
     const supabase = createServerClient();
 
     // `name` is the only athlete field read. A board needs to say who, and nothing else here

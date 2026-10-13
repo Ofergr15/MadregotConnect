@@ -73,8 +73,11 @@ export function ScheduledTest({
   onConfirm,
   onAskOther,
   busy,
+  coachName = null,
 }: {
   invitation: TestInvitation;
+  /** The trainee's own coach (launch N34): the analysis line named one coach for everybody. */
+  coachName?: string | null;
   /** Passed in rather than read from the clock, so the preview and the audit are deterministic. */
   now: string;
   /** Whether a watch is linked. Changes what the trainee has to do, not just what it says. */
@@ -304,7 +307,7 @@ export function ScheduledTest({
 
       <Label>מה קורה אחרי</Label>
       <Note>
-        אופר מנתח את הטסט, קובע לך ספים וקצבים, משבץ אותך לדבוקה וכותב את התוכנית הראשונה.
+        {(coachName || '').trim().split(/\s+/)[0] || 'המאמן שלך'} מנתח את הטסט, קובע לך ספים וקצבים, משבץ אותך לדבוקה וכותב את התוכנית הראשונה.
         תקבל סיכום כתוב.
       </Note>
     </div>

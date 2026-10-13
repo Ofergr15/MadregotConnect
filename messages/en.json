@@ -4264,6 +4264,8 @@
       },
       "detailReps": "Reps at <m>{actual}</m> instead of <m>{target}</m>.",
       "detailRun": "At <m>{actual}</m> instead of <m>{target}</m>.",
+      "detailRepsExact": "Reps right on pace, <m>{actual}</m>.",
+      "detailRunExact": "Right on pace, <m>{actual}</m>.",
       "inRange": "{inRange, plural, =0 {No rep in range} one {One rep in range} other {<m>#</m> of <m>{of}</m> in range}}{lastFaster, select, yes {, and the last one faster.} other {.}}",
       "col": {
         "plan": "Plan",

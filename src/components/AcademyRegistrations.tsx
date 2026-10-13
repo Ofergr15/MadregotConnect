@@ -116,8 +116,12 @@ export function AcademyRegistrations() {
   const reject = async (id: string) => {
     setBusy(id);
     setRegs(prev => prev.filter(r => r.id !== id));
-    try { await fetch(`/api/athletes?id=${id}`, { method: 'DELETE', headers: await bearerHeaders(false) }); }
-    catch { fetchRegs(showAll); } finally { setBusy(null); }
+    // A refused or failed delete (403 / 500) is not a removal: bring the row back
+    // rather than let the optimistic hide pretend it went (launch N16).
+    try {
+      const res = await fetch(`/api/athletes?id=${id}`, { method: 'DELETE', headers: await bearerHeaders(false) });
+      if (!res.ok) fetchRegs(showAll);
+    } catch { fetchRegs(showAll); } finally { setBusy(null); }
   };
 
   const formUrl = typeof window !== 'undefined' ? `${window.location.origin}${FORM_PATH}` : FORM_PATH;

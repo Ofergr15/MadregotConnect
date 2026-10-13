@@ -30,9 +30,15 @@ export interface RequestPlan {
   already: string[];
 }
 
+/**
+ * `exclude` (launch N35): trainees the request must not reach — a brand-new trainee who
+ * has no "last test" to find (their first test comes by invitation), and anyone with an
+ * open test invitation, whose card already asks for exactly this.
+ */
 export function whoToAsk(
   rows: Array<Pick<CompletionRow, 'athleteId' | 'test' | 'testDate'>>,
   prior: PriorRequest[],
+  exclude: ReadonlySet<string> = new Set(),
 ): RequestPlan {
   const lastAsked = new Map<string, string>();
   for (const p of prior) {
@@ -42,7 +48,7 @@ export function whoToAsk(
   const ask: string[] = [];
   const already: string[] = [];
   for (const row of rows) {
-    if (!askable(row)) continue;
+    if (!askable(row) || exclude.has(row.athleteId)) continue;
     const asked = lastAsked.get(row.athleteId);
     // A request made after their newest test (or ever, when they never had one) still stands.
     const stands = !!asked && (!row.testDate || asked.slice(0, 10) >= row.testDate);
@@ -68,4 +74,15 @@ export function testRequestCopy(
         title: '🎯 We are missing your latest test',
         body: `${coach ? `${coach} asks: ` : ''}find it in your watch or type it in. Your personal paces for every workout come from it.`,
       };
+}
+
+/** A trainee this new, with no test at all, is invited to a first test — not asked for a last one. */
+export const NEW_TRAINEE_DAYS = 30;
+
+export function isBrandNew(row: Pick<CompletionRow, 'test'>, joinedOn: string | null | undefined, today: string): boolean {
+  if (row.test !== 'none') return false;
+  if (!joinedOn) return false;
+  const d = new Date(`${today}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - NEW_TRAINEE_DAYS);
+  return joinedOn.slice(0, 10) >= d.toISOString().slice(0, 10);
 }

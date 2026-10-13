@@ -5,6 +5,7 @@ import { visibleTraineeIds } from '@/lib/academy/pairing-server';
 import { computeAcademyWeekAdherence, sundayOf, addDaysStr } from '@/lib/academy/report';
 import { isMissingFeedbackTable } from '@/lib/academy/feedback';
 import { buildQueue } from '@/lib/academy/queue';
+import { activityLocalDateStr, israelToday } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,9 +58,46 @@ export async function GET(request: Request) {
         `${r.athlete_id}|${r.workout_date}`),
     );
 
-    return NextResponse.json({ ...buildQueue(report, reviewed), unmigrated });
+    const flagged = await flaggedSessions(supabase, report.athletes.map((a) => a.athleteId), weekStart, weekEnd);
+    return NextResponse.json({ ...buildQueue(report, reviewed, { today: israelToday(), flagged }), unmigrated });
   } catch (error: any) {
     console.error('Academy queue error:', error);
     return NextResponse.json({ error: error.message || 'Failed to build the queue' }, { status: 500 });
   }
+}
+
+/**
+ * `athleteId|date` of the week's runs whose post-run report carries pain, a comment or a
+ * request for feedback (launch N11) — those go first in the queue. Best-effort: a read
+ * that fails flags nothing.
+ */
+async function flaggedSessions(
+  supabase: ReturnType<typeof createServerClient>,
+  athleteIds: string[],
+  weekStart: string,
+  weekEnd: string,
+): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (!athleteIds.length) return out;
+  try {
+    const { data: fb } = await supabase
+      .from('workout_feedback')
+      .select('athlete_id, garmin_activity_id, pain, comment, wants_feedback')
+      .in('athlete_id', athleteIds)
+      .gte('created_at', `${weekStart}T00:00:00Z`);
+    const rows = ((fb || []) as Array<{ athlete_id: string; garmin_activity_id: number | null; pain: boolean | null; comment: string | null; wants_feedback: boolean | null }>)
+      .filter((r) => r.garmin_activity_id && (r.pain || r.wants_feedback || (r.comment || '').trim()));
+    if (!rows.length) return out;
+    const { data: acts } = await supabase
+      .from('athlete_activities')
+      .select('athlete_id, garmin_activity_id, start_time')
+      .in('garmin_activity_id', rows.map((r) => r.garmin_activity_id as number));
+    const dateOf = new Map(((acts || []) as Array<{ athlete_id: string; garmin_activity_id: number; start_time: string }>)
+      .map((a) => [`${a.athlete_id}|${a.garmin_activity_id}`, activityLocalDateStr(a.start_time)]));
+    for (const r of rows) {
+      const d = dateOf.get(`${r.athlete_id}|${r.garmin_activity_id}`);
+      if (d && d >= weekStart && d <= weekEnd) out.add(`${r.athlete_id}|${d}`);
+    }
+  } catch { /* nothing flagged */ }
+  return out;
 }

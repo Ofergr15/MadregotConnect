@@ -9,6 +9,7 @@ import { initialsOf } from '@/components/academy/types';
 import { WorkoutFeedbackPanel } from '@/components/academy/WorkoutFeedback';
 import { useSegmentReport } from '@/components/academy/useSegmentReport';
 import type { QueueReason, QueueRow, QueueWeek } from '@/lib/academy/queue';
+import { scoped } from '@/lib/academy/client-scope';
 
 // ── The mentor's weekly queue ────────────────────────────────────────────────
 //
@@ -70,7 +71,7 @@ export function WeeklyQueue() {
   const [weekStart, setWeekStart] = useState(() => planWeekStartOf());
 
   const { data, isLoading } = useApi<QueueWeek & { unmigrated?: boolean }>(
-    `/api/academy/queue?weekStart=${weekStart}`,
+    scoped(`/api/academy/queue?weekStart=${weekStart}`),
   );
   const isCurrentWeek = weekStart === planWeekStartOf();
 

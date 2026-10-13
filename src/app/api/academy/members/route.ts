@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import {
-  activityWeekOfPlanWeek, activityWeekStart, groupDisplayName, israelDateAnchor, planWeekStartOf,
+  activityLocalDateStr, groupDisplayName, israelDateAnchor, planWeekStartOf,
 } from '@/lib/utils';
 import { computeAcademyWeekAdherence, sundayOf } from '@/lib/academy/report';
 import {
@@ -79,14 +79,12 @@ export async function GET(request: Request) {
     // Default to the current PLAN week, but let the caller page back — the
     // overview and the compliance tab must be able to show the same week.
     //
-    // `kmWeek` is the Monday activity week inside it: adherence is a plan-week
-    // question and kilometres are a watch-week question, and they stopped being
-    // the same seven days when activity weeks moved back to Monday. One variable
-    // for both would read every member's weekly km as 0 without erroring.
+    // The week's km and runs are counted over this same plan week (launch N18): a
+    // staff screen asks "did they run this week of the plan", and the Monday watch
+    // week answered "לא רץ השבוע" on the Sunday and Monday of every plan week.
     const weekStart = searchParams.get('weekStart')
       ? sundayOf(searchParams.get('weekStart'))
       : planWeekStartOf();
-    const kmWeek = activityWeekOfPlanWeek(weekStart);
 
     const supabase = createServerClient();
 
@@ -224,10 +222,13 @@ export async function GET(request: Request) {
       a.km += dist; a.runs += 1; a.dur += dur;
       all.set(r.athlete_id, a);
 
-      // Bucket by the activity's OWN week key, not a string compare against
-      // `kmWeek` — the caller can ask for a past week, where ">= kmWeek"
-      // would sweep in everything since.
-      if (r.start_time && activityWeekStart(r.start_time) === kmWeek) {
+      // Bucket by the activity's OWN week key, not a string compare against the
+      // week start — the caller can ask for a past week, where ">=" would sweep in
+      // everything since.
+      // The PLAN week (Sun-Sat), for staff (launch N18): bucketed by the Monday watch week,
+      // a trainee who ran on Sunday read "לא רץ השבוע", 0 km, on Sunday and Monday — the
+      // days a coach looks at the new week — while the plan beside it counted that run.
+      if (r.start_time && planWeekStartOf(activityLocalDateStr(r.start_time)) === weekStart) {
         const w = week.get(r.athlete_id) || zero();
         w.km += dist; w.runs += 1; w.dur += dur;
         week.set(r.athlete_id, w);

@@ -433,7 +433,9 @@ export async function POST(request: Request) {
       // resolves by flag and role too, and writes the inbox row.
       await notifyStaff({
         kind: 'feedback_alert',
-        url: '/dashboard/review',
+        // The workout-feedback triage list, not /dashboard/review (the bug-report form) —
+        // launch N22.
+        url: '/dashboard/workout-feedback',
         tag: `feedback-alert-${athleteId}`,
         category: 'management',
         actorAthleteId: athleteId,

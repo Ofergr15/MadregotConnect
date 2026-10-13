@@ -121,12 +121,13 @@ export function ProgressScreen({ athleteId, gender, testsHref, bodyHref, journey
             {threshold ? (
               <>
                 <b className="block text-[14.5px] font-extrabold text-ink-900">
-                  {threshold.previous
+                  {/* "X instead of X" for an unchanged threshold said nothing (launch N34). */}
+                  {threshold.previous && threshold.previous.paceSec !== threshold.paceSec
                     ? t.rich('threshold.title', { ...RICH, pace: clock(threshold.paceSec), prev: clock(threshold.previous.paceSec) })
                     : t.rich('threshold.titleOnly', { ...RICH, pace: clock(threshold.paceSec) })}
                 </b>
                 <small className="mt-px block text-[12.5px] text-ink-400">
-                  {t('threshold.sub', { month: monthName((threshold.previous?.date ?? threshold.testDate) || '', locale) })}
+                  {t('threshold.sub', { month: monthName((threshold.testDate ?? threshold.previous?.date) || '', locale) })}
                 </small>
               </>
             ) : (

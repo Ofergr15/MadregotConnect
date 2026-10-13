@@ -4,6 +4,7 @@ import { isSuperUser } from '@/lib/constants';
 import { notifyAthlete } from '@/lib/push';
 import { coachReplyCopy } from '@/lib/notifications/copy';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { feedbackReplyUrl } from '@/lib/academy/member-links';
 
 export const dynamic = 'force-dynamic';
 
@@ -154,7 +155,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         const { data: senderRow } = await supabase.from('athletes').select('name, avatar_url').eq('id', side.senderAthleteId).maybeSingle();
         const senderName = (senderRow as { name?: string } | null)?.name?.trim() || '';
         const senderAvatarUrl = (senderRow as { avatar_url?: string } | null)?.avatar_url?.trim() || '';
-        const url = fb.garmin_activity_id ? `/dashboard/feedback?activity=${fb.garmin_activity_id}` : '/dashboard';
+        // An academy member lands on their board's day, not the club page (launch N22).
+        const url = await feedbackReplyUrl(supabase, fb.athlete_id, fb.garmin_activity_id);
         await notifyAthlete({
           athleteId: fb.athlete_id,
           kind: 'feedback_reply',

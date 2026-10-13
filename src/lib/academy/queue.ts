@@ -139,7 +139,22 @@ function pickHeadline(workouts: QueueWorkout[], reason: QueueReason): QueueWorko
  * once for the whole week rather than once per trainee, which is the difference
  * between one query and twenty.
  */
-export function buildQueue(report: AcademyWeekReport, reviewedKeys: Set<string>): QueueWeek {
+export interface QueueOptions {
+  /**
+   * Israel's today (launch N11). A session dated today or later is not missed yet — the
+   * queue counted the whole week's remaining sessions as "החמצה" (24 on a Tuesday morning)
+   * and sorted them to the top. Without it every unrun session counts, as before.
+   */
+  today?: string;
+  /**
+   * `athleteId|date` of run sessions that carry pain or a note asking for feedback: they
+   * go first — a trainee reporting pain is more urgent than one who skipped a run.
+   */
+  flagged?: Set<string>;
+}
+
+export function buildQueue(report: AcademyWeekReport, reviewedKeys: Set<string>, opts: QueueOptions = {}): QueueWeek {
+  const isPast = (date: string) => !opts.today || date < opts.today;
   const rows: QueueRow[] = report.athletes.map((a: AthleteAdherence) => {
     const workouts: QueueWorkout[] = a.week.workouts.map(w => ({
       date: w.date,
@@ -158,14 +173,22 @@ export function buildQueue(report: AcademyWeekReport, reviewedKeys: Set<string>)
       name: a.name,
       plannedCount: a.week.plannedCount,
       completedCount: a.week.completedCount,
-      missedCount: workouts.filter(w => !w.completed && !w.reviewed).length,
+      missedCount: workouts.filter(w => !w.completed && !w.reviewed && isPast(w.date)).length,
       reviewedCount: workouts.filter(w => w.reviewed).length,
       pendingCount: workouts.filter(w => w.completed && !w.reviewed).length,
       workouts,
       headline: null as QueueWorkout | null,
     };
-    const { urgency, reason } = rank(base);
-    return { ...base, urgency, reason, headline: pickHeadline(workouts, reason) };
+    const ranked = rank(base);
+    const flagged = !!opts.flagged && workouts.some(w => w.completed && !w.reviewed && opts.flagged!.has(`${a.athleteId}|${w.date}`));
+    // Above every band, reason unchanged (it is what the card says).
+    const urgency = flagged ? ranked.urgency + 1e7 : ranked.urgency;
+    const reason = ranked.reason;
+    const headline = flagged
+      ? workouts.filter(w => w.completed && !w.reviewed && opts.flagged!.has(`${a.athleteId}|${w.date}`))
+        .sort((x, y) => y.date.localeCompare(x.date))[0] ?? pickHeadline(workouts, reason)
+      : pickHeadline(workouts, reason);
+    return { ...base, urgency, reason, headline };
   });
 
   // Name as the tiebreak, not insertion order: the roster comes back in whatever

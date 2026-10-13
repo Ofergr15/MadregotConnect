@@ -13,6 +13,7 @@ import {
   type RoundOutcome,
 } from '@/lib/academy/testRound';
 import { Chip, Field, OfferTimesPicker, toggleDay } from './OfferTimesPicker';
+import { scoped } from '@/lib/academy/client-scope';
 
 /**
  * `שבץ סבב` — one tap, one set of times, everybody whose numbers have gone stale.
@@ -74,7 +75,7 @@ export function TestRoundSheet({
 
   const loadBoard = useCallback(async () => {
     try {
-      const res = await fetch('/api/academy/test-invitation/board', { headers: await apiHeaders() });
+      const res = await fetch(scoped('/api/academy/test-invitation/board'), { headers: await apiHeaders() });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !Array.isArray(data?.rows)) { setUnchecked(true); return; }
       setUnchecked(false);

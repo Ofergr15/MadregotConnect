@@ -8,6 +8,7 @@ import { initialsOf } from './types';
 import type { DispatchReport, DispatchRow, DispatchState } from '@/lib/academy/dispatch';
 import type { DispatchRosterEntry } from '@/lib/academy/week-status';
 import { BuildButton, ResendButton } from './PlansWeekStatus';
+import { scoped } from '@/lib/academy/client-scope';
 
 // ── "Did the week reach the watches?" ────────────────────────────────────────
 //
@@ -377,7 +378,7 @@ export function WatchDispatch({
     setError(null);
     (async () => {
       try {
-        const res = await fetch(`/api/academy/dispatch?weekStart=${encodeURIComponent(weekStart)}`, {
+        const res = await fetch(scoped(`/api/academy/dispatch?weekStart=${encodeURIComponent(weekStart)}`), {
           headers: await apiHeaders(),
         });
         const data = await res.json();

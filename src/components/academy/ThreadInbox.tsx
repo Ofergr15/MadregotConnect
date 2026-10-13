@@ -6,6 +6,7 @@ import { apiHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { initialsOf } from './types';
 import type { Inbox, InboxReason, InboxRow } from '@/lib/academy/thread';
+import { scoped } from '@/lib/academy/client-scope';
 
 // ── "What needs me" across every academy thread ─────────────────────────────
 //
@@ -164,7 +165,7 @@ export function ThreadInbox({ onOpen }: { onOpen?: (athleteId: string) => void }
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/academy/threads/inbox', { headers: await apiHeaders() });
+        const res = await fetch(scoped('/api/academy/threads/inbox'), { headers: await apiHeaders() });
         const data = await res.json();
         if (cancelled) return;
         if (!res.ok) { setError(data?.error || 'לא הצלחנו לטעון את השיחות'); return; }

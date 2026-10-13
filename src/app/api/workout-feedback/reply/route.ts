@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { notifyAthlete } from '@/lib/push';
 import { coachReplyCopy } from '@/lib/notifications/copy';
+import { feedbackReplyUrl } from '@/lib/academy/member-links';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,9 +60,8 @@ export async function POST(request: Request) {
 
     // Notify the athlete their coach replied. Best-effort — never fail the save.
     try {
-      const url = fb.garmin_activity_id
-        ? `/dashboard/feedback?activity=${fb.garmin_activity_id}`
-        : '/dashboard';
+      // An academy member lands on their board's day, not the club page (launch N22).
+      const url = await feedbackReplyUrl(supabase, fb.athlete_id, fb.garmin_activity_id);
       // Personalize with the coach's actual name/id when we can resolve it (there
       // can be more than one coach/admin account) — falls back to the generic
       // "המאמן" title. Best-effort, separate from the auth check above so it

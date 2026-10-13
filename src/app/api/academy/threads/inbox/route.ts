@@ -48,7 +48,8 @@ export async function GET(request: Request) {
     if (!caller.isSuperUser && !caller.isStaff) {
       return NextResponse.json({ error: 'Staff access required' }, { status: 403 });
     }
-    const isManager = isAcademyManager(caller);
+    // `?scope=coach` narrows a manager in their coach view to their own trainees (launch N19).
+    const isManager = isAcademyManager(caller) && new URL(request.url).searchParams.get('scope') !== 'coach';
 
     const supabase = createServerClient();
     const { data: rows, error } = await supabase

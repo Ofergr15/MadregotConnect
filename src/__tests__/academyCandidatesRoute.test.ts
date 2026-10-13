@@ -65,6 +65,11 @@ class Query implements PromiseLike<{ data: Row[] | null; error: unknown }> {
     return this;
   }
 
+  in(column: string, values: unknown[]) {
+    this.filters.push(r => values.includes(r[column]));
+    return this;
+  }
+
   order(column: string, opts?: { ascending?: boolean }) {
     this.orderBy = { column, ascending: opts?.ascending !== false };
     return this;
@@ -190,6 +195,8 @@ beforeEach(() => {
   db.athletes = [
     { id: 'a1', name: 'Noa Shemesh', is_academy: false },
     { id: 'a2', name: 'Dor Alon', is_academy: true },
+    // The staff account the steps are recorded by — named on the card, not by its email.
+    { id: 's1', name: 'Yossi Levi', email: 'yossi@madregot.app', is_academy: false },
   ];
   seq = 0;
   asStaff();
@@ -259,7 +266,8 @@ describe('recording a step', () => {
       .toEqual(['דור אלון']);
     const event = (body.events as CandidateEvent[]).find(e => e.stage === 'intro_call')!;
     expect(event.note).toBe('מאוד מתלהב');
-    expect(event.recordedBy).toBe('yossi@madregot.app');
+    // Who said it, by first name, not the raw address (launch N34).
+    expect(event.recordedBy).toBe('Yossi');
   });
 
   it('refuses a stage key it does not recognise', async () => {
@@ -364,7 +372,11 @@ describe('becoming a trainee', () => {
     const id = body.candidate.id;
     await patch({ id, action: 'step', stage: 'intro_call' });
     await patch({ id, action: 'step', stage: 'characterization' });
-    await patch({ id, action: 'step', stage: 'signup' });
+    // Signup and after are an ACCEPTED trainee's steps (launch N15): refused before the accept…
+    expect((await patch({ id, action: 'step', stage: 'signup' })).status).toBe(409);
+    db.academy_candidates.find(c => c.id === id)!.accepted_at = '2026-09-18T09:00:00Z';
+    // …and recorded after it.
+    expect((await patch({ id, action: 'step', stage: 'signup' })).status).toBe(200);
     expect((await patch({ id, action: 'link', athleteId: 'a1' })).status).toBe(200);
 
     const after = await (await get()).json();

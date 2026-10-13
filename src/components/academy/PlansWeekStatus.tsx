@@ -13,6 +13,7 @@ import {
   type WeekStatusRow,
 } from '@/lib/academy/week-status';
 import { initialsOf, type AcademyMember, type AcademyMembersResponse } from './types';
+import { scoped } from '@/lib/academy/client-scope';
 
 // ── תוכניות → השבוע: did this week reach the watches? ─────────────────────────
 //
@@ -220,9 +221,9 @@ export function PlansWeekStatus({
   /** The shell's members payload, when it already holds it; fetched otherwise. */
   members?: AcademyMember[];
 }) {
-  const { data, error, mutate } = useApi<DispatchResponse>(`/api/academy/dispatch?weekStart=${encodeURIComponent(weekStart)}`);
+  const { data, error, mutate } = useApi<DispatchResponse>(scoped(`/api/academy/dispatch?weekStart=${encodeURIComponent(weekStart)}`));
   const { data: membersData } = useApi<AcademyMembersResponse>(
-    membersProp ? null : `/api/academy/members?weekStart=${encodeURIComponent(weekStart)}`,
+    membersProp ? null : scoped(`/api/academy/members?weekStart=${encodeURIComponent(weekStart)}`),
   );
   const members = membersProp ?? membersData?.members;
 

@@ -12,6 +12,7 @@ import { DIRECTION_COLOR, type ExecutionSummary } from '@/lib/plan-execution/ver
 import type { EffortReport } from '@/lib/academy/segments';
 import { WorkoutFeedbackPanel } from '@/components/academy/WorkoutFeedback';
 import { useSegmentReport } from '@/components/academy/useSegmentReport';
+import { scoped } from '@/lib/academy/client-scope';
 
 // Mirror of the adherence API response (kept structural to avoid importing server types).
 type MetricStatus = 'on_target' | 'under' | 'over' | 'unknown';
@@ -255,7 +256,7 @@ export function AcademyCompliance() {
   const { data: adherence, isLoading } = useApi<{
     athletes: AthleteAdherence[];
     tolerances?: AdherenceTolerances;
-  }>(`/api/academy/adherence?weekStart=${weekStart}`);
+  }>(scoped(`/api/academy/adherence?weekStart=${weekStart}`));
 
   const data = adherence?.athletes ?? [];
 

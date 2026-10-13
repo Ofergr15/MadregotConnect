@@ -119,7 +119,7 @@ export function TraineeWorkout({ workout, board, onClose, onChange }: {
           className="gap-2.5"
           footer={isCoach || !data ? askCoach : <PrimaryButton onClick={() => setFeeling(true)}>{tw('feelButton')}</PrimaryButton>}
         >
-          <DoneTabs value={doneTab} activityId={data?.activity?.id ?? workout.activityId} onChange={setDoneTab} />
+          <DoneTabs value={doneTab} activityId={data?.activity?.id ?? workout.activityId} onChange={setDoneTab} returnDate={workout.date} />
           {data ? (doneTab === 'laps' ? <DoneLapsTable data={data} /> : <WorkoutDone data={data} onLoad={() => setLoadOpen(true)} />) : (
             <p className={cn(CARD, 'px-4 py-6 text-center text-sm text-ink-400')}>{t('loading')}</p>
           )}
