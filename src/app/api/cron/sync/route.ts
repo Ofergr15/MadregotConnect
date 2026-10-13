@@ -12,6 +12,13 @@ import { cronPaused } from '@/lib/cron-pause';
 
 // Give the sync enough time to walk every athlete (Pro plan allows up to 300s).
 export const maxDuration = 300;
+
+/** The tick stops starting work this long after it began, 20 s inside the ceiling. */
+export const TICK_DEADLINE_MS = 280_000;
+/** Kept back from the Garmin pass for what follows it: the snapshot and one bonus pass. */
+const AFTER_GARMIN_RESERVE_MS = 45_000;
+/** A bonus (history-repair) pass starts only with at least this much left. */
+export const BONUS_MIN_MS = 40_000;
 export const dynamic = 'force-dynamic';
 
 // Runs every 5 minutes, but only during Israeli waking hours — nobody uploads a
@@ -133,11 +140,11 @@ async function runSync(request: Request) {
     return NextResponse.json({ ok: true, skipped: `${hour}:00 Israel is outside ${FIRST_HOUR}:00-${LAST_HOUR}:00` });
   }
 
-  const emptyBody = () =>
+  const budgetBody = (budgetMs: number) =>
     new Request('http://internal/cron', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: '{}',
+      body: JSON.stringify({ budgetMs }),
     });
 
   // The athletes the Garmin pass cannot reach: Strava connected, no Garmin token,
@@ -156,6 +163,14 @@ async function runSync(request: Request) {
   // (BROADCAST_BUDGET_MS) so it cannot exhaust the ceiling again, but ordering
   // matters independently of that: this poll is two athletes and a few seconds,
   // and nothing that cheap should be hostage to the longest pass in the tick.
+  // ONE deadline for the whole tick. The Garmin pass had its own 210 s, counted from
+  // ITS start, so the Strava poll before it and the bonus passes after it could
+  // still carry the tick past the 300 s ceiling: 18 timeouts (504) in 48 h on
+  // 2026-10-11..13, six of them in the 05:00 hour, each one losing whatever came
+  // after the kill — the weekly km snapshot included.
+  const deadline = Date.now() + TICK_DEADLINE_MS;
+  const left = () => deadline - Date.now();
+
   let stravaPoll: any = null;
   try {
     stravaPoll = await pollStravaOnlyAthletes();
@@ -165,18 +180,33 @@ async function runSync(request: Request) {
 
   let garmin: any;
   try {
-    garmin = await garminSync(emptyBody()).then((r) => r.json());
+    garmin = await garminSync(budgetBody(Math.max(30_000, left() - AFTER_GARMIN_RESERVE_MS))).then((r) => r.json());
   } catch (e: any) {
     garmin = { error: String(e?.message || e) };
   }
 
   const totalSynced = (garmin?.synced || 0) + (stravaPoll?.synced || 0);
 
+  // Straight after the sync it summarises: cheap, and what the leaderboard reads.
+  // It used to come last, behind three backlog passes, so a tick that ran out of
+  // time lost it first.
+  let snapshot: any = null;
+  try {
+    snapshot = await snapshotWeeklyKm(1);
+  } catch (e: any) {
+    snapshot = { error: String(e?.message || e) };
+  }
+
+  // The three passes below repair HISTORY; each waits for the next tick rather
+  // than start with too little time left to finish.
+  const bonusSkipped: string[] = [];
+
   // Never let the Strava repair break the Garmin sync — it is a bonus pass over
   // history, and a Strava outage or a revoked token must not cost the club its
   // scheduled Garmin sync.
   let stravaRoutes: any = null;
-  try {
+  if (left() < BONUS_MIN_MS) bonusSkipped.push('stravaRoutes');
+  else try {
     const result = await backfillStravaRoutes(createServerClient());
     // Stay silent on the overwhelmingly common drained case, so a non-zero
     // `stravaRoutes` in the logs always means something actually happened.
@@ -191,7 +221,8 @@ async function runSync(request: Request) {
   // then silent. Isolated for the same reason: a bonus pass over history must not
   // cost the club its Garmin sync.
   let stravaLaps: any = null;
-  try {
+  if (left() < BONUS_MIN_MS) bonusSkipped.push('stravaLaps');
+  else try {
     const result = await backfillStravaLaps(createServerClient());
     // Silent on the drained case, so a non-null value in the logs always means
     // the pass did something. `pending` is the number worth watching: it should
@@ -212,22 +243,17 @@ async function runSync(request: Request) {
   // Garmin credential with the sync above, and repairing months-old history must
   // never cost today's run its sync.
   let garminHistory: any = null;
-  try {
+  if (left() < BONUS_MIN_MS) bonusSkipped.push('garminHistory');
+  else try {
     garminHistory = await runScheduledHistoryBackfill(createServerClient());
   } catch (e: any) {
     garminHistory = { error: String(e?.message || e) };
   }
 
-  let snapshot: any = null;
-  try {
-    snapshot = await snapshotWeeklyKm(1);
-  } catch (e: any) {
-    snapshot = { error: String(e?.message || e) };
-  }
+  const skipped = bonusSkipped.length ? bonusSkipped : undefined;
+  console.log('[cron/sync] done', { totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, snapshot, skipped });
 
-  console.log('[cron/sync] done', { totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, snapshot });
-
-  return NextResponse.json({ ok: true, totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, snapshot });
+  return NextResponse.json({ ok: true, totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, snapshot, skipped });
 }
 
 export async function GET(request: Request) {

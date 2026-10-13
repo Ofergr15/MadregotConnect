@@ -111,7 +111,10 @@ export async function runSyncRequest(request: Request) {
     // suppressPush: skip the inline post-workout feedback nudge. Used by the
     // morning workout-watch cron, which sends its own "new workout detected"
     // teaser instead — so the athlete gets one morning push, not two.
-    const { athleteId, suppressPush } = await request.json().catch(() => ({}));
+    const { athleteId, suppressPush, budgetMs } = await request.json().catch(() => ({}));
+    // A caller with less than the whole ceiling left (cron/sync, after its Strava
+    // poll) passes what it can spare; never more than this pass's own budget.
+    const budget = typeof budgetMs === 'number' && budgetMs > 0 ? Math.min(budgetMs, BROADCAST_BUDGET_MS) : BROADCAST_BUDGET_MS;
     const supabase = createServerClient();
 
     // .returns<any[]>() — cols is a runtime string (not a literal), so Supabase
@@ -161,7 +164,7 @@ export async function runSyncRequest(request: Request) {
       // Out of budget: bow out instead of being killed mid-athlete. See
       // BROADCAST_BUDGET_MS — the point is that the caller gets a body saying
       // who was missed, and the passes queued behind this one still get to run.
-      if (!athleteId && Date.now() - startedAt > BROADCAST_BUDGET_MS) {
+      if (!athleteId && Date.now() - startedAt > budget) {
         skipped.push(athlete.name);
         continue;
       }
