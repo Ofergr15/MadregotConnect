@@ -4170,7 +4170,7 @@
         "computing": "Pricing your runs",
         "computingSay": "{n, plural, one {One more run in line.} other {<m>#</m> more runs in line.}} The number appears once they are all priced, next time you open.",
         "learningUnpricedSay": "Your older runs are not counted: there was no test for them, and the watch sends no resting HR to estimate from. The count starts at the first run that can be priced.",
-        "noPlanSay": "Next week's plan is not published yet, so there is nothing to say about what is coming.",
+        "noPlanSay": "The week's plan is not published yet, so there is nothing to say about what is coming.",
         "hrEstimate": "Estimated from heart rate: no test yet",
         "hrEstimatePending": "Estimated from heart rate until the test is approved",
         "hrEstimateOther": "Estimated from heart rate: a 30-minute test is needed",
