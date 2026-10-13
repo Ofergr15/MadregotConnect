@@ -40,6 +40,8 @@ interface Queued {
   kind: ClientEventKind;
   route: string;
   message?: string;
+  /** The build this page runs. The route stores it as app_version; it was never sent. */
+  appVersion: string;
 }
 
 /**
@@ -50,13 +52,26 @@ interface Queued {
  * of them as blank. A picture counts as content: a map or a photo with no text
  * around it is a page that rendered.
  */
-function looksBlank(): boolean {
+/**
+ * What the route looks like now: 'empty', 'loading', or false (it has content).
+ *
+ * 'loading' is a screen with nothing in it yet but a spinner or a busy region on
+ * it. The app's Spinner is a CSS <span role="status"> with no text and no SVG, so
+ * it used to read as empty: every page still waiting on its data at 2.5 s was filed
+ * as a blank screen (feedback #107, /dashboard at 07:45 — a slow first load, not an
+ * empty page). Loading is now re-checked later and reported as its own finding.
+ */
+function screenState(): 'empty' | 'loading' | false {
   const main = document.querySelector('main');
   if (!main) return false;
   const hasText = (main.textContent || '').trim().length > 1;
   const hasPicture = !!main.querySelector('img, svg, canvas, video');
-  return !hasText && !hasPicture;
+  if (hasText || hasPicture) return false;
+  return main.querySelector('[role="status"], [aria-busy="true"]') ? 'loading' : 'empty';
 }
+
+/** A page still on its spinner this long after the route settled is stuck, not slow. */
+const STILL_LOADING_MS = 10_000;
 
 /** The probe's own channel, so the listeners are installed exactly once. */
 const BLANK_EVENT = 'mc:blank';
@@ -131,7 +146,10 @@ export function ClientEventReporter() {
       inside = true;
       try {
         sent += 1;
-        queue.push({ kind, route: route(), message: message?.slice(0, 300) });
+        // appVersion on every event: the route reads it into app_version, and without
+        // it every stored row had none — stuck_version could never fire, and no
+        // report could say which build it came from.
+        queue.push({ kind, route: route(), message: message?.slice(0, 300), appVersion: APP_VERSION });
         if (timer) clearTimeout(timer);
         // `boot` is not urgent and an error might be followed by three more, so
         // everything waits a few seconds and travels together.
@@ -210,7 +228,7 @@ export function ClientEventReporter() {
      * The probe itself runs per route, in the second effect; this is the one
      * listener it reports through, so the queue and its caps stay in one place.
      */
-    const onBlank = () => record('blank');
+    const onBlank = (e: Event) => record('blank', (e as CustomEvent<string>).detail || undefined);
     window.addEventListener(BLANK_EVENT, onBlank);
 
     /* ── boot ── which build this phone is actually running ───────────────── */
@@ -247,14 +265,27 @@ export function ClientEventReporter() {
    * catches the first of those. It reports through the listener installed above
    * rather than owning a second queue, so the per-page cap covers both. */
   useEffect(() => {
+    const fire = (detail: string) => window.dispatchEvent(new CustomEvent(BLANK_EVENT, { detail }));
+    let again: ReturnType<typeof setTimeout> | null = null;
     const t = setTimeout(() => {
       try {
-        if (looksBlank()) window.dispatchEvent(new Event(BLANK_EVENT));
+        const first = screenState();
+        if (first === 'empty') fire('empty');
+        // Still on its spinner: look again later, and say which it turned out to be.
+        else if (first === 'loading') {
+          again = setTimeout(() => {
+            try {
+              const later = screenState();
+              if (later) fire(later);
+            } catch { /* never break the page */ }
+          }, STILL_LOADING_MS - BLANK_AFTER_MS);
+        }
       } catch {
         // Nothing. The probe is not allowed to be the thing that breaks a page.
       }
     }, BLANK_AFTER_MS);
-    return () => clearTimeout(t);
+    // Both timers: leaving the route before the second look must cancel it too.
+    return () => { clearTimeout(t); if (again) clearTimeout(again); };
   }, [pathname]);
 
   return null;

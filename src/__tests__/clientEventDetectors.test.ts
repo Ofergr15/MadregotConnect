@@ -194,6 +194,28 @@ describe('a screen that loaded empty', () => {
     const out = detectBlankScreen([blank({ athlete_id: 'a1' }), blank({ athlete_id: 'a2' })], NOW);
     expect(out[0].evidence.unknown).toBeTruthy();
   });
+  // #107: /dashboard "loaded blank" was its spinner at 2.5 s — a slow first load.
+  // The probe now says 'loading' for a page still on its spinner ten seconds in.
+  it("files a page stuck on its spinner apart from a page that is empty", () => {
+    const out = detectBlankScreen([
+      blank({ athlete_id: 'a1', message: 'loading' }),
+      blank({ athlete_id: 'a2', message: 'loading' }),
+      blank({ athlete_id: 'a3', message: 'empty' }),
+    ], NOW);
+    expect(out.map(f => f.key).sort()).toEqual(['blank_screen:/dashboard', 'blank_screen:/dashboard:loading']);
+    expect(out.find(f => f.key.endsWith(':loading'))!.title).toContain('עדיין נטען');
+  });
+});
+
+describe('the browser probe', () => {
+  const src = read('components/ClientEventReporter.tsx');
+  it('sends its build with every event, so app_version is filled', () => {
+    expect(src).toMatch(/queue\.push\(\{ kind, route: route\(\), message: message\?\.slice\(0, 300\), appVersion: APP_VERSION \}\)/);
+  });
+  it('does not call a page on its spinner empty', () => {
+    expect(src).toMatch(/\[role="status"\], \[aria-busy="true"\]/);
+    expect(src).toMatch(/if \(clearTimeout\(t\), again\)|clearTimeout\(t\); if \(again\) clearTimeout\(again\);/);
+  });
 });
 
 describe('a form somebody filled in and lost', () => {

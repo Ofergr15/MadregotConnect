@@ -534,15 +534,22 @@ export function detectClientError(events: ClientEventRow[], now: number, days = 
  * page empty for two people is the finding; one person with no network is not.
  */
 export function detectBlankScreen(events: ClientEventRow[], now: number, days = 3): Finding[] {
-  const groups = groupBy(inWindow(events, 'blank', now, days), e => e.route || '?');
+  // A page still on its spinner ten seconds in ('loading') is a different fact from
+  // a page that settled empty, and is filed apart: before the probe told them apart,
+  // a slow first load of /dashboard was filed as "loaded blank" (#107).
+  const groups = groupBy(inWindow(events, 'blank', now, days), e => `${e.route || '?'}|${e.message === 'loading' ? 'loading' : 'empty'}`);
   const out: Finding[] = [];
-  for (const [route, rows] of groups) {
+  for (const [groupKey, rows] of groups) {
+    const [route, state] = groupKey.split('|');
+    const loading = state === 'loading';
     const people = peopleOf(rows);
     if (!people.length) continue;
     out.push({
       detector: 'blank_screen',
-      key: `blank_screen:${route}`,
-      title: `${route} נטען ריק אצל ${people.length} אתלטים`,
+      key: loading ? `blank_screen:${route}:loading` : `blank_screen:${route}`,
+      title: loading
+        ? `${route} עדיין נטען אחרי 10 שניות אצל ${people.length} אתלטים`
+        : `${route} נטען ריק אצל ${people.length} אתלטים`,
       affected: people.length,
       strength: strengthFor(people.length),
       evidence: {
