@@ -38,6 +38,9 @@ export function setFeedScope(patch: Partial<FeedScope>): void {
 
 export function resetFeedScope(): void { setFeedScope(DEFAULT); }
 
+/** The current scope, outside React (initial state). */
+export function getFeedScope(): FeedScope { return read(); }
+
 export function isDefaultScope(s: FeedScope): boolean { return s.kind === 'all' && !s.squad; }
 
 export function useFeedScope(): FeedScope {

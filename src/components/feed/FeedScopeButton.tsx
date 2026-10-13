@@ -9,6 +9,7 @@ import { cn, resolveGroup } from '@/lib/utils';
 import { useIsSuperUser } from '@/lib/impersonation';
 import { ACADEMY_SQUAD, FAVORITES_SQUAD, MINE_SQUAD } from '@/lib/feed/squad-filter';
 import { setFeedScope, useFeedScope, type FeedKind } from '@/lib/feed/scope-store';
+import { prefetchScopes } from '@/lib/feed/scope-cache';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE CLUB LOGO IS THE FEED'S FILTER (feed redesign, 2026-10-12).
@@ -98,7 +99,12 @@ export function FeedScopeButton({ myGroupId }: { myGroupId: string | null }) {
     <>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          // Warm every option the moment the panel opens, so the tap that
+          // follows usually lands on a page that is already here.
+          if (!open) prefetchScopes([null, ...packs.map((p) => p.id), FAVORITES_SQUAD, ...(showMine ? [MINE_SQUAD] : [])].map((squad) => ({ kind: scope.kind, squad })));
+          setOpen((v) => !v);
+        }}
         aria-expanded={open}
         aria-haspopup="dialog"
         className="flex items-center gap-2.5 -m-1 p-1 active:opacity-80"

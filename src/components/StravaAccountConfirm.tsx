@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Activity, AlertTriangle } from 'lucide-react';
-import { apiHeaders } from '@/lib/api';
+import { apiHeaders, apiFetcher } from '@/lib/api';
 import { formatTime } from '@/lib/academy/benchmark';
 
 /**
@@ -83,7 +83,8 @@ export function StravaAccountConfirm() {
 
       // No Strava on file: nothing to confirm, and no flag written — if they
       // connect one later this still has a chance to ask.
-      const me = await get(`/api/athletes/me?id=${encodeURIComponent(id)}`);
+      // The shared loader: ConnectDataSourcePopup asks the same at the same moment.
+      const me = await apiFetcher<{ hasStrava?: boolean }>(`/api/athletes/me?id=${id}`).catch(() => null);
       if (!mounted || !me?.hasStrava) return;
 
       const check: AccountCheck | null = await get(

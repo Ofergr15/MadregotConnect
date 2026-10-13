@@ -29,13 +29,15 @@ import { WeekSummaryCard } from '@/components/feed/WeekSummaryCard';
 import { QualitySessionRow } from '@/components/feed/QualitySessionRow';
 import { NextSessionCard } from '@/components/feed/NextSessionCard';
 import { PackStrip } from '@/components/feed/PackStrip';
+import { ComposeFab } from '@/components/feed/ComposeFab';
 import { WhatsNewAutoSheet } from '@/components/whats-new/WhatsNewSheet';
 import { OnboardingTestReset } from '@/components/onboarding/OnboardingTestReset';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
 import { appScrollTop, scrollAppToTop } from '@/lib/app-scroll';
-import { isDefaultScope, resetFeedScope, setFeedScope, useFeedScope } from '@/lib/feed/scope-store';
+import { getFeedScope, isDefaultScope, resetFeedScope, setFeedScope, useFeedScope } from '@/lib/feed/scope-store';
+import { cachedScope, loadScope, rememberScope, scopeKey } from '@/lib/feed/scope-cache';
 
 const PAGE_SIZE = FEED_PAGE_SIZE;
 
@@ -107,9 +109,12 @@ function seedPage() {
 
 export default function FeedPage() {
   const t = useTranslations('feed');
-  const [items, setItems] = useState<FeedItem[]>(() => seedPage()?.items ?? []);
-  const [cursor, setCursor] = useState<string | null>(() => seedPage()?.cursor ?? null);
-  const [loading, setLoading] = useState(() => !seedPage());
+  // The saved page is the unfiltered feed: a member who left the feed on "mine"
+  // opens on a skeleton for "mine", not on the club's runs (2026-10-13).
+  const openedFiltered = !isDefaultScope(getFeedScope());
+  const [items, setItems] = useState<FeedItem[]>(() => (openedFiltered ? [] : seedPage()?.items ?? []));
+  const [cursor, setCursor] = useState<string | null>(() => (openedFiltered ? null : seedPage()?.cursor ?? null));
+  const [loading, setLoading] = useState(() => openedFiltered || !seedPage());
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -312,27 +317,44 @@ export default function FeedPage() {
   }, [groupsData, t]);
 
 
+  const loadSeq = useRef(0);
+  // Which filter the list on screen belongs to. Starts as the unfiltered feed,
+  // because that is what the seeded page above is.
+  const shownScopeRef = useRef(scopeKey('all', null));
   const loadInitial = useCallback(async () => {
-    // Skip the loading gate when a cached page is already on screen — pull-to-
-    // refresh/retry then just swap fresh content in behind the existing list
-    // instead of flashing back to a blank skeleton. A filter switch is the one
-    // case that does want the skeleton: the cache only ever holds the unfiltered
-    // feed, so leaving the old cards up would show runs under "posts".
-    if (!lastFeedPage || filter !== 'all' || squad) setLoading(true);
+    const seq = ++loadSeq.current;
+    const key = scopeKey(filter, squad);
+    const unfiltered = filter === 'all' && !squad;
+    const cached = unfiltered
+      ? (lastFeedPage ? { items: lastFeedPage.items, cursor: lastFeedPage.cursor } : null)
+      : cachedScope(filter, squad);
+    const scopeChanged = shownScopeRef.current !== key;
+    if (scopeChanged) {
+      // A different filter: show ITS last page at once, or a skeleton — never the
+      // previous filter's runs under the new name (Ofer, 2026-10-13).
+      shownScopeRef.current = key;
+      setPendingFresh(null);
+      if (cached) { setItems(cached.items); setCursor(cached.cursor); setLoading(false); }
+      else { setItems([]); setCursor(null); setLoading(true); }
+      freshLoadedRef.current = false;
+    } else if (!cached && itemsRef.current.length === 0) {
+      setLoading(true);
+    }
     setError(null);
     try {
-      // The shell may already have this page in flight (primeFeedFirstPage). If
-      // that early request failed, ask again rather than show its error.
-      const unfiltered = activeTypes.length === 0 && !squad;
+      // The shell may already have the unfiltered page in flight
+      // (primeFeedFirstPage). If that early request failed, ask again.
       const primed = unfiltered ? takePrimedFeedPage() : null;
-      const { items: page, nextCursor } = await (primed
-        ? primed.catch(() => fetchFeed(null, PAGE_SIZE))
-        : fetchFeed(null, PAGE_SIZE, activeTypes, squad));
-      // A reader scrolled into a list on screen keeps it; what's new waits behind
-      // the "↑ N new" pill (applyPendingFresh). At the top, the swap is invisible.
+      const { items: page, cursor: nextCursor } = primed
+        ? await primed.then((r) => ({ items: r.items, cursor: r.nextCursor })).catch(() => loadScope(filter, squad))
+        : await loadScope(filter, squad);
+      // A newer choice was made while this one was on the wire: its answer wins.
+      if (seq !== loadSeq.current) return;
+      // Same filter, reader scrolled into the list: what's new waits behind the
+      // "↑ N new" pill (applyPendingFresh). Otherwise the swap is invisible.
       const shown = itemsRef.current;
       const newCount = shown.length ? page.findIndex(i => i.id === shown[0].id) : 0;
-      if (shown.length > 0 && appScrollTop() > 160 && newCount !== 0) {
+      if (!scopeChanged && shown.length > 0 && appScrollTop() > 160 && newCount !== 0) {
         setPendingFresh({ items: page, cursor: nextCursor, count: newCount > 0 ? newCount : page.length });
       } else {
         setItems(page);
@@ -340,19 +362,17 @@ export default function FeedPage() {
         setPendingFresh(null);
       }
       freshLoadedRef.current = true;
-      // Only the unfiltered club feed is cached — a squad's page under the "all"
-      // key would come back as everyone's feed on the next visit.
-      if (activeTypes.length === 0 && !squad) {
+      rememberScope(filter, squad, page, nextCursor);
+      // Only the unfiltered club feed is kept on the device.
+      if (unfiltered) {
         lastFeedPage = { items: page, cursor: nextCursor };
         saveFeedPage(page, nextCursor);
       }
     } catch (err: unknown) {
-      setError((err as Error).message || t('loadError'));
+      if (seq === loadSeq.current) setError((err as Error).message || t('loadError'));
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
-    // activeTypes is derived from `filter` and stable per value.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t, filter, squad]);
 
   const loadMore = useCallback(async () => {
@@ -610,15 +630,7 @@ export default function FeedPage() {
       {/* Writing a post: a floating + on the phone (feed redesign 2026-10-12 —
           the row it replaces sat between the next-session card and the feed and
           cost a whole row of the first screen). The computer keeps the row. */}
-      <button
-        type="button"
-        onClick={() => setComposerOpen(true)}
-        aria-label={t('composerPlaceholder')}
-        className="md:hidden fixed left-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-ink-900 text-white shadow-[0_12px_26px_rgba(0,0,0,0.28)] active:scale-95 transition-transform bottom-[calc(env(safe-area-inset-bottom)+92px)]"
-        data-testid="compose-fab"
-      >
-        <PenSquare className="h-6 w-6" />
-      </button>
+      <ComposeFab label={t('composerPlaceholder')} onClick={() => setComposerOpen(true)} />
       <div
         className="hidden md:flex mb-4 bg-card rounded-2xl border border-page p-3 items-center gap-3 cursor-pointer hover:bg-page/40 transition-colors active:scale-[0.98]"
         onClick={() => setComposerOpen(true)}

@@ -61,7 +61,20 @@ async function recoverFrom401(): Promise<string | null> {
 
 // Doing this here means every useApi() GET in the app authenticates properly
 // without touching each caller.
-export async function apiFetcher<T = unknown>(url: string): Promise<T> {
+// Identical GETs that are already in flight share one request. On a feed open
+// /api/auth/me and /api/athletes/me each went out twice in the same millisecond
+// (lab trace 2026-10-13): several screens ask for the same answer at once.
+const inFlight = new Map<string, Promise<unknown>>();
+
+export function apiFetcher<T = unknown>(url: string): Promise<T> {
+  const running = inFlight.get(url);
+  if (running) return running as Promise<T>;
+  const p = fetchJson<T>(url).finally(() => inFlight.delete(url));
+  inFlight.set(url, p);
+  return p;
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
   const headers = await bearerHeaders(false);
   let res = await fetch(url, { headers });
 

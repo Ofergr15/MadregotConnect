@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Activity, Watch, X } from 'lucide-react';
-import { apiHeaders } from '@/lib/api';
+import { apiFetcher } from '@/lib/api';
 import { connectPromptVariant, type ConnectPromptVariant } from '@/lib/connect-prompt';
 import { useOnboarding } from '@/lib/onboarding/use-onboarding';
 import { useOnboardingV2 } from '@/lib/install/v2';
@@ -84,9 +84,10 @@ export function ConnectDataSourcePopup() {
     }
 
     let mounted = true;
-    apiHeaders()
-      .then(headers => fetch(`/api/athletes/me?id=${athleteId}`, { headers }))
-      .then(res => (res.ok ? res.json() : null))
+    // Through the shared loader: StravaAccountConfirm asks the same thing at the
+    // same moment, and the two now share one request.
+    apiFetcher<{ athlete?: Parameters<typeof connectPromptVariant>[0] }>(`/api/athletes/me?id=${athleteId}`)
+      .catch(() => null)
       .then(data => {
         if (mounted && data?.athlete) setVariant(connectPromptVariant(data.athlete));
       })

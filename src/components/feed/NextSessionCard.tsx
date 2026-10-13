@@ -145,6 +145,9 @@ export function NextSessionCard() {
   const { data: lineup } = useApi<Lineup & { homeIndex: number }>(lineupKey);
 
   if (!next) return null;
+  // Wait for the club-day settings (cached after the first open): drawing the card
+  // without the RSVP and then growing it under the feed was a layout shift.
+  if (!reminderCfg) return null;
 
   const s = next.session;
   const units: StepUnits = {
