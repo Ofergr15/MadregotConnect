@@ -12,6 +12,7 @@ import { useIsComputer } from '@/lib/install/use-computer';
 import { usePreviewOnboardingV2 } from '@/lib/install/v2';
 import { isStandalone } from '@/lib/pwa';
 import { trackOnb } from '@/lib/onboarding/track';
+import { JOIN_TOKEN_KEY } from '@/lib/auth/sessionless';
 import {
   JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, JourneyTracker, NextCard, PrimaryButton, SecondaryButton,
 } from '@/components/onboarding/journey-ui';
@@ -196,6 +197,8 @@ export default function JoinPage() {
     const data = await saveRes.json();
     if (data.athlete) {
       localStorage.setItem('athlete_id', data.athlete.id);
+      // No session comes back from this route: the shell uses it to send the device to the code sign-in (lib/auth/sessionless.ts).
+      try { localStorage.setItem(JOIN_TOKEN_KEY, token); } catch { /* private mode */ }
       localStorage.setItem('athlete_name', data.athlete.name || name);
       localStorage.setItem('athlete_email', data.athlete.email || email);
       if (data.athlete.group_id) localStorage.setItem('athlete_group_id', data.athlete.group_id);
@@ -227,6 +230,8 @@ export default function JoinPage() {
     const data = await saveRes.json();
     if (data.athlete) {
       localStorage.setItem('athlete_id', data.athlete.id);
+      // No session comes back from this route: the shell uses it to send the device to the code sign-in (lib/auth/sessionless.ts).
+      try { localStorage.setItem(JOIN_TOKEN_KEY, token); } catch { /* private mode */ }
       localStorage.setItem('athlete_name', data.athlete.name || name);
       localStorage.setItem('athlete_email', data.athlete.email || email);
       if (data.athlete.group_id) localStorage.setItem('athlete_group_id', data.athlete.group_id);

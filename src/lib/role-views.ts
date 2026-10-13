@@ -68,9 +68,17 @@ export function rolePreview(roles: readonly string[], shown: RoleView): { chip: 
   return { chip: true, text: `ויוכל לעבור לתצוגת ${others.join(' / ')}` };
 }
 
-/** The view an account is in when it never chose one: its primary role's. */
-export function defaultViewFor(role: string | null | undefined, isSuper = false): RoleView {
+/**
+ * The view an account is in when it never chose one: its primary role's — except
+ * that an academy manager starts in the MANAGER view whatever the primary role says
+ * (launch report BL5 / N4). Prod stores a manager as primary `academy_coach` plus
+ * `academy_manager` in the roles list, and reading only the primary put a manager
+ * on a fresh phone into the coach lens fed all-academy data; a runner-primary
+ * manager got the trainee lens ("אינך חבר באקדמיה") and no academy tab at all.
+ */
+export function defaultViewFor(role: string | null | undefined, isSuper = false, roles: readonly string[] = []): RoleView {
   if (role === 'admin' || isSuper) return 'admin';
+  if (role === 'academy_manager' || roles.includes('academy_manager')) return 'manager';
   if (role === 'coach' || role === 'academy_coach') return 'coach';
   return 'runner';
 }
@@ -129,7 +137,13 @@ export function resolveView(stored: RoleView | null, views: readonly RoleView[],
  */
 export function activeNavRole(roles: readonly string[] | undefined, primary: string | null | undefined, isSuper = false): string | null {
   const stored = getStoredView();
-  if (!stored || !roles) return null;
+  if (!roles) return null;
+  if (!stored) {
+    // Nothing chosen: the account renders as its primary role, unless its DEFAULT view is
+    // not that role's (a manager, see defaultViewFor) — then as the default view.
+    const def = defaultViewFor(primary, isSuper, roles);
+    return def === 'manager' && viewsFor(roles, isSuper).includes('manager') ? navRoleFor('manager', roles, primary) : null;
+  }
   if (!viewsFor(roles, isSuper).includes(stored)) return null;
   return navRoleFor(stored, roles, primary);
 }
@@ -149,6 +163,20 @@ export function switchView(view: RoleView, roles: readonly string[], primary: st
   localStorage.setItem(ROLE_KEY, navRoleFor(view, roles, primary));
   sessionStorage.setItem(VIEW_TOAST_KEY, view);
   window.location.assign(homeFor(view, roles));
+}
+
+/**
+ * Store a view WITHOUT navigating: tapping the view you are already in (the default,
+ * never stored) must still stick, or the next device state falls back to the default
+ * again (launch BL5: "tapping 'מאמן' doesn't persist"); and a staff link opened in the
+ * runner view moves the account into the staff view it needs (N9).
+ */
+export function rememberView(view: RoleView, roles: readonly string[], primary: string | null | undefined) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(KEY, view);
+    localStorage.setItem(ROLE_KEY, navRoleFor(view, roles, primary));
+  } catch { /* private mode */ }
 }
 
 export function clearStoredView() {

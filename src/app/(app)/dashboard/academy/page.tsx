@@ -10,7 +10,8 @@ import { useApi } from '@/lib/api';
 import { useAthleteId } from '@/lib/use-athlete-id';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
-import { getActiveViewRole, getStoredView } from '@/lib/role-views';
+import { getActiveViewRole, getStoredView, rememberView } from '@/lib/role-views';
+import { academyLens } from '@/lib/academy/lens';
 import { getViewedPerson, isViewingPerson, type ViewedPerson } from '@/lib/view-as-person';
 import { hasRole } from '@/lib/auth/roles';
 import { readAcademyDeepLink, traineeTestRedirect } from '@/lib/academy/deep-links';
@@ -44,6 +45,7 @@ import { TraineeBoard } from '@/components/trainee/TraineeBoard';
 // already out in notifications and shared URLs name the old fourteen sections, so
 // all of them stay valid — `academyFlowMap.test.ts` fails on any gap.
 type Tab = 'overview' | 'threads' | 'funnel' | 'members' | 'registrations' | 'coaches' | 'plans' | 'book' | 'dispatch' | 'readiness' | 'compliance' | 'tests' | 'stats' | 'results' | 'payments' | 'settings' | 'roster';
+const valid: Tab[] = ['overview', 'threads', 'funnel', 'members', 'registrations', 'coaches', 'plans', 'book', 'dispatch', 'readiness', 'compliance', 'tests', 'stats', 'results', 'payments', 'settings', 'roster'];
 
 export default function AcademyPage() {
 
@@ -64,7 +66,7 @@ export default function AcademyPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const { data: meData, isLoading: roleLoading } = useApi<{ role?: string; roles?: string[] }>(
+  const { data: meData, isLoading: roleLoading } = useApi<{ role?: string; roles?: string[]; isAcademy?: boolean }>(
     !previewRole && email ? '/api/auth/me' : null,
   );
   // The account's own view switch (role-views.ts). Not a preview: identity and
@@ -83,14 +85,41 @@ export default function AcademyPage() {
   const viewedRole = viewer
     ? (viewer.isManager ? 'admin' : viewer.roles.includes('academy_coach') ? 'academy_coach' : viewer.isStaff ? viewer.role : 'runner')
     : null;
-  const role = viewed ? viewedRole : (previewRole || getActiveViewRole() || (isSuperUser(email) ? 'admin' : meData?.role) || null);
-  const isManager = viewed ? !!viewer?.isManager : (activeView === 'manager' || (role === 'admin' && activeView !== 'coach'));
+  // The lens of the account's own session (lib/academy/lens.ts): the default view from
+  // the whole roles list (a manager starts as the manager), a staff link opened in the
+  // runner view moves to the staff view it needs, and a trainee link opened by a trainee
+  // who is also staff gets the trainee lens. Preview and view-as keep their own rules.
+  const searchParamsForLens = useSearchParams();
+  const lens = useMemo(() => {
+    if (viewed || previewRole || !meData) return null;
+    const link = readAcademyDeepLink(searchParamsForLens);
+    const tab = link.tab && valid.includes(link.tab as Tab) ? link.tab : null;
+    return academyLens({
+      storedView: activeView,
+      primaryRole: meData.role ?? null,
+      roles: meData.roles ?? (meData.role ? [meData.role] : []),
+      isSuper: isSuperUser(email),
+      isAcademy: !!meData.isAcademy,
+      linkTab: tab,
+      linkThread: link.thread && link.thread !== 'mine' ? link.thread : null,
+      traineeLink: link.thread === 'mine' || link.test || link.entry,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewed, previewRole, meData, searchParamsForLens, email]);
+  useEffect(() => {
+    if (lens?.adopt && meData) rememberView(lens.adopt, meData.roles ?? [], meData.role ?? null);
+  }, [lens?.adopt, meData]);
+  const role = viewed ? viewedRole : (previewRole || lens?.role || getActiveViewRole() || (isSuperUser(email) ? 'admin' : meData?.role) || null);
+  const isManager = viewed ? !!viewer?.isManager : lens ? lens.isManager : (activeView === 'manager' || (role === 'admin' && activeView !== 'coach'));
   // Plain `coach` is included because the route serves them, and since migration
   // 077 it serves them a *scoped* payload: any staff caller who isn't the manager
   // sees only the trainees dedicated to them. A club coach with no academy
   // trainees therefore gets an empty academy rather than everyone's, which is the
   // correct answer — the tab still isn't linked for them from Coach Tools.
-  const isStaff = isManager || role === 'academy_coach' || role === 'coach';
+  const isStaff = lens ? lens.isStaff : (isManager || role === 'academy_coach' || role === 'coach');
+  // The coach lens is always narrowed to the coach's own trainees (BL5): a manager's
+  // account in it was fed the whole academy whenever no view was stored.
+  const scopeCoach = viewed ? false : lens ? lens.scopeCoach : activeView === 'coach';
   // `email === null` means we haven't even looked yet — distinct from "looked
   // and found nobody", which is a real anonymous visitor.
   const resolving = email === null || (!previewRole && !!email && roleLoading) || (!!viewed && !viewer);
@@ -107,7 +136,6 @@ export default function AcademyPage() {
   // tab (7ג) now, and the entry card is on the home, not the board.
   const testRedirect = resolving ? null : traineeTestRedirect(deepLink, { traineeV2, isStaff });
   useEffect(() => { if (testRedirect) router.replace(testRedirect); }, [testRedirect, router]);
-  const valid: Tab[] = ['overview', 'threads', 'funnel', 'members', 'registrations', 'coaches', 'plans', 'book', 'dispatch', 'readiness', 'compliance', 'tests', 'stats', 'results', 'payments', 'settings', 'roster'];
   const linkTab = deepLink.tab && valid.includes(deepLink.tab as Tab) ? deepLink.tab : null;
   const linkThread = deepLink.thread && deepLink.thread !== 'mine' ? deepLink.thread : null;
 
@@ -159,7 +187,7 @@ export default function AcademyPage() {
     <div className="max-w-5xl mx-auto sm:px-6 lg:px-8 sm:py-8">
       <AcademyShell
         isManager={isManager}
-        scopeCoach={activeView === 'coach'}
+        scopeCoach={scopeCoach}
         canEditRoles={role === 'admin'}
         canViewAs={!viewed && (isSuperUser(email) || hasRole(meData, 'admin'))}
         myAthleteId={myAthleteId}

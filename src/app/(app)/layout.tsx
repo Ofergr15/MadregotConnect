@@ -21,6 +21,7 @@ import { Spinner } from '@/components/ui';
 import { AccessBlocked } from '@/components/AccessBlocked';
 import { apiHeaders, useApi } from '@/lib/api';
 import { BLOCKED_MEMBERSHIPS } from '@/lib/auth/membership';
+import { JOIN_TOKEN_KEY, isUnauthorizedError, sessionlessSignInPath } from '@/lib/auth/sessionless';
 import { shouldSyncOnOpen, stravaOpenSyncKey } from '@/lib/providers/open-sync';
 import { getSupabase } from '@/lib/supabase/client';
 import { primeFeedFirstPage } from '@/lib/feed-client';
@@ -258,7 +259,7 @@ export default function AppLayout({
   // again": nobody thinks to do that, and nothing on screen suggested it. Members
   // poll never (`0`) — there is nothing to wait for, and this route stamps
   // last_seen_at on every call.
-  const { data: me, isLoading: meLoading } = useApi<{ membership?: string }>(
+  const { data: me, isLoading: meLoading, error: meError } = useApi<{ membership?: string }>(
     hasLocalIdentity || authorized ? '/api/auth/me' : null,
     { refreshInterval: (latest) => (latest?.membership && latest.membership !== 'active' ? 30_000 : 0) },
   );
@@ -278,6 +279,27 @@ export default function AppLayout({
   useEffect(() => {
     if (blocked === 'pending') router.replace('/pending-approval');
   }, [blocked, router]);
+
+  // ── A claim with no session behind it (launch BL1) ───────────────────────
+  //
+  // The join's "later" and Garmin finishes leave only `athlete_id` in
+  // localStorage — no Supabase session — so the shell let them in and then every
+  // request answered 401 under an endless spinner. The fetcher has already tried
+  // the silent re-auth by the time /api/auth/me reports 401, so if getSession()
+  // still holds nothing, nothing on this device can recover: send it to the code
+  // sign-in, which knows the person by the join token. A 401 with a session still
+  // present stays where it is (fails open, as above).
+  useEffect(() => {
+    if (!isUnauthorizedError(meError)) return;
+    let cancelled = false;
+    getSupabase().auth.getSession().then(({ data: { session } }) => {
+      if (cancelled || session) return;
+      let token: string | null = null;
+      try { token = localStorage.getItem(JOIN_TOKEN_KEY); } catch { /* private mode */ }
+      router.replace(sessionlessSignInPath(token));
+    }).catch(() => { /* leave the shell as it is */ });
+    return () => { cancelled = true; };
+  }, [meError, router]);
 
   // ── PULL IN NEW STRAVA RUNS WHEN THE APP OPENS ────────────────────────────
   //

@@ -5,6 +5,53 @@ import { useEffect, useRef } from 'react';
 /** Where in the overlay stack the current history entry sits. 0 = bare page. */
 const DEPTH = '__overlayDepth';
 
+type BackWindow = Pick<Window, 'addEventListener' | 'removeEventListener'> & { history: Pick<History, 'back'> };
+
+/**
+ * Serialises "close A, open B" (launch report BL2 / N2).
+ *
+ * `history.back()` is asynchronous: the popstate lands a task later. When one
+ * sheet closes and the next opens in the same commit — the tests board's
+ * "הזמנה לטסט" sheet handing over to the trainee sheet is the case that shipped
+ * broken — the closing sheet's back() was still in flight when the opening sheet
+ * pushed its own entry. The back then popped the NEW entry, the new sheet heard
+ * a popstate below its depth and dismissed itself: both sheets gone, nothing sent.
+ *
+ * So a back() started here is remembered until its popstate arrives (or a short
+ * timeout, for a browser that never fires one), and an overlay that opens in the
+ * meantime pushes its entry only after that.
+ */
+export function createBackGate(win: BackWindow, timeoutMs = 400) {
+  let pending: Promise<void> | null = null;
+  return {
+    back() {
+      pending = new Promise<void>((resolve) => {
+        const done = () => {
+          win.removeEventListener('popstate', done);
+          clearTimeout(timer);
+          pending = null;
+          resolve();
+        };
+        const timer = setTimeout(done, timeoutMs);
+        win.addEventListener('popstate', done);
+      });
+      win.history.back();
+    },
+    /** Runs `fn` now when no back() is in flight, otherwise once it has landed. */
+    whenSettled(fn: () => void) {
+      if (pending) void pending.then(fn);
+      else fn();
+    },
+    get busy() { return pending !== null; },
+  };
+}
+
+let gate: ReturnType<typeof createBackGate> | null = null;
+function backGate() {
+  gate ||= createBackGate(window);
+  return gate;
+}
+
 /**
  * Makes Back close an overlay instead of leaving the page.
  *
@@ -60,18 +107,21 @@ export function useBackDismiss(open: boolean, onDismiss: () => void) {
       // nothing, because the entries Next pushes on top are what Back consumes
       // first.
       if (wasNav || location.href !== e.href) return;
-      history.back();
+      backGate().back();
       return;
     }
 
     // Guarded rather than unconditional, because React's dev-mode double-invoke
     // runs this effect twice with one cleanup in between. Pushing on the second
-    // run would strand an entry that no close path ever pops.
-    if (!entry.current) {
+    // run would strand an entry that no close path ever pops. Deferred while
+    // another overlay's back() is still landing (createBackGate above).
+    let cancelled = false;
+    backGate().whenSettled(() => {
+      if (cancelled || entry.current) return;
       const depth = ((history.state?.[DEPTH] as number | undefined) ?? 0) + 1;
       history.pushState({ ...history.state, [DEPTH]: depth }, '');
       entry.current = { depth, href: location.href };
-    }
+    });
     navigating.current = false;
 
     const onPop = () => {
@@ -101,6 +151,7 @@ export function useBackDismiss(open: boolean, onDismiss: () => void) {
     // branch, which runs when the overlay genuinely closes rather than on every
     // re-run of this effect.
     return () => {
+      cancelled = true;
       window.removeEventListener('popstate', onPop);
       document.removeEventListener('click', onClick, true);
     };

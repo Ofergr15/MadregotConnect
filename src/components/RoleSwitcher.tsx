@@ -12,6 +12,7 @@ import {
   ROLE_VIEW_CHIP,
   ROLE_VIEW_SPECS,
   switchView,
+  rememberView,
   viewsFor,
   VIEW_TOAST_KEY,
   type RoleView,
@@ -77,7 +78,7 @@ export function useRoleViews(roles: string[] | undefined, role: string | null, i
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roles, stored, isSuper]);
 
-  return { views, current: resolveView(stored, views, defaultViewFor(role, isSuper)) };
+  return { views, current: resolveView(stored, views, defaultViewFor(role, isSuper, roles ?? [])) };
 }
 
 /** "עברת לתצוגת…", once, on the screen a switch landed on. Mount it once per page. */
@@ -166,7 +167,7 @@ export function ViewMenuRow({
               aria-label={ROLE_VIEW_SPECS[v].label}
               onClick={() => {
                 onPicked?.();
-                if (!on) switchView(v, roles || [], role);
+                if (!on) switchView(v, roles || [], role); else rememberView(v, roles || [], role);
               }}
               className={cn(
                 'flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-1 text-sm font-bold transition-colors',
@@ -224,7 +225,7 @@ export function RoleSwitcher({
                 type="button"
                 onClick={() => {
                   setOpen(false);
-                  if (!on) switchView(v, roles || [], role);
+                  if (!on) switchView(v, roles || [], role); else rememberView(v, roles || [], role);
                 }}
                 className={cn(
                   'flex w-full min-h-[60px] items-center gap-3 rounded-2xl px-3 py-2.5 text-start transition-colors',
