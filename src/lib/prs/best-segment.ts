@@ -58,6 +58,16 @@ export function lapMeters(lap: LapLike): number {
 }
 
 /**
+ * Faster than this per kilometre is not a run — see `pr-buckets.ts`, which uses it
+ * for whole runs too. Here it is a lap's: a GPS jump writes "1 km in 20 s" into one
+ * lap of an honest run, and summed with its neighbours it makes a 5K that is fast
+ * but not impossible, so the whole-stretch check alone cannot catch it.
+ */
+export const FASTEST_PLAUSIBLE_PACE_SEC_PER_KM = 165;
+/** Under this a lap is a stride, and a 100 m stride can honestly be that fast. */
+const PLAUSIBLE_LAP_MIN_M = 400;
+
+/**
  * Fastest continuous `targetMeters` inside these laps, in seconds — or null if
  * the laps never add up to the target (a 4 km run has no 5K in it) or carry no
  * usable distance/duration.
@@ -78,7 +88,12 @@ export function bestSegmentSeconds(
   for (const lap of laps) {
     const m = lapMeters(lap);
     const s = lapSeconds(lap);
-    if (m > 0 && s > 0) stretches[stretches.length - 1].push({ m, s });
+    // An impossible lap ends the stretch like a stop does: what is on either side of
+    // it is real, the lap itself is not, and nothing measured joins across it.
+    const impossible = m >= PLAUSIBLE_LAP_MIN_M && s / (m / 1000) < FASTEST_PLAUSIBLE_PACE_SEC_PER_KM;
+    if (impossible) {
+      if (stretches[stretches.length - 1].length > 0) stretches.push([]);
+    } else if (m > 0 && s > 0) stretches[stretches.length - 1].push({ m, s });
     else if (m === 0 && s > 0 && stretches[stretches.length - 1].length > 0) stretches.push([]);
   }
 

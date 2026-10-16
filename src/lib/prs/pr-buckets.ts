@@ -10,7 +10,7 @@
  * Distance bests use a tolerance window so real-world runs (never exactly
  * 5.00km) still count as a "5K effort".
  */
-import { bestSegmentSeconds, type LapLike } from './best-segment';
+import { bestSegmentSeconds, type LapLike, FASTEST_PLAUSIBLE_PACE_SEC_PER_KM } from './best-segment';
 
 export interface PrBucket {
   key: string;
@@ -134,7 +134,27 @@ export interface DistanceBest {
  * charges the target distance at the run's AVERAGE pace — on a long run that is
  * a warm-up and a cool-down averaged into a race effort.
  */
+/**
+ * Runs whose distance the watch did not measure over ground. A treadmill run's
+ * kilometres are the wrist accelerometer's guess, and a virtual run's are the app's:
+ * fine for "how much did I run this month", not for "my 5K". Measured 2026-10-16:
+ * a treadmill run with "1 km" laps of 2:17 at heart rate 134 held the club's 10K
+ * record (29:53) and its second 5K (14:46). They still count for volume and for
+ * the longest run — only the time-for-distance bests leave them out.
+ */
+export const UNMEASURED_RUN_TYPES = ['treadmill_running', 'virtual_run', 'indoor_running'];
+
+/**
+ * Faster than 2:45/km is not a run, whatever the row says: 13:45 for 5K, under the
+ * club's best by over a minute and a 2:00 marathon pace. A Garmin row of "5,000 m
+ * in 27 s" held the club's 5K record on 2026-10-16. Such an effort is skipped, and
+ * the next-best real one stands. Defined with the lap check in best-segment.ts.
+ */
+export { FASTEST_PLAUSIBLE_PACE_SEC_PER_KM };
+
 export function computeDistanceBests<T extends RunActivityRow>(runs: T[]): DistanceBest[] {
+  const floor = (meters: number) => (meters / 1000) * FASTEST_PLAUSIBLE_PACE_SEC_PER_KM;
+  const measured = runs.filter(r => !r.activity_type || !UNMEASURED_RUN_TYPES.includes(r.activity_type));
   return PR_BUCKETS.map((b) => {
     const lo = b.meters * (1 - b.under);
     const hi = b.meters * (1 + b.over);
@@ -142,8 +162,11 @@ export function computeDistanceBests<T extends RunActivityRow>(runs: T[]): Dista
       | { seconds: number; date: string; name: string | null; id: string | null; fromSegment: boolean; sourceMeters: number }
       | null = null;
 
-    for (const r of runs) {
-      const segment = r.distance >= b.meters ? bestSegmentSeconds(r.laps, b.meters) : null;
+    for (const r of measured) {
+      // A segment faster than a person can run is a GPS jump inside the run, not the
+      // run's best: fall back to the whole run rather than lose the run.
+      const found = r.distance >= b.meters ? bestSegmentSeconds(r.laps, b.meters) : null;
+      const segment = found !== null && found >= floor(b.meters) ? found : null;
       let seconds: number | null = segment;
       let fromSegment = segment !== null;
 
@@ -153,6 +176,7 @@ export function computeDistanceBests<T extends RunActivityRow>(runs: T[]): Dista
         // comparable (scale duration by the bucket/actual distance ratio).
         seconds = Math.round(r.duration * (b.meters / r.distance));
         fromSegment = false;
+        if (seconds < floor(b.meters)) continue;
       }
 
       if (!best || seconds < best.seconds) {
