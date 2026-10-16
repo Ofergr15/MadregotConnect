@@ -274,21 +274,34 @@ export function detectPushOrphan(
   if (!orphaned.length) return null;
 
   const people = [...new Set(orphaned.map(s => s.athlete_id))];
+  // Two different stories share this finding, and the copy used to tell only the
+  // first: an endpoint that never worked, and one that worked and then went
+  // silent (#108's last success was 15 days earlier). Saying "never succeeded"
+  // about the second sends whoever reads it looking for a registration bug that
+  // isn't there — it's a phone that dropped the subscription.
+  const never = orphaned.filter(s => !s.last_success_at).length;
+  const stopped = orphaned.length - never;
+  const kinds = [
+    never ? `${never} מעולם לא הצליחו` : null,
+    stopped ? `${stopped} הפסיקו להצליח לפני ${staleDays}+ ימים` : null,
+  ].filter(Boolean).join(', ');
   return {
     detector: 'push_orphan',
     key: `push_orphan:${orphaned.map(s => s.id).sort().join(',')}`,
-    title: `${orphaned.length} רשומות פוש רשומות אבל לא הצליחו אף פעם — נשלח בלוח, כלום בטלפון`,
+    title: `${orphaned.length} רשומות פוש לא מגיעות לטלפון (${kinds}) — נשלח בלוח, כלום בטלפון`,
     affected: people.length,
     strength: 'finding',
     evidence: {
       how:
         `201 של אפל הוא קבלה ולא הצלחה, וזה מה שגרם לניתוק שלם להיראות כמו הכל נשלח. ` +
-        `הרשומות האלה נרשמו לפני יותר משבוע ומעולם לא רשמו הצלחה, בזמן ש-${healthy.length} ` +
+        `הרשומות האלה נרשמו לפני יותר משבוע ולא רשמו הצלחה ב-${staleDays} הימים האחרונים (${kinds}), בזמן ש-${healthy.length} ` +
         `רשומות אחרות כן הצליחו בשלושת הימים האחרונים.`,
       unknown: 'ייתכן שהמכשיר פשוט הוסר — ניקוי של רשומה מיותמת הוא בטוח בשני המקרים.',
       athleteIds: people,
       facts: {
         'רשומות מיותמות': orphaned.length,
+        'מעולם לא הצליחו': never,
+        'הפסיקו להצליח': stopped,
         'אתלטים': people.length,
         'רשומות תקינות': healthy.length,
       },

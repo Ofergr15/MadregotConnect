@@ -110,6 +110,15 @@ describe('push endpoints that never delivered', () => {
     expect(f?.affected).toBe(1);
     expect(f?.evidence.facts['רשומות מיותמות']).toBe(2);
   });
+
+  it('says an endpoint that worked and then went silent stopped, not that it never worked (#108)', () => {
+    const f = detectPushOrphan([sub({ id: 'ok' }), sub({ id: 'ok2' }),
+      sub({ id: 'quiet', athlete_id: 'c', last_success_at: daysAgo(15) })], NOW);
+    expect(f?.title).not.toContain('מעולם');
+    expect(f?.title).toContain('הפסיקו');
+    expect(f?.evidence.facts['הפסיקו להצליח']).toBe(1);
+    expect(f?.evidence.facts['מעולם לא הצליחו']).toBe(0);
+  });
 });
 
 describe('a plan that came out thinner than its siblings', () => {
