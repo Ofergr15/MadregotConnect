@@ -738,25 +738,36 @@ interface Stat {
 /**
  * The secondary stats, in the order they read best. Pace and HR may be absent.
  *
- * The start time rides in this row rather than as a line of its own on purpose:
- * a value-over-label column draws the number and the Hebrew label as two separate
- * fillTexts, so there is no "התחלה 6:01" string for the bidi algorithm to reorder
- * into "6:01 התחלה" (the same trap `drawHeroDistance` exists to dodge). It goes
- * LAST so pace/time/HR keep the positions athletes already know.
+ * The start time used to ride LAST in this row; since #100 it is its own line
+ * under the name (`startLine`). That line is digits and a dot only, with no
+ * Hebrew label, so the bidi trap that kept it in a value-over-label column
+ * (`התחלה 6:01` reordered to `6:01 התחלה`) has nothing to reorder.
  *
  * `formatActivityTime` reads the stored timestamp by its UTC parts, which is what
  * gives the athlete's own clock — see the note on `parseActivityInstant`. A card
  * rendered in another timezone therefore still says when they actually ran.
  */
-export function secondaryStats(act: FeedActivity, i18n: ShareI18n, showStartTime = false): Stat[] {
+export function secondaryStats(act: FeedActivity, i18n: ShareI18n): Stat[] {
   const out: Stat[] = [];
   if (act.averagePace) out.push({ value: formatPace(act.averagePace), label: i18n.pace });
   out.push({ value: formatDuration(act.duration), label: i18n.time });
   if (act.averageHr) out.push({ value: `${Math.round(act.averageHr)}`, label: i18n.hr });
-  if (showStartTime && act.startTime) {
-    out.push({ value: formatActivityTime(act.startTime), label: i18n.start });
-  }
   return out;
+}
+
+/**
+ * "1.10 · 5:38" — the start, as a small line under the run's name (#100).
+ *
+ * It used to be a fourth column in the stats row, which read as one more number
+ * to compare rather than WHEN the run was; Garmin's share card puts it beside the
+ * name, and so does this. Date and time both come from the stored wall clock
+ * (see `formatActivityTime`), so another timezone can't shift either.
+ */
+export function startLine(act: FeedActivity, showStartTime: boolean): string | null {
+  if (!showStartTime || !act.startTime) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(act.startTime);
+  if (!m) return null;
+  return `${Number(m[3])}.${Number(m[2])} · ${formatActivityTime(act.startTime)}`;
 }
 
 function distanceKm(act: FeedActivity): string {
@@ -1389,7 +1400,7 @@ function layoutClassic({
 
   ctx.shadowColor = shadow;
   ctx.shadowBlur = shadowBlur;
-  const secondary = secondaryStats(act, i18n, showStartTime);
+  const secondary = secondaryStats(act, i18n);
   // A fourth column cuts each one to ~230px, and "1:02:33" at 64px does not fit
   // that — so the row steps down a size rather than letting two stats collide.
   const dense = secondary.length > 3;
@@ -1413,6 +1424,19 @@ function layoutClassic({
     unitPx: 48,
   });
   y -= 200;
+
+  // Under the name, above the distance — so drawn first, the stack goes up.
+  const when = startLine(act, showStartTime);
+  if (when) {
+    ctx.font = `500 34px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.textAlign = 'center';
+    ctx.direction = 'ltr';
+    ctx.fillText(when, cx, y);
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'right';
+    y -= 58;
+  }
 
   if (act.activityName && showTitle) {
     ctx.font = `600 44px ${font}`;
@@ -1458,6 +1482,8 @@ function layoutCard({
   const logoH = mark ? (mark === logo ? 150 : 112) : 0;
   const routeH = hasRoute ? 380 : 0;
   const titleH = act.activityName && showTitle ? 62 : 0;
+  const when = startLine(act, showStartTime);
+  const whenH = when ? 48 : 0;
 
   // Height is summed from the blocks that actually render, so a run with no GPS
   // yields a shorter panel instead of an empty gap.
@@ -1467,6 +1493,7 @@ function layoutCard({
     (routeH ? 36 + routeH : 0) +
     36 +
     titleH +
+    whenH +
     150 + // hero distance block
     28 +
     2 + // divider
@@ -1527,6 +1554,17 @@ function layoutCard({
     y += titleH;
   }
 
+  if (when) {
+    ctx.font = `500 30px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.textAlign = 'center';
+    ctx.direction = 'ltr';
+    ctx.fillText(when, panelCx, y + 34);
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'right';
+    y += whenH;
+  }
+
   // Hero distance
   const heroBaseline = y + 130;
   drawHeroDistance(ctx, act, i18n, {
@@ -1552,7 +1590,7 @@ function layoutCard({
   // Stats along the bottom of the panel.
   ctx.shadowColor = shadow;
   ctx.shadowBlur = shadowBlur / 2;
-  const secondary = secondaryStats(act, i18n, showStartTime);
+  const secondary = secondaryStats(act, i18n);
   const dense = secondary.length > 3; // See the note in layoutClassic.
   drawSecondaryRow(ctx, secondary, {
     font,

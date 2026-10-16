@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { secondaryStats } from '@/lib/feed/share-image';
+import { secondaryStats, startLine } from '@/lib/feed/share-image';
 import type { FeedActivity } from '@/lib/feed/project';
 
 /**
@@ -38,10 +38,18 @@ describe('secondaryStats', () => {
     expect(secondaryStats(activity(), I18N).map(s => s.label)).not.toContain('Started');
   });
 
-  it('appends the start time last, so the other stats do not move', () => {
-    const stats = secondaryStats(activity(), I18N, true);
-    expect(stats.map(s => s.label)).toEqual(['Avg pace', 'Time', 'HR', 'Started']);
-    expect(stats[3].value).toBe('6:01');
+  it('never carries the start time any more (#100: it moved under the name)', () => {
+    expect(secondaryStats(activity(), I18N)).toHaveLength(3);
+  });
+});
+
+describe('startLine (#100)', () => {
+  it('is day.month · clock, under the run name', () => {
+    expect(startLine(activity({ startTime: '2026-10-01 05:38:12' }), true)).toBe('1.10 · 5:38');
+  });
+
+  it('is absent unless the athlete turned it on', () => {
+    expect(startLine(activity(), false)).toBeNull();
   });
 
   /**
@@ -51,24 +59,11 @@ describe('secondaryStats', () => {
    */
   it('reads both timestamp shapes as the athlete local clock', () => {
     for (const startTime of ['2026-07-12 06:01:40', '2026-07-12T06:01:40+00:00', '2026-07-12T06:01:40Z']) {
-      const stats = secondaryStats(activity({ startTime }), I18N, true);
-      expect(stats[stats.length - 1].value, startTime).toBe('6:01');
+      expect(startLine(activity({ startTime }), true), startTime).toBe('12.7 · 6:01');
     }
   });
 
-  it('still shows the start time on a run with no pace or HR', () => {
-    const stats = secondaryStats(activity({ averagePace: null, averageHr: null }), I18N, true);
-    expect(stats.map(s => s.label)).toEqual(['Time', 'Started']);
-  });
-
-  /** A row with a blank column would read as a rendering bug. */
-  it('drops the column when the activity has no start time', () => {
-    const stats = secondaryStats(activity({ startTime: '' }), I18N, true);
-    expect(stats.map(s => s.label)).toEqual(['Avg pace', 'Time', 'HR']);
-  });
-
-  /** Four columns is what makes the row step down a font size — see layoutClassic. */
-  it('never returns more than four columns', () => {
-    expect(secondaryStats(activity(), I18N, true)).toHaveLength(4);
+  it('draws nothing for an activity with no start time', () => {
+    expect(startLine(activity({ startTime: '' }), true)).toBeNull();
   });
 });
