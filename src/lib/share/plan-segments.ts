@@ -1,5 +1,6 @@
 import type { StoredLap } from '@/lib/garmin/laps';
-import { isRepeatMarker, type ExecutedWorkout } from '@/lib/garmin/executed-workout';
+import { isRepeatMarker, stepPaceBand, type ExecutedWorkout } from '@/lib/garmin/executed-workout';
+import type { Lane } from '@/lib/academy/group-lane';
 
 /**
  * THE SHARE CARD'S SEGMENTS, CUT BY THE WORKOUT RATHER THAN BY THE LAP BUTTON.
@@ -29,6 +30,10 @@ export interface PlanSegment {
   /** Time-weighted average heart rate, when the laps carry one. */
   hr?: number;
   kind: SegmentKind;
+  /** The workout step the segment ran (`wktStepIndex`); absent on free running. */
+  step?: number;
+  /** The step's pace band at the athlete's lane, sec/km — see `withTargets`. */
+  target?: { min: number; max: number };
 }
 
 /** A lap shorter than this is the watch closing a step a stride late, not running. */
@@ -48,11 +53,12 @@ function kindOf(intensity: string | null | undefined): SegmentKind {
   }
 }
 
-function merge(laps: StoredLap[], kind: SegmentKind): PlanSegment | null {
+function merge(laps: StoredLap[], kind: SegmentKind, step?: number): PlanSegment | null {
   const m = laps.reduce((a, l) => a + l.distance, 0);
   const sec = laps.reduce((a, l) => a + l.duration, 0);
   if (m < SLIVER_M || sec <= 0) return null;
   const seg: PlanSegment = { m: Math.round(m), pace: Math.round(sec / (m / 1000)), kind };
+  if (step != null) seg.step = step;
   const withHr = laps.filter(l => l.averageHR != null && l.averageHR > 0);
   const hrSec = withHr.reduce((a, l) => a + l.duration, 0);
   if (hrSec > 0) seg.hr = Math.round(withHr.reduce((a, l) => a + l.averageHR! * l.duration, 0) / hrSec);
@@ -82,7 +88,7 @@ export function segmentsFromSteps(
   let doneM = 0;
   let doneSec = 0;
   const flush = () => {
-    const seg = run.length ? merge(run, runKind) : null;
+    const seg = run.length ? merge(run, runKind, runKey ?? undefined) : null;
     if (seg) out.push(seg);
     run = [];
     doneM = 0;
@@ -126,4 +132,25 @@ export function mainSet(segments: PlanSegment[]): PlanSegment[] {
   const longest = Math.max(0, ...active.map(s => s.m));
   const main = active.filter(s => s.m >= longest * 0.2);
   return main.length >= 2 ? main : segments;
+}
+
+/**
+ * Each segment's target, read off the workout the watch ran at the athlete's lane —
+ * the same `stepPaceBand` the accuracy ring grades with, so the card's ✓ and the
+ * ring can't disagree about a block. A step with no pace asked of it (a walk, an
+ * open warm-up, "מתגברת") gets none.
+ */
+export function withTargets(segments: PlanSegment[], workout: ExecutedWorkout | null, lane: Lane): PlanSegment[] {
+  if (!workout) return segments;
+  const stepAt = new Map(workout.steps.map(s => [s.stepIndex, s]));
+  return segments.map(seg => {
+    const step = seg.step != null ? stepAt.get(seg.step) : undefined;
+    const band = step ? stepPaceBand(step, lane) : null;
+    return band ? { ...seg, target: band } : seg;
+  });
+}
+
+/** A block met its target: at or faster than the band's slow edge, with 3 s of grace. */
+export function onTarget(seg: Pick<PlanSegment, 'pace' | 'target'>): boolean {
+  return seg.target != null && seg.pace <= seg.target.max + 3;
 }

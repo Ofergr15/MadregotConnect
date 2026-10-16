@@ -14,13 +14,14 @@ import { SHARE_CARD_LANGS, WORKOUT_CARD_TEXT, type ShareCardLang } from '@/lib/s
 import { localizeDefaultName } from '@/lib/share/default-name';
 import { partAt, placeLabels, type ShareBox, type ShareHitMap, type SharePart } from '@/lib/share/hit-map';
 import {
-  asWorkoutMetrics, canHrLine, canPlanSplit, canSegment, defaultChipKeys, defaultSplitMode, defaultTemplate, drawnTemplate, fitChipKeys,
+  asWorkoutMetrics, canHrLine, canPlanSplit, defaultChipKeys, defaultSplitMode, hasTargets, splitModes, defaultTemplate, drawnTemplate, fitChipKeys,
   fixedNumbersReason, frameCapacity, shareChips, shareFilename, shareTemplates, supportsAccent, toggleChip, viewBrand,
   type ShareSubject,
 } from '@/lib/share/sheet-model';
 import type { FeedItem } from '@/lib/feed/project';
 import { fetchActivityDetails } from '@/lib/activities-client';
 import type { HrTrace } from '@/lib/share/hr-trace';
+import type { PlanSegment } from '@/lib/share/plan-segments';
 
 /**
  * THE WORKOUT SHARE EDITOR: THE CARD IS THE CONTROL PANEL.
@@ -93,6 +94,13 @@ function Toggle({ label, on, onClick }: { label: string; on: boolean; onClick: (
   );
 }
 
+const SPLIT_LABEL: Record<SplitMode, string> = {
+  blocks: 'splitBlocks',
+  full: 'splitFull',
+  segments: 'splitSegments',
+  km: 'splitKm',
+};
+
 function Segmented<T extends string>({ items, value, onChange }: {
   items: Array<[T, string]>; value: T; onChange: (v: T) => void;
 }) {
@@ -125,22 +133,32 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
   // (the route answers nobody else). Until it comes, or when there is none, the
   // chart draws the laps' averages.
   const [hrTrace, setHrTrace] = useState<HrTrace | null>(null);
+  // And, for a run the watch drove, its steps again from the route: the feed's cut has
+  // no targets, and no step lengths to split a repeated step by. Until they come the
+  // feed's cut is drawn, which is the same bars.
+  const [steps, setSteps] = useState<PlanSegment[] | null>(null);
   const hrWanted = canHrLine({ kind: 'workout', item: given });
+  const stepsWanted = canPlanSplit({ kind: 'workout', item: given });
   const givenId = given.activity?.id;
   useEffect(() => {
-    if (!hrWanted || !givenId) return;
+    const include = [hrWanted && 'hr', stepsWanted && 'steps'].filter(Boolean).join(',');
+    if (!include || !givenId) return;
     let cancelled = false;
-    fetchActivityDetails(givenId, null, 'hr')
+    fetchActivityDetails(givenId, null, include)
       .then(r => (r.ok ? r.json() : null))
-      .then((body: { hrTrace?: HrTrace } | null) => {
-        if (!cancelled && body?.hrTrace && body.hrTrace.length >= 10) setHrTrace(body.hrTrace);
+      .then((body: { hrTrace?: HrTrace; stepBands?: PlanSegment[] | null } | null) => {
+        if (cancelled || !body) return;
+        if (body.hrTrace && body.hrTrace.length >= 10) setHrTrace(body.hrTrace);
+        if (body.stepBands && body.stepBands.length >= 2) setSteps(body.stepBands);
       })
-      .catch(() => { /* the laps' averages stand in */ });
+      .catch(() => { /* the laps' averages and the feed's steps stand in */ });
     return () => { cancelled = true; };
-  }, [hrWanted, givenId]);
+  }, [hrWanted, stepsWanted, givenId]);
   const item = useMemo<FeedItem>(
-    () => (hrTrace && given.activity ? { ...given, activity: { ...given.activity, hrTrace } } : given),
-    [given, hrTrace],
+    () => (given.activity && (hrTrace || steps)
+      ? { ...given, activity: { ...given.activity, ...(hrTrace ? { hrTrace } : {}), ...(steps ? { stepBands: steps } : {}) } }
+      : given),
+    [given, hrTrace, steps],
   );
   const t = useTranslations('shareSheet');
   const tc = useTranslations('common');
@@ -162,10 +180,11 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
   const [bg, setBg] = useState<WorkoutBackground>('club');
   const [accent, setAccent] = useState<ShareAccent>('white');
   const [brand, setBrand] = useState<ShareBrand | null>(null);
-  const segmentOk = canSegment(subject);
-  const planOk = canPlanSplit(subject);
+  const modes = splitModes(subject);
   const [splitMode, setSplitMode] = useState<SplitMode>(() => defaultSplitMode(subject));
-  const [coreOnly, setCoreOnly] = useState(true);
+  const [paceLabels, setPaceLabels] = useState(true);
+  const [targets, setTargets] = useState(false);
+  const targetsOk = hasTargets(subject);
   const [avgLine, setAvgLine] = useState(true);
   const hrOk = canHrLine(subject);
   const [hrLine, setHrLine] = useState(true);
@@ -301,14 +320,15 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
       // A neighbour shows the logo it will have when swiped to: its own.
       brand: own ? brand ?? undefined : undefined,
       splitMode,
-      coreOnly,
+      paceLabels,
+      targets: targets && targetsOk,
       avgLine,
       hrLine,
       editorChart: true,
       timeLtr: true,
       metrics: asWorkoutMetrics(own ? keys : fitChipKeys(subject, view, keys)),
     };
-  }, [routeOnly, bg, photo, accent, showTitle, titleText, showStartTime, showDate, showShoe, brand, splitMode, coreOnly, avgLine, hrLine, keys, subject]);
+  }, [routeOnly, bg, photo, accent, showTitle, titleText, showStartTime, showDate, showShoe, brand, splitMode, paceLabels, targets, targetsOk, avgLine, hrLine, keys, subject]);
 
   // The card being edited, with its tap areas.
   useEffect(() => {
@@ -591,27 +611,30 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
     window.addEventListener('pointercancel', up);
   };
 
+  // What the chart shows. Also under the card outside the edit, on the splits view:
+  // tucked behind "tap the chart" it was a choice nobody found (2026-10-16).
+  const modeControl = modes.length > 1 ? (
+    <Segmented
+      items={modes.map(m => [m, t(SPLIT_LABEL[m])] as [SplitMode, string])}
+      value={modes.includes(splitMode) ? splitMode : modes[0]}
+      onChange={setSplitMode}
+    />
+  ) : null;
+
   // ── The tray: the looks, or the options of the part that was tapped ──────────
   const tray = (() => {
     if (mode === 'data' && template === 'splits') {
       return (
         <>
-          {(planOk || segmentOk) && (
-            <Segmented
-              items={[
-                ...(planOk ? [['plan', t('splitPlan')] as [SplitMode, string]] : []),
-                ...(segmentOk ? [['segments', t('splitSegments')] as [SplitMode, string]] : []),
-                ['km', t('splitKm')] as [SplitMode, string],
-              ]}
-              value={splitMode}
-              onChange={setSplitMode}
-            />
+          {modeControl}
+          {splitMode !== 'km' && (
+            <Toggle label={t('paceLabels')} on={paceLabels} onClick={() => setPaceLabels(v => !v)} />
           )}
-          {splitMode === 'plan' && (
-            <Toggle label={t('splitCoreOnly')} on={coreOnly} onClick={() => setCoreOnly(v => !v)} />
+          {targetsOk && paceLabels && (splitMode === 'blocks' || splitMode === 'full') && (
+            <Toggle label={t('targets')} on={targets} onClick={() => setTargets(v => !v)} />
           )}
           <Toggle label={t('avgLine')} on={avgLine} onClick={() => setAvgLine(v => !v)} />
-          {hrOk && splitMode !== 'km' && !(splitMode === 'plan' && coreOnly) && (
+          {hrOk && splitMode !== 'km' && splitMode !== 'blocks' && (
             <Toggle label={t('hrLine')} on={hrLine} onClick={() => setHrLine(v => !v)} />
           )}
         </>
@@ -1014,6 +1037,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
             </div>
           </>
         )}
+        {!editing && template === 'splits' && modeControl}
         {notice && <p className="mb-1.5 text-center text-2xs text-white/70">{notice}</p>}
         {error && <p className="mb-1.5 text-center text-2xs text-accent-red">{error}</p>}
         <button

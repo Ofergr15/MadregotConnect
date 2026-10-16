@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mainSet, segmentsFromSteps } from '@/lib/share/plan-segments';
+import { mainSet, onTarget, segmentsFromSteps, withTargets } from '@/lib/share/plan-segments';
 import type { StoredLap } from '@/lib/garmin/laps';
 import type { ExecutedWorkout } from '@/lib/garmin/executed-workout';
 
@@ -57,5 +57,36 @@ describe('mainSet', () => {
   it('keeps short reps when they are the session', () => {
     const laps = [1, 2, 3].flatMap(i => [lap(400, 200, i * 2, 'ACTIVE'), lap(200, 400, i * 2 + 1, 'RECOVERY')]);
     expect(mainSet(segmentsFromSteps(laps, null)!).map(s => s.m)).toEqual([400, 400, 400]);
+  });
+});
+
+describe('withTargets', () => {
+  // The 2026-10-16 notes: three lanes in one note, "3:40 (3:50) ((4:00))".
+  const workout: ExecutedWorkout = {
+    name: null, createdAt: null,
+    steps: [
+      { stepIndex: 1, intensity: 'WARMUP', durationType: 'OPEN' },
+      { stepIndex: 2, intensity: 'ACTIVE', durationType: 'DISTANCE', distanceM: 5000, notes: '3:40 (3:50) ((4:00))' },
+      { stepIndex: 3, intensity: 'RECOVERY', durationType: 'TIME', durationSec: 60, notes: 'הליכה' },
+    ],
+  };
+  const segs = segmentsFromSteps([lap(2000, 300, 1, 'WARMUP'), lap(5000, 238, 2, 'ACTIVE'), lap(150, 600, 3, 'RECOVERY')], workout)!;
+
+  it("reads the step's note at the athlete's lane", () => {
+    expect(withTargets(segs, workout, 3)[1].target).toEqual({ min: 240, max: 240 });
+    expect(withTargets(segs, workout, 1)[1].target).toEqual({ min: 220, max: 220 });
+  });
+
+  it('gives a walk and an open warm-up no target', () => {
+    const t = withTargets(segs, workout, 2);
+    expect(t[0].target).toBeUndefined();
+    expect(t[2].target).toBeUndefined();
+  });
+
+  it('counts a block on target at or faster than the slow edge, with 3 s of grace', () => {
+    expect(onTarget({ pace: 238, target: { min: 240, max: 240 } })).toBe(true);
+    expect(onTarget({ pace: 243, target: { min: 240, max: 240 } })).toBe(true);
+    expect(onTarget({ pace: 244, target: { min: 240, max: 240 } })).toBe(false);
+    expect(onTarget({ pace: 200 })).toBe(false);
   });
 });

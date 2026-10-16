@@ -17,9 +17,14 @@
 import { formatActivityTime } from '@/lib/utils';
 import type { FeedItem, FeedActivity } from './project';
 import { markLogo, recordHitMap, type ShareHitMap } from '@/lib/share/hit-map';
-import { mainSet, type PlanSegment } from '@/lib/share/plan-segments';
+import { mainSet, onTarget, type PlanSegment } from '@/lib/share/plan-segments';
 
-export type SplitMode = 'plan' | 'segments' | 'km';
+/**
+ * What the KM Splits view charts. `blocks` / `full` are the workout the watch ran
+ * (`stepBands`): its work blocks only, or every step with the warm-up and walks faint.
+ * `segments` is the laps as pressed, `km` the kilometre list.
+ */
+export type SplitMode = 'blocks' | 'full' | 'segments' | 'km';
 
 export const STORY_W = 1080;
 export const STORY_H = 1920;
@@ -214,6 +219,8 @@ export interface ShareI18n {
   splits: string;
   /** Title over the lap chart — "מקטעים" / "Splits". */
   segments: string;
+  /** The footer's key to the target row. No colon and no ✓ in it: in a right-to-left canvas line both get reordered. */
+  targetLegend?: string;
   /**
    * The one thing a reader cannot guess about the pace bars.
    *
@@ -292,16 +299,14 @@ export interface ShareCardOptions {
    */
   onHitMap?: (map: ShareHitMap) => void;
   /**
-   * What the KM Splits view charts: each kilometre (the default), each lap the
-   * watch pressed (`segments`), or each step of the workout the watch ran (`plan`,
-   * from `stepBands`). Falls back to laps, then kilometres, when the run lacks one.
+   * What the KM Splits view charts (see `SplitMode`). Falls back to the laps, then
+   * the kilometres, when the run lacks what was asked for.
    */
   splitMode?: SplitMode;
-  /**
-   * `plan` only: just the session's core — the work blocks, without the warm-up,
-   * the strides and the walks (`mainSet`). Default on.
-   */
-  coreOnly?: boolean;
+  /** Each bar's pace written under it, when the bars are few enough to read. Default on. */
+  paceLabels?: boolean;
+  /** Under each pace, the step's target and a ✓ when it was met (`stepBands[].target`). */
+  targets?: boolean;
   /**
    * Which numbers go on the card, chosen by the athlete in the sheet.
    *
@@ -960,7 +965,8 @@ interface LayoutCtx {
   editorChart: boolean;
   timeLtr: boolean;
   splitMode: SplitMode;
-  coreOnly: boolean;
+  paceLabels: boolean;
+  targets: boolean;
   shadow: string;
   shadowBlur: number;
   /** Resolved accent hex — route line only. */
@@ -2029,12 +2035,13 @@ function layoutSplits(c: LayoutCtx) {
 /** At most this many bars and each is labelled with its pace instead of an axis. */
 const LABELLED_BARS = 12;
 
-type SegmentBand = NonNullable<FeedActivity['lapBands']>[number];
+/** A lap from `lapBands` or a step from `stepBands` — only steps carry a target. */
+type SegmentBand = Omit<PlanSegment, 'kind'> & { kind?: PlanSegment['kind'] };
 
 /**
- * The bars the segments chart draws, or null for the kilometre list. `plan` asks for
- * the workout's steps and falls back to the laps when the run had no workout on the
- * watch, so a choice made once never leaves an empty chart.
+ * The bars the segments chart draws, or null for the kilometre list. `blocks` and
+ * `full` ask for the workout's steps and fall back to the laps when the run had no
+ * workout on the watch, so a choice made once never leaves an empty chart.
  *
  * The heading becomes the session itself ("7 × 5 ק״מ") when the core is a set of
  * equal blocks — value and unit kept apart, because as one canvas string the two
@@ -2042,20 +2049,23 @@ type SegmentBand = NonNullable<FeedActivity['lapBands']>[number];
  */
 function segmentBands(c: LayoutCtx): { laps: SegmentBand[]; title: { value: string; unit: string } | null; trimmed: boolean } | null {
   const steps = c.act.stepBands;
-  if (c.splitMode === 'plan' && steps && steps.length >= 2) {
-    const laps: PlanSegment[] = c.coreOnly ? mainSet(steps) : steps;
+  if ((c.splitMode === 'blocks' || c.splitMode === 'full') && steps && steps.length >= 2) {
+    const core = mainSet(steps);
+    const laps: PlanSegment[] = c.splitMode === 'blocks' ? core : steps;
+    // The whole workout is still "7 × 5 ק״מ": the heading names the session by its
+    // blocks either way.
     let title: { value: string; unit: string } | null = null;
-    if (laps.every(l => l.kind === 'active')) {
+    if (core.every(l => l.kind === 'active')) {
       // Named by the length most blocks were, rounded the way a plan is written: a
       // block cut short (a lap pressed early) doesn't stop the session being 7 × 5 km.
-      const rounded = laps.map(l => (l.m >= 1000 ? Math.round(l.m / 500) * 500 : Math.round(l.m / 100) * 100));
+      const rounded = core.map(l => (l.m >= 1000 ? Math.round(l.m / 500) * 500 : Math.round(l.m / 100) * 100));
       const counts = new Map<number, number>();
       for (const m of rounded) counts.set(m, (counts.get(m) ?? 0) + 1);
       const [m, n] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-      if (n * 2 > laps.length) {
+      if (n * 2 > core.length) {
         title = m >= 1000
-          ? { value: `${laps.length} × ${+(m / 1000).toFixed(1)}`, unit: c.i18n.km }
-          : { value: `${laps.length} × ${m}`, unit: c.i18n.metres };
+          ? { value: `${core.length} × ${+(m / 1000).toFixed(1)}`, unit: c.i18n.km }
+          : { value: `${core.length} × ${m}`, unit: c.i18n.metres };
       }
     }
     return { laps, title, trimmed: laps.length !== steps.length };
@@ -2073,8 +2083,23 @@ function layoutSegments(c: LayoutCtx, laps: SegmentBand[], heading: { value: str
   const x1 = x0 + w;
   const start = rtl ? x1 : x0;
   const dir = rtl ? -1 : 1;
-  const chartH = p(170);
-  const bottom = p(600);
+  // Paces go in a row under the bars (feedback 2026-10-16: inside the bar they were too
+  // small to read, and on one line they compare at a glance), the targets in a second
+  // row. Which bars get a number is settled here, before the geometry, because the
+  // rows take their room out of the chart.
+  const total = laps.reduce((a, l) => a + l.m, 0);
+  const pitch = (l: SegmentBand) => (l.m / total) * w;
+  const allFit = laps.length <= LABELLED_BARS && laps.every(l => pitch(l) >= p(16));
+  // The whole workout has strides and walks too thin to carry a number; its work
+  // blocks still do.
+  const named = !c.paceLabels ? []
+    : allFit ? laps
+      : laps.filter(l => l.kind === 'active' && pitch(l) >= p(28));
+  const labelled = named.length > 0;
+  const withTargets = labelled && c.targets && named.some(l => l.target != null);
+  const rowsUnder = labelled ? p(24) + (withTargets ? p(15) : 0) : 0;
+  const chartH = p(210) - rowsUnder * 0.4;
+  const bottom = p(600) - rowsUnder;
   const chartTop = bottom - chartH;
 
   const title = c.showTitle && act.activityName ? act.activityName : null;
@@ -2133,7 +2158,6 @@ function layoutSegments(c: LayoutCtx, laps: SegmentBand[], heading: { value: str
   const paces = laps.map(l => l.pace);
   const fast = Math.min(...paces);
   const slow = Math.max(...paces);
-  const total = laps.reduce((a, l) => a + l.m, 0);
   // Speed, floored at 80% of the slowest lap's so the slowest bar still stands, but
   // never below half the fastest: a standing rest is 18:00/km, and letting it set
   // the floor squashed every running lap into the top of the chart and stacked a
@@ -2146,13 +2170,17 @@ function layoutSegments(c: LayoutCtx, laps: SegmentBand[], heading: { value: str
     Math.min(bottom - p(3), bottom - ((speed(pace) - vMin) / (vMax - vMin || 1)) * chartH);
   const slowSeen = Math.min(slow, floorPace);
 
-  // Few enough bars to read one by one: each wears its own pace and the axis goes,
-  // because seven numbers on seven bars say more than a scale beside them.
-  const labelled = laps.length <= LABELLED_BARS && laps.every(l => (l.m / total) * w >= p(16));
-  const sameLength = laps.every(l => Math.abs(l.m - laps[0].m) <= laps[0].m * 0.05);
-  // The heart-rate range and the average sit under the chart, below the lengths if any.
-  const footY = bottom + (labelled && !sameLength ? p(24) : p(13));
-  // The pace scale takes a gutter on the reading-start side; labelled bars need none.
+  // A block's length is written over it only when it isn't the length most blocks
+  // were — "7 × 5 ק״מ" in the heading already says 5 for the other six.
+  const work = named.filter(l => l.kind === 'active');
+  const lengths = new Map<number, number>();
+  for (const l of work) lengths.set(Math.round(l.m / 100), (lengths.get(Math.round(l.m / 100)) ?? 0) + 1);
+  const usual = [...lengths.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const odd = (l: SegmentBand) => usual != null && work.length > 1 && Math.abs(l.m - usual * 100) > usual * 100 * 0.05;
+  // The heart-rate range and the average sit under everything.
+  const footY = bottom + rowsUnder + p(13);
+  // The pace scale takes a gutter on the reading-start side; bars with their own
+  // numbers need none.
   const gutter = labelled ? 0 : p(26);
   const barsW = w - gutter;
   // The direction time runs in, which `timeLtr` can turn against the text's.
@@ -2235,8 +2263,9 @@ function layoutSegments(c: LayoutCtx, laps: SegmentBand[], heading: { value: str
   // Then the fill says that — the work solid, the warm-up and the walks faint — rather
   // than grading by pace, which on a 7 × 5 km made the 4:10 blocks look like rests.
   const byKind = laps.some(l => l.kind != null);
-  const barGap = labelled ? p(3) : gap;
-  const labels: Array<{ x: number; top: number; l: (typeof laps)[number] }> = [];
+  const barGap = allFit ? p(3) : gap;
+  const namedSet = new Set(named);
+  const labels: Array<{ x: number; top: number; pitch: number; l: (typeof laps)[number] }> = [];
 
   let cursor = barsStart;
   for (const l of laps) {
@@ -2252,26 +2281,52 @@ function layoutSegments(c: LayoutCtx, laps: SegmentBand[], heading: { value: str
     ctx.beginPath();
     ctx.roundRect(left, top, drawW, bottom - top, [r, r, 0, 0]);
     ctx.fill();
-    if (labelled) labels.push({ x: left + drawW / 2, top, l });
+    if (namedSet.has(l)) labels.push({ x: left + drawW / 2, top, pitch: bw, l });
     cursor += tdir * bw;
   }
 
   if (labelled) {
     ctx.shadowBlur = shadowBlur;
-    ctx.direction = 'ltr';
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffffff';
+    // One size for the whole row, so the numbers line up; smaller only when a bar is
+    // too narrow for the full size.
+    const narrowest = Math.min(...labels.map(q => q.pitch));
+    const size = narrowest >= p(44) ? p(17) : narrowest >= p(34) ? p(14) : p(12);
     for (const { x, top, l } of labels) {
-      ctx.font = `800 ${p(9.5)}px ${font}`;
-      ctx.fillText(formatPace(l.pace), x, top - p(4));
-      // The length under the bar only when the bars differ — "7 × 5 ק״מ" in the
-      // heading already says it for a set run to plan.
-      if (!sameLength) {
-        ctx.font = `600 ${p(7.5)}px ${font}`;
-        ctx.fillStyle = 'rgba(255,255,255,0.8)';
-        ctx.fillText((l.m / 1000).toFixed(l.m >= 10000 ? 0 : 1), x, bottom + p(10));
-        ctx.fillStyle = '#ffffff';
+      ctx.direction = 'ltr';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `800 ${size}px ${font}`;
+      ctx.fillText(formatPace(l.pace), x, bottom + p(7) + size * 0.8);
+      if (withTargets && l.target) {
+        const ok = onTarget(l);
+        const want = formatPace((l.target.min + l.target.max) / 2);
+        ctx.font = `700 ${p(10.5)}px ${font}`;
+        const tick = ok ? ' ✓' : '';
+        const tw = ctx.measureText(want).width;
+        const kw = ok ? ctx.measureText(tick).width : 0;
+        const ty = bottom + p(27) + p(8.5);
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(255,255,255,0.62)';
+        ctx.fillText(want, x - (tw + kw) / 2, ty);
+        if (ok) {
+          ctx.fillStyle = '#4ade80';
+          ctx.fillText(tick, x - (tw + kw) / 2 + tw, ty);
+        }
+        ctx.textAlign = 'center';
       }
+      // A block that came out short says by how much, over its bar.
+      if (l.kind === 'active' && odd(l)) {
+        ctx.font = `700 ${p(8.5)}px ${font}`;
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.fillText((l.m / 1000).toFixed(l.m >= 10000 ? 0 : 1), x, top - p(5));
+      }
+    }
+    if (withTargets && i18n.targetLegend) {
+      ctx.direction = rtl ? 'rtl' : 'ltr';
+      ctx.textAlign = 'center';
+      ctx.font = `600 ${p(8.5)}px ${font}`;
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillText(i18n.targetLegend, (x0 + x1) / 2, footY);
     }
     ctx.shadowBlur = 0;
   }
@@ -2304,8 +2359,8 @@ function layoutSegments(c: LayoutCtx, laps: SegmentBand[], heading: { value: str
   ctx.font = `600 ${p(8.5)}px ${font}`;
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
   // Whole-minute-ish ticks across the range, skipped where the avg label sits.
-  // A label needs its own line: none within p(11) of another, nor of the avg label.
-  const taken: number[] = showAvg ? [ay - p(4)] : [];
+  // A label needs its own line: none within p(11) of another.
+  const taken: number[] = [];
   // The fastest lap is the top of the scale, and it is the number the chart is
   // shared for, so it is labelled first; the round values fill in under it. It
   // used to start at the first round value, so a 3:42 rep's top read "4:00".
@@ -2337,10 +2392,9 @@ function layoutSegments(c: LayoutCtx, laps: SegmentBand[], heading: { value: str
     ctx.lineTo(barsStart + tdir * barsW, ay);
     ctx.stroke();
     ctx.restore();
-    // With no axis there is no gutter to hold the label: it goes under the chart,
-    // on the side the heart-rate range doesn't use.
-    if (labelled) ctx.fillText(`avg ${formatPace(avg)}`, start, footY);
-    else ctx.fillText(`avg ${formatPace(avg)}`, start, ay - p(4));
+    // Under the chart, on the side the heart-rate range doesn't use. Beside the line
+    // it needed the gutter, which is narrower than the label.
+    ctx.fillText(`avg ${formatPace(avg)}`, start, footY);
   }
   ctx.shadowBlur = 0;
 }
@@ -2464,7 +2518,8 @@ export async function renderShareCard(
     editorChart: opts.editorChart ?? false,
     timeLtr: opts.timeLtr ?? false,
     splitMode: opts.splitMode ?? 'km',
-    coreOnly: opts.coreOnly ?? true,
+    paceLabels: opts.paceLabels ?? true,
+    targets: opts.targets ?? false,
     shadow: transparent ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.45)',
     shadowBlur: transparent ? 28 : 16,
     accent: ACCENT_HEX[opts.accent ?? 'white'],

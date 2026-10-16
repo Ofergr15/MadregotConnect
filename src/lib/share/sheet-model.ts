@@ -118,7 +118,23 @@ export function canPlanSplit(subject: ShareSubject): boolean {
  * else the laps, else the kilometres.
  */
 export function defaultSplitMode(subject: ShareSubject): SplitMode {
-  return canPlanSplit(subject) ? 'plan' : canSegment(subject) ? 'segments' : 'km';
+  return canPlanSplit(subject) ? 'blocks' : canSegment(subject) ? 'segments' : 'km';
+}
+
+/**
+ * The chart's choices for this run, in the order the control shows them. A run the
+ * watch drove gets the workout two ways and the kilometres; its laps are the same
+ * steps cut worse, so they are not offered as a fourth. Fewer than two: no control.
+ */
+export function splitModes(subject: ShareSubject): SplitMode[] {
+  if (canPlanSplit(subject)) return ['blocks', 'full', 'km'];
+  if (canSegment(subject)) return ['segments', 'km'];
+  return ['km'];
+}
+
+/** Whether any step of the run carries a target to show under its pace. */
+export function hasTargets(subject: ShareSubject): boolean {
+  return subject.kind === 'workout' && !!subject.item.activity?.stepBands?.some(s => s.target != null);
 }
 
 /** Whether the segments chart has heart rate to draw behind its bars. */
@@ -200,6 +216,9 @@ export function supportsAccent(subject: ShareSubject, look: ShareLook): boolean 
 export function defaultTemplate(subject: ShareSubject): ShareTemplate {
   if (subject.kind === 'week') return FRAME_TEMPLATE[defaultFrame(subject)];
   const ok = new Set(shareTemplates(subject).filter(v => v.available).map(v => v.key));
+  // A session the watch ran opens on its blocks: that is what it is shared for, and
+  // the chart is where the session's shape is (2026-10-16).
+  if (ok.has('splits') && canPlanSplit(subject)) return 'splits';
   return ok.has('route') ? 'route' : ok.has('splits') ? 'splits' : 'statsBar';
 }
 

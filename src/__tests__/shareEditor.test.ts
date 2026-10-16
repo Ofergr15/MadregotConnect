@@ -276,12 +276,16 @@ describe('the lap chart in the editor', () => {
   });
 
   it('hands the trace to the run\'s own athlete only, and only when asked', () => {
-    expect(DETAILS).toMatch(/searchParams\.get\('include'\) === 'hr' && caller\.athleteId && caller\.athleteId === r\.athlete_id/);
+    expect(DETAILS).toMatch(/const own = !!caller\.athleteId && caller\.athleteId === r\.athlete_id;/);
+    expect(DETAILS).toMatch(/if \(include\.has\('hr'\) && own\)/);
+    // The steps carry the athlete's targets — their plan — so the same gate holds.
+    expect(DETAILS).toMatch(/if \(include\.has\('steps'\) && own\)/);
   });
 
   it('asks for it only when the laps carry heart rate, so hidden heart rate stays hidden', () => {
     expect(EDITOR).toMatch(/const hrWanted = canHrLine\(\{ kind: 'workout', item: given \}\);/);
-    expect(EDITOR).toMatch(/fetchActivityDetails\(givenId, null, 'hr'\)/);
+    expect(EDITOR).toMatch(/const include = \[hrWanted && 'hr', stepsWanted && 'steps'\]/);
+    expect(EDITOR).toMatch(/fetchActivityDetails\(givenId, null, include\)/);
   });
 
   it('is the editor\'s alone until rollout: the club\'s sheet keeps its chart', () => {

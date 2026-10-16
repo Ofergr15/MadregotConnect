@@ -20,6 +20,12 @@
  * `include=hr` adds `hrTrace`, the watch's heart rate thinned to ~240 points, for
  * the share card's lap chart. To the run's OWN athlete only: teammates see a
  * lap's average heart rate and nothing finer, and this does not change that.
+ *
+ * `include=steps` (comma-joinable with `hr`) adds `stepBands`: the run cut by the
+ * workout the watch ran, with each step's target at the athlete's lane, for the share
+ * card's blocks chart. The feed already carries the cut, but not the targets and not
+ * the repeat lengths, which need the step list (`executed_workout`). Own run only, as
+ * with `hr` — the targets are the athlete's plan.
  */
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
@@ -29,6 +35,11 @@ import { displaySplits } from '@/lib/activities/km-splits';
 import { perKmFromStream } from '@/lib/activities/stream-per-km';
 import { loadActivityStream } from '@/lib/garmin/stream-store';
 import { thinHrTrace, type HrTrace } from '@/lib/share/hr-trace';
+import { normalizeStoredLaps } from '@/lib/garmin/laps';
+import type { ExecutedWorkout } from '@/lib/garmin/executed-workout';
+import { segmentsFromSteps, withTargets, type PlanSegment } from '@/lib/share/plan-segments';
+import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
+import type { Lane } from '@/lib/academy/group-lane';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,10 +124,26 @@ export async function GET(request: Request) {
       }
     }
 
+    const include = new Set((searchParams.get('include') ?? '').split(',').filter(Boolean));
+    const own = !!caller.athleteId && caller.athleteId === r.athlete_id;
     let hrTrace: HrTrace | undefined;
-    if (searchParams.get('include') === 'hr' && caller.athleteId && caller.athleteId === r.athlete_id) {
+    if (include.has('hr') && own) {
       const series = (await loadActivityStream(supabase, r.id))?.series;
       hrTrace = series ? thinHrTrace(series.d, series.hr) : [];
+    }
+    let stepBands: PlanSegment[] | null | undefined;
+    if (include.has('steps') && own) {
+      // Its own read: `executed_workout` is migration 095, and an unapplied column
+      // must cost the targets, not the whole detail response.
+      const { data: ew } = await supabase
+        .from('athlete_activities').select('executed_workout').eq('id', r.id).maybeSingle();
+      // Stored already narrowed (see the segments route), so it is read as it is.
+      const stored = (ew as { executed_workout?: ExecutedWorkout | null } | null)?.executed_workout ?? null;
+      const workout = stored && Array.isArray(stored.steps) ? stored : null;
+      const segments = segmentsFromSteps(normalizeStoredLaps(r.laps), workout);
+      stepBands = segments
+        ? withTargets(segments, workout, (await groupNumberForAthlete(supabase, r.athlete_id)) as Lane)
+        : null;
     }
 
     // The summary row, shaped like the list endpoint's rows so the detail UI can
@@ -137,6 +164,7 @@ export async function GET(request: Request) {
       source: r.source || 'strava',
       activity,
       ...(hrTrace ? { hrTrace } : {}),
+      ...(stepBands !== undefined ? { stepBands } : {}),
     });
   } catch (error: any) {
     console.error('Activity details error:', error);
