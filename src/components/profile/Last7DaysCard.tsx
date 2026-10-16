@@ -10,7 +10,6 @@ import {
   type Last7Report,
 } from '@/lib/reports/last-7-days';
 import { ShareSheet } from '@/components/ShareSheet';
-import { useIsSuperUser } from '@/lib/impersonation';
 
 /**
  * The seven-day report card — the screen behind the Saturday 18:00 push.
@@ -33,8 +32,8 @@ export function Last7DaysCard({ report, athleteName }: { report: Last7Report; at
   const tc = useTranslations('common');
   const dayNames = tc.raw('dayNamesShort') as string[];
   const [sharing, setSharing] = useState(false);
-  // A day with a run opens it (#94), for the super user until rollout.
-  const opensRuns = useIsSuperUser();
+  // A day with a run opens it (#94) — for everyone since 2026-10-16.
+  const opensRuns = true;
 
   const peak = Math.max(...report.days.map((d) => d.km), 1);
   const fd = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;

@@ -18,7 +18,6 @@ import { SetupProgressCard } from '@/components/onboarding/SetupProgressCard';
 import { PhotoLightbox } from '@/components/PhotoLightbox';
 import type { FeedItem } from '@/lib/feed/project';
 import type { Last7Report } from '@/lib/reports/last-7-days';
-import { useIsSuperUser } from '@/lib/impersonation';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The Profile screen exactly as the designer drew it (Figma frame "Home",
@@ -117,9 +116,9 @@ export function ProfileOverview({
   // card behind it only when there IS a second one.
   const { data: updates } = useApi<{ items: FeedItem[] }>('/api/feed?types=announcement&limit=2');
   // The runs behind the week strip (#94): the same stats request the profile body
-  // below makes, key for key, so SWR answers both with one fetch. The super
-  // user's only until rollout.
-  const opensRuns = useIsSuperUser();
+  // below makes, key for key, so SWR answers both with one fetch. Everyone's since
+  // 2026-10-16 (the super user's only before).
+  const opensRuns = true;
   const { data: stats } = useApi<{ last7?: Last7Report }>(
     opensRuns && athleteId ? `/api/athletes/${athleteId}/stats` : null,
   );

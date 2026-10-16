@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { buildLast7Report } from '@/lib/reports/last-7-days';
 
 /**
- * TAP A DAY, GET THE RUN (feedback #94), for the super user until rollout.
+ * TAP A DAY, GET THE RUN (feedback #94) — for everyone since 2026-10-16.
  */
 describe('a day on the profile opens its run', () => {
   it('carries the day\'s runs, longest first, and nothing on a rest day', () => {
@@ -18,12 +18,15 @@ describe('a day on the profile opens its run', () => {
     expect(r.days.find(d => d.date === '2026-09-30')!.activities).toEqual([]);
   });
 
-  it('is a link on the week strip and on the seven-day bars, for the super user only', () => {
+  it('is a link on the week strip and on the seven-day bars, for everyone', () => {
     const overview = readFileSync('src/components/profile/ProfileOverview.tsx', 'utf8');
     expect(overview).toMatch(/opensRuns && athleteId \? `\/api\/athletes\/\$\{athleteId\}\/stats` : null/);
     expect(overview).toMatch(/<Link href=\{`\/dashboard\/activities\/\$\{run\.id\}`\} aria-label=\{openLabel\}/);
     const card = readFileSync('src/components/profile/Last7DaysCard.tsx', 'utf8');
     expect(card).toMatch(/const run = opensRuns \? d\.activities\?\.\[0\] : undefined;/);
+    // Rolled out: no super-user gate left on either.
+    expect(overview).toMatch(/const opensRuns = true;/);
+    expect(card).toMatch(/const opensRuns = true;/);
     // The profile body asks for the same key, so the strip costs no request.
     expect(readFileSync('src/components/profile/AthleteProfileBody.tsx', 'utf8')).toMatch(/athleteId \? `\/api\/athletes\/\$\{athleteId\}\/stats` : null/);
   });
