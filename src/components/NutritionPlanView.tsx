@@ -82,7 +82,8 @@ export function NutritionPlanView({ url, title, onTextAvailable }: Props) {
       try {
         // Same dynamic import and worker path as PlanPdfViewer — pdf.js must not
         // sit in the chunk every screen in the app pays for.
-        const pdfjs = await import('pdfjs-dist');
+        // Legacy build, as in PlanPdfViewer: iOS 18 Safari lacks what the modern one uses.
+        const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
         pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
         const doc = await pdfjs.getDocument({ url }).promise;
         const lines: TextLine[] = [];

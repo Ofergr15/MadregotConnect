@@ -22,7 +22,12 @@ const require = createRequire(import.meta.url);
 // Resolve through the package rather than hardcoding node_modules — works the same
 // under npm, a hoisted monorepo, or pnpm's symlinked store.
 const pkg = require.resolve('pdfjs-dist/package.json');
-const src = join(dirname(pkg), 'build', 'pdf.worker.min.mjs');
+// The LEGACY build, to match the legacy library the viewers import: pdf.js 6's
+// modern build calls Map.prototype.getOrInsertComputed (ES2026), which Safari 18 —
+// iOS 18 iPhones — does not have, so the program PDF threw "getOrInsertComputed is
+// not a function" there (client_events, 2026-10-16). The legacy build carries the
+// core-js polyfill. Worker and library must be the same build.
+const src = join(dirname(pkg), 'legacy', 'build', 'pdf.worker.min.mjs');
 const destDir = join(process.cwd(), 'public');
 const dest = join(destDir, 'pdf.worker.min.mjs');
 

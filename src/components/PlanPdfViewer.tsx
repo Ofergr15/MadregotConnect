@@ -156,7 +156,9 @@ export function PlanPdfViewer({ url, title }: Props) {
         // Dynamic, so pdf.js (~350 KB gzipped, plus a 1.2 MB worker) is fetched
         // only by someone who actually opened a plan — it must not sit in the
         // shared chunk every screen in the app pays for.
-        const pdfjs = await import('pdfjs-dist');
+        // The legacy build: it polyfills what pdf.js 6 uses and iOS 18 Safari lacks
+        // (Map.prototype.getOrInsertComputed). See scripts/copy-pdf-worker.mjs.
+        const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
         pdfjs.GlobalWorkerOptions.workerSrc = WORKER_SRC;
         task = pdfjs.getDocument({ url });
         const doc = await task.promise;
