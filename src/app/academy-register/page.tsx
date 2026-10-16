@@ -1,14 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { GraduationCap } from 'lucide-react';
+import { ChevronLeft, GraduationCap } from 'lucide-react';
 import { Spinner } from '@/components/ui';
-import { CARD, SHADOW } from '@/components/trainee/ui';
+import { CARD, NumberRuns } from '@/components/trainee/ui';
 import { cn } from '@/lib/utils';
 import { CLOTHING_SIZES } from '@/lib/kit-sizes';
 import { EU_SHOE_SIZES } from '@/lib/shoe-catalog';
 import { formNameProblem, normalizeDisplayName } from '@/lib/names/latin';
 import { HONEYPOT_FIELD, looksLikeToken, numberOnly, splitName } from '@/lib/academy/intake';
+import { GROUP_DISPLAY, GROUP_TINT } from '@/lib/academy/intake-display';
 
 // Mirrors the current Google Form "שאלון אישי להצטרפות אל Madregot Academy".
 // Structured name/email/phone are lifted into columns; everything else is stored
@@ -91,11 +92,13 @@ const FIELDS: Field[] = [
 
 // Twenty-three questions on one phone screen is a scroll nobody finishes from an
 // Instagram link. Four short pages, each checked before the next, same questions.
-const STEPS: { title: string; keys: string[] }[] = [
-  { title: 'הפרטים שלך', keys: ['firstName', 'lastName', 'email', 'phone'] },
-  { title: 'קצת עליך', keys: ['focus', 'birthDate', 'weight', 'height', 'city'] },
-  { title: 'הריצה שלך', keys: ['runningHistory', 'group', 'achievements', 'hearAbout', 'hearAboutOther'] },
-  { title: 'בריאות ומידות', keys: ['medicalHistory', 'medicalDetails', 'shirtSize', 'pantsSize', 'tightsSize', 'shoeSize'] },
+// v3 (academy-form-v3.html): "מה מדבר אליך יותר" moved up to the first page, because
+// it is the answer the manager reads first. `name` is the step's word under the bar.
+const STEPS: { title: string; name: string; sub: string; keys: string[] }[] = [
+  { title: 'הפרטים שלך', name: 'פרטים', sub: 'ממלאים פעם אחת, ונחזור אליך בימים הקרובים', keys: ['firstName', 'lastName', 'email', 'phone', 'focus'] },
+  { title: 'קצת עליך', name: 'עליך', sub: 'כמה פרטים כדי שנכיר אותך', keys: ['birthDate', 'weight', 'height', 'city'] },
+  { title: 'הריצה שלך', name: 'הריצה', sub: 'כדי שנשבץ אותך בדבוקה הנכונה', keys: ['runningHistory', 'group', 'achievements', 'hearAbout', 'hearAboutOther'] },
+  { title: 'בריאות ומידות', name: 'בריאות ומידות', sub: 'אחרון, ואנחנו בקשר', keys: ['medicalHistory', 'medicalDetails', 'shirtSize', 'pantsSize', 'tightsSize', 'shoeSize'] },
 ];
 const FIELD_BY_KEY = new Map(FIELDS.map(f => [f.key, f]));
 
@@ -120,11 +123,10 @@ function DateParts({ id, value, onChange }: { id: string; value: string; onChang
   const put = (ny: string, nm: string, nd: string) => onChange(ny || nm || nd ? `${ny}-${nm}-${nd}` : '');
   const thisYear = new Date().getFullYear();
   const years = Array.from({ length: thisYear - 10 - 1930 + 1 }, (_, i) => String(thisYear - 10 - i));
-  // The T5 choice tile (grey until picked), so the three wheels read as one answer
-  // inside the field's card rather than three boxes of their own.
-  const cls = 'w-full min-w-0 min-h-[44px] appearance-none rounded-[12px] bg-[#F2F2F6] px-2 text-center text-base font-bold text-ink-700 focus:outline-none focus:ring-2 focus:ring-brand-600';
+  // v3's white bordered field, one per wheel, so the three read as one answer.
+  const cls = 'w-full min-w-0 min-h-[48px] appearance-none rounded-[14px] border border-[#E6E6EC] bg-white px-2 text-center text-base font-semibold text-ink-900 focus:border-brand-600 focus:outline-none focus:ring-[3px] focus:ring-[#EEF0FF]';
   return (
-    <div id={id} role="group" aria-labelledby={`${id}-q`} className="mt-1.5 grid grid-cols-[1fr_1.6fr_1.3fr] gap-2">
+    <div id={id} role="group" aria-labelledby={`${id}-q`} className="grid grid-cols-[1fr_1.6fr_1.3fr] gap-2">
       <select aria-label="יום" value={d} onChange={e => put(y, m, e.target.value)} className={cls}>
         <option value="">יום</option>
         {Array.from({ length: 31 }, (_, i) => pad2(i + 1)).map(v => <option key={v} value={v}>{Number(v)}</option>)}
@@ -141,32 +143,66 @@ function DateParts({ id, value, onChange }: { id: string; value: string; onChang
   );
 }
 
-// ── T5 (mockup academy-launch-fixes.html) ────────────────────────────────────
-// A typed answer is a white "field" card with its question as the small grey line
-// above the value; a choice is a card with the question as its title and the
-// answers as tiles. Grey until picked, then the brand's light fill with an outline.
-const FIELD_CARD = cn('block rounded-[14px] bg-white px-3.5 pb-2 pt-[7px] focus-within:ring-2 focus-within:ring-brand-600', SHADOW);
-const CHOICE_CARD = cn(CARD, 'px-4 py-3.5');
-const FIELD_LABEL = 'block text-[11.5px] font-extrabold text-ink-400';
+// ── v3 (mockup academy-form-v3.html, "הטופס של המתאמן") ──────────────────────
+// White bordered fields on a light page; the focused one blue with a soft ring. A
+// typed answer carries its question as the small grey line inside the box; a choice
+// gets its question above it, after a thin blue bar, and its answers as rows that
+// turn blue when picked.
+const FIELD_BOX = 'block rounded-[14px] border border-[#E6E6EC] bg-white px-3.5 pb-2 pt-[9px] transition-shadow focus-within:border-brand-600 focus-within:ring-[3px] focus-within:ring-[#EEF0FF]';
+/** The field the shown error is about, so the eye lands on it. */
+const FIELD_BAD = 'border-accent-red';
+const FIELD_LABEL = 'block text-[12.5px] font-bold text-ink-400';
 // text-base and up: under 16px iOS Safari zooms the page on every focus, and this
 // form is opened from Instagram on a phone.
-const FIELD_INPUT = 'mt-px w-full min-h-[26px] bg-transparent p-0 text-base font-bold text-ink-900 placeholder:font-medium placeholder:text-ink-300 focus:outline-none';
-const tile = (on: boolean) => cn(
-  'min-h-[44px] rounded-[12px] text-[14px] font-extrabold transition-colors',
-  on ? 'bg-[#EEF0FF] text-brand-600 outline outline-2 outline-brand-600' : 'bg-[#F2F2F6] text-ink-500',
+const FIELD_INPUT = 'mt-[3px] w-full min-h-[24px] bg-transparent p-0 text-[16.5px] font-semibold text-ink-900 placeholder:font-medium placeholder:text-[#BFC0C9] focus:outline-none';
+/** The question over a choice, with v3's thin blue bar before it. */
+const QUESTION = "mx-0.5 mb-2 text-[14.5px] font-extrabold text-[#33343F] before:me-[7px] before:inline-block before:h-[13px] before:w-1 before:rounded-sm before:bg-brand-600 before:align-[-1px] before:content-['']";
+const row = (on: boolean) => cn(
+  'flex w-full min-h-[48px] items-center gap-3 rounded-[14px] border px-3.5 py-3 text-start text-[15px] font-semibold leading-snug text-ink-900 transition-colors',
+  on ? 'border-brand-600 bg-[#EEF0FF]' : 'border-[#E6E6EC] bg-white',
 );
-/** Short answers sit side by side as tiles; a sentence gets a full-width row. */
+/** Short answers sit two to a line; a sentence gets a full-width row. */
 const isShortChoice = (options: string[]) => options.every(o => o.length <= 12);
 
 function Required() {
   return <span className="text-accent-red"> *</span>;
 }
 
+/** The radio's ring: grey, then a thick blue ring when picked. */
+function Ring({ on }: { on: boolean }) {
+  return <span aria-hidden="true" className={cn('h-5 w-5 shrink-0 rounded-full', on ? 'border-[6px] border-brand-600' : 'border-2 border-[#BFC0C9]')} />;
+}
+
+/** One pack: its tinted number, a short name, and the line saying who it is for. */
+function GroupRow({ option, on, onPick }: { option: string; on: boolean; onPick: () => void }) {
+  const d = GROUP_DISPLAY[option];
+  const [bg, fg, line] = (d && GROUP_TINT[d.n]) || ['#F6F6F9', '#4A4B57', '#E6E6EC'];
+  return (
+    // The accessible name is the stored answer itself, so what a screen reader says
+    // and what the manager later reads are the same words.
+    <button type="button" role="radio" aria-checked={on} aria-label={option} onClick={onPick} className={row(on)}>
+      <span aria-hidden="true" className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[9px] border text-[14px] font-black"
+        style={{ background: bg, color: fg, borderColor: line }}>
+        {d ? <bdi dir="ltr">{d.n}</bdi> : '·'}
+      </span>
+      <span aria-hidden="true" className="min-w-0">
+        <NumberRuns text={d ? d.name : option} />
+        {d?.sub && <span className="mt-px block text-[12.5px] font-medium text-ink-400"><NumberRuns text={d.sub} /></span>}
+      </span>
+    </button>
+  );
+}
+
 export default function AcademyRegisterPage() {
   const [values, setValues] = useState<Record<string, any>>({});
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  // What the server said, when it said no. A field problem is NOT kept here: see `tried`.
   const [error, setError] = useState<string | null>(null);
+  // The page whose המשך was pressed with something missing. Its problem is worked out
+  // again on every render rather than frozen as a string, so it goes away the moment
+  // the field is filled — the old page said "אנא מלא/י: שם פרטי" under a filled name.
+  const [tried, setTried] = useState<number | null>(null);
   const [step, setStep] = useState(0);
   // Door A's personal link (?i=) and door B's source (?src=ig). Read from the URL
   // on mount rather than useSearchParams, which would need a Suspense boundary for
@@ -225,30 +261,30 @@ export default function AcademyRegisterPage() {
     set(k, cur.includes(opt) ? cur.filter(x => x !== opt) : [...cur, opt]);
   };
 
-  /** The first problem on one page, or null. */
-  const problemOn = (index: number): string | null => {
+  /** The first problem on one page, and the field it is about, or null. */
+  const problemOn = (index: number): { key: string; message: string } | null => {
     for (const key of STEPS[index].keys) {
       const f = FIELD_BY_KEY.get(key);
       if (!f?.required || !isShown(key)) continue;
       const v = values[f.key];
       const empty = f.type === 'checkboxes' ? !(v && v.length) : !(v && String(v).trim());
-      if (empty) return `אנא מלא/י: ${f.label}`;
-      if (f.type === 'date' && !isWholeDate(v)) return `אנא בחר/י יום, חודש ושנה: ${f.label}`;
+      if (empty) return { key, message: `אנא מלא/י: ${f.label}` };
+      if (f.type === 'date' && !isWholeDate(v)) return { key, message: `אנא בחר/י יום, חודש ושנה: ${f.label}` };
     }
     // Same rule the server enforces, said on the FIRST page so it is a correction
     // and not a rejection: nobody should fill in twenty fields and then be told no.
     if (STEPS[index].keys.includes('firstName')) {
       for (const key of ['firstName', 'lastName'] as const) {
-        if (formNameProblem(values[key]) === 'no-letters') return 'אנא כתבו את השם באותיות';
+        if (formNameProblem(values[key]) === 'no-letters') return { key, message: 'אנא כתבו את השם באותיות' };
       }
     }
     return null;
   };
 
   const next = () => {
-    const problem = problemOn(step);
-    if (problem) { setError(problem); return; }
     setError(null);
+    if (problemOn(step)) { setTried(step); return; }
+    setTried(null);
     setStep(s => Math.min(s + 1, STEPS.length - 1));
     window.scrollTo({ top: 0 });
   };
@@ -258,9 +294,9 @@ export default function AcademyRegisterPage() {
     // Enter on an early page moves on rather than submitting half a form.
     if (step < STEPS.length - 1) { next(); return; }
     for (let i = 0; i < STEPS.length; i++) {
-      const problem = problemOn(i);
-      if (problem) { setStep(i); setError(problem); return; }
+      if (problemOn(i)) { setStep(i); setTried(i); return; }
     }
+    setTried(null);
     setSubmitting(true);
     setError(null);
     try {
@@ -284,11 +320,11 @@ export default function AcademyRegisterPage() {
   };
 
 
-  if (canRegister === null) return <div className="min-h-screen bg-[#F4F4F8]" dir="rtl" />;
+  if (canRegister === null) return <div className="min-h-screen bg-[#F6F6F9]" dir="rtl" />;
 
   if (!canRegister) {
     return (
-      <div className="min-h-screen bg-[#F4F4F8] flex items-center justify-center p-4" dir="rtl">
+      <div className="min-h-screen bg-[#F6F6F9] flex items-center justify-center p-4" dir="rtl">
         <div className={cn(CARD, 'w-full max-w-md p-6 sm:p-8 text-center')}>
           <GraduationCap className="h-12 w-12 text-brand-600 mx-auto mb-3" />
           <h2 className="text-lg font-bold text-ink-700">ההרשמה סגורה כרגע</h2>
@@ -302,7 +338,7 @@ export default function AcademyRegisterPage() {
 
   if (done) {
     return (
-      <div className="min-h-screen bg-[#F4F4F8] flex items-start justify-center p-4 pt-[18vh]" dir="rtl">
+      <div className="min-h-screen bg-[#F6F6F9] flex items-start justify-center p-4 pt-[18vh]" dir="rtl">
         <div className={cn(CARD, 'w-full max-w-md p-6 sm:p-8 text-center')}>
           {/* The club's own logo, not a generic check: this is the first thing of
               ours a stranger sees after sending, and often the only one for days. */}
@@ -317,35 +353,73 @@ export default function AcademyRegisterPage() {
   }
 
   const last = step === STEPS.length - 1;
+  // Live: recomputed from the values on every render, so it clears as the field is fixed.
+  const problem = tried === step ? problemOn(step) : null;
+  const shownKeys = STEPS[step].keys.filter(isShown);
+
+  /** A typed answer: the whole box is the <label>, so a tap anywhere on it focuses the
+   *  input, and a screen reader reads the question and not the placeholder. */
+  const typed = (f: Field) => {
+    const ltr = f.type === 'email' || f.type === 'tel';
+    return (
+      <label key={f.key} htmlFor={`ar-${f.key}`} className={cn(FIELD_BOX, problem?.key === f.key && FIELD_BAD)}>
+        <span className={FIELD_LABEL}>{f.label}{f.required && <Required />}</span>
+        <input
+          id={`ar-${f.key}`} type={f.type === 'number' ? 'text' : f.type} value={values[f.key] || ''} placeholder={(f as any).placeholder || 'התשובה שלך'}
+          inputMode={(f as any).inputMode}
+          pattern={f.type === 'number' ? ((f as any).inputMode === 'decimal' ? '[0-9]*[.,]?[0-9]*' : '[0-9]*') : undefined}
+          autoComplete={f.type === 'number' ? 'off' : undefined}
+          aria-invalid={problem?.key === f.key || undefined}
+          // An address and a phone number are LTR runs; typed into an RTL box
+          // they jump around as they grow. Right-aligned, so they still sit
+          // under the question.
+          dir={ltr ? 'ltr' : undefined}
+          onChange={e => set(f.key, f.type === 'number' ? numberOnly(e.target.value, (f as any).inputMode === 'decimal') : e.target.value)}
+          className={cn(FIELD_INPUT, ltr && 'text-right')}
+        />
+      </label>
+    );
+  };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#F4F4F8]" dir="rtl">
-      {/* T5's bar: the form's name, centred, on the iOS translucent white. The step
-          sits under it so "how much is left" is on screen the whole way down. */}
-      <header className="safe-top sticky top-0 z-20 border-b border-[#E9E9EF] bg-white/95 backdrop-blur">
-        <div className="mx-auto max-w-lg px-4">
-          <h1 className="flex h-[52px] items-center justify-center text-[17px] font-extrabold text-ink-900">הרשמה לאקדמיה</h1>
-          <div className="pb-2.5" aria-live="polite">
-            <div className="mb-1.5 flex items-center justify-between text-[13px] font-extrabold text-ink-700">
-              <span>{STEPS[step].title}</span>
-              <span className="font-bold text-ink-400"><bdi dir="ltr">{step + 1}/{STEPS.length}</bdi></span>
+    <div className="flex min-h-screen flex-col bg-[#F6F6F9]" dir="rtl">
+      {/* v3's header: the academy's name and the step on the right, the club's logo on
+          the left, on a soft blue that fades to white. Then the step's title, a thin bar
+          in four parts, and the four step names: done ones green with a tick. */}
+      <header className="safe-top sticky top-0 z-20 border-b border-[#E6E6EC] bg-[linear-gradient(180deg,#F1F3FF_0%,#FFFFFF_100%)]">
+        <div className="mx-auto max-w-lg px-[18px] pb-3.5 pt-2" aria-live="polite">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[15px] font-black text-ink-900" dir="ltr">Madregot Academy</p>
+              <p className="mt-px text-[12.5px] font-bold text-ink-400">
+                שלב <bdi dir="ltr">{step + 1}</bdi> מתוך <bdi dir="ltr">{STEPS.length}</bdi>
+              </p>
             </div>
-            <div className="flex gap-1" aria-hidden="true">
-              {STEPS.map((_, i) => (
-                <div key={i} className={cn('h-1 flex-1 rounded-full', i <= step ? 'bg-brand-600' : 'bg-[#E2E2E8]')} />
-              ))}
-            </div>
+            <img src="/images/logo.png" alt="Madregot" width={40} height={40} className="h-10 w-auto object-contain" />
           </div>
+          <h1 className="mt-3 text-[22px] font-black leading-tight text-ink-900">{STEPS[step].title}</h1>
+          <p className="mt-0.5 text-[13.5px] text-ink-400">
+            {prefilled && step === 0 ? 'הפרטים שלך כבר מולאו. נשאר רק לספר לנו עליך.' : STEPS[step].sub}
+          </p>
+          <div className="mt-3 flex gap-[5px]" aria-hidden="true">
+            {STEPS.map((_, i) => (
+              <div key={i} className={cn('h-1 flex-1 rounded-full', i <= step ? 'bg-brand-600' : 'bg-[#E6E6EC]')} />
+            ))}
+          </div>
+          <ol className="mt-1.5 flex justify-between text-[11.5px] font-bold">
+            {STEPS.map((s, i) => (
+              <li key={s.name} aria-current={i === step ? 'step' : undefined}
+                className={i < step ? 'text-[#0E7A3C]' : i === step ? 'text-brand-600' : 'text-ink-400'}>
+                {i < step && '✓ '}{s.name}
+              </li>
+            ))}
+          </ol>
         </div>
       </header>
 
       {/* A column, so on a short page the foot still sits at the bottom of the screen. */}
       <form onSubmit={submit} className="mx-auto flex w-full max-w-lg flex-1 flex-col">
-        <div className="flex-1 space-y-2.5 px-4 pb-6 pt-3.5">
-          <p className="text-center text-[14px] leading-normal text-ink-500">
-            {prefilled ? 'הפרטים שלך כבר מולאו. נשאר רק לספר לנו עליך.' : 'ממלאים פעם אחת, ונחזור אליך בימים הקרובים.'}
-          </p>
-
+        <div className="flex-1 space-y-3 px-[18px] pb-6 pt-4">
           {/* The honeypot. Clipped to nothing rather than display:none, which some bots
               skip. NOT pushed off-screen with left:-10000px: in an RTL page the left is
               scrollable, so that made the page 10,390px wide and iOS slid the whole
@@ -356,79 +430,83 @@ export default function AcademyRegisterPage() {
               value={honeypot} onChange={e => setHoneypot(e.target.value)} />
           </div>
 
-          {STEPS[step].keys.filter(isShown).map(k => FIELD_BY_KEY.get(k)!).map(f => {
-            // A typed answer: the whole card is the <label>, so a tap anywhere on it
-            // focuses the input, and a screen reader reads the question and not the
-            // placeholder ("Daniel", "התשובה שלך") as the field's name.
-            if (f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number') {
-              const ltr = f.type === 'email' || f.type === 'tel';
+          {shownKeys.map(k => FIELD_BY_KEY.get(k)!).map(f => {
+            // First and last name share one line (v3).
+            if (f.key === 'lastName' && shownKeys.includes('firstName')) return null;
+            if (f.key === 'firstName' && shownKeys.includes('lastName')) {
               return (
-                <label key={f.key} htmlFor={`ar-${f.key}`} className={FIELD_CARD}>
-                  <span className={FIELD_LABEL}>{f.label}{f.required && <Required />}</span>
-                  <input
-                    id={`ar-${f.key}`} type={f.type === 'number' ? 'text' : f.type} value={values[f.key] || ''} placeholder={(f as any).placeholder || 'התשובה שלך'}
-                    inputMode={(f as any).inputMode}
-                    pattern={f.type === 'number' ? ((f as any).inputMode === 'decimal' ? '[0-9]*[.,]?[0-9]*' : '[0-9]*') : undefined}
-                    autoComplete={f.type === 'number' ? 'off' : undefined}
-                    // An address and a phone number are LTR runs; typed into an RTL box
-                    // they jump around as they grow. Right-aligned, so they still sit
-                    // under the question.
-                    dir={ltr ? 'ltr' : undefined}
-                    onChange={e => set(f.key, f.type === 'number' ? numberOnly(e.target.value, (f as any).inputMode === 'decimal') : e.target.value)}
-                    className={cn(FIELD_INPUT, ltr && 'text-right')}
-                  />
-                </label>
+                <div key="names" className="grid grid-cols-2 gap-2.5">
+                  {typed(f)}
+                  {typed(FIELD_BY_KEY.get('lastName')!)}
+                </div>
               );
             }
+            if (f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number') return typed(f);
+
             if (f.type === 'textarea') {
               return (
-                <label key={f.key} htmlFor={`ar-${f.key}`} className={FIELD_CARD}>
-                  <span className={FIELD_LABEL}>{f.label}{f.required && <Required />}</span>
-                  <textarea
-                    id={`ar-${f.key}`} value={values[f.key] || ''} rows={3} placeholder="התשובה שלך"
-                    onChange={e => set(f.key, e.target.value)}
-                    className={cn(FIELD_INPUT, 'resize-y py-1 leading-normal')}
-                  />
-                </label>
-              );
-            }
-            if (f.type === 'date' || f.type === 'select') {
-              return (
-                <div key={f.key} className={FIELD_CARD}>
-                  <span id={`ar-${f.key}-q`} className={FIELD_LABEL}>{f.label}{f.required && <Required />}</span>
-                  {f.type === 'date' && (
-                    <DateParts id={`ar-${f.key}`} value={values[f.key] || ''} onChange={v => set(f.key, v)} />
-                  )}
-                  {f.type === 'select' && (
-                    <select
-                      aria-labelledby={`ar-${f.key}-q`} value={values[f.key] || ''}
+                <div key={f.key}>
+                  <label htmlFor={`ar-${f.key}`} className={cn(QUESTION, 'block')}>{f.label}{f.required && <Required />}</label>
+                  <div className={cn(FIELD_BOX, 'pt-2', problem?.key === f.key && FIELD_BAD)}>
+                    <textarea
+                      id={`ar-${f.key}`} value={values[f.key] || ''} rows={3} placeholder="התשובה שלך"
+                      aria-invalid={problem?.key === f.key || undefined}
                       onChange={e => set(f.key, e.target.value)}
-                      className={cn(FIELD_INPUT, 'appearance-none', !values[f.key] && 'font-medium text-ink-300')}
-                    >
-                      <option value="" disabled>בחירה</option>
-                      {f.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  )}
+                      className={cn(FIELD_INPUT, 'mt-0 resize-y py-0.5 leading-normal')}
+                    />
+                  </div>
                 </div>
               );
             }
 
-            // A choice: the question as the card's title, the answers as tiles.
+            if (f.type === 'date') {
+              return (
+                <div key={f.key}>
+                  <p id={`ar-${f.key}-q`} className={QUESTION}>{f.label}{f.required && <Required />}</p>
+                  <DateParts id={`ar-${f.key}`} value={values[f.key] || ''} onChange={v => set(f.key, v)} />
+                </div>
+              );
+            }
+
+            if (f.type === 'select') {
+              // v3's picker row: the question small, the answer large, a chevron. The
+              // native select covers the whole row, so a tap anywhere opens the wheel.
+              return (
+                <div key={f.key} className={cn(FIELD_BOX, 'relative flex items-center justify-between', problem?.key === f.key && FIELD_BAD)}>
+                  <div className="min-w-0">
+                    <span id={`ar-${f.key}-q`} className={FIELD_LABEL}>{f.label}{f.required && <Required />}</span>
+                    <span className={cn('mt-[3px] block min-h-[24px] text-[16.5px]', values[f.key] ? 'font-bold text-ink-900' : 'font-medium text-[#BFC0C9]')}>
+                      {values[f.key] ? <bdi dir="ltr">{values[f.key]}</bdi> : 'בחירה'}
+                    </span>
+                  </div>
+                  <ChevronLeft aria-hidden="true" className="h-5 w-5 shrink-0 text-ink-400" />
+                  <select
+                    aria-labelledby={`ar-${f.key}-q`} value={values[f.key] || ''}
+                    onChange={e => set(f.key, e.target.value)}
+                    className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
+                  >
+                    <option value="" disabled>בחירה</option>
+                    {f.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </div>
+              );
+            }
+
+            // A choice: the question above, after the blue bar; the answers as rows.
             return (
-              <div key={f.key} className={CHOICE_CARD}>
-                <p id={`ar-${f.key}-q`} className="text-[15px] font-extrabold text-ink-900">
-                  {f.label}{f.required && <Required />}
-                </p>
+              <div key={f.key}>
+                <p id={`ar-${f.key}-q`} className={QUESTION}>{f.label}{f.required && <Required />}</p>
 
                 {f.type === 'radio' && (
                   <div role="radiogroup" aria-labelledby={`ar-${f.key}-q`}
-                    className={cn('mt-2', isShortChoice(f.options) ? 'grid grid-cols-2 gap-2' : 'flex flex-col gap-2')}>
+                    className={cn(isShortChoice(f.options) ? 'grid grid-cols-2 gap-2' : 'flex flex-col gap-2')}>
                     {f.options.map(opt => {
                       const on = values[f.key] === opt;
+                      if (f.key === 'group') return <GroupRow key={opt} option={opt} on={on} onPick={() => set(f.key, opt)} />;
                       return (
-                        <button key={opt} type="button" role="radio" aria-checked={on} onClick={() => set(f.key, opt)}
-                          className={cn(tile(on), !isShortChoice(f.options) && 'px-3.5 py-2.5 text-start leading-snug')}>
-                          {opt}
+                        <button key={opt} type="button" role="radio" aria-checked={on} onClick={() => set(f.key, opt)} className={row(on)}>
+                          <Ring on={on} />
+                          <span className="min-w-0">{opt}</span>
                         </button>
                       );
                     })}
@@ -436,11 +514,13 @@ export default function AcademyRegisterPage() {
                 )}
 
                 {f.type === 'chips' && (
-                  // Same data as a radio, as a wrapping row of tiles: four size
+                  // v3's one segmented row, XS to XXL. Same data as a radio: four size
                   // questions as stacked rows is twenty-four rows of nearly identical
                   // text, which buries the medical question above them.
-                  <div role="group" aria-labelledby={`ar-${f.key}-q`} className="mt-2 grid grid-cols-6 gap-1.5" dir="ltr">
-                    {f.options.map(opt => {
+                  // In the page's own direction, as v3 draws it: XS at the right.
+                  <div role="group" aria-labelledby={`ar-${f.key}-q`}
+                    className="grid grid-cols-6 overflow-hidden rounded-[13px] border border-[#E6E6EC] bg-white">
+                    {f.options.map((opt, i) => {
                       const isSelected = values[f.key] === opt;
                       return (
                         <button
@@ -448,7 +528,11 @@ export default function AcademyRegisterPage() {
                           type="button"
                           onClick={() => set(f.key, opt)}
                           aria-pressed={isSelected}
-                          className={cn(tile(isSelected), 'px-0')}
+                          className={cn(
+                            'h-11 text-[14.5px] font-bold transition-colors',
+                            i > 0 && 'border-s border-[#E6E6EC]',
+                            isSelected ? 'bg-brand-600 text-white' : 'text-[#4A4B57]',
+                          )}
                         >
                           {opt}
                         </button>
@@ -458,12 +542,11 @@ export default function AcademyRegisterPage() {
                 )}
 
                 {f.type === 'checkboxes' && (
-                  <div role="group" aria-labelledby={`ar-${f.key}-q`} className="mt-2 flex flex-col gap-2">
+                  <div role="group" aria-labelledby={`ar-${f.key}-q`} className="flex flex-col gap-2">
                     {f.options.map(opt => {
                       const on = (values[f.key] || []).includes(opt);
                       return (
-                        <button key={opt} type="button" role="checkbox" aria-checked={on} onClick={() => toggle(f.key, opt)}
-                          className={cn(tile(on), 'px-3.5 py-2.5 text-start leading-snug')}>
+                        <button key={opt} type="button" role="checkbox" aria-checked={on} onClick={() => toggle(f.key, opt)} className={row(on)}>
                           {opt}
                         </button>
                       );
@@ -474,23 +557,25 @@ export default function AcademyRegisterPage() {
             );
           })}
 
-          {error && <p role="alert" className="text-center text-sm font-bold text-accent-red">{error}</p>}
+          {(problem || error) && (
+            <p role="alert" className="text-center text-sm font-bold text-accent-red">{problem?.message ?? error}</p>
+          )}
         </div>
 
-        {/* T5's foot: the one action, pinned to the bottom so it is never a scroll away. */}
-        <div className="safe-bottom sticky bottom-0 z-10 border-t border-[#E2E2E7] bg-[#F4F4F8]/95 backdrop-blur">
-          <div className="flex gap-2.5 px-4 pb-3 pt-2.5">
+        {/* v3's foot, pinned to the bottom so the action is never a scroll away. */}
+        <div className="safe-bottom sticky bottom-0 z-10 border-t border-[#E6E6EC] bg-[#F6F6F9]">
+          <div className="flex gap-2.5 px-[18px] pb-3 pt-3">
             {step > 0 && (
               <button type="button" disabled={submitting}
-                onClick={() => { setError(null); setStep(s => s - 1); window.scrollTo({ top: 0 }); }}
-                className={cn('h-[52px] flex-1 rounded-[15px] bg-white text-[16px] font-extrabold text-brand-600 disabled:opacity-50', SHADOW)}>
+                onClick={() => { setError(null); setTried(null); setStep(s => s - 1); window.scrollTo({ top: 0 }); }}
+                className="h-[54px] w-24 shrink-0 rounded-[15px] border border-[#E6E6EC] bg-white text-[16.5px] font-extrabold text-[#4A4B57] disabled:opacity-50">
                 חזרה
               </button>
             )}
             <button type="submit" disabled={submitting}
-              className="flex h-[52px] flex-[2] items-center justify-center gap-1.5 rounded-[15px] bg-brand-600 text-[16px] font-extrabold text-white active:bg-brand-700 disabled:opacity-60">
+              className="flex h-[54px] flex-1 items-center justify-center gap-1.5 rounded-[15px] bg-brand-600 text-[16.5px] font-extrabold text-white active:bg-brand-700 disabled:opacity-60">
               {submitting && <Spinner size={18} />}
-              {!last ? 'המשך' : submitting ? 'שולח…' : 'שליחה'}
+              {!last ? 'המשך' : submitting ? 'שולח…' : 'לשלוח'}
             </button>
           </div>
         </div>

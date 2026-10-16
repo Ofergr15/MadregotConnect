@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils';
 import { canApprove } from '@/lib/constants';
 import { Spinner, SkeletonList, EmptyState, ConfirmSheet } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { focusShort, groupTag, HEALTHY_ANSWER } from '@/lib/academy/intake-display';
+import { NumberRuns } from '@/components/trainee/ui';
 
 interface Registration {
   id: string;
@@ -64,6 +66,164 @@ export function birthDateLabel(v: unknown, now = new Date()): string {
 
 function initialsOf(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
+}
+
+// ── The answers, grouped (academy-form-v3.html, "מה המנהל רואה") ─────────────
+// One flat list of twenty "label: value" lines read like a database row. v3 sorts
+// them by what the reader is deciding: the running, the health, the person, the kit,
+// how to reach them. A question nobody answered is listed at the end, in grey, so
+// "did they skip it" is answerable without counting.
+
+/** Questions the form asks today, for the "לא ענה/תה" list. Name/email/phone are
+ *  columns, shown in the card's header and contact section instead. */
+const ASKED = [
+  'focus', 'birthDate', 'weight', 'height', 'city', 'group', 'runningHistory', 'achievements',
+  'medicalHistory', 'medicalDetails', 'hearAbout', 'hearAboutOther',
+  'shirtSize', 'pantsSize', 'tightsSize', 'shoeSize',
+] as const;
+/** Keys the grouped sections below draw themselves; anything else labelled goes to "עוד". */
+const GROUPED = new Set<string>([...ASKED, 'firstName', 'lastName']);
+
+const has = (v: unknown) => (Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined && String(v).trim() !== '');
+const say = (v: unknown) => (Array.isArray(v) ? v.join(', ') : String(v ?? '').trim());
+
+/** Follow-ups only count as unanswered when their question called for them. */
+function wasAsked(key: string, intake: Record<string, any>): boolean {
+  if (key === 'medicalDetails') return has(intake.medicalHistory) && intake.medicalHistory !== HEALTHY_ANSWER;
+  if (key === 'hearAboutOther') return intake.hearAbout === 'אחר';
+  return true;
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-[#E6E6EC] bg-white">
+      <h4 className="px-3.5 pb-1.5 pt-2.5 text-[12.5px] font-extrabold text-ink-400">{title}</h4>
+      {children}
+    </section>
+  );
+}
+
+function Rows({ rows }: { rows: Array<[string, React.ReactNode]> }) {
+  return (
+    <dl className="grid grid-cols-[auto_1fr] gap-x-3.5 gap-y-1.5 px-3.5 pb-3 text-[14.5px]">
+      {rows.map(([k, v]) => (
+        <div key={k} className="contents">
+          <dt className="whitespace-nowrap text-ink-400">{k}</dt>
+          <dd className="min-w-0 break-words font-bold text-ink-900" dir="auto">{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function Prose({ label, text }: { label: string; text: string }) {
+  return (
+    <div className="px-3.5 pb-3 text-[14.5px] leading-normal text-ink-900">
+      <span className="mb-px block text-[12.5px] font-bold text-ink-400">{label}</span>
+      <span className="whitespace-pre-line" dir="auto">{text}</span>
+    </div>
+  );
+}
+
+/** "דבוקה 7 · חצי מרתון", "און ליין + מפגשים", and a soft-yellow "עבר רפואי". */
+export function IntakeTags({ intake }: { intake: Record<string, any> | null | undefined }) {
+  if (!intake) return null;
+  const flagged = has(intake.medicalHistory) && intake.medicalHistory !== HEALTHY_ANSWER;
+  const tags = [groupTag(intake.group), focusShort(intake.focus)].filter(Boolean);
+  if (!tags.length && !flagged) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {tags.map(t => (
+        <span key={t} className="rounded-[9px] border border-[#E6E6EC] bg-white px-2.5 py-1 text-[12.5px] font-bold text-[#4A4B57]"><NumberRuns text={t} /></span>
+      ))}
+      {flagged && (
+        <span className="rounded-[9px] border border-[#F1DFB4] bg-[#FBF3E2] px-2.5 py-1 text-[12.5px] font-bold text-[#8A5A00]">עבר רפואי</span>
+      )}
+    </div>
+  );
+}
+
+export function IntakeAnswers({
+  intake,
+  phone,
+  email,
+  cityInHeader = false,
+}: {
+  intake: Record<string, any> | null | undefined;
+  /** The card's columns. Absent where the row above already shows them. */
+  phone?: string | null;
+  email?: string | null;
+  /** The card's header already says where they live. */
+  cityInHeader?: boolean;
+}) {
+  const a = intake ?? {};
+  const answered = (k: string) => has(a[k]);
+
+  const running = (['runningHistory', 'achievements'] as const).filter(answered);
+  const heightWeight = [
+    answered('height') ? <><bdi dir="ltr">{say(a.height)}</bdi> ס״מ</> : null,
+    answered('weight') ? <><bdi dir="ltr">{say(a.weight)}</bdi> ק״ג</> : null,
+  ].filter(Boolean);
+  const heard = a.hearAbout === 'אחר' && has(a.hearAboutOther) ? say(a.hearAboutOther) : answered('hearAbout') ? say(a.hearAbout) : '';
+  const about: Array<[string, React.ReactNode]> = [];
+  if (heightWeight.length) about.push(['גובה · משקל', <>{heightWeight.map((x, i) => <span key={i}>{i > 0 && ' · '}{x}</span>)}</>]);
+  if (answered('birthDate')) about.push(['תאריך לידה', <bdi key="b" dir="ltr">{birthDateLabel(a.birthDate)}</bdi>]);
+  if (!cityInHeader && answered('city')) about.push(['מקום מגורים', say(a.city)]);
+  if (heard) about.push(['שמע/ה עלינו', heard]);
+  const sizes = ([['shirtSize', 'חולצה'], ['pantsSize', 'מכנסיים'], ['tightsSize', 'טייץ'], ['shoeSize', 'נעליים']] as const);
+  const contact: Array<[string, React.ReactNode]> = [];
+  if (phone) contact.push(['נייד', <bdi key="p" dir="ltr">{phone}</bdi>]);
+  if (email) contact.push(['אימייל', <bdi key="e" dir="ltr" className="text-[13.5px]">{email}</bdi>]);
+  // Labelled answers an older form wrote (age, goal, strava…), so nothing goes missing.
+  const more = Object.entries(a)
+    .filter(([k]) => !RETIRED_KEYS.has(k)).filter(([k]) => k in LABELS)
+    .filter(([k, v]) => !GROUPED.has(k) && has(v));
+  const unanswered = ASKED.filter(k => wasAsked(k, a) && !answered(k));
+
+  return (
+    <div className="space-y-2.5" dir="rtl">
+      {running.length > 0 && (
+        <Section title="הריצה">
+          {answered('runningHistory') && <Prose label="רקע בשנה האחרונה" text={say(a.runningHistory)} />}
+          {answered('achievements') && <Prose label="הישגים" text={say(a.achievements)} />}
+        </Section>
+      )}
+      {answered('medicalHistory') && (
+        <Section title="בריאות">
+          <p className="px-3.5 pb-3 text-[14.5px] leading-normal text-ink-900" dir="auto">
+            <b className="font-extrabold">{say(a.medicalHistory)}</b>
+            {answered('medicalDetails') && <> · {say(a.medicalDetails)}</>}
+          </p>
+        </Section>
+      )}
+      {about.length > 0 && <Section title="עליו/ה"><Rows rows={about} /></Section>}
+      {sizes.some(([k]) => answered(k)) && (
+        <Section title="מידות לערכה">
+          <div className="grid grid-cols-4 gap-1.5 px-3.5 pb-3">
+            {sizes.map(([k, label]) => (
+              <div key={k} className="rounded-[10px] bg-[#F6F6F9] py-1.5 text-center">
+                <span className="block text-[11px] font-bold text-ink-400">{label}</span>
+                <bdi dir="ltr" className={cn('text-[15.5px] font-black', answered(k) ? 'text-ink-900' : 'text-ink-300')}>{answered(k) ? say(a[k]) : '—'}</bdi>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+      {contact.length > 0 && <Section title="פרטי קשר"><Rows rows={contact} /></Section>}
+      {more.length > 0 && (
+        <Section title="עוד">
+          <Rows rows={more.map(([k, v]) => [LABELS[k], say(v)] as [string, React.ReactNode])} />
+        </Section>
+      )}
+      {intake && unanswered.length > 0 && (
+        <Section title="לא ענה/תה">
+          <ul className="px-3.5 pb-3 text-[13.5px] leading-relaxed text-ink-400">
+            {unanswered.map(k => <li key={k}>{LABELS[k]}</li>)}
+          </ul>
+        </Section>
+      )}
+    </div>
+  );
 }
 
 const FORM_PATH = '/academy-register';
@@ -202,16 +362,11 @@ export function AcademyRegistrations() {
                 </div>
 
                 {open && r.intake && (
-                  <div className="border-t border-page/50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
-                    {/* Only keys with a Hebrew label are shown. An unknown key (a field the form
-                        gained before this map did, or one an old form wrote) used to print
-                        as raw English — `socksSize: M` in the middle of a Hebrew card. */}
-                    {Object.entries(r.intake).filter(([k]) => !RETIRED_KEYS.has(k)).filter(([k]) => k in LABELS).map(([k, v]) => (
-                      <div key={k} className="text-sm">
-                        <span className="text-ink-400">{LABELS[k]}: </span>
-                        <span className="text-ink-700">{k === 'birthDate' ? <bdi dir="ltr">{birthDateLabel(v)}</bdi> : Array.isArray(v) ? v.join(', ') : String(v || '—')}</span>
-                      </div>
-                    ))}
+                  // The same grouped answers as the candidate card (v3): the contact is
+                  // already on the row above, so it is not repeated here.
+                  <div className="space-y-2.5 border-t border-page/50 bg-[#F6F6F9] p-3">
+                    <IntakeTags intake={r.intake} />
+                    <IntakeAnswers intake={r.intake} />
                   </div>
                 )}
 
