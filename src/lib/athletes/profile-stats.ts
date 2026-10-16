@@ -178,6 +178,31 @@ export function buildAllTimeTotals<T extends RunActivityRow>(acts: T[]): AllTime
   };
 }
 
+export interface YearTotals {
+  year: number;
+  yearKm: number;
+  yearRuns: number;
+}
+
+/**
+ * Calendar-year totals for the profile's count row ("workouts this year", "km
+ * this year"). Same qualifying-run filter and whole-km rounding as the all-time
+ * trio, so the two can be compared on one screen. The year is read off the
+ * `start_time` STRING — it's wall clock stored as UTC, so a run at 00:30 on
+ * 1 January belongs to the new year, which an instant-based read would undo.
+ */
+export function buildYearTotals<T extends RunActivityRow>(acts: T[], year: number): YearTotals {
+  const prefix = `${year}-`;
+  let meters = 0;
+  let runs = 0;
+  for (const r of filterQualifyingRuns(acts)) {
+    if (!r.start_time.startsWith(prefix)) continue;
+    meters += r.distance;
+    runs += 1;
+  }
+  return { year, yearKm: Math.round(meters / 1000), yearRuns: runs };
+}
+
 /**
  * This week's km/runs, read off the km table rather than bucketing the raw
  * activities a second time — so the headline number and the highlighted column

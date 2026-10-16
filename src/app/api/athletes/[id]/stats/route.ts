@@ -9,6 +9,7 @@ import { readPrOverrides } from '@/lib/prs/overrides-store';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import {
   buildAllTimeTotals,
+  buildYearTotals,
   buildKmTable,
   buildRecentRuns,
   computeLikeForLikeTrend,
@@ -116,6 +117,9 @@ export async function GET(
 
     return NextResponse.json({
       ...buildAllTimeTotals(acts),
+      // Israel's calendar year, from the same anchor the weekly cut uses, so the
+      // count row turns over at local midnight on 1 January, not UTC's.
+      ...buildYearTotals(acts, Number(israelToday().slice(0, 4))),
       currentWeekStart,
       // Echoed so the screen can SAY which week it drew. A total the reader can't
       // reconcile is the original complaint; two legal windows with no label on

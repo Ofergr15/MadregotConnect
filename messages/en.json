@@ -1877,7 +1877,10 @@
     "runsNoneInMonth": "No runs this month",
     "runsPrevMonth": "Previous month",
     "runsNextMonth": "Next month",
-    "runsCount": "{count, plural, one {1 run} other {# runs}}"
+    "runsCount": "{count, plural, one {1 run} other {# runs}}",
+    "yearRuns": "Runs this year",
+    "yearKm": "km this year",
+    "allTime": "All time: {km} km · {runs} runs"
   },
   "profileBest": {
     "title": "Your Best",
@@ -5081,5 +5084,11 @@
     "unconfirmedBody": "This phone is registered again. If they still don't arrive, check that Madregot's notifications are allowed in your phone's settings.",
     "deniedBody": "Notifications are off in your phone's settings. Settings → Madregot → Notifications, then try here again.",
     "dismiss": "Dismiss"
+  },
+  "goalRace": {
+    "week": "week {week}/{total}",
+    "raceDay": "Race day! 🏁",
+    "weeksLeft": "<n>{count}</n> {count, plural, one {week to go} other {weeks to go}}",
+    "daysLeft": "<n>{count}</n> {count, plural, one {day to go} other {days to go}}"
   }
 }

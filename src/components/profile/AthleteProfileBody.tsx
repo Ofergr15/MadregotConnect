@@ -15,6 +15,7 @@ import { Last7DaysCard } from '@/components/profile/Last7DaysCard';
 import type { Last7Report } from '@/lib/reports/last-7-days';
 import { PrEditSheet } from '@/components/profile/PrEditSheet';
 import { RunsBrowser } from '@/components/profile/RunsBrowser';
+import { ProfileCounts } from '@/components/profile/ProfileCounts';
 import { useIsSuperUser } from '@/lib/impersonation';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -85,6 +86,8 @@ interface StatsData {
   totalKm: number;
   totalRuns: number;
   totalHours: number;
+  yearKm: number;
+  yearRuns: number;
   currentWeekStart: string;
   thisWeek: { km: number; runs: number };
   /** This week so far vs the same slice of last week. Null when last week had no runs. */
@@ -110,11 +113,6 @@ interface PublicProfile {
   coachName: string | null;
 }
 
-interface Connections {
-  followerCount: number;
-  followingCount: number;
-}
-
 export function AthleteProfileBody({
   athleteId,
   viewerId,
@@ -132,10 +130,6 @@ export function AthleteProfileBody({
 }) {
   const t = useTranslations('profile');
   const tc = useTranslations('common');
-  // `followers` / `following` already exist under `teammate` in both locales —
-  // reused rather than duplicated under `profile`, so the same two words can't
-  // end up translated two ways.
-  const tt = useTranslations('teammate');
   // The club records board owns its own copy, and the link into it should read the
   // same here as it does there.
   const tRecords = useTranslations('records');
@@ -149,11 +143,6 @@ export function AthleteProfileBody({
     athleteId ? `/api/athletes/${athleteId}/stats` : null,
   );
   const { data: profile } = useApi<PublicProfile>(athleteId ? `/api/athletes/${athleteId}/public` : null);
-  const { data: connections } = useApi<Connections>(
-    athleteId
-      ? `/api/athletes/${athleteId}/connections${viewerId ? `?viewerId=${encodeURIComponent(viewerId)}` : ''}`
-      : null,
-  );
 
   // The club trains to ONE weekly programme (weekly_plans is keyed on a single
   // coach), so the goal is the same number for every athlete and this needs no
@@ -194,22 +183,19 @@ export function AthleteProfileBody({
 
   return (
     <div className="space-y-5">
-      {/* ═══ THE TRIO — followers, following, all-time kilometres ═══ */}
-      <div className="rounded-card bg-card px-4 py-3">
-        <div className="grid grid-cols-3 [&>*+*]:border-s [&>*+*]:border-ink-300">
-          <TrioCell
-            value={connections?.followerCount ?? 0}
-            label={tt('followers')}
-            onClick={onFollowersClick}
+      {/* ═══ THE COUNT ROW — runs + km this year, followers, following ═══
+          Peer view only: on your own profile the same row sits inside the
+          header card (ProfileOverview), right above this. */}
+      {!owner && (
+        <div className="rounded-[20px] bg-card px-3 py-2.5">
+          <ProfileCounts
+            athleteId={athleteId}
+            viewerId={viewerId}
+            onFollowersClick={onFollowersClick}
+            onFollowingClick={onFollowingClick}
           />
-          <TrioCell
-            value={connections?.followingCount ?? 0}
-            label={tt('following')}
-            onClick={onFollowingClick}
-          />
-          <TrioCell value={stats?.totalKm ?? 0} label={t('totalKm')} />
         </div>
-      </div>
+      )}
 
       {/* ═══ THE BAND (דבוקה) ═══
           Two different things share that word in Hebrew: the pace group everyone
@@ -308,6 +294,13 @@ export function AthleteProfileBody({
             unit={tc('km')}
             badge={owner ? trendBadge : null}
           />
+          {/* All-time totals — the trio's third cell before the count row went
+              to this year's numbers. */}
+          {stats && stats.totalRuns > 0 && (
+            <p className="-mt-3 px-1 text-xs font-light text-ink-400">
+              {t('allTime', { km: stats.totalKm.toLocaleString('en-US'), runs: stats.totalRuns })}
+            </p>
+          )}
 
           {/* ═══ PERSONAL RECORDS ═══ */}
           {/* The owner sees this section even with nothing in it: the records are
@@ -540,25 +533,6 @@ export function AthleteProfileBody({
         />
       )}
     </div>
-  );
-}
-
-function TrioCell({ value, label, onClick }: { value: number; label: string; onClick?: () => void }) {
-  const body = (
-    <>
-      <span className="block text-2xl font-bold tabular-nums text-ink-700">{value}</span>
-      <span className="block text-xs font-light text-ink-400">{label}</span>
-    </>
-  );
-  // A cell with nothing behind it stays a plain div rather than a disabled
-  // button — a tappable-looking number that does nothing is worse than a static
-  // one, and the peer view genuinely has nowhere for these to go yet.
-  return onClick ? (
-    <button type="button" onClick={onClick} className="px-2 text-center active:opacity-70">
-      {body}
-    </button>
-  ) : (
-    <div className="px-2 text-center">{body}</div>
   );
 }
 

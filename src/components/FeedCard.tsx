@@ -93,7 +93,7 @@ export function AuthorRow({ item }: { item: FeedItem }) {
   const identity = (
     <>
       <span className="shrink-0 rounded-full" style={pack && pack.index >= 0 ? { boxShadow: `0 0 0 2px #fff, 0 0 0 4px ${pack.hex}` } : undefined}>
-        <FeedAvatar name={item.author.name} url={item.author.avatarUrl} className="h-10 w-10" />
+        <FeedAvatar name={item.author.name} url={item.author.avatarUrl} className="h-[34px] w-[34px]" />
       </span>
       <div className="min-w-0">
         <p className="text-[15px] font-bold text-ink-900 leading-tight truncate">{item.author.name}</p>
@@ -468,22 +468,22 @@ export function ActivityStatTiles({ act }: { act: NonNullable<FeedItem['activity
   return (
     // Open numbers, not boxed tiles (feed redesign 2026-10-12): the three figures
     // are the content, in a rounded face big enough to read at arm's length.
-    <div className="grid grid-cols-3 gap-2 mb-3">
+    <div className="grid grid-cols-3 gap-2 mb-2">
       <div>
-        <p className="text-xs text-ink-400 mb-0.5">{t('statDistance')}</p>
-        <p className="font-[ui-rounded,system-ui] text-[23px] font-bold leading-none tracking-tight text-ink-900 tabular-nums">
+        <p className="text-[11px] text-ink-400">{t('statDistance')}</p>
+        <p className="font-[ui-rounded,system-ui] text-[19px] font-bold leading-none tracking-tight text-ink-900 tabular-nums">
           {distKm}<span className="text-xs font-semibold text-ink-400 ms-0.5 tracking-normal">{t('km')}</span>
         </p>
       </div>
       <div>
-        <p className="text-xs text-ink-400 mb-0.5">{t('statPace')}</p>
-        <p className="font-[ui-rounded,system-ui] text-[23px] font-bold leading-none tracking-tight text-ink-900 tabular-nums">
+        <p className="text-[11px] text-ink-400">{t('statPace')}</p>
+        <p className="font-[ui-rounded,system-ui] text-[19px] font-bold leading-none tracking-tight text-ink-900 tabular-nums">
           {paceStr || '—'}<span className="text-xs font-semibold text-ink-400 ms-0.5 tracking-normal">{t('perKm')}</span>
         </p>
       </div>
       <div>
-        <p className="text-xs text-ink-400 mb-0.5">{t('statTime')}</p>
-        <p className="font-[ui-rounded,system-ui] text-[23px] font-bold leading-none tracking-tight text-ink-900 tabular-nums">{durationStr}</p>
+        <p className="text-[11px] text-ink-400">{t('statTime')}</p>
+        <p className="font-[ui-rounded,system-ui] text-[19px] font-bold leading-none tracking-tight text-ink-900 tabular-nums">{durationStr}</p>
         {showMoving && (
           <p className="text-2xs text-ink-400 tabular-nums mt-0.5">{movingStr} {t('statMoving')}</p>
         )}
@@ -509,7 +509,7 @@ export function ActivityChips({ act }: { act: NonNullable<FeedItem['activity']> 
   if (!anything) return null;
 
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs text-ink-400">
+    <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2 text-xs text-ink-400">
       {act.averageHr && (
         <span className="flex items-center gap-1">
           <Heart className="h-3 w-3 text-accent-red" />
@@ -576,11 +576,13 @@ function ActivityCard({
   const openDetail = () => router.push(`/dashboard/activities/${act.id}`);
 
   return (
-    <div className="bg-card rounded-[26px] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-      <div className="p-4">
+    <div className="bg-card rounded-[20px] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      {/* Compact pass (2026-10-16): 387px → ~260 for a run with a route, so two
+          runs fit on a phone screen instead of one. Same content, less air. */}
+      <div className="px-3.5 pt-3 pb-1">
         {/* AuthorRow stays outside the tap target — it has its own link to the
             runner's profile, and nesting the two would swallow it. */}
-        <div className="flex items-start gap-3 mb-3">
+        <div className="flex items-start gap-3 mb-1.5">
           <div className="flex-1 min-w-0">
             <AuthorRow item={item} />
           </div>
@@ -608,7 +610,7 @@ function ActivityCard({
           className="-mx-2 px-2 pt-1 pb-1 rounded-xl cursor-pointer transition-colors hover:bg-page/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
         >
           {act.activityName && (
-            <p className="text-lg text-ink-900 font-extrabold tracking-tight mb-2.5">{act.activityName}</p>
+            <p className="text-[15px] text-ink-900 font-extrabold tracking-tight mb-1">{act.activityName}</p>
           )}
 
           <ActivityStatTiles act={act} />
@@ -621,14 +623,14 @@ function ActivityCard({
               graded for the person looking (staff see everyone's, because that is
               the job), so a teammate's card carries no score to render rather than
               one that gets hidden here. See `loadFeedPlanVerdicts`. */}
-          <ExecutionBadge summary={act.planVerdict} showChevron />
+          <ExecutionBadge summary={act.planVerdict} showChevron className="mb-2 py-1.5" />
 
           {/* The rest of what the projection already ships — max HR, calories and
               the athlete's own effort rating were being fetched and thrown away. */}
           <ActivityChips act={act} />
 
           {act.routePreview && act.routePreview.length > 2 && (
-            <div className="mb-3 overflow-hidden rounded-[20px]">
+            <div className="mb-2 overflow-hidden rounded-[16px]">
               {/* paceBands is null for runs with no cached splits, which just
                   means the plain line — the reader's colour-by-pace setting
                   applies wherever the data exists. */}
@@ -682,7 +684,7 @@ function AchievementCard({
       <div className="absolute top-0 end-0 w-28 h-28 bg-band-3/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl pointer-events-none" />
 
       <div className="relative">
-        <div className="flex items-start gap-3 mb-3">
+        <div className="flex items-start gap-3 mb-1.5">
           <div className="flex-1 min-w-0">
             <AuthorRow item={item} />
           </div>
