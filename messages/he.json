@@ -1883,7 +1883,14 @@
     "allTime": "מאז ומעולם: {km} ק״מ · {runs} ריצות",
     "tabActivity": "פעילות",
     "tabPrs": "שיאים",
-    "activityEmpty": "עוד אין כאן פעילות"
+    "activityEmpty": "עוד אין כאן פעילות",
+    "chartAvg": "ממוצע {avg} {unit}",
+    "chartThisWeek": "השבוע (עד עכשיו)",
+    "chartWeekOf": "שבוע {date}",
+    "chartVsLast": "מול שבוע קודם",
+    "chartShowTable": "הטבלה המלאה",
+    "chartHideTable": "הסתרת הטבלה",
+    "chartVsSameDays": "מול אותם ימים"
   },
   "profileBest": {
     "title": "השיאים שלך",

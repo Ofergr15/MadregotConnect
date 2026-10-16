@@ -1883,7 +1883,14 @@
     "allTime": "All time: {km} km · {runs} runs",
     "tabActivity": "Activity",
     "tabPrs": "Records",
-    "activityEmpty": "No activity here yet"
+    "activityEmpty": "No activity here yet",
+    "chartAvg": "avg {avg} {unit}",
+    "chartThisWeek": "This week (so far)",
+    "chartWeekOf": "Week of {date}",
+    "chartVsLast": "vs previous week",
+    "chartShowTable": "Full table",
+    "chartHideTable": "Hide table",
+    "chartVsSameDays": "vs same days last week"
   },
   "profileBest": {
     "title": "Your Best",

@@ -295,7 +295,7 @@ export function AthleteProfileBody({
             title={t('lastTenWeeks')}
             emptyLabel={t('noKmHistory')}
             unit={tc('km')}
-            badge={owner ? trendBadge : null}
+            currentTrendPct={stats?.weekTrendPct ?? null}
           />
           {/* All-time totals — the trio's third cell before the count row went
               to this year's numbers. */}
@@ -305,67 +305,6 @@ export function AthleteProfileBody({
             </p>
           )}
 
-          {/* ═══ WEEK BY WEEK — the km table, formerly its own tab ═══ */}
-        <section className="rounded-card bg-card p-4">
-          <h2 className="text-xl font-bold text-ink-700">{t('lastTenWeeks')}</h2>
-          {weeks.length === 0 ? (
-            <p className="mt-3 text-sm font-light text-ink-400">{t('noKmHistory')}</p>
-          ) : (
-            <table className="mt-2 w-full text-sm">
-              <thead>
-                <tr className="text-start text-xs font-light text-ink-400">
-                  <th className="py-2 text-start font-light">{t('kmColWeek')}</th>
-                  <th className="py-2 text-end font-light">{t('kmColKm')}</th>
-                  <th className="py-2 text-end font-light">{t('kmColRuns')}</th>
-                  <th className="py-2 text-end font-light">{t('kmColPace')}</th>
-                  <th className="py-2 text-end font-light">{t('kmColChange')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-page">
-                {/* Newest week first: the table is read for "how am I doing now",
-                    and the chart above already tells the left-to-right story. */}
-                {weeks.slice().reverse().map((w) => (
-                  <tr key={w.weekStart} className={cn('tabular-nums', w.isCurrent && 'font-bold')}>
-                    <td className="whitespace-nowrap py-2 text-start">
-                      {/* A date is not RTL text. Without the bdi, he-IL bidi
-                          flips the day and month around the separator. */}
-                      <bdi dir="ltr">
-                        {new Date(`${w.weekStart}T12:00:00Z`).toLocaleDateString(locale, {
-                          day: 'numeric',
-                          month: 'short',
-                          timeZone: 'UTC',
-                        })}
-                      </bdi>
-                      {w.isCurrent && (
-                        <span className="ms-1.5 rounded-pill bg-band-1/15 px-1.5 py-0.5 text-3xs font-bold text-brand-600">
-                          {t('currentWeek')}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 text-end text-ink-700">{w.km}</td>
-                    <td className="py-2 text-end text-ink-500">{w.runs}</td>
-                    <td className="py-2 text-end text-ink-500">
-                      {w.paceSecPerKm != null ? <bdi dir="ltr">{formatPace(w.paceSecPerKm)}</bdi> : '—'}
-                    </td>
-                    <td className="py-2 text-end">
-                      {w.deltaPct == null ? (
-                        <span className="text-ink-400">—</span>
-                      ) : (
-                        // "+7%" renders as "7%+" in Hebrew flow without this.
-                        <bdi
-                          dir="ltr"
-                          className={w.deltaPct >= 0 ? 'text-accent-900' : 'text-band-3-ink'}
-                        >
-                          {w.deltaPct > 0 ? '+' : ''}{w.deltaPct}%
-                        </bdi>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
           {/* The super user tries the two Strava-like views; it moved here when
               the runs tab became the Activity feed. */}
           {superUser && athleteId && <RunsBrowser athleteId={athleteId} weeks={weeks} />}
@@ -498,16 +437,22 @@ function TenWeekChart({
   title,
   emptyLabel,
   unit,
-  badge,
+  currentTrendPct,
 }: {
   weeks: KmWeek[];
   title: string;
   emptyLabel: string;
   unit: string;
-  badge?: React.ReactNode;
+  /** This week so far against the same slice of last week (stats.weekTrendPct). */
+  currentTrendPct: number | null;
 }) {
+  const t = useTranslations('profile');
+  const locale = useLocale();
+  const [picked, setPicked] = useState<number | null>(null);
+  const [showTable, setShowTable] = useState(false);
+
   // The window is generated, so there are always ten rows — an athlete with no
-  // history has ten ZEROES, and ten flat bars under a "last 10 weeks" heading
+  // history has ten ZEROES, and a flat line under a "last 10 weeks" heading
   // reads as a broken chart rather than as "you haven't run yet".
   if (weeks.length === 0 || weeks.every((w) => w.runs === 0)) {
     return (
@@ -518,52 +463,192 @@ function TenWeekChart({
     );
   }
 
-  const peak = Math.max(...weeks.map((w) => w.km), 1);
-  const ran = weeks.filter((w) => w.runs > 0);
-  const avg = ran.length ? Math.round((ran.reduce((s, w) => s + w.km, 0) / ran.length) * 10) / 10 : 0;
+  // Strava's weekly chart (Ofer, 2026-10-16): one line, a dot per week, and the
+  // picked week's numbers at the top instead of a number over every bar. It
+  // replaced the bar chart AND the separate table card under the same title;
+  // the table is one tap away inside this card. Pace is deliberately not in
+  // the header (his call) — it stays a table column.
+  const last = weeks.length - 1;
+  const sel = picked ?? weeks.findIndex((w) => w.isCurrent);
+  const i = sel >= 0 ? sel : last;
+  const w = weeks[i];
+  // The current week is still running, so its change is like-for-like (this
+  // week so far against the same days last week); a finished week's is the
+  // whole-week delta the table has always shown.
+  const delta = w.isCurrent ? currentTrendPct : w.deltaPct;
+  const ran = weeks.filter((x) => x.runs > 0 && !x.isCurrent);
+  const avg = ran.length ? Math.round((ran.reduce((s, x) => s + x.km, 0) / ran.length) * 10) / 10 : 0;
+
+  // Geometry. Time runs left to right even in Hebrew — the row is dir="ltr",
+  // same rule as the bars this replaced.
+  const L = 40, R = 304, T = 14, B = 140, H = 170;
+  const top = Math.max(50, Math.ceil(Math.max(...weeks.map((x) => x.km)) / 50) * 50);
+  const x = (k: number) => L + ((R - L) * k) / Math.max(1, last);
+  const y = (v: number) => B - ((B - T) * v) / top;
+  const pts = weeks.map((x2, k) => [x(k), y(x2.km)] as const);
+  const done = weeks[last].isCurrent ? pts.slice(0, -1) : pts;
+  const line = (ps: readonly (readonly [number, number])[]) => 'M' + ps.map((p) => p.join(',')).join('L');
+  const dm = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+  const dateLabel = (iso: string) =>
+    new Date(`${iso}T12:00:00Z`).toLocaleDateString(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
   return (
     <section className="rounded-card bg-card p-4">
-      <div className="flex items-end justify-between">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xl font-bold text-ink-700">{title}</h2>
-          {badge}
-        </div>
-        <p className="text-xs font-light text-ink-400 tabular-nums">
-          <bdi dir="ltr">{avg}</bdi> {unit}
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-xl font-bold text-ink-700">{title}</h2>
+        <p className="shrink-0 text-xs font-light text-ink-400">
+          {t('chartAvg', { avg: avg.toString(), unit })}
         </p>
       </div>
-      {/* Columns are flex-1 rather than fixed: ten fixed columns plus gaps come
-          to more than a 320pt screen can give. */}
-      <div dir="ltr" className="mt-3 flex h-[104px] items-end justify-center gap-1">
-        {weeks.map((w) => (
-          <div key={w.weekStart} className="flex h-full min-w-0 flex-1 flex-col items-end justify-end">
-            <span
-              className={cn(
-                'mb-1 w-full text-center text-2xs font-bold tabular-nums',
-                w.isCurrent ? 'text-brand-600' : 'text-ink-400',
-              )}
-            >
-              {w.km}
-            </span>
-            <div
-              // One rule for both volume charts in the app (the other is
-              // VolumeHistory): the series is brand at /55 and the current period is
-              // full brand, so the emphasised bar is the DARKEST rather than a second
-              // hue. Grey bars beside a brand one made the emphasis colour-alone; the
-              // bold label above carries it too. Ported from the WeeklyVolumeCard this
-              // section replaced, which had the same fix applied to it.
-              className={cn('w-full rounded-t-[3px]', w.isCurrent ? 'bg-brand-600' : 'bg-brand-600/55')}
-              // Floor of 3px so a zero week is a visible baseline tick rather
-              // than a gap that reads as missing data.
-              style={{ height: `${Math.max(3, Math.round((w.km / peak) * 68))}px` }}
-            />
-            <span className="mt-1 w-full text-center text-2xs font-light tabular-nums text-ink-400">
-              {w.weekStart.slice(8, 10)}/{w.weekStart.slice(5, 7)}
-            </span>
-          </div>
-        ))}
+
+      <span className="mt-2.5 inline-block rounded-pill bg-band-1/15 px-2.5 py-0.5 text-xs font-bold text-brand-600">
+        {w.isCurrent ? t('chartThisWeek') : t('chartWeekOf', { date: dateLabel(w.weekStart) })}
+      </span>
+      <div className="mt-2 grid grid-cols-3">
+        <div>
+          <p className="text-xs font-light text-ink-400">{t('kmColKm')}</p>
+          <p className="text-[21px] font-extrabold tabular-nums text-ink-700">{w.km}</p>
+        </div>
+        <div>
+          <p className="text-xs font-light text-ink-400">{t('kmColRuns')}</p>
+          <p className="text-[21px] font-extrabold tabular-nums text-ink-700">{w.runs}</p>
+        </div>
+        <div>
+          {/* The current week's number is like-for-like, so it says so — the
+              table's whole-week column reads differently for the same row. */}
+          <p className="text-xs font-light text-ink-400">{w.isCurrent ? t('chartVsSameDays') : t('chartVsLast')}</p>
+          <p className="text-[21px] font-extrabold tabular-nums">
+            {delta == null ? (
+              <span className="text-ink-400">—</span>
+            ) : (
+              // "+7%" renders as "7%+" in Hebrew flow without the bdi.
+              <bdi dir="ltr" className={delta > 0 ? 'text-accent-900' : delta < 0 ? 'text-band-3-ink' : 'text-ink-700'}>
+                {delta > 0 ? '+' : ''}{delta}%
+              </bdi>
+            )}
+          </p>
+        </div>
       </div>
+
+      <svg
+        viewBox={`0 0 320 ${H}`}
+        // SVG coordinates are absolute, so the time axis already runs left to
+        // right; `direction` keeps any text inside it LTR in a Hebrew page.
+        style={{ direction: 'ltr' }}
+        className="mt-1 block w-full"
+        role="img"
+        aria-label={title}
+      >
+        {[0, top / 2, top].map((v) => (
+          <g key={v}>
+            <line x1={L} x2={R} y1={y(v)} y2={y(v)} stroke="rgba(60,60,67,.12)" strokeWidth={1} />
+            <text x={L - 6} y={y(v) + 4} textAnchor="end" fontSize={10} fill="#7C7D87">{v}</text>
+          </g>
+        ))}
+        {done.length > 1 && (
+          <path
+            d={`${line(done)}L${done[done.length - 1][0]},${B}L${done[0][0]},${B}Z`}
+            className="fill-brand-600/[0.08]"
+          />
+        )}
+        {done.length > 1 && (
+          <path d={line(done)} fill="none" className="stroke-brand-600" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        )}
+        {/* The week in progress: dashed, because its number will still grow. */}
+        {weeks[last].isCurrent && last > 0 && (
+          <path d={line([pts[last - 1], pts[last]])} fill="none" className="stroke-brand-600" strokeWidth={2} strokeDasharray="3 4" strokeLinecap="round" />
+        )}
+        <line x1={pts[i][0]} x2={pts[i][0]} y1={T - 4} y2={B} className="stroke-brand-600" strokeWidth={1} opacity={0.35} />
+        {weeks.map((wk, k) =>
+          k % 3 === 0 || k === last ? (
+            <text key={wk.weekStart} x={x(k)} y={B + 18} textAnchor="middle" fontSize={10} fill="#7C7D87">{dm(wk.weekStart)}</text>
+          ) : null,
+        )}
+        {pts.map(([cx, cy], k) => (
+          <circle
+            key={weeks[k].weekStart}
+            cx={cx}
+            cy={cy}
+            r={k === i ? 6 : 4}
+            className={k === i ? 'fill-brand-600 stroke-white' : 'fill-white stroke-brand-600'}
+            strokeWidth={k === i ? 2.5 : 2}
+          />
+        ))}
+        {/* Hit targets: a full-height column per week, wider than the dot. */}
+        {weeks.map((wk, k) => (
+          <rect
+            key={`hit-${wk.weekStart}`}
+            x={x(k) - 14}
+            y={0}
+            width={28}
+            height={H}
+            fill="transparent"
+            className="cursor-pointer outline-none"
+            role="button"
+            tabIndex={0}
+            aria-label={`${dateLabel(wk.weekStart)}: ${wk.km} ${unit}`}
+            aria-pressed={k === i}
+            onClick={() => setPicked(k)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPicked(k); } }}
+          />
+        ))}
+      </svg>
+
+      <div className="mt-1 flex justify-center">
+        <button
+          type="button"
+          onClick={() => setShowTable((v) => !v)}
+          aria-expanded={showTable}
+          className="min-h-[36px] rounded-pill bg-page px-3 text-xs font-bold text-ink-500 active:opacity-70"
+        >
+          {showTable ? t('chartHideTable') : t('chartShowTable')}
+        </button>
+      </div>
+
+      {showTable && (
+        <table className="mt-2 w-full text-sm">
+          <thead>
+            <tr className="text-start text-xs font-light text-ink-400">
+              <th className="py-2 text-start font-light">{t('kmColWeek')}</th>
+              <th className="py-2 text-end font-light">{t('kmColKm')}</th>
+              <th className="py-2 text-end font-light">{t('kmColRuns')}</th>
+              <th className="py-2 text-end font-light">{t('kmColPace')}</th>
+              <th className="py-2 text-end font-light">{t('kmColChange')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-page">
+            {/* Newest week first: the table is read for "how am I doing now". */}
+            {weeks.map((row, k) => ({ row, k })).reverse().map(({ row, k }) => (
+              <tr key={row.weekStart} className={cn('tabular-nums', k === i && 'font-bold')}>
+                <td className="whitespace-nowrap py-2 text-start">
+                  {/* A date is not RTL text: without the bdi, he-IL bidi flips
+                      the day and month around the separator. */}
+                  <bdi dir="ltr">{dateLabel(row.weekStart)}</bdi>
+                  {row.isCurrent && (
+                    <span className="ms-1.5 rounded-pill bg-band-1/15 px-1.5 py-0.5 text-3xs font-bold text-brand-600">
+                      {t('currentWeek')}
+                    </span>
+                  )}
+                </td>
+                <td className="py-2 text-end text-ink-700">{row.km}</td>
+                <td className="py-2 text-end text-ink-500">{row.runs}</td>
+                <td className="py-2 text-end text-ink-500">
+                  {row.paceSecPerKm != null ? <bdi dir="ltr">{formatPace(row.paceSecPerKm)}</bdi> : '—'}
+                </td>
+                <td className="py-2 text-end">
+                  {row.deltaPct == null ? (
+                    <span className="text-ink-400">—</span>
+                  ) : (
+                    <bdi dir="ltr" className={row.deltaPct >= 0 ? 'text-accent-900' : 'text-band-3-ink'}>
+                      {row.deltaPct > 0 ? '+' : ''}{row.deltaPct}%
+                    </bdi>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </section>
   );
 }
