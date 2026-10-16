@@ -18,7 +18,7 @@ vi.mock('@/lib/supabase/server', () => ({
     from: (table: string) => {
       const q: Record<string, unknown> = {};
       let range: [number, number] | null = null;
-      q.select = () => q; q.eq = () => q; q.or = () => q; q.in = () => q; q.gte = () => q;
+      q.select = () => q; q.eq = () => q; q.or = () => q; q.in = () => q; q.gte = () => q; q.gt = () => q;
       q.order = () => q;
       q.range = (a: number, b: number) => { range = [a, b]; return q; };
       q.limit = () => q;
