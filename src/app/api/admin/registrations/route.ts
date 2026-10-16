@@ -203,6 +203,16 @@ export async function GET(request: Request) {
       }
     }
 
+    // The name typed on the public form (131). Its own read, so a database without
+    // the column still gets the queue, only without names.
+    const fullNames = new Map<string, string>();
+    if (rows?.length) {
+      const { data: named } = await supabase.from('signup_requests').select('id, full_name').in('id', rows.map(r => r.id));
+      for (const n of (named || []) as Array<{ id: string; full_name: string | null }>) {
+        if (n.full_name?.trim()) fullNames.set(n.id, n.full_name.trim());
+      }
+    }
+
     const requests = (rows || []).map(r => {
       const athlete = (r.athlete_id ? byId.get(r.athlete_id) : null) || byEmail.get(String(r.email).toLowerCase()) || null;
       return {
@@ -222,6 +232,8 @@ export async function GET(request: Request) {
         // carries placeholderNameFromEmail(), so this is not proof of anything —
         // `stage` is. It is here because a person is easier to recognise by name.
         athleteName: athlete?.name || null,
+        // What they wrote on the form, for telling who an address belongs to.
+        fullName: fullNames.get(r.id) || null,
         hasStrava: !!athlete?.hasStrava,
         hasGarmin: !!athlete?.hasGarmin,
         lastSeenAt: athlete?.lastSeenAt || null,

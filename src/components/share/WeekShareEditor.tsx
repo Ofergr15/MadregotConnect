@@ -361,7 +361,7 @@ export function WeekShareEditor({ report, previous, nights, athleteName, onClose
       const sticker = state.background === 'sticker';
       const result = await shareCard(blob, `madregot-week-${report.to}.${sticker ? 'png' : 'jpg'}`);
       if (result === 'downloaded') setNotice(sticker ? ts('savedSticker') : ts('saved'));
-      else onClose();
+      else if (result === 'shared') onClose();
     } catch {
       setNotice(ts('shareError'));
     } finally {

@@ -72,6 +72,8 @@ interface Registration {
   /** The name they typed at /join, once they have. Before that it is the
    *  placeholder derived from their address, so never treat it as progress. */
   athleteName: string | null;
+  /** The name typed on the public form, when it asked (onboarding v2). */
+  fullName?: string | null;
   hasStrava: boolean;
   hasGarmin: boolean;
   /** Their invite link's token. A credential — see the route — so it is only ever
@@ -223,6 +225,9 @@ const FILTER_LABEL: Record<LogFilter, string> = {
 function identity(r: Registration): { text: string; isName: boolean } {
   if (isSyntheticAuthEmail(r.email)) return { text: r.athleteName || 'התחברות דרך Strava', isName: true };
   if ((r.stage === 'connected' || r.stage === 'done') && r.athleteName) return { text: r.athleteName, isName: true };
+  // The form's own name, with the address still under it: an address alone often
+  // does not say who the person is.
+  if (r.fullName) return { text: r.fullName, isName: true };
   return { text: r.email, isName: false };
 }
 
@@ -292,7 +297,7 @@ export default function RegistrationsQueue() {
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     const hit = (r: Registration) =>
-      !q || r.email.toLowerCase().includes(q) || (r.athleteName || '').toLowerCase().includes(q);
+      !q || r.email.toLowerCase().includes(q) || (r.athleteName || '').toLowerCase().includes(q) || (r.fullName || '').toLowerCase().includes(q);
     return sortForLogFilter(requests.filter(r => matchesLogFilter(r, active) && hit(r)), active);
   }, [requests, active, query]);
 
@@ -633,6 +638,9 @@ export default function RegistrationsQueue() {
                         <span dir={id.isName ? 'auto' : 'ltr'} className="block truncate text-[15px] font-bold text-ink-700 text-start">
                           {id.text}
                         </span>
+                        {id.isName && !isSyntheticAuthEmail(r.email) && (
+                          <span dir="ltr" className="block truncate text-xs text-ink-500 text-start">{r.email}</span>
+                        )}
                         <span className="block truncate text-xs text-ink-400">
                           {[
                             r.status === 'member' ? 'יש לו כבר חשבון' : r.groupName ? groupDisplayName(r.groupName) : 'ללא דבוקה',
@@ -804,6 +812,7 @@ function RegistrationCard({
         <SectionTitle>פרטים</SectionTitle>
         <div className="rounded-card bg-card px-4 divide-y divide-page">
           <KV label="מצב" value={PILL[state].label} />
+          {r.fullName && <KV label="שם בטופס" value={r.fullName} />}
           {!isSyntheticAuthEmail(r.email) && <KV label="אימייל" value={r.email} ltr />}
           {r.status !== 'member' && <KV label="דבוקה" value={r.groupName ? groupDisplayName(r.groupName) : 'ללא דבוקה'} />}
           {r.approvedAt && <KV label="אושר" value={`${shortDate(r.approvedAt)}${r.approvedBy ? ` · ${r.approvedBy}` : ''}`} />}

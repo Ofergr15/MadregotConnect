@@ -119,6 +119,8 @@ export default function QualitySessionPage() {
     toastTimer.current = setTimeout(() => setToastMsg(''), 2200);
   };
   const rootRef = useRef<HTMLDivElement>(null);
+  // Set when the card went out; read when the editor closes.
+  const shared = useRef(false);
   const top = () => rootRef.current?.scrollIntoView({ block: 'start' });
 
   const packs = useMemo(() => {
@@ -190,8 +192,12 @@ export default function QualitySessionPage() {
       setMarking(false);
     }
   };
+  // Only a card that went out counts the pack as done. Closing the editor without
+  // sharing (the X, or a dismissed share sheet) leaves him on the runner he was at.
   const closeShare = () => {
     setShareItem(null);
+    if (!shared.current) return;
+    shared.current = false;
     const next = { ...done, [pack]: true };
     setDone(next);
     const nxt = packs.find(p => !next[p] && byPack[p]?.length);
@@ -278,7 +284,9 @@ export default function QualitySessionPage() {
           )}
         </>
       )}
-      {shareItem && <ShareSheet subject={{ kind: 'workout', item: shareItem }} onClose={closeShare} />}
+      {shareItem && (
+        <ShareSheet subject={{ kind: 'workout', item: shareItem }} onClose={closeShare} onShared={() => { shared.current = true; }} />
+      )}
     </div>
   );
 }

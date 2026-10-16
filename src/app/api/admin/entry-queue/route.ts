@@ -80,14 +80,24 @@ async function readOrphanRequests(
     : first;
   if (error || !data) return [];
 
-  return (data as unknown as Array<Record<string, unknown>>)
-    .filter((r) => !r.athlete_id && !athleteEmails.has(String(r.email || '').toLowerCase().trim()))
+  const orphans = (data as unknown as Array<Record<string, unknown>>)
+    .filter((r) => !r.athlete_id && !athleteEmails.has(String(r.email || '').toLowerCase().trim()));
+  // The form's name (131), read on its own so a missing column costs only the names.
+  const fullNames = new Map<string, string>();
+  if (orphans.length) {
+    const { data: named } = await supabase.from('signup_requests').select('id, full_name').in('id', orphans.map((r) => r.id as string));
+    for (const n of (named || []) as Array<{ id: string; full_name: string | null }>) {
+      if (n.full_name?.trim()) fullNames.set(n.id, n.full_name.trim());
+    }
+  }
+  return orphans
     .map((r) => ({
       id: r.id as string,
       email: (r.email as string) || '',
       source: (r.source as string) ?? null,
       createdAt: (r.created_at as string) || null,
       groupId: (r.group_id as string) || null,
+      fullName: fullNames.get(r.id as string) || null,
     }));
 }
 

@@ -115,7 +115,12 @@ function Segmented<T extends string>({ items, value, onChange }: {
   );
 }
 
-export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; onClose: () => void }) {
+export function WorkoutShareEditor({ item: given, onClose, onShared }: {
+  item: FeedItem;
+  onClose: () => void;
+  /** The card really went out (shared or saved); a dismissed share sheet is not this. */
+  onShared?: () => void;
+}) {
   // The watch's heart rate, for the lap chart, fetched for the run's own athlete
   // (the route answers nobody else). Until it comes, or when there is none, the
   // chart draws the laps' averages.
@@ -459,6 +464,8 @@ export function WorkoutShareEditor({ item: given, onClose }: { item: FeedItem; o
     setError(null);
     try {
       const result = await shareCard(blob, shareFilename(subject, transparent));
+      if (result === 'cancelled') return;
+      onShared?.();
       if (result === 'downloaded') setNotice(transparent ? t('savedSticker') : t('saved'));
       else onClose();
     } catch {

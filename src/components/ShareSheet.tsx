@@ -86,7 +86,12 @@ const VIEW_LABEL: Record<ShareTemplate, string> = {
  * the super user's until the switch, then everyone's. Before it, everyone else
  * keeps this sheet, whose workout branch is unchanged.
  */
-export function ShareSheet({ subject: given, onClose }: { subject: ShareSubject; onClose: () => void }) {
+export function ShareSheet({ subject: given, onClose, onShared }: {
+  subject: ShareSubject;
+  onClose: () => void;
+  /** The card really went out (shared or saved), as against the sheet being closed. */
+  onShared?: () => void;
+}) {
   const editor = useEveningRelease();
   // The run's whole track for the card, swapped in once it loads (lib/share/full-route).
   const fullItem = useFullRoute(given.kind === 'workout' ? given.item : null);
@@ -94,7 +99,7 @@ export function ShareSheet({ subject: given, onClose }: { subject: ShareSubject;
     () => (given.kind === 'workout' && fullItem && fullItem !== given.item ? { ...given, item: fullItem } : given),
     [given, fullItem],
   );
-  if (subject.kind === 'workout' && editor) return <WorkoutShareEditor item={subject.item} onClose={onClose} />;
+  if (subject.kind === 'workout' && editor) return <WorkoutShareEditor item={subject.item} onClose={onClose} onShared={onShared} />;
   if (subject.kind === 'week' && editor) {
     return (
       <WeekShareEditor
@@ -106,10 +111,10 @@ export function ShareSheet({ subject: given, onClose }: { subject: ShareSubject;
       />
     );
   }
-  return <ClassicShareSheet subject={subject} onClose={onClose} />;
+  return <ClassicShareSheet subject={subject} onClose={onClose} onShared={onShared} />;
 }
 
-function ClassicShareSheet({ subject, onClose }: { subject: ShareSubject; onClose: () => void }) {
+function ClassicShareSheet({ subject, onClose, onShared }: { subject: ShareSubject; onClose: () => void; onShared?: () => void }) {
   const t = useTranslations('shareSheet');
   const tc = useTranslations('common');
   const locale = useLocale();
@@ -297,6 +302,8 @@ function ClassicShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
     setError(null);
     try {
       const result = await shareCard(blob, shareFilename(subject, transparent));
+      if (result === 'cancelled') return;
+      onShared?.();
       if (result === 'downloaded') setNotice(transparent ? t('savedSticker') : t('saved'));
       else onClose();
     } catch {
@@ -304,7 +311,7 @@ function ClassicShareSheet({ subject, onClose }: { subject: ShareSubject; onClos
     } finally {
       setBusy(false);
     }
-  }, [busy, subject, transparent, onClose, t]);
+  }, [busy, subject, transparent, onClose, onShared, t]);
 
   return (
     <Sheet

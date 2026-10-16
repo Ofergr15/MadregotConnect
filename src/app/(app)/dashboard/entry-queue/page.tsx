@@ -704,7 +704,8 @@ export default function EntryQueuePage() {
                     {/* Wraps instead of truncating. For an applicant with no athlete row the
                         address IS the identity, and an ellipsis took the domain —
                         the part that tells gmail from a typo. */}
-                    <p className="text-[15px] font-semibold text-ink-700 break-all" dir="ltr">{r.email}</p>
+                    {r.fullName && <p className="text-[15px] font-semibold text-ink-700" dir="auto">{r.fullName}</p>}
+                    <p className={r.fullName ? 'text-xs text-ink-500 break-all' : 'text-[15px] font-semibold text-ink-700 break-all'} dir="ltr">{r.email}</p>
                     <p className="text-xs text-ink-400 mt-0.5" dir="rtl">
                       {t('orphanLine', { date: dateOnly(r.createdAt) || '—' })}
                     </p>

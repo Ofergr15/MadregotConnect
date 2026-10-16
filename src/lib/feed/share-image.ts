@@ -2353,7 +2353,7 @@ export async function renderShareCard(
  * The fallback matters: Web Share with files is unsupported on desktop Firefox and
  * every desktop browser except Safari, and a silent no-op would look like a bug.
  */
-export async function shareCard(blob: Blob, filename: string): Promise<'shared' | 'downloaded'> {
+export async function shareCard(blob: Blob, filename: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
   const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
 
   if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
@@ -2361,8 +2361,9 @@ export async function shareCard(blob: Blob, filename: string): Promise<'shared' 
       await navigator.share({ files: [file] });
       return 'shared';
     } catch (err) {
-      // The user dismissing the sheet is not an error worth surfacing.
-      if ((err as Error)?.name === 'AbortError') return 'shared';
+      // The user dismissing the sheet is not an error worth surfacing, and not a
+      // share either: the editor stays open on the card they were making.
+      if ((err as Error)?.name === 'AbortError') return 'cancelled';
       // Anything else (e.g. NotAllowedError) falls through to the download path.
     }
   }
