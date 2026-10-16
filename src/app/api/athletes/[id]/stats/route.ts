@@ -10,6 +10,7 @@ import { fetchAllRows } from '@/lib/supabase/paginate';
 import {
   buildAllTimeTotals,
   buildYearTotals,
+  buildMonthTotals,
   buildKmTable,
   buildRecentRuns,
   computeLikeForLikeTrend,
@@ -120,6 +121,8 @@ export async function GET(
       // Israel's calendar year, from the same anchor the weekly cut uses, so the
       // count row turns over at local midnight on 1 January, not UTC's.
       ...buildYearTotals(acts, Number(israelToday().slice(0, 4))),
+      // This calendar month so far — the second tile beside the ten-week chart (#103).
+      ...buildMonthTotals(acts, israelToday()),
       currentWeekStart,
       // Echoed so the screen can SAY which week it drew. A total the reader can't
       // reconcile is the original complaint; two legal windows with no label on

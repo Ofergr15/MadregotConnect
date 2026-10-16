@@ -1888,6 +1888,10 @@
     "chartThisWeek": "השבוע (עד עכשיו)",
     "chartWeekOf": "שבוע {date}",
     "chartVsLast": "מול שבוע קודם",
+    "tileLastWeek": "שבוע שעבר",
+    "tileVsWeekBefore": "{km} מהשבוע שלפניו",
+    "tileThisMonth": "החודש",
+    "tileMonthDays": "{days, plural, one {יום אחד} two {יומיים} other {# ימים}}",
     "chartShowTable": "הטבלה המלאה",
     "chartHideTable": "הסתרת הטבלה",
     "chartVsSameDays": "מול אותם ימים"

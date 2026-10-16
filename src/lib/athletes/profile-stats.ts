@@ -203,6 +203,33 @@ export function buildYearTotals<T extends RunActivityRow>(acts: T[], year: numbe
   return { year, yearKm: Math.round(meters / 1000), yearRuns: runs };
 }
 
+export interface MonthTotals {
+  /** Km so far this calendar month, one decimal like the km table. */
+  monthKm: number;
+  monthRuns: number;
+  /** Day of the month today (1–31): "16 days" under the tile (#103). */
+  monthDay: number;
+}
+
+/**
+ * This calendar month so far (#103's second tile). Same qualifying-run filter
+ * and the same start_time-prefix test as `buildYearTotals`: start_time is the
+ * local wall clock stored as UTC, so its first seven characters ARE the local
+ * month — no timezone conversion, which would move a 01:30 run on the 1st into
+ * the previous month.
+ */
+export function buildMonthTotals<T extends RunActivityRow>(acts: T[], todayIso: string): MonthTotals {
+  const prefix = todayIso.slice(0, 8); // "2026-10-"
+  let meters = 0;
+  let runs = 0;
+  for (const r of filterQualifyingRuns(acts)) {
+    if (!r.start_time.startsWith(prefix)) continue;
+    meters += r.distance;
+    runs += 1;
+  }
+  return { monthKm: round1(meters / 1000), monthRuns: runs, monthDay: Number(todayIso.slice(8, 10)) };
+}
+
 /**
  * This week's km/runs, read off the km table rather than bucketing the raw
  * activities a second time — so the headline number and the highlighted column

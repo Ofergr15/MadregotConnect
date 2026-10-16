@@ -89,6 +89,9 @@ interface StatsData {
   totalHours: number;
   yearKm: number;
   yearRuns: number;
+  /** This calendar month so far (#103). */
+  monthKm: number;
+  monthDay: number;
   currentWeekStart: string;
   thisWeek: { km: number; runs: number };
   /** This week so far vs the same slice of last week. Null when last week had no runs. */
@@ -296,6 +299,7 @@ export function AthleteProfileBody({
             emptyLabel={t('noKmHistory')}
             unit={tc('km')}
             currentTrendPct={stats?.weekTrendPct ?? null}
+            month={stats ? { km: stats.monthKm, day: stats.monthDay } : null}
           />
           {/* All-time totals — the trio's third cell before the count row went
               to this year's numbers. */}
@@ -438,6 +442,7 @@ function TenWeekChart({
   emptyLabel,
   unit,
   currentTrendPct,
+  month,
 }: {
   weeks: KmWeek[];
   title: string;
@@ -445,6 +450,8 @@ function TenWeekChart({
   unit: string;
   /** This week so far against the same slice of last week (stats.weekTrendPct). */
   currentTrendPct: number | null;
+  /** This calendar month so far, for the second tile (#103). Null while loading. */
+  month: { km: number; day: number } | null;
 }) {
   const t = useTranslations('profile');
   const locale = useLocale();
@@ -476,6 +483,13 @@ function TenWeekChart({
   // week so far against the same days last week); a finished week's is the
   // whole-week delta the table has always shown.
   const delta = w.isCurrent ? currentTrendPct : w.deltaPct;
+  // #103: last finished week and this month, as two fixed tiles — the line
+  // above follows whatever week is picked, these never move. "Last week" is
+  // read off the same rows, so it is cut by the owner's week preference too.
+  const cur = weeks.findIndex((x) => x.isCurrent);
+  const prev = cur > 0 ? weeks[cur - 1] : null;
+  const prevPrev = cur > 1 ? weeks[cur - 2] : null;
+  const prevDiff = prev && prevPrev ? Math.round((prev.km - prevPrev.km) * 10) / 10 : null;
   const ran = weeks.filter((x) => x.runs > 0 && !x.isCurrent);
   const avg = ran.length ? Math.round((ran.reduce((s, x) => s + x.km, 0) / ran.length) * 10) / 10 : 0;
 
@@ -593,6 +607,33 @@ function TenWeekChart({
           />
         ))}
       </svg>
+
+      {(prev || month) && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {prev && (
+            <div className="rounded-[14px] bg-page px-3 py-2">
+              <p className="text-xs font-light text-ink-400">{t('tileLastWeek')}</p>
+              <p className="text-[19px] font-extrabold tabular-nums text-ink-700">
+                {prev.km} <span className="text-xs font-semibold text-ink-400">{unit}</span>
+              </p>
+              {prevDiff != null && prevDiff !== 0 && (
+                <p className={cn('text-2xs font-bold', prevDiff > 0 ? 'text-accent-900' : 'text-band-3-ink')}>
+                  {prevDiff > 0 ? '▲' : '▼'} {t('tileVsWeekBefore', { km: Math.abs(prevDiff).toString() })}
+                </p>
+              )}
+            </div>
+          )}
+          {month && (
+            <div className="rounded-[14px] bg-page px-3 py-2">
+              <p className="text-xs font-light text-ink-400">{t('tileThisMonth')}</p>
+              <p className="text-[19px] font-extrabold tabular-nums text-ink-700">
+                {month.km} <span className="text-xs font-semibold text-ink-400">{unit}</span>
+              </p>
+              <p className="text-2xs font-bold text-ink-400">{t('tileMonthDays', { days: month.day })}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mt-1 flex justify-center">
         <button

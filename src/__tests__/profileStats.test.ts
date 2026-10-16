@@ -4,6 +4,7 @@ import {
   buildRecentRuns,
   buildAllTimeTotals,
   buildYearTotals,
+  buildMonthTotals,
   computeLikeForLikeTrend,
   pickWeek,
 } from '@/lib/athletes/profile-stats';
@@ -358,5 +359,23 @@ describe('buildYearTotals', () => {
       2026,
     );
     expect(totals).toEqual({ year: 2026, yearKm: 10, yearRuns: 1 });
+  });
+});
+
+describe('buildMonthTotals (#103)', () => {
+  const run = (start_time: string, km: number) =>
+    ({ id: start_time, activity_name: 'Run', activity_type: 'running', start_time, distance: km * 1000, duration: km * 300 }) as never;
+
+  it('counts this calendar month by the stored wall clock, not UTC', () => {
+    const acts = [
+      run('2026-10-01 01:30:00', 10), // 01:30 on the 1st — still October
+      run('2026-10-15 06:00:00', 12.34),
+      run('2026-09-30 23:30:00', 8), // September
+    ];
+    expect(buildMonthTotals(acts, '2026-10-16')).toEqual({ monthKm: 22.3, monthRuns: 2, monthDay: 16 });
+  });
+
+  it('is zero, not missing, on a month with no runs', () => {
+    expect(buildMonthTotals([], '2026-10-01')).toEqual({ monthKm: 0, monthRuns: 0, monthDay: 1 });
   });
 });

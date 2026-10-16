@@ -1888,6 +1888,10 @@
     "chartThisWeek": "This week (so far)",
     "chartWeekOf": "Week of {date}",
     "chartVsLast": "vs previous week",
+    "tileLastWeek": "Last week",
+    "tileVsWeekBefore": "{km} vs the week before",
+    "tileThisMonth": "This month",
+    "tileMonthDays": "{days, plural, one {1 day} other {# days}}",
     "chartShowTable": "Full table",
     "chartHideTable": "Hide table",
     "chartVsSameDays": "vs same days last week"
