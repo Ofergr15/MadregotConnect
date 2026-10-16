@@ -65,6 +65,12 @@ function shortDate(iso: string): string {
   return `${d}.${m}.${y.slice(2)}`;
 }
 
+function OpenedAsMark({ as, t }: { as: 'app' | 'browser' | null; t: (k: string) => string }) {
+  if (as === 'app') return <span className="shrink-0 rounded-md bg-accent-600/15 px-1.5 py-0.5 text-3xs font-bold text-accent-900">📱 {t('openedApp')}</span>;
+  if (as === 'browser') return <span className="shrink-0 rounded-md bg-band-3/15 px-1.5 py-0.5 text-3xs font-bold text-band-3-ink">🌐 {t('openedBrowser')}</span>;
+  return <span className="shrink-0 rounded-md bg-page px-1.5 py-0.5 text-3xs font-bold text-ink-400" aria-label={t('openedUnknown')}>—</span>;
+}
+
 export default function PeoplePage() {
   const t = useTranslations('people');
   const { data, isLoading } = useApi<PeopleResponse>('/api/admin/people');
@@ -156,6 +162,8 @@ export default function PeoplePage() {
                       <span className="truncate text-[15px] font-bold text-ink-700">{p.name}</span>
                       {/* Their phone stopped showing notifications (lib/push-health, #108). */}
                       {p.pushDead && <span className="shrink-0 rounded-md bg-band-3/15 px-1.5 py-0.5 text-3xs font-bold text-band-3-ink">🔕 {t('pushDeadShort')}</span>}
+                      {/* How they open Madregot: the installed app or a browser tab. */}
+                      <OpenedAsMark as={p.openedAs ?? null} t={t} />
                     </span>
                     <span className="block truncate text-xs text-ink-400">{subline(p)}</span>
                   </span>
@@ -260,6 +268,12 @@ function MemberCard({ person: p, today }: { person: Person; today: string }) {
           <KV label={t('group')} value={p.groupName ? groupDisplayName(p.groupName) : t('noGroup')} />
           <KV label={t('source')} value={p.source ? t(p.source) : t('notConnected')} />
           <KV
+            label={t('openedAs')}
+            value={p.openedAs
+              ? `${p.openedAs === 'app' ? `📱 ${t('openedApp')}` : `🌐 ${t('openedBrowser')}`}${p.openedAt ? ` · ${ago(p.openedAt)}` : ''}`
+              : t('openedUnknown')}
+          />
+          <KV
             label={t('notifications')}
             value={p.pushDevices === 0
               ? t('noDevices')
@@ -270,6 +284,9 @@ function MemberCard({ person: p, today }: { person: Person; today: string }) {
           <KV label={t('lastRun')} value={p.lastRunDay ? ago(p.lastRunDay) : t('noRunLately')} />
           <KV label={t('lastSeen')} value={ago(p.lastSeenAt)} />
         </div>
+        {p.openedAs === 'browser' && (
+          <p className="mt-3 rounded-2xl bg-band-3/15 px-3 py-2.5 text-xs text-band-3-ink">{t('openedBrowserHint')}</p>
+        )}
       </section>
 
       <section>

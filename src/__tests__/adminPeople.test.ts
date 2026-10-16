@@ -45,7 +45,17 @@ describe('filters', () => {
 
   it('never counts a waiting member as silent or unfinished', () => {
     const waiting = p({ approved: false, setupDone: false, lastRunDay: null });
-    expect(filterCounts([waiting, base], TODAY)).toEqual({ all: 2, waiting: 1, setup: 0, noWatch: 0, silent: 0 });
+    expect(filterCounts([waiting, base], TODAY)).toEqual({ all: 2, waiting: 1, setup: 0, noWatch: 0, silent: 0, browser: 0, noPush: 0 });
+  });
+
+  // The install marker (2026-10-16): browser-only members, and members whose phone
+  // shows no notifications, each get a filter — live members only.
+  it('files browser-only and no-notification members, never a waiting one', () => {
+    const tab = p({ openedAs: 'browser' });
+    const dead = p({ pushDead: true });
+    const waitingTab = p({ approved: false, openedAs: 'browser', pushDead: true });
+    const c = filterCounts([tab, dead, waitingTab, base], TODAY);
+    expect([c.browser, c.noPush]).toEqual([1, 1]);
   });
 });
 

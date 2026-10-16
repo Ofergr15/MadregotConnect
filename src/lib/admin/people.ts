@@ -8,9 +8,12 @@
  */
 
 export type PersonState = 'waiting' | 'paused' | 'noWatch' | 'setup' | 'silent' | 'active';
-export type PeopleFilter = 'all' | 'waiting' | 'setup' | 'noWatch' | 'silent';
+export type PeopleFilter = 'all' | 'waiting' | 'setup' | 'noWatch' | 'silent' | 'browser' | 'noPush';
 
-export const PEOPLE_FILTERS: PeopleFilter[] = ['all', 'waiting', 'setup', 'noWatch', 'silent'];
+// 'browser': opens Madregot in a browser tab, not the installed app — on iOS that
+// means no notifications, so these are the members to send the install guide.
+// 'noPush': has devices, but none shows notifications (lib/push-health, #108).
+export const PEOPLE_FILTERS: PeopleFilter[] = ['all', 'waiting', 'setup', 'noWatch', 'silent', 'browser', 'noPush'];
 
 /** Same window as the home tile "no run in 7 days", so the two numbers agree. */
 export const SILENT_DAYS = 7;
@@ -76,11 +79,13 @@ export function matchesFilter(p: Person, filter: PeopleFilter, today: string): b
     case 'setup': return live && !p.setupDone;
     case 'noWatch': return live && !p.source;
     case 'silent': return live && isSilent(p, today);
+    case 'browser': return live && p.openedAs === 'browser';
+    case 'noPush': return live && !!p.pushDead;
   }
 }
 
 export function filterCounts(people: Person[], today: string): Record<PeopleFilter, number> {
-  const out = { all: 0, waiting: 0, setup: 0, noWatch: 0, silent: 0 } as Record<PeopleFilter, number>;
+  const out = { all: 0, waiting: 0, setup: 0, noWatch: 0, silent: 0, browser: 0, noPush: 0 } as Record<PeopleFilter, number>;
   for (const p of people) for (const f of PEOPLE_FILTERS) if (matchesFilter(p, f, today)) out[f]++;
   return out;
 }

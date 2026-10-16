@@ -3351,7 +3351,14 @@
     "manageRoster": "Manage in the roster",
     "openQueue": "Open the entry queue",
     "close": "Close",
-    "pushDeadShort": "notifications not arriving"
+    "pushDeadShort": "notifications not arriving",
+    "filter_browser": "🌐 Browser only",
+    "filter_noPush": "🔕 Notifications",
+    "openedAs": "Opens Madregot",
+    "openedApp": "App",
+    "openedBrowser": "Browser",
+    "openedUnknown": "Not opened in 30 days",
+    "openedBrowserHint": "Opens Madregot in a browser, not from the icon. On iPhone notifications only work in the installed app — worth sending the install guide."
   },
   "contentHub": {
     "title": "Content",

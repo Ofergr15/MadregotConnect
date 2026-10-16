@@ -3351,7 +3351,14 @@
     "manageRoster": "ניהול ברשימת המתאמנים",
     "openQueue": "לתור הכניסה",
     "close": "סגירה",
-    "pushDeadShort": "התראות לא מגיעות"
+    "pushDeadShort": "התראות לא מגיעות",
+    "filter_browser": "🌐 בדפדפן בלבד",
+    "filter_noPush": "🔕 התראות",
+    "openedAs": "איך פותח",
+    "openedApp": "אפליקציה",
+    "openedBrowser": "דפדפן",
+    "openedUnknown": "לא נפתחה ב־30 יום",
+    "openedBrowserHint": "פותח את מדרגות בדפדפן ולא מהאייקון. באייפון התראות עובדות רק מהאפליקציה המותקנת — כדאי לשלוח את מדריך ההתקנה."
   },
   "contentHub": {
     "title": "תוכן",
