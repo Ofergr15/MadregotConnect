@@ -34,6 +34,9 @@ export interface Person {
   lastPushAt: string | null;
   /** Devices registered, none showed a notification in 7 days, and some were sent (lib/push-health). */
   pushDead?: boolean;
+  /** How they last opened the app in 30 days: the home-screen install, a browser tab, or unknown. */
+  openedAs?: 'app' | 'browser' | null;
+  openedAt?: string | null;
 }
 
 function daysBetween(from: string, to: string): number {

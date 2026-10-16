@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     const since = new Date(Date.now() - RUN_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-    const [athletes, groups, runs, pushes, recentSends] = await Promise.all([
+    const [athletes, groups, runs, pushes, recentSends, boots] = await Promise.all([
       // garmin_auth/strava_auth for PRESENCE only, exactly as /api/admin/users
       // reads them: the credentials never leave this function.
       supabase
@@ -83,6 +83,18 @@ export async function GET(request: Request) {
         .eq('status', 'sent')
         .gt('last_sent_at', new Date(Date.now() - PUSH_DEAD_DAYS * 86_400_000).toISOString())
         .limit(5000),
+      // How each member last opened the app — the home-screen install ('app') or a
+      // browser tab — from the reporter's boot event (ClientEventReporter). Newest
+      // first, so the first row per member is their latest.
+      fetchAllRows<{ athlete_id: string | null; message: string | null; created_at: string }>((from, to) => supabase
+        .from('client_events')
+        .select('athlete_id, message, created_at')
+        .eq('kind', 'boot')
+        .gte('created_at', new Date(Date.now() - 30 * 86_400_000).toISOString())
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to))
+        .then((data) => ({ data, error: null }), (error) => ({ data: null, error })),
     ]);
     if (athletes.error) throw athletes.error;
 
@@ -102,6 +114,12 @@ export async function GET(request: Request) {
     const devicesOf = new Map<string, DeviceReceipt[]>();
     for (const s of (pushes.data || []) as Array<DeviceReceipt & { athlete_id: string | null }>) {
       if (s.athlete_id) devicesOf.set(s.athlete_id, [...(devicesOf.get(s.athlete_id) || []), s]);
+    }
+
+    const opened = new Map<string, { as: 'app' | 'browser'; at: string }>();
+    for (const b of (boots.data || [])) {
+      if (!b.athlete_id || opened.has(b.athlete_id)) continue;
+      if (b.message === 'app' || b.message === 'browser') opened.set(b.athlete_id, { as: b.message, at: b.created_at });
     }
 
     const push = new Map<string, { n: number; last: string | null }>();
@@ -136,6 +154,8 @@ export async function GET(request: Request) {
       pushDevices: push.get(a.id)?.n ?? 0,
       lastPushAt: push.get(a.id)?.last ?? null,
       pushDead: pushLooksDead(devicesOf.get(a.id) || [], sentTo.get(a.id) || 0),
+      openedAs: opened.get(a.id)?.as ?? null,
+      openedAt: opened.get(a.id)?.at ?? null,
     }));
 
     return NextResponse.json({ today: israelToday(), people });

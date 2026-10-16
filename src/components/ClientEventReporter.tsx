@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { APP_VERSION } from '@/lib/version';
+import { isStandalone } from '@/lib/pwa';
 import { MAX_BATCH, type ClientEventKind } from '@/lib/bugs/client-events';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
@@ -232,7 +233,14 @@ export function ClientEventReporter() {
     window.addEventListener(BLANK_EVENT, onBlank);
 
     /* ── boot ── which build this phone is actually running ───────────────── */
-    record('boot', APP_VERSION);
+    // How this app was opened: 'app' (from the home-screen icon, standalone) or
+    // 'browser'. The build is already on every event (appVersion), so the message
+    // carries the one thing staff can't otherwise see — whether a member installed
+    // the app properly, the question behind a push that never arrives on iOS
+    // (web push needs the home-screen install there).
+    let opened = 'browser';
+    try { opened = isStandalone() ? 'app' : 'browser'; } catch { /* rule 3: never the bug */ }
+    record('boot', opened);
 
     const onHide = () => {
       // Route-level abandonment is counted here rather than on every navigation,
