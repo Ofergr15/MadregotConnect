@@ -16,6 +16,7 @@
 
 import { displaySplits } from '@/lib/activities/km-splits';
 import { normalizeStoredLaps } from '@/lib/garmin/laps';
+import { segmentsFromSteps, type PlanSegment, type SegmentKind } from '@/lib/share/plan-segments';
 import type { FeedComment } from '@/lib/feed/comments';
 import type { FeedPlanVerdict } from '@/lib/feed/plan-verdicts';
 
@@ -69,7 +70,13 @@ export interface FeedActivity {
    * absent when the strap had none, stripped when heart rate is hidden.
    * Optional so the many hand-built activities in tests and previews stay valid.
    */
-  lapBands?: Array<{ m: number; pace: number; hr?: number }> | null;
+  lapBands?: Array<{ m: number; pace: number; hr?: number; kind?: SegmentKind }> | null;
+  /**
+   * The same run cut by the workout the watch ran instead of by its laps: one
+   * segment per step, whatever the auto-lap was set to (`lib/share/plan-segments.ts`).
+   * Null for a run not started from a workout. Masked exactly like `lapBands`.
+   */
+  stepBands?: PlanSegment[] | null;
   /**
    * The watch's heart rate as [metres, bpm], thinned (`lib/share/hr-trace.ts`).
    * Never sent with the feed: the share editor asks for it for the athlete's own
@@ -334,6 +341,7 @@ function projectActivity(row: RawActivityRow, planVerdict: FeedPlanVerdict | nul
     hasRoute: !!route || !!row.has_polyline,
     paceBands: toPaceBands(row.splits, row.laps),
     lapBands: toLapBands(row.laps),
+    stepBands: segmentsFromSteps(normalizeStoredLaps(row.laps), null),
     planVerdict,
   };
 }
@@ -389,6 +397,11 @@ function maskHiddenStats(activity: FeedActivity, hidden: Set<HiddenFieldKey>): F
       : hidden.has('heart_rate')
         ? activity.lapBands?.map(({ m, pace }) => ({ m, pace })) ?? activity.lapBands
         : activity.lapBands,
+    stepBands: hidden.has('pace')
+      ? null
+      : hidden.has('heart_rate')
+        ? activity.stepBands?.map(({ hr: _hr, ...rest }) => rest) ?? activity.stepBands
+        : activity.stepBands,
     // The plan badge is a statement about pace among other things — "slower than
     // the target band" is a pace disclosure, coarser but the same kind. Hiding
     // pace hides the badge outright rather than shipping a version of it computed

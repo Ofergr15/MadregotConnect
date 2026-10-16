@@ -17,6 +17,9 @@
 import { formatActivityTime } from '@/lib/utils';
 import type { FeedItem, FeedActivity } from './project';
 import { markLogo, recordHitMap, type ShareHitMap } from '@/lib/share/hit-map';
+import { mainSet, type PlanSegment } from '@/lib/share/plan-segments';
+
+export type SplitMode = 'plan' | 'segments' | 'km';
 
 export const STORY_W = 1080;
 export const STORY_H = 1920;
@@ -289,11 +292,16 @@ export interface ShareCardOptions {
    */
   onHitMap?: (map: ShareHitMap) => void;
   /**
-   * What the KM Splits view charts: each kilometre (the default), or each lap the
-   * watch pressed (`segments`). Falls back to kilometres when the run has no
-   * `lapBands`.
+   * What the KM Splits view charts: each kilometre (the default), each lap the
+   * watch pressed (`segments`), or each step of the workout the watch ran (`plan`,
+   * from `stepBands`). Falls back to laps, then kilometres, when the run lacks one.
    */
-  splitMode?: 'km' | 'segments';
+  splitMode?: SplitMode;
+  /**
+   * `plan` only: just the session's core — the work blocks, without the warm-up,
+   * the strides and the walks (`mainSet`). Default on.
+   */
+  coreOnly?: boolean;
   /**
    * Which numbers go on the card, chosen by the athlete in the sheet.
    *
@@ -369,8 +377,10 @@ export interface ShareVerdict {
 }
 
 function formatPace(secPerKm: number): string {
-  const min = Math.floor(secPerKm / 60);
-  const sec = Math.round(secPerKm % 60);
+  // Rounded whole first: 239.6 s split before rounding came out as "3:60".
+  const whole = Math.round(secPerKm);
+  const min = Math.floor(whole / 60);
+  const sec = whole % 60;
   return `${min}:${String(sec).padStart(2, '0')}`;
 }
 
@@ -949,7 +959,8 @@ interface LayoutCtx {
   hrLine: boolean;
   editorChart: boolean;
   timeLtr: boolean;
-  splitMode: 'km' | 'segments';
+  splitMode: SplitMode;
+  coreOnly: boolean;
   shadow: string;
   shadowBlur: number;
   /** Resolved accent hex — route line only. */
@@ -1860,8 +1871,16 @@ function shortDate(startTime: string): string | null {
  * the same script test the footer bars use, for the same reason.
  */
 function layoutSplits(c: LayoutCtx) {
-  if (c.splitMode === 'segments' && (c.act.lapBands?.length ?? 0) >= 2) {
-    layoutSegments(c);
+  const bands = segmentBands(c);
+  if (bands) {
+    // Without the warm-up the bars no longer cover the whole run: a heart-rate line
+    // drawn along the run's metres would sit under the wrong bars, and the average
+    // line is the blocks' own, not the run's.
+    layoutSegments(
+      bands.trimmed ? { ...c, hrLine: false, act: { ...c.act, averagePace: null } } : c,
+      bands.laps,
+      bands.title,
+    );
     return;
   }
   const { ctx, font, act, stairs, accent, shadow, shadowBlur, i18n } = c;
@@ -2007,9 +2026,46 @@ function layoutSplits(c: LayoutCtx) {
  * as reps. Time runs in the card's reading direction, right to left on a Hebrew
  * card, unless `timeLtr` asks for left to right with the scale kept on the right.
  */
-function layoutSegments(c: LayoutCtx) {
+/** At most this many bars and each is labelled with its pace instead of an axis. */
+const LABELLED_BARS = 12;
+
+type SegmentBand = NonNullable<FeedActivity['lapBands']>[number];
+
+/**
+ * The bars the segments chart draws, or null for the kilometre list. `plan` asks for
+ * the workout's steps and falls back to the laps when the run had no workout on the
+ * watch, so a choice made once never leaves an empty chart.
+ *
+ * The heading becomes the session itself ("7 × 5 ק״מ") when the core is a set of
+ * equal blocks — value and unit kept apart, because as one canvas string the two
+ * numbers of "7 × 5 ק״מ" swap sides.
+ */
+function segmentBands(c: LayoutCtx): { laps: SegmentBand[]; title: { value: string; unit: string } | null; trimmed: boolean } | null {
+  const steps = c.act.stepBands;
+  if (c.splitMode === 'plan' && steps && steps.length >= 2) {
+    const laps: PlanSegment[] = c.coreOnly ? mainSet(steps) : steps;
+    let title: { value: string; unit: string } | null = null;
+    if (laps.every(l => l.kind === 'active')) {
+      // Named by the length most blocks were, rounded the way a plan is written: a
+      // block cut short (a lap pressed early) doesn't stop the session being 7 × 5 km.
+      const rounded = laps.map(l => (l.m >= 1000 ? Math.round(l.m / 500) * 500 : Math.round(l.m / 100) * 100));
+      const counts = new Map<number, number>();
+      for (const m of rounded) counts.set(m, (counts.get(m) ?? 0) + 1);
+      const [m, n] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+      if (n * 2 > laps.length) {
+        title = m >= 1000
+          ? { value: `${laps.length} × ${+(m / 1000).toFixed(1)}`, unit: c.i18n.km }
+          : { value: `${laps.length} × ${m}`, unit: c.i18n.metres };
+      }
+    }
+    return { laps, title, trimmed: laps.length !== steps.length };
+  }
+  if (c.splitMode !== 'km' && (c.act.lapBands?.length ?? 0) >= 2) return { laps: c.act.lapBands!, title: null, trimmed: false };
+  return null;
+}
+
+function layoutSegments(c: LayoutCtx, laps: SegmentBand[], heading: { value: string; unit: string } | null) {
   const { ctx, font, act, stairs, accent, shadow, shadowBlur, i18n } = c;
-  const laps = act.lapBands ?? [];
   const rtl = /[\u0590-\u05FF]/.test(i18n.segments);
 
   const x0 = p(22);
@@ -2055,7 +2111,18 @@ function layoutSegments(c: LayoutCtx) {
   ctx.textAlign = rtl ? 'right' : 'left';
   ctx.font = `800 ${p(16)}px ${font}`;
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(i18n.segments, start, y + p(20));
+  if (heading) {
+    // Value first in reading order, then the unit, as two runs.
+    const { value, unit } = heading;
+    ctx.direction = 'ltr';
+    ctx.fillText(value, start, y + p(20));
+    const after = start + dir * (ctx.measureText(value).width + p(4));
+    ctx.direction = rtl ? 'rtl' : 'ltr';
+    ctx.font = `700 ${p(11)}px ${font}`;
+    ctx.fillText(unit, after, y + p(20));
+  } else {
+    ctx.fillText(i18n.segments, start, y + p(20));
+  }
   const mark = c.brand ?? stairs;
   if (mark) {
     const bw = p(64);
@@ -2079,8 +2146,14 @@ function layoutSegments(c: LayoutCtx) {
     Math.min(bottom - p(3), bottom - ((speed(pace) - vMin) / (vMax - vMin || 1)) * chartH);
   const slowSeen = Math.min(slow, floorPace);
 
-  // The pace scale takes a gutter on the reading-start side.
-  const gutter = p(26);
+  // Few enough bars to read one by one: each wears its own pace and the axis goes,
+  // because seven numbers on seven bars say more than a scale beside them.
+  const labelled = laps.length <= LABELLED_BARS && laps.every(l => (l.m / total) * w >= p(16));
+  const sameLength = laps.every(l => Math.abs(l.m - laps[0].m) <= laps[0].m * 0.05);
+  // The heart-rate range and the average sit under the chart, below the lengths if any.
+  const footY = bottom + (labelled && !sameLength ? p(24) : p(13));
+  // The pace scale takes a gutter on the reading-start side; labelled bars need none.
+  const gutter = labelled ? 0 : p(26);
   const barsW = w - gutter;
   // The direction time runs in, which `timeLtr` can turn against the text's.
   const trtl = rtl && !c.timeLtr;
@@ -2158,19 +2231,49 @@ function layoutSegments(c: LayoutCtx) {
     ctx.fill(fill);
   }
 
+  // Bars cut by the workout (`lib/share/plan-segments.ts`) carry what each step was.
+  // Then the fill says that — the work solid, the warm-up and the walks faint — rather
+  // than grading by pace, which on a 7 × 5 km made the 4:10 blocks look like rests.
+  const byKind = laps.some(l => l.kind != null);
+  const barGap = labelled ? p(3) : gap;
+  const labels: Array<{ x: number; top: number; l: (typeof laps)[number] }> = [];
+
   let cursor = barsStart;
   for (const l of laps) {
     const bw = (l.m / total) * barsW;
     const top = yOf(l.pace);
     const t = slowSeen === fast ? 0 : Math.min(1, (l.pace - fast) / (slowSeen - fast));
-    ctx.fillStyle = t < 0.35 ? accent : `rgba(255,255,255,${(0.85 - 0.5 * t).toFixed(3)})`;
-    const drawW = Math.max(bw - gap, p(0.8));
+    ctx.fillStyle = byKind
+      ? (l.kind === 'active' ? accent : 'rgba(255,255,255,0.38)')
+      : t < 0.35 ? accent : `rgba(255,255,255,${(0.85 - 0.5 * t).toFixed(3)})`;
+    const drawW = Math.max(bw - barGap, p(0.8));
     const r = Math.max(0, Math.min(drawW / 2, p(4)));
-    const left = trtl ? cursor - bw + gap / 2 : cursor + gap / 2;
+    const left = trtl ? cursor - bw + barGap / 2 : cursor + barGap / 2;
     ctx.beginPath();
     ctx.roundRect(left, top, drawW, bottom - top, [r, r, 0, 0]);
     ctx.fill();
+    if (labelled) labels.push({ x: left + drawW / 2, top, l });
     cursor += tdir * bw;
+  }
+
+  if (labelled) {
+    ctx.shadowBlur = shadowBlur;
+    ctx.direction = 'ltr';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    for (const { x, top, l } of labels) {
+      ctx.font = `800 ${p(9.5)}px ${font}`;
+      ctx.fillText(formatPace(l.pace), x, top - p(4));
+      // The length under the bar only when the bars differ — "7 × 5 ק״מ" in the
+      // heading already says it for a set run to plan.
+      if (!sameLength) {
+        ctx.font = `600 ${p(7.5)}px ${font}`;
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.fillText((l.m / 1000).toFixed(l.m >= 10000 ? 0 : 1), x, bottom + p(10));
+        ctx.fillStyle = '#ffffff';
+      }
+    }
+    ctx.shadowBlur = 0;
   }
 
   if (hrLine) {
@@ -2185,7 +2288,7 @@ function layoutSegments(c: LayoutCtx) {
     ctx.textAlign = rtl ? 'left' : 'right';
     ctx.font = `600 ${p(8.5)}px ${font}`;
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.fillText(`♥ ${Math.min(...hrs)}–${Math.max(...hrs)}`, rtl ? x0 : x1, bottom + p(13));
+    ctx.fillText(`♥ ${Math.min(...hrs)}–${Math.max(...hrs)}`, rtl ? x0 : x1, footY);
     ctx.shadowBlur = 0;
   }
 
@@ -2207,7 +2310,7 @@ function layoutSegments(c: LayoutCtx) {
   // shared for, so it is labelled first; the round values fill in under it. It
   // used to start at the first round value, so a 3:42 rep's top read "4:00".
   const topY = yOf(fast) + p(3);
-  if (c.editorChart && !taken.some(y => Math.abs(y - topY) < p(11))) {
+  if (c.editorChart && !labelled && !taken.some(y => Math.abs(y - topY) < p(11))) {
     ctx.fillText(formatPace(fast), start, topY);
     taken.push(topY);
   }
@@ -2217,7 +2320,7 @@ function layoutSegments(c: LayoutCtx) {
   const step = floorPace - fast > (c.editorChart ? 330 : 150) ? 60 : 30;
   for (let pc = Math.ceil(fast / step) * step; pc <= floorPace; pc += step) {
     const ty = yOf(pc);
-    if (ty < chartTop - p(2) || ty > bottom - p(4)) continue;
+    if (labelled || ty < chartTop - p(2) || ty > bottom - p(4)) continue;
     if (taken.some(y => Math.abs(y - (ty + p(3))) < p(11))) continue;
     ctx.fillText(formatPace(pc), start, ty + p(3));
     taken.push(ty + p(3));
@@ -2234,7 +2337,10 @@ function layoutSegments(c: LayoutCtx) {
     ctx.lineTo(barsStart + tdir * barsW, ay);
     ctx.stroke();
     ctx.restore();
-    ctx.fillText(`avg ${formatPace(avg)}`, start, ay - p(4));
+    // With no axis there is no gutter to hold the label: it goes under the chart,
+    // on the side the heart-rate range doesn't use.
+    if (labelled) ctx.fillText(`avg ${formatPace(avg)}`, start, footY);
+    else ctx.fillText(`avg ${formatPace(avg)}`, start, ay - p(4));
   }
   ctx.shadowBlur = 0;
 }
@@ -2358,6 +2464,7 @@ export async function renderShareCard(
     editorChart: opts.editorChart ?? false,
     timeLtr: opts.timeLtr ?? false,
     splitMode: opts.splitMode ?? 'km',
+    coreOnly: opts.coreOnly ?? true,
     shadow: transparent ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.45)',
     shadowBlur: transparent ? 28 : 16,
     accent: ACCENT_HEX[opts.accent ?? 'white'],

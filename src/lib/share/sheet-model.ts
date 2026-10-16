@@ -1,7 +1,7 @@
 import {
   availableWorkoutMetrics, hasRouteTrace, paceBandCount, requiresRoute, requiresSplits, supportsFooter,
   workoutMetricStat,
-  type ShareBrand, type ShareI18n, type ShareTemplate, type ShareVerdict, type WorkoutMetricKey,
+  type ShareBrand, type ShareI18n, type ShareTemplate, type ShareVerdict, type SplitMode, type WorkoutMetricKey,
 } from '@/lib/feed/share-image';
 import {
   WEEK_CARD_TEXT, availableMetrics, type WeekMetricKey,
@@ -107,10 +107,26 @@ export function canSegment(subject: ShareSubject): boolean {
   return subject.kind === 'workout' && (subject.item.activity?.lapBands?.length ?? 0) >= 2;
 }
 
+/** Whether the run was driven by a workout on the watch, so it can be charted step by step. */
+export function canPlanSplit(subject: ShareSubject): boolean {
+  return subject.kind === 'workout' && (subject.item.activity?.stepBands?.length ?? 0) >= 2;
+}
+
+/**
+ * What the chart opens on: the workout's own steps when the watch ran one — the same
+ * session then shares the same way whatever each athlete's auto-lap was set to —
+ * else the laps, else the kilometres.
+ */
+export function defaultSplitMode(subject: ShareSubject): SplitMode {
+  return canPlanSplit(subject) ? 'plan' : canSegment(subject) ? 'segments' : 'km';
+}
+
 /** Whether the segments chart has heart rate to draw behind its bars. */
 export function canHrLine(subject: ShareSubject): boolean {
-  if (subject.kind !== 'workout' || !canSegment(subject)) return false;
-  return (subject.item.activity?.lapBands ?? []).filter(l => l.hr != null).length >= 2;
+  if (subject.kind !== 'workout') return false;
+  const act = subject.item.activity;
+  const withHr = (bands: Array<{ hr?: number }> | null | undefined) => (bands ?? []).filter(l => l.hr != null).length >= 2;
+  return (canSegment(subject) && withHr(act?.lapBands)) || (canPlanSplit(subject) && withHr(act?.stepBands));
 }
 
 /** Either a frame or a view; `numbers` is the one frame name that is not a view. */

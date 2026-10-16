@@ -8,13 +8,13 @@ import { cn } from '@/lib/utils';
 import {
   renderShareCard, shareCard, supportsPhoto, supportsShoe, supportsTransparent,
   ACCENT_HEX, SHARE_ACCENT_KEYS, SHARE_BRAND_KEYS, STORY_H, STORY_W,
-  type ShareAccent, type ShareBrand, type ShareTemplate,
+  type ShareAccent, type ShareBrand, type ShareTemplate, type SplitMode,
 } from '@/lib/feed/share-image';
 import { SHARE_CARD_LANGS, WORKOUT_CARD_TEXT, type ShareCardLang } from '@/lib/share/card-text';
 import { localizeDefaultName } from '@/lib/share/default-name';
 import { partAt, placeLabels, type ShareBox, type ShareHitMap, type SharePart } from '@/lib/share/hit-map';
 import {
-  asWorkoutMetrics, canHrLine, canSegment, defaultChipKeys, defaultTemplate, drawnTemplate, fitChipKeys,
+  asWorkoutMetrics, canHrLine, canPlanSplit, canSegment, defaultChipKeys, defaultSplitMode, defaultTemplate, drawnTemplate, fitChipKeys,
   fixedNumbersReason, frameCapacity, shareChips, shareFilename, shareTemplates, supportsAccent, toggleChip, viewBrand,
   type ShareSubject,
 } from '@/lib/share/sheet-model';
@@ -163,7 +163,9 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
   const [accent, setAccent] = useState<ShareAccent>('white');
   const [brand, setBrand] = useState<ShareBrand | null>(null);
   const segmentOk = canSegment(subject);
-  const [splitMode, setSplitMode] = useState<'km' | 'segments'>(() => (canSegment(subject) ? 'segments' : 'km'));
+  const planOk = canPlanSplit(subject);
+  const [splitMode, setSplitMode] = useState<SplitMode>(() => defaultSplitMode(subject));
+  const [coreOnly, setCoreOnly] = useState(true);
   const [avgLine, setAvgLine] = useState(true);
   const hrOk = canHrLine(subject);
   const [hrLine, setHrLine] = useState(true);
@@ -268,7 +270,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
           const blob = await renderShareCard(item, WORKOUT_CARD_TEXT[rtl ? 'he' : 'en'], {
             template: v.key,
             metrics: asWorkoutMetrics(defaultChipKeys(subject, v.key)),
-            splitMode: canSegment(subject) ? 'segments' : 'km',
+            splitMode: defaultSplitMode(subject),
             avgLine: true,
             hrLine: true,
             editorChart: true,
@@ -298,14 +300,15 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
       showShoe,
       // A neighbour shows the logo it will have when swiped to: its own.
       brand: own ? brand ?? undefined : undefined,
-      splitMode: segmentOk ? splitMode : 'km' as const,
+      splitMode,
+      coreOnly,
       avgLine,
       hrLine,
       editorChart: true,
       timeLtr: true,
       metrics: asWorkoutMetrics(own ? keys : fitChipKeys(subject, view, keys)),
     };
-  }, [routeOnly, bg, photo, accent, showTitle, titleText, showStartTime, showDate, showShoe, brand, segmentOk, splitMode, avgLine, hrLine, keys, subject]);
+  }, [routeOnly, bg, photo, accent, showTitle, titleText, showStartTime, showDate, showShoe, brand, splitMode, coreOnly, avgLine, hrLine, keys, subject]);
 
   // The card being edited, with its tap areas.
   useEffect(() => {
@@ -593,15 +596,22 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
     if (mode === 'data' && template === 'splits') {
       return (
         <>
-          {segmentOk && (
+          {(planOk || segmentOk) && (
             <Segmented
-              items={[['km', t('splitKm')], ['segments', t('splitSegments')]]}
+              items={[
+                ...(planOk ? [['plan', t('splitPlan')] as [SplitMode, string]] : []),
+                ...(segmentOk ? [['segments', t('splitSegments')] as [SplitMode, string]] : []),
+                ['km', t('splitKm')] as [SplitMode, string],
+              ]}
               value={splitMode}
               onChange={setSplitMode}
             />
           )}
+          {splitMode === 'plan' && (
+            <Toggle label={t('splitCoreOnly')} on={coreOnly} onClick={() => setCoreOnly(v => !v)} />
+          )}
           <Toggle label={t('avgLine')} on={avgLine} onClick={() => setAvgLine(v => !v)} />
-          {hrOk && splitMode === 'segments' && (
+          {hrOk && splitMode !== 'km' && !(splitMode === 'plan' && coreOnly) && (
             <Toggle label={t('hrLine')} on={hrLine} onClick={() => setHrLine(v => !v)} />
           )}
         </>

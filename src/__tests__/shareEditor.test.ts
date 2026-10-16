@@ -288,7 +288,7 @@ describe('the lap chart in the editor', () => {
     expect(EDITOR.match(/editorChart: true/g)).toHaveLength(2);
     expect(SHEET).not.toMatch(/editorChart/);
     expect(RENDER).toMatch(/const trace = c\.editorChart && act\.hrTrace/);
-    expect(RENDER).toMatch(/if \(c\.editorChart && !taken\.some\(y => Math\.abs\(y - topY\) < p\(11\)\)\) \{\s*ctx\.fillText\(formatPace\(fast\), start, topY\);/);
+    expect(RENDER).toMatch(/if \(c\.editorChart && !labelled && !taken\.some\(y => Math\.abs\(y - topY\) < p\(11\)\)\) \{\s*ctx\.fillText\(formatPace\(fast\), start, topY\);/);
   });
 
   it('runs time left to right for everyone, the scale kept on the right', () => {
@@ -297,7 +297,7 @@ describe('the lap chart in the editor', () => {
     expect(SHEET).not.toMatch(/timeLtr/);
     expect(RENDER).toMatch(/const trtl = rtl && !c\.timeLtr;/);
     expect(RENDER).toMatch(/const barsStart = trtl \? start \+ dir \* gutter : rtl \? x0 : x0 \+ gutter;/);
-    expect(RENDER).toMatch(/const left = trtl \? cursor - bw \+ gap \/ 2 : cursor \+ gap \/ 2;/);
+    expect(RENDER).toMatch(/const left = trtl \? cursor - bw \+ barGap \/ 2 : cursor \+ barGap \/ 2;/);
     expect(RENDER).toMatch(/ctx\.lineTo\(barsStart \+ tdir \* barsW, ay\);/);
   });
 });
