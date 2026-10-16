@@ -18,6 +18,7 @@ import {
   type FunnelCandidate,
   type StageOwner,
   type TimelineStep,
+  PARKED_STAGES,
 } from '@/lib/academy/funnel';
 import type { Characterization } from '@/lib/academy/characterization';
 import type { LinkableAthlete } from '@/lib/academy/link';
@@ -513,10 +514,11 @@ const STAGE_SHORT: Record<string, string> = {
 };
 
 /**
- * Payments are parked: the standing-order dot is drawn, so the line says nine steps,
- * but it stays grey and nothing on the card offers to tick it.
+ * Parked stages (lib/academy/funnel.ts PARKED_STAGES: WhatsApp groups and the standing
+ * order) are drawn, so the line says nine steps, but they stay grey and nothing on the card
+ * offers to tick them.
  */
-const PARKED = new Set<string>(['standing_order']);
+const PARKED = PARKED_STAGES;
 
 /** Where the card came from, as the end of "התקבל היום · …". */
 function sourcePhrase(source: string | null | undefined): string {
