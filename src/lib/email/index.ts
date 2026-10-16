@@ -3,7 +3,7 @@ import { joinLinkV2 } from '@/lib/install/flag';
 import { openInAppHref } from '@/lib/open-in-app';
 import { renderEmail, renderSetupProgress, renderJourney, renderSteps, renderScanOnPhone, renderTip, renderNextUp, esc, type SetupProgressRow } from './template';
 import { gapNames } from '@/lib/notifications/copy';
-import { memberGroupName } from '@/lib/utils';
+import { memberGroupName, resolveGroup } from '@/lib/utils';
 import { sendEmail, type SendResult } from './send';
 import { renderAcademyFormReceived } from './academy-form-received';
 import { newApplicantSubject, renderAcademyNewApplicant } from './academy-new-applicant';
@@ -43,6 +43,21 @@ const firstName = (name?: string | null) => (name || '').trim().split(/\s+/)[0] 
  */
 export { memberGroupName };
 
+/**
+ * A group as the staff mails name it: "דבוקה 2" for a numbered pack (the app's word
+ * since the feed redesign), the club's own name for anything else, "—" for none.
+ */
+function staffPackLabel(name?: string | null): string {
+  const g = resolveGroup(name);
+  if (g.index >= 0) return `דבוקה ${g.index + 1}`;
+  return (name || '').trim() || '—';
+}
+
+// The four staff mails below were the last ones on the old English, left-to-right
+// shell (renderPlainEmail) after the 2026-10-10 move to the academy design — the
+// new-joiner alert most visibly, which is the one an approver gets most. They are
+// Hebrew on the academy shell now, without the member sign-off (signoff: false).
+
 // ── Legacy Google/Garmin onboarding ──────────────────────────────────────────────
 
 export async function notifyAdminNewUser(user: {
@@ -52,22 +67,24 @@ export async function notifyAdminNewUser(user: {
   hasGarmin?: boolean;
 }): Promise<SendResult> {
   const authStatusMap: Record<string, string> = {
-    garmin_authed: '✅ Google + Garmin connected',
-    google_authed: '⚠️ Google only (skipped Garmin)',
+    garmin_authed: '✅ Google + Garmin מחוברים',
+    google_authed: '⚠️ Google בלבד (בלי Garmin)',
   };
   const authStatus =
-    authStatusMap[user.onboardingStatus] || (user.hasGarmin ? '✅ Google + Garmin' : '⚠️ Google only');
+    authStatusMap[user.onboardingStatus] || (user.hasGarmin ? '✅ Google + Garmin' : '⚠️ Google בלבד');
 
   return sendEmail({
     template: 'admin_new_user',
     to: ADMIN_EMAIL,
-    subject: `🏃 New user waiting for approval: ${user.name}`,
+    subject: `🏃 משתמש חדש מחכה לאישור: ${user.name}`,
     html: renderEmail({
       signoff: false,
-      dir: 'ltr',
-      title: 'New user registration',
-      rows: [['Name', user.name], ['Email', user.email], ['Auth', authStatus], ['Status', user.onboardingStatus]],
-      cta: { label: 'Review & approve →', href: openInAppHref(APP_URL, '/dashboard/settings') },
+      eyebrow: 'ממתין לאישור',
+      title: 'משתמש חדש נרשם',
+      preheader: `${user.name} מחכה לאישור.`,
+      rows: [['שם', user.name], ['מייל', user.email], ['חיבור', authStatus]],
+      // The entry queue, the one place anybody is let in now (it was Settings).
+      cta: { label: 'לבדיקה ולאישור ←', href: openInAppHref(APP_URL, '/dashboard/entry-queue?at=mine') },
     }),
   });
 }
@@ -103,12 +120,13 @@ export async function notifyAdminUserApproved(
   return sendEmail({
     template: 'admin_user_approved',
     to: admin.email,
-    subject: `✅ User approved: ${user.name}`,
+    subject: `✅ אושר: ${user.name}`,
     html: renderEmail({
       signoff: false,
-      dir: 'ltr',
-      title: 'User approved',
-      paragraphs: [`${user.name} (${user.email}) has been approved and notified.`],
+      eyebrow: 'אושר',
+      title: `${user.name} אושר/ה`,
+      preheader: 'נשלח מייל עם הצעד הבא.',
+      paragraphs: [`ההרשמה של ${user.name} (${user.email}) אושרה, ונשלח מייל עם הצעד הבא.`],
     }),
   });
 }
@@ -142,29 +160,28 @@ export async function notifyAdminNewSignupRequest(req: {
   // an approver could reply to it. It is not an address — nothing delivers there
   // and nobody has ever seen it. Say plainly that there isn't one instead.
   const address = req.email.toLowerCase().trim().endsWith('.local') ? null : req.email;
-  const who = (req.name || '').trim() || address || 'a new Strava sign-in';
+  const who = (req.name || '').trim() || address || 'מישהו שנכנס עם Strava';
   return sendEmail({
     template: 'admin_new_signup_request',
     // The approver list, not just ADMIN_EMAIL: whoever is nearest their phone should
     // be able to let a new runner in.
     to: APPROVER_EMAILS,
-    subject: `🏃 New registration waiting: ${who}`,
+    subject: `🏃 הצטרפות חדשה מחכה לאישור: ${who}`,
     html: renderEmail({
       signoff: false,
-      dir: 'ltr',
-      eyebrow: 'WAITING FOR APPROVAL',
-      title: 'New registration',
-      preheader: `${who} is waiting to be let into the club.`,
+      eyebrow: 'ממתין לאישור',
+      title: 'הצטרפות חדשה למועדון',
+      preheader: `${who} מחכה לאישור כדי להיכנס למועדון.`,
       rows: [
-        ...(req.name ? ([['Name', req.name]] as Array<[string, string]>) : []),
-        ['Email', address || 'none — they signed in with Strava'],
-        ['Group', req.groupName || '—'],
+        ...(req.name ? ([['שם', req.name]] as Array<[string, string]>) : []),
+        ['מייל', address || 'אין — נכנס/ה עם Strava'],
+        ['דבוקה', staffPackLabel(req.groupName)],
       ],
       // The entry queue, which is now the only place anybody is let in. This used
       // to open the הרשמות list while every in-app path opened the entry queue, so
       // tapping the mail showed the approver a different screen than browsing did.
-      cta: { label: 'Review & approve →', href: openInAppHref(APP_URL, '/dashboard/entry-queue?at=mine') },
-      notes: ['They cannot enter the app until someone approves this.'],
+      cta: { label: 'לבדיקה ולאישור ←', href: openInAppHref(APP_URL, '/dashboard/entry-queue?at=mine') },
+      notes: ['עד שמישהו יאשר, אי אפשר להיכנס לאפליקציה.'],
     }),
   });
 }
@@ -685,9 +702,9 @@ function pct(n: number): string {
 }
 
 function rateColor(rate: number): string {
-  if (rate >= 0.8) return '#16a34a';
-  if (rate >= 0.5) return '#FF5315';
-  return '#D74E4E';
+  if (rate >= 0.8) return '#16794A';
+  if (rate >= 0.5) return '#C25E00';
+  return '#AD3838';
 }
 
 export async function sendAcademyWeeklyReport(params: {
@@ -701,53 +718,55 @@ export async function sendAcademyWeeklyReport(params: {
     return { ok: false, status: 'skipped', code: 'no-rows', reason: 'No athletes to report on', logId: null };
   }
 
-  const fmt = (d: string) =>
-    new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  // 4.10 — how the club writes a date. Pure string work, so no timezone can move it.
+  const fmt = (d: string) => { const [, m, day] = d.split('-'); return `${Number(day)}.${Number(m)}`; };
 
   const totalPlanned = rows.reduce((a, r) => a + r.plannedCount, 0);
   const totalDone = rows.reduce((a, r) => a + r.completedCount, 0);
   const overall = totalPlanned ? totalDone / totalPlanned : 0;
 
   // Worst first: the point of the digest is who needs a phone call.
+  const cell = 'padding: 10px 8px; border-bottom: 1px solid #EFEFEF; text-align: center;';
   const tableRows = rows
     .slice()
     .sort((a, b) => a.completionRate - b.completionRate)
     .map(r => `
       <tr>
-        <td style="padding: 10px 8px; border-bottom: 1px solid #DFDFDF; font-weight: 600; color: #1D1E26;">${esc(r.name)}</td>
-        <td style="padding: 10px 8px; border-bottom: 1px solid #DFDFDF; text-align: center; color: #2D2E38;">${r.completedCount}/${r.plannedCount}</td>
-        <td style="padding: 10px 8px; border-bottom: 1px solid #DFDFDF; text-align: center; font-weight: 700; color: ${rateColor(r.completionRate)};">${pct(r.completionRate)}</td>
-        <td style="padding: 10px 8px; border-bottom: 1px solid #DFDFDF; text-align: center; color: #656565;">${pct(r.avgScore)}</td>
+        <td style="${cell} text-align: right; font-weight: 700; color: #1D1E26;">${esc(r.name)}</td>
+        <td style="${cell} color: #2D2E38;">${r.completedCount}/${r.plannedCount}</td>
+        <td style="${cell} font-weight: 800; color: ${rateColor(r.completionRate)};">${pct(r.completionRate)}</td>
+        <td style="${cell} color: #5F5F5F;">${pct(r.avgScore)}</td>
       </tr>`)
     .join('');
 
   return sendEmail({
     template: 'academy_weekly_report',
     to: params.to || ADMIN_EMAIL,
-    subject: `🎓 Academy weekly report — ${fmt(weekStart)}–${fmt(weekEnd)}`,
+    subject: `🎓 דוח אקדמיה שבועי · ${fmt(weekStart)}–${fmt(weekEnd)}`,
     html: renderEmail({
       signoff: false,
-      dir: 'ltr',
-      title: 'Academy weekly report',
-      paragraphs: [`${fmt(weekStart)} – ${fmt(weekEnd)}`],
+      eyebrow: 'דוח שבועי',
+      title: 'האקדמיה השבוע',
+      preheader: `${pct(overall)} מהאימונים בוצעו · מי צריך שיחה.`,
+      paragraphs: [`${fmt(weekStart)} – ${fmt(weekEnd)} · מהחלש לחזק, כדי לדעת למי להתקשר.`],
       bodyHtml: `
-        <div style="background: #f1f5f9; border-radius: 12px; padding: 16px; margin: 16px 0;">
-          <span style="font-size: 28px; font-weight: 800; color: ${rateColor(overall)};">${pct(overall)}</span>
-          <span style="color: #2D2E38;"> overall sessions completed (${totalDone}/${totalPlanned}) across ${rows.length} athlete${rows.length !== 1 ? 's' : ''}</span>
+        <div style="text-align: center; background: #F4F1FF; border-radius: 16px; padding: 16px; margin: 16px 0;">
+          <div style="font-size: 34px; font-weight: 800; color: ${rateColor(overall)};">${pct(overall)}</div>
+          <div style="color: #4F4F4F; font-size: 14px;">מהאימונים בוצעו · ${totalDone} מתוך ${totalPlanned} · ${rows.length} ${rows.length === 1 ? 'מתאמן' : 'מתאמנים'}</div>
         </div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <table dir="rtl" style="width: 100%; border-collapse: collapse; font-size: 14px;">
           <thead>
-            <tr style="text-align: left; color: #94a3b8; font-size: 12px;">
-              <th style="padding: 8px;">Athlete</th>
-              <th style="padding: 8px; text-align: center;">Done</th>
-              <th style="padding: 8px; text-align: center;">Completion</th>
-              <th style="padding: 8px; text-align: center;">On-plan</th>
+            <tr style="color: #5F5F5F; font-size: 12px;">
+              <th style="padding: 8px; text-align: right;">מתאמן</th>
+              <th style="padding: 8px;">בוצעו</th>
+              <th style="padding: 8px;">ביצוע</th>
+              <th style="padding: 8px;">לפי התוכנית</th>
             </tr>
           </thead>
           <tbody>${tableRows}</tbody>
         </table>`,
-      cta: { label: 'Open Academy →', href: openInAppHref(APP_URL, '/dashboard/academy') },
-      notes: ['"On-plan" = average share of distance/time/pace targets hit on completed sessions.'],
+      cta: { label: 'לאקדמיה ←', href: openInAppHref(APP_URL, '/dashboard/academy') },
+      notes: ['"לפי התוכנית" = כמה מיעדי המרחק, הזמן והקצב הושגו בממוצע באימונים שבוצעו.'],
     }),
   });
 }
