@@ -1880,7 +1880,10 @@
     "runsCount": "{count, plural, one {1 run} other {# runs}}",
     "yearRuns": "Runs this year",
     "yearKm": "km this year",
-    "allTime": "All time: {km} km · {runs} runs"
+    "allTime": "All time: {km} km · {runs} runs",
+    "tabActivity": "Activity",
+    "tabPrs": "Records",
+    "activityEmpty": "No activity here yet"
   },
   "profileBest": {
     "title": "Your Best",

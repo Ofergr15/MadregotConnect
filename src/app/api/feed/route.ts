@@ -12,6 +12,7 @@ export const dynamic = 'force-dynamic';
 /** The feed item types a caller may ask for via `?types=`. Whitelisted rather
  *  than passed through, so the param can't be used to probe for other values. */
 const FILTERABLE_TYPES = ['activity', 'post', 'achievement', 'announcement', 'new_plan'];
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * GET /api/feed?cursor=<occurredAt>,<id>&limit=20&types=announcement,post&squad=<groupId|academy|favorites|mine>
@@ -63,8 +64,19 @@ export async function GET(request: Request) {
     // row is missing, silently changing what "the feed" means for the unfiltered
     // case. Two dozen ids is a cheap `in`.
     const squad = parseSquadParam(searchParams.get('squad'));
-    let squadAuthorIds: string[] | null = null;
-    if (squad?.kind === 'mine') {
+    // One athlete's own items — the profile's Activity tab, on your profile and on
+    // a teammate's. Takes precedence over `squad`. No extra gate: it can only
+    // NARROW what the club feed already shows this caller, and the pending-author
+    // filter below still applies, so a runner the club hasn't approved yet stays
+    // invisible here exactly as they are on the feed.
+    const athleteParam = searchParams.get('athlete');
+    if (athleteParam && !UUID_RE.test(athleteParam)) {
+      return NextResponse.json({ error: 'Invalid athlete' }, { status: 400 });
+    }
+    let squadAuthorIds: string[] | null = athleteParam ? [athleteParam] : null;
+    if (athleteParam) {
+      // handled above
+    } else if (squad?.kind === 'mine') {
       // From the session, like favourites: only ever the caller themselves.
       if (!auth.user.athleteId) return NextResponse.json({ items: [], nextCursor: null });
       squadAuthorIds = [auth.user.athleteId];

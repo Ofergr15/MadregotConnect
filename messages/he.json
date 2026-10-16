@@ -1880,7 +1880,10 @@
     "runsCount": "{count, plural, one {ריצה אחת} other {# ריצות}}",
     "yearRuns": "אימונים השנה",
     "yearKm": "ק״מ השנה",
-    "allTime": "מאז ומעולם: {km} ק״מ · {runs} ריצות"
+    "allTime": "מאז ומעולם: {km} ק״מ · {runs} ריצות",
+    "tabActivity": "פעילות",
+    "tabPrs": "שיאים",
+    "activityEmpty": "עוד אין כאן פעילות"
   },
   "profileBest": {
     "title": "השיאים שלך",

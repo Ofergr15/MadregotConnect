@@ -61,9 +61,11 @@ describe('GET /api/athletes/[id]/runs', () => {
 describe('the profile runs tab', () => {
   const body = src('src/components/profile/AthleteProfileBody.tsx');
   const browser = src('src/components/profile/RunsBrowser.tsx');
-  it('shows the weeks/calendar browser to the super user and the old list to everyone else', () => {
-    expect(body).toMatch(/section === 'runs' && superUser && athleteId && <RunsBrowser/);
-    expect(body).toMatch(/section === 'runs' && !superUser &&/);
+  it('keeps the weeks/calendar browser for the super user, and the Activity tab is the feed for everyone', () => {
+    // The runs tab became Activity (the athlete's feed cards, #113); the
+    // super user's browser moved under Overview rather than going away.
+    expect(body).toMatch(/\{superUser && athleteId && <RunsBrowser/);
+    expect(body).toMatch(/section === 'activity' && athleteId && <ProfileActivityFeed athleteId=\{athleteId\} \/>/);
   });
   it('switches between weeks and calendar, and every run opens its page', () => {
     expect(browser).toMatch(/value: 'weeks'[\s\S]*value: 'calendar'/);
