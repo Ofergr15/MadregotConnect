@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { GraduationCap } from 'lucide-react';
-import { Card, Button, LoadingBlock } from '@/components/ui';
+import { Spinner } from '@/components/ui';
+import { CARD, SHADOW } from '@/components/trainee/ui';
+import { cn } from '@/lib/utils';
 import { CLOTHING_SIZES } from '@/lib/kit-sizes';
 import { EU_SHOE_SIZES } from '@/lib/shoe-catalog';
 import { formNameProblem, normalizeDisplayName } from '@/lib/names/latin';
@@ -118,9 +120,11 @@ function DateParts({ id, value, onChange }: { id: string; value: string; onChang
   const put = (ny: string, nm: string, nd: string) => onChange(ny || nm || nd ? `${ny}-${nm}-${nd}` : '');
   const thisYear = new Date().getFullYear();
   const years = Array.from({ length: thisYear - 10 - 1930 + 1 }, (_, i) => String(thisYear - 10 - i));
-  const cls = 'w-full min-w-0 min-h-[46px] bg-page border border-ink-300 rounded-lg px-2 py-2.5 text-base text-ink-700 focus:outline-none focus:ring-2 focus:ring-brand-600';
+  // The T5 choice tile (grey until picked), so the three wheels read as one answer
+  // inside the field's card rather than three boxes of their own.
+  const cls = 'w-full min-w-0 min-h-[44px] appearance-none rounded-[12px] bg-[#F2F2F6] px-2 text-center text-base font-bold text-ink-700 focus:outline-none focus:ring-2 focus:ring-brand-600';
   return (
-    <div id={id} role="group" aria-labelledby={`${id}-q`} className="grid grid-cols-[1fr_1.6fr_1.3fr] gap-2">
+    <div id={id} role="group" aria-labelledby={`${id}-q`} className="mt-1.5 grid grid-cols-[1fr_1.6fr_1.3fr] gap-2">
       <select aria-label="יום" value={d} onChange={e => put(y, m, e.target.value)} className={cls}>
         <option value="">יום</option>
         {Array.from({ length: 31 }, (_, i) => pad2(i + 1)).map(v => <option key={v} value={v}>{Number(v)}</option>)}
@@ -137,8 +141,26 @@ function DateParts({ id, value, onChange }: { id: string; value: string; onChang
   );
 }
 
-const isTyped = (f: Field) =>
-  f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number' || f.type === 'textarea';
+// ── T5 (mockup academy-launch-fixes.html) ────────────────────────────────────
+// A typed answer is a white "field" card with its question as the small grey line
+// above the value; a choice is a card with the question as its title and the
+// answers as tiles. Grey until picked, then the brand's light fill with an outline.
+const FIELD_CARD = cn('block rounded-[14px] bg-white px-3.5 pb-2 pt-[7px] focus-within:ring-2 focus-within:ring-brand-600', SHADOW);
+const CHOICE_CARD = cn(CARD, 'px-4 py-3.5');
+const FIELD_LABEL = 'block text-[11.5px] font-extrabold text-ink-400';
+// text-base and up: under 16px iOS Safari zooms the page on every focus, and this
+// form is opened from Instagram on a phone.
+const FIELD_INPUT = 'mt-px w-full min-h-[26px] bg-transparent p-0 text-base font-bold text-ink-900 placeholder:font-medium placeholder:text-ink-300 focus:outline-none';
+const tile = (on: boolean) => cn(
+  'min-h-[44px] rounded-[12px] text-[14px] font-extrabold transition-colors',
+  on ? 'bg-[#EEF0FF] text-brand-600 outline outline-2 outline-brand-600' : 'bg-[#F2F2F6] text-ink-500',
+);
+/** Short answers sit side by side as tiles; a sentence gets a full-width row. */
+const isShortChoice = (options: string[]) => options.every(o => o.length <= 12);
+
+function Required() {
+  return <span className="text-accent-red"> *</span>;
+}
 
 export default function AcademyRegisterPage() {
   const [values, setValues] = useState<Record<string, any>>({});
@@ -261,26 +283,27 @@ export default function AcademyRegisterPage() {
     }
   };
 
-  if (canRegister === null) return <div className="min-h-screen bg-page" dir="rtl" />;
+
+  if (canRegister === null) return <div className="min-h-screen bg-[#F4F4F8]" dir="rtl" />;
 
   if (!canRegister) {
     return (
-      <div className="min-h-screen bg-page flex items-center justify-center p-4" dir="rtl">
-        <Card className="w-full max-w-md p-6 sm:p-8 text-center">
+      <div className="min-h-screen bg-[#F4F4F8] flex items-center justify-center p-4" dir="rtl">
+        <div className={cn(CARD, 'w-full max-w-md p-6 sm:p-8 text-center')}>
           <GraduationCap className="h-12 w-12 text-brand-600 mx-auto mb-3" />
           <h2 className="text-lg font-bold text-ink-700">ההרשמה סגורה כרגע</h2>
           <p className="text-ink-400 text-sm mt-2 leading-relaxed">
             ההרשמה לאקדמיית הריצה של מדרגות סגורה כעת. עקבו אחרינו לפתיחת המחזור הבא.
           </p>
-        </Card>
+        </div>
       </div>
     );
   }
 
   if (done) {
     return (
-      <div className="min-h-screen bg-page flex items-start justify-center p-4 pt-[18vh]" dir="rtl">
-        <Card className="w-full max-w-md p-6 sm:p-8 text-center">
+      <div className="min-h-screen bg-[#F4F4F8] flex items-start justify-center p-4 pt-[18vh]" dir="rtl">
+        <div className={cn(CARD, 'w-full max-w-md p-6 sm:p-8 text-center')}>
           {/* The club's own logo, not a generic check: this is the first thing of
               ours a stranger sees after sending, and often the only one for days. */}
           <img src="/images/logo.png" alt="Madregot" width={112} height={112} className="mx-auto mb-4 h-28 w-28 object-contain" />
@@ -288,37 +311,41 @@ export default function AcademyRegisterPage() {
           <p className="text-ink-400 text-sm mt-2 leading-relaxed">
             הטופס התקבל. נחזור אליך בימים הקרובים לשיחת היכרות קצרה.
           </p>
-        </Card>
+        </div>
       </div>
     );
   }
 
+  const last = step === STEPS.length - 1;
+
   return (
-    <div className="min-h-screen bg-page py-8 px-4" dir="rtl">
-      <div className="max-w-lg mx-auto">
-        <div className="text-center mb-6">
-          <div className="bg-brand-600/20 w-14 h-14 rounded-2xl flex items-center justify-center ring-1 ring-brand-600/20 mx-auto mb-3">
-            <GraduationCap className="h-7 w-7 text-brand-600" />
+    <div className="flex min-h-screen flex-col bg-[#F4F4F8]" dir="rtl">
+      {/* T5's bar: the form's name, centred, on the iOS translucent white. The step
+          sits under it so "how much is left" is on screen the whole way down. */}
+      <header className="safe-top sticky top-0 z-20 border-b border-[#E9E9EF] bg-white/95 backdrop-blur">
+        <div className="mx-auto max-w-lg px-4">
+          <h1 className="flex h-[52px] items-center justify-center text-[17px] font-extrabold text-ink-900">הרשמה לאקדמיה</h1>
+          <div className="pb-2.5" aria-live="polite">
+            <div className="mb-1.5 flex items-center justify-between text-[13px] font-extrabold text-ink-700">
+              <span>{STEPS[step].title}</span>
+              <span className="font-bold text-ink-400"><bdi dir="ltr">{step + 1}/{STEPS.length}</bdi></span>
+            </div>
+            <div className="flex gap-1" aria-hidden="true">
+              {STEPS.map((_, i) => (
+                <div key={i} className={cn('h-1 flex-1 rounded-full', i <= step ? 'bg-brand-600' : 'bg-[#E2E2E8]')} />
+              ))}
+            </div>
           </div>
-          <h1 className="text-xl font-bold text-ink-700">שאלון הצטרפות · Madregot Academy</h1>
-          <p className="text-ink-400 mt-2 text-sm">
-            {prefilled ? 'הפרטים שלך כבר מולאו — נשאר רק לספר לנו עליך' : 'מלא/י את הפרטים כדי שנבנה לך פרופיל מתאמן'}
+        </div>
+      </header>
+
+      {/* A column, so on a short page the foot still sits at the bottom of the screen. */}
+      <form onSubmit={submit} className="mx-auto flex w-full max-w-lg flex-1 flex-col">
+        <div className="flex-1 space-y-2.5 px-4 pb-6 pt-3.5">
+          <p className="text-center text-[14px] leading-normal text-ink-500">
+            {prefilled ? 'הפרטים שלך כבר מולאו. נשאר רק לספר לנו עליך.' : 'ממלאים פעם אחת, ונחזור אליך בימים הקרובים.'}
           </p>
-        </div>
 
-        <div className="mb-4" aria-live="polite">
-          <div className="flex items-center justify-between text-sm font-bold text-ink-700 mb-2">
-            <span>{STEPS[step].title}</span>
-            <span className="text-ink-400 font-medium"><bdi dir="ltr">{step + 1}/{STEPS.length}</bdi></span>
-          </div>
-          <div className="flex gap-1.5" aria-hidden="true">
-            {STEPS.map((_, i) => (
-              <div key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? 'bg-brand-600' : 'bg-ink-300'}`} />
-            ))}
-          </div>
-        </div>
-
-        <form onSubmit={submit} className="space-y-3">
           {/* The honeypot. Clipped to nothing rather than display:none, which some bots
               skip. NOT pushed off-screen with left:-10000px: in an RTL page the left is
               scrollable, so that made the page 10,390px wide and iOS slid the whole
@@ -329,126 +356,145 @@ export default function AcademyRegisterPage() {
               value={honeypot} onChange={e => setHoneypot(e.target.value)} />
           </div>
 
-          {STEPS[step].keys.filter(isShown).map(k => FIELD_BY_KEY.get(k)!).map(f => (
-            <Card key={f.key} variant="plain">
-              {/* A real <label for> on the typed fields and a group heading on the
-                  choice fields — the audit found every input named only by its
-                  placeholder ("Daniel", "התשובה שלך"), which a screen reader reads
-                  as the answer and not the question. */}
-              {isTyped(f) ? (
-                <label htmlFor={`ar-${f.key}`} className="block text-sm font-medium text-ink-700 mb-2">
-                  {f.label} {f.required && <span className="text-accent-red">*</span>}
+          {STEPS[step].keys.filter(isShown).map(k => FIELD_BY_KEY.get(k)!).map(f => {
+            // A typed answer: the whole card is the <label>, so a tap anywhere on it
+            // focuses the input, and a screen reader reads the question and not the
+            // placeholder ("Daniel", "התשובה שלך") as the field's name.
+            if (f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number') {
+              const ltr = f.type === 'email' || f.type === 'tel';
+              return (
+                <label key={f.key} htmlFor={`ar-${f.key}`} className={FIELD_CARD}>
+                  <span className={FIELD_LABEL}>{f.label}{f.required && <Required />}</span>
+                  <input
+                    id={`ar-${f.key}`} type={f.type === 'number' ? 'text' : f.type} value={values[f.key] || ''} placeholder={(f as any).placeholder || 'התשובה שלך'}
+                    inputMode={(f as any).inputMode}
+                    pattern={f.type === 'number' ? ((f as any).inputMode === 'decimal' ? '[0-9]*[.,]?[0-9]*' : '[0-9]*') : undefined}
+                    autoComplete={f.type === 'number' ? 'off' : undefined}
+                    // An address and a phone number are LTR runs; typed into an RTL box
+                    // they jump around as they grow. Right-aligned, so they still sit
+                    // under the question.
+                    dir={ltr ? 'ltr' : undefined}
+                    onChange={e => set(f.key, f.type === 'number' ? numberOnly(e.target.value, (f as any).inputMode === 'decimal') : e.target.value)}
+                    className={cn(FIELD_INPUT, ltr && 'text-right')}
+                  />
                 </label>
-              ) : (
-                <p id={`ar-${f.key}-q`} className="block text-sm font-medium text-ink-700 mb-2">
-                  {f.label} {f.required && <span className="text-accent-red">*</span>}
+              );
+            }
+            if (f.type === 'textarea') {
+              return (
+                <label key={f.key} htmlFor={`ar-${f.key}`} className={FIELD_CARD}>
+                  <span className={FIELD_LABEL}>{f.label}{f.required && <Required />}</span>
+                  <textarea
+                    id={`ar-${f.key}`} value={values[f.key] || ''} rows={3} placeholder="התשובה שלך"
+                    onChange={e => set(f.key, e.target.value)}
+                    className={cn(FIELD_INPUT, 'resize-y py-1 leading-normal')}
+                  />
+                </label>
+              );
+            }
+            if (f.type === 'date' || f.type === 'select') {
+              return (
+                <div key={f.key} className={FIELD_CARD}>
+                  <span id={`ar-${f.key}-q`} className={FIELD_LABEL}>{f.label}{f.required && <Required />}</span>
+                  {f.type === 'date' && (
+                    <DateParts id={`ar-${f.key}`} value={values[f.key] || ''} onChange={v => set(f.key, v)} />
+                  )}
+                  {f.type === 'select' && (
+                    <select
+                      aria-labelledby={`ar-${f.key}-q`} value={values[f.key] || ''}
+                      onChange={e => set(f.key, e.target.value)}
+                      className={cn(FIELD_INPUT, 'appearance-none', !values[f.key] && 'font-medium text-ink-300')}
+                    >
+                      <option value="" disabled>בחירה</option>
+                      {f.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  )}
+                </div>
+              );
+            }
+
+            // A choice: the question as the card's title, the answers as tiles.
+            return (
+              <div key={f.key} className={CHOICE_CARD}>
+                <p id={`ar-${f.key}-q`} className="text-[15px] font-extrabold text-ink-900">
+                  {f.label}{f.required && <Required />}
                 </p>
-              )}
 
-              {(f.type === 'text' || f.type === 'email' || f.type === 'tel' || f.type === 'number') && (
-                <input
-                  id={`ar-${f.key}`} type={f.type === 'number' ? 'text' : f.type} value={values[f.key] || ''} placeholder={(f as any).placeholder || 'התשובה שלך'}
-                  inputMode={(f as any).inputMode}
-                  pattern={f.type === 'number' ? ((f as any).inputMode === 'decimal' ? '[0-9]*[.,]?[0-9]*' : '[0-9]*') : undefined}
-                  autoComplete={f.type === 'number' ? 'off' : undefined}
-                  onChange={e => set(f.key, f.type === 'number' ? numberOnly(e.target.value, (f as any).inputMode === 'decimal') : e.target.value)}
-                  // text-base, not text-sm: under 16px iOS Safari zooms the page on
-                  // every focus, and this form is opened from Instagram on a phone.
-                  className="w-full min-h-[46px] bg-page border border-ink-300 rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600"
-                />
-              )}
+                {f.type === 'radio' && (
+                  <div role="radiogroup" aria-labelledby={`ar-${f.key}-q`}
+                    className={cn('mt-2', isShortChoice(f.options) ? 'grid grid-cols-2 gap-2' : 'flex flex-col gap-2')}>
+                    {f.options.map(opt => {
+                      const on = values[f.key] === opt;
+                      return (
+                        <button key={opt} type="button" role="radio" aria-checked={on} onClick={() => set(f.key, opt)}
+                          className={cn(tile(on), !isShortChoice(f.options) && 'px-3.5 py-2.5 text-start leading-snug')}>
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
-              {f.type === 'date' && (
-                <DateParts id={`ar-${f.key}`} value={values[f.key] || ''} onChange={v => set(f.key, v)} />
-              )}
+                {f.type === 'chips' && (
+                  // Same data as a radio, as a wrapping row of tiles: four size
+                  // questions as stacked rows is twenty-four rows of nearly identical
+                  // text, which buries the medical question above them.
+                  <div role="group" aria-labelledby={`ar-${f.key}-q`} className="mt-2 grid grid-cols-6 gap-1.5" dir="ltr">
+                    {f.options.map(opt => {
+                      const isSelected = values[f.key] === opt;
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => set(f.key, opt)}
+                          aria-pressed={isSelected}
+                          className={cn(tile(isSelected), 'px-0')}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
-              {f.type === 'textarea' && (
-                <textarea
-                  id={`ar-${f.key}`} value={values[f.key] || ''} rows={3} placeholder="התשובה שלך"
-                  onChange={e => set(f.key, e.target.value)}
-                  className="w-full bg-page border border-ink-300 rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600 resize-y"
-                />
-              )}
+                {f.type === 'checkboxes' && (
+                  <div role="group" aria-labelledby={`ar-${f.key}-q`} className="mt-2 flex flex-col gap-2">
+                    {f.options.map(opt => {
+                      const on = (values[f.key] || []).includes(opt);
+                      return (
+                        <button key={opt} type="button" role="checkbox" aria-checked={on} onClick={() => toggle(f.key, opt)}
+                          className={cn(tile(on), 'px-3.5 py-2.5 text-start leading-snug')}>
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
-              {f.type === 'radio' && (
-                // Rows at 44, not the 32 that `p-1.5` around a 20px line gave. The
-                // gap goes to zero because the rows' own height now spaces them.
-                <div role="radiogroup" aria-labelledby={`ar-${f.key}-q`}>
-                  {f.options.map(opt => (
-                    <label key={opt} className="flex min-h-[44px] items-center gap-2.5 cursor-pointer px-1.5 rounded-lg hover:bg-page/40">
-                      <input type="radio" name={f.key} checked={values[f.key] === opt} onChange={() => set(f.key, opt)}
-                        className="accent-brand-600 w-4 h-4" />
-                      <span className="text-sm text-ink-500">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
+          {error && <p role="alert" className="text-center text-sm font-bold text-accent-red">{error}</p>}
+        </div>
 
-              {f.type === 'select' && (
-                <select
-                  aria-labelledby={`ar-${f.key}-q`} value={values[f.key] || ''}
-                  onChange={e => set(f.key, e.target.value)}
-                  className="w-full min-h-[46px] bg-page border border-ink-300 rounded-lg px-3 py-2.5 text-base text-ink-700 focus:outline-none focus:ring-2 focus:ring-brand-600"
-                >
-                  <option value="" disabled>בחירה</option>
-                  {f.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
-              )}
-
-              {f.type === 'chips' && (
-                <div role="group" aria-labelledby={`ar-${f.key}-q`} className="flex flex-wrap gap-1.5">
-                  {f.options.map(opt => {
-                    const isSelected = values[f.key] === opt;
-                    return (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => set(f.key, opt)}
-                        aria-pressed={isSelected}
-                        className={
-                          'min-w-[52px] h-11 px-3 rounded-pill text-sm font-semibold border transition-colors ' +
-                          (isSelected
-                            ? 'bg-brand-600 text-white border-brand-600'
-                            : 'bg-card text-ink-500 border-page hover:bg-page/40')
-                        }
-                      >
-                        {opt}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {f.type === 'checkboxes' && (
-                <div role="group" aria-labelledby={`ar-${f.key}-q`}>
-                  {f.options.map(opt => (
-                    <label key={opt} className="flex min-h-[44px] items-center gap-2.5 cursor-pointer px-1.5 rounded-lg hover:bg-page/40">
-                      <input type="checkbox" checked={(values[f.key] || []).includes(opt)} onChange={() => toggle(f.key, opt)}
-                        className="accent-brand-600 w-4 h-4" />
-                      <span className="text-sm text-ink-500">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </Card>
-          ))}
-
-          {error && <p className="text-sm text-accent-red text-center">{error}</p>}
-
-          <div className="flex gap-2">
+        {/* T5's foot: the one action, pinned to the bottom so it is never a scroll away. */}
+        <div className="safe-bottom sticky bottom-0 z-10 border-t border-[#E2E2E7] bg-[#F4F4F8]/95 backdrop-blur">
+          <div className="flex gap-2.5 px-4 pb-3 pt-2.5">
             {step > 0 && (
-              <Button type="button" variant="ghost" size="lg" disabled={submitting} className="flex-1"
-                onClick={() => { setError(null); setStep(s => s - 1); window.scrollTo({ top: 0 }); }}>
+              <button type="button" disabled={submitting}
+                onClick={() => { setError(null); setStep(s => s - 1); window.scrollTo({ top: 0 }); }}
+                className={cn('h-[52px] flex-1 rounded-[15px] bg-white text-[16px] font-extrabold text-brand-600 disabled:opacity-50', SHADOW)}>
                 חזרה
-              </Button>
+              </button>
             )}
-            <Button type="submit" size="lg" disabled={submitting} className="flex-[2]">
-              {submitting && <LoadingBlock size={20} className="py-0" />}
-              {step < STEPS.length - 1 ? 'המשך' : submitting ? 'שולח…' : 'שליחה'}
-            </Button>
+            <button type="submit" disabled={submitting}
+              className="flex h-[52px] flex-[2] items-center justify-center gap-1.5 rounded-[15px] bg-brand-600 text-[16px] font-extrabold text-white active:bg-brand-700 disabled:opacity-60">
+              {submitting && <Spinner size={18} />}
+              {!last ? 'המשך' : submitting ? 'שולח…' : 'שליחה'}
+            </button>
           </div>
-        </form>
-      </div>
+        </div>
+      </form>
     </div>
   );
 }
