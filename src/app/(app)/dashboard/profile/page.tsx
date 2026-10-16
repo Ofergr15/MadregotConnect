@@ -25,7 +25,6 @@ import { ProfileOverview } from '@/components/profile/ProfileOverview';
 import { SetupChecklist } from '@/components/onboarding/SetupChecklist';
 import { ONBOARDING_KEY } from '@/lib/onboarding/use-onboarding';
 import { Sheet, SegmentedControl, BackNav, ConfirmSheet } from '@/components/ui';
-import { useIsSuperUser } from '@/lib/impersonation';
 import { groupChangeDate } from '@/lib/groups/pending-change';
 import { WeekStartSetting } from '@/components/profile/WeekStartSetting';
 import { shareTextForDay } from '@/lib/workout-share';
@@ -158,7 +157,10 @@ function ProfileContent() {
   const [saving, setSaving] = useState(false);
   // #96: the member changes their own group, from Saturday. The super user's
   // until rollout; everyone else keeps the lock once they have runs.
-  const changesFromSaturday = useIsSuperUser();
+  // A member changes their own pack from the next Saturday (#96) — everyone since
+  // 2026-10-16. Before, only the super user could; others were locked out once they
+  // had a run, because a mid-week move would mismatch the plan already on their watch.
+  const changesFromSaturday = true;
   const [pendingGroup, setPendingGroup] = useState<{ groupId: string; from: string } | null>(null);
   const [confirmGroupChange, setConfirmGroupChange] = useState(false);
   const [saved, setSaved] = useState(false);

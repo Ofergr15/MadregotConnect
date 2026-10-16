@@ -29,8 +29,9 @@ describe('the Saturday a change takes effect', () => {
 });
 
 describe('the change', () => {
-  it('is the super user\'s own row only', () => {
-    expect(ROUTE).toMatch(/if \(!auth\.user\.isSuperUser \|\| auth\.user\.athleteId !== id\) \{\s*return NextResponse\.json\(\{ error: 'forbidden' \}, \{ status: 403 \}\);/);
+  // Every member since 2026-10-16 (was super user only) — still their OWN row only.
+  it("is the member's own row only", () => {
+    expect(ROUTE).toMatch(/if \(auth\.user\.athleteId !== id\) \{\s*return NextResponse\.json\(\{ error: 'forbidden' \}, \{ status: 403 \}\);/);
     expect(ROUTE).toMatch(/const from = groupId \? groupChangeDate\(israelToday\(\)\) : null;/);
   });
 
@@ -47,7 +48,7 @@ describe('the change', () => {
   });
 
   it('asks first, and says why it waits for Saturday', () => {
-    expect(PAGE).toMatch(/const changesFromSaturday = useIsSuperUser\(\);/);
+    expect(PAGE).toMatch(/const changesFromSaturday = true;/);
     expect(PAGE).toMatch(/const groupLocked = hasActivities && !changesFromSaturday;/);
     expect(PAGE).toMatch(/onClick=\{changesFromSaturday \? \(\) => setConfirmGroupChange\(true\) : saveGroup\}/);
     const he = JSON.parse(readFileSync('messages/he.json', 'utf8')).profile;

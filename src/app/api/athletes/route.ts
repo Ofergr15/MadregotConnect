@@ -202,11 +202,11 @@ export async function PUT(request: Request) {
       );
     }
 
-    // A member's own group change, waiting for Saturday (#96), for the super user
-    // until rollout. Self only, even for staff: this is the profile's switch, and
-    // a coach moving somebody still does it at once, below. `null` cancels.
+    // A member's own group change, waiting for Saturday (#96). Self only, even for
+    // staff: this is the profile's switch, and a coach moving somebody still does it
+    // at once, below (and that cancels this). `null` cancels.
     if (body.pendingGroupId !== undefined) {
-      if (!auth.user.isSuperUser || auth.user.athleteId !== id) {
+      if (auth.user.athleteId !== id) {
         return NextResponse.json({ error: 'forbidden' }, { status: 403 });
       }
       const groupId = body.pendingGroupId || null;

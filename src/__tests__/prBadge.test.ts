@@ -18,9 +18,9 @@ describe('the runs that hold a record', () => {
     expect(prRunsByActivity(undefined).size).toBe(0);
   });
 
-  it('is asked for only by the super user, and shown on the feed card and the run page', () => {
+  it('is asked for by everyone (since 2026-10-16), and shown on the feed card and the run page', () => {
     const badge = readFileSync('src/components/PrBadge.tsx', 'utf8');
-    expect(badge).toMatch(/useApi<\{ buckets\?: RecordBucketLike\[\] \}>\(superUser \? '\/api\/club\/records' : null\)/);
+    expect(badge).toMatch(/useApi<\{ buckets\?: RecordBucketLike\[\] \}>\('\/api\/club\/records'\)/);
     expect(readFileSync('src/components/FeedCard.tsx', 'utf8')).toMatch(/const prBuckets = usePrRuns\(\)\.get\(act\.id\);/);
     expect(readFileSync('src/app/(app)/dashboard/activities/[activityId]/page.tsx', 'utf8')).toMatch(/<PrBadge buckets=\{prRuns\.get\(act\.id\)\} \/>/);
   });

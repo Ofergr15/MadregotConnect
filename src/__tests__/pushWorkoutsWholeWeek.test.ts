@@ -87,10 +87,14 @@ describe('the whole week in one request', () => {
     expect(h.planUpdates[1]).toEqual({ status: 'partial' });
   });
 
-  it('is the super user\'s only: anyone else\'s push is one batch, an athlete at a time, as before', async () => {
+  // #88 rolled out 2026-10-16: any staff sender gets the server-finished whole week.
+  // A single batch (an older client, the history re-push) still goes as before.
+  it('is every staff sender\'s, and a single batch still works as before', async () => {
     h.user = { isStaff: true, isSuperUser: false };
-    const refused = await call({ planId: 'p1', weekStartDate: '2026-09-27', batches: [{ workouts: [workout(0)], athleteIds: ['a'] }] });
-    expect(refused.status).toBe(400);
+    const whole = await call({ planId: 'p1', weekStartDate: '2026-09-27', wholeWeek: true, batches: [{ workouts: [workout(0)], athleteIds: ['a'] }] });
+    expect(whole.status).toBe(200);
+    expect(h.delivered.map(d => d.id)).toEqual(['a']);
+    h.delivered = []; h.planUpdates = []; h.kept = []; h.peak = 0;
     await call({ planId: 'p1', weekStartDate: '2026-09-27', workouts: [workout(0)], athleteIds: ids(4, 'x') });
     expect(h.delivered).toHaveLength(4);
     expect(h.peak).toBe(1);
@@ -100,10 +104,10 @@ describe('the whole week in one request', () => {
     expect(h.delivered.every(d => d.cleanDayOnce)).toBe(true);
   });
 
-  it('is asked for by the planner only when the super user sends', async () => {
+  it('is asked for by the planner whoever sends', async () => {
     const { readFileSync } = await import('fs');
     const page = readFileSync('src/app/(app)/dashboard/plan/new/page.tsx', 'utf8');
-    expect(page).toMatch(/if \(superUser\) \{\s*try \{\s*await post\(\{ batches: jobs, wholeWeek: pushDays === null \}\);/);
-    expect(page).toMatch(/\} else \{\s*for \(const job of jobs\) await post\(job\);/);
+    expect(page).toMatch(/try \{\s*await post\(\{ batches: jobs, wholeWeek: pushDays === null \}\);/);
+    expect(page).not.toMatch(/if \(superUser\) \{\s*try \{\s*await post\(\{ batches/);
   });
 });

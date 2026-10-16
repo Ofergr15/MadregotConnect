@@ -1178,20 +1178,16 @@ export default function WeeklyPlannerPage() {
       await send(selectedSessions(plan.workouts, pushDays) as ParsedWorkout[], ids);
     }
 
-    // The super user sends the whole week as ONE request, which the server finishes
-    // even if this phone goes to sleep, and which writes the plan's status itself
-    // (feedback bb7fdd49). Everyone else still sends a request per batch.
+    // The whole week as ONE request, which the server finishes even if this phone
+    // goes to sleep, and which writes the plan's status itself (feedback bb7fdd49,
+    // #88). Every sender since 2026-10-16; the super user only before.
     if (jobs.length === 0) return results;
-    if (superUser) {
-      try {
-        await post({ batches: jobs, wholeWeek: pushDays === null });
-      } catch (err) {
-        // A dropped connection, not a refusal: the server carries on without us.
-        if (err instanceof TypeError) throw new Error(t('errors.pushContinuesOnServer'));
-        throw err;
-      }
-    } else {
-      for (const job of jobs) await post(job);
+    try {
+      await post({ batches: jobs, wholeWeek: pushDays === null });
+    } catch (err) {
+      // A dropped connection, not a refusal: the server carries on without us.
+      if (err instanceof TypeError) throw new Error(t('errors.pushContinuesOnServer'));
+      throw err;
     }
 
     return results;

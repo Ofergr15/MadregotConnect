@@ -42,14 +42,14 @@ export async function POST(req: NextRequest) {
     // pace-zone alarm on their watch.
     const { planId, workouts, athleteIds, weekStartDate, paceAlerts: paceAlertsAllowed, batches, wholeWeek, notifyAthletes, notifyLines, byAthleteGroup } = await req.json();
 
-    // THE WHOLE WEEK IN ONE REQUEST, for the super user until rollout (feedback
+    // THE WHOLE WEEK IN ONE REQUEST, for every staff sender (feedback
     // bb7fdd49). The planner sent one request per pace group from the phone, one
     // after the other, an athlete at a time: about 3.5 minutes for 18 athletes,
     // and when the screen went off the groups not yet sent were never sent, and
     // the plan's status was never written. Here every group comes at once, a few
     // athletes are delivered at a time, the work is kept alive past a phone that
     // has gone to sleep, and the plan's status is written here, not by the phone.
-    const wholeRequest = auth.user.isSuperUser && Array.isArray(batches);
+    const wholeRequest = Array.isArray(batches);
     const jobs: Batch[] = wholeRequest ? batches : [{ workouts, athleteIds }];
 
     if (!weekStartDate || jobs.some((b) => !Array.isArray(b?.workouts) || !Array.isArray(b?.athleteIds))) {

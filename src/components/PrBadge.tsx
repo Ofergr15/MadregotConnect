@@ -4,18 +4,16 @@ import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Trophy } from 'lucide-react';
 import { useApi } from '@/lib/api';
-import { useIsSuperUser } from '@/lib/impersonation';
 import { prRunsByActivity, type RecordBucketLike } from '@/lib/prs/pr-runs';
 
 /**
- * The runs that hold a personal record, for the super user only until rollout
- * (feedback #90). One request for the whole feed: SWR shares it between cards, and
+ * The runs that hold a personal record (feedback #90; for everyone since 2026-10-16,
+ * super user only before). One request for the whole feed: SWR shares it between cards, and
  * the route answers from the cached records row. That row is refreshed a few times
  * a day, so a record set this morning can take a few hours to earn its badge.
  */
 export function usePrRuns(): Map<string, string[]> {
-  const superUser = useIsSuperUser();
-  const { data } = useApi<{ buckets?: RecordBucketLike[] }>(superUser ? '/api/club/records' : null);
+  const { data } = useApi<{ buckets?: RecordBucketLike[] }>('/api/club/records');
   return useMemo(() => prRunsByActivity(data?.buckets), [data]);
 }
 
