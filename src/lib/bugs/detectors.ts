@@ -454,6 +454,18 @@ function inWindow(events: ClientEventRow[], kind: string, now: number, days: num
   return events.filter(e => e.kind === kind && daysBetween(e.created_at, now) < days);
 }
 
+/**
+ * A route as a SCREEN: ids taken out. "/dashboard/activities/e354e112-…" and
+ * "/dashboard/activities/c5ca5580-…" are one screen, and grouping on the raw path
+ * filed each run and each teammate as its own finding of one athlete (#109–#112,
+ * #114) — a screen two people hit came out as two "weak" findings instead of one.
+ */
+export function screenOf(route: string | null | undefined): string {
+  return (route || '?')
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ':id')
+    .replace(/\/\d{3,}(?=\/|$)/g, '/:id');
+}
+
 function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
   const out = new Map<string, T[]>();
   for (const row of rows) {
@@ -537,7 +549,7 @@ export function detectBlankScreen(events: ClientEventRow[], now: number, days = 
   // A page still on its spinner ten seconds in ('loading') is a different fact from
   // a page that settled empty, and is filed apart: before the probe told them apart,
   // a slow first load of /dashboard was filed as "loaded blank" (#107).
-  const groups = groupBy(inWindow(events, 'blank', now, days), e => `${e.route || '?'}|${e.message === 'loading' ? 'loading' : 'empty'}`);
+  const groups = groupBy(inWindow(events, 'blank', now, days), e => `${screenOf(e.route)}|${e.message === 'loading' ? 'loading' : 'empty'}`);
   const out: Finding[] = [];
   for (const [groupKey, rows] of groups) {
     const [route, state] = groupKey.split('|');
@@ -582,7 +594,7 @@ export function detectBlankScreen(events: ClientEventRow[], now: number, days = 
  * from the inside it looks like they changed their mind.
  */
 export function detectDroppedForm(events: ClientEventRow[], now: number, days = 7): Finding[] {
-  const groups = groupBy(inWindow(events, 'form_abandon', now, days), e => e.route || '?');
+  const groups = groupBy(inWindow(events, 'form_abandon', now, days), e => screenOf(e.route));
   const out: Finding[] = [];
   for (const [route, rows] of groups) {
     const people = peopleOf(rows);
@@ -694,7 +706,7 @@ export function detectStuckVersion(
  * Grouped by the API path, because that is the unit somebody can go and fix.
  */
 export function detectServerError(events: ClientEventRow[], now: number, days = 3): Finding[] {
-  const groups = groupBy(inWindow(events, 'api_error', now, days), e => e.route || '?');
+  const groups = groupBy(inWindow(events, 'api_error', now, days), e => screenOf(e.route));
   const out: Finding[] = [];
   for (const [route, rows] of groups) {
     const people = peopleOf(rows);

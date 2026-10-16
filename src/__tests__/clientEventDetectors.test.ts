@@ -6,7 +6,7 @@ import {
   CLIENT_EVENT_KINDS, compareVersions, errorShape, sanitiseEvents,
   type ClientEventRow,
 } from '@/lib/bugs/client-events';
-import {
+import { screenOf,
   CLIENT_DETECTORS, LIVE_DETECTORS, PENDING_DETECTORS,
   detectBlankScreen, detectClientError, detectDroppedForm, detectServerError,
   detectStuckVersion, detectSuspiciousPace,
@@ -204,6 +204,23 @@ describe('a screen that loaded empty', () => {
     ], NOW);
     expect(out.map(f => f.key).sort()).toEqual(['blank_screen:/dashboard', 'blank_screen:/dashboard:loading']);
     expect(out.find(f => f.key.endsWith(':loading'))!.title).toContain('עדיין נטען');
+  });
+});
+
+describe('a screen, not a URL', () => {
+  // #109–#112 and #114: one finding per run id / teammate id, each "1 athlete".
+  it('groups the same screen with different ids into one finding', () => {
+    const blank = (athlete: string, id: string) => ev({ kind: 'blank', athlete_id: athlete, message: 'empty', route: `/dashboard/activities/${id}` });
+    const out = detectBlankScreen([
+      blank('a1', 'e354e112-199c-4e64-b4e8-79ff51eb4be8'),
+      blank('a2', 'c5ca5580-c9fe-4d02-adbe-a1a959684ec1'),
+    ], NOW);
+    expect(out).toHaveLength(1);
+    expect(out[0].key).toBe('blank_screen:/dashboard/activities/:id');
+    expect(out[0].affected).toBe(2);
+    expect(screenOf('/dashboard/teammate/b872d490-a6c3-46fb-9860-b2394359503d')).toBe('/dashboard/teammate/:id');
+    expect(screenOf('/api/activities/24680857445/kudos')).toBe('/api/activities/:id/kudos');
+    expect(screenOf('/feed')).toBe('/feed');
   });
 });
 
