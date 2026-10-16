@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { MINE_SQUAD, parseSquadParam } from '@/lib/feed/squad-filter';
 
 /**
- * "SEE ONLY MY WORKOUTS" (Sahar), for the super user until rollout.
+ * "SEE ONLY MY WORKOUTS" (Sahar, #95) — for everyone since 2026-10-16.
  *
  * A squad kind relative to the caller, like favourites: the route resolves it from
  * the session, so it can only ever narrow the feed down to the caller themselves.
@@ -22,9 +22,9 @@ describe('the "mine" feed filter', () => {
     expect(ROUTE).toMatch(/if \(squad\?\.kind === 'mine'\) \{[\s\S]*?squadAuthorIds = \[auth\.user\.athleteId\];/);
   });
 
-  it('is offered to the super user only (the club-logo panel, feed redesign 2026-10-12)', () => {
+  it('is offered to everyone in the club-logo panel', () => {
     const PANEL = readFileSync('src/components/feed/FeedScopeButton.tsx', 'utf8');
-    expect(PANEL).toMatch(/const showMine = useIsSuperUser\(\);/);
+    expect(PANEL).toMatch(/const showMine = true;/);
     expect(PANEL).toMatch(/\{showMine && row\('mine', scope\.squad === MINE_SQUAD/);
   });
 });

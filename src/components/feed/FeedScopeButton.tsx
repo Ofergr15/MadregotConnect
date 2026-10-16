@@ -6,7 +6,6 @@ import { useTranslations } from 'next-intl';
 import { Check, ChevronDown, Star, User } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { cn, resolveGroup } from '@/lib/utils';
-import { useIsSuperUser } from '@/lib/impersonation';
 import { ACADEMY_SQUAD, FAVORITES_SQUAD, MINE_SQUAD } from '@/lib/feed/squad-filter';
 import { setFeedScope, useFeedScope, type FeedKind } from '@/lib/feed/scope-store';
 import { prefetchScopes } from '@/lib/feed/scope-cache';
@@ -38,8 +37,8 @@ export function FeedScopeButton({ myGroupId }: { myGroupId: string | null }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  // "Only my workouts" stays where it was: the super user, until rollout.
-  const showMine = useIsSuperUser();
+  // "Only my workouts" (#95) — for everyone since 2026-10-16.
+  const showMine = true;
   const { data: groupsData } = useApi<{ groups?: { id: string; name: string }[]; academyCount?: number | null }>('/api/groups');
 
   const packs = useMemo(() => {

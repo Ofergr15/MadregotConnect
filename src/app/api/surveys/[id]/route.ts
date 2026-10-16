@@ -47,11 +47,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
       // WHO PICKED WHAT (feedback #91: "who is coming tomorrow and in which pack —
       // it'd be nice to see the results and who voted for which pack"). A signed-in
-      // caller only, never the no-session path above, and the super user only until
-      // rollout, when it becomes any signed-in member: the survey goes to the whole
-      // club and asks who is coming, so the answer is the club's. Active athletes
-      // only, so a runner the club hasn't approved yet isn't listed (#77).
-      if (caller.isSuperUser) {
+      // caller only, never the no-session path above — any signed-in member since
+      // 2026-10-16 (the super user only before): the survey goes to the whole club
+      // and asks who is coming, so the answer is the club's. Active athletes only, so
+      // a runner the club hasn't approved yet isn't listed (#77).
+      {
         const { data: rows } = await supabase
           .from('survey_responses')
           .select('option_index, created_at, athletes!inner(id, name, status)')

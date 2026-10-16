@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'fs';
 
 /**
- * WHO PICKED WHICH PACK (feedback #91), for the super user until rollout.
+ * WHO PICKED WHICH PACK (feedback #91) — any signed-in member since 2026-10-16.
  */
 const h = vi.hoisted(() => ({
   caller: { isSuperUser: true, isStaff: false, athleteId: 'me' } as Record<string, unknown>,
@@ -51,9 +51,9 @@ describe('the survey results', () => {
     expect(h.filters).toContain('survey_responses.athletes.status=active');
   });
 
-  it('is nobody else\'s until rollout, and never the no-session path', async () => {
+  it('is every signed-in member\'s, and never the no-session path', async () => {
     h.caller = { isSuperUser: false, isStaff: false, athleteId: 'me' };
-    expect((await get()).results).toBeNull();
+    expect(Array.isArray((await get()).results)).toBe(true);
     h.caller = { isSuperUser: true, isStaff: false, athleteId: 'me' };
     h.denied = new Response(null, { status: 401 });
     expect((await get()).results).toBeUndefined();
