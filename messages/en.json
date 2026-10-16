@@ -3344,7 +3344,8 @@
     "openProfile": "Member profile",
     "manageRoster": "Manage in the roster",
     "openQueue": "Open the entry queue",
-    "close": "Close"
+    "close": "Close",
+    "pushDeadShort": "notifications not arriving"
   },
   "contentHub": {
     "title": "Content",
@@ -5069,5 +5070,16 @@
     "stripRank": "You're #{rank}",
     "stripRan": "{ran} of {members} ran this week",
     "stripOpen": "Pack page"
+  },
+  "pushDead": {
+    "title": "Notifications aren't reaching this phone",
+    "body": "We sent you notifications this week and none showed here. One tap usually fixes it.",
+    "fix": "Turn them back on",
+    "working": "Working…",
+    "backTitle": "Notifications are back",
+    "backBody": "We sent a test notification and it arrived.",
+    "unconfirmedBody": "This phone is registered again. If they still don't arrive, check that Madregot's notifications are allowed in your phone's settings.",
+    "deniedBody": "Notifications are off in your phone's settings. Settings → Madregot → Notifications, then try here again.",
+    "dismiss": "Dismiss"
   }
 }

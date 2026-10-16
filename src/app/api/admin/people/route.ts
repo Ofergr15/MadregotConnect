@@ -7,6 +7,7 @@ import { REPORT_RUN_TYPES, runDateOf } from '@/lib/reports/last-7-days';
 import type { Person } from '@/lib/admin/people';
 import { REMOVED_STATUS } from '@/lib/admin/entry-queue';
 import { fetchAllRows } from '@/lib/supabase/paginate';
+import { PUSH_DEAD_DAYS, pushLooksDead, type DeviceReceipt } from '@/lib/push-health';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     const since = new Date(Date.now() - RUN_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-    const [athletes, groups, runs, pushes] = await Promise.all([
+    const [athletes, groups, runs, pushes, recentSends] = await Promise.all([
       // garmin_auth/strava_auth for PRESENCE only, exactly as /api/admin/users
       // reads them: the credentials never leave this function.
       supabase
@@ -73,7 +74,15 @@ export async function GET(request: Request) {
         .order('id', { ascending: true })
         .range(from, to))
         .then((data) => ({ data, error: null }), (error) => ({ data: null, error })),
-      supabase.from('push_subscriptions').select('athlete_id, last_success_at'),
+      supabase.from('push_subscriptions').select('athlete_id, created_at, last_success_at'),
+      // Who was SENT something lately, for "notifications aren't arriving" (lib/push-health).
+      supabase
+        .from('scheduled_notifications')
+        .select('audience_id')
+        .eq('audience_type', 'athlete')
+        .eq('status', 'sent')
+        .gt('last_sent_at', new Date(Date.now() - PUSH_DEAD_DAYS * 86_400_000).toISOString())
+        .limit(5000),
     ]);
     if (athletes.error) throw athletes.error;
 
@@ -84,6 +93,15 @@ export async function GET(request: Request) {
       const day = runDateOf(r.start_time);
       const seen = lastRun.get(r.athlete_id);
       if (!seen || day > seen) lastRun.set(r.athlete_id, day);
+    }
+
+    const sentTo = new Map<string, number>();
+    for (const r of (recentSends.data || []) as { audience_id: string | null }[]) {
+      if (r.audience_id) sentTo.set(r.audience_id, (sentTo.get(r.audience_id) || 0) + 1);
+    }
+    const devicesOf = new Map<string, DeviceReceipt[]>();
+    for (const s of (pushes.data || []) as Array<DeviceReceipt & { athlete_id: string | null }>) {
+      if (s.athlete_id) devicesOf.set(s.athlete_id, [...(devicesOf.get(s.athlete_id) || []), s]);
     }
 
     const push = new Map<string, { n: number; last: string | null }>();
@@ -117,6 +135,7 @@ export async function GET(request: Request) {
       setupDone: !!a.onboarding_completed_at,
       pushDevices: push.get(a.id)?.n ?? 0,
       lastPushAt: push.get(a.id)?.last ?? null,
+      pushDead: pushLooksDead(devicesOf.get(a.id) || [], sentTo.get(a.id) || 0),
     }));
 
     return NextResponse.json({ today: israelToday(), people });

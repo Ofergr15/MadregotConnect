@@ -25,6 +25,7 @@ import { groupFeedItems } from '@/lib/feed/group-runs';
 import { SquadStandings } from '@/components/SquadStandings';
 import { UpcomingEvents } from '@/components/UpcomingEvents';
 import { SetupNudgeCard } from '@/components/onboarding/SetupNudgeCard';
+import { PushDeadBanner } from '@/components/PushDeadBanner';
 import { WeekSummaryCard } from '@/components/feed/WeekSummaryCard';
 import { QualitySessionRow } from '@/components/feed/QualitySessionRow';
 import { NextSessionCard } from '@/components/feed/NextSessionCard';
@@ -614,6 +615,11 @@ export default function FeedPage() {
           who hasn't finished setting up never opens — so this is the same rows in
           the place they will actually be seen. Self-hiding, skippable, and capped
           at three appearances: see SetupNudgeCard and nudge-ledger.ts. */}
+      {/* Notifications that stopped reaching this phone (#108) — self-hiding. */}
+      <div className="mb-4 empty:mb-0">
+        <PushDeadBanner />
+      </div>
+
       <div className="mb-4 empty:mb-0">
         <SetupNudgeCard />
       </div>

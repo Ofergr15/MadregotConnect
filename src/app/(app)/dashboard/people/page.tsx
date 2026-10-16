@@ -152,7 +152,11 @@ export default function PeoplePage() {
                     {initials(p.name)}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-bold text-ink-700">{p.name}</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate text-[15px] font-bold text-ink-700">{p.name}</span>
+                      {/* Their phone stopped showing notifications (lib/push-health, #108). */}
+                      {p.pushDead && <span className="shrink-0 rounded-md bg-band-3/15 px-1.5 py-0.5 text-3xs font-bold text-band-3-ink">🔕 {t('pushDeadShort')}</span>}
+                    </span>
                     <span className="block truncate text-xs text-ink-400">{subline(p)}</span>
                   </span>
                   <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-2xs font-bold', PILL[state])}>
@@ -259,7 +263,7 @@ function MemberCard({ person: p, today }: { person: Person; today: string }) {
             label={t('notifications')}
             value={p.pushDevices === 0
               ? t('noDevices')
-              : [t('devices', { n: p.pushDevices }), p.lastPushAt ? t('deliveredOn', { date: ago(p.lastPushAt).toLowerCase() }) : null]
+              : [p.pushDead ? `🔕 ${t('pushDeadShort')}` : null, t('devices', { n: p.pushDevices }), p.lastPushAt ? t('deliveredOn', { date: ago(p.lastPushAt).toLowerCase() }) : null]
                 .filter(Boolean).join(' · ')}
           />
           <KV label={t('setup')} value={p.setupDone ? t('setupDone') : t('setupNotDone')} />

@@ -32,6 +32,8 @@ export interface Person {
   pushDevices: number;
   /** Newest push_subscriptions.last_success_at across the member's devices. */
   lastPushAt: string | null;
+  /** Devices registered, none showed a notification in 7 days, and some were sent (lib/push-health). */
+  pushDead?: boolean;
 }
 
 function daysBetween(from: string, to: string): number {
