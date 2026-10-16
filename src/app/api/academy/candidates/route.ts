@@ -206,22 +206,10 @@ export async function GET(request: Request) {
       multiCoach = await hasTraineeCoachesTable(supabase as any);
     }
 
-    // "פנייה" of the account each card is joined to (athletes.gender, migration 057), for the
-    // card's field. A failed read leaves it unknown, which is the default wording anyway.
-    const linkedIds = [...new Set((rows || []).map(r => (r as any).athlete_id).filter(Boolean))] as string[];
-    const genderOf = new Map<string, 'male' | 'female'>();
-    if (linkedIds.length) {
-      const { data: g } = await supabase.from('athletes').select('id, gender').in('id', linkedIds);
-      for (const a of (g || []) as Array<{ id: string; gender: string | null }>) {
-        if (a.gender === 'male' || a.gender === 'female') genderOf.set(a.id, a.gender);
-      }
-    }
-
     return NextResponse.json({
       candidates: (rows || []).map(r => ({
         ...toCandidate(r),
         ...contactOf(r),
-        gender: genderOf.get(String((r as any).athlete_id)) ?? null,
         emails: (emails as any)[String((r as any).id)] || [],
         linkedFromForm: matches[String((r as any).id)]?.linkedFromForm ?? false,
         clubMatch: matches[String((r as any).id)]?.clubMatch ?? null,

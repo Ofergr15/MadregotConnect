@@ -13,7 +13,6 @@ import { Sheet, InsetSection, InsetRow, ConfirmSheet, Spinner } from '@/componen
 import { teammateHref } from '@/lib/athletes/profile-link';
 import { startViewingAs } from '@/lib/view-as-person';
 import { CoachPairing } from './CoachPairing';
-import { AddressingField } from './AddressingField';
 import { memberCoachNames } from '@/lib/academy/members';
 import { bidiNames } from '@/lib/academy/coach-picker';
 
@@ -223,12 +222,6 @@ export function MemberSheet({
               onChanged={onChanged}
               onChangeCoach={onChangeCoach ? () => onChangeCoach(member) : undefined}
             />
-          )}
-
-          {/* "פנייה": the form does not ask, so the manager or the coach sets it here,
-              from the intro call. Every gendered sentence about this trainee reads it. */}
-          {onChanged && (
-            <AddressingField athleteId={member.athleteId} value={member.gender} onSaved={() => { void onChanged(); }} />
           )}
 
           {/* Out of the sheet, straight to where the work on this trainee happens. */}

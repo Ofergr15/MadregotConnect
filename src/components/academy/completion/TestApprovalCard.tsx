@@ -30,8 +30,6 @@ export function TestApprovalCard({ approval, onDecided, onCorrect }: {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const first = approval.name.split(' ')[0] || approval.name;
-  // Their "פנייה" from the card (AddressingField); unknown keeps "שלח".
-  const gender = approval.gender === 'female' || approval.gender === 'male' ? approval.gender : 'other';
   const m = (c: React.ReactNode) => <bdi dir="ltr">{c}</bdi>;
   const check = approval.bandCheck;
 
@@ -49,11 +47,11 @@ export function TestApprovalCard({ approval, onDecided, onCorrect }: {
 
   const protocol = approval.protocol === '2000m' ? t('p2000') : t('p30');
   return (
-    <section data-athlete={approval.athleteId} className="rounded-[22px] bg-white p-4 shadow-[0_1px_2px_rgba(20,22,40,.04),0_8px_22px_rgba(20,22,40,.06)]" aria-label={t('sent', { name: first, gender })}>
+    <section data-athlete={approval.athleteId} className="rounded-[22px] bg-white p-4 shadow-[0_1px_2px_rgba(20,22,40,.04),0_8px_22px_rgba(20,22,40,.06)]" aria-label={t('sent', { name: first })}>
       <div className="flex items-center gap-3">
         <Avatar text={initials(approval.name)} />
         <span className="min-w-0 flex-1">
-          <b className="block truncate text-[17px] font-black text-ink-900">{t.rich('sentRich', { name: first, gender, bdi: (c) => <bdi>{c}</bdi> })}</b>
+          <b className="block truncate text-[17px] font-black text-ink-900">{t.rich('sentRich', { name: first, bdi: (c) => <bdi>{c}</bdi> })}</b>
           <small className="mt-0.5 block truncate text-[13.5px] font-bold text-ink-400">
             {protocol} · <bdi dir="ltr">{shortDay(approval.date)}</bdi> · {approval.source === 'watch' ? t('fromWatch') : t('typed')}
           </small>

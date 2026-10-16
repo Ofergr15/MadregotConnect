@@ -13,8 +13,7 @@
  * The copy lives here rather than in copy.ts only because these ten belong together and
  * nothing else reads them; they follow copy.ts's shape (per language, a function each).
  * Hebrew addresses the trainee in the plural/neutral form the app uses where gender is
- * unknown; the two coach-facing lines about the trainee follow their "פנייה" when staff
- * have set it (AddressingField).
+ * unknown.
  */
 import { notifyAthlete } from '@/lib/push';
 import type { NotificationLocale } from '@/lib/notifications/locale';
@@ -48,26 +47,18 @@ export function testInviteCopy(locale: NotificationLocale, p: { coach?: string |
     : { title: '🎯 You are invited to a test', body: `${who ? `${who} invited you. ` : ''}Tap to pick a time.` };
 }
 
-/**
- * A Hebrew verb about the trainee, by their "פנייה" (athletes.gender, set on the card).
- * Unknown keeps the slash form the copy has always used.
- */
-function heVerb(gender: string | null | undefined, male: string, female: string): string {
-  return gender === 'female' ? female : gender === 'male' ? male : `${male}/ה`;
-}
-
-export function testConfirmedCopy(locale: NotificationLocale, p: { trainee?: string | null; slot?: string | null; gender?: string | null }): PushCopy {
+export function testConfirmedCopy(locale: NotificationLocale, p: { trainee?: string | null; slot?: string | null }): PushCopy {
   const who = (p.trainee || '').trim() || (locale === 'he' ? 'מתאמן' : 'A trainee');
   const slot = (p.slot || '').trim();
   return locale === 'he'
-    ? { title: `🎯 ${who} ${heVerb(p.gender, 'אישר', 'אישרה')} מועד לטסט`, body: slot ? `${slot}. לחיצה פותחת את הטסטים.` : 'לחיצה פותחת את הטסטים.' }
+    ? { title: `🎯 ${who} אישר/ה מועד לטסט`, body: slot ? `${slot}. לחיצה פותחת את הטסטים.` : 'לחיצה פותחת את הטסטים.' }
     : { title: `🎯 ${who} confirmed a test time`, body: slot ? `${slot}. Tap to open the tests.` : 'Tap to open the tests.' };
 }
 
-export function testSubmittedCopy(locale: NotificationLocale, p: { trainee?: string | null; gender?: string | null }): PushCopy {
+export function testSubmittedCopy(locale: NotificationLocale, p: { trainee?: string | null }): PushCopy {
   const who = (p.trainee || '').trim() || (locale === 'he' ? 'מתאמן' : 'A trainee');
   return locale === 'he'
-    ? { title: `🎯 ${who} ${heVerb(p.gender, 'שלח', 'שלחה')} תוצאת טסט`, body: 'מחכה לאישור שלך. לחיצה פותחת את הטסטים.' }
+    ? { title: `🎯 ${who} שלח/ה תוצאת טסט`, body: 'מחכה לאישור שלך. לחיצה פותחת את הטסטים.' }
     : { title: `🎯 ${who} sent a test result`, body: 'Waiting for your approval. Tap to open the tests.' };
 }
 
@@ -137,17 +128,6 @@ async function nameOf(supabase: Db, id: string | null | undefined): Promise<stri
     return (data as { name?: string } | null)?.name ?? null;
   } catch {
     return null;
-  }
-}
-
-/** Name and "פנייה" of the trainee a coach-facing push is about. Either may be null. */
-async function personOf(supabase: Db, id: string): Promise<{ name: string | null; gender: string | null }> {
-  try {
-    const { data } = await supabase.from('athletes').select('name, gender').eq('id', id).maybeSingle();
-    const row = data as { name?: string | null; gender?: string | null } | null;
-    return { name: row?.name ?? null, gender: row?.gender ?? null };
-  } catch {
-    return { name: await nameOf(supabase, id), gender: null };
   }
 }
 
@@ -236,22 +216,22 @@ export function notifyRemoved(p: { athleteId: string; actorId: string | null }):
 
 export function notifyTestConfirmed(supabase: Db, p: { athleteId: string; slot?: string | null }): Promise<void> {
   return quiet((async () => {
-    const [to, trainee] = await Promise.all([coachesOrManagers(supabase, p.athleteId), personOf(supabase, p.athleteId)]);
+    const [to, trainee] = await Promise.all([coachesOrManagers(supabase, p.athleteId), nameOf(supabase, p.athleteId)]);
     await Promise.all(to.map((id) => notifyAthlete({
       athleteId: id, kind: LOOP_KINDS.testConfirmed, actorAthleteId: p.athleteId,
       url: academyTestUrl({ recipientIsStaff: true }), tag: `academy-test-${p.athleteId}`, category: 'coach',
-      copy: (l) => testConfirmedCopy(l, { trainee: trainee.name, gender: trainee.gender, slot: p.slot ?? null }),
+      copy: (l) => testConfirmedCopy(l, { trainee, slot: p.slot ?? null }),
     }).catch(() => {})));
   })(), 'test confirmed');
 }
 
 export function notifyTestSubmitted(supabase: Db, p: { athleteId: string }): Promise<void> {
   return quiet((async () => {
-    const [to, trainee] = await Promise.all([coachesOrManagers(supabase, p.athleteId), personOf(supabase, p.athleteId)]);
+    const [to, trainee] = await Promise.all([coachesOrManagers(supabase, p.athleteId), nameOf(supabase, p.athleteId)]);
     await Promise.all(to.map((id) => notifyAthlete({
       athleteId: id, kind: LOOP_KINDS.testSubmitted, actorAthleteId: p.athleteId,
       url: academyTestUrl({ recipientIsStaff: true }), tag: `academy-test-${p.athleteId}`, category: 'coach',
-      copy: (l) => testSubmittedCopy(l, { trainee: trainee.name, gender: trainee.gender }),
+      copy: (l) => testSubmittedCopy(l, { trainee }),
     }).catch(() => {})));
   })(), 'test submitted');
 }

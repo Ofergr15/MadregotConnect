@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Check, ChevronDown, ChevronLeft, ClipboardList, FileText, GraduationCap, Link2, Mail, Plus, RotateCcw, Undo2, UserPlus } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { AcademyRegistrations } from '@/components/AcademyRegistrations';
-import { AddressingField } from './AddressingField';
 import { cn } from '@/lib/utils';
 import { EmptyState, LoadingBlock, SegmentedControl, Sheet } from '@/components/ui';
 import {
@@ -71,8 +70,6 @@ type CardExtras = {
   linkedFromForm?: boolean;
   /** The club member this card most likely is (a Strava signup the email could not find). */
   clubMatch?: ClubMatchHint | null;
-  /** "פנייה" of the joined account (athletes.gender); null = not known. */
-  gender?: 'male' | 'female' | null;
 };
 
 /** `lib/academy/link-server.ts` ClubMatch, as the board reads it. */
@@ -504,7 +501,6 @@ export function CandidateSheet({
   onConfirmMatch,
   onInvite,
   onAccept,
-  onAddressingSaved,
   busy,
 }: {
   candidate: (CandidateRow & CardExtras) | null;
@@ -540,11 +536,6 @@ export function CandidateSheet({
   onInvite?: () => void;
   /** Let them in: coach, approval, the "you're in" mail. Same audience as onInvite. */
   onAccept?: () => void;
-  /**
-   * The manager's "פנייה" field on the joined account (AddressingField). Absent hides it: a
-   * coach sets it on their own trainee's card, once there is a trainee to be the coach of.
-   */
-  onAddressingSaved?: () => void;
   busy?: string | null;
 }) {
   const steps = useMemo(
@@ -634,17 +625,6 @@ export function CandidateSheet({
               </button>
             </div>
           </div>
-        )}
-
-        {/* "פנייה". The form does not ask; whoever had the intro call knows, and says it
-            here, on the account the form opened, so the app speaks to them right from day one. */}
-        {onAddressingSaved && candidate.athleteId && !candidate.archivedAt && (
-          <AddressingField
-            className="mt-4 mb-0 [&>div]:bg-page [&>p]:px-0"
-            athleteId={candidate.athleteId}
-            value={candidate.gender}
-            onSaved={onAddressingSaved}
-          />
         )}
 
         <div className="mt-4">
@@ -742,7 +722,7 @@ export function CandidateSheet({
               קבלה לאקדמיה
             </span>
             <span className="text-xs font-medium text-ink-400" dir="auto">
-              {candidate.acceptedAt ? <>{candidate.gender === 'female' ? 'התקבלה' : candidate.gender === 'male' ? 'התקבל' : 'התקבל/ה'} <bdi dir="ltr">{shortDate(candidate.acceptedAt)}</bdi></> : ''}
+              {candidate.acceptedAt ? <>התקבל/ה <bdi dir="ltr">{shortDate(candidate.acceptedAt)}</bdi></> : ''}
             </span>
           </button>
         )}
@@ -1213,7 +1193,6 @@ export function CandidateFunnel({
         onConfirmMatch={athleteId => void patch({ action: 'link', athleteId }, LINK)}
         onInvite={data?.me?.canAdmit ? () => setInviting(true) : undefined}
         onAccept={data?.me?.canAdmit ? () => setAccepting(true) : undefined}
-        onAddressingSaved={data?.me?.isManager ? () => void load() : undefined}
         busy={busy}
       />
       {open && data?.me?.canAdmit && (

@@ -91,11 +91,7 @@ export interface AcademyHomeResponse {
   month: { joined: number; left: number };
   today: { count: number; firstAt: string | null };
   /** Test submissions waiting for a staff approval. */
-  approvals: Array<{
-    athleteId: string; name: string; submittedAt: string | null;
-    /** "פנייה" (athletes.gender), for the card's verb. Null/absent = not known. */
-    gender?: 'male' | 'female' | null;
-  } & Partial<ApprovalDetail>>;
+  approvals: Array<{ athleteId: string; name: string; submittedAt: string | null } & Partial<ApprovalDetail>>;
   /** The funnel, manager only: null for a coach. */
   funnel: {
     live: number;
