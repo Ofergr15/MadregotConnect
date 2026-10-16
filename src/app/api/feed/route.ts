@@ -113,6 +113,11 @@ export async function GET(request: Request) {
         : query.lt('occurred_at', parsedCursor.time);
     }
 
+    // Who is still waiting for approval doesn't depend on the page, so it is asked
+    // alongside it rather than after it: one function↔DB round trip (~225 ms to
+    // Tokyo) less on the request the first card waits for. pendingAthleteIds never
+    // rejects (a failed read is an empty set).
+    const pendingRead = pendingAthleteIds(supabase);
     const { data: rows, error } = await query;
     if (error) throw error;
 
@@ -121,7 +126,7 @@ export async function GET(request: Request) {
     // A runner the club hasn't approved yet stays out of everyone's feed but
     // their own (#77). Filtered after the slice so the cursor still walks the
     // raw order — a page may come back short, never skipped.
-    const pending = await pendingAthleteIds(supabase);
+    const pending = await pendingRead;
     if (auth.user.athleteId) pending.delete(auth.user.athleteId);
     const page = withoutPendingAuthors(raw as { author_athlete_id?: string | null }[], pending) as typeof raw;
 

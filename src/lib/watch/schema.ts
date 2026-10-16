@@ -27,12 +27,13 @@ export async function hasWatchSchema(supabase: Db, now = Date.now()): Promise<bo
   if (cached && cached.until > now) return cached.value;
   let value = false;
   try {
-    const devices = await supabase.from(WATCH_TABLES.devices).select('id').limit(1);
     // The delivery columns are part of the same paste; probing one of them too
-    // keeps a half-applied 138 (tables but no columns) reading as "not yet".
-    const deliveries = devices.error
-      ? devices
-      : await supabase.from('workout_deliveries').select('provider_plan_id').limit(1);
+    // keeps a half-applied 138 (tables but no columns) reading as "not yet". The
+    // two probes are independent, so they go out together.
+    const [devices, deliveries] = await Promise.all([
+      supabase.from(WATCH_TABLES.devices).select('id').limit(1),
+      supabase.from('workout_deliveries').select('provider_plan_id').limit(1),
+    ]);
     value = !devices.error && !deliveries.error;
   } catch {
     value = false;

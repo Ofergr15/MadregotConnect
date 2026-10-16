@@ -110,8 +110,18 @@ export async function GET(request: Request) {
     // Monday weeks. This card is about one person's own week, which is exactly
     // what the preference covers; the leaderboard and pack war stay Monday.
     // For a Sunday member the two windows coincide, so the target is exact.
-    const weekStart = weekStartOn(anchor, await readWeekStartDay(supabase, athleteId));
     const planWeek = getPlanWeekStart(anchor);
+    // The target and the challenge need neither the week preference nor the runs,
+    // so they go out now and are collected below: two function↔DB round trips
+    // instead of four on a card the feed shows on open. The extra handler only
+    // keeps a rejection from being reported as unhandled while the runs load; the
+    // await below still throws it.
+    const sideReads = Promise.all([
+      resolveWeekTarget(supabase, athleteId, planWeek),
+      resolveChallenge(supabase, athleteId, todayKey),
+    ]);
+    sideReads.catch(() => {});
+    const weekStart = weekStartOn(anchor, await readWeekStartDay(supabase, athleteId));
     const daysElapsed = dayKeyDiff(weekStart, todayKey) + 1;
 
     // Only this week's rows, because this week is all the card uses.
@@ -157,10 +167,7 @@ export async function GET(request: Request) {
     }
     const weekKm = dailyKm.reduce((a, b) => a + b, 0);
 
-    const [{ targetMin, targetMax }, challenge] = await Promise.all([
-      resolveWeekTarget(supabase, athleteId, planWeek),
-      resolveChallenge(supabase, athleteId, todayKey),
-    ]);
+    const [{ targetMin, targetMax }, challenge] = await sideReads;
 
     const highlight: FeedHighlight | null = buildHighlight({
       weekStart,
@@ -218,7 +225,9 @@ async function resolveWeekTarget(
   };
 
   try {
-    const plan = (await pick(true)) ?? (await pick(false));
+    // Both asked at once; the athlete's own week still wins over the club's.
+    const [own, club] = await Promise.all([pick(true), pick(false)]);
+    const plan = own ?? club;
     if (!plan) return none;
     const { weekTotalMin, weekTotalMax } = buildWeekBreakdown(plan.parsed_workouts);
     return { targetMin: weekTotalMin, targetMax: weekTotalMax };

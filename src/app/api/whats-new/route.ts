@@ -48,11 +48,16 @@ export async function GET(request: Request) {
   const staff = caller.isStaff || caller.isSuperUser;
   const supabase = createServerClient();
 
-  const rel = await supabase
-    .from('releases')
-    .select('id, released_at, app_version, note_ids')
-    .order('id', { ascending: false })
-    .limit(60);
+  // The picks don't depend on the releases, so both go out at once (one round
+  // trip to the Tokyo DB instead of two, on a request every open makes).
+  const [rel, picksRes] = await Promise.all([
+    supabase
+      .from('releases')
+      .select('id, released_at, app_version, note_ids')
+      .order('id', { ascending: false })
+      .limit(60),
+    supabase.from('release_note_picks').select('note_id, featured, title, body'),
+  ]);
   if (rel.error) {
     if (rel.error.code === MISSING) return NextResponse.json({ releases: [], pending: [], appVersion: APP_VERSION, staff });
     return NextResponse.json({ error: rel.error.message }, { status: 500 });
@@ -66,7 +71,6 @@ export async function GET(request: Request) {
     if (recorded) releases = [recorded, ...releases];
   }
 
-  const picksRes = await supabase.from('release_note_picks').select('note_id, featured, title, body');
   const picks = (picksRes.data ?? []) as NotePick[];
 
   // Staff read main at a pinned commit, the same one an approval would pin, so

@@ -81,6 +81,18 @@ async function readWatchState(
   garminConnected: boolean,
   provider: WatchProvider = 'garmin',
 ): Promise<WatchState> {
+  const data = await readDeliveries(supabase, athleteId, weekStartDate);
+  return watchState(data, weekStartDate, hasPlan, garminConnected, provider);
+}
+
+type DeliveryRow = { workout_date: string; created_at: string; device_confirmed_at: string | null };
+
+/** The week's confirmed deliveries: needs only who and which week, so GET asks it alongside the rest. */
+async function readDeliveries(
+  supabase: ReturnType<typeof createServerClient>,
+  athleteId: string,
+  weekStartDate: string,
+): Promise<DeliveryRow[]> {
   const weekEnd = new Date(weekStartDate);
   weekEnd.setDate(weekEnd.getDate() + 6);
   const weekEndStr = weekEnd.toISOString().split('T')[0];
@@ -92,7 +104,16 @@ async function readWatchState(
     .eq('status', 'success')
     .gte('workout_date', weekStartDate)
     .lte('workout_date', weekEndStr);
+  return (data || []) as DeliveryRow[];
+}
 
+function watchState(
+  data: DeliveryRow[],
+  weekStartDate: string,
+  hasPlan: boolean,
+  garminConnected: boolean,
+  provider: WatchProvider,
+): WatchState {
   return {
     garminConnected,
     weekStartDate,
@@ -104,17 +125,17 @@ async function readWatchState(
 }
 
 /** The caller's row, their group's paces, and the plan for the displayed week. */
-async function loadContext(athleteId: string) {
+async function loadContext(athleteId: string, weekStartDate = getDisplayWeekStart(new Date())) {
   const supabase = createServerClient();
-  const weekStartDate = getDisplayWeekStart(new Date());
 
-  const { data: athlete } = await supabase
+  // The row and the plan don't depend on each other: asked together, one
+  // function↔DB round trip (~225 ms to Tokyo) instead of two.
+  const [{ data: athlete }, { data: plan }] = await Promise.all([supabase
     .from('athletes')
     .select('id, name, garmin_auth, is_academy, group_id, groups!group_id(pace_profile)')
     .eq('id', athleteId)
-    .maybeSingle();
-
-  const { data: plan } = await supabase
+    .maybeSingle(),
+  supabase
     .from('weekly_plans')
     .select('id, parsed_workouts, status')
     .eq('coach_id', COACH_ID)
@@ -127,7 +148,7 @@ async function loadContext(athleteId: string) {
     // and 'pushed' sorts after 'draft' and 'partial'.
     .order('status', { ascending: false })
     .limit(1)
-    .maybeSingle();
+    .maybeSingle()]);
 
   return { supabase, weekStartDate, athlete, plan };
 }
@@ -150,13 +171,18 @@ export async function GET(request: Request) {
     const auth = await requireAthlete(request);
     if (!auth.ok) return authError(auth);
 
-    const { supabase, weekStartDate, athlete, plan } = await loadContext(auth.user.athleteId);
+    // The deliveries need only who and which week, so they are read alongside the
+    // row and the plan; the provider needs the row, so it comes after.
+    const weekStartDate = getDisplayWeekStart(new Date());
+    const [{ supabase, athlete, plan }, deliveries] = await Promise.all([
+      loadContext(auth.user.athleteId, weekStartDate),
+      readDeliveries(createServerClient(), auth.user.athleteId, weekStartDate),
+    ]);
     const provider = await providerFor(supabase, athlete);
 
     return NextResponse.json(
-      await readWatchState(
-        supabase,
-        auth.user.athleteId,
+      watchState(
+        deliveries,
         weekStartDate,
         !!plan,
         // Never the token itself, not even a truncation of it — the credential is

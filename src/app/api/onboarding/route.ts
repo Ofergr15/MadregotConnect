@@ -58,6 +58,17 @@ export async function GET(request: Request) {
 
     const supabase = createServerClient();
 
+    // Every read here used to wait for the one before it (four function↔DB round
+    // trips, ~1 s from iad1 to Tokyo). Only the group name needs the row, so the
+    // push count rides along with the row and the phone-app state with the group.
+    // `.then` is what sends it: a query builder goes out only when awaited, and
+    // this one is awaited after the row (lab 2026-10-16 caught it still in series).
+    const pushRead = supabase
+      .from('push_subscriptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('athlete_id', auth.user.athleteId)
+      .then((r) => r);
+
     let migrated = true;
     let { data: row, error } = await supabase
       .from('athletes')
@@ -88,22 +99,21 @@ export async function GET(request: Request) {
     const athlete = row as Record<string, unknown>;
 
     // head:true + count → the server counts, no rows come back over the wire.
-    const { count: pushCount } = await supabase
-      .from('push_subscriptions')
-      .select('id', { count: 'exact', head: true })
-      .eq('athlete_id', auth.user.athleteId);
+    const { count: pushCount } = await pushRead;
 
     // Separate read rather than a nested select: the FK alias for groups differs
     // between environments here, and a bad embed fails the whole request.
-    let groupName: string | null = null;
-    if (athlete.group_id) {
-      const { data: group } = await supabase
-        .from('groups')
-        .select('name')
-        .eq('id', athlete.group_id as string)
-        .maybeSingle();
-      groupName = group?.name || null;
-    }
+    const [groupName, phoneApp] = await Promise.all([
+      athlete.group_id
+        ? supabase
+            .from('groups')
+            .select('name')
+            .eq('id', athlete.group_id as string)
+            .maybeSingle()
+            .then(({ data: group }) => (group?.name as string | undefined) || null)
+        : Promise.resolve(null),
+      phoneAppState(auth.user.athleteId, pushCount ?? 0, new URL(request.url).origin),
+    ]);
 
     const state = computeSetupState({
       hasGarminAuth: !!athlete.garmin_auth,
@@ -136,7 +146,7 @@ export async function GET(request: Request) {
       completed: !!completedAt,
       completedAt,
       ...state,
-      phoneApp: await phoneAppState(auth.user.athleteId, pushCount ?? 0, new URL(request.url).origin),
+      phoneApp,
     });
   } catch (err) {
     console.error('Failed to resolve onboarding state:', err);
