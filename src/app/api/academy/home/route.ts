@@ -91,7 +91,7 @@ export async function GET(request: Request) {
       visibleTraineeIds(caller, request),
       Promise.resolve(supabase
         .from('athletes')
-        .select('id, name, is_academy, approved, status, academy_joined_on, academy_coach_id, academy_band_id')
+        .select('id, name, gender, is_academy, approved, status, academy_joined_on, academy_coach_id, academy_band_id')
         .eq('coach_id', COACH_ID)),
       readHistory(),
       readInvites(),
@@ -103,6 +103,10 @@ export async function GET(request: Request) {
     if (athRes.error) return NextResponse.json({ error: 'Failed to read the roster' }, { status: 500 });
     const rows = (athRes.data || []) as any[];
     const names = new Map<string, string>(rows.map((r) => [r.id, r.name]));
+    // "פנייה" (athletes.gender) for the approval card's verb ("Noa שלחה טסט").
+    const genders = new Map<string, 'male' | 'female'>(
+      rows.filter((r) => r.gender === 'male' || r.gender === 'female').map((r) => [r.id, r.gender]),
+    );
 
     const bandOf = new Map<string, string | null>(rows.map((r) => [r.id, r.academy_band_id ?? null]));
     const current = rows.filter((a) => a.is_academy && a.approved !== false && a.status !== 'removed' && (!visible || visible.has(a.id)));
@@ -145,6 +149,7 @@ export async function GET(request: Request) {
         .map((t) => ({
           athleteId: t.athlete_id,
           name: names.get(t.athlete_id) || '',
+          gender: genders.get(t.athlete_id) ?? null,
           submittedAt: t.submitted_at ?? null,
           ...approvalDetail(t, bandOf.get(t.athlete_id) ?? null, bands),
         }))

@@ -52,8 +52,8 @@ const toMin = (sec: number) => Math.round(sec / 60);
 //
 // The 077 columns are one tier, not several: they land in a single migration, so
 // splitting them would add a fallback that no real schema can ever be in.
-const COLS_PAIRED = 'id, name, email, avatar_url, status, role, approved, group_id, garmin_auth, strava_auth, is_academy, created_at, academy_coach_id, academy_joined_on, academy_band_id, academy_pace_offset_sec, groups!group_id(name)';
-const COLS_FULL = 'id, name, email, avatar_url, status, role, approved, group_id, garmin_auth, strava_auth, is_academy, created_at, groups!group_id(name)';
+const COLS_PAIRED = 'id, name, email, gender, avatar_url, status, role, approved, group_id, garmin_auth, strava_auth, is_academy, created_at, academy_coach_id, academy_joined_on, academy_band_id, academy_pace_offset_sec, groups!group_id(name)';
+const COLS_FULL = 'id, name, email, gender, avatar_url, status, role, approved, group_id, garmin_auth, strava_auth, is_academy, created_at, groups!group_id(name)';
 const COLS_MIN = 'id, name, email, status, group_id, garmin_auth, is_academy, created_at, groups!group_id(name)';
 
 export async function GET(request: Request) {
@@ -293,6 +293,7 @@ export async function GET(request: Request) {
         academyCoachNames: academyCoachIds.map((id) => coachNames.get(id) || ''),
         band,
         paceOffsetSec,
+        gender: a.gender === 'male' || a.gender === 'female' ? a.gender : null,
         status: a.status || null,
         role: a.role || null,
         approved,

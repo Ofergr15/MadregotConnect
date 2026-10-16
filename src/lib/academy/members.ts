@@ -120,6 +120,11 @@ export interface AcademyMember {
    * the two a coach is about to change.
    */
   paceOffsetSec: number | null;
+  /**
+   * "פנייה" (athletes.gender, migration 057): how the app speaks to them. Null = not known,
+   * which keeps the default wording. Optional for payloads built before it was read.
+   */
+  gender?: 'male' | 'female' | null;
   status: string | null;
   role: string | null;
   approved: boolean;

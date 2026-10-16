@@ -4987,8 +4987,8 @@
       "scheduleFailed": "ההזמנה לא נשלחה. אפשר לנסות שוב."
     },
     "approve": {
-      "sent": "{name} שלח טסט",
-      "sentRich": "<bdi>{name}</bdi> שלח טסט",
+      "sent": "{name} {gender, select, female {שלחה} other {שלח}} טסט",
+      "sentRich": "<bdi>{name}</bdi> {gender, select, female {שלחה} other {שלח}} טסט",
       "p30": "30 דק׳",
       "p2000": "2000 מ׳",
       "fromWatch": "מהשעון",

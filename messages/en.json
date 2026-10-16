@@ -4987,8 +4987,8 @@
       "scheduleFailed": "The invitation wasn't sent. Try again."
     },
     "approve": {
-      "sent": "{name} sent a test",
-      "sentRich": "<bdi>{name}</bdi> sent a test",
+      "sent": "{gender, select, other {{name} sent a test}}",
+      "sentRich": "{gender, select, other {<bdi>{name}</bdi> sent a test}}",
       "p30": "30 min",
       "p2000": "2000 m",
       "fromWatch": "from the watch",

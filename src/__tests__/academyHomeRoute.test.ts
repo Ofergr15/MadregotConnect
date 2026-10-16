@@ -110,7 +110,7 @@ describe('GET /api/academy/home', () => {
     expect(body.weeks[11].trainees).toBe(3);
     expect(body.weeks.reduce((n: number, w: { left: number }) => n + w.left, 0)).toBe(1);
     expect(body.today.count).toBe(2);
-    expect(body.approvals).toEqual([{ athleteId: 'a2', name: 'a2', submittedAt: '2026-10-01T10:00:00Z' }]);
+    expect(body.approvals).toEqual([{ athleteId: 'a2', name: 'a2', gender: null, submittedAt: '2026-10-01T10:00:00Z' }]);
     expect(body.funnel.live).toBe(1);
     expect(body.funnel.forms.map((f: { id: string }) => f.id)).toEqual(['c1']);
     expect(body.coachCapacity).toBe(6);
@@ -172,7 +172,7 @@ describe('the approval card\'s detail (academy-existing-trainees, phone 5)', () 
     asManager();
     const body = await (await get()).json();
     expect(body.approvals).toEqual([{
-      athleteId: 'a2', name: 'a2', submittedAt: '2026-10-01T10:00:00Z',
+      athleteId: 'a2', name: 'a2', gender: null, submittedAt: '2026-10-01T10:00:00Z',
       testId: 't1', date: '2026-09-14', protocol: '30min', durationSec: 1800, distanceM: 7120, avgHr: 171,
       paceSec: 253, source: 'watch', implausible: false, bandCheck: { kind: 'inRange', bandNumber: 4 },
     }]);
