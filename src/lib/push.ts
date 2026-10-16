@@ -10,7 +10,7 @@ import {
   type NotificationLocale,
 } from '@/lib/notifications/locale';
 import { KUDOS_ACTION_LABEL, teammateActivityCopy } from '@/lib/notifications/copy';
-import { siblingGhosts, type SubHealth } from '@/lib/push-ghosts';
+import { duplicateInstalls, siblingGhosts, type SubDevice, type SubHealth } from '@/lib/push-ghosts';
 
 /**
  * Given the maintenance allowlist (lowercased emails) and the athlete rows for
@@ -514,7 +514,7 @@ export async function sendPushDetailed(
     if (ids.length > 0) {
       const { data: health } = await supabase
         .from('push_subscriptions')
-        .select('id, athlete_id, created_at, last_success_at')
+        .select('id, athlete_id, created_at, last_success_at, user_agent')
         .in('athlete_id', ids);
       const ghosts = siblingGhosts((health || []) as SubHealth[]);
       if (ghosts.length > 0) {
@@ -524,6 +524,10 @@ export async function sendPushDetailed(
         console.warn(`[push] pruned ${ghosts.length} endpoint(s) a confirming sibling proves dead`);
         if (subs.length === 0) return empty;
       }
+      // One copy per phone (lib/push-ghosts.ts duplicateInstalls): the other installs
+      // on the same phone are skipped, not deleted.
+      const dupes = new Set(duplicateInstalls(((health || []) as SubDevice[]).filter((h) => !ghosts.includes(h.id))));
+      if (dupes.size > 0) subs = subs.filter((s) => !dupes.has(s.id));
     }
   } catch {
     // keep going with every endpoint
