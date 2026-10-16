@@ -420,8 +420,12 @@ export function AthleteProfileBody({
             <p className="mt-3 text-sm font-light text-ink-400">{t('noRunsYet')}</p>
           ) : (
             <ul className="mt-1 divide-y divide-page">
-              {runs.map((r, i) => (
-                <li key={r.id ?? `${r.startTime}-${i}`} className="flex items-center gap-3 py-3">
+              {runs.map((r, i) => {
+                // The row opens the run (#113: "a tap on a run should open it, with the
+                // route and the full numbers"). The super user's RunsBrowser already
+                // did; this list, which everyone else sees, only showed the totals.
+                const body = (
+                  <>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-ink-700" dir="auto">
                       {r.name || t('tabRuns')}
@@ -441,8 +445,21 @@ export function AthleteProfileBody({
                   <p className="shrink-0 text-sm font-bold tabular-nums text-brand-600">
                     {r.km} <span className="text-xs font-light text-ink-400">{tc('km')}</span>
                   </p>
-                </li>
-              ))}
+                  </>
+                );
+                return (
+                  <li key={r.id ?? `${r.startTime}-${i}`}>
+                    {r.id ? (
+                      <Link href={`/dashboard/activities/${r.id}`} className="flex min-h-[44px] items-center gap-3 py-3 active:opacity-60 transition-opacity">
+                        {body}
+                        <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" aria-hidden />
+                      </Link>
+                    ) : (
+                      <div className="flex items-center gap-3 py-3">{body}</div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
