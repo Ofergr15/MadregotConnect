@@ -356,7 +356,7 @@ export function ActionRow({
           the card's width and 44px tall, divided by hairlines (2.41.x redesign).
           The icon-only pills it replaces were the smallest primary targets on the
           screen. Share stays own-runs-only, run-chat own-or-staff — see below. */}
-      <div className={cn(bleed, 'mt-2 flex items-stretch border-t border-page')}>
+      <div className={cn(bleed, 'mt-1 flex items-stretch border-t border-page')}>
         <button
           onClick={handleLike}
           aria-label={liked ? t('unlike') : t('like')}
@@ -498,11 +498,11 @@ function CardStats({ act }: { act: NonNullable<FeedItem['activity']> }) {
     { label: t('statTime'), value: formatDuration(act.movingDuration || act.duration), unit: null },
   ];
   return (
-    <div className="flex py-2">
+    <div className="flex pb-2 pt-1">
       {cells.map((c, i) => (
         <div key={c.label} className={cn('min-w-0 flex-1', i > 0 && 'border-s border-page ps-3')}>
-          <p className="text-xs text-ink-400">{c.label}</p>
-          <p className="truncate text-xl font-bold leading-tight text-ink-900 tabular-nums">
+          <p className="text-[11px] leading-tight text-ink-400">{c.label}</p>
+          <p className="truncate text-lg font-bold leading-tight text-ink-900 tabular-nums">
             {c.value}
             {c.unit && <span className="ms-0.5 text-xs font-medium text-ink-400">{c.unit}</span>}
           </p>
@@ -600,10 +600,10 @@ function ActivityCard({
     <div className="bg-card rounded-[20px] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
       {/* Compact pass (2026-10-16): 387px → ~260 for a run with a route, so two
           runs fit on a phone screen instead of one. Same content, less air. */}
-      <div className="px-3.5 pt-3">
+      <div className="px-3.5 pt-2.5">
         {/* AuthorRow stays outside the tap target — it has its own link to the
             runner's profile, and nesting the two would swallow it. */}
-        <div className="flex items-start gap-3 mb-1">
+        <div className="flex items-start gap-3 mb-0.5">
           <div className="flex-1 min-w-0">
             <AuthorRow item={item} />
           </div>
@@ -623,11 +623,11 @@ function ActivityCard({
             }
           }}
           aria-label={t('viewDetails')}
-          className="-mx-2 px-2 pt-1 pb-1 rounded-xl cursor-pointer transition-colors hover:bg-page/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
+          className="-mx-2 px-2 pt-0.5 pb-0 rounded-xl cursor-pointer transition-colors hover:bg-page/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
         >
           {/* Hebrew for the watch's automatic names, the time of day for a bare
               "Running" — see lib/activities/run-name.ts. */}
-          <p className="text-lg font-extrabold leading-snug tracking-tight text-ink-900" dir="auto">
+          <p className="truncate text-base font-extrabold leading-snug tracking-tight text-ink-900" dir="auto">
             {displayRunName(act.activityName, act.startTime, locale)}
           </p>
 
@@ -638,9 +638,10 @@ function ActivityCard({
           <ExecutionBadge summary={act.planVerdict} showChevron compact className="mb-2" />
 
           {act.routePreview && act.routePreview.length > 2 && (
-            // Full width, edge to edge (Strava's card): the route is the picture.
-            <div className="-mx-3.5 mb-1 overflow-hidden">
-              <RouteMinimap points={act.routePreview} paces={act.paceBands} hd={act.routeHd} width={390} height={210} flush />
+            // Full width, edge to edge, and a low strip (390:120): the feed is for
+            // seeing many runs per scroll (Ofer, 2026-10-17), the full map is a tap away.
+            <div className="-mx-3.5 overflow-hidden">
+              <RouteMinimap points={act.routePreview} paces={act.paceBands} hd={act.routeHd} width={390} height={120} flush />
             </div>
           )}
         </div>

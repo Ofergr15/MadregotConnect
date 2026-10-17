@@ -23,6 +23,12 @@ import { FeedHighlightCard } from '@/components/FeedHighlightCard';
 import { GroupRunCard } from '@/components/GroupRunCard';
 import { groupFeedItems } from '@/lib/feed/group-runs';
 import { SquadStandings } from '@/components/SquadStandings';
+
+/**
+ * "מלחמת הדבוקות" in the feed — hidden for now at Ofer's request (2026-10-17), to come
+ * back later. One flag rather than a deletion, so bringing it back is flipping this.
+ */
+const SHOW_SQUAD_STANDINGS = false;
 import { UpcomingEvents } from '@/components/UpcomingEvents';
 import { SetupNudgeCard } from '@/components/onboarding/SetupNudgeCard';
 import { PushDeadBanner } from '@/components/PushDeadBanner';
@@ -500,7 +506,7 @@ export default function FeedPage() {
                   {/* The club's other cards live IN the feed now, between posts
                       (feed redesign 2026-10-12): above it only the next session
                       stays, so the first screen shows runs. Both self-hide. */}
-                  {pos === 3 && <div className="empty:hidden"><SquadStandings /></div>}
+                  {SHOW_SQUAD_STANDINGS && pos === 3 && <div className="empty:hidden"><SquadStandings /></div>}
                   {pos === 6 && <div className="empty:hidden"><UpcomingEvents /></div>}
                   {opensDay && <DayHeading dayKey={day} />}
                   {entry.kind === 'group' ? (
