@@ -117,12 +117,16 @@ async function notToAsk(
   const ids = rows.map((r) => r.athleteId);
   if (!ids.length) return out;
   try {
-    const [joined, invites] = await Promise.all([
+    const [joined, invites, cards] = await Promise.all([
       supabase.from('athletes').select('id, academy_joined_on').in('id', ids),
       supabase.from('academy_test_invitations').select('athlete_id').in('athlete_id', ids).in('status', ['proposed', 'confirmed', 'other']),
+      supabase.from('academy_candidates').select('athlete_id, source').in('athlete_id', ids),
     ]);
     const joinedOn = new Map(((joined.error ? [] : joined.data) || []).map((a: any) => [String(a.id), a.academy_joined_on ?? null]));
-    for (const r of rows) if (isBrandNew(r, joinedOn.get(r.athleteId), today)) out.add(r.athleteId);
+    // An existing trainee moved in this month is NOT brand-new: they have trained with us for
+    // months and have a last test — that is exactly what "חסר לנו הטסט האחרון שלך" asks for.
+    const existing = new Set(((cards.error ? [] : cards.data) || []).filter((c: any) => c.source === 'existing').map((c: any) => String(c.athlete_id)));
+    for (const r of rows) if (!existing.has(r.athleteId) && isBrandNew(r, joinedOn.get(r.athleteId), today)) out.add(r.athleteId);
     for (const i of ((invites.error ? [] : invites.data) || []) as any[]) out.add(String(i.athlete_id));
   } catch { /* skip nobody */ }
   return out;

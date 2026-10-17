@@ -14,6 +14,7 @@ import {
 } from '@/lib/academy/coach-picker';
 import { initialsOf, type AcademyBand, type AcademyCoachSummary, type AcademyMember } from './types';
 import { CoachesPicker } from './CoachesPicker';
+import { MoveInPanel } from './MoveInPanel';
 
 // The manager's sheets on the members tab: move to a coach (one trainee or many),
 // set the band for many, and add somebody — a club member, or someone new. Every
@@ -452,7 +453,7 @@ export function AddMemberSheet({
   onDone: () => void | Promise<void>;
   onOpenFunnel?: (candidateId: string) => void;
 }) {
-  const [segment, setSegment] = useState<'club' | 'new'>('club');
+  const [segment, setSegment] = useState<'club' | 'new' | 'existing'>('club');
   const [query, setQuery] = useState('');
   const [chosen, setChosen] = useState<string | null>(null);
   const assignable = useMemo(() => coaches.filter((c) => c.coachId).sort((a, b) => a.trainees - b.trainees), [coaches]);
@@ -564,17 +565,19 @@ export function AddMemberSheet({
     <Sheet open={open} onOpenChange={onOpenChange} className="bg-page" title="הוספה לאקדמיה">
       <div className="pb-2" dir="rtl">
         <div className="mb-3 flex rounded-xl bg-page p-0.5" role="tablist">
-          {(['club', 'new'] as const).map((s) => (
+          {(['club', 'new', 'existing'] as const).map((s) => (
             <button key={s} type="button" role="tab" aria-selected={segment === s}
               onClick={() => { setSegment(s); setMessage(null); setPicker(null); }}
               className={cn('min-h-[40px] flex-1 rounded-[10px] text-[13px] font-extrabold transition-colors',
                 segment === s ? 'bg-card text-ink-700 shadow-sm' : 'text-ink-400')}>
-              {s === 'club' ? 'חבר מועדון' : 'מישהו חדש'}
+              {s === 'club' ? 'חבר מועדון' : s === 'new' ? 'מישהו חדש' : 'כבר מתאמנים'}
             </button>
           ))}
         </div>
 
-        {segment === 'club' ? (
+        {segment === 'existing' ? (
+          <MoveInPanel addable={addable} coaches={coaches} bands={bands} multiCoach={multiCoach} onDone={onDone} />
+        ) : segment === 'club' ? (
           <>
             <div className="relative mb-2">
               <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />

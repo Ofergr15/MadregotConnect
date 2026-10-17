@@ -154,8 +154,8 @@ describe('the push, once', () => {
   });
 });
 
-describe('migration 149', () => {
-  const sql = readFileSync(join(__dirname, '../../supabase/migrations/149_day_sessions.sql'), 'utf8');
+describe('migration 150', () => {
+  const sql = readFileSync(join(__dirname, '../../supabase/migrations/150_day_sessions.sql'), 'utf8');
   it('is RLS-on and service_role only, one row per date', () => {
     expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
     expect(sql).toMatch(/REVOKE ALL ON TABLE day_sessions FROM anon, authenticated/);

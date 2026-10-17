@@ -1666,7 +1666,11 @@
     "installedSub": "From now on, open it from the icon, not the browser",
     "installedNextTitle": "Open Madregot from the icon",
     "installedNextBody": "Close the browser, tap the icon on your home screen and sign in with an email code",
-    "installedNotThere": "No icon? Show me again"
+    "installedNotThere": "No icon? Show me again",
+    "existingEyebrow": "The Madregot academy",
+    "existingSub": "You already train with us — we are just moving into the app. Connect your watch and you are done.",
+    "existingSubCoach": "You already train with us — we are just moving into the app. {coach} is your coach. Connect your watch and you are done.",
+    "toAcademy": "To my academy"
   },
   "joinAcademy": {
     "title": "Connect Your Garmin",
@@ -5173,7 +5177,9 @@
       "error": "Couldn't send. Try again.",
       "goalNotSetUp": "Saving a goal isn't available yet.",
       "subOther": "We have a <m>2000</m> m test, but it sets no threshold. With a <m>30</m>-minute test we'll work out personal paces for every workout.",
-      "dateFirst": "Choose when the test was."
+      "dateFirst": "Choose when the test was.",
+      "foundRun": "⌚ Your watch has a run that looks like a test: <date></date> · pace <pace></pace>",
+      "checkRun": "Check the run"
     }
   },
   "nextSession": {
@@ -5314,7 +5320,7 @@
     "published": "Published",
     "saved": "Saved",
     "editing": "There is already a session for {date}, editing it",
-    "notSetUp": "The one-day session table isn't set up yet (migration 149). You can fill this in, but saving will fail until it's pasted.",
+    "notSetUp": "The one-day session table isn't set up yet (migration 150). You can fill this in, but saving will fail until it's pasted.",
     "noAccess": "This screen is still in trial and open to the super user only.",
     "failed": "Saving failed, try again",
     "notUnderstood": "Couldn't read the session. Write e.g.: 2 easy, 6x1000 rest 90, 2 easy",

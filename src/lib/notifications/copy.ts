@@ -1369,3 +1369,40 @@ export function academyGoalSetCopy(
     ? { title: `🎯 ${name} קבע/ה מטרה: ${p.race}`, body: [p.detail, p.block].filter(Boolean).join(' · ') }
     : { title: `🎯 ${name} set a goal: ${p.race}`, body: [p.detail, p.block].filter(Boolean).join(' · ') };
 }
+
+/**
+ * A trainee who ALREADY trained in the academy was moved into the app (the migration path).
+ * Not "you joined the academy": they did, months ago. What changed is where it lives.
+ */
+export function academyMovedInCopy(
+  locale: NotificationLocale,
+  p: { coach?: string | null },
+): PushCopy {
+  const coach = (p.coach || '').trim();
+  return locale === 'he'
+    ? {
+        title: '🎓 האקדמיה עוברת לאפליקציה',
+        body: `${coach ? `${coach} מחכה לך כאן: ` : 'מעכשיו כאן: '}התוכנית, הקצבים לשעון והפידבק. לחיצה פותחת את האקדמיה.`,
+      }
+    : {
+        title: '🎓 The academy is moving into the app',
+        body: `${coach ? `${coach} is waiting for you here: ` : 'From now on, here: '}your plan, your watch paces and your feedback. Tap to open the academy.`,
+      };
+}
+
+/** A trainee answered the "4 questions" themselves (the existing-trainee path). To their coaches. */
+export function academyQuestionsAnsweredCopy(
+  locale: NotificationLocale,
+  p: { name: string; days: number[]; weeklyKm: number | null; limitations: string | null },
+): PushCopy {
+  const name = (p.name || '').trim() || SOMEONE[locale];
+  const he = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+  const en = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const days = p.days.map((d) => (locale === 'he' ? he : en)[d]).join(' ');
+  const parts = locale === 'he'
+    ? [days, p.weeklyKm != null ? `${p.weeklyKm} ק״מ בשבוע` : null, p.limitations ? `מגבלות: ${p.limitations}` : 'בלי מגבלות']
+    : [days, p.weeklyKm != null ? `${p.weeklyKm} km a week` : null, p.limitations ? `limitations: ${p.limitations}` : 'no limitations'];
+  return locale === 'he'
+    ? { title: `📝 ${name} ענה/תה על השאלות`, body: parts.filter(Boolean).join(' · ') }
+    : { title: `📝 ${name} answered the questions`, body: parts.filter(Boolean).join(' · ') };
+}

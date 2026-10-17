@@ -18,6 +18,7 @@ import { MyInvitation } from './MyInvitation';
 import { MyTestsCard } from './MyTestsCard';
 import { PersonalRaceBanner } from '@/components/GoalRaceBanner';
 import { RaceResultCard } from '@/components/academy/RaceResultCard';
+import { QuickQuestionsCard } from '@/components/academy/QuickQuestionsCard';
 import { TestEntryCard } from './completion/TestEntryCard';
 import { PaceText } from './PaceMark';
 import { BidiText } from '@/components/BidiText';
@@ -236,6 +237,10 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
       {/* ── "חסר לנו הטסט האחרון שלך" (academy-existing-trainees, phone 4): renders only while
           there is no usable test, and says "ממתין לאישור" once one is sent. ── */}
       {data?.athlete?.athleteId && <TestEntryCard athleteId={data.athlete.athleteId} onSent={() => setResultJustSent(true)} raise={raiseEntry} />}
+
+      {/* ── "4 שאלות קצרות": the characterization an existing trainee never had a call for.
+          Renders only until answered. ── */}
+      {data?.athlete?.athleteId && <QuickQuestionsCard athleteId={data.athlete.athleteId} />}
 
       {/* ── What I'm training for ──
           A race with a day: the same week-squares line as the feed, but THEIR race, target and

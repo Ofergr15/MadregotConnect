@@ -13,6 +13,7 @@ import { PrimaryButton } from '../book/ui';
 import { sendJson, shortDay } from './shared';
 import { TestFields, draftBody, draftHasTest, emptyDraft, type TestDraft } from './TestFields';
 import { WatchTestSheet } from './WatchTestSheet';
+import { recordedKey, type TestCandidate } from '@/lib/academy/test-finder';
 import { GoalSheet, goalSummary } from './GoalSheet';
 
 // ── המתאמן ממלא בעצמו (mockup academy-existing-trainees, phone 4) ───────────────────────
@@ -55,6 +56,12 @@ export function TestEntryCard({ athleteId, onSent, onTyping, raise = false }: {
   const [mode, setMode] = useState<'closed' | 'type'>('closed');
   const [draft, setDraft] = useState<TestDraft>(emptyDraft);
   const [watchOpen, setWatchOpen] = useState(false);
+  // Looked up as soon as the card shows (migration plan, gap 3): a trainee who just connected a
+  // watch sees "we found a run that looks like your test" instead of having to think of
+  // searching. Same key as WatchTestSheet's read, so opening the sheet is instant.
+  const { data: found } = useApi<{ candidates?: Array<{ date: string; protocol: string; paceSec: number; name: string }>; recorded?: string[] }>(
+    athleteId ? `/api/academy/tests/watch?athleteId=${encodeURIComponent(athleteId)}` : null,
+  );
   const [goalOpen, setGoalOpen] = useState(false);
   const [goalBusy, setGoalBusy] = useState(false);
   const [goalError, setGoalError] = useState<string | null>(null);
@@ -126,6 +133,7 @@ export function TestEntryCard({ athleteId, onSent, onTyping, raise = false }: {
 
   const goal = data.goal;
   const goalText = goal ? goalSummary(goal, (g) => tg(`types.${g}`)) : null;
+  const best = found?.candidates?.find((c) => !(found.recorded ?? []).includes(recordedKey(c as Pick<TestCandidate, 'date' | 'protocol'>))) ?? null;
 
   return (
     <div ref={boxRef} id={TEST_ENTRY_ID} className="scroll-mt-3 space-y-2.5">
@@ -139,10 +147,15 @@ export function TestEntryCard({ athleteId, onSent, onTyping, raise = false }: {
             </p>
           </span>
         </div>
+        {best && data.show === 'missing' && (
+          <p className="mt-2.5 rounded-xl bg-brand-600/[0.06] px-3 py-2 text-[13.5px] font-bold leading-snug text-brand-600">
+            {t.rich('foundRun', { date: () => <bdi dir="ltr">{`${Number(best.date.slice(8, 10))}.${Number(best.date.slice(5, 7))}`}</bdi>, pace: () => <bdi dir="ltr">{`${Math.floor(best.paceSec / 60)}:${String(Math.round(best.paceSec % 60)).padStart(2, '0')}`}</bdi> })}
+          </p>
+        )}
         <div className="mt-3 flex gap-2.5">
           <button type="button" onClick={() => setWatchOpen(true)} disabled={readOnly}
             className="flex h-[52px] flex-1 items-center justify-center gap-1.5 rounded-[15px] bg-brand-600 text-[16px] font-extrabold text-white disabled:opacity-50">
-            <span aria-hidden>⌚</span> {t('find')}
+            <span aria-hidden>⌚</span> {best && data.show === 'missing' ? t('checkRun') : t('find')}
           </button>
           <button type="button" onClick={() => setMode(mode === 'type' ? 'closed' : 'type')} aria-expanded={mode === 'type'} disabled={readOnly}
             className={cn(BOX, 'flex h-[52px] flex-1 items-center justify-center text-[16px] font-extrabold text-brand-600 disabled:opacity-50')}>

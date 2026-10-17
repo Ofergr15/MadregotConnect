@@ -2,7 +2,7 @@
  * "אימון ליום אחד" — one club session for one date, typed by the coach when there is no
  * weekly plan yet (mockup manual-day-workout). Pure: the gate, the input check, when the
  * feed card shows, the plan-wins rule, the two plan links and the push's once-only rule.
- * The storage is migration 149 (`day_sessions`), the reads and writes are
+ * The storage is migration 150 (`day_sessions`), the reads and writes are
  * app/api/day-session.
  */
 

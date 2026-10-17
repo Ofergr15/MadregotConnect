@@ -5,7 +5,7 @@ import { type VerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isMissingColumn, isMissingTable } from '@/lib/supabase/schema-drift';
 import { notifyAthlete } from '@/lib/push';
 import {
-  academyCoachAddedCopy, academyCoachAssignedCopy, academyJoinedCopy, academyTraineeRemovedCopy,
+  academyCoachAddedCopy, academyCoachAssignedCopy, academyJoinedCopy, academyMovedInCopy, academyTraineeRemovedCopy,
   academyTraineesAssignedCopy, type PushCopy,
 } from '@/lib/notifications/copy';
 import type { NotificationLocale } from '@/lib/notifications/locale';
@@ -116,6 +116,9 @@ export async function loadAcademyPeople(): Promise<AcademyPeopleResponse> {
   }
   pending.sort((a, b) => (b.appliedAt || '').localeCompare(a.appliedAt || ''));
 
+  // What moving each one in will do besides adding them (the move-in sheet's notes).
+  const cardOf = new Set(cards.map((c) => c.athlete_id).filter(Boolean) as string[]);
+  const hadHistory = new Set(history.map((h) => h.athlete_id));
   const addable: AddableMember[] = rows
     .filter((r: any) => !r.is_academy && r.approved !== false && !['removed', 'invited', 'disconnected'].includes(r.status))
     .map((r: any) => ({
@@ -124,6 +127,10 @@ export async function loadAcademyPeople(): Promise<AcademyPeopleResponse> {
       avatarUrl: r.avatar_url || null,
       createdAt: r.created_at || null,
       groupName: r.groups?.name ?? null,
+      openCard: cardOf.has(r.id),
+      wasAcademy: hadHistory.has(r.id),
+      hasWatch: !!(r.garmin_auth || r.strava_auth),
+      isStaff: (!!r.role && r.role !== 'runner') || (Array.isArray(r.extra_roles) && r.extra_roles.length > 0),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -179,7 +186,7 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
 
   const { data: rowData, error: rowError } = await supabase
     .from('athletes')
-    .select('id, name, is_academy, approved, status, academy_coach_id, academy_band_id')
+    .select('id, name, is_academy, approved, status, academy_coach_id, academy_band_id, academy_joined_on')
     .in('id', req.athleteIds)
     .eq('coach_id', COACH_ID);
   if (rowError) return NextResponse.json({ error: 'Failed to read the trainees' }, { status: 500 });
@@ -234,7 +241,8 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
 
   // "Bring back": the coach they had, when they still coach; otherwise unpaired.
   const restoreCoach = new Map<string, { id: string; name: string }>();
-  if (req.action === 'restore' && !coach) {
+  // A move-in with no coaches chosen brings a returning trainee back to their coach too.
+  if ((req.action === 'restore' || (req.existing && !req.coachIds?.length)) && !coach) {
     const prev = await previousCoaches(supabase, req.athleteIds);
     for (const [athleteId, coachId] of prev) {
       const c = await readCoach(supabase, coachId);
@@ -260,6 +268,31 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
   for (const id of req.athleteIds) {
     const row = rows.get(id);
     if (!row) { results.push({ athleteId: id, ok: false, error: 'not_found' }); continue; }
+
+    // Undo a move-in made today (the move-in sheet's "ביטול ההעברה"): as if it never happened.
+    // NOT 'remove' — that tells the trainee and the coaches "removed from the academy", files
+    // them under "עזבו" and keeps the history row; a mistaken move is none of those.
+    if (req.action === 'undoMove') {
+      const today = israelToday();
+      if (!row.is_academy || row.academy_joined_on !== today) { results.push({ athleteId: id, ok: false, error: 'not_undoable' }); continue; }
+      const { error } = await supabase.from('athletes').update({ is_academy: false, academy_joined_on: null, academy_coach_id: null }).eq('id', id).eq('coach_id', COACH_ID);
+      if (error) { results.push({ athleteId: id, ok: false, error: 'write_failed' }); continue; }
+      await supabase.from('academy_trainee_coaches').delete().eq('athlete_id', id);
+      await supabase.from('academy_coach_history').delete().eq('athlete_id', id).eq('started_on', today);
+      // The card goes only if this move opened it (today, as an existing trainee); a card they
+      // already had from the form stays, back to how it was.
+      const { data: card } = await supabase.from('academy_candidates').select('id, source, created_at, accepted_at').eq('athlete_id', id).maybeSingle();
+      const c = card as { id: string; source?: string | null; created_at?: string | null; accepted_at?: string | null } | null;
+      if (c?.source === 'existing' && String(c.created_at || '').slice(0, 10) === today) {
+        await supabase.from('academy_candidates').delete().eq('id', c.id);
+      } else if (c?.source === 'existing' && String(c.accepted_at || '').slice(0, 10) === today) {
+        // Their form's card, which the move closed: back into the funnel. The form's own source
+        // was not kept, so it reads as the form's default.
+        await supabase.from('academy_candidates').update({ source: 'instagram', accepted_at: null }).eq('id', c.id);
+      }
+      results.push({ athleteId: id, ok: true });
+      continue;
+    }
 
     if (req.action === 'coach' || req.action === 'band' || req.action === 'remove') {
       if (!row.is_academy) { results.push({ athleteId: id, ok: false, error: 'not_member' }); continue; }
@@ -318,7 +351,11 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
     }
 
     // add / restore: an approved club member who is not in the academy now.
-    if (row.is_academy) { results.push({ athleteId: id, ok: false, error: 'already_member' }); continue; }
+    if (row.is_academy) {
+      // A move-in run twice is the same move: nothing to do, and not a failure.
+      results.push(req.existing ? { athleteId: id, ok: true, unchanged: true } : { athleteId: id, ok: false, error: 'already_member' });
+      continue;
+    }
     if (row.approved === false || ['removed', 'invited'].includes(row.status)) {
       results.push({ athleteId: id, ok: false, error: 'not_club_member' });
       continue;
@@ -333,17 +370,24 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
       ? setCoaches
       : [coach ?? restoreCoach.get(id) ?? null].filter((c): c is { id: string; name: string } => !!c);
     if (startWith.length) {
-      const reason = req.action === 'restore' ? 'חזר לאקדמיה' : 'נוסף לאקדמיה';
-      if (startWith.length > 1) await setPairCoaches(id, startWith.map((c) => c.id), reason);
-      else await writeCoachPair(id, startWith[0].id, reason);
+      const reason = req.action === 'restore' ? 'חזר לאקדמיה' : req.existing ? 'עבר לאפליקציה' : 'נוסף לאקדמיה';
+      const paired = startWith.length > 1
+        ? (await setPairCoaches(id, startWith.map((c) => c.id), reason)).ok
+        : await writeCoachPair(id, startWith[0].id, reason);
+      // The trainee is in, but without the coaches that were asked for: say so instead of
+      // reporting a pairing that did not happen.
+      if (!paired) { results.push({ athleteId: id, ok: false, error: 'pairing_failed' }); continue; }
       for (const c of startWith) pushTo(toCoaches, c.id, row.name);
     }
+    if (req.existing) await closeAsExisting(supabase, id, row.name, req.trainingSince);
     const pairWith = startWith[0] ?? null;
     const pairName = startWith.length ? joinHebrewList(startWith.map((c) => c.name)) : null;
     toTrainees.push({
       athleteId: id,
       kind: 'academy_joined',
-      copy: (locale) => (pairName ? academyCoachAssignedCopy(locale, { coach: pairName }) : academyJoinedCopy(locale, { by })),
+      copy: (locale) => (req.existing
+        ? academyMovedInCopy(locale, { coach: pairName })
+        : pairName ? academyCoachAssignedCopy(locale, { coach: pairName }) : academyJoinedCopy(locale, { by })),
     });
     results.push({ athleteId: id, ok: true, coachId: pairWith?.id ?? null, coachIds: startWith.map((c) => c.id) });
   }
@@ -541,3 +585,36 @@ export async function deleteApplication(p: { athleteId: string | null; candidate
   }
   return NextResponse.json({ ok: true, athleteId, candidateId });
 }
+
+/**
+ * A moved-in trainee's funnel card: the one they already have (closed as an existing trainee)
+ * or a new one that says so. `source: 'existing'` is what makes the board count them as joined
+ * whatever stages are on record (funnel.ts EXISTING_SOURCE), and the card is where the four
+ * questions are stored (the characterization hangs off a card). Plus "training since"
+ * (migration 149) when given. Best-effort: the move itself has already happened.
+ */
+async function closeAsExisting(
+  supabase: ReturnType<typeof createServerClient>,
+  athleteId: string,
+  name: string,
+  trainingSince: string | null,
+): Promise<void> {
+  try {
+    const now = new Date().toISOString();
+    const { data: card } = await supabase.from('academy_candidates').select('id, accepted_at').eq('athlete_id', athleteId).maybeSingle();
+    if (card) {
+      await supabase.from('academy_candidates')
+        .update({ source: 'existing', accepted_at: (card as { accepted_at?: string | null }).accepted_at ?? now, archived_at: null })
+        .eq('id', (card as { id: string }).id);
+    } else {
+      await supabase.from('academy_candidates').insert({ name: name || '—', source: 'existing', athlete_id: athleteId, accepted_at: now });
+    }
+    if (trainingSince) {
+      const { error } = await supabase.from('athletes').update({ academy_training_since: trainingSince }).eq('id', athleteId);
+      if (error && !isMissingColumn(error)) console.warn('academy_training_since not set:', error.message);
+    }
+  } catch (e) {
+    console.warn('move-in card not closed:', e);
+  }
+}
+

@@ -206,6 +206,12 @@ export interface AddableMember {
   avatarUrl: string | null;
   createdAt: string | null;
   groupName: string | null;
+  /** What moving them in will do besides adding (the move-in sheet's per-row notes). */
+  openCard?: boolean;
+  /** Was in the academy and left; their last coach, if they still coach. */
+  wasAcademy?: boolean;
+  hasWatch?: boolean;
+  isStaff?: boolean;
 }
 
 export interface AcademyPeopleResponse {
@@ -281,7 +287,7 @@ export function applicationDeletable(
 // and 'removeCoach' drops ONE, leaving their other coaches alone (migration 135:
 // a trainee can have several). 'add' takes coachIds too: a club member let in
 // straight away with several coaches.
-export const BULK_ACTIONS = ['coach', 'addCoach', 'removeCoach', 'band', 'remove', 'add', 'restore'] as const;
+export const BULK_ACTIONS = ['coach', 'addCoach', 'removeCoach', 'band', 'remove', 'add', 'restore', 'undoMove'] as const;
 export type BulkAction = (typeof BULK_ACTIONS)[number];
 export const MAX_BULK = 100;
 
@@ -302,6 +308,14 @@ export interface BulkRequest {
   /** Only for 'coach' and 'band': whether the field was sent at all. */
   hasCoach: boolean;
   hasBand: boolean;
+  /**
+   * 'add' of somebody who ALREADY trains in the academy (the migration path): their funnel
+   * card is closed as an existing trainee, an already-member is "unchanged" rather than a
+   * failure (a re-run is safe), and the message says the academy is moving into the app.
+   */
+  existing: boolean;
+  /** "מתאמן אצלנו מאז", YYYY-MM-DD (migration 149). Only with `existing`. */
+  trainingSince: string | null;
 }
 
 /** Parse and validate the body; a string is the 400 message. */
@@ -328,10 +342,15 @@ export function parseBulk(body: unknown): BulkRequest | string {
   if (coachIds && coachIds.some((c) => ids.includes(c))) return 'A trainee cannot be their own coach';
   if (action === 'band' && !hasBand) return 'bandId is required; pass null to clear';
   if (coachId && ids.includes(coachId)) return 'A trainee cannot be their own coach';
+  const existing = b.existing === true;
+  const since = typeof b.trainingSince === 'string' ? b.trainingSince.trim() : '';
+  const trainingSince = /^\d{4}-\d{2}(-\d{2})?$/.test(since) ? (since.length === 7 ? `${since}-01` : since) : null;
+  if (since && !trainingSince) return 'trainingSince must be YYYY-MM or YYYY-MM-DD';
+  if ((existing || trainingSince) && action !== 'add') return 'existing and trainingSince go with add';
   return {
     athleteIds: ids, action, coachId,
     coachIds: action === 'coach' || action === 'addCoach' || action === 'add' ? coachIds : null,
-    bandId, notify: b.notify === true, hasCoach, hasBand,
+    bandId, notify: b.notify === true, hasCoach, hasBand, existing, trainingSince,
   };
 }
 

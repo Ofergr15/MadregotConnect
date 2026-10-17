@@ -8,7 +8,7 @@ import { addDaysToDateStr, israelToday } from '@/lib/utils';
 import { DAY_SESSION_FOR_ALL } from './flag';
 import { fromRow, isolateNumbers, type DaySession } from './model';
 
-// The day session's reads and writes (migration 149). Every function answers
+// The day session's reads and writes (migration 150). Every function answers
 // `{ setup: false }` rather than throwing while the table has not been pasted, so the form
 // can say so and the feed stays quiet.
 

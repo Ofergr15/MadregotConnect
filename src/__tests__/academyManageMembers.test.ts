@@ -471,3 +471,98 @@ describe('DELETE /api/academy/members/application', () => {
     expect((await del({ athleteId: 'app', candidateId: 'c-member', confirm: 'delete' })).status).toBe(409);
   });
 });
+
+describe('moving in an existing trainee (the migration path)', () => {
+  it('adds them, closes their open card as existing, keeps "training since", and says the academy is moving in', async () => {
+    caller.mockReturnValue(manager);
+    const body = await (await post({ action: 'add', athleteIds: ['plain'], coachIds: ['dana'], existing: true, trainingSince: '2026-03', notify: true })).json();
+    expect(body.results[0]).toMatchObject({ athleteId: 'plain', ok: true, coachIds: ['dana'] });
+    const card = db.academy_candidates.find((c) => c.athlete_id === 'plain')!;
+    expect(card.source).toBe('existing');
+    expect(card.accepted_at).toBeTruthy();
+    expect(db.athletes.find((a) => a.id === 'plain')!.academy_training_since).toBe('2026-03-01');
+    const toTrainee = pushes.find((p) => p.athleteId === 'plain')!;
+    expect(toTrainee.title).toContain('האקדמיה עוברת לאפליקציה');
+  });
+
+  it('a second run is "unchanged", not a failure', async () => {
+    caller.mockReturnValue(manager);
+    await post({ action: 'add', athleteIds: ['plain'], coachIds: ['dana'], existing: true });
+    const again = await (await post({ action: 'add', athleteIds: ['plain'], coachIds: ['dana'], existing: true })).json();
+    expect(again.results[0]).toMatchObject({ ok: true, unchanged: true });
+  });
+
+  it('opens a card that says so for somebody who never had one', async () => {
+    caller.mockReturnValue(manager);
+    await post({ action: 'add', athleteIds: ['gone'], existing: true });
+    const card = db.academy_candidates.find((c) => c.athlete_id === 'gone')!;
+    expect(card).toMatchObject({ source: 'existing', name: 'Tal Ben' });
+  });
+
+  it('undo puts it back silently: no "removed" message, no history left behind', async () => {
+    caller.mockReturnValue(manager);
+    await post({ action: 'add', athleteIds: ['plain'], coachIds: ['dana'], existing: true, notify: true });
+    pushes.length = 0;
+    const undo = await (await post({ action: 'undoMove', athleteIds: ['plain'] })).json();
+    expect(undo.results[0]).toMatchObject({ ok: true });
+    const row = db.athletes.find((a) => a.id === 'plain')!;
+    expect(row.is_academy).toBe(false);
+    expect(row.academy_joined_on).toBeNull();
+    expect(pushes).toHaveLength(0);
+  });
+
+  it('will not undo somebody who joined on another day', async () => {
+    caller.mockReturnValue(manager);
+    const undo = await (await post({ action: 'undoMove', athleteIds: ['t1'] })).json();
+    expect(undo.results[0]).toMatchObject({ ok: false, error: 'not_undoable' });
+    expect(db.athletes.find((a) => a.id === 't1')!.is_academy).toBe(true);
+  });
+
+  it('refuses "existing" on anything but add', () => {
+    expect(parseBulk({ action: 'remove', athleteIds: ['t1'], existing: true })).toBe('existing and trainingSince go with add');
+    expect(parseBulk({ action: 'add', athleteIds: ['t1'], existing: true, trainingSince: 'March' })).toMatch(/trainingSince/);
+  });
+});
+
+describe('undoing a move of somebody who had a form card', () => {
+  it('puts the card back into the funnel', async () => {
+    caller.mockReturnValue(manager);
+    await post({ action: 'add', athleteIds: ['plain'], coachIds: ['dana'], existing: true });
+    await post({ action: 'undoMove', athleteIds: ['plain'] });
+    const card = db.academy_candidates.find((c) => c.id === 'c-member')!;
+    expect(card.accepted_at).toBeNull();
+    expect(card.source).not.toBe('existing');
+  });
+});
+
+describe('POST /api/academy/members/invite (an existing trainee not in the app yet)', () => {
+  const invite = async (body: unknown) => {
+    const route = await import('@/app/api/academy/members/invite/route');
+    return route.POST(new Request('http://x/api/academy/members/invite', { method: 'POST', body: JSON.stringify(body) }));
+  };
+  it('is the manager’s', async () => {
+    caller.mockReturnValue(coach);
+    expect((await invite({ name: 'מיכל', email: 'm@x.co' })).status).toBe(403);
+  });
+  it('needs an email — it is how they sign in', async () => {
+    caller.mockReturnValue(manager);
+    expect((await invite({ name: 'מיכל', email: '' })).status).toBe(400);
+  });
+  it('sends somebody already in the app to the move-in tab instead', async () => {
+    caller.mockReturnValue(manager);
+    db.athletes.push(athlete({ id: 'dup', name: 'Already Here', email: 'here@x.co' }));
+    const res = await invite({ name: 'X', email: 'Here@X.co' });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('already_in_app');
+  });
+  it('creates one pre-approved academy row with a join link and an "existing" card', async () => {
+    caller.mockReturnValue(manager);
+    const res = await invite({ name: 'מיכל רז', email: 'Michal@X.co', phone: '054-3329911', bandId: null, trainingSince: '2026-01' });
+    expect(res.status).toBe(200);
+    expect((await res.json()).url).toMatch(/\/join\/[0-9a-f]{32}$/);
+    const row = writes.find((w) => w.table === 'athletes' && w.op === 'insert')!.row!;
+    expect(row).toMatchObject({ email: 'michal@x.co', status: 'invited', approved: true, is_academy: true, academy_training_since: '2026-01-01' });
+    const card = writes.find((w) => w.table === 'academy_candidates' && w.op === 'insert')!.row!;
+    expect(card).toMatchObject({ source: 'existing', name: 'מיכל רז' });
+  });
+});

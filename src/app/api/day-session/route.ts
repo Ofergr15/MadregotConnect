@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-// "אימון ליום אחד" (mockup manual-day-workout, migration 149).
+// "אימון ליום אחד" (mockup manual-day-workout, migration 150).
 //
 // GET ?date=YYYY-MM-DD   -> { setup, session }   the form: that date's row, published or not
 // GET                    -> { setup, sessions }  the feed: published, on now (isOnFeed)
@@ -19,7 +19,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 //
 // The gate is lib/day-session/model.ts on the VERIFIED session: while DAY_SESSION_FOR_ALL is
 // off the super user alone edits and sees; anybody else gets 403 on the form and an empty
-// feed answer (the feed must stay quiet, not error). `setup: false` = migration 149 has not
+// feed answer (the feed must stay quiet, not error). `setup: false` = migration 150 has not
 // been pasted, which the form says in words.
 export async function GET(request: Request) {
   const auth = await requireSession(request);
