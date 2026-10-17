@@ -10,7 +10,7 @@ import { hasRole } from '@/lib/auth/roles';
 import type { WorkoutStep } from '@/lib/ai/types';
 import { DAY_SESSION_FOR_ALL } from './flag';
 import {
-  isQuickShape, parseClubText, quickToWorkout, validateWorkoutSteps, workoutTitle, workoutTotals, type PackPaces,
+  isQuickShape, parseClubText, quickToWorkout, validateWorkoutSteps, workoutSummary, workoutTitle, workoutTotals, type PackPaces,
 } from './workout';
 import type { QuickStep } from '@/lib/academy/quick-text';
 
@@ -80,6 +80,8 @@ export const MAX_NUTRITION_LINES = 12;
 
 export const MAX_TITLE = 80;
 export const MAX_DESCRIPTION = 1000;
+export const MAX_PUSH_TITLE = 80;
+export const MAX_PUSH_BODY = 180;
 
 export interface DaySessionInput {
   date: string;
@@ -92,6 +94,9 @@ export interface DaySessionInput {
   title: string | null;
   description: string | null;
   quality: boolean;
+  /** The coach's own notification text; null = the default (defaultPushCopy). */
+  pushTitle: string | null;
+  pushBody: string | null;
   nutrition: NutritionLine[];
   publish: boolean;
   notify: boolean;
@@ -139,6 +144,8 @@ export function readInput(body: unknown): DaySessionInput | string {
     description: description || null,
     nutrition,
     quality: b.quality !== false,
+    pushTitle: typeof b.pushTitle === 'string' && b.pushTitle.trim() ? b.pushTitle.trim().slice(0, MAX_PUSH_TITLE) : null,
+    pushBody: typeof b.pushBody === 'string' && b.pushBody.trim() ? b.pushBody.trim().slice(0, MAX_PUSH_BODY) : null,
     publish: b.publish !== false,
     notify: b.notify !== false,
   };
@@ -240,6 +247,30 @@ export function planLinks(weekStart: string, plan: WeekPlanLike | null | undefin
     weekly: hasWeekly ? { href: `/dashboard/program?week=${weekStart}`, sessions: plan?.hasPlan ? plan.trainingDays ?? 0 : 0, km } : null,
     nutrition: row?.nutrition_pdf_url ? { href: `/dashboard/program?week=${weekStart}&view=nutrition` } : null,
   };
+}
+
+// ── What the push says ─────────────────────────────────────────────────────────────────
+
+const PUSH_WORDS = {
+  he: { today: 'היום', tomorrow: 'מחר', session: 'האימון של', food: 'ותזונה לאימון' },
+  en: { today: 'today', tomorrow: 'tomorrow', session: 'The session', food: 'and the session nutrition' },
+} as const;
+
+/**
+ * "האימון של היום · 19:00" / "50 דק׳ + 15 × 200 מ׳ · פארק הירקון · ותזונה לאימון". What the
+ * form prefills and the coach can change. Plain text: the bidi isolates the first version put
+ * around the numbers came out as boxes on the lock screen.
+ */
+export function defaultPushCopy(
+  s: Pick<DaySession, 'date' | 'steps' | 'startTime' | 'place' | 'nutrition'>,
+  today: string,
+  locale: 'he' | 'en' = 'he',
+): { title: string; body: string } {
+  const w = PUSH_WORDS[locale] ?? PUSH_WORDS.he;
+  const when = s.date === today ? w.today : w.tomorrow;
+  const title = locale === 'en' ? `${w.session} ${when}` : `${w.session} ${when}`;
+  const body = [workoutSummary(s.steps), s.place, s.nutrition.length ? w.food : null].filter(Boolean).join(' · ');
+  return { title: s.startTime ? `${title} · ${s.startTime}` : title, body };
 }
 
 // ── The push, once ─────────────────────────────────────────────────────────────────────

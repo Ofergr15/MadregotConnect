@@ -445,3 +445,20 @@ describe('quality session (RSVP) and the watch pick', () => {
     spy.mockRestore();
   });
 });
+
+describe('the notification text', () => {
+  const steps = parseClubText('50 דק׳ 4:40 - 5:15\n15 x\n200 מ׳ 3:15 (3:25) ((3:35))\n100 מ׳ הליכה').steps;
+  it('says the session plainly, with no bidi marks (they showed as boxes)', async () => {
+    const { defaultPushCopy } = await import('@/lib/day-session/model');
+    const c = defaultPushCopy({ date: '2026-10-18', steps, startTime: '19:00', place: 'פארק הירקון', nutrition: [{ when: 'before', text: 'בננה' }] }, '2026-10-18');
+    expect(c).toEqual({ title: 'האימון של היום · 19:00', body: '50 דק׳ + 15 × 200 מ׳ · פארק הירקון · ותזונה לאימון' });
+    expect(`${c.title}${c.body}`).not.toMatch(/[⁦-⁩]/);
+    expect(defaultPushCopy({ date: '2026-10-19', steps, startTime: null, place: null, nutrition: [] }, '2026-10-18').title).toBe('האימון של מחר');
+  });
+  it('the coach\'s own text wins; the request keeps it short', async () => {
+    const r = readInput({ date: '2026-10-18', quickText: '6x1000', pushTitle: ' שלום ', pushBody: 'x'.repeat(500) });
+    expect(typeof r === 'object' && r.pushTitle).toBe('שלום');
+    expect(typeof r === 'object' && r.pushBody?.length).toBe(180);
+    expect(typeof r === 'object' && readInput({ date: '2026-10-18', quickText: '6x1000', pushTitle: '  ' }) && (readInput({ date: '2026-10-18', quickText: '6x1000', pushTitle: '  ' }) as { pushTitle: unknown }).pushTitle).toBeNull();
+  });
+});

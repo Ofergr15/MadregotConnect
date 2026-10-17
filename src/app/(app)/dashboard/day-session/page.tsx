@@ -15,7 +15,7 @@ import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 import { ProfileStrip, WorkoutLines } from '@/components/day-session/WorkoutLines';
 import { DAY_SESSION_FOR_ALL } from '@/lib/day-session/flag';
 import {
-  MAX_DESCRIPTION, MAX_TITLE, numberRuns, parseWorkout, totalsOf, NUTRITION_WHENS,
+  defaultPushCopy, MAX_DESCRIPTION, MAX_PUSH_BODY, MAX_PUSH_TITLE, MAX_TITLE, numberRuns, parseWorkout, totalsOf, NUTRITION_WHENS,
   type DaySession, type NutritionLine, type NutritionWhen,
 } from '@/lib/day-session/model';
 import { hasRunning, workoutTitle } from '@/lib/day-session/workout';
@@ -64,6 +64,8 @@ export default function DaySessionPage() {
 
   const { data: reminderCfg } = useApi<{ config?: { workoutHour?: number } }>('/api/reminder-config');
   const { data: loaded, error: loadError, mutate } = useApi<{ setup: boolean; session: DaySession | null }>(`/api/day-session?date=${date}`);
+  const { data: holdersData, mutate: mutateHolders } = useApi<{ holders: Array<{ athleteId: string; name: string }> }>(`/api/day-session/watch?date=${date}`);
+  const holders = holdersData?.holders ?? [];
   const existing = loaded?.session ?? null;
 
   const [step, setStep] = useState<1 | 2>(1);
@@ -87,6 +89,11 @@ export default function DaySessionPage() {
   // "אימון איכות": people say whether they are coming. Off: a run on your own, no RSVP.
   const [quality, setQuality] = useState(false);
   const recipients = useWatchRecipients();
+  // The notification's text: null = the default, which follows the session.
+  const [pushTitle, setPushTitle] = useState<string | null>(null);
+  const [pushBody, setPushBody] = useState<string | null>(null);
+  // The last send, runner by runner (the planner's results sheet), and who has it now.
+  const [watchResults, setWatchResults] = useState<Array<{ athleteId: string; athleteName: string; status: string; error?: string }> | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
 
@@ -127,6 +134,7 @@ export default function DaySessionPage() {
   const ready = steps.length > 0 && hasRunning(steps);
   const autoTitle = steps.length ? workoutTitle(steps) : '';
   const shownTitle = titleTouched ? title : autoTitle;
+  const pushDefault = defaultPushCopy({ date, steps, startTime: time || null, place: place || null, nutrition: food.filter((l) => l.text.trim()) }, today);
 
   // The planner's editor saves the whole workout: its steps, and its name as the title
   // when the coach changed it there.
@@ -171,6 +179,8 @@ export default function DaySessionPage() {
           title: titleTouched ? title.trim() : null,
           description,
           quality,
+          pushTitle: pushTitle?.trim() || null,
+          pushBody: pushBody?.trim() || null,
           nutrition: food.filter((l) => l.text.trim()),
           publish, notify,
         }),
@@ -185,21 +195,22 @@ export default function DaySessionPage() {
         return;
       }
       if (publish && toWatch) {
-        // The saved session to the watches (api/day-session/watch). Stays on this screen
-        // when any watch did not take it, so the coach sees who.
+        // The saved session to the watches (api/day-session/watch), then who got it and who
+        // did not, runner by runner — the screen stays here so the coach sees it.
         setMessage({ tone: 'ok', text: t('watchSending') });
+        setWatchResults(null);
         const w = await fetch('/api/day-session/watch', { method: 'POST', headers: await apiHeaders(true), body: JSON.stringify({ date, athleteIds: recipients.ids }) });
-        const out = await w.json().catch(() => null) as { tracked?: boolean; results?: Array<{ athleteName: string; status: string; error?: string }> } | null;
+        const out = await w.json().catch(() => null) as { results?: Array<{ athleteId: string; athleteName: string; status: string; error?: string }> } | null;
         const results = out?.results ?? [];
-        const failed = results.filter((r) => r.status !== 'success');
-        if (!w.ok || failed.length || !results.length) {
-          setMessage({ tone: 'bad', text: !results.length ? t('watchNobody') : t('watchFailed', { names: failed.map((r) => r.athleteName).join(', ') || '—' }) });
-          return;
-        }
-        setMessage({ tone: 'ok', text: t('watchSent', { n: results.length }) });
-      } else {
-        setMessage({ tone: 'ok', text: publish ? t('published') : t('saved') });
+        setWatchResults(results);
+        await mutateHolders();
+        const ok = results.filter((r) => r.status === 'success').length;
+        setMessage(!w.ok || !results.length
+          ? { tone: 'bad', text: t('watchNobody') }
+          : { tone: ok === results.length ? 'ok' : 'bad', text: t('watchSummary', { ok, total: results.length }) });
+        return;
       }
+      setMessage({ tone: 'ok', text: publish ? t('published') : t('saved') });
       if (publish) router.push('/feed');
     } catch {
       setMessage({ tone: 'bad', text: t('failed') });
@@ -471,13 +482,33 @@ export default function DaySessionPage() {
             <span className="min-w-0">
               <b className="block text-[15px] text-ink-900">{t('notifyAll')}</b>
               <small className="block text-13 text-ink-400">
-                {alreadySent ? t('notifyAlreadySent') : DAY_SESSION_FOR_ALL
-                  ? <>&quot;{whenText(date)}: {numberRuns(shownTitle || autoTitle).map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>))}&quot;</>
-                  : t('notifyOnlyYou')}
+                {alreadySent ? t('notifyAlreadySent') : DAY_SESSION_FOR_ALL ? t('notifyEveryone') : t('notifyOnlyYou')}
               </small>
             </span>
             <Switch checked={notify && !alreadySent} onChange={setNotify} disabled={alreadySent} activeColor="bg-[#1FA55B]" ariaLabel={t('notifyAll')} />
           </div>
+          {notify && !alreadySent && (
+            // What the lock screen will say — the default follows the session; either line can
+            // be rewritten, and ↺ goes back to the default.
+            <div className="space-y-2 border-b border-[#EFEFF4] px-4 py-3">
+              <div className="rounded-[18px] bg-[#F2F2F7] px-3.5 py-2.5" aria-label={t('pushPreview')}>
+                <div className="flex items-center gap-2 text-xs font-bold text-ink-400"><span aria-hidden>🏃</span>MADREGOT<span className="ms-auto font-normal">{t('now')}</span></div>
+                <p dir="auto" className="mt-1 text-[15px] font-bold leading-snug text-ink-900">{pushTitle ?? pushDefault.title}</p>
+                <p dir="auto" className="text-[15px] leading-snug text-ink-700">{pushBody ?? pushDefault.body}</p>
+              </div>
+              <label className="block">
+                <span className="text-13 font-bold text-ink-400">{t('pushTitleLabel')}</span>
+                <input dir="auto" value={pushTitle ?? pushDefault.title} maxLength={MAX_PUSH_TITLE} onChange={(e) => setPushTitle(e.target.value)} className="mt-1 min-h-[44px] w-full rounded-xl bg-page px-3 text-[15px] font-bold text-ink-900 outline-none" />
+              </label>
+              <label className="block">
+                <span className="text-13 font-bold text-ink-400">{t('pushBodyLabel')}</span>
+                <textarea dir="auto" rows={2} value={pushBody ?? pushDefault.body} maxLength={MAX_PUSH_BODY} onChange={(e) => setPushBody(e.target.value)} className="mt-1 w-full resize-none rounded-xl bg-page px-3 py-2 text-[15px] text-ink-900 outline-none" />
+              </label>
+              {(pushTitle !== null || pushBody !== null) && (
+                <button type="button" onClick={() => { setPushTitle(null); setPushBody(null); }} className="min-h-[44px] text-sm font-bold text-brand-600">{t('pushReset')}</button>
+              )}
+            </div>
+          )}
           <div className="flex min-h-[56px] items-center justify-between gap-3 px-4 py-2">
             <span className="min-w-0">
               <b className="block text-[15px] text-ink-900">{t('toWatches')}</b>
@@ -494,6 +525,25 @@ export default function DaySessionPage() {
               <p className="mt-2 text-13 font-bold text-ink-500">{t('willGet', { n: recipients.ids.length })}</p>
             </div>
           </>
+        )}
+        {watchResults && watchResults.length > 0 && (
+          <div className={cn(CARD, 'overflow-hidden')}>
+            {watchResults.map((r) => (
+              <div key={r.athleteId} className="flex items-start gap-2.5 border-b border-[#EFEFF4] px-4 py-2.5 last:border-0">
+                <span aria-hidden className={cn('mt-0.5 text-base', r.status === 'success' ? 'text-accent-600' : 'text-accent-red')}>{r.status === 'success' ? '✓' : '✕'}</span>
+                <span className="min-w-0">
+                  <b className="block text-[15px] text-ink-900">{r.athleteName}</b>
+                  {r.error && <small className="block text-13 text-accent-red">{r.error}</small>}
+                </span>
+              </div>
+            ))}
+            <button type="button" onClick={() => router.push('/feed')} className="min-h-[48px] w-full border-t border-[#EFEFF4] text-[15px] font-extrabold text-brand-600">{t('toFeed')}</button>
+          </div>
+        )}
+        {holders.length > 0 && (
+          <p className="px-1 text-13 leading-normal text-ink-500">
+            <b className="text-ink-900">{t('onWatchesNow', { n: holders.length })}</b> {holders.map((h) => h.name).join(', ')}
+          </p>
         )}
       </FlowScreen>
     </FlowOverlay>

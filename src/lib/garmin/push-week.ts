@@ -54,6 +54,7 @@ export async function pushWeekToAthlete({
   cleanDayOnce = false,
   pushCopy,
   removedKeys = [],
+  deliveryKey,
 }: {
   supabase: ReturnType<typeof createServerClient>;
   athlete: PushTargetAthlete;
@@ -84,6 +85,13 @@ export async function pushWeekToAthlete({
    * take the copy an earlier push put on the watch.
    */
   removedKeys?: string[];
+  /**
+   * Record the delivery with no plan (a one-day session, lib/day-session/watch.ts): the rows
+   * get `plan_id` null and this `workout_key`, so the athlete's watch status (my-watch) sees
+   * the day as on the watch. Plan matching reads rows by plan id and never sees them; the
+   * plan-keyed cleanups above stay off, the caller replaces its own rows.
+   */
+  deliveryKey?: string;
 }): Promise<PushResult> {
   // Rows whose Garmin workout this push deleted to replace it. If the push then
   // fails they are marked failed: they'd otherwise stay 'success', and the
@@ -209,7 +217,7 @@ export async function pushWeekToAthlete({
       // (it's what the cleanup above needs), but not yet that the batch is
       // on the account. The promotion below is the only thing that writes
       // 'success'.
-      if (planId) {
+      if (planId || deliveryKey) {
         const delivery = {
           plan_id: planId,
           athlete_id: athlete.id,
@@ -219,7 +227,7 @@ export async function pushWeekToAthlete({
           // Which published part this is, so an activity Garmin stamps with
           // `workoutId` resolves to an exact plan slot instead of being
           // re-derived from the date — ambiguous on a double day.
-          workout_key: workout.workoutKey || null,
+          workout_key: planId ? workout.workoutKey || null : deliveryKey!,
           status: 'pending',
         };
         let { data: row, error: rowError } = await supabase

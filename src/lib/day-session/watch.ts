@@ -1,5 +1,4 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { COACH_ID } from '@/lib/constants';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { splitIntoGroups } from '@/lib/ai/splitGroups';
@@ -17,26 +16,47 @@ import type { DaySession } from './model';
 // each runner gets their own pack's paces, with all three packs' paces on every step (the
 // club week's rule, lib/plans/watch-paces.ts), and never pace-zone alarms.
 //
-// There is no weekly plan row to hang deliveries on, so the Garmin ids this sends are kept
-// on the session itself (migration 152, `watch_deliveries`): a second send deletes the
-// first copy off each watch before writing the new one. Before 152 is pasted the send
-// still works, but a second send leaves the first copy on the watch beside it — `tracked`
-// says which.
+// There is no weekly plan row, so the deliveries are recorded with `plan_id` null and the
+// key `day:<date>` (deliveryKey) — the same workout_deliveries the planner writes, so the
+// runner's watch status on the feed (my-watch) shows the day as on the watch, and the
+// form can say who has it. A second send deletes the first copy off each watch, and its
+// rows, before writing the new one.
 
 type Db = ReturnType<typeof createServerClient>;
-interface Deliveries { sentAt: string; ids: Record<string, string[]> }
 
 const AT_ONCE = 3;
 
-async function readDeliveries(db: Db, id: string): Promise<{ tracked: boolean; prior: Deliveries | null }> {
-  const { data, error } = await db.from('day_sessions').select('watch_deliveries').eq('id', id).maybeSingle();
-  if (error) return { tracked: !isMissingColumn(error, 'watch_deliveries'), prior: null };
-  const v = (data as { watch_deliveries?: unknown } | null)?.watch_deliveries;
-  return { tracked: true, prior: v && typeof v === 'object' && 'ids' in v ? (v as Deliveries) : null };
+export const dayKey = (date: string) => `day:${date}`;
+
+interface DeliveryRow { id: string; athlete_id: string; garmin_workout_id: string | null; status: string; created_at: string }
+
+async function readRows(db: Db, date: string, athleteIds?: string[]): Promise<DeliveryRow[]> {
+  let q = db.from('workout_deliveries')
+    .select('id, athlete_id, garmin_workout_id, status, created_at')
+    .is('plan_id', null)
+    .eq('workout_key', dayKey(date))
+    .eq('workout_date', date);
+  if (athleteIds) q = q.in('athlete_id', athleteIds);
+  const { data, error } = await q;
+  return error ? [] : ((data || []) as DeliveryRow[]);
+}
+
+export interface WatchHolder { athleteId: string; name: string; at: string }
+
+/** Who has the date's session on their watch (a confirmed delivery). */
+export async function whoHasIt(date: string): Promise<WatchHolder[]> {
+  const db = createServerClient();
+  const rows = (await readRows(db, date)).filter((r) => r.status === 'success');
+  if (!rows.length) return [];
+  const ids = [...new Set(rows.map((r) => r.athlete_id))];
+  const { data } = await db.from('athletes').select('id, name').in('id', ids);
+  const names = new Map(((data || []) as Array<{ id: string; name: string | null }>).map((a) => [a.id, a.name || '']));
+  return ids.map((id) => ({ athleteId: id, name: names.get(id) || '', at: rows.filter((r) => r.athlete_id === id).map((r) => r.created_at).sort().at(-1)! }))
+    .sort((x, y) => x.name.localeCompare(y.name));
 }
 
 export interface WatchSendResult {
-  /** False before migration 152: a second send will not replace the first copy. */
+  /** Kept for the form: always true now that the deliveries are workout_deliveries rows. */
   tracked: boolean;
   results: PushResult[];
 }
@@ -61,26 +81,24 @@ export async function sendDaySessionToWatches(s: DaySession, athleteIds: string[
   const grouped = splitIntoGroups({ workouts: base });
   const weekStartDate = getPlanWeekStart(new Date(`${s.date}T12:00:00`));
 
-  const { tracked, prior } = await readDeliveries(db, s.id);
+  const prior = await readRows(db, s.date, athletes.map((x) => x.id));
   const appleIds = await appleCandidates(db, athletes as never);
   const results: PushResult[] = [];
-  const sentIds: Record<string, string[]> = { ...(prior?.ids ?? {}) };
 
   const deliver = async (athlete: (typeof athletes)[number]) => {
     const own: ParsedWorkout[] = grouped[paceGroupKeyFor(sources, athlete.group_id)]?.workouts ?? base;
     const plannedWorkouts = withGroupPaces(normalizeWorkoutParts({ workouts: own }).workouts, grouped);
     const provider = resolveWatchProvider(athlete as never, appleIds);
-    if (provider !== 'apple') {
-      // The earlier copy of this session off this watch, first.
-      const old = prior?.ids?.[athlete.id] ?? [];
-      if (old.length && athlete.garmin_auth) {
-        const garmin = new GarminClient(athlete.garmin_auth as never);
-        for (const id of old) {
-          try { await garmin.deleteWorkout(id); } catch { /* already gone: send the new one regardless */ }
-        }
-        delete sentIds[athlete.id];
+    // The earlier copy of this session off this watch, and its rows, first.
+    const old = prior.filter((r) => r.athlete_id === athlete.id);
+    if (provider !== 'apple' && athlete.garmin_auth) {
+      const garmin = new GarminClient(athlete.garmin_auth as never);
+      for (const r of old) {
+        if (!r.garmin_workout_id) continue;
+        try { await garmin.deleteWorkout(r.garmin_workout_id); } catch { /* already gone: send the new one regardless */ }
       }
     }
+    if (old.length) await db.from('workout_deliveries').delete().in('id', old.map((r) => r.id));
     const input = {
       supabase: db, athlete: athlete as never, plannedWorkouts, weekStartDate, planId: null,
       // A club session: the pace is text on the watch, never an alarm.
@@ -90,8 +108,7 @@ export async function sendDaySessionToWatches(s: DaySession, athleteIds: string[
     };
     const result: PushResult = provider === 'apple'
       ? await deliverWeek('apple', input)
-      : await pushWeekToAthlete({ ...input, cleanDayOnce: true });
-    if (result.status === 'success' && result.workoutIds?.length) sentIds[athlete.id] = result.workoutIds;
+      : await pushWeekToAthlete({ ...input, cleanDayOnce: true, deliveryKey: dayKey(s.date) });
     results.push(result);
   };
 
@@ -100,9 +117,5 @@ export async function sendDaySessionToWatches(s: DaySession, athleteIds: string[
     while (next < athletes.length) await deliver(athletes[next++]!);
   }));
 
-  if (tracked) {
-    const value: Deliveries = { sentAt: new Date().toISOString(), ids: sentIds };
-    await db.from('day_sessions').update({ watch_deliveries: value }).eq('id', s.id);
-  }
-  return { tracked, results };
+  return { tracked: true, results };
 }

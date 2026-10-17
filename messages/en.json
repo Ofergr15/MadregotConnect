@@ -5455,6 +5455,17 @@
     "qualityOn": "A club session: the card asks who is coming",
     "qualityOff": "Not a quality session: no RSVP",
     "whoGets": "Who gets it on the watch",
-    "willGet": "Will get it on the watch: {n} (Garmin connected only)"
+    "willGet": "Will get it on the watch: {n} (Garmin connected only)",
+    "notifyEveryone": "To every club member, when it is published",
+    "pushPreview": "How the notification will look",
+    "now": "now",
+    "pushTitleLabel": "Notification title",
+    "pushBodyLabel": "Notification text",
+    "pushReset": "↺ Back to the automatic text",
+    "watchSummary": "Published. On the watch: {ok} of {total}",
+    "toFeed": "To the feed",
+    "onWatchesNow": "On the watch now for {n}:",
+    "onYourWatch": "On your watch",
+    "notOnYourWatch": "Not on your watch yet"
   }
 }

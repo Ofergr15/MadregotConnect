@@ -89,7 +89,7 @@ export async function PUT(request: Request) {
     try {
       const r = await notifyOnce(saved, {
         claim: () => claimNotify(saved.id),
-        send: async () => sendDaySessionPush(saved, await daySessionRecipients(me)),
+        send: async () => sendDaySessionPush(saved, await daySessionRecipients(me), new Date(), { title: input.pushTitle, body: input.pushBody }),
       });
       notified = r.sent;
     } catch (err) {

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { mayEditDaySession } from '@/lib/day-session/model';
 import { daySessionRecipients, readDaySession } from '@/lib/day-session/server';
-import { sendDaySessionToWatches } from '@/lib/day-session/watch';
+import { sendDaySessionToWatches, whoHasIt } from '@/lib/day-session/watch';
 
 export const dynamic = 'force-dynamic';
 // Each watch is a few serial Garmin calls; the club's worth, three at a time.
@@ -16,6 +16,21 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 // same gate as the form. `athleteIds` are the coach's pick in "מי מקבל" (the planner's
 // send sheet, components/day-session/WatchRecipients.tsx) — staff send to watches from
 // the planner the same way. Without them, the push's recipients (daySessionRecipients).
+// GET ?date=YYYY-MM-DD -> { holders: [{ athleteId, name, at }] }  who has it on the watch
+export async function GET(request: Request) {
+  const auth = await requireSession(request);
+  if (!auth.ok) return authError(auth);
+  if (!mayEditDaySession(auth.user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const date = new URL(request.url).searchParams.get('date') || '';
+  if (!DATE.test(date)) return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 });
+  try {
+    return NextResponse.json({ holders: await whoHasIt(date) });
+  } catch (err) {
+    console.error('[day-session/watch] GET failed:', err);
+    return NextResponse.json({ error: 'Failed to read' }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   const auth = await requireSession(request);
   if (!auth.ok) return authError(auth);

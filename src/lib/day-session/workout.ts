@@ -16,7 +16,7 @@ import type { GroupPace, WorkoutStep } from '@/lib/ai/types';
 import { normalizeQuick, parseQuickText, type QuickEffort, type QuickStep } from '@/lib/academy/quick-text';
 import type { Length, RestMode } from '@/lib/academy/book-steps';
 import { sessionHeadline } from '@/lib/plans/session-summary';
-import type { StepUnits } from '@/lib/plans/step-display';
+import { isRestStep, stepMetric, type StepUnits } from '@/lib/plans/step-display';
 import { workoutDurationSec } from '@/lib/workout-duration';
 import { workoutDistanceMeters } from '@/lib/workout-distance';
 
@@ -260,4 +260,24 @@ export function validateWorkoutSteps(raw: unknown): WorkoutStep[] | string {
   }
   if (!hasRunning(out)) return 'steps hold no running';
   return renumber(out);
+}
+
+/**
+ * The session in a line, for the notification: "50 דק׳ + 15 × 200 מ׳". Rests left out,
+ * a repeat as its count and its work. Plain text — no bidi marks, which a lock screen
+ * draws as boxes.
+ */
+export function workoutSummary(steps: WorkoutStep[], units: StepUnits = HE_UNITS): string {
+  const parts: string[] = [];
+  for (const s of steps) {
+    if (s.repeatSteps?.length) {
+      const work = s.repeatSteps.find((r) => !isRestStep(r)) ?? s.repeatSteps[0];
+      const m = stepMetric(work, units);
+      parts.push(m ? `${s.repeatCount} × ${m}` : `${s.repeatCount} ×`);
+    } else if (!isRestStep(s)) {
+      const m = stepMetric(s, units);
+      if (m) parts.push(m);
+    }
+  }
+  return parts.join(' + ');
 }

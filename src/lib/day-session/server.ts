@@ -6,7 +6,7 @@ import { localesForAthletes, persistNotifications, sendPushLocalized, subscripti
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { addDaysToDateStr, israelToday } from '@/lib/utils';
 import { DAY_SESSION_FOR_ALL } from './flag';
-import { fromRow, isolateNumbers, type DaySession } from './model';
+import { defaultPushCopy, fromRow, type DaySession } from './model';
 
 // The day session's reads and writes (migration 150). Every function answers
 // `{ setup: false }` rather than throwing while the table has not been pasted, so the form
@@ -115,23 +115,19 @@ export async function daySessionRecipients(callerAthleteId: string | null, forAl
   return ((data || []) as Array<{ id: string }>).map((a) => a.id);
 }
 
-const WHEN: Record<NotificationLocale, { today: string; tomorrow: string; food: string }> = {
-  he: { today: 'היום', tomorrow: 'מחר', food: 'ותזונה לאימון' },
-  en: { today: 'Today', tomorrow: 'Tomorrow', food: 'and the session nutrition' },
-};
-
-/** "מחר: 6 × 1 ק״מ" / "19:00 · פארק הירקון · ותזונה לאימון". */
-export function daySessionCopy(locale: NotificationLocale, s: Pick<DaySession, 'date' | 'title' | 'startTime' | 'place' | 'nutrition'>, today: string): { title: string; body: string } {
-  const w = WHEN[locale] ?? WHEN.he;
-  const when = s.date === today ? w.today : w.tomorrow;
-  // "6 × 1" in its own LTR run inside the Hebrew line (isolateNumbers).
-  const title = `${when}: ${isolateNumbers(s.title)}`;
-  const body = [s.startTime, s.place, s.nutrition.length ? w.food : null].filter(Boolean).join(' · ');
-  return { title, body };
+/** The coach's text when he wrote one, else the default (lib/day-session/model.ts). */
+export function daySessionCopy(
+  locale: NotificationLocale,
+  s: Pick<DaySession, 'date' | 'steps' | 'startTime' | 'place' | 'nutrition'>,
+  today: string,
+  own?: { title: string | null; body: string | null },
+): { title: string; body: string } {
+  const d = defaultPushCopy(s, today, locale === 'en' ? 'en' : 'he');
+  return { title: own?.title || d.title, body: own?.body || d.body };
 }
 
 /** The push + the inbox row, through the club's usual fan-out. Returns devices reached. */
-export async function sendDaySessionPush(s: DaySession, recipients: string[], now: Date = new Date()): Promise<number> {
+export async function sendDaySessionPush(s: DaySession, recipients: string[], now: Date = new Date(), own?: { title: string | null; body: string | null }): Promise<number> {
   if (!recipients.length) return 0;
   const today = israelToday(now);
   const url = '/feed';
@@ -140,7 +136,7 @@ export async function sendDaySessionPush(s: DaySession, recipients: string[], no
   let byAthlete: Record<string, number> = {};
   if (subs.length) {
     const r = await sendPushLocalized(subs, (locale) => ({
-      ...daySessionCopy(locale, s, today),
+      ...daySessionCopy(locale, s, today, own),
       url,
       tag: `day-session:${s.date}`,
       category: 'program',
@@ -153,7 +149,7 @@ export async function sendDaySessionPush(s: DaySession, recipients: string[], no
     recipients.map((athleteId) => ({
       athleteId,
       kind: 'day_session',
-      ...daySessionCopy(locales.get(athleteId) ?? DEFAULT_NOTIFICATION_LOCALE, s, today),
+      ...daySessionCopy(locales.get(athleteId) ?? DEFAULT_NOTIFICATION_LOCALE, s, today, own),
       url,
     })),
     byAthlete,

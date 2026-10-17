@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Watch } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { addDaysToDateStr, cn, getPlanWeekStart, israelToday } from '@/lib/utils';
 import { useNavIdentity } from '@/lib/nav-items';
@@ -54,6 +54,9 @@ export function DaySessionCard() {
   const { data: plan } = useApi<WeekPlanLike>(weekStart ? `/api/plans/week?weekStart=${weekStart}` : null);
   const { data: weeks } = useApi<ProgramWeekLike[]>(s ? '/api/program-weeks' : null);
   // Same key SessionRsvp asks for: one request, and the reader's own pack.
+  // Whether it is on the reader's watch: the same deliveries the plan's card reads
+  // (a one-day send records them, lib/day-session/watch.ts).
+  const { data: watch } = useApi<{ garminConnected: boolean; onWatch: string[] }>(s ? '/api/my-watch' : null);
   const { data: lineup } = useApi<Lineup & { homeIndex: number }>(weekStart ? `/api/attendance/lineup?weekStart=${weekStart}&day=${dow}` : null);
 
   if (!s || !weekStart || !plan) return null;
@@ -69,6 +72,8 @@ export function DaySessionCard() {
   // Each pack's pace for the RSVP, from the steps themselves (the same rule as the plan's card).
   const paces = [0, 1, 2].map((i) => { const p = packPace(s.steps, i); return p ? paceRangeText(p) : null; });
   const links = planLinks(weekStart, plan, weeks);
+  const onWatch = !!watch?.garminConnected && watch.onWatch.includes(s.date);
+  const watchLabel = onWatch ? t('onYourWatch') : t('notOnYourWatch');
   const foodSummary = s.nutrition.filter((l) => l.when !== 'during').map((l) => `${t(l.when)}: ${l.text}`).join(' · ')
     || s.nutrition.map((l) => `${t(l.when)}: ${l.text}`).join(' · ');
 
@@ -93,9 +98,17 @@ export function DaySessionCard() {
       <div className="rounded-[26px] border-2 border-brand-600 bg-card p-4 shadow-[0_10px_28px_-14px_rgba(20,24,60,0.22)]">
         <div className="flex items-start justify-between gap-3">
           <span className="text-xs font-bold text-ink-400">{[whenWord, dayNames[dow]].filter(Boolean).join(' · ')}</span>
-          <span className="min-w-0 truncate text-xs font-bold text-ink-500">
-            {s.startTime && <bdi dir="ltr" className="font-extrabold text-ink-900">{s.startTime}</bdi>}
-            {s.startTime && s.place ? ' · ' : ''}{s.place}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="min-w-0 truncate text-xs font-bold text-ink-500">
+              {s.startTime && <bdi dir="ltr" className="font-extrabold text-ink-900">{s.startTime}</bdi>}
+              {s.startTime && s.place ? ' · ' : ''}{s.place}
+            </span>
+            {/* The plan's card's watch pill: a tick when it is on the watch, red when not. */}
+            {watch?.garminConnected && (
+              <span title={watchLabel} aria-label={watchLabel} className={cn('flex h-7 shrink-0 items-center gap-0.5 rounded-pill px-2', onWatch ? 'bg-brand-600/10 text-brand-600' : 'bg-accent-red/10 text-accent-red')}>
+                <Watch className="h-3.5 w-3.5" />{onWatch && <Check className="h-3 w-3" />}
+              </span>
+            )}
           </span>
         </div>
         <h2 className="mt-1 font-[ui-rounded,system-ui] text-[28px] font-bold leading-tight tracking-tight text-ink-900">
