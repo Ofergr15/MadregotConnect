@@ -36,6 +36,12 @@ export interface DaySession {
   steps: WorkoutStep[];
   /** "הערות לאימון", free text (migration 151; null before it is pasted). */
   description: string | null;
+  /**
+   * "אימון איכות": a club session people say whether they are coming to — the card asks
+   * for the RSVP. False: a run on your own, no RSVP. Migration 153; a row from before it
+   * (or before it is pasted) reads true, the card it always had.
+   */
+  quality: boolean;
   nutrition: NutritionLine[];
   publishedAt: string | null;
   notify: boolean;
@@ -85,6 +91,7 @@ export interface DaySessionInput {
   /** The coach's own title. Null = the one the structure names. */
   title: string | null;
   description: string | null;
+  quality: boolean;
   nutrition: NutritionLine[];
   publish: boolean;
   notify: boolean;
@@ -131,6 +138,7 @@ export function readInput(body: unknown): DaySessionInput | string {
     title: title || null,
     description: description || null,
     nutrition,
+    quality: b.quality !== false,
     publish: b.publish !== false,
     notify: b.notify !== false,
   };
@@ -275,6 +283,7 @@ export function fromRow(r: Record<string, unknown>): DaySession {
     // A row saved before the planner shape: its quick steps and one rep pace per pack.
     steps: stepsOfRow(r.steps, [pace(paces[0]), pace(paces[1]), pace(paces[2])]),
     description: typeof r.description === 'string' && r.description ? r.description : null,
+    quality: r.quality !== false,
     nutrition: (Array.isArray(r.nutrition) ? r.nutrition : []) as NutritionLine[],
     publishedAt: (r.published_at as string) || null,
     notify: r.notify !== false,

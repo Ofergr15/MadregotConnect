@@ -113,7 +113,8 @@ export function DaySessionCard() {
           </p>
         )}
 
-        <SessionRsvp weekStart={weekStart} day={dow} paces={paces} whenLabel={whenWord || dayNames[dow]} />
+        {/* Only a quality session asks who is coming. */}
+        {s.quality && <SessionRsvp weekStart={weekStart} day={dow} paces={paces} whenLabel={whenWord || dayNames[dow]} />}
 
         {s.nutrition.length > 0 && (
           <button

@@ -5450,6 +5450,11 @@
     "watchSending": "Published. Sending to the watches…",
     "watchSent": "Published and sent to the watches ({n})",
     "watchFailed": "Published, but it did not reach: {names}. Try again; a re-send replaces the earlier one.",
-    "watchNobody": "Published, but nobody to send to: no watch connected."
+    "watchNobody": "Published, but nobody to send to: no watch connected.",
+    "quality": "Quality session",
+    "qualityOn": "A club session: the card asks who is coming",
+    "qualityOff": "Not a quality session: no RSVP",
+    "whoGets": "Who gets it on the watch",
+    "willGet": "Will get it on the watch: {n} (Garmin connected only)"
   }
 }

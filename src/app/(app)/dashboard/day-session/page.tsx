@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Plus, X } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
-import { addDaysToDateStr, cn, israelToday } from '@/lib/utils';
+import { addDaysToDateStr, cn, israelNow, israelToday } from '@/lib/utils';
 import { Switch } from '@/components/ui';
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import {
@@ -19,6 +19,7 @@ import {
   type DaySession, type NutritionLine, type NutritionWhen,
 } from '@/lib/day-session/model';
 import { hasRunning, workoutTitle } from '@/lib/day-session/workout';
+import { WatchRecipients, useWatchRecipients } from '@/components/day-session/WatchRecipients';
 
 // ── "אימון ליום אחד" — the coach's form (mockup manual-day-workout, phones 1 and 2) ──────
 //
@@ -43,7 +44,10 @@ import { hasRunning, workoutTitle } from '@/lib/day-session/workout';
 const FOOD_ICON: Record<NutritionWhen, string> = { before: '🍌', during: '💧', after: '🥤' };
 const BLANK_FOOD: NutritionLine[] = NUTRITION_WHENS.map((when) => ({ when, text: '' }));
 
-type Chip = 'tomorrow' | 'dayAfter' | 'other';
+type Chip = 'today' | 'tomorrow' | 'dayAfter' | 'other';
+
+/** Past midnight the session being written is the morning's, so "today" is the default until 05:00. */
+const EARLY_HOURS = 5;
 type Mode = 'text' | 'manual';
 
 export default function DaySessionPage() {
@@ -53,9 +57,10 @@ export default function DaySessionPage() {
   const dayNames = tc.raw('dayNames') as string[];
 
   const today = israelToday();
-  const [chip, setChip] = useState<Chip>('tomorrow');
+  const [chip, setChip] = useState<Chip>(() => (israelNow().hour < EARLY_HOURS ? 'today' : 'tomorrow'));
   const [otherDate, setOtherDate] = useState(addDaysToDateStr(today, 2));
-  const date = chip === 'tomorrow' ? addDaysToDateStr(today, 1) : chip === 'dayAfter' ? addDaysToDateStr(today, 2) : otherDate;
+  const date = chip === 'today' ? today : chip === 'tomorrow' ? addDaysToDateStr(today, 1) : chip === 'dayAfter' ? addDaysToDateStr(today, 2) : otherDate;
+  const whenText = (d: string) => (d === today ? t('today') : d === addDaysToDateStr(today, 1) ? t('tomorrow') : dateLabel(d));
 
   const { data: reminderCfg } = useApi<{ config?: { workoutHour?: number } }>('/api/reminder-config');
   const { data: loaded, error: loadError, mutate } = useApi<{ setup: boolean; session: DaySession | null }>(`/api/day-session?date=${date}`);
@@ -79,6 +84,9 @@ export default function DaySessionPage() {
   const [inFeed, setInFeed] = useState(true);
   const [notify, setNotify] = useState(true);
   const [toWatch, setToWatch] = useState(false);
+  // "אימון איכות": people say whether they are coming. Off: a run on your own, no RSVP.
+  const [quality, setQuality] = useState(false);
+  const recipients = useWatchRecipients();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
 
@@ -99,8 +107,9 @@ export default function DaySessionPage() {
       setFood(s.nutrition.length ? s.nutrition : BLANK_FOOD);
       setInFeed(!!s.publishedAt);
       setNotify(s.notify);
+      setQuality(s.quality);
     } else {
-      setText(''); setPlace(''); setFood(BLANK_FOOD); setInFeed(true); setNotify(true);
+      setText(''); setPlace(''); setFood(BLANK_FOOD); setInFeed(true); setNotify(true); setQuality(false);
       setMode('text'); setEdited(null); setTitle(''); setTitleTouched(false); setDescription('');
     }
   }, [loaded]);
@@ -161,6 +170,7 @@ export default function DaySessionPage() {
           steps: edited ?? parse.steps,
           title: titleTouched ? title.trim() : null,
           description,
+          quality,
           nutrition: food.filter((l) => l.text.trim()),
           publish, notify,
         }),
@@ -178,7 +188,7 @@ export default function DaySessionPage() {
         // The saved session to the watches (api/day-session/watch). Stays on this screen
         // when any watch did not take it, so the coach sees who.
         setMessage({ tone: 'ok', text: t('watchSending') });
-        const w = await fetch('/api/day-session/watch', { method: 'POST', headers: await apiHeaders(true), body: JSON.stringify({ date }) });
+        const w = await fetch('/api/day-session/watch', { method: 'POST', headers: await apiHeaders(true), body: JSON.stringify({ date, athleteIds: recipients.ids }) });
         const out = await w.json().catch(() => null) as { tracked?: boolean; results?: Array<{ athleteName: string; status: string; error?: string }> } | null;
         const results = out?.results ?? [];
         const failed = results.filter((r) => r.status !== 'success');
@@ -231,7 +241,7 @@ export default function DaySessionPage() {
           {banner}
           <SectionLabel>{t('when')}</SectionLabel>
           <div className="flex flex-wrap gap-1.5">
-            {(['tomorrow', 'dayAfter', 'other'] as Chip[]).map((c) => (
+            {(['today', 'tomorrow', 'dayAfter', 'other'] as Chip[]).map((c) => (
               <button
                 key={c}
                 type="button"
@@ -239,7 +249,9 @@ export default function DaySessionPage() {
                 aria-pressed={chip === c}
                 className={cn('min-h-[44px] rounded-xl border px-3 text-sm font-extrabold', chip === c ? 'border-brand-600 bg-brand-600 text-white' : 'border-[#E6E6EC] bg-white text-ink-500')}
               >
-                {c === 'tomorrow' ? `${t('tomorrow')} · ${dayNames[new Date(`${addDaysToDateStr(today, 1)}T12:00:00`).getDay()]}` : t(c === 'other' ? 'otherDate' : 'dayAfter')}
+                {c === 'today' ? `${t('today')} · ${dayNames[new Date(`${today}T12:00:00`).getDay()]}`
+                  : c === 'tomorrow' ? `${t('tomorrow')} · ${dayNames[new Date(`${addDaysToDateStr(today, 1)}T12:00:00`).getDay()]}`
+                    : t(c === 'other' ? 'otherDate' : 'dayAfter')}
               </button>
             ))}
           </div>
@@ -395,8 +407,8 @@ export default function DaySessionPage() {
         leading={<BarButton onClick={() => setStep(1)}>‹ {t('back')}</BarButton>}
         footer={(
           <>
-            <PrimaryButton onClick={() => save(inFeed)} disabled={!ready} busy={busy}>
-              {inFeed ? `${t('publish')} · ${chip === 'tomorrow' ? t('tomorrow') : dateLabel(date)}` : t('saveHidden')}
+            <PrimaryButton onClick={() => save(inFeed)} disabled={!ready || (inFeed && toWatch && !recipients.ids.length)} busy={busy}>
+              {inFeed ? `${t('publish')} · ${whenText(date)}` : t('saveHidden')}
             </PrimaryButton>
             {existing?.publishedAt && (
               <PrimaryButton secondary onClick={() => { setInFeed(false); void save(false); }} disabled={busy}>{t('unpublish')}</PrimaryButton>
@@ -443,6 +455,13 @@ export default function DaySessionPage() {
         <div className={cn(CARD, 'overflow-hidden')}>
           <div className="flex min-h-[56px] items-center justify-between gap-3 border-b border-[#EFEFF4] px-4 py-2">
             <span className="min-w-0">
+              <b className="block text-[15px] text-ink-900">{t('quality')}</b>
+              <small className="block text-13 text-ink-400">{quality ? t('qualityOn') : t('qualityOff')}</small>
+            </span>
+            <Switch checked={quality} onChange={setQuality} activeColor="bg-[#1FA55B]" ariaLabel={t('quality')} />
+          </div>
+          <div className="flex min-h-[56px] items-center justify-between gap-3 border-b border-[#EFEFF4] px-4 py-2">
+            <span className="min-w-0">
               <b className="block text-[15px] text-ink-900">{t('showInFeed')}</b>
               <small className="block text-13 text-ink-400">{t('showInFeedSub')}</small>
             </span>
@@ -453,7 +472,7 @@ export default function DaySessionPage() {
               <b className="block text-[15px] text-ink-900">{t('notifyAll')}</b>
               <small className="block text-13 text-ink-400">
                 {alreadySent ? t('notifyAlreadySent') : DAY_SESSION_FOR_ALL
-                  ? <>&quot;{chip === 'tomorrow' ? t('tomorrow') : dateLabel(date)}: {numberRuns(shownTitle || autoTitle).map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>))}&quot;</>
+                  ? <>&quot;{whenText(date)}: {numberRuns(shownTitle || autoTitle).map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>))}&quot;</>
                   : t('notifyOnlyYou')}
               </small>
             </span>
@@ -462,11 +481,20 @@ export default function DaySessionPage() {
           <div className="flex min-h-[56px] items-center justify-between gap-3 px-4 py-2">
             <span className="min-w-0">
               <b className="block text-[15px] text-ink-900">{t('toWatches')}</b>
-              <small className="block text-13 text-ink-400">{DAY_SESSION_FOR_ALL ? t('toWatchesSub') : t('toWatchesOnlyYou')}</small>
+              <small className="block text-13 text-ink-400">{t('toWatchesSub')}</small>
             </span>
             <Switch checked={toWatch && inFeed} onChange={setToWatch} disabled={!inFeed} activeColor="bg-[#1FA55B]" ariaLabel={t('toWatches')} />
           </div>
         </div>
+        {toWatch && inFeed && (
+          <>
+            <SectionLabel>{t('whoGets')}</SectionLabel>
+            <div className={cn(CARD, 'p-3')}>
+              <WatchRecipients r={recipients} />
+              <p className="mt-2 text-13 font-bold text-ink-500">{t('willGet', { n: recipients.ids.length })}</p>
+            </div>
+          </>
+        )}
       </FlowScreen>
     </FlowOverlay>
   );

@@ -416,3 +416,30 @@ describe('/api/day-session/watch', () => {
     expect(server.daySessionRecipients).not.toHaveBeenCalled();
   });
 });
+
+describe('quality session (RSVP) and the watch pick', () => {
+  beforeEach(() => {
+    requireSession.mockReset();
+    Object.values(server).forEach((f) => f.mockReset());
+  });
+  it('quality is stored as sent; an old row reads as quality', async () => {
+    const r = readInput({ date: '2026-10-18', quickText: '6x1000', quality: false });
+    expect(typeof r === 'object' && r.quality).toBe(false);
+    const { fromRow } = await import('@/lib/day-session/model');
+    expect(fromRow({ id: 'r', session_date: '2026-10-18', steps: [] }).quality).toBe(true);
+    expect(fromRow({ id: 'r', session_date: '2026-10-18', steps: [], quality: false }).quality).toBe(false);
+  });
+  it('the watch goes to the coach\'s pick, not the push\'s recipients', async () => {
+    const watch = await import('@/lib/day-session/watch');
+    const spy = vi.spyOn(watch, 'sendDaySessionToWatches').mockResolvedValue({ tracked: true, results: [] });
+    const { POST } = await import('@/app/api/day-session/watch/route');
+    requireSession.mockResolvedValue(session({ isSuperUser: true }));
+    server.readDaySession.mockResolvedValue({ setup: true, session: { id: 'r1', date: '2026-10-18', steps: EDITED } });
+    const post = (body: unknown) => new Request('http://x/api/day-session/watch', { method: 'POST', body: JSON.stringify(body) });
+    expect((await POST(post({ date: '2026-10-18', athleteIds: ['a', 'b', 'a'] }))).status).toBe(200);
+    expect(spy).toHaveBeenLastCalledWith(expect.anything(), ['a', 'b']);
+    expect(server.daySessionRecipients).not.toHaveBeenCalled();
+    expect((await POST(post({ date: '2026-10-18', athleteIds: [] }))).status).toBe(400);
+    spy.mockRestore();
+  });
+});

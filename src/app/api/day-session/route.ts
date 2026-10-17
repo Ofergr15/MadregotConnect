@@ -72,6 +72,7 @@ export async function PUT(request: Request) {
       quick_text: input.quickText,
       steps,
       description: input.description,
+      quality: input.quality,
       // Each step carries its own pace per pack now (lib/day-session/workout.ts).
       pack_paces: [null, null, null],
       nutrition: input.nutrition,
