@@ -9,13 +9,14 @@ import {
   renderShareCard, shareCard, supportsPhoto, supportsShoe, supportsTransparent,
   ACCENT_HEX, SHARE_ACCENT_KEYS, SHARE_BRAND_KEYS, STORY_H, STORY_W,
   type ShareAccent, type ShareBrand, type ShareTemplate, type SplitMode,
+  isStickerTemplate,
 } from '@/lib/feed/share-image';
 import { SHARE_CARD_LANGS, WORKOUT_CARD_TEXT, type ShareCardLang } from '@/lib/share/card-text';
 import { localizeDefaultName } from '@/lib/share/default-name';
 import { partAt, placeLabels, type ShareBox, type ShareHitMap, type SharePart } from '@/lib/share/hit-map';
 import {
   asWorkoutMetrics, canHrLine, canPlanSplit, defaultChipKeys, defaultSplitMode, hasTargets, splitModes, defaultTemplate, drawnTemplate, fitChipKeys,
-  fixedNumbersReason, frameCapacity, shareChips, shareFilename, shareTemplates, supportsAccent, toggleChip, viewBrand,
+  fixedNumbersReason, frameCapacity, shareChips, shareFilename, shareStickers, shareTemplates, supportsAccent, toggleChip, viewBrand,
   type ShareSubject,
 } from '@/lib/share/sheet-model';
 import type { FeedItem } from '@/lib/feed/project';
@@ -64,7 +65,16 @@ const VIEW_LABEL: Partial<Record<ShareTemplate, string>> = {
   classic: 'viewClassic',
   card: 'viewCard',
   minimal: 'viewMinimal',
+  stickerRail: 'viewStickerRail',
+  stickerList: 'viewStickerList',
+  stickerStack: 'viewStickerStack',
+  stickerRouteStack: 'viewStickerRouteStack',
+  stickerPills: 'viewStickerPills',
+  stickerRouteBadge: 'viewStickerRouteBadge',
 };
+
+/** Behind a transparent picture, so white on nothing can be seen. */
+const CHECKER = 'repeating-conic-gradient(#2a2e48 0 25%, #1b1f36 0 50%) 0 0 / 18px 18px';
 
 /** The labels over the card: one line of 10px type in a pill. */
 const LABEL_H = 20;
@@ -166,8 +176,14 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
   const rtl = locale !== 'en';
   const subject = useMemo<ShareSubject>(() => ({ kind: 'workout', item }), [item]);
 
-  const views = useMemo(() => shareTemplates(subject).filter(v => v.available && VIEW_LABEL[v.key]), [subject]);
+  // The cards, then the six clear stickers: one carousel, two rows in the strip.
+  const cardViews = useMemo(() => shareTemplates(subject).filter(v => v.available && VIEW_LABEL[v.key]), [subject]);
+  const stickerViews = useMemo(() => shareStickers(subject).filter(v => v.available && VIEW_LABEL[v.key]), [subject]);
+  const views = useMemo(() => [...cardViews, ...stickerViews], [cardViews, stickerViews]);
+  // Which row of looks the strip shows; follows the card when a swipe crosses over.
+  const [shelf, setShelf] = useState<'cards' | 'stickers'>('cards');
   const [template, setTemplate] = useState<ShareTemplate>(() => defaultTemplate(subject));
+  useEffect(() => { setShelf(isStickerTemplate(template) ? 'stickers' : 'cards'); }, [template]);
   const [keys, setKeys] = useState<string[]>(() => defaultChipKeys(subject, defaultTemplate(subject)));
   const [cardLang, setCardLang] = useState<ShareCardLang>(rtl ? 'he' : 'en');
   const [showTitle, setShowTitle] = useState(true);
@@ -220,7 +236,9 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
   // tab stays. Hiding it on 'fixed' alone locked them out, and "route only" had no
   // way back.
   const dataOk = !fixed || template === 'splits' || template === 'route';
-  const transparent = bg === 'sticker' && supportsTransparent(drawn);
+  // A sticker is clear whatever the background row says; it has no background to pick.
+  const sticker = isStickerTemplate(drawn);
+  const transparent = sticker || (bg === 'sticker' && supportsTransparent(drawn));
   const accentOk = supportsAccent(subject, drawn);
   const photoOk = bg === 'photo' && supportsPhoto(drawn);
   // 'minimal' has never drawn a title, so it offers none to edit.
@@ -310,7 +328,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
     const d = drawnTemplate(view, { routeOnly, withPhoto: bg === 'photo' && !!photo });
     return {
       background: bg === 'photo' && supportsPhoto(d) ? photo : null,
-      transparent: bg === 'sticker' && supportsTransparent(d),
+      transparent: isStickerTemplate(d) || (bg === 'sticker' && supportsTransparent(d)),
       template: d,
       accent,
       showTitle: showTitle && titleText.trim().length > 0,
@@ -804,6 +822,9 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
         </>
       );
     }
+    if (mode === 'background' && sticker) {
+      return <p className="py-3 text-center text-xs leading-relaxed text-white/70">{t('stickerAlways')}</p>;
+    }
     if (mode === 'background') {
       const opt = (key: WorkoutBackground, label: string, swatch: string, ok: boolean) => {
         const on = bg === key && (key !== 'photo' || !!photo);
@@ -842,32 +863,55 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
         </>
       );
     }
-    // The looks. All six fit across, no scrolling rail: a rail hides whatever is
-    // past its edge, which is how seven views once went missing.
+    // The looks. Six fit across, no scrolling rail: a rail hides whatever is past
+    // its edge, which is how seven views once went missing. The stickers are a
+    // second row of six, under their own heading, rather than six more across.
+    const strip = (list: typeof views, clear: boolean) => (
+      <div className="flex gap-1.5">
+        {list.map(v => {
+          const on = template === v.key;
+          return (
+            <button
+              key={v.key}
+              onClick={() => pickTemplate(v.key)}
+              aria-pressed={on}
+              className={cn('min-w-0 flex-1 text-center', on ? 'text-white' : 'text-white/55')}
+            >
+              <span
+                className={cn('block w-full overflow-hidden rounded-lg border-2 bg-white/[0.08]', on ? 'border-[#FF5315]' : 'border-transparent')}
+                style={{ aspectRatio: stickerViews.length ? '9 / 13' : '9 / 16', ...(clear ? { background: CHECKER, backgroundSize: '8px 8px' } : {}) }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {thumbs[v.key] && <img src={thumbs[v.key]} alt="" className="h-full w-full object-cover" />}
+              </span>
+              <span className="mt-1 block truncate text-3xs font-bold">{t(VIEW_LABEL[v.key]!)}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+    if (!stickerViews.length) return strip(cardViews, false);
     return (
       <>
-        <div className="flex gap-1.5">
-          {views.map(v => {
-            const on = template === v.key;
-            return (
-              <button
-                key={v.key}
-                onClick={() => pickTemplate(v.key)}
-                aria-pressed={on}
-                className={cn('min-w-0 flex-1 text-center', on ? 'text-white' : 'text-white/55')}
-              >
-                <span
-                  className={cn('block w-full overflow-hidden rounded-lg border-2 bg-white/[0.08]', on ? 'border-[#FF5315]' : 'border-transparent')}
-                  style={{ aspectRatio: '9 / 16' }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {thumbs[v.key] && <img src={thumbs[v.key]} alt="" className="h-full w-full object-cover" />}
-                </span>
-                <span className="mt-1 block truncate text-3xs font-bold">{t(VIEW_LABEL[v.key]!)}</span>
-              </button>
-            );
-          })}
+        {/* Two text tabs rather than a segmented pill: the tray is 124px on a short
+            phone, and the strip under them has to fit whole. */}
+        <div className="mb-1 flex h-7 gap-4">
+          {(['cards', 'stickers'] as const).map(k => (
+            <button
+              key={k}
+              type="button"
+              aria-pressed={shelf === k}
+              onClick={() => setShelf(k)}
+              className={cn(
+                'relative text-xs font-extrabold transition-colors',
+                shelf === k ? 'text-white after:absolute after:inset-x-0 after:bottom-0.5 after:h-0.5 after:rounded-full after:bg-[#FF5315]' : 'text-white/45',
+              )}
+            >
+              {t(k === 'cards' ? 'looksCards' : 'looksStickers')}
+            </button>
+          ))}
         </div>
+        {shelf === 'stickers' ? strip(stickerViews, true) : strip(cardViews, false)}
       </>
     );
   })();
@@ -949,9 +993,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
             >
               <div
                 className="relative h-full w-full overflow-hidden rounded-2xl bg-white/[0.06] shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
-                style={own && transparent ? {
-                  background: 'repeating-conic-gradient(#2a2e48 0 25%, #1b1f36 0 50%) 0 0 / 18px 18px',
-                } : undefined}
+                style={(own && transparent) || isStickerTemplate(v.key) ? { background: CHECKER } : undefined}
               >
                 {src && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -981,7 +1023,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
                     )}
                     {/* The labels are buttons, over everything, so a part drawn small (the
                         logo) still has a target it can be opened from. */}
-                    {editing && [...labelled, 'background' as const].map(p => {
+                    {editing && [...labelled, ...(sticker ? [] : ['background' as const])].map(p => {
                       const r = labels[p];
                       if (!r) return null;
                       const on = mode === p;

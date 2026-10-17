@@ -59,7 +59,31 @@ export type ShareTemplate =
   | 'fullStats'
   | 'sideBySide'
   | 'bigNumbers'
-  | 'splits';
+  | 'splits'
+  | StickerTemplate;
+
+/**
+ * The six transparent stickers (mockup profile-stats-mockup/mockup.html, section 4):
+ * no background at all, ever, so Instagram takes them as a sticker that can be moved,
+ * scaled and turned over the athlete's own story photo. The route takes the accent;
+ * the mark and the type stay white, as everywhere.
+ */
+export type StickerTemplate =
+  | 'stickerRail'
+  | 'stickerList'
+  | 'stickerStack'
+  | 'stickerRouteStack'
+  | 'stickerPills'
+  | 'stickerRouteBadge';
+
+/** Grid order, as the mockup lays them out. */
+export const STICKER_TEMPLATE_KEYS: StickerTemplate[] = [
+  'stickerRail', 'stickerList', 'stickerStack', 'stickerRouteStack', 'stickerPills', 'stickerRouteBadge',
+];
+
+export function isStickerTemplate(template: ShareTemplate): template is StickerTemplate {
+  return (STICKER_TEMPLATE_KEYS as ShareTemplate[]).includes(template);
+}
 
 /** The three that shipped first, drawn exactly as they always were. */
 export const LEGACY_TEMPLATE_KEYS: ShareTemplate[] = ['classic', 'card', 'minimal'];
@@ -88,7 +112,7 @@ export const DEFAULT_SHARE_TEMPLATE: ShareTemplate = 'route';
  * a route and shrinks, so a treadmill run gets a shorter card rather than a hole,
  * and hiding them would take choices away from exactly the runs that have fewest.
  */
-const ROUTE_REQUIRED: ShareTemplate[] = ['route', 'routeOnly', 'bigNumbers'];
+const ROUTE_REQUIRED: ShareTemplate[] = ['route', 'routeOnly', 'bigNumbers', 'stickerRail', 'stickerRouteStack', 'stickerRouteBadge'];
 
 /** Views that can sit on the athlete's own photo. */
 const PHOTO_CAPABLE: ShareTemplate[] = [
@@ -1870,6 +1894,233 @@ function layoutBigNumbers(c: LayoutCtx) {
   drawWordmark(c, p(522), p(190));
 }
 
+/*
+ * ── THE STICKERS ─────────────────────────────────────────────────────────────
+ * Drawn in the same 383×681 units as every other view, over nothing. The content
+ * sits between ~120 and ~560, clear of Instagram's own bars, and leans on the
+ * transparent shadow (renderShareCard) to stay readable over any photo.
+ */
+
+/** A value-and-unit pair's width at `size`, as drawValueWithUnit lays it out. */
+function valueWidth(c: LayoutCtx, s: Stat, size: number): number {
+  const { ctx, font } = c;
+  ctx.font = `700 ${size}px ${font}`;
+  const vW = ctx.measureText(s.value).width;
+  if (!s.unit) return vW;
+  ctx.font = `700 ${Math.round(size * 0.62)}px ${font}`;
+  return vW + size * 0.2 + ctx.measureText(s.unit).width;
+}
+
+/** One RTL line: the label at the reading start, the value after it. Centred on `cx`. */
+function drawInlineStat(c: LayoutCtx, s: Stat, cx: number, baseline: number, labelPx: number, valuePx: number) {
+  const { ctx, font } = c;
+  const gap = p(7);
+  ctx.font = `600 ${labelPx}px ${font}`;
+  const lW = ctx.measureText(s.label).width;
+  const vW = valueWidth(c, s, valuePx);
+  const total = lW + gap + vW;
+  const right = cx + total / 2;
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.font = `600 ${labelPx}px ${font}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.fillText(s.label, right, baseline);
+  drawValueWithUnit(c, s, right - lW - gap - vW, baseline, valuePx, 'left', vW + 1);
+}
+
+/** פס צד — the route, and the numbers turned on their side down the reading-start edge. */
+function layoutStickerRail(c: LayoutCtx) {
+  const { ctx, act, accent, shadow, shadowBlur } = c;
+  ctx.textBaseline = 'alphabetic';
+  if (act.routePreview) {
+    drawRoute(ctx, act.routePreview, { x: p(34), y: p(196), w: p(262), h: p(250) }, 10, accent);
+  }
+  ctx.shadowColor = shadow;
+  ctx.shadowBlur = shadowBlur;
+  drawWordmark(c, p(132), p(118), p(165));
+  const stats = pickedStats(c, 3);
+  // A Hebrew spine: turned a quarter anticlockwise, so it reads from the top down.
+  const x = STORY_W - p(30);
+  const top = p(150);
+  const span = p(380);
+  stats.forEach((s, i) => {
+    const cy = top + (span / stats.length) * (i + 0.5);
+    ctx.save();
+    ctx.translate(x, cy);
+    ctx.rotate(-Math.PI / 2);
+    drawInlineStat(c, s, 0, p(7), p(13), p(19));
+    ctx.restore();
+  });
+  ctx.shadowBlur = 0;
+}
+
+/** רשימה — the mark over a short list: label, a dotted leader, the value. */
+function layoutStickerList(c: LayoutCtx) {
+  const { ctx, font, shadow, shadowBlur } = c;
+  ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = shadow;
+  ctx.shadowBlur = shadowBlur;
+  const stats = pickedStats(c, 6);
+  const pitch = p(42);
+  const left = p(44);
+  const right = STORY_W - p(44);
+  const wmW = p(168);
+  const wmH = c.wordmark ? (c.wordmark.height / c.wordmark.width) * wmW : p(38);
+  const blockH = wmH + p(22) + stats.length * pitch;
+  let y = Math.round(p(360) - blockH / 2);
+  // The mark sits at the reading start, flush with the labels.
+  drawWordmark(c, y, wmW, right - wmW / 2);
+  y += wmH + p(22);
+  for (const s of stats) {
+    const baseline = y + p(28);
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'right';
+    ctx.font = `600 ${p(20)}px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.fillText(s.label, right, baseline);
+    const lW = ctx.measureText(s.label).width;
+    const vPx = p(27);
+    const vW = Math.min(valueWidth(c, s, vPx), right - left - lW - p(40));
+    drawValueWithUnit(c, s, left, baseline, vPx, 'left', vW + 1);
+    // The leader between them, as dots, so the eye walks from label to number.
+    const from = left + vW + p(8);
+    const to = right - lW - p(8);
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    for (let x = to; x > from; x -= p(7)) {
+      ctx.beginPath();
+      ctx.arc(x, baseline - p(6), p(1.3), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    y += pitch;
+  }
+  ctx.shadowBlur = 0;
+}
+
+/** Label over a big value, centred; the stack both stack stickers draw. Returns its bottom. */
+function drawCentredStack(c: LayoutCtx, stats: Stat[], top: number, pitch: number, valuePx: number): number {
+  const { ctx, font } = c;
+  let y = top;
+  for (const s of stats) {
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'center';
+    ctx.font = `600 ${p(13)}px ${font}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillText(s.label, CX, y + p(13));
+    drawValueWithUnit(c, s, CX, y + p(13) + valuePx * 1.05, valuePx, 'center', STORY_W - p(60));
+    y += pitch;
+  }
+  return y;
+}
+
+/** טור מרכזי — the mark and up to five numbers in one centred column. */
+function layoutStickerStack(c: LayoutCtx) {
+  const { ctx, shadow, shadowBlur } = c;
+  ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = shadow;
+  ctx.shadowBlur = shadowBlur;
+  const stats = pickedStats(c, 5);
+  const pitch = p(62);
+  const wmW = p(140);
+  const wmH = c.wordmark ? (c.wordmark.height / c.wordmark.width) * wmW : p(32);
+  const blockH = wmH + p(18) + stats.length * pitch;
+  const top = Math.round(p(350) - blockH / 2);
+  drawWordmark(c, top, wmW);
+  drawCentredStack(c, stats, top + wmH + p(18), pitch, p(32));
+  ctx.shadowBlur = 0;
+}
+
+/** מסלול + טור — the mark and three numbers, the route under them. */
+function layoutStickerRouteStack(c: LayoutCtx) {
+  const { ctx, act, accent, shadow, shadowBlur } = c;
+  ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = shadow;
+  ctx.shadowBlur = shadowBlur;
+  const wmW = p(132);
+  const top = p(118);
+  const wmH = drawWordmark(c, top, wmW);
+  const bottom = drawCentredStack(c, pickedStats(c, 3), top + wmH + p(16), p(60), p(30));
+  ctx.shadowBlur = 0;
+  if (act.routePreview) {
+    drawRoute(ctx, act.routePreview, { x: CX - p(140), y: bottom + p(14), w: p(280), h: p(150) }, 10, accent);
+  }
+}
+
+/** תגיות — the mark and each number in its own outlined pill, wrapped and centred. */
+function layoutStickerPills(c: LayoutCtx) {
+  const { ctx, font, shadow, shadowBlur } = c;
+  ctx.textBaseline = 'alphabetic';
+  const stats = pickedStats(c, 6);
+  const h = p(44);
+  const padX = p(15);
+  const gap = p(9);
+  const labelPx = p(17);
+  const valuePx = p(21);
+  const maxRow = STORY_W - p(30);
+  const wmW = p(104);
+  const wmH = c.wordmark ? (c.wordmark.height / c.wordmark.width) * wmW : p(20);
+
+  type Pill = { w: number; stat: Stat | null };
+  const pills: Pill[] = [{ w: wmW + padX * 2, stat: null }];
+  for (const s of stats) {
+    ctx.font = `600 ${labelPx}px ${font}`;
+    pills.push({ w: ctx.measureText(s.label).width + p(7) + valueWidth(c, s, valuePx) + padX * 2, stat: s });
+  }
+  // Rows filled at the reading start, then each row centred.
+  const rows: Pill[][] = [[]];
+  let used = 0;
+  for (const pill of pills) {
+    const need = (rows[rows.length - 1].length ? gap : 0) + pill.w;
+    if (used + need > maxRow && rows[rows.length - 1].length) { rows.push([]); used = 0; }
+    used += (rows[rows.length - 1].length ? gap : 0) + pill.w;
+    rows[rows.length - 1].push(pill);
+  }
+  let y = Math.round(p(340) - (rows.length * h + (rows.length - 1) * gap) / 2);
+  for (const row of rows) {
+    const width = row.reduce((sum, pl) => sum + pl.w, 0) + gap * (row.length - 1);
+    let x = CX + width / 2;
+    for (const pill of row) {
+      const x0 = x - pill.w;
+      ctx.shadowColor = shadow;
+      ctx.shadowBlur = shadowBlur * 0.6;
+      roundRectPath(ctx, x0, y, pill.w, h, h / 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.lineWidth = p(2);
+      ctx.stroke();
+      ctx.shadowBlur = shadowBlur;
+      if (pill.stat) {
+        drawInlineStat(c, pill.stat, x0 + pill.w / 2, y + h / 2 + valuePx * 0.36, labelPx, valuePx);
+      } else {
+        drawWordmark(c, y + (h - wmH) / 2, wmW, x0 + pill.w / 2);
+      }
+      x = x0 - gap;
+    }
+    y += h + gap;
+  }
+  ctx.shadowBlur = 0;
+}
+
+/** מסלול בלבד — the run's shape alone, with the stairs mark in a small square at its corner. */
+function layoutStickerRouteBadge(c: LayoutCtx) {
+  const { ctx, act, accent, stairs, shadow, shadowBlur } = c;
+  const box = { x: CX - p(160), y: p(214), w: p(320), h: p(240) };
+  if (act.routePreview) drawRoute(ctx, act.routePreview, box, 11, accent);
+  const side = p(34);
+  const x = STORY_W - p(26) - side;
+  const y = p(150);
+  ctx.save();
+  ctx.shadowColor = shadow;
+  ctx.shadowBlur = shadowBlur * 0.5;
+  roundRectPath(ctx, x, y, side, side, p(9));
+  ctx.fillStyle = accent === '#ffffff' ? 'rgba(255,255,255,0.16)' : 'rgba(255,83,21,0.2)';
+  ctx.fill();
+  ctx.lineWidth = p(1.6);
+  ctx.strokeStyle = accent;
+  ctx.stroke();
+  ctx.restore();
+  const mark = c.brand ?? stairs ?? c.wordmark;
+  if (mark) drawFitted(ctx, mark, { x: x + p(6), y: y + p(6), w: side - p(12), h: side - p(12) }, 0.5, 0.5, 1);
+}
+
 /**
  * The rows of the `splits` list: one per kilometre up to SPLITS_MAX_ROWS, and one
  * per two kilometres above it, so an ultra still fits the frame. A pair's pace is
@@ -2440,6 +2691,12 @@ const LAYOUTS: Record<ShareTemplate, (c: LayoutCtx) => void> = {
   sideBySide: layoutSideBySide,
   bigNumbers: layoutBigNumbers,
   splits: layoutSplits,
+  stickerRail: layoutStickerRail,
+  stickerList: layoutStickerList,
+  stickerStack: layoutStickerStack,
+  stickerRouteStack: layoutStickerRouteStack,
+  stickerPills: layoutStickerPills,
+  stickerRouteBadge: layoutStickerRouteBadge,
 };
 
 /**
@@ -2483,7 +2740,8 @@ export async function renderShareCard(
   const template = opts.template ?? 'classic';
   // `photo` composites its own background by definition; asking for it transparent
   // would leave the frame empty.
-  const transparent = !!opts.transparent && supportsTransparent(template);
+  // A sticker has no background to offer: it is transparent whatever was asked.
+  const transparent = (!!opts.transparent || isStickerTemplate(template)) && supportsTransparent(template);
 
   // ── Background ────────────────────────────────────────────────────────────
   if (!transparent) {
@@ -2513,7 +2771,7 @@ export async function renderShareCard(
   // The badge is only needed by the original three, the wordmark and stairs only
   // by the newer ones — but a failed load must never fail the share, so all three
   // resolve to null instead of throwing.
-  const wantStairs = template === 'sideBySide' || template === 'splits' || opts.brand === 'stairs';
+  const wantStairs = template === 'sideBySide' || template === 'splits' || template === 'stickerRouteBadge' || opts.brand === 'stairs';
   const [logo, wordmark, stairs] = await Promise.all([
     loadImage(LOGO_SRC).catch(() => null),
     loadImage(WORDMARK_SRC).catch(() => null),

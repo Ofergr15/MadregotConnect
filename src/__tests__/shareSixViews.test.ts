@@ -131,7 +131,7 @@ describe('the kilometre list', () => {
     const body = RENDER.slice(RENDER.indexOf('function layoutSplits'), RENDER.indexOf('const LAYOUTS'));
     expect(body).toMatch(/const mark = c\.brand \?\? stairs;/);
     expect(body).not.toMatch(/drawWordmark/);
-    expect(RENDER).toMatch(/template === 'sideBySide' \|\| template === 'splits' \|\| opts\.brand === 'stairs'/);
+    expect(RENDER).toMatch(/template === 'sideBySide' \|\| template === 'splits' \|\| template === 'stickerRouteBadge' \|\| opts\.brand === 'stairs'/);
   });
 });
 

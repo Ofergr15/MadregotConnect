@@ -1,5 +1,5 @@
 import {
-  availableWorkoutMetrics, hasRouteTrace, paceBandCount, requiresRoute, requiresSplits, supportsFooter,
+  STICKER_TEMPLATE_KEYS, availableWorkoutMetrics, hasRouteTrace, paceBandCount, requiresRoute, requiresSplits, supportsFooter,
   workoutMetricStat,
   type ShareBrand, type ShareI18n, type ShareTemplate, type ShareVerdict, type SplitMode, type WorkoutMetricKey,
 } from '@/lib/feed/share-image';
@@ -160,10 +160,22 @@ export interface TemplateOption {
 
 /** All six, always, in grid order — the ones a run cannot draw greyed with why. */
 export function shareTemplates(subject: ShareSubject): TemplateOption[] {
+  return gate(subject, WORKOUT_TEMPLATES);
+}
+
+/**
+ * The six stickers, the editor's second row of looks: always transparent, so no
+ * background to choose. Without GPS the three built on the route are greyed.
+ */
+export function shareStickers(subject: ShareSubject): TemplateOption[] {
+  return gate(subject, STICKER_TEMPLATE_KEYS);
+}
+
+function gate(subject: ShareSubject, keys: ShareTemplate[]): TemplateOption[] {
   const act = subject.kind === 'workout' ? subject.item.activity : null;
   const routed = !!act && hasRouteTrace(act);
   const split = !!act && paceBandCount(act) >= 2;
-  return WORKOUT_TEMPLATES.map(key => {
+  return keys.map(key => {
     if (requiresRoute(key) && !routed) return { key, available: false, reason: 'noRoute' };
     if (requiresSplits(key) && !split) return { key, available: false, reason: 'noSplits' };
     return { key, available: true };
@@ -180,6 +192,7 @@ export function shareTemplates(subject: ShareSubject): TemplateOption[] {
  */
 const FIXED_NUMBERS: Partial<Record<ShareTemplate, 'noNumbers' | 'fixedNumbers' | 'splitsNumbers'>> = {
   routeOnly: 'noNumbers',
+  stickerRouteBadge: 'noNumbers',
   splits: 'splitsNumbers',
   classic: 'fixedNumbers',
   card: 'fixedNumbers',
@@ -201,7 +214,8 @@ export function fixedNumbersReason(
 export function supportsAccent(subject: ShareSubject, look: ShareLook): boolean {
   if (subject.kind !== 'workout') return false;
   const t = lookTemplate(look);
-  if (t === 'route' || t === 'routeOnly' || t === 'bigNumbers' || t === 'sideBySide' || t === 'splits') {
+  if (t === 'route' || t === 'routeOnly' || t === 'bigNumbers' || t === 'sideBySide' || t === 'splits'
+    || t === 'stickerRail' || t === 'stickerRouteStack' || t === 'stickerRouteBadge') {
     return true;
   }
   const act = subject.item.activity;
@@ -300,6 +314,7 @@ export function frameCapacity(subject: ShareSubject, frame: ShareLook): number {
   if (subject.kind === 'week') return availableMetrics(subject.report).length;
   const t = lookTemplate(frame);
   if (FIXED_NUMBERS[t]) return 0;
+  if (STICKER_CAPACITY[t] != null) return STICKER_CAPACITY[t]!;
   return t === 'fullStats' || TWO_ROW_TEMPLATES.has(t) ? 6 : 3;
 }
 
@@ -310,6 +325,11 @@ export function frameCapacity(subject: ShareSubject, frame: ShareLook): number {
  * row.
  */
 const TWO_ROW_TEMPLATES = new Set<string>(['photo', 'route', 'statsBar']);
+
+/** How many numbers each sticker has room for (the route-only one has none: FIXED_NUMBERS). */
+const STICKER_CAPACITY: Partial<Record<ShareTemplate, number>> = {
+  stickerRail: 3, stickerList: 6, stickerStack: 5, stickerRouteStack: 3, stickerPills: 6,
+};
 
 /** The numbers this subject can print at all, in card order. */
 export function availableChipKeys(subject: ShareSubject): string[] {

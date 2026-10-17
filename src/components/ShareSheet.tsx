@@ -73,6 +73,12 @@ const VIEW_LABEL: Record<ShareTemplate, string> = {
   classic: 'viewClassic',
   card: 'viewCard',
   minimal: 'viewMinimal',
+  stickerRail: 'viewStickerRail',
+  stickerList: 'viewStickerList',
+  stickerStack: 'viewStickerStack',
+  stickerRouteStack: 'viewStickerRouteStack',
+  stickerPills: 'viewStickerPills',
+  stickerRouteBadge: 'viewStickerRouteBadge',
 };
 
 /**
