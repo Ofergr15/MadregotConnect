@@ -5,6 +5,7 @@ import { COACH_ID } from '@/lib/constants';
 import { notifyAthlete, notifyTeammatesOfActivity } from '@/lib/push';
 import { activitySyncedCopy } from '@/lib/notifications/copy';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
+import { notifyNewRecords } from '@/lib/prs/new-record-alert';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 import { checkShoeAlert } from '@/lib/shoes';
 import { notifyMainWorkoutFeedback } from '@/lib/post-workout';
@@ -577,6 +578,10 @@ export async function runSyncRequest(request: Request) {
           try {
             await checkAndAwardBadges(athlete.id);
           } catch { /* badge check is best-effort */ }
+          // A record this sync just broke: push + the in-app sheet (lib/prs/new-record-alert.ts).
+          try {
+            await notifyNewRecords(athlete.id);
+          } catch { /* best-effort, like the badges */ }
           try {
             await checkAndAwardChallenges(athlete.id);
           } catch { /* challenge check is best-effort */ }

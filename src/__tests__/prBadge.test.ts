@@ -22,6 +22,11 @@ describe('the runs that hold a record', () => {
     const badge = readFileSync('src/components/PrBadge.tsx', 'utf8');
     expect(badge).toMatch(/useApi<\{ buckets\?: RecordBucketLike\[\] \}>\('\/api\/club\/records'\)/);
     expect(readFileSync('src/components/FeedCard.tsx', 'utf8')).toMatch(/const prBuckets = usePrRuns\(\)\.get\(act\.id\);/);
-    expect(readFileSync('src/app/(app)/dashboard/activities/[activityId]/page.tsx', 'utf8')).toMatch(/<PrBadge buckets=\{prRuns\.get\(act\.id\)\} \/>/);
+    const runPage = readFileSync('src/app/(app)/dashboard/activities/[activityId]/page.tsx', 'utf8');
+    expect(runPage).toMatch(/<PrBadge\s+buckets=\{prRuns\.get\(act\.id\)\}/);
+    // On the run page it opens the record's timeline; on the feed card it can't be a
+    // link, because the whole card already is one.
+    expect(runPage).toMatch(/href=\{prRuns\.get\(act\.id\)\?\.length/);
+    expect(readFileSync('src/components/FeedCard.tsx', 'utf8')).not.toMatch(/<PrBadge[^>]*href=/);
   });
 });

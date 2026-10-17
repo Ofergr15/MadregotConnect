@@ -5,6 +5,7 @@ import { PR_BUCKETS, type RunActivityRow } from './pr-buckets';
 import type { LapLike } from './best-segment';
 import type { PrOverride } from './overrides';
 import { UNDEFINED_TABLE } from './overrides-store';
+import { readAllPrExclusions } from './exclusions-store';
 import { computeClubRecords, type ClubRecordAthlete, type ClubRecordBucket } from './club-records';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
@@ -200,9 +201,22 @@ export async function computeClubRecordsSnapshot(supabase: SupabaseServer): Prom
 
   return {
     computedAt: new Date().toISOString(),
-    buckets: computeClubRecords({ athletes, runsByAthlete, overridesByAthlete }),
+    buckets: computeClubRecords({ athletes, runsByAthlete, overridesByAthlete, exclusionsByAthlete: await readAllPrExclusions(supabase) }),
     athleteCount: athletes.length,
   };
+}
+
+/**
+ * Make the next read recompute. For a change that moves someone's record (a run
+ * taken out of the records): recomputing here would read the whole club's history
+ * inside a tap, so the snapshot is only dated back past its TTL — one cheap write —
+ * and the next board or PR-badge read rebuilds it. `isStale` alone triggers that,
+ * so the refresh floor doesn't hold it back.
+ */
+export async function markClubRecordsStale(supabase: SupabaseServer): Promise<void> {
+  const stored = await readClubRecords(supabase);
+  if (!stored) return;
+  await writeClubRecords(supabase, { ...stored, computedAt: new Date(0).toISOString() });
 }
 
 /**

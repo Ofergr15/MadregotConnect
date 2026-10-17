@@ -28,6 +28,7 @@ export function RecordTimeline({
   earlierLabel,
   enteredLabel,
   ariaLabel,
+  celebrate = false,
 }: {
   breaks: Array<{ date: string; seconds: number }>;
   /** Draw the stated time as a dashed line over the dots (it is faster than all of them). */
@@ -40,6 +41,11 @@ export function RecordTimeline({
   earlierLabel: (n: number) => string;
   enteredLabel: string;
   ariaLabel: string;
+  /**
+   * Ring the newest dot in amber, pulsing: the screen was opened by the "new record"
+   * alert for that very run (lib/prs/new-record-alert.ts), or it is that alert's sheet.
+   */
+  celebrate?: boolean;
 }) {
   const uid = useId().replace(/:/g, '');
   const { points: pts, hidden } = chartWindow(breaks);
@@ -129,7 +135,10 @@ export function RecordTimeline({
               strokeOpacity={0.15}
               strokeDasharray="3 3"
             />
-            {cur && <circle cx={x} cy={y} r={14} fill="#1525FF" opacity={0.14} />}
+            {cur && celebrate && (
+              <circle cx={x} cy={y} r={10} fill="#f59e0b" opacity={0.45} className="motion-safe:animate-ping" style={{ transformOrigin: `${x}px ${y}px` }} />
+            )}
+            {cur && <circle cx={x} cy={y} r={14} fill={celebrate ? '#f59e0b' : '#1525FF'} opacity={celebrate ? 0.22 : 0.14} />}
             <circle cx={x} cy={y} r={cur ? 8 : 6} fill={cur ? '#1525FF' : '#fff'} stroke="#1525FF" strokeWidth={3} />
             <text
               x={x}

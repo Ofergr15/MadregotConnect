@@ -11,6 +11,7 @@
  * 5.00km) still count as a "5K effort".
  */
 import { bestSegmentSeconds, type LapLike, FASTEST_PLAUSIBLE_PACE_SEC_PER_KM } from './best-segment';
+import { isExcluded, type PrExclusions } from './exclusions-store';
 
 export interface PrBucket {
   key: string;
@@ -188,7 +189,16 @@ export function bucketEffort(
   return { seconds, fromSegment: false };
 }
 
-export function computeDistanceBests<T extends RunActivityRow>(runs: T[]): DistanceBest[] {
+export function computeDistanceBests<T extends RunActivityRow>(
+  runs: T[],
+  /**
+   * Runs the athlete took out of their records (migration 146), per bucket or all.
+   * Every caller that shows a record passes them, so the run leaves the profile, the
+   * board, the record screen and the badge together. The run stays in `runs` for
+   * everything else the caller does with it.
+   */
+  opts: { excluded?: PrExclusions } = {},
+): DistanceBest[] {
   const measured = measuredRuns(runs);
   return PR_BUCKETS.map((b) => {
     let best:
@@ -196,6 +206,7 @@ export function computeDistanceBests<T extends RunActivityRow>(runs: T[]): Dista
       | null = null;
 
     for (const r of measured) {
+      if (isExcluded(opts.excluded, r.id, b.key)) continue;
       const effort = bucketEffort(r, b);
       if (!effort) continue;
 

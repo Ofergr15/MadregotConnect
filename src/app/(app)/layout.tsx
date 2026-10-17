@@ -8,6 +8,7 @@ import { isViewingPerson } from '@/lib/view-as-person';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { PushOptIn } from '@/components/PushOptIn';
 import { ConnectDataSourcePopup } from '@/components/ConnectDataSourcePopup';
+import { NewRecordSheet } from '@/components/records/NewRecordSheet';
 import { StravaAccountConfirm } from '@/components/StravaAccountConfirm';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { BottomTabBar } from '@/components/BottomTabBar';
@@ -447,6 +448,8 @@ export default function AppLayout({
             for both. */}
         {popupsAllowed && <StravaAccountConfirm />}
         {popupsAllowed && <ConnectDataSourcePopup />}
+        {/* A record broken since the last open: once, then the record's timeline. */}
+        {popupsAllowed && <NewRecordSheet />}
         {!isRunChat && !viewingPerson && <FirstRunTour onActiveChange={setTourActive} />}
         <main
           // THE scroll container for the whole app — see lib/app-scroll.ts.

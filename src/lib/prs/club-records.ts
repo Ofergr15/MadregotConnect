@@ -1,4 +1,5 @@
 import { computeDistanceBests, filterQualifyingRuns, PR_BUCKETS, type RunActivityRow } from './pr-buckets';
+import type { PrExclusions } from './exclusions-store';
 import { applyPrOverrides, type PrOverride } from './overrides';
 
 /**
@@ -64,6 +65,8 @@ export interface ClubRecordsInput {
   runsByAthlete: Map<string, RunActivityRow[]>;
   /** athlete id → their stated PRs. Missing means none. */
   overridesByAthlete: Map<string, PrOverride[]>;
+  /** athlete id → runs they took out of their records (migration 146). Missing means none. */
+  exclusionsByAthlete?: Map<string, PrExclusions>;
 }
 
 /**
@@ -74,7 +77,7 @@ export interface ClubRecordsInput {
  * arbitrary — but an arbitrary rule that is stable beats list order, which would
  * be the roster's order and would silently reshuffle when someone joins.
  */
-export function computeClubRecords({ athletes, runsByAthlete, overridesByAthlete }: ClubRecordsInput): ClubRecordBucket[] {
+export function computeClubRecords({ athletes, runsByAthlete, overridesByAthlete, exclusionsByAthlete }: ClubRecordsInput): ClubRecordBucket[] {
   const buckets: ClubRecordBucket[] = PR_BUCKETS.map((b) => ({
     key: b.key,
     label: b.label,
@@ -87,7 +90,10 @@ export function computeClubRecords({ athletes, runsByAthlete, overridesByAthlete
     const runs = filterQualifyingRuns(runsByAthlete.get(athlete.id) || []);
     if (runs.length === 0 && !overridesByAthlete.get(athlete.id)?.length) continue;
 
-    const bests = applyPrOverrides(computeDistanceBests(runs), overridesByAthlete.get(athlete.id) || []);
+    const bests = applyPrOverrides(
+      computeDistanceBests(runs, { excluded: exclusionsByAthlete?.get(athlete.id) }),
+      overridesByAthlete.get(athlete.id) || [],
+    );
     for (const best of bests) {
       if (best.seconds == null) continue;
       byKey.get(best.key)?.entries.push({

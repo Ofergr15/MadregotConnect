@@ -23,6 +23,8 @@ import { getTimeLabel, resolveRunTypeBadge } from '@/components/activity/format'
 import { useActivityDetails } from '@/components/activity/useActivityDetails';
 import { AthleteLink } from '@/components/AthleteLink';
 import { PrBadge, usePrRuns } from '@/components/PrBadge';
+import { RunRecords } from '@/components/records/RunRecords';
+import { recordHref } from '@/components/profile/pr-format';
 import { activityLocalDay, cn, formatActivityDate, formatActivityTime } from '@/lib/utils';
 
 const HEBREW_DAYS = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
@@ -98,7 +100,14 @@ export default function ActivityDetailPage() {
                   {runType.label}
                 </span>
               )}
-              {!mapOnly && <PrBadge buckets={prRuns.get(act.id)} />}
+              {!mapOnly && (
+                <PrBadge
+                  buckets={prRuns.get(act.id)}
+                  href={prRuns.get(act.id)?.length && act.athlete_id
+                    ? recordHref(act.athlete_id, prRuns.get(act.id)![0]) ?? undefined
+                    : undefined}
+                />
+              )}
             </div>
             {/* The run's own name, and its owner's pencil (#92). */}
             <ActivityName activityId={act.id} name={act.activity_name} editable={isMyActivity} />
@@ -156,6 +165,11 @@ export default function ActivityDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* The records this run set, and taking it out of them (migration 146). */}
+      {!mapOnly && act.athlete_id && (
+        <RunRecords athleteId={act.athlete_id} activityId={act.id} owner={isMyActivity} />
+      )}
 
       <ActivityDetailBody
         activity={act}

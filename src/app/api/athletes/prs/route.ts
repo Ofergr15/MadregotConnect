@@ -5,6 +5,7 @@ import { filterQualifyingRuns, computeDistanceBests, type RunActivityRow } from 
 import { attachLapsForPrs } from '@/lib/prs/attach-laps';
 import { applyPrOverrides, parsePrSeconds, prBucket, prSecondsProblem } from '@/lib/prs/overrides';
 import { readPrOverrides, UNDEFINED_TABLE } from '@/lib/prs/overrides-store';
+import { readPrExclusions } from '@/lib/prs/exclusions-store';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import { activityLocalDateStr } from '@/lib/utils';
 
@@ -77,7 +78,7 @@ export async function GET(request: Request) {
     // why a stated time replaces rather than competes with the derived one, and why
     // the badge engine deliberately never sees this.
     const distanceBests = applyPrOverrides(
-      computeDistanceBests(runs),
+      computeDistanceBests(runs, { excluded: await readPrExclusions(supabase, athleteId) }),
       await readPrOverrides(supabase, athleteId),
     );
 

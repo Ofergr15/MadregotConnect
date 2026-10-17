@@ -1,4 +1,5 @@
 import { PR_BUCKETS, bucketEffort, measuredRuns, type RunActivityRow } from './pr-buckets';
+import { isExcluded, type PrExclusions } from './exclusions-store';
 
 /**
  * A personal record's history: every run on which it fell.
@@ -52,7 +53,7 @@ export const CHART_MAX_POINTS = 6;
  * walk-run start is cut (`realBreaks`). Strictly faster: equalling a record is
  * not breaking it.
  */
-export function recordBreaks(runs: RunActivityRow[], bucketKey: string): RecordBreak[] {
+export function recordBreaks(runs: RunActivityRow[], bucketKey: string, excluded?: PrExclusions): RecordBreak[] {
   const bucket = PR_BUCKETS.find((b) => b.key === bucketKey);
   if (!bucket) return [];
   const ordered = [...measuredRuns(runs)].sort(
@@ -61,6 +62,8 @@ export function recordBreaks(runs: RunActivityRow[], bucketKey: string): RecordB
   const out: RecordBreak[] = [];
   let best = Infinity;
   for (const r of ordered) {
+    // A run the athlete took out of this record (migration 146) never broke it.
+    if (isExcluded(excluded, r.id, bucket.key)) continue;
     const effort = bucketEffort(r, bucket);
     if (!effort || effort.seconds >= best) continue;
     best = effort.seconds;
@@ -84,9 +87,9 @@ export function realBreaks<T extends { seconds: number }>(breaks: T[]): T[] {
 }
 
 /** bucket key → its history, oldest first. Every bucket is present; empty when never run. */
-export function computeRecordHistory(runs: RunActivityRow[]): Record<string, RecordBreak[]> {
+export function computeRecordHistory(runs: RunActivityRow[], excluded?: PrExclusions): Record<string, RecordBreak[]> {
   const out: Record<string, RecordBreak[]> = {};
-  for (const b of PR_BUCKETS) out[b.key] = realBreaks(recordBreaks(runs, b.key));
+  for (const b of PR_BUCKETS) out[b.key] = realBreaks(recordBreaks(runs, b.key, excluded));
   return out;
 }
 
@@ -94,12 +97,13 @@ export function computeRecordHistory(runs: RunActivityRow[]): Record<string, Rec
  * The best effort per bucket inside one calendar year ("2026"), for "this year:
  * 37:55" beside a record that is older. Null when the bucket wasn't run that year.
  */
-export function yearBests(runs: RunActivityRow[], year: string): Record<string, number | null> {
+export function yearBests(runs: RunActivityRow[], year: string, excluded?: PrExclusions): Record<string, number | null> {
   const inYear = measuredRuns(runs).filter((r) => r.start_time.slice(0, 4) === year);
   const out: Record<string, number | null> = {};
   for (const b of PR_BUCKETS) {
     let best: number | null = null;
     for (const r of inYear) {
+      if (isExcluded(excluded, r.id, b.key)) continue;
       const e = bucketEffort(r, b);
       if (e && (best == null || e.seconds < best)) best = e.seconds;
     }

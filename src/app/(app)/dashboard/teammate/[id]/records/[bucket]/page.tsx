@@ -1,7 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { ChevronLeft } from 'lucide-react';
 import { useApi } from '@/lib/api';
@@ -12,6 +13,8 @@ import { recordScreenModel } from '@/lib/prs/record-history';
 import { teammateHref } from '@/lib/athletes/profile-link';
 import { cn } from '@/lib/utils';
 import { RecordTimeline } from '@/components/profile/RecordTimeline';
+import { RemoveRecordSheet, UndoToast, useRecordExclusion, type RecordChange } from '@/components/records/RecordRemoval';
+import { markRecordSeen } from '@/components/records/NewRecordSheet';
 import type { PrBreak, PrRow } from '@/components/profile/PrRecordList';
 import { PR_DIST_KEYS, PR_RETURN_KEY, longDay, monthYear, prPace } from '@/components/profile/pr-format';
 
@@ -39,6 +42,12 @@ import { PR_DIST_KEYS, PR_RETURN_KEY, longDay, monthYear, prPace } from '@/compo
 interface Stats {
   prs: PrRow[];
   prHistory?: Record<string, PrBreak[]>;
+  /** Runs taken out of each distance (migration 146), to put back from here. */
+  prExcluded?: Record<string, Array<{ activityId: string; name: string | null; date: string }>>;
+}
+
+interface RunRecordsResponse {
+  records: Array<{ bucket: string; seconds: number; current: boolean; instead: { seconds: number; date: string } | null }>;
 }
 
 const METERS: Record<string, number> = { '5k': 5000, '10k': 10000, hm: 21097, fm: 42195 };
@@ -52,6 +61,27 @@ export default function RecordPage() {
   const own = !!viewerId && viewerId === id;
 
   const { data: stats, error } = useApi<Stats>(id ? `/api/athletes/${id}/stats` : null);
+  const tr = useTranslations('records');
+
+  // Opened from the "new record" alert (`?new=<run>`): celebrate that run, once.
+  const newRun = useSearchParams()?.get('new') ?? null;
+  useEffect(() => { if (newRun) markRecordSeen(newRun); }, [newRun]);
+
+  // Taking a run out of this record (migration 146), from the ⋯ on its row. The
+  // sheet's "goes back to" comes from the route the run page uses, so the two places
+  // can't tell different stories.
+  const ex = useRecordExclusion(own ? id : null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [undo, setUndo] = useState<string | null>(null);
+  const { data: runRecords } = useApi<RunRecordsResponse>(removing && id ? `/api/athletes/${id}/records/run/${removing}` : null);
+  const toast = (
+    <UndoToast
+      show={undo != null}
+      message={tr('removedToast')}
+      onUndo={() => { if (undo) void ex.restore(undo, bucket); setUndo(null); }}
+      onGone={() => setUndo(null)}
+    />
+  );
 
   const label = PR_DIST_KEYS[bucket] ? t(PR_DIST_KEYS[bucket]) : bucket;
   const back = () => {
@@ -83,6 +113,7 @@ export default function RecordPage() {
     return (
       <div className="mx-auto max-w-lg space-y-3 pb-8">
         {header}
+        {toast}
         <section className="rounded-card bg-card px-4 py-6 text-center">
           <p className="text-sm font-bold text-ink-400">{t('recNone', { label })}</p>
         </section>
@@ -102,9 +133,24 @@ export default function RecordPage() {
       </>
     );
 
+  const lastBreak = breaks.at(-1);
+  const celebrating = !!newRun && lastBreak?.activityId === newRun;
+  const celebrateGain = celebrating && breaks.length >= 2 ? breaks.at(-2)!.seconds - lastBreak!.seconds : null;
+  const removalChanges: RecordChange[] = (runRecords?.records ?? [])
+    .filter((r) => r.bucket === bucket)
+    .map((r) => ({ label, from: r.seconds, to: r.instead, current: r.current }));
+  const excludedHere = own ? stats?.prExcluded?.[bucket] ?? [] : [];
+
   return (
     <div className="mx-auto max-w-lg space-y-3 pb-8">
       {header}
+
+      {celebrating && lastBreak && (
+        <p className="flex min-h-[40px] items-center justify-center gap-2 rounded-tile bg-gradient-to-b from-amber-100 to-amber-200 px-3 text-sm font-extrabold text-amber-900">
+          {tr('newRecordBanner', { date: longDay(lastBreak.date, locale) })}
+          {celebrateGain != null && celebrateGain > 0 && <span>· {gain(celebrateGain)}</span>}
+        </p>
+      )}
 
       <section className="rounded-card bg-card px-4 pb-2.5 pt-5 text-center">
         <p className="text-sm font-bold text-ink-400">{own ? t('recYours') : t('recTheirs')}</p>
@@ -139,6 +185,7 @@ export default function RecordPage() {
               earlierLabel={(n) => t('recEarlier', { n })}
               enteredLabel={t('recEntered')}
               ariaLabel={t('recChartAria', { label })}
+              celebrate={celebrating}
             />
           </div>
         )}
@@ -191,10 +238,11 @@ export default function RecordPage() {
                 </span>
               </>
             );
-            const cls = 'flex min-h-[48px] items-center gap-3 py-2';
-            const href = row.kind === 'run' && row.run?.activityId ? `/dashboard/activities/${row.run.activityId}` : null;
+            const cls = 'flex min-h-[48px] min-w-0 flex-1 items-center gap-3 py-2';
+            const runId = row.kind === 'run' ? row.run?.activityId ?? null : null;
+            const href = runId ? `/dashboard/activities/${runId}` : null;
             return (
-              <li key={`${row.kind}-${row.date}-${i}`} className="border-b border-page/70 last:border-b-0">
+              <li key={`${row.kind}-${row.date}-${i}`} className="flex items-center border-b border-page/70 last:border-b-0">
                 {href ? (
                   <Link href={href} className={cn(cls, 'active:opacity-60')}>
                     {body}
@@ -206,11 +254,61 @@ export default function RecordPage() {
                     <span className="w-4 shrink-0" aria-hidden />
                   </div>
                 )}
+                {/* The owner's way out for a run that shouldn't count — straight to the
+                    confirmation; opening the run is what the row itself does. */}
+                {own && runId && (
+                  <button
+                    type="button"
+                    aria-label={tr('menuRemove')}
+                    onClick={() => { ex.clearError(); setRemoving(runId); }}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-lg font-black text-ink-400 active:bg-page/60"
+                  >
+                    ⋯
+                  </button>
+                )}
               </li>
             );
           })}
         </ul>
       </section>
+
+      {excludedHere.length > 0 && (
+        <section className="rounded-card bg-card px-4 py-3">
+          <h2 className="mb-1 text-sm font-extrabold text-ink-900">{tr('excludedTitle')}</h2>
+          <ul>
+            {excludedHere.map((r) => (
+              <li key={r.activityId} className="flex min-h-[48px] items-center gap-3 border-b border-page/70 last:border-b-0">
+                <span className="min-w-0 flex-1 truncate text-sm text-ink-500" dir="auto">
+                  {r.name || t('prRunFallback')} · {longDay(r.date, locale)}
+                </span>
+                <button
+                  type="button"
+                  disabled={ex.busy}
+                  onClick={() => ex.restore(r.activityId, bucket)}
+                  className="min-h-[40px] rounded-full bg-brand-600/10 px-4 text-sm font-bold text-brand-600"
+                >
+                  {tr('restore')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <RemoveRecordSheet
+        open={removing != null}
+        onOpenChange={(o) => { if (!o) setRemoving(null); }}
+        title={tr('removeTitleOne', { distance: label })}
+        changes={removalChanges}
+        busy={ex.busy || (removing != null && !runRecords)}
+        error={ex.error}
+        onConfirm={async () => {
+          if (!removing) return;
+          if (await ex.remove(removing, bucket)) { setUndo(removing); setRemoving(null); }
+        }}
+        dateLabel={(iso) => longDay(iso, locale)}
+      />
+      {toast}
     </div>
   );
 }

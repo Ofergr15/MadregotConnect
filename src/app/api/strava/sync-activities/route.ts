@@ -26,6 +26,7 @@ import { backfillStravaLaps } from '@/lib/strava/backfill-laps';
 import { backfillStravaRoutes } from '@/lib/strava/backfill-routes';
 import { matchAthleteActivities } from '@/lib/plans/match-athlete-activities';
 import { checkAndAwardBadges } from '@/lib/badges/award-engine';
+import { notifyNewRecords } from '@/lib/prs/new-record-alert';
 import { checkAndAwardChallenges } from '@/lib/challenges/engine';
 import { notifyTeammatesOfActivity } from '@/lib/push';
 import { checkShoeAlert } from '@/lib/shoes';
@@ -512,6 +513,12 @@ export async function runStravaSyncRequest(request: Request) {
             await checkAndAwardBadges(athlete.id);
           } catch (badgeError) {
             console.warn(`Badge check for ${athlete.id} skipped:`, badgeError);
+          }
+          // A record this sync just broke: push + the in-app sheet (lib/prs/new-record-alert.ts).
+          try {
+            await notifyNewRecords(athlete.id);
+          } catch (recordError) {
+            console.warn(`New-record check for ${athlete.id} skipped:`, recordError);
           }
           try {
             await checkAndAwardChallenges(athlete.id);

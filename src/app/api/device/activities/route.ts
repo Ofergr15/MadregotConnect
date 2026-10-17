@@ -15,13 +15,15 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 async function afterIngest(athleteId: string, shoeId: string | null) {
-  const [{ checkAndAwardBadges }, { checkAndAwardChallenges }, { checkShoeAlert }] = await Promise.all([
+  const [{ checkAndAwardBadges }, { checkAndAwardChallenges }, { checkShoeAlert }, { notifyNewRecords }] = await Promise.all([
     import('@/lib/badges/award-engine'),
     import('@/lib/challenges/engine'),
     import('@/lib/shoes'),
+    import('@/lib/prs/new-record-alert'),
   ]);
   if (shoeId) await checkShoeAlert(shoeId).catch(() => undefined);
   await checkAndAwardBadges(athleteId).catch(() => undefined);
+  await notifyNewRecords(athleteId).catch(() => undefined);
   await checkAndAwardChallenges(athleteId).catch(() => undefined);
 }
 

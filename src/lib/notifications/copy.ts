@@ -954,6 +954,27 @@ export function badgeEarnedCopy(
     : { title: `🏅 New badge: ${p.nameEn || p.nameHe}`, body: 'Tap to see your achievement' };
 }
 
+/**
+ * A personal record broken on a run that just synced (lib/prs/new-record-alert.ts).
+ * Hebrew distance names, never "5K": a notification is plain text, and "5K" with a
+ * colon inside a Hebrew line comes out as "18:12 :5K שיא חדש ב" on the lock screen.
+ */
+export function newRecordCopy(
+  locale: NotificationLocale,
+  p: { distancesHe: string[]; distancesEn: string[]; time: string; gainSec: number },
+): PushCopy {
+  const many = p.distancesHe.length > 1;
+  const gainHe = p.gainSec >= 60 ? `${Math.floor(p.gainSec / 60)}:${String(p.gainSec % 60).padStart(2, '0')} דקות` : `${p.gainSec} שניות`;
+  const gainEn = p.gainSec >= 60 ? `${Math.floor(p.gainSec / 60)}:${String(p.gainSec % 60).padStart(2, '0')} min` : `${p.gainSec} s`;
+  return locale === 'he'
+    ? many
+      ? { title: `🏆 ${p.distancesHe.length} שיאים חדשים בריצה אחת`, body: `${p.distancesHe.join(' ו־')}. לחצו לראות את כל השיאים שלכם` }
+      : { title: `🏆 שיא חדש ב־${p.distancesHe[0]}: ${p.time}`, body: `${gainHe} מהר מהשיא הקודם. לחצו לראות את כל השיאים שלכם` }
+    : many
+      ? { title: `🏆 ${p.distancesEn.length} new records in one run`, body: `${p.distancesEn.join(' and ')}. Tap to see all your records` }
+      : { title: `🏆 New ${p.distancesEn[0]} record: ${p.time}`, body: `${gainEn} faster than your last one. Tap to see all your records` };
+}
+
 /** Only the frame is translated — the reply itself is whatever the coach typed. */
 export function coachReplyCopy(
   locale: NotificationLocale,

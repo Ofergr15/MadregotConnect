@@ -25,6 +25,7 @@ import { badgeEarnedCopy } from '@/lib/notifications/copy';
 import { getPlanWeekStart, computeWeekStreak, activityWeekStart, activityLocalDateStr } from '@/lib/utils';
 import { PR_BUCKETS, PR_RUN_TYPES, filterQualifyingRuns, computeDistanceBests, type RunActivityRow } from '@/lib/prs/pr-buckets';
 import { attachLapsForPrs } from '@/lib/prs/attach-laps';
+import { readPrExclusions, type PrExclusions } from '@/lib/prs/exclusions-store';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 
 // Keep in sync with the CHECK constraint in 059_badges.sql. Only the types
@@ -119,10 +120,11 @@ interface RuleEvalResult {
 // Reuses lib/prs/pr-buckets.ts — the EXACT same tolerance-window math as
 // GET /api/athletes/prs — so a badge fires on the same run that route would
 // show as the bucket's PR.
-function evalPrBucket(runs: RunActivityRow[], ruleParams: Record<string, unknown>): RuleEvalResult {
+function evalPrBucket(runs: RunActivityRow[], ruleParams: Record<string, unknown>, excluded?: PrExclusions): RuleEvalResult {
   const bucketKey = String(ruleParams.bucket || '');
   if (!PR_BUCKETS.some((b) => b.key === bucketKey)) return { awarded: false, context: {} };
-  const best = computeDistanceBests(runs).find((b) => b.key === bucketKey);
+  // A run the athlete took out of their records earns no record badge either.
+  const best = computeDistanceBests(runs, { excluded }).find((b) => b.key === bucketKey);
   if (!best || best.seconds == null) return { awarded: false, context: {} };
   return {
     awarded: true,
@@ -306,6 +308,9 @@ export async function checkAndAwardBadges(
 
   // Lazily computed per-athlete data, shared across every badge of the same
   // rule_type (e.g. vol_100km/500km/1000km all reuse one `totalKm`).
+  // Read once for the four record badges, not once each.
+  let exclusions: Promise<PrExclusions> | null = null;
+  const getExclusions = () => (exclusions ??= readPrExclusions(supabase, athleteId));
   let qualifyingRuns: RunActivityRow[] | null = null;
   const getQualifyingRuns = async (): Promise<RunActivityRow[]> => {
     if (qualifyingRuns) return qualifyingRuns;
@@ -398,7 +403,7 @@ export async function checkAndAwardBadges(
     try {
       switch (badge.rule_type as BadgeRuleType) {
         case 'pr_bucket':
-          result = evalPrBucket(await getQualifyingRuns(), badge.rule_params);
+          result = evalPrBucket(await getQualifyingRuns(), badge.rule_params, await getExclusions());
           break;
         case 'cumulative_distance':
           result = evalCumulativeDistance(await getTotalKm(), badge.rule_params);
