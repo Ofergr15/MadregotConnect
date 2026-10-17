@@ -16,7 +16,11 @@
 -- a code change.
 
 CREATE TABLE IF NOT EXISTS athlete_pr_exclusions (
-  athlete_id  UUID NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+  -- No REFERENCES athletes: with keys to both athletes and athlete_activities in
+  -- its primary key this table was a second athlete_activities↔athletes path, and
+  -- /api/activities 500'd (PGRST201) for six hours on 2026-10-17 until the key was
+  -- dropped on prod. This file now matches prod; schemaEmbedAmbiguity.test.ts guards it.
+  athlete_id  UUID NOT NULL,
   activity_id UUID NOT NULL REFERENCES athlete_activities(id) ON DELETE CASCADE,
   bucket_key  TEXT NOT NULL DEFAULT '*',
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
