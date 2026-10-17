@@ -5621,7 +5621,8 @@
     "evFeedback": "answered feedback",
     "agoMin": "{n} min ago",
     "agoHour": "{n, plural, one {an hour ago} other {# hours ago}}",
-    "agoDay": "{n, plural, one {a day ago} other {# days ago}}"
+    "agoDay": "{n, plural, one {a day ago} other {# days ago}}",
+    "loadFailed": "Couldn't load your trainees. Try again in a moment."
   },
   "managementAcademy": {
     "kTrainees": "trainees",

@@ -10,7 +10,7 @@ import { isViewingPerson } from '@/lib/view-as-person';
 import { useApi } from '@/lib/api';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
-import { getActiveViewRole } from '@/lib/role-views';
+import { getActiveViewRole, getStoredView } from '@/lib/role-views';
 import { DAY_SESSION_FOR_ALL } from '@/lib/day-session/flag';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -91,8 +91,13 @@ export default function CoachToolsPage() {
   const held = previewRole ? [previewRole] : (data?.roles?.length ? data.roles : role ? [role] : []);
   const isAdminLens = role === 'admin' || held.includes('admin') || (!previewRole && isSuperUser(email));
   const isClubCoachLens = isAdminLens || held.includes('coach');
-  const isAcademyCoachLens = held.includes('academy_coach');
-  const isAcademyManagerLens = isAdminLens || held.includes('academy_manager');
+  // A manager is stored as academy_coach + academy_manager, so both parts would show.
+  // The top bar's view switch (lib/role-views.ts) decides: in the manager view the
+  // academy summary, in the coach view their own trainees; no choice made, both.
+  const storedView = previewRole ? null : getStoredView();
+  const managesAcademy = isAdminLens || held.includes('academy_manager');
+  const isAcademyCoachLens = held.includes('academy_coach') && !(managesAcademy && storedView === 'manager');
+  const isAcademyManagerLens = managesAcademy && !(held.includes('academy_coach') && storedView === 'coach');
   const { data: attention } = useApi<{ pain: number; wantsReply: number }>(isClubCoachLens ? '/api/staff/attention' : null);
   const subtitle = isAdminLens ? t('subtitleAdmin')
     : isAcademyManagerLens ? t('subtitleAcademyManager')

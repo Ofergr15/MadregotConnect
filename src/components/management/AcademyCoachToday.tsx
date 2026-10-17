@@ -72,7 +72,7 @@ const reasonId = (athleteId: string, r: Reason) => `${athleteId}:${r.kind}`;
 export function AcademyCoachToday({ scope }: { scope?: 'coach' }) {
   const t = useTranslations('management');
   const q = scope ? '?scope=coach' : '';
-  const { data } = useApi<CoachToday>(`/api/academy/coach-today${q}`);
+  const { data, error } = useApi<CoachToday>(`/api/academy/coach-today${q}`);
   const { data: inbox } = useApi<{ rows: InboxRow[] }>(`/api/academy/threads/inbox${q}`);
   const [filter, setFilter] = useState<Filter>('attention');
   const [open, setOpen] = useState<string | null>(null);
@@ -141,6 +141,7 @@ export function AcademyCoachToday({ scope }: { scope?: 'coach' }) {
     return <span className="text-ink-400">—</span>;
   };
 
+  if (error) return <p className="rounded-card border border-page bg-card px-4 py-5 text-center text-sm text-ink-400">{t('loadFailed')}</p>;
   if (!data) return <div className="h-40 animate-pulse rounded-card bg-card" />;
   const list = filter === 'attention' ? attention : filter === 'done'
     ? trainees.filter((tr) => tr.today.state === 'done') : filter === 'notyet'

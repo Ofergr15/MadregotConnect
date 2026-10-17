@@ -5621,7 +5621,8 @@
     "evFeedback": "ענה/תה על משוב",
     "agoMin": "לפני {n} דק׳",
     "agoHour": "{n, plural, one {לפני שעה} two {לפני שעתיים} other {לפני # שעות}}",
-    "agoDay": "{n, plural, one {אתמול} two {לפני יומיים} other {לפני # ימים}}"
+    "agoDay": "{n, plural, one {אתמול} two {לפני יומיים} other {לפני # ימים}}",
+    "loadFailed": "לא הצלחנו לטעון את המתאמנים. נסו שוב בעוד רגע."
   },
   "managementAcademy": {
     "kTrainees": "מתאמנים",
