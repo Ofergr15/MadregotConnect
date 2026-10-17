@@ -4,9 +4,37 @@ import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { COACH_ID } from '@/lib/constants';
 import { mayCoach } from '@/lib/academy/pairing-server';
 import { parseGoalBody } from '@/lib/academy/goal';
-import { saveGoal } from '@/lib/academy/goal-server';
+import { loadClubRaces, loadGoal, loadThresholdPace, saveGoal } from '@/lib/academy/goal-server';
+import { israelToday } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * GET /api/academy/goal?athleteId= — everything the goal module needs in one read: the goal
+ * itself, the club's upcoming races to choose from, and the threshold pace the target-time
+ * estimate is made from. Same gate as the PUT.
+ */
+export async function GET(request: Request) {
+  try {
+    const { denied, caller } = await resolveVerifiedCaller(request);
+    if (denied) return denied;
+    const url = new URL(request.url);
+    const athleteId = url.searchParams.get('athleteId') || caller.athleteId || '';
+    if (!athleteId) return NextResponse.json({ error: 'athleteId is required' }, { status: 400 });
+    if (!(await mayCoach(caller, athleteId))) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const supabase = createServerClient();
+    const today = israelToday();
+    const [read, clubRaces, thresholdSecPerKm] = await Promise.all([
+      loadGoal(supabase, athleteId),
+      loadClubRaces(supabase, today),
+      loadThresholdPace(supabase, athleteId),
+    ]);
+    return NextResponse.json({ athleteId, today, ...read, clubRaces, thresholdSecPerKm });
+  } catch (err) {
+    console.error('GET /api/academy/goal error:', err);
+    return NextResponse.json({ error: 'Failed to load' }, { status: 500 });
+  }
+}
 
 /**
  * PUT /api/academy/goal — a trainee's goal: `{ athleteId, goalType?, targetRace?,

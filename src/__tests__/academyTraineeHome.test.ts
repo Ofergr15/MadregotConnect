@@ -132,9 +132,14 @@ describe('small helpers', () => {
 });
 
 describe('goalCard', () => {
+  it('carries the block for the personal banner (goal module): a half 45 days out is week 6 of 12', () => {
+    const g = goalCard({ goalType: 'half', targetRace: 'חצי מרתון טבריה', targetRaceDate: '2026-11-20', distanceKm: 21.0975, goalTimeSec: 5700 }, null, '2026-10-06');
+    expect(g).toMatchObject({ raceDate: '2026-11-20', week: 6, totalWeeks: 12, weeksToBlock: 0, goalTime: '1:35:00' });
+  });
+
   it('names the race, the goal and counts the days down', () => {
     expect(goalCard({ goalType: 'half', targetRace: 'חצי מרתון טבריה', targetRaceDate: '2026-11-20' }, null, '2026-10-06'))
-      .toEqual({ title: 'חצי מרתון טבריה', subtitle: 'היעד: חצי מרתון', daysLeft: 45 });
+      .toMatchObject({ title: 'חצי מרתון טבריה', subtitle: 'היעד: חצי מרתון', daysLeft: 45 });
   });
 
   it('with no race shows the goal alone', () => {

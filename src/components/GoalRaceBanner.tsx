@@ -18,18 +18,80 @@ import { GOAL_RACE, goalRaceProgress } from '@/lib/goal-race';
 // Kept to 54px on purpose: the first version was 156px and pushed the first
 // workout below the fold.
 export function GoalRaceBanner({ className }: { className?: string }) {
-  const t = useTranslations('goalRace');
   const td = useTranslations('dashboard');
   const locale = useLocale();
   const race = goalRaceProgress();
   const raceOver = GOAL_RACE.date.getTime() + 86_400_000 < Date.now();
   if (raceOver) return null;
+  return (
+    <RaceBanner
+      className={className}
+      name={td(GOAL_RACE.nameKey)}
+      dateLabel={GOAL_RACE.date.toLocaleDateString(locale, { day: 'numeric', month: 'numeric' })}
+      days={race.days}
+      week={race.week}
+      totalWeeks={race.totalWeeks}
+    />
+  );
+}
 
-  const raceDate = GOAL_RACE.date.toLocaleDateString(locale, { day: 'numeric', month: 'numeric' });
-  const inDays = race.days < 7;
+/**
+ * A trainee's OWN race (the goal module, migration 148) in the same line: their race, their
+ * target time, their block. A race whose block has not started yet (Berlin a year out) shows
+ * empty squares and says when the block begins; a day that is only a month says so.
+ */
+export function PersonalRaceBanner({ className, name, raceDate, days, week, totalWeeks, weeksToBlock, goalTime, dateIsEstimate }: {
+  className?: string;
+  name: string;
+  raceDate: string;
+  days: number;
+  week: number;
+  totalWeeks: number;
+  weeksToBlock?: number;
+  goalTime?: string | null;
+  dateIsEstimate?: boolean;
+}) {
+  const t = useTranslations('goalRace');
+  const locale = useLocale();
+  const d = new Date(`${raceDate}T12:00:00Z`);
+  const target = goalTime ? goalTime.replace(/^(\d+:\d{2}):00$/, '$1') : null;
+  const preBlock = week === 0 && !!weeksToBlock;
+  const dateLabel = dateIsEstimate
+    ? t('aroundMonth', { month: d.toLocaleDateString(locale, { month: 'short', year: '2-digit', timeZone: 'UTC' }) })
+    : d.toLocaleDateString(locale, { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+  return (
+    <RaceBanner
+      className={className}
+      name={name}
+      dateLabel={dateLabel}
+      days={days}
+      week={week}
+      totalWeeks={totalWeeks}
+      // "3:20", not "3:20:00": the line has room for a target, not for its seconds. Before the
+      // block, empty squares say nothing, so that row becomes a sentence — and the target moves
+      // into it, because the top line then already carries an estimated month.
+      extra={target && !preBlock ? [target] : []}
+      note={preBlock ? [target && t('target', { time: target }), t('blockIn', { n: weeksToBlock })].filter(Boolean).join(' · ') : undefined}
+    />
+  );
+}
+
+function RaceBanner({ className, name, dateLabel, days, week, totalWeeks, extra = [], note }: {
+  className?: string;
+  name: string;
+  dateLabel: string;
+  days: number;
+  week: number;
+  totalWeeks: number;
+  extra?: string[];
+  /** In place of the squares (a block that has not started). */
+  note?: string;
+}) {
+  const t = useTranslations('goalRace');
+  const inDays = days < 7;
   // Whole weeks, rounded DOWN: 51 days is "7 weeks" (and two days), which is
   // also the number of translucent squares left after this week's orange one.
-  const count = inDays ? race.days : Math.floor(race.days / 7);
+  const count = inDays ? days : Math.floor(days / 7);
 
   return (
     <div
@@ -43,31 +105,35 @@ export function GoalRaceBanner({ className }: { className?: string }) {
       </span>
       <div className="min-w-0 flex-1 leading-tight">
         <p className="truncate text-[14.5px] font-extrabold">
-          {td(GOAL_RACE.nameKey)}{' '}
+          <span dir="auto">{name}</span>{' '}
           <span className="text-xs font-semibold opacity-80">
-            · <bdi dir="ltr">{raceDate}</bdi>
-            {race.week > 0 && <> · {t('week', { week: race.week, total: race.totalWeeks })}</>}
+            · <bdi dir="ltr">{dateLabel}</bdi>
+            {extra.map((x) => <span key={x}> · <bdi dir="ltr">{x}</bdi></span>)}
+            {/* The squares already say which week; with a target time there is no room for both. */}
+            {week > 0 && extra.length === 0 && <> · {t('week', { week, total: totalWeeks })}</>}
           </span>
         </p>
         {/* One square per week. The page's RTL flow fills them from the
             reading start, so the block runs the way the text does. */}
+        {note ? <p className="mt-[3px] truncate text-[11.5px] font-semibold opacity-85">{note}</p> : (
         <div className="mt-[5px] flex gap-[2.5px]" aria-hidden="true">
-          {Array.from({ length: race.totalWeeks }, (_, i) => {
+          {Array.from({ length: totalWeeks }, (_, i) => {
             const n = i + 1;
             return (
               <i
                 key={n}
                 className={cn(
                   'h-[8.5px] w-[8.5px] rounded-[2.5px]',
-                  n < race.week ? 'bg-white' : n === race.week ? 'bg-band-3 ring-[1.5px] ring-white/90' : 'bg-white/25',
+                  n < week ? 'bg-white' : n === week ? 'bg-band-3 ring-[1.5px] ring-white/90' : 'bg-white/25',
                 )}
               />
             );
           })}
         </div>
+        )}
       </div>
       <div className="flex shrink-0 items-baseline gap-1">
-        {race.days === 0 ? (
+        {days === 0 ? (
           <span className="text-[15px] font-extrabold">{t('raceDay')}</span>
         ) : (
           <span className="text-[12.5px] font-bold">

@@ -262,7 +262,7 @@ describe('PUT /api/academy/goal', () => {
     expect(db.tables.academy_goals).toEqual([expect.objectContaining({ athlete_id: SHAHAR, goal_time_sec: 11700, updated_by: SHAHAR })]);
     asManager();
     const body = await (await completion.GET(req('/api/academy/completion'))).json();
-    expect(body.rows.find((r: any) => r.athleteId === SHAHAR).goal).toEqual({ goalType: 'full', targetRace: 'טבריה', targetRaceDate: '2027-01-08', goalTimeSec: 11700 });
+    expect(body.rows.find((r: any) => r.athleteId === SHAHAR).goal).toMatchObject({ goalType: 'full', targetRace: 'טבריה', targetRaceDate: '2027-01-08', goalTimeSec: 11700 });
   });
 
   it('not somebody else\'s; an unreadable field is a 400; before 144 a 503', async () => {

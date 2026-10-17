@@ -235,7 +235,7 @@ export function TraineeDetailsForm({ person, bands, coaches, canAssign, goalsSto
             .finally(() => setInviting(false));
         }}
       />
-      <GoalSheet open={goalOpen} onOpenChange={setGoalOpen} goal={goal} onDone={(g) => { setGoal(g); setGoalDirty(true); setGoalOpen(false); }} />
+      <GoalSheet open={goalOpen} onOpenChange={setGoalOpen} goal={goal} athleteId={person.athleteId} onDone={(g) => { setGoal(g); setGoalDirty(true); setGoalOpen(false); }} />
     </FlowOverlay>
   );
 }

@@ -6,8 +6,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getStreamServerClient } from '@/lib/stream/server';
 import { readCharacterization, type Characterization } from './characterization';
-import { GOALS_TABLE } from './goal-server';
-import { hasGoal, readGoal } from './goal';
+import { loadGoal } from './goal-server';
+import type { GoalKind } from './goal';
 import { traineeUnreadCount } from './thread-server';
 import { coachIdsOf } from './trainee-coaches';
 
@@ -36,7 +36,13 @@ export async function loadCoachRows(supabase: Db, athleteId: string, legacyCoach
  * note, which the goal card has no use for.
  */
 /** The goal card's read: the characterization's goal half, plus the goal time when 144's row has one. */
-export type GoalCharacterization = Characterization & { goalTimeSec?: number | null };
+export type GoalCharacterization = Omit<Characterization, 'goalType'> & {
+  goalType: GoalKind | null;
+  goalTimeSec?: number | null;
+  /** Migration 148: what is being run, and whether the day is only a month. */
+  distanceKm?: number | null;
+  dateIsEstimate?: boolean;
+};
 
 export async function loadGoalCharacterization(supabase: Db, athleteId: string): Promise<GoalCharacterization | null> {
   // Migration 144's own goal row first: a trainee who was in the academy before the funnel has
@@ -44,14 +50,16 @@ export async function loadGoalCharacterization(supabase: Db, athleteId: string):
   // A missing table (144 not pasted) or any read error falls through to the call's answers.
   // The goal time comes along: screens 2 and 4 save it, and the trainee's own race line shows it.
   try {
-    const { data: own, error: ownErr } = await supabase
-      .from(GOALS_TABLE)
-      .select('goal_type, target_race, target_race_date, goal_time_sec')
-      .eq('athlete_id', athleteId)
-      .maybeSingle();
-    const goal = readGoal((own ?? null) as Record<string, unknown> | null);
-    if (!ownErr && own && hasGoal(goal)) {
-      return { ...readCharacterization({ candidate_id: '', ...(own as Record<string, unknown>) }), goalTimeSec: goal.goalTimeSec };
+    // Through goal-server, so migration 148's race fields come along (with the 144 fallback),
+    // and a goal that is a club race takes the race's current day from the calendar.
+    const read = await loadGoal(supabase, athleteId);
+    if (read.source === 'goals') {
+      const g = read.goal;
+      return {
+        ...readCharacterization({ candidate_id: '' }),
+        goalType: g.goalType, targetRace: g.targetRace, targetRaceDate: g.targetRaceDate,
+        goalTimeSec: g.goalTimeSec, distanceKm: g.distanceKm ?? null, dateIsEstimate: !!g.dateIsEstimate,
+      };
     }
   } catch { /* the characterization below */ }
   const { data: cands, error } = await supabase

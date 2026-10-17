@@ -189,8 +189,8 @@ describe('testRequestCopy', () => {
 describe('goal', () => {
   it('reads either case, and drops what is not readable', () => {
     expect(readGoal({ goal_type: 'full', target_race: ' טבריה ', target_race_date: '2027-01-08', goal_time_sec: 11700 }))
-      .toEqual({ goalType: 'full', targetRace: 'טבריה', targetRaceDate: '2027-01-08', goalTimeSec: 11700 });
-    expect(readGoal({ goalType: 'ultra', goalTimeSec: 30 })).toEqual({ goalType: null, targetRace: null, targetRaceDate: null, goalTimeSec: null });
+      .toMatchObject({ goalType: 'full', targetRace: 'טבריה', targetRaceDate: '2027-01-08', goalTimeSec: 11700 });
+    expect(readGoal({ goalType: 'ultra', goalTimeSec: 30 })).toMatchObject({ goalType: null, targetRace: null, targetRaceDate: null, goalTimeSec: null, distanceKm: null });
     expect(hasGoal(readGoal(null))).toBe(false);
   });
   it('a field that was sent but is unreadable is an issue, not a silent drop', () => {

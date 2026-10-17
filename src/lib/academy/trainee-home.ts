@@ -11,8 +11,7 @@ import type { TestState } from './test-state';
 import type { PaceUpdateCard } from './coach-tools-payload';
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { stepMetric, type StepUnits } from '@/lib/plans/step-display';
-import { GOAL_TYPES, type Characterization } from './characterization';
-import { goalTimeText } from './goal';
+import { GOAL_KIND_LABELS, distanceForKind, goalProgress, goalTimeText, type GoalKind } from './goal';
 import { effectiveOffsetSec, type AcademyBand } from './bands';
 import { ZONE_INTENSITY, resolveIntensity } from './library';
 import { paceVerdict, type PaceVerdict } from './pace-verdict';
@@ -69,6 +68,13 @@ export interface HomeGoal {
   title: string;
   subtitle: string | null;
   daysLeft: number | null;
+  /** The goal module's banner (migration 148): the race day, and where today is in its block. */
+  raceDate?: string | null;
+  dateIsEstimate?: boolean;
+  goalTime?: string | null;
+  week?: number;
+  totalWeeks?: number;
+  weeksToBlock?: number;
 }
 
 export interface HomeKmWeek {
@@ -298,11 +304,11 @@ export function monthsBetween(from: string | null | undefined, to: string): numb
  * states one, the band's own goal — "sub-3", "סביב 3:30".
  */
 export function goalCard(
-  c: (Pick<Characterization, 'goalType' | 'targetRace' | 'targetRaceDate'> & { goalTimeSec?: number | null }) | null | undefined,
+  c: ({ goalType: GoalKind | null; targetRace: string | null; targetRaceDate: string | null; goalTimeSec?: number | null; distanceKm?: number | null; dateIsEstimate?: boolean }) | null | undefined,
   band: Pick<AcademyBand, 'goal' | 'paceProfile'> | null | undefined,
   today: string,
 ): HomeGoal | null {
-  const goalLabel = c?.goalType ? GOAL_TYPES.find((g) => g.value === c.goalType)?.label ?? null : null;
+  const goalLabel = c?.goalType ? GOAL_KIND_LABELS[c.goalType] ?? null : null;
   // The trainee's own goal time (migration 144) is theirs; the band's is the group's.
   // The band's goal is a MARATHON time ("SUB 3:30"): beside a half-marathon or 10 km goal it
   // was a wrong number (launch N30), so it is shown only for a marathon goal or none named.
@@ -323,7 +329,14 @@ export function goalCard(
 
   if (race) {
     const parts = [goalLabel, bandGoal].filter(Boolean) as string[];
-    return { title: race, subtitle: parts.length ? `היעד: ${parts.join(' · ')}` : null, daysLeft };
+    const block = c?.targetRaceDate && daysLeft != null ? goalProgress(c.targetRaceDate, today, c.distanceKm ?? distanceForKind(c.goalType)) : null;
+    return {
+      title: race, subtitle: parts.length ? `היעד: ${parts.join(' · ')}` : null, daysLeft,
+      raceDate: c?.targetRaceDate ?? null,
+      dateIsEstimate: !!c?.dateIsEstimate,
+      goalTime: c?.goalTimeSec ? goalTimeText(c.goalTimeSec) : null,
+      ...(block ? { week: block.week, totalWeeks: block.totalWeeks, weeksToBlock: block.weeksToBlock } : {}),
+    };
   }
   return { title: goalLabel as string, subtitle: bandGoal ? `היעד: ${bandGoal}` : null, daysLeft };
 }

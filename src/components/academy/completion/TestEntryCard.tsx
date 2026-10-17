@@ -184,7 +184,7 @@ export function TestEntryCard({ athleteId, onSent, onTyping, raise = false }: {
         onType={() => { setMode('type'); focusMeasured(); }}
       />
       {goal && (
-        <GoalSheet open={goalOpen} onOpenChange={setGoalOpen} goal={goal} busy={goalBusy} error={goalError} onDone={(g) => void saveGoal(g)} />
+        <GoalSheet open={goalOpen} onOpenChange={setGoalOpen} goal={goal} busy={goalBusy} error={goalError} athleteId={athleteId} onDone={(g) => void saveGoal(g)} />
       )}
     </div>
   );

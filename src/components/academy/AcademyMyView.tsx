@@ -16,6 +16,7 @@ import { initialsOf, shiftWeek, sundayOf } from './types';
 import { AcademyThreadPanel } from './AcademyThreadPanel';
 import { MyInvitation } from './MyInvitation';
 import { MyTestsCard } from './MyTestsCard';
+import { PersonalRaceBanner } from '@/components/GoalRaceBanner';
 import { TestEntryCard } from './completion/TestEntryCard';
 import { PaceText } from './PaceMark';
 import { BidiText } from '@/components/BidiText';
@@ -235,8 +236,21 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
           there is no usable test, and says "ממתין לאישור" once one is sent. ── */}
       {data?.athlete?.athleteId && <TestEntryCard athleteId={data.athlete.athleteId} onSent={() => setResultJustSent(true)} raise={raiseEntry} />}
 
-      {/* ── What I'm training for ── */}
-      {data?.goal && (
+      {/* ── What I'm training for ──
+          A race with a day: the same week-squares line as the feed, but THEIR race, target and
+          block (goal module, migration 148). A goal with no race keeps the plain card. */}
+      {data?.goal?.raceDate && data.goal.daysLeft != null && data.goal.totalWeeks ? (
+        <PersonalRaceBanner
+          name={data.goal.title}
+          raceDate={data.goal.raceDate}
+          days={data.goal.daysLeft}
+          week={data.goal.week ?? 0}
+          totalWeeks={data.goal.totalWeeks}
+          weeksToBlock={data.goal.weeksToBlock}
+          goalTime={data.goal.goalTime}
+          dateIsEstimate={data.goal.dateIsEstimate}
+        />
+      ) : data?.goal && (
         <div className="flex items-center gap-2.5 rounded-2xl bg-gradient-to-l from-brand-600 to-[#3B49FF] px-2.5 py-[7px] text-white">
           <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-xl bg-white/20 text-lg" aria-hidden>🏁</span>
           <div className="min-w-0 flex-1">
