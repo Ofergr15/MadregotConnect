@@ -6,6 +6,7 @@ import { activityLocalDateStr, planWeekStartOf } from '@/lib/utils';
 import { ParsedWorkout } from '@/lib/ai/types';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
 import { assessWorkout, buildPlannedWorkout } from '@/lib/academy/adherence';
 import {
   flattenPlannedSteps,
@@ -44,8 +45,30 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const athleteId = searchParams.get('athleteId');
-    const date = searchParams.get('date');
+    let athleteId = searchParams.get('athleteId');
+    let date = searchParams.get('date');
+    // A run opened from the feed knows only its id. Rather than make the detail page
+    // wait for the details response to name the athlete and the day (lab
+    // 2026-10-17: the plan overlay a whole round trip late), the run names them here:
+    // the same row and the same local-date rule the page used to apply itself.
+    // Every check below then runs on that athlete exactly as if they'd been passed.
+    const byActivity = searchParams.get('activityId');
+    // Named by the run: the run's details answer 404 for a pending runner (#77), and
+    // the page then never asked for this. Same rule here, decided once the caller
+    // is known; the read itself overlaps the session check.
+    let pendingRead: Promise<boolean> | null = null;
+    // Only with a credential: an anonymous request must still cost no query before its 401.
+    if ((!athleteId || !date) && byActivity && /^[0-9a-f-]{36}$/i.test(byActivity) && request.headers.get('authorization')) {
+      const db = createServerClient();
+      const { data: run } = await db
+        .from('athlete_activities').select('athlete_id, start_time').eq('id', byActivity).maybeSingle();
+      if (run?.athlete_id && run.start_time) {
+        athleteId = athleteId || (run.athlete_id as string);
+        date = date || activityLocalDateStr(run.start_time as string);
+        pendingRead = isPendingAthlete(db, run.athlete_id as string);
+        pendingRead.catch(() => {});
+      }
+    }
     if (!athleteId || !date) {
       return NextResponse.json({ error: 'athleteId and date are required' }, { status: 400 });
     }
@@ -74,6 +97,9 @@ export async function GET(request: Request) {
     // caller already renders — it's what a day with no plan returns.
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
+    if (pendingRead && !seesPending(caller, athleteId) && (await pendingRead)) {
+      return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
+    }
     const mayReadVerdict = mayActFor(caller, athleteId);
     // The per-segment default mode is every rep this person ran: self-or-staff,
     // and here there is nothing left to answer with, so it stays a refusal.

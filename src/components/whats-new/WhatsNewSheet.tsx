@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { ChevronDown, ChevronLeft, ChevronRight, Play, Sparkles } from 'lucide-react';
@@ -295,9 +295,15 @@ export function WhatsNewSheet({
  */
 function useContent(evening: boolean): WhatsNewContent | null {
   const { data, error } = useApi<{ releases: WhatsNewRelease[] }>('/api/whats-new', { revalidateOnFocus: false });
-  if (error) return { entries: evening ? composeWhatsNew([], APP_VERSION, true).entries : WHATS_NEW, more: [] };
-  if (!data) return null;
-  return composeWhatsNew(data.releases ?? [], APP_VERSION, evening);
+  // One object per answer, not per render: WhatsNewSettingsRow keys an effect on it
+  // that sets state, so a fresh object every render was an endless render loop on
+  // the settings landing (~14,000 commits/s), which also stopped every navigation
+  // away from that page from ever finishing (lab 2026-10-17).
+  return useMemo(() => {
+    if (error) return { entries: evening ? composeWhatsNew([], APP_VERSION, true).entries : WHATS_NEW, more: [] };
+    if (!data) return null;
+    return composeWhatsNew(data.releases ?? [], APP_VERSION, evening);
+  }, [data, error, evening]);
 }
 
 /** The list belongs under the headlines, so a sheet without one leaves it out. */
