@@ -19,13 +19,13 @@ describe('a day on the profile opens its run', () => {
   });
 
   it('is a link on the week strip and on the seven-day bars, for everyone', () => {
-    const overview = readFileSync('src/components/profile/ProfileOverview.tsx', 'utf8');
-    expect(overview).toMatch(/opensRuns && athleteId \? `\/api\/athletes\/\$\{athleteId\}\/stats` : null/);
-    expect(overview).toMatch(/<Link href=\{`\/dashboard\/activities\/\$\{run\.id\}`\} aria-label=\{openLabel\}/);
+    // The week card (2026-10-17): a day opens a sheet that lists the day's runs.
+    const week = readFileSync('src/components/profile/WeekPlanCard.tsx', 'utf8');
+    expect(week).toMatch(/athleteId \? `\/api\/athletes\/\$\{athleteId\}\/stats` : null/);
+    expect(week).toMatch(/href=\{`\/dashboard\/activities\/\$\{a\.id\}`\}/);
     const card = readFileSync('src/components/profile/Last7DaysCard.tsx', 'utf8');
     expect(card).toMatch(/const run = opensRuns \? d\.activities\?\.\[0\] : undefined;/);
     // Rolled out: no super-user gate left on either.
-    expect(overview).toMatch(/const opensRuns = true;/);
     expect(card).toMatch(/const opensRuns = true;/);
     // The profile body asks for the same key, so the strip costs no request.
     expect(readFileSync('src/components/profile/AthleteProfileBody.tsx', 'utf8')).toMatch(/athleteId \? `\/api\/athletes\/\$\{athleteId\}\/stats` : null/);
