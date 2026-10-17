@@ -67,8 +67,17 @@ export function useActivityDetails({
       // the plan request goes out WITH the details instead of after them: it used
       // to wait the whole details round trip (lab 2026-10-17). Without them (a run
       // opened from the feed) it still has to wait for the row to name them.
-      const early = aid && st
-        ? apiHeaders().then((headers) => fetch(segmentsUrl(aid, st), { headers })).catch(() => null)
+      // Opened from the feed, only the run's id is known: the route then reads the
+      // athlete and the day off the run itself, so it can still go out now.
+      const byIdOnly = !aid || !st
+        ? `/api/academy/segments?bands=1&verdict=1&activityId=${encodeURIComponent(activityId)}`
+        : null;
+      const early = (aid && st) || /^[0-9a-f-]{36}$/i.test(activityId)
+        ? apiHeaders()
+          .then((headers) => fetch(byIdOnly ?? segmentsUrl(aid!, st!), { headers }))
+          // A 400 means the route couldn't name them either; ask the old way below.
+          .then((r) => (r.status === 400 ? null : r))
+          .catch(() => null)
         : null;
       const res = await fetchActivityDetails(activityId, aid);
       let liveSplits: Split[] = [];

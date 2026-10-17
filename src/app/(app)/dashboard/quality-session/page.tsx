@@ -19,6 +19,7 @@ import {
   mainSet, paceOver, parseParts, partLabel, repUnit, targetFor, PART_NAME,
   type Parsed, type Part, type PlanRep, type SetTarget,
 } from '@/lib/quality-session/parts';
+import { SessionPhotos } from '@/components/quality-session/SessionPhotos';
 import './quality-session.css';
 
 // The quality session for Instagram: on a quality morning, ONE runner per pack,
@@ -269,6 +270,8 @@ export default function QualitySessionPage() {
                   </div>
                 </>
               )}
+              {/* After the session: the photographer's album, as one card in the feed (#106). */}
+              <SessionPhotos date={sess.date} />
               <div className="foot">
                 <div className="done">
                   {packs.map(p => {

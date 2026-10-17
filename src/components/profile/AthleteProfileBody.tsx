@@ -21,6 +21,7 @@ import { useIsSuperUser } from '@/lib/impersonation';
 import { PrRecordList, type PrBreak } from '@/components/profile/PrRecordList';
 import { PR_RETURN_KEY } from '@/components/profile/pr-format';
 import { profileClubRanks, type ClubRecordBucket } from '@/lib/prs/club-records';
+import { PaceAtHrCard } from '@/components/profile/PaceAtHrCard';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The body of an athlete's profile — the SAME component whether you are looking
@@ -338,6 +339,8 @@ export function AthleteProfileBody({
               {t('allTime', { km: stats.totalKm.toLocaleString('en-US'), runs: stats.totalRuns })}
             </p>
           )}
+          {/* Pace at the same heart rate (#105) — the owner and staff only. */}
+          <PaceAtHrCard athleteId={athleteId ?? null} owner={owner} />
 
           {/* The super user tries the two Strava-like views; it moved here when
               the runs tab became the Activity feed. */}

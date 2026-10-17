@@ -12,7 +12,7 @@ import { Sheet, Switch } from '@/components/ui';
 // grouped card with other settings rows, like the reference design) and a
 // separate ALLOWLIST card shown only when maintenance is on. Both read the same
 // SWR-cached /api/maintenance, so state stays in sync from one fetch.
-interface MaintenanceData { maintenance: boolean; allowlist: string[] }
+interface MaintenanceData { maintenance: boolean; allowlist: string[]; superUser?: boolean }
 
 // One inset row: colored construction glyph + label + inline toggle. Uses the
 // real InsetRow primitive (icon tile + label/sublabel + trailing slot) instead
@@ -27,7 +27,7 @@ export function MaintenanceRow() {
     if (on == null) return;
     setSaving(true);
     // Optimistic flip in the shared cache; confirm with the server.
-    mutate({ maintenance: !on, allowlist: data?.allowlist ?? [] }, false);
+    mutate({ ...data, maintenance: !on, allowlist: data?.allowlist ?? [] }, false);
     try {
       const res = await fetch('/api/maintenance', {
         method: 'PUT', headers: await bearerHeaders(),
@@ -39,6 +39,11 @@ export function MaintenanceRow() {
     } catch { mutate(); }
     finally { setSaving(false); }
   };
+
+  // The switch is the super user's (PUT /api/maintenance answers 403 to anyone
+  // else). The settings page is reachable by URL, so the row checks for itself
+  // rather than trusting the menu that hides the page (lab 2026-10-17).
+  if (!data?.superUser) return null;
 
   return (
     <InsetRow
@@ -81,7 +86,7 @@ export function MaintenanceAllowlist() {
     finally { setSaving(false); }
   };
 
-  if (!on) return null;
+  if (!on || !data?.superUser) return null;
 
   const addEmail = (email: string) => {
     const e = email.toLowerCase().trim();

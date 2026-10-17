@@ -316,6 +316,10 @@ export async function POST(request: Request) {
 
     // A coach may only record for their own trainees; the manager for anyone in the academy.
     const isManager = isAcademyManager(caller);
+    // A coach who also trains in the academy, entering their OWN test, is a trainee here: the
+    // number prices their own plan, so it waits for another coach like anybody's. Only the
+    // manager's own entry is final.
+    const approves = isStaff && (athleteId !== caller.athleteId || isManager);
     const { data: target } = await supabase
       .from('athletes')
       .select('id, is_academy, academy_coach_id')
@@ -326,14 +330,14 @@ export async function POST(request: Request) {
     // A coach is confined to their own trainees. A trainee submitting for themselves is
     // neither — their `academy_coach_id` points at their coach, not at them, so the coach
     // check would reject the one person who is unambiguously entitled to this row.
-    if (isStaff && !isManager
+    if (approves && !isManager
       && !(await coachIdsOf(supabase, target.id, target.academy_coach_id ?? null)).includes(caller.athleteId ?? '')) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 
     // Already measured for that day? A trainee may correct their own pending submission and
     // nothing else. See the header.
-    if (!isStaff) {
+    if (!approves) {
       let existing = await supabase
         .from('academy_tests')
         .select('id, status')
@@ -381,16 +385,16 @@ export async function POST(request: Request) {
       activity_id: activityId,
       // Empty string is not a reason. Trimmed to null so a blank field cannot silently
       // exclude a test from the trend it was recorded for. Staff only — see the header.
-      excluded_reason: isStaff ? String(body.excludedReason || '').trim() || null : null,
+      excluded_reason: approves ? String(body.excludedReason || '').trim() || null : null,
       notes: String(body.notes || '').trim() || null,
       author_id: caller.athleteId || null,
       // Migration 108. Staff entry arrives approved, and is stamped so the row can say who
       // let this number start pricing a plan.
-      status: isStaff ? 'approved' : 'pending',
-      submitted_by: isStaff ? null : caller.athleteId || null,
-      submitted_at: isStaff ? null : now,
-      approved_by: isStaff ? caller.athleteId || null : null,
-      approved_at: isStaff ? now : null,
+      status: approves ? 'approved' : 'pending',
+      submitted_by: approves ? null : caller.athleteId || null,
+      submitted_at: approves ? null : now,
+      approved_by: approves ? caller.athleteId || null : null,
+      approved_at: approves ? now : null,
       updated_at: now,
     };
     const APPROVAL_COLUMNS = ['status', 'submitted_by', 'submitted_at', 'approved_by', 'approved_at'];
@@ -408,7 +412,7 @@ export async function POST(request: Request) {
     // status it would read as approved and start pricing their plan unreviewed, which is
     // the exact thing the queue exists to prevent. Refuse instead, and name the migration.
     if (error && isMissingColumn(error)) {
-      if (!isStaff) {
+      if (!approves) {
         return NextResponse.json(
           { error: 'Athlete submissions are not set up yet (migration 108)' },
           { status: 503 },
@@ -444,15 +448,15 @@ export async function POST(request: Request) {
         id: String(data.id),
         protocol,
         date,
-        approved: isStaff,
-        enteredByStaff: isStaff,
+        approved: approves,
+        enteredByStaff: approves,
       })
       : null;
 
     // "לתקן" on a trainee's submission: the coach saved the corrected numbers, so the pending row
     // they replace goes — unless the correction landed on the same day and protocol, in which
     // case the upsert above already overwrote it. Staff only, that trainee's own pending row only.
-    const replaces = isStaff && typeof body.replacesTestId === 'string' ? body.replacesTestId : '';
+    const replaces = approves && typeof body.replacesTestId === 'string' ? body.replacesTestId : '';
     if (data && replaces && replaces !== String(data.id)) {
       const { error: dropErr } = await supabase
         .from('academy_tests')
@@ -469,18 +473,18 @@ export async function POST(request: Request) {
     // days with nothing on record: ON CONFLICT DO NOTHING, never the correction upsert above,
     // because the row already there may be the coach's measured number or one excluded from
     // the trend on purpose, and a watch estimate must not replace either.
-    const pastSaved = data && isStaff ? await savePast(supabase, athleteId, body.past, today, row) : 0;
+    const pastSaved = data && approves ? await savePast(supabase, athleteId, body.past, today, row) : 0;
 
     // A staff entry counts from now, so the loads priced on the old basis (or on heart rate,
     // without any test) are stale: repriced after the response (lib/academy/reprice-server.ts).
     // A trainee's submission counts toward nothing until it is approved — that is PATCH's job.
-    const repricing = !!data && isStaff;
+    const repricing = !!data && approves;
     if (repricing) scheduleReprice(athleteId);
 
     // Who hears about it (launch BL8): a trainee's submission reaches their coaches (it waits
     // for their approval); a coach's entry for the trainee is an approved test, and the
     // trainee is told their paces follow it now. Best-effort.
-    if (data && !isStaff) await notifyTestSubmitted(supabase, { athleteId });
+    if (data && !approves) await notifyTestSubmitted(supabase, { athleteId });
     else if (data && athleteId !== caller.athleteId) await notifyTestApproved({ athleteId, actorId: caller.athleteId || null });
 
     return NextResponse.json({
@@ -491,7 +495,7 @@ export async function POST(request: Request) {
       repricing,
       // The screen must not say "saved, here is your new pace" for something nobody has
       // looked at yet.
-      pending: !isStaff,
+      pending: !approves,
       // So the trainee's screen can stop showing the invitation card without a second fetch.
       settledInvitationId: settlement?.kind === 'settle' ? settlement.invitationId : null,
     });

@@ -10,6 +10,9 @@ import { ViewChipFace } from '@/components/RoleSwitcher';
 import { rolesToColumns, type GrantableRole, type RolePerson } from '@/lib/auth/roles';
 import { defaultViewFor, newlyGranted, rolePreview } from '@/lib/role-views';
 
+/** Roles that may hold academy trainees — dropping all of them releases the trainees. */
+const COACHING: readonly GrantableRole[] = ['academy_coach', 'academy_manager', 'admin'];
+
 // "תפקידים" — who holds which role, and switching them on (migration 127).
 //
 // One switch per role, several at once: that is the whole point of the screen,
@@ -263,10 +266,12 @@ export default function RolesPage() {
         canGrantAdmin={!!data?.canGrantAdmin}
         storyMigrated={!!data?.storyMigrated}
         onClose={() => setEditing(null)}
-        onSaved={async (notified) => {
+        onSaved={async (notified, released) => {
           const who = editing?.name || editing?.email || '';
           setEditing(null);
-          flash(notified ? `נשמר, ונשלחה התראה ל${who}` : 'נשמר');
+          flash(released?.count
+            ? `נשמר · ${released.count === 1 ? 'מתאמן אחד הועבר' : `${released.count} מתאמנים הועברו`}${released.orphaned ? `, ${released.orphaned} מחכים לשיבוץ` : ''}`
+            : notified ? `נשמר, ונשלחה התראה ל${who}` : 'נשמר');
           await mutate();
         }}
         onResent={async (failed) => {
@@ -315,7 +320,7 @@ function EditRolesSheet({
   storyMigrated: boolean;
   onClose: () => void;
   /** `notified` — the save switched a role (or the academy) on and its push went out. */
-  onSaved: (notified: boolean) => void | Promise<void>;
+  onSaved: (notified: boolean, released?: { count: number; orphaned: number }) => void | Promise<void>;
   onResent: (failed: string | null) => void | Promise<void>;
 }) {
   const [resending, setResending] = useState(false);
@@ -367,7 +372,8 @@ function EditRolesSheet({
         return;
       }
       const body = await res.json().catch(() => ({}));
-      await onSaved(!!body.notified || !!body.academyNotified || !!body.storyNotified);
+      await onSaved(!!body.notified || !!body.academyNotified || !!body.storyNotified,
+        { count: Number(body.traineesReleased) || 0, orphaned: Number(body.traineesOrphaned) || 0 });
     } catch {
       setFailed('השמירה נכשלה. נסה שוב.');
     } finally {
@@ -482,6 +488,11 @@ function EditRolesSheet({
               </button>
             )}
 
+            {person && COACHING.some(r => person.roles.includes(r)) && !COACHING.some(r => draft.includes(r)) && (
+              <p className="rounded-xl bg-band-3/10 px-3 py-2 text-center text-[13px] font-semibold text-band-3-ink">
+                בלי תפקיד מאמן, המתאמנים המשובצים כאן באקדמיה ישוחררו. מי שאין לו מאמן נוסף יחכה לשיבוץ.
+              </p>
+            )}
             {failed && <p className="text-center text-sm text-accent-red">{failed}</p>}
 
             <button

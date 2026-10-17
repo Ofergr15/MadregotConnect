@@ -7,7 +7,7 @@ import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Spinner } from '@/components/ui';
 import { sortBands } from '@/lib/academy/bands';
 import { joinHebrewList } from '@/lib/academy/members';
-import { waShareUrl, type AddableMember } from '@/lib/academy/manage';
+import { sameNameMember, waShareUrl, type AddableMember } from '@/lib/academy/manage';
 import { useApi } from '@/lib/api';
 import { groupDisplayName } from '@/lib/utils';
 import type { AcademyBand, AcademyCoachSummary } from './types';
@@ -85,6 +85,7 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
   const { data: groupsData } = useApi<{ groups?: Array<{ id: string; name: string }> }>(mode === 'invite' ? '/api/groups' : null);
   const groups = groupsData?.groups ?? [];
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inv.email.trim());
+  const twin = mode === 'invite' ? sameNameMember(inv.name, addable ?? []) : null;
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -273,6 +274,14 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
           {field('email', 'מייל', 'name@example.com', true, 'ההתחברות לאפליקציה היא עם המייל — בלי מייל אי אפשר להזמין.')}
           {field('phone', 'טלפון (לוואטסאפ)', '050-0000000', true)}
         </div>
+        {twin && (
+          <div className="mt-2 rounded-xl bg-band-3/10 px-3 py-2.5">
+            <p className="text-[13px] font-bold text-band-3-ink">כבר יש במועדון <bdi dir="auto">{twin.name}</bdi>{twin.groupName ? ` · ${twin.groupName}` : ''}</p>
+            <p className="mt-0.5 text-xs text-band-3-ink/80">אם זה אותו אדם, מעבירים אותו מהמועדון — הזמנה תפתח לו חשבון שני.</p>
+            <button type="button" onClick={() => { setMode('club'); setQuery(twin.name); setPicked(new Set([twin.athleteId])); setError(null); }}
+              className="mt-1.5 min-h-[36px] text-[13px] font-extrabold text-brand-600">להעביר אותו מהמועדון</button>
+          </div>
+        )}
         <p className="mb-1.5 mt-3 px-1 text-2xs font-bold text-ink-400">מה שכבר ידוע</p>
         {settings}
         <p className="mt-1.5 px-1 text-xs leading-relaxed text-ink-400">קבוצת הקצב קובעת איזו תוכנית מועדון יקבל עד השבוע האישי הראשון.</p>

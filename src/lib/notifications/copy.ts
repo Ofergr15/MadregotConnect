@@ -1418,3 +1418,26 @@ export function academyMoveInNudgeCopy(locale: NotificationLocale, p: { step: 'w
     ? { title: '📝 4 שאלות קצרות מחכות לך', body: 'ימים, ק״מ, מטרה ומגבלות — כדי שהמאמן יבנה שבוע שמתאים לך.' }
     : { title: '📝 4 short questions are waiting', body: 'Days, km, goal and limitations — so your coach builds a week that fits you.' };
 }
+
+/** To the academy managers: a coach lost the coach role, and these trainees were left without them. */
+export function academyCoachRoleRemovedCopy(locale: NotificationLocale, p: { coach: string; count: number; orphaned: number }): PushCopy {
+  if (locale === 'he') {
+    const moved = p.count === 1 ? 'מתאמן אחד הועבר' : `${p.count} מתאמנים הועברו`;
+    const left = p.orphaned
+      ? `${p.orphaned === 1 ? 'אחד נשאר' : `${p.orphaned} נשארו`} בלי מאמן — צריך לשבץ.`
+      : 'לכולם יש עוד מאמן.';
+    return { title: `🎓 ${p.coach} כבר לא במאמני האקדמיה`, body: `${moved}. ${left}` };
+  }
+  const moved = p.count === 1 ? 'One trainee was unassigned' : `${p.count} trainees were unassigned`;
+  const left = p.orphaned
+    ? `${p.orphaned === 1 ? 'One has' : `${p.orphaned} have`} no coach now.`
+    : 'All of them still have another coach.';
+  return { title: `🎓 ${p.coach} is no longer an academy coach`, body: `${moved}. ${left}` };
+}
+
+/** The session's photos are up (#106) — to who marked "coming" that morning. */
+export function sessionPhotosCopy(locale: NotificationLocale, p: { workout: string | null }): PushCopy {
+  return locale === 'he'
+    ? { title: '📸 התמונות מאימון הבוקר עלו', body: `${p.workout ? `${p.workout} · ` : ''}לחיצה פותחת את כל התמונות` }
+    : { title: '📸 Photos from this morning\'s session are up', body: `${p.workout ? `${p.workout} · ` : ''}Tap to see them all` };
+}

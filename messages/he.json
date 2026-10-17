@@ -2646,7 +2646,9 @@
     "scopeTitle": "מה רואים בפיד",
     "scopeClose": "סגירה",
     "scopeWhat": "מה מוצג",
-    "scopeReset": "לכל המועדון"
+    "scopeReset": "לכל המועדון",
+    "sessionPhotosTitle": "תמונות מאימון האיכות",
+    "sessionPhotosOpen": "לכל התמונות"
   },
   "feedHighlight": {
     "unit_distance_km": "ק״מ",

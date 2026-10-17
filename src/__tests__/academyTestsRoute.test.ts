@@ -534,6 +534,36 @@ describe('a trainee submits their own test', () => {
   });
 });
 
+describe('a coach who also trains enters their own test', () => {
+  it('waits for approval like any trainee, instead of approving their own paces', async () => {
+    db.athletes.find(a => a.id === COACH)!.academy_coach_id = MANAGER;
+    asCoach();
+    const res = await post(body(COACH, 6420, { excludedReason: 'bad day' }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).pending).toBe(true);
+    expect(db.academy_tests[0].status).toBe('pending');
+    expect(db.academy_tests[0].submitted_by).toBe(COACH);
+    expect(db.academy_tests[0].excluded_reason).toBeNull();
+    expect(scheduleReprice).not.toHaveBeenCalled();
+  });
+
+  it('cannot then approve it, because it is not on their roster', async () => {
+    db.athletes.find(a => a.id === COACH)!.academy_coach_id = MANAGER;
+    asCoach();
+    await post(body(COACH, 6420));
+    const res = await patch({ testId: db.academy_tests[0].id, action: 'approve' });
+    expect(res.status).toBe(404);
+    expect(db.academy_tests[0].status).toBe('pending');
+  });
+
+  it('leaves the manager\'s own entry final', async () => {
+    asManager();
+    const res = await post(body(MANAGER, 6420));
+    expect(res.status).toBe(200);
+    expect(db.academy_tests[0].status).toBe('approved');
+  });
+});
+
 describe('PATCH — the coach decides', () => {
   it('approving a submission is what puts it on the graph and clears the overdue flag', async () => {
     asRunner(MINE);

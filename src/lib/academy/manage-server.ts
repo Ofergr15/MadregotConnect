@@ -356,7 +356,7 @@ export async function runBulk(req: BulkRequest, caller: VerifiedCaller): Promise
       results.push(req.existing ? { athleteId: id, ok: true, unchanged: true } : { athleteId: id, ok: false, error: 'already_member' });
       continue;
     }
-    if (row.approved === false || ['removed', 'invited'].includes(row.status)) {
+    if (row.approved === false || ['removed', 'invited', 'disconnected'].includes(row.status)) {
       results.push({ athleteId: id, ok: false, error: 'not_club_member' });
       continue;
     }

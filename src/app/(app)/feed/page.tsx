@@ -184,6 +184,17 @@ export default function FeedPage() {
   const focusBy = focus?.by ?? null;
   const focusId = focus?.id ?? null;
   const [focusItem, setFocusItem] = useState<FeedItem | null>(null);
+  // The quality session's photos (#106): at the top for two days after they are
+  // published, and out of the list meanwhile so the card is not there twice.
+  const { data: photosTop } = useApi<{ id: string | null }>('/api/feed/session-photos');
+  const [photosItem, setPhotosItem] = useState<FeedItem | null>(null);
+  useEffect(() => {
+    const id = photosTop?.id;
+    if (!id) { setPhotosItem(null); return; }
+    let cancelled = false;
+    fetchFeedItem(id).then(({ item }) => { if (!cancelled) setPhotosItem(item); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [photosTop?.id]);
   const [focusError, setFocusError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -467,7 +478,7 @@ export default function FeedPage() {
   // sheet toggle, which used to re-render all of it per frame.
   const openComment = useCallback((i: FeedItem) => setCommentItem(i), []);
   const feedList = useMemo(() => {
-            const visible = items.filter(item => item.id !== focusItem?.id);
+            const visible = items.filter(item => item.id !== focusItem?.id && item.id !== photosItem?.id);
             const entries = groupFeedItems(visible, myAthleteId);
             let lastDay = '';
             return entries.map((entry, idx) => {
@@ -512,7 +523,7 @@ export default function FeedPage() {
                 </Fragment>
               );
             });
-  }, [items, focusItem?.id, myAthleteId, isStaff, handleDelete, openComment]);
+  }, [items, focusItem?.id, photosItem?.id, myAthleteId, isStaff, handleDelete, openComment]);
 
   return (
     <div
@@ -603,6 +614,22 @@ export default function FeedPage() {
           <QualitySessionRow />
         </QuietBoundary>
       </div>
+
+      {/* ═══ THE SESSION'S PHOTOS ═══
+          After a quality session, once someone has posted the album link (#106):
+          the card itself, at the top, for two days. Then it is only in the list. */}
+      {photosItem && photosItem.id !== focusItem?.id && (
+        <div className="mb-4">
+          <FeedCard
+            item={photosItem}
+            commentCount={photosItem.commentCount}
+            myAthleteId={myAthleteId}
+            isStaff={isStaff}
+            onComment={i => setCommentItem(i)}
+            onDelete={handleDelete}
+          />
+        </div>
+      )}
 
       {/* ═══ GOAL RACE ═══
           Weeks to the club's goal race, one slim line, above everything that

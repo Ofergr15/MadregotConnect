@@ -22,6 +22,17 @@ vi.mock('@/lib/academy/membership-server', () => ({
   applyAcademyMembership: (...a: unknown[]) => applyAcademyMembership(...a),
 }));
 
+// Losing the academy coach role releases the coach's trainees (the pairing itself is tested
+// in pairing-server); here only that it happens, to whom, and that the managers hear of it.
+const pairs: Record<string, string[]> = {};
+const setPairCoaches = vi.fn(async (id: string, coachIds: string[]) => { pairs[id] = coachIds; return { ok: true }; });
+vi.mock('@/lib/academy/pairing-server', () => ({ setPairCoaches: (id: string, c: string[]) => setPairCoaches(id, c) }));
+vi.mock('@/lib/academy/trainee-coaches', () => ({
+  traineeIdsOfCoach: async (_s: unknown, coach: string) => Object.keys(pairs).filter((t) => pairs[t].includes(coach)),
+  coachIdsOf: async (_s: unknown, id: string) => pairs[id] ?? [],
+}));
+vi.mock('@/lib/notifications/staff', () => ({ academyManagerIds: async () => ['boss'] }));
+
 type Row = Record<string, unknown>;
 const db: { athletes: Row[]; scheduled_notifications: Row[] } = { athletes: [], scheduled_notifications: [] };
 
@@ -63,6 +74,8 @@ beforeEach(() => {
   ];
   db.scheduled_notifications = [];
   notifyAthlete.mockClear();
+  setPairCoaches.mockClear();
+  for (const k of Object.keys(pairs)) delete pairs[k];
   applyAcademyMembership.mockClear();
   resolveVerifiedCaller.mockResolvedValue({ denied: null, caller: ADMIN });
 });
@@ -227,5 +240,34 @@ describe('POST /api/admin/roles (send again)', () => {
     const { POST } = await import('@/app/api/admin/roles/route');
     const res = await POST(req('POST', { athleteId: 'dan', action: 'notify' }));
     expect(res.status).toBe(403);
+  });
+});
+
+describe('taking the academy coach role away', () => {
+  it('unpairs every trainee of theirs, keeps a co-coach, and tells the managers how many need one', async () => {
+    pairs.t1 = ['dan'];
+    pairs.t2 = ['dan', 'noa'];
+    const { PUT } = await import('@/app/api/admin/roles/route');
+    const body = await (await PUT(req('PUT', { athleteId: 'dan', roles: ['coach'] }))).json();
+    expect(body).toMatchObject({ traineesReleased: 2, traineesOrphaned: 1 });
+    expect(pairs).toEqual({ t1: [], t2: ['noa'] });
+    const push = notifyAthlete.mock.calls.map(([o]) => o as { athleteId: string; kind: string; copy: (l: string) => { body: string } })
+      .find((o) => o.kind === 'academy_coach_role_removed')!;
+    expect(push.athleteId).toBe('boss');
+    expect(push.copy('en').body).toBe('2 trainees were unassigned. One has no coach now.');
+  });
+
+  it('leaves the trainees alone while they still hold a role that coaches', async () => {
+    pairs.t1 = ['dan'];
+    const { PUT } = await import('@/app/api/admin/roles/route');
+    const body = await (await PUT(req('PUT', { athleteId: 'dan', roles: ['coach', 'academy_manager'] }))).json();
+    expect(body.traineesReleased).toBe(0);
+    expect(setPairCoaches).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing when they had nobody', async () => {
+    const { PUT } = await import('@/app/api/admin/roles/route');
+    await PUT(req('PUT', { athleteId: 'dan', roles: ['coach'] }));
+    expect(notifyAthlete.mock.calls.some(([o]) => (o as { kind: string }).kind === 'academy_coach_role_removed')).toBe(false);
   });
 });
