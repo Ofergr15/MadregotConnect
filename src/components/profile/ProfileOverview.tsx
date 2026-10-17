@@ -16,6 +16,7 @@ import { GoalRaceBanner } from '@/components/GoalRaceBanner';
 import { ProfileCounts } from '@/components/profile/ProfileCounts';
 import { SetupProgressCard } from '@/components/onboarding/SetupProgressCard';
 import { PhotoLightbox } from '@/components/PhotoLightbox';
+import { HeroChip, ProfileHero } from '@/components/profile/ProfileHero';
 import type { FeedItem } from '@/lib/feed/project';
 import type { Last7Report } from '@/lib/reports/last-7-days';
 
@@ -78,6 +79,8 @@ export function ProfileOverview({
   onOpenSetup,
   onFollowersClick,
   onFollowingClick,
+  onEditProfile,
+  part,
 }: {
   athleteId: string;
   athleteName: string;
@@ -90,6 +93,15 @@ export function ProfileOverview({
   onOpenSetup: () => void;
   onFollowersClick?: () => void;
   onFollowingClick?: () => void;
+  /** The header's one action — opens personal info. */
+  onEditProfile?: () => void;
+  /**
+   * Which half to draw (2026-10-17): `header` is the top of the profile — the
+   * hero and, for a new member, the setup card; `week` is the week itself — the
+   * target, the goal race, the next workout, the day strip — which now opens the
+   * profile's stats tab instead of the landing.
+   */
+  part: 'header' | 'week';
 }) {
   const t = useTranslations('profile');
   const td = useTranslations('dashboard');
@@ -101,6 +113,11 @@ export function ProfileOverview({
   // cannot be derived from anything already on this screen. Shares the SWR key
   // with the nav and Settings, so it costs no extra request.
   const { data: me } = useApi<{ isCoreRunner?: boolean }>('/api/auth/me');
+  // The chips under the name — pack, academy band, coach — the same /public the
+  // teammate page reads, so both headers say the same thing about the same person.
+  const { data: pub } = useApi<{ groupName: string | null; isAcademy: boolean; academyBand: { name: string | null } | null; coachName: string | null }>(
+    part === 'header' && athleteId ? `/api/athletes/${athleteId}/public` : null,
+  );
   const isCore = me?.isCoreRunner === true;
   // Used for the mark beside the name and nothing else. There is deliberately no
   // perks row on this screen: the entitlement explains itself where the perks
@@ -202,92 +219,89 @@ export function ProfileOverview({
 
   return (
     <div className="space-y-5">
-      {/* ═══ HEADER CARD — avatar, name, and the count row ═══
-          One white card, Instagram-style, 132px instead of the 208 the
-          greeting + 28px name + separate stat trio took between them. */}
-      <div className="rounded-[20px] bg-card px-3 pb-2.5 pt-3">
-      <div className="flex items-center gap-3">
-        {/* Two targets in one circle once there IS a photo: the picture opens it
-            full screen (21cc272c), the camera badge replaces it. Before that there
-            is one target — the whole circle picks a photo, because a lightbox of
-            your own initials is not a thing anybody asked for. Two <button>s side
-            by side rather than nested, which is invalid HTML and does not fire. */}
-        <div className="relative h-[54px] w-[54px] shrink-0 rounded-full">
-          {photoOpen && avatarUrl && (
-            <PhotoLightbox url={avatarUrl} alt={athleteName} onClose={() => setPhotoOpen(false)} />
-          )}
-          <button
-            type="button"
-            onClick={avatarUrl ? () => setPhotoOpen(true) : onPhotoClick}
-            className="block h-full w-full overflow-hidden rounded-full"
-            aria-label={avatarUrl ? t('viewPhoto') : t('changePhoto')}
-          >
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatarUrl} alt={athleteName} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-            ) : (
-              <span className="flex h-full w-full items-center justify-center bg-brand-600 text-lg font-bold text-white">{initials}</span>
-            )}
-          </button>
-          {/* The frame draws a bare avatar, but this badge is the only way to
-              change a photo anywhere in the app — so it stays, smaller. It is a
-              real button now: when a photo exists the circle behind it enlarges
-              instead of uploading, so the badge has to carry the upload itself.
+      {part === 'header' && (
+        <>
+          <ProfileHero
+            photo={
+                    <div className="relative h-full w-full rounded-full">
+                      {photoOpen && avatarUrl && (
+                        <PhotoLightbox url={avatarUrl} alt={athleteName} onClose={() => setPhotoOpen(false)} />
+                      )}
+                      <button
+                        type="button"
+                        onClick={avatarUrl ? () => setPhotoOpen(true) : onPhotoClick}
+                        className="block h-full w-full overflow-hidden rounded-full"
+                        aria-label={avatarUrl ? t('viewPhoto') : t('changePhoto')}
+                      >
+                        {avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={avatarUrl} alt={athleteName} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-600 to-primary-500 text-2xl font-extrabold text-white">{initials}</span>
+                        )}
+                      </button>
+                      {/* The frame draws a bare avatar, but this badge is the only way to
+                          change a photo anywhere in the app — so it stays, smaller. It is a
+                          real button now: when a photo exists the circle behind it enlarges
+                          instead of uploading, so the badge has to carry the upload itself.
 
-              24px and not 20: the audit measured 20×20, under WCAG 2.5.8's floor.
-              It cannot reach Apple's 44 and that is geometry, not neglect — two
-              controls share a 55px circle, and a 44px halo on this one would
-              cover the avatar button's own centre point, so the bigger target
-              would break the target underneath it. 24 is the largest size that
-              leaves the circle behind it tappable. */}
-          <button
-            type="button"
-            onClick={onPhotoClick}
-            aria-label={t('changePhoto')}
-            className="absolute bottom-0 end-0 flex h-6 w-6 items-center justify-center rounded-full bg-card shadow-sm"
-          >
-            {uploadingPhoto ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-600" /> : <Camera className="h-3.5 w-3.5 text-ink-500" />}
-          </button>
-        </div>
-        <div className="min-w-0 flex-1 text-start">
-          {/* The 🌰 goes NEXT to the name, not inside the <h1>'s truncate: a long
-              name would otherwise eat the badge. */}
-          <div className="flex items-center gap-1.5">
-            <h1 className="truncate text-[17px] font-black text-ink-700">{athleteName}</h1>
-            {isCore && <CoreRunnerBadge className="text-sm" />}
-          </div>
-          <p className="text-xs font-light text-ink-400">{greeting}</p>
-        </div>
-      </div>
-      <ProfileCounts
-        athleteId={athleteId}
-        onFollowersClick={onFollowersClick}
-        onFollowingClick={onFollowingClick}
-        className="mt-2.5 border-t border-ink-300/60 pt-2"
-      />
-      </div>
+                          24px and not 20: the audit measured 20×20, under WCAG 2.5.8's floor.
+                          It cannot reach Apple's 44 and that is geometry, not neglect — two
+                          controls share a 55px circle, and a 44px halo on this one would
+                          cover the avatar button's own centre point, so the bigger target
+                          would break the target underneath it. 24 is the largest size that
+                          leaves the circle behind it tappable. */}
+                      <button
+                        type="button"
+                        onClick={onPhotoClick}
+                        aria-label={t('changePhoto')}
+                        className="absolute bottom-0.5 end-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-card shadow ring-2 ring-page"
+                      >
+                        {uploadingPhoto ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-600" /> : <Camera className="h-3.5 w-3.5 text-ink-500" />}
+                      </button>
+                    </div>
+            }
+            name={athleteName}
+            nameAside={isCore ? <CoreRunnerBadge className="text-base" /> : undefined}
+            chips={
+              <>
+                {pub?.groupName && <HeroChip brand>{pub.groupName}</HeroChip>}
+                {pub?.isAcademy && pub.academyBand?.name && (
+                  // The academy band chip opens the academy, where its paces are.
+                  <Link href="/dashboard/academy" className="contents"><HeroChip>{pub.academyBand.name}</HeroChip></Link>
+                )}
+                {pub?.isAcademy && pub.coachName && <HeroChip>{t('coachChip', { name: pub.coachName })}</HeroChip>}
+              </>
+            }
+            counts={
+              <ProfileCounts
+                athleteId={athleteId}
+                onFollowersClick={onFollowersClick}
+                onFollowingClick={onFollowingClick}
+              />
+            }
+            actions={
+              onEditProfile ? (
+                <button
+                  type="button"
+                  onClick={onEditProfile}
+                  className="min-h-[44px] flex-1 rounded-xl bg-page/70 text-sm font-extrabold text-ink-900 active:bg-page"
+                >
+                  {t('editProfile')}
+                </button>
+              ) : undefined
+            }
+          />
+          {/* ═══ SETUP PROGRESS — new members only, then gone for good ═══ */}
+          <SetupProgressCard onOpen={onOpenSetup} />
+        </>
+      )}
 
-      {/* ═══ SETUP PROGRESS — new members only, then gone for good ═══ */}
-      <SetupProgressCard onOpen={onOpenSetup} />
+      {part === 'week' && (
+        <>
 
       {/* ═══ WEEKLY KM — actual against the plan's target band ═══ */}
       {weekTarget && <WeekTargetBar title={t('weeklyKm')} doneKm={weekKmDone} target={weekTarget} />}
-
-      {/* ═══ UPDATES — the club's announcements, newest first ═══ */}
-      {updates?.items && updates.items.length > 0 && (
-        <div className="relative">
-          {updates.items.length > 1 && (
-            <div aria-hidden="true" className="absolute inset-x-2 top-1.5 h-full rounded-card bg-brand-600/40" />
-          )}
-          <Link
-            href={`/feed?item=${updates.items[0].id}`}
-            className="relative block rounded-card bg-brand-600 p-4 text-white active:opacity-90"
-          >
-            <p className="text-xl font-bold">{t('updates')}</p>
-            <p className="mt-1 line-clamp-2 text-sm font-light" dir="auto">{updates.items[0].body}</p>
-          </Link>
-        </div>
-      )}
 
       {/* ═══ GOAL RACE ═══ — the same slim banner the feed opens with. */}
       <GoalRaceBanner />
@@ -412,6 +426,8 @@ export function ProfileOverview({
             <ChevronLeft className="h-4 w-4" />
           </Link>
         </div>
+      )}
+        </>
       )}
     </div>
   );

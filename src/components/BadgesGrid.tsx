@@ -32,7 +32,7 @@ interface BadgesData {
 // ones are greyed/locked. The award-evaluation engine (a separate task) is the
 // only writer of athlete_badges — this is purely a read/display surface
 // against GET /api/athletes/badges.
-export function BadgesGrid({ athleteId }: { athleteId: string }) {
+export function BadgesGrid({ athleteId, peer = false }: { athleteId: string; /** Someone else's: the empty state is about them, not "you". */ peer?: boolean }) {
   const t = useTranslations('profile');
   const locale = useLocale();
   const { data, isLoading } = useApi<BadgesData>(
@@ -58,7 +58,7 @@ export function BadgesGrid({ athleteId }: { athleteId: string }) {
   return (
     <div className="space-y-4">
       {earnedCount === 0 && (
-        <EmptyState icon={Award} title={t('noBadgesYet')} description={t('noBadgesYetBody')} className="py-8" />
+        <EmptyState icon={Award} title={peer ? t('noBadgesYetPeer') : t('noBadgesYet')} description={peer ? undefined : t('noBadgesYetBody')} className="py-8" />
       )}
 
       <div className="grid grid-cols-3 gap-3">

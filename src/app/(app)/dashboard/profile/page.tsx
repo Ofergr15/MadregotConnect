@@ -5,10 +5,10 @@ import Link from 'next/link';
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { mutate as globalMutate } from 'swr';
-import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X, CalendarClock } from 'lucide-react';
+import { User, Users, CheckCircle2, Loader2, Save, Dumbbell, Watch, Activity, WifiOff, Copy, Check, Share2, BellRing, Award, Trophy, Medal, BarChart3, Route, UserCheck, Search, X, CalendarClock, AlertTriangle, Languages, Sparkles, LogOut, Trash2 } from 'lucide-react';
 import { cn, israelToday, MONDAY_WEEK, type WeekStartDay } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
-import { useTranslations, useFormatter } from 'next-intl';
+import { useTranslations, useFormatter, useLocale } from 'next-intl';
 import type { ConnectionState } from '@/lib/providers/health';
 import { StatisticsScreen } from '@/components/StatisticsScreen';
 import { BadgesGrid } from '@/components/BadgesGrid';
@@ -18,6 +18,8 @@ import { MemberDiscovery } from '@/components/MemberDiscovery';
 import { NotificationPrefs } from '@/components/NotificationPrefs';
 import { PersonalInfo } from '@/components/PersonalInfo';
 import { ShoeManager } from '@/components/ShoeManager';
+import { MapPrefsRow } from '@/components/MapPrefsRow';
+import { signOutEverywhere } from '@/lib/auth/sign-out';
 import { AthleteProfileBody } from '@/components/profile/AthleteProfileBody';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
@@ -133,6 +135,7 @@ function ProfileContent() {
   const tp = useTranslations('packSwitch');
   const tCommon = useTranslations('common');
   const format = useFormatter();
+  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   // null = landing (iOS-style list); a value = a detail screen open. Reads
@@ -152,6 +155,9 @@ function ProfileContent() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  // The deletion-request sheet (see requestDeletion).
+  const [showDeleteSheet, setShowDeleteSheet] = useState(false);
+  const [deleteState, setDeleteState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [currentGroupId, setCurrentGroupId] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState('');
   // Club-global and read-only here, so it's derived straight from the cache
@@ -345,6 +351,11 @@ function ProfileContent() {
   // which meant any 401, 404 or network blip painted a confident "Connected ·
   // Garmin Connect" — the one thing this screen must never invent, and the reason
   // it looked static. It now says it couldn't check, and asserts nothing.
+  // The phone the pushes stopped reaching — the same check as the feed's PushDeadBanner.
+  const { data: pushHealth } = useApi<{ dead: boolean }>(
+    athleteId ? `/api/push/health?athleteId=${encodeURIComponent(athleteId)}` : null,
+    { revalidateOnFocus: false },
+  );
   const connectionUnknown = !!meError && !meData;
 
   // Is the linked Strava account plausibly this member's own? A green "connected"
@@ -613,9 +624,55 @@ function ProfileContent() {
 
   /** A credential the provider has actually refused: the only state to act on. */
   const needsReconnect = (state: ConnectionState) => !connectionUnknown && state === 'failed';
+  // "Needs attention" on the landing (2026-10-17): a provider that refused the
+  // credential, or no data source at all — the two states in which runs stop
+  // arriving. Not while the connection state is still unknown.
+  const connectionBroken = !connectionUnknown && (needsReconnect(garminState) || needsReconnect(stravaState) || (!hasGarmin && !hasStrava));
+  const pushDead = pushHealth?.dead === true;
+
+  const handleSignOut = async () => {
+    // As the header's sign-out: every claim, then a hard navigation so nothing of
+    // this account stays in memory behind the landing page.
+    await signOutEverywhere();
+    window.location.href = '/';
+  };
+
+  // Deleting an account is a request to the club, not a button that deletes: a
+  // runner's history is the coach's record too, and there is no undo (Ofer's
+  // default, 2026-10-17). It lands in the bug panel staff already work from.
+  const requestDeletion = async () => {
+    setDeleteState('sending');
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ message: `בקשה למחיקת חשבון — ${athleteName}`, category: 'account', priority: 'high', context: { kind: 'delete-account', athleteId } }),
+      });
+      setDeleteState(res.ok ? 'sent' : 'error');
+    } catch {
+      setDeleteState('error');
+    }
+  };
 
   return (
     <div className="max-w-lg mx-auto space-y-5 pb-8">
+      <Sheet open={showDeleteSheet} onOpenChange={(o) => { setShowDeleteSheet(o); if (!o) setDeleteState('idle'); }} title={t('deleteAccount')}>
+        <div className="space-y-3 px-1 pb-2">
+          <p className="text-sm leading-relaxed text-ink-500">{deleteState === 'sent' ? t('deleteSent') : t('deleteBody')}</p>
+          {deleteState === 'error' && <p className="text-sm text-accent-red">{t('deleteFailed')}</p>}
+          {deleteState !== 'sent' && (
+            <button
+              type="button"
+              disabled={deleteState === 'sending'}
+              onClick={requestDeletion}
+              className="min-h-[52px] w-full rounded-2xl bg-accent-red text-base font-extrabold text-white disabled:opacity-60"
+            >
+              {t('deleteSend')}
+            </button>
+          )}
+        </div>
+      </Sheet>
+
       <Sheet
         open={showSyncModal}
         onOpenChange={(o) => { if (!o && syncModalStatus === 'syncing') return; setShowSyncModal(o); }}
@@ -713,7 +770,10 @@ function ProfileContent() {
 
       {activeTab === null && (
         <>
+          {/* ═══ THE TOP — photo, name, pack, the four numbers, one action ═══
+              (ProfileHero inside; the week moved into the stats tab below). */}
           <ProfileOverview
+            part="header"
             athleteId={athleteId}
             athleteName={athleteName}
             avatarUrl={avatarUrl}
@@ -722,153 +782,138 @@ function ProfileContent() {
             onPhotoClick={() => photoInputRef.current?.click()}
             onOpenSetup={() => setActiveTab('setup')}
             onFollowingClick={() => setShowFollowingSheet(true)}
+            onEditProfile={() => setActiveTab('personalInfo')}
           />
 
-          {/* ═══ THE PROFILE PROPER — the SAME component a teammate sees ═══
-              Stat trio, the דבוקה card, this week against the plan's target, the
-              last ten weeks as bars, the runs list, the km table and the PRs.
+          {/* ═══ NEEDS ATTENTION — only when something is actually broken ═══
+              The critical state that used to sit one screen deep: a connection the
+              provider refused (the data source tab's own red state), or a phone
+              the pushes stopped reaching (the feed's PushDeadBanner check). One
+              button each, straight to where it is fixed. */}
+          {(pushDead || connectionBroken) && (
+            <section className="overflow-hidden rounded-card bg-card">
+              <p className="flex items-center gap-2 bg-accent-red/10 px-4 py-2 text-xs font-extrabold text-accent-red">
+                <AlertTriangle className="h-4 w-4" aria-hidden /> {t('needsAttention')}
+              </p>
+              {connectionBroken && (
+                <AttentionRow
+                  icon={Watch}
+                  title={!hasGarmin && !hasStrava ? t('attentionNoSource') : t('attentionReconnect')}
+                  body={!hasGarmin && !hasStrava ? t('attentionNoSourceBody') : t('attentionReconnectBody')}
+                  action={!hasGarmin && !hasStrava ? t('connect') : t('reconnect')}
+                  onClick={() => setActiveTab('datasource')}
+                />
+              )}
+              {pushDead && (
+                <AttentionRow
+                  icon={BellRing}
+                  title={t('attentionPushTitle')}
+                  body={t('attentionPushBody')}
+                  action={t('attentionFix')}
+                  onClick={() => setActiveTab('notifications')}
+                />
+              )}
+            </section>
+          )}
 
-              This replaced WeeklyVolumeCard, which drew the week + the ten bars
-              for the owner only (it read the activities endpoint with
-              `selfOnly`, so it could never serve a peer). Everything it showed
-              is here, and the same code now renders on
-              /dashboard/teammate/[id] — which is the point: your profile and the
-              profile someone else sees of you are one implementation, so the
-              peer view cannot fall behind the way it had. */}
+          {/* ═══ THE PROFILE PROPER — the SAME component a teammate sees ═══
+              Activity first (the athlete's own feed), then stats, records with the
+              badges under them, and — the owner's only — every setting. Your
+              profile and the profile someone else sees of you stay one
+              implementation, so the peer view cannot fall behind. */}
           <AthleteProfileBody
             athleteId={athleteId}
             variant="owner"
             // No viewerId: on your OWN profile there is no follow state to
             // resolve, and omitting it keeps the SWR key byte-identical to the
-            // one this page already fetches above, so the trio is free.
+            // one this page already fetches above, so the counts are free.
             onFollowingClick={() => setShowFollowingSheet(true)}
-          />
-
-          {/* Email, join date, pace-group goal and the Garmin/Strava chips are
-              no longer on the landing — the frame's header is greeting + name +
-              avatar only. None of it was lost: email/join date live in Personal
-              info, the goal in Pace group, and the connection state is the
-              Activity data source row's own trailing value below. */}
-
-          {/* Everything else lives one tap away, iOS-Settings style. InsetRow
-              already renders its own RTL-safe chevron whenever href/onClick is
-              set and no `trailing` override is passed — no need to repeat it.
-              Grouped into "my numbers" (performance/history) vs "account"
-              (settings-ish config) instead of one long flat list — the single
-              biggest usability finding from the earlier nav/menu research pass
-              (Strava's own profile tab uses the same split). Program stays
-              ungrouped at the top since it's the most frequently tapped row. */}
-          <InsetSection>
-            <InsetRow
-              icon={Dumbbell}
-              iconBg="bg-brand-600"
-              label={t('thisWeeksProgram')}
-              value={programWeekLabel}
-              // The plan on file isn't for this week — say which, rather than
-              // letting the row imply the athlete is looking at the current one.
-              sublabel={!planIsCurrent && planWeekStart ? t('latestPublishedWeek') : undefined}
-              href="/dashboard/program"
-            />
-          </InsetSection>
-
-          <InsetSection header={t('myNumbers')}>
-            <InsetRow
-              icon={BarChart3}
-              iconBg="bg-band-3"
-              label={t('statistics')}
-              onClick={() => setActiveTab('statistics')}
-            />
-            <InsetRow
-              icon={Award}
-              iconBg="bg-band-3"
-              label={t('badges')}
-              onClick={() => setActiveTab('badges')}
-            />
-            <InsetRow
-              icon={Trophy}
-              iconBg="bg-band-3"
-              label={t('challenges')}
-              onClick={() => setActiveTab('challenges')}
-            />
-            <InsetRow
-              icon={Medal}
-              iconBg="bg-band-3"
-              label={t('leaderboards')}
-              onClick={() => setActiveTab('leaderboards')}
-            />
-            <InsetRow
-              icon={Route}
-              iconBg="bg-band-2"
-              label={t('myActivities')}
-              href="/dashboard/activities"
-            />
-          </InsetSection>
-
-          {/*
-            Under MY NUMBERS on purpose, because that is exactly what it changes.
-            Put in Account or Personal Info it would read as a locale setting; here
-            it sits directly beneath the screens whose weekly figures move when it
-            is tapped. See WeekStartSetting for why the leaderboard doesn't.
-          */}
-          {athleteId && (
-            <WeekStartSetting
-              athleteId={athleteId}
-              value={meData?.athlete?.weekStartDay ?? MONDAY_WEEK}
-              onSaved={() => mutateMe()}
-            />
-          )}
-
-          <InsetSection header={t('account')}>
-            <InsetRow
-              icon={User}
-              iconBg="bg-violet-500"
-              label={t('personalInfo')}
-              onClick={() => setActiveTab('personalInfo')}
-            />
-            <InsetRow
-              icon={Users}
-              iconBg="bg-band-2"
-              label={t('paceGroup')}
-              value={currentGroup?.name}
-              onClick={() => setActiveTab('group')}
-            />
-            <InsetRow
-              icon={UserCheck}
-              iconBg="bg-indigo-500"
-              label={t('following')}
-              value={String(followingCount)}
-              onClick={() => setShowFollowingSheet(true)}
-            />
-            <InsetRow
-              icon={Search}
-              iconBg="bg-band-2"
-              label={t('discoverMembers')}
-              onClick={() => setActiveTab('discover')}
-            />
-            <InsetRow
-              icon={Activity}
-              iconBg="bg-accent-600"
-              label={t('activityDataSource')}
-              value={dataSourceLabel}
-              onClick={() => setActiveTab('datasource')}
-            />
-            {planWorkouts && workoutDays.length > 0 && (
-              <InsetRow
-                icon={Share2}
-                iconBg="bg-teal-500"
-                label={t('shareWorkout')}
-                onClick={() => setActiveTab('share')}
+            weekSlot={
+              <ProfileOverview
+                part="week"
+                athleteId={athleteId}
+                athleteName={athleteName}
+                avatarUrl={avatarUrl}
+                initials={initials}
+                uploadingPhoto={uploadingPhoto}
+                onPhotoClick={() => photoInputRef.current?.click()}
+                onOpenSetup={() => setActiveTab('setup')}
               />
-            )}
-            <InsetRow
-              icon={BellRing}
-              iconBg="bg-accent-red"
-              label={t('notificationPrefs')}
-              onClick={() => setActiveTab('notifications')}
-            />
-          </InsetSection>
+            }
+            settingsSlot={
+              /* ═══ SETTINGS — every one the app has, in one tab (2026-10-17) ═══
+                 They used to be split between this page, a Settings screen a
+                 member could not reach on a phone, and the header's avatar menu
+                 (language, sign out). The detail screens are unchanged; this is
+                 the one door to all of them. */
+              <div className="space-y-1">
+                <InsetSection header={t('account')}>
+                  <InsetRow icon={User} iconBg="bg-violet-500" label={t('personalInfo')} sublabel={t('personalInfoHint')} onClick={() => setActiveTab('personalInfo')} />
+                  <InsetRow icon={Languages} iconBg="bg-sky-500" label={t('language')} value={locale === 'en' ? 'English' : 'עברית'} onClick={() => setActiveTab('notifications')} />
+                  <InsetRow icon={UserCheck} iconBg="bg-indigo-500" label={t('following')} value={String(followingCount)} onClick={() => setShowFollowingSheet(true)} />
+                  <InsetRow icon={Search} iconBg="bg-band-2" label={t('discoverMembers')} onClick={() => setActiveTab('discover')} />
+                </InsetSection>
 
-          <ShoeManager athleteId={athleteId} />
+                <InsetSection header={t('training')}>
+              <InsetRow
+                icon={Dumbbell}
+                iconBg="bg-brand-600"
+                label={t('thisWeeksProgram')}
+                value={programWeekLabel}
+                // The plan on file isn't for this week — say which, rather than
+                // letting the row imply the athlete is looking at the current one.
+                sublabel={!planIsCurrent && planWeekStart ? t('latestPublishedWeek') : undefined}
+                href="/dashboard/program"
+              />
+                  <InsetRow icon={Users} iconBg="bg-band-2" label={t('paceGroup')} value={currentGroup?.name} onClick={() => setActiveTab('group')} />
+                  {planWorkouts && workoutDays.length > 0 && (
+                    <InsetRow icon={Share2} iconBg="bg-teal-500" label={t('shareWorkout')} onClick={() => setActiveTab('share')} />
+                  )}
+                </InsetSection>
+                {/* Its own section: it changes how every weekly figure on this
+                    profile is cut (see WeekStartSetting). */}
+                {athleteId && (
+                  <WeekStartSetting
+                    athleteId={athleteId}
+                    value={meData?.athlete?.weekStartDay ?? MONDAY_WEEK}
+                    onSaved={() => mutateMe()}
+                  />
+                )}
+                <ShoeManager athleteId={athleteId} />
+
+                <InsetSection header={t('connections')}>
+                  <InsetRow
+                    icon={Activity}
+                    iconBg={connectionBroken ? 'bg-accent-red' : 'bg-accent-600'}
+                    label={t('activityDataSource')}
+                    value={dataSourceLabel}
+                    danger={connectionBroken}
+                    onClick={() => setActiveTab('datasource')}
+                  />
+                </InsetSection>
+
+                <InsetSection header={t('notificationsSection')}>
+                  <InsetRow icon={BellRing} iconBg="bg-accent-red" label={t('notificationPrefs')} sublabel={pushDead ? t('attentionPushTitle') : undefined} onClick={() => setActiveTab('notifications')} />
+                </InsetSection>
+
+                <InsetSection header={t('myNumbers')}>
+                  <InsetRow icon={Trophy} iconBg="bg-band-3" label={t('challenges')} onClick={() => setActiveTab('challenges')} />
+                  <InsetRow icon={Medal} iconBg="bg-band-3" label={t('leaderboards')} onClick={() => setActiveTab('leaderboards')} />
+                  <InsetRow icon={Route} iconBg="bg-band-2" label={t('myActivities')} href="/dashboard/activities" />
+                </InsetSection>
+
+                <InsetSection header={t('appSection')}>
+                  <MapPrefsRow />
+                  <InsetRow icon={Sparkles} iconBg="bg-brand-600" label={t('whatsNew')} value={APP_VERSION} href="/dashboard/whats-new" />
+                </InsetSection>
+
+                <InsetSection>
+                  <InsetRow icon={LogOut} iconBg="bg-ink-400" label={tCommon('signOut')} danger onClick={handleSignOut} />
+                  <InsetRow icon={Trash2} iconBg="bg-ink-400" label={t('deleteAccount')} danger onClick={() => setShowDeleteSheet(true)} />
+                </InsetSection>
+              </div>
+            }
+          />
         </>
       )}
 
@@ -1511,6 +1556,26 @@ function ProfileContent() {
       <Link href="/dashboard/whats-new" className="mx-auto mt-6 mb-2 flex min-h-[44px] w-fit items-center px-3 text-center text-xs text-ink-400 active:text-brand-600">
         מדרגות · גרסה {APP_VERSION} · <span className="ms-1 font-semibold text-brand-600">מה חדש</span>
       </Link>
+    </div>
+  );
+}
+
+/** One broken thing, one button to where it is fixed (the landing's "needs attention"). */
+function AttentionRow({ icon: Icon, title, body, action, onClick }: {
+  icon: typeof Watch; title: string; body: string; action: string; onClick: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 border-t border-page/60 px-4 py-3 first:border-t-0">
+      <span className="grid h-10 w-10 flex-none place-items-center rounded-xl bg-accent-red/10 text-accent-red">
+        <Icon className="h-5 w-5" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-extrabold text-ink-900">{title}</span>
+        <span className="block text-xs leading-snug text-ink-400">{body}</span>
+      </span>
+      <button type="button" onClick={onClick} className="min-h-[36px] flex-none rounded-full bg-accent-red px-4 text-xs font-extrabold text-white">
+        {action}
+      </button>
     </div>
   );
 }

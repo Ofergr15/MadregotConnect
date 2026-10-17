@@ -1,14 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import { BadgesGrid } from '@/components/BadgesGrid';
 import { useTranslations, useLocale } from 'next-intl';
-import { ChevronLeft, Users } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { cn, getPlanWeekStart, israelDateAnchor, israelToday } from '@/lib/utils';
 import { formatPace } from '@/components/activity/format';
 import { formatTime } from '@/lib/academy/benchmark';
-import { SegmentedControl } from '@/components/ui';
 import { weekTargetRange, type WeekPlanTotals } from '@/lib/plans/week-target';
 import { WeekTargetBar } from '@/components/profile/WeekTargetBar';
 import { Last7DaysCard } from '@/components/profile/Last7DaysCard';
@@ -16,7 +16,6 @@ import type { Last7Report } from '@/lib/reports/last-7-days';
 import { PrEditSheet } from '@/components/profile/PrEditSheet';
 import { RunsBrowser } from '@/components/profile/RunsBrowser';
 import { ProfileActivityFeed } from '@/components/profile/ProfileActivityFeed';
-import { ProfileCounts } from '@/components/profile/ProfileCounts';
 import { useIsSuperUser } from '@/lib/impersonation';
 import { PrRecordList, type PrBreak } from '@/components/profile/PrRecordList';
 import { PR_RETURN_KEY } from '@/components/profile/pr-format';
@@ -51,7 +50,13 @@ import { PaceAtHrCard } from '@/components/profile/PaceAtHrCard';
 // /api/plans/week.
 // ═════════════════════════════════════════════════════════════════════════════
 
-type ProfileSection = 'overview' | 'activity' | 'prs';
+/**
+ * The profile's four tabs (Ofer, 2026-10-17). Activity first — the profile opens on
+ * the athlete's own feed — then the numbers, the records (with the badges under
+ * them), and, on your own profile only, every setting the app has.
+ * `prs` keeps its old key: the record screen's "back" note (PR_RETURN_KEY) names it.
+ */
+type ProfileSection = 'activity' | 'stats' | 'prs' | 'settings';
 
 interface KmWeek {
   weekStart: string;
@@ -135,6 +140,8 @@ export function AthleteProfileBody({
   variant,
   onFollowersClick,
   onFollowingClick,
+  weekSlot,
+  settingsSlot,
 }: {
   athleteId: string;
   /** The viewer's own athlete id — only used to key the connections request the
@@ -143,6 +150,10 @@ export function AthleteProfileBody({
   variant: 'owner' | 'peer';
   onFollowersClick?: () => void;
   onFollowingClick?: () => void;
+  /** The owner's week — target, the next workout, the day strip — opening the stats tab. */
+  weekSlot?: ReactNode;
+  /** The settings tab's content; the tab exists only when this is passed (the owner). */
+  settingsSlot?: ReactNode;
 }) {
   const t = useTranslations('profile');
   const tc = useTranslations('common');
@@ -152,7 +163,7 @@ export function AthleteProfileBody({
   const locale = useLocale();
   const owner = variant === 'owner';
 
-  const [section, setSection] = useState<ProfileSection>('overview');
+  const [section, setSection] = useState<ProfileSection>('activity');
   const [editingPrs, setEditingPrs] = useState(false);
   // Back from a record's screen lands on the PRs tab it was opened from — the
   // section is component state, so the link left a one-shot note (pr-format.ts).
@@ -163,7 +174,7 @@ export function AthleteProfileBody({
         setSection('prs');
       }
     } catch {
-      /* no storage: Overview, as before */
+      /* no storage: Activity, the default */
     }
   }, [athleteId]);
 
@@ -217,86 +228,45 @@ export function AthleteProfileBody({
 
   return (
     <div className="space-y-5">
-      {/* ═══ THE COUNT ROW — runs + km this year, followers, following ═══
-          Peer view only: on your own profile the same row sits inside the
-          header card (ProfileOverview), right above this. */}
-      {!owner && (
-        <div className="rounded-[20px] bg-card px-3 py-2.5">
-          <ProfileCounts
-            athleteId={athleteId}
-            viewerId={viewerId}
-            onFollowersClick={onFollowersClick}
-            onFollowingClick={onFollowingClick}
-          />
-        </div>
-      )}
-
-      {/* ═══ THE BAND (דבוקה) ═══
-          Two different things share that word in Hebrew: the pace group everyone
-          is in, and the academy's goal band. The pace group is the chip; the
-          academy band and the personal coach only exist for an academy trainee,
-          and this card renders nothing at all otherwise — for a regular member
-          its only remaining content would be the pace group, which the page
-          header already shows, so it would be a card with one repeated fact in
-          it. (Ofer's call, and the API agrees: /public nulls both fields off the
-          academy.) */}
-      {profile?.isAcademy && (
-        <section className="rounded-card bg-card p-4">
-          <h2 className="text-xl font-bold text-ink-700">{owner ? t('myBand') : t('band')}</h2>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {profile.groupName && (
-              <span className="inline-flex items-center gap-1.5 rounded-pill bg-band-1/15 px-3 py-1 text-2xs font-bold text-brand-600">
-                <Users className="h-3.5 w-3.5" />
-                {profile.groupName}
-              </span>
-            )}
-            {profile.academyBand && (
-              <span className="inline-flex items-center rounded-pill bg-band-2/15 px-3 py-1 text-2xs font-bold text-band-2-ink">
-                {t('academyBandChip', {
-                  band: [profile.academyBand.name, profile.academyBand.goal].filter(Boolean).join(' · '),
-                })}
-              </span>
-            )}
-          </div>
-          {profile.coachName && (
-            <div className="mt-3 flex items-center gap-2 border-t border-page pt-3">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-ink-700" dir="auto">{profile.coachName}</p>
-                <p className="text-xs font-light text-ink-400">{owner ? t('myCoach') : t('coach')}</p>
-              </div>
-              {owner && (
-                <Link
-                  href="/dashboard/academy"
-                  className="shrink-0 rounded-pill border border-ink-300 px-3 py-1 text-2xs font-bold text-ink-500"
-                >
-                  {t('bandPaces')}
-                </Link>
+      {/* ═══ THE TABS ═══ — pinned under the header while the page scrolls, an
+          underline rather than a pill switch: four of them have to fit a 375px
+          phone, and the profile's own header already carries the weight above. */}
+      <nav
+        aria-label={t('tabsLabel')}
+        className="sticky top-0 z-10 -mx-4 bg-page/95 px-4 backdrop-blur sm:-mx-6 sm:px-6"
+      >
+        <div role="tablist" className="flex border-b border-ink-300/40">
+          {([
+            ['activity', t('tabActivity')],
+            ['stats', t('tabStats')],
+            ['prs', t('tabPrs')],
+            ...(settingsSlot ? [['settings', t('tabSettings')]] : []),
+          ] as Array<[ProfileSection, string]>).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={section === key}
+              onClick={() => setSection(key)}
+              className={cn(
+                'relative min-h-[48px] flex-1 whitespace-nowrap px-1 text-sm font-bold transition-colors',
+                section === key ? 'text-ink-900' : 'text-ink-400',
               )}
-            </div>
-          )}
-        </section>
-      )}
+            >
+              {label}
+              {section === key && <span aria-hidden className="absolute inset-x-2 -bottom-px h-[3px] rounded-full bg-brand-600" />}
+            </button>
+          ))}
+        </div>
+      </nav>
 
-      {/* ═══ SECTION SWITCH ═══ */}
-      {/* p-0.5: 48px instead of 52. The segments keep their 44px — the tap
-          floor the UI audit holds every segmented control to. */}
-      <SegmentedControl<ProfileSection>
-        className="p-0.5"
-        value={section}
-        onChange={setSection}
-        options={[
-          { value: 'overview', label: t('tabOverview') },
-          { value: 'activity', label: t('tabActivity') },
-          { value: 'prs', label: t('tabPrs') },
-        ]}
-      />
-
-      {section === 'overview' && (
+      {section === 'stats' && (
         <>
           {/* ═══ THIS WEEK against the plan's own target ═══
               Peer view only. The owner's page renders this exact headline and
               bar a few rows above (ProfileOverview), and two identical
               "25.6/146.3" on one scroll is noise, not emphasis. */}
+          {owner && weekSlot}
           {!owner &&
             (weekTarget ? (
               <WeekTargetBar
@@ -332,12 +302,20 @@ export function AthleteProfileBody({
             currentTrendPct={stats?.weekTrendPct ?? null}
             month={stats ? { km: stats.monthKm, day: stats.monthDay } : null}
           />
-          {/* All-time totals — the trio's third cell before the count row went
-              to this year's numbers. */}
+          {/* This month, this year, ever — three totals, one glance. */}
           {stats && stats.totalRuns > 0 && (
-            <p className="-mt-3 px-1 text-xs font-light text-ink-400">
-              {t('allTime', { km: stats.totalKm.toLocaleString('en-US'), runs: stats.totalRuns })}
-            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                [stats.monthKm, t('kmThisMonth')],
+                [stats.yearKm, t('kmThisYear')],
+                [stats.totalKm, t('kmAllTime')],
+              ] as Array<[number, string]>).map(([km, label]) => (
+                <div key={label} className="rounded-card bg-card px-2 py-3 text-center">
+                  <p dir="ltr" className="text-xl font-extrabold tabular-nums text-ink-900">{Math.round(km).toLocaleString('en-US')}</p>
+                  <p className="text-2xs text-ink-400">{label}</p>
+                </div>
+              ))}
+            </div>
           )}
           {/* Pace at the same heart rate (#105) — the owner and staff only. */}
           <PaceAtHrCard athleteId={athleteId ?? null} owner={owner} />
@@ -413,8 +391,13 @@ export function AthleteProfileBody({
               <p className="mt-2.5 text-2xs leading-relaxed text-ink-400">{t('prOutdoorOnly')}</p>
             </section>
           )}
+          {/* The badges under the records: both are "what I've done" (Ofer, 2026-10-17). */}
+          <h2 className="px-1 pt-1 text-xl font-bold text-ink-700">{t('achievements')}</h2>
+          <BadgesGrid athleteId={athleteId} peer={!owner} />
         </>
       )}
+
+      {section === 'settings' && settingsSlot}
 
 
       {/* Owner only, and mounted once for the whole body rather than per tile:
@@ -441,7 +424,7 @@ export function AthleteProfileBody({
  * anywhere else, and nothing inside needs mirroring (the labels are dates and
  * the values are numbers). Same reasoning, and the same fix, as WeeklyVolumeCard.
  */
-function TenWeekChart({
+export function TenWeekChart({
   weeks,
   title,
   emptyLabel,
