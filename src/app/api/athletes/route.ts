@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
 import { APP_URL, COACH_ID, isProtectedEmail } from '@/lib/constants';
@@ -7,6 +7,7 @@ import { syncClubFollows } from '@/lib/follows/club-sync';
 import { authError, requireSession, type SessionUser } from '@/lib/auth-session';
 import { athleteWriteError, denyAthleteWrite } from '@/lib/auth/athlete-write-scope';
 import { groupChangeDate } from '@/lib/groups/pending-change';
+import { afterPackMove } from '@/lib/groups/pack-move';
 import { applyAcademyMembership } from '@/lib/academy/membership-server';
 import { mayDeleteAthlete } from '@/lib/auth/delete-athlete-policy';
 
@@ -245,6 +246,13 @@ export async function PUT(request: Request) {
     if (status) updates.status = status;
     if (isAcademy !== undefined) updates.is_academy = isAcademy;
 
+    // The pack before the move, for its history row (lib/groups/pack-history.ts).
+    let previousGroupId: string | null | undefined;
+    if (groupId !== undefined) {
+      const { data: before } = await supabase.from('athletes').select('group_id').eq('id', id).maybeSingle();
+      previousGroupId = before?.group_id ?? null;
+    }
+
     const { data: athlete, error } = await supabase
       .from('athletes')
       .update(updates)
@@ -254,6 +262,21 @@ export async function PUT(request: Request) {
       .single();
 
     if (error) throw error;
+
+    // A move lands today: runs before it keep the old pack, the watch is checked,
+    // and a member moved by someone else is told. After the response — none of it
+    // may hold up, or fail, the move itself.
+    if (groupId !== undefined && previousGroupId !== undefined && previousGroupId !== (groupId || null)) {
+      const move = {
+        athleteId: id,
+        fromGroupId: previousGroupId,
+        toGroupId: groupId || null,
+        fromDate: israelToday(),
+        by: auth.user.athleteId === id ? 'self' as const : 'coach' as const,
+        byAthleteId: auth.user.athleteId,
+      };
+      after(() => afterPackMove(supabase, move));
+    }
 
     // The joined-on stamp, or the end of the 1:1 pair (see membership-server.ts).
     if (isAcademy !== undefined) await applyAcademyMembership(supabase, id, !!isAcademy);

@@ -1,9 +1,10 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
-import { activityLocalDateStr, planWeekStartOf, resolveGroup } from '@/lib/utils';
+import { activityLocalDateStr, planWeekStartOf } from '@/lib/utils';
 import { assessWorkout, buildPlannedWorkout } from '@/lib/academy/adherence';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
+import { loadPackLanes } from '@/lib/groups/pack-history';
 import { buildVerdict, toExecutionSummary, type ExecutionSummary } from '@/lib/plan-execution/verdict';
 import { resolveDominantPace } from '@/lib/plan-execution/dominant-pace';
 import { effortReportFor, segmentReportFor } from '@/lib/plan-execution/resolve';
@@ -80,32 +81,6 @@ export interface VerdictActivityRow {
   laps?: unknown;
 }
 
-/**
- * Each athlete's pace lane, for a whole page at once.
- *
- * `groupNumberForAthlete` answers this for one athlete in two round trips; on a
- * 20-card feed page that's 40. Same resolution — `resolveGroup` on the group
- * name, defaulting to lane 2 — in two queries total.
- */
-async function lanesForAthletes(
-  supabase: SupabaseServer,
-  athleteIds: string[],
-): Promise<Map<string, Lane>> {
-  const out = new Map<string, Lane>();
-  if (athleteIds.length === 0) return out;
-  const { data: athletes } = await supabase
-    .from('athletes').select('id, group_id').in('id', athleteIds);
-  const groupIds = [...new Set((athletes || []).map(a => a.group_id).filter(Boolean))];
-  const { data: groups } = groupIds.length
-    ? await supabase.from('groups').select('id, name').in('id', groupIds)
-    : { data: [] as { id: string; name: string | null }[] };
-  const nameById = new Map((groups || []).map(g => [g.id, g.name]));
-  for (const athlete of athletes || []) {
-    const index = resolveGroup(athlete.group_id ? nameById.get(athlete.group_id) : null).index;
-    out.set(athlete.id, (index >= 0 ? index + 1 : 2) as Lane);
-  }
-  return out;
-}
 
 /**
  * The step list for each watch-driven run on the page, keyed by activity id.
@@ -174,8 +149,9 @@ export async function loadFeedPlanVerdicts(
     // workout's entire content, its per-rep paces, is unreadable, so `buildVerdict`
     // correctly refuses to score it and the card loses its ring. Nothing off them
     // reaches the client; only the five-field summary crosses the wire.
-    const [lanes, indivRes, sharedRes, settings, executed] = await Promise.all([
-      lanesForAthletes(supabase, athleteIds),
+    const [laneOn, indivRes, sharedRes, settings, executed] = await Promise.all([
+      // The pack each runner was in ON the run's day, not today's (migration 145).
+      loadPackLanes(supabase, athleteIds),
       supabase
         .from('weekly_plans').select('week_start_date, athlete_id, parsed_workouts, created_at')
         .in('week_start_date', weeks).in('athlete_id', athleteIds)
@@ -221,7 +197,7 @@ export async function loadFeedPlanVerdicts(
     for (const row of runs) {
       const date = activityLocalDateStr(row.start_time);
       const weekStart = planWeekStartOf(date);
-      const lane = lanes.get(row.athlete_id) ?? 2;
+      const lane = laneOn(row.athlete_id, date);
       // The athlete's own plan wins over the club-wide one, as everywhere else.
       const indiv = indivByKey.get(`${row.athlete_id}|${weekStart}`);
       const parsed = indiv ?? sharedByWeek.get(weekStart);

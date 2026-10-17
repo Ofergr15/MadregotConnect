@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireSession, authError } from '@/lib/auth-session';
 import { createServerClient } from '@/lib/supabase/server';
 import type { GroupedWeeklyPlans, ParsedWeeklyPlan, ParsedWorkout } from '@/lib/ai/types';
+import { activityLocalDateStr } from '@/lib/utils';
 import { groupNumberForAthlete, isMissingMatchesTable } from '@/lib/plans/match-athlete-activities';
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
 
@@ -153,7 +154,7 @@ export async function PUT(
 
     const { data: activity, error: activityError } = await supabase
       .from('athlete_activities')
-      .select('id, athlete_id')
+      .select('id, athlete_id, start_time')
       .eq('id', activityId)
       .maybeSingle();
     if (activityError) throw activityError;
@@ -173,7 +174,8 @@ export async function PUT(
       return NextResponse.json({ match: null });
     }
 
-    const groupNumber = await groupNumberForAthlete(supabase, activity.athlete_id);
+    // The pack on the run's own day, not today's (migration 145).
+    const groupNumber = await groupNumberForAthlete(supabase, activity.athlete_id, activityLocalDateStr(activity.start_time));
     const workout = findWorkout(plan.parsed_workouts, workoutKey, groupNumber);
     if (!workout) {
       return NextResponse.json({ error: 'Workout part not found in this plan' }, { status: 400 });

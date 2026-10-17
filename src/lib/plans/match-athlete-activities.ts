@@ -1,6 +1,7 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import type { GroupedWeeklyPlans, ParsedWeeklyPlan, ParsedWorkout } from '@/lib/ai/types';
-import { activityLocalDateStr, resolveGroup } from '@/lib/utils';
+import { activityLocalDateStr, israelToday } from '@/lib/utils';
+import { loadPackLanes } from '@/lib/groups/pack-history';
 import { matchActivityParts, type MatchableActivity } from './activity-matcher';
 import { normalizeParsedWorkouts } from './normalize-plan';
 import {
@@ -218,20 +219,11 @@ function dateForPlanDay(weekStart: string, dayOfWeek: number): string {
 export async function groupNumberForAthlete(
   supabase: SupabaseServer,
   athleteId: string,
+  /** The day being graded (YYYY-MM-DD) — the pack then, not today's. Defaults to today. */
+  date: string = israelToday(),
 ): Promise<number> {
-  const { data: athlete } = await supabase
-    .from('athletes')
-    .select('group_id')
-    .eq('id', athleteId)
-    .maybeSingle();
-  if (!athlete?.group_id) return 2;
-  const { data: group } = await supabase
-    .from('groups')
-    .select('name')
-    .eq('id', athlete.group_id)
-    .maybeSingle();
-  const index = resolveGroup(group?.name).index;
-  return index >= 0 ? index + 1 : 2;
+  const laneOn = await loadPackLanes(supabase, [athleteId]);
+  return laneOn(athleteId, date);
 }
 
 export type ComputedActivityMatch = {
@@ -270,8 +262,13 @@ export async function findComputedActivityMatch(
   }
   if (plansByWeek.size === 0) return null;
 
-  const activities = await loadActivities(supabase, athleteId);
-  const groupNumber = await groupNumberForAthlete(supabase, athleteId);
+  const [activities, laneOn] = await Promise.all([
+    loadActivities(supabase, athleteId),
+    loadPackLanes(supabase, [athleteId]),
+  ]);
+  // The pack the runner was in on the day of THIS run (migration 145), not today's.
+  const target = activities.find((activity) => activity.id === activityId);
+  const groupNumber = laneOn(athleteId, target ? activityLocalDateStr(target.start_time) : israelToday());
 
   for (const plan of plansByWeek.values()) {
     const groupPlan = workoutPlanForGroup(plan.parsed_workouts, groupNumber);
@@ -370,11 +367,23 @@ export async function matchAthleteActivities(
   }
   if (plansByWeek.size === 0) return { matched: 0, plans: 0 };
 
-  const activities = await loadActivities(supabase, athleteId);
-  const groupNumber = await groupNumberForAthlete(supabase, athleteId);
+  const [activities, laneOn] = await Promise.all([
+    loadActivities(supabase, athleteId),
+    loadPackLanes(supabase, [athleteId]),
+  ]);
+  const startById = new Map(activities.map((activity) => [activity.id, activity.start_time]));
   let matched = 0;
 
   for (const plan of plansByWeek.values()) {
+    // Which copy the week's slots come from: the pack at the week's start. The
+    // copies share every slot and shape (only paces differ), so a move mid-week
+    // changes no pairing — what it changes is each row's group_number below, which
+    // the activity page grades against, and that is the pack on the run's own day.
+    const groupNumber = laneOn(athleteId, plan.week_start_date);
+    const groupOn = (activityId: string) => {
+      const start = startById.get(activityId);
+      return start ? laneOn(athleteId, activityLocalDateStr(start)) : groupNumber;
+    };
     const groupPlan = workoutPlanForGroup(plan.parsed_workouts, groupNumber);
     if (!groupPlan) continue;
 
@@ -468,7 +477,7 @@ export async function matchAthleteActivities(
         athlete_id: athleteId,
         weekly_plan_id: plan.id,
         workout_key: match.workoutKey,
-        group_number: groupNumber,
+        group_number: groupOn(match.activityId),
         match_method: 'garmin_workout',
         // Not a score: nothing was estimated. 100 so any reader ordering or
         // thresholding by score treats it as the strongest evidence there is.
@@ -484,7 +493,7 @@ export async function matchAthleteActivities(
         athlete_id: athleteId,
         weekly_plan_id: plan.id,
         workout_key: match.workoutKey,
-        group_number: groupNumber,
+        group_number: groupOn(match.activityId),
         match_method: 'apple_workout',
         score: 100,
         evidence: {
@@ -498,7 +507,7 @@ export async function matchAthleteActivities(
         athlete_id: athleteId,
         weekly_plan_id: plan.id,
         workout_key: match.workoutKey,
-        group_number: groupNumber,
+        group_number: groupOn(match.activityId),
         match_method: 'auto',
         score: match.score,
         evidence: match.evidence,

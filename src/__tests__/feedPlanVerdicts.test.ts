@@ -148,11 +148,12 @@ const run = (id: string, athleteId: string, averagePace: number, over: Record<st
 });
 
 /** Both athletes, one in group 1 and one in group 3, plus the shared club plan. */
-function stubClub(over: { shared?: unknown[]; indiv?: unknown[] } = {}) {
+function stubClub(over: { shared?: unknown[]; indiv?: unknown[]; athletes?: unknown[]; history?: unknown[] } = {}) {
   respond = (op) => {
     if (op.table === 'athletes') {
-      return { data: [{ id: FAST, group_id: 'g1' }, { id: SLOW, group_id: 'g3' }], error: null };
+      return { data: over.athletes ?? [{ id: FAST, group_id: 'g1' }, { id: SLOW, group_id: 'g3' }], error: null };
     }
+    if (op.table === 'athlete_pack_history') return { data: over.history ?? [], error: null };
     if (op.table === 'groups') {
       // resolveGroup reads these names — the club's own naming, not a placeholder.
       return { data: [{ id: 'g1', name: 'Group A - SUB 2:30' }, { id: 'g3', name: 'Group C' }], error: null };
@@ -181,10 +182,10 @@ describe('loadFeedPlanVerdicts', () => {
     const page = Array.from({ length: 12 }, (_, i) => run(`act-${i}`, i % 2 ? SLOW : FAST, 282));
     await load(page);
 
-    // athletes + groups + individual plans + shared plans + the executed workouts.
-    // Not 12 of anything.
+    // athletes + groups + pack history + individual plans + shared plans + the
+    // executed workouts. Not 12 of anything.
     expect(ops.map(o => o.table).sort()).toEqual(
-      ['athlete_activities', 'athletes', 'groups', 'weekly_plans', 'weekly_plans'],
+      ['athlete_activities', 'athlete_pack_history', 'athletes', 'groups', 'weekly_plans', 'weekly_plans'],
     );
     // And that fifth one asks for the whole page at once, not a row at a time.
     const executed = ops.find(o => o.table === 'athlete_activities')!;
@@ -204,6 +205,20 @@ describe('loadFeedPlanVerdicts', () => {
     // Same run, same watch — the lane is the only difference, so the score has to
     // move with it or the ring is grading everyone against group 1.
     expect(out.get('act-slow')!.score!).toBeLessThan(100);
+  });
+
+  it('grades a run against the pack its runner was in THAT day, not today (migration 145)', async () => {
+    // SLOW ran Wednesday 9.9 in group 3 and was moved to group 1 on 20.9. Read by
+    // today's pack, the 5:22 that was on target for group 3 became "too slow".
+    stubClub({
+      athletes: [{ id: SLOW, group_id: 'g1' }],
+      history: [
+        { athlete_id: SLOW, group_id: 'g3', from_date: '2000-01-01', created_at: '2026-09-20T08:00:00Z' },
+        { athlete_id: SLOW, group_id: 'g1', from_date: '2026-09-20', created_at: '2026-09-20T08:00:01Z' },
+      ],
+    });
+    const out = await load([run('act-before-move', SLOW, 322)]);
+    expect(out.get('act-before-move')).toMatchObject({ status: 'graded', score: 100, direction: 'on_target' });
   });
 
   it("prefers the athlete's own plan over the club-wide one", async () => {

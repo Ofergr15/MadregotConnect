@@ -2,6 +2,7 @@ import { withoutTwins } from './twins';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { activityLocalDateStr, addDaysToDateStr, planWeekStartOf, resolveGroup } from '@/lib/utils';
+import { packOn, readPackHistory } from '@/lib/groups/pack-history';
 import { ParsedWorkout } from '@/lib/ai/types';
 import {
   assessWeek,
@@ -226,7 +227,6 @@ export async function computeAcademyWeekAdherence(opts: {
   const groupNames = new Map<string, string>(
     (groupsRes.data || []).map((g: any) => [g.id, g.name]),
   );
-  const groupNumberOf = (athlete: any): number => groupNumberFor(athlete.group_id, groupNames);
 
   // 2) Planned workouts per athlete — individual plan wins, else shared group plan.
   // Ordered newest-first so `.find()` below picks the most recent plan per
@@ -237,7 +237,7 @@ export async function computeAcademyWeekAdherence(opts: {
   // Wave two: the individual plans and the week's activities. Both need only the
   // roster, so neither has any reason to wait for the other. (`acts` is read
   // further down, where the actuals are folded in.)
-  const [indiv, acts] = await Promise.all([
+  const [indiv, acts, packHistory] = await Promise.all([
     supabase
       .from('weekly_plans')
       .select('id, athlete_id, week_start_date, parsed_workouts, created_at')
@@ -255,7 +255,13 @@ export async function computeAcademyWeekAdherence(opts: {
       .in('athlete_id', athleteIds)
       .gte('start_time', `${weekStart}T00:00:00Z`)
       .lte('start_time', `${weekEnd}T23:59:59Z`),
+    // The pack each trainee was in when this week started, not today's (migration 145).
+    readPackHistory(supabase, athleteIds),
   ]);
+  const groupNumberOf = (athlete: any): number => groupNumberFor(
+    packOn(packHistory.filter((r) => r.athlete_id === athlete.id), athlete.group_id ?? null, weekStart),
+    groupNames,
+  );
   const individualPlans: any[] = indiv.error ? [] : indiv.data || [];
   const sharedPlan = (sharedRes.data || [])[0];
 
@@ -469,10 +475,11 @@ export async function computeAthleteWeekHistory(opts: {
   const lastDay = addDaysStr(toWeek, 6);
 
   const supabase = createServerClient();
-  const [{ tolerances }, athRes, groupsRes, sharedRes, indivRes, actsRes] = await Promise.all([
+  const [{ tolerances }, athRes, groupsRes, packHistory, sharedRes, indivRes, actsRes] = await Promise.all([
     loadAcademySettings(),
     supabase.from('athletes').select('id, group_id').eq('id', opts.athleteId).maybeSingle(),
     supabase.from('groups').select('id, name'),
+    readPackHistory(supabase, [opts.athleteId]),
     supabase
       .from('weekly_plans')
       .select('id, week_start_date, parsed_workouts, created_at')
@@ -497,7 +504,9 @@ export async function computeAthleteWeekHistory(opts: {
   ]);
 
   const groupNames = new Map<string, string>((groupsRes.data || []).map((g: any) => [g.id, g.name]));
-  const groupNumber = groupNumberFor((athRes.data as any)?.group_id ?? null, groupNames);
+  // Each week graded against the pack at its start (migration 145).
+  const groupNumberOn = (weekStart: string) =>
+    groupNumberFor(packOn(packHistory, (athRes.data as any)?.group_id ?? null, weekStart), groupNames);
 
   // Newest-first per week, individual over shared — the same precedence as the
   // single-week report (a re-pushed plan INSERTs a new row).
@@ -550,7 +559,7 @@ export async function computeAthleteWeekHistory(opts: {
 
   return weeks.map((weekStart) => {
     const plan = planOf.get(weekStart);
-    const { planned } = plannedForWeek(extractWorkouts(plan?.parsed_workouts, groupNumber), weekStart);
+    const { planned } = plannedForWeek(extractWorkouts(plan?.parsed_workouts, groupNumberOn(weekStart)), weekStart);
     const acts = actsByWeek.get(weekStart) || [];
     const week = assessWeek(planned, acts, tolerances, plan?.id ? attribution.get(plan.id) : undefined);
     return {

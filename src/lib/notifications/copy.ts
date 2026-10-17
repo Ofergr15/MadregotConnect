@@ -1304,3 +1304,25 @@ export function academyThreadMessageCopy(
     ? { title: `${who} כתב/ה לך 💬`, body: clipped || 'לחצו לקריאה' }
     : { title: `${who} sent you a message 💬`, body: clipped || 'Tap to read' };
 }
+
+/**
+ * A coach moved this member to another pace pack (lib/groups/pack-move.ts). The
+ * member's own Saturday change sends nothing: they asked for it. The watch line is
+ * the reassurance they would otherwise ask the coach for — the workouts already on
+ * the watch carry every pack's pace, so normally nothing changes there.
+ */
+export function packMovedCopy(locale: NotificationLocale, p: { lane: 1 | 2 | 3; resent: boolean }): PushCopy {
+  return locale === 'he'
+    ? {
+        title: `👟 עברת לדבוקה ${p.lane}`,
+        body: p.resent
+          ? 'האימונים שנשארו השבוע עודכנו בשעון לפי הדבוקה החדשה.'
+          : 'האימונים בשעון לא משתנים — יש בהם את הקצבים של כל הדבוקות.',
+      }
+    : {
+        title: `👟 You moved to pack ${p.lane}`,
+        body: p.resent
+          ? "This week's remaining workouts were updated on your watch for your new pack."
+          : 'The workouts on your watch stay as they are — they carry every pack\'s pace.',
+      };
+}

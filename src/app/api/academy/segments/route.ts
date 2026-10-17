@@ -95,7 +95,8 @@ export async function GET(request: Request) {
     // whichever group bucket appeared first in the blob, which is always group 1.
     // Started here and awaited after the plan read below, so its two round trips
     // overlap that one instead of adding to the response time.
-    const lanePromise = groupNumberForAthlete(supabase, athleteId);
+    // The pack on THAT day — a member who moved since is graded as they ran (145).
+    const lanePromise = groupNumberForAthlete(supabase, athleteId, date.slice(0, 10));
 
     // 1) Planned workout for that day — the athlete's individual plan wins (newest,
     //    tolerating duplicates), else the coach-wide shared plan (athlete_id NULL).

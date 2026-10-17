@@ -30,6 +30,7 @@ import { runJoinReminders } from '@/lib/onboarding/join-reminder';
 import { runPendingReminders } from '@/lib/onboarding/pending-reminder';
 import { dispatchDueTestReminders } from '@/lib/academy/testReminders-server';
 import { dispatchMorningReminders } from '@/lib/academy/morning-reminder-server';
+import { afterPackMove } from '@/lib/groups/pack-move';
 import { syncClubFollows } from '@/lib/follows/club-sync';
 import { qualityPush } from '@/lib/quality-session/server';
 import { PUSH_AT } from '@/lib/quality-session/model';
@@ -122,7 +123,7 @@ async function run(request: Request) {
     const today = israelToday(now);
     const { data: due } = await supabase
       .from('athletes')
-      .select('id, pending_group_id')
+      .select('id, group_id, pending_group_id, pending_group_from')
       .not('pending_group_id', 'is', null)
       .lte('pending_group_from', today);
     for (const a of due || []) {
@@ -132,6 +133,17 @@ async function run(request: Request) {
         .eq('id', a.id);
       if (error) continue;
       fired.push(`groupChange:${a.id}`);
+      // From the Saturday it was asked for, even if this tick is late; the member
+      // asked for it, so no push (lib/groups/pack-move.ts).
+      try {
+        await afterPackMove(supabase, {
+          athleteId: a.id,
+          fromGroupId: a.group_id,
+          toGroupId: a.pending_group_id,
+          fromDate: a.pending_group_from || today,
+          by: 'self',
+        });
+      } catch { /* best-effort */ }
       try { await syncClubFollows(supabase, a.id); } catch { /* best-effort */ }
     }
   } catch { /* never fail the tick over it */ }
