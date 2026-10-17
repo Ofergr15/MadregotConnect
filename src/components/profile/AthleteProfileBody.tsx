@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import { ChevronLeft, Users } from 'lucide-react';
 import { useApi } from '@/lib/api';
-import { cn, getPlanWeekStart, israelDateAnchor } from '@/lib/utils';
+import { cn, getPlanWeekStart, israelDateAnchor, israelToday } from '@/lib/utils';
 import { formatPace } from '@/components/activity/format';
 import { formatTime } from '@/lib/academy/benchmark';
 import { SegmentedControl } from '@/components/ui';
@@ -18,6 +18,9 @@ import { RunsBrowser } from '@/components/profile/RunsBrowser';
 import { ProfileActivityFeed } from '@/components/profile/ProfileActivityFeed';
 import { ProfileCounts } from '@/components/profile/ProfileCounts';
 import { useIsSuperUser } from '@/lib/impersonation';
+import { PrRecordList, type PrBreak } from '@/components/profile/PrRecordList';
+import { PR_RETURN_KEY } from '@/components/profile/pr-format';
+import { profileClubRanks, type ClubRecordBucket } from '@/lib/prs/club-records';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The body of an athlete's profile — the SAME component whether you are looking
@@ -70,9 +73,12 @@ interface RecentRun {
 interface Pr {
   key: string;
   label: string;
+  meters?: number;
   seconds: number | null;
   date: string | null;
   activityName: string | null;
+  /** The run it was set on — the row opens it. */
+  activityId?: string | null;
   /** Measured inside a longer run rather than being the whole run. */
   fromSegment?: boolean;
   /** How long that run was, in metres. */
@@ -101,6 +107,11 @@ interface StatsData {
   last7: Last7Report;
   recentRuns: RecentRun[];
   prs: Pr[];
+  /** Each record's breaks, oldest first (lib/prs/record-history.ts). */
+  prHistory?: Record<string, PrBreak[]>;
+  /** Israel's calendar year, and the best per bucket inside it. */
+  prYear?: string;
+  prYearBests?: Record<string, number | null>;
 }
 
 interface AcademyBand {
@@ -142,6 +153,18 @@ export function AthleteProfileBody({
 
   const [section, setSection] = useState<ProfileSection>('overview');
   const [editingPrs, setEditingPrs] = useState(false);
+  // Back from a record's screen lands on the PRs tab it was opened from — the
+  // section is component state, so the link left a one-shot note (pr-format.ts).
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(PR_RETURN_KEY) === athleteId) {
+        sessionStorage.removeItem(PR_RETURN_KEY);
+        setSection('prs');
+      }
+    } catch {
+      /* no storage: Overview, as before */
+    }
+  }, [athleteId]);
 
   const { data: stats, mutate: refreshStats } = useApi<StatsData>(
     athleteId ? `/api/athletes/${athleteId}/stats` : null,
@@ -161,6 +184,13 @@ export function AthleteProfileBody({
   const weeks = stats?.weeks || [];
   const superUser = useIsSuperUser();
   const achievedPrs = (stats?.prs || []).filter((p) => p.seconds != null);
+  // The club rank beside each record — fetched only on your own profile and only
+  // once the PRs tab is open; on a teammate's it is never shown (profileClubRanks).
+  // The board is a snapshot served from one row, so this is a cheap read.
+  const { data: board } = useApi<{ buckets?: ClubRecordBucket[] }>(
+    owner && section === 'prs' ? '/api/club/records' : null,
+  );
+  const ranks = profileClubRanks(board?.buckets, athleteId, owner);
 
   // "Ahead of last week?" — this week so far against the same slice of last
   // week. Rendered next to whichever heading is actually on screen: the owner's
@@ -346,46 +376,17 @@ export function AthleteProfileBody({
               {achievedPrs.length === 0 && (
                 <p className="mt-2 text-sm font-light text-ink-400">{t('noPrsYet')}</p>
               )}
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {achievedPrs.map((p) => (
-                  <div key={p.key} className="rounded-tile bg-page px-3 py-2">
-                    <p className="text-xs font-light text-ink-400">{prShortLabel(p)}</p>
-                    {/* tabular-nums + dir="ltr": a time is not RTL text, and bidi
-                        moves the colon in "1:45:20" when it sits in Hebrew flow. */}
-                    <p dir="ltr" className="text-xl font-bold tabular-nums text-ink-700">
-                      {formatTime(p.seconds as number)}
-                    </p>
-                    {/* Where it came from. A 5K best pulled out of a 31 km long
-                        run is a number the reader will not recognise from any
-                        run they remember doing, and the first question is always
-                        "when, and out of what?". */}
-                    {p.date && (
-                      <p className="mt-0.5 text-3xs font-light text-ink-400">
-                        {/* UTC on purpose: an activity timestamp is local wall clock
-                            already (Convention A), so the browser's offset would push
-                            an evening PR onto the next day. */}
-                        <bdi dir="ltr">
-                          {new Date(p.date).toLocaleDateString('he-IL', { timeZone: 'UTC' })}
-                        </bdi>
-                        {p.fromSegment && p.sourceMeters ? (
-                          <>
-                            {' · '}
-                            {t('prInsideRun', { km: Math.round(p.sourceMeters / 100) / 10 })}
-                          </>
-                        ) : null}
-                      </p>
-                    )}
-                    {/* A stated time says so. Not a disclaimer — the note is often
-                        the race name, which is more than the derived line ever had;
-                        but the reader should know the club didn't measure it. */}
-                    {p.source === 'manual' && (
-                      <p className="mt-0.5 text-3xs font-light text-ink-400" dir="auto">
-                        {p.note || t('prStatedByAthlete')}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
+              {achievedPrs.length > 0 && (
+                <PrRecordList
+                  athleteId={athleteId}
+                  prs={stats?.prs || []}
+                  history={stats?.prHistory}
+                  year={stats?.prYear}
+                  yearBests={stats?.prYearBests}
+                  ranks={ranks}
+                  today={israelToday()}
+                />
+              )}
               {/* Into the club board. The records page has a nav entry, but that
                   entry needs a role_tab_permissions row for every non-admin role,
                   and this is the screen someone is already looking at records on —
@@ -406,6 +407,7 @@ export function AthleteProfileBody({
                 {tRecords('clubBoard')}
                 <ChevronLeft className="h-4 w-4" />
               </Link>
+              <p className="mt-2.5 text-2xs leading-relaxed text-ink-400">{t('prOutdoorOnly')}</p>
             </section>
           )}
         </>
@@ -692,16 +694,4 @@ function TenWeekChart({
       )}
     </section>
   );
-}
-
-/**
- * The badge over a PR time. `PR_BUCKETS` labels the long two "Half Marathon" and
- * "Marathon", which is three words of English in a Hebrew column two digits
- * wide — the existing PR card already shortens them to HM/FM for the same
- * reason.
- */
-function prShortLabel(pr: Pr): string {
-  if (pr.key === 'hm') return 'HM';
-  if (pr.key === 'fm') return 'FM';
-  return pr.label;
 }

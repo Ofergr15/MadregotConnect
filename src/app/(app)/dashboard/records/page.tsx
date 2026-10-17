@@ -62,6 +62,13 @@ export default function ClubRecordsPage() {
   const [active, setActive] = useState('5k');
   const [me, setMe] = useState<string | null>(null);
   useEffect(() => setMe(localStorage.getItem('athlete_id')), []);
+  // ?d=10k: the club rank on a profile's PRs tab opens the board on that distance.
+  // Read once after mount, not via useSearchParams, which would need a Suspense
+  // boundary around the whole page for a value only the first render cares about.
+  useEffect(() => {
+    const d = new URLSearchParams(window.location.search).get('d');
+    if (d && ['5k', '10k', 'hm', 'fm'].includes(d)) setActive(d);
+  }, []);
 
   const bucket = useMemo(() => buckets.find((b) => b.key === active) || buckets[0], [buckets, active]);
 

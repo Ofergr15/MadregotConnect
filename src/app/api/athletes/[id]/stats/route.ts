@@ -6,6 +6,7 @@ import { computeDistanceBests, filterQualifyingRuns, type RunActivityRow } from 
 import { attachLapsForPrs } from '@/lib/prs/attach-laps';
 import { applyPrOverrides } from '@/lib/prs/overrides';
 import { readPrOverrides } from '@/lib/prs/overrides-store';
+import { computeRecordHistory, yearBests } from '@/lib/prs/record-history';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import {
   buildAllTimeTotals,
@@ -115,6 +116,16 @@ export async function GET(
     // bug than the wrong number it fixed. Absent table (104 not pasted yet) reads
     // as "no corrections" — see overrides-store.ts.
     const prOverrides = await readPrOverrides(supabase, id);
+    const prs = applyPrOverrides(computeDistanceBests(prRuns), prOverrides);
+    // Each record's history, off the same runs and the same per-run arithmetic, so
+    // its last break IS the record above. A bucket the athlete took down (hidden)
+    // keeps no history either: hiding a record that the timeline still drew would
+    // not have hidden it. See lib/prs/record-history.ts.
+    const prYear = israelToday().slice(0, 4);
+    const history = computeRecordHistory(prRuns);
+    const prHistory = Object.fromEntries(
+      prs.map((p) => [p.key, p.seconds == null ? [] : history[p.key] || []]),
+    );
 
     return NextResponse.json({
       ...buildAllTimeTotals(acts),
@@ -146,7 +157,11 @@ export async function GET(
       recentRuns: buildRecentRuns(acts, runLimit),
       // Same bucket math as /api/athletes/prs and the badge award engine, so a
       // PR shown here is the one a "first 10K" badge fired on.
-      prs: applyPrOverrides(computeDistanceBests(prRuns), prOverrides),
+      prs,
+      prHistory,
+      // "This year: 37:55" beside an older record, cut on Israel's calendar year.
+      prYear,
+      prYearBests: yearBests(prRuns, prYear),
     });
   } catch (error) {
     console.error('Failed to fetch athlete profile stats:', error);

@@ -126,3 +126,20 @@ export function clubRankFor(buckets: ClubRecordBucket[], athleteId: string): Rec
   }
   return ranks;
 }
+
+/**
+ * The club rank the PRs tab shows — on the athlete's OWN profile only.
+ *
+ * "#20 of 26" is a fact about you that not everyone wants on display: the board
+ * itself is one tap away for anybody who wants to look, but a teammate opening
+ * your profile should see your records, not your place among them (Ofer's call
+ * on the mockup, 2026-10-17). Empty for a peer view.
+ */
+export function profileClubRanks(
+  buckets: ClubRecordBucket[] | undefined,
+  athleteId: string,
+  isOwnProfile: boolean,
+): Record<string, { rank: number; of: number }> {
+  if (!isOwnProfile || !buckets) return {};
+  return clubRankFor(buckets, athleteId);
+}

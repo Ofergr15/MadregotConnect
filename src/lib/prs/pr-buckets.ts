@@ -152,40 +152,60 @@ export const UNMEASURED_RUN_TYPES = ['treadmill_running', 'virtual_run', 'indoor
  */
 export { FASTEST_PLAUSIBLE_PACE_SEC_PER_KM };
 
+/** The runs whose distance the watch measured over ground (see UNMEASURED_RUN_TYPES). */
+export function measuredRuns<T extends RunActivityRow>(runs: T[]): T[] {
+  return runs.filter(r => !r.activity_type || !UNMEASURED_RUN_TYPES.includes(r.activity_type));
+}
+
+/**
+ * What ONE run is worth in one bucket: its fastest continuous stretch of the
+ * distance when the laps hold one, else the whole run scaled when it lands in the
+ * window, else null. Faster than a person can run is null as well.
+ *
+ * The only place this arithmetic lives. `computeDistanceBests` takes the minimum
+ * of it, and the record history (record-history.ts) walks it run by run in date
+ * order — so the last time the history says the record fell is, by construction,
+ * the record the card shows.
+ */
+export function bucketEffort(
+  r: RunActivityRow,
+  b: PrBucket,
+): { seconds: number; fromSegment: boolean } | null {
+  const floor = (b.meters / 1000) * FASTEST_PLAUSIBLE_PACE_SEC_PER_KM;
+  // A segment faster than a person can run is a GPS jump inside the run, not the
+  // run's best: fall back to the whole run rather than lose the run.
+  const found = r.distance >= b.meters ? bestSegmentSeconds(r.laps, b.meters) : null;
+  const segment = found !== null && found >= floor ? found : null;
+  if (segment !== null) return { seconds: segment, fromSegment: true };
+
+  const lo = b.meters * (1 - b.under);
+  const hi = b.meters * (1 + b.over);
+  if (r.distance < lo || r.distance > hi) return null;
+  // Normalize to the exact bucket distance so a 5.2km run's "5K time" is
+  // comparable (scale duration by the bucket/actual distance ratio).
+  const seconds = Math.round(r.duration * (b.meters / r.distance));
+  if (seconds < floor) return null;
+  return { seconds, fromSegment: false };
+}
+
 export function computeDistanceBests<T extends RunActivityRow>(runs: T[]): DistanceBest[] {
-  const floor = (meters: number) => (meters / 1000) * FASTEST_PLAUSIBLE_PACE_SEC_PER_KM;
-  const measured = runs.filter(r => !r.activity_type || !UNMEASURED_RUN_TYPES.includes(r.activity_type));
+  const measured = measuredRuns(runs);
   return PR_BUCKETS.map((b) => {
-    const lo = b.meters * (1 - b.under);
-    const hi = b.meters * (1 + b.over);
     let best:
       | { seconds: number; date: string; name: string | null; id: string | null; fromSegment: boolean; sourceMeters: number }
       | null = null;
 
     for (const r of measured) {
-      // A segment faster than a person can run is a GPS jump inside the run, not the
-      // run's best: fall back to the whole run rather than lose the run.
-      const found = r.distance >= b.meters ? bestSegmentSeconds(r.laps, b.meters) : null;
-      const segment = found !== null && found >= floor(b.meters) ? found : null;
-      let seconds: number | null = segment;
-      let fromSegment = segment !== null;
+      const effort = bucketEffort(r, b);
+      if (!effort) continue;
 
-      if (seconds === null) {
-        if (r.distance < lo || r.distance > hi) continue;
-        // Normalize to the exact bucket distance so a 5.2km run's "5K time" is
-        // comparable (scale duration by the bucket/actual distance ratio).
-        seconds = Math.round(r.duration * (b.meters / r.distance));
-        fromSegment = false;
-        if (seconds < floor(b.meters)) continue;
-      }
-
-      if (!best || seconds < best.seconds) {
+      if (!best || effort.seconds < best.seconds) {
         best = {
-          seconds,
+          seconds: effort.seconds,
           date: r.start_time,
           name: r.activity_name ?? null,
           id: r.id ?? null,
-          fromSegment,
+          fromSegment: effort.fromSegment,
           sourceMeters: r.distance,
         };
       }
