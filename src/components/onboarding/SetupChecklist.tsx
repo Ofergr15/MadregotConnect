@@ -55,6 +55,10 @@ export function SetupChecklist({
   // tour holds it), so SWR wouldn't otherwise refetch — and you arrive here
   // straight back from the screen where you just filled a field in.
   useEffect(() => { mutate(); }, [mutate]);
+  // A computer is never asked for the notification permission: that row says where it is done instead.
+  // Called up here, before the loading returns below: a hook after an early return is a
+  // different hook count on the render the data arrives, and React throws on it.
+  const computer = useIsComputer();
 
   const handler = (dest: SetupDestination): (() => void) | undefined => {
     if (dest.kind === 'tab') return () => onNavigate(dest.tab);
@@ -85,8 +89,6 @@ export function SetupChecklist({
   const open = data.tasks.filter((task) => !task.done);
   const done = data.tasks.filter((task) => task.done);
 
-  // A computer is never asked for the notification permission: that row says where it is done instead.
-  const computer = useIsComputer();
   const taskRow = (task: SetupTask) => {
     const Icon = TASK_ICON[task.key];
     // The declared source is the sublabel either way. When it's set but there are
