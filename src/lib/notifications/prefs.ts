@@ -125,6 +125,8 @@ export const KIND_CATEGORY: Record<string, Category> = {
   academy_morning: 'workouts',
   badge: 'achievements',
   plan_pushed: 'program',
+  // "אימון ליום אחד" published (lib/day-session): a session the coach wrote without a week.
+  day_session: 'program',
   feedback_reply: 'coach',
   // "לבקש מכולם" (academy/test-request.ts): the coach asking for the trainee's last test.
   academy_test_request: 'coach',

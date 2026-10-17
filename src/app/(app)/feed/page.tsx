@@ -29,6 +29,7 @@ import { PushDeadBanner } from '@/components/PushDeadBanner';
 import { WeekSummaryCard } from '@/components/feed/WeekSummaryCard';
 import { QualitySessionRow } from '@/components/feed/QualitySessionRow';
 import { NextSessionCard } from '@/components/feed/NextSessionCard';
+import { DaySessionCard } from '@/components/feed/DaySessionCard';
 import { QuietBoundary } from '@/components/QuietBoundary';
 import { PackStrip } from '@/components/feed/PackStrip';
 import { ComposeFab } from '@/components/feed/ComposeFab';
@@ -615,6 +616,16 @@ export default function FeedPage() {
           distance, and whether Garmin has it. Tap opens the full session. Gone
           once it's run. Read-only on the watch question by design — see
           NextSessionCard. */}
+      {/* ═══ ONE-DAY SESSION ═══
+          A session the coach typed for one date with no weekly plan (lib/day-session),
+          from publishing until after it. Draws nothing when the week's plan has that
+          day — then NextSessionCard below is the card. */}
+      <div className="mb-4 empty:mb-0">
+        <QuietBoundary resetKey={weeklyForCards}>
+          <DaySessionCard />
+        </QuietBoundary>
+      </div>
+
       <div className="mb-4 empty:mb-0">
         <QuietBoundary resetKey={weeklyForCards}>
           <NextSessionCard />

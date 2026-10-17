@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog, Zap } from 'lucide-react';
+import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog, Zap, CalendarPlus } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { flowGroup, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
@@ -11,6 +11,7 @@ import { useApi } from '@/lib/api';
 import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 import { getActiveViewRole } from '@/lib/role-views';
+import { DAY_SESSION_FOR_ALL } from '@/lib/day-session/flag';
 
 // Coach Tools hub (roadmap: native-iOS redesign, Batch 0) — the staff
 // equivalent of the bottom tab bar's 4th slot. Staff have too many tools
@@ -172,6 +173,11 @@ export default function CoachToolsPage() {
 
       <InsetSection header={t('planning')}>
         <InsetRow icon={Calendar} iconBg="bg-brand-600" label={tn('planner')} href="/dashboard/plan/new" />
+        {/* "אימון ליום אחד" (lib/day-session): the super user's alone while the flag is off,
+            then every coach and admin. The API answers 403 to anyone else either way. */}
+        {!previewRole && (isSuperUser(email) || (DAY_SESSION_FOR_ALL && (role === 'admin' || role === 'coach'))) && (
+          <InsetRow icon={CalendarPlus} iconBg="bg-accent-600" label={t('daySession')} sublabel={t('daySessionSub')} href="/dashboard/day-session" />
+        )}
         <InsetRow icon={Clock} iconBg="bg-band-3" label={tn('history')} href="/dashboard/history" />
       </InsetSection>
 

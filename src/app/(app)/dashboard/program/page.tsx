@@ -116,6 +116,14 @@ export default function ProgramPage() {
   const thisWeekStart = getDisplayWeekStart(new Date());
   const [selectedStart, setSelectedStart] = useState(thisWeekStart);
   const [activeView, setActiveView] = useState<'training' | 'nutrition' | 'workout'>('training');
+  // `?week=YYYY-MM-DD&view=nutrition` — where the feed's one-day session card links
+  // (lib/day-session planLinks). Read once on arrival.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const week = q.get('week');
+    if (week && /^\d{4}-\d{2}-\d{2}$/.test(week)) setSelectedStart(week);
+    if (q.get('view') === 'nutrition') setActiveView('nutrition');
+  }, []);
   // Controls the native week-picker Sheet (replaces an anchored web-style
   // dropdown menu — see the Sheet render below).
   const [weekPickerOpen, setWeekPickerOpen] = useState(false);
