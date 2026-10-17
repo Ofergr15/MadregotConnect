@@ -198,6 +198,10 @@ function stub(url: string): unknown {
       ? { invitation: { id: 'inv-1', athleteId: ATHLETE, protocol: '30min', proposedSlots: [at(0, '18:00')], confirmedSlot: at(0, '18:00'), status: 'confirmed' } }
       : { invitation: null };
   }
+  // ?c=entry — a trainee just moved in: no test yet, a test-like run in the watch, 4 questions unanswered.
+  if (url.startsWith('/api/academy/tests/entry')) return c === 'entry' ? { isMember: true, show: 'missing', test: { kind: 'none' }, coach: { name: 'Sahar' }, goal: null, goalsStored: true } : { isMember: true, show: 'none' };
+  if (url.startsWith('/api/academy/tests/watch')) return c === 'entry' ? { candidates: [{ activityId: 'a1', date: addDaysToDateStr(TODAY, -33), name: 'טסט 30 דק׳', kind: 'named', protocol: '30min', durationSec: 1800, distanceM: 7050, avgHr: 171, paceSec: 255, runDistanceM: 7050 }], recorded: [], windowDays: 183 } : { candidates: [], recorded: [] };
+  if (url.startsWith('/api/academy/characterization/self')) return c === 'entry' ? { availableDays: [], weeklyKm: null, limitations: null, answered: false, suggestedWeeklyKm: 47 } : { answered: true };
   if (url.startsWith('/api/academy/tests')) {
     return {
       trend: {

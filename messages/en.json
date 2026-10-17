@@ -5175,7 +5175,9 @@
       "error": "Couldn't send. Try again.",
       "goalNotSetUp": "Saving a goal isn't available yet.",
       "subOther": "We have a <m>2000</m> m test, but it sets no threshold. With a <m>30</m>-minute test we'll work out personal paces for every workout.",
-      "dateFirst": "Choose when the test was."
+      "dateFirst": "Choose when the test was.",
+      "foundRun": "⌚ Your watch has a run that looks like a test: <date></date> · pace <pace></pace>",
+      "checkRun": "Check the run"
     }
   },
   "nextSession": {

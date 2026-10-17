@@ -77,12 +77,12 @@ const entry = await import('@/app/api/academy/tests/entry/route');
 const goal = await import('@/app/api/academy/goal/route');
 
 const SCHEMA: Record<string, string[]> = {
-  athletes: ['id', 'coach_id', 'name', 'gender', 'is_academy', 'approved', 'status', 'academy_coach_id', 'academy_band_id', 'avatar_url'],
+  athletes: ['id', 'coach_id', 'name', 'gender', 'is_academy', 'approved', 'status', 'academy_coach_id', 'academy_band_id', 'avatar_url', 'academy_joined_on'],
   academy_bands: ['id', 'band_number', 'name', 'goal', 'pace_profile'],
   academy_tests: ['id', 'athlete_id', 'test_date', 'protocol', 'duration_sec', 'distance_m', 'avg_hr', 'activity_id', 'excluded_reason', 'status', 'submitted_at'],
   athlete_activities: ['id', 'athlete_id', 'start_time', 'activity_name', 'activity_type', 'source', 'distance', 'duration', 'moving_duration', 'average_hr', 'laps'],
   scheduled_notifications: ['id', 'kind', 'audience_id', 'audience_type', 'title_he', 'body_he', 'status', 'last_sent_at', 'created_at'],
-  academy_candidates: ['id', 'athlete_id'],
+  academy_candidates: ['id', 'athlete_id', 'name', 'source', 'accepted_at'],
   academy_characterizations: ['candidate_id', 'goal_type', 'target_race', 'target_race_date'],
   academy_goals: ['athlete_id', 'goal_type', 'target_race', 'target_race_date', 'goal_time_sec', 'updated_by', 'updated_at'],
 };
@@ -189,6 +189,16 @@ describe('POST /api/academy/completion/request', () => {
     const first = await (await request.POST(req('/api/academy/completion/request', { method: 'POST' }))).json();
     expect(first).toMatchObject({ asked: 1 });
     expect(notified.map(n => n.athleteId)).toEqual([YOAV]);
+  });
+
+  it('a trainee who joined this month is skipped — unless they are an existing trainee moved in', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    for (const a of db.tables.athletes) if (a.id === SHAHAR || a.id === YOAV) a.academy_joined_on = today;
+    (db.tables.academy_candidates ||= []).push({ id: uid(), name: 'Shahar', athlete_id: SHAHAR, source: 'existing', accepted_at: today });
+    asCoach();
+    const first = await (await request.POST(req('/api/academy/completion/request', { method: 'POST' }))).json();
+    expect(first).toMatchObject({ asked: 1 });
+    expect(notified.map(n => n.athleteId)).toEqual([SHAHAR]);
   });
 
   it('a coach never reaches another coach\'s trainee', async () => {
