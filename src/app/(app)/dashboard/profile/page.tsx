@@ -720,6 +720,7 @@ function ProfileContent() {
             uploadingPhoto={uploadingPhoto}
             onPhotoClick={() => photoInputRef.current?.click()}
             onOpenSetup={() => setActiveTab('setup')}
+            onFollowingClick={() => setShowFollowingSheet(true)}
           />
 
           {/* ═══ THE PROFILE PROPER — the SAME component a teammate sees ═══

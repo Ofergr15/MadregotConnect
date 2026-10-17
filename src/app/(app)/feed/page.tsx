@@ -34,6 +34,7 @@ import { ComposeFab } from '@/components/feed/ComposeFab';
 import { WhatsNewAutoSheet } from '@/components/whats-new/WhatsNewSheet';
 import { OnboardingTestReset } from '@/components/onboarding/OnboardingTestReset';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
+import { GoalRaceBanner } from '@/components/GoalRaceBanner';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
 import { appScrollTop, scrollAppToTop } from '@/lib/app-scroll';
@@ -588,6 +589,13 @@ export default function FeedPage() {
           per pack is picked and shared. See QualitySessionRow. */}
       <div className="mb-4 empty:mb-0">
         <QualitySessionRow />
+      </div>
+
+      {/* ═══ GOAL RACE ═══
+          Weeks to the club's goal race, one slim line, above everything that
+          changes day to day. Renders nothing once the race is behind us. */}
+      <div className="mb-4 empty:mb-0">
+        <GoalRaceBanner />
       </div>
 
       {/* ═══ WHAT'S NEXT ═══

@@ -48,11 +48,14 @@ export async function fetchFeed(
   types?: readonly string[],
   /** A group id, or 'academy'. Narrows the feed to that squad — see lib/feed/squad-filter.ts. */
   squad?: string | null,
+  /** One athlete's own items (the profile's Activity tab). Wins over `squad`. */
+  athlete?: string | null,
 ) {
   const qs = new URLSearchParams({ limit: String(limit) });
   if (cursor) qs.set('cursor', cursor);
   if (types && types.length > 0) qs.set('types', types.join(','));
   if (squad) qs.set('squad', squad);
+  if (athlete) qs.set('athlete', athlete);
   const res = await fetch(`/api/feed?${qs}`, { headers: await authHeaders() });
   return parse<{ items: FeedItem[]; nextCursor: string | null }>(res);
 }

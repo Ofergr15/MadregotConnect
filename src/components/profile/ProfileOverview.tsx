@@ -3,16 +3,17 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { Camera, Check, ChevronLeft, Loader2, Trophy } from 'lucide-react';
+import { Camera, Check, ChevronLeft, Loader2 } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { cn, getPlanWeekStart, israelDateAnchor, israelNow, israelToday } from '@/lib/utils';
-import { GOAL_RACE, goalRaceProgress } from '@/lib/goal-race';
 import { WORKOUT_TYPE_TEXT_COLORS, planDayKey } from '@/lib/plans/workout-parsing';
 import { useWorkoutTypeLabel } from '@/lib/plans/use-workout-type-label';
 import { weekTargetRange, dayTargetLabel, type WeekPlanTotals } from '@/lib/plans/week-target';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
 import { WeekTargetBar } from '@/components/profile/WeekTargetBar';
 import CoreRunnerBadge from '@/components/CoreRunnerBadge';
+import { GoalRaceBanner } from '@/components/GoalRaceBanner';
+import { ProfileCounts } from '@/components/profile/ProfileCounts';
 import { SetupProgressCard } from '@/components/onboarding/SetupProgressCard';
 import { PhotoLightbox } from '@/components/PhotoLightbox';
 import type { FeedItem } from '@/lib/feed/project';
@@ -76,6 +77,8 @@ export function ProfileOverview({
   uploadingPhoto,
   onPhotoClick,
   onOpenSetup,
+  onFollowersClick,
+  onFollowingClick,
 }: {
   athleteId: string;
   athleteName: string;
@@ -86,6 +89,8 @@ export function ProfileOverview({
   /** Opens the setup checklist. The card above it renders itself away for good
    *  once setup is done, so this is dead weight for most of the club's life. */
   onOpenSetup: () => void;
+  onFollowersClick?: () => void;
+  onFollowingClick?: () => void;
 }) {
   const t = useTranslations('profile');
   const td = useTranslations('dashboard');
@@ -194,20 +199,21 @@ export function ProfileOverview({
   const rsvpOffset = upcoming?.offset ?? -1;
   const showRsvp = !!upcoming?.isTeamDay && (rsvpOffset === 0 || rsvpOffset === 1);
 
-  const race = goalRaceProgress();
   const [photoOpen, setPhotoOpen] = useState(false);
-  const raceDate = GOAL_RACE.date.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 
   return (
     <div className="space-y-5">
-      {/* ═══ GREETING + AVATAR ═══ */}
+      {/* ═══ HEADER CARD — avatar, name, and the count row ═══
+          One white card, Instagram-style, 132px instead of the 208 the
+          greeting + 28px name + separate stat trio took between them. */}
+      <div className="rounded-[20px] bg-card px-3 pb-2.5 pt-3">
       <div className="flex items-center gap-3">
         {/* Two targets in one circle once there IS a photo: the picture opens it
             full screen (21cc272c), the camera badge replaces it. Before that there
             is one target — the whole circle picks a photo, because a lightbox of
             your own initials is not a thing anybody asked for. Two <button>s side
             by side rather than nested, which is invalid HTML and does not fire. */}
-        <div className="relative h-[55px] w-[55px] shrink-0 rounded-full">
+        <div className="relative h-[54px] w-[54px] shrink-0 rounded-full">
           {photoOpen && avatarUrl && (
             <PhotoLightbox url={avatarUrl} alt={athleteName} onClose={() => setPhotoOpen(false)} />
           )}
@@ -245,16 +251,21 @@ export function ProfileOverview({
           </button>
         </div>
         <div className="min-w-0 flex-1 text-start">
-          <p className="text-sm font-bold text-ink-700">{greeting},</p>
           {/* The 🌰 goes NEXT to the name, not inside the <h1>'s truncate: a long
-              name would otherwise eat the badge, and the badge is the thing this
-              header gained. The name keeps the truncation; the mark keeps its
-              width. */}
-          <div className="flex items-baseline gap-1.5">
-            <h1 className="truncate text-28 font-bold text-brand-600">{athleteName}</h1>
-            {isCore && <CoreRunnerBadge className="text-lg" />}
+              name would otherwise eat the badge. */}
+          <div className="flex items-center gap-1.5">
+            <h1 className="truncate text-[17px] font-black text-ink-700">{athleteName}</h1>
+            {isCore && <CoreRunnerBadge className="text-sm" />}
           </div>
+          <p className="text-xs font-light text-ink-400">{greeting}</p>
         </div>
+      </div>
+      <ProfileCounts
+        athleteId={athleteId}
+        onFollowersClick={onFollowersClick}
+        onFollowingClick={onFollowingClick}
+        className="mt-2.5 border-t border-ink-300/60 pt-2"
+      />
       </div>
 
       {/* ═══ SETUP PROGRESS — new members only, then gone for good ═══ */}
@@ -279,24 +290,8 @@ export function ProfileOverview({
         </div>
       )}
 
-      {/* ═══ GOAL RACE ═══ */}
-      <div className="flex items-center gap-3 rounded-card bg-card p-4">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600/10">
-          <Trophy className="h-4 w-4 text-brand-600" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-xl font-bold text-ink-700">{td(GOAL_RACE.nameKey)}</p>
-          <p className="text-xs font-light text-ink-400">
-            {/* week 0 = the block hasn't started; "week 0 of 17" would be a lie,
-                so the date stands alone until it has. */}
-            {race.week > 0 ? `${raceDate} · ${t('blockWeek', { week: race.week, total: race.totalWeeks })}` : raceDate}
-          </p>
-        </div>
-        <div className="shrink-0 text-center">
-          <p className="text-2xl font-extrabold leading-none text-brand-600 tabular-nums">{race.days}</p>
-          <p className="text-xs font-light text-ink-400">{tc('days')}</p>
-        </div>
-      </div>
+      {/* ═══ GOAL RACE ═══ — the same slim banner the feed opens with. */}
+      <GoalRaceBanner />
 
       {/* ═══ UPCOMING WORKOUT + RSVP ═══ */}
       {upcoming && (

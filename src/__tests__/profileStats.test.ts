@@ -3,6 +3,7 @@ import {
   buildKmTable,
   buildRecentRuns,
   buildAllTimeTotals,
+  buildYearTotals,
   computeLikeForLikeTrend,
   pickWeek,
 } from '@/lib/athletes/profile-stats';
@@ -327,5 +328,35 @@ describe('computeLikeForLikeTrend', () => {
     // The Sunday run is last week's, and it is past the Wednesday cutoff, so
     // it counts to neither side — the ratio stays 10 v 10.
     expect(trend).toBe(0);
+  });
+});
+
+describe('buildYearTotals', () => {
+  it('counts only runs that started in the given calendar year', () => {
+    const totals = buildYearTotals(
+      [
+        run('2025-12-31', 20),
+        run('2026-01-01', 10.4),
+        run('2026-10-16', 5.2),
+      ],
+      2026,
+    );
+    expect(totals).toEqual({ year: 2026, yearKm: 16, yearRuns: 2 });
+  });
+
+  it('reads the year off the wall-clock string, so 00:30 on 1 January is the new year', () => {
+    const totals = buildYearTotals(
+      [{ start_time: '2026-01-01T00:30:00', distance: 8000, duration: 2400 }],
+      2026,
+    );
+    expect(totals.yearRuns).toBe(1);
+  });
+
+  it('skips non-runs the same way the all-time totals do', () => {
+    const totals = buildYearTotals(
+      [{ ...run('2026-03-01', 40), activity_type: 'cycling' }, run('2026-03-02', 10)],
+      2026,
+    );
+    expect(totals).toEqual({ year: 2026, yearKm: 10, yearRuns: 1 });
   });
 });

@@ -1877,7 +1877,13 @@
     "runsNoneInMonth": "אין ריצות בחודש הזה",
     "runsPrevMonth": "החודש הקודם",
     "runsNextMonth": "החודש הבא",
-    "runsCount": "{count, plural, one {ריצה אחת} other {# ריצות}}"
+    "runsCount": "{count, plural, one {ריצה אחת} other {# ריצות}}",
+    "yearRuns": "אימונים השנה",
+    "yearKm": "ק״מ השנה",
+    "allTime": "מאז ומעולם: {km} ק״מ · {runs} ריצות",
+    "tabActivity": "פעילות",
+    "tabPrs": "שיאים",
+    "activityEmpty": "עוד אין כאן פעילות"
   },
   "profileBest": {
     "title": "השיאים שלך",
@@ -5081,5 +5087,11 @@
     "unconfirmedBody": "הטלפון נרשם מחדש. אם עדיין לא מגיעות — בדקו שההתראות של מדרגות מותרות בהגדרות הטלפון.",
     "deniedBody": "ההתראות כבויות בהגדרות הטלפון. הגדרות ← מדרגות ← התראות, ואז שוב כאן.",
     "dismiss": "סגירה"
+  },
+  "goalRace": {
+    "week": "שבוע {week}/{total}",
+    "raceDay": "היום! 🏁",
+    "weeksLeft": "עוד <n>{count}</n> {count, plural, one {שבוע} other {שבועות}}",
+    "daysLeft": "עוד <n>{count}</n> {count, plural, one {יום} other {ימים}}"
   }
 }

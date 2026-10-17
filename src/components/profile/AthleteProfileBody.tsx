@@ -6,7 +6,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { ChevronLeft, Users } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { cn, getPlanWeekStart, israelDateAnchor } from '@/lib/utils';
-import { formatPace, formatDuration } from '@/components/activity/format';
+import { formatPace } from '@/components/activity/format';
 import { formatTime } from '@/lib/academy/benchmark';
 import { SegmentedControl } from '@/components/ui';
 import { weekTargetRange, type WeekPlanTotals } from '@/lib/plans/week-target';
@@ -15,6 +15,8 @@ import { Last7DaysCard } from '@/components/profile/Last7DaysCard';
 import type { Last7Report } from '@/lib/reports/last-7-days';
 import { PrEditSheet } from '@/components/profile/PrEditSheet';
 import { RunsBrowser } from '@/components/profile/RunsBrowser';
+import { ProfileActivityFeed } from '@/components/profile/ProfileActivityFeed';
+import { ProfileCounts } from '@/components/profile/ProfileCounts';
 import { useIsSuperUser } from '@/lib/impersonation';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -45,7 +47,7 @@ import { useIsSuperUser } from '@/lib/impersonation';
 // /api/plans/week.
 // ═════════════════════════════════════════════════════════════════════════════
 
-type ProfileSection = 'overview' | 'runs' | 'km';
+type ProfileSection = 'overview' | 'activity' | 'prs';
 
 interface KmWeek {
   weekStart: string;
@@ -85,6 +87,8 @@ interface StatsData {
   totalKm: number;
   totalRuns: number;
   totalHours: number;
+  yearKm: number;
+  yearRuns: number;
   currentWeekStart: string;
   thisWeek: { km: number; runs: number };
   /** This week so far vs the same slice of last week. Null when last week had no runs. */
@@ -110,11 +114,6 @@ interface PublicProfile {
   coachName: string | null;
 }
 
-interface Connections {
-  followerCount: number;
-  followingCount: number;
-}
-
 export function AthleteProfileBody({
   athleteId,
   viewerId,
@@ -132,10 +131,6 @@ export function AthleteProfileBody({
 }) {
   const t = useTranslations('profile');
   const tc = useTranslations('common');
-  // `followers` / `following` already exist under `teammate` in both locales —
-  // reused rather than duplicated under `profile`, so the same two words can't
-  // end up translated two ways.
-  const tt = useTranslations('teammate');
   // The club records board owns its own copy, and the link into it should read the
   // same here as it does there.
   const tRecords = useTranslations('records');
@@ -149,11 +144,6 @@ export function AthleteProfileBody({
     athleteId ? `/api/athletes/${athleteId}/stats` : null,
   );
   const { data: profile } = useApi<PublicProfile>(athleteId ? `/api/athletes/${athleteId}/public` : null);
-  const { data: connections } = useApi<Connections>(
-    athleteId
-      ? `/api/athletes/${athleteId}/connections${viewerId ? `?viewerId=${encodeURIComponent(viewerId)}` : ''}`
-      : null,
-  );
 
   // The club trains to ONE weekly programme (weekly_plans is keyed on a single
   // coach), so the goal is the same number for every athlete and this needs no
@@ -167,7 +157,6 @@ export function AthleteProfileBody({
 
   const weeks = stats?.weeks || [];
   const superUser = useIsSuperUser();
-  const runs = stats?.recentRuns || [];
   const achievedPrs = (stats?.prs || []).filter((p) => p.seconds != null);
 
   // "Ahead of last week?" — this week so far against the same slice of last
@@ -194,22 +183,19 @@ export function AthleteProfileBody({
 
   return (
     <div className="space-y-5">
-      {/* ═══ THE TRIO — followers, following, all-time kilometres ═══ */}
-      <div className="rounded-card bg-card px-4 py-3">
-        <div className="grid grid-cols-3 [&>*+*]:border-s [&>*+*]:border-ink-300">
-          <TrioCell
-            value={connections?.followerCount ?? 0}
-            label={tt('followers')}
-            onClick={onFollowersClick}
+      {/* ═══ THE COUNT ROW — runs + km this year, followers, following ═══
+          Peer view only: on your own profile the same row sits inside the
+          header card (ProfileOverview), right above this. */}
+      {!owner && (
+        <div className="rounded-[20px] bg-card px-3 py-2.5">
+          <ProfileCounts
+            athleteId={athleteId}
+            viewerId={viewerId}
+            onFollowersClick={onFollowersClick}
+            onFollowingClick={onFollowingClick}
           />
-          <TrioCell
-            value={connections?.followingCount ?? 0}
-            label={tt('following')}
-            onClick={onFollowingClick}
-          />
-          <TrioCell value={stats?.totalKm ?? 0} label={t('totalKm')} />
         </div>
-      </div>
+      )}
 
       {/* ═══ THE BAND (דבוקה) ═══
           Two different things share that word in Hebrew: the pace group everyone
@@ -258,13 +244,16 @@ export function AthleteProfileBody({
       )}
 
       {/* ═══ SECTION SWITCH ═══ */}
+      {/* p-0.5: 48px instead of 52. The segments keep their 44px — the tap
+          floor the UI audit holds every segmented control to. */}
       <SegmentedControl<ProfileSection>
+        className="p-0.5"
         value={section}
         onChange={setSection}
         options={[
           { value: 'overview', label: t('tabOverview') },
-          { value: 'runs', label: t('tabRuns') },
-          { value: 'km', label: t('tabKm') },
+          { value: 'activity', label: t('tabActivity') },
+          { value: 'prs', label: t('tabPrs') },
         ]}
       />
 
@@ -308,7 +297,86 @@ export function AthleteProfileBody({
             unit={tc('km')}
             badge={owner ? trendBadge : null}
           />
+          {/* All-time totals — the trio's third cell before the count row went
+              to this year's numbers. */}
+          {stats && stats.totalRuns > 0 && (
+            <p className="-mt-3 px-1 text-xs font-light text-ink-400">
+              {t('allTime', { km: stats.totalKm.toLocaleString('en-US'), runs: stats.totalRuns })}
+            </p>
+          )}
 
+          {/* ═══ WEEK BY WEEK — the km table, formerly its own tab ═══ */}
+        <section className="rounded-card bg-card p-4">
+          <h2 className="text-xl font-bold text-ink-700">{t('lastTenWeeks')}</h2>
+          {weeks.length === 0 ? (
+            <p className="mt-3 text-sm font-light text-ink-400">{t('noKmHistory')}</p>
+          ) : (
+            <table className="mt-2 w-full text-sm">
+              <thead>
+                <tr className="text-start text-xs font-light text-ink-400">
+                  <th className="py-2 text-start font-light">{t('kmColWeek')}</th>
+                  <th className="py-2 text-end font-light">{t('kmColKm')}</th>
+                  <th className="py-2 text-end font-light">{t('kmColRuns')}</th>
+                  <th className="py-2 text-end font-light">{t('kmColPace')}</th>
+                  <th className="py-2 text-end font-light">{t('kmColChange')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-page">
+                {/* Newest week first: the table is read for "how am I doing now",
+                    and the chart above already tells the left-to-right story. */}
+                {weeks.slice().reverse().map((w) => (
+                  <tr key={w.weekStart} className={cn('tabular-nums', w.isCurrent && 'font-bold')}>
+                    <td className="whitespace-nowrap py-2 text-start">
+                      {/* A date is not RTL text. Without the bdi, he-IL bidi
+                          flips the day and month around the separator. */}
+                      <bdi dir="ltr">
+                        {new Date(`${w.weekStart}T12:00:00Z`).toLocaleDateString(locale, {
+                          day: 'numeric',
+                          month: 'short',
+                          timeZone: 'UTC',
+                        })}
+                      </bdi>
+                      {w.isCurrent && (
+                        <span className="ms-1.5 rounded-pill bg-band-1/15 px-1.5 py-0.5 text-3xs font-bold text-brand-600">
+                          {t('currentWeek')}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 text-end text-ink-700">{w.km}</td>
+                    <td className="py-2 text-end text-ink-500">{w.runs}</td>
+                    <td className="py-2 text-end text-ink-500">
+                      {w.paceSecPerKm != null ? <bdi dir="ltr">{formatPace(w.paceSecPerKm)}</bdi> : '—'}
+                    </td>
+                    <td className="py-2 text-end">
+                      {w.deltaPct == null ? (
+                        <span className="text-ink-400">—</span>
+                      ) : (
+                        // "+7%" renders as "7%+" in Hebrew flow without this.
+                        <bdi
+                          dir="ltr"
+                          className={w.deltaPct >= 0 ? 'text-accent-900' : 'text-band-3-ink'}
+                        >
+                          {w.deltaPct > 0 ? '+' : ''}{w.deltaPct}%
+                        </bdi>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+          {/* The super user tries the two Strava-like views; it moved here when
+              the runs tab became the Activity feed. */}
+          {superUser && athleteId && <RunsBrowser athleteId={athleteId} weeks={weeks} />}
+        </>
+      )}
+
+      {/* ═══ ACTIVITY — the feed, filtered to this athlete (#113) ═══ */}
+      {section === 'activity' && athleteId && <ProfileActivityFeed athleteId={athleteId} />}
+
+      {section === 'prs' && (
+        <>
           {/* ═══ PERSONAL RECORDS ═══ */}
           {/* The owner sees this section even with nothing in it: the records are
               all derived, so an athlete whose races predate the club had no PRs
@@ -400,133 +468,6 @@ export function AthleteProfileBody({
         </>
       )}
 
-      {/* The super user tries the two Strava-like views first; everyone else keeps the list. */}
-      {section === 'runs' && superUser && athleteId && <RunsBrowser athleteId={athleteId} weeks={weeks} />}
-
-      {section === 'runs' && !superUser && (
-        <section className="rounded-card bg-card p-4">
-          <div className="flex items-end justify-between">
-            <h2 className="text-xl font-bold text-ink-700">{t('recentRuns')}</h2>
-            {/* 20px tall like the two links above it, and fixed the same way:
-                padding out to 44, negative margins to keep it in place. */}
-            {owner && (
-              <Link href="/dashboard/activities" className="-mx-2 -my-3.5 inline-flex items-center gap-1 px-2 py-3.5 text-sm font-bold text-brand-600">
-                {t('allRuns')}
-                <ChevronLeft className="h-4 w-4" />
-              </Link>
-            )}
-          </div>
-          {runs.length === 0 ? (
-            <p className="mt-3 text-sm font-light text-ink-400">{t('noRunsYet')}</p>
-          ) : (
-            <ul className="mt-1 divide-y divide-page">
-              {runs.map((r, i) => {
-                // The row opens the run (#113: "a tap on a run should open it, with the
-                // route and the full numbers"). The super user's RunsBrowser already
-                // did; this list, which everyone else sees, only showed the totals.
-                const body = (
-                  <>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-ink-700" dir="auto">
-                      {r.name || t('tabRuns')}
-                    </p>
-                    <p className="text-xs font-light text-ink-400">
-                      {new Date(r.startTime).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}
-                      {r.paceSecPerKm != null && (
-                        <>
-                          {' · '}
-                          <bdi dir="ltr" className="tabular-nums">{formatPace(r.paceSecPerKm)}</bdi>
-                        </>
-                      )}
-                      {' · '}
-                      <bdi dir="ltr" className="tabular-nums">{formatDuration(r.durationSec)}</bdi>
-                    </p>
-                  </div>
-                  <p className="shrink-0 text-sm font-bold tabular-nums text-brand-600">
-                    {r.km} <span className="text-xs font-light text-ink-400">{tc('km')}</span>
-                  </p>
-                  </>
-                );
-                return (
-                  <li key={r.id ?? `${r.startTime}-${i}`}>
-                    {r.id ? (
-                      <Link href={`/dashboard/activities/${r.id}`} className="flex min-h-[44px] items-center gap-3 py-3 active:opacity-60 transition-opacity">
-                        {body}
-                        <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" aria-hidden />
-                      </Link>
-                    ) : (
-                      <div className="flex items-center gap-3 py-3">{body}</div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-      )}
-
-      {section === 'km' && (
-        <section className="rounded-card bg-card p-4">
-          <h2 className="text-xl font-bold text-ink-700">{t('lastTenWeeks')}</h2>
-          {weeks.length === 0 ? (
-            <p className="mt-3 text-sm font-light text-ink-400">{t('noKmHistory')}</p>
-          ) : (
-            <table className="mt-2 w-full text-sm">
-              <thead>
-                <tr className="text-start text-xs font-light text-ink-400">
-                  <th className="py-2 text-start font-light">{t('kmColWeek')}</th>
-                  <th className="py-2 text-end font-light">{t('kmColKm')}</th>
-                  <th className="py-2 text-end font-light">{t('kmColRuns')}</th>
-                  <th className="py-2 text-end font-light">{t('kmColPace')}</th>
-                  <th className="py-2 text-end font-light">{t('kmColChange')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-page">
-                {/* Newest week first: the table is read for "how am I doing now",
-                    and the chart above already tells the left-to-right story. */}
-                {weeks.slice().reverse().map((w) => (
-                  <tr key={w.weekStart} className={cn('tabular-nums', w.isCurrent && 'font-bold')}>
-                    <td className="whitespace-nowrap py-2 text-start">
-                      {/* A date is not RTL text. Without the bdi, he-IL bidi
-                          flips the day and month around the separator. */}
-                      <bdi dir="ltr">
-                        {new Date(`${w.weekStart}T12:00:00Z`).toLocaleDateString(locale, {
-                          day: 'numeric',
-                          month: 'short',
-                          timeZone: 'UTC',
-                        })}
-                      </bdi>
-                      {w.isCurrent && (
-                        <span className="ms-1.5 rounded-pill bg-band-1/15 px-1.5 py-0.5 text-3xs font-bold text-brand-600">
-                          {t('currentWeek')}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 text-end text-ink-700">{w.km}</td>
-                    <td className="py-2 text-end text-ink-500">{w.runs}</td>
-                    <td className="py-2 text-end text-ink-500">
-                      {w.paceSecPerKm != null ? <bdi dir="ltr">{formatPace(w.paceSecPerKm)}</bdi> : '—'}
-                    </td>
-                    <td className="py-2 text-end">
-                      {w.deltaPct == null ? (
-                        <span className="text-ink-400">—</span>
-                      ) : (
-                        // "+7%" renders as "7%+" in Hebrew flow without this.
-                        <bdi
-                          dir="ltr"
-                          className={w.deltaPct >= 0 ? 'text-accent-900' : 'text-band-3-ink'}
-                        >
-                          {w.deltaPct > 0 ? '+' : ''}{w.deltaPct}%
-                        </bdi>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-      )}
 
       {/* Owner only, and mounted once for the whole body rather than per tile:
           the sheet edits buckets that have no tile. */}
@@ -540,25 +481,6 @@ export function AthleteProfileBody({
         />
       )}
     </div>
-  );
-}
-
-function TrioCell({ value, label, onClick }: { value: number; label: string; onClick?: () => void }) {
-  const body = (
-    <>
-      <span className="block text-2xl font-bold tabular-nums text-ink-700">{value}</span>
-      <span className="block text-xs font-light text-ink-400">{label}</span>
-    </>
-  );
-  // A cell with nothing behind it stays a plain div rather than a disabled
-  // button — a tappable-looking number that does nothing is worse than a static
-  // one, and the peer view genuinely has nowhere for these to go yet.
-  return onClick ? (
-    <button type="button" onClick={onClick} className="px-2 text-center active:opacity-70">
-      {body}
-    </button>
-  ) : (
-    <div className="px-2 text-center">{body}</div>
   );
 }
 
