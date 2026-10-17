@@ -8,7 +8,9 @@ import {
 import { parseClubText, quickToWorkout, validateWorkoutSteps, MAX_STEPS } from '@/lib/day-session/workout';
 import type { QuickStep } from '@/lib/academy/quick-text';
 import type { WorkoutStep } from '@/lib/ai/types';
-import { DAY_SESSION_FOR_ALL } from '@/lib/day-session/flag';
+// The route tests below describe the gate with the flag OFF; the flag itself is checked
+// from its source, since this mock replaces the module for the whole file.
+vi.mock('@/lib/day-session/flag', () => ({ DAY_SESSION_FOR_ALL: false }));
 
 // "אימון ליום אחד" (mockup manual-day-workout): the pure rules, then the route's gate.
 
@@ -71,7 +73,7 @@ describe('the gate', () => {
   const admin = { isSuperUser: false, role: 'admin' };
   const member = { isSuperUser: false, role: 'runner' };
 
-  it('ships OFF', () => expect(DAY_SESSION_FOR_ALL).toBe(false));
+  it('ships ON (opened to the club 2026-10-18)', () => expect(readFileSync(join(__dirname, '../lib/day-session/flag.ts'), 'utf8')).toMatch(/DAY_SESSION_FOR_ALL = true;/));
 
   it('flag off: the super user alone edits and sees', () => {
     expect(mayEditDaySession(superUser, false)).toBe(true);

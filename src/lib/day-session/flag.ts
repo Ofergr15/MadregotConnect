@@ -4,4 +4,5 @@
 // OFF: the super user alone — the coach-tools row, the form, the writes, the feed card and
 // the push all reach nobody else ("can you push it only to me?").
 // ON: coaches and admins create, every member sees the card and gets the push.
-export const DAY_SESSION_FOR_ALL = false;
+// Opened to the club 2026-10-18 (Ofer: "ותפתח את זה לכולם").
+export const DAY_SESSION_FOR_ALL = true;
