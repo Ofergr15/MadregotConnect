@@ -17,6 +17,7 @@ import { AcademyThreadPanel } from './AcademyThreadPanel';
 import { MyInvitation } from './MyInvitation';
 import { MyTestsCard } from './MyTestsCard';
 import { PersonalRaceBanner } from '@/components/GoalRaceBanner';
+import { RaceResultCard } from '@/components/academy/RaceResultCard';
 import { TestEntryCard } from './completion/TestEntryCard';
 import { PaceText } from './PaceMark';
 import { BidiText } from '@/components/BidiText';
@@ -102,7 +103,7 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
   const testsRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
-  const { data, isLoading } = useApi<TraineeHome>(
+  const { data, isLoading, mutate } = useApi<TraineeHome>(
     athleteId ? `/api/academy/me?athleteId=${encodeURIComponent(athleteId)}&weekStart=${weekStart}` : null,
   );
 
@@ -239,7 +240,9 @@ export function AcademyMyView({ athleteId, openThread = false, raiseTest = false
       {/* ── What I'm training for ──
           A race with a day: the same week-squares line as the feed, but THEIR race, target and
           block (goal module, migration 148). A goal with no race keeps the plain card. */}
-      {data?.goal?.raceDate && data.goal.daysLeft != null && data.goal.totalWeeks ? (
+      {data?.raceResult && data.athlete?.athleteId ? (
+        <RaceResultCard athleteId={data.athlete.athleteId} race={data.raceResult} onDone={() => void mutate()} />
+      ) : data?.goal?.raceDate && data.goal.daysLeft == null ? null : data?.goal?.raceDate && data.goal.daysLeft != null && data.goal.totalWeeks ? (
         <PersonalRaceBanner
           name={data.goal.title}
           raceDate={data.goal.raceDate}

@@ -42,6 +42,8 @@ export type GoalCharacterization = Omit<Characterization, 'goalType'> & {
   /** Migration 148: what is being run, and whether the day is only a month. */
   distanceKm?: number | null;
   dateIsEstimate?: boolean;
+  /** Set once the race has been run (G5). */
+  resultSec?: number | null;
 };
 
 export async function loadGoalCharacterization(supabase: Db, athleteId: string): Promise<GoalCharacterization | null> {
@@ -58,7 +60,7 @@ export async function loadGoalCharacterization(supabase: Db, athleteId: string):
       return {
         ...readCharacterization({ candidate_id: '' }),
         goalType: g.goalType, targetRace: g.targetRace, targetRaceDate: g.targetRaceDate,
-        goalTimeSec: g.goalTimeSec, distanceKm: g.distanceKm ?? null, dateIsEstimate: !!g.dateIsEstimate,
+        goalTimeSec: g.goalTimeSec, distanceKm: g.distanceKm ?? null, dateIsEstimate: !!g.dateIsEstimate, resultSec: g.resultSec ?? null,
       };
     }
   } catch { /* the characterization below */ }

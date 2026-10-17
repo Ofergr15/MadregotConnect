@@ -3,7 +3,10 @@ import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { COACH_ID } from '@/lib/constants';
 import { mayCoach } from '@/lib/academy/pairing-server';
-import { parseGoalBody } from '@/lib/academy/goal';
+import { blockLine, distanceLabel, goalProgress, goalTimeText, parseGoalBody, type Goal } from '@/lib/academy/goal';
+import { coachIdsOf } from '@/lib/academy/trainee-coaches';
+import { notifyAthlete } from '@/lib/push';
+import { academyGoalSetCopy } from '@/lib/notifications/copy';
 import { loadClubRaces, loadGoal, loadThresholdPace, saveGoal } from '@/lib/academy/goal-server';
 import { israelToday } from '@/lib/utils';
 
@@ -60,7 +63,7 @@ export async function PUT(request: Request) {
     if (issues.length) return NextResponse.json({ error: 'Invalid goal', fields: issues }, { status: 400 });
 
     const supabase = createServerClient();
-    const { data: target } = await supabase.from('athletes').select('id, is_academy').eq('id', athleteId).eq('coach_id', COACH_ID).maybeSingle();
+    const { data: target } = await supabase.from('athletes').select('id, name, is_academy, academy_coach_id').eq('id', athleteId).eq('coach_id', COACH_ID).maybeSingle();
     if (!target?.is_academy) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const saved = await saveGoal(supabase, athleteId, goal, caller.athleteId);
@@ -69,9 +72,45 @@ export async function PUT(request: Request) {
         ? NextResponse.json({ error: 'Goals are not set up yet (migration 144)', tableMissing: true }, { status: 503 })
         : NextResponse.json({ error: 'Failed to save the goal' }, { status: 500 });
     }
+    // A goal the trainee set THEMSELVES reaches their coaches (mockup G4): the race, the
+    // target, and where it lands in a block — what the coach needs to decide how to plan. A
+    // goal the coach set needs no message to that coach. Best-effort, never the save's failure.
+    if (caller.athleteId === athleteId && goal.targetRace) {
+      try {
+        const coaches = (await coachIdsOf(supabase, athleteId, (target as { academy_coach_id?: string | null }).academy_coach_id ?? null))
+          .filter((c) => c && c !== athleteId);
+        await Promise.allSettled(coaches.map((coachId) => notifyAthlete({
+          athleteId: coachId,
+          kind: 'academy_goal_set',
+          actorAthleteId: athleteId,
+          copy: (locale) => academyGoalSetCopy(locale, {
+            name: String((target as { name?: string | null }).name ?? ''),
+            race: goal.targetRace as string,
+            detail: goalDetail(goal, locale === 'he' ? 'he' : 'en'),
+            block: goal.targetRaceDate ? blockLine(goalProgress(goal.targetRaceDate, israelToday(), goal.distanceKm), locale === 'he' ? 'he' : 'en') : '',
+          }),
+          url: '/dashboard/academy?tab=members',
+          // Per trainee: changing the goal twice replaces the first message.
+          tag: `academy-goal-${athleteId}`,
+        })));
+      } catch (e) {
+        console.error('PUT /api/academy/goal: coach notify failed:', e);
+      }
+    }
     return NextResponse.json({ athleteId, goal });
   } catch (err) {
     console.error('PUT /api/academy/goal error:', err);
     return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
   }
 }
+
+/** "42.2 · 6.12 · יעד 3:20" for the coach's message. */
+function goalDetail(goal: Goal, locale: 'he' | 'en'): string {
+  const d = goal.targetRaceDate;
+  return [
+    goal.distanceKm ? distanceLabel(goal.distanceKm) : null,
+    d ? `${Number(d.slice(8, 10))}.${Number(d.slice(5, 7))}${goal.dateIsEstimate ? '?' : ''}` : null,
+    goal.goalTimeSec ? `${locale === 'he' ? 'יעד' : 'target'} ${goalTimeText(goal.goalTimeSec)}` : null,
+  ].filter(Boolean).join(' · ');
+}
+

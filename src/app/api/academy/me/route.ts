@@ -14,7 +14,8 @@ import { toBand } from '@/lib/academy/bands';
 import { thresholdPaceSec } from '@/lib/academy/tests';
 import { loadPaceUpdateCard } from '@/lib/academy/coach-tools-server';
 import { traineePlanRow } from '@/lib/academy/me-plan-row';
-import { loadCoachRows, loadGoalCharacterization, loadTraineeUnread } from '@/lib/academy/me-reads';
+import { loadCoachRows, loadGoalCharacterization, loadTraineeUnread, type GoalCharacterization } from '@/lib/academy/me-reads';
+import { RACE_RESULT_WINDOW_DAYS, distanceForKind, pickRaceRun } from '@/lib/academy/goal';
 import {
   goalCard,
   journeyPlanStats,
@@ -26,6 +27,7 @@ import {
   rowStatus,
   type HomeWorkout,
   type TraineeHome,
+  type HomeRaceResult,
 } from '@/lib/academy/trainee-home';
 
 export const dynamic = 'force-dynamic';
@@ -90,6 +92,36 @@ async function loadJourneyActivities(
     if (page.length < 1000) break;
   }
   return acc;
+}
+
+/**
+ * "איך היה?" (goal module G5): the race day has passed, within three weeks, and no result
+ * was recorded. The watch run that looks like the race comes along so the trainee confirms it
+ * in one tap. Null in every other case, and on any read error — a prompt is optional.
+ */
+async function raceResultPrompt(
+  supabase: ReturnType<typeof createServerClient>,
+  athleteId: string,
+  c: GoalCharacterization | null,
+  today: string,
+): Promise<HomeRaceResult | null> {
+  const date = c?.targetRaceDate;
+  if (!c?.targetRace || !date || c.dateIsEstimate || c.resultSec) return null;
+  const since = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${date}T12:00:00Z`)) / 86_400_000);
+  if (!(since >= 1 && since <= RACE_RESULT_WINDOW_DAYS)) return null;
+  const distanceKm = c.distanceKm ?? distanceForKind(c.goalType);
+  let run = null;
+  try {
+    const { data } = await supabase
+      .from('athlete_activities')
+      .select('id, start_time, distance, duration')
+      .eq('athlete_id', athleteId)
+      .gte('start_time', `${date}T00:00:00Z`)
+      .lte('start_time', `${date}T23:59:59Z`)
+      .limit(10);
+    run = pickRaceRun((data || []) as Array<{ id: string; start_time: string; distance: number | null; duration: number | null }>, date, distanceKm);
+  } catch { /* no run to offer — the trainee types the time */ }
+  return { name: c.targetRace, raceDate: date, distanceKm, goalTimeSec: c.goalTimeSec ?? null, run };
 }
 
 export async function GET(request: Request) {
@@ -296,6 +328,7 @@ export async function GET(request: Request) {
       coaches: coachRows.map((c) => ({ id: c.id, name: c.name, avatarUrl: c.avatar_url || null })),
       unread,
       goal: goalCard(characterization, band, today),
+      raceResult: await raceResultPrompt(supabase, athleteId, characterization, today),
       paces: withPaceUpdate(resolveTraineePaces({
         band,
         athleteOffsetSec: typeof me.academy_pace_offset_sec === 'number' ? me.academy_pace_offset_sec : null,

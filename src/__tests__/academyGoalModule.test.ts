@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  blockWeeksFor, distanceLabel, estimateFinish, goalProgress, kindForDistance, parseGoalBody, readGoal,
+  blockLine, blockWeeksFor, distanceLabel, estimateFinish, goalProgress, kindForDistance, parseGoalBody, pickRaceRun, readGoal,
 } from '@/lib/academy/goal';
+import { academyGoalSetCopy } from '@/lib/notifications/copy';
 import { parseEventDistance } from '@/lib/academy/goal-server';
 
 // The goal module (mockup academy-existing-add/goal-module.html, migration 148).
@@ -94,5 +95,32 @@ describe('reading and posting the race fields', () => {
     expect(parseEventDistance('21.1km')).toBe(21.0975);
     expect(parseEventDistance('10 ק״מ')).toBe(10);
     expect(parseEventDistance('')).toBeNull();
+  });
+});
+
+describe('after the race (G5)', () => {
+  const run = (id: string, start: string, km: number, sec: number) => ({ id, start_time: start, distance: km * 1000, duration: sec });
+  it('finds the race among race-day runs: the closest distance, not the warm-up', () => {
+    const acts = [run('wu', '2026-12-06T07:10:00', 2.1, 720), run('race', '2026-12-06T08:30:00', 42.4, 11381), run('next', '2026-12-07T08:00:00', 5, 1800)];
+    expect(pickRaceRun(acts, '2026-12-06', 42.195)).toEqual({ activityId: 'race', km: 42.4, sec: 11381 });
+  });
+  it('takes a watch that read 15% short or 20% long, and nothing further', () => {
+    expect(pickRaceRun([run('a', '2026-12-06T08:00:00', 36.5, 10000)], '2026-12-06', 42.195)?.activityId).toBe('a');
+    expect(pickRaceRun([run('b', '2026-12-06T08:00:00', 30, 9000)], '2026-12-06', 42.195)).toBeNull();
+  });
+  it('no distance, no guess', () => {
+    expect(pickRaceRun([run('a', '2026-12-06T08:00:00', 42.2, 11000)], '2026-12-06', null)).toBeNull();
+  });
+});
+
+describe("the coach's message when a trainee sets a goal", () => {
+  it('says where the goal lands in a block', () => {
+    expect(blockLine(goalProgress('2026-12-06', '2026-10-17', 42.195), 'he')).toBe('באמצע בלוק (שבוע 10 מתוך 17)');
+    expect(blockLine(goalProgress('2027-09-26', '2026-10-17', 42.195), 'he')).toMatch(/^קודם בסיס · הבלוק בעוד \d+ שבועות$/);
+  });
+  it('names the trainee and the race in the title', () => {
+    const c = academyGoalSetCopy('he', { name: 'מיכל רז', race: 'מרתון ברלין', detail: '42.2 · 26.9 · יעד 3:15:00', block: 'קודם בסיס' });
+    expect(c.title).toBe('🎯 מיכל רז קבע/ה מטרה: מרתון ברלין');
+    expect(c.body).toBe('42.2 · 26.9 · יעד 3:15:00 · קודם בסיס');
   });
 });

@@ -1355,3 +1355,17 @@ export function packMovedCopy(
           : 'The workouts on your watch stay as they are — they carry every pack\'s pace.',
       };
 }
+
+/**
+ * A trainee set or changed their own goal (the goal module). To each of their coaches, with
+ * what the coach needs to act on it: the race, the target, and where it falls in a block.
+ */
+export function academyGoalSetCopy(
+  locale: NotificationLocale,
+  p: { name: string; race: string; detail: string; block: string },
+): PushCopy {
+  const name = (p.name || '').trim() || SOMEONE[locale];
+  return locale === 'he'
+    ? { title: `🎯 ${name} קבע/ה מטרה: ${p.race}`, body: [p.detail, p.block].filter(Boolean).join(' · ') }
+    : { title: `🎯 ${name} set a goal: ${p.race}`, body: [p.detail, p.block].filter(Boolean).join(' · ') };
+}

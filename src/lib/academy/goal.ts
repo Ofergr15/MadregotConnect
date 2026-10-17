@@ -206,3 +206,47 @@ export function goalProgress(raceDate: string, today: string, distanceKm: number
   return { days, week, totalWeeks, weeksToBlock };
 }
 
+
+// ── After the race ──────────────────────────────────────────────────────────
+
+/** How long after race day the trainee's home still asks "איך היה?". */
+export const RACE_RESULT_WINDOW_DAYS = 21;
+
+export interface RaceRun {
+  activityId: string;
+  km: number;
+  /** Elapsed time — a race is timed gun to finish, not moving time. */
+  sec: number;
+}
+
+/**
+ * The run that was the race: on race day, its distance within -15% / +20% of the race's (a
+ * GPS course reads long, a watch stopped early reads short), the closest one if there are
+ * several (a warm-up jog on the same morning is the usual second run). `start_time` is wall
+ * clock stored as UTC (Convention A), so its first ten characters are the local day.
+ */
+export function pickRaceRun(
+  acts: Array<{ id: string; start_time: string; distance: number | null; duration: number | null }>,
+  raceDate: string,
+  distanceKm: number | null | undefined,
+): RaceRun | null {
+  if (!distanceKm) return null;
+  let best: RaceRun | null = null;
+  for (const a of acts) {
+    if (!a.start_time || a.start_time.slice(0, 10) !== raceDate) continue;
+    const km = (Number(a.distance) || 0) / 1000;
+    const sec = Number(a.duration) || 0;
+    if (!km || !sec || km < distanceKm * 0.85 || km > distanceKm * 1.2) continue;
+    if (!best || Math.abs(km - distanceKm) < Math.abs(best.km - distanceKm)) best = { activityId: a.id, km: Math.round(km * 100) / 100, sec: Math.round(sec) };
+  }
+  return best;
+}
+
+/** "באמצע בלוק" / "בלוק מלא" / "קודם בסיס" — where a goal set today lands, in a few words. */
+export function blockLine(p: GoalProgress, locale: 'he' | 'en'): string {
+  const he = locale === 'he';
+  if (p.days == null) return he ? 'המרוץ כבר עבר' : 'the race has passed';
+  if (p.week > 1) return he ? `באמצע בלוק (שבוע ${p.week} מתוך ${p.totalWeeks})` : `mid-block (week ${p.week} of ${p.totalWeeks})`;
+  if (p.weeksToBlock > 0) return he ? `קודם בסיס · הבלוק בעוד ${p.weeksToBlock} שבועות` : `base first · block in ${p.weeksToBlock} weeks`;
+  return he ? `בלוק מלא של ${p.totalWeeks} שבועות` : `a full ${p.totalWeeks}-week block`;
+}

@@ -92,6 +92,15 @@ export interface HomeJourney {
   longestKm: number | null;
 }
 
+export interface HomeRaceResult {
+  name: string;
+  raceDate: string;
+  distanceKm: number | null;
+  goalTimeSec: number | null;
+  /** The watch run on race day that looks like the race, when there is one. */
+  run: { activityId: string; km: number; sec: number } | null;
+}
+
 export interface TraineeHome {
   isMember: boolean;
   weekStart: string;
@@ -110,6 +119,8 @@ export interface TraineeHome {
   coaches?: Array<{ id: string; name: string; avatarUrl: string | null }>;
   unread?: number;
   goal?: HomeGoal | null;
+  /** The race has been run and the home asks "איך היה?" (goal module G5). */
+  raceResult?: HomeRaceResult | null;
   paces?: HomePaces | null;
   km?: { weeks: HomeKmWeek[]; plannedKm: number; avgKm: number | null };
   week?: { plannedCount: number; completedCount: number; workouts: HomeWorkout[] };

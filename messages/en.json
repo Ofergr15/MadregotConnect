@@ -5251,5 +5251,23 @@
     "selfButton": "Move to pack {n} from Saturday",
     "selfRule": "A move starts this Saturday, {date} — until then you stay in pack {n}.",
     "selfWatch": "The workouts on your watch don't change."
+  },
+  "raceResult": {
+    "title": "How did it go?",
+    "savedTitle": "Saved — well done",
+    "km": "km",
+    "found": "Your watch has a <km></km> km run on race day",
+    "under": "{diff} under target 🎉",
+    "over": "{diff} over target",
+    "official": "Official time",
+    "timeBad": "A time like 3:15:00 or 48:30.",
+    "thisIsIt": "That's my official time",
+    "different": "The official time is different",
+    "saveTime": "Save the time",
+    "saveFailed": "Could not save",
+    "whatsNext": "What's next?",
+    "newRace": "A new race",
+    "recover": "Recover first, decide later",
+    "savedNote": "The result is saved and your coach sees it."
   }
 }
