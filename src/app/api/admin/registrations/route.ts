@@ -67,11 +67,16 @@ export async function GET(request: Request) {
     // `groups` differs between environments here, and a bad embed fails the whole
     // request (same reason /api/onboarding reads groups separately).
     const groupIds = [...new Set((rows || []).map(r => r.group_id).filter(Boolean))] as string[];
-    const names = new Map<string, string>();
-    if (groupIds.length) {
-      const { data: groups } = await supabase.from('groups').select('id, name').in('id', groupIds);
-      for (const g of groups || []) names.set(g.id, groupDisplayName(g.name));
-    }
+    // The group names and the form's full names need only the rows, so both go out
+    // now and are collected below, alongside the athletes read (lab 2026-10-17:
+    // five round trips in a row on the registrations screen). `.then` is what sends
+    // a query builder; without it the read would wait for its await.
+    const groupsRead = groupIds.length
+      ? supabase.from('groups').select('id, name').in('id', groupIds).then(r => r)
+      : null;
+    const namedRead = rows?.length
+      ? supabase.from('signup_requests').select('id, full_name').in('id', rows.map(r => r.id)).then(r => r)
+      : null;
 
     // ── WHERE DID THEY GET TO? ────────────────────────────────────────────────
     //
@@ -206,11 +211,17 @@ export async function GET(request: Request) {
     // The name typed on the public form (131). Its own read, so a database without
     // the column still gets the queue, only without names.
     const fullNames = new Map<string, string>();
-    if (rows?.length) {
-      const { data: named } = await supabase.from('signup_requests').select('id, full_name').in('id', rows.map(r => r.id));
+    if (namedRead) {
+      const { data: named } = await namedRead;
       for (const n of (named || []) as Array<{ id: string; full_name: string | null }>) {
         if (n.full_name?.trim()) fullNames.set(n.id, n.full_name.trim());
       }
+    }
+
+    const names = new Map<string, string>();
+    if (groupsRead) {
+      const { data: groups } = await groupsRead;
+      for (const g of groups || []) names.set(g.id, groupDisplayName(g.name));
     }
 
     const requests = (rows || []).map(r => {

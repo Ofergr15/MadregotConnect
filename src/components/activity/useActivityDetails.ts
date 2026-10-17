@@ -60,6 +60,16 @@ export function useActivityDetails({
     setError(null);
     try {
       const { athleteId: aid, startTime: st, fallbackSplits: fs } = argsRef.current;
+      const segmentsUrl = (athlete: string, start: string) =>
+        `/api/academy/segments?athleteId=${encodeURIComponent(athlete)}&date=${activityLocalDateStr(start)}`
+        + `&bands=1&verdict=1&activityId=${encodeURIComponent(activityId)}`;
+      // When the caller already knows whose run it is and when (the activity list),
+      // the plan request goes out WITH the details instead of after them: it used
+      // to wait the whole details round trip (lab 2026-10-17). Without them (a run
+      // opened from the feed) it still has to wait for the row to name them.
+      const early = aid && st
+        ? apiHeaders().then((headers) => fetch(segmentsUrl(aid, st), { headers })).catch(() => null)
+        : null;
       const res = await fetchActivityDetails(activityId, aid);
       let liveSplits: Split[] = [];
       let row: ActivityDetailsData['activity'] = null;
@@ -83,13 +93,8 @@ export function useActivityDetails({
       const planAthleteId = aid || row?.athlete_id;
       const planStart = st || row?.start_time;
       if (planAthleteId && planStart) {
-        const date = activityLocalDateStr(planStart);
         try {
-          const pr = await fetch(
-            `/api/academy/segments?athleteId=${encodeURIComponent(planAthleteId)}&date=${date}`
-            + `&bands=1&verdict=1&activityId=${encodeURIComponent(activityId)}`,
-            { headers: await apiHeaders() },
-          );
+          const pr = (await early) ?? await fetch(segmentsUrl(planAthleteId, planStart), { headers: await apiHeaders() });
           if (pr.ok) {
             const pj = await pr.json();
             if (Array.isArray(pj?.bands) && pj.bands.length && useSplits.length >= 2) {

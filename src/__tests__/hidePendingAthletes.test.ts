@@ -38,7 +38,9 @@ describe('every surface that showed a pending runner checks for one', () => {
 
   it('single feed item, athlete stats and activity details 404 for a teammate', () => {
     for (const p of ['src/app/api/feed/items/[id]/route.ts', 'src/app/api/athletes/[id]/stats/route.ts', 'src/app/api/activities/details/route.ts']) {
-      expect(src(p), p).toMatch(/!seesPending\([^)]*\) && \(await isPendingAthlete/);
+      // Either asked in line, or (stats, 2026-10-17) in the same round as the reads
+      // and decided before anything is returned.
+      expect(src(p), p).toMatch(/!seesPending\([^)]*\) && \(await isPendingAthlete|seesPending\(caller, id\) \? Promise\.resolve\(false\) : isPendingAthlete\([\s\S]*if \(pending\) return NextResponse\.json\(\{ error: 'Athlete not found' \}, \{ status: 404 \}\)/);
     }
   });
 

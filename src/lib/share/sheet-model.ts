@@ -288,8 +288,7 @@ export function defaultFrame(subject: ShareSubject): ShareFrame {
  * HOW MANY numbers this frame can print.
  *
  * A property of the frame, not a preference: the row layouts are built for three
- * columns across the story (two rows of them on photo, route and the stats bar)
- * and `fullStats` for a grid of six. The renderer slices
+ * columns across the story and `fullStats` for a grid of six. The renderer slices
  * to the same figures (`pickedStats`), so this is the sheet knowing the limit in
  * time to stop offering a fourth chip instead of dropping it silently.
  *
@@ -300,16 +299,8 @@ export function frameCapacity(subject: ShareSubject, frame: ShareLook): number {
   if (subject.kind === 'week') return availableMetrics(subject.report).length;
   const t = lookTemplate(frame);
   if (FIXED_NUMBERS[t]) return 0;
-  return t === 'fullStats' || TWO_ROW_TEMPLATES.has(t) ? 6 : 3;
+  return t === 'fullStats' ? 6 : 3;
 }
-
-/**
- * The row views whose numbers can wrap to a second row of three (#116, Sahar's
- * "more than three"). The others keep three: `sideBySide` stacks them beside the
- * route, `bigNumbers` is three numbers by definition, the classic two have a fixed
- * row.
- */
-const TWO_ROW_TEMPLATES = new Set<string>(['photo', 'route', 'statsBar']);
 
 /** The numbers this subject can print at all, in card order. */
 export function availableChipKeys(subject: ShareSubject): string[] {
@@ -342,16 +333,10 @@ export function shareChips(subject: ShareSubject, i18n: ShareI18n, lang: ShareCa
   });
 }
 
-/**
- * What the content row opens with, in card order: as much as the frame can print —
- * except on the two-row views, which open on their one row of three exactly as
- * they always did; the second row is for whoever adds a fourth (#116).
- */
+/** What the content row opens with: as much as the frame can print, in card order. */
 export function defaultChipKeys(subject: ShareSubject, frame: ShareLook): string[] {
-  const capacity = frameCapacity(subject, frame);
-  const opensWith = subject.kind === 'workout' && TWO_ROW_TEMPLATES.has(lookTemplate(frame)) ? 3 : capacity;
   // A view with fixed numbers still needs a selection to hand to the next one.
-  return availableChipKeys(subject).slice(0, opensWith || 3);
+  return availableChipKeys(subject).slice(0, frameCapacity(subject, frame) || 3);
 }
 
 /**

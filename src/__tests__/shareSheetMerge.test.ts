@@ -167,9 +167,8 @@ describe('the chips carry the real value, which is what makes them choosable', (
 
 describe('the content row cannot produce a card the frame will not draw', () => {
   it('knows the same capacities the renderer slices to', () => {
-    // Two rows of three on route and photo since #116; the grid is six.
-    expect(frameCapacity(workout(), 'route')).toBe(6);
-    expect(frameCapacity(workout(), 'photo')).toBe(6);
+    expect(frameCapacity(workout(), 'route')).toBe(3);
+    expect(frameCapacity(workout(), 'photo')).toBe(3);
     expect(frameCapacity(workout(), 'numbers')).toBe(6);
   });
 
@@ -186,9 +185,7 @@ describe('the content row cannot produce a card the frame will not draw', () => 
 
   it('trims from the end when the frame shrinks, keeps the dragged order, and never empties', () => {
     const six = ['km', 'pace', 'time', 'elev', 'cal', 'hr'];
-    // The route frame takes six now (#116); a frame that still takes three trims from the end.
-    expect(fitChipKeys(workout(), 'route', six)).toEqual(six);
-    expect(fitChipKeys(workout(), 'bigNumbers', six)).toEqual(['km', 'pace', 'time']);
+    expect(fitChipKeys(workout(), 'route', six)).toEqual(['km', 'pace', 'time']);
     expect(fitChipKeys(workout(), 'numbers', ['hr', 'km'])).toEqual(['hr', 'km']);
     expect(fitChipKeys(workout(), 'route', []).length).toBeGreaterThan(0);
   });

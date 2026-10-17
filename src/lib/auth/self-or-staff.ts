@@ -96,6 +96,11 @@ export function mayActFor(
 export async function resolveVerifiedCaller(
   request: Request,
 ): Promise<{ denied: Response | null; caller: VerifiedCaller }> {
+  // Asked alongside the session rather than after it: it depends on nobody, it
+  // never rejects (it fails open), and on a cache miss it was a whole
+  // function↔DB round trip in front of most routes (lab 2026-10-17). Only for a
+  // request that carries a credential: an anonymous one must still cost no query.
+  const early = request.headers.get('authorization') ? readMaintenance() : null;
   const auth = await requireSession(request);
   if (!auth.ok) {
     return {
@@ -116,7 +121,7 @@ export async function resolveVerifiedCaller(
   // status the rest of the app already uses for "ask again later".
   const blockedByMaintenance = maintenanceBlocks(
     { email: auth.user.email, athleteEmail: auth.user.athleteEmail, athleteId: auth.user.athleteId },
-    await readMaintenance(),
+    await (early ?? readMaintenance()),
   );
   if (blockedByMaintenance) {
     return {

@@ -941,8 +941,7 @@ export const DEFAULT_WORKOUT_METRICS: WorkoutMetricKey[] = ['km', 'pace', 'time'
  * What a layout actually draws.
  *
  * Capped rather than wrapped: the row layouts are built for three columns across
- * the frame (photo, route and the stats bar take a second row of three, #116) and
- * the grid for six, so the cap is a property of the FRAME. The sheet
+ * the frame and the grid for six, so the cap is a property of the FRAME. The sheet
  * knows the same numbers (`frameCapacity` in `lib/share/sheet-model.ts`) and stops
  * offering a fourth chip, so in practice nothing is ever silently dropped here —
  * this slice is the renderer refusing to be the place that first finds out.
@@ -1189,33 +1188,6 @@ function drawStatRow(c: LayoutCtx, stats: Stat[], left: number, right: number, l
   stats.forEach((s, i) =>
     drawStat(c, s, left + colW * (i + 0.5), labelBaseline, 'center', colW - p(8)),
   );
-}
-
-/** Label baseline to label baseline between two rows of stats. */
-const STAT_ROW_PITCH = 58;
-
-/**
- * Up to six stats as rows of three (#116: "more than three numbers"). The first row
- * is where the single row always was, so a card with three looks exactly as before;
- * a fourth starts a second row under it. Returns how far below the first row the
- * last one sits, for whatever the layout draws underneath.
- */
-function drawStatRows(c: LayoutCtx, stats: Stat[], left: number, right: number, labelBaseline: number): number {
-  if (stats.length <= 3) {
-    drawStatRow(c, stats, left, right, labelBaseline);
-    return 0;
-  }
-  // One grid of three columns for both rows, so the second row's numbers sit under
-  // the first's; a short second row is centred on that grid, not stretched across.
-  const colW = (right - left) / 3;
-  let extra = 0;
-  for (let i = 0; i < stats.length; i += 3) {
-    extra = (i / 3) * p(STAT_ROW_PITCH);
-    const row = stats.slice(i, i + 3);
-    const start = left + ((3 - row.length) * colW) / 2;
-    row.forEach((s, j) => drawStat(c, s, start + colW * (j + 0.5), labelBaseline + extra, 'center', colW - p(8)));
-  }
-  return extra;
 }
 
 /*
@@ -1716,11 +1688,11 @@ function layoutPhoto(c: LayoutCtx) {
   const slotH = c.wordmark ? (c.wordmark.height / c.wordmark.width) * wmW : wm.h;
   if (c.showShoe) drawShoe(ctx, CX - wm.w / 2 - p(9) - p(36), wmTop + (slotH - p(36)) / 2, p(36));
 
-  drawStatRows(c, pickedStats(c, 6), p(22), STORY_W - p(22), p(552));
+  drawStatRow(c, pickedStats(c, 3), p(22), STORY_W - p(22), p(552));
   ctx.shadowBlur = 0;
 }
 
-/** The new default: the run's real shape, the mark, and its stats under it (up to two rows). */
+/** The new default: the run's real shape, the mark, and three stats under it. */
 function layoutRoute(c: LayoutCtx) {
   const { ctx, act, accent, shadow, shadowBlur, i18n } = c;
   ctx.textBaseline = 'alphabetic';
@@ -1734,10 +1706,9 @@ function layoutRoute(c: LayoutCtx) {
   ctx.shadowBlur = shadowBlur;
   drawTitle(c, p(375));
   drawWordmark(c, p(412), p(132));
-  const below = drawStatRows(c, pickedStats(c, 6), p(22), STORY_W - p(22), p(488));
+  drawStatRow(c, pickedStats(c, 3), p(22), STORY_W - p(22), p(488));
   ctx.shadowBlur = 0;
-  // The shoe sits under the numbers, so a second row pushes it down with them.
-  if (c.showShoe) drawShoe(ctx, CX - p(18), p(545) + below, p(36));
+  if (c.showShoe) drawShoe(ctx, CX - p(18), p(545), p(36));
 }
 
 /** Just the shape and the mark, no numbers. The quietest sticker in the set. */
@@ -1758,7 +1729,7 @@ function layoutRouteOnly(c: LayoutCtx) {
 }
 
 /**
- * Mark and its stats (up to two rows of three), no route at all — so this is the one view a treadmill run
+ * Mark and three stats, no route at all — so this is the one view a treadmill run
  * can always fall back to without anything looking as though it went missing.
  */
 function layoutStatsBar(c: LayoutCtx) {
@@ -1775,7 +1746,7 @@ function layoutStatsBar(c: LayoutCtx) {
   const wm = drawWordmarkSlot(c, wmTop, wmW, CX, p(76));
   if (c.showShoe) drawShoe(ctx, CX - wm.w / 2 - p(48), wmTop + p(9), p(36));
 
-  drawStatRows(c, pickedStats(c, 6), p(18), STORY_W - p(18), p(368));
+  drawStatRow(c, pickedStats(c, 3), p(18), STORY_W - p(18), p(368));
   ctx.shadowBlur = 0;
 }
 

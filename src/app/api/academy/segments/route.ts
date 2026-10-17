@@ -85,8 +85,11 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     const weekStart = planWeekStartOf(date);
     const dayOfWeek = new Date(`${date}T12:00:00Z`).getUTCDay();
-    const { tolerances } = await loadAcademySettings();
-    const { paceSec } = tolerances;
+    // The tolerances aren't needed until the grading below, so they load alongside
+    // the lane and the plan instead of in front of them (lab 2026-10-17: one
+    // function↔DB round trip off every activity detail).
+    const settingsPromise = loadAcademySettings();
+    settingsPromise.catch(() => {});
 
     // Which of the three pace lanes this athlete runs. It has to be resolved
     // before any plan is read: grading a group-3 athlete's laps against group 1's
@@ -294,6 +297,8 @@ export async function GET(request: Request) {
         .from('athletes').select('max_hr_bpm').eq('id', athleteId).maybeSingle();
       hrAnchorBpm = (hrRow as { max_hr_bpm?: number | null } | null)?.max_hr_bpm ?? null;
     }
+    const { tolerances } = await settingsPromise;
+    const { paceSec } = tolerances;
     const report = matchLapsToSteps(flat, laps, { paceSec, hrBpm: tolerances.hrBpm, hrAnchorBpm });
     // Block-aligned pace: each planned block graded over its own stretch of the run
     // rather than against the whole-run average. This is the fix for the verdict an

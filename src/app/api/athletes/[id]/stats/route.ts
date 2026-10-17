@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
 import { computeDistanceBests, filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
-import { attachLapsForPrs } from '@/lib/prs/attach-laps';
+import { applyPrLaps, loadPrLaps } from '@/lib/prs/attach-laps';
 import { applyPrOverrides } from '@/lib/prs/overrides';
 import { readPrOverrides } from '@/lib/prs/overrides-store';
 import { readPrExclusions, excludedRunsByBucket } from '@/lib/prs/exclusions-store';
@@ -58,12 +58,6 @@ export async function GET(
     if (denied) return denied;
 
     const supabase = createServerClient();
-    // A runner the club hasn't approved yet: their PRs and runs are theirs and
-    // staff's to see, nobody else's (#77).
-    if (!seesPending(caller, id) && (await isPendingAthlete(supabase, id))) {
-      return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
-    }
-
     const { searchParams } = new URL(request.url);
     const weeks = Math.min(Math.max(Number(searchParams.get('weeks')) || 10, 1), 52);
     const runLimit = Math.min(Math.max(Number(searchParams.get('runs')) || 5, 1), 30);
@@ -83,7 +77,17 @@ export async function GET(
     // Newest-first is load-bearing here (`buildRecentRuns` slices the head of this
     // array), so the sort stays and `id` is appended only as a unique tiebreak to
     // make the page boundaries deterministic.
-    const acts = await fetchAllRows<RunActivityRow>((from, to) =>
+    //
+    // Every read below needs only the athlete id, so they all go out at once: they
+    // used to run one after another, six function↔DB round trips (~225 ms each to
+    // Tokyo) before the profile had a number to show (lab 2026-10-17: 1.45 s → one
+    // round). The pending check is in the same round and is decided before
+    // anything is returned; the extra reads for an athlete the caller may not see
+    // are discarded unread.
+    const self = caller.athleteId === id;
+    const reads = Promise.all([
+      seesPending(caller, id) ? Promise.resolve(false) : isPendingAthlete(supabase, id),
+      fetchAllRows<RunActivityRow>((from, to) =>
       supabase
         .from('athlete_activities')
         // elevation_gain and calories ride along for the seven-day report's optional
@@ -93,7 +97,17 @@ export async function GET(
         .order('start_time', { ascending: false })
         .order('id')
         .range(from, to),
-    );
+      ),
+      readWeekStartDay(supabase, id),
+      loadPrLaps(supabase, id),
+      readPrOverrides(supabase, id),
+      readPrExclusions(supabase, id),
+      self ? readWellnessNights(supabase, id) : Promise.resolve(null),
+    ]);
+    // A runner the club hasn't approved yet: their PRs and runs are theirs and
+    // staff's to see, nobody else's (#77).
+    const [pending, acts, startDay, prLaps, prOverrides, prExclusions, wellness] = await reads;
+    if (pending) return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
 
     // Israel's calendar day, not the server's UTC one: between midnight and
     // 03:00 Israel time a raw `new Date()` still reads as yesterday, which on a
@@ -102,7 +116,6 @@ export async function GET(
     // THIS athlete's week, not the viewer's — see readWeekStartDay. Everything
     // weekly on the payload is cut with it so the chart, the "this week" tile and
     // the trend badge on one profile can't be measuring three different windows.
-    const startDay = await readWeekStartDay(supabase, id);
     const currentWeekStart = weekStartOn(anchor, startDay);
 
     const weekTable = buildKmTable(acts, { limit: weeks, currentWeekStart, startDay });
@@ -110,16 +123,14 @@ export async function GET(
     // Laps are pulled separately and only for the runs long enough to hold a PR
     // segment — see attach-laps.ts for why they don't ride along with the select
     // above, which everything else on this payload is built from.
-    const prRuns = await attachLapsForPrs(supabase, id, filterQualifyingRuns(acts));
+    const prRuns = applyPrLaps(filterQualifyingRuns(acts), prLaps);
     // Anything this athlete has corrected by hand. Read here as well as in
     // /api/athletes/prs because both routes render the same tiles on the same
     // screen, and a correction visible on one but not the other would be a worse
     // bug than the wrong number it fixed. Absent table (104 not pasted yet) reads
     // as "no corrections" — see overrides-store.ts.
-    const prOverrides = await readPrOverrides(supabase, id);
     // And the runs they took out of their records (migration 146): out of the record,
     // its history, this year's best — the same run everywhere, or it reappears.
-    const prExclusions = await readPrExclusions(supabase, id);
     const prs = applyPrOverrides(computeDistanceBests(prRuns, { excluded: prExclusions }), prOverrides);
     // Each record's history, off the same runs and the same per-run arithmetic, so
     // its last break IS the record above. A bucket the athlete took down (hidden)
@@ -156,7 +167,7 @@ export async function GET(
       // Sleep and resting HR are health data: folded in for the athlete's own
       // profile only, never for a teammate or a coach browsing it (#69).
       last7: caller.athleteId === id
-        ? withWellness(buildLast7Report(acts, israelToday()), await readWellnessNights(supabase, id))
+        ? withWellness(buildLast7Report(acts, israelToday()), wellness ?? [])
         : buildLast7Report(acts, israelToday()),
       recentRuns: buildRecentRuns(acts, runLimit),
       // Same bucket math as /api/athletes/prs and the badge award engine, so a

@@ -31,15 +31,16 @@ export async function GET(
 
     const supabase = createServerClient();
 
-    const { data: target } = await supabase.from('athletes').select('approved').eq('id', id).maybeSingle();
-    if ((target as { approved?: boolean | null } | null)?.approved === false && !seesPending(caller, id)) {
-      return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
-    }
-
-    const [followerLinks, followingLinks] = await Promise.all([
+    // The pending check and both follow lists need only the id: one round trip, and
+    // the check is still decided before anything is returned (lab 2026-10-17).
+    const [{ data: target }, followerLinks, followingLinks] = await Promise.all([
+      supabase.from('athletes').select('approved').eq('id', id).maybeSingle(),
       supabase.from('athlete_follows').select('follower_id').eq('followee_id', id),
       supabase.from('athlete_follows').select('followee_id').eq('follower_id', id),
     ]);
+    if ((target as { approved?: boolean | null } | null)?.approved === false && !seesPending(caller, id)) {
+      return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
+    }
 
     if (followerLinks.error) throw followerLinks.error;
     if (followingLinks.error) throw followingLinks.error;

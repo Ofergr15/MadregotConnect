@@ -9,9 +9,7 @@ import {
   type ActivityRow, type AthleteNameRow, type DetectorKey, type Finding, type PlanRow,
   type ProviderAthlete, type PushSubscriptionRow,
 } from './detectors';
-import { normaliseClientEvents, type ClientEventRow } from './client-events';
-import { TEST_ACCOUNT_IDS } from '@/lib/auth/test-accounts';
-import { fetchAllRows } from '@/lib/supabase/paginate';
+import type { ClientEventRow } from './client-events';
 
 /**
  * The nightly pass: read the tables, run the pure rules, and file what they
@@ -143,25 +141,12 @@ async function gather(supabase: SupabaseClient) {
   // it being empty — five detectors have to report "not checked" rather than a
   // reassuring zero, so the distinction is carried rather than flattened to [].
   const eventsSince = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  //
-  // Paged: one request is capped at 1000 rows, and since boots started arriving
-  // (one per app open) a week passes that — the cut would silently drop the OLDEST
-  // events, which are exactly a stuck member's.
-  let evs: { data: ClientEventRow[] | null; error: unknown } = { data: null, error: null };
-  try {
-    const rows = await fetchAllRows<ClientEventRow>((from, to) =>
-      supabase
-        .from('client_events')
-        .select('id, athlete_id, kind, route, message, app_version, created_at')
-        .gte('created_at', eventsSince)
-        .order('created_at', { ascending: false })
-        .order('id')
-        .range(from, to),
-    );
-    evs = { data: normaliseClientEvents(rows, TEST_ACCOUNT_IDS), error: null };
-  } catch (error) {
-    evs = { data: null, error };
-  }
+  const evs = await supabase
+    .from('client_events')
+    .select('id, athlete_id, kind, route, message, app_version, created_at')
+    .gte('created_at', eventsSince)
+    .order('created_at', { ascending: false })
+    .limit(5000);
   if (evs.error) skipped.push('client_events');
 
   return {

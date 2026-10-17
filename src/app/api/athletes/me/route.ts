@@ -55,6 +55,14 @@ export async function GET(req: NextRequest) {
   if (denied) return denied;
 
   const supabase = createServerClient();
+  // The pending group change needs only the id: sent now (`.then` is what sends a
+  // query builder), read below. A failed read is "nothing pending", as before.
+  const pendingRead = supabase
+    .from('athletes')
+    .select('pending_group_id, pending_group_from')
+    .eq('id', id)
+    .maybeSingle()
+    .then((r) => r, () => ({ data: null }));
   let { data, error } = await supabase.from('athletes').select(FULL_COLUMNS).eq('id', id).single();
   // '42703' = raw Postgres undefined_column; 'PGRST204' = PostgREST's own
   // schema-cache check rejecting an unknown column before SQL is generated
@@ -99,11 +107,7 @@ export async function GET(req: NextRequest) {
   // database before 125 only loses this line and never the profile.
   let pendingGroup: { groupId: string; from: string } | null = null;
   try {
-    const { data: p } = await supabase
-      .from('athletes')
-      .select('pending_group_id, pending_group_from')
-      .eq('id', id)
-      .maybeSingle();
+    const { data: p } = await pendingRead;
     if (p?.pending_group_id && p.pending_group_from) {
       pendingGroup = { groupId: p.pending_group_id, from: p.pending_group_from };
     }

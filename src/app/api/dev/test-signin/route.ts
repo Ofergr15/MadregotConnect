@@ -15,22 +15,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
-import { TEST_COACH_ID, TEST_RUNNER_ID } from '@/lib/auth/test-accounts';
 
 export const dynamic = 'force-dynamic';
 
 const TEST_USERS: Record<string, { id: string; name: string; role: 'runner' | 'coach'; coachId: string }> = {
   'test-runner@madregot.local': {
-    id: TEST_RUNNER_ID,
+    id: 'aaaaaaaa-0000-0000-0000-000000000001',
     name: 'Test Runner',
     role: 'runner',
-    coachId: TEST_COACH_ID,
+    coachId: 'aaaaaaaa-0000-0000-0000-000000000002',
   },
   'test-coach@madregot.local': {
-    id: TEST_COACH_ID,
+    id: 'aaaaaaaa-0000-0000-0000-000000000002',
     name: 'Test Coach',
     role: 'coach',
-    coachId: TEST_COACH_ID,
+    coachId: 'aaaaaaaa-0000-0000-0000-000000000002',
   },
 };
 

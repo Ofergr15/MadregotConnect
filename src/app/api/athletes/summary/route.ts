@@ -41,6 +41,10 @@ export async function GET(request: Request) {
     if (denied) return denied;
     if (!mayActFor(caller, athleteId)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
+    // The week preference needs only the athlete, so it is read alongside the runs.
+    const startDayRead = readWeekStartDay(supabase, athleteId);
+    startDayRead.catch(() => {});
+
     // Paged. Every number below is an ALL-TIME one — total km, total hours,
     // biggest week ever, longest streak ever — and an unpaginated select quietly
     // stops at PostgREST's 1000-row ceiling, so on a high-volume athlete all of
@@ -87,7 +91,7 @@ export async function GET(request: Request) {
 
     // TOTALS are bucketed on the member's own week (athletes.week_start_day,
     // migration 119); the STREAK below is not, and deliberately — see there.
-    const startDay = await readWeekStartDay(supabase, athleteId);
+    const startDay = await startDayRead;
 
     const byWeek = new Map<string, { km: number; runs: number }>();
     for (const r of runs) {

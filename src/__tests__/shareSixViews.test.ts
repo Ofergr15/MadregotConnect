@@ -93,14 +93,13 @@ describe('the kilometre list', () => {
     expect(frameCapacity(s, 'splits')).toBe(0);
     expect(fixedNumbersReason(s, 'splits')).toBe('splitsNumbers');
     expect(frameCapacity(s, 'routeOnly')).toBe(0);
-    expect(frameCapacity(s, 'route')).toBe(6);
+    expect(frameCapacity(s, 'route')).toBe(3);
   });
 
   it('keeps the chip selection across a view that ignores it', () => {
     const six = ['km', 'pace', 'time', 'elev', 'cal', 'hr'];
     expect(fitChipKeys(workout(), 'splits', six)).toEqual(six);
-    expect(fitChipKeys(workout(), 'statsBar', six)).toHaveLength(6);
-    expect(fitChipKeys(workout(), 'sideBySide', six)).toHaveLength(3);
+    expect(fitChipKeys(workout(), 'statsBar', six)).toHaveLength(3);
   });
 
   it('colours its bars with the accent', () => {

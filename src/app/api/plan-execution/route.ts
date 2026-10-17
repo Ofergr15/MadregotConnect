@@ -50,7 +50,10 @@ export async function GET(request: Request) {
     const supabase = createServerClient();
     // The club's adherence tolerances — the same ±15% / ±5 s/km the academy
     // compliance screens grade against, so one run never scores two ways.
-    const { tolerances } = await loadAcademySettings();
+    // Needed only by the grading, so it loads alongside the ownership read below
+    // instead of in front of it (lab 2026-10-17).
+    const settingsRead = loadAcademySettings();
+    settingsRead.catch(() => {});
 
     if (activityId) {
       const { data: row, error } = await supabase
@@ -66,6 +69,7 @@ export async function GET(request: Request) {
 
       // Read-only while an admin views the app as somebody (lib/auth/view-as.ts):
       // the verdict is computed, and no match or lap cache is written for it.
+      const { tolerances } = await settingsRead;
       const verdict = await resolveExecutionVerdict(supabase, activityId, tolerances, { readOnly: !!caller.viewingAsBy });
       if (!verdict) return NextResponse.json({ error: 'not found' }, { status: 404 });
       return NextResponse.json({ verdict });
@@ -88,6 +92,7 @@ export async function GET(request: Request) {
       allowed = (mine || []).map((row) => row.id);
     }
 
+    const { tolerances } = await settingsRead;
     const summaries = await resolveExecutionSummaries(supabase, allowed, tolerances);
     return NextResponse.json({ summaries });
   } catch (error: unknown) {

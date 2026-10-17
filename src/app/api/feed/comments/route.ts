@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireSession, requireAthlete, authError } from '@/lib/auth-session';
 import { notifyFeedInteraction, notifyMentions, loadFeedItemMeta } from '@/lib/feed/notify';
@@ -63,15 +63,26 @@ export async function POST(request: Request) {
       .single();
     if (error) throw error;
 
-    await notifyFeedInteraction({
-      feedItemId: itemId,
-      authorAthleteId: meta.authorAthleteId,
-      actorAthleteId: auth.user.athleteId,
-      actorName: auth.user.name,
-      kind: 'comment',
-      commentBody: body,
+    // The pushes are for other people and nothing in the reply depends on them, so
+    // they go out after the response (Vercel keeps the function alive for them):
+    // the commenter used to wait ~0.7 s of preference and subscription reads for
+    // their own comment to appear (lab 2026-10-17). A failure there no longer
+    // turns a saved comment into a 500 either.
+    const actor = { actorAthleteId: auth.user.athleteId, actorName: auth.user.name };
+    after(async () => {
+      try {
+        await notifyFeedInteraction({
+          feedItemId: itemId,
+          authorAthleteId: meta.authorAthleteId,
+          ...actor,
+          kind: 'comment',
+          commentBody: body,
+        });
+      } catch (err) { console.error('Feed comment notify error:', err); }
+      try {
+        await notifyMentions({ feedItemId: itemId, body, ...actor, kind: 'comment' });
+      } catch (err) { console.error('Feed comment mention error:', err); }
     });
-    await notifyMentions({ feedItemId: itemId, body, actorAthleteId: auth.user.athleteId, actorName: auth.user.name, kind: 'comment' });
 
     const { data: item } = await supabase
       .from('feed_items')

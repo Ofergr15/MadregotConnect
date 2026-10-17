@@ -28,10 +28,23 @@ export async function attachLapsForPrs<T extends RunActivityRow & { id?: string 
   athleteId: string,
   runs: T[],
 ): Promise<T[]> {
-  const smallestBucket = Math.min(...PR_BUCKETS.map((b) => b.meters));
-  const eligible = runs.some((r) => r.id && r.distance >= smallestBucket);
+  const eligible = runs.some((r) => r.id && r.distance >= SMALLEST_BUCKET);
   if (!eligible) return runs;
+  return applyPrLaps(runs, await loadPrLaps(supabase, athleteId));
+}
 
+const SMALLEST_BUCKET = Math.min(...PR_BUCKETS.map((b) => b.meters));
+
+/**
+ * The read half of attachLapsForPrs, which needs only the athlete: a route can
+ * start it alongside the activities read instead of after it (the profile's stats,
+ * lab 2026-10-17). Null when there is nothing to attach or the read failed.
+ */
+export async function loadPrLaps(
+  supabase: { from: (table: string) => any },
+  athleteId: string,
+): Promise<Map<string, LapLike[]> | null> {
+  const smallestBucket = SMALLEST_BUCKET;
   try {
     // Paged, and ordered by `id` to make the pages a stable partition. Only 31 of
     // the busiest athlete's runs carry laps today, well under PostgREST's
@@ -54,11 +67,15 @@ export async function attachLapsForPrs<T extends RunActivityRow & { id?: string 
     for (const row of data) {
       if (Array.isArray(row.laps) && row.laps.length > 0) byId.set(row.id, row.laps);
     }
-    if (byId.size === 0) return runs;
-
-    return runs.map((r) => (r.id && byId.has(r.id) ? { ...r, laps: byId.get(r.id) } : r));
+    return byId.size ? byId : null;
   } catch (err) {
     console.warn('PR segments unavailable (laps not loaded):', err);
-    return runs;
+    return null;
   }
+}
+
+/** The join half: the runs, with their laps where the read found any. */
+export function applyPrLaps<T extends RunActivityRow & { id?: string }>(runs: T[], byId: Map<string, LapLike[]> | null): T[] {
+  if (!byId || !runs.some((r) => r.id && r.distance >= SMALLEST_BUCKET)) return runs;
+  return runs.map((r) => (r.id && byId.has(r.id) ? { ...r, laps: byId.get(r.id) } : r));
 }
