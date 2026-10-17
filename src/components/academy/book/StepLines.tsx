@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  centrePct, effortPace, fieldValue, toneOf, traineeRepsTone,
+  centrePct, effortPace, fieldValue, isPureZone, toneOf, traineeRepsTone,
   type BookStep, type Effort, type FieldName, type FieldRef, type Length, type Tone,
 } from '@/lib/academy/book-steps';
 import { CARD, N, Stripe, clockText, kmText } from './ui';
@@ -54,9 +54,17 @@ export function useStepLines() {
   const effortWord = (effort: Effort | null) => (effort?.zone ? t(`zone.${effort.zone}`) : '');
 
   /** Every step as lines. `thresholdSec` null → efforts are shown as % of threshold. */
-  return (steps: BookStep[], thresholdSec: number | null, { editable = false, adjust, trainee = false }: { editable?: boolean; adjust?: PaceAdjust | null; trainee?: boolean } = {}): Line[] => {
+  return (steps: BookStep[], thresholdSec: number | null, { editable = false, adjust, trainee = false, zoneWords = false }: { editable?: boolean; adjust?: PaceAdjust | null; trainee?: boolean; zoneWords?: boolean } = {}): Line[] => {
+    // `zoneWords`: a named zone nobody gave a pace says its word, not the pace it would be
+    // at `thresholdSec` — the day session draws at a typical threshold, not anybody's own.
+    const word = (effort: Effort | null) => zoneWords && isPureZone(effort);
+    // …and a typed pace prints only its number: the zone nearest it at a typical threshold
+    // (4:00 at 5:00 reads "ספרינט") describes nobody's effort.
+    const typedOnly = (effort: Effort | null) => zoneWords && !!effort && !isPureZone(effort) && !!thresholdSec;
+    const paceOf = (effort: Effort | null) => (effort && thresholdSec && !word(effort) ? effortPace(effort, thresholdSec, adjust) : null);
     const paceParts = (effort: Effort | null): Part[] => {
       if (!effort) return [];
+      if (word(effort)) return [{ field: 'pace', text: effortWord(effort) }];
       if (!thresholdSec) {
         return [{ field: 'pace', text: `${Math.round(centrePct(effort.intensity))}%` }, { text: t('ofThreshold') }];
       }
@@ -81,10 +89,10 @@ export function useStepLines() {
           // and the right one: nobody adjusts the jog to the second.
           const showPace = editable && tone !== 'e';
           if (showPace) parts.push(...paceParts(step.effort));
-          else if (step.effort?.zone) parts.push({ text: effortWord(step.effort) });
+          else if (step.effort?.zone && !typedOnly(step.effort)) parts.push({ text: effortWord(step.effort) });
           lines.push({
             key: `${i}`, step: i, tone, parts, role: step.role === 'warmup' || step.role === 'cooldown' ? step.role : 'main',
-            pace: step.effort && thresholdSec ? effortPace(step.effort, thresholdSec, adjust) : null,
+            pace: paceOf(step.effort),
             paceMuted: tone === 'e',
           });
           break;
@@ -102,10 +110,10 @@ export function useStepLines() {
           ];
           if (editable) parts.push(...paceParts(step.effort));
           else if (trainee && tone === 'f' && toneOf(step.effort) !== 'f') parts.push({ text: t('zone.interval') });
-          else if (step.effort?.zone) parts.push({ text: effortWord(step.effort) });
+          else if (step.effort?.zone && !typedOnly(step.effort)) parts.push({ text: effortWord(step.effort) });
           lines.push({
             key: `${i}`, step: i, tone, parts, role: 'reps',
-            pace: step.effort && thresholdSec ? effortPace(step.effort, thresholdSec, adjust) : null,
+            pace: paceOf(step.effort),
             paceMuted: false,
           });
           if (step.rest) {
@@ -151,8 +159,10 @@ export function useStepLines() {
  * read-only list of "הבנתי כך" and of the trainee's own workout, with the pace at the end.
  */
 export function StepLines({
-  steps, thresholdSec, paceAdjust, selected, onTap, onNudge, rangeFor, trainee = false, className,
+  steps, thresholdSec, paceAdjust, selected, onTap, onNudge, rangeFor, trainee = false, zoneWords = false, className,
 }: {
+  /** A named zone with no pace given says its word (tappable when editable), not a pace. */
+  zoneWords?: boolean;
   steps: BookStep[];
   thresholdSec: number | null;
   /**
@@ -179,7 +189,7 @@ export function StepLines({
   const tw = useTranslations('trainee.workout');
   const build = useStepLines();
   const editable = !!onTap;
-  const lines = build(steps, thresholdSec, { editable, adjust: paceAdjust, trainee });
+  const lines = build(steps, thresholdSec, { editable, adjust: paceAdjust, trainee, zoneWords });
   // The trainee variant numbers every line but the recovery between reps.
   const numbers = new Map<string, number>();
   if (trainee) {
@@ -318,3 +328,4 @@ export function formatField(steps: BookStep[], ref: FieldRef, value: number, thr
     }
   }
 }
+

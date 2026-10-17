@@ -105,6 +105,11 @@ export function DaySessionCard() {
           {myPace !== null && home !== null && <> · {t.rich('repsAt', { ...RICH, pace: clockText(myPace), n: home + 1 })}</>}
         </p>
         <ProfileBar segments={profileBar(bookOf(s.steps), null)} className="mt-3" height={26} />
+        {s.description && (
+          <p dir="auto" className="mt-3 whitespace-pre-line break-words rounded-2xl bg-page px-3 py-2.5 text-[15px] leading-snug text-ink-700">
+            {s.description}
+          </p>
+        )}
 
         <SessionRsvp weekStart={weekStart} day={dow} paces={paces} whenLabel={whenWord || dayNames[dow]} />
 

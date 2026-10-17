@@ -186,7 +186,7 @@ export function AdjustScreen({
 }
 
 /** The quick row's − + — 28px drawn (three cells share 354px), 44px to the thumb. */
-function StepperButton({ sign, onClick }: { sign: 1 | -1; onClick: () => void }) {
+export function StepperButton({ sign, onClick }: { sign: 1 | -1; onClick: () => void }) {
   const t = useTranslations('workoutBook');
   return (
     <button

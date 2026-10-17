@@ -8,14 +8,17 @@ import { apiHeaders, useApi } from '@/lib/api';
 import { addDaysToDateStr, cn, israelToday } from '@/lib/utils';
 import { Switch } from '@/components/ui';
 import { parseQuickText } from '@/lib/academy/quick-text';
-import { bookTotals, profileBar, structureName } from '@/lib/academy/book-steps';
+import { bookTotals, profileBar, structureName, type BookStep } from '@/lib/academy/book-steps';
+import type { QuickStep } from '@/lib/academy/quick-text';
 import {
   BarButton, CARD, FlowOverlay, FlowScreen, PrimaryButton, ProfileBar, RICH, SectionLabel, clockText, kmText,
 } from '@/components/academy/book/ui';
 import { StepLines } from '@/components/academy/book/StepLines';
+import { StepEditor } from '@/components/day-session/StepEditor';
 import { DAY_SESSION_FOR_ALL } from '@/lib/day-session/flag';
 import {
-  bookOf, numberRuns, parsePaceText, NUTRITION_WHENS, type DaySession, type NutritionLine, type NutritionWhen,
+  bookOf, EDIT_THRESHOLD_SEC, MAX_DESCRIPTION, MAX_TITLE, numberRuns, parsePaceText, stepsToStore, NUTRITION_WHENS,
+  type DaySession, type NutritionLine, type NutritionWhen,
 } from '@/lib/day-session/model';
 
 // ── "אימון ליום אחד" — the coach's form (mockup manual-day-workout, phones 1 and 2) ──────
@@ -25,13 +28,21 @@ import {
 // workout book's ✎ screen reads), and each pack's rep pace. Phone 2: the nutrition for this
 // session only — before / during / after, free text — and how it goes out.
 //
-// Picking a date that already has a session loads it, so the same form edits it and takes
-// it off the feed. Gated by lib/day-session/model.ts; the route says 403 to anyone else.
+// Two ways to fill the workout: "לכתוב במשפט" (the sentence → "הבנתי כך", then "✎ לערוך"
+// opens the step editor prefilled with the parse) or "להכניס ידנית" (the editor from an
+// empty list). Once edited, the EDITED steps are what is sent and stored — the sentence is
+// kept only as the coach's own words. The title follows the structure until the coach
+// writes his own; "הערות לאימון" is free text for the card.
+//
+// Picking a date that already has a session loads it — its STORED steps, not a re-parse of
+// its sentence — so the same form edits it and takes it off the feed. Gated by
+// lib/day-session/model.ts; the route says 403 to anyone else.
 
 const FOOD_ICON: Record<NutritionWhen, string> = { before: '🍌', during: '💧', after: '🥤' };
 const BLANK_FOOD: NutritionLine[] = NUTRITION_WHENS.map((when) => ({ when, text: '' }));
 
 type Chip = 'tomorrow' | 'dayAfter' | 'other';
+type Mode = 'text' | 'manual';
 
 export default function DaySessionPage() {
   const t = useTranslations('daySession');
@@ -48,10 +59,20 @@ export default function DaySessionPage() {
   const { data: loaded, error: loadError, mutate } = useApi<{ setup: boolean; session: DaySession | null }>(`/api/day-session?date=${date}`);
   const existing = loaded?.session ?? null;
 
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 'edit'>(1);
   const [time, setTime] = useState('');
   const [place, setPlace] = useState('');
+  const [mode, setMode] = useState<Mode>('text');
   const [text, setText] = useState('');
+  // Null = the steps follow the sentence. Otherwise the editor's steps, and the stored /
+  // parsed steps they started from (sent as-is when the edit changed nothing).
+  const [edited, setEdited] = useState<BookStep[] | null>(null);
+  const [editedFrom, setEditedFrom] = useState<QuickStep[] | null>(null);
+  const [editorStart, setEditorStart] = useState<{ initial: BookStep[]; original: BookStep[] | null }>({ initial: [], original: null });
+  const [title, setTitle] = useState('');
+  const [titleTouched, setTitleTouched] = useState(false);
+  const [titleEditing, setTitleEditing] = useState(false);
+  const [description, setDescription] = useState('');
   const [paces, setPaces] = useState<[string, string, string]>(['', '', '']);
   const [food, setFood] = useState<NutritionLine[]>(BLANK_FOOD);
   const [inFeed, setInFeed] = useState(true);
@@ -65,15 +86,23 @@ export default function DaySessionPage() {
     const s = loaded.session;
     setMessage(null);
     if (s) {
+      const stored = bookOf(s.steps);
       setTime(s.startTime || '');
       setPlace(s.place || '');
+      setMode(s.quickText ? 'text' : 'manual');
       setText(s.quickText);
+      setEdited(stored);
+      setEditedFrom(s.steps);
+      setTitle(s.title);
+      setTitleTouched(!!s.title && s.title !== (stored.length ? structureName(stored) : ''));
+      setDescription(s.description || '');
       setPaces(s.packPaces.map((p) => (p ? clockText(p) : '')) as [string, string, string]);
       setFood(s.nutrition.length ? s.nutrition : BLANK_FOOD);
       setInFeed(!!s.publishedAt);
       setNotify(s.notify);
     } else {
       setText(''); setPlace(''); setPaces(['', '', '']); setFood(BLANK_FOOD); setInFeed(true); setNotify(true);
+      setMode('text'); setEdited(null); setEditedFrom(null); setTitle(''); setTitleTouched(false); setDescription('');
     }
   }, [loaded]);
 
@@ -85,9 +114,37 @@ export default function DaySessionPage() {
   }, [reminderCfg, existing, time]);
 
   const parse = useMemo(() => parseQuickText(text), [text]);
-  const steps = useMemo(() => bookOf(parse.steps), [parse]);
+  const parsedSteps = useMemo(() => bookOf(parse.steps), [parse]);
+  const steps = edited ?? (mode === 'text' ? parsedSteps : []);
   const totals = steps.length ? bookTotals(steps, null) : null;
-  const ready = steps.length > 0;
+  const ready = steps.length > 0 && steps.some((s) => s.kind !== 'rest');
+  const autoTitle = steps.length ? structureName(steps) : '';
+  const shownTitle = titleTouched ? title : autoTitle;
+
+  const openEditor = () => {
+    setEditorStart(edited
+      ? { initial: edited, original: editedFrom ? bookOf(editedFrom) : null }
+      : mode === 'text' ? { initial: parsedSteps, original: parsedSteps } : { initial: [], original: null });
+    setStep('edit');
+  };
+  const doneEditing = (next: BookStep[]) => {
+    if (!edited && mode === 'text') setEditedFrom(parse.steps);
+    setEdited(next);
+    setStep(1);
+  };
+  const pickMode = (next: Mode) => {
+    if (next === mode) return;
+    if (steps.length && !window.confirm(t('restartConfirm'))) return;
+    setMode(next);
+    setEditedFrom(null);
+    if (next === 'manual') {
+      setEdited([]);
+      setEditorStart({ initial: [], original: null });
+      setStep('edit');
+    } else {
+      setEdited(null);
+    }
+  };
 
   const forbidden = (loadError as { status?: number } | undefined)?.status === 403;
   const notSetUp = loaded?.setup === false;
@@ -104,7 +161,12 @@ export default function DaySessionPage() {
         method: 'PUT',
         headers: await apiHeaders(true),
         body: JSON.stringify({
-          date, startTime: time || null, place, quickText: text,
+          date, startTime: time || null, place,
+          quickText: mode === 'text' ? text : '',
+          // The steps as shown — the edit when there is one, never re-parsed by the server.
+          steps: edited ? stepsToStore(edited, editedFrom) : parse.steps,
+          title: titleTouched ? title.trim() : null,
+          description,
           packPaces: paces.map(parsePaceText),
           nutrition: food.filter((l) => l.text.trim()),
           publish, notify,
@@ -113,7 +175,12 @@ export default function DaySessionPage() {
       if (res.status === 503) { setMessage({ tone: 'bad', text: t('notSetUp') }); return; }
       if (res.status === 400) { setMessage({ tone: 'bad', text: t('notUnderstood') }); return; }
       if (!res.ok) { setMessage({ tone: 'bad', text: t('failed') }); return; }
+      const body = await res.json().catch(() => null) as { session?: DaySession } | null;
       await mutate();
+      if (description.trim() && !body?.session?.description) {
+        setMessage({ tone: 'bad', text: t('descriptionNotSaved') });
+        return;
+      }
       setMessage({ tone: 'ok', text: publish ? t('published') : t('saved') });
       if (publish) router.push('/feed');
     } catch {
@@ -144,6 +211,19 @@ export default function DaySessionPage() {
       )}
     </>
   );
+
+  if (step === 'edit') {
+    return (
+      <FlowOverlay label={t('editorTitle')}>
+        <StepEditor
+          initial={editorStart.initial}
+          original={editorStart.original}
+          onCancel={() => setStep(1)}
+          onDone={doneEditing}
+        />
+      </FlowOverlay>
+    );
+  }
 
   if (step === 1) {
     return (
@@ -189,31 +269,115 @@ export default function DaySessionPage() {
             </label>
           </div>
 
-          <SectionLabel>{t('workout')}</SectionLabel>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            dir="rtl"
-            rows={2}
-            aria-label={t('workout')}
-            placeholder={t('workoutPlaceholder')}
-            className={cn(CARD, 'min-h-[80px] resize-none rounded-[14px] border-2 border-brand-600 px-4 py-3 text-[17px] leading-relaxed text-ink-900 outline-none placeholder:text-ink-400')}
-          />
-          {ready && (
+          <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label={`${t('modeText')} / ${t('modeManual')}`}>
+            {(['text', 'manual'] as Mode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={mode === m}
+                onClick={() => pickMode(m)}
+                className={cn('min-h-[44px] rounded-xl border text-sm font-extrabold', mode === m ? 'border-brand-600 bg-brand-600 text-white' : 'border-[#E6E6EC] bg-white text-ink-500')}
+              >
+                {m === 'text' ? t('modeText') : t('modeManual')}
+              </button>
+            ))}
+          </div>
+
+          {mode === 'text' && !edited && (
+            <>
+              <SectionLabel>{t('workout')}</SectionLabel>
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                dir="rtl"
+                rows={2}
+                aria-label={t('workout')}
+                placeholder={t('workoutPlaceholder')}
+                className={cn(CARD, 'min-h-[80px] resize-none rounded-[14px] border-2 border-brand-600 px-4 py-3 text-[17px] leading-relaxed text-ink-900 outline-none placeholder:text-ink-400')}
+              />
+            </>
+          )}
+          {(steps.length > 0 || mode === 'manual') && (
             <div className={cn(CARD, 'space-y-2.5 p-3.5')}>
-              <SectionLabel>{t('understood')}</SectionLabel>
-              <StepLines steps={steps} thresholdSec={null} />
-              <ProfileBar segments={profileBar(steps, null)} />
-              {totals && (
-                <p className="text-13 text-ink-400">{t.rich('totals', { ...RICH, km: kmText(totals.distanceM), min: Math.round(totals.durationSec / 60) })}</p>
+              <SectionLabel>{edited ? (mode === 'manual' ? t('manualHeader') : t('editedHeader')) : t('understood')}</SectionLabel>
+              {steps.length > 0 ? (
+                <>
+                  <StepLines steps={steps} thresholdSec={EDIT_THRESHOLD_SEC} zoneWords />
+                  <ProfileBar segments={profileBar(steps, null)} />
+                  {totals && (
+                    <p className="text-13 text-ink-400">{t.rich('totals', { ...RICH, km: kmText(totals.distanceM), min: Math.round(totals.durationSec / 60) })}</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-ink-500">{t('manualEmpty')}</p>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <button type="button" onClick={openEditor} className="min-h-[44px] rounded-xl bg-[#EEF0FF] px-4 text-[15px] font-extrabold text-brand-600">
+                  {steps.length ? t('edit') : t('addSteps')}
+                </button>
+                {edited && mode === 'text' && (
+                  <button type="button" onClick={() => { setEdited(null); setEditedFrom(null); }} className="min-h-[44px] text-sm font-bold text-ink-400">
+                    {t('backToSentence')}
+                  </button>
+                )}
+              </div>
+              {edited && mode === 'text' && text && (
+                <p className="text-13 text-ink-400"><bdi>{t('fromSentence', { text })}</bdi></p>
               )}
             </div>
           )}
-          {parse.unknown.length > 0 && (
+          {mode === 'text' && !edited && parse.unknown.length > 0 && (
             <ul className="space-y-1 px-1 text-13 text-[#8A4308]">
               {parse.unknown.map((u) => <li key={u}>• {t('unknownWords', { text: u })}</li>)}
             </ul>
           )}
+
+          {steps.length > 0 && (
+            <div className={cn(CARD, 'overflow-hidden')}>
+              {/* Shown with its numbers isolated (an input would flip `5 × 1` to `1 × 5`); a tap
+                  turns it into the field. */}
+              {titleEditing ? (
+                <label className="flex min-h-[48px] items-center justify-between gap-3 px-4">
+                  <span className="shrink-0 text-13 font-bold text-ink-400">{t('titleLabel')}</span>
+                  <input
+                    autoFocus
+                    value={shownTitle}
+                    onChange={(e) => { setTitle(e.target.value); setTitleTouched(true); }}
+                    onBlur={() => setTitleEditing(false)}
+                    maxLength={MAX_TITLE}
+                    aria-label={t('titleLabel')}
+                    className="min-h-[44px] min-w-0 flex-1 bg-transparent text-end text-base font-bold text-ink-900 outline-none"
+                  />
+                </label>
+              ) : (
+                <button type="button" onClick={() => setTitleEditing(true)} aria-label={t('titleLabel')} className="flex min-h-[48px] w-full items-center justify-between gap-3 px-4 text-start">
+                  <span className="shrink-0 text-13 font-bold text-ink-400">{t('titleLabel')}</span>
+                  <span className="min-w-0 flex-1 truncate text-end text-base font-bold text-ink-900">
+                    {numberRuns(shownTitle).map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>))}
+                    <span className="ms-2 text-brand-600" aria-hidden>✎</span>
+                  </span>
+                </button>
+              )}
+              {titleTouched && (
+                <button type="button" onClick={() => { setTitleTouched(false); setTitle(''); }} className="min-h-[44px] w-full border-t border-[#EFEFF4] px-4 text-start text-sm font-bold text-brand-600">
+                  {t('titleAuto')} · {numberRuns(autoTitle).map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>))}
+                </button>
+              )}
+            </div>
+          )}
+
+          <SectionLabel>{t('description')}</SectionLabel>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            dir="auto"
+            rows={3}
+            maxLength={MAX_DESCRIPTION}
+            aria-label={t('description')}
+            placeholder={t('descriptionPlaceholder')}
+            className={cn(CARD, 'min-h-[88px] resize-none rounded-[14px] px-4 py-3 text-[16px] leading-relaxed text-ink-900 outline-none placeholder:text-ink-300')}
+          />
 
           <SectionLabel>{t('packPaces')}</SectionLabel>
           <div className="grid grid-cols-3 gap-1.5">
@@ -304,7 +468,7 @@ export default function DaySessionPage() {
               <b className="block text-[15px] text-ink-900">{t('notifyAll')}</b>
               <small className="block text-13 text-ink-400">
                 {alreadySent ? t('notifyAlreadySent') : DAY_SESSION_FOR_ALL
-                  ? <>&quot;{chip === 'tomorrow' ? t('tomorrow') : dateLabel(date)}: {numberRuns(steps.length ? structureName(steps) : '').map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>))}&quot;</>
+                  ? <>&quot;{chip === 'tomorrow' ? t('tomorrow') : dateLabel(date)}: {numberRuns(shownTitle || autoTitle).map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>))}&quot;</>
                   : t('notifyOnlyYou')}
               </small>
             </span>
