@@ -3,6 +3,8 @@ import {
   BUILD_ID_MESSAGE,
   askBuildId,
   isNewerBuild,
+  isRunningBuild,
+  pageBuildId,
   type BuildIdTarget,
 } from '@/lib/sw-build-id';
 
@@ -76,5 +78,26 @@ describe('service worker build id', () => {
     expect(isNewerBuild(null, '6370f44a')).toBe(true);
     expect(isNewerBuild('5ef30272', null)).toBe(true);
     expect(isNewerBuild(null, null)).toBe(true);
+  });
+
+  // The first open after a deploy: the page came from the network (new), its
+  // controller is the old worker, and the new worker installing is NOT a reason to
+  // reload — that reload was the "restart" 2-4 s into the open.
+  it('knows a worker for the build the page is already running', () => {
+    expect(isRunningBuild('6370f44a', '6370f44a')).toBe(true);
+    expect(isRunningBuild('6370f44a', '5ef30272')).toBe(false);
+    expect(isRunningBuild(null, '5ef30272')).toBe(false);
+  });
+
+  it('names the page build the way the worker does, falling back to the version', () => {
+    const before = process.env.NEXT_PUBLIC_BUILD_ID;
+    try {
+      delete process.env.NEXT_PUBLIC_BUILD_ID;
+      expect(pageBuildId('2.41.180')).toBe('2.41.180');
+      process.env.NEXT_PUBLIC_BUILD_ID = '6370f44a';
+      expect(pageBuildId('2.41.180')).toBe('6370f44a');
+    } finally {
+      if (before === undefined) delete process.env.NEXT_PUBLIC_BUILD_ID; else process.env.NEXT_PUBLIC_BUILD_ID = before;
+    }
   });
 });

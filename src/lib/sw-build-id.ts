@@ -85,3 +85,24 @@ export function isNewerBuild(loaded: string | null, candidate: string | null): b
   if (loaded && candidate && loaded === candidate) return false;
   return true;
 }
+
+/**
+ * The build the running BUNDLE belongs to, in the worker's terms: the deploy's
+ * commit (next.config.mjs NEXT_PUBLIC_BUILD_ID), else the version, which is what
+ * sw.ts falls back to when it has no commit either.
+ */
+export function pageBuildId(appVersion: string): string {
+  return process.env.NEXT_PUBLIC_BUILD_ID || appVersion;
+}
+
+/**
+ * The candidate is the build this page is already running. On the first open after
+ * a deploy the document and its chunks come from the network, so the page is new
+ * while the controlling worker is still the old one; the new worker's install then
+ * looks like an update, and applying it reloaded the page 2-4 s into the open
+ * (lab, 2026-10-16) for nothing. Only an exact match counts; anything unknown is
+ * treated as an update, as everywhere in this file.
+ */
+export function isRunningBuild(candidate: string | null, page: string): boolean {
+  return !!candidate && candidate === page;
+}

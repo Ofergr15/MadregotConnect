@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { apiFetcher } from '@/lib/api';
 import { useIsSuperUser } from '@/lib/impersonation';
-import { askBuildId, isNewerBuild } from '@/lib/sw-build-id';
+import { askBuildId, isNewerBuild, isRunningBuild, pageBuildId } from '@/lib/sw-build-id';
 import { AWAY_MS, canApplyUpdate } from '@/lib/update-timing';
 import { APP_VERSION } from '@/lib/version';
 import { isFramed } from '@/lib/framed';
@@ -249,7 +249,17 @@ export function UpdatePrompt() {
       if (disposed || applying || !hadControllerAtLoad) return;
       await loadedBuildReady;
       const theirs = await askBuildId(candidate);
-      if (disposed || !isNewerBuild(loadedBuild, theirs)) return;
+      if (disposed) return;
+      // The page already runs that build: let the worker take over quietly so the
+      // chunks it serves match, and don't reload — that was the "restart" a couple
+      // of seconds into the first open after every deploy.
+      if (isRunningBuild(theirs, pageBuildId(APP_VERSION))) {
+        if (candidate && candidate !== navigator.serviceWorker.controller) {
+          try { candidate.postMessage({ type: 'SKIP_WAITING' }); } catch { /* redundant already */ }
+        }
+        return;
+      }
+      if (!isNewerBuild(loadedBuild, theirs)) return;
       pending = true;
       tryApply();
     };

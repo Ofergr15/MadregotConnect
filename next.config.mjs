@@ -5,6 +5,13 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // The deploy this bundle belongs to, the same id the service worker answers with
+  // (src/app/serwist/[path]/route.ts → sw.ts BUILD_ID). Lets UpdatePrompt see that a
+  // freshly installed worker is the build the page is ALREADY running, which is the
+  // usual case on the first open after a deploy (the document came from the
+  // network), and skip the reload that would only repeat the open. Empty locally,
+  // where both sides fall back to APP_VERSION.
+  env: { NEXT_PUBLIC_BUILD_ID: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 8) },
   // resvg loads a platform-specific native binding at runtime.
   serverExternalPackages: ['@resvg/resvg-js', 'pdfjs-dist'],
   // Next 16 blocks cross-origin dev chunks by default. Allow the stable ngrok

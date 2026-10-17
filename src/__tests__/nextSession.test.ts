@@ -202,7 +202,8 @@ describe('the feed box', () => {
 
   it('is the first block in the feed', () => {
     const feed = read('app/(app)/feed/page.tsx');
-    expect(feed).toMatch(/empty:mb-0">\s*<NextSessionCard \/>/);
+    // The QuietBoundary renders no element of its own, so `empty:` still sees the card.
+    expect(feed).toMatch(/empty:mb-0">\s*(<QuietBoundary[^>]*>\s*)?<NextSessionCard \/>/);
     expect(feed.indexOf('<NextSessionCard />')).toBeLessThan(feed.indexOf('<WeekSummaryCard />'));
   });
 

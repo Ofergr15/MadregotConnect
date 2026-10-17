@@ -29,6 +29,7 @@ import { PushDeadBanner } from '@/components/PushDeadBanner';
 import { WeekSummaryCard } from '@/components/feed/WeekSummaryCard';
 import { QualitySessionRow } from '@/components/feed/QualitySessionRow';
 import { NextSessionCard } from '@/components/feed/NextSessionCard';
+import { QuietBoundary } from '@/components/QuietBoundary';
 import { PackStrip } from '@/components/feed/PackStrip';
 import { ComposeFab } from '@/components/feed/ComposeFab';
 import { WhatsNewAutoSheet } from '@/components/whats-new/WhatsNewSheet';
@@ -171,6 +172,13 @@ export default function FeedPage() {
   useEffect(() => {
     if (isOperator) router.replace('/dashboard');
   }, [isOperator, router]);
+  // The two cards above the feed open on data the previous release saved
+  // (lib/swr-persist CROSS_RELEASE_KEYS), so they're there with the saved page
+  // instead of pushing it down a second later. If that data no longer fits a card,
+  // the card hides until its fresh answer lands: these are the same keys the cards
+  // read, so this asks nothing extra, it only names the moment to retry.
+  const { data: weeklyForCards } = useApi('/api/dashboard/weekly');
+  const { data: highlightForCards } = useApi('/api/feed/highlight');
   const focus = feedFocusFromParams(searchParams);
   const focusBy = focus?.by ?? null;
   const focusId = focus?.id ?? null;
@@ -587,8 +595,12 @@ export default function FeedPage() {
           07:00 → 11:00 on a quality day (read off the plan), the super user's
           alone while it is tried out: one row that opens the screen where a runner
           per pack is picked and shared. See QualitySessionRow. */}
+      {/* Retried with the other above-feed answers: its own key is asked only for
+          those with access, so the page doesn't read it here. */}
       <div className="mb-4 empty:mb-0">
-        <QualitySessionRow />
+        <QuietBoundary resetKey={weeklyForCards}>
+          <QualitySessionRow />
+        </QuietBoundary>
       </div>
 
       {/* ═══ GOAL RACE ═══
@@ -604,7 +616,9 @@ export default function FeedPage() {
           once it's run. Read-only on the watch question by design — see
           NextSessionCard. */}
       <div className="mb-4 empty:mb-0">
-        <NextSessionCard />
+        <QuietBoundary resetKey={weeklyForCards}>
+          <NextSessionCard />
+        </QuietBoundary>
       </div>
 
       {/* ═══ LAST WEEK ═══
@@ -638,7 +652,9 @@ export default function FeedPage() {
           challenge is running. Renders nothing when there's nothing true to say,
           so it costs no vertical space on a cold or empty account. */}
       <div className="mb-4 empty:mb-0">
-        <FeedHighlightCard />
+        <QuietBoundary resetKey={highlightForCards}>
+          <FeedHighlightCard />
+        </QuietBoundary>
       </div>
 
       {/* Writing a post: a floating + on the phone (feed redesign 2026-10-12 —

@@ -31,7 +31,9 @@ import { getViewedPerson } from '@/lib/view-as-person';
 //     never paint the previous person's numbers.
 //   • signOutEverywhere() wipes it, via clearIdentityKeys().
 //   • It carries APP_VERSION and is discarded on a deploy, so a changed response
-//     shape can't be restored into a screen that no longer understands it.
+//     shape can't be restored into a screen that no longer understands it — all
+//     but CROSS_RELEASE_KEYS, below, which the feed page renders behind a
+//     QuietBoundary.
 // Do NOT reach for this to store anything the API doesn't already hand this
 // session — it is a cache, not a store.
 // ═════════════════════════════════════════════════════════════════════════════
@@ -49,6 +51,28 @@ const MAX_TOTAL_BYTES = 1024 * 1024;
 /** Coalesce the writes: SWR touches the cache several times per request (start
  *  revalidating → data → stop), and a page load is dozens of those. */
 const FLUSH_DEBOUNCE_MS = 1500;
+
+/**
+ * The answers behind the cards ABOVE the feed (NextSessionCard, FeedHighlightCard,
+ * QualitySessionRow),
+ * kept across a deploy. The saved feed page survives one (lib/feed/feed-cache), so
+ * the first open after a release paints yesterday's runs at once; with these
+ * dropped, those two cards rendered nothing and then arrived a second later,
+ * pushing the whole list down 360 px in front of the reader (lab, 2026-10-16). A
+ * shape a new card can't read is caught by the QuietBoundary around each card,
+ * which hides it until the fresh answer lands.
+ */
+export const CROSS_RELEASE_KEYS = [
+  '/api/dashboard/weekly',
+  '/api/my-watch',
+  '/api/reminder-config',
+  '/api/feed/highlight',
+];
+/** NextSessionCard's own runs-today read: its key carries the athlete and the day. */
+const NEXT_SESSION_RUNS = /^\/api\/activities\?(athleteId=[^&]+&)?scope=self&since=\d{4}-\d{2}-\d{2}$/;
+/** QualitySessionRow's read, the first block of the feed on a quality morning. */
+const QUALITY_SESSION = /^\/api\/quality-session\?date=\d{4}-\d{2}-\d{2}$/;
+const crossRelease = (key: string) => CROSS_RELEASE_KEYS.includes(key) || NEXT_SESSION_RUNS.test(key) || QUALITY_SESSION.test(key);
 
 interface Persisted {
   v: string;
@@ -114,12 +138,14 @@ function load(map: CacheMap, identity: string): void {
     const parsed = JSON.parse(raw) as Persisted;
     // A different person, or a different deploy — either makes the whole blob
     // unusable, so drop it now rather than leaving it to be overwritten later.
-    if (parsed?.v !== APP_VERSION || parsed?.id !== identity || !Array.isArray(parsed.e)) {
+    if (parsed?.id !== identity || !Array.isArray(parsed.e)) {
       clearPersistedSWRCache();
       return;
     }
+    // Another deploy: only the cards above the feed are carried over.
+    const sameRelease = parsed.v === APP_VERSION;
     for (const [key, data] of parsed.e) {
-      if (typeof key === 'string') map.set(key, { data });
+      if (typeof key === 'string' && (sameRelease || crossRelease(key))) map.set(key, { data });
     }
   } catch {
     clearPersistedSWRCache();

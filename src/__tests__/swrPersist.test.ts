@@ -93,11 +93,38 @@ describe('persistedCacheProvider — restoring', () => {
     expect(store.has(STORAGE_KEY)).toBe(false);
   });
 
-  it('refuses — and deletes — a cache written by a different deploy', () => {
+  it('drops a different deploy\'s answers, all but the cards above the feed', () => {
     signedInAs('a1');
-    store.set(STORAGE_KEY, blob([['/api/feed', { items: [] }]], { v: '0.0.1-old' }));
+    const runs = '/api/activities?athleteId=a1&scope=self&since=2026-10-17';
+    store.set(STORAGE_KEY, blob([
+      ['/api/feed', { items: [] }],
+      ['/api/groups', { groups: [] }],
+      ['/api/activities?athleteId=a1&scope=self', { activities: ['history'] }],
+      ['/api/dashboard/weekly', { hasPlan: true }],
+      ['/api/my-watch', { onWatch: [] }],
+      ['/api/reminder-config', { config: {} }],
+      ['/api/feed/highlight', { highlight: null }],
+      [runs, { activities: [] }],
+      ['/api/quality-session?date=2026-10-17', { workout: null }],
+    ], { v: '0.0.1-old' }));
 
-    expect(persistedCacheProvider().get('/api/feed')).toBeUndefined();
+    const cache = persistedCacheProvider();
+    expect(cache.get('/api/feed')).toBeUndefined();
+    expect(cache.get('/api/groups')).toBeUndefined();
+    // Only the next-session card's runs-today read, not every activities list.
+    expect(cache.get('/api/activities?athleteId=a1&scope=self')).toBeUndefined();
+    expect(cache.get('/api/dashboard/weekly')).toEqual({ data: { hasPlan: true } });
+    expect(cache.get('/api/my-watch')).toEqual({ data: { onWatch: [] } });
+    expect(cache.get('/api/reminder-config')).toEqual({ data: { config: {} } });
+    expect(cache.get('/api/feed/highlight')).toEqual({ data: { highlight: null } });
+    expect(cache.get(runs)).toEqual({ data: { activities: [] } });
+    expect(cache.get('/api/quality-session?date=2026-10-17')).toEqual({ data: { workout: null } });
+  });
+
+  it('still refuses another person\'s cards above the feed after a deploy', () => {
+    signedInAs('a2');
+    store.set(STORAGE_KEY, blob([['/api/dashboard/weekly', { hasPlan: true }]], { v: '0.0.1-old', id: 'a1|' }));
+    expect(persistedCacheProvider().get('/api/dashboard/weekly')).toBeUndefined();
     expect(store.has(STORAGE_KEY)).toBe(false);
   });
 

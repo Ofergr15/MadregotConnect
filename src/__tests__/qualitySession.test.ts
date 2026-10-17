@@ -109,7 +109,8 @@ describe('wiring', () => {
   });
   it('the row sits at the top of the feed, above what\'s next', () => {
     const feed = read('app/(app)/feed/page.tsx');
-    expect(feed).toMatch(/empty:mb-0">\s*<QualitySessionRow \/>/);
+    // The QuietBoundary renders no element of its own, so `empty:` still sees the row.
+    expect(feed).toMatch(/empty:mb-0">\s*(<QuietBoundary[^>]*>\s*)?<QualitySessionRow \/>/);
     expect(feed.indexOf('<QualitySessionRow />')).toBeLessThan(feed.indexOf('<NextSessionCard />'));
   });
   it('the 7:30 push is once a day by the ledger and reads the plan, not the team days', () => {
