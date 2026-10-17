@@ -34,7 +34,7 @@ const ROLE_LABEL: Record<GrantableRole, string> = {
 };
 
 const ROLE_ROWS: Array<{ role: GrantableRole; title: string; description: string }> = [
-  { role: 'coach', title: 'מאמן מועדון', description: 'נוכחות, קבוצות וכלי מאמן' },
+  { role: 'coach', title: 'מאמן מועדון', description: 'נוכחות, קבוצות ועמוד הניהול' },
   { role: 'academy_coach', title: 'מאמן אקדמיה', description: 'רק המתאמנים שמשויכים אליו' },
   { role: 'academy_manager', title: 'מנהל אקדמיה', description: 'כל האקדמיה, מצטרפים ומאמנים' },
   { role: 'admin', title: 'אדמין', description: 'הכול, כולל קביעת תפקידים' },
@@ -161,7 +161,7 @@ export default function RolesPage() {
 
   return (
     <div className="space-y-3" dir="rtl">
-      <BackNav label="כלי מאמן" onBack={() => router.push('/dashboard/coach-tools')} />
+      <BackNav label="ניהול" onBack={() => router.push('/dashboard/coach-tools')} />
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight text-ink-700">תפקידים</h1>
         {data && (

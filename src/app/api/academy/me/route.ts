@@ -133,8 +133,12 @@ export async function GET(request: Request) {
     }
     // Self-or-staff: an athlete may pull their own academy view, and a coach may
     // pull it for any athlete (that's what the member drill-in shows).
-    const { denied } = await requireCallerForAthlete(request, athleteId);
+    const { denied, caller } = await requireCallerForAthlete(request, athleteId);
     if (denied) return denied;
+    // A coach looking at a trainee gets their phone, for the header's call and
+    // WhatsApp buttons. Staff can already read it (athletes/me is self-or-staff);
+    // the trainee's own home never needs it.
+    const viewerIsOther = caller.athleteId !== athleteId;
 
     // The PLAN week (Sunday) — what the ← → arrows step through and what the coach
     // published against. Never later than this week: there is nothing to grade yet.
@@ -307,11 +311,16 @@ export async function GET(request: Request) {
     // ── The km chart: twelve plan weeks ending at the week on screen ──
     const chartWeeks = history
       .filter((h) => h.weekStart >= chartFrom && h.weekStart <= weekStart)
-      .map((h) => ({ weekStart: h.weekStart, km: round1(h.ranM) }));
+      // plannedKm per week too: the coach's trainee header draws done against planned.
+      .map((h) => ({ weekStart: h.weekStart, km: round1(h.ranM), plannedKm: round1(h.plannedM) }));
 
     // ── The journey ──
     const journeyWeeks = history.filter((h) => h.weekStart >= journeyFrom);
     const { planPct, streakWeeks } = journeyPlanStats(journeyWeeks, currentWeek);
+
+    const phone = viewerIsOther
+      ? ((await supabase.from('athletes').select('phone').eq('id', athleteId).maybeSingle<{ phone: string | null }>()).data?.phone ?? null)
+      : undefined;
 
     const hasWatch = !!(watch.data as { garmin_auth?: unknown } | null)?.garmin_auth
       || !!(watch.data as { strava_auth?: unknown } | null)?.strava_auth;
@@ -323,6 +332,7 @@ export async function GET(request: Request) {
       athlete: {
         athleteId: me.id, name: me.name, avatarUrl: me.avatar_url || null, hasWatch,
         gender: me.gender === 'female' || me.gender === 'male' ? me.gender : null,
+        ...(phone !== undefined ? { phone } : {}),
       },
       coach: coach ? { id: coach.id, name: coach.name, avatarUrl: coach.avatar_url || null } : null,
       coaches: coachRows.map((c) => ({ id: c.id, name: c.name, avatarUrl: c.avatar_url || null })),

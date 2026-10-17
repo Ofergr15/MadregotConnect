@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog, Zap, CalendarPlus } from 'lucide-react';
+import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog, Zap, CalendarPlus, UserCheck } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { flowGroup, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
@@ -12,6 +12,10 @@ import { isSuperUser } from '@/lib/constants';
 import { getViewMode, MAINTENANCE_MODE } from '@/lib/impersonation';
 import { getActiveViewRole } from '@/lib/role-views';
 import { DAY_SESSION_FOR_ALL } from '@/lib/day-session/flag';
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
+import { AcademyCoachToday } from '@/components/management/AcademyCoachToday';
+import { AcademyManagerSummary } from '@/components/management/AcademyManagerSummary';
 
 // Coach Tools hub (roadmap: native-iOS redesign, Batch 0) — the staff
 // equivalent of the bottom tab bar's 4th slot. Staff have too many tools
@@ -23,6 +27,19 @@ import { DAY_SESSION_FOR_ALL } from '@/lib/day-session/flag';
 // Skeleton for the Academy row while `role` is still resolving — reserves the
 // exact height InsetRow renders (icon tile + label) so the row doesn't pop
 // into/out of the list once the async role lookup settles.
+/** One of the "היום" tiles at the top of a club coach's Management page. */
+function TodayTile({ href, icon: Icon, tone, label, sub, alert = false }: {
+  href: string; icon: React.ComponentType<{ className?: string }>; tone: string; label: string; sub: string; alert?: boolean;
+}) {
+  return (
+    <Link href={href} className={cn('flex min-h-[112px] flex-col gap-1 rounded-card border bg-card p-3', alert ? 'border-accent-red/40' : 'border-page')}>
+      <span className={cn('mb-1 grid h-9 w-9 place-items-center rounded-xl text-white', tone)}><Icon className="h-[18px] w-[18px]" /></span>
+      <b className="text-sm text-ink-900">{label}</b>
+      <span className={cn('text-2xs leading-snug', alert ? 'font-bold text-accent-red-ink' : 'text-ink-400')}>{sub}</span>
+    </Link>
+  );
+}
+
 function AcademyRowSkeleton() {
   return (
     <div className="flex items-center gap-3 px-4 py-3 min-h-[52px]">
@@ -60,12 +77,27 @@ export default function CoachToolsPage() {
   // Shared SWR cache (same endpoint/shape other role checks in the app use) —
   // revisiting this page shows the Academy row instantly from cache instead
   // of a skeleton flash every time.
-  const { data, isLoading: roleLoading } = useApi<{ role?: string; qualitySession?: boolean; isSuper?: boolean }>(
+  const { data, isLoading: roleLoading } = useApi<{ role?: string; roles?: string[]; isSuper?: boolean; qualitySession?: boolean }>(
     !previewRole && email ? '/api/auth/me' : null,
   );
   // The account's own view switch sits under a preview — see role-views.ts.
   const role = previewRole || getActiveViewRole() || (isSuperUser(email) ? 'admin' : data?.role) || null;
   const showAcademy = role === 'academy_coach' || role === 'admin';
+
+  // ── Which Management page (Ofer, 2026-10-17: "different screens for a coach and a
+  // manager — each needs to see different things"). Every role the account holds
+  // counts (migration 127), so a club coach who also coaches in the academy gets
+  // both parts, one after the other. A preview ("view as") is one role only.
+  const held = previewRole ? [previewRole] : (data?.roles?.length ? data.roles : role ? [role] : []);
+  const isAdminLens = role === 'admin' || held.includes('admin') || (!previewRole && isSuperUser(email));
+  const isClubCoachLens = isAdminLens || held.includes('coach');
+  const isAcademyCoachLens = held.includes('academy_coach');
+  const isAcademyManagerLens = isAdminLens || held.includes('academy_manager');
+  const { data: attention } = useApi<{ pain: number; wantsReply: number }>(isClubCoachLens ? '/api/staff/attention' : null);
+  const subtitle = isAdminLens ? t('subtitleAdmin')
+    : isAcademyManagerLens ? t('subtitleAcademyManager')
+      : isAcademyCoachLens && !isClubCoachLens ? t('subtitleAcademyCoach')
+        : t('subtitleClubCoach');
 
   // ── THE STATUS STRIP ───────────────────────────────────────────────────────
   // This page was a pure launcher: twelve rows, all equally quiet, and nothing
@@ -114,7 +146,7 @@ export default function CoachToolsPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-3xl font-extrabold text-ink-700 tracking-tight" dir="rtl">{t('title')}</h1>
-        <p className="text-ink-400 mt-1 text-sm" dir="rtl">{t('subtitle')}</p>
+        <p className="text-ink-400 mt-1 text-sm" dir="rtl">{subtitle}</p>
       </div>
 
       {/* Only when there is something to say. A status card that permanently
@@ -154,6 +186,46 @@ export default function CoachToolsPage() {
         </InsetSection>
       )}
 
+      {/* ── The academy coach: their trainees, today (academy-coach.html) ── */}
+      {isAcademyCoachLens && (
+        <section className="space-y-2">
+          <h2 className="px-1 text-xs font-bold text-ink-400">{t('myTrainees')}</h2>
+          <AcademyCoachToday scope="coach" />
+          <InsetSection>
+            <InsetRow icon={GraduationCap} iconBg="bg-band-2-ink" label={tn('academy')} href="/dashboard/academy" />
+          </InsetSection>
+        </section>
+      )}
+
+      {/* ── The academy manager: the academy at a glance ── */}
+      {isAcademyManagerLens && !isAdminLens && (
+        <section className="space-y-2">
+          <h2 className="px-1 text-xs font-bold text-ink-400">{t('academyHeader')}</h2>
+          <AcademyManagerSummary />
+        </section>
+      )}
+
+      {/* ── The club coach: today's three doors, with what is waiting behind them ── */}
+      {isClubCoachLens && (
+        <section className="space-y-2">
+          <h2 className="px-1 text-xs font-bold text-ink-400">{t('todayHeader')}</h2>
+          <div className="grid grid-cols-3 gap-2">
+            <TodayTile href="/dashboard/practice-attendance" icon={UserCheck} tone="bg-accent-600" label={tn('practiceAttendance')} sub={t('tileAttendanceSub')} />
+            <TodayTile
+              href="/dashboard/workout-feedback"
+              icon={MessageSquare}
+              tone="bg-accent-red"
+              label={tn('workoutFeedback')}
+              sub={attention && (attention.pain || attention.wantsReply)
+                ? t('tileFeedbackAlert', { pain: attention.pain, reply: attention.wantsReply })
+                : t('tileFeedbackSub')}
+              alert={!!attention && (attention.pain > 0 || attention.wantsReply > 0)}
+            />
+            <TodayTile href="/dashboard/athletes" icon={Users} tone="bg-brand-600" label={tn('athletes')} sub={t('tileAthletesSub')} />
+          </div>
+        </section>
+      )}
+
       {/* The control room, first and in a section of its own — it is not one tool
           among twelve, it is the screen that says whether the club is fine. It used
           to be what /dashboard rendered for an admin; now that /dashboard is the
@@ -161,7 +233,7 @@ export default function CoachToolsPage() {
           this row is how they get to it: two taps, from a tab they already live in.
           A pure admin still lands on it at /dashboard, so for them this is a second
           door to the same screen — see ControlRoomScreen. */}
-      <InsetSection>
+      {isAdminLens && <InsetSection>
         <InsetRow
           icon={Gauge}
           iconBg="bg-brand-600"
@@ -169,7 +241,9 @@ export default function CoachToolsPage() {
           sublabel={t('controlRoomSub')}
           href="/dashboard/control-room"
         />
-      </InsetSection>
+      </InsetSection>}
+
+      {isClubCoachLens && <>
 
       <InsetSection header={t('planning')}>
         <InsetRow icon={Calendar} iconBg="bg-brand-600" label={tn('planner')} href="/dashboard/plan/new" />
@@ -186,7 +260,7 @@ export default function CoachToolsPage() {
         <InsetRow icon={Layers} iconBg="bg-accent-600" label={tn('groups')} href="/dashboard/groups" />
         {roleLoading ? (
           <AcademyRowSkeleton />
-        ) : showAcademy ? (
+        ) : showAcademy || isAcademyManagerLens || isAcademyCoachLens ? (
           <InsetRow icon={GraduationCap} iconBg="bg-band-2" label={tn('academy')} href="/dashboard/academy" />
         ) : null}
       </InsetSection>
@@ -204,8 +278,18 @@ export default function CoachToolsPage() {
           <InsetRow icon={Zap} iconBg="bg-orange-500" label={t('qualitySession')} sublabel={t('qualitySessionSub')} href="/dashboard/quality-session" />
         )}
       </InsetSection>
+      </>}
 
-      <InsetSection header={ts('management')}>
+      {/* The academy, for an admin: the same summary the academy manager starts with. */}
+      {isAdminLens && (
+        <section className="space-y-2">
+          <h2 className="px-1 text-xs font-bold text-ink-400">{t('academyHeader')}</h2>
+          <AcademyManagerSummary />
+        </section>
+      )}
+
+      {isClubCoachLens && <>
+      <InsetSection header={t('usersHeader')}>
         {/* First row in Management on purpose: it is the only screen that answers
             "why can't this person get in" across BOTH gates — approval and the
             maintenance window — and the only one that can open them together. */}
@@ -229,6 +313,9 @@ export default function CoachToolsPage() {
           <InsetRow icon={UserCog} iconBg="bg-brand-600" label={ts('rolesManager')} sublabel={ts('rolesManagerSub')} href="/dashboard/roles" />
         )}
         <InsetRow icon={Layout} iconBg="bg-band-3" label={ts('tabManager')} href="/dashboard/settings?tab=tabs" />
+      </InsetSection>
+
+      <InsetSection header={t('contentHeader')}>
         {/* The reports inbox has its own screen now (next to the review screen
             people file from), so this row points at it directly instead of at a
             tab inside Settings. */}
@@ -246,11 +333,15 @@ export default function CoachToolsPage() {
         <InsetRow icon={Trophy} iconBg="bg-band-3" label={ts('challengeManager')} href="/dashboard/settings?tab=challenges" />
         <InsetRow icon={ShoppingBag} iconBg="bg-band-2" label={ts('storeManager')} href="/dashboard/settings?tab=store" />
         <InsetRow icon={Gift} iconBg="bg-pink-600" label={ts('perksManager')} href="/dashboard/settings?tab=perks" />
+      </InsetSection>
+
+      <InsetSection header={t('fixesHeader')}>
         {/* Last, and the only repair tool in the list: it pulls the Garmin
             history the 100-activity sync never asked for, which is what made a
             marathon PR wrong. Reached for when something looks off, not routinely. */}
         <InsetRow icon={History} iconBg="bg-brand-600" label={ts('garminHistoryTitle')} href="/dashboard/settings?tab=garminHistory" />
       </InsetSection>
+      </>}
 
       <InsetSection>
         <InsetRow icon={Settings} iconBg="bg-ink-300" label={tn('settings')} href="/dashboard/settings" />

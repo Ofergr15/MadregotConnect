@@ -80,6 +80,8 @@ export interface HomeGoal {
 export interface HomeKmWeek {
   weekStart: string;
   km: number;
+  /** What the plan asked for that week — absent on an older payload. */
+  plannedKm?: number;
 }
 
 export interface HomeJourney {
@@ -110,6 +112,8 @@ export interface TraineeHome {
     athleteId: string; name: string; avatarUrl: string | null; hasWatch: boolean;
     /** For the gendered copy of the progress screens (migration 057); null when unsaid. */
     gender?: 'female' | 'male' | null;
+    /** Only when a coach is looking (the header's call / WhatsApp); never on the trainee's own home. */
+    phone?: string | null;
   };
   coach?: { id: string; name: string; avatarUrl: string | null } | null;
   /**

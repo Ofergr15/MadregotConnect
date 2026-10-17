@@ -81,6 +81,13 @@ export interface ThreadSnapshot {
   lastStaffMessageAt: string | null;
   /** Unread for the person looking, straight from Stream. */
   unreadCount: number;
+  /**
+   * The newest message's text and who wrote it (Management page inbox: "who wrote,
+   * and what"). First 140 characters; null when the newest message has no text
+   * (an image) or the caller had no messages to read it from.
+   */
+  lastText?: string | null;
+  lastFromTrainee?: boolean;
 }
 
 /**
@@ -92,6 +99,7 @@ export interface ThreadSnapshot {
  */
 export interface ThreadMessageRef {
   created_at?: string | Date | null;
+  text?: string | null;
   user?: { id?: string | null } | null;
   user_id?: string | null;
 }
@@ -120,6 +128,7 @@ export function snapshotFromMessages(
 ): ThreadSnapshot {
   let lastTraineeMessageAt: string | null = null;
   let lastStaffMessageAt: string | null = null;
+  let newest: { at: number; text: string | null; fromTrainee: boolean } | null = null;
 
   for (const m of messages) {
     if (!m.created_at) continue;
@@ -128,6 +137,10 @@ export function snapshotFromMessages(
     const at = stamp.toISOString();
     const author = m.user?.id ?? m.user_id ?? null;
     const isTrainee = author === athleteId;
+    if (!newest || stamp.getTime() > newest.at) {
+      const text = typeof m.text === 'string' && m.text.trim() ? m.text.trim().slice(0, 140) : null;
+      newest = { at: stamp.getTime(), text, fromTrainee: isTrainee };
+    }
     const slot = isTrainee ? lastTraineeMessageAt : lastStaffMessageAt;
     // Not assuming the caller sorted them: Stream returns oldest-first here and
     // newest-first elsewhere, and a wrong "who spoke last" is the one error this
@@ -138,7 +151,11 @@ export function snapshotFromMessages(
     }
   }
 
-  return { athleteId, name, lastTraineeMessageAt, lastStaffMessageAt, unreadCount };
+  return {
+    athleteId, name, lastTraineeMessageAt, lastStaffMessageAt, unreadCount,
+    lastText: newest?.text ?? null,
+    lastFromTrainee: newest?.fromTrainee ?? false,
+  };
 }
 
 /** A Stream message, reduced to what the transcript renders. */

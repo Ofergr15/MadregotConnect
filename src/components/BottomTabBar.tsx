@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Menu, CalendarCheck, Search, ShoppingBag, Gift, LogOut, Bug, Users, UserSearch } from 'lucide-react';
+import { Menu, Search, ShoppingBag, Gift, LogOut, Bug, Users, UserSearch } from 'lucide-react';
 import { openViewAsChooser } from '@/lib/view-as-person';
 import { cn } from '@/lib/utils';
 import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
 import { Sheet } from '@/components/ui';
+import { useApi } from '@/lib/api';
 import { getNewTabs, setNewTabs } from '@/lib/role-views';
 
 // iOS-native redesign, phase 1: a bottom tab bar (the #1 "this is a real app"
@@ -30,17 +31,18 @@ import { getNewTabs, setNewTabs } from '@/lib/role-views';
 // them, which is how the desktop nav and this bar drifted apart. Only the
 // bar-specific part (which of those items are PRIMARY) is still here.
 
-// Preferred order of PRIMARY tabs, role-explicit (not one shared list) — an
-// athlete's and a coach's four daily-use destinations are genuinely different,
-// and sharing one generic priority list was producing an arbitrary 4th tab for
-// staff. `practice-attendance` is deliberately absent from the staff order: it's
-// the FAB's own target (see primaryActionHref below), so it must never also be
-// eligible as a flat primary tab — the same destination reachable twice.
-// Feed leads both lists — it's the app's landing page now. Only the first 4
-// entries fit as flat tabs, so the staff list's 5th (coach-tools) rides in
-// "More" whenever the first four are all enabled.
+// Preferred order of PRIMARY tabs, role-explicit (not one shared list).
+// Feed leads both lists — it's the app's landing page now.
+//
+// Staff (Ofer, 2026-10-17): the coaches run too, so their bar is a runner's three
+// daily screens plus ONE door for the job — "ניהול" (coach-tools). Attendance,
+// feedback and the athlete list were flat tabs here and are not daily enough to
+// hold one of five slots; they live at the top of the Management page now, and
+// the Management tab carries a dot when something there is waiting for a coach.
 const ATHLETE_PRIMARY_ORDER = ['feed', 'dashboard', 'program', 'profile'];
-const STAFF_PRIMARY_ORDER = ['feed', 'dashboard', 'athletes', 'workout-feedback', 'coach-tools'];
+const STAFF_PRIMARY_ORDER = ['feed', 'dashboard', 'program', 'coach-tools'];
+/** Never promoted into a staff tab by the fill below — each has its home in Management. */
+const STAFF_NEVER_PRIMARY = new Set(['practice-attendance', 'workout-feedback', 'athletes'])
 // The operator account (#71): home is the control room, then People, Content and
 // the tools.
 const OPERATOR_PRIMARY_ORDER = ['dashboard', 'people', 'content', 'coach-tools'];
@@ -72,6 +74,10 @@ export function BottomTabBar() {
   // `fallback` so a role that resolves to nothing still gets a usable bar rather
   // than none at all.
   const navItems = ready ? resolveNavItems({ ...identity, fallback: true }) : [];
+  // The dot on "ניהול": pain reports and unanswered requests waiting for a coach.
+  // Called before the early return below (rules of hooks); a null key fetches nothing.
+  const { data: attention } = useApi<{ total: number }>(ready && isStaffView ? '/api/staff/attention' : null);
+  const attentionDot = (attention?.total ?? 0) > 0;
 
   if (!ready || navItems.length === 0) return null;
 
@@ -93,7 +99,7 @@ export function BottomTabBar() {
   // must not fall back onto the one destination the FAB already covers).
   for (const item of navItems) {
     if (primary.length >= 4) break;
-    if (isStaffView && item.tab === 'practice-attendance') continue;
+    if (isStaffView && STAFF_NEVER_PRIMARY.has(item.tab)) continue;
     // Review has two permanent homes of its own now — the button beside the logo
     // in the Header and the static card in the sheet below — so it must never be
     // promoted into a flat tab, which would spend one of four daily-use slots on
@@ -112,24 +118,11 @@ export function BottomTabBar() {
   const MORE_SHEET_HREFS = ['/dashboard/search', '/dashboard/store', '/dashboard/benefits', '/dashboard/review', '/dashboard/run-together'];
   const moreActive = MORE_SHEET_HREFS.some(isActive);
 
-  // STAFF ONLY: one "do something now" destination, additive to the 4 primary
-  // tabs + More — the attendance roster, deliberately excluded from
-  // STAFF_PRIMARY_ORDER above so it's reachable via this slot only, never as a
-  // redundant second flat tab to the same page. Rendered as a plain icon button
-  // (no elevation/color), same as every other slot in the bar.
-  //
-  // Athletes used to get a mirror of this slot ("אישור") pointing at /dashboard,
-  // which is where the Dashboard tab already goes — a fifth slot to a page the
-  // bar could already open. Confirming attendance now belongs to the Program tab
-  // instead: AttendanceConfirmCard sits at the top of /dashboard/program. The
-  // athlete bar is back to its four real destinations (feed · dashboard ·
-  // program · profile), which is also exactly what the first-run tour promises.
-  const midIndex = isStaffView
-    // Split the staff tabs around the middle so the roster slot lands visually
-    // centered in the bar regardless of how many tabs (1-4) that role has.
-    ? Math.ceil(primary.length / 2)
-    // No middle slot for athletes: everything renders in the first half.
-    : primary.length;
+  // There used to be a fixed staff slot here for the attendance roster; it moved
+  // into the Management page (2026-10-17). Athletes confirm attendance from the top
+  // of /dashboard/program (AttendanceConfirmCard), as before.
+  // No middle slot any more: the staff attendance button moved into Management.
+  const midIndex = primary.length;
 
   const activeColor = 'text-brand-600 font-bold';
   const idleColor = 'text-ink-400';
@@ -154,6 +147,9 @@ export function BottomTabBar() {
       >
         {isNew && (
           <span className="absolute top-0.5 left-1/2 -translate-x-1/2 rounded-[6px] bg-brand-600 px-1.5 text-[9px] font-bold leading-[14px] text-white">חדש</span>
+        )}
+        {!isNew && tab === 'coach-tools' && attentionDot && (
+          <span className="absolute top-1.5 left-1/2 ms-2.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-accent-red" aria-hidden />
         )}
         <Icon className="h-6 w-6" strokeWidth={1.75} />
         <span className="text-3xs leading-none font-medium truncate max-w-full px-0.5">{label}</span>
@@ -195,11 +191,6 @@ export function BottomTabBar() {
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {primary.slice(0, midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon, tab: item.tab }))}
-
-        {/* The roster IS its own page, so plain location-based active state is
-            meaningful here — no disambiguation needed now that no slot shares an
-            href with a tab. */}
-        {isStaffView && renderIconButton({ href: '/dashboard/practice-attendance', ariaLabel: t('attendanceRosterAria' as any), label: t('practiceAttendance' as any), icon: CalendarCheck })}
 
         {primary.slice(midIndex).map((item) => renderIconButton({ href: item.href, ariaLabel: t(item.labelKey as any), label: t(item.labelKey as any), icon: item.icon, tab: item.tab }))}
 

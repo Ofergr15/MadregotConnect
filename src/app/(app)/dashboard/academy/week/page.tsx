@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAthleteId } from '@/lib/use-athlete-id';
 import { WeekBoard } from '@/components/academy/book/WeekBoard';
+import { TraineeHeader } from '@/components/academy/TraineeHeader';
 
 // The week (workout book v3, mockup phone 4): `?athleteId=` for a coach looking at a
 // trainee, nothing for a trainee looking at their own. Who may read whose week is the
@@ -14,7 +15,9 @@ function Week() {
   const athleteId = params.get('athleteId') || own;
   if (!athleteId) return null;
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-3xl space-y-3">
+      {/* A coach looking at a trainee: who they are, their goal and their volume first. */}
+      {params.get('athleteId') && params.get('athleteId') !== own && <TraineeHeader athleteId={athleteId} />}
       <WeekBoard athleteId={athleteId} initialWeek={params.get('weekStart')} />
     </div>
   );
