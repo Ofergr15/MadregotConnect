@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Heart, MessageCircle, MessagesSquare, Trash2, Route, MapPin, Mountain, Share2, Award, Flame, Gauge, ExternalLink } from 'lucide-react';
+import { Heart, MessageCircle, MessagesSquare, Trash2, MapPin, Mountain, Share2, Award, Flame, Gauge, ExternalLink } from 'lucide-react';
 import { activityDayRelation, cn, formatActivityDate, formatActivityTime, resolveGroup } from '@/lib/utils';
 import { useTranslations, useFormatter, useLocale, useNow } from 'next-intl';
 import { toggleLike } from '@/lib/feed-client';
@@ -18,6 +18,7 @@ import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project
 import type { FeedComment } from '@/lib/feed/comments';
 import { AthleteLink } from '@/components/AthleteLink';
 import { PrBadge, usePrRuns } from '@/components/PrBadge';
+import { displayRunName } from '@/lib/activities/run-name';
 
 export function formatPace(secPerKm: number): string {
   const min = Math.floor(secPerKm / 60);
@@ -260,6 +261,7 @@ export function ActionRow({
   isStaff,
   onCommentPress,
   onDelete,
+  bleed = '-mx-3.5',
 }: {
   item: FeedItem;
   commentCount: number;
@@ -267,6 +269,8 @@ export function ActionRow({
   isStaff: boolean;
   onCommentPress: () => void;
   onDelete?: () => void;
+  /** Negative margin that takes the bar to the card's edges — the host's own padding. */
+  bleed?: string;
 }) {
   const router = useRouter();
   const [liked, setLiked] = useState(item.likedByMe);
@@ -348,77 +352,64 @@ export function ActionRow({
           targets on the screen, on a card the whole club scrolls one-handed.
           The pill is `rounded-full` and only paints on hover/liked, so the extra
           height costs nothing visually; the row keeps its 4px rhythm. */}
-      <div className="flex items-center gap-1 pt-1 -ms-1">
+      {/* A labelled bar, Strava's: like · comment · share, each an equal share of
+          the card's width and 44px tall, divided by hairlines (2.41.x redesign).
+          The icon-only pills it replaces were the smallest primary targets on the
+          screen. Share stays own-runs-only, run-chat own-or-staff — see below. */}
+      <div className={cn(bleed, 'mt-2 flex items-stretch border-t border-page')}>
         <button
           onClick={handleLike}
           aria-label={liked ? t('unlike') : t('like')}
           aria-pressed={liked}
           className={cn(
-            'flex items-center justify-center min-h-11 min-w-11 px-3 rounded-full transition-all active:scale-90',
-            liked ? 'text-accent-red-ink bg-accent-red/10' : 'text-ink-400 hover:text-ink-500 hover:bg-page',
+            'flex min-h-11 flex-1 items-center justify-center gap-1.5 text-[13px] font-semibold transition-colors active:bg-page/60',
+            liked ? 'text-accent-red-ink' : 'text-ink-500 hover:text-ink-700',
           )}
         >
-          <Heart className={cn('h-4 w-4', liked && 'fill-accent-red')} />
+          <Heart className={cn('h-[18px] w-[18px]', liked && 'fill-accent-red text-accent-red')} />
+          {t('actionLike')}
         </button>
 
-        {/* The label is not decoration here. With comments the button's only text
-            is the count, so VoiceOver announced the bare number "3"; with none it
-            is an icon and nothing else, and the audit found four of these on one
-            feed with no accessible name at all. `aria-label` names the action and
-            the count keeps showing beside it for everyone else. */}
+        {/* The label is not decoration: without it VoiceOver announced a bare "3". */}
         <button
           onClick={onCommentPress}
           aria-label={t('comments')}
-          className="flex items-center justify-center gap-1.5 min-h-11 min-w-11 px-3 rounded-full text-sm font-medium text-ink-400 hover:text-ink-500 hover:bg-page transition-all active:scale-90"
+          className="flex min-h-11 flex-1 items-center justify-center gap-1.5 border-s border-page text-[13px] font-semibold text-ink-500 transition-colors hover:text-ink-700 active:bg-page/60"
         >
-          <MessageCircle className="h-4 w-4" />
-          {commentCount > 0 && <span className="tabular-nums text-xs">{commentCount}</span>}
+          <MessageCircle className="h-[18px] w-[18px]" />
+          {t('actionComment')}
+          {commentCount > 0 && <span className="tabular-nums text-ink-400">{commentCount}</span>}
         </button>
 
-        {/* Your OWN runs only (72949cd6: "when I pick somebody else's workout it
-            comes out as though I did it — sharing should only be for mine").
-
-            The share card carries the run and nothing else: no name, no group, no
-            date, deliberately, because whoever posts it to a story is identified
-            by the account they post it from. That is exactly right for your own
-            run and exactly wrong for a clubmate's — the same missing name that
-            keeps the card clean turns a teammate's 21k into an unattributed
-            image on your story. Strava draws the line the same way: its share
-            image is for your own activity, and somebody else's is a link to
-            their page, which this app has no public equivalent of.
-
-            The activity detail page and ActivityFeed already gated on this; the
-            feed row was the one place that didn't. */}
+        {/* Your OWN runs only (72949cd6): the share card carries no name, so a
+            teammate's run would become an unattributed image on your story. */}
         {item.activity && isMyActivity && (
           <button
             onClick={() => setShareOpen(true)}
             aria-label={t('shareToStory')}
-            className="flex items-center justify-center min-h-11 min-w-11 px-3 rounded-full text-ink-400 hover:text-ink-500 hover:bg-page transition-all active:scale-90"
+            className="flex min-h-11 flex-1 items-center justify-center gap-1.5 border-s border-page text-[13px] font-semibold text-ink-500 transition-colors hover:text-ink-700 active:bg-page/60"
           >
-            <Share2 className="h-4 w-4" />
+            <Share2 className="h-[18px] w-[18px]" />
+            {t('actionShare')}
           </button>
         )}
 
         {canOpenRunChat && (
           <button
             onClick={() => router.push(`/dashboard/run-chat/${item.activity!.id}`)}
-            className="flex items-center justify-center gap-1.5 min-h-11 min-w-11 px-3 rounded-full text-sm font-medium text-ink-400 hover:text-brand-600 hover:bg-brand-600/10 transition-all active:scale-90"
+            aria-label={runChatLabel}
+            className="flex min-h-11 flex-1 items-center justify-center gap-1.5 border-s border-page text-[13px] font-semibold text-ink-500 transition-colors hover:text-brand-600 active:bg-page/60"
           >
-            {/* Distinct from the comment button's icon just above — same
-                glyph for two different actions in one row read as a visual
-                duplication bug, not two intentional buttons. */}
-            <MessagesSquare className="h-4 w-4" />
-            <span className="text-xs">{runChatLabel}</span>
+            <MessagesSquare className="h-[18px] w-[18px]" />
+            {t('actionChat')}
           </button>
         )}
 
         {onDelete && (
           <button
             onClick={onDelete}
-            // ink-400, not ink-300: the icon is the whole control here — no
-            // label beside it — so it has to clear 3:1, and ink-300 is the
-            // hairline value at 1.92:1 (see the ramp in tailwind.config.ts).
-            className="ms-auto flex items-center justify-center min-h-11 min-w-11 rounded-full text-ink-400 hover:text-accent-red active:text-accent-red hover:bg-accent-red/10 active:bg-accent-red/10 transition-all"
+            // ink-400, not ink-300: the icon is the whole control, so it has to clear 3:1.
+            className="flex min-h-11 min-w-11 items-center justify-center border-s border-page text-ink-400 transition-colors hover:text-accent-red active:bg-accent-red/10"
             aria-label={t('deletePost')}
           >
             <Trash2 className="h-4 w-4" />
@@ -489,6 +480,61 @@ export function ActivityStatTiles({ act }: { act: NonNullable<FeedItem['activity
           <p className="text-2xs text-ink-400 tabular-nums mt-0.5">{movingStr} {t('statMoving')}</p>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The activity card's three numbers in Strava's grammar (2.41.x redesign): label
+ * above, value below, hairline between. Heart rate, calories, effort and climb moved
+ * to the run page — a card that answers "how far, how fast, how long" reads at a
+ * glance; the card that answered seven questions read as noise.
+ */
+function CardStats({ act }: { act: NonNullable<FeedItem['activity']> }) {
+  const t = useTranslations('feed');
+  const cells = [
+    { label: t('statDistance'), value: (act.distance / 1000).toFixed(1), unit: t('km') },
+    { label: t('statPace'), value: act.averagePace ? formatPace(act.averagePace) : '—', unit: t('perKm') },
+    { label: t('statTime'), value: formatDuration(act.movingDuration || act.duration), unit: null },
+  ];
+  return (
+    <div className="flex py-2">
+      {cells.map((c, i) => (
+        <div key={c.label} className={cn('min-w-0 flex-1', i > 0 && 'border-s border-page ps-3')}>
+          <p className="text-xs text-ink-400">{c.label}</p>
+          <p className="truncate text-xl font-bold leading-tight text-ink-900 tabular-nums">
+            {c.value}
+            {c.unit && <span className="ms-0.5 text-xs font-medium text-ink-400">{c.unit}</span>}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * An interval session's shape at a glance: one bar per watch lap, as wide as the
+ * lap is long and as tall as it was fast. Only drawn when the projection shipped
+ * `lapBands` (2+ laps that are not auto-km laps) — an easy run gets nothing.
+ */
+function LapFingerprint({ laps }: { laps: Array<{ m: number; pace: number }> }) {
+  const total = laps.reduce((sum, l) => sum + l.m, 0);
+  if (laps.length < 2 || !total) return null;
+  const paces = laps.map((l) => l.pace);
+  const lo = Math.min(...paces);
+  const hi = Math.max(...paces);
+  return (
+    <div dir="ltr" aria-hidden className="mb-2 flex h-7 items-end gap-0.5">
+      {laps.map((l, i) => {
+        const f = hi === lo ? 1 : 1 - (l.pace - lo) / (hi - lo);
+        return (
+          <span
+            key={i}
+            className={cn('block rounded-t-[3px]', f > 0.5 ? 'bg-brand-600' : 'bg-primary-300')}
+            style={{ flex: l.m / total, height: `${30 + f * 70}%` }}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -567,6 +613,7 @@ function ActivityCard({
   onDelete?: () => void;
 }) {
   const t = useTranslations('feed');
+  const locale = useLocale();
   const router = useRouter();
   const act = item.activity!;
   const prBuckets = usePrRuns().get(act.id);
@@ -580,21 +627,16 @@ function ActivityCard({
     <div className="bg-card rounded-[20px] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
       {/* Compact pass (2026-10-16): 387px → ~260 for a run with a route, so two
           runs fit on a phone screen instead of one. Same content, less air. */}
-      <div className="px-3.5 pt-3 pb-1">
+      <div className="px-3.5 pt-3">
         {/* AuthorRow stays outside the tap target — it has its own link to the
             runner's profile, and nesting the two would swallow it. */}
-        <div className="flex items-start gap-3 mb-1.5">
+        <div className="flex items-start gap-3 mb-1">
           <div className="flex-1 min-w-0">
             <AuthorRow item={item} />
           </div>
-          {/* A record takes the route glyph's corner, the top left in Hebrew (#90). */}
-          {prBuckets ? (
-            <div className="mt-1"><PrBadge buckets={prBuckets} /></div>
-          ) : (
-            <div className="w-7 h-7 rounded-full bg-brand-600/10 flex items-center justify-center shrink-0 mt-1">
-              <Route className="h-3.5 w-3.5 text-brand-600" />
-            </div>
-          )}
+          {/* A record keeps the corner (#90). The decorative route glyph that sat
+              here on every other card said nothing and did nothing — gone. */}
+          {prBuckets && <div className="mt-1"><PrBadge buckets={prBuckets} /></div>}
         </div>
 
         <div
@@ -610,32 +652,24 @@ function ActivityCard({
           aria-label={t('viewDetails')}
           className="-mx-2 px-2 pt-1 pb-1 rounded-xl cursor-pointer transition-colors hover:bg-page/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
         >
-          {act.activityName && (
-            <p className="text-[15px] text-ink-900 font-extrabold tracking-tight mb-1">{act.activityName}</p>
-          )}
+          {/* Hebrew for the watch's automatic names, the time of day for a bare
+              "Running" — see lib/activities/run-name.ts. */}
+          <p className="text-lg font-extrabold leading-snug tracking-tight text-ink-900" dir="auto">
+            {displayRunName(act.activityName, act.startTime, locale)}
+          </p>
 
-          <ActivityStatTiles act={act} />
+          <CardStats act={act} />
 
-          {/* Right under the stats, because it's the same question one level up:
-              those are the numbers, this is whether they were the numbers asked
-              for. Silent on runs with no planned workout behind them.
+          {/* Whether these were the numbers asked for — one slim line, for the
+              runner and staff only (the payload carries no score for anyone else). */}
+          <ExecutionBadge summary={act.planVerdict} showChevron compact className="mb-2" />
 
-              Your grade is yours: the score arrives on the feed payload already
-              graded for the person looking (staff see everyone's, because that is
-              the job), so a teammate's card carries no score to render rather than
-              one that gets hidden here. See `loadFeedPlanVerdicts`. */}
-          <ExecutionBadge summary={act.planVerdict} showChevron className="mb-2 py-1.5" />
-
-          {/* The rest of what the projection already ships — max HR, calories and
-              the athlete's own effort rating were being fetched and thrown away. */}
-          <ActivityChips act={act} />
+          {act.lapBands && <LapFingerprint laps={act.lapBands} />}
 
           {act.routePreview && act.routePreview.length > 2 && (
-            <div className="mb-2 overflow-hidden rounded-[16px]">
-              {/* paceBands is null for runs with no cached splits, which just
-                  means the plain line — the reader's colour-by-pace setting
-                  applies wherever the data exists. */}
-              <RouteMinimap points={act.routePreview} paces={act.paceBands} hd={act.routeHd} />
+            // Full width, edge to edge (Strava's card): the route is the picture.
+            <div className="-mx-3.5 mb-1 overflow-hidden">
+              <RouteMinimap points={act.routePreview} paces={act.paceBands} hd={act.routeHd} width={390} height={210} flush />
             </div>
           )}
         </div>
@@ -715,6 +749,7 @@ function AchievementCard({
 
         {/* Achievements are never activities — no run-chat CTA */}
         <ActionRow
+          bleed="-mx-4"
           item={item}
           commentCount={commentCount}
           myAthleteId={null}
@@ -865,6 +900,7 @@ function PostCard({
 
         {/* Posts are never activities — no run-chat CTA */}
         <ActionRow
+          bleed="-mx-4"
           item={item}
           commentCount={commentCount}
           myAthleteId={null}

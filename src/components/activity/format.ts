@@ -238,3 +238,19 @@ export function catmullRom(points: Array<{ x: number; y: number }>): string {
   }
   return path;
 }
+
+/**
+ * Stride length in metres, from whichever scale the row was written in.
+ *
+ * `avg_stride_length` is documented as centimetres, and the Garmin list row's
+ * `avgStrideLength` is. But the summaryDTO path multiplies `strideLength` by 100
+ * on the belief that it is metres — and summaryDTO reports CENTIMETRES, so those
+ * rows hold cm×100 (13792 for a 1.38 m stride), which the run page printed as
+ * "137.92 מ׳". A running stride is 0.5–2.5 m, so the scale is unambiguous.
+ */
+export function strideMeters(raw: number | null | undefined): number | null {
+  if (raw == null || !(raw > 0)) return null;
+  if (raw > 1000) return raw / 10000;
+  if (raw > 10) return raw / 100;
+  return raw;
+}

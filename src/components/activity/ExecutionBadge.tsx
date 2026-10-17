@@ -22,11 +22,14 @@ export function ExecutionBadge({
   summary,
   className,
   showChevron = false,
+  compact = false,
 }: {
   summary: ExecutionSummary | null | undefined;
   className?: string;
   /** Set when the badge sits inside a tap target that opens the full breakdown. */
   showChevron?: boolean;
+  /** One slim line — the feed card's form (2.41.x redesign). */
+  compact?: boolean;
 }) {
   const t = useTranslations('execution');
   if (!summary || summary.status !== 'graded' || summary.score == null) return null;
@@ -36,6 +39,23 @@ export function ExecutionBadge({
   // bright green measured 2.47:1.
   const color = DIRECTION_COLOR[summary.direction];
   const ink = DIRECTION_INK[summary.direction];
+
+  if (compact) {
+    return (
+      <div className={cn('flex items-center gap-2 rounded-xl px-2.5 py-1.5', className)} style={{ background: `${color}0F` }}>
+        <ExecutionRing
+          score={summary.score}
+          direction={summary.direction}
+          size={28}
+          ariaLabel={t('ringLabel', { score: summary.score })}
+        />
+        <p className="min-w-0 flex-1 truncate text-xs font-bold" style={{ color: ink }}>
+          {t('feedLabel')} · {t(`dir_${summary.direction}` as 'dir_on_target')}
+        </p>
+        {showChevron && <ChevronRight className="h-4 w-4 shrink-0 text-ink-300 rtl:rotate-180" />}
+      </div>
+    );
+  }
 
   return (
     <div

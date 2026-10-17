@@ -20,8 +20,9 @@
  * (bare digit pairs reorder inside Hebrew text).
  */
 
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { AlertCircle, Info, Target } from 'lucide-react';
+import { AlertCircle, ChevronDown, Info, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DIRECTION_COLOR,
@@ -573,6 +574,7 @@ export function ExecutionQuality({
   planned,
   plannedContinuous,
   loading = false,
+  collapsible = false,
   className,
 }: {
   verdict: ExecutionVerdict | null;
@@ -583,9 +585,17 @@ export function ExecutionQuality({
   /** Whether that plan is one unbroken stretch — see `executionTakesPaceChart`. */
   plannedContinuous?: boolean;
   loading?: boolean;
+  /**
+   * The run page's one-row form (2.41.x redesign): ring, headline and one line of
+   * detail, and the full breakdown only on tap. The breakdown is ~900px for a
+   * six-rep session, which put the map more than a screen below the fold.
+   */
+  collapsible?: boolean;
   className?: string;
 }) {
   const t = useTranslations('execution');
+  const [open, setOpen] = useState(false);
+  const expanded = !collapsible || open;
 
   // Nothing to say and nothing to apologise for: the run simply isn't graded
   // yet. Renders no empty frame at all rather than a card that says "loading".
@@ -724,13 +734,45 @@ export function ExecutionQuality({
       ? 'on_target'
       : verdict.direction;
 
+  const summaryLine = gradedReps.length > 0 && hasBand
+    ? t('repSummary', { onTarget: workOnTarget, graded: workReps.length })
+    : verdictDetail(verdict, t);
+
   return (
     <div className={cn('overflow-hidden rounded-card border border-page bg-card', className)}>
       {/* A hairline in the verdict's colour, so the answer is legible before a
           single word is read — including from a card peeking above the fold. */}
       <div className="h-1" style={{ background: color }} />
 
-      <div className="p-4 sm:p-5">
+      {collapsible && (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="flex w-full min-h-[64px] items-center gap-3 px-4 py-3 text-start"
+        >
+          <ExecutionRing
+            score={verdict.score}
+            direction={verdict.direction}
+            size={44}
+            ariaLabel={verdict.score == null
+              ? t('ringLabelUngraded')
+              : t('ringLabel', { score: verdict.score })}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-2xs font-semibold text-ink-400">{t('title')}</p>
+            <p className="truncate text-sm font-bold leading-tight" style={{ color: ink }}>
+              {t(`dir_${verdict.direction}` as 'dir_on_target')}
+            </p>
+            <p className="truncate text-xs text-ink-500">{summaryLine}</p>
+          </div>
+          <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-400 transition-transform', open && 'rotate-180')} />
+        </button>
+      )}
+
+      {expanded && (
+      <div className={cn('p-4 sm:p-5', collapsible && 'border-t border-page pt-4 [&>*:first-child]:mt-0 [&>*:first-child]:border-t-0 [&>*:first-child]:pt-0')}>
+        {!collapsible && (
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="text-3xs font-bold uppercase tracking-wide text-ink-400">{t('title')}</p>
@@ -758,6 +800,7 @@ export function ExecutionQuality({
               : t('ringLabel', { score: verdict.score })}
           />
         </div>
+        )}
 
         {averagePace != null && hasBand && paceComparable && (
           <div className="mt-5 border-t border-page pt-4">
@@ -853,6 +896,7 @@ export function ExecutionQuality({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

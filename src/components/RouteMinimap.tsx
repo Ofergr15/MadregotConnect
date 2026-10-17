@@ -30,6 +30,7 @@ export function RouteMinimap({
   width = 300,
   height = 100,
   hd = false,
+  flush = false,
 }: {
   points: RoutePoint[];
   /**
@@ -48,6 +49,8 @@ export function RouteMinimap({
    * and a line that scaled with it would merge repeated laps into one blob.
    */
   hd?: boolean;
+  /** Edge to edge in its card — square corners (the feed card's full-width map). */
+  flush?: boolean;
 }) {
   const [{ paceColors }] = useMapPrefs();
   const plate = planRoutePlate(points, width, height);
@@ -93,13 +96,13 @@ export function RouteMinimap({
       ref={hostRef}
       viewBox={`0 0 ${width} ${height}`}
       style={{ aspectRatio: `${width} / ${height}` }}
-      className={`h-auto w-full rounded-xl ${className}`}
+      className={`h-auto w-full ${flush ? '' : 'rounded-xl'} ${className}`}
       role="img"
       aria-label="Route preview"
     >
       <defs>
         <clipPath id={clipId}>
-          <rect width={width} height={height} rx="12" />
+          <rect width={width} height={height} rx={flush ? 0 : 12} />
         </clipPath>
       </defs>
       <g clipPath={`url(#${clipId})`}>

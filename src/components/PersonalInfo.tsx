@@ -55,6 +55,11 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
   const [socksSize, setSocksSize] = useState<SockSize | null>(null);
   const [phone, setPhone] = useState('');
   const [discoverable, setDiscoverable] = useState(true);
+  // Migration 147 — its own PUT, so it never rides the whole-form snapshot.
+  const [hrTracePublic, setHrTracePublic] = useState(true);
+  const [hrTraceAvailable, setHrTraceAvailable] = useState(false);
+  const [hrTraceSaving, setHrTraceSaving] = useState(false);
+  const [hrTraceError, setHrTraceError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -91,6 +96,8 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
         setSocksSize(info.socksSize);
         setPhone(info.phone || '');
         setDiscoverable(info.discoverable);
+        setHrTracePublic(a?.hrTracePublic ?? true);
+        setHrTraceAvailable(typeof a?.hrTracePublic === 'boolean');
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -130,6 +137,30 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
       // ignore — the field keeps the attempted value, user can retry
     } finally {
       setSaving(false);
+    }
+  };
+
+  const persistHrTrace = async (v: boolean) => {
+    if (!athleteId) return;
+    setHrTracePublic(v);
+    setHrTraceSaving(true);
+    setHrTraceError(false);
+    try {
+      const res = await fetch('/api/athletes/me', {
+        method: 'PUT',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ id: athleteId, hrTracePublic: v }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      // Put the switch back: a toggle that reads "off" while the club still sees the
+      // line is worse than one that visibly didn't move.
+      setHrTracePublic(!v);
+      setHrTraceError(true);
+    } finally {
+      setHrTraceSaving(false);
     }
   };
 
@@ -249,6 +280,20 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
             />
           }
         />
+        {hrTraceAvailable && <InsetRow
+          label={t('hrTracePublic')}
+          sublabel={hrTraceError ? t('hrTracePublicError') : t('hrTracePublicHint')}
+          sublabelClamp
+          trailing={
+            <Switch
+              checked={hrTracePublic}
+              onChange={persistHrTrace}
+              disabled={hrTraceSaving}
+              loading={hrTraceSaving}
+              ariaLabel={t('hrTracePublic')}
+            />
+          }
+        />}
       </InsetSection>
 
       {saved && (

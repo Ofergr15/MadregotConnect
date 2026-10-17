@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readHrTraceSetting, writeHrTracePublic } from '@/lib/athletes/hr-trace-privacy';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
 import { KIT_SIZE_FIELDS } from '@/lib/kit-sizes';
@@ -113,6 +114,10 @@ export async function GET(req: NextRequest) {
     }
   } catch { /* before 125 — nothing pending */ }
 
+  // Migration 147's switch, read on its own for the same reason as the line above.
+  // null until 147 is pasted — Settings hides the row rather than offer a dead switch.
+  const hrTracePublic = await readHrTraceSetting(supabase, data.id as string);
+
   return NextResponse.json({
     athlete: {
       id: data.id,
@@ -155,6 +160,7 @@ export async function GET(req: NextRequest) {
       // each one deciding what an absent value means.
       weekStartDay: weekStartDayOf((data as any).week_start_day),
       pendingGroup,
+      hrTracePublic,
     },
   });
 }
@@ -173,7 +179,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, birthDate, gender, shoeSize, phone, discoverable, weekStartDay } = body;
+    const { id, name, birthDate, gender, shoeSize, phone, discoverable, weekStartDay, hrTracePublic } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
@@ -230,6 +236,20 @@ export async function PUT(req: NextRequest) {
 
     const missingColumn = (e: { code?: string } | null) => e?.code === '42703' || e?.code === 'PGRST204';
     const supabase = createServerClient();
+    // Migration 147's switch is written on its own, never inside `updates`: a database
+    // before 147 rejects the column, and that must not cost the rest of the save.
+    let hrTraceSaved: boolean | undefined;
+    if (hrTracePublic !== undefined) {
+      const res = await writeHrTracePublic(supabase, id, !!hrTracePublic);
+      if (res === 'unmigrated' && Object.keys(updates).length === 0) {
+        return NextResponse.json({ error: 'hr_trace_public not migrated yet (147)' }, { status: 503 });
+      }
+      if (res === 'error') throw new Error('hr_trace_public write failed');
+      hrTraceSaved = res === 'ok';
+    }
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ athlete: { id, hrTracePublic: !!hrTracePublic, hrTraceSaved } });
+    }
     // PRE_101, not FULL: this handler neither writes nor returns the connection
     // health timestamps, so naming them here would only add a fourth way for a
     // personal-info save to fail on a column it doesn't care about.
@@ -274,6 +294,7 @@ export async function PUT(req: NextRequest) {
         ...kitSizesOf(data as unknown as Record<string, unknown>),
         phone: (data as any).phone || null,
         discoverable: (data as any).discoverable ?? true,
+        ...(hrTraceSaved !== undefined ? { hrTracePublic: !!hrTracePublic, hrTraceSaved } : {}),
       },
     });
   } catch (error) {

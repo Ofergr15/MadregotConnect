@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   BASEMAP_ATTRIBUTION,
@@ -36,11 +36,21 @@ export function RouteMap({
   points,
   height = 300,
   splits,
+  variant = 'card',
+  cursor = null,
 }: {
   points: Array<{ lat: number; lng: number }>;
   height?: number;
   splits?: Split[];
+  /**
+   * `hero`: the run page's edge-to-edge map — no zoom buttons (pinch and double-tap
+   * still zoom), no pace chip floating over the route, square corners.
+   */
+  variant?: 'card' | 'hero';
+  /** 0..1 along the route: the chart cursor's position, drawn as a dot. */
+  cursor?: number | null;
 }) {
+  const hero = variant === 'hero';
   const t = useTranslations('activities');
   const [{ paceColors }, setMapPrefs] = useMapPrefs();
   const mapRef = useRef<HTMLDivElement>(null);
@@ -81,7 +91,7 @@ export function RouteMap({
       if (cancelled || !L || !mapRef.current || mapInstance.current) return;
 
       const map = L.map(mapRef.current, {
-        zoomControl: true,
+        zoomControl: !hero,
         dragging: true,
         // The reason this map could only zoom two or three steps: Leaflet takes
         // the map's ceiling from its tile layer, and the old grey basemap's
@@ -163,7 +173,8 @@ export function RouteMap({
       leafletRef.current = null;
       setReady(false);
     };
-  }, []);
+    // `hero` only picks the zoom control, and a caller never switches it on a live map.
+  }, [hero]);
 
   // ── Frame the route — only when the route itself changes ────────────────────
   // Deliberately not in the effect below: re-framing on a colour change would
@@ -176,11 +187,13 @@ export function RouteMap({
     // standing between the route and the edge of the map, so it stops being a
     // rounding cushion and becomes what it says: enough margin that the start and
     // end markers (7px radius plus their white ring) sit clear of the border.
+    // The hero carries floating buttons along its top edge, so the route keeps
+    // clear of that strip: a start marker under the back button can't be seen.
     map.fitBounds(
       L.latLngBounds(stablePoints.map((p) => [p.lat, p.lng])),
-      { padding: [14, 14] },
+      hero ? { paddingTopLeft: [16, 64], paddingBottomRight: [16, 28] } : { padding: [14, 14] },
     );
-  }, [ready, stablePoints]);
+  }, [ready, stablePoints, hero]);
 
   // ── Draw the route, recoloured in place ────────────────────────────────────
   useEffect(() => {
@@ -225,6 +238,41 @@ export function RouteMap({
     return () => layer.remove();
   }, [ready, stablePoints, stablePaces, showPaceColors]);
 
+  // ── The chart cursor's dot ──────────────────────────────────────────────────
+  // Placed by distance along the trace, not by point index: GPS points are evenly
+  // spaced in TIME, so an index fraction drifts ahead on the slow stretches.
+  const cumulative = useMemo(() => {
+    const out = [0];
+    for (let i = 1; i < stablePoints.length; i++) {
+      const a = stablePoints[i - 1];
+      const b = stablePoints[i];
+      const dy = (b.lat - a.lat) * 111_320;
+      const dx = (b.lng - a.lng) * 111_320 * Math.cos((a.lat * Math.PI) / 180);
+      out.push(out[i - 1] + Math.hypot(dx, dy));
+    }
+    return out;
+  }, [stablePoints]);
+  const cursorRef = useRef<any>(null);
+  useEffect(() => {
+    const map = mapInstance.current;
+    const L = leafletRef.current;
+    if (!ready || !map || !L || stablePoints.length < 2) return;
+    if (cursor == null) {
+      cursorRef.current?.remove();
+      cursorRef.current = null;
+      return;
+    }
+    const target = cursor * cumulative[cumulative.length - 1];
+    let i = cumulative.findIndex((c) => c >= target);
+    if (i < 0) i = stablePoints.length - 1;
+    const p = stablePoints[i];
+    if (!cursorRef.current) {
+      cursorRef.current = L.circleMarker([p.lat, p.lng], { radius: 8, fillColor: '#fff', color: '#1525FF', weight: 4, fillOpacity: 1 }).addTo(map);
+    } else {
+      cursorRef.current.setLatLng([p.lat, p.lng]);
+    }
+  }, [ready, cursor, cumulative, stablePoints]);
+
   if (points.length < 2) return null;
 
   return (
@@ -246,7 +294,7 @@ export function RouteMap({
           fixes it. Same reason the legend below is `left-3`: physical bottom
           right is where Leaflet keeps the attribution, which has to stay
           readable. */}
-      {canColorByPace && (
+      {canColorByPace && !hero && (
         <button
           onClick={() => setMapPrefs({ paceColors: !paceColors })}
           aria-pressed={showPaceColors}

@@ -191,7 +191,8 @@ describe('the sheet', () => {
 
 describe('renaming the run on its own page (#92)', () => {
   it('shows the name in the header, with a pencil for its owner only', () => {
-    expect(PAGE).toMatch(/<ActivityName activityId=\{act\.id\} name=\{act\.activity_name\} editable=\{isMyActivity\} \/>/);
+    // The run page's h1 since the 2.41.x redesign — props on their own lines.
+    expect(PAGE).toMatch(/<ActivityName\s+activityId=\{act\.id\}\s+name=\{act\.activity_name\}\s+editable=\{isMyActivity\}/);
   });
 
   it('saves through the existing author-checked feed PATCH, not a new endpoint', () => {

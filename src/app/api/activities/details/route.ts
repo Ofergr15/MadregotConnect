@@ -52,7 +52,7 @@ const SUMMARY_COLS = `
   avg_cadence, avg_stride_length, vo2max, lap_count, location_name,
   perceived_rpe, perceived_feel,
   gps_points, laps, splits, has_polyline,
-  athletes (name)`;
+  athletes!athlete_activities_athlete_id_fkey (name, avatar_url)`;
 
 /** Same, plus the shoe attribution from migration 075 (may be unapplied). */
 const SUMMARY_COLS_WITH_SHOE = `${SUMMARY_COLS}, shoes (name)`;
@@ -154,6 +154,7 @@ export async function GET(request: Request) {
     const activity = {
       ...rest,
       athlete_name: athletes?.name || 'Unknown',
+      athlete_avatar_url: athletes?.avatar_url ?? null,
       shoe_name: shoes?.name ?? null,
     };
 

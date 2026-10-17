@@ -1,42 +1,20 @@
 'use client';
 
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import {
-  Activity, Flame, Footprints, Gauge, Heart, MapPin, Mountain,
-  RefreshCw, Sparkles, TrendingUp, Zap,
-} from 'lucide-react';
+import { MapPin, RefreshCw, Sparkles } from 'lucide-react';
 import { PlannedKmPoint } from '@/lib/academy/segments';
 import { displaySplits } from '@/lib/activities/km-splits';
 import type { ExecutionVerdict } from '@/lib/plan-execution/verdict';
 import { cn } from '@/lib/utils';
 import { RunFeedback } from '@/components/academy/RunFeedback';
-import { ElevationChart, HRChart, PaceChart, PerformanceConditionChart, SplitMetricChart, hasPerformanceCondition, hasSplitMetric } from './charts';
-import { ExecutionQuality, executionTakesPaceChart } from './ExecutionQuality';
-import { DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone } from './format';
+import { ExecutionQuality } from './ExecutionQuality';
+import { DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone, strideMeters } from './format';
 import { RouteMap } from './RouteMap';
-import { SplitsTable } from './SplitsTable';
+import { RunCharts } from './RunCharts';
+import { HrZones, KmSplits, Laps, Section, StatGrid, lapsAreKm, type StatCell } from './RunSections';
+import { useActivityStream } from './useActivityStream';
 import type { ActivityDetailsData, ActivityEntry } from './types';
-
-/** One tile in the performance grid — same box six different stats sat in. */
-function StatTile({
-  icon,
-  label,
-  children,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="bg-page/50 rounded-xl p-4 border border-page/20">
-      <div className="flex items-center gap-1.5 mb-2">
-        {icon}
-        <p className="text-3xs font-bold uppercase text-ink-400">{label}</p>
-      </div>
-      {children}
-    </div>
-  );
-}
 
 /**
  * Everything below the headline for a single run: route map, key stats, the
@@ -55,6 +33,7 @@ export function ActivityDetailBody({
   verdict = null,
   loadingVerdict = false,
   mapOnly = false,
+  renderMap,
   className,
 }: {
   activity: ActivityEntry;
@@ -78,15 +57,22 @@ export function ActivityDetailBody({
    * graphs, nothing that grades the run (screen 5 already did, in its own terms).
    */
   mapOnly?: boolean;
+  /**
+   * The run page draws the map itself, edge-to-edge above the title — it hands
+   * this a slot and gets the map (with the chart cursor wired in) back.
+   */
+  renderMap?: (map: React.ReactNode) => React.ReactNode;
   className?: string;
 }) {
   const t = useTranslations('activities');
+  const tr = useTranslations('runPage');
+  const hero = !!renderMap;
 
   // The row the fetch returned is the same row, only wider (perceived effort,
   // shoe, cadence) — let it fill in whatever the caller's copy lacks.
   const act: ActivityEntry = details?.activity ? { ...activity, ...details.activity } : activity;
 
-  const distKm = (act.distance / 1000).toFixed(1);
+  const distKm = (act.distance / 1000).toFixed(2);
   const paceStr = act.average_pace ? formatPace(act.average_pace) : null;
   const durationStr = formatDuration(act.duration);
   const movingStr = act.moving_duration ? formatDuration(act.moving_duration) : null;
@@ -111,11 +97,8 @@ export function ActivityDetailBody({
   const knownNoRoute = Array.isArray(act.gps_points) && act.gps_points.length === 0;
 
   const cadence = act.avg_cadence || details?.summary?.averageRunCadence;
-  const strideRaw = act.avg_stride_length;
-  const strideStr = strideRaw
-    // Garmin reports stride in cm on some rows, meters on others.
-    ? (strideRaw > 10 ? (strideRaw / 100).toFixed(2) : strideRaw.toFixed(2))
-    : details?.summary?.strideLength?.toFixed(2);
+  // One reader for every scale the column has been written in — see `strideMeters`.
+  const stride = strideMeters(act.avg_stride_length) ?? strideMeters(details?.summary?.strideLength);
   const vo2 = act.vo2max || details?.summary?.vO2MaxValue;
   const calories = act.calories || details?.summary?.calories;
   // Perceived effort lives on the activity row (migration 026) — the Garmin-era
@@ -123,12 +106,66 @@ export function ActivityDetailBody({
   const rpe = act.perceived_rpe ?? details?.summary?.perceivedRpe ?? null;
   const feel = act.perceived_feel ?? details?.summary?.perceivedFeel ?? null;
 
+  // The 1 Hz trace, when the run has one. Everything below draws from it first and
+  // from the splits otherwise.
+  const { data: trace } = useActivityStream(act.id);
+  const watchLaps = trace?.laps && trace.laps.length > 1 && !lapsAreKm(trace.laps) ? trace.laps : null;
+  const [cursor, setCursor] = useState<number | null>(null);
+
+  const cells: StatCell[] = [
+    { label: t('distance'), value: distKm, unit: tr('unitKm') },
+    { label: tr('avgPaceLabel'), value: paceStr, unit: tr('unitPerKm') },
+    { label: tr('movingTime'), value: movingStr || durationStr },
+    { label: t('elevation'), value: act.elevation_gain ? String(Math.round(act.elevation_gain)) : null, unit: tr('m') },
+    { label: t('avgHrShort'), value: act.average_hr ? String(Math.round(act.average_hr)) : null, unit: hrZone ? `Z${hrZone.zone}` : undefined },
+    { label: t('caloriesLabel'), value: calories ? Number(calories).toLocaleString('en') : null },
+  ];
+  const more: StatCell[] = [
+    { label: t('cadence'), value: cadence ? String(Math.round(cadence)) : null, unit: t('unitStepsPerMin') },
+    { label: t('stride'), value: stride ? stride.toFixed(2) : null, unit: tr('m') },
+    { label: t('maxHr'), value: act.max_hr ? String(Math.round(act.max_hr)) : null },
+    { label: t('vo2max'), value: vo2 ? String(vo2) : null },
+    { label: tr('totalTime'), value: movingStr && movingStr !== durationStr ? durationStr : null },
+    { label: t('laps'), value: act.lap_count ? String(act.lap_count) : null },
+    {
+      label: t('trainingEffect'),
+      value: details?.summary?.trainingEffect
+        ? `${details.summary.trainingEffect.toFixed(1)}${details.summary.anaerobicTrainingEffect ? ` / ${details.summary.anaerobicTrainingEffect.toFixed(1)}` : ''}`
+        : null,
+    },
+    { label: t('shoe'), value: act.shoe_name || null },
+    {
+      label: t('selfEval'),
+      value: rpe != null || feel != null
+        ? `${rpe != null ? `${rpe.toFixed(0)}/10` : ''}${feel != null ? ` ${['😣', '😕', '😐', '🙂', '😄'][Math.round(feel)] ?? ''}` : ''}`.trim()
+        : null,
+    },
+  ];
+
+  const map = routePoints.length > 2 ? (
+    <RouteMap points={routePoints} height={hero ? 320 : 280} splits={splits} variant={hero ? 'hero' : 'card'} cursor={cursor} />
+  ) : null;
+
   return (
-    <div className={cn('space-y-5', className)}>
-      {/* First, before the map and the numbers: was this the workout that was
-          asked for? Everything below is the evidence for that answer — including,
-          on a run with no reps to grade, the per-km chart that used to sit far
-          below the map where nobody compared it to anything. */}
+    <div className={cn('space-y-3', className)}>
+      {/* The page puts the map edge-to-edge above everything (`renderMap`); the
+          activities list, which expands this inline, gets it here. */}
+      {renderMap ? renderMap(map) : map ? (
+        <div className="overflow-hidden rounded-card border border-page">{map}</div>
+      ) : (!loading && (knownNoRoute || details)) ? (
+        <div className="rounded-card border border-page bg-card py-5 text-center">
+          <MapPin className="mx-auto mb-1 h-5 w-5 text-ink-400" />
+          <p className="text-xs text-ink-400">{t('noRoute')}</p>
+        </div>
+      ) : null}
+
+      <Section>
+        <StatGrid cells={cells} more={mapOnly ? undefined : more} />
+      </Section>
+
+      {/* Was this the workout that was asked for — as ONE row. The full breakdown
+          (axis, reps, measured table) is a tap away instead of ~900px above the
+          charts. Renders nothing for a viewer who may not read this score. */}
       {!mapOnly && (
         <ExecutionQuality
           verdict={verdict}
@@ -136,204 +173,46 @@ export function ActivityDetailBody({
           planned={planned}
           plannedContinuous={plannedContinuous}
           loading={loadingVerdict}
+          collapsible
         />
       )}
 
-      {/* And directly under the score: what a person said about it. The ring is the
-          machine's reading of the same run, so putting the mentor's words anywhere
-          else would let the two be read separately — which is exactly the split the
-          academy's WhatsApp loop suffers from today. Renders nothing when the run
-          was never reviewed, which is most runs. */}
+      {/* What a person said about it, directly under the machine's reading. */}
       {!mapOnly && <RunFeedback athleteId={act.athlete_id} startTime={act.start_time} />}
 
       {loading && !details && (
         <div className="flex items-center justify-center py-8">
-          <RefreshCw className="h-5 w-5 text-ink-400 animate-spin" />
-          <span className="text-sm text-ink-400 ms-2">{t('detailLoading')}</span>
+          <RefreshCw className="h-5 w-5 animate-spin text-ink-400" />
+          <span className="ms-2 text-sm text-ink-400">{t('detailLoading')}</span>
         </div>
       )}
 
-      {/* Map — stored route if available, else live-fetched */}
-      {routePoints.length > 2 ? (
-        <div className="rounded-xl overflow-hidden border border-page/30">
-          <RouteMap points={routePoints} height={300} splits={splits} />
-        </div>
-      ) : (!loading && (knownNoRoute || details)) ? (
-        <div className="rounded-card border border-page/30 bg-card/40 py-6 text-center">
-          <MapPin className="h-5 w-5 text-ink-400 mx-auto mb-1" />
-          <p className="text-xs text-ink-400">{t('noRoute')}</p>
-        </div>
-      ) : null}
-
-      {/* Key Stats Banner */}
-      <div className="bg-gradient-to-br from-card/60 to-page/60 rounded-xl p-5 border border-page/30">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          <div>
-            <p className="text-xs text-ink-400 mb-1">{t('distance')}</p>
-            <p className="text-3xl font-black text-ink-700 tabular-nums">{distKm}<span className="text-sm text-ink-400 ms-1">km</span></p>
-          </div>
-          <div>
-            <p className="text-xs text-ink-400 mb-1">{t('pace')}</p>
-            <p className="text-3xl font-black text-ink-700 tabular-nums">{paceStr || '—'}<span className="text-sm text-ink-400 ms-1">/km</span></p>
-          </div>
-          <div>
-            <p className="text-xs text-ink-400 mb-1">{t('duration')}</p>
-            <p className="text-3xl font-black text-ink-700 tabular-nums">{durationStr}</p>
-            {movingStr && movingStr !== durationStr && (
-              <p className="text-2xs text-ink-400 mt-0.5">{movingStr} {t('movingSuffix')}</p>
-            )}
-          </div>
-          {/* Avg HR and elevation used to be desktop-only here. On a phone — where
-              the feed is actually read — that dropped two of the five headline
-              numbers, so they wrap into the grid instead of disappearing. */}
-          {act.average_hr && (
-            <div>
-              <p className="text-xs text-ink-400 mb-1">{t('avgHrShort')}</p>
-              <p className={cn('text-3xl font-black tabular-nums', hrZone?.color)}>{Math.round(act.average_hr)}</p>
-              {hrZone && <p className="text-2xs text-ink-400 mt-0.5">{t('zone')} {hrZone.zone} · {t(`hrZone${hrZone.zone}` as 'hrZone1')}</p>}
-            </div>
-          )}
-          {act.elevation_gain ? (
-            <div>
-              <p className="text-xs text-ink-400 mb-1">{t('elevation')}</p>
-              <p className="text-3xl font-black text-ink-700 tabular-nums">{Math.round(act.elevation_gain)}<span className="text-sm text-ink-400 ms-1">m</span></p>
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      {/* Performance Grid */}
-      {!mapOnly && (<>
-      {/* The tile icons are a per-metric palette, and `band-2` is the one member of it that
-          cannot be used as a glyph anywhere: #159AFF is 2.95:1 on a card, which misses even the
-          3:1 non-text bar that lets `band-3` (3.22:1) stay as delivered on the two tiles below.
-          Those keep the squad orange; cadence, laps and training effect wear `band-2-ink`. */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {calories ? (
-          <StatTile icon={<Flame className="h-3.5 w-3.5 text-band-3" />} label={t('caloriesLabel')}>
-            <p className="text-2xl font-black text-ink-700 tabular-nums">{calories}</p>
-            <p className="text-3xs text-ink-400 mt-0.5">{t('unitKcal')}</p>
-          </StatTile>
-        ) : null}
-        {cadence ? (
-          <StatTile icon={<Footprints className="h-3.5 w-3.5 text-band-2-ink" />} label={t('cadence')}>
-            <p className="text-2xl font-black text-ink-700 tabular-nums">{Math.round(cadence)}</p>
-            <p className="text-3xs text-ink-400 mt-0.5">{t('unitStepsPerMin')}</p>
-          </StatTile>
-        ) : null}
-        {strideStr ? (
-          <StatTile icon={<TrendingUp className="h-3.5 w-3.5 text-purple-600" />} label={t('stride')}>
-            <p className="text-2xl font-black text-ink-700 tabular-nums">{strideStr}</p>
-            <p className="text-3xs text-ink-400 mt-0.5">{t('unitMeters')}</p>
-          </StatTile>
-        ) : null}
-        {vo2 ? (
-          <StatTile icon={<Zap className="h-3.5 w-3.5 text-band-3" />} label={t('vo2max')}>
-            <p className="text-2xl font-black text-ink-700 tabular-nums">{vo2}</p>
-            <p className="text-3xs text-ink-400 mt-0.5">{t('unitVo2')}</p>
-          </StatTile>
-        ) : null}
-        {act.max_hr ? (
-          <StatTile icon={<Heart className="h-3.5 w-3.5 text-accent-red" />} label={t('maxHr')}>
-            <p className="text-2xl font-black text-ink-700 tabular-nums">{Math.round(act.max_hr)}</p>
-            <p className="text-3xs text-ink-400 mt-0.5">{t('bpm')}</p>
-          </StatTile>
-        ) : null}
-        {act.lap_count ? (
-          <StatTile icon={<Activity className="h-3.5 w-3.5 text-band-2-ink" />} label={t('laps')}>
-            <p className="text-2xl font-black text-ink-700 tabular-nums">{act.lap_count}</p>
-            <p className="text-3xs text-ink-400 mt-0.5">{t('lapsRecorded')}</p>
-          </StatTile>
-        ) : null}
-        {details?.summary?.trainingEffect ? (
-          <StatTile icon={<Activity className="h-3.5 w-3.5 text-band-2-ink" />} label={t('trainingEffect')}>
-            <div className="flex items-baseline gap-3">
-              <div>
-                <p className="text-xl font-black text-band-2-ink tabular-nums">{details.summary.trainingEffect.toFixed(1)}</p>
-                <p className="text-3xs text-ink-400">{t('aerobic')}</p>
-              </div>
-              {details.summary.anaerobicTrainingEffect && (
-                <div>
-                  <p className="text-xl font-black text-band-3 tabular-nums">{details.summary.anaerobicTrainingEffect.toFixed(1)}</p>
-                  <p className="text-3xs text-ink-400">{t('anaerobic')}</p>
-                </div>
-              )}
-            </div>
-          </StatTile>
-        ) : null}
-        {act.shoe_name ? (
-          <StatTile icon={<Footprints className="h-3.5 w-3.5 text-ink-500" />} label={t('shoe')}>
-            <p className="text-base font-bold text-ink-700 leading-tight">{act.shoe_name}</p>
-          </StatTile>
-        ) : null}
-        {(rpe != null || feel != null) && (
-          <StatTile icon={<Gauge className="h-3.5 w-3.5 text-brand-600" />} label={t('selfEval')}>
-            <div className="flex items-baseline gap-3">
-              {rpe != null && (
-                <div>
-                  <p className="text-xl font-black text-brand-600 tabular-nums">{rpe.toFixed(0)}<span className="text-xs text-ink-400">/10</span></p>
-                  <p className="text-3xs text-ink-400">{t('effort')}</p>
-                </div>
-              )}
-              {feel != null && (
-                <div>
-                  <p className="text-xl leading-none">{['😣', '😕', '😐', '🙂', '😄'][Math.round(feel)] ?? '—'}</p>
-                  <p className="text-3xs text-ink-400 mt-1">{t('feel')}</p>
-                </div>
-              )}
-            </div>
-          </StatTile>
-        )}
-      </div>
-      </>)}
-
-      {/* Charts - Full Width Stacked */}
-      {splits.length >= 2 && (
-        <div className="space-y-4">
-          {/* Once, not twice: when the accuracy card above took this chart as its
-              evidence, drawing it again 600 px lower is the same picture with the
-              plan comparison stripped of its context. */}
-          {(mapOnly || !executionTakesPaceChart(verdict, splits, planned, plannedContinuous)) && (
-            <div className="bg-page/40 rounded-xl p-4 border border-page/20">
-              <PaceChart splits={splits} planned={mapOnly ? undefined : planned || undefined} />
-            </div>
-          )}
-          {splits.some(s => s.averageHR) && (
-            <div className="bg-page/40 rounded-xl p-4 border border-page/20">
-              <HRChart splits={splits} maxHR={maxHR} />
-            </div>
-          )}
-          {!mapOnly && (['cadence', 'power'] as const).map(metric => hasSplitMetric(splits, metric) && (
-            <div key={metric} className="bg-page/40 rounded-xl p-4 border border-page/20">
-              <SplitMetricChart splits={splits} metric={metric} />
-            </div>
-          ))}
-          {!mapOnly && hasPerformanceCondition(splits) && (
-            <div className="bg-page/40 rounded-xl p-4 border border-page/20">
-              <PerformanceConditionChart splits={splits} />
-            </div>
-          )}
-          {/* Same test the chart itself applies — otherwise a run with no
-              elevation on its laps leaves an empty bordered box behind. */}
-          {!mapOnly && splits.some(s => s.elevationGain != null || s.elevationLoss != null) && (
-            <div className="bg-page/40 rounded-xl p-4 border border-page/20">
-              <ElevationChart splits={splits} />
-            </div>
-          )}
-        </div>
+      {(trace?.stream || splits.length >= 2) && (
+        <Section title={tr('analysisTitle')}>
+          <RunCharts
+            view={trace?.stream ?? null}
+            splits={splits}
+            laps={watchLaps}
+            avgPace={act.average_pace}
+            avgHr={act.average_hr}
+            elevationGain={act.elevation_gain}
+            maxHr={trace?.maxHr ?? maxHR}
+            onCursor={setCursor}
+          />
+          {trace && !trace.hrVisible && <p className="mt-2 text-2xs text-ink-400">{tr('hrHidden')}</p>}
+        </Section>
       )}
 
-      {/* Splits Table */}
-      {!mapOnly && splits.length > 0 && <SplitsTable splits={splits} />}
+      {!mapOnly && watchLaps && <Laps laps={watchLaps} />}
+      {!mapOnly && trace?.zones && <HrZones seconds={trace.zones} maxHr={trace.maxHr} />}
+      {!mapOnly && <KmSplits streamKm={trace?.kmSplits ?? null} splits={splits} />}
 
       {/* Nothing but the headline numbers exist for this run. Say so, rather than
           ending on an empty stretch of page that reads as a loading failure. */}
-      {!mapOnly && !loading && details && splits.length === 0 && routePoints.length <= 2 && (
-        <div className="rounded-card border border-page/30 bg-card/40 py-6 text-center">
-          <Sparkles className="h-5 w-5 text-ink-400 mx-auto mb-1" />
-          <p className="text-xs text-ink-400">
-            {t('noSplits')}
-          </p>
+      {!mapOnly && !loading && details && splits.length === 0 && !trace?.stream && routePoints.length <= 2 && (
+        <div className="rounded-card border border-page bg-card py-6 text-center">
+          <Sparkles className="mx-auto mb-1 h-5 w-5 text-ink-400" />
+          <p className="text-xs text-ink-400">{t('noSplits')}</p>
         </div>
       )}
     </div>

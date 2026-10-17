@@ -22,6 +22,8 @@ export interface Split {
 export interface ActivityEntry {
   id: string;
   athlete_id: string;
+  /** 'garmin' | 'strava' — the details route returns it; list rows may not. */
+  source?: string | null;
   garmin_activity_id: number;
   activity_name: string;
   activity_type: string;
@@ -59,6 +61,8 @@ export interface ActivityEntry {
   splits?: unknown;
   laps?: unknown;
   athlete_name?: string;
+  /** From the details route's athletes embed — the run page's header avatar. */
+  athlete_avatar_url?: string | null;
 }
 
 export interface ActivityDetailsData {

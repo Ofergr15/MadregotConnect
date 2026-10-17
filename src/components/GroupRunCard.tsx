@@ -179,6 +179,7 @@ function ExpandedRunner({
       )}
 
       <ActionRow
+        bleed=""
         item={item}
         commentCount={item.commentCount}
         myAthleteId={myAthleteId}

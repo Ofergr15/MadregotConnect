@@ -26,10 +26,16 @@ export function ActivityName({
   activityId,
   name,
   editable,
+  format,
+  title = false,
 }: {
   activityId: string;
   name: string | null;
   editable: boolean;
+  /** How the name is SHOWN (e.g. `displayRunName`); the edit field gets the raw name. */
+  format?: (name: string) => string;
+  /** The run page's h1 rather than a line in a list. */
+  title?: boolean;
 }) {
   const t = useTranslations('activities');
   const tc = useTranslations('common');
@@ -97,13 +103,15 @@ export function ActivityName({
     );
   }
 
-  if (!saved && !editable) return null;
+  const shown = format ? format(saved) : saved;
+  if (!shown && !editable) return null;
+  const Tag = title ? 'h1' : 'p';
   return (
     <div className="flex min-w-0 items-center gap-1">
-      <p className="truncate text-sm font-semibold text-ink-700" dir="auto">
+      <Tag className={title ? 'text-2xl font-extrabold leading-tight tracking-tight text-ink-700' : 'truncate text-sm font-semibold text-ink-700'} dir="auto">
         {/* Each number run isolated LTR, or "5 × 1 ק״מ" paints as "1 × 5". */}
-        {saved ? <NumberRuns text={saved} /> : t('activityNamePlaceholder')}
-      </p>
+        {shown ? <NumberRuns text={shown} /> : t('activityNamePlaceholder')}
+      </Tag>
       {editable && (
         <button
           onClick={() => setDraft(saved)}

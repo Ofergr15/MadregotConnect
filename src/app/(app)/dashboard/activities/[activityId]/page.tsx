@@ -14,20 +14,20 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { AlertCircle, MessageCircle, Route, Share2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, MessageCircle, Share2 } from 'lucide-react';
 import { BackNav, Button, EmptyState, LoadingBlock } from '@/components/ui';
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 import { ActivityDetailBody } from '@/components/activity/ActivityDetailBody';
 import { ActivityName } from '@/components/activity/ActivityName';
-import { getTimeLabel, resolveRunTypeBadge } from '@/components/activity/format';
+import { resolveRunTypeBadge } from '@/components/activity/format';
 import { useActivityDetails } from '@/components/activity/useActivityDetails';
 import { AthleteLink } from '@/components/AthleteLink';
+import { FeedAvatar } from '@/components/FeedAvatar';
+import { displayRunName } from '@/lib/activities/run-name';
 import { PrBadge, usePrRuns } from '@/components/PrBadge';
 import { RunRecords } from '@/components/records/RunRecords';
 import { recordHref } from '@/components/profile/pr-format';
-import { activityLocalDay, cn, formatActivityDate, formatActivityTime } from '@/lib/utils';
-
-const HEBREW_DAYS = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'];
+import { cn, formatActivityDate, formatActivityTime } from '@/lib/utils';
 
 export default function ActivityDetailPage() {
   const { activityId } = useParams<{ activityId: string }>();
@@ -38,6 +38,7 @@ export default function ActivityDetailPage() {
   const mapOnly = useSearchParams()?.get('view') === 'map';
   const t = useTranslations('activities');
   const tc = useTranslations('common');
+  const tr = useTranslations('runPage');
   const locale = useLocale();
 
   const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
@@ -79,98 +80,73 @@ export default function ActivityDetailPage() {
   }
 
   const isMyActivity = !!myAthleteId && act.athlete_id === myAthleteId;
+  // Run-chat is the runner's thread with their coach: the runner and staff only —
+  // the same rule the feed card applies. It used to show to every member here.
+  const canRunChat = isMyActivity || isStaff;
   const runChatLabel = isStaff && !isMyActivity ? 'שוחח עם הרץ' : 'שוחח עם המאמן';
   const runType = resolveRunTypeBadge(act.activity_type, act.distance / 1000, act.average_pace);
-  const dayLabel = HEBREW_DAYS[activityLocalDay(act.start_time)];
+  const source = act.source === 'garmin' ? 'Garmin' : act.source === 'strava' ? 'Strava' : null;
+  const floatBtn = 'grid h-11 w-11 place-items-center rounded-full bg-white/95 text-ink-700 shadow-md backdrop-blur';
 
-  return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 pb-10 space-y-4">
-      <BackNav label={tc('back')} onBack={() => router.back()} />
+  const actions = (
+    <>
+      {isMyActivity && (
+        <button onClick={() => setShowShare(true)} className={floatBtn} aria-label="שיתוף בפיד" title="שיתוף בפיד">
+          <Share2 className="h-[18px] w-[18px]" />
+        </button>
+      )}
+      {canRunChat && (
+        <button onClick={() => router.push(`/dashboard/run-chat/${act.id}`)} className={floatBtn} aria-label={runChatLabel} title={runChatLabel}>
+          <MessageCircle className="h-[18px] w-[18px]" />
+        </button>
+      )}
+    </>
+  );
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-full bg-brand-600/15 flex items-center justify-center shrink-0">
-            <Route className="h-5 w-5 text-brand-600" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg font-bold text-ink-700 truncate">{dayLabel}</h1>
-              {!mapOnly && (
-                <span className={cn('text-3xs font-bold px-2 py-0.5 rounded', runType.bg, runType.color)}>
-                  {runType.label}
-                </span>
-              )}
-              {!mapOnly && (
-                <PrBadge
-                  buckets={prRuns.get(act.id)}
-                  href={prRuns.get(act.id)?.length && act.athlete_id
-                    ? recordHref(act.athlete_id, prRuns.get(act.id)![0]) ?? undefined
-                    : undefined}
-                />
-              )}
-            </div>
-            {/* The run's own name, and its owner's pencil (#92). */}
-            <ActivityName activityId={act.id} name={act.activity_name} editable={isMyActivity} />
-            <p className="text-xs text-ink-400">
-              {/* Only the name is the link, not the whole meta line — the date and
-                  the clock time next to it belong to the run, not to the person. */}
-              <AthleteLink
-                athleteId={isMyActivity ? null : act.athlete_id}
-                name={act.athlete_name}
-                className="font-semibold"
-              >
-                {act.athlete_name || 'Unknown'}
-              </AthleteLink>
-              {' · '}{formatActivityDate(act.start_time, locale)} · {formatActivityTime(act.start_time)}
-            </p>
-            <p className="text-xs text-ink-400">
-              {getTimeLabel(act.start_time)}{act.location_name ? ` · ${act.location_name}` : ''}
-            </p>
-          </div>
-        </div>
-
-        {/* Both buttons measured 36×28 on a phone, where their labels are hidden and
-            only the glyph shows. The box cannot grow with padding — it has a visible
-            border and a fill, so more padding is a bigger pill — so the extra reach
-            is an invisible halo: 10px above and below takes 28 to 48, and 6px a side
-            takes 36 to 48.
-            48 and not 44, because a halo measured at exactly 44 comes back 1px short
-            in WebKit — the box lands on a fractional x/y, `elementFromPoint` on the
-            halo's own outer edge answers with what is behind it, and the audit reads
-            41.5×41.5. A couple of px of slack is free here and removes the question.
-            `gap-3` and not `gap-2` for the same reason: 6px a side needs 12px between
-            the two buttons, so the halos meet in the middle of the gap instead of
-            overlapping — the second one would paint over the first and take tappable
-            width back off it. */}
-        <div className="flex items-center gap-3">
-          {isMyActivity && (
-            <button
-              onClick={() => setShowShare(true)}
-              className="relative flex items-center gap-1.5 rounded-lg border border-ink-300/50 bg-page/30 px-2.5 py-1.5 text-xs font-semibold text-ink-500 transition-colors hover:bg-page/60 hover:text-ink-900 after:absolute after:-inset-y-2.5 after:-inset-x-1.5 after:content-['']"
-              aria-label="שיתוף בפיד"
-              title="שיתוף בפיד"
-            >
-              <Share2 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">שיתוף</span>
-            </button>
-          )}
-          <button
-            onClick={() => router.push(`/dashboard/run-chat/${act.id}`)}
-            className="relative flex items-center gap-1.5 rounded-lg border border-brand-600/30 bg-brand-600/10 px-2.5 py-1.5 text-xs font-semibold text-brand-600 transition-colors hover:bg-brand-600/20 hover:text-brand-700 after:absolute after:-inset-y-2.5 after:-inset-x-1.5 after:content-['']"
-            aria-label={runChatLabel}
-            title={runChatLabel}
-          >
-            <MessageCircle className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{runChatLabel}</span>
-          </button>
+  const header = (
+    <section className="rounded-card border border-page bg-card p-4">
+      <div className="flex items-center gap-3">
+        <FeedAvatar name={act.athlete_name || ''} url={act.athlete_avatar_url ?? null} className="h-10 w-10" />
+        <div className="min-w-0">
+          <AthleteLink athleteId={isMyActivity ? null : act.athlete_id} name={act.athlete_name} className="block truncate text-[15px] font-bold text-ink-900">
+            {act.athlete_name || ''}
+          </AthleteLink>
+          <p className="truncate text-xs text-ink-400">
+            {formatActivityDate(act.start_time, locale)} · {formatActivityTime(act.start_time)}
+            {act.location_name ? ` · ${act.location_name}` : ''}
+            {source ? ` · ${source}` : ''}
+          </p>
         </div>
       </div>
-
-      {/* The records this run set, and taking it out of them (migration 146). */}
-      {!mapOnly && act.athlete_id && (
-        <RunRecords athleteId={act.athlete_id} activityId={act.id} owner={isMyActivity} />
+      <div className="mt-3">
+        {/* The run's own name — Hebrew for the watch's automatic ones — and its
+            owner's pencil (#92). */}
+        <ActivityName
+          activityId={act.id}
+          name={act.activity_name}
+          editable={isMyActivity}
+          format={(n) => displayRunName(n, act.start_time, locale)}
+          title
+        />
+      </div>
+      {!mapOnly && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className={cn('rounded-full px-2.5 py-0.5 text-2xs font-bold', runType.bg, runType.color)}>
+            {tr(`runType_${runType.type}` as 'runType_easy')}
+          </span>
+          <PrBadge
+            buckets={prRuns.get(act.id)}
+            href={prRuns.get(act.id)?.length && act.athlete_id
+              ? recordHref(act.athlete_id, prRuns.get(act.id)![0]) ?? undefined
+              : undefined}
+          />
+        </div>
       )}
+    </section>
+  );
 
+  return (
+    <div className="mx-auto max-w-4xl px-4 pb-10 sm:px-6">
       <ActivityDetailBody
         activity={act}
         details={details}
@@ -180,6 +156,31 @@ export default function ActivityDetailPage() {
         verdict={verdict}
         loadingVerdict={loading}
         mapOnly={mapOnly}
+        renderMap={(map) => (
+          <>
+            {map ? (
+              // Strava's hero: the route is the first thing the run page says, and
+              // the buttons float over it.
+              <div className="relative overflow-hidden rounded-card">
+                {map}
+                <button onClick={() => router.back()} className={cn(floatBtn, 'absolute right-3 top-3 z-[1000]')} aria-label={tc('back')}>
+                  <ArrowRight className="h-5 w-5 rtl:rotate-0 ltr:rotate-180" />
+                </button>
+                <div className="absolute left-3 top-3 z-[1000] flex gap-2">{actions}</div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <BackNav label={tc('back')} onBack={() => router.back()} />
+                <div className="flex gap-2">{actions}</div>
+              </div>
+            )}
+            {header}
+            {/* The records this run set, and taking it out of them (migration 146). */}
+            {!mapOnly && act.athlete_id && (
+              <RunRecords athleteId={act.athlete_id} activityId={act.id} owner={isMyActivity} />
+            )}
+          </>
+        )}
       />
 
       {showShare && (
