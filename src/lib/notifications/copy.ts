@@ -1406,3 +1406,15 @@ export function academyQuestionsAnsweredCopy(
     ? { title: `📝 ${name} ענה/תה על השאלות`, body: parts.filter(Boolean).join(' · ') }
     : { title: `📝 ${name} answered the questions`, body: parts.filter(Boolean).join(' · ') };
 }
+
+/** The move-in board's reminder to a trainee (the test has its own request copy). */
+export function academyMoveInNudgeCopy(locale: NotificationLocale, p: { step: 'watch' | 'questions' }): PushCopy {
+  if (p.step === 'watch') {
+    return locale === 'he'
+      ? { title: '⌚ נשאר לחבר את השעון', body: 'בלי שעון אין לאן לשלוח לך שבוע אישי. לחיצה, וזה לוקח דקה.' }
+      : { title: '⌚ One step left: your watch', body: 'Without a watch there is nowhere to send your personal week. It takes a minute.' };
+  }
+  return locale === 'he'
+    ? { title: '📝 4 שאלות קצרות מחכות לך', body: 'ימים, ק״מ, מטרה ומגבלות — כדי שהמאמן יבנה שבוע שמתאים לך.' }
+    : { title: '📝 4 short questions are waiting', body: 'Days, km, goal and limitations — so your coach builds a week that fits you.' };
+}

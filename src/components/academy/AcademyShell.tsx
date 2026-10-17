@@ -62,6 +62,8 @@ import { CompletionScreen, useCompletion } from './completion/CompletionScreen';
 import { TraineeDetailsForm } from './completion/TraineeDetailsForm';
 import { hasDetail } from './completion/TestApprovalCard';
 import { CompletionEntry } from './completion/CompletionEntry';
+import { MigrationBoard } from './MigrationBoard';
+import { MigrationEntry } from './MigrationEntry';
 import { memberCoachIds, memberCoachNames } from '@/lib/academy/members';
 import { scoped, setAcademyCoachScope } from '@/lib/academy/client-scope';
 import {
@@ -147,6 +149,7 @@ export function AcademyShell({
   // Existing trainees (mockup academy-existing-trainees): the "השלמת פרטים" screen, and the
   // one-trainee form opened by "לתקן" on a home approval card.
   const [completionOpen, setCompletionOpen] = useState(false);
+  const [migrationOpen, setMigrationOpen] = useState(false);
   const [correctFor, setCorrectFor] = useState<string | null>(null);
   const tt = useTranslations('academyTools');
   const tr = useTranslations('readiness');
@@ -501,6 +504,7 @@ export function AcademyShell({
             <FilteredTrainees members={roster} filter={traineeFilter} onClear={() => setTraineeFilter(null)} onSelect={(m) => setSelectedId(m.athleteId)} />
           ) : (
             <>
+            {manager && <MigrationEntry onOpen={() => setMigrationOpen(true)} />}
             {completion && completion.summary.total > 0 && (
               <CompletionEntry
                 ready={completion.summary.ready}
@@ -565,6 +569,11 @@ export function AcademyShell({
           <AcademySettingsPanel />
         ) : null}
       </div>
+
+      {/* ── The move-in board (migration path) ── */}
+      {migrationOpen && (
+        <MigrationBoard onClose={() => { setMigrationOpen(false); void reload(); }} onSelect={(id) => { setMigrationOpen(false); setSelectedId(id); }} />
+      )}
 
       {/* ── Existing trainees: השלמת פרטים, and "לתקן" from a home approval card ── */}
       {completionOpen && (
