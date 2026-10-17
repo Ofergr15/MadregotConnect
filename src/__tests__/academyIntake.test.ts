@@ -295,7 +295,8 @@ describe('the form: shoe size', () => {
     const page = require('node:fs').readFileSync('src/app/academy-register/page.tsx', 'utf8') as string;
     expect(page).toContain("{ key: 'shoeSize', label: 'מה מידת הנעליים שלך', type: 'select', required: true, options: EU_SHOE_SIZES }");
     expect(page).not.toMatch(/key: 'socksSize'/);
-    expect(page).toContain("f.type === 'select' && (");
+    // v3: a picker row whose native <select> covers the row.
+    expect(page).toContain("if (f.type === 'select') {");
   });
 });
 

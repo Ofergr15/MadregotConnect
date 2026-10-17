@@ -533,7 +533,7 @@ export function AcademyShell({
                 <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />
               </button>
             )}
-            <CandidateFunnel key={funnelKey} showRegistrations={false} />
+            <CandidateFunnel key={funnelKey} showRegistrations={false} onOpenTrainee={(id) => setTimeout(() => setSelectedId(id), SHEET_HANDOFF_MS)} />
           </>
         ) : section === 'coaches' ? (
           <CoachesBoard members={roster} onSelectMember={(m) => setSelectedId(m.athleteId)} onOpenCoach={(id) => openCoach(id)} canManage={manager} />

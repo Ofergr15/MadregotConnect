@@ -1,20 +1,24 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, ClipboardList, FileText, GraduationCap, Link2, Mail, Plus, RotateCcw, Undo2, UserPlus } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, FileText, GraduationCap, Link2, Mail, MessageCircle, Phone, Plus, RotateCcw, Undo2, UserPlus } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
-import { AcademyRegistrations } from '@/components/AcademyRegistrations';
+import { AcademyRegistrations, IntakeAnswers, IntakeTags } from '@/components/AcademyRegistrations';
+import { ageFrom, whatsappNumber } from '@/lib/academy/intake-display';
 import { cn } from '@/lib/utils';
 import { EmptyState, LoadingBlock, SegmentedControl, Sheet } from '@/components/ui';
 import {
   buildFunnel,
   candidateTimeline,
+  placeCandidate,
+  STAGES,
   type CandidateEvent,
   type CandidateRow,
   type FunnelBoard,
   type FunnelCandidate,
   type StageOwner,
   type TimelineStep,
+  PARKED_STAGES,
 } from '@/lib/academy/funnel';
 import type { Characterization } from '@/lib/academy/characterization';
 import type { LinkableAthlete } from '@/lib/academy/link';
@@ -70,6 +74,10 @@ type CardExtras = {
   linkedFromForm?: boolean;
   /** The club member this card most likely is (a Strava signup the email could not find). */
   clubMatch?: ClubMatchHint | null;
+  /** The form's answers (the card's, else the linked account's). Null before the form. */
+  intake?: Record<string, any> | null;
+  /** The trainee's coach, by name, once one is assigned. */
+  coachName?: string | null;
 };
 
 /** `lib/academy/link-server.ts` ClubMatch, as the board reads it. */
@@ -485,6 +493,171 @@ export function CandidateTimelineView({
   );
 }
 
+// ── v3's card (academy-form-v3.html, "מה המנהל רואה") ────────────────────────
+//
+// Who this is and where they are, before anything else: the nine steps as one line
+// of dots at the top (blue behind them, a bold ring on the current one, grey ahead),
+// and under it the one thing that is waiting, whose it is and since when, with the
+// button that records it. Then the answers, sorted by what the reader is deciding.
+
+/** The word under each dot. Nine of them share 358px, so one short word each. */
+const STAGE_SHORT: Record<string, string> = {
+  form: 'טופס',
+  intro_call: 'היכרות',
+  characterization: 'אפיון',
+  signup: 'הרשמה',
+  test: 'טסט',
+  analysis: 'ניתוח',
+  first_plan: 'תוכנית',
+  whatsapp: 'וואטסאפ',
+  standing_order: 'הו״ק',
+};
+
+/**
+ * Parked stages (lib/academy/funnel.ts PARKED_STAGES: WhatsApp groups and the standing
+ * order) are drawn, so the line says nine steps, but they stay grey and nothing on the card
+ * offers to tick them.
+ */
+const PARKED = PARKED_STAGES;
+
+/** Where the card came from, as the end of "התקבל היום · …". */
+function sourcePhrase(source: string | null | undefined): string {
+  if (source === 'form') return 'מהטופס';
+  if (source === 'club') return 'חבר מועדון';
+  if (source === 'manager') return 'בהזמנה';
+  return 'מאינסטגרם';
+}
+
+/** Whole local days from `iso` to `now`: 0 today, 1 yesterday. */
+function daysAgo(iso: string, now: string): number {
+  const a = new Date(iso);
+  const b = new Date(now);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return 0;
+  const day = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.max(0, Math.round((day(b) - day(a)) / 86_400_000));
+}
+
+/** "היום", "אתמול", or "ב־14.10". */
+function whenLabel(iso: string, now: string) {
+  const d = daysAgo(iso, now);
+  if (d === 0) return <>היום</>;
+  if (d === 1) return <>אתמול</>;
+  return <>ב־<bdi dir="ltr">{shortDate(iso)}</bdi></>;
+}
+
+/** The nine dots. RTL, so the first step is on the right and the line fills leftwards. */
+export function StageLine({ steps }: { steps: TimelineStep[] }) {
+  return (
+    <ol className="mt-3.5 grid grid-cols-9" aria-label="שלבי הקבלה">
+      {steps.map((step, i) => {
+        const parked = PARKED.has(step.spec.key);
+        const state = parked ? 'todo' : step.at ? 'done' : step.current ? 'now' : 'todo';
+        // The segment toward the previous dot is blue when this one has been reached.
+        const reached = i > 0 && !parked && (step.at || step.current) && steps[i - 1].at;
+        const nextReached = i < steps.length - 1 && !PARKED.has(steps[i + 1].spec.key) && step.at && (steps[i + 1].at || steps[i + 1].current);
+        return (
+          <li key={step.spec.key} className="flex min-w-0 flex-col items-center"
+            aria-label={`${step.spec.done}: ${state === 'done' ? 'בוצע' : state === 'now' ? 'השלב הנוכחי' : 'עוד לא'}`}
+            aria-current={state === 'now' ? 'step' : undefined}>
+            <div className="relative flex h-6 w-full items-center justify-center">
+              {i > 0 && <span aria-hidden="true" className={cn('absolute right-0 top-1/2 h-0.5 w-1/2 -translate-y-1/2', reached ? 'bg-brand-600' : 'bg-[#E6E6EC]')} />}
+              {i < steps.length - 1 && <span aria-hidden="true" className={cn('absolute left-0 top-1/2 h-0.5 w-1/2 -translate-y-1/2', nextReached ? 'bg-brand-600' : 'bg-[#E6E6EC]')} />}
+              <span aria-hidden="true" className={cn(
+                'relative z-[1] rounded-full',
+                state === 'done' && 'h-3.5 w-3.5 bg-brand-600',
+                state === 'now' && 'h-5 w-5 border-[3px] border-brand-600 bg-white shadow-[0_0_0_4px_#EEF0FF]',
+                state === 'todo' && 'h-3.5 w-3.5 border-2 border-[#BFC0C9] bg-white',
+              )} />
+            </div>
+            <span aria-hidden="true" className={cn('mt-1 whitespace-nowrap text-[10px] font-bold', state === 'now' ? 'text-brand-600' : 'text-ink-400')}>
+              {STAGE_SHORT[step.spec.key] ?? step.spec.done}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
+ * The step that is waiting: its words, whose it is, since when, and the button that records
+ * it. Past the stage's own threshold (`stuckAfterDays`) the card goes soft yellow. There is no
+ * candidate reminder to send yet, so stuck is shown and not acted on: the button stays the
+ * same tick, the colour is the message.
+ */
+export function NowCard({
+  placed,
+  ownerName,
+  onStep,
+  busy,
+}: {
+  placed: FunnelCandidate;
+  ownerName: string;
+  onStep?: (stage: string) => void;
+  busy?: string | null;
+}) {
+  const stage = placed.waitingFor;
+  const spec = STAGES.find(s => s.key === stage);
+  if (!spec) return null;
+
+  if (PARKED.has(spec.key)) {
+    return (
+      <div className="mt-3 rounded-[13px] bg-[#F6F6F9] px-3 py-2.5">
+        <b className="block text-[14.5px] font-black text-ink-500">{spec.waiting}</b>
+        <span className="block text-[12.5px] text-ink-400">התשלומים עוד לא פעילים באפליקציה</span>
+      </div>
+    );
+  }
+
+  const stuck = placed.stuck;
+  const since = placed.daysWaiting <= 0 ? 'מהיום'
+    : placed.daysWaiting === 1 ? 'מאתמול'
+    : <><bdi dir="ltr">{placed.daysWaiting}</bdi> ימים</>;
+  return (
+    <div className={cn('mt-3 flex items-center gap-2.5 rounded-[13px] px-3 py-2', stuck ? 'bg-[#FBF3E2]' : 'bg-[#EEF0FF]')}>
+      <div className="min-w-0 flex-1">
+        <b className={cn('block text-[14.5px] font-black', stuck ? 'text-[#8A5A00]' : 'text-brand-600')} dir="auto">{spec.waiting}</b>
+        <span className="block text-[12.5px] text-[#4A4B57]" dir="auto">
+          של <bdi>{ownerName}</bdi> · ממתין {since}{stuck && ' (מעל הרגיל)'}
+        </span>
+      </div>
+      {onStep && (
+        <button
+          type="button"
+          onClick={() => onStep(spec.key)}
+          disabled={busy === spec.key}
+          className={cn('h-11 shrink-0 whitespace-nowrap rounded-[10px] px-3 text-[13px] font-extrabold text-white disabled:opacity-50', stuck ? 'bg-[#8A5A00]' : 'bg-brand-600')}
+        >
+          {busy === spec.key ? 'שומר…' : 'סימנתי שבוצע'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** WhatsApp, call, mail: three buttons, each greyed when the card has no such detail. */
+function ContactButtons({ phone, email }: { phone?: string | null; email?: string | null }) {
+  const wa = whatsappNumber(phone);
+  const cls = 'flex h-11 items-center justify-center gap-1.5 rounded-xl border border-[#E6E6EC] bg-white text-[14px] font-bold text-[#33343F]';
+  const off = 'pointer-events-none opacity-40';
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <a href={wa ? `https://wa.me/${wa}` : undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!wa} className={cn(cls, !wa && off)}>
+        <MessageCircle className="h-4 w-4 text-[#12753A]" aria-hidden="true" />וואטסאפ
+      </a>
+      <a href={phone ? `tel:${String(phone).replace(/[^\d+]/g, '')}` : undefined} aria-disabled={!phone} className={cn(cls, !phone && off)}>
+        <Phone className="h-4 w-4 text-ink-500" aria-hidden="true" />להתקשר
+      </a>
+      <a href={email ? `mailto:${email}` : undefined} aria-disabled={!email} className={cn(cls, !email && off)}>
+        <Mail className="h-4 w-4 text-ink-500" aria-hidden="true" />מייל
+      </a>
+    </div>
+  );
+}
+
+const ROW = 'flex w-full items-center justify-between gap-2 min-h-[48px] rounded-[14px] border border-[#E6E6EC] bg-white px-3.5 text-sm font-bold text-ink-900';
+const FOOT_BTN = 'flex h-[54px] items-center justify-center gap-1.5 rounded-[15px] text-[16.5px] font-extrabold disabled:opacity-50';
+
 export function CandidateSheet({
   candidate,
   events,
@@ -501,6 +674,8 @@ export function CandidateSheet({
   onConfirmMatch,
   onInvite,
   onAccept,
+  onOpenTrainee,
+  now,
   busy,
 }: {
   candidate: (CandidateRow & CardExtras) | null;
@@ -536,11 +711,21 @@ export function CandidateSheet({
   onInvite?: () => void;
   /** Let them in: coach, approval, the "you're in" mail. Same audience as onInvite. */
   onAccept?: () => void;
+  /** After acceptance: the trainee's own card. Absent where there is no roster to open. */
+  onOpenTrainee?: (athleteId: string) => void;
+  /** The reader's today (ISO), the same one the board measures waits against. */
+  now?: string;
   busy?: string | null;
 }) {
   const steps = useMemo(
     () => (candidate ? candidateTimeline(candidate, events) : []),
     [candidate, events],
+  );
+  const [today] = useState(() => new Date().toISOString());
+  const nowISO = now ?? today;
+  const placed = useMemo(
+    () => (candidate ? placeCandidate(candidate, events, nowISO) : null),
+    [candidate, events, nowISO],
   );
 
   // The reason lives in the same sheet rather than in a ConfirmSheet on top of it. Two stacked
@@ -549,46 +734,146 @@ export function CandidateSheet({
   // the board, and a confirm dialog can only collect the fact that he is gone.
   const [leaving, setLeaving] = useState(false);
   const [reason, setReason] = useState('');
+  // The full history (dates, who recorded, notes, undo) folds under the dots.
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // A fresh card must not inherit the previous one's half-typed reason, and reopening the same
   // card should start closed — `candidate.id` covers both, since the sheet stays mounted.
   const candidateId = candidate?.id ?? null;
-  useEffect(() => { setLeaving(false); setReason(''); }, [candidateId]);
+  useEffect(() => { setLeaving(false); setReason(''); setHistoryOpen(false); }, [candidateId]);
 
-  if (!candidate) return null;
+  if (!candidate || !placed) return null;
 
-  // Contact details are here and only here. They are not on the board and not in
-  // `CandidateRow`: a list of strangers' phone numbers is exactly the screenshot
-  // nobody should be able to take, and reaching one person costs a tap.
-  const contact = [candidate.phone, candidate.email].filter(Boolean);
+  const intake = candidate.intake ?? null;
+  const age = ageFrom(intake?.birthDate, new Date(nowISO));
+  const city = typeof intake?.city === 'string' ? intake.city.trim() : '';
+  const who = [
+    age ? <>גיל <bdi dir="ltr">{age}</bdi></> : null,
+    city || null,
+    // A roster name is Latin by rule, so it is isolated or its words swap in an RTL line.
+    candidate.coachName ? <>מאמן/ת <bdi dir="ltr">{candidate.coachName}</bdi></> : null,
+  ].filter(Boolean);
+  const firstName = candidate.name.trim().split(/\s+/)[0] || candidate.name;
+  const ownerName = placed.owner === 'manager' ? 'מנהל האקדמיה'
+    : placed.owner === 'coach' ? (candidate.coachName || OWNER_LABEL.coach)
+    : firstName;
+  const archived = !!candidate.archivedAt;
+
+  // The pinned foot: the decision while one is open, then the way to the trainee.
+  const foot = archived
+    ? onRestore && (
+        <button type="button" onClick={onRestore} disabled={busy === RESTORE}
+          className={cn(FOOT_BTN, 'flex-1 border border-[#E6E6EC] bg-white text-ink-700')}>
+          <RotateCcw className="h-4 w-4" />
+          החזרה לתהליך
+        </button>
+      )
+    : leaving && onArchive ? (
+        <div className="w-full">
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-semibold text-ink-500">למה יצא?</span>
+            <input
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="לא חייב — אבל בעוד חצי שנה זו התשובה"
+              className="w-full min-h-[44px] rounded-[14px] border border-[#E6E6EC] bg-white px-3 text-[16px] text-ink-900 placeholder:text-ink-400 focus:border-brand-600 focus:outline-none"
+              dir="auto"
+              autoFocus
+            />
+          </label>
+          <div className="mt-2 flex gap-2">
+            <button type="button" onClick={() => onArchive(reason.trim())} disabled={busy === ARCHIVE}
+              className="flex-1 min-h-[48px] rounded-[14px] bg-accent-red text-sm font-bold text-white disabled:opacity-50">
+              {busy === ARCHIVE ? 'שומר…' : 'הוצאה מהתהליך'}
+            </button>
+            <button type="button" onClick={() => { setLeaving(false); setReason(''); }}
+              className="min-h-[48px] rounded-[14px] border border-[#E6E6EC] bg-white px-4 text-sm font-medium text-ink-500">
+              ביטול
+            </button>
+          </div>
+        </div>
+      )
+    : candidate.acceptedAt
+      ? onOpenTrainee && candidate.athleteId && (
+          <button type="button" onClick={() => onOpenTrainee(candidate.athleteId!)}
+            className={cn(FOOT_BTN, 'flex-1 border border-[#E6E6EC] bg-white text-[#4A4B57]')}>
+            לפתוח את המתאמן/ת
+          </button>
+        )
+      : (onArchive || onAccept) && (
+          <>
+            {onArchive && (
+              // Same door as before ("יצא מהתהליך"): it asks why, then takes them off the board.
+              <button type="button" onClick={() => setLeaving(true)}
+                className={cn(FOOT_BTN, onAccept ? 'w-24 shrink-0' : 'flex-1', 'border border-[#E6E6EC] bg-white text-[#B42318]')}>
+                דחייה
+              </button>
+            )}
+            {onAccept && (
+              <button type="button" onClick={onAccept} className={cn(FOOT_BTN, 'flex-1 bg-brand-600 text-white')}>
+                <GraduationCap className="h-4 w-4" />
+                לקבל לאקדמיה
+              </button>
+            )}
+          </>
+        );
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title={candidate.name}>
-      <div className="px-4 pb-6">
-        <p className="text-xs text-ink-400" dir="auto">
-          {sourceLabel(candidate.source)}
-          {candidate.goal && ` · ${candidate.goal}`}
-        </p>
-        {contact.length > 0 && (
-          <p className="mt-1 text-xs text-ink-500" dir="auto">
-            <bdi dir="ltr">{contact.join(' · ')}</bdi>
-          </p>
-        )}
-
-        {candidate.archivedAt && (
-          // Archived is not deleted, and the reason is the answer to "why is he
-          // not on the board" — so it is the first thing the card says.
-          <div className="mt-3 rounded-card bg-page px-3 py-2.5 text-xs text-ink-700" dir="auto">
-            יצא מהתהליך <bdi dir="ltr">{shortDate(candidate.archivedAt)}</bdi>
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={candidate.name}
+      titleClassName="sr-only"
+      bodyClassName="bg-[#F6F6F9] px-0 pb-0 pt-0"
+      footer={foot ? (
+        <div className="flex gap-2.5 border-t border-[#E6E6EC] bg-[#F6F6F9] px-4 pb-3 pt-3">{foot}</div>
+      ) : undefined}
+    >
+      {/* Who, and where in the nine steps. */}
+      <div className="border-b border-[#E6E6EC] bg-white px-4 pb-3.5">
+        <div className="flex items-center justify-between gap-2">
+          <button type="button" onClick={() => onOpenChange(false)}
+            className="-ms-1 flex min-h-[44px] items-center gap-0.5 px-1 text-[15px] font-semibold text-brand-600">
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />מועמדים
+          </button>
+          <span className="min-w-0 truncate text-[13px] text-ink-400">
+            {candidate.acceptedAt
+              ? <>באקדמיה מ־<bdi dir="ltr">{shortDate(candidate.acceptedAt)}</bdi></>
+              : <>התקבל {whenLabel(candidate.createdAt, nowISO)} · {sourcePhrase(candidate.source)}</>}
+          </span>
+        </div>
+        <div className="mt-2 flex items-center gap-3">
+          <span className="grid h-[50px] w-[50px] shrink-0 place-items-center rounded-full bg-[#EEF0FF] text-[17px] font-black text-brand-600">
+            {initialsOf(candidate.name)}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-[20px] font-black text-ink-900" dir="auto">{candidate.name}</p>
+            {who.length > 0 && (
+              <p className="truncate text-[13px] text-ink-400" dir="auto">
+                {who.map((w, i) => <span key={i}>{i > 0 && ' · '}{w}</span>)}
+              </p>
+            )}
+          </div>
+        </div>
+        <StageLine steps={steps} />
+        {archived ? (
+          // Archived is not deleted, and the reason is the answer to "why is he not on the
+          // board" — so it takes the now-card's place.
+          <div className="mt-3 rounded-[13px] bg-[#F6F6F9] px-3 py-2.5 text-[13px] text-ink-700" dir="auto">
+            יצא מהתהליך <bdi dir="ltr">{shortDate(candidate.archivedAt!)}</bdi>
             {candidate.archivedReason && ` · ${candidate.archivedReason}`}
           </div>
+        ) : (
+          <NowCard placed={placed} ownerName={ownerName} onStep={onStep} busy={busy} />
         )}
+      </div>
 
+      <div className="space-y-2.5 px-4 pb-5 pt-3">
         {/* A club member who came through the form. Most often a Strava signup, whose
             placeholder address the form could never recognise, so it opened a second account.
             The name is the confirm; "מישהו אחר…" is the search over the whole roster. */}
-        {candidate.clubMatch && !candidate.archivedAt && onLink && (
-          <div className="mt-3 rounded-card bg-[#FFF4E5] px-3 py-2.5">
+        {candidate.clubMatch && !archived && onLink && (
+          <div className="rounded-[14px] bg-[#FFF4E5] px-3 py-2.5">
             <p className="text-[13.5px] font-bold text-[#8A4B00]" dir="auto">👤 נראה שהוא כבר במועדון</p>
             <div className="mt-2 flex items-center gap-2.5 rounded-card bg-card px-2.5 py-2">
               <span className="shrink-0 w-9 h-9 rounded-full bg-[#FC4C02] text-white text-2xs font-bold flex items-center justify-center">
@@ -627,26 +912,44 @@ export function CandidateSheet({
           </div>
         )}
 
-        <div className="mt-4">
-          <CandidateTimelineView
-            steps={steps}
-            onStep={candidate.archivedAt ? undefined : onStep}
-            onUnstep={candidate.archivedAt ? undefined : onUnstep}
-            busy={busy}
-          />
+        <IntakeTags intake={intake} />
+        <ContactButtons phone={candidate.phone} email={candidate.email} />
+        {!intake && (
+          <p className="rounded-[14px] border border-dashed border-[#E6E6EC] bg-white px-3.5 py-3 text-[13.5px] text-ink-400">
+            הטופס עוד לא מולא, אז אין כאן תשובות.
+          </p>
+        )}
+        <IntakeAnswers intake={intake} phone={candidate.phone} email={candidate.email} cityInHeader={!!city} />
+
+        {/* Every step with its date, who recorded it and the note, plus the undo on the last
+            one. Folded: the dots above say where they are; this says how they got there. */}
+        <div className="overflow-hidden rounded-2xl border border-[#E6E6EC] bg-white">
+          <button type="button" onClick={() => setHistoryOpen(o => !o)} aria-expanded={historyOpen}
+            className="flex min-h-[48px] w-full items-center justify-between px-3.5 text-sm font-bold text-ink-900">
+            כל השלבים
+            <ChevronDown className={cn('h-4 w-4 text-ink-400 transition-transform', historyOpen && 'rotate-180')} />
+          </button>
+          {historyOpen && (
+            <div className="px-3.5 pb-3">
+              <CandidateTimelineView
+                steps={steps.map(s => (PARKED.has(s.spec.key) ? { ...s, current: false } : s))}
+                onStep={archived ? undefined : onStep}
+                onUnstep={archived ? undefined : onUnstep}
+                busy={busy}
+              />
+            </div>
+          )}
         </div>
 
         {/* The characterization form. One step out of the nine has ANSWERS behind it — what he
             wants, which mornings he has, what hurts — and they are the input to the first
-            training plan, so they need a door that is not a tick mark. Below the timeline
-            rather than beside the step for the same reason everything else is: the timeline is
-            a history, and a form is not a history entry. */}
-        {onCharacterize && !candidate.archivedAt && (
+            training plan, so they need a door that is not a tick mark. */}
+        {onCharacterize && !archived && (
           <button
             type="button"
             onClick={onCharacterize}
             disabled={characterizationState === 'loading' || characterizationState === 'error'}
-            className="mt-5 flex w-full items-center justify-between gap-2 min-h-[48px] rounded-card bg-page px-3.5 text-sm font-bold text-ink-900 disabled:opacity-60"
+            className={cn(ROW, 'disabled:opacity-60')}
           >
             <span className="flex items-center gap-2" dir="auto">
               <ClipboardList className="h-4 w-4 text-ink-500" />
@@ -668,15 +971,9 @@ export function CandidateSheet({
 
         {/* The account this candidate registered with. The seam between the two doors the same
             human arrives through — staff open the candidate row, the person registers
-            themselves — and steps 5-9 (watch, test, analysis, band, first plan) are all facts
-            about an ATHLETE, so until this is joined none of them can ever come from data.
-            A row and not a tick mark, for the same reason the form is. */}
-        {onLink && !candidate.archivedAt && (
-          <button
-            type="button"
-            onClick={onLink}
-            className="mt-2 flex w-full items-center justify-between gap-2 min-h-[48px] rounded-card bg-page px-3.5 text-sm font-bold text-ink-900"
-          >
+            themselves — and steps 5-9 are all facts about an ATHLETE. */}
+        {onLink && !archived && (
+          <button type="button" onClick={onLink} className={ROW}>
             <span className="flex items-center gap-2" dir="auto">
               <Link2 className="h-4 w-4 text-ink-500" />
               חשבון באפליקציה
@@ -693,15 +990,10 @@ export function CandidateSheet({
           </button>
         )}
 
-        {/* The two rows that write to the person. Invite is for the stage before the form
-            (it IS the form); accept is for the end of the selection. Both stay visible
-            after use, with the date, because "did we already send it" is the question. */}
-        {onInvite && !candidate.archivedAt && (
-          <button
-            type="button"
-            onClick={onInvite}
-            className="mt-2 flex w-full items-center justify-between gap-2 min-h-[48px] rounded-card bg-page px-3.5 text-sm font-bold text-ink-900"
-          >
+        {/* Invite is for the stage before the form (it IS the form). It stays visible after
+            use, with the date, because "did we already send it" is the question. */}
+        {onInvite && !archived && (
+          <button type="button" onClick={onInvite} className={ROW}>
             <span className="flex items-center gap-2" dir="auto">
               <Mail className="h-4 w-4 text-ink-500" />
               הזמנה לטופס
@@ -711,82 +1003,21 @@ export function CandidateSheet({
             </span>
           </button>
         )}
-        {onAccept && !candidate.archivedAt && (
-          <button
-            type="button"
-            onClick={onAccept}
-            className="mt-2 flex w-full items-center justify-between gap-2 min-h-[48px] rounded-card bg-page px-3.5 text-sm font-bold text-ink-900"
-          >
+        {/* After the accept the foot opens the trainee, so the accept itself is reachable
+            here: the sheet re-sends the mail and changes the coach. */}
+        {onAccept && !archived && candidate.acceptedAt && (
+          <button type="button" onClick={onAccept} className={ROW}>
             <span className="flex items-center gap-2" dir="auto">
               <GraduationCap className="h-4 w-4 text-ink-500" />
               קבלה לאקדמיה
             </span>
             <span className="text-xs font-medium text-ink-400" dir="auto">
-              {candidate.acceptedAt ? <>התקבל/ה <bdi dir="ltr">{shortDate(candidate.acceptedAt)}</bdi></> : ''}
+              התקבל/ה <bdi dir="ltr">{shortDate(candidate.acceptedAt)}</bdi>
             </span>
           </button>
         )}
 
         <EmailHistory emails={candidate.emails ?? []} />
-
-        {/* Leaving, and coming back. Below the timeline and never beside a step: this is the
-            one control on the card that takes somebody off the board, and a red row within a
-            thumb's width of the green בוצע button is a mis-tap that hides a live candidate. */}
-        {candidate.archivedAt
-          ? onRestore && (
-              <button
-                type="button"
-                onClick={onRestore}
-                disabled={busy === RESTORE}
-                className="mt-5 flex w-full items-center justify-center gap-1.5 min-h-[44px] rounded-card bg-page text-sm font-bold text-ink-700 disabled:opacity-50"
-              >
-                <RotateCcw className="h-4 w-4" />
-                החזרה לתהליך
-              </button>
-            )
-          : onArchive && (
-              <div className="mt-5">
-                {leaving ? (
-                  <div className="rounded-card bg-page p-3">
-                    <label className="block">
-                      <span className="mb-1 block text-[11px] font-semibold text-ink-500">למה יצא?</span>
-                      <input
-                        value={reason}
-                        onChange={e => setReason(e.target.value)}
-                        placeholder="לא חייב — אבל בעוד חצי שנה זו התשובה"
-                        className="w-full min-h-[44px] rounded-card bg-card px-3 text-[16px] text-ink-900 placeholder:text-ink-400"
-                        dir="auto"
-                      />
-                    </label>
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onArchive(reason.trim())}
-                        disabled={busy === ARCHIVE}
-                        className="flex-1 min-h-[44px] rounded-card bg-accent-red text-sm font-bold text-white disabled:opacity-50"
-                      >
-                        {busy === ARCHIVE ? 'שומר…' : 'הוצאה מהתהליך'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setLeaving(false); setReason(''); }}
-                        className="min-h-[44px] rounded-card bg-card px-4 text-sm font-medium text-ink-500"
-                      >
-                        ביטול
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setLeaving(true)}
-                    className="min-h-[44px] w-full text-xs font-medium text-accent-red-ink"
-                  >
-                    יצא מהתהליך
-                  </button>
-                )}
-              </div>
-            )}
       </div>
     </Sheet>
   );
@@ -947,9 +1178,12 @@ const ADD_INPUT =
 
 export function CandidateFunnel({
   showRegistrations = true,
+  onOpenTrainee,
 }: {
   /** The "טפסי הרשמה" row above the stages. Off if the shell shows registrations elsewhere. */
   showRegistrations?: boolean;
+  /** The accepted candidate's trainee card (the shell's roster sheet). */
+  onOpenTrainee?: (athleteId: string) => void;
 } = {}) {
   const [registrationsOpen, setRegistrationsOpen] = useState(false);
   const { data: regData } = useApi<{ registrations?: unknown[] }>(showRegistrations ? '/api/academy/registrations' : null);
@@ -1193,6 +1427,8 @@ export function CandidateFunnel({
         onConfirmMatch={athleteId => void patch({ action: 'link', athleteId }, LINK)}
         onInvite={data?.me?.canAdmit ? () => setInviting(true) : undefined}
         onAccept={data?.me?.canAdmit ? () => setAccepting(true) : undefined}
+        onOpenTrainee={onOpenTrainee ? id => { setOpenId(null); onOpenTrainee(id); } : undefined}
+        now={now}
         busy={busy}
       />
       {open && data?.me?.canAdmit && (

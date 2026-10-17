@@ -128,6 +128,46 @@ async function emailsByCandidate(supabase: any, rows: any[]) {
   return out;
 }
 
+/**
+ * What the v3 card shows beyond the board row (academy-form-v3.html, "מה המנהל רואה"):
+ * the form's answers, and the coach the trainee was given, by name.
+ *
+ * The answers are the card's own copy (migration 128), else the linked account's — a card
+ * opened by hand and linked later carries none of its own. Every read here is best effort:
+ * before 128 or 077 the card simply has no answers or no coach, never an error.
+ */
+async function cardDetails(supabase: any, rows: any[]) {
+  const out: Record<string, { intake: Record<string, unknown> | null; coachName: string | null }> = {};
+  const ids = rows.map(r => String(r.id));
+  if (!ids.length) return out;
+  for (const id of ids) out[id] = { intake: null, coachName: null };
+  try {
+    const { data, error } = await supabase.from('academy_candidates').select('id, intake').in('id', ids);
+    if (!error) for (const r of data || []) if (r.intake && typeof r.intake === 'object') out[String(r.id)].intake = r.intake;
+  } catch { /* before 128 */ }
+  const linked = rows.filter(r => r.athlete_id).map(r => ({ card: String(r.id), athlete: String(r.athlete_id) }));
+  if (!linked.length) return out;
+  try {
+    const athleteIds = linked.map(l => l.athlete);
+    const { data } = await supabase.from('athletes').select('id, academy_intake').in('id', athleteIds);
+    const intakeOf = new Map<string, any>((data || []).map((a: any) => [String(a.id), a.academy_intake]));
+    const coachSets = await coachIdsByTrainee(supabase as any, athleteIds);
+    const coachIds = [...new Set([...coachSets.values()].flat())];
+    const names = new Map<string, string>();
+    if (coachIds.length) {
+      const { data: coachRows } = await supabase.from('athletes').select('id, name').in('id', coachIds);
+      for (const c of coachRows || []) names.set(String(c.id), String(c.name || ''));
+    }
+    for (const { card, athlete } of linked) {
+      const fromAthlete = intakeOf.get(athlete);
+      if (!out[card].intake && fromAthlete && typeof fromAthlete === 'object') out[card].intake = fromAthlete;
+      const coachNames = (coachSets.get(athlete) ?? []).map(id => names.get(id)).filter(Boolean);
+      out[card].coachName = coachNames.length ? coachNames.join(', ') : null;
+    }
+  } catch { /* the details are a nicety; the board stands without them */ }
+  return out;
+}
+
 // The funnel is the academy manager's (see canAdmitToAcademy): candidates' phone
 // numbers, intake answers and call notes, before anyone is anybody's trainee.
 async function staffOnly(request: Request) {
@@ -174,6 +214,7 @@ export async function GET(request: Request) {
     const caller = gate.caller!;
     const canAdmit = canAdmitToAcademy(caller);
     const emails = await emailsByCandidate(supabase, rows || []).catch(() => ({}));
+    const details = await cardDetails(supabase, rows || []).catch(() => ({} as Awaited<ReturnType<typeof cardDetails>>));
     // A runner already in the club who came through the form: most often a Strava signup,
     // whose placeholder address the form could never recognise. Only a suggestion.
     const matches = await readRosterForMatching(supabase as any)
@@ -211,6 +252,8 @@ export async function GET(request: Request) {
         ...toCandidate(r),
         ...contactOf(r),
         emails: (emails as any)[String((r as any).id)] || [],
+        intake: details[String((r as any).id)]?.intake ?? null,
+        coachName: details[String((r as any).id)]?.coachName ?? null,
         linkedFromForm: matches[String((r as any).id)]?.linkedFromForm ?? false,
         clubMatch: matches[String((r as any).id)]?.clubMatch ?? null,
       })),

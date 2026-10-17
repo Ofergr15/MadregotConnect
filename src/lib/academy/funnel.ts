@@ -196,6 +196,14 @@ function daysBetween(fromISO: string, toISO: string): number {
 }
 
 /**
+ * Stages drawn on the line but not worked on right now (Ofer, 2026-10-16): the standing
+ * order (payments are parked) and adding to the WhatsApp groups. A candidate is never
+ * "waiting for" a parked stage and never stuck on one, so somebody who finished everything
+ * else reads as joined instead of sitting in a column nobody is working.
+ */
+export const PARKED_STAGES: ReadonlySet<string> = new Set(['whatsapp', 'standing_order']);
+
+/**
  * One candidate's position in the funnel.
  *
  * `waitingFor` is the first stage with no event, which is what makes an out-of-order history
@@ -219,7 +227,7 @@ export function placeCandidate(
   }
 
   const done = STAGES.filter(s => completedAt.has(s.key)).map(s => s.key);
-  const next = STAGES.find(s => !completedAt.has(s.key)) ?? null;
+  const next = STAGES.find(s => !completedAt.has(s.key) && !PARKED_STAGES.has(s.key)) ?? null;
 
   const last = [...completedAt.values()].sort().pop();
   const waitingSince = last ?? candidate.createdAt;
