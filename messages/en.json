@@ -2646,7 +2646,9 @@
     "scopeTitle": "What the feed shows",
     "scopeClose": "Close",
     "scopeWhat": "What to show",
-    "scopeReset": "Whole club"
+    "scopeReset": "Whole club",
+    "sessionPhotosTitle": "Photos from the quality session",
+    "sessionPhotosOpen": "See all the photos"
   },
   "feedHighlight": {
     "unit_distance_km": "km",

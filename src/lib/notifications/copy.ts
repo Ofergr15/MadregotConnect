@@ -1434,3 +1434,10 @@ export function academyCoachRoleRemovedCopy(locale: NotificationLocale, p: { coa
     : 'All of them still have another coach.';
   return { title: `🎓 ${p.coach} is no longer an academy coach`, body: `${moved}. ${left}` };
 }
+
+/** The session's photos are up (#106) — to who marked "coming" that morning. */
+export function sessionPhotosCopy(locale: NotificationLocale, p: { workout: string | null }): PushCopy {
+  return locale === 'he'
+    ? { title: '📸 התמונות מאימון הבוקר עלו', body: `${p.workout ? `${p.workout} · ` : ''}לחיצה פותחת את כל התמונות` }
+    : { title: '📸 Photos from this morning\'s session are up', body: `${p.workout ? `${p.workout} · ` : ''}Tap to see them all` };
+}

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Heart, MessageCircle, MessagesSquare, Trash2, Route, MapPin, Mountain, Share2, Award, Flame, Gauge } from 'lucide-react';
+import { Heart, MessageCircle, MessagesSquare, Trash2, Route, MapPin, Mountain, Share2, Award, Flame, Gauge, ExternalLink } from 'lucide-react';
 import { activityDayRelation, cn, formatActivityDate, formatActivityTime, resolveGroup } from '@/lib/utils';
 import { useTranslations, useFormatter, useLocale, useNow } from 'next-intl';
 import { toggleLike } from '@/lib/feed-client';
@@ -13,6 +13,7 @@ import { RouteMinimap } from '@/components/RouteMinimap';
 import { FeedBodyText } from '@/components/FeedBodyText';
 import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
 import { toAchievementPayload } from '@/lib/feed/project';
+import { toSessionPhotos, sessionDayLabel, type SessionPhotosPayload } from '@/lib/quality-session/photos';
 import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
 import { AthleteLink } from '@/components/AthleteLink';
@@ -726,6 +727,90 @@ function AchievementCard({
   );
 }
 
+/**
+ * "Photos from the quality session" (#106): the club's card for one morning — up
+ * to six photos picked for the feed, and the button to everything else (the
+ * photographer's Drive / Google Photos / WhatsApp album). Opened in a new tab:
+ * those albums are other sites, and the feed must still be there behind them.
+ */
+function SessionPhotosCard({
+  item,
+  photos,
+  commentCount,
+  onComment,
+  onDelete,
+}: {
+  item: FeedItem;
+  photos: SessionPhotosPayload;
+  commentCount: number;
+  onComment: () => void;
+  onDelete?: () => void;
+}) {
+  const t = useTranslations('feed');
+  const shown = item.media.slice(0, 3);
+  const more = item.media.length - shown.length;
+  return (
+    <div className="bg-card rounded-[26px] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <div className="p-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#FFF1E8] text-lg" aria-hidden>📸</span>
+          <div className="min-w-0">
+            <p className="text-[15px] font-bold leading-tight text-ink-900">{t('sessionPhotosTitle')}</p>
+            <p className="mt-0.5 truncate text-xs leading-tight text-ink-400">
+              {[sessionDayLabel(photos.date), photos.workoutName].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+        </div>
+
+        {shown.length > 0 && (
+          <div
+            className={cn(
+              'mt-3 grid gap-[3px] overflow-hidden rounded-[14px]',
+              shown.length === 1 ? 'grid-cols-1' : 'grid-cols-[2fr_1fr] grid-rows-2',
+            )}
+            style={{ height: shown.length === 1 ? 260 : 200 }}
+          >
+            {shown.map((m, i) => (
+              <div
+                key={m.path}
+                className={cn('relative overflow-hidden bg-page', shown.length === 3 && i === 0 && 'row-span-2', shown.length === 2 && 'row-span-2')}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={m.url} alt="" className="h-full w-full object-cover" />
+                {more > 0 && i === shown.length - 1 && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-xl font-black text-white">
+                    <bdi dir="ltr">+{more}</bdi>
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <a
+          href={photos.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 flex min-h-[44px] items-center justify-center gap-2 rounded-pill bg-brand-600 text-sm font-extrabold text-white active:opacity-80"
+        >
+          <ExternalLink className="h-4 w-4" />
+          {t('sessionPhotosOpen')}
+        </a>
+
+        {/* Session photos are never activities — no run-chat CTA */}
+        <ActionRow
+          item={item}
+          commentCount={commentCount}
+          myAthleteId={null}
+          isStaff={false}
+          onCommentPress={onComment}
+          onDelete={onDelete}
+        />
+      </div>
+    </div>
+  );
+}
+
 function PostCard({
   item,
   commentCount,
@@ -856,8 +941,29 @@ export function FeedCard({
         />
       );
     }
+    case 'announcement': {
+      const photos = toSessionPhotos(item.payload);
+      if (photos) {
+        return (
+          <SessionPhotosCard
+            item={item}
+            photos={photos}
+            commentCount={commentCount}
+            onComment={handleComment}
+            onDelete={handleDelete}
+          />
+        );
+      }
+      return (
+        <PostCard
+          item={item}
+          commentCount={commentCount}
+          onComment={handleComment}
+          onDelete={handleDelete}
+        />
+      );
+    }
     case 'post':
-    case 'announcement':
     case 'new_plan':
       return (
         <PostCard
