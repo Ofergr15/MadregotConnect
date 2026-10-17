@@ -3,13 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import { AlertCircle, Star, UserCheck, UserPlus, Users } from 'lucide-react';
+import { AlertCircle, Star, UserCheck, UserPlus } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { useAthleteId } from '@/lib/use-athlete-id';
 import { Button, EmptyState, LoadingBlock, Skeleton, BackNav } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import CoreRunnerBadge from '@/components/CoreRunnerBadge';
+import { ProfileHero, HeroChip } from '@/components/profile/ProfileHero';
+import { ProfileCounts } from '@/components/profile/ProfileCounts';
 import { AthleteProfileBody } from '@/components/profile/AthleteProfileBody';
 
 // Peer-facing "teammate" profile — any club member can view any other member's
@@ -38,6 +40,9 @@ interface PublicProfile {
   memberSince: string | null;
   isCoreRunner: boolean;
   isAcademy: boolean;
+  /** Academy trainees only — /public nulls both for everyone else. */
+  academyBand: { name: string | null } | null;
+  coachName: string | null;
 }
 
 interface ConnectionsSummary {
@@ -184,98 +189,92 @@ export default function TeammateProfilePage() {
 
   return (
     <div className="max-w-lg mx-auto space-y-5 pb-8">
-      <BackNav label={tc('back')} onBack={() => router.back()} />
-
-      {/* ═══ HERO ═══ Avatar, name, group, join date — the owner-only bits (email,
-          data-source badges, photo upload) have no place on a peer's profile. */}
-      <div className="flex items-center gap-4">
-        {/* Enlargeable here and not in the feed: this header is the one place the
-            photo is the subject rather than a label beside a name, and the tap is
-            free — everywhere else it means "open this person's profile", which is
-            where you already are. */}
-        <FeedAvatar
+      {/* ═══ HERO ═══ — the same top as your own profile (ProfileHero): band,
+          photo, name, pack, the four numbers, and what you can do about this
+          person. The owner-only bits (photo upload, settings) have no place here. */}
+      <div className="relative">
+        <div className="absolute start-0 top-0 z-10"><BackNav label={tc('back')} onBack={() => router.back()} className="mb-0" /></div>
+        <ProfileHero
+          photo={
+            // Enlargeable here and not in the feed: this header is the one place the
+            // photo is the subject rather than a label beside a name.
+            <FeedAvatar name={profile.name} url={profile.avatarUrl} className="h-full w-full" textClassName="text-2xl" enlargeable />
+          }
           name={profile.name}
-          url={profile.avatarUrl}
-          className="w-16 h-16"
-          textClassName="text-xl"
-          enlargeable
+          nameAside={profile.isCoreRunner ? <CoreRunnerBadge className="text-base" /> : undefined}
+          chips={
+            <>
+              {profile.groupName && <HeroChip brand>{profile.groupName}</HeroChip>}
+              {profile.isAcademy && profile.academyBand?.name && <HeroChip>{profile.academyBand.name}</HeroChip>}
+              {profile.isAcademy && profile.coachName && <HeroChip>{tProfile('coachChip', { name: profile.coachName })}</HeroChip>}
+              {profile.memberSince && (
+                <HeroChip>
+                  {tProfile('memberSince')}{' '}
+                  {new Date(profile.memberSince).toLocaleDateString(locale, { month: 'long', year: 'numeric' })}
+                </HeroChip>
+              )}
+            </>
+          }
+          counts={<ProfileCounts athleteId={id} viewerId={viewerId} />}
+          actions={
+            /* Follow/Following and the favourite star — hidden entirely on your own
+               profile. Two separate actions on one line: a follow is public and drives
+               their notifications, a favourite is private and only changes the
+               viewer's own feed. */
+            !isOwnProfile && viewerId ? (
+              <div className="w-full">
+            {showConnectionsSkeleton ? (
+              <Skeleton className="h-11 w-full rounded-xl" />
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={connections?.isFollowing ? 'secondary' : 'primary'}
+                  className="flex-1"
+                  disabled={followPending}
+                  onClick={handleFollowToggle}
+                >
+                  {connections?.isFollowing ? (
+                    <>
+                      <UserCheck className="h-4 w-4" />
+                      {t('followingButton')}
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="h-4 w-4" />
+                      {t('follow')}
+                    </>
+                  )}
+                </Button>
+                {/* Icon-only: the label would have to say "add to my private
+                    favourites" to be honest, which is a paragraph next to a
+                    one-word button. The accessible name carries it instead. */}
+                <button
+                  type="button"
+                  onClick={handleFavoriteToggle}
+                  disabled={favoritePending || !favorites}
+                  aria-pressed={isFavorite}
+                  aria-label={isFavorite ? t('favoriteRemove') : t('favoriteAdd')}
+                  title={isFavorite ? t('favoriteRemove') : t('favoriteAdd')}
+                  className={cn(
+                    'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors disabled:opacity-50',
+                    // The filled state uses the brand indigo rather than a star's
+                    // conventional gold: the palette has no amber that clears AA on
+                    // its own wash (see tailwind.config.ts), and inventing one for a
+                    // single button is how a second accent colour gets into an app.
+                    isFavorite
+                      ? 'border-brand-600/40 bg-brand-600/10 text-brand-600'
+                      : 'border-page bg-card text-ink-400 hover:text-ink-500',
+                  )}
+                >
+                  <Star className={cn('h-5 w-5', isFavorite && 'fill-current')} />
+                </button>
+              </div>
+            )}
+              </div>
+            ) : undefined
+          }
         />
-        <div className="flex-1 min-w-0">
-          {/* The 🌰 sits NEXT to the name, outside its truncate, so a long name
-              can't eat the mark — same rule as the owner's own header. */}
-          <div className="flex items-baseline gap-1.5">
-            <h1 className="truncate text-xl font-bold text-ink-700" dir="auto">{profile.name}</h1>
-            {profile.isCoreRunner && <CoreRunnerBadge className="text-base" />}
-          </div>
-          {profile.groupName && (
-            <div className="flex items-center gap-1.5 mt-1">
-              <Users className="h-3.5 w-3.5 text-brand-600 shrink-0" />
-              <span className="text-sm font-bold text-brand-600">{profile.groupName}</span>
-            </div>
-          )}
-          {profile.memberSince && (
-            <p className="text-xs font-light text-ink-400 mt-1">
-              {tProfile('memberSince')}{' '}
-              {new Date(profile.memberSince).toLocaleDateString(locale, { month: 'long', year: 'numeric' })}
-            </p>
-          )}
-        </div>
       </div>
-
-      {/* Follow/Following toggle and the favourite star — both hidden entirely on
-          your own profile. They sit on one line because they are the two things
-          you can do ABOUT this person, but they are two separate actions and not
-          one: a follow is public and drives their notifications, a favourite is
-          private and only changes what the viewer's own feed shows. */}
-      {!isOwnProfile && viewerId && (
-        showConnectionsSkeleton ? (
-          <Skeleton className="h-11 w-full rounded-xl" />
-        ) : (
-          <div className="flex items-center gap-2">
-            <Button
-              variant={connections?.isFollowing ? 'secondary' : 'primary'}
-              className="flex-1"
-              disabled={followPending}
-              onClick={handleFollowToggle}
-            >
-              {connections?.isFollowing ? (
-                <>
-                  <UserCheck className="h-4 w-4" />
-                  {t('followingButton')}
-                </>
-              ) : (
-                <>
-                  <UserPlus className="h-4 w-4" />
-                  {t('follow')}
-                </>
-              )}
-            </Button>
-            {/* Icon-only: the label would have to say "add to my private
-                favourites" to be honest, which is a paragraph next to a
-                one-word button. The accessible name carries it instead. */}
-            <button
-              type="button"
-              onClick={handleFavoriteToggle}
-              disabled={favoritePending || !favorites}
-              aria-pressed={isFavorite}
-              aria-label={isFavorite ? t('favoriteRemove') : t('favoriteAdd')}
-              title={isFavorite ? t('favoriteRemove') : t('favoriteAdd')}
-              className={cn(
-                'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors disabled:opacity-50',
-                // The filled state uses the brand indigo rather than a star's
-                // conventional gold: the palette has no amber that clears AA on
-                // its own wash (see tailwind.config.ts), and inventing one for a
-                // single button is how a second accent colour gets into an app.
-                isFavorite
-                  ? 'border-brand-600/40 bg-brand-600/10 text-brand-600'
-                  : 'border-page bg-card text-ink-400 hover:text-ink-500',
-              )}
-            >
-              <Star className={cn('h-5 w-5', isFavorite && 'fill-current')} />
-            </button>
-          </div>
-        )
-      )}
 
       <AthleteProfileBody athleteId={id} viewerId={viewerId} variant="peer" />
     </div>

@@ -2,70 +2,27 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { useTranslations, useLocale } from 'next-intl';
-import { Camera, Check, ChevronLeft, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { Camera, Loader2 } from 'lucide-react';
 import { useApi } from '@/lib/api';
-import { cn, getPlanWeekStart, israelDateAnchor, israelNow, israelToday } from '@/lib/utils';
-import { WORKOUT_TYPE_TEXT_COLORS, planDayKey } from '@/lib/plans/workout-parsing';
-import { useWorkoutTypeLabel } from '@/lib/plans/use-workout-type-label';
-import { weekTargetRange, dayTargetLabel, type WeekPlanTotals } from '@/lib/plans/week-target';
-import { AttendanceRSVP } from '@/components/AttendanceRSVP';
-import { WeekTargetBar } from '@/components/profile/WeekTargetBar';
 import CoreRunnerBadge from '@/components/CoreRunnerBadge';
 import { GoalRaceBanner } from '@/components/GoalRaceBanner';
 import { ProfileCounts } from '@/components/profile/ProfileCounts';
 import { SetupProgressCard } from '@/components/onboarding/SetupProgressCard';
 import { PhotoLightbox } from '@/components/PhotoLightbox';
-import type { FeedItem } from '@/lib/feed/project';
-import type { Last7Report } from '@/lib/reports/last-7-days';
+import { HeroChip, ProfileHero } from '@/components/profile/ProfileHero';
+import { WeekPlanCard } from '@/components/profile/WeekPlanCard';
 
 // ═════════════════════════════════════════════════════════════════════════════
-// The Profile screen exactly as the designer drew it (Figma frame "Home",
-// 402×874) — greeting, weekly-km progress, updates deck, race countdown, the
-// upcoming team workout with its RSVP, this week's completion, and the week
-// strip. Every value here comes from an endpoint the app already serves; see
-// the DESIGN SYSTEM block in tailwind.config.ts for the tokens.
-//
-// It lives in its own component rather than inside profile/page.tsx because
-// that page is already 1100 lines of drill-down screens, and because these
-// blocks need four reads of their own that the drill-downs don't want.
-//
-// Two deliberate departures from the frame, both because the frame shows a
-// single captured moment and the screen has to handle every other one:
-//   • The frame's numbers are stale-but-real (106 days / week 2 of 17 compute
-//     to 95 and 4 today) — everything is computed, never transcribed.
-//   • The frame shows only the pre-tap RSVP state, so the answered state and
-//     the דבוקה picker come from AttendanceRSVP's own logic (variant="inline").
+// The owner's profile in two halves the page places apart: the header (hero,
+// chips, counts, setup card) at the top, and the week (goal race + the day-by-day
+// plan) inside the stats tab. Every value comes from an endpoint the app already
+// serves; see the DESIGN SYSTEM block in tailwind.config.ts for the tokens.
 // ═════════════════════════════════════════════════════════════════════════════
-
-interface DailyDistance {
-  day: string;
-  dayOfWeek: number;
-  min: number;
-  max: number;
-  /** Prescribed only — the day with its offered "ערב אופציה" left out. */
-  requiredMin?: number;
-  requiredMax?: number;
-  type: string;
-  sessions?: Array<{ min: number; max: number; type: string; name: string; optional?: boolean }>;
-}
-
-interface WeeklyData {
-  dailyDistances: DailyDistance[];
-  weekTotalMax: number;
-  currentWeekStart: string;
-  /** False when no plan exists for `currentWeekStart` — the rest is then empty. */
-  hasPlan?: boolean;
-  trainingDays: number;
-}
 
 interface ReminderCfg {
   teamDays?: number[];
   workoutHour?: number;
-  /** Where the team meets. Admin-editable in Settings → workout reminders; the
-   *  frame's מיקום column is the only slot with no data behind it, so the
-   *  column is dropped rather than filled with a plausible-looking default. */
-  location?: string;
 }
 
 export function ProfileOverview({
@@ -78,6 +35,8 @@ export function ProfileOverview({
   onOpenSetup,
   onFollowersClick,
   onFollowingClick,
+  onEditProfile,
+  part,
 }: {
   athleteId: string;
   athleteName: string;
@@ -90,458 +49,127 @@ export function ProfileOverview({
   onOpenSetup: () => void;
   onFollowersClick?: () => void;
   onFollowingClick?: () => void;
+  /** The header's one action — opens personal info. */
+  onEditProfile?: () => void;
+  /**
+   * Which half to draw (2026-10-17): `header` is the top of the profile — the
+   * hero and, for a new member, the setup card; `week` is the week itself — the
+   * goal race and the day-by-day plan (WeekPlanCard) — which opens the profile's
+   * stats tab instead of the landing.
+   */
+  part: 'header' | 'week';
 }) {
   const t = useTranslations('profile');
-  const td = useTranslations('dashboard');
-  const tc = useTranslations('common');
-  const workoutTypeLabel = useWorkoutTypeLabel();
-  const locale = useLocale();
 
   // הגרעין — a flag, not a role (migration 091), so it has to be asked for; it
   // cannot be derived from anything already on this screen. Shares the SWR key
   // with the nav and Settings, so it costs no extra request.
   const { data: me } = useApi<{ isCoreRunner?: boolean }>('/api/auth/me');
+  // The chips under the name — pack, academy band, coach — the same /public the
+  // teammate page reads, so both headers say the same thing about the same person.
+  const { data: pub } = useApi<{ groupName: string | null; isAcademy: boolean; academyBand: { name: string | null } | null; coachName: string | null }>(
+    part === 'header' && athleteId ? `/api/athletes/${athleteId}/public` : null,
+  );
   const isCore = me?.isCoreRunner === true;
   // Used for the mark beside the name and nothing else. There is deliberately no
   // perks row on this screen: the entitlement explains itself where the perks
   // actually are (Partnerships names the tier on the exclusive ones), so a
   // second entry point here was a signpost to a place the user was already going.
 
-  const { data: weekly } = useApi<WeeklyData>('/api/dashboard/weekly');
-  const { data: reminder } = useApi<{ config?: ReminderCfg }>('/api/reminder-config');
-  const { data: summary } = useApi<{ thisWeek?: { km: number; runs: number } }>(
-    athleteId ? `/api/athletes/summary?athleteId=${athleteId}` : null,
-  );
-  // Two, not one: the deck shows the newest announcement and peeks a second
-  // card behind it only when there IS a second one.
-  const { data: updates } = useApi<{ items: FeedItem[] }>('/api/feed?types=announcement&limit=2');
-  // The runs behind the week strip (#94): the same stats request the profile body
-  // below makes, key for key, so SWR answers both with one fetch. Everyone's since
-  // 2026-10-16 (the super user's only before).
-  const opensRuns = true;
-  const { data: stats } = useApi<{ last7?: Last7Report }>(
-    opensRuns && athleteId ? `/api/athletes/${athleteId}/stats` : null,
-  );
-  const runsByDate = new Map((stats?.last7?.days ?? []).map((d) => [d.date, d] as const));
-
-  const greetHour = israelNow().hour;
-  const greeting = greetHour < 12 ? td('goodMorning') : greetHour < 18 ? td('goodAfternoon') : td('goodEvening');
-
+  const { data: reminder } = useApi<{ config?: ReminderCfg }>(part === 'week' ? '/api/reminder-config' : null);
   const teamDays = reminder?.config?.teamDays ?? [2, 5];
   const workoutHour = reminder?.config?.workoutHour ?? 18;
-  const location = reminder?.config?.location?.trim() || '';
-
-  const days = weekly?.dailyDistances || [];
-  const weekKmDone = summary?.thisWeek?.km ?? 0;
-
-  // The goal comes from the plan for the week the athlete is STANDING IN, which
-  // is not always the week `/api/dashboard/weekly` returns: that one rolls to the
-  // next week after Saturday 20:00 so the card above can preview it. Taking the
-  // goal from there divided this week's kilometres by next week's target every
-  // Saturday evening. `/api/plans/week` answers for one explicit week and reports
-  // `hasPlan: false` rather than substituting another, so the bar hides instead of
-  // measuring against a week that was never planned.
-  const { data: thisWeekPlan } = useApi<WeekPlanTotals>(
-    `/api/plans/week?weekStart=${getPlanWeekStart(israelDateAnchor())}`,
-  );
-  // A RANGE, not one number: the floor is every prescribed session at the short
-  // end of its span, the ceiling is every session including the offered evenings
-  // at the long end, and anywhere between the two is on plan. The single figure
-  // this replaced was the midpoint of the whole menu — 146.3 km for a week whose
-  // prescribed sessions add up to about 115 — so the bar could not be finished.
-  const weekTarget = weekTargetRange(thisWeekPlan);
-
-  // Which workout does the card show? Simply the SOONEST planned day — today
-  // first, then tomorrow, and so on.
-  //
-  // It used to prefer the next TEAM day (teamDays, by default Tue + Fri) and
-  // only fall back to the nearest planned day if no team day had a plan at all.
-  // That is not what "the upcoming workout" means: on a Saturday it skipped
-  // Sunday's session and showed Tuesday's, four days out, while Sunday sat
-  // right there in the same week's plan. The heading promises the next one.
-  //
-  // The card's RSVP is unaffected — that still only appears on a team day, and
-  // only for today or tomorrow (see showRsvp below). It just no longer decides
-  // which workout the whole card is about.
-  //
-  // Walks the plan week's own DATES rather than counting weekdays forward from
-  // today. `dayOfWeek` means nothing without the week it belongs to, and the week
-  // this endpoint returns is not always the week the browser is in — it rolls to
-  // the next one after Saturday 20:00 Israel so athletes can preview. Stepping
-  // `offset` days from today onto that data mislabelled a session up to seven days
-  // out as tomorrow's, and handed `getPlanWeekStart` a date from the wrong week,
-  // which filed the RSVP under a week the workout isn't in.
-  const upcoming = (() => {
-    if (!weekly?.hasPlan || !weekly.currentWeekStart) return null;
-    const todayKey = israelToday();
-    return days
-      .filter((d) => d.max > 0)
-      .map((d) => {
-        const key = planDayKey(weekly.currentWeekStart, d.dayOfWeek);
-        return {
-          workout: d,
-          date: new Date(`${key}T12:00:00`),
-          isTeamDay: teamDays.includes(d.dayOfWeek),
-          // Whole days from today to that date, so 0 = today and 1 = tomorrow.
-          offset: Math.round((Date.parse(`${key}T12:00:00Z`) - Date.parse(`${todayKey}T12:00:00Z`)) / 86_400_000),
-        };
-      })
-      .filter((c) => c.offset >= 0)
-      .sort((a, b) => a.offset - b.offset)[0] ?? null;
-  })();
-
-  // RSVP only for today's or tomorrow's TEAM workout. Answering for a session
-  // five days out would be a new flow — the reminders, the coach roster and
-  // AttendanceRSVP's own hideIfAnswered rule are all built around the
-  // day-before ask — so the card renders without pills until then rather than
-  // quietly widening attendance semantics.
-  const rsvpOffset = upcoming?.offset ?? -1;
-  const showRsvp = !!upcoming?.isTeamDay && (rsvpOffset === 0 || rsvpOffset === 1);
 
   const [photoOpen, setPhotoOpen] = useState(false);
 
   return (
     <div className="space-y-5">
-      {/* ═══ HEADER CARD — avatar, name, and the count row ═══
-          One white card, Instagram-style, 132px instead of the 208 the
-          greeting + 28px name + separate stat trio took between them. */}
-      <div className="rounded-[20px] bg-card px-3 pb-2.5 pt-3">
-      <div className="flex items-center gap-3">
-        {/* Two targets in one circle once there IS a photo: the picture opens it
-            full screen (21cc272c), the camera badge replaces it. Before that there
-            is one target — the whole circle picks a photo, because a lightbox of
-            your own initials is not a thing anybody asked for. Two <button>s side
-            by side rather than nested, which is invalid HTML and does not fire. */}
-        <div className="relative h-[54px] w-[54px] shrink-0 rounded-full">
-          {photoOpen && avatarUrl && (
-            <PhotoLightbox url={avatarUrl} alt={athleteName} onClose={() => setPhotoOpen(false)} />
-          )}
-          <button
-            type="button"
-            onClick={avatarUrl ? () => setPhotoOpen(true) : onPhotoClick}
-            className="block h-full w-full overflow-hidden rounded-full"
-            aria-label={avatarUrl ? t('viewPhoto') : t('changePhoto')}
-          >
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatarUrl} alt={athleteName} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-            ) : (
-              <span className="flex h-full w-full items-center justify-center bg-brand-600 text-lg font-bold text-white">{initials}</span>
-            )}
-          </button>
-          {/* The frame draws a bare avatar, but this badge is the only way to
-              change a photo anywhere in the app — so it stays, smaller. It is a
-              real button now: when a photo exists the circle behind it enlarges
-              instead of uploading, so the badge has to carry the upload itself.
+      {part === 'header' && (
+        <>
+          <ProfileHero
+            photo={
+                    <div className="relative h-full w-full rounded-full">
+                      {photoOpen && avatarUrl && (
+                        <PhotoLightbox url={avatarUrl} alt={athleteName} onClose={() => setPhotoOpen(false)} />
+                      )}
+                      <button
+                        type="button"
+                        onClick={avatarUrl ? () => setPhotoOpen(true) : onPhotoClick}
+                        className="block h-full w-full overflow-hidden rounded-full"
+                        aria-label={avatarUrl ? t('viewPhoto') : t('changePhoto')}
+                      >
+                        {avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={avatarUrl} alt={athleteName} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-600 to-primary-500 text-2xl font-extrabold text-white">{initials}</span>
+                        )}
+                      </button>
+                      {/* The frame draws a bare avatar, but this badge is the only way to
+                          change a photo anywhere in the app — so it stays, smaller. It is a
+                          real button now: when a photo exists the circle behind it enlarges
+                          instead of uploading, so the badge has to carry the upload itself.
 
-              24px and not 20: the audit measured 20×20, under WCAG 2.5.8's floor.
-              It cannot reach Apple's 44 and that is geometry, not neglect — two
-              controls share a 55px circle, and a 44px halo on this one would
-              cover the avatar button's own centre point, so the bigger target
-              would break the target underneath it. 24 is the largest size that
-              leaves the circle behind it tappable. */}
-          <button
-            type="button"
-            onClick={onPhotoClick}
-            aria-label={t('changePhoto')}
-            className="absolute bottom-0 end-0 flex h-6 w-6 items-center justify-center rounded-full bg-card shadow-sm"
-          >
-            {uploadingPhoto ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-600" /> : <Camera className="h-3.5 w-3.5 text-ink-500" />}
-          </button>
-        </div>
-        <div className="min-w-0 flex-1 text-start">
-          {/* The 🌰 goes NEXT to the name, not inside the <h1>'s truncate: a long
-              name would otherwise eat the badge. */}
-          <div className="flex items-center gap-1.5">
-            <h1 className="truncate text-[17px] font-black text-ink-700">{athleteName}</h1>
-            {isCore && <CoreRunnerBadge className="text-sm" />}
-          </div>
-          <p className="text-xs font-light text-ink-400">{greeting}</p>
-        </div>
-      </div>
-      <ProfileCounts
-        athleteId={athleteId}
-        onFollowersClick={onFollowersClick}
-        onFollowingClick={onFollowingClick}
-        className="mt-2.5 border-t border-ink-300/60 pt-2"
-      />
-      </div>
-
-      {/* ═══ SETUP PROGRESS — new members only, then gone for good ═══ */}
-      <SetupProgressCard onOpen={onOpenSetup} />
-
-      {/* ═══ WEEKLY KM — actual against the plan's target band ═══ */}
-      {weekTarget && <WeekTargetBar title={t('weeklyKm')} doneKm={weekKmDone} target={weekTarget} />}
-
-      {/* ═══ UPDATES — the club's announcements, newest first ═══ */}
-      {updates?.items && updates.items.length > 0 && (
-        <div className="relative">
-          {updates.items.length > 1 && (
-            <div aria-hidden="true" className="absolute inset-x-2 top-1.5 h-full rounded-card bg-brand-600/40" />
-          )}
-          <Link
-            href={`/feed?item=${updates.items[0].id}`}
-            className="relative block rounded-card bg-brand-600 p-4 text-white active:opacity-90"
-          >
-            <p className="text-xl font-bold">{t('updates')}</p>
-            <p className="mt-1 line-clamp-2 text-sm font-light" dir="auto">{updates.items[0].body}</p>
-          </Link>
-        </div>
-      )}
-
-      {/* ═══ GOAL RACE ═══ — the same slim banner the feed opens with. */}
-      <GoalRaceBanner />
-
-      {/* ═══ UPCOMING WORKOUT + RSVP ═══ */}
-      {upcoming && (
-        <div data-tour="upcomingWorkout" className="space-y-4 rounded-card bg-card p-4">
-          <div className="flex items-start justify-between">
-            <h2 className="text-xl font-bold text-ink-700">{t('upcomingWorkout')}</h2>
-            <p className="shrink-0">
-              {/* dir="ltr": in the Hebrew line bidi swapped the ends and Sunday's
-                  23–24 read "24–23", a range that counts down. */}
-              <bdi dir="ltr" className="text-2xl font-bold text-brand-600 tabular-nums">
-                {dayTargetLabel(upcoming.workout).km}
-              </bdi>{' '}
-              <span className="text-xs font-light text-ink-400">{tc('km')}</span>
-            </p>
-          </div>
-
-          {/* The frame rules a hairline between each pair of columns (three 39px
-              lines for four columns). `border-s` on every cell but the first is
-              the RTL-safe way to draw them: one line per gap, on the inline
-              start edge, mirroring itself in English. */}
-          <div
-            className={cn(
-              'grid gap-2 [&>*+*]:border-s [&>*+*]:border-ink-300 [&>*+*]:ps-2',
-              location ? 'grid-cols-4' : 'grid-cols-3',
-            )}
-          >
-            <Field label={t('colDay')} value={(tc.raw('dayNames') as string[])[upcoming.workout.dayOfWeek]} />
-            <Field label={t('colTime')} value={`${String(workoutHour).padStart(2, '0')}:00`} />
-            {location && <Field label={t('colLocation')} value={location} />}
-            <Field
-              label={t('colType')}
-              value={workoutTypeLabel(upcoming.workout.type)}
-              color={WORKOUT_TYPE_TEXT_COLORS[upcoming.workout.type]}
-            />
-          </div>
-
-          {showRsvp && (
-            <AttendanceRSVP
-              variant="inline"
-              weekStart={getPlanWeekStart(upcoming.date)}
-              day={upcoming.workout.dayOfWeek}
-              dayBefore={rsvpOffset === 1}
-              workoutHour={workoutHour}
-            />
-          )}
-        </div>
-      )}
-
-      {/* ═══ COMPLETED THIS WEEK ═══ */}
-      {weekly && weekly.trainingDays > 0 && (
-        <div className="flex items-center justify-between rounded-card bg-card px-4 py-3">
-          <p className="text-sm font-light text-ink-700">{t('completedThisWeek')}</p>
-          <p className="text-2xl font-bold text-brand-600 tabular-nums">
-            {summary?.thisWeek?.runs ?? 0}<span className="text-ink-400">/</span>{weekly.trainingDays}
-          </p>
-        </div>
-      )}
-
-      {/* ═══ WEEK STRIP ═══ */}
-      {days.length > 0 && (
-        // The tour anchors the whole block, heading and link included, so the
-        // spotlight stays inside the page gutters — the tile row itself bleeds
-        // past both screen edges (-mx-4) and would look like a cut-off hole.
-        <div data-tour="weekStrip">
-          <div className="mb-2 flex items-end justify-between">
-            <h2 className="text-xl font-bold text-ink-700">{t('weeklyProgram')}</h2>
-            <p className="text-sm font-light text-ink-500">
-              {weekly?.currentWeekStart
-                ? new Date(weekly.currentWeekStart + 'T00:00:00').toLocaleDateString(locale, { month: 'long', year: 'numeric' })
-                : ''}
-            </p>
-          </div>
-          {/* Says why the tiles are empty. `/api/dashboard/weekly` deliberately
-              stopped falling back to the newest plan, so a week with nothing
-              published renders seven "—" tiles — correct, and unreadable: it
-              looks identical to the app having lost the plan. Only on an
-              explicit `false`; while the request is in flight `hasPlan` is
-              undefined and there is nothing to claim yet. */}
-          {weekly?.hasPlan === false && (
-            <p className="mb-2 text-sm font-light text-ink-400">{t('noPlanThisWeekYet')}</p>
-          )}
-          {/* Seven 74px tiles don't fit 402px, so the strip scrolls — the frame
-              shows five and clips the rest. `-mx-4 px-4` lets it bleed to the
-              screen edge inside the page's padded main. */}
-          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {days.map((d) => {
-              const done = weekly?.currentWeekStart ? runsByDate.get(planDayKey(weekly.currentWeekStart, d.dayOfWeek)) : undefined;
-              return (
-              <DayTile
-                key={d.dayOfWeek}
-                run={done?.activities?.[0] ? { id: done.activities[0].id, km: done.km, count: done.activities.length } : null}
-                openLabel={t('openDayRun', { day: (tc.raw('dayNames') as string[])[d.dayOfWeek] })}
-                letter={(tc.raw('dayNamesShort') as string[])[d.dayOfWeek]}
-                date={weekly?.currentWeekStart ? dayOfWeekDate(weekly.currentWeekStart, d.dayOfWeek) : null}
-                // Prescribed kilometres only, rounded on the way in — same rule
-                // as the week's band above, so the strip cannot contradict it.
-                // (Rounding matters here too: a Tuesday of 11 + 2.4 arrives as
-                // 13.400000000000006 and overflowed the tile's own width.)
-                km={dayTargetLabel(d).km}
-                hasOptional={dayTargetLabel(d).hasOptional}
-                hasKm={d.max > 0}
-                locale={locale}
-                // By date, not by weekday: on Saturday evening the strip shows the
-                // NEXT week, where matching on weekday ringed next Saturday as today.
-                isToday={!!weekly?.currentWeekStart && planDayKey(weekly.currentWeekStart, d.dayOfWeek) === israelToday()}
-                isTeamDay={teamDays.includes(d.dayOfWeek)}
-                kmUnit={tc('km')}
+                          24px and not 20: the audit measured 20×20, under WCAG 2.5.8's floor.
+                          It cannot reach Apple's 44 and that is geometry, not neglect — two
+                          controls share a 55px circle, and a 44px halo on this one would
+                          cover the avatar button's own centre point, so the bigger target
+                          would break the target underneath it. 24 is the largest size that
+                          leaves the circle behind it tappable. */}
+                      <button
+                        type="button"
+                        onClick={onPhotoClick}
+                        aria-label={t('changePhoto')}
+                        className="absolute bottom-0.5 end-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-card shadow ring-2 ring-page"
+                      >
+                        {uploadingPhoto ? <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-600" /> : <Camera className="h-3.5 w-3.5 text-ink-500" />}
+                      </button>
+                    </div>
+            }
+            name={athleteName}
+            nameAside={isCore ? <CoreRunnerBadge className="text-base" /> : undefined}
+            chips={
+              <>
+                {pub?.groupName && <HeroChip brand>{pub.groupName}</HeroChip>}
+                {pub?.isAcademy && pub.academyBand?.name && (
+                  // The academy band chip opens the academy, where its paces are.
+                  <Link href="/dashboard/academy" className="contents"><HeroChip>{pub.academyBand.name}</HeroChip></Link>
+                )}
+                {pub?.isAcademy && pub.coachName && <HeroChip>{t('coachChip', { name: pub.coachName })}</HeroChip>}
+              </>
+            }
+            counts={
+              <ProfileCounts
+                athleteId={athleteId}
+                onFollowersClick={onFollowersClick}
+                onFollowingClick={onFollowingClick}
               />
-              );
-            })}
-          </div>
-          {/* 115×20px measured. Same trick as the records link: the old `mt-3`
-              becomes 14px of top padding less 2px of margin, so the text does not
-              move, and `-mb-3.5` pulls the rest back into the card's own p-4.
-              `-my-3.5` would lose to `mt-*` in Tailwind's property order and push
-              the row down. */}
-          <Link href="/dashboard/program" className="inline-flex items-center gap-1 py-3.5 -mt-0.5 -mb-3.5 text-sm font-bold text-brand-600">
-            {t('fullProgram')}
-            <ChevronLeft className="h-4 w-4" />
-          </Link>
-        </div>
+            }
+            actions={
+              onEditProfile ? (
+                <button
+                  type="button"
+                  onClick={onEditProfile}
+                  className="min-h-[44px] flex-1 rounded-xl bg-page/70 text-sm font-extrabold text-ink-900 active:bg-page"
+                >
+                  {t('editProfile')}
+                </button>
+              ) : undefined
+            }
+          />
+          {/* ═══ SETUP PROGRESS — new members only, then gone for good ═══ */}
+          <SetupProgressCard onOpen={onOpenSetup} />
+        </>
+      )}
+
+      {part === 'week' && (
+        <>
+          {/* ═══ GOAL RACE ═══ — the same slim banner the feed opens with. */}
+          <GoalRaceBanner />
+          {/* ═══ THE WEEK, DAY BY DAY ═══ — target, seven days, done or not, RSVP. */}
+          <WeekPlanCard athleteId={athleteId} teamDays={teamDays} workoutHour={workoutHour} />
+        </>
       )}
     </div>
   );
-}
-
-// One labelled cell in the upcoming-workout row. Both lines are 14px/300 in the
-// frame — the workout type is the single cell it colours, and the only one it
-// sets in bold, so `color` drives both.
-function Field({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-sm font-light text-ink-400">{label}</p>
-      <p
-        className={cn('truncate text-sm', color ? 'font-bold' : 'font-light text-ink-700')}
-        style={color ? { color } : undefined}
-        dir="auto"
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function DayTile({
-  letter, date, km, hasOptional, hasKm, locale, isToday, isTeamDay, kmUnit, run = null, openLabel,
-}: {
-  /** The run done that day, when there is one: the tile opens it (#94). */
-  run?: { id: string; km: number; count: number } | null;
-  openLabel?: string;
-  letter: string;
-  date: Date | null;
-  /** Pre-formatted, so a day whose plan is a RANGE reads the same here as on the
-   *  card above it — the strip used to print only the top of it. */
-  km: string;
-  /** The day also carries an offered session, which the range excludes. */
-  hasOptional: boolean;
-  hasKm: boolean;
-  locale: string;
-  isToday: boolean;
-  isTeamDay: boolean;
-  kmUnit: string;
-}) {
-  // What the km line will actually be, counted before it is drawn — see the size
-  // step below. The "+" is one character and the unit is three, and both of them
-  // were previously invisible to the decision that had to fit them.
-  const lineLength = km.length + (hasOptional ? 1 : 0) + kmUnit.length;
-
-  const tile = cn(
-    'relative flex h-[88px] w-[74px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-card bg-card',
-    isToday && 'border border-brand-600',
-    run && 'bg-brand-600/10 active:bg-brand-600/20',
-  );
-  const body = (
-    <>
-      {/* A run was done that day: a tick in the corner, and the tile opens it (#94). */}
-      {run && (
-        <span className="absolute top-1.5 end-1.5 grid h-4 w-4 place-items-center rounded-full bg-brand-600 text-white" aria-hidden>
-          <Check className="h-2.5 w-2.5" strokeWidth={3} />
-        </span>
-      )}
-      <span className="text-sm font-light text-ink-500">{letter}</span>
-      {date && (
-        // Day number + short month assembled separately rather than via one
-        // toLocaleDateString: he-IL renders {day,month:'short'} as "9 באוג׳",
-        // and the frame has no preposition.
-        <span className="text-sm font-bold text-ink-700">
-          {date.getDate()} {date.toLocaleDateString(locale, { month: 'short' })}
-        </span>
-      )}
-      {/* A parsed day can read "23.6–24.5", which wraps inside a 74px tile and
-          pushed the team-day dot off its own line. One line always, a size down
-          when the range is long enough to need it.
-          The size step measures the WHOLE line — the range, the optional "+" and
-          the unit — because measuring `km` alone is what let a 9-character range
-          overflow the tile it was supposed to fit: "23.6–24.5" took the 11px step
-          and then had "+ ק״מ" added to it, which is another ~28px in a 74px box.
-          Both thresholds and the 3px gap were measured, not guessed: the eight real
-          label shapes were rendered at 74px in Heebo 300 and the tightest of them
-          ("23.6–24.5 ק״מ" at 11px) clears the tile by ~6px. */}
-      <span
-        className={cn(
-          // gap instead of a literal space between the number and the unit: a
-          // space is a bidi-neutral character between an LTR run and an RTL word,
-          // so it was being reordered along with everything around it.
-          'flex max-w-full items-baseline justify-center gap-[3px] whitespace-nowrap font-light text-ink-500',
-          lineLength > 11 ? 'text-3xs' : lineLength > 8 ? 'text-2xs' : 'text-sm',
-        )}
-      >
-        {hasKm ? (
-          <>
-            {/* dir="ltr" or bidi prints "24–23" for a 23–24 day.
-                The "+" sits INSIDE this run rather than beside it. As a sibling of
-                the RTL parent its position was bidi's to decide, and bidi decided
-                differently depending on what followed: the same markup printed
-                "11–13 +" on one tile and "+23.6–24.5" on the next, so a mark that
-                means "there's an optional session too" ended up attached to
-                whichever number it happened to land next to. Inside the LTR run it
-                is always immediately after the range it qualifies. */}
-            <bdi dir="ltr">
-              {km}
-              {/* The offered evening is not in the range, but the day is not
-                  silent about it either — a bare "+" is the whole hint. */}
-              {hasOptional && <span className="text-brand-600">+</span>}
-            </bdi>
-            <span>{kmUnit}</span>
-          </>
-        ) : (
-          '—'
-        )}
-      </span>
-      {/* The frame's blue dots mark the club's team-workout days. */}
-      {isTeamDay && <span className="absolute bottom-2 h-1.5 w-1.5 rounded-full bg-brand-600" />}
-    </>
-  );
-  return run ? (
-    <Link href={`/dashboard/activities/${run.id}`} aria-label={openLabel} className={tile}>
-      {body}
-    </Link>
-  ) : (
-    <div className={tile}>{body}</div>
-  );
-}
-
-function dayOfWeekDate(weekStart: string, dayOfWeek: number) {
-  const d = new Date(weekStart + 'T00:00:00');
-  d.setDate(d.getDate() + dayOfWeek);
-  return d;
-}
-
-/** Trims the float dust off an activity-summed distance (95.30000000000001). */
-function round1(n: number) {
-  return Math.round(n * 10) / 10;
 }

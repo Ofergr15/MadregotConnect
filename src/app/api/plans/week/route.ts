@@ -6,6 +6,8 @@ import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { pickPlan, planRowsFilter } from '@/lib/plans/scope';
 import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
 import { ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
+import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
+import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
 
 /**
  * Structured breakdown for ONE arbitrary week — the Program page's native
@@ -15,6 +17,11 @@ import { ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
  * any past/future week's `weekly_plans` row. `hasPlan: false` tells the
  * frontend to fall back to the `program_weeks` PDF for that week, since not
  * every week has AI-parsed structured data.
+ *
+ * `lane=mine` (the profile's week card, 2026-10-17): the caller's own pace lane —
+ * their pack on that week — instead of lane 1, so the kilometres and paces are the
+ * ones they were asked to run. A trainee's own academy plan is already theirs and
+ * is returned as is. Without the param nothing changes for the Program page.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -51,11 +58,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ hasPlan: false, weekStart, dailyDistances: [], sessions: [], typeDistribution: {}, weekTotalMin: 0, weekTotalMax: 0, trainingDays: 0 });
     }
 
-    const breakdown = buildWeekBreakdown(plan.parsed_workouts);
+    let parsed = plan.parsed_workouts;
+    let lane: Lane | null = null;
+    if (req.nextUrl.searchParams.get('lane') === 'mine' && !plan.athlete_id && caller.athleteId) {
+      lane = (await groupNumberForAthlete(supabase, caller.athleteId, weekStart)) as Lane;
+      const workouts = laneWorkouts(plan.parsed_workouts, lane);
+      // An empty lane would read as "no plan"; lane 1's week is better than none.
+      if (workouts.length) parsed = { workouts };
+      else lane = null;
+    }
+
+    const breakdown = buildWeekBreakdown(parsed);
     // Lets the frontend show a "New" badge for a couple of days after the
     // plan first went out — not athlete-specific (no per-athlete read state
     // exists), but a reasonable proxy since a coach typically pushes once.
-    return NextResponse.json({ hasPlan: true, weekStart, publishedAt: plan.status === 'pushed' ? plan.created_at : null, ...breakdown });
+    return NextResponse.json({ hasPlan: true, weekStart, publishedAt: plan.status === 'pushed' ? plan.created_at : null, lane, ownPlan: !!plan.athlete_id, ...breakdown });
   } catch (error) {
     console.error('Plan week error:', error);
     return NextResponse.json({ error: 'Failed to fetch week plan' }, { status: 500 });

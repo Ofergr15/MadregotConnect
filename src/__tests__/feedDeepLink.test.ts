@@ -52,7 +52,6 @@ describe('the senders and the feed page agree on the param names', () => {
   const SENDERS = [
     'lib/feed/notify.ts',
     'app/api/feed/posts/route.ts',
-    'components/profile/ProfileOverview.tsx',
   ];
 
   it('emits no feed param the resolver cannot read', () => {

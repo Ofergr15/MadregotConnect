@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
+import { isPendingAthlete, seesPending } from '@/lib/auth/pending-athletes';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,12 +41,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'athleteId required' }, { status: 400 });
     }
 
-    // Authorization: caller must own this athleteId or be staff. The super user
-    // may view anyone's badges (consistent w/ view-as) — mayActFor covers that.
+    // Any club member, as /api/athletes/[id]/stats: a teammate's profile shows their
+    // badges under their records (2026-10-17), and every badge was already public —
+    // each one is a feed post the day it is earned. Owner-only, the teammate view
+    // got a 403 and told the viewer "you have no badges yet" about someone else.
+    // A runner the club hasn't approved yet stays theirs and staff's (#77).
     const { denied, caller } = await resolveVerifiedCaller(request);
     if (denied) return denied;
-    if (!mayActFor(caller, athleteId)) {
-      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    if (!seesPending(caller, athleteId) && (await isPendingAthlete(createServerClient(), athleteId))) {
+      return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
     }
 
     // Full catalog of active badges, in seed/insertion order (grouped by
