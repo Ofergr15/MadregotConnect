@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authError, requireSession } from '@/lib/auth-session';
 import { israelNow, israelToday, addDaysToDateStr } from '@/lib/utils';
-import { isOnFeed, mayEditDaySession, maySeeDaySession, notifyOnce, parseWorkout, readInput } from '@/lib/day-session/model';
+import { isOnFeed, mayEditDaySession, maySeeDaySession, notifyOnce, readInput, resolveWorkout } from '@/lib/day-session/model';
 import {
   claimNotify, daySessionRecipients, readDaySession, readUpcoming, saveDaySession, sendDaySessionPush,
 } from '@/lib/day-session/server';
@@ -14,8 +14,12 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 //
 // GET ?date=YYYY-MM-DD   -> { setup, session }   the form: that date's row, published or not
 // GET                    -> { setup, sessions }  the feed: published, on now (isOnFeed)
-// PUT { date, startTime, place, quickText, packPaces, nutrition, publish, notify }
+// PUT { date, startTime, place, quickText, steps?, title?, description?, packPaces, nutrition, publish, notify }
 //                        -> { session, notified } save the date's row; publish pushes once
+//
+// `steps` are the editor's (validateSteps): stored as sent, the sentence is NOT re-parsed —
+// it stays in quick_text as the coach's own words. Without `steps` the sentence is parsed
+// (the form before the editor). `title` empty = the structure's name.
 //
 // The gate is lib/day-session/model.ts on the VERIFIED session: while DAY_SESSION_FOR_ALL is
 // off the super user alone edits and sees; anybody else gets 403 on the form and an empty
@@ -53,7 +57,7 @@ export async function PUT(request: Request) {
 
   const input = readInput(await request.json().catch(() => null));
   if (typeof input === 'string') return NextResponse.json({ error: input }, { status: 400 });
-  const { steps, title } = parseWorkout(input.quickText);
+  const { steps, title } = resolveWorkout(input);
   if (!steps.length) return NextResponse.json({ error: 'workout not understood' }, { status: 400 });
 
   try {
@@ -67,6 +71,7 @@ export async function PUT(request: Request) {
       title,
       quick_text: input.quickText,
       steps,
+      description: input.description,
       pack_paces: input.packPaces,
       nutrition: input.nutrition,
       // Keeps the first publish time across edits; unpublishing clears it.

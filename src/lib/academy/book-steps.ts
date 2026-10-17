@@ -145,6 +145,13 @@ export function effortPace(effort: Effort, thresholdSec: number, adjust?: PaceAd
   return by ? Math.min(MAX_PACE_SEC_PER_KM, Math.max(MIN_PACE_SEC_PER_KM, base + by)) : base;
 }
 
+/** A named zone's own band, untouched by a typed pace or a nudge — it says a word, not a pace. */
+export function isPureZone(effort: Effort | null | undefined): boolean {
+  if (!effort?.zone) return false;
+  const z = ZONE_INTENSITY[effort.zone];
+  return !!z && z.fastPct === effort.intensity.fastPct && z.slowPct === effort.intensity.slowPct;
+}
+
 /** The bar's three tones. Thresholds are the mockup's own colour split. */
 export type Tone = 'e' | 't' | 'f' | 'r';
 

@@ -1,5 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
-import { isMissingTable } from '@/lib/supabase/schema-drift';
+import { isMissingColumn, isMissingTable } from '@/lib/supabase/schema-drift';
 import { COACH_ID } from '@/lib/constants';
 import { CLUB_ACCOUNT_ROLE } from '@/lib/notifications/prefs';
 import { localesForAthletes, persistNotifications, sendPushLocalized, subscriptionsForAthletes } from '@/lib/push';
@@ -14,6 +14,10 @@ import { fromRow, isolateNumbers, type DaySession } from './model';
 
 type Db = ReturnType<typeof createServerClient>;
 const COLS = 'id, session_date, start_time, place, title, quick_text, steps, pack_paces, nutrition, published_at, notify, notified_at, created_by, updated_by, updated_at';
+// "הערות לאימון" is migration 151. Until it is pasted every read and write retries without
+// it, so the form and the feed work and the notes are simply not kept.
+const COLS_WITH_NOTES = `${COLS}, description`;
+const noNotes = (error: unknown) => isMissingColumn(error, 'description');
 
 async function withNames(db: Db, rows: Record<string, unknown>[]): Promise<DaySession[]> {
   const ids = [...new Set(rows.map((r) => (r.updated_by || r.created_by) as string | null).filter(Boolean))] as string[];
@@ -28,43 +32,53 @@ async function withNames(db: Db, rows: Record<string, unknown>[]): Promise<DaySe
 /** The date's row, published or not — the form. */
 export async function readDaySession(date: string): Promise<{ setup: boolean; session: DaySession | null }> {
   const db = createServerClient();
-  const { data, error } = await db.from('day_sessions').select(COLS).eq('session_date', date).maybeSingle();
+  const read = (cols: string) => db.from('day_sessions').select(cols).eq('session_date', date).maybeSingle();
+  let { data, error } = await read(COLS_WITH_NOTES);
+  if (error && noNotes(error)) ({ data, error } = await read(COLS));
   if (error) {
     if (isMissingTable(error)) return { setup: false, session: null };
     throw error;
   }
   if (!data) return { setup: true, session: null };
-  return { setup: true, session: (await withNames(db, [data]))[0] };
+  return { setup: true, session: (await withNames(db, [data as unknown as Record<string, unknown>]))[0] };
 }
 
 /** Today's and tomorrow's published rows — the feed (isOnFeed decides the hour). */
 export async function readUpcoming(now: Date = new Date()): Promise<{ setup: boolean; sessions: DaySession[] }> {
   const today = israelToday(now);
   const db = createServerClient();
-  const { data, error } = await db.from('day_sessions').select(COLS)
+  const read = (cols: string) => db.from('day_sessions').select(cols)
     .gte('session_date', today)
     .lte('session_date', addDaysToDateStr(today, 1))
     .not('published_at', 'is', null)
     .order('session_date', { ascending: true });
+  let { data, error } = await read(COLS_WITH_NOTES);
+  if (error && noNotes(error)) ({ data, error } = await read(COLS));
   if (error) {
     if (isMissingTable(error)) return { setup: false, sessions: [] };
     throw error;
   }
-  return { setup: true, sessions: await withNames(db, (data || []) as Record<string, unknown>[]) };
+  return { setup: true, sessions: await withNames(db, (data || []) as unknown as Record<string, unknown>[]) };
 }
 
 /** Insert or update the date's row. `null` = the table is not there yet. */
 export async function saveDaySession(row: Record<string, unknown>): Promise<DaySession | null> {
   const db = createServerClient();
-  const { data, error } = await db.from('day_sessions')
-    .upsert({ ...row, updated_at: new Date().toISOString() }, { onConflict: 'session_date' })
-    .select(COLS)
+  const write = (r: Record<string, unknown>, cols: string) => db.from('day_sessions')
+    .upsert({ ...r, updated_at: new Date().toISOString() }, { onConflict: 'session_date' })
+    .select(cols)
     .single();
+  let { data, error } = await write(row, COLS_WITH_NOTES);
+  if (error && noNotes(error)) {
+    const { description: _dropped, ...rest } = row;
+    void _dropped;
+    ({ data, error } = await write(rest, COLS));
+  }
   if (error) {
     if (isMissingTable(error)) return null;
     throw error;
   }
-  return fromRow(data as Record<string, unknown>);
+  return fromRow(data as unknown as Record<string, unknown>);
 }
 
 /** The push's claim: true only for the one call that set notified_at. */
