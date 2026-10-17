@@ -78,6 +78,7 @@ export default function DaySessionPage() {
   const [food, setFood] = useState<NutritionLine[]>(BLANK_FOOD);
   const [inFeed, setInFeed] = useState(true);
   const [notify, setNotify] = useState(true);
+  const [toWatch, setToWatch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
 
@@ -173,7 +174,22 @@ export default function DaySessionPage() {
         setMessage({ tone: 'bad', text: t('descriptionNotSaved') });
         return;
       }
-      setMessage({ tone: 'ok', text: publish ? t('published') : t('saved') });
+      if (publish && toWatch) {
+        // The saved session to the watches (api/day-session/watch). Stays on this screen
+        // when any watch did not take it, so the coach sees who.
+        setMessage({ tone: 'ok', text: t('watchSending') });
+        const w = await fetch('/api/day-session/watch', { method: 'POST', headers: await apiHeaders(true), body: JSON.stringify({ date }) });
+        const out = await w.json().catch(() => null) as { tracked?: boolean; results?: Array<{ athleteName: string; status: string; error?: string }> } | null;
+        const results = out?.results ?? [];
+        const failed = results.filter((r) => r.status !== 'success');
+        if (!w.ok || failed.length || !results.length) {
+          setMessage({ tone: 'bad', text: !results.length ? t('watchNobody') : t('watchFailed', { names: failed.map((r) => r.athleteName).join(', ') || '—' }) });
+          return;
+        }
+        setMessage({ tone: 'ok', text: t('watchSent', { n: results.length }) });
+      } else {
+        setMessage({ tone: 'ok', text: publish ? t('published') : t('saved') });
+      }
       if (publish) router.push('/feed');
     } catch {
       setMessage({ tone: 'bad', text: t('failed') });
@@ -443,12 +459,12 @@ export default function DaySessionPage() {
             </span>
             <Switch checked={notify && !alreadySent} onChange={setNotify} disabled={alreadySent} activeColor="bg-[#1FA55B]" ariaLabel={t('notifyAll')} />
           </div>
-          <div className="flex min-h-[56px] items-center justify-between gap-3 px-4 py-2 opacity-60">
+          <div className="flex min-h-[56px] items-center justify-between gap-3 px-4 py-2">
             <span className="min-w-0">
               <b className="block text-[15px] text-ink-900">{t('toWatches')}</b>
-              <small className="block text-13 text-ink-400">{t('soon')}</small>
+              <small className="block text-13 text-ink-400">{DAY_SESSION_FOR_ALL ? t('toWatchesSub') : t('toWatchesOnlyYou')}</small>
             </span>
-            <Switch checked={false} onChange={() => {}} disabled ariaLabel={t('toWatches')} />
+            <Switch checked={toWatch && inFeed} onChange={setToWatch} disabled={!inFeed} activeColor="bg-[#1FA55B]" ariaLabel={t('toWatches')} />
           </div>
         </div>
       </FlowScreen>

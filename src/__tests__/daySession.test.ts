@@ -394,3 +394,25 @@ describe('a row saved before the planner shape', () => {
     expect(fromRow({ ...row, description: undefined }).description).toBeNull();
   });
 });
+
+describe('/api/day-session/watch', () => {
+  beforeEach(() => {
+    requireSession.mockReset();
+    Object.values(server).forEach((f) => f.mockReset());
+  });
+  it('only the editor sends, never while viewing as somebody', async () => {
+    const { POST } = await import('@/app/api/day-session/watch/route');
+    const post = (body: unknown) => new Request('http://x/api/day-session/watch', { method: 'POST', body: JSON.stringify(body) });
+    for (const role of ['coach', 'admin', 'runner']) {
+      requireSession.mockResolvedValue(session({ role }));
+      expect((await POST(post({ date: '2026-10-18' }))).status).toBe(403);
+    }
+    requireSession.mockResolvedValue(session({ isSuperUser: true, viewingAsBy: 'x' }));
+    expect((await POST(post({ date: '2026-10-18' }))).status).toBe(403);
+    requireSession.mockResolvedValue(session({ isSuperUser: true }));
+    expect((await POST(post({ date: 'tomorrow' }))).status).toBe(400);
+    server.readDaySession.mockResolvedValue({ setup: true, session: null });
+    expect((await POST(post({ date: '2026-10-18' }))).status).toBe(404);
+    expect(server.daySessionRecipients).not.toHaveBeenCalled();
+  });
+});

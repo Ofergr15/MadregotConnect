@@ -5444,6 +5444,12 @@
     "by": "By {name}",
     "updated": "Updated {time}",
     "close": "Close",
-    "workoutHint": "One line per part, as in WhatsApp. A pace per pack: 3:15 (3:25) ((3:35)). A range: 4:40 - 5:15. Anything else, in ✎ Edit."
+    "workoutHint": "One line per part, as in WhatsApp. A pace per pack: 3:15 (3:25) ((3:35)). A range: 4:40 - 5:15. Anything else, in ✎ Edit.",
+    "toWatchesSub": "Garmin, each runner at their pack's pace, all three paces on every step",
+    "toWatchesOnlyYou": "For now only your own watch, until it opens to everyone",
+    "watchSending": "Published. Sending to the watches…",
+    "watchSent": "Published and sent to the watches ({n})",
+    "watchFailed": "Published, but it did not reach: {names}. Try again; a re-send replaces the earlier one.",
+    "watchNobody": "Published, but nobody to send to: no watch connected."
   }
 }

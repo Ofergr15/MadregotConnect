@@ -30,6 +30,8 @@ export interface PushResult {
   athleteName: string;
   status: 'success' | 'failed';
   error?: string;
+  /** Garmin ids this push created, on success — so a caller with no plan rows can replace them later. */
+  workoutIds?: string[];
 }
 
 /** The athlete row shape this needs — the select lists in both callers must supply it. */
@@ -298,7 +300,7 @@ export async function pushWeekToAthlete({
       }
     }
 
-    return { athleteId: athlete.id, athleteName: athlete.name, status: 'success' };
+    return { athleteId: athlete.id, athleteName: athlete.name, status: 'success', workoutIds: deliveredWorkoutIds };
   } catch (error: any) {
     // A summary row for the athlete's failure. Any workouts that did reach
     // Garmin before the failure keep their own 'pending' rows — they carry
