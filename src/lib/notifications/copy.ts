@@ -1369,3 +1369,23 @@ export function academyGoalSetCopy(
     ? { title: `🎯 ${name} קבע/ה מטרה: ${p.race}`, body: [p.detail, p.block].filter(Boolean).join(' · ') }
     : { title: `🎯 ${name} set a goal: ${p.race}`, body: [p.detail, p.block].filter(Boolean).join(' · ') };
 }
+
+/**
+ * A trainee who ALREADY trained in the academy was moved into the app (the migration path).
+ * Not "you joined the academy": they did, months ago. What changed is where it lives.
+ */
+export function academyMovedInCopy(
+  locale: NotificationLocale,
+  p: { coach?: string | null },
+): PushCopy {
+  const coach = (p.coach || '').trim();
+  return locale === 'he'
+    ? {
+        title: '🎓 האקדמיה עוברת לאפליקציה',
+        body: `${coach ? `${coach} מחכה לך כאן: ` : 'מעכשיו כאן: '}התוכנית, הקצבים לשעון והפידבק. לחיצה פותחת את האקדמיה.`,
+      }
+    : {
+        title: '🎓 The academy is moving into the app',
+        body: `${coach ? `${coach} is waiting for you here: ` : 'From now on, here: '}your plan, your watch paces and your feedback. Tap to open the academy.`,
+      };
+}

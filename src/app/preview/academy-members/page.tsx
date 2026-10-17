@@ -81,10 +81,11 @@ const PEOPLE = {
     { key: 'p2', athleteId: 'p2', candidateId: 'c2', name: 'Shahar Glazner', appliedAt: daysAgo(5), clubMember: true, deletable: false },
   ],
   addable: [
-    { athleteId: 's1', name: 'Shalev Har', avatarUrl: null, createdAt: '2024-03-01T00:00:00Z', groupName: 'דבוקה 3' },
-    { athleteId: 's2', name: 'Shahar Glazner', avatarUrl: null, createdAt: '2025-01-10T00:00:00Z', groupName: null },
-    { athleteId: 's3', name: 'Amit Levy', avatarUrl: null, createdAt: '2023-05-10T00:00:00Z', groupName: 'דבוקה 2' },
-    { athleteId: 's4', name: 'Dor Alon', avatarUrl: null, createdAt: '2025-06-10T00:00:00Z', groupName: 'דבוקה 4' },
+    { athleteId: 's1', name: 'Shalev Har', avatarUrl: null, createdAt: '2024-03-01T00:00:00Z', groupName: 'דבוקה 3', hasWatch: true },
+    { athleteId: 's2', name: 'Shahar Glazner', avatarUrl: null, createdAt: '2025-01-10T00:00:00Z', groupName: null, hasWatch: true, openCard: true },
+    { athleteId: 's3', name: 'Amit Levy', avatarUrl: null, createdAt: '2023-05-10T00:00:00Z', groupName: 'דבוקה 2', hasWatch: true, wasAcademy: true },
+    { athleteId: 's4', name: 'Dor Alon', avatarUrl: null, createdAt: '2025-06-10T00:00:00Z', groupName: 'דבוקה 4', hasWatch: false },
+    { athleteId: 's5', name: 'Eldar Pardo', avatarUrl: null, createdAt: '2024-07-08T00:00:00Z', groupName: 'דבוקה 2', hasWatch: true, isStaff: true },
   ],
 };
 
@@ -93,9 +94,13 @@ const WEEK = [
   { date: daysAgo(1), name: 'אינטרוולים', completed: false, distance: { status: 'missed', plannedMin: 10000, plannedMax: 10000, actual: null }, duration: { status: 'missed', planned: 3600, actual: null }, pace: { status: 'missed', plannedMin: null, plannedMax: null, actual: null }, score: 0 },
 ];
 
-function stub(url: string, method: string): unknown {
+function stub(url: string, method: string, body?: string): unknown {
   if (method !== 'GET') {
-    if (url.startsWith('/api/academy/members/bulk')) return { results: [], ok: 1, failed: 0 };
+    if (url.startsWith('/api/academy/members/bulk')) {
+      const b = (() => { try { return JSON.parse(body || '{}'); } catch { return {}; } })();
+      const ids: string[] = Array.isArray(b.athleteIds) ? b.athleteIds : [];
+      return { results: ids.map((id) => ({ athleteId: id, ok: true })), ok: ids.length, failed: 0 };
+    }
     if (url.startsWith('/api/academy/candidates')) return { candidate: { id: 'c-new' }, url: 'https://www.madregot.app/academy-register?i=3f9a2c71d0b84e6a9c12', ok: true, email: { ok: true } };
     return { ok: true };
   }
@@ -113,7 +118,7 @@ if (typeof window !== 'undefined' && !(window as { __membersStub?: boolean }).__
   window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.pathname + input.search : input.url;
     if (url.startsWith('/api/')) {
-      return new Response(JSON.stringify(stub(url, init?.method || 'GET')), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify(stub(url, init?.method || 'GET', typeof init?.body === 'string' ? init.body : undefined)), { status: 200, headers: { 'content-type': 'application/json' } });
     }
     return original(input as RequestInfo, init);
   }) as typeof window.fetch;
