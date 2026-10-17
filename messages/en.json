@@ -3357,7 +3357,16 @@
     "partDate": "Date",
     "partStart": "Start time",
     "dragHint": "Drag an orange tile to reorder · tap any tile to add or remove",
-    "showShoe": "Shoe beside the logo"
+    "showShoe": "Shoe beside the logo",
+    "viewStickerRail": "Side rail",
+    "viewStickerList": "List",
+    "viewStickerStack": "Stack",
+    "viewStickerRouteStack": "Route + stack",
+    "viewStickerPills": "Tags",
+    "viewStickerRouteBadge": "Route alone",
+    "looksCards": "Cards",
+    "looksStickers": "Clear stickers",
+    "stickerAlways": "A clear sticker: place it on any photo in your story, then move and resize it."
   },
   "watchAlerts": {
     "title": "Alerts & voice on your watch",

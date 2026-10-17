@@ -192,7 +192,7 @@ describe('the editor', () => {
   });
 
   it('shows all the looks at once, without a scrolling rail', () => {
-    expect(EDITOR).toMatch(/views\.map\(v => \{\s*const on = template === v\.key;/);
+    expect(EDITOR).toMatch(/list\.map\(v => \{\s*const on = template === v\.key;/);
     expect(EDITOR).toMatch(/className=\{cn\('min-w-0 flex-1 text-center'/);
   });
 
@@ -218,7 +218,7 @@ describe('the editor', () => {
     expect(EDITOR).toMatch(/<button\s+key=\{`label-\$\{p\}`\}\s+type="button"\s+aria-pressed=\{on\}\s+onClick=\{e => \{ e\.stopPropagation\(\); if \(on\) back\(\); else openPart\(p\); \}\}/);
     expect(EDITOR).toMatch(/const labels = placeLabels\(/);
     // They show only while editing; the card is otherwise seen as it will be shared.
-    expect(EDITOR).toMatch(/\{editing && \[\.\.\.labelled, 'background' as const\]\.map/);
+    expect(EDITOR).toMatch(/\{editing && \[\.\.\.labelled, \.\.\.\(sticker \? \[\] : \['background' as const\]\)\]\.map/);
     expect(EDITOR).toMatch(/\{editing && labelled\.filter/);
     expect(EDITOR).toMatch(/if \(editing\) \{ setEditing\(false\); back\(\); \} else setEditing\(true\);/);
     expect(EDITOR).toMatch(/if \(next !== 'looks'\) setEditing\(true\);/);

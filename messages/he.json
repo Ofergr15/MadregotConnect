@@ -3357,7 +3357,16 @@
     "partDate": "תאריך",
     "partStart": "שעת התחלה",
     "dragHint": "גוררים משבצת כתומה כדי לסדר · לחיצה מוסיפה או מסירה",
-    "showShoe": "נעל ליד הלוגו"
+    "showShoe": "נעל ליד הלוגו",
+    "viewStickerRail": "פס צד",
+    "viewStickerList": "רשימה",
+    "viewStickerStack": "טור",
+    "viewStickerRouteStack": "מסלול + טור",
+    "viewStickerPills": "תגיות",
+    "viewStickerRouteBadge": "מסלול בלבד",
+    "looksCards": "כרטיסים",
+    "looksStickers": "מדבקות שקופות",
+    "stickerAlways": "מדבקה שקופה: מניחים אותה על כל תמונה בסטורי, ואפשר להזיז ולהגדיל."
   },
   "watchAlerts": {
     "title": "התראות וקול בשעון",
