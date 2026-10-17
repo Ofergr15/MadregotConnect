@@ -373,3 +373,12 @@ export function waShareUrl(phone: string | null | undefined, text: string): stri
   const p = waPhone(phone);
   return `https://wa.me/${p ?? ''}?text=${encodeURIComponent(text)}`;
 }
+
+const normName = (name: string) => name.trim().toLowerCase().replace(/\s+/g, ' ');
+
+/** A club member the invite form's name already matches — inviting would make a second account. */
+export function sameNameMember(typed: string, members: AddableMember[]): AddableMember | null {
+  const t = normName(typed);
+  if (t.split(' ').length < 2) return null;
+  return members.find((m) => normName(m.name) === t) ?? null;
+}

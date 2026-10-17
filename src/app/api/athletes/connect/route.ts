@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     if (inviteToken) {
       const { data: athlete, error: findError } = await supabase
         .from('athletes')
-        .select('id, approved, garmin_auth')
+        .select('id, approved, garmin_auth, status')
         .eq('invite_token', inviteToken)
         .single();
 
@@ -116,10 +116,14 @@ export async function POST(req: NextRequest) {
         await syncClubFollows(supabase, athlete.id);
       } catch { /* best-effort — never break the connect flow itself */ }
 
-      try {
-        const { notifyAdminNewUser } = await import('@/lib/email');
-        await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updateData.onboarding_status, hasGarmin: !!encryptedAuth });
-      } catch {}
+      // "New user" means new: a member who is already in walking the join screen again (a
+      // second invite link, a re-connect) is not news to the admin inbox.
+      if (athlete.status !== 'active') {
+        try {
+          const { notifyAdminNewUser } = await import('@/lib/email');
+          await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updateData.onboarding_status, hasGarmin: !!encryptedAuth });
+        } catch {}
+      }
 
       if (updateData.garmin_authed_at) await recordOnbEvent({ step: 'garmin_connected', athleteId: athlete.id, device: deviceFromUa(req.headers.get('user-agent')) });
       return NextResponse.json({ success: true, athlete: updated });
@@ -177,10 +181,13 @@ export async function POST(req: NextRequest) {
         await syncClubFollows(supabase, existing.id);
       } catch { /* best-effort — never break the connect flow itself */ }
 
-      try {
-        const { notifyAdminNewUser } = await import('@/lib/email');
-        await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updatePayload.onboarding_status, hasGarmin: !!encryptedAuth });
-      } catch {}
+      // Same as the invite branch: an active member signing in again is not a new user.
+      if (existing.status !== 'active') {
+        try {
+          const { notifyAdminNewUser } = await import('@/lib/email');
+          await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updatePayload.onboarding_status, hasGarmin: !!encryptedAuth });
+        } catch {}
+      }
 
       if (updatePayload.garmin_authed_at) await recordOnbEvent({ step: 'garmin_connected', athleteId: existing.id, device: deviceFromUa(req.headers.get('user-agent')) });
       return NextResponse.json({ success: true, athlete: updated });

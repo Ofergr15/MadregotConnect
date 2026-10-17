@@ -566,3 +566,13 @@ describe('POST /api/academy/members/invite (an existing trainee not in the app y
     expect(card).toMatchObject({ source: 'existing', name: 'מיכל רז' });
   });
 });
+
+describe('the invite form warns about a name already in the club', () => {
+  it('matches a full name regardless of case and spacing, and never a first name alone', async () => {
+    const { sameNameMember } = await import('@/lib/academy/manage');
+    const members = [{ athleteId: 'a', name: 'Dana  Levi' }, { athleteId: 'b', name: 'Dana Cohen' }] as never[];
+    expect(sameNameMember(' dana levi ', members)).toMatchObject({ athleteId: 'a' });
+    expect(sameNameMember('Dana', members)).toBeNull();
+    expect(sameNameMember('Dana Mizrahi', members)).toBeNull();
+  });
+});

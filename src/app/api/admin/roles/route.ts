@@ -4,7 +4,10 @@ import { canGrantAdmin } from '@/lib/constants';
 import { resolveVerifiedCaller, type VerifiedCaller } from '@/lib/auth/self-or-staff';
 import { GRANTABLE_ROLES, grantedRoles, hasRole, rolesToColumns, type GrantableRole, type RolePerson } from '@/lib/auth/roles';
 import { notifyAthlete } from '@/lib/push';
-import { academyJoinedCopy, roleGrantedCopy, storyEditorCopy } from '@/lib/notifications/copy';
+import { academyCoachRoleRemovedCopy, academyJoinedCopy, roleGrantedCopy, storyEditorCopy } from '@/lib/notifications/copy';
+import { setPairCoaches } from '@/lib/academy/pairing-server';
+import { coachIdsOf, traineeIdsOfCoach } from '@/lib/academy/trainee-coaches';
+import { academyManagerIds } from '@/lib/notifications/staff';
 import { storyEditorIds } from '@/lib/quality-session/access';
 import { applyAcademyMembership } from '@/lib/academy/membership-server';
 import { newlyGranted, welcomeRoleOf, WELCOME_PARAM } from '@/lib/role-views';
@@ -103,6 +106,49 @@ async function sendAcademyJoined(
     console.error('Roles: academy-joined push failed:', err);
     return false;
   }
+}
+
+/** Roles that may hold academy trainees: the coach, and the managers above them. */
+const COACHING_ROLES: readonly string[] = ['academy_coach', 'academy_manager', 'admin'];
+
+/**
+ * Somebody stopped being an academy coach: every trainee paired with them loses them, so no
+ * trainee is left "coached" by an account that can no longer open their plan. A trainee with
+ * another coach keeps that one; one with nobody left lands in the manager's unassigned list.
+ * The managers are told once, with how many now need a coach. Best-effort per trainee.
+ */
+async function releaseTrainees(
+  supabase: ReturnType<typeof createServerClient>,
+  coach: { id: string; name: string | null },
+  caller: Pick<VerifiedCaller, 'athleteId'>,
+): Promise<{ released: number; orphaned: number }> {
+  const trainees = await traineeIdsOfCoach(supabase, coach.id).catch(() => [] as string[]);
+  let released = 0;
+  let orphaned = 0;
+  for (const id of trainees) {
+    const left = (await coachIdsOf(supabase, id).catch(() => [] as string[])).filter((c) => c !== coach.id);
+    const r = await setPairCoaches(id, left, 'coach_role_removed').catch(() => null);
+    if (!r?.ok) continue;
+    released += 1;
+    if (!left.length) orphaned += 1;
+  }
+  if (released) {
+    try {
+      const managers = (await academyManagerIds()).filter((m) => m !== coach.id);
+      const name = coach.name || 'מאמן';
+      await Promise.all(managers.map((m) => notifyAthlete({
+        athleteId: m,
+        kind: 'academy_coach_role_removed',
+        actorAthleteId: caller.athleteId,
+        copy: (locale) => academyCoachRoleRemovedCopy(locale, { coach: name, count: released, orphaned }),
+        url: '/dashboard/academy',
+        tag: `academy-coach-removed-${coach.id}`,
+      }).catch(() => null)));
+    } catch (err) {
+      console.error('Roles: coach-removed push failed:', err);
+    }
+  }
+  return { released, orphaned };
 }
 
 const ACADEMY_JOINED_KIND = 'academy_joined';
@@ -214,13 +260,13 @@ export async function PUT(request: Request) {
 
     const supabase = createServerClient();
     let migrated = true;
-    let found = await supabase.from('athletes').select('id, role, extra_roles, is_academy').eq('id', athleteId).maybeSingle();
+    let found = await supabase.from('athletes').select('id, name, role, extra_roles, is_academy').eq('id', athleteId).maybeSingle();
     if (found.error?.code === UNDEFINED_COLUMN) {
       migrated = false;
-      found = await supabase.from('athletes').select('id, role, is_academy').eq('id', athleteId).maybeSingle() as typeof found;
+      found = await supabase.from('athletes').select('id, name, role, is_academy').eq('id', athleteId).maybeSingle() as typeof found;
     }
     if (found.error) throw found.error;
-    const athlete = found.data as { id: string; role: string | null; extra_roles?: string[] | null; is_academy?: boolean | null } | null;
+    const athlete = found.data as { id: string; name?: string | null; role: string | null; extra_roles?: string[] | null; is_academy?: boolean | null } | null;
     if (!athlete) return NextResponse.json({ error: 'User not found' }, { status: 404 });
     const wasAcademy = athlete.is_academy === true;
     const academy = typeof body.academy === 'boolean' ? body.academy : wasAcademy;
@@ -267,8 +313,14 @@ export async function PUT(request: Request) {
     const notified = added ? await sendRoleGranted(supabase, athlete.id, added, caller) : false;
     const academyNotified = academy && !wasAcademy ? await sendAcademyJoined(supabase, athlete.id, caller) : false;
     const storyNotified = storyEditor && !wasEditor ? await sendStoryEditor(supabase, athlete.id, caller) : false;
+    // No longer able to coach (the coach role gone, and no manager role to coach under).
+    const couldCoach = before.some((r) => COACHING_ROLES.includes(r));
+    const canCoach = roles.some((r) => COACHING_ROLES.includes(r));
+    const trainees = couldCoach && !canCoach
+      ? await releaseTrainees(supabase, { id: athlete.id, name: athlete.name ?? null }, caller)
+      : { released: 0, orphaned: 0 };
 
-    return NextResponse.json({ success: true, roles, academy, storyEditor, notified: notified ? added : null, academyNotified, storyNotified });
+    return NextResponse.json({ success: true, roles, academy, storyEditor, notified: notified ? added : null, academyNotified, storyNotified, traineesReleased: trainees.released, traineesOrphaned: trainees.orphaned });
   } catch (error) {
     console.error('Failed to update roles:', error);
     return NextResponse.json({ error: 'Failed to update roles' }, { status: 500 });

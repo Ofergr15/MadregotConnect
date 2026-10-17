@@ -191,6 +191,14 @@ describe('bulk: several coaches at once', () => {
     expect(pushes.map((p) => p.athleteId).sort()).toEqual(['avi', 'dana', 'noa']);
   });
 
+  it('"add" refuses a disconnected account, as the move-in list already leaves it out', async () => {
+    caller.mockReturnValue(manager);
+    athlete('noa').status = 'disconnected';
+    const res = await (await post({ action: 'add', athleteIds: ['noa'], coachIds: ['dana'] })).json();
+    expect(res.results[0]).toMatchObject({ ok: false, error: 'not_club_member' });
+    expect(athlete('noa').is_academy).not.toBe(true);
+  });
+
   it('"add" with two coaches before 135: a clear 409 and nobody half let in', async () => {
     caller.mockReturnValue(manager);
     pre135();
