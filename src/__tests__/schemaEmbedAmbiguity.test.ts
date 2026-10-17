@@ -79,6 +79,47 @@ export function foreignKeys(sql: string, file: string): Fk[] {
   return fks;
 }
 
+/** Composite primary keys, by table — `PRIMARY KEY (a, b)` in CREATE TABLE or ALTER TABLE. */
+export function primaryKeys(sql: string): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const raw of stripComments(sql).split(';')) {
+    const stmt = raw.trim();
+    const head = /^(?:CREATE TABLE(?:\s+IF NOT EXISTS)?|ALTER TABLE(?:\s+IF EXISTS)?(?:\s+ONLY)?)\s+([\w."]+)/i.exec(stmt);
+    if (!head) continue;
+    const pk = /PRIMARY KEY\s*\(([^)]*)\)/i.exec(stmt);
+    if (pk) out.set(ident(head[1]), pk[1].split(',').map(c => ident(c.trim())));
+  }
+  return out;
+}
+
+/**
+ * Tables PostgREST reads as a JUNCTION between two tables that are also joined
+ * directly — a second path, so every unhinted embed between those two fails.
+ *
+ * It takes a table for a junction when it has keys to both and those key columns
+ * are part of its composite primary key. That is what took /api/activities down
+ * on 2026-10-17 for six hours: athlete_pr_exclusions(athlete_id → athletes,
+ * activity_id → athlete_activities, PRIMARY KEY (athlete_id, activity_id, …)) made
+ * `athlete_activities … athletes (name)` ambiguous (PGRST201). The pair-of-keys
+ * check above can't see it — the two keys are on a third table.
+ */
+export function ambiguousJunctions(files: Array<{ sql: string; file: string }>): string[] {
+  const fks = files.flatMap(f => foreignKeys(f.sql, f.file));
+  const pks = new Map<string, string[]>();
+  for (const f of files) for (const [t, cols] of primaryKeys(f.sql)) pks.set(t, cols);
+  const direct = new Set(fks.map(f => `${f.table}->${f.ref}`));
+  const out = new Set<string>();
+  for (const [table, pk] of pks) {
+    if (pk.length < 2) continue;
+    const inPk = fks.filter(f => f.table === table && pk.includes(f.column) && f.ref !== table);
+    for (const a of inPk) for (const b of inPk) {
+      if (a.ref >= b.ref) continue;
+      if (direct.has(`${a.ref}->${b.ref}`) || direct.has(`${b.ref}->${a.ref}`)) out.add(`${table}: ${a.ref}<->${b.ref}`);
+    }
+  }
+  return [...out].sort();
+}
+
 function schemaFiles(): string[] {
   const dir = join(ROOT, 'supabase', 'migrations');
   return [
@@ -129,6 +170,17 @@ const KNOWN_AMBIGUOUS: Record<string, string[]> = {
   'run_chats->athletes': ['athlete_id', 'coach_id'],
 };
 
+/**
+ * Junctions already on prod, each with why nothing breaks. Adding one is a promise
+ * that no embed between the two tables is unhinted.
+ */
+const KNOWN_JUNCTIONS = [
+  // 137 favourites: library ↔ athletes is ambiguous on prod (PGRST201, checked
+  // 2026-10-17), but nothing embeds athletes from the library. One that does must
+  // say `athletes!owner_id(…)`.
+  'academy_library_favourites: academy_workout_library<->athletes',
+];
+
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
   for (const name of readdirSync(dir)) {
@@ -156,6 +208,28 @@ describe('schema: tables joined by more than one foreign key', () => {
     // key breaks every unhinted embed between the two tables, on prod, the moment the
     // migration is pasted. Hint them (`ref!column(…)`) or drop the REFERENCES.
     expect(added.map(k => `${k}: ${found[k].join(', ')}`)).toEqual([]);
+  });
+
+  it('has no junction table that opens a second path between two joined tables', () => {
+    const files = schemaFiles().map(file => ({ sql: readFileSync(file, 'utf8'), file }));
+    // Drop the REFERENCES on one side (as was done to athlete_pr_exclusions on prod),
+    // or hint every embed between the two tables first.
+    expect(ambiguousJunctions(files).filter(j => !KNOWN_JUNCTIONS.includes(j))).toEqual([]);
+  });
+
+  it('catches the junction that took /api/activities down (2026-10-17)', () => {
+    const base = 'CREATE TABLE athlete_activities (id uuid PRIMARY KEY, athlete_id uuid REFERENCES athletes(id));';
+    const prExclusions = `CREATE TABLE IF NOT EXISTS athlete_pr_exclusions (
+      athlete_id UUID NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+      activity_id UUID NOT NULL REFERENCES athlete_activities(id) ON DELETE CASCADE,
+      bucket_key TEXT NOT NULL DEFAULT '*',
+      PRIMARY KEY (athlete_id, activity_id, bucket_key)
+    );`;
+    expect(ambiguousJunctions([{ sql: base, file: 'a' }, { sql: prExclusions, file: 'b' }]))
+      .toEqual(['athlete_pr_exclusions: athlete_activities<->athletes']);
+    // A surrogate key is not a junction, which is why activity_kudos never did this.
+    const kudos = 'CREATE TABLE activity_kudos (id uuid PRIMARY KEY, activity_id uuid REFERENCES athlete_activities(id), athlete_id uuid REFERENCES athletes(id));';
+    expect(ambiguousJunctions([{ sql: base, file: 'a' }, { sql: kudos, file: 'c' }])).toEqual([]);
   });
 
   it('hints every embed of groups, since athletes has two keys to it', () => {
