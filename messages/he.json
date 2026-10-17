@@ -5369,7 +5369,13 @@
     "toDistance": "למרחק",
     "removeStep": "מחיקה",
     "addStepTitle": "שלב חדש",
-    "kind": {"warmup": "חימום", "reps": "חזרות", "run": "רציף", "rest": "מנוחה", "cooldown": "שחרור"},
+    "kind": {
+      "warmup": "חימום",
+      "reps": "חזרות",
+      "run": "רציף",
+      "rest": "מנוחה",
+      "cooldown": "שחרור"
+    },
     "byDistance": "מרחק",
     "byTime": "זמן",
     "count": "כמה חזרות",
@@ -5393,7 +5399,7 @@
     "place": "מקום",
     "placePlaceholder": "פארק הירקון · הגשר",
     "workout": "האימון · כותבים כמו בוואטסאפ",
-    "workoutPlaceholder": "2 קל, 6x1000 מנוחה 90, 2 קל",
+    "workoutPlaceholder": "50 דק׳ 4:40 - 5:15\n15 x 200 מ׳ 3:15 (3:25) ((3:35))\n100 מ׳ הליכה",
     "understood": "הבנתי כך",
     "totals": "<m>{km}</m> ק״מ · כ־<m>{min}</m> דק׳",
     "unknownWords": "לא הבנתי: {text}",
@@ -5437,6 +5443,7 @@
     "sheetFor": "לאימון של {when} · {day}",
     "by": "מ־{name}",
     "updated": "עודכן {time}",
-    "close": "סגירה"
+    "close": "סגירה",
+    "workoutHint": "שורה לכל חלק, כמו בוואטסאפ. קצב לכל דבוקה: 3:15 (3:25) ((3:35)). טווח: 4:40 - 5:15. כל השאר, ב־✎ לערוך."
   }
 }

@@ -14,10 +14,10 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 //
 // GET ?date=YYYY-MM-DD   -> { setup, session }   the form: that date's row, published or not
 // GET                    -> { setup, sessions }  the feed: published, on now (isOnFeed)
-// PUT { date, startTime, place, quickText, steps?, title?, description?, packPaces, nutrition, publish, notify }
+// PUT { date, startTime, place, quickText, steps?, title?, description?, nutrition, publish, notify }
 //                        -> { session, notified } save the date's row; publish pushes once
 //
-// `steps` are the editor's (validateSteps): stored as sent, the sentence is NOT re-parsed —
+// `steps` are the planner editor's WorkoutStep[] (validateWorkoutSteps): stored as sent, the sentence is NOT re-parsed —
 // it stays in quick_text as the coach's own words. Without `steps` the sentence is parsed
 // (the form before the editor). `title` empty = the structure's name.
 //
@@ -72,7 +72,8 @@ export async function PUT(request: Request) {
       quick_text: input.quickText,
       steps,
       description: input.description,
-      pack_paces: input.packPaces,
+      // Each step carries its own pace per pack now (lib/day-session/workout.ts).
+      pack_paces: [null, null, null],
       nutrition: input.nutrition,
       // Keeps the first publish time across edits; unpublishing clears it.
       published_at: input.publish ? existing.session?.publishedAt ?? new Date().toISOString() : null,

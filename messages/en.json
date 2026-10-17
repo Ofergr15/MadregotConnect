@@ -5369,7 +5369,13 @@
     "toDistance": "By distance",
     "removeStep": "Delete",
     "addStepTitle": "New step",
-    "kind": {"warmup": "Warmup", "reps": "Reps", "run": "Steady", "rest": "Rest", "cooldown": "Cooldown"},
+    "kind": {
+      "warmup": "Warmup",
+      "reps": "Reps",
+      "run": "Steady",
+      "rest": "Rest",
+      "cooldown": "Cooldown"
+    },
     "byDistance": "Distance",
     "byTime": "Time",
     "count": "How many reps",
@@ -5393,7 +5399,7 @@
     "place": "Place",
     "placePlaceholder": "Yarkon Park · the bridge",
     "workout": "The session · write it like on WhatsApp",
-    "workoutPlaceholder": "2 easy, 6x1000 rest 90, 2 easy",
+    "workoutPlaceholder": "50 min 4:40 - 5:15\n15 x 200 m 3:15 (3:25) ((3:35))\n100 m walk",
     "understood": "Understood as",
     "totals": "<m>{km}</m> km · ~<m>{min}</m> min",
     "unknownWords": "Not understood: {text}",
@@ -5437,6 +5443,7 @@
     "sheetFor": "For {when}'s session · {day}",
     "by": "By {name}",
     "updated": "Updated {time}",
-    "close": "Close"
+    "close": "Close",
+    "workoutHint": "One line per part, as in WhatsApp. A pace per pack: 3:15 (3:25) ((3:35)). A range: 4:40 - 5:15. Anything else, in ✎ Edit."
   }
 }

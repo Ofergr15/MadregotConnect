@@ -9,12 +9,13 @@ import { addDaysToDateStr, cn, getPlanWeekStart, israelToday } from '@/lib/utils
 import { useNavIdentity } from '@/lib/nav-items';
 import { Sheet } from '@/components/ui';
 import { SessionRsvp } from '@/components/feed/SessionRsvp';
-import { ProfileBar, RICH, clockText, kmText } from '@/components/academy/book/ui';
-import { profileBar } from '@/lib/academy/book-steps';
+import { RICH, kmText } from '@/components/academy/book/ui';
+import { ProfileStrip, WorkoutLines } from '@/components/day-session/WorkoutLines';
+import { packPace, paceRangeText } from '@/lib/plans/session-profile';
 import type { Lineup } from '@/lib/attendance/lineup';
 import { DAY_SESSION_FOR_ALL } from '@/lib/day-session/flag';
 import {
-  bookOf, numberRuns, planCoversDay, planLinks, totalsOf,
+  numberRuns, planCoversDay, planLinks, totalsOf,
   type DaySession, type NutritionWhen, type ProgramWeekLike, type WeekPlanLike,
 } from '@/lib/day-session/model';
 
@@ -65,8 +66,8 @@ export function DaySessionCard() {
   const whenWord = s.date === today ? t('today') : s.date === addDaysToDateStr(today, 1) ? t('tomorrow') : '';
   const totals = totalsOf(s.steps);
   const home = lineup && lineup.homeIndex >= 0 ? lineup.homeIndex : null;
-  const myPace = home !== null ? s.packPaces[home] : null;
-  const paces = s.packPaces.map((p) => (p ? clockText(p) : null));
+  // Each pack's pace for the RSVP, from the steps themselves (the same rule as the plan's card).
+  const paces = [0, 1, 2].map((i) => { const p = packPace(s.steps, i); return p ? paceRangeText(p) : null; });
   const links = planLinks(weekStart, plan, weeks);
   const foodSummary = s.nutrition.filter((l) => l.when !== 'during').map((l) => `${t(l.when)}: ${l.text}`).join(' · ')
     || s.nutrition.map((l) => `${t(l.when)}: ${l.text}`).join(' · ');
@@ -102,9 +103,10 @@ export function DaySessionCard() {
         </h2>
         <p className="mt-1 text-13 font-semibold text-ink-400">
           {totals.distanceM > 0 && <>{t.rich('totals', { ...RICH, km: kmText(totals.distanceM), min: Math.round(totals.durationSec / 60) })}</>}
-          {myPace !== null && home !== null && <> · {t.rich('repsAt', { ...RICH, pace: clockText(myPace), n: home + 1 })}</>}
         </p>
-        <ProfileBar segments={profileBar(bookOf(s.steps), null)} className="mt-3" height={26} />
+        <ProfileStrip steps={s.steps} className="mt-3" />
+        {/* The workout as the coach wrote it, the reader's own pack in blue. */}
+        <WorkoutLines steps={s.steps} highlight={home ?? undefined} className="mt-2" />
         {s.description && (
           <p dir="auto" className="mt-3 whitespace-pre-line break-words rounded-2xl bg-page px-3 py-2.5 text-[15px] leading-snug text-ink-700">
             {s.description}

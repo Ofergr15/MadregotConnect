@@ -7,32 +7,34 @@ import { Plus, X } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { addDaysToDateStr, cn, israelToday } from '@/lib/utils';
 import { Switch } from '@/components/ui';
-import { parseQuickText } from '@/lib/academy/quick-text';
-import { bookTotals, profileBar, structureName, type BookStep } from '@/lib/academy/book-steps';
-import type { QuickStep } from '@/lib/academy/quick-text';
+import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import {
-  BarButton, CARD, FlowOverlay, FlowScreen, PrimaryButton, ProfileBar, RICH, SectionLabel, clockText, kmText,
+  BarButton, CARD, FlowOverlay, FlowScreen, PrimaryButton, RICH, SectionLabel, kmText,
 } from '@/components/academy/book/ui';
-import { StepLines } from '@/components/academy/book/StepLines';
-import { StepEditor } from '@/components/day-session/StepEditor';
+import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
+import { ProfileStrip, WorkoutLines } from '@/components/day-session/WorkoutLines';
 import { DAY_SESSION_FOR_ALL } from '@/lib/day-session/flag';
 import {
-  bookOf, EDIT_THRESHOLD_SEC, MAX_DESCRIPTION, MAX_TITLE, numberRuns, parsePaceText, stepsToStore, NUTRITION_WHENS,
+  MAX_DESCRIPTION, MAX_TITLE, numberRuns, parseWorkout, totalsOf, NUTRITION_WHENS,
   type DaySession, type NutritionLine, type NutritionWhen,
 } from '@/lib/day-session/model';
+import { hasRunning, workoutTitle } from '@/lib/day-session/workout';
 
 // ── "אימון ליום אחד" — the coach's form (mockup manual-day-workout, phones 1 and 2) ──────
 //
 // Phone 1: when (מחר by default), the hour and the place, the session typed the way it goes
-// into WhatsApp with "הבנתי כך" under it (lib/academy/quick-text.ts, the same grammar the
-// workout book's ✎ screen reads), and each pack's rep pace. Phone 2: the nutrition for this
-// session only — before / during / after, free text — and how it goes out.
+// into WhatsApp with "הבנתי כך" under it — the club's notation, a pace per pack written
+// `3:15 (3:25) ((3:35))` and a range `4:40 - 5:15` (lib/day-session/workout.ts). Phone 2:
+// the nutrition for this session only — before / during / after, free text — and how it
+// goes out.
 //
-// Two ways to fill the workout: "לכתוב במשפט" (the sentence → "הבנתי כך", then "✎ לערוך"
-// opens the step editor prefilled with the parse) or "להכניס ידנית" (the editor from an
-// empty list). Once edited, the EDITED steps are what is sent and stored — the sentence is
-// kept only as the coach's own words. The title follows the structure until the coach
-// writes his own; "הערות לאימון" is free text for the card.
+// Two ways to fill the workout: "לכתוב במשפט" (the sentence → "הבנתי כך", then "✎ לערוך")
+// or "להכניס ידנית" (from an empty list). Both edit in the PLANNER's own editor
+// (WorkoutEditorPanel), so every option the planner has is here: pace per pack, ranges,
+// time / distance / lap, repeat blocks, notes, duplicate, drag, undo. Once edited, the
+// EDITED steps are what is sent and stored — the sentence is kept only as the coach's own
+// words. The title follows the session until the coach writes his own (here or in the
+// editor's name field); "הערות לאימון" is free text for the card.
 //
 // Picking a date that already has a session loads it — its STORED steps, not a re-parse of
 // its sentence — so the same form edits it and takes it off the feed. Gated by
@@ -59,21 +61,20 @@ export default function DaySessionPage() {
   const { data: loaded, error: loadError, mutate } = useApi<{ setup: boolean; session: DaySession | null }>(`/api/day-session?date=${date}`);
   const existing = loaded?.session ?? null;
 
-  const [step, setStep] = useState<1 | 2 | 'edit'>(1);
+  const [step, setStep] = useState<1 | 2>(1);
+  // The workout the planner's editor opened on, fixed for as long as it is open: the panel
+  // resets its draft whenever this object changes.
+  const [editing, setEditing] = useState<ParsedWorkout | null>(null);
   const [time, setTime] = useState('');
   const [place, setPlace] = useState('');
   const [mode, setMode] = useState<Mode>('text');
   const [text, setText] = useState('');
-  // Null = the steps follow the sentence. Otherwise the editor's steps, and the stored /
-  // parsed steps they started from (sent as-is when the edit changed nothing).
-  const [edited, setEdited] = useState<BookStep[] | null>(null);
-  const [editedFrom, setEditedFrom] = useState<QuickStep[] | null>(null);
-  const [editorStart, setEditorStart] = useState<{ initial: BookStep[]; original: BookStep[] | null }>({ initial: [], original: null });
+  // Null = the steps follow the sentence. Otherwise the editor's steps (or the stored ones).
+  const [edited, setEdited] = useState<WorkoutStep[] | null>(null);
   const [title, setTitle] = useState('');
   const [titleTouched, setTitleTouched] = useState(false);
   const [titleEditing, setTitleEditing] = useState(false);
   const [description, setDescription] = useState('');
-  const [paces, setPaces] = useState<[string, string, string]>(['', '', '']);
   const [food, setFood] = useState<NutritionLine[]>(BLANK_FOOD);
   const [inFeed, setInFeed] = useState(true);
   const [notify, setNotify] = useState(true);
@@ -86,23 +87,20 @@ export default function DaySessionPage() {
     const s = loaded.session;
     setMessage(null);
     if (s) {
-      const stored = bookOf(s.steps);
       setTime(s.startTime || '');
       setPlace(s.place || '');
       setMode(s.quickText ? 'text' : 'manual');
       setText(s.quickText);
-      setEdited(stored);
-      setEditedFrom(s.steps);
+      setEdited(s.steps);
       setTitle(s.title);
-      setTitleTouched(!!s.title && s.title !== (stored.length ? structureName(stored) : ''));
+      setTitleTouched(!!s.title && s.title !== workoutTitle(s.steps));
       setDescription(s.description || '');
-      setPaces(s.packPaces.map((p) => (p ? clockText(p) : '')) as [string, string, string]);
       setFood(s.nutrition.length ? s.nutrition : BLANK_FOOD);
       setInFeed(!!s.publishedAt);
       setNotify(s.notify);
     } else {
-      setText(''); setPlace(''); setPaces(['', '', '']); setFood(BLANK_FOOD); setInFeed(true); setNotify(true);
-      setMode('text'); setEdited(null); setEditedFrom(null); setTitle(''); setTitleTouched(false); setDescription('');
+      setText(''); setPlace(''); setFood(BLANK_FOOD); setInFeed(true); setNotify(true);
+      setMode('text'); setEdited(null); setTitle(''); setTitleTouched(false); setDescription('');
     }
   }, [loaded]);
 
@@ -113,34 +111,29 @@ export default function DaySessionPage() {
     setTime(`${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`);
   }, [reminderCfg, existing, time]);
 
-  const parse = useMemo(() => parseQuickText(text), [text]);
-  const parsedSteps = useMemo(() => bookOf(parse.steps), [parse]);
-  const steps = edited ?? (mode === 'text' ? parsedSteps : []);
-  const totals = steps.length ? bookTotals(steps, null) : null;
-  const ready = steps.length > 0 && steps.some((s) => s.kind !== 'rest');
-  const autoTitle = steps.length ? structureName(steps) : '';
+  const parse = useMemo(() => parseWorkout(text), [text]);
+  const steps = edited ?? (mode === 'text' ? parse.steps : []);
+  const totals = steps.length ? totalsOf(steps) : null;
+  const ready = steps.length > 0 && hasRunning(steps);
+  const autoTitle = steps.length ? workoutTitle(steps) : '';
   const shownTitle = titleTouched ? title : autoTitle;
 
-  const openEditor = () => {
-    setEditorStart(edited
-      ? { initial: edited, original: editedFrom ? bookOf(editedFrom) : null }
-      : mode === 'text' ? { initial: parsedSteps, original: parsedSteps } : { initial: [], original: null });
-    setStep('edit');
-  };
-  const doneEditing = (next: BookStep[]) => {
-    if (!edited && mode === 'text') setEditedFrom(parse.steps);
+  // The planner's editor saves the whole workout: its steps, and its name as the title
+  // when the coach changed it there.
+  const doneEditing = (next: WorkoutStep[], name: string) => {
     setEdited(next);
-    setStep(1);
+    const nextAuto = workoutTitle(next);
+    if (name.trim() && name.trim() !== shownTitle && name.trim() !== nextAuto) { setTitle(name.trim()); setTitleTouched(true); }
   };
+  const openEditor = (from: WorkoutStep[] = steps) =>
+    setEditing({ dayOfWeek: new Date(`${date}T12:00:00`).getDay(), name: shownTitle, steps: from });
   const pickMode = (next: Mode) => {
     if (next === mode) return;
     if (steps.length && !window.confirm(t('restartConfirm'))) return;
     setMode(next);
-    setEditedFrom(null);
     if (next === 'manual') {
       setEdited([]);
-      setEditorStart({ initial: [], original: null });
-      setStep('edit');
+      openEditor([]);
     } else {
       setEdited(null);
     }
@@ -164,10 +157,9 @@ export default function DaySessionPage() {
           date, startTime: time || null, place,
           quickText: mode === 'text' ? text : '',
           // The steps as shown — the edit when there is one, never re-parsed by the server.
-          steps: edited ? stepsToStore(edited, editedFrom) : parse.steps,
+          steps: edited ?? parse.steps,
           title: titleTouched ? title.trim() : null,
           description,
-          packPaces: paces.map(parsePaceText),
           nutrition: food.filter((l) => l.text.trim()),
           publish, notify,
         }),
@@ -211,19 +203,6 @@ export default function DaySessionPage() {
       )}
     </>
   );
-
-  if (step === 'edit') {
-    return (
-      <FlowOverlay label={t('editorTitle')}>
-        <StepEditor
-          initial={editorStart.initial}
-          original={editorStart.original}
-          onCancel={() => setStep(1)}
-          onDone={doneEditing}
-        />
-      </FlowOverlay>
-    );
-  }
 
   if (step === 1) {
     return (
@@ -291,11 +270,12 @@ export default function DaySessionPage() {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 dir="rtl"
-                rows={2}
+                rows={4}
                 aria-label={t('workout')}
                 placeholder={t('workoutPlaceholder')}
-                className={cn(CARD, 'min-h-[80px] resize-none rounded-[14px] border-2 border-brand-600 px-4 py-3 text-[17px] leading-relaxed text-ink-900 outline-none placeholder:text-ink-400')}
+                className={cn(CARD, 'min-h-[120px] resize-none rounded-[14px] border-2 border-brand-600 px-4 py-3 text-[17px] leading-relaxed text-ink-900 outline-none placeholder:text-ink-400')}
               />
+              <p className="px-1 text-13 leading-normal text-ink-400">{t('workoutHint')}</p>
             </>
           )}
           {(steps.length > 0 || mode === 'manual') && (
@@ -303,8 +283,8 @@ export default function DaySessionPage() {
               <SectionLabel>{edited ? (mode === 'manual' ? t('manualHeader') : t('editedHeader')) : t('understood')}</SectionLabel>
               {steps.length > 0 ? (
                 <>
-                  <StepLines steps={steps} thresholdSec={EDIT_THRESHOLD_SEC} zoneWords />
-                  <ProfileBar segments={profileBar(steps, null)} />
+                  <WorkoutLines steps={steps} />
+                  <ProfileStrip steps={steps} />
                   {totals && (
                     <p className="text-13 text-ink-400">{t.rich('totals', { ...RICH, km: kmText(totals.distanceM), min: Math.round(totals.durationSec / 60) })}</p>
                   )}
@@ -313,11 +293,11 @@ export default function DaySessionPage() {
                 <p className="text-sm text-ink-500">{t('manualEmpty')}</p>
               )}
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <button type="button" onClick={openEditor} className="min-h-[44px] rounded-xl bg-[#EEF0FF] px-4 text-[15px] font-extrabold text-brand-600">
+                <button type="button" onClick={() => openEditor()} className="min-h-[44px] rounded-xl bg-[#EEF0FF] px-4 text-[15px] font-extrabold text-brand-600">
                   {steps.length ? t('edit') : t('addSteps')}
                 </button>
                 {edited && mode === 'text' && (
-                  <button type="button" onClick={() => { setEdited(null); setEditedFrom(null); }} className="min-h-[44px] text-sm font-bold text-ink-400">
+                  <button type="button" onClick={() => setEdited(null)} className="min-h-[44px] text-sm font-bold text-ink-400">
                     {t('backToSentence')}
                   </button>
                 )}
@@ -379,26 +359,15 @@ export default function DaySessionPage() {
             className={cn(CARD, 'min-h-[88px] resize-none rounded-[14px] px-4 py-3 text-[16px] leading-relaxed text-ink-900 outline-none placeholder:text-ink-300')}
           />
 
-          <SectionLabel>{t('packPaces')}</SectionLabel>
-          <div className="grid grid-cols-3 gap-1.5">
-            {[0, 1, 2].map((i) => (
-              <label key={i} className={cn(CARD, 'flex flex-col items-center rounded-xl px-1.5 py-2')}>
-                <span className="text-2xs font-extrabold text-ink-400">{t('pack', { n: i + 1 })}</span>
-                <input
-                  value={paces[i]}
-                  onChange={(e) => setPaces((p) => p.map((v, j) => (j === i ? e.target.value : v)) as [string, string, string])}
-                  onBlur={() => setPaces((p) => p.map((v, j) => { if (j !== i) return v; const s = parsePaceText(v); return s ? clockText(s) : v.trim() ? v : ''; }) as [string, string, string])}
-                  inputMode="decimal"
-                  dir="ltr"
-                  placeholder="–:––"
-                  aria-label={t('pack', { n: i + 1 })}
-                  className={cn('min-h-[44px] w-full bg-transparent text-center text-lg font-black outline-none placeholder:text-ink-300', paces[i] && !parsePaceText(paces[i]) && 'text-accent-red')}
-                />
-              </label>
-            ))}
-          </div>
-          <p className="px-1 text-13 leading-normal text-ink-400">{t('packPacesHint')}</p>
         </FlowScreen>
+        {editing && (
+          <WorkoutEditorPanel
+            workout={editing}
+            dayName={`${t('formTitle')} · ${dateLabel(date)}`}
+            onChange={(w) => doneEditing(w.steps, w.name)}
+            onClose={() => setEditing(null)}
+          />
+        )}
       </FlowOverlay>
     );
   }
