@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cleanPhotosLink, toSessionPhotos, sessionDayLabel } from '@/lib/quality-session/photos';
+import { cleanPhotosLink, toSessionPhotos, sessionDayLabel, sessionSubline } from '@/lib/quality-session/photos';
 import { sessionPhotosCopy } from '@/lib/notifications/copy';
 
 /** #106 — the quality session's photos card (mockup feed-photos-106/mockup-v2.html). */
@@ -47,5 +47,13 @@ describe('at the top of the feed (Ofer, 2026-10-17)', () => {
     expect(page).toMatch(/item\.id !== focusItem\?\.id && item\.id !== photosItem\?\.id/);
     const { SESSION_PHOTOS_TOP_HOURS } = await import('@/lib/quality-session/photos');
     expect(SESSION_PHOTOS_TOP_HOURS).toBe(48);
+  });
+});
+
+describe('sessionSubline', () => {
+  it('does not say the weekday twice', () => {
+    expect(sessionSubline('2026-10-13', 'שלישי - בוקר')).toBe('שלישי 13.10');
+    expect(sessionSubline('2026-10-13', 'עליות')).toBe('שלישי 13.10 · עליות');
+    expect(sessionSubline('2026-10-13', null)).toBe('שלישי 13.10');
   });
 });

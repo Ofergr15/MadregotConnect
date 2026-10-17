@@ -13,7 +13,7 @@ import { RouteMinimap } from '@/components/RouteMinimap';
 import { FeedBodyText } from '@/components/FeedBodyText';
 import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
 import { toAchievementPayload } from '@/lib/feed/project';
-import { toSessionPhotos, sessionDayLabel, type SessionPhotosPayload } from '@/lib/quality-session/photos';
+import { toSessionPhotos, sessionSubline, type SessionPhotosPayload } from '@/lib/quality-session/photos';
 import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
 import { AthleteLink } from '@/components/AthleteLink';
@@ -757,7 +757,7 @@ function SessionPhotosCard({
           <div className="min-w-0">
             <p className="text-[15px] font-bold leading-tight text-ink-900">{t('sessionPhotosTitle')}</p>
             <p className="mt-0.5 truncate text-xs leading-tight text-ink-400">
-              {[sessionDayLabel(photos.date), photos.workoutName].filter(Boolean).join(' · ')}
+              {sessionSubline(photos.date, photos.workoutName)}
             </p>
           </div>
         </div>

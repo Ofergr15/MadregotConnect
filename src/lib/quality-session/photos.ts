@@ -60,3 +60,15 @@ export function sessionDayLabel(date: string): string {
   const d = new Date(`${date}T12:00:00Z`);
   return `${days[d.getUTCDay()]} ${d.getUTCDate()}.${d.getUTCMonth() + 1}`;
 }
+
+/**
+ * The line under the card's title: the day, and the workout's name only when it
+ * says more than the day — the plan names most sessions by their weekday
+ * ("שלישי - בוקר"), and "שלישי 13.10 · שלישי - בוקר" says Tuesday twice.
+ */
+export function sessionSubline(date: string, workoutName: string | null): string {
+  const day = sessionDayLabel(date);
+  const name = workoutName?.trim();
+  if (!name || name.startsWith(day.split(' ')[0])) return day;
+  return `${day} · ${name}`;
+}
