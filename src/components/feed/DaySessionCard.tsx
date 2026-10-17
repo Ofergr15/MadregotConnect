@@ -14,7 +14,7 @@ import { profileBar } from '@/lib/academy/book-steps';
 import type { Lineup } from '@/lib/attendance/lineup';
 import { DAY_SESSION_FOR_ALL } from '@/lib/day-session/flag';
 import {
-  bookOf, planCoversDay, planLinks, totalsOf,
+  bookOf, numberRuns, planCoversDay, planLinks, totalsOf,
   type DaySession, type NutritionWhen, type ProgramWeekLike, type WeekPlanLike,
 } from '@/lib/day-session/model';
 
@@ -98,7 +98,7 @@ export function DaySessionCard() {
           </span>
         </div>
         <h2 className="mt-1 font-[ui-rounded,system-ui] text-[28px] font-bold leading-tight tracking-tight text-ink-900">
-          <bdi dir="ltr">{s.title}</bdi>
+          <Runs text={s.title} />
         </h2>
         <p className="mt-1 text-13 font-semibold text-ink-400">
           {totals.distanceM > 0 && <>{t.rich('totals', { ...RICH, km: kmText(totals.distanceM), min: Math.round(totals.durationSec / 60) })}</>}
@@ -160,6 +160,11 @@ export function DaySessionCard() {
       </Sheet>
     </>
   );
+}
+
+/** The title with each number run in an LTR isolate (`6 × 1` never flips). */
+function Runs({ text }: { text: string }) {
+  return <>{numberRuns(text).map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>))}</>;
 }
 
 /** "17:40", Israel wall clock. */

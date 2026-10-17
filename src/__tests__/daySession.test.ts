@@ -243,3 +243,12 @@ describe('/api/day-session while the flag is off', () => {
     expect(row.pack_paces).toEqual([null, 235, null]);
   });
 });
+
+describe('numbers in an LTR isolate', () => {
+  it('isolates the structure, not the Hebrew unit', async () => {
+    const { numberRuns, isolateNumbers } = await import('@/lib/day-session/model');
+    expect(numberRuns('6 × 1 ק״מ')).toEqual([{ ltr: true, text: '6 × 1' }, { ltr: false, text: ' ק״מ' }]);
+    expect(numberRuns('טמפו 20 דקות')).toEqual([{ ltr: false, text: 'טמפו ' }, { ltr: true, text: '20' }, { ltr: false, text: ' דקות' }]);
+    expect(isolateNumbers('6 × 800 מ׳')).toBe('⁦6 × 800⁩ מ׳');
+  });
+});

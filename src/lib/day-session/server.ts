@@ -6,7 +6,7 @@ import { localesForAthletes, persistNotifications, sendPushLocalized, subscripti
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { addDaysToDateStr, israelToday } from '@/lib/utils';
 import { DAY_SESSION_FOR_ALL } from './flag';
-import { fromRow, type DaySession } from './model';
+import { fromRow, isolateNumbers, type DaySession } from './model';
 
 // The day session's reads and writes (migration 149). Every function answers
 // `{ setup: false }` rather than throwing while the table has not been pasted, so the form
@@ -104,8 +104,8 @@ const WHEN: Record<NotificationLocale, { today: string; tomorrow: string; food: 
 export function daySessionCopy(locale: NotificationLocale, s: Pick<DaySession, 'date' | 'title' | 'startTime' | 'place' | 'nutrition'>, today: string): { title: string; body: string } {
   const w = WHEN[locale] ?? WHEN.he;
   const when = s.date === today ? w.today : w.tomorrow;
-  // U+2066/U+2069 keep "6 × 1" in its own LTR run inside the Hebrew line.
-  const title = `${when}: ⁦${s.title}⁩`;
+  // "6 × 1" in its own LTR run inside the Hebrew line (isolateNumbers).
+  const title = `${when}: ${isolateNumbers(s.title)}`;
   const body = [s.startTime, s.place, s.nutrition.length ? w.food : null].filter(Boolean).join(' · ');
   return { title, body };
 }

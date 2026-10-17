@@ -274,3 +274,26 @@ export function parsePaceText(text: string): number | null {
   if (s >= 60) return null;
   return pace(m * 60 + s);
 }
+
+/**
+ * A title cut into its number runs and the words between them: `6 × 1 ק״מ` →
+ * [`6 × 1`, ` ק״מ`]. The runs go in an LTR isolate so RTL text cannot turn `6 × 1` into
+ * `1 × 6`; the Hebrew unit stays outside it, where the reader expects it.
+ */
+export function numberRuns(text: string): Array<{ ltr: boolean; text: string }> {
+  const out: Array<{ ltr: boolean; text: string }> = [];
+  const re = /\d[\d.:]*(?:\s*[×x–-]\s*\d[\d.:]*)*/g;
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    if (m.index! > last) out.push({ ltr: false, text: text.slice(last, m.index) });
+    out.push({ ltr: true, text: m[0] });
+    last = m.index! + m[0].length;
+  }
+  if (last < text.length) out.push({ ltr: false, text: text.slice(last) });
+  return out;
+}
+
+/** The same, for a push line: the runs between U+2066 (LRI) and U+2069 (PDI). */
+export function isolateNumbers(text: string): string {
+  return numberRuns(text).map((r) => (r.ltr ? `⁦${r.text}⁩` : r.text)).join('');
+}

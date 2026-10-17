@@ -15,7 +15,7 @@ import {
 import { StepLines } from '@/components/academy/book/StepLines';
 import { DAY_SESSION_FOR_ALL } from '@/lib/day-session/flag';
 import {
-  bookOf, parsePaceText, NUTRITION_WHENS, type DaySession, type NutritionLine, type NutritionWhen,
+  bookOf, numberRuns, parsePaceText, NUTRITION_WHENS, type DaySession, type NutritionLine, type NutritionWhen,
 } from '@/lib/day-session/model';
 
 // ── "אימון ליום אחד" — the coach's form (mockup manual-day-workout, phones 1 and 2) ──────
@@ -164,7 +164,7 @@ export default function DaySessionPage() {
                 aria-pressed={chip === c}
                 className={cn('min-h-[44px] rounded-xl border px-3 text-sm font-extrabold', chip === c ? 'border-brand-600 bg-brand-600 text-white' : 'border-[#E6E6EC] bg-white text-ink-500')}
               >
-                {c === 'tomorrow' ? `${t('tomorrow')} · ${dayNames[new Date(`${addDaysToDateStr(today, 1)}T12:00:00`).getDay()]}` : t(c)}
+                {c === 'tomorrow' ? `${t('tomorrow')} · ${dayNames[new Date(`${addDaysToDateStr(today, 1)}T12:00:00`).getDay()]}` : t(c === 'other' ? 'otherDate' : 'dayAfter')}
               </button>
             ))}
           </div>
@@ -265,7 +265,7 @@ export default function DaySessionPage() {
                 value={line.when}
                 onChange={(e) => setFood((f) => f.map((l, j) => (j === i ? { ...l, when: e.target.value as NutritionWhen } : l)))}
                 aria-label={t('when')}
-                className="min-h-[44px] shrink-0 bg-transparent text-13 font-extrabold text-[#0E8F6E] outline-none"
+                className="h-11 shrink-0 appearance-none rounded-lg bg-[#E4F6F0] px-2 text-13 font-extrabold text-[#0B7258] outline-none"
               >
                 {NUTRITION_WHENS.map((w) => <option key={w} value={w}>{t(w)}</option>)}
               </select>
@@ -304,7 +304,7 @@ export default function DaySessionPage() {
               <b className="block text-[15px] text-ink-900">{t('notifyAll')}</b>
               <small className="block text-13 text-ink-400">
                 {alreadySent ? t('notifyAlreadySent') : DAY_SESSION_FOR_ALL
-                  ? <>&quot;{chip === 'tomorrow' ? t('tomorrow') : dateLabel(date)}: <bdi dir="ltr">{steps.length ? structureName(steps) : ''}</bdi>&quot;</>
+                  ? <>&quot;{chip === 'tomorrow' ? t('tomorrow') : dateLabel(date)}: {numberRuns(steps.length ? structureName(steps) : '').map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>))}&quot;</>
                   : t('notifyOnlyYou')}
               </small>
             </span>

@@ -60,7 +60,7 @@ export default function CoachToolsPage() {
   // Shared SWR cache (same endpoint/shape other role checks in the app use) —
   // revisiting this page shows the Academy row instantly from cache instead
   // of a skeleton flash every time.
-  const { data, isLoading: roleLoading } = useApi<{ role?: string; qualitySession?: boolean }>(
+  const { data, isLoading: roleLoading } = useApi<{ role?: string; qualitySession?: boolean; isSuper?: boolean }>(
     !previewRole && email ? '/api/auth/me' : null,
   );
   // The account's own view switch sits under a preview — see role-views.ts.
@@ -175,7 +175,8 @@ export default function CoachToolsPage() {
         <InsetRow icon={Calendar} iconBg="bg-brand-600" label={tn('planner')} href="/dashboard/plan/new" />
         {/* "אימון ליום אחד" (lib/day-session): the super user's alone while the flag is off,
             then every coach and admin. The API answers 403 to anyone else either way. */}
-        {!previewRole && (isSuperUser(email) || (DAY_SESSION_FOR_ALL && (role === 'admin' || role === 'coach'))) && (
+        {/* `isSuper` from the server too: a Strava sign-in's address never matches the literal. */}
+        {!previewRole && (isSuperUser(email) || data?.isSuper || (DAY_SESSION_FOR_ALL && (role === 'admin' || role === 'coach'))) && (
           <InsetRow icon={CalendarPlus} iconBg="bg-accent-600" label={t('daySession')} sublabel={t('daySessionSub')} href="/dashboard/day-session" />
         )}
         <InsetRow icon={Clock} iconBg="bg-band-3" label={tn('history')} href="/dashboard/history" />
