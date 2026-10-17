@@ -142,3 +142,12 @@ describe('no update on a public page', () => {
     expect(src.match(/if \(onPublicPage\(\)\) return;/g)?.length).toBe(2);
   });
 });
+
+describe('the mandatory update is for everyone (2026-10-17)', () => {
+  it('is switched on, and still read through the one switch', async () => {
+    const { readFileSync } = await import('fs');
+    const src = readFileSync('src/components/UpdatePrompt.tsx', 'utf8');
+    expect(src).toMatch(/export const MANDATORY_UPDATE_FOR_ALL = true;/);
+    expect(src).toMatch(/const isSuper = MANDATORY_UPDATE_FOR_ALL \|\| superUser;/);
+  });
+});

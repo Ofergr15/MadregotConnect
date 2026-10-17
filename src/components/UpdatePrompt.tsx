@@ -74,13 +74,20 @@ async function fetchReleases(): Promise<WhatsNewRelease[] | null> {
 // update is taken once that candidate says it belongs to a different deploy than
 // the worker that served this page (askBuildId above, MC_BUILD_ID in sw.ts).
 //
-// For the super user, until rollout, it no longer applies anything on its own: a
-// newer build opens the mandatory "New version" sheet (lib/update-flow.ts), and
-// only its button reloads, under the loading splash. Everyone else keeps the
-// silent safe-moment update above, unchanged.
+// For everyone since 2026-10-17 (was the super user only): a newer build opens the
+// mandatory "New version" sheet (lib/update-flow.ts), and only its button reloads,
+// under the loading splash. The silent safe-moment update was too slow — that day
+// 10 of the 21 members active that week were still on 2.41.171, four days and
+// four releases behind, missing fixes (#118). Ofer: "everyone gets the update,
+// immediately". The safe-moment path is still what a worker-only swap uses.
+/** The rollout switch. `false` puts the sheet back to the super user only. */
+export const MANDATORY_UPDATE_FOR_ALL = true;
+
 export function UpdatePrompt() {
   const t = useTranslations('update');
-  const isSuper = useIsSuperUser();
+  const superUser = useIsSuperUser();
+  // Named for the rollout's start; true for everyone while the switch is on.
+  const isSuper = MANDATORY_UPDATE_FOR_ALL || superUser;
   const superRef = useRef(isSuper);
   // Set by the effect below; the sheet's button and a late super-user answer call in.
   const askRef = useRef<() => void>(() => {});
