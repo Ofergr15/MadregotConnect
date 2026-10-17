@@ -29,10 +29,12 @@ describe('the Saturday a change takes effect', () => {
 });
 
 describe('the change', () => {
-  // Every member since 2026-10-16 (was super user only) — still their OWN row only.
-  it("is the member's own row only", () => {
-    expect(ROUTE).toMatch(/if \(auth\.user\.athleteId !== id\) \{\s*return NextResponse\.json\(\{ error: 'forbidden' \}, \{ status: 403 \}\);/);
+  // Every member since 2026-10-16 (was super user only): their OWN row — or a
+  // coach's "from Saturday" in the pack sheet, who then tells the member at once.
+  it("is the member's own row, or staff's", () => {
+    expect(ROUTE).toMatch(/if \(auth\.user\.athleteId !== id && !auth\.user\.isStaff\) \{\s*return NextResponse\.json\(\{ error: 'forbidden' \}, \{ status: 403 \}\);/);
     expect(ROUTE).toMatch(/const from = groupId \? groupChangeDate\(israelToday\(\)\) : null;/);
+    expect(ROUTE).toMatch(/if \(groupId && from && auth\.user\.athleteId !== id\) \{[\s\S]{0,200}notifyPackScheduled/);
   });
 
   // A coach's move used to leave the member's pending change in place, and the
@@ -47,31 +49,30 @@ describe('the change', () => {
     expect(TICK).toMatch(/update\(\{ group_id: a\.pending_group_id, pending_group_id: null, pending_group_from: null \}\)/);
   });
 
-  it('asks first, and says why it waits for Saturday', () => {
+  // The pack tiles (mockup pack-change/switch-mockup.html): the button names the
+  // pack and the day, so it is the confirmation — no second sheet.
+  it('is one button that says the pack and that it starts Saturday', () => {
     expect(PAGE).toMatch(/const changesFromSaturday = true;/);
     expect(PAGE).toMatch(/const groupLocked = hasActivities && !changesFromSaturday;/);
-    expect(PAGE).toMatch(/onClick=\{changesFromSaturday \? \(\) => setConfirmGroupChange\(true\) : saveGroup\}/);
-    const he = JSON.parse(readFileSync('messages/he.json', 'utf8')).profile;
-    const en = JSON.parse(readFileSync('messages/en.json', 'utf8')).profile;
-    for (const k of ['groupChangeTitle', 'groupChangeBody', 'groupChangeConfirm', 'groupChangePending', 'groupChangeCancel', 'groupChangeFromSat', 'cancel']) {
-      expect(he[k], k).toBeTruthy();
-      expect(en[k], k).toBeTruthy();
-    }
+    expect(PAGE).toMatch(/onClick=\{changesFromSaturday \? \(\) => savePendingGroup\(selectedGroupId\) : saveGroup\}/);
+    expect(PAGE).toMatch(/tp\('selfButton', \{ n: laneOf\(/);
+    expect(PAGE).not.toMatch(/setConfirmGroupChange/);
+    const he = JSON.parse(readFileSync('messages/he.json', 'utf8')).packSwitch;
+    const en = JSON.parse(readFileSync('messages/en.json', 'utf8')).packSwitch;
+    expect(he.selfButton).toMatch(/משבת/);
+    expect(en.selfButton).toMatch(/Saturday/);
   });
 
-  it('says the new group shows on Saturday, before saving and while it waits', () => {
-    expect(PAGE).toMatch(/\{changesFromSaturday && hasChanges && !groupLocked && \(\s*<p[^>]*>\s*\{t\('groupChangeShowsSat'/);
+  it('says when the move lands and which pack they stay in until then', () => {
+    expect(PAGE).toMatch(/tp\('selfRule', \{\s*date: dayMonth\(groupChangeDate\(israelToday\(\)\)\),/);
     expect(PAGE).toMatch(/t\('groupChangePendingNote', \{ current:/);
-    expect(PAGE).toMatch(/\{changesFromSaturday && !groupLocked && \(\s*<div[^>]*>\s*<CalendarClock[\s\S]*?t\('groupChangeRuleTitle'\)[\s\S]*?t\('groupChangeRuleBody'\)/);
-    const he = JSON.parse(readFileSync('messages/he.json', 'utf8')).profile;
-    const en = JSON.parse(readFileSync('messages/en.json', 'utf8')).profile;
-    for (const k of ['groupChangeRuleTitle', 'groupChangeRuleBody']) { expect(he[k], k).toMatch(/שבת/); expect(en[k], k).toMatch(/Saturday/); }
-    for (const k of ['groupChangeShowsSat', 'groupChangePendingNote']) {
-      expect(he[k], k).toMatch(k === 'groupChangeShowsSat' ? /\{date\}/ : /\{current\}/);
-      expect(en[k], k).toMatch(k === 'groupChangeShowsSat' ? /\{date\}/ : /\{current\}/);
+    const he = JSON.parse(readFileSync('messages/he.json', 'utf8'));
+    const en = JSON.parse(readFileSync('messages/en.json', 'utf8'));
+    for (const m of [he, en]) {
+      expect(m.packSwitch.selfRule).toMatch(/\{date\}[\s\S]*\{n\}/);
+      expect(m.profile.groupChangePendingNote).toMatch(/\{current\}/);
+      expect(m.profile.groupChangeCancel).toBeTruthy();
     }
-    expect(he.groupChangeBody).toMatch(/תופיע בפרופיל שלך בשבת/);
-    expect(en.groupChangeBody).toMatch(/shows in your profile on Saturday/);
   });
 
   it('has a migration of bare DDL, nothing to kill the paste', () => {

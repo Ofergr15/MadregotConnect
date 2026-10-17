@@ -34,6 +34,8 @@ interface AthleteRow {
   name: string | null;
   role: string | null;
   group_id: string | null;
+  pending_group_id?: string | null;
+  pending_group_from?: string | null;
   status: string | null;
   approved: boolean | null;
   garmin_auth: unknown;
@@ -56,7 +58,7 @@ export async function GET(request: Request) {
       // reads them: the credentials never leave this function.
       supabase
         .from('athletes')
-        .select('id, name, role, group_id, status, approved, garmin_auth, strava_auth, last_seen_at, created_at, onboarding_completed_at')
+        .select('id, name, role, group_id, pending_group_id, pending_group_from, status, approved, garmin_auth, strava_auth, last_seen_at, created_at, onboarding_completed_at')
         .eq('coach_id', COACH_ID)
         .or(NOT_ADMIN)
         .order('name'),
@@ -142,6 +144,10 @@ export async function GET(request: Request) {
       id: a.id,
       name: a.name || '',
       role: a.role || 'runner',
+      groupId: a.group_id ?? null,
+      // A move waiting for Saturday — the pack sheet shows it and can take it back.
+      pendingGroupId: a.pending_group_id ?? null,
+      pendingFrom: a.pending_group_from ?? null,
       groupName: a.group_id ? groupName.get(a.group_id) ?? null : null,
       status: a.status || 'active',
       approved: a.approved ?? true,

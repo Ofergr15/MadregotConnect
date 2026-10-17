@@ -14,6 +14,7 @@ import { isProtectedEmail } from '@/lib/constants';
 import { Skeleton, SkeletonCard, Sheet, ConfirmSheet, SegmentedControl, InsetSection, InsetRow, Card, Button, EmptyState, BigStat } from '@/components/ui';
 import { useTranslations } from 'next-intl';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { PackMoveToast, PackSwitchSheet, usePackMove } from '@/components/packs/PackSwitch';
 import { teammateHref } from '@/lib/athletes/profile-link';
 import { maintenanceBlocks, type MaintenanceState } from '@/lib/maintenance-rule';
 
@@ -67,7 +68,7 @@ export default function AthletesPage() {
   const [copied, setCopied] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [moveModal, setMoveModal] = useState<{ athleteId: string; athleteName: string } | null>(null);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const packMove = usePackMove(() => { void mutateAthletes(); });
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'invited' | 'paused' | 'blocked'>('all');
   const [query, setQuery] = useState('');
@@ -160,21 +161,6 @@ export default function AthletesPage() {
       console.error('Failed to create invite:', error);
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const updateAthleteGroup = async (athleteId: string, groupId: string | null) => {
-    try {
-      await fetch('/api/athletes', {
-        method: 'PUT',
-        headers: await bearerHeaders(),
-        body: JSON.stringify({ id: athleteId, groupId }),
-      });
-      mutateAthletes();
-      setMoveModal(null);
-      setActiveMenu(null);
-    } catch (error) {
-      console.error('Failed to update group:', error);
     }
   };
 
@@ -745,62 +731,24 @@ ${inviteLink}`;
         })()}
       </Sheet>
 
-      {/* Move Group Sheet */}
-      <Sheet
+      {/* Move to another pack — the shared pack sheet (components/packs/PackSwitch). */}
+      <PackSwitchSheet
         open={!!moveModal}
-        onOpenChange={(o) => { if (!o) { setMoveModal(null); setSelectedGroupId(null); } }}
-        title={moveModal ? `${t('moveToGroup')} ${moveModal.athleteName}` : undefined}
-      >
-        {moveModal && (
-          <>
-            <InsetSection className="mb-4">
-              {[...groups]
-                .sort((a, b) => {
-                  // Sort by marathonGoal (faster times first) or by name if no marathonGoal
-                  if (a.marathonGoal && b.marathonGoal) {
-                    return a.marathonGoal.localeCompare(b.marathonGoal);
-                  }
-                  if (a.marathonGoal) return -1;
-                  if (b.marathonGoal) return 1;
-                  return a.name.localeCompare(b.name);
-                })
-                .map(g => {
-                  const levelIconBg: Record<'fast' | 'medium' | 'slow', string> = {
-                    fast: 'bg-accent-600',
-                    medium: 'bg-band-3',
-                    slow: 'bg-band-3',
-                  };
-                  const level = g.level || 'medium';
-                  const isSelected = selectedGroupId === g.id;
-                  return (
-                    <InsetRow
-                      key={g.id}
-                      icon={UsersIcon}
-                      iconBg={levelIconBg[level]}
-                      label={g.name}
-                      value={g.marathonGoal}
-                      trailing={isSelected ? <Check className="h-4 w-4 text-brand-600" /> : undefined}
-                      onClick={() => setSelectedGroupId(g.id)}
-                    />
-                  );
-                })}
-            </InsetSection>
-            <Button
-              variant="primary"
-              className="w-full"
-              onClick={() => {
-                if (selectedGroupId) {
-                  updateAthleteGroup(moveModal.athleteId, selectedGroupId);
-                  setSelectedGroupId(null);
-                }
-              }}
-              disabled={!selectedGroupId}
-            >
-              {tc('save')}
-            </Button>
-          </>
-        )}
-      </Sheet>
+        onOpenChange={(o) => { if (!o) setMoveModal(null); }}
+        person={moveModal ? (() => {
+          const a = athletes.find(x => x.id === moveModal.athleteId);
+          return { id: moveModal.athleteId, name: moveModal.athleteName, groupId: a?.groupId ?? null };
+        })() : null}
+        groups={groups}
+        onMove={(m) => { setMoveModal(null); setActiveMenu(null); packMove.move(m); }}
+      />
+      <PackMoveToast
+        pending={packMove.pending}
+        failed={packMove.failed}
+        groups={groups}
+        onUndo={packMove.undo}
+        onDismiss={packMove.dismissFailed}
+      />
 
       {/* Delete Confirmation */}
       <ConfirmSheet

@@ -3373,7 +3373,10 @@
     "openedApp": "App",
     "openedBrowser": "Browser",
     "openedUnknown": "Not opened in 30 days",
-    "openedBrowserHint": "Opens Madregot in a browser, not from the icon. On iPhone notifications only work in the installed app — worth sending the install guide."
+    "openedBrowserHint": "Opens Madregot in a browser, not from the icon. On iPhone notifications only work in the installed app — worth sending the install guide.",
+    "changePack": "Change {name}'s pack",
+    "packN": "Pack {n}",
+    "packPending": "From Sat {date}: pack {n}"
   },
   "contentHub": {
     "title": "Content",
@@ -5115,5 +5118,30 @@
     "raceDay": "Race day! 🏁",
     "weeksLeft": "<n>{count}</n> {count, plural, one {week to go} other {weeks to go}}",
     "daysLeft": "<n>{count}</n> {count, plural, one {day to go} other {days to go}}"
+  },
+  "packSwitch": {
+    "now": "Now",
+    "fromSatShort": "From Sat",
+    "packN": "Pack {n}",
+    "sheetTitle": "Which pack should {name} move to?",
+    "keepsRuns": "Runs already done stay on pack {n}",
+    "noPackYet": "Not in a pack yet",
+    "alreadyPending": "Already waiting: pack {n} from Saturday {date}",
+    "fromToday": "From today",
+    "fromSaturday": "From Sat {date}",
+    "watchStays": "The workouts on the watch stay as they are — they carry every pack's pace.",
+    "moveTo": "Move to pack {n}",
+    "pickPack": "Pick a pack",
+    "willBeTold": "{name} will be told about the move.",
+    "movedTitle": "{name} moved to pack {n}",
+    "movedToday": "From today · they're being told",
+    "movedSaturday": "From Saturday {date} · they're being told",
+    "undo": "Undo",
+    "failed": "The move wasn't saved. Try again.",
+    "ok": "OK",
+    "change": "Change",
+    "selfButton": "Move to pack {n} from Saturday",
+    "selfRule": "A move starts this Saturday, {date} — until then you stay in pack {n}.",
+    "selfWatch": "The workouts on your watch don't change."
   }
 }

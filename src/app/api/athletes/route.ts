@@ -7,7 +7,7 @@ import { syncClubFollows } from '@/lib/follows/club-sync';
 import { authError, requireSession, type SessionUser } from '@/lib/auth-session';
 import { athleteWriteError, denyAthleteWrite } from '@/lib/auth/athlete-write-scope';
 import { groupChangeDate } from '@/lib/groups/pending-change';
-import { afterPackMove } from '@/lib/groups/pack-move';
+import { afterPackMove, notifyPackScheduled } from '@/lib/groups/pack-move';
 import { applyAcademyMembership } from '@/lib/academy/membership-server';
 import { mayDeleteAthlete } from '@/lib/auth/delete-athlete-policy';
 
@@ -203,11 +203,11 @@ export async function PUT(request: Request) {
       );
     }
 
-    // A member's own group change, waiting for Saturday (#96). Self only, even for
-    // staff: this is the profile's switch, and a coach moving somebody still does it
-    // at once, below (and that cancels this). `null` cancels.
+    // A group change waiting for Saturday (#96): the member's own, from the profile,
+    // or a coach's "from Saturday" in the pack sheet. A coach's move "from today" is
+    // the immediate path below (and that cancels this). `null` cancels.
     if (body.pendingGroupId !== undefined) {
-      if (auth.user.athleteId !== id) {
+      if (auth.user.athleteId !== id && !auth.user.isStaff) {
         return NextResponse.json({ error: 'forbidden' }, { status: 403 });
       }
       const groupId = body.pendingGroupId || null;
@@ -218,6 +218,11 @@ export async function PUT(request: Request) {
         .eq('id', id)
         .eq('coach_id', DEMO_COACH_ID);
       if (error) throw error;
+      // Scheduled by somebody else: the member hears it now, not on Saturday.
+      if (groupId && from && auth.user.athleteId !== id) {
+        const scheduled = { athleteId: id, groupId, from, byAthleteId: auth.user.athleteId };
+        after(() => notifyPackScheduled(supabase, scheduled));
+      }
       return NextResponse.json({ pendingGroup: groupId ? { groupId, from } : null });
     }
 

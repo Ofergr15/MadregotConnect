@@ -10,6 +10,7 @@ import { EmptyState, Sheet, Skeleton } from '@/components/ui';
 import { teammateHref } from '@/lib/athletes/profile-link';
 import { israelDateOf } from '@/lib/reports/last-7-days';
 import { daysUntil } from '@/lib/admin/content';
+import { PackChip, PackMoveToast, PackSwitchSheet, dayMonth, laneOf, usePackMove, type PackGroup } from '@/components/packs/PackSwitch';
 import {
   PEOPLE_FILTERS,
   filterCounts,
@@ -73,7 +74,12 @@ function OpenedAsMark({ as, t }: { as: 'app' | 'browser' | null; t: (k: string) 
 
 export default function PeoplePage() {
   const t = useTranslations('people');
-  const { data, isLoading } = useApi<PeopleResponse>('/api/admin/people');
+  const { data, isLoading, mutate } = useApi<PeopleResponse>('/api/admin/people');
+  const { data: groupsData } = useApi<{ groups?: PackGroup[] }>('/api/groups');
+  const groups = useMemo(() => groupsData?.groups ?? [], [groupsData]);
+  // The pack sheet, opened from a row's tag or the card (mockup: pack-change/switch-mockup.html).
+  const [packForId, setPackForId] = useState<string | null>(null);
+  const packMove = usePackMove(() => { void mutate(); });
   const [filter, setFilter] = useState<PeopleFilter>('all');
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
@@ -86,12 +92,17 @@ export default function PeoplePage() {
     return people.filter(p => matchesFilter(p, filter, today) && (!q || p.name.toLowerCase().includes(q)));
   }, [people, filter, query, today]);
   const open = people.find(p => p.id === openId) ?? null;
+  const packFor = people.find(p => p.id === packForId) ?? null;
+  /** The pack to draw: a move waiting behind Undo already shows as done. */
+  const shownGroupId = (p: Person) =>
+    packMove.pending?.athleteId === p.id && packMove.pending.when === 'today' ? packMove.pending.toGroupId : p.groupId ?? null;
+  const groupName = (id: string | null) => groups.find(g => g.id === id)?.name ?? null;
+  const openPack = (p: Person) => { setOpenId(null); setPackForId(p.id); };
 
   /** The row's second line: the one fact behind its pill. */
   const subline = (p: Person) => {
     const bits: string[] = [];
     if (p.role !== 'runner') bits.push(roleLabel(t, p.role));
-    if (p.groupName) bits.push(groupDisplayName(p.groupName));
     const state = personState(p, today);
     if (state === 'silent' || state === 'active') {
       if (!p.lastRunDay) bits.push(t('noRunLately'));
@@ -148,11 +159,11 @@ export default function PeoplePage() {
           {shown.map(p => {
             const state = personState(p, today);
             return (
-              <li key={p.id}>
+              <li key={p.id} className="flex items-center pe-2">
                 <button
                   type="button"
                   onClick={() => setOpenId(p.id)}
-                  className="flex w-full items-center gap-3 px-4 py-3 min-h-[60px] text-start active:bg-page/60"
+                  className="flex min-w-0 flex-1 items-center gap-3 ps-4 pe-2 py-3 min-h-[60px] text-start active:bg-page/60"
                 >
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-600 text-xs font-extrabold text-white">
                     {initials(p.name)}
@@ -171,6 +182,14 @@ export default function PeoplePage() {
                     {t(`state_${state}` as never)}
                   </span>
                 </button>
+                {/* The pack, one tap from the list — a sibling of the row button,
+                    since a button can't hold another one. */}
+                <PackChip
+                  compact
+                  name={groupName(shownGroupId(p)) ?? p.groupName}
+                  label={t('changePack', { name: p.name })}
+                  onClick={() => openPack(p)}
+                />
               </li>
             );
           })}
@@ -180,8 +199,37 @@ export default function PeoplePage() {
       {/* No sheet title: the card opens on the member's name, large, and a title bar
           would say it twice. */}
       <Sheet open={!!open} onOpenChange={(o) => { if (!o) setOpenId(null); }}>
-        {open && <MemberCard person={open} today={today} />}
+        {open && (
+          <MemberCard
+            person={open}
+            today={today}
+            packName={groupName(shownGroupId(open)) ?? open.groupName}
+            pendingName={open.pendingGroupId ? groupName(open.pendingGroupId) : null}
+            onPack={() => openPack(open)}
+          />
+        )}
       </Sheet>
+
+      <PackSwitchSheet
+        open={!!packFor}
+        onOpenChange={(o) => { if (!o) setPackForId(null); }}
+        person={packFor ? {
+          id: packFor.id,
+          name: packFor.name,
+          groupId: shownGroupId(packFor),
+          pendingGroupId: packFor.pendingGroupId,
+          pendingFrom: packFor.pendingFrom,
+        } : null}
+        groups={groups}
+        onMove={packMove.move}
+      />
+      <PackMoveToast
+        pending={packMove.pending}
+        failed={packMove.failed}
+        groups={groups}
+        onUndo={packMove.undo}
+        onDismiss={packMove.dismissFailed}
+      />
     </div>
   );
 }
@@ -208,7 +256,15 @@ function ActionRow({ href, label }: { href: string; label: string }) {
  * The admin's lens on one member. The alert on top is the same state as the
  * row's pill, spelled out with what to do about it; "active" has no alert.
  */
-function MemberCard({ person: p, today }: { person: Person; today: string }) {
+function MemberCard({
+  person: p, today, packName, pendingName, onPack,
+}: {
+  person: Person;
+  today: string;
+  packName: string | null;
+  pendingName: string | null;
+  onPack: () => void;
+}) {
   const t = useTranslations('people');
   const state = personState(p, today);
   const ago = (iso: string | null) => {
@@ -265,7 +321,23 @@ function MemberCard({ person: p, today }: { person: Person; today: string }) {
             value={state === 'waiting' ? t('statusWaiting') : state === 'paused' ? t('statusPaused') : t('statusApproved')}
           />
           <KV label={t('role')} value={roleLabel(t, p.role)} />
-          <KV label={t('group')} value={p.groupName ? groupDisplayName(p.groupName) : t('noGroup')} />
+          <KV
+            label={t('group')}
+            value={
+              <span className="inline-flex flex-col items-end gap-0.5">
+                <PackChip
+                  name={packName}
+                  label={packName && laneOf(packName) ? t('packN', { n: laneOf(packName) }) : packName ? groupDisplayName(packName) : t('noGroup')}
+                  onClick={onPack}
+                />
+                {pendingName && p.pendingFrom && (
+                  <span className="text-2xs font-medium text-band-3-ink">
+                    {t('packPending', { n: laneOf(pendingName) || '–', date: dayMonth(p.pendingFrom) })}
+                  </span>
+                )}
+              </span>
+            }
+          />
           <KV label={t('source')} value={p.source ? t(p.source) : t('notConnected')} />
           <KV
             label={t('openedAs')}

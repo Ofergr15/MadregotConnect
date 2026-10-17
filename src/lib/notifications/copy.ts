@@ -1311,7 +1311,15 @@ export function academyThreadMessageCopy(
  * the reassurance they would otherwise ask the coach for — the workouts already on
  * the watch carry every pack's pace, so normally nothing changes there.
  */
-export function packMovedCopy(locale: NotificationLocale, p: { lane: 1 | 2 | 3; resent: boolean }): PushCopy {
+export function packMovedCopy(
+  locale: NotificationLocale,
+  p: { lane: 1 | 2 | 3; resent: boolean; /** "18.10" when it starts on Saturday, not today. */ from?: string },
+): PushCopy {
+  if (p.from) {
+    return locale === 'he'
+      ? { title: `👟 משבת ${p.from} עוברים לדבוקה ${p.lane}`, body: 'עד אז ממשיכים כרגיל. האימונים בשעון לא משתנים.' }
+      : { title: `👟 From Saturday ${p.from} you move to pack ${p.lane}`, body: 'Until then nothing changes. The workouts on your watch stay as they are.' };
+  }
   return locale === 'he'
     ? {
         title: `👟 עברת לדבוקה ${p.lane}`,

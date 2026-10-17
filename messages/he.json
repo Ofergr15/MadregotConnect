@@ -3373,7 +3373,10 @@
     "openedApp": "אפליקציה",
     "openedBrowser": "דפדפן",
     "openedUnknown": "לא נפתחה ב־30 יום",
-    "openedBrowserHint": "פותח את מדרגות בדפדפן ולא מהאייקון. באייפון התראות עובדות רק מהאפליקציה המותקנת — כדאי לשלוח את מדריך ההתקנה."
+    "openedBrowserHint": "פותח את מדרגות בדפדפן ולא מהאייקון. באייפון התראות עובדות רק מהאפליקציה המותקנת — כדאי לשלוח את מדריך ההתקנה.",
+    "changePack": "החלפת דבוקה ל{name}",
+    "packN": "דבוקה {n}",
+    "packPending": "משבת {date}: דבוקה {n}"
   },
   "contentHub": {
     "title": "תוכן",
@@ -5115,5 +5118,30 @@
     "raceDay": "היום! 🏁",
     "weeksLeft": "עוד <n>{count}</n> {count, plural, one {שבוע} other {שבועות}}",
     "daysLeft": "עוד <n>{count}</n> {count, plural, one {יום} other {ימים}}"
+  },
+  "packSwitch": {
+    "now": "עכשיו",
+    "fromSatShort": "משבת",
+    "packN": "דבוקה {n}",
+    "sheetTitle": "לאיזו דבוקה להעביר את {name}?",
+    "keepsRuns": "הריצות שכבר עשה נשארות על דבוקה {n}",
+    "noPackYet": "עוד לא בדבוקה",
+    "alreadyPending": "כבר ממתין: דבוקה {n} משבת {date}",
+    "fromToday": "מהיום",
+    "fromSaturday": "משבת {date}",
+    "watchStays": "האימונים בשעון לא משתנים — יש בהם את הקצבים של כל הדבוקות.",
+    "moveTo": "להעביר לדבוקה {n}",
+    "pickPack": "בחרו דבוקה",
+    "willBeTold": "{name} יקבל הודעה על המעבר.",
+    "movedTitle": "{name} עבר לדבוקה {n}",
+    "movedToday": "מהיום · נשלחת לו הודעה",
+    "movedSaturday": "משבת {date} · נשלחת לו הודעה",
+    "undo": "ביטול",
+    "failed": "המעבר לא נשמר. נסו שוב.",
+    "ok": "הבנתי",
+    "change": "החלפה",
+    "selfButton": "לעבור לדבוקה {n} משבת",
+    "selfRule": "מעבר נכנס בשבת הקרובה, {date} — עד אז ממשיכים בדבוקה {n}.",
+    "selfWatch": "האימונים בשעון לא משתנים."
   }
 }

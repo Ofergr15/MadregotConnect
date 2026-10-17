@@ -24,7 +24,8 @@ import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { ProfileOverview } from '@/components/profile/ProfileOverview';
 import { SetupChecklist } from '@/components/onboarding/SetupChecklist';
 import { ONBOARDING_KEY } from '@/lib/onboarding/use-onboarding';
-import { Sheet, SegmentedControl, BackNav, ConfirmSheet } from '@/components/ui';
+import { Sheet, SegmentedControl, BackNav } from '@/components/ui';
+import { PackTiles, dayMonth, laneOf } from '@/components/packs/PackSwitch';
 import { groupChangeDate } from '@/lib/groups/pending-change';
 import { WeekStartSetting } from '@/components/profile/WeekStartSetting';
 import { shareTextForDay } from '@/lib/workout-share';
@@ -129,6 +130,7 @@ function ProfileGate() {
 
 function ProfileContent() {
   const t = useTranslations('profile');
+  const tp = useTranslations('packSwitch');
   const tCommon = useTranslations('common');
   const format = useFormatter();
   const router = useRouter();
@@ -162,7 +164,6 @@ function ProfileContent() {
   // had a run, because a mid-week move would mismatch the plan already on their watch.
   const changesFromSaturday = true;
   const [pendingGroup, setPendingGroup] = useState<{ groupId: string; from: string } | null>(null);
-  const [confirmGroupChange, setConfirmGroupChange] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dataSource, setDataSource] = useState<'garmin' | 'strava' | null>(null);
   const [hasGarmin, setHasGarmin] = useState(false);
@@ -915,14 +916,16 @@ function ProfileContent() {
           {/* iOS Settings-style single-select list — checkmark on the selected
               row, matching the InsetRow list one screen earlier instead of a
               differently-styled stack of card buttons. */}
-          {/* The rule itself, always on screen: a move never lands mid-week. */}
-          {changesFromSaturday && !groupLocked && (
+          {/* The rule, with this week's dates: a move never lands mid-week. */}
+          {changesFromSaturday && !groupLocked && !pendingGroup && (
             <div className="mb-3 flex items-start gap-2.5 rounded-xl bg-band-3/10 px-3.5 py-3">
               <CalendarClock className="mt-0.5 h-4.5 w-4.5 shrink-0 text-band-3-ink" />
-              <div>
-                <p className="text-sm font-bold text-ink-700">{t('groupChangeRuleTitle')}</p>
-                <p className="mt-0.5 text-xs text-ink-500">{t('groupChangeRuleBody')}</p>
-              </div>
+              <p className="text-xs font-medium text-ink-700">
+                {tp('selfRule', {
+                  date: dayMonth(groupChangeDate(israelToday())),
+                  n: laneOf(groups.find(g => g.id === currentGroupId)?.name) || '–',
+                })}
+              </p>
             </div>
           )}
 
@@ -951,38 +954,30 @@ function ProfileContent() {
             </div>
           )}
 
-          <InsetSection className={cn((saving || groupLocked) && 'opacity-60 pointer-events-none')}>
-            {groups.map(g => {
-              const isSelected = selectedGroupId === g.id;
-              const isPending = changesFromSaturday && pendingGroup?.groupId === g.id;
-              return (
-                <InsetRow
-                  key={g.id}
-                  icon={Users}
-                  iconBg={isSelected ? 'bg-brand-600' : 'bg-ink-300'}
-                  label={g.name}
-                  value={isPending ? t('groupChangeFromSat') : g.marathonGoal}
-                  onClick={() => setSelectedGroupId(g.id)}
-                  trailing={isSelected ? <CheckCircle2 className="h-5 w-5 text-brand-600" /> : undefined}
-                />
-              );
-            })}
-          </InsetSection>
+          {/* The same three tiles as the coach's pack sheet (components/packs/PackSwitch). */}
+          <div className={cn((saving || groupLocked) && 'opacity-60 pointer-events-none')}>
+            <PackTiles
+              groups={groups}
+              currentId={currentGroupId}
+              pickedId={selectedGroupId === currentGroupId ? null : selectedGroupId}
+              onPick={setSelectedGroupId}
+              pendingId={changesFromSaturday ? pendingGroup?.groupId : null}
+            />
+          </div>
 
           {groupLocked && (
             <p className="text-xs text-ink-400 mt-3 text-center">{t('groupLocked')}</p>
           )}
 
-          {/* Before saving: the list still shows the old group after it, so say when the new one appears. */}
           {changesFromSaturday && hasChanges && !groupLocked && (
-            <p className="text-xs text-ink-400 mt-3 text-center">
-              {t('groupChangeShowsSat', { date: (d => d.slice(8, 10) + '.' + d.slice(5, 7))(groupChangeDate(israelToday())) })}
-            </p>
+            <p className="mt-2 text-center text-xs text-ink-400">⌚ {tp('selfWatch')}</p>
           )}
 
           {hasChanges && !groupLocked && (
             <button
-              onClick={changesFromSaturday ? () => setConfirmGroupChange(true) : saveGroup}
+              // The button names the pack and the day, so it IS the confirmation —
+              // no second sheet asking the same thing (mockup: switch-mockup.html).
+              onClick={changesFromSaturday ? () => savePendingGroup(selectedGroupId) : saveGroup}
               disabled={saving}
               className="mt-4 w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold px-4 py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
@@ -994,7 +989,9 @@ function ProfileContent() {
               ) : (
                 <>
                   <Save className="h-4 w-4" />
-                  {t('saveGroupChange')}
+                  {changesFromSaturday
+                    ? tp('selfButton', { n: laneOf(groups.find(g => g.id === selectedGroupId)?.name) || '–' })
+                    : t('saveGroupChange')}
                 </>
               )}
             </button>
@@ -1002,21 +999,6 @@ function ProfileContent() {
         </div>
       )}
 
-      {changesFromSaturday && (
-        <ConfirmSheet
-          open={confirmGroupChange}
-          onOpenChange={setConfirmGroupChange}
-          title={t('groupChangeTitle')}
-          description={t('groupChangeBody', {
-            group: groups.find(g => g.id === selectedGroupId)?.name ?? '',
-            date: (d => d.slice(8, 10) + '.' + d.slice(5, 7))(groupChangeDate(israelToday())),
-          })}
-          confirmLabel={t('groupChangeConfirm')}
-          cancelLabel={t('cancel')}
-          danger={false}
-          onConfirm={() => savePendingGroup(selectedGroupId === currentGroupId ? null : selectedGroupId)}
-        />
-      )}
 
       {/* ═══ DETAIL: Data Source - Connect Strava/Garmin ═══ */}
       {activeTab === 'datasource' && (

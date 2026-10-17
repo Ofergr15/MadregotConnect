@@ -152,3 +152,31 @@ export async function afterPackMove(
     console.error('pack-move: push failed', err);
   }
 }
+
+/**
+ * A coach's "from Saturday": nothing changes until the tick applies it, but the
+ * member is told now, with the day — and the tick then applies it as their own
+ * change, silently, so they are not told twice.
+ */
+export async function notifyPackScheduled(
+  supabase: SupabaseServer,
+  p: { athleteId: string; groupId: string; from: string; byAthleteId?: string | null },
+): Promise<void> {
+  try {
+    const { data: group } = await supabase.from('groups').select('name').eq('id', p.groupId).maybeSingle();
+    await notifyAthlete({
+      athleteId: p.athleteId,
+      kind: 'pack_moved',
+      actorAthleteId: p.byAthleteId ?? null,
+      copy: (locale) => packMovedCopy(locale, {
+        lane: laneOfName(group?.name),
+        resent: false,
+        from: `${Number(p.from.slice(8, 10))}.${Number(p.from.slice(5, 7))}`,
+      }),
+      url: '/dashboard/profile',
+      tag: 'pack-moved',
+    });
+  } catch (err) {
+    console.error('pack-move: scheduled push failed', err);
+  }
+}

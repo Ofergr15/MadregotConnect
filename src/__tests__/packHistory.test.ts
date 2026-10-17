@@ -78,3 +78,25 @@ describe('packMovedCopy', () => {
     expect(packMovedCopy('en', { lane: 2, resent: true }).body).toMatch(/updated on your watch/);
   });
 });
+
+describe('pack switch helpers', async () => {
+  const { orderedPacks, laneOf, dayMonth } = await import('@/components/packs/PackSwitch');
+
+  it('orders the tiles ❶❷❸ by the name rule, whatever order the groups come in', () => {
+    const groups = [{ id: 'c', name: 'Group C' }, { id: 'a', name: 'Group A - SUB 2:30' }, { id: 'b', name: 'Group B' }];
+    expect(orderedPacks(groups).map((g) => g.id)).toEqual(['a', 'b', 'c']);
+    expect(laneOf('Group B')).toBe(2);
+  });
+
+  it('writes the Saturday as 18.10, no leading zeros', () => {
+    expect(dayMonth('2026-10-18')).toBe('18.10');
+    expect(dayMonth('2026-11-07')).toBe('7.11');
+  });
+
+  it('a coach "from Saturday" tells the member the day, and that nothing changes until then', () => {
+    expect(packMovedCopy('he', { lane: 2, resent: false, from: '18.10' })).toEqual({
+      title: '👟 משבת 18.10 עוברים לדבוקה 2',
+      body: 'עד אז ממשיכים כרגיל. האימונים בשעון לא משתנים.',
+    });
+  });
+});

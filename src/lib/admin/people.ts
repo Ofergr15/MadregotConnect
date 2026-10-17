@@ -22,6 +22,9 @@ export interface Person {
   id: string;
   name: string;
   role: string;
+  groupId?: string | null;
+  pendingGroupId?: string | null;
+  pendingFrom?: string | null;
   groupName: string | null;
   /** athletes.status: active | invited | paused | … */
   status: string;
