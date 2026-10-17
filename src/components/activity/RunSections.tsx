@@ -135,35 +135,43 @@ export function Laps({ laps }: { laps: LapRow[] }) {
   const t = useTranslations('runPage');
   const rows = laps.filter((l) => l.distance > 50 && l.pace);
   if (rows.length < 2) return null;
-  const paces = rows.map((l) => l.pace as number);
-  const lo = Math.min(...paces);
-  const hi = Math.max(...paces);
+  // Same table as the splits below, on purpose: one way to read a run's pieces.
+  // Warm-up, recovery and cool-down rows are muted rather than coloured — the work
+  // laps carry the bar, the easy ones only their numbers.
+  const work = rows.filter((l) => !(l.intensity && EASY_STEPS.has(l.intensity)));
+  const ref = work.length >= 2 ? work : rows;
+  const lo = Math.min(...ref.map((l) => l.pace as number));
+  const hi = Math.max(...ref.map((l) => l.pace as number));
   return (
     <Section title={t('lapsTitle')} aside={t('lapsCount', { n: rows.length })}>
-      <div className="mb-1 grid grid-cols-[22px_1fr_52px_40px] gap-2 text-3xs font-semibold text-ink-400">
-        <span>#</span><span>{t('pace')}</span><span>{t('km')}</span><span>♥</span>
-      </div>
-      <div className="space-y-1.5">
-        {rows.map((l, i) => {
-          const f = hi === lo ? 1 : 1 - ((l.pace as number) - lo) / (hi - lo);
-          const easy = l.intensity && EASY_STEPS.has(l.intensity);
-          return (
-            <div key={i} className="grid grid-cols-[22px_1fr_52px_40px] items-center gap-2 text-xs">
-              <b className="tabular-nums text-ink-700">{i + 1}</b>
-              <div dir="ltr" className="flex">
-                <span
-                  className={cn('flex h-6 items-center justify-end rounded-md px-2 text-2xs font-bold tabular-nums', easy ? 'bg-primary-100 text-primary-900' : f > 0.5 ? 'bg-brand-600 text-white' : 'bg-primary-700 text-white')}
-                  style={{ width: `${40 + f * 60}%` }}
-                >
-                  {formatPace(l.pace as number)}
-                </span>
-              </div>
-              <span className="tabular-nums text-ink-400">{(l.distance / 1000).toFixed(2)}</span>
-              <span className="tabular-nums text-ink-700">{l.hr ?? '–'}</span>
-            </div>
-          );
-        })}
-      </div>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-2xs text-ink-400">
+            <th className="pb-1.5 text-start font-semibold">#</th>
+            <th className="pb-1.5 text-start font-semibold">{t('pace')}</th>
+            <th className="w-[30%]" />
+            <th className="pb-1.5 text-start font-semibold">{t('km')}</th>
+            <th className="pb-1.5 text-start font-semibold">♥</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((l, i) => {
+            const easy = !!l.intensity && EASY_STEPS.has(l.intensity);
+            const f = hi === lo ? 1 : 1 - (Math.min(Math.max(l.pace as number, lo), hi) - lo) / (hi - lo);
+            return (
+              <tr key={i} className={cn('border-t border-page', easy && 'text-ink-400')}>
+                <td className="py-2 tabular-nums text-ink-500">{i + 1}</td>
+                <td className={cn('py-2 tabular-nums', easy ? 'text-ink-400' : 'font-bold text-ink-700')}>{formatPace(l.pace as number)}</td>
+                <td className="py-2">
+                  {!easy && <div dir="ltr"><div className="h-2 rounded-full bg-brand-600" style={{ width: `${35 + f * 65}%` }} /></div>}
+                </td>
+                <td className="py-2 tabular-nums text-ink-500">{(l.distance / 1000).toFixed(2)}</td>
+                <td className="py-2 tabular-nums text-ink-700">{l.hr ?? '–'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </Section>
   );
 }

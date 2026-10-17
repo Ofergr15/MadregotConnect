@@ -513,33 +513,6 @@ function CardStats({ act }: { act: NonNullable<FeedItem['activity']> }) {
 }
 
 /**
- * An interval session's shape at a glance: one bar per watch lap, as wide as the
- * lap is long and as tall as it was fast. Only drawn when the projection shipped
- * `lapBands` (2+ laps that are not auto-km laps) — an easy run gets nothing.
- */
-function LapFingerprint({ laps }: { laps: Array<{ m: number; pace: number }> }) {
-  const total = laps.reduce((sum, l) => sum + l.m, 0);
-  if (laps.length < 2 || !total) return null;
-  const paces = laps.map((l) => l.pace);
-  const lo = Math.min(...paces);
-  const hi = Math.max(...paces);
-  return (
-    <div dir="ltr" aria-hidden className="mb-2 flex h-7 items-end gap-0.5">
-      {laps.map((l, i) => {
-        const f = hi === lo ? 1 : 1 - (l.pace - lo) / (hi - lo);
-        return (
-          <span
-            key={i}
-            className={cn('block rounded-t-[3px]', f > 0.5 ? 'bg-brand-600' : 'bg-primary-300')}
-            style={{ flex: l.m / total, height: `${30 + f * 70}%` }}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-/**
  * The secondary row — HR, calories, effort, elevation, place. Everything the
  * projection already ships and the card used to throw away.
  *
@@ -663,8 +636,6 @@ function ActivityCard({
           {/* Whether these were the numbers asked for — one slim line, for the
               runner and staff only (the payload carries no score for anyone else). */}
           <ExecutionBadge summary={act.planVerdict} showChevron compact className="mb-2" />
-
-          {act.lapBands && <LapFingerprint laps={act.lapBands} />}
 
           {act.routePreview && act.routePreview.length > 2 && (
             // Full width, edge to edge (Strava's card): the route is the picture.

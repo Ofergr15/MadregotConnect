@@ -192,7 +192,6 @@ export function ActivityDetailBody({
           <RunCharts
             view={trace?.stream ?? null}
             splits={splits}
-            laps={watchLaps}
             avgPace={act.average_pace}
             avgHr={act.average_hr}
             elevationGain={act.elevation_gain}

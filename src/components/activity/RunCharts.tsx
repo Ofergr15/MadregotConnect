@@ -135,8 +135,6 @@ function areaOf(l: Lane, x: number[], total: number) {
 export interface RunChartsProps {
   view: StreamView | null;
   splits: Split[];
-  /** Watch laps that are NOT auto-km laps — shaded behind the charts. */
-  laps?: Array<{ distance: number }> | null;
   avgPace: number | null;
   avgHr: number | null;
   elevationGain: number | null;
@@ -146,7 +144,7 @@ export interface RunChartsProps {
   className?: string;
 }
 
-export function RunCharts({ view, splits, laps, avgPace, avgHr, elevationGain, maxHr, onCursor, className }: RunChartsProps) {
+export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, onCursor, className }: RunChartsProps) {
   const t = useTranslations('runPage');
   const series = useMemo(() => (view ? fromView(view) : fromSplits(splits)), [view, splits]);
   const [cursor, setCursor] = useState<number | null>(null);
@@ -182,12 +180,6 @@ export function RunCharts({ view, splits, laps, avgPace, avgHr, elevationGain, m
 
   if (!series || !lanes.length) return null;
   const total = series.x[series.x.length - 1] || 1;
-
-  const lapEdges = (() => {
-    if (!laps || laps.length < 2) return [];
-    let acc = 0;
-    return laps.map((l) => { const a = acc; acc += l.distance / 1000; return [a / total * W, acc / total * W] as const; });
-  })();
 
   const move = (clientX: number) => {
     const box = boxRef.current?.getBoundingClientRect();
@@ -250,7 +242,6 @@ export function RunCharts({ view, splits, laps, avgPace, avgHr, elevationGain, m
                   const bottom = laneY(l, maxHr * f);
                   return bottom - top > 0.5 ? <rect key={z} x={0} y={top} width={W} height={bottom - top} fill={ZONE_WASH[z]} /> : null;
                 })}
-                {lapEdges.map(([a, b], i) => (i % 2 === 0 ? <rect key={i} x={a} y={0} width={b - a} height={l.height} fill="#1525FF" opacity={0.05} /> : null))}
                 <path d={areaOf(l, series.x, total)} fill={l.fill} />
                 <path d={pathOf(l, series.x, total)} fill="none" stroke={l.stroke} strokeWidth={series.coarse ? 2.2 : 1.6} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
                 {l.avg != null && (
