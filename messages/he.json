@@ -1925,8 +1925,8 @@
     "recBrokenPeer": "{count, plural, =1 {השיא נשבר פעם אחת} other {השיא נשבר # פעמים}}",
     "recRecordsYou": "השיאים שלך",
     "recRecordsPeer": "השיאים",
-    "recEarlier": "{n} קודמים",
-    "recNone": "עוד אין שיא ב{label}",
+    "recEarlier": "{n, plural, =1 {קודם אחד} other {# קודמים}}",
+    "recNone": "עוד אין שיא ב־{label}",
     "recSeconds": "שנ׳",
     "recChartAria": "ציר הזמן של השיא ב{label}"
   },
