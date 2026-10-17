@@ -54,7 +54,7 @@ const FLUSH_DEBOUNCE_MS = 1500;
 
 /**
  * The answers behind the cards ABOVE the feed (NextSessionCard, FeedHighlightCard,
- * QualitySessionRow),
+ * QualitySessionRow, PushDeadBanner),
  * kept across a deploy. The saved feed page survives one (lib/feed/feed-cache), so
  * the first open after a release paints yesterday's runs at once; with these
  * dropped, those two cards rendered nothing and then arrived a second later,
@@ -63,6 +63,11 @@ const FLUSH_DEBOUNCE_MS = 1500;
  * which hides it until the fresh answer lands.
  */
 export const CROSS_RELEASE_KEYS = [
+  // The shell's gate (app/(app)/layout.tsx) waits for this one when it isn't cached:
+  // ~1.4 s of spinner on the first open after every deploy. Within a release it is
+  // already trusted from the cache and re-checked behind the screen; a flat object
+  // of optional flags, so an older answer can't break a reader.
+  '/api/auth/me',
   '/api/dashboard/weekly',
   '/api/my-watch',
   '/api/reminder-config',
@@ -72,7 +77,10 @@ export const CROSS_RELEASE_KEYS = [
 const NEXT_SESSION_RUNS = /^\/api\/activities\?(athleteId=[^&]+&)?scope=self&since=\d{4}-\d{2}-\d{2}$/;
 /** QualitySessionRow's read, the first block of the feed on a quality morning. */
 const QUALITY_SESSION = /^\/api\/quality-session\?date=\d{4}-\d{2}-\d{2}$/;
-const crossRelease = (key: string) => CROSS_RELEASE_KEYS.includes(key) || NEXT_SESSION_RUNS.test(key) || QUALITY_SESSION.test(key);
+/** PushDeadBanner's read (#108), above the feed for a member whose push has died. */
+const PUSH_HEALTH = /^\/api\/push\/health\?athleteId=[^&]+$/;
+const crossRelease = (key: string) =>
+  CROSS_RELEASE_KEYS.includes(key) || NEXT_SESSION_RUNS.test(key) || QUALITY_SESSION.test(key) || PUSH_HEALTH.test(key);
 
 interface Persisted {
   v: string;

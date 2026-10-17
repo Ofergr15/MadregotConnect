@@ -639,7 +639,9 @@ export default function FeedPage() {
           at three appearances: see SetupNudgeCard and nudge-ledger.ts. */}
       {/* Notifications that stopped reaching this phone (#108) — self-hiding. */}
       <div className="mb-4 empty:mb-0">
-        <PushDeadBanner />
+        <QuietBoundary resetKey={weeklyForCards}>
+          <PushDeadBanner />
+        </QuietBoundary>
       </div>
 
       <div className="mb-4 empty:mb-0">

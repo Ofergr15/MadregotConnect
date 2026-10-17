@@ -101,11 +101,13 @@ describe('persistedCacheProvider — restoring', () => {
       ['/api/groups', { groups: [] }],
       ['/api/activities?athleteId=a1&scope=self', { activities: ['history'] }],
       ['/api/dashboard/weekly', { hasPlan: true }],
+      ['/api/auth/me', { role: 'runner', membership: 'active' }],
       ['/api/my-watch', { onWatch: [] }],
       ['/api/reminder-config', { config: {} }],
       ['/api/feed/highlight', { highlight: null }],
       [runs, { activities: [] }],
       ['/api/quality-session?date=2026-10-17', { workout: null }],
+      ['/api/push/health?athleteId=a1', { dead: true }],
     ], { v: '0.0.1-old' }));
 
     const cache = persistedCacheProvider();
@@ -114,11 +116,13 @@ describe('persistedCacheProvider — restoring', () => {
     // Only the next-session card's runs-today read, not every activities list.
     expect(cache.get('/api/activities?athleteId=a1&scope=self')).toBeUndefined();
     expect(cache.get('/api/dashboard/weekly')).toEqual({ data: { hasPlan: true } });
+    expect(cache.get('/api/auth/me')).toEqual({ data: { role: 'runner', membership: 'active' } });
     expect(cache.get('/api/my-watch')).toEqual({ data: { onWatch: [] } });
     expect(cache.get('/api/reminder-config')).toEqual({ data: { config: {} } });
     expect(cache.get('/api/feed/highlight')).toEqual({ data: { highlight: null } });
     expect(cache.get(runs)).toEqual({ data: { activities: [] } });
     expect(cache.get('/api/quality-session?date=2026-10-17')).toEqual({ data: { workout: null } });
+    expect(cache.get('/api/push/health?athleteId=a1')).toEqual({ data: { dead: true } });
   });
 
   it('still refuses another person\'s cards above the feed after a deploy', () => {
