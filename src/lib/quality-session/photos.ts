@@ -8,6 +8,8 @@
 
 export const SESSION_PHOTOS_KIND = 'session_photos';
 export const MAX_SESSION_PHOTOS = 6;
+/** How long the card sits at the top of the feed after it is published; then it is just in the list. */
+export const SESSION_PHOTOS_TOP_HOURS = 48;
 
 export interface SessionPhotosPayload {
   kind: typeof SESSION_PHOTOS_KIND;

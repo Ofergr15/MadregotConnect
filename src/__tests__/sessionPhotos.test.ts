@@ -38,3 +38,14 @@ describe('sessionDayLabel / copy', () => {
     expect(sessionPhotosCopy('he', { workout: 'עליות' })).toEqual({ title: '📸 התמונות מאימון הבוקר עלו', body: 'עליות · לחיצה פותחת את כל התמונות' });
   });
 });
+
+describe('at the top of the feed (Ofer, 2026-10-17)', () => {
+  it('the feed pins the newest session photos for two days and keeps it out of the list meanwhile', async () => {
+    const { readFileSync } = await import('fs');
+    const page = readFileSync('src/app/(app)/feed/page.tsx', 'utf8');
+    expect(page).toMatch(/useApi<\{ id: string \| null \}>\('\/api\/feed\/session-photos'\)/);
+    expect(page).toMatch(/item\.id !== focusItem\?\.id && item\.id !== photosItem\?\.id/);
+    const { SESSION_PHOTOS_TOP_HOURS } = await import('@/lib/quality-session/photos');
+    expect(SESSION_PHOTOS_TOP_HOURS).toBe(48);
+  });
+});
