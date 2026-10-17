@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { uploadMedia, type FeedMedia } from '@/lib/feed-client';
 import { MAX_SESSION_PHOTOS, cleanPhotosLink } from '@/lib/quality-session/photos';
+import { parseAlbumLink } from '@/lib/quality-session/album-import';
 import { cn } from '@/lib/utils';
 
 // "📸 תמונות מהאימון" at the bottom of the quality-session screen (#106, mockup
@@ -23,7 +24,8 @@ export function SessionPhotos({ date }: { date: string }) {
   const [link, setLink] = useState('');
   const [media, setMedia] = useState<FeedMedia[]>([]);
   const [notify, setNotify] = useState(true);
-  const [busy, setBusy] = useState<'upload' | 'publish' | 'remove' | null>(null);
+  const [busy, setBusy] = useState<'upload' | 'import' | 'publish' | 'remove' | null>(null);
+  const [pulled, setPulled] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -33,6 +35,44 @@ export function SessionPhotos({ date }: { date: string }) {
   }, [card?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ok = !!cleanPhotosLink(link);
+  const album = ok ? parseAlbumLink(link.trim()) : null;
+
+  // A Drive folder or a Photos album: pull its first photos in by themselves, once
+  // per link (Ofer: "it takes the link and pulls the photos straight in").
+  const pull = async (target: string) => {
+    if (!parseAlbumLink(target.trim()) || busy) return;
+    setBusy('import');
+    setMsg(null);
+    try {
+      const res = await fetch('/api/quality-session/photos/import', {
+        method: 'POST',
+        headers: { ...(await apiHeaders()), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ link: target.trim() }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg(out.error === 'not-shared'
+          ? 'אין גישה לתיקייה. בדרייב: שיתוף ← "כל מי שיש לו את הקישור".'
+          : out.error === 'no-photos' ? 'לא מצאתי תמונות בקישור.' : 'לא הצלחתי למשוך את התמונות. אפשר להוסיף ידנית.');
+        return;
+      }
+      setMedia(out.media);
+      setPulled(target.trim());
+      setMsg(out.found > out.media.length
+        ? `נמשכו ${out.media.length} תמונות מתוך ${out.found}. אפשר להסיר ולהחליף.`
+        : `נמשכו ${out.media.length} תמונות.`);
+    } catch {
+      setMsg('לא הצלחתי למשוך את התמונות. אפשר להוסיף ידנית.');
+    } finally {
+      setBusy(null);
+    }
+  };
+  useEffect(() => {
+    // Only a fresh album link, and only before anything was picked by hand.
+    if (!album || card || pulled === link.trim() || media.length > 0) return;
+    const t = setTimeout(() => { void pull(link); }, 600);
+    return () => clearTimeout(t);
+  }, [link]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pickFiles = async (files: FileList | null) => {
     if (!files?.length) return;
@@ -99,7 +139,16 @@ export function SessionPhotos({ date }: { date: string }) {
         placeholder="https://photos.app.goo.gl/…"
         className="mt-1 block min-h-[44px] w-full rounded-xl border-[1.5px] border-page bg-white px-3 text-[15px] text-ink-900 focus:border-brand-600 focus:outline-none"
       />
-      <p className="mt-1 text-[11px] text-ink-400">דרייב, Google Photos, אלבום וואטסאפ — כל קישור.</p>
+      <p className="mt-1 text-[11px] text-ink-400">
+        {busy === 'import'
+          ? '⏳ מושך תמונות מהקישור…'
+          : album ? 'תיקייה בדרייב או אלבום ב-Google Photos — התמונות נמשכות לבד.' : 'דרייב, Google Photos, אלבום וואטסאפ — כל קישור.'}
+      </p>
+      {album && media.length > 0 && pulled !== link.trim() && (
+        <button type="button" onClick={() => { setMedia([]); void pull(link); }} className="mt-1 !text-xs font-bold !text-brand-600">
+          📥 למשוך תמונות מהקישור
+        </button>
+      )}
 
       <p className="mt-3 text-xs font-semibold text-ink-400">כמה תמונות לפיד (לא חובה, עד {MAX_SESSION_PHOTOS})</p>
       <div className="mt-1.5 grid grid-cols-4 gap-1.5">
