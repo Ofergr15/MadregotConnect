@@ -534,3 +534,35 @@ describe('undoing a move of somebody who had a form card', () => {
     expect(card.source).not.toBe('existing');
   });
 });
+
+describe('POST /api/academy/members/invite (an existing trainee not in the app yet)', () => {
+  const invite = async (body: unknown) => {
+    const route = await import('@/app/api/academy/members/invite/route');
+    return route.POST(new Request('http://x/api/academy/members/invite', { method: 'POST', body: JSON.stringify(body) }));
+  };
+  it('is the manager’s', async () => {
+    caller.mockReturnValue(coach);
+    expect((await invite({ name: 'מיכל', email: 'm@x.co' })).status).toBe(403);
+  });
+  it('needs an email — it is how they sign in', async () => {
+    caller.mockReturnValue(manager);
+    expect((await invite({ name: 'מיכל', email: '' })).status).toBe(400);
+  });
+  it('sends somebody already in the app to the move-in tab instead', async () => {
+    caller.mockReturnValue(manager);
+    db.athletes.push(athlete({ id: 'dup', name: 'Already Here', email: 'here@x.co' }));
+    const res = await invite({ name: 'X', email: 'Here@X.co' });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('already_in_app');
+  });
+  it('creates one pre-approved academy row with a join link and an "existing" card', async () => {
+    caller.mockReturnValue(manager);
+    const res = await invite({ name: 'מיכל רז', email: 'Michal@X.co', phone: '054-3329911', bandId: null, trainingSince: '2026-01' });
+    expect(res.status).toBe(200);
+    expect((await res.json()).url).toMatch(/\/join\/[0-9a-f]{32}$/);
+    const row = writes.find((w) => w.table === 'athletes' && w.op === 'insert')!.row!;
+    expect(row).toMatchObject({ email: 'michal@x.co', status: 'invited', approved: true, is_academy: true, academy_training_since: '2026-01-01' });
+    const card = writes.find((w) => w.table === 'academy_candidates' && w.op === 'insert')!.row!;
+    expect(card).toMatchObject({ source: 'existing', name: 'מיכל רז' });
+  });
+});

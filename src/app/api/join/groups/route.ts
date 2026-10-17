@@ -91,6 +91,26 @@ export async function GET(req: NextRequest) {
       if (t && nameProblem(t) === null) typedName = normalizeDisplayName(t);
     }
 
+    // An existing trainee moving into the app (the migration path): their card says so, and
+    // the join screen greets them as somebody already here, with their coach — not "your
+    // registration was approved". Best-effort: without it the screen is the regular one.
+    let existingTrainee = false;
+    let coachName: string | null = null;
+    if (athlete.is_academy) {
+      try {
+        const { data: card } = await supabase.from('academy_candidates').select('source').eq('athlete_id', athlete.id).maybeSingle();
+        existingTrainee = (card as { source?: string | null } | null)?.source === 'existing';
+        if (existingTrainee) {
+          const { data: link } = await supabase.from('academy_trainee_coaches').select('coach_id').eq('athlete_id', athlete.id).limit(1).maybeSingle();
+          const coachId = (link as { coach_id?: string } | null)?.coach_id;
+          if (coachId) {
+            const { data: coach } = await supabase.from('athletes').select('name').eq('id', coachId).maybeSingle();
+            coachName = ((coach as { name?: string | null } | null)?.name || '').trim().split(/\s+/)[0] || null;
+          }
+        }
+      } catch { /* the regular join screen */ }
+    }
+
     return NextResponse.json({
       groups: transformedGroups || [],
       athlete: {
@@ -99,6 +119,8 @@ export async function GET(req: NextRequest) {
         groupId: athlete.group_id || null,
         garminConnected: !!athlete.garmin_auth,
         isAcademy: !!athlete.is_academy,
+        existingTrainee,
+        coachName,
       },
     });
   } catch {

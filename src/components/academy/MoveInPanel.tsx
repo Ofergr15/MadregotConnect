@@ -1,13 +1,15 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Check, Search, Undo2 } from 'lucide-react';
+import { Check, Copy, MessageCircle, Search, Undo2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Spinner } from '@/components/ui';
 import { sortBands } from '@/lib/academy/bands';
 import { joinHebrewList } from '@/lib/academy/members';
-import type { AddableMember } from '@/lib/academy/manage';
+import { waShareUrl, type AddableMember } from '@/lib/academy/manage';
+import { useApi } from '@/lib/api';
+import { groupDisplayName } from '@/lib/utils';
 import type { AcademyBand, AcademyCoachSummary } from './types';
 import { CoachesPicker } from './CoachesPicker';
 
@@ -74,6 +76,15 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<MoveResult[] | null>(null);
   const [undone, setUndone] = useState(false);
+  // "עוד לא באפליקציה": a pre-approved invitation instead of a move (mockup screens 3–4).
+  const [mode, setMode] = useState<'club' | 'invite'>('club');
+  const [inv, setInv] = useState({ name: '', email: '', phone: '' });
+  const [groupId, setGroupId] = useState<string | null>(null);
+  const [invited, setInvited] = useState<{ url: string; name: string; phone: string; email: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const { data: groupsData } = useApi<{ groups?: Array<{ id: string; name: string }> }>(mode === 'invite' ? '/api/groups' : null);
+  const groups = groupsData?.groups ?? [];
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inv.email.trim());
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -91,6 +102,25 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
     if (r.error) { setError(r.error); return; }
     setDone(r.results);
     await onDone();
+  };
+
+  const invite = async () => {
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch('/api/academy/members/invite', {
+        method: 'POST', headers: await bearerHeaders(),
+        body: JSON.stringify({ ...inv, coachIds, bandId, groupId, trainingSince: since || undefined }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.status === 409 && json.error === 'already_in_app') { setError(`${json.name || 'הוא'} כבר באפליקציה — מעבירים מהלשונית "מהמועדון".`); return; }
+      if (!res.ok || !json.url) { setError(json.error || 'ההזמנה לא נוצרה'); return; }
+      setInvited({ url: json.url, name: inv.name.trim(), phone: inv.phone.trim(), email: inv.email.trim().toLowerCase() });
+      await onDone();
+    } catch {
+      setError('ההזמנה לא נוצרה');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const undo = async () => {
@@ -146,8 +176,119 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
     );
   }
 
+  if (invited) {
+    const coach = coachIds.length ? joinHebrewList(coachIds.map((c) => firstName(coachName(c)))) : null;
+    const text = `היי ${firstName(invited.name)} 👋 האקדמיה של מדרגות עוברת לאפליקציה. מעכשיו התוכנית שלך, הקצבים לשעון והפידבק${coach ? ` מ־${coach}` : ''} יהיו שם, במקום אחד.\nכניסה בלחיצה, בלי טופס: ${invited.url}\n(ההתחברות עם ${invited.email})`;
+    return (
+      <div>
+        <div className="rounded-card bg-card p-4">
+          <p className="text-[15px] font-bold text-ink-700">ההזמנה של {firstName(invited.name)} מוכנה</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-ink-400">קישור אישי שכבר מאושר: נכנסים ישר לאקדמיה{coach ? `, עם ${coach}` : ''}. בלי טופס ובלי ״ממתין לאישור״.</p>
+          <p className="mt-2.5 select-all break-all rounded-xl bg-page px-3 py-2 text-xs text-ink-700"><bdi dir="ltr">{invited.url}</bdi></p>
+        </div>
+        <div className="mt-2.5 grid grid-cols-2 gap-2">
+          <a href={waShareUrl(invited.phone, text)} target="_blank" rel="noopener noreferrer"
+            className="flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-2xl bg-[#1FA55B] text-xs font-extrabold text-white">
+            <MessageCircle className="h-5 w-5" /> וואטסאפ
+          </a>
+          <button type="button" onClick={() => { void navigator.clipboard?.writeText(text).then(() => setCopied(true)).catch(() => {}); }}
+            className="flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-2xl bg-card text-xs font-extrabold text-ink-700">
+            {copied ? <Check className="h-5 w-5 text-accent-600" /> : <Copy className="h-5 w-5" />}{copied ? 'הועתק' : 'העתקת ההודעה'}
+          </button>
+        </div>
+        <p className="mt-2 px-1 text-xs leading-relaxed text-ink-400">מופיע כבר עכשיו ברשימת המתאמנים, עם ״בלי שעון מחובר״, עד שייכנס בקישור ויחבר שעון.</p>
+      </div>
+    );
+  }
+
+  const modeTabs = (
+    <div className="mb-3 flex rounded-xl bg-card p-0.5" role="tablist">
+      {([['club', 'מהמועדון'], ['invite', 'עוד לא באפליקציה']] as const).map(([k, label]) => (
+        <button key={k} type="button" role="tab" aria-selected={mode === k} onClick={() => { setMode(k); setError(null); }}
+          className={cn('min-h-[38px] flex-1 rounded-[10px] text-[13px] font-extrabold', mode === k ? 'bg-page text-ink-700' : 'text-ink-400')}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const settings = picker === 'coach' ? (
+    <div>
+      <CoachesPicker coaches={assignable} value={coachIds} onChange={setCoachIds} sets={[[]]} multi={multiCoach !== false} exclude={[...picked]} onCoachMade={onDone} />
+      <button type="button" onClick={() => setPicker(null)} className="mt-2 flex w-full min-h-[48px] items-center justify-center rounded-2xl bg-card text-sm font-extrabold text-brand-600">סיום</button>
+    </div>
+  ) : picker === 'band' ? (
+    <div className="max-h-[220px] overflow-y-auto rounded-card bg-card divide-y divide-page">
+      {[...sortBands(bands).map((b) => ({ id: b.id as string | null, label: b.name })), { id: null, label: 'בלי דבוקה · לפי הטסט' }].map((o) => (
+        <button key={o.id ?? 'none'} type="button" onClick={() => { setBandId(o.id); setPicker(null); }} className="flex w-full min-h-[52px] items-center gap-3 px-4 text-start">
+          <span className={cn('h-[22px] w-[22px] shrink-0 rounded-full border-2', bandId === o.id ? 'border-[7px] border-brand-600' : 'border-ink-300')} />
+          <span className="text-[15px] font-semibold text-ink-700">{o.label}</span>
+        </button>
+      ))}
+    </div>
+  ) : (
+    <div className="overflow-hidden rounded-card bg-card divide-y divide-page">
+      <button type="button" onClick={() => setPicker('coach')} className="flex w-full min-h-[52px] items-center gap-3 px-4 text-start">
+        <span className="flex-1 text-[15px] font-semibold text-ink-700">מאמנים</span>
+        <span className="truncate text-sm font-bold text-ink-500" dir="auto">{coachIds.length ? joinHebrewList(coachIds.map((c) => firstName(coachName(c)))) : mode === 'club' ? 'המאמן הקודם / בלי' : 'בלי'}</span>
+        <span className="shrink-0 text-[13px] font-extrabold text-brand-600">שיבוץ</span>
+      </button>
+      <button type="button" onClick={() => setPicker('band')} className="flex w-full min-h-[52px] items-center gap-3 px-4 text-start">
+        <span className="flex-1 text-[15px] font-semibold text-ink-700">דבוקה באקדמיה</span>
+        <span className="truncate text-sm font-bold text-ink-500">{band?.name || 'לפי הטסט'}</span>
+        <span className="shrink-0 text-[13px] font-extrabold text-brand-600">שינוי</span>
+      </button>
+      {mode === 'invite' && (
+        <label className="flex w-full min-h-[52px] items-center gap-3 px-4">
+          <span className="flex-1 text-[15px] font-semibold text-ink-700">קבוצת קצב</span>
+          <select value={groupId ?? ''} onChange={(e) => setGroupId(e.target.value || null)} className="h-10 max-w-[150px] rounded-lg bg-page px-2 text-sm font-bold text-ink-700 focus:outline-none">
+            <option value="">בלי</option>
+            {groups.map((g) => <option key={g.id} value={g.id}>{groupDisplayName(g.name)}</option>)}
+          </select>
+        </label>
+      )}
+      <label className="flex w-full min-h-[52px] items-center gap-3 px-4">
+        <span className="flex-1 text-[15px] font-semibold text-ink-700">מתאמנים אצלנו מאז</span>
+        <input type="month" value={since} onChange={(e) => setSince(e.target.value)} dir="ltr"
+          className="h-10 rounded-lg bg-page px-2 text-sm font-bold text-ink-700 focus:outline-none" />
+      </label>
+    </div>
+  );
+
+  if (mode === 'invite') {
+    const field = (key: 'name' | 'email' | 'phone', label: string, ph: string, ltr?: boolean, hint?: string) => (
+      <label className="block">
+        <span className="mb-1 block px-1 text-2xs font-bold text-ink-400">{label}</span>
+        <input value={inv[key]} onChange={(e) => setInv((v) => ({ ...v, [key]: e.target.value }))} placeholder={ph} dir={ltr ? 'ltr' : 'auto'}
+          type={key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text'}
+          className={cn('w-full min-h-[46px] rounded-xl bg-card px-3 text-[16px] text-ink-700 placeholder:text-ink-400 focus:outline-none', ltr && 'text-end')} />
+        {hint && <span className="mt-1 block px-1 text-[11px] text-ink-400">{hint}</span>}
+      </label>
+    );
+    return (
+      <>
+        {modeTabs}
+        <div className="space-y-2">
+          {field('name', 'שם', 'שם מלא')}
+          {field('email', 'מייל', 'name@example.com', true, 'ההתחברות לאפליקציה היא עם המייל — בלי מייל אי אפשר להזמין.')}
+          {field('phone', 'טלפון (לוואטסאפ)', '050-0000000', true)}
+        </div>
+        <p className="mb-1.5 mt-3 px-1 text-2xs font-bold text-ink-400">מה שכבר ידוע</p>
+        {settings}
+        <p className="mt-1.5 px-1 text-xs leading-relaxed text-ink-400">קבוצת הקצב קובעת איזו תוכנית מועדון יקבל עד השבוע האישי הראשון.</p>
+        {error && <p className="mt-2 px-1 text-[13px] font-bold text-accent-red-ink" role="alert">{error}</p>}
+        <button type="button" onClick={() => void invite()} disabled={!inv.name.trim() || !emailOk || busy}
+          className="mt-3 flex w-full min-h-[50px] items-center justify-center gap-2 rounded-2xl bg-brand-600 text-base font-extrabold text-white transition-all active:scale-[0.99] disabled:opacity-50">
+          {busy && <Spinner size={16} tone="ink" />}
+          {inv.name.trim() ? `ליצור הזמנה ל${firstName(inv.name)}` : 'ליצור הזמנה'}
+        </button>
+      </>
+    );
+  }
+
   return (
     <>
+      {modeTabs}
       <p className="mb-2 px-1 text-xs leading-relaxed text-ink-400">מי שכבר מתאמן איתנו ועובר לאפליקציה: בלי טופס, בלי שיחות, ישר כמתאמן.</p>
       <div className="relative mb-2">
         <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
@@ -178,39 +319,7 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
       <p className="mb-1.5 mt-3 px-1 text-2xs font-bold text-ink-400">
         {picked.size > 1 ? `לכל ה־${picked.size} · אפשר לשנות לכל אחד אחר כך` : 'איך מתחילים'}
       </p>
-      {picker === 'coach' ? (
-        <div>
-          <CoachesPicker coaches={assignable} value={coachIds} onChange={setCoachIds} sets={[[]]} multi={multiCoach !== false} exclude={[...picked]} onCoachMade={onDone} />
-          <button type="button" onClick={() => setPicker(null)} className="mt-2 flex w-full min-h-[48px] items-center justify-center rounded-2xl bg-card text-sm font-extrabold text-brand-600">סיום</button>
-        </div>
-      ) : picker === 'band' ? (
-        <div className="max-h-[220px] overflow-y-auto rounded-card bg-card divide-y divide-page">
-          {[...sortBands(bands).map((b) => ({ id: b.id as string | null, label: b.name })), { id: null, label: 'בלי דבוקה · לפי הטסט' }].map((o) => (
-            <button key={o.id ?? 'none'} type="button" onClick={() => { setBandId(o.id); setPicker(null); }} className="flex w-full min-h-[52px] items-center gap-3 px-4 text-start">
-              <span className={cn('h-[22px] w-[22px] shrink-0 rounded-full border-2', bandId === o.id ? 'border-[7px] border-brand-600' : 'border-ink-300')} />
-              <span className="text-[15px] font-semibold text-ink-700">{o.label}</span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-card bg-card divide-y divide-page">
-          <button type="button" onClick={() => setPicker('coach')} className="flex w-full min-h-[52px] items-center gap-3 px-4 text-start">
-            <span className="flex-1 text-[15px] font-semibold text-ink-700">מאמנים</span>
-            <span className="truncate text-sm font-bold text-ink-500" dir="auto">{coachIds.length ? joinHebrewList(coachIds.map((c) => firstName(coachName(c)))) : 'המאמן הקודם / בלי'}</span>
-            <span className="shrink-0 text-[13px] font-extrabold text-brand-600">שיבוץ</span>
-          </button>
-          <button type="button" onClick={() => setPicker('band')} className="flex w-full min-h-[52px] items-center gap-3 px-4 text-start">
-            <span className="flex-1 text-[15px] font-semibold text-ink-700">דבוקה</span>
-            <span className="truncate text-sm font-bold text-ink-500">{band?.name || 'לפי הטסט'}</span>
-            <span className="shrink-0 text-[13px] font-extrabold text-brand-600">שינוי</span>
-          </button>
-          <label className="flex w-full min-h-[52px] items-center gap-3 px-4">
-            <span className="flex-1 text-[15px] font-semibold text-ink-700">מתאמנים אצלנו מאז</span>
-            <input type="month" value={since} onChange={(e) => setSince(e.target.value)} dir="ltr"
-              className="h-10 rounded-lg bg-page px-2 text-sm font-bold text-ink-700 focus:outline-none" />
-          </label>
-        </div>
-      )}
+      {settings}
       {error && <p className="mt-2 px-1 text-[13px] font-bold text-accent-red-ink" role="alert">{error}</p>}
       <button type="button" onClick={() => void run()} disabled={!picked.size || busy}
         className="mt-3 flex w-full min-h-[50px] items-center justify-center gap-2 rounded-2xl bg-brand-600 text-base font-extrabold text-white transition-all active:scale-[0.99] disabled:opacity-50">

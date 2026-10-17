@@ -1664,7 +1664,11 @@
     "installedSub": "From now on, open it from the icon, not the browser",
     "installedNextTitle": "Open Madregot from the icon",
     "installedNextBody": "Close the browser, tap the icon on your home screen and sign in with an email code",
-    "installedNotThere": "No icon? Show me again"
+    "installedNotThere": "No icon? Show me again",
+    "existingEyebrow": "The Madregot academy",
+    "existingSub": "You already train with us — we are just moving into the app. Connect your watch and you are done.",
+    "existingSubCoach": "You already train with us — we are just moving into the app. {coach} is your coach. Connect your watch and you are done.",
+    "toAcademy": "To my academy"
   },
   "joinAcademy": {
     "title": "Connect Your Garmin",

@@ -89,6 +89,8 @@ export default function JoinPage() {
   // again is both pointless and the step most likely to make them give up — so
   // they still walk the whole flow, but the Garmin step shows "connected".
   const [garminConnected, setGarminConnected] = useState(false);
+  // An existing academy trainee moving into the app (migration path): greeted as already here.
+  const [existing, setExisting] = useState<{ coach: string | null } | null>(null);
   // …unless they say otherwise. Someone who changed their Garmin account needs
   // the credential form back, which this reveals.
   const [reconnect, setReconnect] = useState(false);
@@ -163,6 +165,7 @@ export default function JoinPage() {
           if (me.email) setEmail(me.email);
           if (me.groupId) setSelectedGroup(me.groupId);
           setGarminConnected(!!me.garminConnected);
+          if (me.existingTrainee) setExisting({ coach: me.coachName || null });
         }
         if (fetchedGroups.length === 1 && !me?.groupId) {
           setSelectedGroup(fetchedGroups[0].id);
@@ -409,6 +412,9 @@ export default function JoinPage() {
 
   const first = (name || '').split(/\s+/)[0] || '';
   const welcomeTitle = first ? t('welcomeName', { name: first }) : t('welcome');
+  // "ההרשמה אושרה" is wrong for somebody who has trained with us for months.
+  const eyebrowText = existing ? t('existingEyebrow') : t('approvedEyebrow');
+  const existingSub = existing ? (existing.coach ? t('existingSubCoach', { coach: existing.coach }) : t('existingSub')) : null;
   const tracker = <JourneyTracker done={2} computer={computer} />;
   const selected = groups.find(g => g.id === selectedGroup);
 
@@ -426,7 +432,7 @@ export default function JoinPage() {
           and offers the guide again or the browser sign-in. */}
       {guideV2 && guideDone ? (
         <JourneyScreen
-          hero={<JourneyHero eyebrow={t('approvedEyebrow')} title={t('installedTitle')} subtitle={t('installedSub')} />}
+          hero={<JourneyHero eyebrow={eyebrowText} title={t('installedTitle')} subtitle={t('installedSub')} />}
           actions={<SecondaryButton href={`/welcome?t=${encodeURIComponent(token)}`}>{t('savedBrowserCta')}</SecondaryButton>}
         >
           <JourneyTracker done={3} />
@@ -435,7 +441,7 @@ export default function JoinPage() {
         </JourneyScreen>
       ) : guideV2 ? (
         <JourneyScreen
-          hero={<JourneyHero eyebrow={t('approvedEyebrow')} title={t('savedTitle')} subtitle={t('savedSub')} />}
+          hero={<JourneyHero eyebrow={eyebrowText} title={t('savedTitle')} subtitle={t('savedSub')} />}
           actions={
             <>
               <PrimaryButton onClick={() => setGuideClosed(false)}>{t('savedInstallCta')}</PrimaryButton>
@@ -450,12 +456,12 @@ export default function JoinPage() {
         <JourneyScreen
           hero={
             <JourneyHero
-              eyebrow={t('approvedEyebrow')}
+              eyebrow={eyebrowText}
               title={skippedGarmin ? to('registrationComplete') : t('youreConnected')}
               subtitle={skippedGarmin ? to('canConnectLater') : t('garminLinkedCoach')}
             />
           }
-          actions={<PrimaryButton href="/dashboard/program">{skippedGarmin ? t('goToDashboard') : t('viewProgram')}</PrimaryButton>}
+          actions={<PrimaryButton href={existing ? '/dashboard/academy' : '/dashboard/program'}>{existing ? t('toAcademy') : skippedGarmin ? t('goToDashboard') : t('viewProgram')}</PrimaryButton>}
         >
           {tracker}
           {/* What's Next Section */}
@@ -498,7 +504,7 @@ export default function JoinPage() {
 
   if (linkState === 'loading' && (step === 'info' || step === 'auth')) {
     return (
-      <JourneyScreen hero={<JourneyHero eyebrow={t('approvedEyebrow')} title={t('welcome')} />}>
+      <JourneyScreen hero={<JourneyHero eyebrow={eyebrowText} title={t('welcome')} />}>
         <div className="flex flex-1 items-center justify-center py-10" style={{ color: JOURNEY.soft }}>
           <Loader2 className="h-6 w-6 animate-spin" aria-label={tc('loading')} />
         </div>
@@ -517,7 +523,7 @@ export default function JoinPage() {
     return (
       <JourneyScreen
         testId="join-confirm"
-        hero={<JourneyHero eyebrow={t('approvedEyebrow')} title={welcomeTitle} subtitle={t('confirmSub')} />}
+        hero={<JourneyHero eyebrow={eyebrowText} title={welcomeTitle} subtitle={existingSub ?? t('confirmSub')} />}
         actions={
           <>
             <PrimaryButton onClick={() => handleInfoSubmit()} disabled={busy}>{busy ? t('saving') : t('confirmCta')}</PrimaryButton>
@@ -544,9 +550,9 @@ export default function JoinPage() {
         <JourneyScreen
           hero={
             <JourneyHero
-              eyebrow={t('approvedEyebrow')}
+              eyebrow={eyebrowText}
               title={welcomeTitle}
-              subtitle={guideV2 ? t('fixSub') : garminReady ? t('resumeDesc') : t('joinDesc')}
+              subtitle={existingSub ?? (guideV2 ? t('fixSub') : garminReady ? t('resumeDesc') : t('joinDesc'))}
             />
           }
           actions={<PrimaryButton type="submit" disabled={busy}>{busy ? t('saving') : tc('continue')}</PrimaryButton>}
@@ -623,7 +629,7 @@ export default function JoinPage() {
     <JourneyScreen
       hero={
         <JourneyHero
-          eyebrow={t('approvedEyebrow')}
+          eyebrow={eyebrowText}
           title={welcomeTitle}
           subtitle={step === 'mfa' ? to('verificationRequired') : garminReady ? t('resumeDesc') : showGarminForm ? t('connectGarminDesc') : t('connectStravaDesc')}
         />

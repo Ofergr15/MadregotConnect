@@ -96,6 +96,7 @@ const WEEK = [
 
 function stub(url: string, method: string, body?: string): unknown {
   if (method !== 'GET') {
+    if (url.startsWith('/api/academy/members/invite')) return { athleteId: 'inv1', url: 'https://www.madregot.app/join/9b2e4f17c0a84d3e8f61a2b5c7d90e14' };
     if (url.startsWith('/api/academy/members/bulk')) {
       const b = (() => { try { return JSON.parse(body || '{}'); } catch { return {}; } })();
       const ids: string[] = Array.isArray(b.athleteIds) ? b.athleteIds : [];
@@ -104,6 +105,7 @@ function stub(url: string, method: string, body?: string): unknown {
     if (url.startsWith('/api/academy/candidates')) return { candidate: { id: 'c-new' }, url: 'https://www.madregot.app/academy-register?i=3f9a2c71d0b84e6a9c12', ok: true, email: { ok: true } };
     return { ok: true };
   }
+  if (url.startsWith('/api/groups')) return { groups: [{ id: '095cb7bf-136e-4d42-a3b3-e8f0379e5ffb', name: 'Group A - SUB 2:30' }, { id: 'aa6f459f-71e4-42d9-9746-da3e5f9314c2', name: 'Group B - SUB 2:35' }, { id: '13cebcf5-4108-4b15-8e91-2491b629e534', name: 'Group C - SUB 2:45' }] };
   if (url.startsWith('/api/academy/members/people')) return PEOPLE;
   if (url.startsWith('/api/academy/settings')) return { settings: { coachCapacity: 8 } };
   if (url.startsWith('/api/academy/members')) return DATA;
