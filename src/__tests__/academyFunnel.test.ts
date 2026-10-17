@@ -293,3 +293,21 @@ describe('the candidate card', () => {
     expect(candidateTimeline(candidate('c2'), done).some(s => s.current)).toBe(false);
   });
 });
+
+describe('a card for an existing trainee has joined', () => {
+  // Ofer's own card (2026-10-17): linked by hand with only "form" on record. Read by stages, it
+  // sat in the intro-call column, stuck. An existing trainee never went through the funnel.
+  it('counts as joined, never stuck, whatever stages are on record', () => {
+    const placed = placeCandidate(
+      { id: 'c1', name: 'עופר', source: 'existing', createdAt: '2026-09-30T09:00:00Z' },
+      [{ candidateId: 'c1', stage: 'form', occurredAt: '2026-09-30T11:00:00Z' }],
+      '2026-10-17T18:00:00Z',
+    );
+    expect(placed.status).toBe('joined');
+    expect(placed.stuck).toBe(false);
+  });
+  it('archived still wins', () => {
+    const placed = placeCandidate({ id: 'c2', name: 'x', source: 'existing', createdAt: '2026-09-30T09:00:00Z', archivedAt: '2026-10-02T09:00:00Z' }, [], '2026-10-17T18:00:00Z');
+    expect(placed.status).toBe('archived');
+  });
+});

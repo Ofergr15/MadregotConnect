@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 
     const [athletesRes, candidatesRes, eventsRes, registrationOpen] = await Promise.all([
       Promise.resolve(supabase.from('athletes').select('id, role, extra_roles, is_academy, approved, academy_coach_id').eq('coach_id', COACH_ID)),
-      Promise.resolve(supabase.from('academy_candidates').select('id, name, athlete_id, archived_at, created_at')),
+      Promise.resolve(supabase.from('academy_candidates').select('id, name, source, athlete_id, archived_at, created_at')),
       Promise.resolve(supabase.from('academy_candidate_events').select('candidate_id, stage, occurred_at')),
       isRegistrationOpen(supabase),
     ]);
@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     const trainees = academy.map((a) => ({ ...a, academy_coach_ids: coachesOf(coachMap, a.id) }));
 
     const candidates: CandidateRow[] = (candidatesRes.error ? [] : candidatesRes.data || []).map((c: any) => ({
-      id: c.id, name: c.name, athleteId: c.athlete_id, archivedAt: c.archived_at, createdAt: c.created_at,
+      id: c.id, name: c.name, source: c.source ?? null, athleteId: c.athlete_id, archivedAt: c.archived_at, createdAt: c.created_at,
     }));
     const events: CandidateEvent[] = (eventsRes.error ? [] : eventsRes.data || []).map((e: any) => ({
       candidateId: e.candidate_id, stage: e.stage, occurredAt: e.occurred_at,

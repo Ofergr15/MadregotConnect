@@ -201,6 +201,15 @@ function daysBetween(fromISO: string, toISO: string): number {
  * "waiting for" a parked stage and never stuck on one, so somebody who finished everything
  * else reads as joined instead of sitting in a column nobody is working.
  */
+/**
+ * A card for somebody who was ALREADY training in the academy before the app (the migration
+ * path; Ofer's own card, set by hand on 2026-10-17). They never went through the funnel, so
+ * whatever stages are on record — usually just "form" — they have joined. Not `accepted_at`:
+ * a regular applicant is accepted at signup, step 4 of nine, and the board still follows them
+ * through the test and the first plan.
+ */
+export const EXISTING_SOURCE = 'existing';
+
 export const PARKED_STAGES: ReadonlySet<string> = new Set(['whatsapp', 'standing_order']);
 
 /**
@@ -235,7 +244,7 @@ export function placeCandidate(
 
   const status: CandidateStatus = candidate.archivedAt
     ? 'archived'
-    : next === null
+    : next === null || candidate.source === EXISTING_SOURCE
       ? 'joined'
       : 'live';
 
