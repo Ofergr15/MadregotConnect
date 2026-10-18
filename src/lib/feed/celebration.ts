@@ -44,3 +44,16 @@ export function celebrationText(body: string | null, type: CelebrationType): str
   const e = CELEBRATION_TYPES[type].emoji;
   return b.startsWith(e) ? b.slice(e.length).trim() : b;
 }
+
+/**
+ * Is it on the celebrations row today? A birthday on its own day; a celebration
+ * made by hand from its day through `until` (inclusive; the same day when unset).
+ * Dates are Israel calendar days, YYYY-MM-DD.
+ */
+export function isCelebrationActive(payload: Record<string, unknown> | null | undefined, today: string): boolean {
+  if (!toCelebration(payload)) return false;
+  const day = typeof payload!.date === 'string' ? payload!.date : null;
+  if (!day) return false;
+  const until = typeof payload!.until === 'string' && payload!.until >= day ? payload!.until : day;
+  return day <= today && today <= until;
+}

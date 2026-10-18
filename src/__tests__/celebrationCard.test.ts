@@ -26,3 +26,26 @@ describe('celebrationText', () => {
     expect(celebrationText('מזל טוב!', 'wedding')).toBe('מזל טוב!');
   });
 });
+
+describe('isCelebrationActive — the row at the top shows today only, or as long as set', async () => {
+  const { isCelebrationActive } = await import('@/lib/feed/celebration');
+  it('a birthday is on its own day only', () => {
+    expect(isCelebrationActive({ birthdayOf: 'a', date: '2026-10-18' }, '2026-10-18')).toBe(true);
+    expect(isCelebrationActive({ birthdayOf: 'a', date: '2026-10-18' }, '2026-10-19')).toBe(false);
+  });
+  it('a celebration made by hand runs from its day through `until`', () => {
+    const p = { kind: 'celebration', celebrationType: 'wedding', date: '2026-10-18', until: '2026-10-20' };
+    expect(isCelebrationActive(p, '2026-10-17')).toBe(false);
+    expect(isCelebrationActive(p, '2026-10-20')).toBe(true);
+    expect(isCelebrationActive(p, '2026-10-21')).toBe(false);
+  });
+  it('an `until` before the day is ignored — it is the day itself', () => {
+    expect(isCelebrationActive({ kind: 'celebration', date: '2026-10-18', until: '2026-10-01' }, '2026-10-18')).toBe(true);
+  });
+  it('the feed never lists a celebration — it lives in the row at the top', async () => {
+    const { readFileSync } = await import('fs');
+    const page = readFileSync('src/app/(app)/feed/page.tsx', 'utf8');
+    expect(page).toMatch(/!\(item\.type === 'announcement' && toCelebration\(item\.payload\)\)/);
+    expect(page.indexOf('<CelebrationStories')).toBeLessThan(page.indexOf('<QualitySessionRow'));
+  });
+});
