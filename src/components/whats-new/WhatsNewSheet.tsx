@@ -299,7 +299,11 @@ function useContent(evening: boolean): WhatsNewContent | null {
   // Null until the role is known, so a staff device never spends its ledger on the members' half.
   // Until RELEASE_OPEN, the 10-18 tour is the super user's only (lib/whats-new/evening.ts);
   // read from the same answer as `ready`, so it is final by the time anything composes.
-  const { isStaffView: staff, ready, isSuper: superUser } = useNavIdentity();
+  // `accountKnown` too: until /api/auth/me answers, `isSuper` may still be the local
+  // guess, and composing on it opened the members' tour for him and then swapped it
+  // for his under the open sheet (the crash on his first open of 2.41.217).
+  const { isStaffView: staff, ready: navReady, accountKnown, isSuper: superUser } = useNavIdentity();
+  const ready = navReady && accountKnown;
   const { data, error } = useApi<{ releases: WhatsNewRelease[] }>('/api/whats-new', { revalidateOnFocus: false });
   // One object per answer, not per render: WhatsNewSettingsRow keys an effect on it
   // that sets state, so a fresh object every render was an endless render loop on
@@ -329,6 +333,8 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
   const content = useContent(EVENING_OPEN);
   const all = content?.entries ?? null;
   const [entries, setEntries] = useState<WhatsNewEntry[] | null>(null);
+  // Frozen with `entries` at open: what is on screen never changes under the reader.
+  const [more, setMore] = useState<ShownNote[]>([]);
   const [open, setOpen] = useState(false);
   // Onboarding v2: after the first run, never in front of it (whatsNewTiming).
   const v2 = useOnboardingV2();
@@ -377,15 +383,16 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
       WHATS_NEW_KEY, JSON.stringify(markSeen(ledger, next.map((e) => e.slug))),
     );
     setEntries(next);
+    setMore(withHeadline(next, content));
     setOpen(true);
-  }, [ready, all, entries, v2, onboarding, installAnswered]);
+  }, [ready, all, entries, v2, onboarding, installAnswered, content]);
 
   if (!entries) return null;
   // The evening's headlines come as the full-screen tour (version A); the plain
   // rows keep the sheet.
   if (entries.some((e) => e.cards?.length)) {
     return open ? (
-      <WhatsNewStory entries={entries} more={withHeadline(entries, content)} version={APP_VERSION} onClose={() => setOpen(false)} />
+      <WhatsNewStory entries={entries} more={more} version={APP_VERSION} onClose={() => setOpen(false)} />
     ) : null;
   }
   return (
@@ -394,7 +401,7 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
       onOpenChange={setOpen}
       entries={entries}
       newSlugs={entries.map((e) => e.slug)}
-      more={withHeadline(entries, content)}
+      more={more}
     />
   );
 }
