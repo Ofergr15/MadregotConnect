@@ -19,4 +19,9 @@ describe('isFeedWorthyAnnouncement', () => {
   it('treats a missing kind as custom, which is what the compose form sends', () => {
     expect(isFeedWorthyAnnouncement({ id: 'n1', schedule_type: 'now' })).toBe(true);
   });
+
+  it('never posts a push to one person: the feed is the whole club\'s', () => {
+    expect(isFeedWorthyAnnouncement({ id: 'n1', kind: 'custom', schedule_type: 'scheduled', audience_type: 'athlete' })).toBe(false);
+    expect(isFeedWorthyAnnouncement({ id: 'n1', kind: 'custom', schedule_type: 'now', audience_type: 'all' })).toBe(true);
+  });
 });

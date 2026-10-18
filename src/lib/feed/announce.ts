@@ -38,10 +38,15 @@ export interface AnnouncementSource {
   body_he?: string | null;
   /** The push's picture (POST /api/admin/notifications/image) — the feed card shows it too. */
   image_url?: string | null;
+  /** Who it went to. The feed is the whole club's, so a push to one person never posts there. */
+  audience_type?: string | null;
 }
 
 /** Whether a broadcast is the kind of thing that belongs in the feed at all. */
 export function isFeedWorthyAnnouncement(n: AnnouncementSource): boolean {
+  // A push to one person is theirs: posting it to the club's feed published his
+  // private release rehearsal to everyone (2026-10-18).
+  if (n.audience_type === 'athlete') return false;
   return (n.kind ?? 'custom') === 'custom' && n.schedule_type !== 'recurring';
 }
 

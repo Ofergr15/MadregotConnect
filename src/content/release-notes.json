@@ -1,5 +1,14 @@
 [
   {
+    "id": "one-person-push-not-in-feed",
+    "date": "2026-10-18",
+    "kind": "fix",
+    "icon": "🔒",
+    "title": "התראה לאדם אחד לא עולה לפיד",
+    "body": "הודעה שנשלחת לרץ אחד נשארת שלו, ולא מופיעה בפיד של כל המועדון.",
+    "audience": "staff"
+  },
+  {
     "id": "birthday-year-rtl-switch",
     "date": "2026-10-18",
     "kind": "fix",
