@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Heart, MessageCircle, Play } from 'lucide-react';
-import { useApi } from '@/lib/api';
+import { apiFetcher, useApi } from '@/lib/api';
+import { preload } from 'swr';
 import { toggleLike, type FeedItem } from '@/lib/feed-client';
 import { Sheet } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
@@ -154,6 +155,14 @@ function Slide({ entry, active, onComment, myId, onYear }: {
 export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) => void }) {
   const { data } = useApi<{ today: string; entries: Entry[] }>('/api/feed/celebrations');
   const myId = useAthleteId();
+  // Each birthday's year is fetched as soon as the strip is there, not when its circle is
+  // opened: the slide's "השנה של…" button then shows with the greeting, not seconds after.
+  useEffect(() => {
+    for (const e of data?.entries ?? []) {
+      const id = e.celebration.type === 'birthday' ? e.celebration.honorees[0] : null;
+      if (id) preload(`/api/birthday-year?athleteId=${encodeURIComponent(id)}`, apiFetcher);
+    }
+  }, [data]);
   const [yearStory, setYearStory] = useState<BirthdayStory | null>(null);
   const entries = useMemo(() => data?.entries ?? [], [data]);
   const [seen, setSeen] = useState<string[]>([]);

@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { COACH_ID } from '@/lib/constants';
 import { nextBirthday } from '@/lib/events/upcoming';
 import { isExcluded, readPrExclusions } from '@/lib/prs/exclusions-store';
-import { addDaysIso, computeYearStats, daysBetweenIso, yearWindow, type YearActivityRow, type YearStats } from './stats';
+import { addDaysIso, computeYearStats, daysBetweenIso, momentOf, yearWindow, type YearActivityRow, type YearStats } from './stats';
 
 /**
  * The birthday story's server side: which birthday a story is for, the year's rows, and
@@ -83,7 +83,8 @@ async function loadRows(supabase: Db, athleteId: string, from: string, to: strin
   const out: YearActivityRow[] = [];
   for (let page = 0; page < 5; page++) {
     const { data, error } = await supabase.from('athlete_activities')
-      .select('id, activity_type, activity_name, start_time, distance, duration, elevation_gain, calories, route_preview_hd, route_preview')
+      // No routes here: a year of them is ~2 MB and two seconds, and one is drawn (attachMoment).
+      .select('id, activity_type, activity_name, start_time, distance, duration, elevation_gain, calories')
       .eq('athlete_id', athleteId)
       .gte('start_time', `${from}T00:00:00`)
       .lte('start_time', `${to}T23:59:59`)
@@ -105,6 +106,50 @@ async function loadRows(supabase: Db, athleteId: string, from: string, to: strin
   return out;
 }
 
+/**
+ * The year's numbers, kept for ten minutes per instance: the strip of birthday circles asks
+ * for the same story from every member who opens the feed, and the year does not change in
+ * between. The admin's preparation (photos, the official time) is read fresh every time.
+ */
+const CACHE_MS = 10 * 60_000;
+const yearCache = new Map<string, { at: number; stats: Promise<YearStats> }>();
+
+function yearStats(supabase: Db, athleteId: string, window: { from: string; to: string }): Promise<YearStats> {
+  const k = `${athleteId}:${window.to}`;
+  const hit = yearCache.get(k);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.stats;
+  const stats = (async () => {
+    const [rows, excluded] = await Promise.all([
+      loadRows(supabase, athleteId, window.from, window.to),
+      readPrExclusions(supabase as never, athleteId).catch(() => undefined),
+    ]);
+    const s = computeYearStats(rows, window);
+    // A run the athlete took out of their records stays out of the year's bests too.
+    if (excluded) s.bests = s.bests.filter((b) => !isExcluded(excluded, b.activityId, b.key));
+    await attachMoment(supabase, s, rows);
+    return s;
+  })();
+  yearCache.set(k, { at: Date.now(), stats });
+  stats.catch(() => yearCache.delete(k));
+  return stats;
+}
+
+/** The run of the year: the marathon, else the half, whose route is stored — one row's route. */
+async function attachMoment(supabase: Db, s: YearStats, rows: YearActivityRow[]): Promise<void> {
+  for (const key of ['fm', 'hm'] as const) {
+    const id = s.bests.find((b) => b.key === key)?.activityId;
+    const act = id ? rows.find((r) => r.id === id) : null;
+    if (!act) continue;
+    const { data } = await supabase.from('athlete_activities').select('route_preview_hd, route_preview').eq('id', act.id).maybeSingle();
+    const r = data as { route_preview_hd?: Array<{ lat: number; lng: number }> | null; route_preview?: Array<{ lat: number; lng: number }> | null } | null;
+    const route = r?.route_preview_hd?.length ? r.route_preview_hd : r?.route_preview ?? [];
+    if (route.length > 2) {
+      s.moment = momentOf(act, key, route);
+      return;
+    }
+  }
+}
+
 export interface BirthdayStory {
   athleteId: string;
   name: string;
@@ -122,15 +167,11 @@ export async function loadStory(supabase: Db, athleteId: string, today: string, 
   const birthday = storyBirthday(athlete.birth_date, today, opts);
   if (!birthday) return null;
   const window = yearWindow(birthday);
-  const [rows, excluded, config] = await Promise.all([
-    loadRows(supabase, athleteId, window.from, window.to),
-    readPrExclusions(supabase as never, athleteId).catch(() => undefined),
+  const [stats, config] = await Promise.all([
+    yearStats(supabase, athleteId, window),
     readConfig(supabase, athleteId, birthday),
   ]);
-  // A run the athlete took out of their records stays out of the year's bests too.
-  const stats = computeYearStats(rows, window);
-  if (excluded) stats.bests = stats.bests.filter((b) => !isExcluded(excluded, b.activityId, b.key));
-  if (stats.moment && config.momentSeconds) stats.moment.seconds = config.momentSeconds;
+  if (stats.moment && config.momentSeconds) stats.moment = { ...stats.moment, seconds: config.momentSeconds };
   return {
     athleteId,
     name: config.displayName?.trim() || (athlete.name || '').trim().split(/\s+/)[0] || '',

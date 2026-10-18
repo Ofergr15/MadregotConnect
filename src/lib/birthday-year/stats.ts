@@ -142,7 +142,7 @@ export function computeYearStats(rows: YearActivityRow[], window: { from: string
     const act = b?.activityId ? runs.find((a) => a.id === b.activityId) : null;
     const route = act?.route_preview_hd?.length ? act.route_preview_hd : act?.route_preview ?? [];
     if (act && route.length > 2) {
-      moment = { activityId: act.id, key, name: act.activity_name ?? null, date: dayOf(act.start_time), km: Math.round(act.distance / 100) / 10, seconds: Math.round(act.duration), route };
+      moment = momentOf(act, key, route);
       break;
     }
   }
@@ -175,6 +175,10 @@ export function computeYearStats(rows: YearActivityRow[], window: { from: string
     bests,
     moment,
   };
+}
+
+export function momentOf(act: YearActivityRow, key: 'fm' | 'hm', route: Array<{ lat: number; lng: number }>): YearMoment {
+  return { activityId: act.id, key, name: act.activity_name ?? null, date: dayOf(act.start_time), km: Math.round(act.distance / 100) / 10, seconds: Math.round(act.duration), route };
 }
 
 /** "פעמיים וחצי" — a ratio in words, to the nearest half. */
