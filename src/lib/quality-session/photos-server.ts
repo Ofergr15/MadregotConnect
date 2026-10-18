@@ -19,7 +19,20 @@ type Db = ReturnType<typeof createServerClient>;
 
 /** app_settings: date → that morning's folder, and how far the automation got. */
 export const FOLDER_LEDGER_KEY = 'session_photo_folders';
-export interface FolderEntry { folderId: string; link: string; toldAt?: string; checkedAt?: string; publishedId?: string }
+export interface FolderEntry {
+  folderId: string;
+  link: string;
+  /** The folder's name in Drive, as made. */
+  name?: string;
+  /** Made from the Social screen rather than by the evening-before automation. */
+  manual?: boolean;
+  /** false: the folder is only a folder — nothing reaches the feed by itself. */
+  autoFeed?: boolean;
+  createdAt?: string;
+  toldAt?: string;
+  checkedAt?: string;
+  publishedId?: string;
+}
 export type FolderLedger = Record<string, FolderEntry>;
 
 export async function readFolderLedger(supabase: Db): Promise<FolderLedger> {
@@ -124,7 +137,7 @@ export const WATCH_FROM_HOUR = 7;
 export const WATCH_UNTIL_HOUR = 15;
 const WATCH_EVERY_MS = 25 * 60_000;
 
-async function editorIds(supabase: Db): Promise<string[]> {
+export async function editorIds(supabase: Db): Promise<string[]> {
   const [editors, superRow] = await Promise.all([
     storyEditorIds(supabase),
     supabase.from('athletes').select('id').eq('email', SUPER_USER_EMAIL).maybeSingle(),
@@ -136,8 +149,9 @@ async function editorIds(supabase: Db): Promise<string[]> {
  * One tick of the automation (cron/tick, every five minutes). Two stages, each
  * idempotent through the ledger, so a missed or doubled tick changes nothing:
  *  1. from 20:00, if TOMORROW is a quality day: make its folder, tell the editors;
- *  2. 07:00-15:00 on the day, every half hour: once the folder has photos, publish
- *     the card with the first six; later photos fill it up to six, without a push.
+ *  2. from 07:00 on the folder's day until 15:00 the next, every half hour: once
+ *     the folder has photos, publish the card with the first six; later photos fill
+ *     it up to six, without a push. A folder made with autoFeed off is skipped.
  * Without Drive configured (driveWriter() null) it does nothing at all.
  */
 export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Promise<string[]> {
@@ -153,7 +167,7 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
     const tomorrow = addDaysToDateStr(today, 1);
     if (!ledger[tomorrow] && (await loadQualityWorkout(supabase, tomorrow))) {
       const folder = await ensureDayFolder(drive, tomorrow, folderName(tomorrow));
-      ledger[tomorrow] = { folderId: folder.id, link: folder.link };
+      ledger[tomorrow] = { folderId: folder.id, link: folder.link, name: folderName(tomorrow), createdAt: now.toISOString() };
       dirty = true;
       fired.push(`sessionFolder:${tomorrow}`);
     }
@@ -175,32 +189,96 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
     }
   }
 
-  const entry = ledger[today];
-  if (entry && hour >= WATCH_FROM_HOUR && hour < WATCH_UNTIL_HOUR
-    && (!entry.checkedAt || now.getTime() - Date.parse(entry.checkedAt) >= WATCH_EVERY_MS)) {
+  // The morning after (or the evening of, for a folder made by hand): from 07:00 on
+  // the folder's day until 15:00 the next day, every half hour.
+  for (const date of [addDaysToDateStr(today, -1), today]) {
+    const entry = ledger[date];
+    if (!entry || entry.autoFeed === false) continue;
+    const inWindow = date === today ? hour >= WATCH_FROM_HOUR : hour < WATCH_UNTIL_HOUR;
+    if (!inWindow || (entry.checkedAt && now.getTime() - Date.parse(entry.checkedAt) < WATCH_EVERY_MS)) continue;
     entry.checkedAt = now.toISOString();
     dirty = true;
-    const card = await cardFor(supabase, today);
+    const card = await cardFor(supabase, date);
     const have = card?.media?.length ?? 0;
     // A card published by hand with a different link is someone's choice: leave it.
     const ours = !card || toSessionPhotos(card.payload)?.link === entry.link;
-    if (ours && have < MAX_SESSION_PHOTOS) {
-      const list = await albumPhotoUrls(entry.link);
-      if (list.ok && list.urls.length > have) {
-        const pulled = await pullAlbumPhotos(supabase, entry.link, {
-          prefix: `club/session-photos/${today}`, max: MAX_SESSION_PHOTOS - have, skip: have,
-        });
-        if (pulled.ok) {
-          const out = await publishSessionPhotos(supabase, {
-            date: today, link: entry.link, media: [...(card?.media ?? []), ...pulled.media], byAthleteId: null, notify: !card,
-          });
-          entry.publishedId = out.id;
-          fired.push(`${card ? 'sessionPhotosMore' : 'sessionPhotos'}:${today}`);
-        }
-      }
-    }
+    if (!ours || have >= MAX_SESSION_PHOTOS) continue;
+    const list = await albumPhotoUrls(entry.link);
+    if (!list.ok || list.urls.length <= have) continue;
+    const pulled = await pullAlbumPhotos(supabase, entry.link, {
+      prefix: `club/session-photos/${date}`, max: MAX_SESSION_PHOTOS - have, skip: have,
+    });
+    if (!pulled.ok) continue;
+    const out = await publishSessionPhotos(supabase, {
+      date, link: entry.link, media: [...(card?.media ?? []), ...pulled.media], byAthleteId: null, notify: !card,
+    });
+    entry.publishedId = out.id;
+    fired.push(`${card ? 'sessionPhotosMore' : 'sessionPhotos'}:${date}`);
   }
 
   if (dirty) await writeFolderLedger(supabase, ledger);
   return fired;
+}
+
+/**
+ * A folder made by hand from the Social screen — any day, any name (a long run, a
+ * race). One per day, like the automatic ones: asking again for a day that has one
+ * returns it.
+ */
+export async function createFolderNow(
+  supabase: Db,
+  p: { date: string; name: string; notifyEditors: boolean; autoFeed: boolean; byAthleteId: string | null },
+): Promise<FolderEntry | null> {
+  const drive = driveWriter();
+  if (!drive) return null;
+  const ledger = await readFolderLedger(supabase);
+  const folder = await ensureDayFolder(drive, p.date, p.name);
+  const entry: FolderEntry = {
+    ...(ledger[p.date] || {}),
+    folderId: folder.id,
+    link: folder.link,
+    name: ledger[p.date]?.name || p.name,
+    manual: ledger[p.date] ? ledger[p.date].manual : true,
+    autoFeed: p.autoFeed,
+    createdAt: ledger[p.date]?.createdAt || new Date().toISOString(),
+  };
+  if (p.notifyEditors && !entry.toldAt) {
+    for (const athleteId of (await editorIds(supabase)).filter((id) => id !== p.byAthleteId)) {
+      try {
+        await notifyAthlete({
+          athleteId,
+          kind: 'session_folder',
+          copy: (locale) => sessionFolderReadyCopy(locale, { day: entry.name || sessionDayLabel(p.date) }),
+          url: entry.link,
+          tag: `session-folder-${p.date}`,
+        });
+      } catch { /* best effort */ }
+    }
+    entry.toldAt = new Date().toISOString();
+  }
+  ledger[p.date] = entry;
+  await writeFolderLedger(supabase, ledger);
+  return entry;
+}
+
+/** What the Social screen's "this week" shows: the quality days ahead, and the folders made. */
+export async function socialWeek(supabase: Db, now = new Date()) {
+  const today = israelToday(now);
+  const ledger = await readFolderLedger(supabase);
+  const upcoming: Array<{ date: string; name: string; workout: string | null; createsAt: string }> = [];
+  for (let i = 0; i <= 8; i++) {
+    const date = addDaysToDateStr(today, i);
+    if (ledger[date]) continue;
+    const w = await loadQualityWorkout(supabase, date).catch(() => null);
+    // A folder for today that the evening before did not make is made on the next tick.
+    if (w) upcoming.push({ date, name: folderName(date), workout: w.name || null, createsAt: `${addDaysToDateStr(date, -1)}T20:00` });
+  }
+  const made = await Promise.all(Object.entries(ledger).sort(([a], [b]) => b.localeCompare(a)).map(async ([date, e]) => {
+    const card = await cardFor(supabase, date);
+    return {
+      date, name: e.name || folderName(date), link: e.link, manual: !!e.manual, autoFeed: e.autoFeed !== false,
+      photos: card?.media?.length ?? 0, inFeed: !!card,
+    };
+  }));
+  return { configured: !!driveWriter(), upcoming, made };
 }

@@ -133,13 +133,30 @@ describe('the morning of the quality day', () => {
     expect(h.notify).not.toHaveBeenCalled();
   });
 
-  it('looks at most every half hour, and not after 15:00', async () => {
+  it('looks at most every half hour', async () => {
     const s = await morning();
     await runSessionPhotoFolders(s, at('2026-10-20T05:00:00Z'));
     h.photos = 3;
     expect(await runSessionPhotoFolders(s, at('2026-10-20T05:10:00Z'))).toEqual([]); // 10 min later: not yet
-    expect(await runSessionPhotoFolders(s, at('2026-10-20T12:30:00Z'))).toEqual([]); // 15:30
+    expect(await runSessionPhotoFolders(s, at('2026-10-20T05:31:00Z'))).toEqual(['sessionPhotos:2026-10-20']);
+  });
+
+  it('keeps looking until 15:00 the next day, then stops', async () => {
+    const s = await morning();
+    h.photos = 3;
+    expect(await runSessionPhotoFolders(s, at('2026-10-21T13:00:00Z'))).toEqual([]); // 16:00 the day after
     expect(JSON.parse(h.settings[FOLDER_LEDGER_KEY])['2026-10-20'].publishedId).toBeUndefined();
+    expect(await runSessionPhotoFolders(s, at('2026-10-21T09:00:00Z'))).toEqual(['sessionPhotos:2026-10-20']); // 12:00 the day after
+  });
+
+  it('a folder made with "to the feed by itself" off never publishes', async () => {
+    const s = await morning();
+    const ledger = JSON.parse(h.settings[FOLDER_LEDGER_KEY]);
+    ledger['2026-10-20'].autoFeed = false;
+    h.settings[FOLDER_LEDGER_KEY] = JSON.stringify(ledger);
+    h.photos = 5;
+    expect(await runSessionPhotoFolders(s, at('2026-10-20T05:00:00Z'))).toEqual([]);
+    expect(h.cards).toHaveLength(0);
   });
 
   it('a card someone published by hand with another link is left alone', async () => {
