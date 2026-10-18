@@ -31,16 +31,18 @@ export function plainText(body: string): string {
 
 export const visibleLength = (body: string) => [...plainText(body)].length;
 
-export type FeedState = 'live' | 'quiet' | 'hidden';
+export type FeedState = 'live' | 'quiet' | 'pinned' | 'hidden';
 
-/** How the feed shows the stream, from its newest update. */
-export function feedState(newestAt: string | null | undefined, now: number): FeedState {
-  if (!newestAt) return 'hidden';
-  const age = now - Date.parse(newestAt);
-  if (!Number.isFinite(age)) return 'hidden';
-  if (age < LIVE_MS) return 'live';
-  if (age < FEED_MS) return 'quiet';
-  return 'hidden';
+/**
+ * How the feed shows the stream, from its newest update. A pinned update never leaves the
+ * feed (Ofer, 2026-10-18: "updates I want never hidden — so there is always at least one
+ * everybody sees"), so with nothing fresh but something pinned it is the pinned one.
+ */
+export function feedState(newestAt: string | null | undefined, now: number, hasPinned = false): FeedState {
+  const age = newestAt ? now - Date.parse(newestAt) : NaN;
+  if (Number.isFinite(age) && age < LIVE_MS) return 'live';
+  if (Number.isFinite(age) && age < FEED_MS) return 'quiet';
+  return hasPinned ? 'pinned' : 'hidden';
 }
 
 export interface ClubUpdatesConfig {

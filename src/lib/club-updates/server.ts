@@ -82,8 +82,8 @@ export async function listUpdates(db: Db, viewerId: string | null, opts: { limit
     throw error;
   }
   const rows = (data || []) as UpdateRow[];
-  // A pinned update stays at the top of the stream however old it is.
-  if (!opts.since) {
+  // A pinned update stays at the top of the stream, and in the feed, however old it is.
+  {
     const { data: pins } = await db.from('club_updates').select(COLUMNS).is('deleted_at', null).eq('pinned', true).order('created_at', { ascending: false }).limit(3);
     for (const p of (pins || []) as UpdateRow[]) if (!rows.some((r) => r.id === p.id)) rows.push(p);
   }

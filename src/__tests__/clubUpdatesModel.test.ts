@@ -9,6 +9,11 @@ describe('club updates — the feed card', () => {
     expect(feedState(null, now)).toBe('hidden');
     expect(feedState(undefined, now)).toBe('hidden');
   });
+  it('keeps a pinned update in the feed however old it is', () => {
+    expect(feedState(null, now, true)).toBe('pinned');
+    expect(feedState(ago(FEED_MS * 5), now, true)).toBe('pinned');
+    expect(feedState(ago(5 * 60_000), now, true)).toBe('live');
+  });
   it('is live under an hour, one line under a day, then gone', () => {
     expect(feedState(ago(5 * 60_000), now)).toBe('live');
     expect(feedState(ago(LIVE_MS + 1), now)).toBe('quiet');

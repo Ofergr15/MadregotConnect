@@ -115,7 +115,7 @@ export function UpdateComposer({ open, onOpenChange, me, editing, onSubmit }: {
           </button>
           <button type="button" onClick={() => setV((x) => ({ ...x, pinned: !x.pinned }))} aria-pressed={v.pinned}
             className={cn('flex min-h-[44px] items-center gap-1.5 rounded-pill px-3.5 text-[13px] font-bold', v.pinned ? 'bg-[#E6E8FF] text-brand-600' : 'bg-page text-ink-700')}>
-            <Pin className="h-4 w-4" />{v.pinned ? 'נעוץ למעלה' : 'לנעוץ'}
+            <Pin className="h-4 w-4" />{v.pinned ? 'נעוץ · תמיד בפיד' : 'לנעוץ'}
           </button>
         </div>
 
