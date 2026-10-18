@@ -41,6 +41,8 @@ import { PlanVerifyCard } from './PlanVerifyCard';
 import { slotKey, watchSentCopy, workoutLine } from '@/lib/notifications/watch-push-copy';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 import { WatchPreview } from '@/components/WatchPreview';
+import { EVERYONE, RecipientPicker, recipientIds, type Recipients, type RosterPerson } from '@/components/day-session/WatchSend';
+import { PlanWatchTrack, usePlanWatch } from '@/components/plans/PlanWatchTrack';
 import { DayByDayReview } from '@/components/DayByDayReview';
 import { ParsedWorkout, ParsedWeeklyPlan, GroupedWeeklyPlans, WorkoutStep } from '@/lib/ai/types';
 import { splitIntoGroups, mergeGroupsToUnified, applyUnifiedEditsToGroups } from '@/lib/ai/splitGroups';
@@ -260,7 +262,11 @@ export default function WeeklyPlannerPage() {
   // --- Push ---
   const [showPush, setShowPush] = useState(false);
   const [previewEditIdx, setPreviewEditIdx] = useState<number | null>(null);
-  const [pushTab, setPushTab] = useState<PushTab>('all');
+  const [pushTab] = useState<PushTab>('all');
+  // Who a send goes to: everyone / packs / people (components/day-session/WatchSend.tsx).
+  const [recipients, setRecipients] = useState<Recipients>(EVERYONE);
+  // The send sheet showing the tracking of the week's send (lib/plans/watch-status.ts).
+  const [trackOpen, setTrackOpen] = useState(false);
   // Which days to send. null = whole week (default); an array = only those days.
   const [pushDays, setPushDays] = useState<number[] | null>(null);
   // Custom weeks: athlete id → which weekday each session lands on for THEM.
@@ -319,15 +325,19 @@ export default function WeeklyPlannerPage() {
     );
   }, [activeAthletes, athleteSearch]);
 
-  const pushTargetCount = useMemo(() => {
-    if (pushTab === 'all') return activeAthletes.length;
-    if (pushTab === 'groups') {
-      return activeAthletes.filter(
-        (a) => a.group_id && selectedGroupIds.includes(a.group_id)
-      ).length;
-    }
-    return selectedAthleteIds.length;
-  }, [pushTab, activeAthletes, selectedGroupIds, selectedAthleteIds]);
+  // The club as the picker draws it: pack 1..3 fastest first, the same order as the labels.
+  const roster = useMemo<RosterPerson[]>(() => {
+    const order = sortByPaceGroup(groups).map((g) => g.id);
+    return activeAthletes.map((a) => {
+      const i = a.group_id ? order.indexOf(a.group_id) : -1;
+      return { id: a.id, name: a.name, pack: (i < 0 ? 1 : Math.min(i, 2)) as 0 | 1 | 2, hasWatch: !!a.hasGarmin };
+    }).sort((x, y) => x.pack - y.pack || x.name.localeCompare(y.name));
+  }, [activeAthletes, groups]);
+  const pickedIds = useMemo(() => recipientIds(roster, recipients), [roster, recipients]);
+  const pushTargetCount = pickedIds.length;
+  const watch = usePlanWatch(savedPlanId, weekStartDate, pushing);
+  const watchFull = (watch.data?.runners || []).filter((r) => r.state === 'ok' && r.total > 0 && r.ok === r.total).length;
+  const watchFailed = (watch.data?.runners || []).some((r) => r.state === 'failed');
 
   // --- Reset create mode when navigating weeks ---
   useEffect(() => {
@@ -1200,19 +1210,8 @@ export default function WeeklyPlannerPage() {
     setPushResults(null);
 
     try {
-      let targetAthletes: Athlete[] = [];
-      if (pushTab === 'all') {
-        targetAthletes = activeAthletes;
-      } else if (pushTab === 'groups') {
-        targetAthletes = activeAthletes.filter(
-          (a) => a.group_id && selectedGroupIds.includes(a.group_id)
-        );
-      } else {
-        targetAthletes = activeAthletes.filter((a) => selectedAthleteIds.includes(a.id));
-      }
-
-      // Only athletes with Garmin connected can receive a workout push.
-      targetAthletes = targetAthletes.filter((a) => a.hasGarmin);
+      // The picker's choice — only people with a watch are in it.
+      const targetAthletes = activeAthletes.filter((a) => pickedIds.includes(a.id) && a.hasGarmin);
 
       if (targetAthletes.length === 0) {
         throw new Error(t('errors.noGarminSelected'));
@@ -1283,6 +1282,22 @@ export default function WeeklyPlannerPage() {
       setError(err instanceof Error ? err.message : t('errors.retryFailedErr'));
     } finally {
       setPushing(false);
+    }
+  };
+
+  // Again, for exactly these people — the tracking's "שוב" and "לשלוח שוב רק למי שלא קיבל".
+  // Through pushToAthletes, so a retry reproduces the delivery (their pack, their custom week).
+  const retryIds = async (ids: string[]) => {
+    if (!ids.length || !groupedPlans || !savedPlanId || pushing) return;
+    setPushing(true);
+    setError(null);
+    try {
+      await pushToAthletes(activeAthletes.filter((a) => ids.includes(a.id)));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t('errors.retryFailedErr'));
+    } finally {
+      setPushing(false);
+      void watch.mutate();
     }
   };
 
@@ -1760,6 +1775,16 @@ export default function WeeklyPlannerPage() {
                    <Clock className="h-3 w-3" />}
                   {currentPlan.status === 'pushed' ? t('pushed') : currentPlan.status === 'partial' ? t('partial') : t('draft')}
                 </span>
+                {/* "בשעונים ✓ 14/16" — the week's send, opens the tracking. */}
+                {(watch.data?.runners.length ?? 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => { setError(null); setTrackOpen(true); setShowPush(true); }}
+                    className={cn('flex min-h-[32px] items-center gap-1 rounded-full px-2.5 text-xs font-bold', watchFailed ? 'bg-accent-red/10 text-accent-red' : 'bg-accent-600/10 text-accent-900')}
+                  >
+                    ⌚ {t('onWatches')} {watchFailed ? '!' : '✓'} <bdi dir="ltr">{watchFull}/{watch.data!.runners.length}</bdi>
+                  </button>
+                )}
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
@@ -2128,62 +2153,24 @@ export default function WeeklyPlannerPage() {
       {/* Push Modal */}
       <Sheet
         open={showPush}
-        onOpenChange={(o) => { if (!o) { setShowPush(false); setPushResults(null); setError(null); } }}
+        onOpenChange={(o) => { if (!o) { setShowPush(false); setPushResults(null); setTrackOpen(false); setError(null); } }}
         title={t('pushToAthletes')}
       >
-            {pushResults ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-2 text-accent-900">
-                    <CheckCircle className="h-5 w-5" />
-                    <span className="font-medium">
-                      {pushResults.filter((r) => r.status === 'success').length} {t('succeeded')}
-                    </span>
-                  </div>
-                  {pushResults.some((r) => r.status === 'failed') && (
-                    <div className="flex items-center gap-2 text-accent-red">
-                      <XCircle className="h-5 w-5" />
-                      <span className="font-medium">
-                        {pushResults.filter((r) => r.status === 'failed').length} {t('failed')}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  {pushResults.map((r, i) => (
-                    <div
-                      key={r.athleteId || i}
-                      className={cn(
-                        'flex items-center justify-between p-3 rounded-lg border',
-                        r.status === 'success'
-                          ? 'bg-accent-600/5 border-accent-600/20'
-                          : 'bg-accent-red/5 border-accent-red/20'
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        {r.status === 'success' ? (
-                          <CheckCircle className="h-4 w-4 text-accent-600 shrink-0" />
-                        ) : (
-                          <XCircle className="h-4 w-4 text-accent-red shrink-0" />
-                        )}
-                        <div>
-                          <span className="text-sm font-medium">{r.athleteName}</span>
-                          {r.error && <p className="text-xs text-accent-red mt-0.5">{r.error}</p>}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-page">
-                  {pushResults.some((r) => r.status === 'failed') && (
-                    <Button variant="secondary" onClick={retryFailed} disabled={pushing}>
-                      {pushing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                      {t('retryFailed')}
-                    </Button>
-                  )}
-                  <Button onClick={() => { setShowPush(false); setPushResults(null); }}>
+            {(pushing || pushResults || trackOpen) && savedPlanId ? (
+              // The week's send, runner by runner and day by day (lib/plans/watch-status.ts),
+              // live while it runs and any time after from the week's "בשעונים" row.
+              <div className="space-y-3 pt-2">
+                {error && <ErrorBanner message={error} className="p-3" />}
+                {watch.data ? (
+                  <PlanWatchTrack data={watch.data} pushing={pushing} busy={pushing} onRetry={retryIds} />
+                ) : (
+                  <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-ink-400" /></div>
+                )}
+                <div className="flex items-center justify-between gap-3 border-t border-page pt-3">
+                  <Button variant="ghost" onClick={() => { setPushResults(null); setTrackOpen(false); }} disabled={pushing}>
+                    ⌚ {t('watchSendMore')}
+                  </Button>
+                  <Button onClick={() => { setShowPush(false); setPushResults(null); setTrackOpen(false); }}>
                     {t('done')}
                   </Button>
                 </div>
@@ -2430,200 +2417,20 @@ export default function WeeklyPlannerPage() {
                   </div>
                 )}
 
-                <SegmentedControl
-                  value={pushTab}
-                  onChange={setPushTab}
-                  options={[
-                    { value: 'all', icon: Users, label: t('allAthletesShort') },
-                    { value: 'groups', icon: Layers, label: t('byGroup') },
-                    { value: 'athletes', icon: UserCheck, label: t('specific') },
-                  ]}
-                  className="mt-4"
-                />
-
-                <div className="py-4 min-h-[200px]">
+                {/* Who: everyone / packs / people — the one-day send's picker. */}
+                <div className="mt-4 pb-2">
                   {loadingAthletes ? (
                     <div className="flex items-center justify-center py-12">
                       <Loader2 className="h-6 w-6 animate-spin text-ink-400" />
                     </div>
                   ) : (
                     <>
-                      {pushTab === 'all' && (
-                        <div className="space-y-3">
-                          {(() => {
-                            const readyCount = activeAthletes.filter((a) => a.hasGarmin).length;
-                            return (
-                              <div className="text-center">
-                                <p className="text-lg font-medium">
-                                  {t('activeAthletesCount', { count: activeAthletes.length })}
-                                </p>
-                                <p className="text-sm text-ink-400 mt-0.5">
-                                  {t('garminWillReceive', { ready: readyCount, count: selectedWorkoutCount })}
-                                </p>
-                              </div>
-                            );
-                          })()}
-
-                          {groups.length === 0 ? (
-                            <p className="text-sm text-ink-400 text-center py-6">{t('noGroupsFound')}</p>
-                          ) : (
-                            groups.map((group, groupIdx) => {
-                              const groupColor =
-                                groupIdx === 0 ? { iconBg: 'bg-accent-600', label: t('groupLabel', { n: 1 }) } :
-                                groupIdx === 1 ? { iconBg: 'bg-band-3', label: t('groupLabel', { n: 2 }) } :
-                                { iconBg: 'bg-band-3', label: t('groupLabel', { n: 3 }) };
-                              const members = activeAthletes.filter((a) => a.group_id === group.id);
-                              const readyMembers = members.filter((a) => a.hasGarmin);
-                              const isOpen = expandedAllGroup === group.id;
-                              return (
-                                <InsetSection key={group.id} className="mb-0">
-                                  <InsetRow
-                                    icon={Layers}
-                                    iconBg={groupColor.iconBg}
-                                    label={group.name}
-                                    sublabel={groupColor.label}
-                                    onClick={() => setExpandedAllGroup(isOpen ? null : group.id)}
-                                    trailing={
-                                      <span className="flex items-center gap-1.5 text-xs text-ink-400 shrink-0">
-                                        {t('readyOfTotal', { ready: readyMembers.length, total: members.length })}
-                                        {isOpen ? <ChevronUp className="h-4 w-4 text-ink-400" /> : <ChevronDown className="h-4 w-4 text-ink-400" />}
-                                      </span>
-                                    }
-                                  />
-                                  {isOpen && (
-                                    members.length === 0 ? (
-                                      <div className="px-4 py-3 text-xs text-ink-400 text-center">{t('noAthletesInGroup')}</div>
-                                    ) : (
-                                      members.map((a) => (
-                                        <InsetRow
-                                          key={a.id}
-                                          icon={Watch}
-                                          iconBg={a.hasGarmin ? 'bg-accent-600' : 'bg-ink-300'}
-                                          label={a.name}
-                                          trailing={
-                                            a.hasGarmin ? (
-                                              <span className="flex items-center gap-1 text-2xs text-accent-900">
-                                                <CheckCircle className="h-3.5 w-3.5" /> {t('garmin')}
-                                              </span>
-                                            ) : (
-                                              <span className="flex items-center gap-1 text-2xs text-ink-400">
-                                                <XCircle className="h-3.5 w-3.5" /> {t('notConnected')}
-                                              </span>
-                                            )
-                                          }
-                                        />
-                                      ))
-                                    )
-                                  )}
-                                </InsetSection>
-                              );
-                            })
-                          )}
-
-                          {/* Athletes with no group assigned */}
-                          {(() => {
-                            const ungrouped = activeAthletes.filter((a) => !a.group_id);
-                            if (ungrouped.length === 0) return null;
-                            return (
-                              <p className="text-xs text-ink-400 text-center pt-1">
-                                {t('withoutGroupNote', { count: ungrouped.length })}
-                              </p>
-                            );
-                          })()}
-                        </div>
-                      )}
-
-                      {pushTab === 'groups' && (
-                        <div>
-                          {groups.length === 0 ? (
-                            <p className="text-sm text-ink-400 text-center py-8">{t('noGroupsFound')}</p>
-                          ) : (
-                            <InsetSection>
-                              {sortByPaceGroup(groups).map((group, groupIdx) => {
-                                const count = activeAthletes.filter((a) => a.group_id === group.id).length;
-                                const isSelected = selectedGroupIds.includes(group.id);
-                                const groupLabel = t('groupLabel', { n: Math.min(groupIdx + 1, 3) });
-                                const iconBg = groupIdx === 0 ? 'bg-accent-600' : groupIdx === 1 ? 'bg-band-3' : 'bg-band-3';
-                                return (
-                                  <InsetRow
-                                    key={group.id}
-                                    icon={Layers}
-                                    iconBg={iconBg}
-                                    label={group.name}
-                                    sublabel={`${groupLabel} · ${t('athleteCount', { count })}`}
-                                    onClick={() => {
-                                      setSelectedGroupIds((prev) =>
-                                        isSelected ? prev.filter((id) => id !== group.id) : [...prev, group.id]
-                                      );
-                                    }}
-                                    trailing={
-                                      isSelected
-                                        ? <CheckCircle2 className="h-5 w-5 text-brand-600" />
-                                        : <span className="h-5 w-5 rounded-full border-2 border-ink-300" />
-                                    }
-                                  />
-                                );
-                              })}
-                            </InsetSection>
-                          )}
-                        </div>
-                      )}
-
-                      {pushTab === 'athletes' && (
-                        <div className="space-y-3">
-                          <div className="relative">
-                            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-400" />
-                            <input
-                              type="text"
-                              value={athleteSearch}
-                              onChange={(e) => setAthleteSearch(e.target.value)}
-                              placeholder={t('searchAthletes')}
-                              className="w-full min-h-[44px] ps-9 text-sm bg-page border border-page rounded-lg text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600/50"
-                            />
-                          </div>
-
-                          <div className="max-h-[300px] overflow-y-auto">
-                            {filteredAthletes.length === 0 ? (
-                              <p className="text-sm text-ink-400 text-center py-6">{t('noAthletesFound')}</p>
-                            ) : (
-                              <InsetSection className="mb-0">
-                                {filteredAthletes.map((athlete) => {
-                                  const isSelected = selectedAthleteIds.includes(athlete.id);
-                                  const athleteGroupIdx = groups.findIndex((g) => g.id === athlete.group_id);
-                                  const athleteGroup = athleteGroupIdx >= 0 ? groups[athleteGroupIdx] : undefined;
-                                  // Can't push a workout to an athlete with no Garmin connected.
-                                  const canPush = !!athlete.hasGarmin;
-                                  const row = (
-                                    <InsetRow
-                                      icon={Watch}
-                                      iconBg={canPush ? 'bg-accent-600' : 'bg-ink-300'}
-                                      label={athlete.name}
-                                      sublabel={athleteGroup?.name}
-                                      onClick={canPush ? () => {
-                                        setSelectedAthleteIds((prev) =>
-                                          isSelected ? prev.filter((id) => id !== athlete.id) : [...prev, athlete.id]
-                                        );
-                                      } : undefined}
-                                      trailing={
-                                        !canPush
-                                          ? <span className="text-3xs text-accent-red/70 shrink-0">{t('noGarminTag')}</span>
-                                          : isSelected
-                                            ? <CheckCircle2 className="h-5 w-5 text-brand-600" />
-                                            : <span className="h-5 w-5 rounded-full border-2 border-ink-300" />
-                                      }
-                                    />
-                                  );
-                                  return canPush ? (
-                                    <div key={athlete.id}>{row}</div>
-                                  ) : (
-                                    <div key={athlete.id} className="opacity-50" title={t('noGarminTitle')}>{row}</div>
-                                  );
-                                })}
-                              </InsetSection>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                      <RecipientPicker roster={roster} paces={[null, null, null]} value={recipients} onChange={setRecipients} />
+                      {/* What the choice comes to, counted from the selection — never the plan size. */}
+                      {(() => {
+                        const readyCount = pickedIds.length;
+                        return <p className="mt-3 text-center text-sm text-ink-500">{t('garminWillReceive', { ready: readyCount, count: selectedWorkoutCount })}</p>;
+                      })()}
                     </>
                   )}
                 </div>

@@ -555,7 +555,9 @@
     "editDayTooltip": "Edit {day}",
     "addWorkoutTooltip": "Add a workout for {day}",
     "stepsCount": "{count} steps",
-    "resendWarning": "{athletes} runners already got this workout (last at {time}), and the session is in about {hours} hours. Sending again deletes the earlier version on Garmin: whoever already synced will have to sync again, and whoever doesn't will run without it. The \"updated, sync again\" notification has been turned on."
+    "resendWarning": "{athletes} runners already got this workout (last at {time}), and the session is in about {hours} hours. Sending again deletes the earlier version on Garmin: whoever already synced will have to sync again, and whoever doesn't will run without it. The \"updated, sync again\" notification has been turned on.",
+    "onWatches": "On watches",
+    "watchSendMore": "Send to more people"
   },
   "publishReview": {
     "statSessions": "Sessions this week",

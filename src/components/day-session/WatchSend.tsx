@@ -65,46 +65,56 @@ const Tick = ({ on, color, disabled }: { on: boolean; color?: string; disabled?:
   >{on && <Check className="h-3.5 w-3.5" strokeWidth={3} />}</span>
 );
 
-type Mode = 'all' | 'pack' | 'one';
+export type Mode = 'all' | 'pack' | 'one';
 
-/** Who it goes to. `onSend` gets the ids, only people with a watch. */
-export function WatchChoose({ roster, paces, session, busy, onSend }: {
+/** Who a send goes to: everyone, some packs, or people by name. */
+export interface Recipients { mode: Mode; packs: number[]; picked: string[] }
+export const EVERYONE: Recipients = { mode: 'all', packs: [], picked: [] };
+
+/** The ids a choice comes to — only people with a watch. */
+export function recipientIds(roster: RosterPerson[], v: Recipients): string[] {
+  const withWatch = roster.filter((p) => p.hasWatch);
+  return v.mode === 'all' ? withWatch.map((p) => p.id)
+    : v.mode === 'pack' ? withWatch.filter((p) => v.packs.includes(p.pack)).map((p) => p.id)
+      : v.picked.filter((id) => withWatch.some((p) => p.id === id));
+}
+
+/** The button's words for a choice: "לשלוח לכולם · 12", "לשלוח לדבוקה 2 · 5", "לשלוח ל־3". */
+export function recipientsLabel(v: Recipients, n: number): string {
+  return v.mode === 'all' ? `לשלוח לכולם · ${n}`
+    : v.mode === 'pack' && v.packs.length === 1 ? `לשלוח לדבוקה ${v.packs[0] + 1} · ${n}`
+      : `לשלוח ל־${n}`;
+}
+
+/**
+ * כולם · דבוקה · יחידים (mockup watch-send-v3, screens 1–3) — controlled, so the one-day
+ * send and the weekly planner draw the same picker and keep the choice themselves.
+ */
+export function RecipientPicker({ roster, paces, value: v, onChange }: {
   roster: RosterPerson[];
-  /** Each pack's pace text, for the rows ("3:15"); null = the session has none. */
+  /** Each pack's pace text, for the rows ("3:15"); null = none to show. */
   paces: Array<string | null>;
-  session: ReactNode;
-  busy: boolean;
-  onSend: (ids: string[]) => void;
+  value: Recipients;
+  onChange: (next: Recipients) => void;
 }) {
-  const [mode, setMode] = useState<Mode>('all');
-  const [packs, setPacks] = useState<number[]>([]);
-  const [picked, setPicked] = useState<string[]>([]);
   const [q, setQ] = useState('');
+  const set = (patch: Partial<Recipients>) => onChange({ ...v, ...patch });
   const withWatch = roster.filter((p) => p.hasWatch);
   const noWatch = roster.filter((p) => !p.hasWatch);
-  const ids = mode === 'all' ? withWatch.map((p) => p.id)
-    : mode === 'pack' ? withWatch.filter((p) => packs.includes(p.pack)).map((p) => p.id)
-      : picked;
-  const label = mode === 'all' ? `לשלוח לכולם · ${ids.length}`
-    : mode === 'pack' ? (packs.length === 1 ? `לשלוח לדבוקה ${packs[0] + 1} · ${ids.length}` : `לשלוח ל־${ids.length}`)
-      : `לשלוח ל־${ids.length}`;
-  const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+  const toggle = <T,>(list: T[], x: T) => (list.includes(x) ? list.filter((y) => y !== x) : [...list, x]);
   const shown = q.trim() ? roster.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase())) : roster;
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4">
-        {session}
+    <div className="space-y-3">
         <div className="flex rounded-[13px] bg-[#E3E3E9] p-[3px]" role="tablist">
           {([['all', '👥', 'כולם'], ['pack', '🎽', 'דבוקה'], ['one', '👤', 'יחידים']] as const).map(([m, e, t]) => (
-            <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)}
-              className={cn('flex min-h-[52px] flex-1 flex-col items-center justify-center rounded-[11px] text-[15px] font-bold', mode === m ? 'bg-white text-ink-900 shadow-[0_2px_8px_rgba(0,0,0,0.08)]' : 'text-ink-500')}>
+            <button key={m} type="button" role="tab" aria-selected={v.mode === m} onClick={() => set({ mode: m })}
+              className={cn('flex min-h-[52px] flex-1 flex-col items-center justify-center rounded-[11px] text-[15px] font-bold', v.mode === m ? 'bg-white text-ink-900 shadow-[0_2px_8px_rgba(0,0,0,0.08)]' : 'text-ink-500')}>
               <span aria-hidden className="text-[17px] leading-none">{e}</span>{t}
             </button>
           ))}
         </div>
 
-        {mode === 'all' && (
+        {v.mode === 'all' && (
           <>
             <div className={cn(CARD, 'px-4 pb-4 pt-5 text-center')}>
               <p className="text-[15px] font-semibold text-ink-500">יגיע לשעון אצל</p>
@@ -133,16 +143,16 @@ export function WatchChoose({ roster, paces, session, busy, onSend }: {
           </>
         )}
 
-        {mode === 'pack' && (
+        {v.mode === 'pack' && (
           <>
             <p className="px-1.5 text-13 font-bold text-ink-400">לבחור דבוקה אחת או יותר</p>
             <div className={cn(CARD, 'overflow-hidden')}>
               {[0, 1, 2].map((k) => {
                 const members = roster.filter((p) => p.pack === k);
                 const ready = members.filter((p) => p.hasWatch);
-                const on = packs.includes(k);
+                const on = v.packs.includes(k);
                 return (
-                  <button key={k} type="button" onClick={() => setPacks((p) => toggle(p, k))} aria-pressed={on}
+                  <button key={k} type="button" onClick={() => set({ packs: toggle(v.packs, k) })} aria-pressed={on}
                     className="flex w-full items-center gap-3 border-b border-[#EFEFF4] px-4 py-3.5 text-start last:border-0">
                     <span className="grid h-[46px] w-[46px] shrink-0 place-items-center rounded-[15px] text-xl font-extrabold text-white" style={{ background: GROUP_HEX[k] }}>{k + 1}</span>
                     <span className="min-w-0 flex-1">
@@ -161,19 +171,19 @@ export function WatchChoose({ roster, paces, session, busy, onSend }: {
           </>
         )}
 
-        {mode === 'one' && (
+        {v.mode === 'one' && (
           <>
             <label className="flex h-11 items-center gap-2 rounded-xl bg-[#E3E3E9] px-3 text-ink-400">
               <Search className="h-4 w-4" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="חיפוש לפי שם" className="min-w-0 flex-1 bg-transparent text-base text-ink-900 outline-none placeholder:text-ink-400" />
             </label>
-            {picked.length > 0 && (
+            {v.picked.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-13 font-bold text-ink-500">נבחרו:</span>
-                {picked.map((id) => {
+                {v.picked.map((id) => {
                   const p = roster.find((x) => x.id === id);
                   return (
-                    <button key={id} type="button" onClick={() => setPicked((l) => l.filter((x) => x !== id))}
+                    <button key={id} type="button" onClick={() => set({ picked: v.picked.filter((x) => x !== id) })}
                       className="inline-flex min-h-[32px] items-center gap-1 rounded-lg bg-brand-600/10 px-2.5 text-13 font-bold text-brand-600">
                       {p?.name.split(' ')[0]}<X className="h-3 w-3" />
                     </button>
@@ -189,9 +199,9 @@ export function WatchChoose({ roster, paces, session, busy, onSend }: {
                   <p className="px-1.5 text-13 font-extrabold" style={{ color: GROUP_HEX[k] }}>● דבוקה {k + 1}</p>
                   <div className={cn(CARD, 'overflow-hidden')}>
                     {list.map((p) => {
-                      const on = picked.includes(p.id);
+                      const on = v.picked.includes(p.id);
                       return (
-                        <button key={p.id} type="button" disabled={!p.hasWatch} onClick={() => setPicked((l) => toggle(l, p.id))} aria-pressed={on}
+                        <button key={p.id} type="button" disabled={!p.hasWatch} onClick={() => set({ picked: toggle(v.picked, p.id) })} aria-pressed={on}
                           className="flex min-h-[60px] w-full items-center gap-3 border-b border-[#EFEFF4] px-4 text-start last:border-0">
                           <Avatar name={p.name} pack={p.pack} dim={!p.hasWatch} />
                           <span className="min-w-0 flex-1">
@@ -208,11 +218,30 @@ export function WatchChoose({ roster, paces, session, busy, onSend }: {
             })}
           </>
         )}
+    </div>
+  );
+}
+
+/** Who it goes to, with the session above and the send button below (the one-day send). */
+export function WatchChoose({ roster, paces, session, busy, onSend }: {
+  roster: RosterPerson[];
+  paces: Array<string | null>;
+  session: ReactNode;
+  busy: boolean;
+  onSend: (ids: string[]) => void;
+}) {
+  const [value, setValue] = useState<Recipients>(EVERYONE);
+  const ids = recipientIds(roster, value);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4">
+        {session}
+        <RecipientPicker roster={roster} paces={paces} value={value} onChange={setValue} />
       </div>
       <div className="shrink-0 border-t border-[#E6E6EC] bg-page/95 px-4 pb-7 pt-3">
         <button type="button" disabled={!ids.length || busy} onClick={() => onSend(ids)}
           className="flex h-14 w-full items-center justify-center gap-2 rounded-[17px] bg-brand-600 text-[17px] font-extrabold text-white shadow-[0_10px_24px_-10px_rgba(21,37,255,0.6)] disabled:opacity-40">
-          <span aria-hidden>⌚</span>{busy ? 'שולח…' : label}
+          <span aria-hidden>⌚</span>{busy ? 'שולח…' : recipientsLabel(value, ids.length)}
         </button>
       </div>
     </div>
