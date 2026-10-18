@@ -1435,11 +1435,21 @@ export function academyCoachRoleRemovedCopy(locale: NotificationLocale, p: { coa
   return { title: `🎓 ${p.coach} is no longer an academy coach`, body: `${moved}. ${left}` };
 }
 
-/** The session's photos are up (#106) — to who marked "coming" that morning. */
-export function sessionPhotosCopy(locale: NotificationLocale, p: { workout: string | null }): PushCopy {
+/**
+ * The photos are up (#106) — to the whole club. A quality morning names its
+ * workout; an event (a folder made by hand on a day with no quality session)
+ * names the folder instead.
+ */
+export function sessionPhotosCopy(locale: NotificationLocale, p: { workout: string | null; event?: string | null }): PushCopy {
+  const what = p.workout || p.event || '';
+  if (!p.workout && p.event) {
+    return locale === 'he'
+      ? { title: '📸 התמונות עלו לאפליקציה', body: `${what} · לחיצה פותחת את כל התמונות` }
+      : { title: '📸 The photos are up in the app', body: `${what} · Tap to see them all` };
+  }
   return locale === 'he'
-    ? { title: '📸 התמונות מאימון הבוקר עלו', body: `${p.workout ? `${p.workout} · ` : ''}לחיצה פותחת את כל התמונות` }
-    : { title: '📸 Photos from this morning\'s session are up', body: `${p.workout ? `${p.workout} · ` : ''}Tap to see them all` };
+    ? { title: '📸 התמונות מאימון הבוקר עלו', body: `${what ? `${what} · ` : ''}לחיצה פותחת את כל התמונות` }
+    : { title: '📸 Photos from this morning\'s session are up', body: `${what ? `${what} · ` : ''}Tap to see them all` };
 }
 
 /** The evening before a quality day: its photo folder is ready (#106). To the editors. */

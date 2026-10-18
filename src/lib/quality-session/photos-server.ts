@@ -1,7 +1,7 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
 import { addDaysToDateStr, israelNow, israelToday } from '@/lib/utils';
-import { SUPER_USER_EMAIL } from '@/lib/constants';
+import { COACH_ID, SUPER_USER_EMAIL } from '@/lib/constants';
 import { sessionFolderReadyCopy, sessionPhotosCopy } from '@/lib/notifications/copy';
 import { driveWriter, ensureDayFolder } from '@/lib/google-drive/writer';
 import { loadQualityWorkout } from './server';
@@ -65,24 +65,23 @@ export async function cardFor(supabase: Db, date: string) {
   return data;
 }
 
-/** Who marked "coming" that morning. Attendance weeks start on Sunday. */
-async function attendees(supabase: Db, date: string): Promise<string[]> {
-  const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
-  const { data } = await supabase.from('workout_attendance')
-    .select('athlete_id')
-    .eq('week_start_date', addDaysToDateStr(date, -dow))
-    .eq('day_of_week', dow)
-    .eq('attending', true);
-  return [...new Set(((data || []) as Array<{ athlete_id: string }>).map((r) => r.athlete_id))];
+/**
+ * Who hears that the photos are up: the whole club, once per day's card (Ofer,
+ * 2026-10-18 — every quality session and every event, not only who marked
+ * "coming"; an event has no RSVP at all, so that rule told nobody).
+ */
+async function clubMembers(supabase: Db): Promise<string[]> {
+  const { data } = await supabase.from('athletes').select('id').eq('coach_id', COACH_ID).eq('status', 'active');
+  return ((data || []) as Array<{ id: string }>).map((r) => r.id);
 }
 
 /**
- * The day's card: published, or updated in place (one card per day). Members who
- * marked "coming" are told on the first publish only, and only with `notify`.
+ * The day's card: published, or updated in place (one card per day). The club is
+ * told on the first publish only, and only with `notify`.
  */
 export async function publishSessionPhotos(
   supabase: Db,
-  p: { date: string; link: string; media: PulledMedia[]; byAthleteId: string | null; notify: boolean },
+  p: { date: string; link: string; media: PulledMedia[]; byAthleteId: string | null; notify: boolean; name?: string | null },
 ): Promise<{ id: string; updated?: boolean; told: number }> {
   const workoutName = (await loadQualityWorkout(supabase, p.date).catch(() => null))?.name || null;
   const payload: SessionPhotosPayload = {
@@ -108,13 +107,13 @@ export async function publishSessionPhotos(
 
   let told = 0;
   if (p.notify) {
-    for (const athleteId of (await attendees(supabase, p.date)).filter((id) => id !== p.byAthleteId)) {
+    for (const athleteId of (await clubMembers(supabase)).filter((id) => id !== p.byAthleteId)) {
       try {
         await notifyAthlete({
           athleteId,
           kind: 'session_photos',
           actorAthleteId: p.byAthleteId,
-          copy: (locale) => sessionPhotosCopy(locale, { workout: workoutName }),
+          copy: (locale) => sessionPhotosCopy(locale, { workout: workoutName, event: p.name }),
           url: `/feed?item=${created.id}`,
           tag: `session-photos-${p.date}`,
         });
@@ -210,7 +209,7 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
     });
     if (!pulled.ok) continue;
     const out = await publishSessionPhotos(supabase, {
-      date, link: entry.link, media: [...(card?.media ?? []), ...pulled.media], byAthleteId: null, notify: !card,
+      date, link: entry.link, media: [...(card?.media ?? []), ...pulled.media], byAthleteId: null, notify: !card, name: entry.name,
     });
     entry.publishedId = out.id;
     fired.push(`${card ? 'sessionPhotosMore' : 'sessionPhotos'}:${date}`);

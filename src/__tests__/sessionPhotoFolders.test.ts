@@ -56,7 +56,7 @@ function db() {
         if (update && table === 'feed_items') {
           const c = h.cards.find(x => x.id === f.id)!; Object.assign(c, update);
         }
-        return Promise.resolve({ data: table === 'workout_attendance' ? [{ athlete_id: 'runner-1' }, { athlete_id: 'runner-2' }] : [], error: null }).then(res);
+        return Promise.resolve({ data: table === 'athletes' ? [{ id: 'runner-1' }, { id: 'runner-2' }] : [], error: null }).then(res);
       },
     };
     return api;
@@ -112,7 +112,7 @@ describe('the morning of the quality day', () => {
     expect(h.cards).toHaveLength(0);
   });
 
-  it('photos in the folder: the card goes up with the first six, and who came is told', async () => {
+  it('photos in the folder: the card goes up with the first six, and the club is told', async () => {
     const s = await morning();
     h.photos = 9;
     expect(await runSessionPhotoFolders(s, at('2026-10-20T05:00:00Z'))).toEqual(['sessionPhotos:2026-10-20']);
@@ -165,5 +165,15 @@ describe('the morning of the quality day', () => {
     h.photos = 5;
     expect(await runSessionPhotoFolders(s, at('2026-10-20T05:00:00Z'))).toEqual([]);
     expect(h.cards[0].media).toEqual([]);
+  });
+});
+
+describe('the push when the photos are up', () => {
+  it('a quality morning names the workout; an event names its folder', async () => {
+    const { sessionPhotosCopy } = await vi.importActual<typeof import('@/lib/notifications/copy')>('@/lib/notifications/copy');
+    expect(sessionPhotosCopy('he', { workout: '15 × 200', event: 'אימון איכות · ראשון 18.10' }).title).toBe('📸 התמונות מאימון הבוקר עלו');
+    const ev = sessionPhotosCopy('he', { workout: null, event: 'מרתון ולנסיה' });
+    expect(ev.title).toBe('📸 התמונות עלו לאפליקציה');
+    expect(ev.body).toBe('מרתון ולנסיה · לחיצה פותחת את כל התמונות');
   });
 });
