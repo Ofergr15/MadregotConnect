@@ -2,13 +2,18 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireApprover } from '@/lib/auth/require-approver';
 import { createAndSendSurvey } from '@/lib/surveys';
+import { closesAt } from '@/lib/publish/model';
+import { publishClubPost } from '@/lib/publish/server';
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/admin/surveys — staff-only. Lists surveys newest-first with
 // per-option response counts, for the Notification Center's results view.
-export async function GET() {
+// It lists who answered what, so it is the approvers' too (it had no gate at all).
+export async function GET(request: Request) {
   try {
+    const { denied } = await requireApprover(request);
+    if (denied) return denied;
     const supabase = createServerClient();
     const { data: surveys, error } = await supabase
       .from('surveys')
@@ -54,6 +59,8 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const { question_he, question_en, options_he, options_en, audience_type, audience_id } = body;
+    // From "לפרסם › סקר" (mockup publish, C3): when it closes, whether it pushes, and a card on the feed.
+    const closes = body.closes === 'tomorrow' || body.closes === 'week' ? closesAt(body.closes) : null;
     if (!question_he?.trim()) {
       return NextResponse.json({ error: 'question_he is required' }, { status: 400 });
     }
@@ -70,9 +77,16 @@ export async function POST(request: Request) {
       audienceType: audience_type || 'all',
       audienceId: audience_id,
       createdBy: actorEmail,
+      closesAt: closes,
+      push: body.push !== false,
     });
+    // The survey on the feed, to answer in place (FeedCard's SurveyCard reads payload.surveyId).
+    let feedItemId: string | null = null;
+    if (body.feed === true) {
+      feedItemId = await publishClubPost(createServerClient(), { body: question_he.trim(), payload: { surveyId: survey.id } });
+    }
 
-    return NextResponse.json({ survey, sent });
+    return NextResponse.json({ survey, sent, feedItemId });
   } catch (err: unknown) {
     console.error('Failed to create survey:', err);
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });

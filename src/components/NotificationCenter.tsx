@@ -235,7 +235,7 @@ export function NotificationCenter() {
 
   const loadSurveys = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/surveys');
+      const res = await fetch('/api/admin/surveys', { headers: await bearerHeaders() });
       const data = await res.json();
       setSurveys(data.surveys || []);
     } catch { /* noop */ }

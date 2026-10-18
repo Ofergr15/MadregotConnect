@@ -20,6 +20,8 @@ export async function createAndSendSurvey(opts: {
   createdBy?: string | null;
   /** false: create the poll without its own push (the caller's push asks it). */
   push?: boolean;
+  /** ISO; null = open until somebody closes it. */
+  closesAt?: string | null;
 }): Promise<{ survey: { id: string; [key: string]: unknown }; sent: number }> {
   const supabase = createServerClient();
   const cleanOptionsHe = opts.optionsHe.map((o) => o.trim()).filter(Boolean);
@@ -34,6 +36,7 @@ export async function createAndSendSurvey(opts: {
       audience_type: opts.audienceType || 'all',
       audience_id: opts.audienceType === 'all' || opts.audienceType === 'academy' ? null : opts.audienceId || null,
       created_by: opts.createdBy || null,
+      ...(opts.closesAt ? { closes_at: opts.closesAt } : {}),
     })
     .select()
     .single();

@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { Award, Bell, CalendarDays, ChevronLeft, Sparkles } from 'lucide-react';
+import { Award, BarChart3, Bell, CalendarDays, ChevronLeft, Medal, Megaphone, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { EmptyState, InsetRow, InsetSection, Skeleton } from '@/components/ui';
@@ -33,7 +33,10 @@ interface ContentResponse {
   events: Array<{ id: string; name: string; date: string }>;
   lastNotification: { title: string | null; sentAt: string; reached: number } | null;
   latestNote: { title: string; date: string } | null;
+  recent?: Array<{ id: string; kind: 'message' | 'cheer' | 'survey'; text: string; at: string; likes: number; comments: number; answers: number | null }>;
 }
+
+const RECENT_ICON = { message: '📣', cheer: '🏅', survey: '📊' } as const;
 
 const PHASE_PILL: Record<ChallengePhase, string> = {
   active: 'bg-accent-600/15 text-accent-900',
@@ -48,6 +51,7 @@ function shortDate(day: string): string {
 
 export default function ContentPage() {
   const t = useTranslations('contentHub');
+  const tp = useTranslations('publish');
   const { data, isLoading } = useApi<ContentResponse>('/api/admin/content');
   const [phase, setPhase] = useState<ChallengePhase>('active');
 
@@ -69,6 +73,30 @@ export default function ContentPage() {
   return (
     <div className="space-y-3 pb-6">
       <h1 className="text-[28px] font-black text-ink-700">{t('title')}</h1>
+
+      {/* לפרסם (mockup publish, C0): the three things staff put on the feed. */}
+      <InsetSection header={tp('publishHeader')}>
+        <InsetRow icon={Megaphone} iconBg="bg-brand-600" label={tp('typeMessage')} sublabel={tp('typeMessageSub')} href="/dashboard/content/publish?type=message" />
+        <InsetRow icon={Medal} iconBg="bg-[#E8436E]" label={tp('typeCheer')} sublabel={tp('typeCheerSub')} href="/dashboard/content/publish?type=cheer" />
+        <InsetRow icon={BarChart3} iconBg="bg-accent-900" label={tp('typeSurvey')} sublabel={tp('typeSurveySub')} href="/dashboard/content/publish?type=survey" />
+      </InsetSection>
+      {(data?.recent?.length ?? 0) > 0 && (
+        <InsetSection header={tp('recentHeader')}>
+          {data!.recent!.slice(0, 5).map((r) => (
+            <Link key={r.id} href={`/feed?item=${r.id}`} className="flex min-h-[56px] items-center gap-3 border-b border-page px-4 py-2 last:border-0">
+              <span aria-hidden className="w-7 shrink-0 text-center text-lg">{RECENT_ICON[r.kind]}</span>
+              <span className="min-w-0 flex-1">
+                <span dir="auto" className="block truncate text-[15px] font-semibold text-ink-700">{r.text}</span>
+                <span className="block text-xs text-ink-400">
+                  {shortDate(israelDateOf(r.at))}
+                  {r.answers !== null ? <> · {tp('answers', { n: r.answers })}</> : <> · ❤️ <bdi dir="ltr">{r.likes}</bdi> · 💬 <bdi dir="ltr">{r.comments}</bdi></>}
+                </span>
+              </span>
+              <ChevronLeft className="h-4 w-4 shrink-0 text-ink-400" />
+            </Link>
+          ))}
+        </InsetSection>
+      )}
 
       <div className="flex items-center justify-between px-1">
         <p className="text-2xs font-bold uppercase tracking-wider text-ink-400">{t('challenges')}</p>
