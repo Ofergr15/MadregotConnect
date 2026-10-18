@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { Award, BarChart3, Bell, Cake, CalendarDays, ChevronLeft, Medal, Megaphone, Sparkles } from 'lucide-react';
+import { Award, BarChart3, Bell, Cake, CalendarDays, ChevronLeft, Medal, Megaphone, Radio, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { EmptyState, InsetRow, InsetSection, Skeleton } from '@/components/ui';
@@ -179,6 +179,13 @@ export default function ContentPage() {
             ? t('notificationsSub', { date: shortDate(israelDateOf(data.lastNotification.sentAt)), n: data.lastNotification.reached })
             : data ? t('notificationsNone') : undefined}
           href="/dashboard/settings?tab=notifications"
+        />
+        <InsetRow
+          icon={Radio}
+          iconBg="bg-[#FF5315]"
+          label={t('clubUpdates')}
+          sublabel={t('clubUpdatesSub')}
+          href="/dashboard/club-updates"
         />
         <InsetRow
           icon={Cake}

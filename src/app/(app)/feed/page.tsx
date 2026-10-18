@@ -44,6 +44,7 @@ import { OnboardingTestReset } from '@/components/onboarding/OnboardingTestReset
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import { GoalRaceBanner } from '@/components/GoalRaceBanner';
 import { CelebrationStories } from '@/components/feed/CelebrationStories';
+import { ClubUpdatesCard } from '@/components/club-updates/ClubUpdatesCard';
 import { toCelebration } from '@/lib/feed/celebration';
 import { BirthdayYearCard } from '@/components/birthday/BirthdayYearCard';
 import type { FeedItem } from '@/lib/feed/project';
@@ -618,6 +619,10 @@ export default function FeedPage() {
           The day's birthdays and celebrations as a row of circles, always first
           (CelebrationStories). Nothing on a day with nothing to celebrate. */}
       <CelebrationStories onComment={i => setCommentItem(i)} />
+
+      {/* ═══ CLUB UPDATES ═══ the staff's live updates as one card while fresh; nothing when
+          nothing was posted in the last day (components/club-updates). */}
+      <ClubUpdatesCard />
 
       {/* ═══ THE QUALITY SESSION ═══
           07:00 → 11:00 on a quality day (read off the plan), the super user's

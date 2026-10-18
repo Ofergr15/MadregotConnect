@@ -1,0 +1,50 @@
+/* "עדכונים מהמועדון" (components/club-updates), ported from the approved mockup
+   ~/.cache/madregot/club-updates/full-mockup.html: neutral surfaces, the club blue as the
+   accent, orange for breaking only, the stairs faint behind. Scoped under .cu. */
+.cu{--cu-blue:#1525FF;--cu-or:#FF5315;--cu-ink:#14151C;--cu-ink7:#2D2E38;--cu-ink4:#7C7D87;--cu-line:#E7E7EC}
+.cu .cu-stairs{position:absolute;pointer-events:none;background:#1525FF;-webkit-mask:url(/images/stairs-white.png) center/contain no-repeat;mask:url(/images/stairs-white.png) center/contain no-repeat;opacity:.035}
+.cu .cu-wm{display:inline-block;height:14px;aspect-ratio:1080/410;background:var(--cu-ink);-webkit-mask:url(/images/wordmark-white.png) center/contain no-repeat;mask:url(/images/wordmark-white.png) center/contain no-repeat}
+.cu .cu-dot{width:8px;height:8px;border-radius:50%;background:var(--cu-or);position:relative;flex-shrink:0;display:inline-block}
+.cu .cu-dot::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:2px solid var(--cu-or);opacity:.5;animation:cu-ping 1.6s ease-out infinite}
+@keyframes cu-ping{0%{transform:scale(.6);opacity:.7}100%{transform:scale(1.6);opacity:0}}
+.cu .cu-live-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:900;background:#FFF1EA;border:1px solid #FFD9C8;border-radius:50px;padding:3px 10px;color:#C2410C}
+.cu .cu-flash{display:inline-block;background:#C2410C;color:#fff;font-size:10.5px;font-weight:900;border-radius:6px;padding:1px 7px;margin-inline-end:6px;vertical-align:1px}
+/* feed card */
+.cu.cu-card{position:relative;overflow:hidden;border-radius:26px;background:#fff;border:1px solid var(--cu-line);box-shadow:0 10px 26px -18px rgba(20,21,28,.35);padding:14px 16px 12px}
+.cu.cu-card .cu-stairs{width:150px;height:150px;left:-46px;bottom:-60px;transform:rotate(-6deg)}
+.cu .cu-tl{position:relative;padding-inline-start:16px}
+.cu .cu-tl::before{content:"";position:absolute;top:8px;bottom:14px;inset-inline-start:3px;width:2px;background:linear-gradient(180deg,#C9CDF5,#EEF0FB)}
+.cu .cu-it{position:relative;padding:5px 0 8px}
+.cu .cu-it::before{content:"";position:absolute;inset-inline-start:-16px;top:10px;width:8px;height:8px;border-radius:50%;background:var(--cu-blue);box-shadow:0 0 0 3px #fff}
+.cu .cu-it.br::before{background:var(--cu-or);box-shadow:0 0 0 3px #fff,0 0 10px var(--cu-or)}
+.cu .cu-avs{display:flex}
+.cu .cu-avs>*{margin-inline-start:-7px;border:2px solid #fff;border-radius:50%}
+.cu .cu-avs>*:first-child{margin-inline-start:0}
+/* stream */
+.cu .cu-hero{position:relative;overflow:hidden;background:#fff;border-bottom:1px solid #E9E9EE}
+.cu .cu-hero .cu-stairs{width:210px;height:210px;left:-46px;top:-14px}
+.cu .cu-tl2{position:relative;padding-inline-start:18px}
+.cu .cu-tl2::before{content:"";position:absolute;top:6px;bottom:0;inset-inline-start:5px;width:2px;background:#D6D9EC}
+.cu .cu-p{position:relative;background:#fff;border-radius:20px;padding:11px 13px 10px;margin-bottom:10px;box-shadow:0 1px 2px rgba(10,16,128,.05),0 8px 20px -14px rgba(10,16,128,.3)}
+.cu .cu-p::before{content:"";position:absolute;inset-inline-start:-18px;top:16px;width:12px;height:12px;border-radius:50%;background:#fff;border:3px solid var(--cu-blue)}
+.cu .cu-p.br{background:linear-gradient(90deg,#fff 70%,#FFF3EE);box-shadow:inset -4px 0 0 var(--cu-or),0 8px 20px -14px rgba(255,83,21,.5)}
+[dir="ltr"] .cu .cu-p.br{box-shadow:inset 4px 0 0 var(--cu-or),0 8px 20px -14px rgba(255,83,21,.5)}
+.cu .cu-p.br::before{border-color:var(--cu-or);box-shadow:0 0 10px rgba(255,83,21,.7)}
+.cu .cu-p.hl{outline:3px solid var(--cu-blue);outline-offset:2px;animation:cu-hl 1.2s ease-in-out 3}
+@keyframes cu-hl{50%{outline-color:rgba(21,37,255,.2)}}
+.cu .cu-p.fresh{animation:cu-drop .45s ease-out}
+@keyframes cu-drop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.cu .cu-pin{background:linear-gradient(135deg,#EEF0FF,#fff);border:1px solid #D9DDFF;border-radius:20px}
+.cu .cu-badge{width:30px;height:30px;border-radius:10px;flex-shrink:0;background:var(--cu-blue) url(/images/stairs-white.png) center/70% no-repeat}
+.cu .cu-picker{position:absolute;bottom:36px;inset-inline-end:0;z-index:5;background:#fff;border-radius:50px;padding:6px 8px;display:flex;gap:2px;box-shadow:0 12px 30px -8px rgba(10,16,128,.45)}
+.cu .cu-picker button{font-size:24px;width:40px;height:40px;border-radius:50%}
+.cu .cu-picker button:active{transform:scale(1.2)}
+.cu-fab{position:fixed;z-index:40;bottom:calc(env(safe-area-inset-bottom) + 92px);inset-inline-end:18px;width:56px;height:56px;border-radius:50%;background:#1525FF;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 26px -8px rgba(21,37,255,.9)}
+.cu-toast{position:fixed;z-index:60;inset-inline:14px;bottom:calc(env(safe-area-inset-bottom) + 96px);background:#14151C;color:#fff;border-radius:18px;padding:12px 14px;display:flex;align-items:center;gap:10px;font-size:13.5px;box-shadow:0 14px 30px -10px rgba(0,0,0,.5);overflow:hidden}
+.cu-toast .cu-bar{position:absolute;bottom:0;inset-inline:0;height:3px;background:#FFB08F;transform-origin:right;animation:cu-bar linear forwards}
+[dir="ltr"] .cu-toast .cu-bar{transform-origin:left}
+@keyframes cu-bar{to{transform:scaleX(0)}}
+@media (prefers-reduced-motion:reduce){.cu .cu-dot::after,.cu .cu-p.hl,.cu .cu-p.fresh{animation:none}}
+/* A bigger finger target than the pill shows (the pills stay compact). */
+.cu .cu-hit{position:relative}
+.cu .cu-hit::before{content:"";position:absolute;inset:-6px -2px}

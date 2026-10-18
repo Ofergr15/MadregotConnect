@@ -18,7 +18,8 @@ describe('release notes file', () => {
     for (const n of BUNDLED_NOTES) {
       expect(['feature', 'fix']).toContain(n.kind);
       expect(n.title.length, n.id).toBeLessThanOrEqual(80);
-      if (n.href) expect(existsSync(join(__dirname, '..', 'app/(app)', n.href, 'page.tsx')), n.href).toBe(true);
+      // The page, not its query: /dashboard/profile?tab=stats is the profile page.
+      if (n.href) expect(existsSync(join(__dirname, '..', 'app/(app)', n.href.split('?')[0], 'page.tsx')), n.href).toBe(true);
     }
     expect(existsSync(join(__dirname, '..', 'app/(app)/dashboard/whats-new/page.tsx'))).toBe(true);
   });
