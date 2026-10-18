@@ -5,25 +5,19 @@ import { pickBilingual } from '@/lib/notifications/copy';
 import { publishAnnouncement } from '@/lib/feed/announce';
 import { ACADEMY_REMINDER_KINDS } from '@/lib/academy/testReminders';
 import { cronPaused } from '@/lib/cron-pause';
+import { nextRecurrence } from '@/lib/notifications/scheduling';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// Advance a recurring next_run_at by its interval. Returns a new ISO timestamp.
-function advance(current: string, interval: number, unit: string): string {
-  const d = new Date(current);
-  const days = unit === 'week' ? interval * 7 : interval;
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString();
-}
-
 /**
- * Notification Center scanner. Runs on a Vercel Cron (daily 06:00 UTC — the
- * Hobby plan only allows once-daily crons): finds notifications whose
- * next_run_at has passed, sends them to their audience, then advances recurring
- * ones / marks one-time ones sent. Secured with CRON_SECRET like the other crons.
- * NOTE: "send now" delivers immediately from the API route, not via this cron;
- * only scheduled / recurring sends wait for the daily tick.
+ * Notification Center scanner. Vercel Cron runs it every minute (vercel.json), and it is
+ * the only thing that does — the 5-minute tick used to call it too, and at 06:00 UTC the
+ * two ran at once over the same rows. Finds notifications whose next_run_at has passed,
+ * CLAIMS each one (moves it on, `WHERE` it still has the next_run_at it was read with), and
+ * sends only what it claimed: two overlapping runs can no longer both send the same row.
+ * A recurring row moves to its next run in Israel's wall clock, past any it missed.
+ * "Send now" delivers from the API route and never waits for this.
  */
 async function run(request: Request) {
   if (await cronPaused()) return NextResponse.json({ paused: true });
@@ -44,7 +38,7 @@ async function run(request: Request) {
   // whole content is "we have no result for your test". That one has to be checked against the
   // invitation first, because sending it to somebody who ran the test is the message this
   // product cannot take back. So `dispatchDueTestReminders` owns those two kinds (it runs from
-  // the same five-minute tick that calls this route) and they are skipped here: two scanners
+  // five-minute tick) and they are skipped here: two scanners
   // over the same rows would race to send the same push twice.
   const { data: due, error } = await supabase
     .from('scheduled_notifications')
@@ -59,6 +53,21 @@ async function run(request: Request) {
 
   for (const n of due || []) {
     try {
+      // Claim first. The update only matches while the row still has the next_run_at we
+      // read, so whichever run gets here second matches nothing and sends nothing.
+      const recurring = n.schedule_type === 'recurring' && n.recur_interval && n.recur_unit;
+      const claim = recurring
+        ? { next_run_at: nextRecurrence(n.next_run_at, n.recur_interval, n.recur_unit, Date.now()), last_sent_at: nowIso, updated_at: nowIso }
+        : { status: 'sent', last_sent_at: nowIso, updated_at: nowIso };
+      const { data: won } = await supabase
+        .from('scheduled_notifications')
+        .update(claim)
+        .eq('id', n.id)
+        .eq('status', 'scheduled')
+        .eq('next_run_at', n.next_run_at)
+        .select('id');
+      if (!won || won.length === 0) continue;
+
       const subs = await resolveAudience(n.audience_type, n.audience_id);
       // Recurring notifications reuse the same `notif-${n.id}` tag on every
       // fire (one-time ones only ever send once), so each new occurrence
@@ -79,35 +88,18 @@ async function run(request: Request) {
         category: 'news',
         ...(n.image_url ? { icon: n.image_url, image: n.image_url } : {}),
       }));
-
-      if (n.schedule_type === 'recurring' && n.recur_interval && n.recur_unit) {
-        await supabase
-          .from('scheduled_notifications')
-          .update({
-            next_run_at: advance(n.next_run_at, n.recur_interval, n.recur_unit),
-            last_sent_at: nowIso,
-            sent_count: (n.sent_count || 0) + sent,
-            updated_at: nowIso,
-          })
-          .eq('id', n.id);
-      } else {
-        await supabase
-          .from('scheduled_notifications')
-          .update({
-            status: 'sent',
-            last_sent_at: nowIso,
-            sent_count: (n.sent_count || 0) + sent,
-            updated_at: nowIso,
-          })
-          .eq('id', n.id);
-      }
+      await supabase
+        .from('scheduled_notifications')
+        .update({ sent_count: (n.sent_count || 0) + sent })
+        .eq('id', n.id);
       // Same feed trace the send-now path leaves. Recurring reminders are
       // filtered out inside publishAnnouncement, not here, so the two callers
       // cannot disagree about what counts as an announcement.
       await publishAnnouncement(supabase, n, nowIso);
       results.push({ id: n.id, sent });
     } catch (e: unknown) {
-      // Don't let one bad notification block the rest.
+      // Don't let one bad notification block the rest. A claimed row that failed to
+      // send is not retried: a missed push is better than the same one twice.
       console.error('[cron/notifications] failed for', n.id, (e as Error).message);
     }
   }

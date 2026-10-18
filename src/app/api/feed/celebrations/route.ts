@@ -6,6 +6,7 @@ import { loadFeedContext } from '@/lib/feed/context';
 import { isCelebrationActive, toCelebration, type Celebration } from '@/lib/feed/celebration';
 import { israelToday } from '@/lib/utils';
 import { israelDateOf } from '@/lib/reports/last-7-days';
+import { readConfig as readBirthdayConfig } from '@/lib/birthday-year/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,9 +47,24 @@ export async function GET(request: Request) {
       : { data: [] as Array<{ id: string; name: string | null; avatar_url: string | null }> };
     const byId = new Map((people || []).map((p) => [p.id, { id: p.id, name: p.name || '', avatarUrl: p.avatar_url ?? null }]));
 
+    // A birthday whose story has a Hebrew name ("שליו") shows it on the circle and in the
+    // greeting; the roster name stays Latin (Ofer, 2026-10-18: "שהכל יהיה שליו").
+    const hebrew = new Map<string, string>();
+    await Promise.all(items.map(async (item) => {
+      const p = (item.payload || {}) as { birthdayOf?: unknown; date?: unknown };
+      if (typeof p.birthdayOf !== 'string' || typeof p.date !== 'string') return;
+      const name = (await readBirthdayConfig(supabase, p.birthdayOf, p.date).catch(() => ({ displayName: null }))).displayName?.trim();
+      if (name) hebrew.set(p.birthdayOf, name);
+    }));
+    const renamed = (body: string | null) => body && hebrew.size
+      ? body.replace(/@\[([^\]]+)\]\(([0-9a-f-]{36})\)/gi, (m, _n: string, id: string) => (hebrew.has(id) ? `@[${hebrew.get(id)}](${id})` : m))
+      : body;
+
     const entries: CelebrationEntry[] = items.map((item) => {
       const celebration = toCelebration(item.payload)!;
-      return { item, celebration, honorees: celebration.honorees.map((id) => byId.get(id)).filter((p): p is NonNullable<typeof p> => !!p) };
+      const honorees = celebration.honorees.map((id) => byId.get(id)).filter((p): p is NonNullable<typeof p> => !!p)
+        .map((p) => (hebrew.has(p.id) ? { ...p, name: hebrew.get(p.id)! } : p));
+      return { item: { ...item, body: renamed(item.body) ?? item.body }, celebration, honorees };
     });
     return NextResponse.json({ today, entries });
   } catch (err) {

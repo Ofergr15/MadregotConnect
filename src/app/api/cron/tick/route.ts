@@ -641,7 +641,6 @@ async function run(request: Request) {
     }
   }
 
-  // Fold in admin scheduled/recurring notifications so they also get intraday
   // ── Health check: has ANYTHING synced? ───────────────────────────────────
   // Not "is Garmin up" — nobody can answer that from here — but the observable
   // consequence, which is the same signal the Control Room shows: zero rows in
@@ -838,15 +837,8 @@ async function run(request: Request) {
   const morningReminders = await dispatchMorningReminders(supabase, now.toISOString());
   if (morningReminders.sent) fired.push(`academyMorningReminders → ${morningReminders.sent}`);
 
-  // precision (delegate to the existing scanner route).
-  let scanned: unknown = null;
-  try {
-    const { POST: scan } = await import('../notifications/route');
-    scanned = await scan(new Request('http://internal/scan', {
-      method: 'POST',
-      headers: { authorization: `Bearer ${cronSecret || ''}` },
-    })).then(r => r.json()).catch(() => null);
-  } catch { /* scanner optional */ }
+  // Admin scheduled/recurring notifications are NOT sent from here any more: their own
+  // cron (/api/cron/notifications) runs every minute, and the two used to collide.
 
   // How close this tick ran to the 60s ceiling. Nothing measured this before, so
   // the timeout risk the weekly-recap comment above worries about was pure
@@ -886,7 +878,7 @@ async function run(request: Request) {
     .eq('tick_at', tickAt);
   if (timingError) console.warn('[cron/tick] could not record timing:', timingError.message);
 
-  return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, resolvedReports, setupSnapshot, testReminders, morningReminders, scanned, durationMs });
+  return NextResponse.json({ ok: true, israel: { weekday, hour }, fired, resolvedReports, setupSnapshot, testReminders, morningReminders, durationMs });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

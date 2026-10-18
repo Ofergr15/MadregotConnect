@@ -17,7 +17,7 @@
     },
     {
       "path": "/api/cron/notifications",
-      "schedule": "0 6 * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/cron/tick",

@@ -33,6 +33,21 @@ export const STAGE = {
 /** The splash is never on screen for less than this, so a fast phone doesn't flicker. */
 export const MIN_SPLASH_MS = 1500;
 
+/**
+ * After an update, the next one waits this long before it asks. On 2026-10-18 five
+ * releases went out in twenty minutes and people who had just updated were asked again a
+ * minute later, twice — which reads as "the update is stuck".
+ */
+export const ASK_COOLDOWN_MS = 15 * 60_000;
+/** localStorage: when this phone last landed on a new build through the update sheet. */
+export const UPDATED_AT_KEY = 'mc:updated-at';
+
+/** How long the next ask still has to wait, given when the last update landed. */
+export function cooldownLeft(lastUpdatedAt: number | null, now: number): number {
+  if (!lastUpdatedAt || !Number.isFinite(lastUpdatedAt)) return 0;
+  return Math.max(0, lastUpdatedAt + ASK_COOLDOWN_MS - now);
+}
+
 /** If nothing has reloaded the page by now, reload it anyway. */
 export const FORCE_RELOAD_MS = 9000;
 

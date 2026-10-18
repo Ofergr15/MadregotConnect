@@ -151,3 +151,15 @@ describe('the mandatory update is for everyone (2026-10-17)', () => {
     expect(src).toMatch(/const isSuper = MANDATORY_UPDATE_FOR_ALL \|\| superUser;/);
   });
 });
+
+describe('the ask cooldown after an update', () => {
+  it('waits out 15 minutes after landing on a new build, then asks', async () => {
+    const { cooldownLeft, ASK_COOLDOWN_MS } = await import('@/lib/update-flow');
+    const t = Date.parse('2026-10-18T19:00:00Z');
+    expect(ASK_COOLDOWN_MS).toBe(15 * 60_000);
+    expect(cooldownLeft(t, t + 60_000)).toBe(14 * 60_000);
+    expect(cooldownLeft(t, t + ASK_COOLDOWN_MS + 1)).toBe(0);
+    expect(cooldownLeft(null, t)).toBe(0);
+    expect(cooldownLeft(Number.NaN, t)).toBe(0);
+  });
+});

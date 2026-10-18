@@ -1,4 +1,4 @@
-import { roundToStep } from '@/lib/notifications/scheduling';
+import { TICK_STEP_MIN, roundToStep } from '@/lib/notifications/scheduling';
 import { shiftDate } from './load';
 import type { FormBandKey } from './form-bands';
 import type { RhrVerdict, SleepVerdict } from './normal-range';
@@ -39,7 +39,7 @@ export function normalizeReminderTime(time: unknown): string | null {
   if (typeof time !== 'string' || !HHMM.test(time)) return null;
   // 23:58 would round (and wrap) to 00:00 — the start of the day, not its end.
   if (minutesOf(time) > 23 * 60 + 57) return '23:55';
-  return roundToStep(time);
+  return roundToStep(time, TICK_STEP_MIN);
 }
 
 /**

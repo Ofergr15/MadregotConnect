@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dateOffsetStr, minutesToHHMM, roundToStep, describeNotificationRow, SCHEDULE_STEP_MIN } from '@/lib/notifications/scheduling';
+import { dateOffsetStr, minutesToHHMM, roundToStep, describeNotificationRow, isPastSchedule, nextRecurrence, SCHEDULE_STEP_MIN } from '@/lib/notifications/scheduling';
 
 describe('minutesToHHMM', () => {
   it('formats simple times with zero-padding', () => {
@@ -20,28 +20,40 @@ describe('minutesToHHMM', () => {
 });
 
 describe('roundToStep', () => {
-  it('rounds down when closer to the previous 5-minute mark', () => {
-    expect(roundToStep('09:02')).toBe('09:00');
+  it('keeps any minute: the scanner runs every minute', () => {
+    expect(SCHEDULE_STEP_MIN).toBe(1);
+    expect(roundToStep('09:02')).toBe('09:02');
+    expect(roundToStep('23:59')).toBe('23:59');
   });
+});
 
-  it('rounds up when closer to the next 5-minute mark', () => {
-    expect(roundToStep('09:03')).toBe('09:05');
+describe('nextRecurrence', () => {
+  const at = (iso: string) => Date.parse(iso);
+  it('keeps the Israeli wall-clock time across the October clock change', () => {
+    // Tue 20.10.2026 08:00 IDT (05:00Z) weekly -> Tue 27.10 08:00 IST (06:00Z), not 07:00.
+    expect(nextRecurrence('2026-10-20T05:00:00.000Z', 1, 'week', at('2026-10-20T05:00:30Z'))).toBe('2026-10-27T06:00:00.000Z');
   });
-
-  it('leaves an already-on-grid time unchanged', () => {
-    expect(roundToStep('09:05')).toBe('09:05');
+  it('and across the March one', () => {
+    // Israel moves to summer time on Friday 26.3.2027. Thu 25.3 07:00 IST (05:00Z) daily
+    // -> Fri 26.3 07:00 IDT (04:00Z).
+    expect(nextRecurrence('2027-03-25T05:00:00.000Z', 1, 'day', at('2027-03-25T05:00:30Z'))).toBe('2027-03-26T04:00:00.000Z');
   });
-
-  it('rounding up across an hour boundary carries correctly', () => {
-    expect(roundToStep('09:58')).toBe('10:00');
+  it('skips every run it missed instead of sending each one', () => {
+    // Daily 08:00 last run a week ago -> the next 08:00 still ahead, once.
+    expect(nextRecurrence('2026-10-01T05:00:00.000Z', 1, 'day', at('2026-10-08T06:00:00Z'))).toBe('2026-10-09T05:00:00.000Z');
   });
-
-  it('rounding up across midnight wraps to 00:00', () => {
-    expect(roundToStep('23:58')).toBe('00:00');
+  it('steps whole weeks', () => {
+    expect(nextRecurrence('2026-09-01T05:00:00.000Z', 2, 'week', at('2026-09-01T05:01:00Z'))).toBe('2026-09-15T05:00:00.000Z');
   });
+});
 
-  it('SCHEDULE_STEP_MIN is exported and matches the actual delivery grid used above (5 min)', () => {
-    expect(SCHEDULE_STEP_MIN).toBe(5);
+describe('isPastSchedule', () => {
+  const now = Date.parse('2026-10-18T10:00:00Z');
+  it('allows a minute of grace and refuses anything older', () => {
+    expect(isPastSchedule('2026-10-18T09:59:30Z', now)).toBe(false);
+    expect(isPastSchedule('2026-10-18T09:58:00Z', now)).toBe(true);
+    expect(isPastSchedule('2026-10-18T11:00:00Z', now)).toBe(false);
+    expect(isPastSchedule(null, now)).toBe(false);
   });
 });
 

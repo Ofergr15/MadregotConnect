@@ -9,7 +9,7 @@ import { apiHeaders, useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet, Button, ConfirmSheet, SegmentedControl, SkeletonList, EmptyState, Switch } from '@/components/ui';
 import { InsetRow, InsetSection } from '@/components/ui/InsetList';
-import { dateOffsetStr, minutesToHHMM, roundToStep, describeNotificationRow, SCHEDULE_STEP_MIN, type StatusIconKind } from '@/lib/notifications/scheduling';
+import { dateOffsetStr, minutesToHHMM, roundToStep, describeNotificationRow, isPastSchedule, SCHEDULE_STEP_MIN, type StatusIconKind } from '@/lib/notifications/scheduling';
 
 interface Group { id: string; name: string; }
 interface Athlete { id: string; name: string; email: string; isAcademy?: boolean; }
@@ -36,7 +36,7 @@ const TEMPLATES = [
 function nowTimeStr(): string {
   const d = new Date();
   // Round UP, not to nearest — a default has to still be in the future.
-  return minutesToHHMM(Math.ceil((d.getHours() * 60 + d.getMinutes()) / SCHEDULE_STEP_MIN) * SCHEDULE_STEP_MIN);
+  return minutesToHHMM(Math.ceil((d.getHours() * 60 + d.getMinutes() + 1) / SCHEDULE_STEP_MIN) * SCHEDULE_STEP_MIN);
 }
 const QUICK_SCHEDULE_DAYS = [
   { days: 0, label: 'היום' },
@@ -395,6 +395,9 @@ export function NotificationCenter() {
     if ((audienceType === 'group' || audienceType === 'athlete') && !audienceId) { setMsg('בחרו קהל יעד'); return; }
     if ((scheduleType === 'once_at' || scheduleType === 'recurring') && !scheduledAt) {
       setMsg('בחרו תאריך ושעה'); return;
+    }
+    if ((scheduleType === 'once_at' || scheduleType === 'recurring') && isPastSchedule(new Date(scheduledAt).toISOString(), Date.now())) {
+      setMsg('השעה שבחרת כבר עברה — בחרו שעה מאוחרת יותר'); return;
     }
     setSending(true); setMsg(null);
     try {
@@ -898,7 +901,7 @@ export function NotificationCenter() {
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <input type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)} className={inputCls} />
-                    <input type="time" step={300} value={schedTime || ''} onChange={e => setSchedTime(e.target.value)} className={inputCls} />
+                    <input type="time" step={60} value={schedTime || ''} onChange={e => setSchedTime(e.target.value)} className={inputCls} />
                   </div>
                 </div>
               )}

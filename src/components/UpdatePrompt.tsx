@@ -13,7 +13,7 @@ import { isPublicPath } from '@/lib/public-paths';
 import type { WhatsNewRelease } from '@/lib/release-notes';
 import { WHATS_NEW_KEY, markSeen, readWhatsNewLedger } from '@/lib/whats-new/ledger';
 import {
-  FORCE_RELOAD_MS, MIN_SPLASH_MS, STAGE, UPDATING_KEY, isMidTyping, landedOnNewBuild,
+  FORCE_RELOAD_MS, MIN_SPLASH_MS, STAGE, UPDATED_AT_KEY, UPDATING_KEY, cooldownLeft, isMidTyping, landedOnNewBuild,
   onlyTheWorkerIsOld, readUpdatingNote, seenSlugs, updateContent, writeUpdatingNote, type UpdateContent,
 } from '@/lib/update-flow';
 import { UpdateSheet } from '@/components/update/UpdateSheet';
@@ -122,6 +122,8 @@ export function UpdatePrompt() {
     } catch { /* private mode: no note, no cover */ }
     const note = readUpdatingNote(raw, Date.now());
     document.documentElement.classList.remove('mc-updating');
+    // Just updated: the next release waits ASK_COOLDOWN_MS before it asks.
+    if (note) { try { localStorage.setItem(UPDATED_AT_KEY, String(Date.now())); } catch { /* private mode */ } }
     if (!note) {
       setSplash({ phase: 'done', target: STAGE.done });
       return;
@@ -204,6 +206,7 @@ export function UpdatePrompt() {
     // for nobody to be halfway through typing (lib/update-flow.ts isMidTyping).
     let asking = false;
     let asked = false;
+    let cooldownTimer: ReturnType<typeof setTimeout> | null = null;
     // Set when the server knows nothing newer than this bundle: the swap is then
     // the worker's only, and goes the quiet way (lib/update-flow.ts onlyTheWorkerIsOld).
     let quiet = false;
@@ -215,6 +218,14 @@ export function UpdatePrompt() {
       if (!pending || disposed || applying || asking || asked) return;
       if (onPublicPage()) return;
       if (document.visibilityState !== 'visible') return;
+      // Updated a few minutes ago: wait out the cooldown, then ask (lib/update-flow.ts).
+      let lastUpdated: number | null = null;
+      try { lastUpdated = Number(localStorage.getItem(UPDATED_AT_KEY)) || null; } catch { /* no memory, no wait */ }
+      const wait = cooldownLeft(lastUpdated, Date.now());
+      if (wait > 0) {
+        if (!cooldownTimer) cooldownTimer = setTimeout(() => { cooldownTimer = null; void ask(); }, wait + 500);
+        return;
+      }
       if (isMidTyping(document.activeElement as HTMLInputElement | null)) {
         document.addEventListener('focusout', () => setTimeout(() => { void ask(); }, 300), { once: true });
         return;
@@ -310,6 +321,7 @@ export function UpdatePrompt() {
 
     return () => {
       disposed = true;
+      if (cooldownTimer) clearTimeout(cooldownTimer);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('pointerdown', onInteract, { capture: true });
       window.removeEventListener('keydown', onInteract, { capture: true });

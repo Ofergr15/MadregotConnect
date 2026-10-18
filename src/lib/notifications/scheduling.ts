@@ -9,20 +9,70 @@ export function dateOffsetStr(days: number): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-// 5 min is the real delivery-precision ceiling (src/app/api/cron/tick scans
-// scheduled_notifications every 5 min — see vercel.json) — the chooser only
-// ever offers/stores values on that grid so it can't promise more than the
-// backend delivers.
-export const SCHEDULE_STEP_MIN = 5;
+// The real delivery precision: /api/cron/notifications scans scheduled_notifications
+// every minute (vercel.json; it was the 5-minute tick until 2026-10-18 — Ofer: "why
+// must it be 5 minutes?"). The chooser offers exactly that grid, no finer.
+export const SCHEDULE_STEP_MIN = 1;
+
+const TZ = 'Asia/Jerusalem';
+const DAY_MS = 86_400_000;
+
+/** Israel's wall clock at `ms`: [y, m (1-12), d, h, min, s]. */
+function israelParts(ms: number): [number, number, number, number, number, number] {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date(ms));
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  return [get('year'), get('month'), get('day'), get('hour'), get('minute'), get('second')];
+}
+
+/** The UTC moment of an Israeli wall-clock time (DST-correct, either side of a change). */
+export function israelWallToUtc(y: number, m: number, d: number, h: number, min: number, sec = 0): number {
+  const want = Date.UTC(y, m - 1, d, h, min, sec);
+  let guess = want;
+  // Two passes settle the offset, including on the day the clocks move.
+  for (let i = 0; i < 2; i++) {
+    const [gy, gm, gd, gh, gmin, gs] = israelParts(guess);
+    guess += want - Date.UTC(gy, gm - 1, gd, gh, gmin, gs);
+  }
+  return guess;
+}
+
+/**
+ * A recurring notification's next run after `nowMs`: the same Israeli wall-clock time,
+ * `interval` days or weeks on, as many steps as it takes to be in the future.
+ *
+ * It used to add whole UTC days, once: across the October clock change a weekly 08:00
+ * became 07:00, and a row whose runs had been missed (crons paused, a start date in the
+ * past) re-sent once per tick until it caught up — every one of those to the whole audience.
+ */
+export function nextRecurrence(currentIso: string, interval: number, unit: string, nowMs: number): string {
+  const stepDays = Math.max(1, Math.floor(interval)) * (unit === 'week' ? 7 : 1);
+  const [y, m, d, h, min, sec] = israelParts(Date.parse(currentIso));
+  const base = Date.UTC(y, m - 1, d);
+  for (let k = 1; k < 5000; k++) {
+    const day = new Date(base + k * stepDays * DAY_MS);
+    const at = israelWallToUtc(day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate(), h, min, sec);
+    if (at > nowMs) return new Date(at).toISOString();
+  }
+  return new Date(nowMs + stepDays * DAY_MS).toISOString();
+}
+
+/** A time that has already gone by (a minute's grace for the time it took to tap "send"). */
+export const isPastSchedule = (iso: string | null | undefined, nowMs: number) =>
+  !!iso && Number.isFinite(Date.parse(iso)) && Date.parse(iso) < nowMs - 60_000;
 
 export function minutesToHHMM(totalMinutes: number): string {
   const wrapped = ((totalMinutes % 1440) + 1440) % 1440;
   return `${pad2(Math.floor(wrapped / 60))}:${pad2(wrapped % 60)}`;
 }
 
-export function roundToStep(hhmm: string): string {
+/** The 5-minute tick's grid — what the academy's morning reminder still runs on. */
+export const TICK_STEP_MIN = 5;
+
+export function roundToStep(hhmm: string, step: number = SCHEDULE_STEP_MIN): string {
   const [h, m] = hhmm.split(':').map(Number);
-  return minutesToHHMM(Math.round((h * 60 + m) / SCHEDULE_STEP_MIN) * SCHEDULE_STEP_MIN);
+  return minutesToHHMM(Math.round((h * 60 + m) / step) * step);
 }
 
 export interface NotificationStatusRow {

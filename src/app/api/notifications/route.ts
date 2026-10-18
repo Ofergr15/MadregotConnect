@@ -4,6 +4,7 @@ import { sendPushLocalized, resolveAudience } from '@/lib/push';
 import { pickBilingual } from '@/lib/notifications/copy';
 import { publishAnnouncement } from '@/lib/feed/announce';
 import { requireApprover } from '@/lib/auth/require-approver';
+import { isPastSchedule } from '@/lib/notifications/scheduling';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +56,11 @@ export async function POST(request: Request) {
     // cancelling the row by hand.
     if (body.schedule_type === 'recurring' && (!Number.isInteger(body.recur_interval) || body.recur_interval < 1)) {
       return NextResponse.json({ error: 'Recurring interval must be a whole number ≥ 1' }, { status: 400 });
+    }
+    // A time that has gone by used to send at the next scan, unannounced — and a recurring
+    // one would then fire once for every run it had "missed".
+    if ((body.schedule_type === 'once_at' || body.schedule_type === 'recurring') && isPastSchedule(body.scheduled_at, Date.now())) {
+      return NextResponse.json({ error: 'השעה שבחרת כבר עברה — בחרו שעה מאוחרת יותר' }, { status: 400 });
     }
 
     const supabase = createServerClient();
@@ -147,6 +153,10 @@ export async function PUT(request: Request) {
       && (!Number.isInteger(body.recur_interval) || body.recur_interval < 1)
     ) {
       return NextResponse.json({ error: 'Recurring interval must be a whole number ≥ 1' }, { status: 400 });
+    }
+
+    if ('scheduled_at' in body && body.status !== 'cancelled' && isPastSchedule(body.scheduled_at, Date.now())) {
+      return NextResponse.json({ error: 'השעה שבחרת כבר עברה — בחרו שעה מאוחרת יותר' }, { status: 400 });
     }
 
     const supabase = createServerClient();
