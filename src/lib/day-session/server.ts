@@ -87,6 +87,21 @@ export async function saveDaySession(row: Record<string, unknown>): Promise<DayS
   return fromRow(data as unknown as Record<string, unknown>);
 }
 
+/**
+ * Delete the date's row (Ofer, 2026-10-18: a session published for the wrong day). Gone from
+ * the feed and the form at once; the push already sent cannot be taken back. `false` = there
+ * was no row, `null` = the table is not there yet.
+ */
+export async function deleteDaySession(date: string): Promise<boolean | null> {
+  const db = createServerClient();
+  const { data, error } = await db.from('day_sessions').delete().eq('session_date', date).select('id');
+  if (error) {
+    if (isMissingTable(error)) return null;
+    throw error;
+  }
+  return (data || []).length > 0;
+}
+
 /** The push's claim: true only for the one call that set notified_at. */
 export async function claimNotify(id: string): Promise<boolean> {
   const db = createServerClient();

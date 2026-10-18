@@ -162,6 +162,31 @@ export async function startDaySessionSend(s: DaySession, athleteIds: string[], s
   return { queued: athletes.length, skipped, work };
 }
 
+/**
+ * A deleted session off every watch it reached: each Garmin copy deleted (best effort — one
+ * already removed by hand is fine) and the date's delivery rows dropped, so my-watch stops
+ * calling the day "on the watch". Apple watches read the rows, so dropping them is the removal.
+ * Answers how many runners had it.
+ */
+export async function removeDaySessionFromWatches(date: string): Promise<number> {
+  const db = createServerClient();
+  const rows = await readRows(db, date);
+  const ours = rows.filter((r) => r.workout_key === dayKey(date));
+  if (!ours.length) return 0;
+  const withGarmin = ours.filter((r) => r.garmin_workout_id);
+  if (withGarmin.length) {
+    const { data } = await db.from('athletes').select('id, garmin_auth').in('id', [...new Set(withGarmin.map((r) => r.athlete_id))]);
+    const auth = new Map(((data || []) as Array<{ id: string; garmin_auth: unknown }>).map((a) => [a.id, a.garmin_auth]));
+    for (const r of withGarmin) {
+      const a = auth.get(r.athlete_id);
+      if (!a) continue;
+      try { await new GarminClient(a as never).deleteWorkout(r.garmin_workout_id!); } catch { /* already gone */ }
+    }
+  }
+  await db.from('workout_deliveries').delete().in('id', ours.map((r) => r.id));
+  return new Set(ours.map((r) => r.athlete_id)).size;
+}
+
 // ── The tracking ───────────────────────────────────────────────────────────────────────
 
 export interface RunnerRow extends RunnerStatus {

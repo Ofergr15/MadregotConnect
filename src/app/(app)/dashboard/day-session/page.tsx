@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { Plus, X } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { addDaysToDateStr, cn, israelNow, israelToday } from '@/lib/utils';
-import { Switch } from '@/components/ui';
+import { ConfirmSheet, Switch } from '@/components/ui';
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import {
   BarButton, CARD, FlowOverlay, FlowScreen, PrimaryButton, RICH, SectionLabel, kmText,
@@ -208,6 +208,26 @@ export default function DaySessionPage() {
   };
 
   const close = () => router.push('/dashboard/coach-tools');
+
+  // Deleting the date's session (Ofer, 2026-10-18: one went out for the wrong day). The row,
+  // and its copies on the watches; the push that already went cannot be called back.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const remove = async () => {
+    if (!existing || busy) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/day-session?date=${date}`, { method: 'DELETE', headers: await apiHeaders() });
+      if (!res.ok && res.status !== 404) { setMessage({ tone: 'bad', text: t('deleteFailed') }); return; }
+      await mutate();
+      setMessage({ tone: 'ok', text: t('deleted') });
+    } catch {
+      setMessage({ tone: 'bad', text: t('deleteFailed') });
+    } finally {
+      setBusy(false);
+      setConfirmDelete(false);
+    }
+  };
 
   // Start a send (or a re-send) and show where it stands.
   const sendToWatches = async (ids: string[]) => {
@@ -481,6 +501,25 @@ export default function DaySessionPage() {
             className={cn(CARD, 'min-h-[88px] resize-none rounded-[14px] px-4 py-3 text-[16px] leading-relaxed text-ink-900 outline-none placeholder:text-ink-300')}
           />
 
+          {existing && (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              disabled={busy}
+              className={cn(CARD, 'min-h-[52px] w-full text-[15px] font-extrabold text-accent-red disabled:opacity-60')}
+            >
+              {t('delete')}
+            </button>
+          )}
+          <ConfirmSheet
+            open={confirmDelete}
+            onOpenChange={setConfirmDelete}
+            title={t('deleteTitle', { day: dateLabel(date) })}
+            description={existing?.notifiedAt ? t('deleteBodySent') : t('deleteBody')}
+            confirmLabel={t('deleteConfirm')}
+            cancelLabel={t('cancel')}
+            onConfirm={() => { void remove(); }}
+          />
         </FlowScreen>
         {editing && (
           <WorkoutEditorPanel

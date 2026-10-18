@@ -5372,6 +5372,13 @@
     "savedNote": "The result is saved and your coach sees it."
   },
   "daySession": {
+    "delete": "Delete workout",
+    "deleteTitle": "Delete the workout for {day}?",
+    "deleteBody": "It will be removed from the feed and from the watches it was sent to.",
+    "deleteBodySent": "It will be removed from the feed and from the watches it was sent to. The notification already sent can't be recalled.",
+    "deleteConfirm": "Delete",
+    "deleted": "Workout deleted",
+    "deleteFailed": "Couldn't delete, try again",
     "modeText": "Write a sentence",
     "modeManual": "Enter by hand",
     "edit": "✎ Edit",
