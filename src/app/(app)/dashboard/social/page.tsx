@@ -86,7 +86,7 @@ export default function SocialPage() {
             <DayBox date={m.date} />
             <div className="min-w-0 flex-1">
               <p className="text-[14px] font-extrabold text-ink-900">{m.name}</p>
-              <p className="text-xs text-ink-400">{m.manual ? 'נוצרה ידנית' : 'נוצרה אוטומטית ערב לפני'}{m.autoFeed ? '' : ' · לא עולה לפיד לבד'}</p>
+              <p className="text-xs text-ink-400">{m.manual ? 'נוצרה ידנית' : 'נוצרה אוטומטית ערב לפני'}{m.autoFeed ? '' : ' · התמונות לא עולות לפיד אוטומטית'}</p>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 <a href={m.link} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center gap-1 rounded-lg bg-[#E8F0FE] px-3 text-xs font-extrabold text-[#1967d2]">
                   <FolderOpen className="h-3.5 w-3.5" /> פתיחה בדרייב
@@ -152,7 +152,7 @@ function NewFolderSheet({ open, onOpenChange, onMade }: { open: boolean; onOpenC
           <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="h-5 w-5 accent-brand-600" />
         </label>
         <label className="flex min-h-[44px] items-center justify-between gap-3 text-sm text-ink-700">
-          <span>תמונות שיעלו — לפיד לבד</span>
+          <span>להעלות לפיד אוטומטית את התמונות מהתיקייה</span>
           <input type="checkbox" checked={autoFeed} onChange={(e) => setAutoFeed(e.target.checked)} className="h-5 w-5 accent-brand-600" />
         </label>
         <button type="button" onClick={create} disabled={busy}
