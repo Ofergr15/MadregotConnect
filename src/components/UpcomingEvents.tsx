@@ -3,11 +3,10 @@
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import {
-  BookOpen, Cake, Camera, CalendarDays, ChevronRight, Dumbbell, Gift,
+  BookOpen, Camera, CalendarDays, ChevronRight, Dumbbell, Gift,
   PartyPopper, Tent, Trophy,
 } from 'lucide-react';
 import { useApi } from '@/lib/api';
-import { AthleteLink } from '@/components/AthleteLink';
 import { isEmptyUpcoming, type UpcomingBuckets } from '@/lib/events/upcoming';
 
 /**
@@ -43,7 +42,10 @@ export function UpcomingEvents() {
 
   // Same rule as SquadStandings: no skeleton that may collapse to nothing.
   if (!data) return null;
-  if (isEmptyUpcoming(data)) return null; // nothing on the horizon → no empty card
+  // Today's birthdays are the only ones the lane ever held (birthdayWindowDays = 0), and they
+  // are already the circles at the top of the feed (CelebrationStories) — so they are not
+  // listed here a second time (Ofer, 2026-10-18: "שלא יהיה כפל").
+  if (isEmptyUpcoming({ ...data, birthdays: [] })) return null; // nothing on the horizon → no empty card
 
   // "Today" / "tomorrow" / "in N days" — a bare date makes the reader do the
   // arithmetic, which is the one thing this card exists to do for them.
@@ -113,28 +115,6 @@ export function UpcomingEvents() {
           );
         })}
 
-        {data.birthdays.length > 0 && (
-          <Lane icon={Cake} label={t('birthdays')}>
-            {data.birthdays.map(b => (
-              <li key={b.athleteId}>
-                <AthleteLink
-                  athleteId={b.athleteId}
-                  name={b.name}
-                  className="flex items-center gap-2 rounded-xl px-2.5 py-2 bg-page/50"
-                >
-                  <Cake className="h-3.5 w-3.5 shrink-0 text-ink-400" />
-                  <span className="min-w-0 flex-1 text-sm font-semibold text-ink-700 truncate" dir="auto">
-                    {b.name}
-                  </span>
-                  <span className="shrink-0 text-end">
-                    <span className="block text-2xs font-semibold text-ink-700">{when(b.daysAway)}</span>
-                    <span className="block text-2xs text-ink-400 tabular-nums">{shortDate(b.date)}</span>
-                  </span>
-                </AthleteLink>
-              </li>
-            ))}
-          </Lane>
-        )}
       </div>
     </div>
   );
