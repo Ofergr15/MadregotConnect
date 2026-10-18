@@ -37,6 +37,8 @@ type Step = (typeof STEPS)[number];
 /** What an app that was closed never sees: the tap already loads the new version. */
 const ONLY_IF_OPEN: Step[] = ['sheet', 'updating', 'toast'];
 const SPLASH_KEY = 'app_splash_shown';
+/** The release this rehearsal is for (lib/whats-new/evening.ts EVENING_ENTRIES). */
+const REHEARSED_VERSION = '2.41.217';
 
 /** The version the evening would announce: one patch above what runs now. */
 function nextVersion(v: string): string {
@@ -66,7 +68,9 @@ export default function ReleaseRehearsalPage() {
     setMounted(true);
   }, []);
 
-  const version = nextVersion(APP_VERSION);
+  // Rehearsed on the release's own build (a preview, before it reaches production):
+  // the version to announce is this bundle's. On an older build, the next patch.
+  const version = REHEARSED_VERSION === APP_VERSION ? APP_VERSION : nextVersion(APP_VERSION);
   const steps = useMemo(() => STEPS.filter(s => !(closed && ONLY_IF_OPEN.includes(s))), [closed]);
   const step: Step = steps[Math.min(i, steps.length - 1)];
 
@@ -148,23 +152,44 @@ export default function ReleaseRehearsalPage() {
       />
 
       {step === 'alert' && (
+        // A real iPhone lock screen: his own wallpaper, status bar and corner buttons
+        // (public/whats-new/lock-wallpaper.jpg, from the launch video's captures), the
+        // glass clock, and the notification drawn to the measurements of his own
+        // notifications (~/.cache/madregot/launch-video/scenes/push.html).
         <div
-          className="fixed inset-0 z-[440] text-center text-white"
-          style={{ background: 'linear-gradient(160deg,#28305e,#6a3d8f 55%,#d9826b)' }}
+          className="fixed inset-0 z-[440] bg-cover bg-top text-white"
+          style={{ backgroundImage: 'url(/whats-new/lock-wallpaper.jpg)' }}
         >
-          <p dir="ltr" className="mt-[max(110px,calc(env(safe-area-inset-top)+80px))] text-[84px] font-semibold leading-none tracking-tight">20:00</p>
-          <p className="mt-1.5 text-lg font-semibold opacity-90">{new Date().toLocaleDateString(locale === 'he' ? 'he-IL' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Jerusalem' })}</p>
+          <p dir="ltr" className="mt-[78px] text-center text-[20px] font-semibold">
+            {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Asia/Jerusalem' }).replace(',', '')}
+          </p>
+          <p
+            dir="ltr"
+            className="text-center text-[106px] font-semibold leading-[1.05] tracking-[-2px]"
+            style={{ color: 'rgba(190,232,232,.72)', textShadow: '0 1px 0 rgba(255,255,255,.35)' }}
+          >
+            {new Date().toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Jerusalem' }).replace(/^0/, '')}
+          </p>
           <button
             type="button"
             onClick={next}
-            className="mx-3 mt-16 flex w-[calc(100%-24px)] items-center gap-2.5 rounded-[22px] bg-white/85 px-3.5 py-3 text-start text-ink-900 backdrop-blur-xl active:opacity-80"
+            dir="ltr"
+            className="mx-[14px] mt-[118px] flex w-[calc(100%-28px)] items-center gap-[11px] rounded-[20px] py-[13px] pe-[17px] ps-[14px] text-start active:opacity-80"
+            style={{
+              background: 'rgba(214,232,236,.20)',
+              boxShadow: 'inset 0 0 0 .5px rgba(255,255,255,.16)',
+              backdropFilter: 'blur(26px) saturate(140%)',
+              WebkitBackdropFilter: 'blur(26px) saturate(140%)',
+            }}
           >
-            <img src="/images/logo.png" alt="" width={38} height={38} className="h-[38px] w-[38px] shrink-0 rounded-[9px] bg-white" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[15px] font-bold">{t('pushTitle')}</span>
-              <span className="block text-sm">{t('pushBody')}</span>
+            <img src="/images/logo.png" alt="" width={38} height={38} className="h-[38px] w-[38px] shrink-0 rounded-[10px] bg-white" />
+            <span className="min-w-0 flex-1 text-[14.5px] leading-[17.5px] tracking-[-.1px]">
+              <span className="flex items-baseline gap-2">
+                <b dir="rtl" className="min-w-0 flex-1 truncate text-right font-semibold">{t('pushTitle')}</b>
+                <span className="shrink-0 text-[13px] text-white/55">now</span>
+              </span>
+              <span dir="rtl" className="mt-px block text-right">{t('pushBody')}</span>
             </span>
-            <span className="self-start text-xs text-ink-500">{t('now')}</span>
           </button>
         </div>
       )}
