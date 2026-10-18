@@ -133,7 +133,10 @@ export function lapsAreKm(laps: LapRow[]): boolean {
 
 export function Laps({ laps }: { laps: LapRow[] }) {
   const t = useTranslations('runPage');
+  const [all, setAll] = useState(false);
   const rows = laps.filter((l) => l.distance > 50 && l.pace);
+  // 42 laps of 15 × 200 is a screen of numbers; the first ten, and the rest on a tap.
+  const LIMIT = 10;
   if (rows.length < 2) return null;
   // Same table as the splits below, on purpose: one way to read a run's pieces.
   // Warm-up, recovery and cool-down rows are muted rather than coloured — the work
@@ -155,7 +158,7 @@ export function Laps({ laps }: { laps: LapRow[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((l, i) => {
+          {(all ? rows : rows.slice(0, LIMIT)).map((l, i) => {
             const easy = !!l.intensity && EASY_STEPS.has(l.intensity);
             const f = hi === lo ? 1 : 1 - (Math.min(Math.max(l.pace as number, lo), hi) - lo) / (hi - lo);
             return (
@@ -172,6 +175,11 @@ export function Laps({ laps }: { laps: LapRow[] }) {
           })}
         </tbody>
       </table>
+      {rows.length > LIMIT && !all && (
+        <button type="button" onClick={() => setAll(true)} className="mt-2 flex h-11 w-full items-center justify-center gap-1 rounded-xl bg-brand-600/5 text-sm font-semibold text-brand-600">
+          {t('allLaps', { n: rows.length })} <ChevronDown className="h-4 w-4" />
+        </button>
+      )}
     </Section>
   );
 }

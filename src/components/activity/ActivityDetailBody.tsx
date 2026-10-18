@@ -181,18 +181,9 @@ export function ActivityDetailBody({
         </div>
       ) : null}
 
-      {/* On the run page the four headline numbers are over the map, so the rest are
-          cards with context (mockup run-page-b); elsewhere, the grid as before. */}
-      {hero && !mapOnly ? (
-        <Section title={tr('moreMetrics')}>
-          <MetricCards m={{
-            vo2: vo2 ? Number(vo2) : null, rpe, avgHr: act.average_hr ?? null, maxHr: act.max_hr ?? null, hrCeiling: maxHR,
-            cadence: cadence ? Number(cadence) : null, stride: stride ?? null,
-            moving: act.moving_duration ?? null, total: act.duration, elevation: act.elevation_gain ?? null,
-            calories: calories ? Number(calories) : null, distanceKm: act.distance / 1000,
-          }} />
-        </Section>
-      ) : (
+      {/* Elsewhere the grid of numbers; on the run page those are over the map and the
+          rest are cards at the end of the page (mockup run-page-b). */}
+      {!(hero && !mapOnly) && (
         <Section>
           <StatGrid cells={cells} more={mapOnly ? undefined : more} />
         </Section>
@@ -248,6 +239,16 @@ export function ActivityDetailBody({
       {!mapOnly && watchLaps && <Laps laps={watchLaps} />}
       {!mapOnly && trace?.zones && <HrZones seconds={trace.zones} maxHr={trace.maxHr} />}
       {!mapOnly && <KmSplits streamKm={trace?.kmSplits ?? null} splits={splits} maxHr={trace?.maxHr ?? maxHR} />}
+      {hero && !mapOnly && (
+        <Section title={tr('moreMetrics')}>
+          <MetricCards m={{
+            vo2: vo2 ? Number(vo2) : null, rpe, avgHr: act.average_hr ?? null, maxHr: act.max_hr ?? null, hrCeiling: maxHR,
+            cadence: cadence ? Number(cadence) : null, stride: stride ?? null,
+            moving: act.moving_duration ?? null, total: act.duration, elevation: act.elevation_gain ?? null,
+            calories: calories ? Number(calories) : null, distanceKm: act.distance / 1000,
+          }} />
+        </Section>
+      )}
 
       {/* Nothing but the headline numbers exist for this run. Say so, rather than
           ending on an empty stretch of page that reads as a loading failure. */}

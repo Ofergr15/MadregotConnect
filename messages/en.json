@@ -5549,7 +5549,8 @@
     "repsVsTarget": "{n} reps vs target",
     "cadence": "Cadence",
     "phaseSteady": "Steady",
-    "phaseCool": "Cool-down"
+    "phaseCool": "Cool-down",
+    "allLaps": "All {n} laps"
   },
   "traineeHeader": {
     "band": "Pack {n}",

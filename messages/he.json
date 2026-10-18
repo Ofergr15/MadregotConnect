@@ -5549,7 +5549,8 @@
     "repsVsTarget": "{n} החזרות מול היעד",
     "cadence": "קדנס",
     "phaseSteady": "רציף",
-    "phaseCool": "שחרור"
+    "phaseCool": "שחרור",
+    "allLaps": "כל {n} ההקפות"
   },
   "traineeHeader": {
     "band": "דבוקה {n}",

@@ -111,7 +111,7 @@ export function MetricCards({ m }: { m: MetricValues }) {
           note={m.elevation / Math.max(m.distanceKm, 1) < 8 ? 'מסלול כמעט שטוח' : 'מסלול עם עליות'} />
       )}
       {m.calories != null && (
-        <Card icon="🔥" tint="#FFEDE3" title="קלוריות" sub="הערכה של גרמין" value={Number(m.calories).toLocaleString('en')}
+        <Card wide icon="🔥" tint="#FFEDE3" title="קלוריות" sub="הערכה של גרמין" value={Number(m.calories).toLocaleString('en')}
           note={<>כ־<bdi dir="ltr">{Math.round(m.calories / Math.max(m.distanceKm, 0.1))}</bdi> לק״מ</>} />
       )}
     </div>

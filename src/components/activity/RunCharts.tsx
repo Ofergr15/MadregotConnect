@@ -35,7 +35,7 @@ const GUTTER = 34;
 function niceTicks(lo: number, hi: number, metric: Metric): number[] {
   const step = metric === 'pace' ? ([15, 30, 60, 120].find((st) => (hi - lo) / st <= 4) ?? 300)
     : metric === 'hr' ? ([10, 20, 30].find((st) => (hi - lo) / st <= 4) ?? 40)
-      : metric === 'cad' ? 10 : ([5, 10, 20, 50].find((st) => (hi - lo) / st <= 3) ?? 100);
+      : metric === 'cad' ? 20 : ([5, 10, 20, 50].find((st) => (hi - lo) / st <= 3) ?? 100);
   const out: number[] = [];
   for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) out.push(v);
   return out;
@@ -182,8 +182,10 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
     const out: Lane[] = [];
     const [plo, phi] = extent(series.pace);
     out.push({
+      // The slow end stops near the run's own pace: the walks between reps (10:00/km)
+      // would otherwise flatten everything that was actually run.
       metric: 'pace', values: series.pace, invert: true, height: 132,
-      lo: Math.max(plo - 8, 120), hi: Math.min(phi + 12, 15 * 60),
+      lo: Math.max(plo - 8, 120), hi: Math.min(phi + 12, 15 * 60, (avgPace || phi) + 100),
       stroke: '#1525FF', fill: 'rgba(21,37,255,0.10)', avg: avgPace, format: (v) => formatPace(v),
     });
     if (series.hr) {
