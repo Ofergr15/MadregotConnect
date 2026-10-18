@@ -29,6 +29,8 @@ const CLUB: Partial<Record<PhotoSlot, string>> = {
   long: '/images/team-race.jpg',
 };
 
+const PHOTO_SLOTS_ORDER: PhotoSlot[] = ['intro', 'thanks', 'km', 'streak', 'moment', 'long', 'climb', 'poster'];
+
 const n = (v: number) => v.toLocaleString('en-US');
 const dm = (iso: string) => `${Number(iso.slice(8, 10))}.${Number(iso.slice(5, 7))}`;
 const dmy = (iso: string) => `${dm(iso)}.${iso.slice(2, 4)}`;
@@ -75,8 +77,16 @@ interface Slide { key: string; dur: number; node: (live: boolean) => React.React
 
 export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: () => void }) {
   const { stats: s, config, name } = story;
-  const photo = useCallback((slot: PhotoSlot) => config.photos?.[slot] || CLUB[slot] || null, [config.photos]);
+  // A slide without its own photo takes one of the person's other photos before a club one:
+  // a birthday story with somebody else on it reads as a mistake (Ofer, 2026-10-18).
+  const photo = useCallback((slot: PhotoSlot) => {
+    const mine = Object.values(config.photos || {}).filter(Boolean) as string[];
+    if (config.photos?.[slot]) return config.photos[slot]!;
+    if (mine.length) return mine[PHOTO_SLOTS_ORDER.indexOf(slot) % mine.length];
+    return CLUB[slot] || null;
+  }, [config.photos]);
   const own = (slot: PhotoSlot) => config.photos?.[slot] || null;
+  const hasMine = Object.values(config.photos || {}).some(Boolean);
 
   // Sharing: a still copy of a slide is rendered off screen and captured (capture.ts).
   const [exporting, setExporting] = useState<number | null>(null);
@@ -92,15 +102,15 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
   const slides = useMemo<Slide[]>(() => {
     const out: Slide[] = [];
     out.push({ key: 'intro', dur: 5500, node: () => (<>
-      <Bg src={photo('intro')} kind={own('intro') ? 'photo' : 'duo'} pos="50% 35%" />
+      <Bg src={photo('intro')} kind={hasMine ? 'photo' : 'duo'} pos="50% 35%" />
       <div className="c end">
         <h1 className="rise d1">מזל טוב<br /><span className="name">{name}!</span> 🎂</h1>
         <p className="lead rise d2">הנה השנה שלך בריצה,<br />מיום ההולדת הקודם ועד היום.</p>
-        <p className="hint rise d3">לחיצה להמשך ›</p>
+        <p className="hint rise d3">לחיצה שמאלה להמשך ‹</p>
       </div></>) });
     if (config.message) {
       out.push({ key: 'thanks', dur: 12000, node: () => (<>
-        <Bg src={photo('thanks')} kind={own('thanks') ? 'photo' : 'duo'} pos="40% 40%" />
+        <Bg src={photo('thanks')} kind={hasMine ? 'photo' : 'duo'} pos="45% 25%" />
         <div className="c end">
           <p className="eyebrow-s rise">מכל המדרגות</p>
           <h2 className="ded rise slow s1">{name}, תודה.</h2>
@@ -111,7 +121,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
         </div></>) });
     }
     out.push({ key: 'km', dur: 5500, node: (live) => (<>
-      <Bg src={photo('km')} kind={own('km') ? 'band' : 'duo'} pos="50% 42%" />
+      <Bg src={photo('km')} kind={hasMine ? 'band' : 'duo'} pos="50% 42%" />
       <div className="c end">
         <p className="k rise">השנה רצת</p>
         <div className="hero rise d1"><b><Count to={s.km} run={live} /></b><u>ק״מ</u></div>
@@ -172,7 +182,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
     if (s.longest) {
       const L = s.longest;
       out.push({ key: 'long', dur: 5500, node: (live) => (<>
-        <Bg src={photo('long')} kind={own('long') ? 'photo' : 'duo'} pos="45% 20%" />
+        <Bg src={photo('long')} kind={hasMine ? 'photo' : 'duo'} pos="45% 20%" />
         <div className="c end">
           <p className="k rise">הריצה הכי ארוכה</p>
           <div className="hero rise d1"><b><Count to={L.km} dec={1} run={live} /></b><u>ק״מ</u></div>

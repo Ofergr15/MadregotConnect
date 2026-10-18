@@ -32,6 +32,17 @@ export interface BirthdayConfig {
   /** Its name on the slide ("מרתון ברלין"); the watch's auto-name is not one. */
   momentTitle?: string | null;
   photos?: Partial<Record<PhotoSlot, string>>;
+  /**
+   * The admin's own switch for this one story: on = every member sees it (and its owner),
+   * off = only the admin, whatever the club-wide switch says. Unset follows the club-wide
+   * switch (Ofer, 2026-10-18: "a key to show it to everyone and hide it from everyone").
+   */
+  published?: boolean | null;
+}
+
+/** Whether members (and the owner) may see this story now. */
+export function storyVisible(cfg: BirthdayConfig, sending: boolean): boolean {
+  return typeof cfg.published === 'boolean' ? cfg.published : sending;
 }
 
 type Db = SupabaseClient;
@@ -135,7 +146,7 @@ export async function loadStory(supabase: Db, athleteId: string, today: string, 
  * sending is on, only to members with runs in the year. Returns how many were sent.
  */
 export async function sendBirthdayYearPushes(supabase: Db, today: string): Promise<number> {
-  if (!(await sendingOn(supabase))) return 0;
+  const sending = await sendingOn(supabase);
   const { notifyAthlete } = await import('@/lib/push');
   const { birthdayYearCopy } = await import('@/lib/notifications/copy');
   const { data } = await supabase.from('athletes').select('id, birth_date')
@@ -145,7 +156,7 @@ export async function sendBirthdayYearPushes(supabase: Db, today: string): Promi
     if (nextBirthday(a.birth_date, today) !== today) continue;
     try {
       const story = await loadStory(supabase, a.id, today);
-      if (!story || story.stats.runs === 0) continue;
+      if (!story || story.stats.runs === 0 || !storyVisible(story.config, sending)) continue;
       await notifyAthlete({
         athleteId: a.id,
         kind: 'birthday_year',

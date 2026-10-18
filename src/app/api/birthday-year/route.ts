@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { hasRole } from '@/lib/auth/roles';
 import { israelToday } from '@/lib/utils';
-import { loadStory, sendingOn } from '@/lib/birthday-year/server';
+import { loadStory, sendingOn, storyVisible } from '@/lib/birthday-year/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,8 +25,9 @@ export async function GET(request: Request) {
   if (!athleteId) return NextResponse.json({ story: null });
   const preview = admin && !!asked;
   try {
-    if (!preview && !(await sendingOn(supabase))) return NextResponse.json({ story: null });
     const story = await loadStory(supabase, athleteId, israelToday(), { preview });
+    // Members see it only while it is shown: its own switch, else the club-wide one.
+    if (story && !preview && !storyVisible(story.config, await sendingOn(supabase))) return NextResponse.json({ story: null });
     return NextResponse.json({ story });
   } catch (err) {
     console.error('birthday-year read failed:', err);

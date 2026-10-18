@@ -56,7 +56,7 @@ export default function BirthdaysPage() {
 
       <div className="mt-4 flex items-center gap-3 rounded-card bg-card px-4 py-3">
         <span className="min-w-0 flex-1">
-          <b className="block text-[15px] font-extrabold text-ink-900">שליחה לחוגגים</b>
+          <b className="block text-[15px] font-extrabold text-ink-900">אוטומטי לכל החוגגים</b>
           <small className="block text-xs text-ink-400">{data?.sending ? 'פעיל: לחוגג התראה ב־7:00 וכרטיס בפיד, ולכל המועדון כפתור ״צפו בשנה של…״ בפוסט יום ההולדת — לשבוע' : 'כבוי: רק אתה רואה את הסטוריז, לתצוגה'}</small>
         </span>
         <Switch checked={!!data?.sending} onChange={(v) => void setSending(v)} loading={savingSwitch} ariaLabel="שליחה לחוגגים" />
@@ -68,14 +68,14 @@ export default function BirthdaysPage() {
         {data && data.rows.length === 0 && <EmptyState icon={Cake} title="אין ימי הולדת בשלושת השבועות הקרובים" />}
         {data?.rows.map((r) => (
           <PersonCard key={`${r.athleteId}-${r.birthday}`} row={r} open={open === r.athleteId}
-            onToggle={() => setOpen(open === r.athleteId ? null : r.athleteId)} onSaved={() => void mutate()} />
+            onToggle={() => setOpen(open === r.athleteId ? null : r.athleteId)} onSaved={() => void mutate()} sending={!!data.sending} />
         ))}
       </div>
     </div>
   );
 }
 
-function PersonCard({ row, open, onToggle, onSaved }: { row: Row; open: boolean; onToggle: () => void; onSaved: () => void }) {
+function PersonCard({ row, open, onToggle, onSaved, sending }: { row: Row; open: boolean; onToggle: () => void; onSaved: () => void; sending: boolean }) {
   const [cfg, setCfg] = useState<BirthdayConfig>(row.config);
   const [time, setTime] = useState(toClock(row.config.momentSeconds));
   const [busy, setBusy] = useState(false);
@@ -87,6 +87,7 @@ function PersonCard({ row, open, onToggle, onSaved }: { row: Row; open: boolean;
   const slotFor = useRef<PhotoSlot | null>(null);
   useEffect(() => { setCfg(row.config); setTime(toClock(row.config.momentSeconds)); }, [row.config]);
   const ready = Object.keys(cfg.photos || {}).length;
+  const shown = typeof cfg.published === 'boolean' ? cfg.published : sending;
 
   const save = async (next: BirthdayConfig = cfg) => {
     setBusy(true); setErr(null);
@@ -151,6 +152,13 @@ function PersonCard({ row, open, onToggle, onSaved }: { row: Row; open: boolean;
         </span>
         <span className="text-[13px] font-extrabold text-brand-600">{open ? 'סגירה' : 'הכנה'}</span>
       </button>
+      <div className="flex items-center gap-3 border-t border-page px-4 py-2.5">
+        <span className="min-w-0 flex-1">
+          <b className="block text-[14px] font-extrabold text-ink-900">מוצג לכולם</b>
+          <small className="block text-xs text-ink-400">{shown ? 'כל המועדון רואה את השנה שלו, בשבוע של יום ההולדת' : 'מוסתר — רק אתה רואה, בתצוגה'}</small>
+        </span>
+        <Switch checked={shown} onChange={(v) => { const next = { ...cfg, published: v }; setCfg(next); void save(next); }} loading={busy} ariaLabel="מוצג לכולם" />
+      </div>
       {open && (
         <div className="space-y-3 border-t border-page px-4 pb-4 pt-3">
           <label className="block">

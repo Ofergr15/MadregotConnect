@@ -3,9 +3,9 @@
 .ys{--blue:#1525FF;--blue2:#159AFF;--or:#FF5315;--ink:#0C0D12;--peach:#FFB08F}
 .ys bdi,.ys b{font-variant-numeric:tabular-nums}
 .ys{position:fixed;inset:0;z-index:400;color:#fff;overflow:hidden;background:#060a52;font-family:-apple-system,"SF Pro Display","SF Hebrew",system-ui,Heebo,Arial,sans-serif;-webkit-font-smoothing:antialiased;user-select:none}
-.ys .bars-top{position:absolute;z-index:20;top:calc(env(safe-area-inset-top) + 10px);left:14px;right:14px;display:flex;gap:4px;direction:ltr}
+.ys .bars-top{position:absolute;z-index:20;top:calc(env(safe-area-inset-top) + 10px);left:14px;right:14px;display:flex;gap:4px;direction:rtl}
 .ys .bars-top i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.32);overflow:hidden;position:relative}
-.ys .bars-top i b{position:absolute;inset:0;background:#fff;transform-origin:left;transform:scaleX(0)}
+.ys .bars-top i b{position:absolute;inset:0;background:#fff;transform-origin:right;transform:scaleX(0)}
 .ys .bars-top i.done b{transform:scaleX(1)}
 .ys .bars-top i.now b{animation:prog var(--dur) linear forwards}
 @keyframes prog{to{transform:scaleX(1)}}

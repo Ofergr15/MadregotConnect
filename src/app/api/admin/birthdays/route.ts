@@ -55,6 +55,7 @@ export async function PUT(request: Request) {
     message: clean(body.message, 600),
     momentSeconds: Number.isFinite(secs) && secs > 600 && secs < 86_400 ? Math.round(secs) : null,
     momentTitle: clean(body.momentTitle, 40),
+    published: typeof body.published === 'boolean' ? body.published : null,
     photos,
   };
   return (await writeConfig(supabase, athleteId, birthday, cfg))
