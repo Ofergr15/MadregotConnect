@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { ArrowRight, Loader2, Radio } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { getSupabase } from '@/lib/supabase/client';
+import { useIsSuperUser } from '@/lib/impersonation';
 import {
   ConnectedRunChat,
   type RunChat,
@@ -19,7 +20,7 @@ interface DemoParticipants {
   coach: StreamTokenData;
 }
 
-export default function RunChatDemoPage() {
+function RunChatDemo() {
   const { activityId } = useParams<{ activityId: string }>();
   const router = useRouter();
   const t = useTranslations('runChat');
@@ -136,6 +137,24 @@ export default function RunChatDemoPage() {
           </section>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The run-chat demo is a developer tool (Ofer, 2026-10-18: "only you can see it"). Its
+ * API refuses production outright; this keeps anyone else from landing on a raw
+ * "Forbidden" — they get one Hebrew line and a way back.
+ */
+export default function RunChatDemoPage() {
+  const isSuper = useIsSuperUser();
+  const router = useRouter();
+  if (isSuper) return <RunChatDemo />;
+  return (
+    <div className="mx-auto max-w-md px-6 py-16 text-center" dir="rtl" lang="he">
+      <p className="text-base font-bold text-ink-700">המסך הזה לא זמין</p>
+      <p className="mt-1 text-sm text-ink-400">זה כלי פיתוח פנימי.</p>
+      <button onClick={() => router.push('/feed')} className="mt-5 inline-flex h-11 items-center rounded-pill bg-brand-600 px-5 text-sm font-extrabold text-white">לפיד</button>
     </div>
   );
 }

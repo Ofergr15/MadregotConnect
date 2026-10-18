@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Menu, Search, ShoppingBag, Gift, LogOut, Bug, Users, UserSearch } from 'lucide-react';
+import { Menu, Camera, Search, ShoppingBag, Gift, LogOut, Bug, Users, UserSearch } from 'lucide-react';
 import { openViewAsChooser } from '@/lib/view-as-person';
 import { cn } from '@/lib/utils';
 import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
@@ -115,7 +115,7 @@ export function BottomTabBar() {
   const overflowActive = overflow.some(i => isActive(i.href));
   // The static quick-action pages are reachable from the "More" sheet only, so
   // they light its slot up exactly like an overflow page does.
-  const MORE_SHEET_HREFS = ['/dashboard/search', '/dashboard/store', '/dashboard/benefits', '/dashboard/review', '/dashboard/run-together'];
+  const MORE_SHEET_HREFS = ['/dashboard/photos', '/dashboard/search', '/dashboard/store', '/dashboard/benefits', '/dashboard/review', '/dashboard/run-together'];
   const moreActive = MORE_SHEET_HREFS.some(isActive);
 
   // There used to be a fixed staff slot here for the attendance roster; it moved
@@ -243,10 +243,8 @@ export function BottomTabBar() {
                   mean a club social feature that only exists for whoever the
                   matrix happens to have granted. */}
               <MoreCard icon={Users} label={t('runTogether' as any)} href="/dashboard/run-together" active={isActive('/dashboard/run-together')} onClick={() => setMoreOpen(false)} />
-              {/* Photos is still being built — card and route disabled for now.
-                  Restore with the Header nav entry and the page (re-add the
-                  lucide Camera import too). */}
-              {/* <MoreCard icon={Camera} label={t('photos' as any)} href="/dashboard/photos" active={isActive('/dashboard/photos')} onClick={() => setMoreOpen(false)} /> */}
+              {/* Photos (2026-10-18): the club's Drive folders — see /dashboard/photos. */}
+              <MoreCard icon={Camera} label={t('photos' as any)} href="/dashboard/photos" active={isActive('/dashboard/photos')} onClick={() => setMoreOpen(false)} />
             </div>
           </div>
 

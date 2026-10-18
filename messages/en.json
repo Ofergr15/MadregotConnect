@@ -5794,5 +5794,27 @@
     "circleSub": "The first circle of \"Celebrating today\", for the whole club. A red dot until it is opened.",
     "circlePush": "A phone notification too",
     "circlePushSub": "Without it: just the circle, quietly"
+  },
+  "photosPage": {
+    "title": "Photos",
+    "searchPlaceholder": "Search by session, event or date",
+    "clear": "Clear",
+    "latest": "Latest session",
+    "count": "{n, plural, one {one photo} other {# photos}}",
+    "folders": "Folders",
+    "noResults": "No folder like that",
+    "loadFailed": "Couldn't load the photos. Try again in a moment.",
+    "notConfigured": "Photos aren't connected to the club's Drive folder yet.",
+    "emptyTitle": "No photos here yet",
+    "emptyBody": "Session photos appear here once they're uploaded to the club's Drive folder.",
+    "folderMissing": "Folder not found.",
+    "back": "Back",
+    "photoN": "Photo {n}",
+    "close": "Close",
+    "share": "Share",
+    "save": "Save",
+    "next": "Next photo",
+    "prev": "Previous photo",
+    "openInDrive": "Open in Drive"
   }
 }

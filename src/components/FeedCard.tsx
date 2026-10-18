@@ -2,8 +2,9 @@
 
 import { SurveyVote } from '@/components/feed/SurveyVote';
 import { useState, useCallback } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Heart, MessageCircle, MessagesSquare, Trash2, MapPin, Mountain, Share2, Award, Flame, Gauge, ExternalLink, Play } from 'lucide-react';
+import { Heart, MessageCircle, MessagesSquare, Trash2, MapPin, Mountain, Share2, Award, Flame, Gauge, ExternalLink, Play, Images } from 'lucide-react';
 import { activityDayRelation, cn, formatActivityDate, formatActivityTime, resolveGroup } from '@/lib/utils';
 import { useTranslations, useFormatter, useLocale, useNow } from 'next-intl';
 import { toggleLike } from '@/lib/feed-client';
@@ -15,6 +16,7 @@ import { FeedBodyText } from '@/components/FeedBodyText';
 import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
 import { toAchievementPayload } from '@/lib/feed/project';
 import { toSessionPhotos, sessionSubline, type SessionPhotosPayload } from '@/lib/quality-session/photos';
+import { parseAlbumLink } from '@/lib/quality-session/album-import';
 import { CELEBRATION_TYPES, celebrationText, toCelebration, type Celebration } from '@/lib/feed/celebration';
 import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
@@ -796,15 +798,23 @@ function SessionPhotosCard({
           </div>
         )}
 
-        <a
-          href={photos.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-3 flex min-h-[44px] items-center justify-center gap-2 rounded-pill bg-brand-600 text-sm font-extrabold text-white active:opacity-80"
-        >
-          <ExternalLink className="h-4 w-4" />
-          {t('sessionPhotosOpen')}
-        </a>
+        {/* A Drive folder opens in the app's photos module (swipe, save, share);
+            anything else (a Google Photos album) still opens where it lives. */}
+        {(() => {
+          const album = parseAlbumLink(photos.link);
+          const cls = 'mt-3 flex min-h-[44px] items-center justify-center gap-2 rounded-pill bg-brand-600 text-sm font-extrabold text-white active:opacity-80';
+          return album?.kind === 'drive' ? (
+            <Link href={`/dashboard/photos?folder=${encodeURIComponent(album.folderId)}`} className={cls}>
+              <Images className="h-4 w-4" />
+              {t('sessionPhotosOpen')}
+            </Link>
+          ) : (
+            <a href={photos.link} target="_blank" rel="noopener noreferrer" className={cls}>
+              <ExternalLink className="h-4 w-4" />
+              {t('sessionPhotosOpen')}
+            </a>
+          );
+        })()}
 
         {/* Session photos are never activities — no run-chat CTA */}
         <ActionRow

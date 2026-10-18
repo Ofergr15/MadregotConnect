@@ -29,8 +29,7 @@ import { SetupPill } from '@/components/onboarding/SetupPill';
 // academy got the tab on their phone and not on their laptop. One source of
 // truth now; see resolveNavItems.
 //
-// (Photos is still being built, so it has no entry there either — restore it
-// alongside the BottomTabBar MoreCard and the page itself.)
+// (Photos, like the store and benefits, lives in the mobile "More" sheet only.)
 
 export function Header() {
   const pathname = usePathname();
