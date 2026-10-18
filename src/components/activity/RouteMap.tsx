@@ -191,7 +191,9 @@ export function RouteMap({
     // clear of that strip: a start marker under the back button can't be seen.
     map.fitBounds(
       L.latLngBounds(stablePoints.map((p) => [p.lat, p.lng])),
-      hero ? { paddingTopLeft: [16, 64], paddingBottomRight: [16, 28] } : { padding: [14, 14] },
+      // The hero's bottom ~200px hold the runner, the name and the numbers (run page), so the
+      // route is framed in the band above them.
+      hero ? { paddingTopLeft: [16, 60], paddingBottomRight: [16, 210] } : { padding: [14, 14] },
     );
   }, [ready, stablePoints, hero]);
 

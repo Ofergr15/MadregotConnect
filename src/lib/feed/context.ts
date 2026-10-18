@@ -11,6 +11,7 @@ import {
   buildCommentPreviewIndex,
 } from '@/lib/feed/comments';
 import { loadFeedPlanVerdicts, type VerdictActivityRow } from '@/lib/feed/plan-verdicts';
+import { qualityNames } from '@/lib/activities/quality-name';
 
 type SupabaseServer = ReturnType<typeof createServerClient>;
 
@@ -70,7 +71,7 @@ export async function loadFeedContext(
   // Likes, comment previews and plan verdicts are independent reads against
   // different tables, so they go out together rather than one after the other —
   // the feed is the app's landing page and this is on its critical path.
-  const [likesRes, commentsRes, verdicts] = await Promise.all([
+  const [likesRes, commentsRes, verdicts, qualityNameByActivity] = await Promise.all([
     // Newest-first so the preview names match what the like sheet shows at the top.
     supabase
       .from('feed_likes')
@@ -102,6 +103,8 @@ export async function loadFeedContext(
       athleteId: viewer.athleteId,
       isStaff: viewer.isStaff,
     }),
+    // A quality session's run goes under the coach's name for it; never throws.
+    qualityNames(supabase, activityRows).catch(() => new Map<string, string>()),
   ]);
   if (likesRes.error) throw likesRes.error;
   if (commentsRes.error) throw commentsRes.error;
@@ -119,5 +122,6 @@ export async function loadFeedContext(
       COMMENT_PREVIEW_COUNT,
     ),
     planVerdictsByActivity: verdicts,
+    qualityNameByActivity,
   };
 }

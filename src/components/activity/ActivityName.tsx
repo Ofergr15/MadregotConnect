@@ -1,5 +1,7 @@
 'use client';
 
+import { cn } from '@/lib/utils';
+
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Check, Loader2, Pencil, X } from 'lucide-react';
@@ -28,6 +30,7 @@ export function ActivityName({
   editable,
   format,
   title = false,
+  light = false,
 }: {
   activityId: string;
   name: string | null;
@@ -36,6 +39,8 @@ export function ActivityName({
   format?: (name: string) => string;
   /** The run page's h1 rather than a line in a list. */
   title?: boolean;
+  /** White, over the run page's map (its hero). */
+  light?: boolean;
 }) {
   const t = useTranslations('activities');
   const tc = useTranslations('common');
@@ -108,7 +113,7 @@ export function ActivityName({
   const Tag = title ? 'h1' : 'p';
   return (
     <div className="flex min-w-0 items-center gap-1">
-      <Tag className={title ? 'text-2xl font-extrabold leading-tight tracking-tight text-ink-700' : 'truncate text-sm font-semibold text-ink-700'} dir="auto">
+      <Tag className={title ? cn('text-2xl font-extrabold leading-tight tracking-tight', light ? 'text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.35)]' : 'text-ink-700') : 'truncate text-sm font-semibold text-ink-700'} dir="auto">
         {/* Each number run isolated LTR, or "5 × 1 ק״מ" paints as "1 × 5". */}
         {shown ? <NumberRuns text={shown} /> : t('activityNamePlaceholder')}
       </Tag>
@@ -117,7 +122,7 @@ export function ActivityName({
           onClick={() => setDraft(saved)}
           aria-label={t('renameAction')}
           title={t('renameAction')}
-          className="grid min-h-[44px] min-w-[44px] shrink-0 place-items-center rounded-lg text-ink-400 hover:bg-page hover:text-ink-700"
+          className={cn('grid min-h-[44px] min-w-[44px] shrink-0 place-items-center rounded-lg', light ? 'text-white/70 hover:text-white' : 'text-ink-400 hover:bg-page hover:text-ink-700')}
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>

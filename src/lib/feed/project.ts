@@ -92,6 +92,8 @@ export interface FeedActivity {
    * graded once and hidden here.
    */
   planVerdict: FeedPlanVerdict | null;
+  /** The coach's name for the day's quality session when this run is it (lib/activities/quality-name.ts). */
+  qualityName?: string | null;
 }
 
 /** A member who liked an item. Same shape whether inlined or fetched in full. */
@@ -314,7 +316,7 @@ function toMedia(v: unknown): FeedMedia[] {
     .filter((m): m is FeedMedia => m !== null);
 }
 
-function projectActivity(row: RawActivityRow, planVerdict: FeedPlanVerdict | null): FeedActivity {
+function projectActivity(row: RawActivityRow, planVerdict: FeedPlanVerdict | null, qualityName: string | null = null): FeedActivity {
   // 300 points (migration 130) where built, else 047's ~60.
   const hd = toRoute(row.route_preview_hd);
   const route = hd ?? toRoute(row.route_preview);
@@ -343,6 +345,7 @@ function projectActivity(row: RawActivityRow, planVerdict: FeedPlanVerdict | nul
     lapBands: toLapBands(row.laps),
     stepBands: segmentsFromSteps(normalizeStoredLaps(row.laps), null),
     planVerdict,
+    qualityName,
   };
 }
 
@@ -446,6 +449,8 @@ export interface ProjectContext {
    * plans simply ships no badge.
    */
   planVerdictsByActivity?: Map<string, FeedPlanVerdict>;
+  /** activity_id -> the quality session's name, for the runs that are it. */
+  qualityNameByActivity?: Map<string, string>;
 }
 
 /** How many likers ride along in the feed payload; the rest load on demand. */
@@ -460,6 +465,7 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
       projectActivity(
         row.athlete_activities,
         ctx.planVerdictsByActivity?.get(row.athlete_activities.id) ?? null,
+        ctx.qualityNameByActivity?.get(row.athlete_activities.id) ?? null,
       ),
       readHiddenFields(payload),
     )

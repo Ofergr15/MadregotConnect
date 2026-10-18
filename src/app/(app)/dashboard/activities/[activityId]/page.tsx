@@ -19,6 +19,7 @@ import { BackNav, Button, EmptyState, LoadingBlock } from '@/components/ui';
 import { ActivitySyncEditor } from '@/components/ActivitySyncEditor';
 import { ActivityDetailBody } from '@/components/activity/ActivityDetailBody';
 import { ActivityName } from '@/components/activity/ActivityName';
+import { formatDuration, formatPace } from '@/components/activity/format';
 import { resolveRunTypeBadge } from '@/components/activity/format';
 import { useActivityDetails } from '@/components/activity/useActivityDetails';
 import { AthleteLink } from '@/components/AthleteLink';
@@ -103,6 +104,55 @@ export default function ActivityDetailPage() {
     </>
   );
 
+  // Strava's grammar, the coach's word for a quality session (lib/activities/quality-name.ts).
+  const nameFmt = (n: string) => displayRunName(n, act.start_time, locale, details?.qualityName);
+  const whenLine = `${formatActivityDate(act.start_time, locale)} · ${formatActivityTime(act.start_time)}${act.location_name ? ` · ${act.location_name}` : ''}`;
+  const heroStats: Array<[string | null, string]> = [
+    [(act.distance / 1000).toFixed(2), tr('unitKm')],
+    [act.average_pace ? formatPace(act.average_pace) : null, tr('avgPaceLabel')],
+    [formatDuration(act.moving_duration || act.duration), tr('movingTime')],
+    [act.average_hr ? String(Math.round(act.average_hr)) : null, t('avgHrShort')],
+  ];
+  const badges = !mapOnly && (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className={cn('rounded-full px-2.5 py-0.5 text-2xs font-bold', runType.bg, runType.color)}>
+        {tr(`runType_${runType.type}` as 'runType_easy')}
+      </span>
+      <PrBadge
+        buckets={prRuns.get(act.id)}
+        href={prRuns.get(act.id)?.length && act.athlete_id
+          ? recordHref(act.athlete_id, prRuns.get(act.id)![0]) ?? undefined
+          : undefined}
+      />
+    </div>
+  );
+  // The run page's hero (mockup run-page-b): who ran, the run's name and the four
+  // numbers over the bottom of the map, white on a dark wash.
+  const heroOverlay = (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[900] bg-gradient-to-b from-transparent via-[#11121E]/85 to-[#11121E] px-4 pb-3.5 pt-16 text-white">
+      <div className="pointer-events-auto flex items-center gap-2.5">
+        <FeedAvatar name={act.athlete_name || ''} url={act.athlete_avatar_url ?? null} className="h-10 w-10 ring-2 ring-white/30" />
+        <div className="min-w-0">
+          <AthleteLink athleteId={isMyActivity ? null : act.athlete_id} name={act.athlete_name} className="block truncate text-[15px] font-bold text-white">
+            {act.athlete_name || ''}
+          </AthleteLink>
+          <p className="truncate text-xs text-white/75">{whenLine}</p>
+        </div>
+      </div>
+      <div className="pointer-events-auto mt-2">
+        <ActivityName activityId={act.id} name={act.activity_name} editable={isMyActivity} format={nameFmt} title light />
+      </div>
+      <div className="mt-2.5 grid grid-cols-4 rounded-2xl bg-[#11121E]/45 py-2.5 backdrop-blur" dir="rtl">
+        {heroStats.map(([v, label]) => (
+          <div key={label} className="text-center">
+            <bdi dir="ltr" className="block text-lg font-extrabold tabular-nums text-white">{v ?? '—'}</bdi>
+            <span className="text-2xs font-bold text-white/85">{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   const header = (
     <section className="rounded-card border border-page bg-card p-4">
       <div className="flex items-center gap-3">
@@ -125,7 +175,7 @@ export default function ActivityDetailPage() {
           activityId={act.id}
           name={act.activity_name}
           editable={isMyActivity}
-          format={(n) => displayRunName(n, act.start_time, locale)}
+          format={nameFmt}
           title
         />
       </div>
@@ -163,6 +213,7 @@ export default function ActivityDetailPage() {
               // the buttons float over it.
               <div className="relative overflow-hidden rounded-card">
                 {map}
+                {heroOverlay}
                 <button onClick={() => router.back()} className={cn(floatBtn, 'absolute right-3 top-3 z-[1000]')} aria-label={tc('back')}>
                   <ArrowRight className="h-5 w-5 rtl:rotate-0 ltr:rotate-180" />
                 </button>
@@ -174,7 +225,8 @@ export default function ActivityDetailPage() {
                 <div className="flex gap-2">{actions}</div>
               </div>
             )}
-            {header}
+            {/* Over the map when there is one; the card when there is not (treadmill). */}
+            {map ? badges : header}
             {/* The records this run set, and taking it out of them (migration 146). */}
             {!mapOnly && act.athlete_id && (
               <RunRecords athleteId={act.athlete_id} activityId={act.id} owner={isMyActivity} />

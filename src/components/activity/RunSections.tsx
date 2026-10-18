@@ -200,7 +200,15 @@ function rowsFromSplits(splits: Split[]): KmRow[] {
   }));
 }
 
-export function KmSplits({ streamKm, splits }: { streamKm: StreamKmSplit[] | null; splits: Split[] }) {
+export function KmSplits({ streamKm, splits, maxHr }: { streamKm: StreamKmSplit[] | null; splits: Split[]; maxHr?: number }) {
+  // The bar is coloured by the kilometre's heart-rate zone — the same zones and colours as
+  // "זמן באזורי דופק", one rule on the page (Ofer: why exactly 133?).
+  const zoneOf = (hr: number | null | undefined) => {
+    if (!hr || !maxHr) return null;
+    let z = 0;
+    HR_ZONE_FLOORS.forEach((f, i) => { if (hr >= maxHr * f) z = i; });
+    return z;
+  };
   const t = useTranslations('runPage');
   const [all, setAll] = useState(false);
   const rows = streamKm?.length ? rowsFromStream(streamKm) : rowsFromSplits(splits);
@@ -233,7 +241,7 @@ export function KmSplits({ streamKm, splits }: { streamKm: StreamKmSplit[] | nul
                   {formatPace(r.pace)}
                   {r === fastest && <span className="ms-1.5 rounded-full bg-brand-600/10 px-1.5 py-0.5 text-3xs font-bold text-brand-700">{t('fastest')}</span>}
                 </td>
-                <td className="py-2"><div dir="ltr"><div className={cn('h-2 rounded-full', r.partial ? 'bg-primary-200' : 'bg-brand-600')} style={{ width: `${w}%` }} /></div></td>
+                <td className="py-2"><div dir="ltr"><div className={cn('h-2 rounded-full', r.partial ? 'bg-primary-200' : zoneOf(r.hr) == null && 'bg-brand-600')} style={{ width: `${w}%`, ...(!r.partial && zoneOf(r.hr) != null ? { background: ZONE_FILL[zoneOf(r.hr)!] } : {}) }} /></div></td>
                 <td className="py-2 tabular-nums text-ink-400"><Num>{r.elev == null ? '–' : `${r.elev > 0 ? '+' : ''}${Math.round(r.elev)}`}</Num></td>
                 <td className="py-2 tabular-nums text-ink-700">{r.hr ?? '–'}</td>
               </tr>

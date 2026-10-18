@@ -10,7 +10,7 @@
  */
 
 import { activityLocalHour } from '@/lib/utils';
-import { localizeDefaultName } from '@/lib/share/default-name';
+import { isDefaultName, localizeDefaultName } from '@/lib/share/default-name';
 
 type Lang = 'he' | 'en';
 
@@ -26,9 +26,15 @@ export function timeOfDayRunName(startTime: string, lang: Lang): string {
 
 const BARE_SPORT = new Set(['running', 'run', 'ריצה']);
 
-export function displayRunName(name: string | null | undefined, startTime: string, locale: string): string {
+/**
+ * `qualityName`: the coach's name for the day's quality session, when this run is it
+ * (lib/activities/quality-name.ts). It replaces the watch's automatic name, never one the
+ * runner typed.
+ */
+export function displayRunName(name: string | null | undefined, startTime: string, locale: string, qualityName?: string | null): string {
   const lang: Lang = locale === 'en' ? 'en' : 'he';
   const trimmed = (name || '').trim();
+  if (qualityName && (!trimmed || BARE_SPORT.has(trimmed.toLowerCase()) || isDefaultName(trimmed))) return qualityName;
   if (!trimmed || BARE_SPORT.has(trimmed.toLowerCase())) return timeOfDayRunName(startTime, lang);
   return localizeDefaultName(trimmed, lang);
 }

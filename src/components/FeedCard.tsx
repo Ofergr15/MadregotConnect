@@ -628,7 +628,7 @@ function ActivityCard({
           {/* Hebrew for the watch's automatic names, the time of day for a bare
               "Running" — see lib/activities/run-name.ts. */}
           <p className="truncate text-base font-extrabold leading-snug tracking-tight text-ink-900" dir="auto">
-            {displayRunName(act.activityName, act.startTime, locale)}
+            {displayRunName(act.activityName, act.startTime, locale, act.qualityName)}
           </p>
 
           <CardStats act={act} />

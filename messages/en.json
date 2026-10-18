@@ -5544,7 +5544,12 @@
     "runType_trail_running": "Trail",
     "runType_treadmill_running": "Treadmill",
     "runType_track_running": "Track",
-    "runType_virtual_run": "Virtual"
+    "runType_virtual_run": "Virtual",
+    "moreMetrics": "More metrics",
+    "repsVsTarget": "{n} reps vs target",
+    "cadence": "Cadence",
+    "phaseSteady": "Steady",
+    "phaseCool": "Cool-down"
   },
   "traineeHeader": {
     "band": "Pack {n}",

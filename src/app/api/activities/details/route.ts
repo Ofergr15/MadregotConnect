@@ -27,6 +27,10 @@
  * the repeat lengths, which need the step list (`executed_workout`). Own run only, as
  * with `hr` — the targets are the athlete's plan.
  */
+import { qualityNames } from '@/lib/activities/quality-name';
+import { COACH_ID } from '@/lib/constants';
+import { repTarget, type RepTarget } from '@/lib/activities/rep-target';
+import { paceGroupKeyFor } from '@/lib/plans/pace-group';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
@@ -158,7 +162,33 @@ export async function GET(request: Request) {
       shoe_name: shoes?.name ?? null,
     };
 
+    // The coach's name for the day's quality session, when this run is it — the same
+    // rule as the feed card (lib/activities/quality-name.ts). Never fails the page.
+    let qualityName: string | null = null;
+    try {
+      const { data: sameDay } = await supabase.from('athlete_activities').select('id, athlete_id, start_time, distance')
+        .eq('athlete_id', r.athlete_id).gte('start_time', `${String(r.start_time).slice(0, 10)}T00:00:00`).lte('start_time', `${String(r.start_time).slice(0, 10)}T23:59:59.999`);
+      qualityName = (await qualityNames(supabase, (sameDay || []) as never)).get(r.id) ?? null;
+    } catch { /* the watch's name, then */ }
+
+    // The reps' target for this runner's pack, from the workout on their watch.
+    let repTargetOut: RepTarget | null = null;
+    try {
+      const [{ data: ex }, { data: who }, { data: groups }] = await Promise.all([
+        supabase.from('athlete_activities').select('executed_workout').eq('id', r.id).maybeSingle(),
+        supabase.from('athletes').select('group_id').eq('id', r.athlete_id).maybeSingle(),
+        supabase.from('groups').select('id, pace_profile').eq('coach_id', COACH_ID),
+      ]);
+      const key = paceGroupKeyFor(
+        ((groups || []) as Array<{ id: string; pace_profile: { marathonGoal?: number | null } | null }>).map((g) => ({ id: g.id, marathonGoal: g.pace_profile?.marathonGoal ?? null })),
+        (who as { group_id?: string | null } | null)?.group_id,
+      );
+      repTargetOut = repTarget((ex as { executed_workout?: unknown } | null)?.executed_workout, { group1: 0, group2: 1, group3: 2 }[key]);
+    } catch { /* no target: the chart draws without one */ }
+
     return NextResponse.json({
+      qualityName,
+      repTarget: repTargetOut,
       gpsPoints: gps_points || [],
       splits,
       hasPolyline: !!r.has_polyline,

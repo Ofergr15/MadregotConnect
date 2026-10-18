@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { MapPin, RefreshCw, Sparkles } from 'lucide-react';
 import { PlannedKmPoint } from '@/lib/academy/segments';
@@ -11,9 +11,10 @@ import { RunFeedback } from '@/components/academy/RunFeedback';
 import { ExecutionQuality } from './ExecutionQuality';
 import { DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone, strideMeters } from './format';
 import { RouteMap } from './RouteMap';
-import { RunCharts } from './RunCharts';
+import { RunCharts, type RunPhase } from './RunCharts';
 import { HrZones, KmSplits, Laps, Section, StatGrid, lapsAreKm, type StatCell } from './RunSections';
 import { useActivityStream } from './useActivityStream';
+import { MetricCards, RepsVsTarget } from './MetricCards';
 import type { ActivityDetailsData, ActivityEntry } from './types';
 
 /**
@@ -112,6 +113,27 @@ export function ActivityDetailBody({
   const watchLaps = trace?.laps && trace.laps.length > 1 && !lapsAreKm(trace.laps) ? trace.laps : null;
   const [cursor, setCursor] = useState<number | null>(null);
 
+  // The workout's parts along the run, for the strip above the charts: what came before the
+  // reps, the reps, what came after (only when the watch ran a workout with reps).
+  const phases = useMemo<RunPhase[] | null>(() => {
+    const target = details?.repTarget;
+    const lapsAll = (trace?.laps ?? (act.laps as Array<{ distance: number; duration: number }> | null)) || [];
+    if (!target || lapsAll.length < 4) return null;
+    const isRep = (l: { distance: number }) => Math.abs(l.distance - target.meters) <= Math.max(15, target.meters * 0.08);
+    const first = lapsAll.findIndex(isRep);
+    let last = -1;
+    lapsAll.forEach((l, i) => { if (isRep(l)) last = i; });
+    if (first < 0 || last <= first) return null;
+    // A recovery after the last rep belongs to the reps.
+    if (last + 1 < lapsAll.length && lapsAll[last + 1].distance < target.meters) last += 1;
+    const km = (n: number) => lapsAll.slice(0, n).reduce((a, l) => a + l.distance, 0) / 1000;
+    const out: RunPhase[] = [];
+    if (first > 0) out.push({ from: 0, to: km(first), label: tr('phaseSteady'), kind: 'steady' });
+    out.push({ from: km(first), to: km(last + 1), label: `${target.reps}×${target.meters}`, kind: 'reps' });
+    if (last + 1 < lapsAll.length) out.push({ from: km(last + 1), to: km(lapsAll.length), label: tr('phaseCool'), kind: 'easy' });
+    return out;
+  }, [details?.repTarget, trace?.laps, act.laps, tr]);
+
   const cells: StatCell[] = [
     { label: t('distance'), value: distKm, unit: tr('unitKm') },
     { label: tr('avgPaceLabel'), value: paceStr, unit: tr('unitPerKm') },
@@ -143,7 +165,7 @@ export function ActivityDetailBody({
   ];
 
   const map = routePoints.length > 2 ? (
-    <RouteMap points={routePoints} height={hero ? 320 : 280} splits={splits} variant={hero ? 'hero' : 'card'} cursor={cursor} />
+    <RouteMap points={routePoints} height={hero ? 420 : 280} splits={splits} variant={hero ? 'hero' : 'card'} cursor={cursor} />
   ) : null;
 
   return (
@@ -159,9 +181,22 @@ export function ActivityDetailBody({
         </div>
       ) : null}
 
-      <Section>
-        <StatGrid cells={cells} more={mapOnly ? undefined : more} />
-      </Section>
+      {/* On the run page the four headline numbers are over the map, so the rest are
+          cards with context (mockup run-page-b); elsewhere, the grid as before. */}
+      {hero && !mapOnly ? (
+        <Section title={tr('moreMetrics')}>
+          <MetricCards m={{
+            vo2: vo2 ? Number(vo2) : null, rpe, avgHr: act.average_hr ?? null, maxHr: act.max_hr ?? null, hrCeiling: maxHR,
+            cadence: cadence ? Number(cadence) : null, stride: stride ?? null,
+            moving: act.moving_duration ?? null, total: act.duration, elevation: act.elevation_gain ?? null,
+            calories: calories ? Number(calories) : null, distanceKm: act.distance / 1000,
+          }} />
+        </Section>
+      ) : (
+        <Section>
+          <StatGrid cells={cells} more={mapOnly ? undefined : more} />
+        </Section>
+      )}
 
       {/* Was this the workout that was asked for — as ONE row. The full breakdown
           (axis, reps, measured table) is a tap away instead of ~900px above the
@@ -197,14 +232,22 @@ export function ActivityDetailBody({
             elevationGain={act.elevation_gain}
             maxHr={trace?.maxHr ?? maxHR}
             onCursor={setCursor}
+            planned={planned ?? null}
+            phases={phases}
           />
           {trace && !trace.hrVisible && <p className="mt-2 text-2xs text-ink-400">{tr('hrHidden')}</p>}
         </Section>
       )}
 
+      {/* The reps against this runner's target pace, when the watch ran a workout with reps. */}
+      {!mapOnly && details?.repTarget && !!(trace?.laps || act.laps) && (
+        <Section title={tr('repsVsTarget', { n: details.repTarget.reps })}>
+          <RepsVsTarget laps={(trace?.laps ?? (act.laps as Array<{ distance: number; duration: number }>)) || []} target={details.repTarget} />
+        </Section>
+      )}
       {!mapOnly && watchLaps && <Laps laps={watchLaps} />}
       {!mapOnly && trace?.zones && <HrZones seconds={trace.zones} maxHr={trace.maxHr} />}
-      {!mapOnly && <KmSplits streamKm={trace?.kmSplits ?? null} splits={splits} />}
+      {!mapOnly && <KmSplits streamKm={trace?.kmSplits ?? null} splits={splits} maxHr={trace?.maxHr ?? maxHR} />}
 
       {/* Nothing but the headline numbers exist for this run. Say so, rather than
           ending on an empty stretch of page that reads as a loading failure. */}

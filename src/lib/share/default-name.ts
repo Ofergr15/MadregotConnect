@@ -38,6 +38,12 @@ const PLACE = "[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ.'\\- ]*?";
 const EN_PLACE = new RegExp(`^(${PLACE}) Running$`);
 const HE_PLACE = new RegExp(`^(${PLACE}) ריצה$`);
 
+/** One of the watch's automatic names ("Morning Run", "Tel Aviv Running", "ריצה") — not one the runner typed. */
+export function isDefaultName(name: string): boolean {
+  const trimmed = name.trim();
+  return WHOLE.some(([en, he]) => trimmed === en || trimmed === he) || EN_PLACE.test(trimmed) || HE_PLACE.test(trimmed);
+}
+
 export function localizeDefaultName(name: string, lang: ShareCardLang): string {
   const trimmed = name.trim();
   for (const [en, he] of WHOLE) {

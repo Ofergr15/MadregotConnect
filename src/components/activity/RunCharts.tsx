@@ -26,7 +26,26 @@ import type { Split } from './types';
 
 const W = 360;
 
-type Metric = 'pace' | 'hr' | 'elev';
+type Metric = 'pace' | 'hr' | 'cad' | 'elev';
+
+/** The y-axis gutter, px — labels live there, never over the line. */
+const GUTTER = 34;
+
+/** Four round ticks across [lo, hi]. */
+function niceTicks(lo: number, hi: number, metric: Metric): number[] {
+  const step = metric === 'pace' ? ([15, 30, 60, 120].find((st) => (hi - lo) / st <= 4) ?? 300)
+    : metric === 'hr' ? ([10, 20, 30].find((st) => (hi - lo) / st <= 4) ?? 40)
+      : metric === 'cad' ? 10 : ([5, 10, 20, 50].find((st) => (hi - lo) / st <= 3) ?? 100);
+  const out: number[] = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) out.push(v);
+  return out;
+}
+
+/** A stretch of the run (km), for the strip above the charts: "50′ רציף" · "15×200" · "שחרור". */
+export interface RunPhase { from: number; to: number; label: string; kind: 'steady' | 'reps' | 'easy' }
+const PHASE_TONE: Record<RunPhase['kind'], string> = {
+  steady: 'bg-[#E3F6EA] text-[#12A150]', reps: 'bg-[#FFF1DC] text-[#8A4B00]', easy: 'bg-brand-600/10 text-brand-600',
+};
 
 interface Series {
   x: number[];
@@ -34,6 +53,7 @@ interface Series {
   pace: Array<number | null>;
   hr: Array<number | null> | null;
   elev: Array<number | null> | null;
+  cad: Array<number | null> | null;
   /** True when built from per-km splits rather than the trace. */
   coarse: boolean;
 }
@@ -63,6 +83,8 @@ function fromView(view: StreamView): Series {
     pace: rolling(view.pace, w),
     hr: view.hr ? rolling(view.hr, 1) : null,
     elev: view.elev ? rolling(view.elev, w) : null,
+    // A cadence under 120 is standing or walking — a gap, not a dive to the floor.
+    cad: view.cad && view.cad.some((c) => c != null && c > 120) ? rolling(view.cad.map((c) => (c != null && c > 120 ? c : null)), w) : null,
     coarse: false,
   };
 }
@@ -84,6 +106,7 @@ function fromSplits(splits: Split[]): Series | null {
     pace: splits.map((s) => s.averagePace || null),
     hr: hasHr ? splits.map((s) => s.averageHR) : null,
     elev: hasElev ? elev : null,
+    cad: null,
     coarse: true,
   };
 }
@@ -141,10 +164,14 @@ export interface RunChartsProps {
   maxHr: number;
   /** 0..1 along the run, or null when the cursor leaves — for the map dot. */
   onCursor?: (fraction: number | null) => void;
+  /** The plan's target band per km (sec/km), shaded behind the pace line. */
+  planned?: Array<{ min: number; max: number } | null> | null;
+  /** The workout's parts, drawn as a strip above the charts. */
+  phases?: RunPhase[] | null;
   className?: string;
 }
 
-export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, onCursor, className }: RunChartsProps) {
+export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, onCursor, planned, phases, className }: RunChartsProps) {
   const t = useTranslations('runPage');
   const series = useMemo(() => (view ? fromView(view) : fromSplits(splits)), [view, splits]);
   const [cursor, setCursor] = useState<number | null>(null);
@@ -167,6 +194,14 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
         stroke: '#C2410C', fill: 'rgba(194,65,12,0.07)', avg: avgHr, format: (v) => String(Math.round(v)),
       });
     }
+    if (series.cad) {
+      const [clo, chi] = extent(series.cad, 0.02, 0.98);
+      out.push({
+        metric: 'cad', values: series.cad, invert: false, height: 70,
+        lo: Math.max(120, Math.floor((clo - 4) / 10) * 10), hi: Math.ceil((chi + 4) / 10) * 10,
+        stroke: '#7C3AED', fill: 'rgba(124,58,237,0.08)', avg: null, format: (v) => String(Math.round(v)),
+      });
+    }
     if (series.elev) {
       let [elo, ehi] = extent(series.elev, 0, 1);
       if (ehi - elo < 20) { const mid = (ehi + elo) / 2; elo = mid - 10; ehi = mid + 10; }
@@ -184,7 +219,8 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
   const move = (clientX: number) => {
     const box = boxRef.current?.getBoundingClientRect();
     if (!box) return;
-    const f = Math.min(Math.max((clientX - box.left) / box.width, 0), 1);
+    // The gutter on the left holds the axis labels; the run starts after it.
+    const f = Math.min(Math.max((clientX - box.left - GUTTER) / (box.width - GUTTER), 0), 1);
     const xv = f * total;
     let i = series.x.findIndex((v) => v >= xv);
     if (i < 0) i = series.x.length - 1;
@@ -199,7 +235,7 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
   const at = cursor;
   const cx = at != null ? (series.x[at] / total) * W : null;
 
-  const label = (m: Metric) => t(m === 'pace' ? 'pace' : m === 'hr' ? 'heartRate' : 'elevation');
+  const label = (m: Metric) => t(m === 'pace' ? 'pace' : m === 'hr' ? 'heartRate' : m === 'cad' ? 'cadence' : 'elevation');
   const sub = (l: Lane) => (l.metric === 'pace' && avgPace ? t('avgPace', { pace: formatPace(avgPace) })
     : l.metric === 'hr' && avgHr ? t('avgHr', { hr: Math.round(avgHr) })
       : l.metric === 'elev' && elevationGain ? t('climb', { m: Math.round(elevationGain) }) : '');
@@ -216,6 +252,7 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
             {series.t[at] != null && <Chip label="⏱" value={formatDuration(series.t[at] as number)} />}
             {series.pace[at] != null && <Chip label={t('pace')} value={formatPace(series.pace[at] as number)} />}
             {series.hr?.[at] != null && <Chip label="♥" value={String(Math.round(series.hr[at] as number))} />}
+            {series.cad?.[at] != null && <Chip label="👣" value={String(Math.round(series.cad[at] as number))} />}
             {series.elev?.[at] != null && <Chip label="↑" value={`${Math.round(series.elev[at] as number)} ${t('m')}`} />}
           </>
         )}
@@ -225,10 +262,21 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
         ref={boxRef}
         dir="ltr"
         className="relative touch-pan-y select-none"
+        style={{ paddingLeft: GUTTER }}
         onPointerDown={(e) => move(e.clientX)}
         onPointerMove={(e) => { if (e.pointerType === 'mouse' || e.buttons) move(e.clientX); }}
         onPointerLeave={(e) => { if (e.pointerType === 'mouse') { setCursor(null); onCursor?.(null); } }}
       >
+        {phases && phases.length > 1 && (
+          <div className="relative mb-2 h-5" aria-hidden>
+            {phases.map((p, i) => (
+              <span key={i} dir="rtl" className={cn('absolute top-0 flex h-5 items-center justify-center overflow-hidden whitespace-nowrap rounded-md text-[10.5px] font-extrabold', PHASE_TONE[p.kind])}
+                style={{ left: `calc(${(p.from / total) * 100}% + 1px)`, width: `calc(${((p.to - p.from) / total) * 100}% - 2px)` }}>
+                {p.label}
+              </span>
+            ))}
+          </div>
+        )}
         {lanes.map((l) => (
           <div key={l.metric} className="mt-3 first:mt-0">
             <div dir="rtl" className="mb-1 flex items-baseline justify-between text-xs">
@@ -237,6 +285,13 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
             </div>
             <div className="relative" style={{ height: l.height }}>
               <svg viewBox={`0 0 ${W} ${l.height}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
+                {niceTicks(l.lo, l.hi, l.metric).map((tv) => (
+                  <line key={`g${tv}`} x1={0} x2={W} y1={laneY(l, tv)} y2={laneY(l, tv)} stroke="#ECECF1" vectorEffect="non-scaling-stroke" />
+                ))}
+                {l.metric === 'pace' && planned && planned.map((b, k) => (b && total > 0 ? (
+                  <rect key={`p${k}`} x={(k / total) * W} width={Math.max(0, (Math.min(k + 1, total) - k) / total * W)}
+                    y={laneY(l, Math.min(b.min, b.max))} height={Math.max(1, laneY(l, Math.max(b.min, b.max)) - laneY(l, Math.min(b.min, b.max)))} fill="rgba(18,161,80,0.12)" />
+                ) : null))}
                 {l.metric === 'hr' && HR_ZONE_FLOORS.map((f, z) => {
                   const top = laneY(l, maxHr * (HR_ZONE_FLOORS[z + 1] ?? 1.3));
                   const bottom = laneY(l, maxHr * f);
@@ -249,9 +304,18 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
                 )}
                 {cx != null && <line x1={cx} x2={cx} y1={0} y2={l.height} stroke="#1D1E26" strokeWidth={1} vectorEffect="non-scaling-stroke" />}
               </svg>
-              {/* Two y labels per lane, in HTML so they are never stretched. */}
-              <span className="pointer-events-none absolute left-1 top-0.5 text-3xs tabular-nums text-ink-400">{l.format(l.invert ? l.lo : l.hi)}</span>
-              <span className="pointer-events-none absolute bottom-0.5 left-1 text-3xs tabular-nums text-ink-400">{l.format(l.invert ? l.hi : l.lo)}</span>
+              {/* The axis, in HTML in the gutter so it is never stretched and never over the line. */}
+              {niceTicks(l.lo, l.hi, l.metric).map((tv) => (
+                <span key={tv} className="pointer-events-none absolute -translate-y-1/2 text-3xs tabular-nums text-ink-400"
+                  style={{ top: laneY(l, tv), right: '100%', marginRight: 5 }}>{l.format(tv)}</span>
+              ))}
+              {l.metric === 'hr' && HR_ZONE_FLOORS.map((f, z) => {
+                const top = laneY(l, maxHr * (HR_ZONE_FLOORS[z + 1] ?? 1.3));
+                const bottom = laneY(l, maxHr * f);
+                return bottom - top > 11 ? (
+                  <span key={`z${z}`} className="pointer-events-none absolute right-1 -translate-y-1/2 text-[9px] font-bold text-ink-400" style={{ top: (top + bottom) / 2 }}>Z{z + 1}</span>
+                ) : null;
+              })}
               {cx != null && at != null && l.values[at] != null && (
                 <span
                   className="pointer-events-none absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white"

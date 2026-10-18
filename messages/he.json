@@ -5544,7 +5544,12 @@
     "runType_trail_running": "שטח",
     "runType_treadmill_running": "הליכון",
     "runType_track_running": "מסלול",
-    "runType_virtual_run": "וירטואלית"
+    "runType_virtual_run": "וירטואלית",
+    "moreMetrics": "עוד מדדים",
+    "repsVsTarget": "{n} החזרות מול היעד",
+    "cadence": "קדנס",
+    "phaseSteady": "רציף",
+    "phaseCool": "שחרור"
   },
   "traineeHeader": {
     "band": "דבוקה {n}",

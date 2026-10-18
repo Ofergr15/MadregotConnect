@@ -66,6 +66,10 @@ export interface ActivityEntry {
 }
 
 export interface ActivityDetailsData {
+  /** The coach's name for the day's quality session, when this run is it (lib/activities/quality-name.ts). */
+  qualityName?: string | null;
+  /** The reps' target pace for this runner's pack (lib/activities/rep-target.ts). */
+  repTarget?: import('@/lib/activities/rep-target').RepTarget | null;
   gpsPoints: Array<{ lat: number; lng: number }>;
   splits: Split[];
   /**
