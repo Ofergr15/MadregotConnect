@@ -219,6 +219,8 @@ const server = {
   sendDaySessionPush: vi.fn(),
 };
 vi.mock('@/lib/day-session/server', () => server);
+// The watch route hands the delivery to `after`, which needs a live request outside a test.
+vi.mock('next/server', async (orig) => ({ ...(await orig<typeof import('next/server')>()), after: (p: unknown) => p }));
 
 const session = (over: Record<string, unknown>) => ({ ok: true, user: { athleteId: 'me', isSuperUser: false, role: 'runner', ...over } });
 const put = (body: unknown) => new Request('http://x/api/day-session', { method: 'PUT', body: JSON.stringify(body) });
@@ -414,7 +416,8 @@ describe('/api/day-session/watch', () => {
     requireSession.mockResolvedValue(session({ isSuperUser: true }));
     expect((await POST(post({ date: 'tomorrow' }))).status).toBe(400);
     server.readDaySession.mockResolvedValue({ setup: true, session: null });
-    expect((await POST(post({ date: '2026-10-18' }))).status).toBe(404);
+    expect((await POST(post({ date: '2026-10-18' }))).status).toBe(400);
+    expect((await POST(post({ date: '2026-10-18', athleteIds: ['a'] }))).status).toBe(404);
     expect(server.daySessionRecipients).not.toHaveBeenCalled();
   });
 });
@@ -431,16 +434,17 @@ describe('quality session (RSVP) and the watch pick', () => {
     expect(fromRow({ id: 'r', session_date: '2026-10-18', steps: [] }).quality).toBe(true);
     expect(fromRow({ id: 'r', session_date: '2026-10-18', steps: [], quality: false }).quality).toBe(false);
   });
-  it('the watch goes to the coach\'s pick, not the push\'s recipients', async () => {
+  it('the watch goes to the coach\'s pick, queued at once, delivered after the answer', async () => {
     const watch = await import('@/lib/day-session/watch');
-    const spy = vi.spyOn(watch, 'sendDaySessionToWatches').mockResolvedValue({ tracked: true, results: [] });
+    const spy = vi.spyOn(watch, 'startDaySessionSend').mockResolvedValue({ queued: 2, skipped: 0, work: Promise.resolve() });
     const { POST } = await import('@/app/api/day-session/watch/route');
     requireSession.mockResolvedValue(session({ isSuperUser: true }));
     server.readDaySession.mockResolvedValue({ setup: true, session: { id: 'r1', date: '2026-10-18', steps: EDITED } });
     const post = (body: unknown) => new Request('http://x/api/day-session/watch', { method: 'POST', body: JSON.stringify(body) });
-    expect((await POST(post({ date: '2026-10-18', athleteIds: ['a', 'b', 'a'] }))).status).toBe(200);
-    expect(spy).toHaveBeenLastCalledWith(expect.anything(), ['a', 'b']);
-    expect(server.daySessionRecipients).not.toHaveBeenCalled();
+    const res = await POST(post({ date: '2026-10-18', athleteIds: ['a', 'b', 'a'] }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ queued: 2, skipped: 0 });
+    expect(spy).toHaveBeenLastCalledWith(expect.anything(), ['a', 'b'], 'me');
     expect((await POST(post({ date: '2026-10-18', athleteIds: [] }))).status).toBe(400);
     spy.mockRestore();
   });
@@ -460,5 +464,36 @@ describe('the notification text', () => {
     expect(typeof r === 'object' && r.pushTitle).toBe('שלום');
     expect(typeof r === 'object' && r.pushBody?.length).toBe(180);
     expect(typeof r === 'object' && readInput({ date: '2026-10-18', quickText: '6x1000', pushTitle: '  ' }) && (readInput({ date: '2026-10-18', quickText: '6x1000', pushTitle: '  ' }) as { pushTitle: unknown }).pushTitle).toBeNull();
+  });
+});
+
+describe('where the send stands, runner by runner', async () => {
+  const { runnerState, statusOf, countsOf, reasonText, STALE_MS, INTERRUPTED } = await import('@/lib/day-session/watch-status');
+  const t0 = Date.parse('2026-10-18T10:00:00Z');
+  const at = (ms: number) => new Date(t0 + ms).toISOString();
+  const q = (over: Record<string, unknown> = {}) => ({ athlete_id: 'a', status: 'pending', workout_data: { queued: true }, created_at: at(0), ...over });
+  it('queued, then sending, then the queue row goes and the real row says it landed', () => {
+    expect(runnerState([q()], t0 + 1000)?.state).toBe('queued');
+    expect(runnerState([q({ workout_data: { queued: true, started: true } })], t0 + 1000)?.state).toBe('sending');
+    expect(runnerState([{ athlete_id: 'a', status: 'success', garmin_workout_id: 'g1', created_at: at(5000) }], t0 + 6000)).toEqual({ athleteId: 'a', state: 'ok', error: null, at: at(5000) });
+  });
+  it('a failure keeps Garmin\'s reason; a queue row left behind reads as interrupted, never "בתור" forever', () => {
+    expect(runnerState([q({ status: 'failed', error_message: '401 Unauthorized' })], t0)).toMatchObject({ state: 'failed', error: '401 Unauthorized' });
+    expect(runnerState([q()], t0 + STALE_MS + 1)).toMatchObject({ state: 'failed', error: INTERRUPTED });
+    expect(reasonText('401 Unauthorized')).toMatch(/להתחבר מחדש/);
+    expect(reasonText('429 Too Many Requests')).toMatch(/עמוס/);
+  });
+  it('a re-send in progress shows as on the way, over the earlier success', () => {
+    const rows = [{ athlete_id: 'a', status: 'success', created_at: at(0) }, q({ created_at: at(60000) })];
+    expect(runnerState(rows, t0 + 61000)?.state).toBe('queued');
+  });
+  it('Apple waits for the phone; superseded rows are ignored', () => {
+    expect(runnerState([{ athlete_id: 'a', status: 'pending', provider: 'apple', created_at: at(0) }], t0)?.state).toBe('waiting');
+    expect(runnerState([{ athlete_id: 'a', status: 'pending', provider: 'apple', device_confirmed_at: at(9), created_at: at(0) }], t0)?.state).toBe('ok');
+    expect(runnerState([{ athlete_id: 'a', status: 'success', superseded_at: at(1), created_at: at(0) }], t0)).toBeNull();
+  });
+  it('counts', () => {
+    const list = statusOf([q({ athlete_id: 'x' }), { athlete_id: 'y', status: 'success', created_at: at(0) }, q({ athlete_id: 'z', status: 'failed' })], t0);
+    expect(countsOf(list)).toEqual({ ok: 1, waiting: 0, failed: 1, onTheWay: 1, total: 3 });
   });
 });

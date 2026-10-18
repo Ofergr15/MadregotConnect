@@ -5466,6 +5466,15 @@
     "toFeed": "לפיד",
     "onWatchesNow": "בשעון כרגע אצל {n}:",
     "onYourWatch": "האימון בשעון שלך",
-    "notOnYourWatch": "האימון עוד לא בשעון שלך"
+    "notOnYourWatch": "האימון עוד לא בשעון שלך",
+    "toWatchesNext": "אחרי הפרסום: לבחור מי מקבל, כולם, דבוקה או יחידים",
+    "watchSentRow": "נשלח לשעונים",
+    "watchSendRow": "לשלוח לשעונים",
+    "watchSendSub": "כולם, דבוקה או יחידים",
+    "watchOnTheWay": "שולח עכשיו…",
+    "watchSentAt": "נשלח {time} · לראות מי קיבל",
+    "trackTitle": "מעקב שליחה",
+    "trackSending": "שולח לשעונים",
+    "watchSendMore": "⌚ לשלוח לעוד אנשים"
   }
 }

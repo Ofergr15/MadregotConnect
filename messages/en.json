@@ -5466,6 +5466,15 @@
     "toFeed": "To the feed",
     "onWatchesNow": "On the watch now for {n}:",
     "onYourWatch": "On your watch",
-    "notOnYourWatch": "Not on your watch yet"
+    "notOnYourWatch": "Not on your watch yet",
+    "toWatchesNext": "After publishing: pick who gets it, everyone, a pack or people",
+    "watchSentRow": "Sent to the watches",
+    "watchSendRow": "Send to the watches",
+    "watchSendSub": "Everyone, a pack or people",
+    "watchOnTheWay": "Sending now…",
+    "watchSentAt": "Sent {time} · see who got it",
+    "trackTitle": "Delivery",
+    "trackSending": "Sending to the watches",
+    "watchSendMore": "⌚ Send to more people"
   }
 }

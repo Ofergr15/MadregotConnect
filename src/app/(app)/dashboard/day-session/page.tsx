@@ -19,7 +19,9 @@ import {
   type DaySession, type NutritionLine, type NutritionWhen,
 } from '@/lib/day-session/model';
 import { hasRunning, workoutTitle } from '@/lib/day-session/workout';
-import { WatchRecipients, useWatchRecipients } from '@/components/day-session/WatchRecipients';
+import { WatchChoose, WatchTrack, useRoster, useWatchTrack } from '@/components/day-session/WatchSend';
+import { countsOf } from '@/lib/day-session/watch-status';
+import { packPace, paceRangeText } from '@/lib/plans/session-profile';
 
 // ── "אימון ליום אחד" — the coach's form (mockup manual-day-workout, phones 1 and 2) ──────
 //
@@ -64,11 +66,12 @@ export default function DaySessionPage() {
 
   const { data: reminderCfg } = useApi<{ config?: { workoutHour?: number } }>('/api/reminder-config');
   const { data: loaded, error: loadError, mutate } = useApi<{ setup: boolean; session: DaySession | null }>(`/api/day-session?date=${date}`);
-  const { data: holdersData, mutate: mutateHolders } = useApi<{ holders: Array<{ athleteId: string; name: string }> }>(`/api/day-session/watch?date=${date}`);
-  const holders = holdersData?.holders ?? [];
+  // Where the send to the watches stands (api/day-session/watch); polls while it runs.
+  const track = useWatchTrack(date);
+  const trackCounts = track.data ? countsOf(track.data.runners) : null;
   const existing = loaded?.session ?? null;
 
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 'watch' | 'track'>(1);
   // The workout the planner's editor opened on, fixed for as long as it is open: the panel
   // resets its draft whenever this object changes.
   const [editing, setEditing] = useState<ParsedWorkout | null>(null);
@@ -88,12 +91,11 @@ export default function DaySessionPage() {
   const [toWatch, setToWatch] = useState(false);
   // "אימון איכות": people say whether they are coming. Off: a run on your own, no RSVP.
   const [quality, setQuality] = useState(false);
-  const recipients = useWatchRecipients();
+  const roster = useRoster();
   // The notification's text: null = the default, which follows the session.
   const [pushTitle, setPushTitle] = useState<string | null>(null);
   const [pushBody, setPushBody] = useState<string | null>(null);
-  // The last send, runner by runner (the planner's results sheet), and who has it now.
-  const [watchResults, setWatchResults] = useState<Array<{ athleteId: string; athleteName: string; status: string; error?: string }> | null>(null);
+  const [sending, setSending] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
 
@@ -194,22 +196,8 @@ export default function DaySessionPage() {
         setMessage({ tone: 'bad', text: t('descriptionNotSaved') });
         return;
       }
-      if (publish && toWatch) {
-        // The saved session to the watches (api/day-session/watch), then who got it and who
-        // did not, runner by runner — the screen stays here so the coach sees it.
-        setMessage({ tone: 'ok', text: t('watchSending') });
-        setWatchResults(null);
-        const w = await fetch('/api/day-session/watch', { method: 'POST', headers: await apiHeaders(true), body: JSON.stringify({ date, athleteIds: recipients.ids }) });
-        const out = await w.json().catch(() => null) as { results?: Array<{ athleteId: string; athleteName: string; status: string; error?: string }> } | null;
-        const results = out?.results ?? [];
-        setWatchResults(results);
-        await mutateHolders();
-        const ok = results.filter((r) => r.status === 'success').length;
-        setMessage(!w.ok || !results.length
-          ? { tone: 'bad', text: t('watchNobody') }
-          : { tone: ok === results.length ? 'ok' : 'bad', text: t('watchSummary', { ok, total: results.length }) });
-        return;
-      }
+      // "גם לשעונים": straight on to who gets it (mockup watch-send-v3).
+      if (publish && toWatch) { setMessage(null); setStep('watch'); return; }
       setMessage({ tone: 'ok', text: publish ? t('published') : t('saved') });
       if (publish) router.push('/feed');
     } catch {
@@ -220,6 +208,100 @@ export default function DaySessionPage() {
   };
 
   const close = () => router.push('/dashboard/coach-tools');
+
+  // Start a send (or a re-send) and show where it stands.
+  const sendToWatches = async (ids: string[]) => {
+    if (!ids.length || sending) return;
+    setSending(true);
+    try {
+      const res = await fetch('/api/day-session/watch', { method: 'POST', headers: await apiHeaders(true), body: JSON.stringify({ date, athleteIds: ids }) });
+      if (!res.ok) { setMessage({ tone: 'bad', text: t('failed') }); return; }
+      track.wake();
+      await track.mutate();
+      setStep('track');
+    } catch {
+      setMessage({ tone: 'bad', text: t('failed') });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Opened from the coach's "how it went" push: /dashboard/day-session?date=…&track=1.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const d = q.get('date');
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      if (d === today) setChip('today');
+      else if (d === addDaysToDateStr(today, 1)) setChip('tomorrow');
+      else { setOtherDate(d); setChip('other'); }
+      if (q.get('track') === '1') setStep('track');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The session line both watch screens open with.
+  const sessionLine = (
+    <div className={cn(CARD, 'flex items-center gap-3 px-3.5 py-3')}>
+      <span aria-hidden className="grid h-11 w-11 shrink-0 place-items-center rounded-[13px] bg-brand-600/10 text-[22px]">🏃</span>
+      <span className="min-w-0 flex-1">
+        <b className="block text-base text-ink-900">{whenText(date)} · {dayNames[new Date(`${date}T12:00:00`).getDay()]}{time && <> · <bdi dir="ltr">{time}</bdi></>}</b>
+        <small className="block truncate text-13 text-ink-500">{numberRuns(shownTitle).map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>))}</small>
+      </span>
+    </div>
+  );
+  const packPaces = [0, 1, 2].map((i) => { const p = packPace(steps, i); return p ? paceRangeText(p) : null; });
+
+  // "נשלח לשעונים ✓ 10/12 ‹" — or "לשלוח לשעונים ‹" for a published session never sent.
+  const watchRow = existing?.publishedAt ? (
+    <button type="button" onClick={() => setStep(trackCounts?.total ? 'track' : 'watch')} className={cn(CARD, 'flex min-h-[64px] w-full items-center gap-3 px-4 text-start')}>
+      <span aria-hidden className="text-[22px]">⌚</span>
+      <span className="min-w-0 flex-1">
+        <b className="block text-[15px] text-ink-900">{trackCounts?.total ? t('watchSentRow') : t('watchSendRow')}</b>
+        <small className="block text-13 text-ink-400">{trackCounts?.total ? (track.onTheWay ? t('watchOnTheWay') : t('watchSentAt', { time: track.data?.sentAt ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(track.data.sentAt)) : '' })) : t('watchSendSub')}</small>
+      </span>
+      {trackCounts?.total ? (
+        <span className={cn('rounded-lg px-2 py-1 text-13 font-bold', trackCounts.failed ? 'bg-accent-red/10 text-accent-red' : 'bg-accent-600/10 text-accent-900')}>
+          {trackCounts.failed ? '!' : '✓'} <bdi dir="ltr">{trackCounts.ok}/{trackCounts.total}</bdi>
+        </span>
+      ) : null}
+      <span aria-hidden className="text-xl text-ink-300">‹</span>
+    </button>
+  ) : null;
+
+  if (step === 'watch') {
+    return (
+      <FlowOverlay label={t('toWatches')}>
+        <FlowScreen title={t('toWatches')} leading={<BarButton onClick={() => setStep(existing ? 2 : 1)}>‹ {t('back')}</BarButton>} className="gap-0 p-0 pt-3">
+          {roster ? (
+            <WatchChoose roster={roster} paces={packPaces} session={sessionLine} busy={sending} onSend={sendToWatches} />
+          ) : <p className="p-6 text-center text-sm text-ink-400">…</p>}
+        </FlowScreen>
+      </FlowOverlay>
+    );
+  }
+
+  if (step === 'track') {
+    return (
+      <FlowOverlay label={t('trackTitle')}>
+        <FlowScreen
+          title={track.onTheWay ? t('trackSending') : t('trackTitle')}
+          leading={<BarButton onClick={() => setStep(2)}>‹ {t('back')}</BarButton>}
+          trailing={<BarButton onClick={() => router.push('/feed')}>{t('toFeed')}</BarButton>}
+          className="gap-0 p-0 pt-3"
+        >
+          {track.data ? (
+            <>
+              {message && <p role="status" className="mx-4 mb-3 rounded-[14px] bg-accent-red/10 px-3 py-2.5 text-sm font-bold text-accent-red">{message.text}</p>}
+              <WatchTrack data={track.data} busy={sending} onResend={sendToWatches} />
+              <div className="shrink-0 px-4 pb-7 pt-1">
+                <button type="button" onClick={() => setStep('watch')} className="min-h-[44px] w-full text-[15px] font-bold text-brand-600">{t('watchSendMore')}</button>
+              </div>
+            </>
+          ) : <p className="p-6 text-center text-sm text-ink-400">…</p>}
+        </FlowScreen>
+      </FlowOverlay>
+    );
+  }
 
   if (forbidden) {
     return (
@@ -250,6 +332,7 @@ export default function DaySessionPage() {
           footer={<PrimaryButton onClick={() => setStep(2)} disabled={!ready}>{t('toNutrition')}</PrimaryButton>}
         >
           {banner}
+          {watchRow}
           <SectionLabel>{t('when')}</SectionLabel>
           <div className="flex flex-wrap gap-1.5">
             {(['today', 'tomorrow', 'dayAfter', 'other'] as Chip[]).map((c) => (
@@ -418,7 +501,7 @@ export default function DaySessionPage() {
         leading={<BarButton onClick={() => setStep(1)}>‹ {t('back')}</BarButton>}
         footer={(
           <>
-            <PrimaryButton onClick={() => save(inFeed)} disabled={!ready || (inFeed && toWatch && !recipients.ids.length)} busy={busy}>
+            <PrimaryButton onClick={() => save(inFeed)} disabled={!ready} busy={busy}>
               {inFeed ? `${t('publish')} · ${whenText(date)}` : t('saveHidden')}
             </PrimaryButton>
             {existing?.publishedAt && (
@@ -512,39 +595,12 @@ export default function DaySessionPage() {
           <div className="flex min-h-[56px] items-center justify-between gap-3 px-4 py-2">
             <span className="min-w-0">
               <b className="block text-[15px] text-ink-900">{t('toWatches')}</b>
-              <small className="block text-13 text-ink-400">{t('toWatchesSub')}</small>
+              <small className="block text-13 text-ink-400">{t('toWatchesNext')}</small>
             </span>
             <Switch checked={toWatch && inFeed} onChange={setToWatch} disabled={!inFeed} activeColor="bg-[#1FA55B]" ariaLabel={t('toWatches')} />
           </div>
         </div>
-        {toWatch && inFeed && (
-          <>
-            <SectionLabel>{t('whoGets')}</SectionLabel>
-            <div className={cn(CARD, 'p-3')}>
-              <WatchRecipients r={recipients} />
-              <p className="mt-2 text-13 font-bold text-ink-500">{t('willGet', { n: recipients.ids.length })}</p>
-            </div>
-          </>
-        )}
-        {watchResults && watchResults.length > 0 && (
-          <div className={cn(CARD, 'overflow-hidden')}>
-            {watchResults.map((r) => (
-              <div key={r.athleteId} className="flex items-start gap-2.5 border-b border-[#EFEFF4] px-4 py-2.5 last:border-0">
-                <span aria-hidden className={cn('mt-0.5 text-base', r.status === 'success' ? 'text-accent-600' : 'text-accent-red')}>{r.status === 'success' ? '✓' : '✕'}</span>
-                <span className="min-w-0">
-                  <b className="block text-[15px] text-ink-900">{r.athleteName}</b>
-                  {r.error && <small className="block text-13 text-accent-red">{r.error}</small>}
-                </span>
-              </div>
-            ))}
-            <button type="button" onClick={() => router.push('/feed')} className="min-h-[48px] w-full border-t border-[#EFEFF4] text-[15px] font-extrabold text-brand-600">{t('toFeed')}</button>
-          </div>
-        )}
-        {holders.length > 0 && (
-          <p className="px-1 text-13 leading-normal text-ink-500">
-            <b className="text-ink-900">{t('onWatchesNow', { n: holders.length })}</b> {holders.map((h) => h.name).join(', ')}
-          </p>
-        )}
+        {watchRow}
       </FlowScreen>
     </FlowOverlay>
   );
