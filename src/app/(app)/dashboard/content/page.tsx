@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { Award, Bell, CalendarDays, ChevronLeft, Sparkles } from 'lucide-react';
+import { Award, Bell, Cake, CalendarDays, ChevronLeft, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { EmptyState, InsetRow, InsetSection, Skeleton } from '@/components/ui';
@@ -151,6 +151,13 @@ export default function ContentPage() {
             ? t('notificationsSub', { date: shortDate(israelDateOf(data.lastNotification.sentAt)), n: data.lastNotification.reached })
             : data ? t('notificationsNone') : undefined}
           href="/dashboard/settings?tab=notifications"
+        />
+        <InsetRow
+          icon={Cake}
+          iconBg="bg-[#FF5315]"
+          label={t('birthdays')}
+          sublabel={t('birthdaysSub')}
+          href="/dashboard/birthdays"
         />
         <InsetRow
           icon={Sparkles}

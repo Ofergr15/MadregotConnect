@@ -37,6 +37,7 @@ import { WhatsNewAutoSheet } from '@/components/whats-new/WhatsNewSheet';
 import { OnboardingTestReset } from '@/components/onboarding/OnboardingTestReset';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import { GoalRaceBanner } from '@/components/GoalRaceBanner';
+import { BirthdayYearCard } from '@/components/birthday/BirthdayYearCard';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
 import { appScrollTop, scrollAppToTop } from '@/lib/app-scroll';
@@ -634,6 +635,11 @@ export default function FeedPage() {
       {/* ═══ GOAL RACE ═══
           Weeks to the club's goal race, one slim line, above everything that
           changes day to day. Renders nothing once the race is behind us. */}
+      {/* ═══ BIRTHDAY ═══ the birthday person's year story, for the week after (lib/birthday-year). */}
+      <div className="mb-4 empty:mb-0">
+        <BirthdayYearCard />
+      </div>
+
       <div className="mb-4 empty:mb-0">
         <GoalRaceBanner />
       </div>

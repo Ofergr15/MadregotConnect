@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sendEveningWatchReminders } from '@/lib/watch/evening-reminder';
 import { publishBirthdayPosts } from '@/lib/feed/birthday';
+import { sendBirthdayYearPushes } from '@/lib/birthday-year/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { sendPushLocalized, resolveAudience, subscriptionsForAthletes, allAthleteIds, persistNotifications, localesForAthletes, notifyAthlete } from '@/lib/push';
 import {
@@ -795,6 +796,21 @@ async function run(request: Request) {
       }
     } catch (err) {
       console.error('[tick] birthday posts failed:', err);
+    }
+  }
+
+  // From 07:00, once a day: the birthday person's own year story (lib/birthday-year),
+  // while the admin's "שליחה לחוגגים" switch is on.
+  if (hour >= 7) {
+    const tag = `birthdayYear:${israelToday(now)}`;
+    try {
+      if (!(await already(tag))) {
+        const n = await sendBirthdayYearPushes(supabase, israelToday(now));
+        await markFired(tag, n);
+        fired.push(`${tag} → ${n}`);
+      }
+    } catch (err) {
+      console.error('[tick] birthday year push failed:', err);
     }
   }
 

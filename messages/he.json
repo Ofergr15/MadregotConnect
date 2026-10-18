@@ -3535,7 +3535,9 @@
     "notificationsSub": "נשלחה לאחרונה {date}: הגיעה ל-{n}",
     "notificationsNone": "עוד לא נשלח כלום",
     "whatsNew": "מה חדש",
-    "whatsNewSub": "אחרון: {title}"
+    "whatsNewSub": "אחרון: {title}",
+    "birthdays": "ימי הולדת",
+    "birthdaysSub": "\"השנה שלך\" לכל חוגג · תמונות ומילה אישית"
   },
   "weekEditor": {
     "title": "שיתוף השבוע",
