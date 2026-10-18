@@ -1,5 +1,15 @@
 [
   {
+    "id": "day-session-time-range",
+    "date": "2026-10-18",
+    "kind": "fix",
+    "icon": "⏱️",
+    "audience": "staff",
+    "title": "אימון ליום אחד: טווח זמן נשמר",
+    "body": "כותבים \"50-70 דק׳\" והאימון נשאר 50–70 דק׳, במקום 60. לשעון נשלחות 50 הדקות.",
+    "href": "/dashboard/day-session"
+  },
+  {
     "id": "birthday-year-share",
     "date": "2026-10-18",
     "kind": "feature",

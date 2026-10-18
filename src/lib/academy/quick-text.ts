@@ -236,6 +236,11 @@ function readWork(raw: string, inRepeat: boolean): WorkRead {
     const b = len[2] !== undefined ? Number(len[2]) : a;
     if (len[2] !== undefined) out.assumptions.push({ code: 'range-middle', text: len[0].trim() });
     out.length = unitLength((a + b) / 2, unit);
+    if (a !== b && out.length.measure === 'time') {
+      const lo = unitLength(Math.min(a, b), unit).value;
+      const hi = unitLength(Math.max(a, b), unit).value;
+      out.length = { ...out.length, range: { min: lo, max: hi } };
+    }
   } else if (new RegExp(`(?<![\\d${H}])דקה(?![${H}])`).test(text)) {
     text = text.replace('דקה', ' ');
     out.length = { measure: 'time', value: 60 };

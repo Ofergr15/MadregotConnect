@@ -49,6 +49,9 @@ export type Measure = 'distance' | 'time';
 export interface Length {
   measure: Measure;
   value: number;
+  /** Both ends of a time written as a range ("50-70 דק׳"), when it was; `value` is then its
+   *  middle. The one-day session keeps the range (WorkoutStep.durationMaxValue). */
+  range?: { min: number; max: number };
 }
 
 export interface Effort {
