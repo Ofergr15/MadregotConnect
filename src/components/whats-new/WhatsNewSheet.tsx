@@ -297,17 +297,19 @@ export function WhatsNewSheet({
 function useContent(evening: boolean): WhatsNewContent | null {
   // Staff run too: their story is the members' pages, then theirs (lib/whats-new/evening.ts).
   // Null until the role is known, so a staff device never spends its ledger on the members' half.
-  const { isStaffView: staff, ready } = useNavIdentity();
+  // Until RELEASE_OPEN, the 10-18 tour is the super user's only (lib/whats-new/evening.ts);
+  // read from the same answer as `ready`, so it is final by the time anything composes.
+  const { isStaffView: staff, ready, isSuper: superUser } = useNavIdentity();
   const { data, error } = useApi<{ releases: WhatsNewRelease[] }>('/api/whats-new', { revalidateOnFocus: false });
   // One object per answer, not per render: WhatsNewSettingsRow keys an effect on it
   // that sets state, so a fresh object every render was an endless render loop on
   // the settings landing (~14,000 commits/s), which also stopped every navigation
   // away from that page from ever finishing (lab 2026-10-17).
   return useMemo(() => {
-    if (error) return { entries: evening ? composeWhatsNew([], APP_VERSION, true, staff).entries : WHATS_NEW, more: [] };
+    if (error) return { entries: evening ? composeWhatsNew([], APP_VERSION, true, staff, superUser).entries : WHATS_NEW, more: [] };
     if (!data || !ready) return null;
-    return composeWhatsNew(data.releases ?? [], APP_VERSION, evening, staff);
-  }, [data, error, evening, staff, ready]);
+    return composeWhatsNew(data.releases ?? [], APP_VERSION, evening, staff, superUser);
+  }, [data, error, evening, staff, ready, superUser]);
 }
 
 /** The list belongs under the headlines, so a sheet without one leaves it out. */

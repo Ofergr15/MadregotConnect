@@ -28,6 +28,15 @@ import { WHATS_NEW } from './entries';
 /** Flipped on his go, and that commit is the release. */
 export const EVENING_OPEN = true;
 
+/**
+ * The 10-18 release's own switch (Ofer, 2026-10-18: "production, What's New only
+ * me"). The build ships to everyone, but until this is true its tour is the super
+ * user's only: everyone else's sheet composes as it did before the evening
+ * (composeWhatsNew below), so nothing of it opens for a member, and his release
+ * push (`?tour=1018`) is his to watch first. Flipping it is the release.
+ */
+export const RELEASE_OPEN = false;
+
 /** The hook that reads the switch is lib/use-evening-release.ts, kept out of here so node tests need no React. */
 
 /**
@@ -227,9 +236,9 @@ export interface WhatsNewContent {
  * member gets. With `staff`, the staff headlines and notes follow the members'.
  */
 export function composeWhatsNew(
-  releases: WhatsNewRelease[], appVersion: string, evening: boolean, staff = false,
+  releases: WhatsNewRelease[], appVersion: string, evening: boolean, staff = false, superUser = false,
 ): WhatsNewContent {
-  if (!evening) return { entries: [...WHATS_NEW, ...releaseEntries(releases, appVersion)], more: [] };
+  if (!evening || (!RELEASE_OPEN && !superUser)) return { entries: [...WHATS_NEW, ...releaseEntries(releases, appVersion)], more: [] };
   const member = releases.map(r => ({
     ...r,
     notes: r.notes.filter(n => n.audience !== 'staff' && !EVENING_FOLDED.includes(n.id)),

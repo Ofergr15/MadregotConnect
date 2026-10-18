@@ -83,6 +83,8 @@ export default function ReleaseRehearsalPage() {
     ],
     version,
     true,
+    false,
+    true,
   ), [data, version]);
 
   const go = (to: number) => setI(Math.max(0, Math.min(steps.length - 1, to)));

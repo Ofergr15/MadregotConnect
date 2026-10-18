@@ -5,7 +5,7 @@ import { join } from 'path';
 import type { ShownNote, WhatsNewRelease } from '@/lib/release-notes';
 import { WHATS_NEW, WHATS_NEW_LANGS } from '@/lib/whats-new/entries';
 import {
-  EVENING_DATE, EVENING_ENTRIES, EVENING_EXTRA, EVENING_MORE, EVENING_SINCE, TOUR_PARAM, composeWhatsNew,
+  EVENING_DATE, EVENING_ENTRIES, EVENING_EXTRA, EVENING_MORE, EVENING_SINCE, RELEASE_OPEN, TOUR_PARAM, composeWhatsNew,
 } from '@/lib/whats-new/evening';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
@@ -28,12 +28,19 @@ describe('composeWhatsNew', () => {
   });
 
   it('with it, the five club headlines lead, in order, and the old hand-written rows step aside', () => {
-    const c = composeWhatsNew([], '2.41.70', true);
+    const c = composeWhatsNew([], '2.41.70', true, false, true);
     expect(c.entries.map(e => e.slug)).toEqual(['b18-run-page', 'b18-profile', 'b18-records', 'b18-fitness', 'b18-photos']);
   });
 
+  it('until RELEASE_OPEN, is the super user\'s only: a member composes as before the evening', () => {
+    expect(RELEASE_OPEN).toBe(false);
+    const member = composeWhatsNew([], '2.41.70', true);
+    expect(member.entries.map(e => e.slug)).toEqual(WHATS_NEW.map(e => e.slug));
+    expect(member.more).toEqual([]);
+  });
+
   it('gives staff the same five first, then theirs', () => {
-    const c = composeWhatsNew([], '2.41.70', true, true);
+    const c = composeWhatsNew([], '2.41.70', true, true, true);
     expect(c.entries.map(e => e.slug)).toEqual([
       'b18-run-page', 'b18-profile', 'b18-records', 'b18-fitness', 'b18-photos',
       'b18-management', 'b18-publish', 'b18-social', 'b18-watch-send',
@@ -49,8 +56,8 @@ describe('composeWhatsNew', () => {
   });
 
   it('lists the club notes for members, and the staff ones after them for staff', () => {
-    const member = composeWhatsNew([], '2.41.70', true).more.map(n => n.id);
-    const staff = composeWhatsNew([], '2.41.70', true, true).more.map(n => n.id);
+    const member = composeWhatsNew([], '2.41.70', true, false, true).more.map(n => n.id);
+    const staff = composeWhatsNew([], '2.41.70', true, true, true).more.map(n => n.id);
     expect(member).toEqual(EVENING_EXTRA.filter(x => x.audience !== 'staff').map(x => x.id));
     expect(staff).toEqual(EVENING_MORE.filter(id => EVENING_EXTRA.some(x => x.id === id)));
     expect(staff.slice(0, member.length)).toEqual(member);
@@ -60,7 +67,7 @@ describe('composeWhatsNew', () => {
     const got = composeWhatsNew([release('2.41.70', [
       note('picked-staff', { audience: 'staff' }),
       note('picked-star', { featured: true }),
-    ])], '2.41.70', true);
+    ])], '2.41.70', true, false, true);
     expect(notesOf(got.more)).toEqual([]);
     // A starred note the headlines do not cover still gets its own row.
     expect(got.entries.map(e => e.slug)).toContain('release:picked-star');
@@ -73,7 +80,7 @@ describe('composeWhatsNew', () => {
   });
 
   it('never announces a release newer than the bundle', () => {
-    expect(notesOf(composeWhatsNew([release('2.41.71', [note('later')])], '2.41.70', true).more)).toEqual([]);
+    expect(notesOf(composeWhatsNew([release('2.41.71', [note('later')])], '2.41.70', true, false, true).more)).toEqual([]);
   });
 
   it('starts the list the day after the last hand-written entry', () => {
