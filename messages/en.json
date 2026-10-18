@@ -2726,7 +2726,9 @@
     "actionLike": "Like",
     "actionComment": "Comment",
     "actionShare": "Share",
-    "actionChat": "Chat"
+    "actionChat": "Chat",
+    "celebrationFrom": "The club",
+    "celebrationWatch": "Watch the video"
   },
   "feedHighlight": {
     "unit_distance_km": "km",

@@ -2726,7 +2726,9 @@
     "actionLike": "אהבתי",
     "actionComment": "תגובה",
     "actionShare": "שיתוף",
-    "actionChat": "צ׳אט"
+    "actionChat": "צ׳אט",
+    "celebrationFrom": "המועדון",
+    "celebrationWatch": "לצפייה בסרטון"
   },
   "feedHighlight": {
     "unit_distance_km": "ק״מ",

@@ -72,14 +72,15 @@ describe('every surface offers share on your own run only', () => {
 });
 
 describe('cards with no activity never had a share button', () => {
-  it('achievement, post and session-photos rows pass no viewer id, and have nothing to share', () => {
+  it('achievement, post, session-photos and celebration rows pass no viewer id, and have nothing to share', () => {
     // They render ActionRow with myAthleteId={null}. Gating on isMyActivity would
     // have hidden a button there — except `item.activity` is already the outer
     // condition and those items have none, so nothing changed for them.
     const feed = read('components/FeedCard.tsx');
-    expect(feed.match(/myAthleteId=\{null\}/g)!.length).toBe(3);
+    expect(feed.match(/myAthleteId=\{null\}/g)!.length).toBe(4);
     expect(feed).toMatch(/Achievements are never activities/);
     expect(feed).toMatch(/Posts are never activities/);
     expect(feed).toMatch(/Session photos are never activities/);
+    expect(feed).toMatch(/Celebrations are never activities/);
   });
 });

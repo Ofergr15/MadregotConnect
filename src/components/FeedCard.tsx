@@ -3,7 +3,7 @@
 import { SurveyVote } from '@/components/feed/SurveyVote';
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Heart, MessageCircle, MessagesSquare, Trash2, MapPin, Mountain, Share2, Award, Flame, Gauge, ExternalLink } from 'lucide-react';
+import { Heart, MessageCircle, MessagesSquare, Trash2, MapPin, Mountain, Share2, Award, Flame, Gauge, ExternalLink, Play } from 'lucide-react';
 import { activityDayRelation, cn, formatActivityDate, formatActivityTime, resolveGroup } from '@/lib/utils';
 import { useTranslations, useFormatter, useLocale, useNow } from 'next-intl';
 import { toggleLike } from '@/lib/feed-client';
@@ -15,6 +15,7 @@ import { FeedBodyText } from '@/components/FeedBodyText';
 import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
 import { toAchievementPayload } from '@/lib/feed/project';
 import { toSessionPhotos, sessionSubline, type SessionPhotosPayload } from '@/lib/quality-session/photos';
+import { CELEBRATION_TYPES, celebrationText, toCelebration, type Celebration } from '@/lib/feed/celebration';
 import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
 import { AthleteLink } from '@/components/AthleteLink';
@@ -819,6 +820,78 @@ function SessionPhotosCard({
   );
 }
 
+/**
+ * A celebration (a birthday, a wedding, a race…): the feed card's own frame and
+ * size, with a thin accent along the start edge and the occasion's emoji where an
+ * author's face would be. A video adds one compact "watch" pill; without one the
+ * card is just the line and the reactions. Ofer, 2026-10-18: "not that big — it
+ * has to sit with the redesigned feed".
+ */
+function CelebrationCard({
+  item,
+  celebration,
+  commentCount,
+  onComment,
+  onDelete,
+}: {
+  item: FeedItem;
+  celebration: Celebration;
+  commentCount: number;
+  onComment: () => void;
+  onDelete?: () => void;
+}) {
+  const t = useTranslations('feed');
+  const kind = CELEBRATION_TYPES[celebration.type];
+  return (
+    <div className="relative overflow-hidden rounded-[26px] bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <span aria-hidden className="absolute inset-y-0 start-0 w-1" style={{ background: kind.accent }} />
+      <div className="p-4 ps-5">
+        <div className="flex items-center gap-3">
+          <span
+            className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full text-[17px]"
+            style={{ background: `${kind.accent}1A` }}
+            aria-hidden
+          >
+            {kind.emoji}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] font-bold leading-snug text-ink-900">
+              <FeedBodyText body={celebrationText(item.body, celebration.type)} />
+            </p>
+            <p className="mt-0.5 text-xs leading-tight text-ink-400">
+              {t('celebrationFrom')} · <WhenLabel item={item} />
+            </p>
+          </div>
+        </div>
+
+        {celebration.video && (
+          <a
+            href={celebration.video}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ms-[46px] mt-2.5 inline-flex min-h-[44px] items-center gap-2 rounded-pill bg-page ps-1.5 pe-3.5 text-[13px] font-bold text-ink-900 active:opacity-70"
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-full text-white" style={{ background: kind.accent }}>
+              <Play className="h-3 w-3 fill-current" />
+            </span>
+            {t('celebrationWatch')}
+          </a>
+        )}
+
+        {/* Celebrations are never activities — no run-chat CTA */}
+        <ActionRow
+          item={item}
+          commentCount={commentCount}
+          myAthleteId={null}
+          isStaff={false}
+          onCommentPress={onComment}
+          onDelete={onDelete}
+        />
+      </div>
+    </div>
+  );
+}
+
 function PostCard({
   item,
   commentCount,
@@ -963,6 +1036,18 @@ export function FeedCard({
           <PostCard item={item} commentCount={commentCount} onComment={handleComment} onDelete={handleDelete}>
             <SurveyVote surveyId={surveyId} myAthleteId={myAthleteId} />
           </PostCard>
+        );
+      }
+      const celebration = toCelebration(item.payload);
+      if (celebration) {
+        return (
+          <CelebrationCard
+            item={item}
+            celebration={celebration}
+            commentCount={commentCount}
+            onComment={handleComment}
+            onDelete={handleDelete}
+          />
         );
       }
       const photos = toSessionPhotos(item.payload);
