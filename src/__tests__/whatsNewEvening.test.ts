@@ -27,9 +27,9 @@ describe('composeWhatsNew', () => {
     expect(c.more).toEqual([]);
   });
 
-  it('with it, the five club headlines lead, in order, and the old hand-written rows step aside', () => {
+  it('with it, the seven club headlines lead, in order, and the old hand-written rows step aside', () => {
     const c = composeWhatsNew([], '2.41.70', true, false, true);
-    expect(c.entries.map(e => e.slug)).toEqual(['b18-run-page', 'b18-profile', 'b18-records', 'b18-fitness', 'b18-photos']);
+    expect(c.entries.map(e => e.slug)).toEqual(['b18-feed', 'b18-celebrations', 'b18-run-page', 'b18-profile', 'b18-records', 'b18-fitness', 'b18-photos']);
   });
 
   it('until RELEASE_OPEN, is the super user\'s only: a member composes as before the evening', () => {
@@ -39,10 +39,10 @@ describe('composeWhatsNew', () => {
     expect(member.more).toEqual([]);
   });
 
-  it('gives staff the same five first, then theirs', () => {
+  it('gives staff the same seven first, then theirs', () => {
     const c = composeWhatsNew([], '2.41.70', true, true, true);
     expect(c.entries.map(e => e.slug)).toEqual([
-      'b18-run-page', 'b18-profile', 'b18-records', 'b18-fitness', 'b18-photos',
+      'b18-feed', 'b18-celebrations', 'b18-run-page', 'b18-profile', 'b18-records', 'b18-fitness', 'b18-photos',
       'b18-management', 'b18-publish', 'b18-social', 'b18-watch-send',
     ]);
   });

@@ -86,8 +86,8 @@ export const EVENING_FOLDED: readonly string[] = [
  * too) get the same list and then theirs, marked `audience: 'staff'`.
  */
 export const EVENING_MORE: readonly string[] = [
-  'b18-feed-cards', 'b18-run-name', 'b18-week-watch', 'b18-watch-2000', 'b18-watch-reconnect',
-  'b18-birthdays', 'b18-surveys', 'b18-day-session', 'b18-day-push-text',
+  'b18-run-name', 'b18-week-watch', 'b18-watch-2000', 'b18-watch-reconnect',
+  'b18-surveys', 'b18-day-session', 'b18-day-push-text',
 ];
 
 /**
@@ -95,12 +95,10 @@ export const EVENING_MORE: readonly string[] = [
  * release note of its own (the batch ships as one version).
  */
 export const EVENING_EXTRA: readonly ShownNote[] = [
-  { id: 'b18-feed-cards', date: EVENING_DATE, kind: 'feature', icon: '📰', title: 'כרטיסי ריצה נקיים יותר בפיד', body: 'פחות רעש, המספרים החשובים בגדול.', featured: false, edited: false },
   { id: 'b18-run-name', date: EVENING_DATE, kind: 'feature', icon: '🏷️', title: 'שם הריצה כמו בסטרבה', body: 'ריצת בוקר, ריצת ערב. באימון איכות: השם שהמאמן נתן לאימון.', featured: false, edited: false },
   { id: 'b18-week-watch', date: EVENING_DATE, kind: 'feature', icon: '⌚', title: '"השבוע בשעון"', body: 'בראש הפיד רואים מה לא הגיע לשעון, ומתחברים מחדש בנגיעה.', featured: false, edited: false },
   { id: 'b18-watch-2000', date: EVENING_DATE, kind: 'feature', icon: '🌙', title: 'תזכורת אחת ב־20:00', body: 'כשהאימון של מחר לא בשעון: הודעה אחת בערב, עם הסיבה.', featured: false, edited: false },
   { id: 'b18-watch-reconnect', date: EVENING_DATE, kind: 'feature', icon: '🔁', title: 'מתחברים, והאימונים נשלחים לבד', body: 'אחרי חיבור מחדש של גרמין, מה שחיכה מגיע לשעון.', featured: false, edited: false },
-  { id: 'b18-birthdays', date: EVENING_DATE, kind: 'feature', icon: '🎂', title: 'ימי הולדת בפיד', body: 'ברכה מהמועדון, עם לייקים ותגובות.', featured: false, edited: false },
   { id: 'b18-surveys', date: EVENING_DATE, kind: 'feature', icon: '📊', title: 'סקרים בפיד', body: 'מצביעים בנגיעה, ורואים את התוצאות.', featured: false, edited: false },
   { id: 'b18-day-session', date: EVENING_DATE, kind: 'feature', icon: '🏃', title: 'אימון ליום אחד: אותו עורך כמו במתכנן', body: 'טווחי קצב, קצב לכל דבוקה, הליכה כהתאוששות.', featured: false, edited: false, audience: 'staff' },
   { id: 'b18-day-push-text', date: EVENING_DATE, kind: 'feature', icon: '🔔', title: 'טקסט ההתראה לחברים, לעריכה', body: 'רואים מה יישלח, ומשנים לפני השליחה.', featured: false, edited: false, audience: 'staff' },
@@ -108,12 +106,33 @@ export const EVENING_EXTRA: readonly ShownNote[] = [
 
 /**
  * The 10-18 release (mockup ~/.cache/madregot/mockups/whats-new-batch-1018.html):
- * five pages for the club, in a logical order (your run, your profile, your records,
- * your fitness, then the club's photos), and for staff, who run too, the same five
+ * seven pages for the club, in a logical order (the feed you land on, its birthdays and
+ * cheers, then your run, your profile, your records, your fitness, then the club's photos), and for staff, who run too, the same five
  * followed by theirs (`audience: 'staff'`). Frames are 540x960 crops of real
  * captures, made by ~/.cache/madregot/wn-lab/export-1018.py.
  */
 export const EVENING_ENTRIES: WhatsNewEntry[] = [
+  {
+    slug: 'b18-feed',
+    publishedAt: EVENING_DATE,
+    href: '/feed',
+    cards: [
+      { key: 'b18-feed-top', he: 'המרוץ, האימון וימי ההולדת', en: 'The race, the session and the birthdays' },
+      { key: 'b18-feed-runs', he: 'כרטיסי הריצה', en: 'The run cards' },
+    ],
+    he: { title: 'הפיד, מחדש', body: 'בראש הפיד: כמה שבועות נשארו למרוץ שלך, האימון הבא, וימי ההולדת של היום. ומתחת: כרטיסי ריצה נקיים, עם המספרים החשובים בגדול.', cta: 'לפיד', kicker: 'חדש · פיד', where: 'הלשונית "פיד" למטה' },
+    en: { title: 'Your feed, redone', body: 'At the top: how many weeks to your race, the next session, and today\'s birthdays. Below: clean run cards, the numbers that matter up front.', cta: 'To the feed', kicker: 'New · Feed', where: 'The "Feed" tab at the bottom' },
+  },
+  {
+    slug: 'b18-celebrations',
+    publishedAt: EVENING_DATE,
+    href: '/feed',
+    cards: [
+      { key: 'b18-celebrations', he: 'יום הולדת ושיא אישי', en: 'A birthday and a personal best' },
+    ],
+    he: { title: 'ימי הולדת וחגיגות, בפיד', body: 'יום הולדת במועדון? הברכה עולה לפיד לבד. שיא אישי או מרתון מהיר? המאמנים מפרסמים ברכה. לייק ותגובה, כמו בכל פוסט.', cta: 'לפיד', kicker: 'חדש · חגיגות', where: 'בפיד' },
+    en: { title: 'Birthdays and celebrations, on the feed', body: 'A birthday in the club? The wish goes up by itself. A personal best or a fast marathon? The coaches post a cheer. Like and comment, as on any post.', cta: 'To the feed', kicker: 'New · Celebrations', where: 'On the feed' },
+  },
   {
     slug: 'b18-run-page',
     publishedAt: EVENING_DATE,
