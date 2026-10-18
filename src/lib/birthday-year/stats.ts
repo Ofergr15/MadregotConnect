@@ -1,4 +1,5 @@
 import { PR_RUN_TYPES, UNMEASURED_RUN_TYPES, computeDistanceBests, type RunActivityRow } from '@/lib/prs/pr-buckets';
+import { sameClock } from '@/lib/activity-dedup';
 
 /**
  * "השנה שלך" — the year a member ran since their last birthday, for the birthday story
@@ -75,9 +76,18 @@ function isRun(a: YearActivityRow): boolean {
 }
 
 export function computeYearStats(rows: YearActivityRow[], window: { from: string; to: string }): YearStats {
-  const runs = rows
+  const sorted = rows
     .filter((a) => isRun(a) && dayOf(a.start_time) >= window.from && dayOf(a.start_time) <= window.to)
     .sort((a, b) => a.start_time.localeCompare(b.start_time));
+  // One run recorded twice (two devices, or Garmin and Strava) counts once: the app's own
+  // same-clock rule, keeping the longer recording. Berlin was two rows, 42.4 and 37.1 km.
+  const runs: YearActivityRow[] = [];
+  for (const a of sorted) {
+    const at = Date.parse(a.start_time);
+    const twin = runs.find((b) => sameClock(Date.parse(b.start_time), b.duration, at, a.duration));
+    if (!twin) runs.push(a);
+    else if (a.distance > twin.distance) runs[runs.indexOf(twin)] = a;
+  }
   const totalDays = daysBetweenIso(window.from, window.to) + 1;
   const km = runs.reduce((s, a) => s + a.distance, 0) / 1000;
   const sec = runs.reduce((s, a) => s + a.duration, 0);

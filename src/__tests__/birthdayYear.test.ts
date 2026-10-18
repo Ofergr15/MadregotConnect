@@ -51,6 +51,17 @@ describe('the year in numbers', () => {
     expect(s.km).toBe(59);
   });
 
+  it('counts one run recorded twice once, keeping the longer recording', () => {
+    const s = computeYearStats([
+      run('2026-09-27', 42.4, { duration: 9107, start_time: '2026-09-27T08:45:00+00:00' }),
+      run('2026-09-27', 37.1, { duration: 9602, start_time: '2026-09-27T08:46:00+00:00' }),
+      run('2026-09-28', 5, { start_time: '2026-09-28T07:00:00+00:00' }),
+    ], w);
+    expect(s.runs).toBe(2);
+    expect(s.km).toBe(47);
+    expect(s.longest).toMatchObject({ km: 42.4 });
+  });
+
   it('leaves out what is not a run, and what falls outside the year', () => {
     const s = computeYearStats([
       run('2026-02-01', 10), run('2026-02-02', 30, { activity_type: 'cycling' }),
