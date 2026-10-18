@@ -44,7 +44,7 @@ function Circle({ entry, seen, onOpen }: { entry: Entry; seen: boolean; onOpen: 
   const more = people.length > 1 ? people.length - 1 : 0;
   return (
     <button type="button" onClick={onOpen} className="flex w-[72px] shrink-0 flex-col items-center text-center active:opacity-80" aria-label={`${kind.label}: ${people.map(p => p.name).join(', ')}`}>
-      <span className={cn('ring relative rounded-full p-[3px]', seen && 'seen')}>
+      <span className={cn('cring relative rounded-full p-[3px]', seen && 'seen')}>
         <span className="block rounded-full border-[3px] border-card">
           {lead
             ? <FeedAvatar name={lead.name} url={lead.avatarUrl} className="h-[54px] w-[54px] text-[15px]" />
@@ -199,7 +199,8 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
   return (
     <section className="mcel mb-4 rounded-[26px] bg-card px-1.5 pb-3 pt-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]" dir="rtl">
       <p className="mb-2 px-2.5 text-[12px] font-extrabold text-ink-400">🎉 חוגגים היום</p>
-      <div className="strip flex gap-2 overflow-x-auto px-1.5">
+      {/* A sideways scroller clips vertically too: pt/pb keep the ring's top and the ▶ badge inside it. */}
+      <div className="strip flex gap-2 overflow-x-auto px-1.5 pb-0.5 pt-1">
         {order.map(({ e, i }) => (
           <Circle key={e.item.id} entry={e} seen={seen.includes(e.item.id)} onOpen={() => setOpen(i)} />
         ))}

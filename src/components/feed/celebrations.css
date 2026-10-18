@@ -1,6 +1,7 @@
-/* The celebrations row (CelebrationStories.tsx). Scoped under .mcel. */
-.mcel .ring{background:conic-gradient(from 210deg,#F7797D,#FFC75F,#8E7CFF,#5BC0EB,#F7797D)}
-.mcel .ring.seen{background:#D7D7DC}
+/* The celebrations row (CelebrationStories.tsx). Scoped under .mcel. Not ".ring": that is
+   Tailwind's ring utility, whose box-shadow drew over the gradient and got cut off at the top. */
+.mcel .cring{background:conic-gradient(from 210deg,#F7797D,#FFC75F,#8E7CFF,#5BC0EB,#F7797D)}
+.mcel .cring.seen{background:#D7D7DC}
 .mcel .strip{scrollbar-width:none}
 .mcel .strip::-webkit-scrollbar{display:none}
 .mcel-sheet .slides{scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
