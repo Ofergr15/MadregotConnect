@@ -1,5 +1,6 @@
 'use client';
 
+import { SurveyVote } from '@/components/feed/SurveyVote';
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Heart, MessageCircle, MessagesSquare, Trash2, MapPin, Mountain, Share2, Award, Flame, Gauge, ExternalLink } from 'lucide-react';
@@ -823,11 +824,14 @@ function PostCard({
   commentCount,
   onComment,
   onDelete,
+  children,
 }: {
   item: FeedItem;
   commentCount: number;
   onComment: () => void;
   onDelete?: () => void;
+  /** Under the body and pictures — a survey's answers (feed/SurveyVote). */
+  children?: React.ReactNode;
 }) {
   return (
     <div className="bg-card rounded-[26px] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
@@ -869,6 +873,8 @@ function PostCard({
             ))}
           </div>
         )}
+
+        {children}
 
         {/* Posts are never activities — no run-chat CTA */}
         <ActionRow
@@ -950,6 +956,15 @@ export function FeedCard({
       );
     }
     case 'announcement': {
+      // A survey from "לפרסם" (mockup publish, C4): answered right here.
+      const surveyId = typeof item.payload?.surveyId === 'string' ? item.payload.surveyId : null;
+      if (surveyId) {
+        return (
+          <PostCard item={item} commentCount={commentCount} onComment={handleComment} onDelete={handleDelete}>
+            <SurveyVote surveyId={surveyId} myAthleteId={myAthleteId} />
+          </PostCard>
+        );
+      }
       const photos = toSessionPhotos(item.payload);
       if (photos) {
         return (

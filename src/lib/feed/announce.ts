@@ -36,6 +36,8 @@ export interface AnnouncementSource {
   schedule_type?: string | null;
   title_he?: string | null;
   body_he?: string | null;
+  /** The push's picture (POST /api/admin/notifications/image) — the feed card shows it too. */
+  image_url?: string | null;
 }
 
 /** Whether a broadcast is the kind of thing that belongs in the feed at all. */
@@ -75,11 +77,23 @@ export async function publishAnnouncement(
       .eq('payload->>notificationId', n.id)
       .maybeSingle();
     if (existing) return;
+    // One message sent to several packs or people is one row per audience (lib/publish), but
+    // ONE post: the same text from the club in the last ten minutes is that post already.
+    const { data: twin } = await supabase
+      .from('feed_items')
+      .select('id')
+      .eq('type', 'announcement')
+      .is('author_athlete_id', null)
+      .eq('body', text)
+      .gte('occurred_at', new Date(Date.parse(occurredAt) - 10 * 60 * 1000).toISOString())
+      .limit(1);
+    if ((twin || []).length) return;
 
     const { error } = await supabase.from('feed_items').insert({
       type: 'announcement',
       author_athlete_id: null,
       body: text,
+      ...(n.image_url ? { media: [{ path: '', url: n.image_url, w: null, h: null }] } : {}),
       payload: { notificationId: n.id },
       occurred_at: occurredAt,
     });

@@ -1,0 +1,108 @@
+import { createServerClient } from '@/lib/supabase/server';
+import { COACH_ID } from '@/lib/constants';
+import { BUCKET_LABEL, clock, parseRecordUrl } from './model';
+
+// The writes and reads behind "לפרסם" (lib/publish/model.ts for the rules).
+
+type Db = ReturnType<typeof createServerClient>;
+
+/** A post from the club (author null) on the feed. Returns its id. */
+export async function publishClubPost(db: Db, p: {
+  body: string;
+  media?: Array<{ path: string; url: string; w: number | null; h: number | null }>;
+  payload: Record<string, unknown>;
+}): Promise<string | null> {
+  const { data, error } = await db.from('feed_items').insert({
+    type: 'announcement',
+    author_athlete_id: null,
+    body: p.body,
+    ...(p.media?.length ? { media: p.media } : {}),
+    payload: p.payload,
+    occurred_at: new Date().toISOString(),
+  }).select('id').single();
+  if (error) throw error;
+  return (data as { id: string } | null)?.id ?? null;
+}
+
+export interface Suggestion {
+  athleteId: string;
+  name: string;
+  reason: 'race' | 'record';
+  /** "מרתון תל אביב ב־2:58:41" — what the cheer's text says. */
+  detail: string;
+  /** "שיא ב־10 ק״מ · אתמול" — the row's second line. */
+  line: string;
+  at: string;
+}
+
+/** Who deserves a cheer: personal records and races from the last three days. */
+export async function cheerSuggestions(db: Db, now: Date = new Date()): Promise<Suggestion[]> {
+  const since = new Date(now.getTime() - 3 * 86400000).toISOString();
+  const [{ data: recs }, { data: races }] = await Promise.all([
+    db.from('scheduled_notifications').select('audience_id, url, last_sent_at').eq('kind', 'record').gte('last_sent_at', since).order('last_sent_at', { ascending: false }).limit(30),
+    db.from('race_matches').select('athlete_id, activity_id, event_id, is_race').eq('is_race', true).limit(200),
+  ]);
+  const recRows = ((recs || []) as Array<{ audience_id: string | null; url: string | null; last_sent_at: string }>)
+    .map((r) => ({ ...parseRecordUrl(r.url), at: r.last_sent_at }))
+    .filter((r): r is { athleteId: string; bucket: string; activityId: string | null; at: string } => !!(r as { athleteId?: string }).athleteId);
+  const raceRows = (races || []) as Array<{ athlete_id: string; activity_id: string; event_id: string | null }>;
+  const activityIds = [...new Set([...recRows.map((r) => r.activityId).filter(Boolean) as string[], ...raceRows.map((r) => r.activity_id)])];
+  const acts = new Map<string, { start_time: string; distance: number; duration: number }>();
+  if (activityIds.length) {
+    const { data } = await db.from('athlete_activities').select('id, start_time, distance, duration').in('id', activityIds).gte('start_time', since);
+    for (const a of (data || []) as Array<{ id: string; start_time: string; distance: number; duration: number }>) acts.set(a.id, a);
+  }
+  const eventIds = [...new Set(raceRows.map((r) => r.event_id).filter(Boolean) as string[])];
+  const events = new Map<string, string>();
+  if (eventIds.length) {
+    const { data } = await db.from('events').select('id, name').in('id', eventIds);
+    for (const e of (data || []) as Array<{ id: string; name: string }>) events.set(e.id, e.name);
+  }
+  const out: Suggestion[] = [];
+  for (const r of recRows) {
+    const a = r.activityId ? acts.get(r.activityId) : undefined;
+    const label = BUCKET_LABEL[r.bucket] || r.bucket;
+    out.push({ athleteId: r.athleteId, name: '', reason: 'record', detail: `${label}${a ? ` ב־${clock(a.duration)}` : ''}`, line: `שיא ב־${label}`, at: r.at });
+  }
+  for (const r of raceRows) {
+    const a = acts.get(r.activity_id);
+    if (!a) continue; // older than three days
+    const ev = (r.event_id && events.get(r.event_id)) || 'המרוץ';
+    out.push({ athleteId: r.athlete_id, name: '', reason: 'race', detail: `${ev} ב־${clock(a.duration)}`, line: `${ev} · ${(a.distance / 1000).toFixed(1)} ק״מ`, at: a.start_time });
+  }
+  const ids = [...new Set(out.map((s) => s.athleteId))];
+  if (!ids.length) return [];
+  const { data: people } = await db.from('athletes').select('id, name').in('id', ids).eq('coach_id', COACH_ID).eq('status', 'active');
+  const names = new Map(((people || []) as Array<{ id: string; name: string | null }>).map((p) => [p.id, p.name || '']));
+  const seen = new Set<string>();
+  return out
+    .filter((s) => names.has(s.athleteId))
+    .map((s) => ({ ...s, name: names.get(s.athleteId)! }))
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .filter((s) => { const k = `${s.athleteId}:${s.reason}`; if (seen.has(k)) return false; seen.add(k); return true; })
+    .slice(0, 8);
+}
+
+export interface RecentItem { id: string; kind: 'message' | 'cheer' | 'survey'; text: string; at: string; likes: number; comments: number; answers: number | null }
+
+/** The club's last few posts, for the hub's "פורסם לאחרונה". */
+export async function recentPublished(db: Db): Promise<RecentItem[]> {
+  const { data } = await db.from('feed_items').select('id, body, payload, occurred_at, like_count, comment_count')
+    .eq('type', 'announcement').is('author_athlete_id', null).is('deleted_at', null)
+    .order('occurred_at', { ascending: false }).limit(6);
+  const rows = (data || []) as Array<{ id: string; body: string | null; payload: Record<string, unknown> | null; occurred_at: string; like_count: number | null; comment_count: number | null }>;
+  const surveyIds = rows.map((r) => r.payload?.surveyId).filter((v): v is string => typeof v === 'string');
+  const answers = new Map<string, number>();
+  if (surveyIds.length) {
+    const { data: resp } = await db.from('survey_responses').select('survey_id').in('survey_id', surveyIds);
+    for (const r of (resp || []) as Array<{ survey_id: string }>) answers.set(r.survey_id, (answers.get(r.survey_id) ?? 0) + 1);
+  }
+  return rows.map((r) => {
+    const sid = typeof r.payload?.surveyId === 'string' ? r.payload.surveyId : null;
+    const kind: RecentItem['kind'] = sid ? 'survey' : r.payload?.cheerFor || r.payload?.birthdayOf ? 'cheer' : 'message';
+    return {
+      id: r.id, kind, text: (r.body || '').replace(/@\[([^\]]+)\]\([0-9a-f-]{36}\)/gi, '$1').split('\n')[0].slice(0, 70),
+      at: r.occurred_at, likes: r.like_count ?? 0, comments: r.comment_count ?? 0, answers: sid ? answers.get(sid) ?? 0 : null,
+    };
+  });
+}
