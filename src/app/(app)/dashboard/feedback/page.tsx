@@ -3,8 +3,9 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Loader2, CheckCircle2, Gauge, MessageCircle, Pencil } from 'lucide-react';
+import { Loader2, CheckCircle2, Gauge, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui';
 import { requestPushOptInPrompt } from '@/components/PushOptIn';
 import { FeedbackThread } from '@/components/FeedbackThread';
 import { ExecutionQuality } from '@/components/activity/ExecutionQuality';
@@ -35,21 +36,6 @@ const ON_FILL = (fill: string): string => {
 // One color per FEEL_FACES index (😣 worst → 😄 best) — same palette, inverted.
 const FEEL_COLOR = ['#AD3838', '#FF5315', '#5F5F5F', '#1525FF', '#16a34a'];
 
-// A small "still needs your input" marker — every question the watch can't
-// answer (pain, coach-feedback) plus difficulty/feel when there was no watch
-// data to pre-fill them at all. Disappears the moment that question is
-// answered, so progress through the form is visible at a glance instead of
-// every Yes/No pair looking equally unanswered.
-function RequiredTag({ show }: { show: boolean }) {
-  const t = useTranslations('workoutFeedback');
-  if (!show) return null;
-  return (
-    <span className="text-3xs font-bold text-band-3-ink bg-band-3/15 px-1.5 py-0.5 rounded-full">
-      {t('required')}
-    </span>
-  );
-}
-
 function FeedbackForm() {
   const t = useTranslations('workoutFeedback');
   // Greyed while an admin views the app as this runner (lib/view-as-person.ts).
@@ -77,6 +63,7 @@ function FeedbackForm() {
   const [athleteEmail, setAthleteEmail] = useState('');
   const [done, setDone] = useState(false);
   const [submitError, setSubmitError] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
 
   useEffect(() => {
     const id = localStorage.getItem('athlete_id') || '';
@@ -163,7 +150,12 @@ function FeedbackForm() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
         <CheckCircle2 className="h-12 w-12 text-accent-600" />
-        <p className="text-ink-700 font-bold" dir="rtl">{t('thanks')}</p>
+        <p className="text-xl font-black text-ink-900" dir="rtl">{t('thanks')}</p>
+        <p className="text-sm text-ink-500" dir="rtl">
+          {difficulty != null && <>{t('difficulty')} <bdi dir="ltr">{difficulty}</bdi></>}
+          {feel != null && <> · {FEEL_FACES[feel]}</>}
+          {pain === false && <> · {t('noPain')}</>}
+        </p>
       </div>
     );
   }
@@ -174,23 +166,39 @@ function FeedbackForm() {
   const feltPoor = (watchFeel != null && watchFeel <= 1) || (feel != null && feel <= 1);
 
   const scale = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  const words = t.raw('rpeWords') as string[];
+  const fromWatch = watchRpe != null || watchFeel != null;
+  // "קצת" is a yes with the word in the detail, so the coach reads how much.
+  const painLevel: 'no' | 'little' | 'yes' | null = pain === false ? 'no' : pain === true ? (painDetail.trim() === t('painLittle') ? 'little' : 'yes') : null;
+  const setPainLevel = (v: 'no' | 'little' | 'yes') => {
+    if (v === 'no') { setPain(false); setPainDetail(''); return; }
+    setPain(true);
+    if (v === 'little') setPainDetail(t('painLittle'));
+    else if (painDetail.trim() === t('painLittle')) setPainDetail('');
+  };
+  const card = 'rounded-[20px] bg-card p-4 shadow-sm';
 
+  // ONE SCREEN (Ofer, 2026-10-19, mockups/morning-1019): the run on top so it is clear
+  // what is being answered; what the watch already knows is already marked, so when
+  // it is right the whole form is one tap on "שליחה".
   return (
-    <div className="max-w-md mx-auto px-4 py-6" dir="rtl">
-      <h1 className="text-xl font-black text-ink-700">{t('title')} 🏃</h1>
-      {activityName && <p className="text-sm text-ink-400 mt-1">{activityName}</p>}
+    <div className="mx-auto max-w-md space-y-2.5 px-4 pb-2 pt-4" dir="rtl">
+      <h1 className="text-xl font-black text-ink-900">{t('title')}</h1>
+      {activityName && (
+        <div className={cn(card, 'flex items-center gap-3 py-3')}>
+          <span aria-hidden className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-brand-600/10 text-xl">🏃</span>
+          <p className="min-w-0 truncate text-[15px] font-bold text-ink-900" dir="auto">{activityName}</p>
+        </div>
+      )}
 
-      {/* The push that opened this screen quoted a percentage. Here is what that
-          percentage was — first thing, above the form, because the answer to
-          "how did it go?" reads differently once you can see how the run
-          compared to the plan. */}
-      <ExecutionQuality verdict={verdict} loading={loadingVerdict} className="mt-4" />
+      {/* The percentage the push quoted, before the questions — the answer to "how did
+          it go?" reads differently once you can see how the run compared to the plan. */}
+      <ExecutionQuality verdict={verdict} loading={loadingVerdict} />
 
-      {/* Thread with the coach — reachable as soon as a feedback row exists
-          (the athlete can start it too, not just receive a reply). */}
+      {/* Thread with the coach — reachable as soon as a feedback row exists. */}
       {feedbackId && (
-        <div className="mt-4 rounded-xl bg-brand-600/12 border border-brand-600/30 p-3">
-          <div className="flex items-center gap-1.5 mb-1">
+        <div className="rounded-xl border border-brand-600/30 bg-brand-600/12 p-3">
+          <div className="mb-1 flex items-center gap-1.5">
             <MessageCircle className="h-4 w-4 text-brand-600" />
             <span className="text-xs font-bold text-brand-600">{t('coachReply')}</span>
           </div>
@@ -198,131 +206,118 @@ function FeedbackForm() {
         </div>
       )}
 
-      {(watchRpe != null || watchFeel != null) && (
-        <div
-          className="flex items-start gap-2 mt-4 rounded-xl border p-3"
-          style={{
-            borderColor: `${watchRpe != null ? DIFFICULTY_COLOR(Math.round(watchRpe)) : '#1525FF'}55`,
-            background: `${watchRpe != null ? DIFFICULTY_COLOR(Math.round(watchRpe)) : '#1525FF'}18`,
-          }}
-        >
-          <Gauge className="h-4 w-4 mt-0.5 shrink-0" style={{ color: watchRpe != null ? DIFFICULTY_COLOR(Math.round(watchRpe)) : '#159AFF' }} />
-          <div className="text-xs">
-            {/* Was text-indigo-100 — a near-white, which sat on a 10% tint of the
-                effort colour over a white card, i.e. white on white. */}
-            <p className="text-ink-700">
-              {t('fromWatch')}: {watchRpe != null && `${t('effort')} ${Math.round(watchRpe)}/10`}
-              {watchRpe != null && watchFeel != null && ' · '}
-              {watchFeel != null && `${t('feel')} ${FEEL_FACES[Math.round(watchFeel)]}`}
-              {highEffort && ` — ${t('adaptRecovery')}`}
+      {/* Effort, 1-10: one row of steps from green to red, the chosen one says its word. */}
+      <div className={card}>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-extrabold text-ink-500">{t('difficulty')}</p>
+          {difficulty != null && (
+            <p className="text-sm font-black" style={{ color: DIFFICULTY_COLOR(difficulty) }}>
+              {words[difficulty - 1]} · <bdi dir="ltr">{difficulty}/10</bdi>
             </p>
-            {/* Makes explicit that this pre-fill isn't final — the numbers/face
-                below are real inputs, not a locked read-only summary. */}
-            {/* ink-500, not ink-400: this sits on the effort colour's own tint, and
-                at RPE 7 (the orange) ink-400 measured 4.35:1 — under AA at 12px. */}
-            <p className="flex items-center gap-1 text-ink-500 mt-1">
-              <Pencil className="h-3 w-3" /> {t('watchEditableHint')}
-            </p>
-          </div>
+          )}
         </div>
+        <div className="mt-2.5 grid grid-cols-10 gap-1">
+          {scale.map(n => {
+            const hue = 120 - (n - 1) * 13;
+            const on = difficulty === n;
+            return (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setDifficulty(n)}
+                aria-pressed={on}
+                aria-label={`${n} · ${words[n - 1]}`}
+                className={cn('h-11 rounded-[10px] text-sm font-extrabold transition-transform', on && 'scale-110')}
+                style={on
+                  ? { background: `hsl(${hue} 65% 42%)`, color: '#fff', boxShadow: `0 4px 10px hsl(${hue} 60% 40% / .35)` }
+                  : { background: `hsl(${hue} 70% 94%)`, color: `hsl(${hue} 60% 28%)` }}
+              >
+                {n}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-1.5 flex justify-between text-2xs text-ink-400">
+          <span>{words[0]}</span>
+          <span>{words[9]}</span>
+        </div>
+        {fromWatch && (
+          <p className="mt-2.5 flex items-center gap-1.5 rounded-[10px] bg-page/70 px-2.5 py-1.5 text-xs text-ink-500">
+            <Gauge className="h-3.5 w-3.5" /> {t('watchPrefilled')}
+          </p>
+        )}
+      </div>
+
+      {/* Feel 0-4 — five big faces, the chosen one ringed. */}
+      <div className={card}>
+        <p className="text-sm font-extrabold text-ink-500">{t('howFeel')}</p>
+        <div className="mt-2 flex justify-between">
+          {FEEL_FACES.map((f, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setFeel(i)}
+              aria-pressed={feel === i}
+              className={cn('grid h-14 w-14 place-items-center rounded-[18px] text-3xl transition', feel === i ? 'bg-brand-600/10' : 'bg-page/70 opacity-60 grayscale-[.6]')}
+              style={feel === i ? { boxShadow: `0 0 0 2.5px ${FEEL_COLOR[i]}` } : undefined}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Pain: no / a little / yes. */}
+      <div className={card}>
+        <p className="text-sm font-extrabold text-ink-500">{highEffort ? t('painAfterHard') : t('pain')}</p>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          {(['no', 'little', 'yes'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setPainLevel(v)}
+              aria-pressed={painLevel === v}
+              className={cn('min-h-[44px] rounded-xl text-[15px] font-extrabold transition',
+                painLevel === v ? (v === 'no' ? 'bg-brand-600 text-white' : 'bg-accent-red/85 text-white') : 'bg-page/70 text-ink-500')}
+            >
+              {v === 'no' ? t('no') : v === 'little' ? t('painLittle') : t('yes')}
+            </button>
+          ))}
+        </div>
+        {painLevel === 'yes' && (
+          <input value={painDetail} onChange={e => setPainDetail(e.target.value)} placeholder={t('painDetail')}
+            aria-label={`${highEffort ? t('painAfterHard') : t('pain')} ${t('painDetail')}`}
+            className="mt-2 w-full rounded-lg border border-page bg-page/50 px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600" />
+        )}
+      </div>
+
+      {/* The coach: a switch, not a required yes/no. */}
+      <div className={cn(card, 'flex items-center justify-between gap-3')}>
+        <p className="text-[15px] font-bold text-ink-900">{feltPoor ? t('wantHelp') : t('wantFeedback')}</p>
+        <Switch checked={wantsFeedback === true} onChange={(v) => setWantsFeedback(v)} ariaLabel={feltPoor ? t('wantHelp') : t('wantFeedback')} />
+      </div>
+
+      {noteOpen || comment ? (
+        <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3} autoFocus={noteOpen && !comment}
+          placeholder={t('commentPlaceholder')}
+          aria-label={t('comment')}
+          className="w-full rounded-[20px] border border-page bg-card px-4 py-3 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600" />
+      ) : (
+        <button type="button" onClick={() => setNoteOpen(true)} className="min-h-[44px] w-full text-sm font-extrabold text-brand-600">
+          ＋ {t('addNote')}
+        </button>
       )}
 
-      {/* Difficulty 1-10 — color intensity mirrors severity (green→blue→amber→red), same palette as the watch banner above, so the selected value's color IS the answer, not just a highlight. */}
-      <div className="flex items-center gap-1.5 mt-5 mb-2">
-        <p className="text-sm font-semibold text-ink-700">{t('difficulty')}</p>
-        <RequiredTag show={difficulty == null} />
-      </div>
-      <div className="grid grid-cols-5 gap-2">
-        {scale.map(n => (
-          <button key={n} onClick={() => setDifficulty(n)}
-            className="aspect-square rounded-lg text-sm font-bold transition"
-            // Unselected was `rgba(51,65,85,.5)` on `#cbd5e1` — slate-700 and
-            // slate-300, a leftover from the dark card. Over the light page that
-            // composites to #89909a carrying #cbd5e1 text: 2.17:1, on a 1-10
-            // control that is the main thing this form asks for. Now the page
-            // grey with body ink, which is how every other unselected pill in
-            // the light system reads.
-            style={difficulty === n
-              ? { background: DIFFICULTY_COLOR(n), color: ON_FILL(DIFFICULTY_COLOR(n)) }
-              : { background: '#DFDFDF', color: '#2D2E38' }}
-          >
-            {n}
-          </button>
-        ))}
-      </div>
+      {submitError && <p className="text-center text-sm text-accent-red" dir="rtl">{t('submitError')}</p>}
 
-      {/* Feel 0-4 — selected face gets a colored ring instead of just dimming
-          the rest, so it reads as "this is the answer" at a glance. */}
-      <div className="flex items-center gap-1.5 mt-5 mb-2">
-        <p className="text-sm font-semibold text-ink-700">{t('howFeel')}</p>
-        <RequiredTag show={feel == null} />
+      <div className="sticky bottom-0 -mx-4 bg-page/95 px-4 pb-2 pt-3 backdrop-blur-sm">
+        <button onClick={readOnly ? announceReadOnly : submit}
+          aria-disabled={readOnly || undefined}
+          className={cn('flex min-h-[54px] w-full items-center justify-center gap-2 rounded-2xl text-[17px] font-black',
+            readOnly ? 'bg-page text-ink-400' : 'bg-brand-600 text-white shadow-[0_8px_20px_rgba(21,37,255,.3)] hover:bg-brand-700')}>
+          {t('submit')}
+        </button>
       </div>
-      {/* A fixed 48px box per face. The size used to come from the glyph — a
-          30px emoji plus p-1.5 — which measured 41.5 wide on both phones, so four
-          of the five faces were under the 44px floor. Five 48s are 240px, well
-          inside the narrowest supported card. */}
-      <div className="flex justify-between">
-        {FEEL_FACES.map((f, i) => (
-          <button
-            key={i}
-            onClick={() => setFeel(i)}
-            aria-pressed={feel === i}
-            className={cn('flex h-12 w-12 items-center justify-center text-3xl rounded-full transition', feel === i ? 'scale-110' : 'opacity-50')}
-            style={feel === i ? { background: `${FEEL_COLOR[i]}2A`, boxShadow: `0 0 0 2px ${FEEL_COLOR[i]}` } : undefined}
-          >
-            {f}
-          </button>
-        ))}
-      </div>
-
-      {/* Pain */}
-      <div className="flex items-center gap-1.5 mt-5 mb-2">
-        <p className="text-sm font-semibold text-ink-700">{highEffort ? t('painAfterHard') : t('pain')}</p>
-        <RequiredTag show={pain == null} />
-      </div>
-      <div className="flex gap-2">
-        <button onClick={() => setPain(true)}
-          className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm transition',
-            pain === true ? 'bg-accent-red/80 text-white' : 'bg-page/50 text-ink-500')}>{t('yes')}</button>
-        <button onClick={() => setPain(false)}
-          className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm transition',
-            pain === false ? 'bg-brand-600 text-white' : 'bg-page/50 text-ink-500')}>{t('no')}</button>
-      </div>
-      {pain === true && (
-        <input value={painDetail} onChange={e => setPainDetail(e.target.value)} placeholder={t('painDetail')}
-          aria-label={`${highEffort ? t('painAfterHard') : t('pain')} ${t('painDetail')}`}
-          className="w-full mt-2 bg-page/50 border border-page rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600" />
-      )}
-
-      {/* Want feedback */}
-      <div className="flex items-center gap-1.5 mt-5 mb-2">
-        <p className="text-sm font-semibold text-ink-700">{feltPoor ? t('wantHelp') : t('wantFeedback')}</p>
-        <RequiredTag show={wantsFeedback == null} />
-      </div>
-      <div className="flex gap-2">
-        <button onClick={() => setWantsFeedback(true)}
-          className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm transition',
-            wantsFeedback === true ? 'bg-brand-600 text-white' : 'bg-page/50 text-ink-500')}>{t('yes')}</button>
-        <button onClick={() => setWantsFeedback(false)}
-          className={cn('flex-1 min-h-[44px] rounded-xl font-bold text-sm transition',
-            wantsFeedback === false ? 'bg-ink-300 text-ink-700' : 'bg-page/50 text-ink-500')}>{t('no')}</button>
-      </div>
-
-      {/* Free-text comment */}
-      <p className="text-sm font-semibold text-ink-700 mt-5 mb-2">{t('comment')}</p>
-      <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3}
-        placeholder={t('commentPlaceholder')}
-        aria-label={t('comment')}
-        className="w-full bg-page/50 border border-page rounded-lg px-3 py-2.5 text-base text-ink-700 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-600" />
-
-      {submitError && <p className="mt-4 text-sm text-accent-red text-center" dir="rtl">{t('submitError')}</p>}
-
-      <button onClick={readOnly ? announceReadOnly : submit}
-        aria-disabled={readOnly || undefined}
-        className={cn('w-full mt-6 min-h-[52px] rounded-2xl font-bold flex items-center justify-center gap-2',
-          readOnly ? 'bg-page text-ink-400' : 'bg-brand-600 hover:bg-brand-700 text-white')}>
-        {t('submit')}
-      </button>
     </div>
   );
 }

@@ -2548,6 +2548,11 @@
     "newPlanBadge": "New"
   },
   "workoutFeedback": {
+    "rpeWords": ["Very easy", "Very easy", "Easy", "Easy", "Moderate", "Moderate", "Hard", "Hard", "Very hard", "Max"],
+    "painLittle": "A little",
+    "addNote": "Add a note",
+    "watchPrefilled": "From your watch — tap to change",
+    "noPain": "No pain",
     "title": "How was your workout?",
     "fromWatch": "From your watch",
     "effort": "Effort",
