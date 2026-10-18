@@ -59,7 +59,24 @@ export interface ParsedWorkout {
    * the difference and never twice. Absent = the paces are exactly as resolved from the test.
    */
   paceAdjust?: Partial<Record<'reps' | 'tempo' | 'easy', number>>;
+  /**
+   * Set only on a one-day session merged into the week for display (lib/day-session/week-merge.ts):
+   * the coach typed it for one date with no weekly plan. Never stored on a plan.
+   */
+  daySession?: DaySessionMark;
   steps: WorkoutStep[];
+}
+
+/** What the next-session card needs to know about a one-day session. */
+export interface DaySessionMark {
+  date: string;
+  /** A quality session asks who is coming. */
+  quality: boolean;
+  startTime: string | null;
+  place: string | null;
+  hasNutrition: boolean;
+  /** "הערות לאימון" — shown in the session sheet, never as its title. */
+  notes: string | null;
 }
 
 /** A repair the import made to a step, and what the step said before it. */

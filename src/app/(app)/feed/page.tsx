@@ -35,7 +35,6 @@ import { PushDeadBanner } from '@/components/PushDeadBanner';
 import { WeekSummaryCard } from '@/components/feed/WeekSummaryCard';
 import { QualitySessionRow } from '@/components/feed/QualitySessionRow';
 import { NextSessionCard } from '@/components/feed/NextSessionCard';
-import { DaySessionCard } from '@/components/feed/DaySessionCard';
 import { WeekWatchCard } from '@/components/feed/WeekWatchCard';
 import { QuietBoundary } from '@/components/QuietBoundary';
 import { PackStrip } from '@/components/feed/PackStrip';
@@ -659,16 +658,8 @@ export default function FeedPage() {
         </QuietBoundary>
       </div>
 
-      {/* ═══ ONE-DAY SESSION ═══
-          A session the coach typed for one date with no weekly plan (lib/day-session),
-          from publishing until after it. Draws nothing when the week's plan has that
-          day — then NextSessionCard below is the card. */}
-      <div className="mb-4 empty:mb-0">
-        <QuietBoundary resetKey={weeklyForCards}>
-          <DaySessionCard />
-        </QuietBoundary>
-      </div>
-
+      {/* A one-day session (lib/day-session) is in the week the next-session card reads
+          (lib/day-session/week-merge.ts), so it is that card, like every session. */}
       <div className="mb-4 empty:mb-0">
         <QuietBoundary resetKey={weeklyForCards}>
           <NextSessionCard />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { X, Repeat, Check, Copy, Link2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
@@ -245,11 +245,13 @@ function StoryCopy({ session }: { session: WorkoutDetailSession }) {
   );
 }
 
-export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }: {
+export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose, extra }: {
   session: WorkoutDetailSession;
   viewGroup: number;
   onPickGroup: (idx: number) => void;
   onClose: () => void;
+  /** Under the steps: a one-day session's notes, its nutrition and the week's plans (feed/SessionLinks). */
+  extra?: ReactNode;
 }) {
   const tc = useTranslations('common');
   const t = useTranslations('workoutEditor');
@@ -389,6 +391,7 @@ export function WorkoutDetailModal({ session, viewGroup, onPickGroup, onClose }:
             <p className="text-sm text-ink-400 text-center py-8">{t('noStepDetails')}</p>
           )}
         </div>
+        {extra && <div className="mt-4 space-y-2.5">{extra}</div>}
     </Sheet>
   );
 }

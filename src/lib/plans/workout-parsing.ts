@@ -1,4 +1,4 @@
-import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
+import type { DaySessionMark, ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { isOptionalWorkout } from '@/lib/plans/normalize-plan';
 import { workoutDurationSec } from '@/lib/workout-duration';
 import {
@@ -349,6 +349,8 @@ export interface WeekSession {
   kmFrom: Provenance;
   durationSec: number;
   steps: WorkoutStep[];
+  /** A one-day session merged in for display (lib/day-session/week-merge.ts). */
+  daySession?: DaySessionMark;
 }
 
 export interface WeekBreakdown {
@@ -435,6 +437,7 @@ export function buildWeekSessions(workouts: ParsedWorkout[]): WeekSession[] {
       kmFrom: km.from,
       durationSec: workoutDurationSec(w, opts),
       steps: w.steps,
+      ...(w.daySession ? { daySession: w.daySession } : {}),
     };
   });
 }

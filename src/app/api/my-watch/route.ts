@@ -148,7 +148,8 @@ export async function GET(request: Request) {
       ...watchState(
         deliveries,
         weekStartDate,
-        !!plan,
+        // A week with only one-day sessions has something on the watch too.
+        !!plan || (missing?.expected.length ?? 0) > 0,
         // Never the token itself, not even a truncation of it — the credential is
         // encrypted at rest and a boolean is the whole of what a client needs.
         !!athlete?.garmin_auth,

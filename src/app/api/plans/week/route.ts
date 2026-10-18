@@ -8,6 +8,7 @@ import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
 import { ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
+import { daySessionWorkouts, mergeDaySessions } from '@/lib/day-session/week-merge';
 
 /**
  * Structured breakdown for ONE arbitrary week — the Program page's native
@@ -54,8 +55,13 @@ export async function GET(req: NextRequest) {
     // The caller's own academy week first, never another trainee's (lib/plans/scope.ts).
     const plan = pickPlan(rows, caller.athleteId);
 
+    // One-day sessions on days the plan leaves empty are the week's too (lib/day-session/week-merge.ts).
+    const dayWorkouts = await daySessionWorkouts(weekStart);
     if (!plan) {
-      return NextResponse.json({ hasPlan: false, weekStart, dailyDistances: [], sessions: [], typeDistribution: {}, weekTotalMin: 0, weekTotalMax: 0, trainingDays: 0 });
+      if (dayWorkouts.length) {
+        return NextResponse.json({ hasPlan: true, hasClubPlan: false, weekStart, publishedAt: null, lane: null, ownPlan: false, ...buildWeekBreakdown({ workouts: dayWorkouts }) });
+      }
+      return NextResponse.json({ hasPlan: false, hasClubPlan: false, weekStart, dailyDistances: [], sessions: [], typeDistribution: {}, weekTotalMin: 0, weekTotalMax: 0, trainingDays: 0 });
     }
 
     let parsed = plan.parsed_workouts;
@@ -68,11 +74,11 @@ export async function GET(req: NextRequest) {
       else lane = null;
     }
 
-    const breakdown = buildWeekBreakdown(parsed);
+    const breakdown = buildWeekBreakdown(dayWorkouts.length ? mergeDaySessions(parsed, dayWorkouts) : parsed);
     // Lets the frontend show a "New" badge for a couple of days after the
     // plan first went out — not athlete-specific (no per-athlete read state
     // exists), but a reasonable proxy since a coach typically pushes once.
-    return NextResponse.json({ hasPlan: true, weekStart, publishedAt: plan.status === 'pushed' ? plan.created_at : null, lane, ownPlan: !!plan.athlete_id, ...breakdown });
+    return NextResponse.json({ hasPlan: true, hasClubPlan: true, weekStart, publishedAt: plan.status === 'pushed' ? plan.created_at : null, lane, ownPlan: !!plan.athlete_id, ...breakdown });
   } catch (error) {
     console.error('Plan week error:', error);
     return NextResponse.json({ error: 'Failed to fetch week plan' }, { status: 500 });
