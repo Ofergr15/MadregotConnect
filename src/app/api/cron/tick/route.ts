@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sendEveningWatchReminders } from '@/lib/watch/evening-reminder';
+import { publishBirthdayPosts } from '@/lib/feed/birthday';
 import { createServerClient } from '@/lib/supabase/server';
 import { sendPushLocalized, resolveAudience, subscriptionsForAthletes, allAthleteIds, persistNotifications, localesForAthletes, notifyAthlete } from '@/lib/push';
 import {
@@ -770,6 +771,21 @@ async function run(request: Request) {
       }
     } catch (err) {
       console.error('[tick] quality session push failed:', err);
+    }
+  }
+
+  // From 06:00, once a day: a club post on the feed for each member whose birthday it is
+  // (lib/feed/birthday.ts) — likes and comments reach them like on their own post.
+  if (hour >= 6) {
+    const tag = `birthdayPosts:${israelToday(now)}`;
+    try {
+      if (!(await already(tag))) {
+        const n = await publishBirthdayPosts(supabase, israelToday(now), now);
+        await markFired(tag, n);
+        fired.push(`${tag} → ${n}`);
+      }
+    } catch (err) {
+      console.error('[tick] birthday posts failed:', err);
     }
   }
 

@@ -180,10 +180,16 @@ export async function loadFeedItemMeta(
   const supabase = createServerClient();
   const { data } = await supabase
     .from('feed_items')
-    .select('author_athlete_id, type, deleted_at')
+    .select('author_athlete_id, type, payload, deleted_at')
     .eq('id', feedItemId)
     .is('deleted_at', null)
     .maybeSingle();
   if (!data) return null;
-  return { authorAthleteId: data.author_athlete_id, type: (data.type as string) ?? null };
+  // A club post about one member (a birthday, lib/feed/birthday.ts) has no author; its
+  // likes and comments go to the person it is about, the way a post's go to its author.
+  const honoree = (data.payload as { honoreeId?: unknown } | null)?.honoreeId;
+  return {
+    authorAthleteId: data.author_athlete_id ?? (typeof honoree === 'string' ? honoree : null),
+    type: (data.type as string) ?? null,
+  };
 }
