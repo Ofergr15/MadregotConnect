@@ -2456,6 +2456,10 @@
     "dontAskAgain": "Don't ask again"
   },
   "notifications": {
+    "tabYou": "For you",
+    "tabClub": "The club",
+    "emptyYou": "Nothing for you yet",
+    "emptyClub": "No club updates yet",
     "title": "Notifications",
     "empty": "No notifications yet",
     "justNow": "Just now",

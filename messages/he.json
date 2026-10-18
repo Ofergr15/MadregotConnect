@@ -2456,6 +2456,10 @@
     "dontAskAgain": "אל תציע לי שוב"
   },
   "notifications": {
+    "tabYou": "בשבילך",
+    "tabClub": "המועדון",
+    "emptyYou": "אין התראות בשבילך",
+    "emptyClub": "עוד אין עדכונים מהמועדון",
     "title": "התראות",
     "empty": "אין התראות עדיין",
     "justNow": "עכשיו",

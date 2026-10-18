@@ -15,6 +15,18 @@ export interface HistoryItem {
   rsvpAttending?: boolean | null;
 }
 
+/**
+ * The inbox's two tabs (Ofer, 2026-10-19, mockups/morning-1019): "בשבילך" is what is
+ * about this athlete — their coach, their run, their report, a like on their post;
+ * "המועדון" is what happened in the club — teammates' runs (874 of the month's rows),
+ * birthdays, the quality-session photos, the club updates. Everything not listed here
+ * is personal, so a new kind lands where it can't be missed.
+ */
+const CLUB_KIND = /^(kudos_activity|quality_session|birthday|club_update|celebrat|run_together|pack_stor)/;
+export function isClubItem(it: Pick<HistoryItem, 'kind'>): boolean {
+  return CLUB_KIND.test(it.kind || '');
+}
+
 // Real native notification-history UIs are a static chronological list —
 // you can't collapse "Today". Date bucket is the section; category (via
 // styleFor below) is now only a per-row icon/color, not a grouping axis.

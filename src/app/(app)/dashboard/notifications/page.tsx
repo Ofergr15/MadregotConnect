@@ -20,6 +20,7 @@ import {
   rsvpTarget,
   foldRuns,
   foldNames,
+  isClubItem,
 } from '@/lib/notifications/history';
 
 // Locale-aware relative time — "now" / "N min/hours/days ago" — routed through
@@ -239,7 +240,10 @@ export default function NotificationsInboxPage() {
   const { data } = useApi<{ items?: Item[] }>(
     athleteId ? `/api/notifications/inbox?athleteId=${encodeURIComponent(athleteId)}` : null,
   );
-  const items = useMemo(() => data?.items || [], [data]);
+  const allItems = useMemo(() => data?.items || [], [data]);
+  // Two tabs: what is about you, and what happened in the club (isClubItem).
+  const [tab, setTab] = useState<'you' | 'club'>('you');
+  const items = useMemo(() => allItems.filter((it) => isClubItem(it) === (tab === 'club')), [allItems, tab]);
   const loading = !!athleteId && !data;
 
   // Locally-dismissed ids (group "X" target) — see readStoreKey() above. Read in
@@ -258,6 +262,7 @@ export default function NotificationsInboxPage() {
 
   const isUnread = useCallback((it: Item) => it.unread && !clearedIds.has(it.id), [clearedIds]);
   const totalUnread = useMemo(() => items.filter(isUnread).length, [items, isUnread]);
+  const unreadOf = (club: boolean) => allItems.filter((it) => isClubItem(it) === club && isUnread(it)).length;
 
   // Static date sections, newest-item-first within each — no collapsing, so
   // the page never looks empty just because everything's already read.
@@ -376,10 +381,29 @@ export default function NotificationsInboxPage() {
         </div>
       </div>
 
+      <div role="tablist" className="mb-4 grid grid-cols-2 rounded-xl bg-page/80 p-1">
+        {(['you', 'club'] as const).map((k) => {
+          const n = unreadOf(k === 'club');
+          return (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={tab === k}
+              onClick={() => setTab(k)}
+              className={cn('flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg text-sm font-extrabold transition', tab === k ? 'bg-card text-ink-900 shadow-sm' : 'text-ink-500')}
+            >
+              {k === 'you' ? tn('tabYou') : tn('tabClub')}
+              {n > 0 && <span className="min-w-[18px] rounded-full bg-accent-red px-1.5 text-2xs font-bold leading-[18px] text-white tabular-nums">{n > 99 ? '99+' : n}</span>}
+            </button>
+          );
+        })}
+      </div>
+
       {loading ? (
         <SkeletonList count={5} />
       ) : items.length === 0 ? (
-        <EmptyState icon={Bell} title={tn('empty')} />
+        <EmptyState icon={Bell} title={tab === 'club' ? tn('emptyClub') : tn('emptyYou')} />
       ) : (
         <div className="space-y-5">
           {sections.map(({ bucket, items: sectionItems }) => (
