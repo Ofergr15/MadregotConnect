@@ -96,6 +96,8 @@ export interface WhatsNewEntry {
    * from the feed back to the feed is indistinguishable from a broken row.
    */
   href: string;
+  /** A headline only staff are shown (they run too, so they get the members' pages first). */
+  audience?: 'staff';
   he: WhatsNewCopy;
   en: WhatsNewCopy;
 }

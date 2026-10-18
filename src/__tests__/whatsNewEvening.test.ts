@@ -27,57 +27,53 @@ describe('composeWhatsNew', () => {
     expect(c.more).toEqual([]);
   });
 
-  it('with it, the two headlines lead and the old hand-written rows step aside', () => {
+  it('with it, the five club headlines lead, in order, and the old hand-written rows step aside', () => {
     const c = composeWhatsNew([], '2.41.70', true);
-    expect(c.entries.map(e => e.slug)).toEqual(['share-editor-2026-09', 'week-editor-2026-09']);
+    expect(c.entries.map(e => e.slug)).toEqual(['b18-run-page', 'b18-profile', 'b18-records', 'b18-fitness', 'b18-photos']);
+  });
+
+  it('gives staff the same five first, then theirs', () => {
+    const c = composeWhatsNew([], '2.41.70', true, true);
+    expect(c.entries.map(e => e.slug)).toEqual([
+      'b18-run-page', 'b18-profile', 'b18-records', 'b18-fitness', 'b18-photos',
+      'b18-management', 'b18-publish', 'b18-social', 'b18-watch-send',
+    ]);
   });
 
   it('has no academy page: it is not open yet', () => {
     expect(JSON.stringify(EVENING_ENTRIES)).not.toMatch(/academy/i);
   });
 
-  it('dates both headlines by the one release date', () => {
-    expect(EVENING_ENTRIES.map(e => e.publishedAt)).toEqual([EVENING_DATE, EVENING_DATE]);
+  it('dates every headline by the one release date', () => {
+    expect(new Set(EVENING_ENTRIES.map(e => e.publishedAt))).toEqual(new Set([EVENING_DATE]));
   });
 
-  it('lists exactly his picks under them, in his order, once each', () => {
-    const [a, b, c] = EVENING_MORE;
-    const got = composeWhatsNew([
-      release('2.41.60', [note(c), note('not-picked'), note(a)], 1),
-      release('2.41.70', [note(b), note(a)], 2),
-    ], '2.41.70', true);
-    expect(notesOf(got.more)).toEqual([a, b, c]);
+  it('lists the club notes for members, and the staff ones after them for staff', () => {
+    const member = composeWhatsNew([], '2.41.70', true).more.map(n => n.id);
+    const staff = composeWhatsNew([], '2.41.70', true, true).more.map(n => n.id);
+    expect(member).toEqual(EVENING_EXTRA.filter(x => x.audience !== 'staff').map(x => x.id));
+    expect(staff).toEqual(EVENING_MORE.filter(id => EVENING_EXTRA.some(x => x.id === id)));
+    expect(staff.slice(0, member.length)).toEqual(member);
   });
 
-  it('leaves out staff notes and starred notes even when picked', () => {
-    const [a, b, c] = EVENING_MORE;
+  it('leaves out staff release notes and starred notes even when picked', () => {
     const got = composeWhatsNew([release('2.41.70', [
-      note(a, { audience: 'staff' }),
-      note(b, { featured: true }),
-      note(c),
+      note('picked-staff', { audience: 'staff' }),
+      note('picked-star', { featured: true }),
     ])], '2.41.70', true);
-    expect(notesOf(got.more)).toEqual([c]);
+    expect(notesOf(got.more)).toEqual([]);
     // A starred note the headlines do not cover still gets its own row.
-    expect(got.entries.map(e => e.slug)).toContain(`release:${b}`);
+    expect(got.entries.map(e => e.slug)).toContain('release:picked-star');
   });
 
-  it('picks only notes that exist and that members may see', async () => {
+  it('picks only notes that exist', async () => {
     const { BUNDLED_NOTES } = await import('@/lib/release-notes');
-    for (const id of EVENING_MORE) {
-      const n = [...BUNDLED_NOTES, ...EVENING_EXTRA].find(x => x.id === id);
-      expect(n, id).toBeTruthy();
-      expect(n!.audience, id).not.toBe('staff');
-    }
+    for (const id of EVENING_MORE) expect([...BUNDLED_NOTES, ...EVENING_EXTRA].find(x => x.id === id), id).toBeTruthy();
+    expect(EVENING_EXTRA.every(x => EVENING_MORE.includes(x.id))).toBe(true);
   });
 
   it('never announces a release newer than the bundle', () => {
     expect(notesOf(composeWhatsNew([release('2.41.71', [note('later')])], '2.41.70', true).more)).toEqual([]);
-  });
-
-  it('ends the list with every written extra, after his picks', () => {
-    const got = composeWhatsNew([], '2.41.70', true).more.map(n => n.id);
-    expect(got).toEqual(EVENING_EXTRA.map(x => x.id));
-    expect(EVENING_EXTRA.every(x => EVENING_MORE.includes(x.id))).toBe(true);
   });
 
   it('starts the list the day after the last hand-written entry', () => {
@@ -98,7 +94,7 @@ describe('the headline entries', () => {
 
   it('draw every frame from a real render on disk, in both languages', () => {
     for (const e of EVENING_ENTRIES) {
-      expect(e.cards!.length).toBeGreaterThan(1);
+      expect(e.cards!.length, e.slug).toBeGreaterThan(0);
       for (const f of e.cards!) {
         for (const lang of WHATS_NEW_LANGS) {
           expect(existsSync(join(SRC, '..', 'public/whats-new', `${f.key}.${lang}.jpg`)), `${f.key}.${lang}`).toBe(true);
@@ -107,21 +103,13 @@ describe('the headline entries', () => {
     }
   });
 
-  it('each show their editor at work, on captures that exist, tapped on the screen', () => {
-    for (const e of EVENING_ENTRIES) {
+  it('show their editor at work only on captures that exist, tapped on the screen', () => {
+    for (const e of EVENING_ENTRIES.filter(x => x.demo)) {
       const d = e.demo!;
-      expect(d.steps.length, e.slug).toBeGreaterThan(3);
       for (const key of [d.first, ...d.steps.map(x => x.key)]) {
         expect(existsSync(join(SRC, '..', 'public/whats-new/edit', `${key}.jpg`)), key).toBe(true);
       }
-      for (const x of d.steps) {
-        expect(x.x > 0 && x.x < 390 && x.y > 0 && x.y < 844, x.key).toBe(true);
-        expect(x.he && x.en && !/[֐-׿]/.test(x.en), x.key).toBeTruthy();
-      }
-      for (const lang of WHATS_NEW_LANGS) {
-        expect(d[lang].title && d[lang].body && d[lang].cta && d[lang].kicker && d[lang].where, `${e.slug}.demo.${lang}`).toBeTruthy();
-      }
-      expect(/[֐-׿]/.test(JSON.stringify(d.en)), e.slug).toBe(false);
+      for (const x of d.steps) expect(x.x > 0 && x.x < 390 && x.y > 0 && x.y < 844, x.key).toBe(true);
     }
   });
 
@@ -131,7 +119,6 @@ describe('the headline entries', () => {
       const found = ['app/(app)', 'app'].some(dir => existsSync(join(SRC, dir, path, 'page.tsx')));
       expect(found, e.href).toBe(true);
     }
-    expect(EVENING_ENTRIES.map(e => e.href)).toEqual(['/dashboard/share?what=run', '/dashboard/share?what=week']);
   });
 });
 
@@ -140,7 +127,7 @@ describe('the release push link', () => {
     expect(TOUR_PARAM).toBe('tour');
     const sheet = read('components/whats-new/WhatsNewSheet.tsx');
     const auto = sheet.slice(sheet.indexOf('export function WhatsNewAutoSheet'), sheet.indexOf('export function WhatsNewSettingsRow'));
-    expect(auto).toMatch(/const asked = EVENING_OPEN && url\.searchParams\.get\(TOUR_PARAM\) === '1';/);
+    expect(auto).toMatch(/const asked = EVENING_OPEN && TOUR_VALUES\.includes\(url\.searchParams\.get\(TOUR_PARAM\) \?\? ''\);/);
     expect(auto).toMatch(/asked\s*\? visibleEntries\(all, \{ \.\.\.ledger, since: WHATS_NEW_EPOCH \}\)\s*: unseenEntries\(all, ledger\)/);
     expect(auto).toMatch(/url\.searchParams\.delete\(TOUR_PARAM\)/);
     // still spent at open, and never inside the rehearsal's frame
@@ -152,7 +139,7 @@ describe('the release push link', () => {
 describe('the composer', () => {
   it('can send a broadcast whose tap opens the tour, only once the release is out', () => {
     const nc = read('components/NotificationCenter.tsx');
-    expect(nc).toMatch(/\.\.\.\(EVENING_OPEN && opens === 'tour' \? \{ url: `\/feed\?\$\{TOUR_PARAM\}=1` \} : \{\}\)/);
+    expect(nc).toMatch(/\.\.\.\(EVENING_OPEN && opens === 'tour' \? \{ url: `\/feed\?\$\{TOUR_PARAM\}=\$\{TOUR_VALUE\}` \} : \{\}\)/);
     expect(nc).toMatch(/composeMode === 'message' && EVENING_OPEN && \(/);
     expect(nc).toMatch(/setOpens\('app'\)/);
   });

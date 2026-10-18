@@ -15,7 +15,8 @@ import { useEveningRelease } from '@/lib/use-evening-release';
 import {
   WHATS_NEW, type WhatsNewEntry, type WhatsNewLang,
 } from '@/lib/whats-new/entries';
-import { EVENING_OPEN, TOUR_PARAM, composeWhatsNew, type WhatsNewContent } from '@/lib/whats-new/evening';
+import { useNavIdentity } from '@/lib/nav-items';
+import { EVENING_OPEN, TOUR_PARAM, TOUR_VALUES, composeWhatsNew, type WhatsNewContent } from '@/lib/whats-new/evening';
 import {
   WHATS_NEW_EPOCH, WHATS_NEW_KEY, deviceIsReturning, initLedger, markSeen, readWhatsNewLedger,
   unseenEntries, visibleEntries,
@@ -294,16 +295,19 @@ export function WhatsNewSheet({
  * loaded, so the feed never spends a ledger on half the list.
  */
 function useContent(evening: boolean): WhatsNewContent | null {
+  // Staff run too: their story is the members' pages, then theirs (lib/whats-new/evening.ts).
+  // Null until the role is known, so a staff device never spends its ledger on the members' half.
+  const { isStaffView: staff, ready } = useNavIdentity();
   const { data, error } = useApi<{ releases: WhatsNewRelease[] }>('/api/whats-new', { revalidateOnFocus: false });
   // One object per answer, not per render: WhatsNewSettingsRow keys an effect on it
   // that sets state, so a fresh object every render was an endless render loop on
   // the settings landing (~14,000 commits/s), which also stopped every navigation
   // away from that page from ever finishing (lab 2026-10-17).
   return useMemo(() => {
-    if (error) return { entries: evening ? composeWhatsNew([], APP_VERSION, true).entries : WHATS_NEW, more: [] };
-    if (!data) return null;
-    return composeWhatsNew(data.releases ?? [], APP_VERSION, evening);
-  }, [data, error, evening]);
+    if (error) return { entries: evening ? composeWhatsNew([], APP_VERSION, true, staff).entries : WHATS_NEW, more: [] };
+    if (!data || !ready) return null;
+    return composeWhatsNew(data.releases ?? [], APP_VERSION, evening, staff);
+  }, [data, error, evening, staff, ready]);
 }
 
 /** The list belongs under the headlines, so a sheet without one leaves it out. */
@@ -342,11 +346,11 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
     );
     if (ledger !== stored) localStorage.setItem(WHATS_NEW_KEY, JSON.stringify(ledger));
 
-    // The release push links here with ?tour=1 (TOUR_PARAM): a tap is asking, so the
+    // The release push links here with ?tour=<TOUR_VALUE> (TOUR_PARAM): a tap is asking, so the
     // tour opens on any device, a new or a spent one, and the link is dropped so a
     // reload does not replay it.
     const url = new URL(window.location.href);
-    const asked = EVENING_OPEN && url.searchParams.get(TOUR_PARAM) === '1';
+    const asked = EVENING_OPEN && TOUR_VALUES.includes(url.searchParams.get(TOUR_PARAM) ?? '');
     if (asked) {
       url.searchParams.delete(TOUR_PARAM);
       window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);

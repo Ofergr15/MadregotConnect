@@ -37,13 +37,24 @@ export const EVENING_OPEN = true;
  * by then, one first opened since the tour was written included. A device newer
  * than that still gets the tour from the release push (TOUR_PARAM).
  */
-export const EVENING_DATE = '2026-10-01';
+export const EVENING_DATE = '2026-10-17';
 
 /**
- * `/feed?tour=1`, the release push's link: the feed opens the tour whatever the
+ * `/feed?tour=<TOUR_VALUE>`, the release push's link: the feed opens the tour whatever the
  * ledger says, because the reader asked for it by tapping (WhatsNewAutoSheet).
  */
 export const TOUR_PARAM = 'tour';
+
+/**
+ * The release push's value: `/feed?tour=<TOUR_VALUE>`. It changes with each tour
+ * release, because the push lands on phones still running the PREVIOUS bundle,
+ * and that bundle opens its own (old) tour for its own value and strips the link.
+ * A value it does not know survives it, through the update's reload, to the new
+ * bundle, which opens the new tour: push, then update, then What's new. '1' (the
+ * 10-01 release) is still honoured.
+ */
+export const TOUR_VALUE = '1018';
+export const TOUR_VALUES: readonly string[] = ['1', TOUR_VALUE];
 
 /** The day after the last hand-written entry (next-session-feed, 09-19): the "more" list starts here. */
 export const EVENING_SINCE = '2026-09-20';
@@ -60,155 +71,142 @@ export const EVENING_FOLDED: readonly string[] = [
 ];
 
 /**
- * The tour's last page, "and more": the notes he picked (2026-09-30), in his
- * order, and nothing else. Two of them repeat a headline's detail, on purpose.
- * A note shows once the reader's bundle has it; an id with no note is skipped.
+ * The tour's last page, "and more" (the 10-18 release, mockup
+ * ~/.cache/madregot/mockups/whats-new-batch-1018.html): the smaller things of this
+ * release, in his order. A member's list ends with the club items; staff (who run
+ * too) get the same list and then theirs, marked `audience: 'staff'`.
  */
 export const EVENING_MORE: readonly string[] = [
-  'rename-run-on-its-page', 'run-power-performance-condition', 'run-cadence-power-per-km',
-  'feed-no-catchup-badges', 'my-week-start-day', 'silent-updates', 'share-segments-scale',
-  'week-sleep-resting-hr',
-  ...[
-    'extra-favorites', 'extra-coming-up', 'extra-feed-squad-filter', 'extra-squad-who', 'extra-squad-weekly',
-    'extra-pr-fix', 'extra-photo-full', 'extra-watch-status', 'extra-maps', 'extra-plan-match',
-    'extra-target-range', 'extra-notif-prefs', 'extra-hoka',
-  ],
+  'b18-feed-cards', 'b18-run-name', 'b18-week-watch', 'b18-watch-2000', 'b18-watch-reconnect',
+  'b18-birthdays', 'b18-surveys', 'b18-day-session', 'b18-day-push-text',
 ];
 
 /**
- * Things members got this month that never had a release note (they shipped
- * before the release train), written for the "and more" page only. The records
- * board and the run-meetup board are not here: no member role has their tab.
+ * The "and more" notes of this release, written here because none of them has a
+ * release note of its own (the batch ships as one version).
  */
 export const EVENING_EXTRA: readonly ShownNote[] = [
-  { id: 'extra-favorites', date: '2026-09-18', kind: 'feature', icon: '⭐', title: 'רשימת מועדפים, ופילטר בפיד', body: 'מסמנים רצים כמועדפים (רק אתם רואים את הרשימה), ובפיד יש פילטר "מועדפים".', featured: false, edited: false },
-  { id: 'extra-coming-up', date: '2026-09-18', kind: 'feature', icon: '📅', title: 'מה קורה בקרוב', body: 'כרטיס בפיד עם המרוצים, אירועי המועדון וימי ההולדת שמתקרבים.', featured: false, edited: false },
-  { id: 'extra-feed-squad-filter', date: '2026-09-16', kind: 'feature', icon: '🏷️', title: 'הפיד של הדבוקה שלכם', body: 'בפיד אפשר לסנן ולראות רק את הדבוקה.', featured: false, edited: false },
-  { id: 'extra-squad-who', date: '2026-09-18', kind: 'feature', icon: '👥', title: 'מי בכל דבוקה', body: 'נגיעה בדבוקה בטבלת הדירוג מראה מי רץ בה.', featured: false, edited: false },
-  { id: 'extra-squad-weekly', date: '2026-09-16', kind: 'feature', icon: '⚔️', title: 'מלחמת הדבוקות, כל שבוע', body: 'התחרות בין הדבוקות מתחילה מחדש בכל שבוע.', featured: false, edited: false },
-  { id: 'extra-pr-fix', date: '2026-09-16', kind: 'feature', icon: '✏️', title: 'לתקן או להסתיר שיא', body: 'שיא אישי שנרשם לא נכון? מתקנים אותו או מסתירים.', featured: false, edited: false },
-  { id: 'extra-photo-full', date: '2026-09-19', kind: 'feature', icon: '🖼️', title: 'תמונת פרופיל במסך מלא', body: 'נגיעה בתמונת פרופיל פותחת אותה בגדול.', featured: false, edited: false },
-  { id: 'extra-watch-status', date: '2026-09-19', kind: 'feature', icon: '⌚', title: 'האימון הגיע לשעון?', body: 'רואים אם האימונים של השבוע נשלחו לשעון, ומתקנים אם לא.', featured: false, edited: false },
-  { id: 'extra-maps', date: '2026-09-19', kind: 'feature', icon: '🗺️', title: 'מפות ריצה נקיות יותר', body: 'המסלול מצויר על רקע בהיר ונקי, ומפת הרחובות מופיעה כשמתקרבים.', featured: false, edited: false },
-  { id: 'extra-plan-match', date: '2026-09-06', kind: 'feature', icon: '🎯', title: 'עמדתם בתוכנית?', body: 'בכל ריצה רואים אם היא תאמה את האימון שתוכנן, ולאיזה כיוון סטיתם.', featured: false, edited: false },
-  { id: 'extra-target-range', date: '2026-09-06', kind: 'feature', icon: '📏', title: 'יעד שבועי כטווח', body: 'היעד השבועי בפרופיל הוא טווח ק״מ, לא מספר אחד.', featured: false, edited: false },
-  { id: 'extra-notif-prefs', date: '2026-09-18', kind: 'feature', icon: '🔔', title: 'מההתראות ישר להגדרות', body: 'מתיבת ההתראות יש קישור להגדרות ההתראות.', featured: false, edited: false },
-  { id: 'extra-hoka', date: '2026-09-09', kind: 'feature', icon: '👟', title: 'דגמי HOKA ומידות מעל 46', body: 'בבחירת הנעליים בפרופיל.', featured: false, edited: false },
+  { id: 'b18-feed-cards', date: EVENING_DATE, kind: 'feature', icon: '📰', title: 'כרטיסי ריצה נקיים יותר בפיד', body: 'פחות רעש, המספרים החשובים בגדול.', featured: false, edited: false },
+  { id: 'b18-run-name', date: EVENING_DATE, kind: 'feature', icon: '🏷️', title: 'שם הריצה כמו בסטרבה', body: 'ריצת בוקר, ריצת ערב. באימון איכות: השם שהמאמן נתן לאימון.', featured: false, edited: false },
+  { id: 'b18-week-watch', date: EVENING_DATE, kind: 'feature', icon: '⌚', title: '"השבוע בשעון"', body: 'בראש הפיד רואים מה לא הגיע לשעון, ומתחברים מחדש בנגיעה.', featured: false, edited: false },
+  { id: 'b18-watch-2000', date: EVENING_DATE, kind: 'feature', icon: '🌙', title: 'תזכורת אחת ב־20:00', body: 'כשהאימון של מחר לא בשעון: הודעה אחת בערב, עם הסיבה.', featured: false, edited: false },
+  { id: 'b18-watch-reconnect', date: EVENING_DATE, kind: 'feature', icon: '🔁', title: 'מתחברים, והאימונים נשלחים לבד', body: 'אחרי חיבור מחדש של גרמין, מה שחיכה מגיע לשעון.', featured: false, edited: false },
+  { id: 'b18-birthdays', date: EVENING_DATE, kind: 'feature', icon: '🎂', title: 'ימי הולדת בפיד', body: 'ברכה מהמועדון, עם לייקים ותגובות.', featured: false, edited: false },
+  { id: 'b18-surveys', date: EVENING_DATE, kind: 'feature', icon: '📊', title: 'סקרים בפיד', body: 'מצביעים בנגיעה, ורואים את התוצאות.', featured: false, edited: false },
+  { id: 'b18-day-session', date: EVENING_DATE, kind: 'feature', icon: '🏃', title: 'אימון ליום אחד: אותו עורך כמו במתכנן', body: 'טווחי קצב, קצב לכל דבוקה, הליכה כהתאוששות.', featured: false, edited: false, audience: 'staff' },
+  { id: 'b18-day-push-text', date: EVENING_DATE, kind: 'feature', icon: '🔔', title: 'טקסט ההתראה לחברים, לעריכה', body: 'רואים מה יישלח, ומשנים לפני השליחה.', featured: false, edited: false, audience: 'staff' },
 ];
 
+/**
+ * The 10-18 release (mockup ~/.cache/madregot/mockups/whats-new-batch-1018.html):
+ * five pages for the club, in a logical order (your run, your profile, your records,
+ * your fitness, then the club's photos), and for staff, who run too, the same five
+ * followed by theirs (`audience: 'staff'`). Frames are 540x960 crops of real
+ * captures, made by ~/.cache/madregot/wn-lab/export-1018.py.
+ */
 export const EVENING_ENTRIES: WhatsNewEntry[] = [
   {
-    slug: 'share-editor-2026-09',
+    slug: 'b18-run-page',
     publishedAt: EVENING_DATE,
-    href: '/dashboard/share?what=run',
+    href: '/dashboard/profile',
     cards: [
-      { key: 'share-splits', he: 'ק״מ אחרי ק״מ', en: 'KM Splits' },
-      { key: 'share-route', he: 'מסלול', en: 'Route' },
-      { key: 'share-statsBar', he: 'שורת נתונים', en: 'Stats bar' },
-      { key: 'share-classic', he: 'קלאסי', en: 'Classic' },
-      { key: 'share-card', he: 'כרטיס', en: 'Card' },
-      { key: 'share-minimal', he: 'מינימלי', en: 'Minimal' },
+      { key: 'b18-run-map', he: 'המפה והמספרים', en: 'The map and the numbers' },
+      { key: 'b18-run-charts', he: 'הגרפים לאורך הריצה', en: 'The charts along the run' },
+      { key: 'b18-run-reps', he: 'החזרות מול היעד', en: 'The reps against the target' },
     ],
-    demo: {
-      first: 'run-00clean',
-      steps: [
-      { key: 'run-01edit', x: 55, y: 28, he: 'לוחצים "עריכה"', en: 'Tap "Edit"' },
-      { key: 'run-02numbers', x: 281, y: 167, part: 'numbers', he: 'נוגעים במספרים שבכרטיס', en: 'Tap the numbers on the card' },
-      { key: 'run-03a-offtime', x: 240, y: 666, part: 'numbers', he: 'מורידים את הזמן…', en: 'Take the time off…' },
-      { key: 'run-03hr', x: 149, y: 716, part: 'numbers', he: '…ומכניסים דופק', en: '…and put heart rate on' },
-      { key: 'run-04logo', x: 271, y: 373, part: 'logo', he: 'נוגעים בלוגו', en: 'Tap the logo' },
-      { key: 'run-05badge', x: 317, y: 620, part: 'logo', he: 'סמל המועדון', en: 'The club badge' },
-      { key: 'run-06orange', x: 240, y: 734, part: 'logo', he: 'בכתום', en: 'In orange' },
-      { key: 'run-07text', x: 225, y: 301, part: 'text', he: 'נוגעים בכותרת', en: 'Tap the title' },
-      { key: 'run-08english', x: 49, y: 665, part: 'text', he: 'באנגלית', en: 'In English' },
-      { key: 'run-09bg', x: 305, y: 501, part: 'background', he: 'נוגעים ברקע', en: 'Tap the background' },
-      { key: 'run-10sticker', x: 73, y: 630, part: 'background', he: 'מדבקה שקופה, לכל תמונה', en: 'A clear sticker, for any photo' },
-      { key: 'run-11done', x: 50, y: 28, he: '"סיום", ומשתפים', en: '"Done", and share' },
-      ],
-      he: {
-        title: 'כל חלק בכרטיס, איך שבא לכם',
-        body: 'לוחצים "עריכה" ונוגעים בחלק שרוצים לשנות: אילו מספרים, איזה לוגו ובאיזה צבע, כותרת ושפה, ורקע או מדבקה שקופה.',
-        cta: 'לערוך את הריצה האחרונה',
-        kicker: 'חדש · עורכים הכול',
-        where: 'בעורך השיתוף: הכפתור "עריכה" למעלה',
-      },
-      en: {
-        title: 'Every part of the card, your way',
-        body: 'Tap "Edit", then the part you want to change: which numbers, which logo and colour, the title and language, the background or a clear sticker.',
-        cta: 'Edit my last run',
-        kicker: 'New · Edit everything',
-        where: 'In the share editor: the "Edit" button at the top',
-      },
-    },
-    he: {
-      title: 'כרטיס לכל ריצה, בשש תצוגות',
-      body: 'ק״מ אחרי ק״מ, מסלול, שורת נתונים ועוד. בוחרים אילו מספרים נכנסים, לוגו ורקע, ושולחים לסטורי.',
-      cta: 'לנסות על הריצה האחרונה',
-      kicker: 'חדש · שיתוף אימון',
-      where: 'בכל ריצה: הכפתור "שיתוף"',
-    },
-    en: {
-      title: 'A card for every run, six ways',
-      body: 'KM splits, route, a stats bar and more. Pick the numbers, the logo and the background, then send it to your story.',
-      cta: 'Try it on your last run',
-      kicker: 'New · Share a run',
-      where: 'On every run: the "Share" button',
-    },
+    he: { title: 'עמוד ריצה חדש', body: 'המפה בגדול, ועליה מי רץ, השם והמספרים. גרפים עם צירים שזזים יחד, החזרות מול היעד של הדבוקה שלך, ועוד מדדים.', cta: 'לריצה האחרונה שלי', kicker: 'חדש · עמוד ריצה', where: 'נגיעה בריצה, בפיד או בפרופיל' },
+    en: { title: 'A new run page', body: "The map up top with who ran, the name and the numbers. Charts with axes that move together, your reps against your pack's target, and more metrics.", cta: 'My last run', kicker: 'New · Run page', where: 'Tap a run, on the feed or your profile' },
   },
   {
-    slug: 'week-editor-2026-09',
+    slug: 'b18-profile',
     publishedAt: EVENING_DATE,
-    href: '/dashboard/share?what=week',
+    href: '/dashboard/profile',
     cards: [
-      { key: 'week-totals', he: 'סיכום', en: 'Totals' },
-      { key: 'week-days', he: 'יום אחרי יום', en: 'Day by day' },
-      { key: 'week-bar', he: 'שורת נתונים', en: 'Stats bar' },
-      { key: 'week-body', he: 'גוף', en: 'Body' },
-      { key: 'week-minimal', he: 'מינימלי', en: 'Minimal' },
+      { key: 'b18-profile', he: 'הפעילות שלך', en: 'Your activity' },
+      { key: 'b18-profile-plan', he: 'התוכנית השבועית, יום אחרי יום', en: 'The weekly plan, day by day' },
     ],
-    demo: {
-      first: 'week-00clean',
-      steps: [
-      { key: 'week-01edit', x: 55, y: 28, he: 'לוחצים "עריכה"', en: 'Tap "Edit"' },
-      { key: 'week-02numbers', x: 286, y: 180, part: 'numbers', he: 'נוגעים במספרים', en: 'Tap the numbers' },
-      { key: 'week-02b-offcal', x: 240, y: 673, part: 'numbers', he: 'מורידים את הקלוריות', en: 'Take the calories off' },
-      { key: 'week-03bg', x: 305, y: 501, part: 'background', he: 'נוגעים ברקע', en: 'Tap the background' },
-      { key: 'week-04sunset', x: 267, y: 630, part: 'background', he: 'שקיעה', en: 'Sunset' },
-      { key: 'week-05logo', x: 199, y: 77, part: 'logo', he: 'נוגעים בלוגו', en: 'Tap the logo' },
-      { key: 'week-06badge', x: 317, y: 620, part: 'logo', he: 'סמל המועדון', en: 'The club badge' },
-      { key: 'week-07text', x: 279, y: 171, part: 'text', he: 'נוגעים בכותרת', en: 'Tap the title' },
-      { key: 'week-08marathon', x: 94, y: 664, part: 'text', he: '"בדרך למרתון"', en: '"On the way to the marathon"' },
-      { key: 'week-09done', x: 51, y: 28, he: '"סיום", ומשתפים', en: '"Done", and share' },
-      ],
-      he: {
-        title: 'אתם מחליטים מה נכנס לשבוע',
-        body: 'שמונה מספרים, כולל שינה ודופק מנוחה: נגיעה מורידה או מחזירה, וגרירה מחליפה סדר. ורקע, לוגו וכותרת משלכם.',
-        cta: 'לערוך את השבוע שלי',
-        kicker: 'חדש · עורכים את השבוע',
-        where: 'בכרטיס השבועי: "שיתוף", ואז "עריכה"',
-      },
-      en: {
-        title: 'You decide what goes on your week',
-        body: 'Eight numbers, sleep and resting heart rate included: a tap takes one off or puts it back, a drag swaps the order. And your own background, logo and title.',
-        cta: 'Edit my week',
-        kicker: 'New · Edit your week',
-        where: 'On the weekly card: "Share", then "Edit"',
-      },
-    },
-    he: {
-      title: 'השבוע שלכם, מוכן לשיתוף',
-      body: 'ק״מ, שינה ודופק מנוחה מול שבוע שעבר, בחמישה לוקים. אתם בוחרים מה נכנס ובאיזה סדר.',
-      cta: 'לשתף את השבוע שלי',
-      kicker: 'חדש · סיכום שבועי',
-      where: 'בכל מוצאי שבת, בראש הפיד',
-    },
-    en: {
-      title: 'Your week, ready to share',
-      body: 'Distance, sleep and resting heart rate against last week, in five looks. You pick what goes on and in what order.',
-      cta: 'Share my week',
-      kicker: 'New · Weekly summary',
-      where: 'Every Saturday evening, at the top of your feed',
-    },
+    he: { title: 'הפרופיל, מחדש', body: 'נפתח על הפעילות שלך. ארבע לשוניות: פעילות, סטטיסטיקה, שיאים והגדרות, וכל ההגדרות במקום אחד.', cta: 'לפרופיל שלי', kicker: 'חדש · פרופיל', where: 'הלשונית "פרופיל" למטה' },
+    en: { title: 'Your profile, redone', body: 'It opens on your activity. Four tabs: activity, stats, records and settings, with every setting in one place.', cta: 'My profile', kicker: 'New · Profile', where: 'The "Profile" tab at the bottom' },
+  },
+  {
+    slug: 'b18-records',
+    publishedAt: EVENING_DATE,
+    href: '/dashboard/profile?tab=records',
+    cards: [
+      { key: 'b18-records', he: 'חצי מרתון · 12 שבירות', en: 'Half marathon · 12 records' },
+    ],
+    he: { title: 'השיא שלך, לאורך זמן', body: 'בכל מרחק: הגרף של כל הפעמים שהשיא נשבר, בכמה שיפרת, ומאיזו ריצה.', cta: 'לשיאים שלי', kicker: 'חדש · שיאים', where: 'פרופיל ← שיאים' },
+    en: { title: 'Your record, over time', body: 'For every distance: a chart of each time the record fell, by how much, and on which run.', cta: 'My records', kicker: 'New · Records', where: 'Profile → Records' },
+  },
+  {
+    slug: 'b18-fitness',
+    publishedAt: EVENING_DATE,
+    href: '/dashboard/profile?tab=stats',
+    cards: [
+      { key: 'b18-fitness', he: 'קצב באותו דופק', en: 'Pace at the same heart rate' },
+    ],
+    he: { title: 'באותו דופק, מהר יותר?', body: 'הקצב שלך בכל טווח דופק, לאורך חודשים. כשהקו עולה, אתה בכושר טוב יותר.', cta: 'לסטטיסטיקה שלי', kicker: 'חדש · כושר', where: 'פרופיל ← סטטיסטיקה' },
+    en: { title: 'Same heart rate, faster?', body: 'Your pace in each heart-rate band, over months. When the line climbs, you are fitter.', cta: 'My stats', kicker: 'New · Fitness', where: 'Profile → Stats' },
+  },
+  {
+    slug: 'b18-photos',
+    publishedAt: EVENING_DATE,
+    href: '/feed',
+    cards: [
+      { key: 'b18-photos-push', he: 'ההתראה בטלפון', en: 'The notification on your phone' },
+      { key: 'b18-photos-feed', he: 'הכרטיס בפיד', en: 'The card on the feed' },
+    ],
+    he: { title: 'התמונות מהאימון, ישר באפליקציה', body: 'אחרי כל אימון איכות ואירוע, התמונות עולות לפיד לבד, ומגיעה התראה לטלפון. לייק, תגובה, ונגיעה לכל התמונות.', cta: 'לפיד', kicker: 'חדש · תמונות', where: 'הפיד, וההתראה בטלפון' },
+    en: { title: 'Session photos, straight in the app', body: 'After every quality session and event the photos reach the feed by themselves, with a notification on your phone. Like, comment, tap for all of them.', cta: 'To the feed', kicker: 'New · Photos', where: 'The feed, and the notification on your phone' },
+  },
+  {
+    slug: 'b18-management',
+    publishedAt: EVENING_DATE,
+    audience: 'staff',
+    href: '/dashboard/coach-tools',
+    cards: [
+      { key: 'b18-mgmt', he: 'ניהול', en: 'Management' },
+      { key: 'b18-mgmt-coach', he: 'היום לפי מתאמן', en: 'Today by trainee' },
+    ],
+    he: { title: '"ניהול" לפי התפקיד שלך', body: 'בתפריט למטה: הפיד, לוח הבקרה והתוכנית כמו לכל רץ, ודלת אחת לעבודה. נוכחות, משובים וספורטאים בראש העמוד, ונקודה כשמשהו מחכה.', cta: 'לניהול', kicker: 'חדש · לצוות', where: 'התפריט למטה ← ניהול' },
+    en: { title: '"Management", by your role', body: 'The bottom bar: feed, dashboard and program like any runner, and one door for the job. Attendance, feedback and athletes at the top, with a dot when something is waiting.', cta: 'Management', kicker: 'New · Staff', where: 'Bottom bar → Management' },
+  },
+  {
+    slug: 'b18-publish',
+    publishedAt: EVENING_DATE,
+    audience: 'staff',
+    href: '/dashboard/content',
+    cards: [
+      { key: 'b18-publish', he: 'לפרסם', en: 'Publish' },
+      { key: 'b18-cheer', he: 'ברכה עם תיוג', en: 'A cheer with a tag' },
+      { key: 'b18-survey', he: 'סקר בפיד', en: 'A survey on the feed' },
+    ],
+    he: { title: 'הודעה, ברכה או סקר, ממקום אחד', body: '"תוכן" ← לפרסם: הודעה עם תמונה, ברכה עם הצעות מהשיאים והמרוצים, או סקר. הכל עולה לפיד.', cta: 'לפרסם', kicker: 'חדש · לצוות', where: 'ניהול ← תוכן' },
+    en: { title: 'A message, a cheer or a survey, from one place', body: 'Content → Publish: a message with a photo, a cheer with suggestions from records and races, or a survey. It all goes to the feed.', cta: 'Publish', kicker: 'New · Staff', where: 'Management → Content' },
+  },
+  {
+    slug: 'b18-social',
+    publishedAt: EVENING_DATE,
+    audience: 'staff',
+    href: '/dashboard/social',
+    cards: [
+      { key: 'b18-social', he: 'מה מתוזמן ומה נוצר', en: 'What is scheduled, what was made' },
+      { key: 'b18-social-new', he: 'תיקייה חדשה, מתי שרוצים', en: 'A new folder, any time' },
+    ],
+    he: { title: 'תיקייה לתמונות, לבד', body: 'ערב לפני כל אימון איכות נוצרת תיקייה בדרייב ומגיעה אליך. מעלים אליה, והתמונות עולות לפיד עם התראה לכל המועדון. לאירוע: "תיקייה חדשה עכשיו".', cta: 'ל־Social', kicker: 'חדש · לצוות', where: 'תפריט ← Social' },
+    en: { title: 'A photo folder, made for you', body: 'The evening before each quality session a Drive folder is made and sent to you. Upload to it, and the photos reach the feed with a notification to the whole club. For an event: "New folder now".', cta: 'Open Social', kicker: 'New · Staff', where: 'Menu → Social' },
+  },
+  {
+    slug: 'b18-watch-send',
+    publishedAt: EVENING_DATE,
+    audience: 'staff',
+    href: '/dashboard/plan/new',
+    cards: [
+      { key: 'b18-watch-send', he: 'כולם · דבוקה · יחידים', en: 'Everyone · a pack · people' },
+      { key: 'b18-watch-track', he: 'מעקב חי', en: 'Live tracking' },
+    ],
+    he: { title: 'שולחים לשעונים, ורואים מי קיבל', body: 'כולם, דבוקה או יחידים, באימון ליום אחד ובמתכנן. מעקב שמתעדכן לבד: מי בשעון, מי נכשל ולמה.', cta: 'למתכנן', kicker: 'חדש · לצוות', where: 'אימון ליום אחד / מתכנן ← לשעונים' },
+    en: { title: 'Send to the watches, and see who got it', body: 'Everyone, a pack or single people, from a one-day session or the planner. Tracking that updates by itself: who has it, who failed and why.', cta: 'The planner', kicker: 'New · Staff', where: 'One-day session / planner → To the watches' },
   },
 ];
 
@@ -226,10 +224,10 @@ export interface WhatsNewContent {
  *
  * Staff notes are dropped here too and not only by the server, because the
  * super user's own answer carries them and the rehearsal must show him what a
- * member gets.
+ * member gets. With `staff`, the staff headlines and notes follow the members'.
  */
 export function composeWhatsNew(
-  releases: WhatsNewRelease[], appVersion: string, evening: boolean,
+  releases: WhatsNewRelease[], appVersion: string, evening: boolean, staff = false,
 ): WhatsNewContent {
   if (!evening) return { entries: [...WHATS_NEW, ...releaseEntries(releases, appVersion)], more: [] };
   const member = releases.map(r => ({
@@ -240,9 +238,10 @@ export function composeWhatsNew(
     .filter(r => compareAppVersions(appVersion, r.app_version) >= 0)
     .flatMap(r => r.notes)
     .filter(n => n.audience !== 'staff' && !n.featured)
-    .concat(EVENING_EXTRA);
+    .concat(EVENING_EXTRA.filter(n => staff || n.audience !== 'staff'));
   const more = EVENING_MORE
     .map(id => released.find(n => n.id === id))
     .filter((n): n is ShownNote => !!n);
-  return { entries: [...EVENING_ENTRIES, ...releaseEntries(member, appVersion)], more };
+  const headlines = EVENING_ENTRIES.filter(e => staff || e.audience !== 'staff');
+  return { entries: [...headlines, ...releaseEntries(member, appVersion)], more };
 }

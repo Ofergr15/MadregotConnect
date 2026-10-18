@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { EVENING_OPEN, TOUR_PARAM } from '@/lib/whats-new/evening';
+import { EVENING_OPEN, TOUR_PARAM, TOUR_VALUE } from '@/lib/whats-new/evening';
 import { Bell, Send, Trash2, Loader2, Clock, Repeat, CheckCircle, CheckCircle2, Users, Megaphone, Trophy, CalendarDays, GraduationCap, Activity, Plus, HelpCircle, X, BarChart3, Gift, Camera, Pencil, Footprints, ImagePlus } from 'lucide-react';
 import { cn, getPlanWeekStart, israelToday } from '@/lib/utils';
 import { planDayKey } from '@/lib/plans/workout-parsing';
@@ -405,7 +405,7 @@ export function NotificationCenter() {
           title_he: titleHe, body_he: bodyHe,
           title_en: titleEn || null, body_en: bodyEn || null,
           image_url: imageUrl || null,
-          ...(EVENING_OPEN && opens === 'tour' ? { url: `/feed?${TOUR_PARAM}=1` } : {}),
+          ...(EVENING_OPEN && opens === 'tour' ? { url: `/feed?${TOUR_PARAM}=${TOUR_VALUE}` } : {}),
           audience_type: audienceType,
           audience_id: audienceType === 'all' || audienceType === 'academy' ? null : audienceId,
           schedule_type: scheduleType,
