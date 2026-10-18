@@ -75,6 +75,21 @@ function isRun(a: YearActivityRow): boolean {
   return a.distance > 0 && a.duration > 0 && (!a.activity_type || PR_RUN_TYPES.includes(a.activity_type));
 }
 
+/**
+ * The same run stored twice with the clock off by whole hours — one source in local time,
+ * the other in UTC, around a daylight-saving change (Shalev, 27.3.26: three runs, each twice,
+ * exactly an hour apart). Same distance to 1% and same duration to 2%, starts 1 or 2 hours
+ * (± 2 min) apart: nobody runs the identical 30.7 km in the identical time an hour later.
+ */
+export function shiftedTwin(a: Pick<YearActivityRow, 'start_time' | 'distance' | 'duration'>, b: Pick<YearActivityRow, 'start_time' | 'distance' | 'duration'>): boolean {
+  if (!a.distance || !b.distance || !a.duration || !b.duration) return false;
+  const gap = Math.abs(Date.parse(a.start_time) - Date.parse(b.start_time)) / 1000;
+  const hours = Math.round(gap / 3600);
+  if (hours < 1 || hours > 2 || Math.abs(gap - hours * 3600) > 120) return false;
+  return Math.abs(a.distance - b.distance) <= Math.max(a.distance, b.distance) * 0.01
+    && Math.abs(a.duration - b.duration) <= Math.max(a.duration, b.duration) * 0.02;
+}
+
 export function computeYearStats(rows: YearActivityRow[], window: { from: string; to: string }): YearStats {
   const sorted = rows
     .filter((a) => isRun(a) && dayOf(a.start_time) >= window.from && dayOf(a.start_time) <= window.to)
@@ -84,7 +99,7 @@ export function computeYearStats(rows: YearActivityRow[], window: { from: string
   const runs: YearActivityRow[] = [];
   for (const a of sorted) {
     const at = Date.parse(a.start_time);
-    const twin = runs.find((b) => sameClock(Date.parse(b.start_time), b.duration, at, a.duration));
+    const twin = runs.find((b) => sameClock(Date.parse(b.start_time), b.duration, at, a.duration) || shiftedTwin(b, a));
     if (!twin) runs.push(a);
     else if (a.distance > twin.distance) runs[runs.indexOf(twin)] = a;
   }

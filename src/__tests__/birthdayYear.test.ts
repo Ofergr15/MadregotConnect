@@ -62,6 +62,15 @@ describe('the year in numbers', () => {
     expect(s.longest).toMatchObject({ km: 42.4 });
   });
 
+  it('counts a run stored twice an hour apart (a clock-change twin) once', () => {
+    const s = computeYearStats([
+      run('2026-03-27', 30.746, { duration: 7049, start_time: '2026-03-27T04:06:00+00:00' }),
+      run('2026-03-27', 30.744, { duration: 7048, start_time: '2026-03-27T05:06:00+00:00' }),
+      run('2026-03-27', 30.7, { duration: 7300, start_time: '2026-03-27T06:06:00+00:00' }),
+    ], w);
+    expect(s.runs).toBe(2);
+  });
+
   it('leaves out what is not a run, and what falls outside the year', () => {
     const s = computeYearStats([
       run('2026-02-01', 10), run('2026-02-02', 30, { activity_type: 'cycling' }),
