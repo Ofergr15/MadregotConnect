@@ -314,7 +314,9 @@ export function fromRow(r: Record<string, unknown>): DaySession {
     // A row saved before the planner shape: its quick steps and one rep pace per pack.
     steps: stepsOfRow(r.steps, [pace(paces[0]), pace(paces[1]), pace(paces[2])]),
     description: typeof r.description === 'string' && r.description ? r.description : null,
-    quality: r.quality !== false,
+    // Only when the coach said so: a row from before the switch (or before migration 153)
+    // does not ask the club who is coming.
+    quality: r.quality === true,
     nutrition: (Array.isArray(r.nutrition) ? r.nutrition : []) as NutritionLine[],
     publishedAt: (r.published_at as string) || null,
     notify: r.notify !== false,

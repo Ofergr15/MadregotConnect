@@ -19,6 +19,7 @@ import { formatDurationClock } from '@/lib/workout-duration';
 import { isEstimate } from '@/lib/plans/step-estimate';
 import { pickNextSession } from '@/lib/plans/next-session';
 import { WorkoutDetailModal, type WorkoutDetailSession } from '@/components/WorkoutDetailModal';
+import { DaySessionNotes, SessionLinks } from '@/components/feed/SessionLinks';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE NEXT SESSION, AS ONE LINE AT THE TOP OF THE FEED
@@ -50,6 +51,8 @@ interface WeeklyResponse {
   sessions: WeekSession[];
   currentWeekStart: string;
   hasPlan: boolean;
+  /** A weekly plan of its own, not only one-day sessions — the "תוכנית השבוע" link. */
+  hasClubPlan?: boolean;
 }
 
 interface WatchState {
@@ -80,6 +83,8 @@ export function NextSessionCard() {
   const { data: weekly } = useApi<WeeklyResponse>('/api/dashboard/weekly');
   const { data: watch } = useApi<WatchState>('/api/my-watch');
   const [detail, setDetail] = useState<WorkoutDetailSession | null>(null);
+  // The one-day session the open sheet is about, for its notes and nutrition.
+  const [detailMark, setDetailMark] = useState<WeekSession['daySession']>(undefined);
   const [viewGroup, setViewGroup] = useState(0);
   const tn = useTranslations('nextSession');
   const { data: reminderCfg } = useApi<{ config?: { teamDays?: number[]; workoutHour?: number } }>('/api/reminder-config');
@@ -139,7 +144,9 @@ export function NextSessionCard() {
     try { if (nsKey) localStorage.setItem(nsKey, v); } catch { /* private mode */ }
   };
   // Same key SessionRsvp asks for, so it is one request and one cache entry.
-  const lineupKey = next && reminderCfg?.config?.teamDays?.includes(next.session.dayOfWeek)
+  // A one-day session asks who is coming only when the coach marked it a quality session.
+  const asksRsvp = (x: WeekSession) => (x.daySession ? x.daySession.quality : !!reminderCfg?.config?.teamDays?.includes(x.dayOfWeek));
+  const lineupKey = next && asksRsvp(next.session)
     ? `/api/attendance/lineup?weekStart=${getPlanWeekStart(new Date(`${next.date}T12:00:00`))}&day=${next.session.dayOfWeek}`
     : null;
   const { data: lineup } = useApi<Lineup & { homeIndex: number }>(lineupKey);
@@ -191,10 +198,12 @@ export function NextSessionCard() {
   const profile = profileSegments(s.steps || []);
   const paces = [0, 1, 2].map((i) => { const p = packPace(s.steps || [], i); return p ? paceRangeText(p) : null; });
   // A club practice day (reminder config) gets the RSVP; any other run doesn't.
-  const teamDay = !!reminderCfg?.config?.teamDays?.includes(s.dayOfWeek);
+  const teamDay = asksRsvp(s);
   const workoutHour = reminderCfg?.config?.workoutHour;
-  const timeText = teamDay && typeof workoutHour === 'number'
-    ? `${String(Math.floor(workoutHour)).padStart(2, '0')}:${String(Math.round((workoutHour % 1) * 60)).padStart(2, '0')}` : '';
+  // A one-day session carries the hour the coach wrote; a club day, the club's practice hour.
+  const timeText = s.daySession?.startTime
+    || (teamDay && !s.daySession && typeof workoutHour === 'number'
+      ? `${String(Math.floor(workoutHour)).padStart(2, '0')}:${String(Math.round((workoutHour % 1) * 60)).padStart(2, '0')}` : '');
   const rsvpWeekStart = getPlanWeekStart(new Date(`${next.date}T12:00:00`));
   const answered = teamDay && !!lineup?.mine;
   const collapsed = answered && openState !== 'open';
@@ -208,6 +217,7 @@ export function NextSessionCard() {
    * the chip opens the real session, not a summary of it.
    */
   const detailFor = (x: WeekSession): WorkoutDetailSession => {
+    setDetailMark(x.daySession);
     const xMin = roundKm(x.kmMin);
     const xMax = roundKm(x.kmMax);
     const xKm = xMin !== xMax ? `${xMin}–${xMax}` : `${xMax}`;
@@ -300,6 +310,10 @@ export function NextSessionCard() {
             </span>
           )}
         </button>
+        {/* The week's plans, and a one-day session's own nutrition — only what exists. */}
+        <div className="mt-3 space-y-2 empty:hidden">
+          <SessionLinks weekStart={weekly!.currentWeekStart} hasClubPlan={weekly!.hasClubPlan ?? weekly!.hasPlan} daySession={s.daySession} />
+        </div>
         {teamDay && (
           <SessionRsvp
             weekStart={rsvpWeekStart}
@@ -343,6 +357,12 @@ export function NextSessionCard() {
 
       {detail && (
         <WorkoutDetailModal
+          extra={detailMark !== undefined || weekly ? (
+            <>
+              <DaySessionNotes daySession={detailMark} />
+              {weekly && <SessionLinks weekStart={weekly.currentWeekStart} hasClubPlan={weekly.hasClubPlan ?? weekly.hasPlan} daySession={detailMark} />}
+            </>
+          ) : undefined}
           session={detail}
           viewGroup={viewGroup}
           onPickGroup={(idx) => {

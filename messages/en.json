@@ -5478,6 +5478,7 @@
     "watchSentAt": "Sent {time} · see who got it",
     "trackTitle": "Delivery",
     "trackSending": "Sending to the watches",
-    "watchSendMore": "⌚ Send to more people"
+    "watchSendMore": "⌚ Send to more people",
+    "foodForThis": "Nutrition for this session"
   }
 }

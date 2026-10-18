@@ -427,12 +427,12 @@ describe('quality session (RSVP) and the watch pick', () => {
     requireSession.mockReset();
     Object.values(server).forEach((f) => f.mockReset());
   });
-  it('quality is stored as sent; an old row reads as quality', async () => {
+  it('quality is stored as sent; an old row does not ask who is coming', async () => {
     const r = readInput({ date: '2026-10-18', quickText: '6x1000', quality: false });
     expect(typeof r === 'object' && r.quality).toBe(false);
     const { fromRow } = await import('@/lib/day-session/model');
-    expect(fromRow({ id: 'r', session_date: '2026-10-18', steps: [] }).quality).toBe(true);
-    expect(fromRow({ id: 'r', session_date: '2026-10-18', steps: [], quality: false }).quality).toBe(false);
+    expect(fromRow({ id: 'r', session_date: '2026-10-18', steps: [] }).quality).toBe(false);
+    expect(fromRow({ id: 'r', session_date: '2026-10-18', steps: [], quality: true }).quality).toBe(true);
   });
   it('the watch goes to the coach\'s pick, queued at once, delivered after the answer', async () => {
     const watch = await import('@/lib/day-session/watch');
@@ -495,5 +495,23 @@ describe('where the send stands, runner by runner', async () => {
   it('counts', () => {
     const list = statusOf([q({ athlete_id: 'x' }), { athlete_id: 'y', status: 'success', created_at: at(0) }, q({ athlete_id: 'z', status: 'failed' })], t0);
     expect(countsOf(list)).toEqual({ ok: 1, waiting: 0, failed: 1, onTheWay: 1, total: 3 });
+  });
+});
+
+describe('a one-day session in the week', async () => {
+  const { mergeDaySessions } = await import('@/lib/day-session/week-merge');
+  const mark = { date: '2026-10-19', quality: false, startTime: '18:00', place: null, hasNutrition: true, notes: 'נפגשים בגשר' };
+  const day = { dayOfWeek: 1, name: '50 דק׳', workoutKey: 'day:2026-10-19', steps: EDITED, daySession: mark };
+  it('fills a day the plan leaves empty, and the plan wins a day it has', () => {
+    const plan = { workouts: [{ dayOfWeek: 2, name: 'טמפו', steps: EDITED }] };
+    expect(mergeDaySessions(plan, [day]).workouts.map((w) => w.dayOfWeek)).toEqual([2, 1]);
+    expect(mergeDaySessions({ workouts: [{ dayOfWeek: 1, name: 'קל', steps: EDITED }] }, [day]).workouts).toHaveLength(1);
+    expect(mergeDaySessions(null, [day]).workouts[0].daySession).toEqual(mark);
+  });
+  it('its notes never become its title', async () => {
+    const { buildWeekBreakdown } = await import('@/lib/plans/workout-parsing');
+    const s = buildWeekBreakdown({ workouts: [day] }).sessions[0];
+    expect(s.name).toBe('50 דק׳');
+    expect(s.daySession?.notes).toBe('נפגשים בגשר');
   });
 });

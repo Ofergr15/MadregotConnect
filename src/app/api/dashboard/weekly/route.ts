@@ -7,6 +7,7 @@ import { planRowsFilter, prefersPlan } from '@/lib/plans/scope';
 import { rethrowIfDynamicBailout } from '@/lib/dynamic-bailout';
 import { getDisplayWeekStart, extractWorkouts, getWorkoutKm, buildWeekBreakdown, dedupeWorkoutsByDay } from '@/lib/plans/workout-parsing';
 import { ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
+import { daySessionWorkouts, mergeDaySessions } from '@/lib/day-session/week-merge';
 
 // A coach pushes a new plan roughly once a week (weekly_plans has only 10
 // rows total, live-verified), so a few minutes of staleness is invisible to
@@ -75,6 +76,9 @@ export async function GET(request: Request) {
     // `/api/plans/week` has always answered `hasPlan: false` for a week with no
     // plan; this route now agrees with it instead of inventing data.
     const currentPlan = uniquePlans.find(p => p.week_start_date === currentWeekStart);
+    // A one-day session the coach typed for a date this week, on a day the plan leaves empty,
+    // is a session of the week like any other (lib/day-session/week-merge.ts).
+    const dayWorkouts = await daySessionWorkouts(currentWeekStart);
 
     // Previous week = 7 days before the DISPLAYED week (keeps the delta correct
     // after the Saturday-evening rollover).
@@ -90,7 +94,7 @@ export async function GET(request: Request) {
     // with /api/plans/week so the Program page's arbitrary-week view can never
     // disagree with this dashboard chart's math.
     const { dailyDistances, sessions, typeDistribution, weekTotalMin, weekTotalMax, trainingDays } =
-      buildWeekBreakdown(currentPlan?.parsed_workouts);
+      buildWeekBreakdown(dayWorkouts.length ? mergeDaySessions(currentPlan?.parsed_workouts, dayWorkouts) : currentPlan?.parsed_workouts);
 
     // Previous week volume
     let prevWeekTotal = 0;
@@ -142,7 +146,9 @@ export async function GET(request: Request) {
       // Whether the displayed week actually HAS a plan. Everything above is
       // zeroed/empty when it doesn't, so a client can tell "no plan pushed yet"
       // apart from "a rest week", and no client has to infer it from a total.
-      hasPlan: !!currentPlan,
+      hasPlan: !!currentPlan || dayWorkouts.length > 0,
+      // Whether the week has a weekly plan of its own (not only one-day sessions) — the card's link.
+      hasClubPlan: !!currentPlan,
       weeklyVolumes,
       longRunProgression,
       sessions,
