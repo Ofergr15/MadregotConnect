@@ -3,7 +3,8 @@
 // The week's quality days on the plan screen (super user): one row of the seven
 // days to tap, a nudge for a day that has a set but was saved optional (week of
 // 2026-10-04: Tuesday's 3 sets, kept optional by its "evening strength" note),
-// and the line saying which mornings get the 7:30 push. Saved to
+// and the line saying which mornings get the 7:30 push and a photo folder the
+// evening before (lib/quality-session/photos-server.ts). Saved to
 // /api/quality-session/plan-days; the quality screen and the push read the same pick.
 
 import { useCallback, useEffect, useState } from 'react';
@@ -73,7 +74,7 @@ export function QualityDaysCard({ state }: { state: QualityDaysState }) {
           {saving && <span className="text-2xs text-ink-400">שומר…</span>}
         </div>
         <p className="mt-1 text-xs leading-relaxed text-ink-500">
-          הימים האלה מקבלים את מסך אימון האיכות ואת ההתראה של 7:30. לחיצה מסמנת או מורידה.
+          הימים האלה מקבלים את מסך אימון האיכות, את ההתראה של 7:30, ותיקיית תמונות בדרייב שנפתחת ב-20:00 ערב לפני. לחיצה מסמנת או מורידה.
         </p>
         <div className="mt-2 flex gap-1.5" dir="rtl">
           {SHORT.map((label, dow) => {
@@ -98,7 +99,7 @@ export function QualityDaysCard({ state }: { state: QualityDaysState }) {
           })}
         </div>
         <p className="mt-2 text-xs font-bold text-ink-700">
-          {picked.length ? `📸 ${picked.join(', ')} · התראה ב-7:30` : 'אין השבוע אימון איכות'}
+          {picked.length ? `📸 ${picked.join(', ')} · התראה ב-7:30 · תיקיית תמונות ערב לפני` : 'אין השבוע אימון איכות'}
           <span className="ms-1.5 font-normal text-ink-400">{q.manual ? '· סימנת ידנית' : '· זוהה מהתוכנית'}</span>
         </p>
         {error && <p className="mt-1 text-xs font-bold text-accent-red">לא הצלחתי לשמור. לנסות שוב.</p>}

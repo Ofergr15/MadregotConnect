@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 interface Card { id: string; link: string; media: FeedMedia[] }
 
 export function SessionPhotos({ date }: { date: string }) {
-  const { data, mutate } = useApi<{ card: Card | null }>(`/api/quality-session/photos?date=${date}`);
+  const { data, mutate } = useApi<{ card: Card | null; folder?: string | null }>(`/api/quality-session/photos?date=${date}`);
   const card = data?.card ?? null;
   const [link, setLink] = useState('');
   const [media, setMedia] = useState<FeedMedia[]>([]);
@@ -32,7 +32,9 @@ export function SessionPhotos({ date }: { date: string }) {
   // What is already published is the starting point for an edit.
   useEffect(() => {
     if (card) { setLink(card.link); setMedia(card.media); }
-  }, [card?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    // The folder made the evening before: its link is the field's starting value.
+    else if (data?.folder) setLink((l) => l || data.folder!);
+  }, [card?.id, data?.folder]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ok = !!cleanPhotosLink(link);
   const album = ok ? parseAlbumLink(link.trim()) : null;
@@ -127,6 +129,14 @@ export function SessionPhotos({ date }: { date: string }) {
     <section className="mb-2 rounded-[20px] bg-white p-3.5" dir="rtl">
       <p className="text-[15px] font-black text-ink-900">📸 תמונות מהאימון</p>
       {card && <p className="mt-0.5 text-xs font-semibold text-accent-900">כבר בפיד — אפשר לעדכן</p>}
+      {!card && data?.folder && (
+        <a href={data.folder} target="_blank" rel="noopener noreferrer" className="mt-2 flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-[#E8F0FE] text-sm font-bold text-[#1967d2]">
+          📂 התיקייה של הבוקר בדרייב — להעלות לשם
+        </a>
+      )}
+      {!card && data?.folder && (
+        <p className="mt-1 text-[11px] text-ink-400">תמונות שעולות לתיקייה מגיעות לפיד לבד, בדיקה כל חצי שעה עד 15:00.</p>
+      )}
 
       <label className="mt-3 block text-xs font-semibold text-ink-400" htmlFor="qs-photos-link">קישור לכל התמונות</label>
       <input

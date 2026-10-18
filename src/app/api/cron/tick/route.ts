@@ -10,6 +10,7 @@ import {
 } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
 import { reconcileResolvedReports } from '@/lib/feedback-notify';
+import { runSessionPhotoFolders } from '@/lib/quality-session/photos-server';
 import { computeSetupState } from '@/lib/onboarding/setup-tasks';
 import {
   SNAPSHOT_DELAY_MINUTES, SNAPSHOT_LATEST_MINUTES, snapshotChannel, snapshotDue,
@@ -695,6 +696,14 @@ async function run(request: Request) {
   // and had fired twice, because reports get closed by pasted SQL rather than
   // through PATCH /api/feedback. This is what makes the closing itself the
   // trigger, whoever does it and however (9a818a94).
+  // The quality session's photo folder: made the evening before, published from
+  // once photos are in (lib/quality-session/photos-server.ts). Never fails the tick.
+  try {
+    fired.push(...(await runSessionPhotoFolders(supabase, now)));
+  } catch (err) {
+    console.error('[tick] session photo folders failed:', err);
+  }
+
   const resolvedReports = await reconcileResolvedReports(supabase, now);
   if (resolvedReports.sent) fired.push(`reviewResolved → ${resolvedReports.sent}`);
 
