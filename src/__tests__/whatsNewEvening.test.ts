@@ -200,3 +200,12 @@ describe('the notes members see', () => {
     expect(leaked.map(n => n.id)).toEqual([]);
   });
 });
+
+describe('the tour on the device', () => {
+  it('keeps every page of the release, not the three-row cap of the sheet', async () => {
+    const { unseenEntries } = await import('@/lib/whats-new/ledger');
+    const all = composeWhatsNew([], '2.41.70', true, true, true).entries;
+    const got = unseenEntries(all, { since: '2026-09-01', seen: [] } as never);
+    expect(got.filter(e => e.cards?.length).map(e => e.slug)).toEqual(EVENING_ENTRIES.map(e => e.slug));
+  });
+});

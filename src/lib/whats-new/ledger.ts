@@ -91,9 +91,13 @@ export function initLedger(
 
 /** Newest first, capped. Sorting here rather than trusting the file's order. */
 export function recentEntries(entries: WhatsNewEntry[]): WhatsNewEntry[] {
-  return [...entries]
-    .sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : a.publishedAt > b.publishedAt ? -1 : 0))
-    .slice(0, WHATS_NEW_MAX_ROWS);
+  const sorted = [...entries]
+    .sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : a.publishedAt > b.publishedAt ? -1 : 0));
+  // The cap is the sheet's three rows. A release's tour pages (`cards`) are not rows:
+  // capping them cut the 10-18 tour to its first three pages for everyone.
+  const pages = sorted.filter((e) => e.cards?.length);
+  const rows = sorted.filter((e) => !e.cards?.length).slice(0, WHATS_NEW_MAX_ROWS);
+  return [...pages, ...rows];
 }
 
 /**
