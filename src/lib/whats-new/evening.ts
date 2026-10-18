@@ -35,7 +35,7 @@ export const EVENING_OPEN = true;
  * (composeWhatsNew below), so nothing of it opens for a member, and his release
  * push (`?tour=1018`) is his to watch first. Flipping it is the release.
  */
-export const RELEASE_OPEN = false;
+export const RELEASE_OPEN = true;
 
 /** The hook that reads the switch is lib/use-evening-release.ts, kept out of here so node tests need no React. */
 

@@ -32,11 +32,11 @@ describe('composeWhatsNew', () => {
     expect(c.entries.map(e => e.slug)).toEqual(['b18-feed', 'b18-celebrations', 'b18-run-page', 'b18-profile', 'b18-records', 'b18-fitness', 'b18-photos']);
   });
 
-  it('until RELEASE_OPEN, is the super user\'s only: a member composes as before the evening', () => {
-    expect(RELEASE_OPEN).toBe(false);
+  it('with RELEASE_OPEN, a member gets the release too, and staff get theirs after it', () => {
+    expect(RELEASE_OPEN).toBe(true);
     const member = composeWhatsNew([], '2.41.70', true);
-    expect(member.entries.map(e => e.slug)).toEqual(WHATS_NEW.map(e => e.slug));
-    expect(member.more).toEqual([]);
+    expect(member.entries.map(e => e.slug)).toEqual(['b18-feed', 'b18-celebrations', 'b18-run-page', 'b18-profile', 'b18-records', 'b18-fitness', 'b18-photos']);
+    expect(member.entries.some(e => e.audience === 'staff')).toBe(false);
   });
 
   it('gives staff the same seven first, then theirs', () => {
