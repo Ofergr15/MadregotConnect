@@ -5,6 +5,7 @@ import { FEED_SELECT, projectFeedItem, type FeedItem } from '@/lib/feed/project'
 import { loadFeedContext } from '@/lib/feed/context';
 import { isCelebrationActive, toCelebration, type Celebration } from '@/lib/feed/celebration';
 import { israelToday } from '@/lib/utils';
+import { israelDateOf } from '@/lib/reports/last-7-days';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +32,10 @@ export async function GET(request: Request) {
       .eq('type', 'announcement').is('deleted_at', null).gte('occurred_at', since)
       .order('occurred_at', { ascending: false }).limit(200);
     if (error) throw error;
-    const rows = (data || []).filter((r) => isCelebrationActive((r as { payload: Record<string, unknown> | null }).payload, today));
+    const rows = (data || []).filter((r) => {
+      const row = r as { payload: Record<string, unknown> | null; occurred_at: string };
+      return isCelebrationActive(row.payload, today, israelDateOf(row.occurred_at));
+    });
     if (rows.length === 0) return NextResponse.json({ today, entries: [] });
 
     const context = await loadFeedContext(supabase, rows, { athleteId: auth.user.athleteId, isStaff: auth.user.isStaff });

@@ -49,3 +49,16 @@ describe('isCelebrationActive — the row at the top shows today only, or as lon
     expect(page.indexOf('<CelebrationStories')).toBeLessThan(page.indexOf('<QualitySessionRow'));
   });
 });
+
+describe('cheers from Content are celebrations too', async () => {
+  const { toCelebration, isCelebrationActive } = await import('@/lib/feed/celebration');
+  it('a race cheer is a race, a record an achievement', () => {
+    expect(toCelebration({ cheerFor: 's1', honoreeId: 's1', reason: 'race' })).toMatchObject({ type: 'race', honorees: ['s1'] });
+    expect(toCelebration({ cheerFor: 's1', reason: 'record' })?.type).toBe('achievement');
+    expect(toCelebration({ cheerFor: 's1', reason: 'comeback' })?.type).toBe('other');
+  });
+  it('a cheer is on the row the day it was published', () => {
+    expect(isCelebrationActive({ cheerFor: 's1', reason: 'race' }, '2026-10-18', '2026-10-18')).toBe(true);
+    expect(isCelebrationActive({ cheerFor: 's1', reason: 'race' }, '2026-10-19', '2026-10-18')).toBe(false);
+  });
+});

@@ -4,8 +4,9 @@ import { cleanPhotosLink } from '@/lib/quality-session/photos';
 // births, achievements, races, anything — with a "watch" button when there is a
 // video. A compact card that sits with the redesigned feed's cards, not a banner.
 //
-// Two payload shapes are read: a birthday post (lib/feed/birthday.ts —
-// `birthdayOf`), and a celebration made by hand (`kind: 'celebration'`).
+// Three payload shapes are read: a birthday post (lib/feed/birthday.ts —
+// `birthdayOf`), a cheer from Content (lib/publish — `cheerFor` + `reason`), and a
+// celebration made by hand (`kind: 'celebration'`).
 
 export const CELEBRATION_TYPES = {
   birthday: { emoji: '🎂', label: 'יום הולדת', accent: '#E5487A' },
@@ -28,6 +29,11 @@ export function toCelebration(payload: Record<string, unknown> | null | undefine
   if (!payload) return null;
   const video = cleanPhotosLink(payload.videoLink);
   if (typeof payload.birthdayOf === 'string') return { type: 'birthday', honorees: [payload.birthdayOf], video };
+  // A cheer from Content → "ברכה / הישג" (lib/publish): the same thing, by its reason.
+  if (typeof payload.cheerFor === 'string') {
+    const byReason: Record<string, CelebrationType> = { race: 'race', record: 'achievement', milestone: 'achievement', birthday: 'birthday' };
+    return { type: byReason[String(payload.reason)] ?? 'other', honorees: [payload.cheerFor], video };
+  }
   if (payload.kind !== 'celebration') return null;
   const t = payload.celebrationType;
   const type: CelebrationType = typeof t === 'string' && t in CELEBRATION_TYPES ? (t as CelebrationType) : 'other';
@@ -50,9 +56,14 @@ export function celebrationText(body: string | null, type: CelebrationType): str
  * made by hand from its day through `until` (inclusive; the same day when unset).
  * Dates are Israel calendar days, YYYY-MM-DD.
  */
-export function isCelebrationActive(payload: Record<string, unknown> | null | undefined, today: string): boolean {
+export function isCelebrationActive(
+  payload: Record<string, unknown> | null | undefined,
+  today: string,
+  /** The day it was published — a cheer carries no date of its own. */
+  publishedDay?: string | null,
+): boolean {
   if (!toCelebration(payload)) return false;
-  const day = typeof payload!.date === 'string' ? payload!.date : null;
+  const day = typeof payload!.date === 'string' ? payload!.date : publishedDay ?? null;
   if (!day) return false;
   const until = typeof payload!.until === 'string' && payload!.until >= day ? payload!.until : day;
   return day <= today && today <= until;
