@@ -127,6 +127,25 @@ export class GarminClient {
     }
   }
 
+  /**
+   * Is this workout still on the athlete's account? The check after a delete (one-day
+   * session, 2026-10-18): only Garmin saying "not there" counts as removed. A 404, or a
+   * read that comes back without the workout, is `false`; any other failure throws, so
+   * an outage never reads as a clean removal.
+   */
+  async workoutExists(workoutId: string): Promise<boolean> {
+    await this.restoreSession();
+    try {
+      const detail = await this.gc.getWorkoutDetail({ workoutId });
+      return readGarminId((detail as { workoutId?: unknown } | null | undefined)?.workoutId) === workoutId;
+    } catch (err) {
+      const e = err as { response?: { status?: number }; message?: string };
+      const status = e.response?.status ?? Number(/\((\d{3})\)/.exec(e.message || '')?.[1]);
+      if (status === 404 || status === 410) return false;
+      throw err;
+    }
+  }
+
   async deleteWorkout(workoutId: string): Promise<void> {
     if (!workoutId) {
       // Rows written before createWorkout started throwing can hold an empty id.

@@ -70,6 +70,20 @@ export async function readUpcoming(now: Date = new Date()): Promise<{ setup: boo
   return { setup: true, sessions: await withNames(db, (data || []) as unknown as Record<string, unknown>[]) };
 }
 
+/** Every row from today on, published or not — the coach's list (mockups/day-session-manage). */
+export async function readFromToday(now: Date = new Date()): Promise<{ setup: boolean; sessions: DaySession[] }> {
+  const db = createServerClient();
+  const { data, error } = await withOptional((cols) => db.from('day_sessions').select(cols)
+    .gte('session_date', israelToday(now))
+    .order('session_date', { ascending: true })
+    .limit(30));
+  if (error) {
+    if (isMissingTable(error)) return { setup: false, sessions: [] };
+    throw error;
+  }
+  return { setup: true, sessions: await withNames(db, (data || []) as unknown as Record<string, unknown>[]) };
+}
+
 /** Insert or update the date's row. `null` = the table is not there yet. */
 export async function saveDaySession(row: Record<string, unknown>): Promise<DaySession | null> {
   const db = createServerClient();

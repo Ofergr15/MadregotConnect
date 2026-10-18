@@ -162,29 +162,101 @@ export async function startDaySessionSend(s: DaySession, athleteIds: string[], s
   return { queued: athletes.length, skipped, work };
 }
 
-/**
- * A deleted session off every watch it reached: each Garmin copy deleted (best effort — one
- * already removed by hand is fine) and the date's delivery rows dropped, so my-watch stops
- * calling the day "on the watch". Apple watches read the rows, so dropping them is the removal.
- * Answers how many runners had it.
- */
-export async function removeDaySessionFromWatches(date: string): Promise<number> {
-  const db = createServerClient();
-  const rows = await readRows(db, date);
-  const ours = rows.filter((r) => r.workout_key === dayKey(date));
-  if (!ours.length) return 0;
-  const withGarmin = ours.filter((r) => r.garmin_workout_id);
-  if (withGarmin.length) {
-    const { data } = await db.from('athletes').select('id, garmin_auth').in('id', [...new Set(withGarmin.map((r) => r.athlete_id))]);
-    const auth = new Map(((data || []) as Array<{ id: string; garmin_auth: unknown }>).map((a) => [a.id, a.garmin_auth]));
-    for (const r of withGarmin) {
-      const a = auth.get(r.athlete_id);
-      if (!a) continue;
-      try { await new GarminClient(a as never).deleteWorkout(r.garmin_workout_id!); } catch { /* already gone */ }
+// ── Taking it off the watches (Ofer, 2026-10-18) ───────────────────────────────────────
+//
+// A send is recorded in one of two places, by age: the first version of "לשלוח לשעונים"
+// kept the Garmin ids on the session itself (day_sessions.watch_deliveries.ids,
+// { athleteId: [garminWorkoutId] }, migration 152); the current one writes workout_deliveries
+// rows keyed `day:<date>`. Reading only the rows would call a session sent the old way
+// "on no watch" and leave it on all of them — so both are read, per runner.
+//
+// The screen removes one runner at a time and shows each answer: deleted, then ASKED BACK —
+// only Garmin saying the workout is gone counts as removed. Apple watches read the rows, so
+// for them dropping the rows is the removal.
+
+export interface WatchHolder {
+  athleteId: string;
+  name: string;
+  garminIds: string[];
+  apple: boolean;
+}
+
+/** Both records of a send, per runner: Garmin ids from either, and whether Apple has it. Pure. */
+export function mergeHolders(
+  date: string,
+  rows: Array<Pick<DeliveryLike, 'athlete_id' | 'garmin_workout_id' | 'provider'> & { workout_key?: string | null }>,
+  legacy: unknown,
+): Map<string, { garmin: Set<string>; apple: boolean }> {
+  const by = new Map<string, { garmin: Set<string>; apple: boolean }>();
+  const entry = (id: string) => {
+    let e = by.get(id);
+    if (!e) { e = { garmin: new Set(), apple: false }; by.set(id, e); }
+    return e;
+  };
+  for (const r of rows) {
+    if (r.provider === 'apple') entry(r.athlete_id).apple = true;
+    else if (r.workout_key === dayKey(date)) {
+      const e = entry(r.athlete_id);
+      if (r.garmin_workout_id) e.garmin.add(r.garmin_workout_id);
     }
   }
-  await db.from('workout_deliveries').delete().in('id', ours.map((r) => r.id));
-  return new Set(ours.map((r) => r.athlete_id)).size;
+  const ids = (legacy as { ids?: Record<string, unknown> } | null | undefined)?.ids || {};
+  for (const [athleteId, list] of Object.entries(ids)) {
+    for (const g of Array.isArray(list) ? list : []) if (typeof g === 'string' || typeof g === 'number') entry(athleteId).garmin.add(String(g));
+  }
+  return by;
+}
+
+/** Everybody the date's session reached, from both records. */
+export async function watchHolders(date: string): Promise<WatchHolder[]> {
+  const db = createServerClient();
+  const [rows, legacy] = await Promise.all([
+    readRows(db, date),
+    db.from('day_sessions').select('watch_deliveries').eq('session_date', date).maybeSingle(),
+  ]);
+  const by = mergeHolders(date, rows, (legacy.data as { watch_deliveries?: unknown } | null)?.watch_deliveries);
+  if (!by.size) return [];
+  const { data } = await db.from('athletes').select('id, name').in('id', [...by.keys()]);
+  const names = new Map(((data || []) as Array<{ id: string; name: string | null }>).map((a) => [a.id, a.name || '']));
+  return [...by.entries()]
+    .map(([athleteId, e]) => ({ athleteId, name: names.get(athleteId) || '', garminIds: [...e.garmin], apple: e.apple }))
+    .sort((x, y) => x.name.localeCompare(y.name));
+}
+
+export type RemoveResult =
+  | { athleteId: string; status: 'removed' }
+  | { athleteId: string; status: 'failed'; error: string };
+
+/**
+ * One runner's copy off their watch, then checked. Safe to repeat: a workout already gone
+ * deletes as a no-op and checks as gone. The runner's day:<date> rows go only once Garmin
+ * confirms, so a failure stays visible to a retry.
+ */
+export async function removeFromOneWatch(date: string, athleteId: string): Promise<RemoveResult> {
+  const holder = (await watchHolders(date)).find((h) => h.athleteId === athleteId);
+  if (!holder) return { athleteId, status: 'removed' };
+  const db = createServerClient();
+  if (holder.garminIds.length) {
+    const { data } = await db.from('athletes').select('garmin_auth').eq('id', athleteId).maybeSingle();
+    const auth = (data as { garmin_auth?: unknown } | null)?.garmin_auth;
+    if (!auth) return { athleteId, status: 'failed', error: 'השעון כבר לא מחובר — אי אפשר להגיע אליו' };
+    const garmin = new GarminClient(auth as never);
+    try {
+      for (const id of holder.garminIds) {
+        try { await garmin.deleteWorkout(id); } catch { /* already gone: the check below decides */ }
+        if (await garmin.workoutExists(id)) return { athleteId, status: 'failed', error: 'Garmin עדיין מראה את האימון' };
+      }
+    } catch (err) {
+      return { athleteId, status: 'failed', error: err instanceof Error ? err.message.slice(0, 140) : String(err) };
+    }
+  }
+  const { error } = await db.from('workout_deliveries').delete().is('plan_id', null).eq('workout_date', date).eq('athlete_id', athleteId)
+    .or(`workout_key.eq.${dayKey(date)},provider.eq.apple`);
+  if (error) {
+    // Before the Apple columns (migration 138): ours alone, by key.
+    await db.from('workout_deliveries').delete().is('plan_id', null).eq('workout_date', date).eq('athlete_id', athleteId).eq('workout_key', dayKey(date));
+  }
+  return { athleteId, status: 'removed' };
 }
 
 // ── The tracking ───────────────────────────────────────────────────────────────────────

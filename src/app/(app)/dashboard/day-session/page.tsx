@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { Plus, X } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { addDaysToDateStr, cn, israelNow, israelToday } from '@/lib/utils';
-import { ConfirmSheet, Switch } from '@/components/ui';
+import { Switch } from '@/components/ui';
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import {
   BarButton, CARD, FlowOverlay, FlowScreen, PrimaryButton, RICH, SectionLabel, kmText,
@@ -21,6 +21,7 @@ import {
 import { hasRunning, workoutTitle } from '@/lib/day-session/workout';
 import { WatchChoose, WatchTrack, useRoster, useWatchTrack } from '@/components/day-session/WatchSend';
 import { countsOf } from '@/lib/day-session/watch-status';
+import { SessionList } from '@/components/day-session/SessionList';
 import { packPace, paceRangeText } from '@/lib/plans/session-profile';
 
 // ── "אימון ליום אחד" — the coach's form (mockup manual-day-workout, phones 1 and 2) ──────
@@ -71,7 +72,8 @@ export default function DaySessionPage() {
   const trackCounts = track.data ? countsOf(track.data.runners) : null;
   const existing = loaded?.session ?? null;
 
-  const [step, setStep] = useState<1 | 2 | 'watch' | 'track'>(1);
+  // The screen opens on the coach's sessions, each in its own box (SessionList).
+  const [step, setStep] = useState<'list' | 1 | 2 | 'watch' | 'track'>('list');
   // The workout the planner's editor opened on, fixed for as long as it is open: the panel
   // resets its draft whenever this object changes.
   const [editing, setEditing] = useState<ParsedWorkout | null>(null);
@@ -208,26 +210,14 @@ export default function DaySessionPage() {
   };
 
   const close = () => router.push('/dashboard/coach-tools');
-
-  // Deleting the date's session (Ofer, 2026-10-18: one went out for the wrong day). The row,
-  // and its copies on the watches; the push that already went cannot be called back.
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const remove = async () => {
-    if (!existing || busy) return;
-    setBusy(true);
-    setMessage(null);
-    try {
-      const res = await fetch(`/api/day-session?date=${date}`, { method: 'DELETE', headers: await apiHeaders() });
-      if (!res.ok && res.status !== 404) { setMessage({ tone: 'bad', text: t('deleteFailed') }); return; }
-      await mutate();
-      setMessage({ tone: 'ok', text: t('deleted') });
-    } catch {
-      setMessage({ tone: 'bad', text: t('deleteFailed') });
-    } finally {
-      setBusy(false);
-      setConfirmDelete(false);
-    }
+  const openDate = (d: string) => {
+    if (d === today) setChip('today');
+    else if (d === addDaysToDateStr(today, 1)) setChip('tomorrow');
+    else if (d === addDaysToDateStr(today, 2)) setChip('dayAfter');
+    else { setOtherDate(d); setChip('other'); }
+    setStep(1);
   };
+
 
   // Start a send (or a re-send) and show where it stands.
   const sendToWatches = async (ids: string[]) => {
@@ -254,7 +244,7 @@ export default function DaySessionPage() {
       if (d === today) setChip('today');
       else if (d === addDaysToDateStr(today, 1)) setChip('tomorrow');
       else { setOtherDate(d); setChip('other'); }
-      if (q.get('track') === '1') setStep('track');
+      setStep(q.get('track') === '1' ? 'track' : 1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -343,14 +333,36 @@ export default function DaySessionPage() {
     </>
   );
 
+  if (step === 'list') {
+    return (
+      <FlowOverlay label={t('formTitle')}>
+        <FlowScreen title={t('formTitle')} leading={<BarButton onClick={close}>‹ {t('coachTools')}</BarButton>}>
+          <SessionList
+            today={today}
+            tomorrow={addDaysToDateStr(today, 1)}
+            dateLabel={dateLabel}
+            onEdit={openDate}
+            onNew={() => { setChip(israelNow().hour < EARLY_HOURS ? 'today' : 'tomorrow'); setStep(1); }}
+          />
+        </FlowScreen>
+      </FlowOverlay>
+    );
+  }
+
   if (step === 1) {
     return (
       <FlowOverlay label={t('formTitle')}>
         <FlowScreen
-          title={t('formTitle')}
-          leading={<BarButton onClick={close}>{t('cancel')}</BarButton>}
+          title={existing ? t('editTitle') : t('formTitle')}
+          leading={<BarButton onClick={() => setStep('list')}>‹ {t('listBack')}</BarButton>}
           footer={<PrimaryButton onClick={() => setStep(2)} disabled={!ready}>{t('toNutrition')}</PrimaryButton>}
         >
+          {existing && (
+            <div className="rounded-[14px] bg-[#FFF7E6] px-3.5 py-2.5 text-sm text-ink-900">
+              {t('editingStrip', { day: dateLabel(date) })}{existing.startTime && <> · <bdi dir="ltr">{existing.startTime}</bdi></>}
+              <small className="block text-13 text-[#8a5a00]">{t('editingWatchNote')}</small>
+            </div>
+          )}
           {banner}
           {watchRow}
           <SectionLabel>{t('when')}</SectionLabel>
@@ -501,25 +513,6 @@ export default function DaySessionPage() {
             className={cn(CARD, 'min-h-[88px] resize-none rounded-[14px] px-4 py-3 text-[16px] leading-relaxed text-ink-900 outline-none placeholder:text-ink-300')}
           />
 
-          {existing && (
-            <button
-              type="button"
-              onClick={() => setConfirmDelete(true)}
-              disabled={busy}
-              className={cn(CARD, 'min-h-[52px] w-full text-[15px] font-extrabold text-accent-red disabled:opacity-60')}
-            >
-              {t('delete')}
-            </button>
-          )}
-          <ConfirmSheet
-            open={confirmDelete}
-            onOpenChange={setConfirmDelete}
-            title={t('deleteTitle', { day: dateLabel(date) })}
-            description={existing?.notifiedAt ? t('deleteBodySent') : t('deleteBody')}
-            confirmLabel={t('deleteConfirm')}
-            cancelLabel={t('cancel')}
-            onConfirm={() => { void remove(); }}
-          />
         </FlowScreen>
         {editing && (
           <WorkoutEditorPanel

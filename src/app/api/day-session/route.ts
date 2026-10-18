@@ -3,9 +3,9 @@ import { authError, requireSession } from '@/lib/auth-session';
 import { israelNow, israelToday, addDaysToDateStr } from '@/lib/utils';
 import { isOnFeed, mayEditDaySession, maySeeDaySession, notifyOnce, readInput, resolveWorkout } from '@/lib/day-session/model';
 import {
-  claimNotify, daySessionRecipients, deleteDaySession, readDaySession, readUpcoming, saveDaySession, sendDaySessionPush,
+  claimNotify, daySessionRecipients, deleteDaySession, readDaySession, readFromToday, readUpcoming, saveDaySession, sendDaySessionPush,
 } from '@/lib/day-session/server';
-import { removeDaySessionFromWatches } from '@/lib/day-session/watch';
+import { watchHolders } from '@/lib/day-session/watch';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,9 +15,11 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 //
 // GET ?date=YYYY-MM-DD   -> { setup, session }   the form: that date's row, published or not
 // GET                    -> { setup, sessions }  the feed: published, on now (isOnFeed)
+// GET ?list=1            -> { setup, sessions, watches }  the coach's list: today on, published
+//                           or not, and how many runners each one is on the watch of
 // PUT { date, startTime, place, quickText, steps?, title?, description?, nutrition, publish, notify }
 //                        -> { session, notified } save the date's row; publish pushes once
-// DELETE ?date=YYYY-MM-DD -> { deleted, watches }  the date's row gone, and off the watches it reached
+// DELETE ?date=YYYY-MM-DD -> { deleted }  the date's row (the watches first, via ./remove)
 //
 // `steps` are the planner editor's WorkoutStep[] (validateWorkoutSteps): stored as sent, the sentence is NOT re-parsed —
 // it stays in quick_text as the coach's own words. Without `steps` the sentence is parsed
@@ -30,8 +32,15 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export async function GET(request: Request) {
   const auth = await requireSession(request);
   if (!auth.ok) return authError(auth);
-  const date = new URL(request.url).searchParams.get('date');
+  const params = new URL(request.url).searchParams;
+  const date = params.get('date');
   try {
+    if (params.get('list') === '1') {
+      if (!mayEditDaySession(auth.user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      const { setup, sessions } = await readFromToday();
+      const counts = await Promise.all(sessions.map((s) => watchHolders(s.date).then((h) => h.length).catch(() => 0)));
+      return NextResponse.json({ setup, sessions, watches: Object.fromEntries(sessions.map((s, i) => [s.date, counts[i]])) });
+    }
     if (date !== null) {
       if (!mayEditDaySession(auth.user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       if (!DATE.test(date)) return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 });
@@ -112,17 +121,12 @@ export async function DELETE(request: Request) {
   const date = new URL(request.url).searchParams.get('date') || '';
   if (!DATE.test(date)) return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 });
   try {
+    // The watches come off first, from the screen (api/day-session/remove): one runner at a
+    // time, each removal checked back with Garmin and shown. This only drops the row.
     const deleted = await deleteDaySession(date);
     if (deleted === null) return NextResponse.json({ error: 'not_set_up' }, { status: 503 });
     if (!deleted) return NextResponse.json({ error: 'no session for that date' }, { status: 404 });
-    // Best-effort, after the row: the session is gone whatever Garmin answers.
-    let watches = 0;
-    try {
-      watches = await removeDaySessionFromWatches(date);
-    } catch (err) {
-      console.error('[day-session] watch cleanup failed:', err);
-    }
-    return NextResponse.json({ deleted: true, watches });
+    return NextResponse.json({ deleted: true });
   } catch (err) {
     console.error('[day-session] DELETE failed:', err);
     return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
