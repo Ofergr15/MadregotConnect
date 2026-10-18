@@ -4,6 +4,7 @@ import { useRef } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { CalendarPlus, CheckCircle2, ArrowRight } from 'lucide-react';
+import { numberRuns } from '@/lib/day-session/model';
 import { googleCalendarUrl } from '@/lib/calendar-link';
 
 interface WorkoutTile {
@@ -90,7 +91,8 @@ export function NextWorkoutCard({
             </div>
           </div>
           <p className="text-2xl font-black text-ink-700 mt-1 tabular-nums">
-            {distanceLabel}
+            {/* LTR: in the Hebrew line bidi printed 9.5–15 as "15–9.5". */}
+            <bdi dir="ltr">{distanceLabel}</bdi>
             <span className="text-sm font-medium text-ink-400 ms-1">{tc('km')}</span>
             {!!doneKm && doneKm > 0 && (
               <span className="text-xs font-semibold text-accent-900 ms-2">
@@ -98,7 +100,8 @@ export function NextWorkoutCard({
               </span>
             )}
           </p>
-          {sessionName && <p className="text-2xs text-ink-400 mt-0.5">{sessionName}</p>}
+          {/* Each number run isolated: "50–70 דק׳" read "70–50" as one RTL line. */}
+          {sessionName && <p className="text-2xs text-ink-400 mt-0.5">{numberRuns(sessionName).map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>))}</p>}
         </div>
 
         {/* Inline action: add to calendar */}

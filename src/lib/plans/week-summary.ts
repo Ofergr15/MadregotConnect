@@ -210,6 +210,18 @@ const REDUNDANT_NAME_WORDS = [
  * the session IS, and dropping it is how a 32 km Italian medio came to read as
  * a plain "20 ק״מ".
  */
+/**
+ * The session's line: its headline, then whatever the coach's name adds — once. A one-day
+ * session's name IS its headline ("50–70 דק׳"), which printed it twice.
+ */
+export function sessionTitleParts(headline: string, name: string, dayNames: string[] = []): string {
+  const norm = (x: string) => x.replace(/[\s־–—-]+/g, '');
+  let qualifier = nameQualifier(name, dayNames);
+  // The name repeating the headline, with more after it ("50 דק׳ 4:40–5:15"): only the more.
+  if (headline && norm(qualifier).includes(norm(headline))) qualifier = qualifier.replace(headline, '').replace(/^[\s·]+|[\s·]+$/g, '');
+  return [headline, norm(qualifier) && norm(qualifier) !== norm(headline) ? qualifier : ''].filter(Boolean).join(' · ');
+}
+
 export function nameQualifier(name: string, dayNames: string[] = []): string {
   let rest = (name || '').trim().replace(/^(?:יום|day)\s+\S+/i, '');
   // `split`/`join` rather than a RegExp: a translated day name is data, and
@@ -217,8 +229,12 @@ export function nameQualifier(name: string, dayNames: string[] = []): string {
   for (const day of dayNames) {
     if (day && rest.includes(day)) rest = rest.split(day).join(' ');
   }
+  // A number range or a clock is one thing, not two parts: "50–70 דק׳" split on its dash
+  // came out "50 · 70 דק׳" on the feed card (2026-10-18). Held together while splitting.
+  rest = rest.replace(/(\d)\s*([-–—:])\s*(?=\d)/g, (_, d: string, sep: string) => `${d}${sep === ':' ? '\u0001' : '\u0002'}`);
   return rest
     .split(/[-–—|,·:]+/)
+    .map((part) => part.replace(/\u0001/g, ':').replace(/\u0002/g, '–'))
     .map((part) => part.trim())
     .filter(Boolean)
     .filter((part) => !part.split(/\s+/).every((word) => REDUNDANT_NAME_WORDS.includes(word.toLowerCase())))

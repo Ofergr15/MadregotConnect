@@ -13,7 +13,8 @@ import {
   WORKOUT_TYPE_COLORS, WORKOUT_TYPE_TEXT_COLORS, planDayKey, type WeekSession,
 } from '@/lib/plans/workout-parsing';
 import { sessionFrame, sessionHeadline, type FrameLabels } from '@/lib/plans/session-summary';
-import { nameQualifier, roundKm } from '@/lib/plans/week-summary';
+import { nameQualifier, roundKm, sessionTitleParts } from '@/lib/plans/week-summary';
+import { numberRuns } from '@/lib/day-session/model';
 import type { StepUnits } from '@/lib/plans/step-display';
 import { formatDurationClock } from '@/lib/workout-duration';
 import { isEstimate } from '@/lib/plans/step-estimate';
@@ -194,7 +195,7 @@ export function NextSessionCard() {
 
   // ── The card's new look (feed redesign 2026-10-12) ──
   const whenWord = next.isToday ? t('today') : t('tomorrow');
-  const titleText = [sessionHeadline(s.steps, units), nameQualifier(s.name, dayNames)].filter(Boolean).join(' · ') || s.name || typeLabel;
+  const titleText = sessionTitleParts(sessionHeadline(s.steps, units), s.name, dayNames) || s.name || typeLabel;
   const profile = profileSegments(s.steps || []);
   const paces = [0, 1, 2].map((i) => { const p = packPace(s.steps || [], i); return p ? paceRangeText(p) : null; });
   // A club practice day (reminder config) gets the RSVP; any other run doesn't.
@@ -224,8 +225,7 @@ export function NextSessionCard() {
     const xKind = x.kind === 'morning' || x.kind === 'evening'
       ? tp(x.kind === 'morning' ? 'sessionMorning' : 'sessionEvening') : '';
     return {
-      name: [sessionHeadline(x.steps, units), nameQualifier(x.name, dayNames)]
-        .filter(Boolean).join(' · ') || x.name,
+      name: sessionTitleParts(sessionHeadline(x.steps, units), x.name, dayNames) || x.name,
       day: [dayNames[x.dayOfWeek], xKind].filter(Boolean).join(' · '),
       distance: xKm ? `${isEstimate(x.kmFrom) ? '~' : ''}${xKm} ${units.km}` : '',
       duration: formatDurationClock(x.durationSec),
@@ -299,7 +299,7 @@ export function NextSessionCard() {
             </span>
           </span>
           <span className="mt-2 flex items-baseline justify-between gap-3">
-            <span className="min-w-0 truncate text-lg font-extrabold text-ink-900">{timeText ? titleText : (nameQualifier(s.name, dayNames) || '')}</span>
+            <span className="min-w-0 truncate text-lg font-extrabold text-ink-900">{numberRuns(timeText ? titleText : (nameQualifier(s.name, dayNames) || '')).map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>))}</span>
             <span className="shrink-0 text-xs font-semibold text-ink-400"><bdi dir="ltr">{approx}{km}</bdi> {units.km}{s.durationSec ? <> · <bdi dir="ltr">{formatDurationClock(s.durationSec)}</bdi></> : null}</span>
           </span>
           {profile.length > 0 && (
