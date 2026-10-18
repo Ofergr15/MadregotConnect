@@ -11,6 +11,6 @@ import type { BirthdayStory } from '@/lib/birthday-year/server';
 export default function PreviewBirthdayYear() {
   if (process.env.NODE_ENV === 'production') notFound();
   const [story, setStory] = useState<BirthdayStory | null>(null);
-  useEffect(() => { fetch('/preview-birthday.json').then((r) => r.json()).then(setStory).catch(() => {}); }, []);
+  useEffect(() => { fetch(`/preview-birthday${new URLSearchParams(window.location.search).get('f') ? '-' + new URLSearchParams(window.location.search).get('f') : ''}.json`).then((r) => r.json()).then(setStory).catch(() => {}); }, []);
   return story ? <YearStory story={story} onClose={() => {}} /> : <p className="p-8">אין /preview-birthday.json</p>;
 }

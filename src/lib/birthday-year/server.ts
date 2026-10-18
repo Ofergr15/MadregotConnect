@@ -168,7 +168,9 @@ export async function loadStory(supabase: Db, athleteId: string, today: string, 
   if (!athlete?.birth_date) return null;
   const birthday = storyBirthday(athlete.birth_date, today, opts);
   if (!birthday) return null;
-  const window = yearWindow(birthday);
+  // A preview before the birthday stops at yesterday: days still to come are not rest days.
+  const full = yearWindow(birthday);
+  const window = { from: full.from, to: full.to < today ? full.to : addDaysIso(today, -1) };
   const [stats, config] = await Promise.all([
     yearStats(supabase, athleteId, window),
     readConfig(supabase, athleteId, birthday),

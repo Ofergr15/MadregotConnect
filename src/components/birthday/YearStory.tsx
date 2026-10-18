@@ -9,6 +9,7 @@ import {
 } from '@/lib/birthday-year/stats';
 import { EXPORT_H, EXPORT_W, captureSlide, shareImages } from './capture';
 import { SLIDE_MS, canRecordVideo, recordStory, shareVideo, videoLength } from './video';
+import { storyVariant } from '@/lib/birthday-year/variant';
 import './year-story.css';
 
 // "השנה שלך" — the birthday story (mockup ~/.cache/madregot/birthday-year/mockup-v4.html).
@@ -23,13 +24,6 @@ const WEEKDAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמיש�
 const BEST_LABEL: Record<string, string> = { '5k': '5 ק״מ', '10k': '10 ק״מ', hm: 'חצי מרתון', fm: 'מרתון' };
 const MOMENT_TITLE: Record<string, string> = { fm: 'מרתון', hm: 'חצי מרתון', '10k': '10 ק״מ', '5k': '5 ק״מ' };
 
-/** Club photos for the slides that look fine without the person on them. */
-const CLUB: Partial<Record<PhotoSlot, string>> = {
-  intro: '/images/team-group.jpg',
-  thanks: '/images/runners-group.jpg',
-  km: '/images/hero-running.jpg',
-  long: '/images/team-race.jpg',
-};
 
 const PHOTO_SLOTS_ORDER: PhotoSlot[] = ['intro', 'thanks', 'km', 'streak', 'moment', 'long', 'climb', 'poster'];
 
@@ -86,14 +80,18 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
   const she = story.gender === 'female';
   const ran = mine ? 'רצת' : she ? 'רצה' : 'רץ';
   const yours = mine ? 'שלך' : `של ${name}`;
+  // Every story a little different (lib/birthday-year/variant): the same pick for both
+  // readers, so the owner and the club see the same story, each in their own voice.
+  const variant = useMemo(() => storyVariant(story.athleteId, story.birthday, story.stats), [story]);
+  const say = (key: string, options: string[]) => options[variant.pick(key, options.length)];
   // A slide without its own photo takes one of the person's other photos before a club one:
   // a birthday story with somebody else on it reads as a mistake (Ofer, 2026-10-18).
   const photo = useCallback((slot: PhotoSlot) => {
     const mine = Object.values(config.photos || {}).filter(Boolean) as string[];
     if (config.photos?.[slot]) return config.photos[slot]!;
     if (mine.length) return mine[PHOTO_SLOTS_ORDER.indexOf(slot) % mine.length];
-    return CLUB[slot] || null;
-  }, [config.photos]);
+    return variant.backgrounds[slot];
+  }, [config.photos, variant]);
   const own = (slot: PhotoSlot) => config.photos?.[slot] || null;
   const hasMine = Object.values(config.photos || {}).some(Boolean);
 
@@ -121,7 +119,9 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
       <Bg src={photo('intro')} kind={hasMine ? 'photo' : 'duo'} pos="50% 35%" />
       <div className="c end">
         <h1 className="rise d1">מזל טוב<br /><span className="name">{name}!</span> 🎂</h1>
-        <p className="lead rise d2">הנה השנה {yours} בריצה,<br />מיום ההולדת הקודם ועד היום.</p>
+        <p className="lead rise d2">{say('intro', mine
+          ? ['הנה השנה שלך בריצה, מיום ההולדת הקודם ועד היום.', 'שנה של ריצה מאז יום ההולדת הקודם — הנה היא.', 'מה עשית מאז יום ההולדת הקודם? הנה.']
+          : [`הנה השנה של ${name} בריצה, מיום ההולדת הקודם ועד היום.`, `שנה של ריצה של ${name} מאז יום ההולדת הקודם — הנה היא.`, `מה ${name} ${she ? 'עשתה' : 'עשה'} מאז יום ההולדת הקודם? הנה.`])}</p>
         <p className="hint rise d3">לחיצה שמאלה להמשך ‹</p>
       </div></>) });
     if (config.message) {
@@ -139,7 +139,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
     out.push({ key: 'km', dur: 5500, node: (live) => (<>
       <Bg src={photo('km')} kind={hasMine ? 'band' : 'duo'} pos="50% 42%" />
       <div className="c end">
-        <p className="k rise">{mine ? 'השנה רצת' : `השנה ${name} ${ran}`}</p>
+        <p className="k rise">{say('km', mine ? ['השנה רצת', 'בשנה הזו רצת', 'בסך הכול השנה'] : [`השנה ${name} ${ran}`, `בשנה הזו ${name} ${ran}`, 'בסך הכול השנה'])}</p>
         <div className="hero rise d1"><b><Count to={s.km} run={live} /></b><u>ק״מ</u></div>
         {s.km >= TLV_VALENCIA_KM / 2 && (<>
           <div className="trip rise d2"><svg viewBox="0 0 320 90"><path className="arc" d="M300 70 Q160 -30 20 60" fill="none" stroke="#FF5315" strokeWidth={3.5} strokeLinecap="round" strokeDasharray="2 8" /><circle cx="300" cy="70" r="5" fill="#fff" /><circle cx="20" cy="60" r="5" fill="#FF5315" /></svg>
@@ -157,10 +157,10 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
       </div></>) });
     if (s.streak && s.streak.days >= 3) {
       out.push({ key: 'streak', dur: 5500, node: (live) => (<>
-        <Bg src={own('streak')} kind={own('streak') ? 'photo' : 'plain'} pos="40% 40%" />
+        <Bg src={photo('streak')} kind={hasMine ? 'photo' : 'duo'} pos="40% 40%" />
         <div className="c end">
           <div className="ys-ring rise"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" className="tr" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth={9} /><circle cx="60" cy="60" r="52" className="prog" fill="none" stroke="#FF5315" strokeWidth={9} strokeLinecap="round" strokeDasharray="326.7" style={{ strokeDashoffset: 326.7 * (1 - s.streak!.days / s.totalDays) }} /></svg><span>🔥</span></div>
-          <p className="k rise">הרצף הכי ארוך {yours}</p>
+          <p className="k rise">{say('streak', [`הרצף הכי ארוך ${yours}`, 'הכי הרבה ימים ברצף', 'יום אחרי יום'])}</p>
           <div className="hero rise d1"><b><Count to={s.streak!.days} run={live} /></b><u>ימים ברצף</u></div>
           <p className="big2 rise d2">מ־<bdi>{dm(s.streak!.from)}</bdi> עד <bdi>{dm(s.streak!.to)}</bdi><br />{mine ? 'לא פספסת' : she ? 'לא פספסה' : 'לא פספס'} אף יום.</p>
         </div></>) });
@@ -169,7 +169,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
     if (m) {
       const r = routePath(m.route, 300, 220);
       out.push({ key: 'moment', dur: 6500, node: () => (<>
-        <Bg src={own('moment')} kind={own('moment') ? 'photo' : 'plain'} pos="70% 25%" />
+        <Bg src={photo('moment')} kind={hasMine ? 'photo' : 'duo'} pos="70% 25%" />
         <div className="c end">
           <p className="eyebrow-s rise">הריצה של השנה</p>
           <h2 className="rise d1">{config.momentTitle || MOMENT_TITLE[m.key]}</h2>
@@ -181,7 +181,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
     if (s.bests.length) {
       out.push({ key: 'prs', dur: 6000, node: () => (<>
         <div className="bg plain warm" />
-        <div className="c"><p className="k rise">השיאים {yours} השנה</p><div className="prs">
+        <div className="c"><p className="k rise">{say('prs', [`השיאים ${yours} השנה`, `הזמנים הכי מהירים ${yours}`, 'השיאים של השנה'])}</p><div className="prs">
           {['5k', '10k', 'hm', 'fm'].map((k, i) => {
             const b = s.bests.find((x) => x.key === k);
             if (!b) return null;
@@ -200,7 +200,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
       out.push({ key: 'long', dur: 5500, node: (live) => (<>
         <Bg src={photo('long')} kind={hasMine ? 'photo' : 'duo'} pos="45% 20%" />
         <div className="c end">
-          <p className="k rise">הריצה הכי ארוכה</p>
+          <p className="k rise">{say('long', ['הריצה הכי ארוכה', 'הכי רחוק שהגעת', 'הריצה הארוכה של השנה'])}</p>
           <div className="hero rise d1"><b><Count to={L.km} dec={1} run={live} /></b><u>ק״מ</u></div>
           {L.km > 42.2 && <div className="road rise d2"><i /><span className="m" style={{ left: `${(1 - 42.2 / L.km) * 100}%` }}>מרתון · <bdi>42.2</bdi></span></div>}
           <p className="big2 rise d3">{L.km > 42.2 ? `${Math.round(L.km - 42.2)} ק״מ יותר ממרתון.` : L.km > 21.1 ? 'יותר מחצי מרתון.' : 'בריצה אחת.'}</p>
@@ -226,7 +226,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
     }
     if (s.elevM >= 1000) {
       out.push({ key: 'climb', dur: 7000, node: (live) => (<>
-        <Bg src={own('climb')} kind={own('climb') ? 'band' : 'plain'} pos="78% 30%" />
+        <Bg src={photo('climb')} kind={hasMine ? 'band' : 'duo'} pos="78% 30%" />
         <div className="c end"><p className="k rise">{mine ? 'כמה טיפסת השנה' : `כמה ${name} ${she ? 'טיפסה' : 'טיפס'} השנה`}</p>
           <div className="hero rise d1"><b><Count to={s.elevM} run={live} /></b><u>מטר עלייה</u></div>
           {s.elevM >= EVEREST_M / 2 && <div className="cmp rise d2"><svg viewBox="0 0 80 56"><path d="M0 56 L16 36 L22 40 L34 18 L39 22 L48 4 L53 12 L58 9 L80 56 Z" fill="#FF5315" /><path d="M48 4 L53 12 L58 9 L62 18 L44 14 Z" className="snow" fill="#fff" /></svg>
@@ -247,15 +247,21 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
     ];
     out.push({ key: 'more', dur: 10000, node: () => (<>
       <Bg kind="plain" />
-      <div className="c"><p className="k rise">ועוד כמה מספרים</p><div className="tiles">
+      <div className="c"><p className="k rise">{say('more', ['ועוד כמה מספרים', 'השנה שלך בעוד מספרים', 'עוד כמה דברים שעשית'])}</p><div className="tiles">
         {tiles.slice(0, 8).map(([icon, value, label], i) => (
           <div key={i} className={`tl2 rise d${Math.min(4, Math.floor(i / 2) + 1)}`}><span>{icon}</span><b>{value}</b><small>{label}</small></div>
         ))}
         {s.calories > 0 && <div className="tl2 wide rise d4"><span>🍕</span><div><b><bdi>{n(s.calories)}</bdi> קלוריות</b><small>בערך {n(Math.round(s.calories / PIZZA_KCAL))} פיצות משפחתיות</small></div></div>}
       </div></div></>) });
-    out.push({ key: 'summary', dur: 20000, node: () => <Poster story={story} photo={own('poster') || own('moment') || own('intro')} onShareThis={() => void shareOneRef.current()} onShareAll={() => void shareAll()} busy={busy} busyAll={busyAll} onVideo={canVideo ? () => void videoRef.current() : undefined} busyVideo={!!video} /> });
+    // This person's order: their strongest numbers first (lib/birthday-year/variant).
+    const head = out.filter((x) => x.key === 'intro' || x.key === 'thanks');
+    const mid = variant.order.map((k) => out.find((x) => x.key === k)).filter((x): x is Slide => !!x);
+    const tail = out.filter((x) => x.key === 'more');
+    out.length = 0;
+    out.push(...head, ...mid, ...tail);
+    out.push({ key: 'summary', dur: 20000, node: () => <Poster story={story} photo={photo('poster')} onShareThis={() => void shareOneRef.current()} onShareAll={() => void shareAll()} busy={busy} busyAll={busyAll} onVideo={canVideo ? () => void videoRef.current() : undefined} busyVideo={!!video} /> });
     return out;
-  }, [story, s, config, name, photo, busy, busyAll, canVideo, video, mine, ran, yours, she]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [story, s, config, name, photo, busy, busyAll, canVideo, video, mine, ran, yours, she, variant]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [at, setAt] = useState(0);
   const [mounted, setMounted] = useState(false);
@@ -365,9 +371,11 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
     return () => window.removeEventListener('keydown', onKey);
   }, [go, onClose]);
 
+  const t = variant.theme;
+  const themeVars = { ['--tint' as string]: t.tint, ['--sat' as string]: t.sat, ['--c1' as string]: t.c1, ['--c2' as string]: t.c2, ['--c3' as string]: t.c3, ['--c4' as string]: t.c4, ['--gx' as string]: t.gx } as React.CSSProperties;
   if (!mounted) return null;
   return createPortal(
-    <div className="ys" role="dialog" aria-modal="true" aria-label={`השנה של ${name}`} dir="rtl" style={{ ['--fit' as string]: fit }}>
+    <div className="ys" role="dialog" aria-modal="true" aria-label={`השנה של ${name}`} dir="rtl" style={{ ['--fit' as string]: fit, ...themeVars }}>
       <div className="bars-top">{slides.map((sl, i) => (
         <i key={sl.key} className={i < at ? 'done' : i === at ? 'now' : ''} style={{ ['--dur' as string]: `${sl.dur}ms` }}><b key={i === at ? `run-${at}` : 'x'} /></i>
       ))}</div>
@@ -408,7 +416,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
         </div>
       )}
       {exporting != null && (
-        <div ref={exportRef} className="ys ys-export still" dir="rtl" aria-hidden style={{ width: EXPORT_W, height: EXPORT_H, ['--fit' as string]: EXPORT_H / 820 }}>
+        <div ref={exportRef} className="ys ys-export still" dir="rtl" aria-hidden style={{ width: EXPORT_W, height: EXPORT_H, ['--fit' as string]: EXPORT_H / 820, ...themeVars }}>
           {/* The poster carries its own mark. */}
           {slides[exporting].key !== 'summary' && (
             <div className="top">

@@ -2,7 +2,7 @@
    ~/.cache/madregot/birthday-year/mockup-v4.html. Every rule is scoped under .ys. */
 .ys{--blue:#1525FF;--blue2:#159AFF;--or:#FF5315;--ink:#0C0D12;--peach:#FFB08F}
 .ys bdi,.ys b{font-variant-numeric:tabular-nums}
-.ys{position:fixed;inset:0;z-index:400;color:#fff;overflow:hidden;background:#060a52;font-family:-apple-system,"SF Pro Display","SF Hebrew",system-ui,Heebo,Arial,sans-serif;-webkit-font-smoothing:antialiased;user-select:none}
+.ys{--tint:195deg;--c1:#2a3bff;--c2:#1525FF;--c3:#0a1080;--c4:#060a52;--sat:4.2;position:fixed;inset:0;z-index:400;color:#fff;overflow:hidden;background:var(--c4);font-family:-apple-system,"SF Pro Display","SF Hebrew",system-ui,Heebo,Arial,sans-serif;-webkit-font-smoothing:antialiased;user-select:none}
 .ys .bars-top{position:absolute;z-index:20;top:calc(env(safe-area-inset-top) + 10px);left:14px;right:14px;display:flex;gap:4px;direction:rtl}
 .ys .bars-top i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.32);overflow:hidden;position:relative}
 .ys .bars-top i b{position:absolute;inset:0;background:#fff;transform-origin:right;transform:scaleX(0)}
@@ -19,16 +19,16 @@
 .ys .show .bg img{animation:kb 6s ease-out forwards}
 @keyframes kb{from{transform:scale(calc(var(--zoom) * 1.08))}to{transform:scale(var(--zoom))}}
 .ys .bg::after{content:"";position:absolute;inset:0;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.5'/></svg>");mix-blend-mode:overlay;opacity:.35;pointer-events:none}
-.ys .bg.duo img{filter:grayscale(1) sepia(1) hue-rotate(195deg) saturate(4.2) contrast(1.1) brightness(.78)}
-.ys .bg.duo::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(6,10,82,.35) 0%,rgba(21,37,255,.12) 30%,rgba(6,10,82,.88) 74%,#060a52 100%)}
+.ys .bg.duo img{filter:grayscale(1) sepia(1) hue-rotate(var(--tint)) saturate(var(--sat)) contrast(1.1) brightness(.78)}
+.ys .bg.duo::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(6,10,82,.35) 0%,rgba(21,37,255,.12) 30%,rgba(6,10,82,.88) 74%,var(--c4) 100%)}
 .ys .bg.mono img{filter:grayscale(1) contrast(1.1) brightness(.8)}
 .ys .bg.mono::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(0,0,0,.25),rgba(0,0,0,.35) 45%,rgba(8,8,14,.96) 82%)}
 .ys .bg.photo::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,0) 22%,rgba(0,0,0,0) 42%,rgba(6,10,60,.9) 72%,#060a3c 100%)}
 .ys .bg.soft img{filter:blur(14px) brightness(.7) saturate(1.2)}
 .ys .bg.soft::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(21,37,255,.35),rgba(6,10,82,.85))}
-.ys .bg.plain{background:radial-gradient(120% 70% at 85% 0%,#2a3bff 0%,#1525FF 35%,#0a1080 78%,#060a52 100%)}
-.ys .bg.plain.warm{background:radial-gradient(110% 60% at 15% 100%,rgba(255,83,21,.45) 0%,rgba(255,83,21,0) 60%),radial-gradient(120% 70% at 85% 0%,#2a3bff 0%,#1525FF 35%,#0a1080 78%,#060a52 100%)}
-.ys .bg.plain.deep{background:linear-gradient(180deg,#0a1080,#060a3c)}
+.ys .bg.plain{background:radial-gradient(120% 70% at var(--gx,85%) 0%,var(--c1) 0%,var(--c2) 35%,var(--c3) 78%,var(--c4) 100%)}
+.ys .bg.plain.warm{background:radial-gradient(110% 60% at 15% 100%,rgba(255,83,21,.45) 0%,rgba(255,83,21,0) 60%),radial-gradient(120% 70% at var(--gx,85%) 0%,var(--c1) 0%,var(--c2) 35%,var(--c3) 78%,var(--c4) 100%)}
+.ys .bg.plain.deep{background:linear-gradient(180deg,var(--c3),var(--c4))}
 .ys .bg.plain::before{content:"";position:absolute;inset:0;background:url("/images/stairs-white.png") no-repeat -70px 108%/85%;opacity:.07}
 .ys .c{position:absolute;z-index:5;inset:0;padding:calc(env(safe-area-inset-top) + 90px) 26px calc(env(safe-area-inset-bottom) + 72px);display:flex;flex-direction:column;justify-content:center}
 .ys .c.end{justify-content:flex-end}
