@@ -76,6 +76,8 @@ const STILL_LOADING_MS = 10_000;
 
 /** The probe's own channel, so the listeners are installed exactly once. */
 const BLANK_EVENT = 'mc:blank';
+/** A render the error boundary caught (CrashScreen): it never reaches window 'error'. */
+const CRASH_EVENT = 'mc:crash';
 
 export function ClientEventReporter() {
   const pathname = usePathname();
@@ -231,6 +233,8 @@ export function ClientEventReporter() {
      */
     const onBlank = (e: Event) => record('blank', (e as CustomEvent<string>).detail || undefined);
     window.addEventListener(BLANK_EVENT, onBlank);
+    const onCrash = (e: Event) => record('error', (e as CustomEvent<string>).detail || 'crash');
+    window.addEventListener(CRASH_EVENT, onCrash);
 
     /* ── boot ── which build this phone is actually running ───────────────── */
     // How this app was opened: 'app' (from the home-screen icon, standalone) or
@@ -256,6 +260,7 @@ export function ClientEventReporter() {
       window.removeEventListener('unhandledrejection', onRejection);
       window.removeEventListener('pagehide', onHide);
       window.removeEventListener(BLANK_EVENT, onBlank);
+      window.removeEventListener(CRASH_EVENT, onCrash);
       document.removeEventListener('input', onInput, true);
       document.removeEventListener('submit', onSubmit, true);
       if (timer) clearTimeout(timer);

@@ -139,7 +139,8 @@ export function WhatsNewStory({
   }, [onClose]);
 
   if (!mounted || pages === 0) return null;
-  const slide = slides[at];
+  // Never past the end, whatever the props did since the page was chosen.
+  const slide = slides[Math.min(at, pages - 1)];
   const entry = slide?.entry;
   const demo = slide?.demo;
   const copy = demo ? demo[lang] : entry?.[lang];

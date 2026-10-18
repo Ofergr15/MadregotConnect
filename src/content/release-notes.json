@@ -1,5 +1,14 @@
 [
   {
+    "id": "whats-new-open-crash",
+    "date": "2026-10-18",
+    "kind": "fix",
+    "icon": "🛠️",
+    "title": "\"מה חדש\" לא קורס בפתיחה",
+    "body": "המסך נבנה רק אחרי שהחשבון ידוע, ולא משתנה כשהוא פתוח. ואם משהו קורס, זה מדווח אלינו.",
+    "audience": "staff"
+  },
+  {
     "id": "session-photos-club-push",
     "date": "2026-10-18",
     "kind": "feature",

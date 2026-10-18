@@ -40,6 +40,11 @@ export function CrashScreen({
     // The console is the only reporting channel this app has. Keep the digest —
     // it is what ties a user's screenshot to a server-side stack in Vercel.
     console.error(`[crash:${scope}]`, error?.message, error?.digest ?? '', error);
+    // And to the server (ClientEventReporter, 'mc:crash'): a caught render error never
+    // reaches window 'error', so without this a crash left no trace at all (10-18).
+    try {
+      window.dispatchEvent(new CustomEvent('mc:crash', { detail: `[crash:${scope}] ${error?.message ?? ''} ${error?.digest ?? ''}`.slice(0, 300) }));
+    } catch { /* reporting must never throw here */ }
   }, [error, scope]);
 
   // A stale bundle is not a decision to put to the user: nothing else on the page
