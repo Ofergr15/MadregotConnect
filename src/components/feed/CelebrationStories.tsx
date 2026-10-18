@@ -176,13 +176,24 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
     if (open == null) return;
     setAt(open);
     markSeen(entries[open].item.id);
-    requestAnimationFrame(() => {
+    // The sheet mounts and lays out over a few frames, so one frame after `open` the
+    // row may not exist or have no width yet, and the scroll did nothing: a tap on
+    // the second circle opened the first (lab, 10-18). Try each frame until it lands.
+    let frames = 0;
+    let raf = 0;
+    const land = () => {
       const el = slidesRef.current;
-      if (!el) return;
-      // In a right-to-left row scrollLeft runs from 0 towards negative numbers.
-      const sign = getComputedStyle(el).direction === 'rtl' ? -1 : 1;
-      el.scrollTo({ left: sign * open * el.clientWidth, behavior: 'instant' as ScrollBehavior });
-    });
+      if (el && el.clientWidth > 0) {
+        // In a right-to-left row scrollLeft runs from 0 towards negative numbers.
+        const sign = getComputedStyle(el).direction === 'rtl' ? -1 : 1;
+        const left = sign * open * el.clientWidth;
+        el.scrollTo({ left, behavior: 'instant' as ScrollBehavior });
+        if (Math.abs(el.scrollLeft - left) < 2 || open === 0) return;
+      }
+      if (++frames < 30) raf = requestAnimationFrame(land);
+    };
+    raf = requestAnimationFrame(land);
+    return () => cancelAnimationFrame(raf);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onScroll = () => {

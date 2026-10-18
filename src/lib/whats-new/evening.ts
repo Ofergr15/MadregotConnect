@@ -129,7 +129,7 @@ export const EVENING_ENTRIES: WhatsNewEntry[] = [
     href: '/feed',
     cards: [
       { key: 'b18-celebrations', he: 'יום הולדת', en: 'A birthday' },
-      { key: 'b18-celebrations-cheer', he: 'שיא אישי', en: 'A personal best' },
+      { key: 'b18-celebrations-cheer', he: 'מרתון', en: 'A marathon' },
     ],
     he: { title: 'ימי הולדת וחגיגות, בפיד', body: '"חוגגים היום" בראש הפיד: יום הולדת עולה לבד, ושיא אישי או מרתון מהיר מקבלים ברכה מהמאמנים. נגיעה בעיגול פותחת את החגיגה, עם לייק ותגובה.', cta: 'לפיד', kicker: 'חדש · חגיגות', where: 'בפיד' },
     en: { title: 'Birthdays and celebrations, on the feed', body: '"Celebrating today" at the top of the feed: birthdays go up by themselves, and a personal best or a fast marathon gets a cheer from the coaches. Tap a circle to open it, like and comment.', cta: 'To the feed', kicker: 'New · Celebrations', where: 'On the feed' },
