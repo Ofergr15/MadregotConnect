@@ -155,14 +155,16 @@ export interface BirthdayStory {
   name: string;
   avatarUrl: string | null;
   birthday: string;
+  /** 'male' | 'female' | null — the story's verbs when somebody else is watching it. */
+  gender?: string | null;
   stats: YearStats;
   config: BirthdayConfig;
 }
 
 export async function loadStory(supabase: Db, athleteId: string, today: string, opts: { preview?: boolean } = {}): Promise<BirthdayStory | null> {
-  const { data: a } = await supabase.from('athletes').select('id, name, avatar_url, birth_date')
+  const { data: a } = await supabase.from('athletes').select('id, name, avatar_url, birth_date, gender')
     .eq('id', athleteId).eq('coach_id', COACH_ID).maybeSingle();
-  const athlete = a as { id: string; name: string | null; avatar_url: string | null; birth_date: string | null } | null;
+  const athlete = a as { id: string; name: string | null; avatar_url: string | null; birth_date: string | null; gender?: string | null } | null;
   if (!athlete?.birth_date) return null;
   const birthday = storyBirthday(athlete.birth_date, today, opts);
   if (!birthday) return null;
@@ -177,6 +179,7 @@ export async function loadStory(supabase: Db, athleteId: string, today: string, 
     name: config.displayName?.trim() || (athlete.name || '').trim().split(/\s+/)[0] || '',
     avatarUrl: athlete.avatar_url,
     birthday,
+    gender: athlete.gender ?? null,
     stats,
     config,
   };

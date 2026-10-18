@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAthleteId } from '@/lib/use-athlete-id';
 import type { BirthdayStory, PhotoSlot } from '@/lib/birthday-year/server';
 import {
   AZRIELI_ROUND_M, EVEREST_M, PIZZA_KCAL, TLV_VALENCIA_KM, timesInWords,
@@ -78,6 +79,13 @@ interface Slide { key: string; dur: number; node: (live: boolean) => React.React
 
 export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: () => void }) {
   const { stats: s, config, name } = story;
+  // Spoken to the birthday person when it is theirs, and about them to everybody else
+  // (Ofer, 2026-10-18: "השיאים של שליו" when I open it, "השיאים שלך" when he does).
+  const myId = useAthleteId();
+  const mine = !!myId && myId === story.athleteId;
+  const she = story.gender === 'female';
+  const ran = mine ? 'רצת' : she ? 'רצה' : 'רץ';
+  const yours = mine ? 'שלך' : `של ${name}`;
   // A slide without its own photo takes one of the person's other photos before a club one:
   // a birthday story with somebody else on it reads as a mistake (Ofer, 2026-10-18).
   const photo = useCallback((slot: PhotoSlot) => {
@@ -113,7 +121,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
       <Bg src={photo('intro')} kind={hasMine ? 'photo' : 'duo'} pos="50% 35%" />
       <div className="c end">
         <h1 className="rise d1">מזל טוב<br /><span className="name">{name}!</span> 🎂</h1>
-        <p className="lead rise d2">הנה השנה שלך בריצה,<br />מיום ההולדת הקודם ועד היום.</p>
+        <p className="lead rise d2">הנה השנה {yours} בריצה,<br />מיום ההולדת הקודם ועד היום.</p>
         <p className="hint rise d3">לחיצה שמאלה להמשך ‹</p>
       </div></>) });
     if (config.message) {
@@ -131,7 +139,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
     out.push({ key: 'km', dur: 5500, node: (live) => (<>
       <Bg src={photo('km')} kind={hasMine ? 'band' : 'duo'} pos="50% 42%" />
       <div className="c end">
-        <p className="k rise">השנה רצת</p>
+        <p className="k rise">{mine ? 'השנה רצת' : `השנה ${name} ${ran}`}</p>
         <div className="hero rise d1"><b><Count to={s.km} run={live} /></b><u>ק״מ</u></div>
         {s.km >= TLV_VALENCIA_KM / 2 && (<>
           <div className="trip rise d2"><svg viewBox="0 0 320 90"><path className="arc" d="M300 70 Q160 -30 20 60" fill="none" stroke="#FF5315" strokeWidth={3.5} strokeLinecap="round" strokeDasharray="2 8" /><circle cx="300" cy="70" r="5" fill="#fff" /><circle cx="20" cy="60" r="5" fill="#FF5315" /></svg>
@@ -142,19 +150,19 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
     out.push({ key: 'days', dur: 8000, node: (live) => (<>
       <Bg kind="plain" />
       <div className="c">
-        <p className="k rise">{s.restDays <= s.totalDays * 0.2 ? 'כמעט כל יום' : 'הימים שרצת'}</p>
+        <p className="k rise">{s.restDays <= s.totalDays * 0.2 ? 'כמעט כל יום' : `הימים ש${mine ? '' : `${name} `}${ran}`}</p>
         <div className="hero sm rise d1"><b><Count to={s.runDates.length} run={live} /></b><u>ימים עם ריצה, מתוך {s.totalDays}</u></div>
         <p className="lead rise d1">כל ריבוע הוא יום. {s.restDays} ימי מנוחה בכל השנה.</p>
-        <MonthGrid story={story} />
+        <MonthGrid story={story} ranLabel={ran} />
       </div></>) });
     if (s.streak && s.streak.days >= 3) {
       out.push({ key: 'streak', dur: 5500, node: (live) => (<>
         <Bg src={own('streak')} kind={own('streak') ? 'photo' : 'plain'} pos="40% 40%" />
         <div className="c end">
           <div className="ys-ring rise"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" className="tr" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth={9} /><circle cx="60" cy="60" r="52" className="prog" fill="none" stroke="#FF5315" strokeWidth={9} strokeLinecap="round" strokeDasharray="326.7" style={{ strokeDashoffset: 326.7 * (1 - s.streak!.days / s.totalDays) }} /></svg><span>🔥</span></div>
-          <p className="k rise">הרצף הכי ארוך שלך</p>
+          <p className="k rise">הרצף הכי ארוך {yours}</p>
           <div className="hero rise d1"><b><Count to={s.streak!.days} run={live} /></b><u>ימים ברצף</u></div>
-          <p className="big2 rise d2">מ־<bdi>{dm(s.streak!.from)}</bdi> עד <bdi>{dm(s.streak!.to)}</bdi><br />לא פספסת אף יום.</p>
+          <p className="big2 rise d2">מ־<bdi>{dm(s.streak!.from)}</bdi> עד <bdi>{dm(s.streak!.to)}</bdi><br />{mine ? 'לא פספסת' : she ? 'לא פספסה' : 'לא פספס'} אף יום.</p>
         </div></>) });
     }
     const m = s.moment;
@@ -173,7 +181,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
     if (s.bests.length) {
       out.push({ key: 'prs', dur: 6000, node: () => (<>
         <div className="bg plain warm" />
-        <div className="c"><p className="k rise">השיאים שלך השנה</p><div className="prs">
+        <div className="c"><p className="k rise">השיאים {yours} השנה</p><div className="prs">
           {['5k', '10k', 'hm', 'fm'].map((k, i) => {
             const b = s.bests.find((x) => x.key === k);
             if (!b) return null;
@@ -219,7 +227,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
     if (s.elevM >= 1000) {
       out.push({ key: 'climb', dur: 7000, node: (live) => (<>
         <Bg src={own('climb')} kind={own('climb') ? 'band' : 'plain'} pos="78% 30%" />
-        <div className="c end"><p className="k rise">כמה טיפסת השנה</p>
+        <div className="c end"><p className="k rise">{mine ? 'כמה טיפסת השנה' : `כמה ${name} ${she ? 'טיפסה' : 'טיפס'} השנה`}</p>
           <div className="hero rise d1"><b><Count to={s.elevM} run={live} /></b><u>מטר עלייה</u></div>
           {s.elevM >= EVEREST_M / 2 && <div className="cmp rise d2"><svg viewBox="0 0 80 56"><path d="M0 56 L16 36 L22 40 L34 18 L39 22 L48 4 L53 12 L58 9 L80 56 Z" fill="#FF5315" /><path d="M48 4 L53 12 L58 9 L62 18 L44 14 Z" className="snow" fill="#fff" /></svg>
             <div><p>האוורסט · <bdi>{n(EVEREST_M)}</bdi> מ׳</p><b>פי <bdi>{(s.elevM / EVEREST_M).toFixed(1)}</bdi></b></div></div>}
@@ -233,7 +241,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
       ...(s.doubleDays ? [['✌️', <bdi key="d">{s.doubleDays}</bdi>, 'ימים עם שני אימונים'] as [string, React.ReactNode, string]] : []),
       ...(s.over30 ? [['🛣️', <bdi key="o">{s.over30}</bdi>, 'ריצות של 30 ק״מ ומעלה'] as [string, React.ReactNode, string]] : []),
       ['📏', <><bdi>{s.avgKm}</bdi> ק״מ</>, 'ריצה ממוצעת'],
-      ...(s.topWeekday ? [['☀️', <>{WEEKDAYS[s.topWeekday.day]}</>, `היום שהכי הרבה רצת בו · ${s.topWeekday.runs}`] as [string, React.ReactNode, string]] : []),
+      ...(s.topWeekday ? [['☀️', <>{WEEKDAYS[s.topWeekday.day]}</>, `היום שהכי הרבה ${ran} בו · ${s.topWeekday.runs}`] as [string, React.ReactNode, string]] : []),
       ['🌳', <bdi key="out">{s.outdoor}</bdi>, 'ריצות בחוץ'],
       ...(s.treadmill ? [['🏠', <bdi key="tm">{s.treadmill}</bdi>, 'ריצות בהליכון'] as [string, React.ReactNode, string]] : []),
     ];
@@ -247,7 +255,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
       </div></div></>) });
     out.push({ key: 'summary', dur: 20000, node: () => <Poster story={story} photo={own('poster') || own('moment') || own('intro')} onShareThis={() => void shareOneRef.current()} onShareAll={() => void shareAll()} busy={busy} busyAll={busyAll} onVideo={canVideo ? () => void videoRef.current() : undefined} busyVideo={!!video} /> });
     return out;
-  }, [story, s, config, name, photo, busy, busyAll, canVideo, video]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [story, s, config, name, photo, busy, busyAll, canVideo, video, mine, ran, yours, she]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [at, setAt] = useState(0);
   const [mounted, setMounted] = useState(false);
@@ -422,7 +430,7 @@ function SlideBody({ children }: { live: boolean; children: React.ReactNode }) {
 }
 
 /** 13 small month calendars, Sunday first: blue = ran, empty = rest, orange = the streak. */
-function MonthGrid({ story }: { story: BirthdayStory }) {
+function MonthGrid({ story, ranLabel }: { story: BirthdayStory; ranLabel: string }) {
   const s = story.stats;
   const ran = new Set(s.runDates);
   const cards: React.ReactNode[] = [];
@@ -451,7 +459,7 @@ function MonthGrid({ story }: { story: BirthdayStory }) {
   return (
     <div className="cal4 rise d2">
       {cards}
-      <div className="mc lg"><p><i className="on" />רצת</p><p><i className="off" />מנוחה</p>{s.streak && s.streak.days >= 3 && <p><i className="st" />הרצף, {s.streak.days} ימים</p>}</div>
+      <div className="mc lg"><p><i className="on" />{ranLabel}</p><p><i className="off" />מנוחה</p>{s.streak && s.streak.days >= 3 && <p><i className="st" />הרצף, {s.streak.days} ימים</p>}</div>
     </div>
   );
 }
