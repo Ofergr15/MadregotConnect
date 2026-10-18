@@ -2726,7 +2726,9 @@
     "actionLike": "אהבתי",
     "actionComment": "תגובה",
     "actionShare": "שיתוף",
-    "actionChat": "צ׳אט"
+    "actionChat": "צ׳אט",
+    "celebrationFrom": "המועדון",
+    "celebrationWatch": "לצפייה בסרטון"
   },
   "feedHighlight": {
     "unit_distance_km": "ק״מ",
@@ -3556,7 +3558,9 @@
     "notificationsSub": "נשלחה לאחרונה {date}: הגיעה ל-{n}",
     "notificationsNone": "עוד לא נשלח כלום",
     "whatsNew": "מה חדש",
-    "whatsNewSub": "אחרון: {title}"
+    "whatsNewSub": "אחרון: {title}",
+    "birthdays": "ימי הולדת",
+    "birthdaysSub": "\"השנה שלך\" לכל חוגג · תמונות ומילה אישית"
   },
   "weekEditor": {
     "title": "שיתוף השבוע",
@@ -5368,6 +5372,13 @@
     "savedNote": "התוצאה נשמרת, והמאמן רואה אותה."
   },
   "daySession": {
+    "delete": "מחיקת האימון",
+    "deleteTitle": "למחוק את האימון של {day}?",
+    "deleteBody": "האימון יימחק מהפיד ומהשעונים שהוא נשלח אליהם.",
+    "deleteBodySent": "האימון יימחק מהפיד ומהשעונים שהוא נשלח אליהם. ההתראה שכבר נשלחה לא תבוטל.",
+    "deleteConfirm": "למחוק",
+    "deleted": "האימון נמחק",
+    "deleteFailed": "המחיקה נכשלה, נסו שוב",
     "modeText": "לכתוב במשפט",
     "modeManual": "להכניס ידנית",
     "edit": "✎ לערוך",

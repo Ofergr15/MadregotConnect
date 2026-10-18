@@ -3,8 +3,9 @@ import { authError, requireSession } from '@/lib/auth-session';
 import { israelNow, israelToday, addDaysToDateStr } from '@/lib/utils';
 import { isOnFeed, mayEditDaySession, maySeeDaySession, notifyOnce, readInput, resolveWorkout } from '@/lib/day-session/model';
 import {
-  claimNotify, daySessionRecipients, readDaySession, readUpcoming, saveDaySession, sendDaySessionPush,
+  claimNotify, daySessionRecipients, deleteDaySession, readDaySession, readUpcoming, saveDaySession, sendDaySessionPush,
 } from '@/lib/day-session/server';
+import { removeDaySessionFromWatches } from '@/lib/day-session/watch';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 // GET                    -> { setup, sessions }  the feed: published, on now (isOnFeed)
 // PUT { date, startTime, place, quickText, steps?, title?, description?, nutrition, publish, notify }
 //                        -> { session, notified } save the date's row; publish pushes once
+// DELETE ?date=YYYY-MM-DD -> { deleted, watches }  the date's row gone, and off the watches it reached
 //
 // `steps` are the planner editor's WorkoutStep[] (validateWorkoutSteps): stored as sent, the sentence is NOT re-parsed —
 // it stays in quick_text as the coach's own words. Without `steps` the sentence is parsed
@@ -99,5 +101,30 @@ export async function PUT(request: Request) {
   } catch (err) {
     console.error('[day-session] PUT failed:', err);
     return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  const auth = await requireSession(request);
+  if (!auth.ok) return authError(auth);
+  if (!mayEditDaySession(auth.user)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (auth.user.viewingAsBy) return NextResponse.json({ error: 'Not while viewing as somebody' }, { status: 403 });
+  const date = new URL(request.url).searchParams.get('date') || '';
+  if (!DATE.test(date)) return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 });
+  try {
+    const deleted = await deleteDaySession(date);
+    if (deleted === null) return NextResponse.json({ error: 'not_set_up' }, { status: 503 });
+    if (!deleted) return NextResponse.json({ error: 'no session for that date' }, { status: 404 });
+    // Best-effort, after the row: the session is gone whatever Garmin answers.
+    let watches = 0;
+    try {
+      watches = await removeDaySessionFromWatches(date);
+    } catch (err) {
+      console.error('[day-session] watch cleanup failed:', err);
+    }
+    return NextResponse.json({ deleted: true, watches });
+  } catch (err) {
+    console.error('[day-session] DELETE failed:', err);
+    return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
   }
 }

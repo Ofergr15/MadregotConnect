@@ -43,6 +43,9 @@ import { WhatsNewAutoSheet } from '@/components/whats-new/WhatsNewSheet';
 import { OnboardingTestReset } from '@/components/onboarding/OnboardingTestReset';
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import { GoalRaceBanner } from '@/components/GoalRaceBanner';
+import { CelebrationStories } from '@/components/feed/CelebrationStories';
+import { toCelebration } from '@/lib/feed/celebration';
+import { BirthdayYearCard } from '@/components/birthday/BirthdayYearCard';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
 import { appScrollTop, scrollAppToTop } from '@/lib/app-scroll';
@@ -484,7 +487,9 @@ export default function FeedPage() {
   // sheet toggle, which used to re-render all of it per frame.
   const openComment = useCallback((i: FeedItem) => setCommentItem(i), []);
   const feedList = useMemo(() => {
-            const visible = items.filter(item => item.id !== focusItem?.id && item.id !== photosItem?.id);
+            // Celebrations live in the row of circles at the top, never in the list.
+            const visible = items.filter(item => item.id !== focusItem?.id && item.id !== photosItem?.id
+              && !(item.type === 'announcement' && toCelebration(item.payload)));
             const entries = groupFeedItems(visible, myAthleteId);
             let lastDay = '';
             return entries.map((entry, idx) => {
@@ -609,6 +614,11 @@ export default function FeedPage() {
       <WhatsNewAutoSheet ready={!loading && !error && items.length > 0} />
       <OnboardingTestReset />
 
+      {/* ═══ CELEBRATIONS ═══
+          The day's birthdays and celebrations as a row of circles, always first
+          (CelebrationStories). Nothing on a day with nothing to celebrate. */}
+      <CelebrationStories onComment={i => setCommentItem(i)} />
+
       {/* ═══ THE QUALITY SESSION ═══
           07:00 → 11:00 on a quality day (read off the plan), the super user's
           alone while it is tried out: one row that opens the screen where a runner
@@ -640,6 +650,11 @@ export default function FeedPage() {
       {/* ═══ GOAL RACE ═══
           Weeks to the club's goal race, one slim line, above everything that
           changes day to day. Renders nothing once the race is behind us. */}
+      {/* ═══ BIRTHDAY ═══ the birthday person's year story, for the week after (lib/birthday-year). */}
+      <div className="mb-4 empty:mb-0">
+        <BirthdayYearCard />
+      </div>
+
       <div className="mb-4 empty:mb-0">
         <GoalRaceBanner />
       </div>

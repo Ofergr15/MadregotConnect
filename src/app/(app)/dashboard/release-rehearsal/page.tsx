@@ -38,7 +38,7 @@ type Step = (typeof STEPS)[number];
 const ONLY_IF_OPEN: Step[] = ['sheet', 'updating', 'toast'];
 const SPLASH_KEY = 'app_splash_shown';
 /** The release this rehearsal is for (lib/whats-new/evening.ts EVENING_ENTRIES). */
-const REHEARSED_VERSION = '2.41.219';
+const REHEARSED_VERSION = '2.41.221';
 
 /** The version the evening would announce: one patch above what runs now. */
 function nextVersion(v: string): string {
@@ -70,7 +70,9 @@ export default function ReleaseRehearsalPage() {
 
   // Rehearsed on the release's own build (a preview, before it reaches production):
   // the version to announce is this bundle's. On an older build, the next patch.
-  const version = REHEARSED_VERSION === APP_VERSION ? APP_VERSION : nextVersion(APP_VERSION);
+  // Compared as strings: both are literal constants, and the release that bumps APP_VERSION
+  // past the rehearsed one must still compile.
+  const version = (REHEARSED_VERSION as string) === APP_VERSION ? APP_VERSION : nextVersion(APP_VERSION);
   const steps = useMemo(() => STEPS.filter(s => !(closed && ONLY_IF_OPEN.includes(s))), [closed]);
   const step: Step = steps[Math.min(i, steps.length - 1)];
 
