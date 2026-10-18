@@ -7,6 +7,7 @@ import {
   AZRIELI_ROUND_M, EVEREST_M, PIZZA_KCAL, TLV_VALENCIA_KM, timesInWords,
 } from '@/lib/birthday-year/stats';
 import { EXPORT_H, EXPORT_W, captureSlide, shareImages } from './capture';
+import { SLIDE_MS, canRecordVideo, recordStory, shareVideo, videoLength } from './video';
 import './year-story.css';
 
 // "השנה שלך" — the birthday story (mockup ~/.cache/madregot/birthday-year/mockup-v4.html).
@@ -98,6 +99,13 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
   const shareAllRef = useRef<() => Promise<void>>(async () => {});
   const shareAll = () => shareAllRef.current();
   const shareOneRef = useRef<() => Promise<void>>(async () => {});
+  // The whole story as one video (video.ts): pictures first, then a real-time recording.
+  const [video, setVideo] = useState<{ phase: 'prep' | 'rec'; p: number; slide: number } | null>(null);
+  const [videoFile, setVideoFile] = useState<Blob | null>(null);
+  const videoAbort = useRef<AbortController | null>(null);
+  const videoRef = useRef<() => Promise<void>>(async () => {});
+  const [canVideo, setCanVideo] = useState(false);
+  useEffect(() => { setCanVideo(canRecordVideo()); }, []);
 
   const slides = useMemo<Slide[]>(() => {
     const out: Slide[] = [];
@@ -237,9 +245,9 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
         ))}
         {s.calories > 0 && <div className="tl2 wide rise d4"><span>🍕</span><div><b><bdi>{n(s.calories)}</bdi> קלוריות</b><small>בערך {n(Math.round(s.calories / PIZZA_KCAL))} פיצות משפחתיות</small></div></div>}
       </div></div></>) });
-    out.push({ key: 'summary', dur: 20000, node: () => <Poster story={story} photo={own('poster') || own('moment') || own('intro')} onShareThis={() => void shareOneRef.current()} onShareAll={() => void shareAll()} busy={busy} busyAll={busyAll} /> });
+    out.push({ key: 'summary', dur: 20000, node: () => <Poster story={story} photo={own('poster') || own('moment') || own('intro')} onShareThis={() => void shareOneRef.current()} onShareAll={() => void shareAll()} busy={busy} busyAll={busyAll} onVideo={canVideo ? () => void videoRef.current() : undefined} busyVideo={!!video} /> });
     return out;
-  }, [story, s, config, name, photo, busy, busyAll]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [story, s, config, name, photo, busy, busyAll, canVideo, video]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [at, setAt] = useState(0);
   const [mounted, setMounted] = useState(false);
@@ -285,6 +293,40 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
     } finally {
       setExporting(null); setBusyAll(false);
     }
+  };
+  videoRef.current = async () => {
+    const ac = new AbortController();
+    videoAbort.current = ac;
+    setNotice(null); setVideoFile(null);
+    setVideo({ phase: 'prep', p: 0, slide: 1 });
+    const pictures: ImageBitmap[] = [];
+    try {
+      for (let i = 0; i < slides.length; i++) {
+        if (ac.signal.aborted) return;
+        setVideo({ phase: 'prep', p: i / slides.length, slide: i + 1 });
+        pictures.push(await createImageBitmap(await captureSlide(await renderStill(i))));
+      }
+      setExporting(null);
+      const total = videoLength(pictures.length);
+      const blob = await recordStory(pictures, {
+        signal: ac.signal,
+        onProgress: (p) => setVideo({ phase: 'rec', p, slide: Math.min(pictures.length, Math.floor((p * total) / SLIDE_MS) + 1) }),
+      });
+      // Safari opens the share sheet only right after a tap, and the recording took
+      // longer than that — so the ready video waits for one more tap.
+      setVideoFile(blob);
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') setNotice('לא הצלחנו להכין את הסרטון');
+    } finally {
+      pictures.forEach((b) => b.close());
+      setExporting(null); setVideo(null); videoAbort.current = null;
+    }
+  };
+  const sendVideo = async () => {
+    if (!videoFile) return;
+    const r = await shareVideo(videoFile, `madregot-${story.birthday}`);
+    if (r === 'downloaded') { setNotice('הסרטון נשמר'); setTimeout(() => setNotice(null), 2600); }
+    if (r !== 'cancelled') setVideoFile(null);
   };
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const go = useCallback((d: number) => setAt((i) => Math.max(0, Math.min(slides.length - 1, i + d))), [slides.length]);
@@ -342,6 +384,21 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
         </button>
       )}
       {notice && <p className="ys-notice" role="status">{notice}</p>}
+      {(video || videoFile) && (
+        <div className="ys-video" role="status">
+          {video ? (<>
+            <b>מכין את הסרטון…</b>
+            <div className="bar"><i style={{ width: `${Math.round((video.phase === 'prep' ? video.p * 0.25 : 0.25 + video.p * 0.75) * 100)}%` }} /></div>
+            <small>{video.phase === 'prep' ? 'מכין את השקפים' : <>שקף <bdi>{video.slide}</bdi> מתוך <bdi>{slides.length}</bdi></>}<br />כדאי להשאיר את המסך פתוח</small>
+            <button type="button" className="ghost" onClick={() => videoAbort.current?.abort()}>ביטול</button>
+          </>) : (<>
+            <b>🎬 הסרטון מוכן</b>
+            <small>לאינסטגרם ← סטורי, לוואטסאפ, או שמירה לגלריה</small>
+            <button type="button" className="go" onClick={() => void sendVideo()}>שיתוף הסרטון</button>
+            <button type="button" className="ghost" onClick={() => setVideoFile(null)}>סגירה</button>
+          </>)}
+        </div>
+      )}
       {exporting != null && (
         <div ref={exportRef} className="ys ys-export still" dir="rtl" aria-hidden style={{ width: EXPORT_W, height: EXPORT_H, ['--fit' as string]: EXPORT_H / 820 }}>
           {/* The poster carries its own mark. */}
@@ -399,8 +456,10 @@ function MonthGrid({ story }: { story: BirthdayStory }) {
   );
 }
 
-function Poster({ story, photo, onShareThis, onShareAll, busy, busyAll }: {
+function Poster({ story, photo, onShareThis, onShareAll, busy, busyAll, onVideo, busyVideo }: {
   story: BirthdayStory; photo: string | null; onShareThis: () => void; onShareAll: () => void; busy: boolean; busyAll: boolean;
+  /** The whole story as one video — absent where the browser cannot record one. */
+  onVideo?: () => void; busyVideo: boolean;
 }) {
   const s = story.stats;
   const fm = s.bests.find((b) => b.key === 'fm');
@@ -429,6 +488,7 @@ function Poster({ story, photo, onShareThis, onShareAll, busy, busyAll }: {
       <div className="pft"><img src="/images/wordmark-white.png" alt="" /><span>🎂 מזל טוב מכל המדרגות</span></div>
     </div>
     <div className="acts rise d2">
+      {onVideo && <button type="button" className="v" onClick={onVideo} disabled={busyVideo}>🎬 סרטון לסטורי</button>}
       <button type="button" className="p" onClick={onShareThis} disabled={busy}>{busy ? 'מכין…' : 'שיתוף התמונה הזו לסטורי'}</button>
       <button type="button" onClick={onShareAll} disabled={busyAll}>{busyAll ? 'מכין את כל התמונות…' : 'שמירת כל התמונות'}</button>
     </div></div>
