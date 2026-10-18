@@ -30,6 +30,7 @@ import { WeekSummaryCard } from '@/components/feed/WeekSummaryCard';
 import { QualitySessionRow } from '@/components/feed/QualitySessionRow';
 import { NextSessionCard } from '@/components/feed/NextSessionCard';
 import { DaySessionCard } from '@/components/feed/DaySessionCard';
+import { WeekWatchCard } from '@/components/feed/WeekWatchCard';
 import { QuietBoundary } from '@/components/QuietBoundary';
 import { PackStrip } from '@/components/feed/PackStrip';
 import { ComposeFab } from '@/components/feed/ComposeFab';
@@ -643,6 +644,15 @@ export default function FeedPage() {
           distance, and whether Garmin has it. Tap opens the full session. Gone
           once it's run. Read-only on the watch question by design — see
           NextSessionCard. */}
+      {/* ═══ THIS WEEK ON THE WATCH ═══
+          Only when something the club sent is missing from the runner's watch (red),
+          or once after a send that all arrived (green). lib/watch/missing.ts. */}
+      <div className="mb-4 empty:mb-0">
+        <QuietBoundary resetKey={weeklyForCards}>
+          <WeekWatchCard />
+        </QuietBoundary>
+      </div>
+
       {/* ═══ ONE-DAY SESSION ═══
           A session the coach typed for one date with no weekly plan (lib/day-session),
           from publishing until after it. Draws nothing when the week's plan has that

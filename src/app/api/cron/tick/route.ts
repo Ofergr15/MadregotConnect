@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { sendEveningWatchReminders } from '@/lib/watch/evening-reminder';
 import { createServerClient } from '@/lib/supabase/server';
 import { sendPushLocalized, resolveAudience, subscriptionsForAthletes, allAthleteIds, persistNotifications, localesForAthletes, notifyAthlete } from '@/lib/push';
 import {
@@ -769,6 +770,21 @@ async function run(request: Request) {
       }
     } catch (err) {
       console.error('[tick] quality session push failed:', err);
+    }
+  }
+
+  // 20:00, once a night: runners whose session for tomorrow was sent and is not on their
+  // watch, for a reason they can fix, hear about it once (lib/watch/evening-reminder.ts).
+  if (hour === 20) {
+    const tag = `watchEvening:${israelToday(now)}`;
+    try {
+      if (!(await already(tag))) {
+        const n = await sendEveningWatchReminders(supabase, now);
+        await markFired(tag, n);
+        fired.push(`${tag} → ${n}`);
+      }
+    } catch (err) {
+      console.error('[tick] evening watch reminder failed:', err);
     }
   }
 

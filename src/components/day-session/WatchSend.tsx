@@ -221,7 +221,7 @@ export function WatchChoose({ roster, paces, session, busy, onSend }: {
 
 // ── Tracking ───────────────────────────────────────────────────────────────────────────
 
-export interface TrackRunner { athleteId: string; name: string; pack: 0 | 1 | 2; state: WatchState; error: string | null; at: string | null }
+export interface TrackRunner { athleteId: string; name: string; pack: 0 | 1 | 2; state: WatchState; error: string | null; at: string | null; reminder?: 'tonight' | string | null }
 export interface TrackAnswer { sentAt: string | null; runners: TrackRunner[]; noWatch: Array<{ athleteId: string; name: string; pack: 0 | 1 | 2 }> }
 
 const clock = (iso: string | null) => (iso
@@ -289,6 +289,11 @@ export function WatchTrack({ data, onResend, busy }: { data: TrackAnswer; onRese
                 <span className="min-w-0 flex-1">
                   <b className="block text-[15px] text-ink-900">{r.name} · דבוקה {r.pack + 1}</b>
                   <small className="block text-13 leading-snug text-ink-500">{reasonText(r.error)}</small>
+                  {r.reminder && (
+                    <span className="mt-1 inline-block rounded-lg bg-[#FFF4DB] px-2 py-0.5 text-xs font-bold text-[#C27803]">
+                      {r.reminder === 'tonight' ? '🌙 תזכורת ב־20:00, ואחרי שיתחבר יישלח לבד' : <>🌙 הוזכר <bdi dir="ltr">{clock(r.reminder)}</bdi></>}
+                    </span>
+                  )}
                 </span>
                 <button type="button" disabled={busy} onClick={() => onResend([r.athleteId])} className="min-h-[44px] px-1 text-[15px] font-bold text-brand-600">שוב</button>
               </div>

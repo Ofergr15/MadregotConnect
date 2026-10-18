@@ -2013,7 +2013,8 @@
     "recEarlier": "{n, plural, =1 {קודם אחד} other {# קודמים}}",
     "recNone": "עוד אין שיא ב־{label}",
     "recSeconds": "שנ׳",
-    "recChartAria": "ציר הזמן של השיא ב{label}"
+    "recChartAria": "ציר הזמן של השיא ב{label}",
+    "watchResent": "{count, plural, one {האימון שחיכה נשלח לשעון שלך} other {# האימונים שחיכו נשלחו לשעון שלך}}"
   },
   "profileBest": {
     "title": "השיאים שלך",

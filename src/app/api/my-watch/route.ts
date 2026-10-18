@@ -6,8 +6,9 @@ import { getDisplayWeekStart } from '@/lib/plans/workout-parsing';
 import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
 import { withGroupPaces } from '@/lib/plans/watch-paces';
 import { paceGroupKeyFor } from '@/lib/plans/pace-group';
-import { loadAcademySettings } from '@/lib/academy/settings-server';
-import { pushWeekToAthlete } from '@/lib/garmin/push-week';
+import { loadOwnWeek, providerFor, pushOwnWeek } from '@/lib/watch/own-week';
+import { missingForAthletes } from '@/lib/watch/missing';
+import { israelToday } from '@/lib/utils';
 import { appleCandidates, deliverWeek, resolveWatchProvider, type WatchProvider } from '@/lib/watch';
 import type { ParsedWorkout } from '@/lib/ai/types';
 import { watchDays, type WatchDay } from '@/lib/watch/day-status';
@@ -124,48 +125,6 @@ function watchState(
   };
 }
 
-/** The caller's row, their group's paces, and the plan for the displayed week. */
-async function loadContext(athleteId: string, weekStartDate = getDisplayWeekStart(new Date())) {
-  const supabase = createServerClient();
-
-  // The row and the plan don't depend on each other: asked together, one
-  // function↔DB round trip (~225 ms to Tokyo) instead of two.
-  const [{ data: athlete }, { data: plan }] = await Promise.all([supabase
-    .from('athletes')
-    .select('id, name, garmin_auth, is_academy, group_id, groups!group_id(pace_profile)')
-    .eq('id', athleteId)
-    .maybeSingle(),
-  supabase
-    .from('weekly_plans')
-    .select('id, parsed_workouts, status')
-    .eq('coach_id', COACH_ID)
-    .eq('week_start_date', weekStartDate)
-    // The club's week only. A trainee's own academy week is a weekly_plans row too
-    // (athlete_id set) and would otherwise compete for limit(1) — one runner's tap
-    // could have sent another trainee's personal plan.
-    .is('athlete_id', null)
-    // A week can hold a draft and a pushed plan; the pushed one is the real one,
-    // and 'pushed' sorts after 'draft' and 'partial'.
-    .order('status', { ascending: false })
-    .limit(1)
-    .maybeSingle()]);
-
-  return { supabase, weekStartDate, athlete, plan };
-}
-
-/**
- * Garmin when the row says so — decided without a query, as before. Otherwise the
- * Apple lookup, which is an empty answer until migration 138 is applied.
- */
-async function providerFor(
-  supabase: ReturnType<typeof createServerClient>,
-  athlete: { id: string; name?: string | null; garmin_auth?: unknown } | null,
-): Promise<WatchProvider> {
-  if (!athlete) return 'garmin';
-  const target = { id: athlete.id, name: athlete.name || '', garmin_auth: athlete.garmin_auth };
-  return resolveWatchProvider(target, await appleCandidates(supabase, [target]));
-}
-
 export async function GET(request: Request) {
   try {
     const auth = await requireAthlete(request);
@@ -175,13 +134,18 @@ export async function GET(request: Request) {
     // row and the plan; the provider needs the row, so it comes after.
     const weekStartDate = getDisplayWeekStart(new Date());
     const [{ supabase, athlete, plan }, deliveries] = await Promise.all([
-      loadContext(auth.user.athleteId, weekStartDate),
+      loadOwnWeek(auth.user.athleteId, weekStartDate),
       readDeliveries(createServerClient(), auth.user.athleteId, weekStartDate),
     ]);
     const provider = await providerFor(supabase, athlete);
+    // What the club sent them this week that is not on the watch (lib/watch/missing.ts) —
+    // the feed's "השבוע בשעון" card. Apple has its own queue, so only Garmin is judged.
+    const missing = athlete && provider !== 'apple'
+      ? (await missingForAthletes([athlete], weekStartDate, israelToday(), supabase)).get(athlete.id) ?? null
+      : null;
 
-    return NextResponse.json(
-      watchState(
+    return NextResponse.json({
+      ...watchState(
         deliveries,
         weekStartDate,
         !!plan,
@@ -190,7 +154,8 @@ export async function GET(request: Request) {
         !!athlete?.garmin_auth,
         provider,
       ),
-    );
+      missing,
+    });
   } catch (error) {
     console.error('my-watch read error:', error);
     return NextResponse.json({ error: 'Failed to read watch status' }, { status: 500 });
@@ -202,82 +167,12 @@ export async function POST(request: Request) {
     const auth = await requireAthlete(request);
     if (!auth.ok) return authError(auth);
 
-    const { supabase, weekStartDate, athlete, plan } = await loadContext(auth.user.athleteId);
-
-    const provider = await providerFor(supabase, athlete);
-    if (!athlete?.garmin_auth && provider !== 'apple') {
-      return NextResponse.json({ error: 'garmin-not-connected' }, { status: 409 });
-    }
-    if (!plan?.parsed_workouts) {
-      return NextResponse.json({ error: 'no-plan' }, { status: 409 });
-    }
-
-    // Which of the plan's three pace variants is this athlete's. One shared rule
-    // with the planner — see lib/plans/pace-group.ts for why that matters here
-    // more than anywhere else in the app.
-    const { data: groups } = await supabase
-      .from('groups')
-      .select('id, pace_profile')
-      .eq('coach_id', COACH_ID);
-    const groupKey = paceGroupKeyFor(
-      (groups || []).map((g: { id: string; pace_profile: any }) => ({
-        id: g.id,
-        marathonGoal: g.pace_profile?.marathonGoal ?? null,
-      })),
-      (athlete as { group_id?: string | null }).group_id,
-    );
-
-    const parsed = plan.parsed_workouts as Record<string, { workouts?: ParsedWorkout[] }> & {
-      workouts?: ParsedWorkout[];
-    };
-    // A flat plan (one pace for everyone) has no variants to choose between.
-    const variant = parsed[groupKey]?.workouts || parsed.workouts || [];
-    if (variant.length === 0) {
-      return NextResponse.json({ error: 'no-workouts' }, { status: 409 });
-    }
-    // Every pack's pace on the watch, not only this runner's (lib/plans/watch-paces.ts).
-    const plannedWorkouts = withGroupPaces(normalizeWorkoutParts({ workouts: variant }).workouts, plan.parsed_workouts);
-
-    // Pace-zone ALERTS are an academy affordance and a coach setting; a self-push
-    // must not be a way around either. Same three conditions the coach route
-    // applies, minus the per-request veto, which only the planner can know about.
-    const { paceAlerts } = await loadAcademySettings();
-    // This is always the club's week (see the query above), and a club week never
-    // carries pace-zone alarms, even for an academy athlete: the watch made the
-    // runner's own pack pace the step's big number (4:35) and the three-pack text
-    // ("4:15 (4:25) ((4:35))") a footnote, the opposite of what the club runs on.
-    // Alarms are for an academy trainee's own week, sent from the academy screens.
-    void paceAlerts;
-    const paceTarget = false;
-
-    // Garmin exactly as before; Apple queues the week for the athlete's iPhone app.
-    const result = provider === 'apple'
-      ? await deliverWeek('apple', {
-        supabase,
-        athlete: athlete as any,
-        plannedWorkouts,
-        weekStartDate,
-        planId: plan.id,
-        paceTarget,
-        notify: false,
-      })
-      : await pushWeekToAthlete({
-      supabase,
-      athlete: athlete as any,
-      plannedWorkouts,
-      weekStartDate,
-      planId: plan.id,
-      paceTarget,
-      // They are holding the phone that just did this and are about to see the
-      // card say so. A push notification would be the app telling them something
-      // they had just told it.
-      notify: false,
-      cleanDayOnce: true,
-    });
-
-    if (result.status === 'failed') {
-      return NextResponse.json({ error: result.error || 'push-failed' }, { status: 502 });
-    }
+    // The push itself is lib/watch/own-week.ts — a reconnect calls the same function.
+    const result = await pushOwnWeek(auth.user.athleteId);
+    if (result.status === 'failed') return NextResponse.json({ error: result.error }, { status: 502 });
+    if (result.status !== 'ok') return NextResponse.json({ error: result.status }, { status: 409 });
+    const { supabase, weekStartDate, athlete } = await loadOwnWeek(auth.user.athleteId, result.weekStartDate);
+    const provider = result.provider;
 
     // The fresh truth, read back rather than assumed, so the card redraws from
     // what `workout_deliveries` actually says after the push.

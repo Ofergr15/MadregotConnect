@@ -208,6 +208,8 @@ function ProfileContent() {
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncModalStatus, setSyncModalStatus] = useState<'syncing' | 'done'>('syncing');
   const [syncModalCount, setSyncModalCount] = useState(0);
+  // How many waiting sessions the reconnect sent to the watch (lib/watch/reconnect.ts).
+  const [watchResent, setWatchResent] = useState(0);
   const [hasSynced, setHasSynced] = useState(false);
   const garminSectionRef = useRef<HTMLDivElement>(null);
 
@@ -696,6 +698,9 @@ function ProfileContent() {
                   ? t('syncedActivities', { count: syncModalCount })
                   : t('connectedSuccessfully')}
               </p>
+              {watchResent > 0 && (
+                <p className="mt-3 rounded-xl bg-accent-600/10 px-3 py-2.5 text-sm font-bold text-accent-900">⌚ {t('watchResent', { count: watchResent })}</p>
+              )}
               <button
                 onClick={() => setShowSyncModal(false)}
                 className="mt-5 w-full min-h-[48px] rounded-xl font-bold text-base bg-brand-600 hover:bg-brand-700 text-white transition-colors active:scale-[0.98]"
@@ -1166,6 +1171,8 @@ function ProfileContent() {
                           body: JSON.stringify({ garminAuth: authData.auth, name: athleteName, email: athleteEmail }),
                         });
                         if (connectRes.ok) {
+                          const connected = await connectRes.json().catch(() => null) as { watchResent?: number } | null;
+                          setWatchResent(connected?.watchResent || 0);
                           setHasGarmin(true);
                           // Re-read rather than trusting the local flip: a reconnect
                           // has to clear a `failed` state that only the server knows

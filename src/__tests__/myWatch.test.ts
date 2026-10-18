@@ -88,7 +88,8 @@ describe('which pace variant is mine', () => {
 });
 
 describe('/api/my-watch scope', () => {
-  const route = read('app/api/my-watch/route.ts');
+  // The push itself moved to lib/watch/own-week.ts (a reconnect calls it too); the rules hold across both.
+  const route = read('app/api/my-watch/route.ts') + read('lib/watch/own-week.ts');
 
   it('takes the athlete from the session and from nowhere else', () => {
     // This route writes training onto a Garmin account, so an id in the body or
@@ -120,8 +121,9 @@ describe('/api/my-watch scope', () => {
   });
 
   it('reads the state back after pushing instead of assuming a 200 landed', () => {
-    const pushAt = route.indexOf('await pushWeekToAthlete(');
-    const readBackAt = route.lastIndexOf('await readWatchState(');
+    const handler = read('app/api/my-watch/route.ts');
+    const pushAt = handler.indexOf('await pushOwnWeek(');
+    const readBackAt = handler.lastIndexOf('await readWatchState(');
     expect(pushAt).toBeGreaterThan(-1);
     expect(readBackAt).toBeGreaterThan(pushAt);
   });
@@ -143,7 +145,9 @@ describe('/api/my-watch scope', () => {
 describe('one delivery implementation, two callers', () => {
   it('the coach route and the athlete route push through the same function', () => {
     expect(read('app/api/garmin/push-workouts/route.ts')).toMatch(/pushWeekToAthlete\(\{/);
-    expect(read('app/api/my-watch/route.ts')).toMatch(/pushWeekToAthlete\(\{/);
+    // The athlete's push goes through lib/watch/own-week.ts, which a reconnect shares.
+    expect(read('app/api/my-watch/route.ts')).toMatch(/pushOwnWeek\(/);
+    expect(read('lib/watch/own-week.ts')).toMatch(/pushWeekToAthlete\(\{/);
   });
 
   it('keeps the verification that makes "success" mean something', () => {

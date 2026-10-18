@@ -7,10 +7,8 @@ import { normalizeWorkoutParts } from '@/lib/plans/normalize-plan';
 import { withGroupPaces } from '@/lib/plans/watch-paces';
 import { paceGroupKeyFor, type PaceGroupKey } from '@/lib/plans/pace-group';
 import { COACH_ID } from '@/lib/constants';
-import { notifyAthlete } from '@/lib/push';
-import { deliveryFailedCopy, watchDisconnectedCopy } from '@/lib/notifications/copy';
+import { deliveryFailedCopy } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
-import { shouldTellAthlete } from '@/lib/garmin/delivery-failure';
 import { authError, requireSession } from '@/lib/auth-session';
 import { pushWeekToAthlete, type PushResult } from '@/lib/garmin/push-week';
 import { appleCandidates, deliverWeek, resolveWatchProvider } from '@/lib/watch';
@@ -228,43 +226,10 @@ export async function POST(req: NextRequest) {
         });
       results.push(result);
 
-      // Tell the ATHLETE, but only when the failure is theirs to fix.
-      //
-      // The gap this closes is the failed row in the mockup, and the sentence under it:
-      // "he doesn't know he has no workout". A failed delivery otherwise produced one batch
-      // alert to staff and complete silence to the person whose watch is empty — so a dead
-      // Garmin link costs a session every week until somebody notices, and the athlete is
-      // the only one who can reconnect it.
-      //
-      // Here rather than inside `pushWeekToAthlete`, because the athlete's own one-tap push
-      // (POST /api/my-watch) shares that function and is already looking at the failure on
-      // screen; this is for the pushes they never asked for and cannot see fail.
-      //
-      // `shouldTellAthlete` is what keeps it from becoming noise: a rate limit or a Garmin
-      // outage stays between us and the coach, because there is nothing for the athlete to
-      // do about it and a warning they cannot act on is how the whole channel gets muted.
-      // See lib/garmin/delivery-failure.ts.
-      if (result.status === 'failed' && shouldTellAthlete(result.error)) {
-        try {
-          await notifyAthlete({
-            athleteId: athlete.id,
-            kind: 'watch_disconnected',
-            copy: watchDisconnectedCopy,
-            // Where the reconnect button is — the notification names an action, so it has
-            // to land on the screen that performs it: the profile's data-source screen
-            // (Settings has no watch screen; it used to land on its landing grid).
-            url: '/dashboard/profile?tab=datasource',
-            // Per athlete per week, so a coach retrying the push four times sends this once.
-            // The retries fail identically until the athlete reconnects, and four copies of
-            // "your watch is disconnected" is the noise this whole branch avoids.
-            tag: `watch-disconnected-${athlete.id}-${weekStartDate}`,
-            category: 'workouts',
-          });
-        } catch {
-          // best-effort: telling somebody about a failed delivery must never become a
-          // second failure.
-        }
-      }
+      // The athlete is no longer told here, on every failed delivery: one push at 20:00
+      // the evening before covers every session missing from their watch, for a reason
+      // they can fix (lib/watch/evening-reminder.ts), and reconnecting sends them by
+      // itself (lib/watch/reconnect.ts).
     };
 
     const work = (async () => {

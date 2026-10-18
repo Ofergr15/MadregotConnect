@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { sendWaitingAfterReconnect, withinMs } from '@/lib/watch/reconnect';
 import { createServerClient } from '@/lib/supabase/server';
 import { encrypt } from '@/lib/encryption';
 import { COACH_ID } from '@/lib/constants';
@@ -126,7 +127,9 @@ export async function POST(req: NextRequest) {
       }
 
       if (updateData.garmin_authed_at) await recordOnbEvent({ step: 'garmin_connected', athleteId: athlete.id, device: deviceFromUa(req.headers.get('user-agent')) });
-      return NextResponse.json({ success: true, athlete: updated });
+      // What was waiting for their watch goes now (lib/watch/reconnect.ts).
+      const watchResent = updateData.garmin_authed_at ? await withinMs(sendWaitingAfterReconnect(athlete.id), 25000, 0) : 0;
+      return NextResponse.json({ success: true, athlete: updated, watchResent });
     }
 
     // No token — create new athlete (onboard flow from main page sign-in)
@@ -190,7 +193,9 @@ export async function POST(req: NextRequest) {
       }
 
       if (updatePayload.garmin_authed_at) await recordOnbEvent({ step: 'garmin_connected', athleteId: existing.id, device: deviceFromUa(req.headers.get('user-agent')) });
-      return NextResponse.json({ success: true, athlete: updated });
+      // A reconnect from the profile: what was waiting for their watch goes now (lib/watch/reconnect.ts).
+      const watchResent = updatePayload.garmin_authed_at ? await withinMs(sendWaitingAfterReconnect(existing.id), 25000, 0) : 0;
+      return NextResponse.json({ success: true, athlete: updated, watchResent });
     }
 
     // Create new athlete — a brand-new public sign-up. Start pending (not

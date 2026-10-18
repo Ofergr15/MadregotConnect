@@ -7,11 +7,11 @@ import { withGroupPaces } from '@/lib/plans/watch-paces';
 import { paceGroupKeyFor, type PaceGroupKey } from '@/lib/plans/pace-group';
 import { GarminClient } from '@/lib/garmin/client';
 import { pushWeekToAthlete, type PushResult } from '@/lib/garmin/push-week';
-import { shouldTellAthlete } from '@/lib/garmin/delivery-failure';
-import { watchDisconnectedCopy } from '@/lib/notifications/copy';
 import { notifyAthlete } from '@/lib/push';
 import { appleCandidates, deliverWeek, resolveWatchProvider } from '@/lib/watch';
-import { getPlanWeekStart } from '@/lib/utils';
+import { addDaysToDateStr, getPlanWeekStart, israelToday } from '@/lib/utils';
+import { shouldTellAthlete } from '@/lib/garmin/delivery-failure';
+import { EVENING_KIND } from '@/lib/watch/evening-reminder';
 import type { DaySession } from './model';
 import { countsOf, statusOf, type DeliveryLike, type RunnerStatus } from './watch-status';
 
@@ -137,16 +137,8 @@ export async function startDaySessionSend(s: DaySession, athleteIds: string[], s
       if (result.status === 'success') await db.from('workout_deliveries').delete().eq('id', queueId);
       else await db.from('workout_deliveries').update({ status: 'failed', error_message: result.error || 'failed', workout_data: { queued: true, started: true } }).eq('id', queueId);
     }
-    // The runner hears about it only when it is theirs to fix (a dead Garmin link) — the
-    // planner's rule (lib/garmin/delivery-failure.ts).
-    if (result.status === 'failed' && shouldTellAthlete(result.error)) {
-      try {
-        await notifyAthlete({
-          athleteId: athlete.id, kind: 'watch_disconnected', copy: watchDisconnectedCopy,
-          url: '/dashboard/profile?tab=datasource', tag: `watch-disconnected-${athlete.id}-${weekStartDate}`, category: 'workouts',
-        });
-      } catch { /* best-effort */ }
-    }
+    // The runner is not told now: the 20:00 reminder covers it (lib/watch/evening-reminder.ts),
+    // and reconnecting sends it by itself (lib/watch/reconnect.ts).
   };
 
   const work = (async () => {
@@ -172,7 +164,16 @@ export async function startDaySessionSend(s: DaySession, athleteIds: string[], s
 
 // ── The tracking ───────────────────────────────────────────────────────────────────────
 
-export interface RunnerRow extends RunnerStatus { name: string; pack: 0 | 1 | 2 }
+export interface RunnerRow extends RunnerStatus {
+  name: string;
+  pack: 0 | 1 | 2;
+  /**
+   * For a failure they can fix: the 20:00 reminder the evening before (lib/watch/evening-reminder.ts)
+   * — 'tonight' while it is still to come, the time once it went, null when there is none (the
+   * session is today, or the failure is Garmin's).
+   */
+  reminder: 'tonight' | string | null;
+}
 
 export interface WatchStatusAnswer {
   /** The last send's first queue time; null = never sent. */
@@ -192,11 +193,24 @@ export async function watchStatus(date: string): Promise<WatchStatusAnswer> {
   const appleIds = await appleCandidates(db, all as never);
   const { packKey } = await club(db);
   const byId = new Map(all.map((a) => [a.id, a]));
+  // The 20:00 reminder only ever covers tomorrow's session.
+  const today = israelToday();
+  const remindable = date > today;
+  const fixableIds = runners.filter((r) => r.state === 'failed' && (shouldTellAthlete(r.error) || !byId.get(r.athleteId)?.garmin_auth)).map((r) => r.athleteId);
+  const sentAt = new Map<string, string>();
+  if (remindable && fixableIds.length) {
+    const { data: rem } = await db.from('scheduled_notifications').select('audience_id, last_sent_at')
+      .eq('kind', EVENING_KIND).in('audience_id', fixableIds).gte('last_sent_at', new Date(`${addDaysToDateStr(date, -1)}T00:00:00+03:00`).toISOString());
+    for (const r of (rem || []) as Array<{ audience_id: string; last_sent_at: string }>) sentAt.set(r.audience_id, r.last_sent_at);
+  }
   const pack = (id: string) => PACK[packKey(byId.get(id)?.group_id)] ?? 1;
   return {
     sentAt: rows.length ? rows.map((r) => r.created_at).sort()[0] : null,
     runners: runners
-      .map((r) => ({ ...r, name: byId.get(r.athleteId)?.name || '', pack: pack(r.athleteId) }))
+      .map((r) => ({
+        ...r, name: byId.get(r.athleteId)?.name || '', pack: pack(r.athleteId),
+        reminder: remindable && fixableIds.includes(r.athleteId) ? sentAt.get(r.athleteId) ?? 'tonight' : null,
+      }))
       .sort((a, b) => a.pack - b.pack || a.name.localeCompare(b.name)),
     counts: countsOf(runners),
     noWatch: all.filter((a) => !a.garmin_auth && !appleIds.has(a.id))

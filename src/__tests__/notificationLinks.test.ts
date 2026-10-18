@@ -7,8 +7,9 @@ import { readFileSync } from 'fs';
 const src = (p: string) => readFileSync(p, 'utf8');
 
 describe('notification links open the exact place', () => {
-  it('watch disconnected → the data-source screen with the reconnect button', () => {
-    expect(src('src/app/api/garmin/push-workouts/route.ts')).toContain("url: '/dashboard/profile?tab=datasource'");
+  it('watch not on the watch → the data-source screen with the reconnect button', () => {
+    // The immediate "disconnected" push became the one 20:00 reminder (lib/watch/evening-reminder.ts).
+    expect(src('src/lib/watch/evening-reminder.ts')).toContain("url: '/dashboard/profile?tab=datasource'");
   });
   it('shoe limit → the profile, where the shoes are', () => {
     expect(src('src/lib/shoes.ts')).not.toContain("url: '/dashboard/settings'");

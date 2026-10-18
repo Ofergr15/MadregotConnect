@@ -100,7 +100,8 @@ describe('a day with two workouts', () => {
   // any other coach's send still lost the morning run of every two-a-day.
   it('is on for every sender, on both ways of sending', async () => {
     const { readFileSync } = await import('fs');
-    for (const f of ['src/app/api/garmin/push-workouts/route.ts', 'src/app/api/my-watch/route.ts']) {
+    // The athlete's own push lives in lib/watch/own-week.ts (my-watch and a reconnect share it).
+    for (const f of ['src/app/api/garmin/push-workouts/route.ts', 'src/lib/watch/own-week.ts']) {
       expect(readFileSync(f, 'utf8')).toMatch(/cleanDayOnce: true,/);
     }
   });
