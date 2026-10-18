@@ -3558,7 +3558,9 @@
     "notificationsSub": "Last sent {date}: reached {n}",
     "notificationsNone": "Nothing sent yet",
     "whatsNew": "What's new",
-    "whatsNewSub": "Latest: {title}"
+    "whatsNewSub": "Latest: {title}",
+    "birthdays": "Birthdays",
+    "birthdaysSub": "\"Your year\" for each birthday · photos and a personal word"
   },
   "weekEditor": {
     "title": "Share your week",

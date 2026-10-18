@@ -1458,3 +1458,11 @@ export function sessionFolderReadyCopy(locale: NotificationLocale, p: { day: str
     ? { title: '📂 התיקייה לתמונות של מחר מוכנה', body: `אימון איכות · ${p.day} — לחיצה פותחת אותה בדרייב. מעלים לשם, והתמונות עולות לפיד לבד.` }
     : { title: '📂 Tomorrow\'s photo folder is ready', body: `Quality session · ${p.day} — tap to open it in Drive. Upload there; the photos reach the feed by themselves.` };
 }
+
+/** To the birthday person at 7:00: their year story is ready. */
+export function birthdayYearCopy(locale: NotificationLocale, p: { name: string; km: number }): PushCopy {
+  const km = p.km.toLocaleString('en-US');
+  return locale === 'he'
+    ? { title: `🎂 מזל טוב ${p.name}!`, body: `הכנו לך את השנה שלך בריצה — ${km} ק״מ. לחיצה ותראה.` }
+    : { title: `🎂 Happy birthday ${p.name}!`, body: `Your year of running is ready — ${km} km. Tap to see it.` };
+}
