@@ -47,7 +47,11 @@ function DayHeading({ dayKey }: { dayKey: string }) {
   );
 }
 
-export function ProfileActivityFeed({ athleteId }: { athleteId: string }) {
+export function ProfileActivityFeed({ athleteId, runsOnly = false }: {
+  athleteId: string;
+  /** "הריצות שלי" (2026-10-19): the feed with the runs alone, and no filter row. */
+  runsOnly?: boolean;
+}) {
   const t = useTranslations('feed');
   const tp = useTranslations('profile');
   // Same source the feed screen reads its viewer from, so ownership (delete,
@@ -56,7 +60,7 @@ export function ProfileActivityFeed({ athleteId }: { athleteId: string }) {
   const [myAthleteId] = useState<string | null>(() => stored('athlete_id'));
   const [isStaff] = useState(() => !!stored('coach_email'));
 
-  const [filter, setFilter] = useState<FilterKey>('all');
+  const [filter, setFilter] = useState<FilterKey>(runsOnly ? 'runs' : 'all');
   const [items, setItems] = useState<FeedItem[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -128,7 +132,7 @@ export function ProfileActivityFeed({ athleteId }: { athleteId: string }) {
   let lastDay = '';
   return (
     <div className="space-y-3">
-      <div className="flex gap-1.5">
+      <div className={cn('flex gap-1.5', runsOnly && 'hidden')}>
         {FILTERS.map((f) => (
           <button
             key={f.key}

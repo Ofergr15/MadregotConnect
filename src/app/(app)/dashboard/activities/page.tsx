@@ -15,6 +15,7 @@ import { Spinner, BigStat } from '@/components/ui';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { ManualActivitySheet } from '@/components/ManualActivitySheet';
 import { appScrollTop } from '@/lib/app-scroll';
+import { ProfileActivityFeed } from '@/components/profile/ProfileActivityFeed';
 
 // Local-date ISO (YYYY-MM-DD). NOT toISOString(), which converts to UTC and
 // shifts the day back in timezones ahead of UTC (Israel is +2/+3), throwing the
@@ -120,6 +121,8 @@ export default function ActivitiesPage() {
   const [isCoach, setIsCoach] = useState(false);
   const [athleteId, setAthleteId] = useState<string | null>(null);
   const [showManualEntry, setShowManualEntry] = useState(false);
+  // Bumped after a sync or a manual run so the runner's feed reads again.
+  const [feedRound, setFeedRound] = useState(0);
   // Which day's tooltip is shown by TAP (touch has no :hover) — independent of
   // the CSS-only `group-hover` still driving the desktop/mouse experience.
   const [tappedDay, setTappedDay] = useState<number | null>(null);
@@ -299,6 +302,7 @@ export default function ActivitiesPage() {
         }),
       ]);
       setSyncStatus(status);
+      if (status.kind === 'new') setFeedRound((n) => n + 1);
     } catch {
       // An abort lands here too (via syncNow's rejected fetch) — same message
       // either way, since both mean "we don't know that anything was pulled".
@@ -381,6 +385,71 @@ export default function ActivitiesPage() {
   }, [filteredActivities, weekStartDate, startDay]);
 
   const maxDist = Math.max(...weekData.daily.map(d => d.distance), 1);
+
+  // ═══ A RUNNER: "הריצות שלי" (Ofer, 2026-10-19) — the feed, with my runs only ═══
+  // The same FeedCard the club feed draws (map, plan verdict, likes, comments), so a
+  // run looks the same here as everywhere else. The week tiles and the per-day bars
+  // stay for coaches, who read the whole club's week on this screen.
+  if (!isCoach && athleteId) {
+    return (
+      <div
+        className="min-h-[calc(100dvh-9.25rem)]"
+        onTouchStart={handlePullStart}
+        onTouchMove={handlePullMove}
+        onTouchEnd={handlePullEnd}
+      >
+        <div
+          className="flex items-center justify-center overflow-hidden transition-[height,opacity] duration-150"
+          style={{ height: pullDistance, opacity: Math.min(pullDistance / PULL_THRESHOLD, 1) }}
+        >
+          <Spinner size={22} />
+        </div>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h1 className="text-2xl font-black text-ink-900">{t('myRunsTitle')}</h1>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowManualEntry(true)}
+              aria-label={t('logActivity')}
+              className="flex h-11 w-11 items-center justify-center rounded-xl bg-card text-brand-600 shadow-sm active:scale-[0.95]"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={syncAndFetch}
+              disabled={syncing}
+              aria-label={syncing ? t('syncing') : t('sync')}
+              className="flex h-11 w-11 items-center justify-center rounded-xl bg-card text-brand-600 shadow-sm active:scale-[0.95] disabled:opacity-60"
+            >
+              <RefreshCw className={cn('h-5 w-5', syncing && 'animate-spin')} />
+            </button>
+          </div>
+        </div>
+        {!syncing && syncStatus && (
+          <p
+            role="status"
+            className={cn('-mt-1 mb-3 text-xs', syncStatus.kind === 'failed' || syncStatus.kind === 'timeout' ? 'text-accent-red' : 'text-ink-400')}
+          >
+            {syncStatus.kind === 'new'
+              ? t('syncedNew', { count: syncStatus.count, time: syncStatus.at })
+              : syncStatus.kind === 'upToDate'
+                ? t('syncUpToDate', { time: syncStatus.at })
+                : syncStatus.kind === 'timeout'
+                  ? t('syncTimedOut')
+                  : t('syncFailed')}
+          </p>
+        )}
+        <ProfileActivityFeed key={feedRound} athleteId={athleteId} runsOnly />
+        <ManualActivitySheet
+          open={showManualEntry}
+          onOpenChange={setShowManualEntry}
+          athleteId={athleteId}
+          onSaved={() => setFeedRound((n) => n + 1)}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (
