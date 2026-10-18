@@ -41,8 +41,7 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "main": false,
-      "move-fra1-test": false
+      "main": false
     }
   }
 }
