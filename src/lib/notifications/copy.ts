@@ -1441,3 +1441,10 @@ export function sessionPhotosCopy(locale: NotificationLocale, p: { workout: stri
     ? { title: '📸 התמונות מאימון הבוקר עלו', body: `${p.workout ? `${p.workout} · ` : ''}לחיצה פותחת את כל התמונות` }
     : { title: '📸 Photos from this morning\'s session are up', body: `${p.workout ? `${p.workout} · ` : ''}Tap to see them all` };
 }
+
+/** The evening before a quality day: its photo folder is ready (#106). To the editors. */
+export function sessionFolderReadyCopy(locale: NotificationLocale, p: { day: string }): PushCopy {
+  return locale === 'he'
+    ? { title: '📂 התיקייה לתמונות של מחר מוכנה', body: `אימון איכות · ${p.day} — לחיצה פותחת אותה בדרייב. מעלים לשם, והתמונות עולות לפיד לבד.` }
+    : { title: '📂 Tomorrow\'s photo folder is ready', body: `Quality session · ${p.day} — tap to open it in Drive. Upload there; the photos reach the feed by themselves.` };
+}
