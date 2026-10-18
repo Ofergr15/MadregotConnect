@@ -57,7 +57,7 @@ export default function BirthdaysPage() {
       <div className="mt-4 flex items-center gap-3 rounded-card bg-card px-4 py-3">
         <span className="min-w-0 flex-1">
           <b className="block text-[15px] font-extrabold text-ink-900">שליחה לחוגגים</b>
-          <small className="block text-xs text-ink-400">{data?.sending ? 'פעיל: התראה ב־7:00 ביום ההולדת, וכרטיס בפיד שלו לשבוע' : 'כבוי: רק אתה רואה את הסטוריז, לתצוגה'}</small>
+          <small className="block text-xs text-ink-400">{data?.sending ? 'פעיל: לחוגג התראה ב־7:00 וכרטיס בפיד, ולכל המועדון כפתור ״צפו בשנה של…״ בפוסט יום ההולדת — לשבוע' : 'כבוי: רק אתה רואה את הסטוריז, לתצוגה'}</small>
         </span>
         <Switch checked={!!data?.sending} onChange={(v) => void setSending(v)} loading={savingSwitch} ariaLabel="שליחה לחוגגים" />
       </div>
