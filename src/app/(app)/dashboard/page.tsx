@@ -16,7 +16,7 @@ import { getActiveViewRole } from '@/lib/role-views';
 import { AttendanceRSVP, type AttendanceStatus } from '@/components/AttendanceRSVP';
 import { NextWorkoutCard } from '@/components/NextWorkoutCard';
 import { WatchStatus } from '@/components/WatchStatus';
-import { StatTiles } from '@/components/StatTiles';
+import { HomeToday, ClubToday } from '@/components/home/HomeToday';
 import { WeeklyLeaderboardCard } from '@/components/WeeklyLeaderboardCard';
 import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_TEXT_COLORS as typeTextColors, planDayKey } from '@/lib/plans/workout-parsing';
 import { useWorkoutTypeLabel } from '@/lib/plans/use-workout-type-label';
@@ -649,12 +649,13 @@ export default function DashboardPage() {
     <div className={cn('max-w-2xl mx-auto space-y-5 sm:space-y-6', showTraineeHome ? 'sm:px-6 sm:py-8' : 'px-4 sm:px-6 py-5 sm:py-8')}>
 
       {/* ═══ LARGE TITLE (native home header) — the trainee home brings its own greeting ═══ */}
-      {!showTraineeHome && <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-ink-400">{greeting}{firstName ? ` ${firstName}` : ''} 👋</p>
-          <h1 className="text-3xl font-extrabold text-ink-700 tracking-tight mt-0.5">מדרגות</h1>
-        </div>
-      </div>}
+      {/* The greeting is the title now (2026-10-19): the app's name told nobody anything. */}
+      {!showTraineeHome && (
+        <h1 className="text-[22px] font-black text-ink-900">
+          {greeting}{firstName ? `, ${firstName}` : ''}{' '}
+          <span className="text-sm font-semibold text-ink-400">· {new Date().toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'Asia/Jerusalem' })}</span>
+        </h1>
+      )}
 
       {/* ═══ DDORESH TIPUL (admin) — what is waiting for the person who runs the
           club, on the screen they actually open ═══
@@ -673,24 +674,6 @@ export default function DashboardPage() {
       {rsvpTarget && isCoach && (
         <AttendanceRoster weekStart={rsvpWeekStart} day={rsvpTarget.dow} />
       )}
-
-      {/* ═══ RACE COUNTDOWN — compact native strip, kept minimal on purpose. The trainee
-          home counts down to the trainee's OWN race instead (RaceLine). ═══ */}
-      {!showTraineeHome && <section className="rounded-card bg-card/60 border border-page/60 p-4 flex items-center gap-4">
-        <div className="w-12 h-12 rounded-2xl bg-brand-600/15 flex items-center justify-center shrink-0">
-          <MapPin className="h-5 w-5 text-brand-600" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-ink-700 truncate">{t(GOAL_RACE.nameKey)}</p>
-          <p className="text-xs text-ink-400 mt-0.5">
-            {raceDateLabel} · {week > 0 ? t('weekOfTotal', { week, total: GOAL_RACE.totalWeeks }) : t('preSeason')}
-          </p>
-        </div>
-        <div className="text-end shrink-0">
-          <div className="text-2xl font-black text-ink-700 leading-none tabular-nums">{countdown.d}</div>
-          <div className="text-2xs text-ink-400 mt-1">{tc('days')}</div>
-        </div>
-      </section>}
 
       {/* ═══ COACH PULSE (attention + celebrate radar) — the rest of the coach hero ═══ */}
       {isCoach && <CoachPulse />}
@@ -789,41 +772,31 @@ export default function DashboardPage() {
         </Card>
       ) : null}
 
-      {/* ═══ SLIM STAT STRIP — streak · this-week completion · total km ·
-          workouts this month. Deeper stats (records, volume trends) live on
-          Profile → Statistics, not duplicated here. Shown for anyone with an
-          athlete profile, including a coach who's also a runner — not just
-          "pure" athletes. ═══ */}
-      {/* The trainee home (TraineeToday) is screen 1 of the mockup and ends at the race line
-          and its button: the club's strip and standings are not part of it, and the strip's
-          "X/4 ימי אימון" counted a different week than the trainee's own board. */}
-      {athleteId && !showTraineeHome && (
-        <>
-          {!!summary?.weekStreak && (
-            <Card variant="muted">
-              <div className="flex items-center justify-center gap-2">
-                <Flame className="h-6 w-6 text-band-3" />
-                <BigStat value={summary.weekStreak} label={summary.weekStreak === 1 ? tm('weekStreakOne') : tm('weekStreak')} />
-              </div>
-            </Card>
-          )}
-          <Card variant="muted">
-            <BigStat
-              // `<bdi dir="ltr">` around BOTH numbers, not around one of them: a
-              // slash with a space beside it is a neutral character between two
-              // number runs, so the RTL page laid the runs out right-to-left and
-              // "2 / 5" rendered as "5 / 2" — the athlete read their five planned
-              // days as two done out of… two. The spaced slash is the whole cause
-              // (an unspaced "2/5" is one numeric token and is safe), and the
-              // isolate has to wrap the pair for the pair to keep its order.
-              value={<bdi dir="ltr">{weeklyRuns}<span className="text-sm font-medium text-ink-400">/ {hasData ? weekly!.trainingDays : 7}</span></bdi>}
-              label={t('trainingDays')}
-            />
-            <p className="text-sm text-ink-400 mt-1 text-center">{t('completed')}</p>
-          </Card>
-          <StatTiles athleteId={athleteId} />
-        </>
-      )}
+      {/* ═══ TODAY — what I ran against today's target, where my week stands (2026-10-19,
+          mockups/morning-1019). It replaces the streak / "X/5 days" / tiles strip, which
+          repeated the profile's numbers in a different week window. ═══ */}
+      {athleteId && !showTraineeHome && <HomeToday athleteId={athleteId} />}
+
+      {/* ═══ RACE COUNTDOWN — compact native strip, kept minimal on purpose. The trainee
+          home counts down to the trainee's OWN race instead (RaceLine). ═══ */}
+      {!showTraineeHome && <section className="rounded-card bg-card/60 border border-page/60 p-4 flex items-center gap-4">
+        <div className="w-12 h-12 rounded-2xl bg-brand-600/15 flex items-center justify-center shrink-0">
+          <MapPin className="h-5 w-5 text-brand-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-ink-700 truncate">{t(GOAL_RACE.nameKey)}</p>
+          <p className="text-xs text-ink-400 mt-0.5">
+            {raceDateLabel} · {week > 0 ? t('weekOfTotal', { week, total: GOAL_RACE.totalWeeks }) : t('preSeason')}
+          </p>
+        </div>
+        <div className="text-end shrink-0">
+          <div className="text-2xl font-black text-ink-700 leading-none tabular-nums">{countdown.d}</div>
+          <div className="text-2xs text-ink-400 mt-1">{tc('days')}</div>
+        </div>
+      </section>}
+
+      {/* ═══ THE CLUB TODAY — how many ran and how far, together ═══ */}
+      {athleteId && !showTraineeHome && <ClubToday />}
 
       {/* ═══ CLUB STANDINGS — this week's top three by distance, with my own row
           appended when I'm outside it. Moved here off the feed: the feed is

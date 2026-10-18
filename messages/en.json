@@ -289,6 +289,15 @@
     "installedBrowser": "Browser"
   },
   "dashboard": {
+    "todayRan": "Today:",
+    "perKm": "/km",
+    "todayTarget": "target was",
+    "myWeek": "My week",
+    "weekDay": "day {n}",
+    "vsTodayTarget": "vs today's target",
+    "clubToday": "The club today",
+    "clubRanToday": "ran today · {km} km together",
+    "clubFurthest": "Furthest: {name}",
     "valenciaMarathon": "Valencia Marathon",
     "weeklyVolume": "Weekly Volume",
     "weekGoalRange": "Goal {min}–{max} {unit}",

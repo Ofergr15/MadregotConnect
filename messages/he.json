@@ -289,6 +289,15 @@
     "installedBrowser": "דפדפן"
   },
   "dashboard": {
+    "todayRan": "היום:",
+    "perKm": "לק״מ",
+    "todayTarget": "היעד היה",
+    "myWeek": "השבוע שלי",
+    "weekDay": "יום {n}",
+    "vsTodayTarget": "מול היעד של היום",
+    "clubToday": "במועדון היום",
+    "clubRanToday": "רצו היום · {km} ק״מ ביחד",
+    "clubFurthest": "הכי רחוק: {name}",
     "valenciaMarathon": "מרתון ולנסיה",
     "weeklyVolume": "נפח שבועי",
     "weekGoalRange": "יעד {min}–{max} {unit}",
