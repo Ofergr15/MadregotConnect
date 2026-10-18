@@ -9,6 +9,8 @@ import { FeedAvatar } from '@/components/FeedAvatar';
 import { FeedBodyText } from '@/components/FeedBodyText';
 import { cn } from '@/lib/utils';
 import { CELEBRATION_TYPES, celebrationText, type Celebration } from '@/lib/feed/celebration';
+import type { BirthdayStory } from '@/lib/birthday-year/server';
+import { YearStory } from '@/components/birthday/YearStory';
 import './celebrations.css';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -62,7 +64,13 @@ function Circle({ entry, seen, onOpen }: { entry: Entry; seen: boolean; onOpen: 
 
 const CONFETTI = ['#F7797D', '#FFC75F', '#8E7CFF', '#5BC0EB', '#45C49C'];
 
-function Slide({ entry, active, onComment }: { entry: Entry; active: boolean; onComment: (i: FeedItem) => void }) {
+function Slide({ entry, active, onComment, onYear }: {
+  entry: Entry;
+  active: boolean;
+  onComment: (i: FeedItem) => void;
+  /** The birthday person's own "השנה שלך" story (lib/birthday-year), on their own circle only. */
+  onYear?: () => void;
+}) {
   const kind = CELEBRATION_TYPES[entry.celebration.type];
   const [liked, setLiked] = useState(entry.item.likedByMe);
   const [likes, setLikes] = useState(entry.item.likeCount);
@@ -111,6 +119,15 @@ function Slide({ entry, active, onComment }: { entry: Entry; active: boolean; on
           לצפייה בסרטון
         </a>
       )}
+      {onYear && (
+        <button
+          type="button"
+          onClick={onYear}
+          className="mt-3 flex min-h-[50px] w-full items-center justify-center gap-2 rounded-pill bg-gradient-to-l from-[#1525FF] to-[#0a1080] text-[15px] font-extrabold text-white active:opacity-85"
+        >
+          🎬 השנה שלך בריצה
+        </button>
+      )}
       <div className="mt-4 flex items-center justify-center gap-3">
         <button type="button" onClick={like} aria-pressed={liked}
           className={cn('flex min-h-[44px] items-center gap-2 rounded-pill px-4 text-sm font-bold', liked ? 'bg-accent-red/10 text-accent-red' : 'bg-page text-ink-700')}>
@@ -129,6 +146,11 @@ function Slide({ entry, active, onComment }: { entry: Entry; active: boolean; on
 
 export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) => void }) {
   const { data } = useApi<{ today: string; entries: Entry[] }>('/api/feed/celebrations');
+  // The caller's own year story, while it is theirs to see (sending on, the week of
+  // their birthday) — null for everybody else, so it costs them one empty answer.
+  const { data: year } = useApi<{ story: BirthdayStory | null }>(data?.entries?.length ? '/api/birthday-year' : null);
+  const myStory = year?.story ?? null;
+  const [yearOpen, setYearOpen] = useState(false);
   const entries = useMemo(() => data?.entries ?? [], [data]);
   const [seen, setSeen] = useState<string[]>([]);
   const [open, setOpen] = useState<number | null>(null);
@@ -184,7 +206,9 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
           <div ref={slidesRef} onScroll={onScroll} className="slides flex overflow-x-auto">
             {entries.map((e, i) => (
               <Slide key={e.item.id} entry={e} active={i === at && open != null}
-                onComment={(item) => { setOpen(null); onComment(item); }} />
+                onComment={(item) => { setOpen(null); onComment(item); }}
+                onYear={myStory && e.celebration.type === 'birthday' && e.celebration.honorees.includes(myStory.athleteId)
+                  ? () => { setOpen(null); setYearOpen(true); } : undefined} />
             ))}
           </div>
           {entries.length > 1 && (
@@ -197,6 +221,7 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
           {entries.length === 1 && <div className="pb-4" />}
         </div>
       </Sheet>
+      {yearOpen && myStory && <YearStory story={myStory} onClose={() => setYearOpen(false)} />}
     </section>
   );
 }

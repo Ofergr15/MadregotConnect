@@ -70,7 +70,9 @@ export default function ReleaseRehearsalPage() {
 
   // Rehearsed on the release's own build (a preview, before it reaches production):
   // the version to announce is this bundle's. On an older build, the next patch.
-  const version = REHEARSED_VERSION === APP_VERSION ? APP_VERSION : nextVersion(APP_VERSION);
+  // Compared as strings: both are literal constants, and the release that bumps APP_VERSION
+  // past the rehearsed one must still compile.
+  const version = (REHEARSED_VERSION as string) === APP_VERSION ? APP_VERSION : nextVersion(APP_VERSION);
   const steps = useMemo(() => STEPS.filter(s => !(closed && ONLY_IF_OPEN.includes(s))), [closed]);
   const step: Step = steps[Math.min(i, steps.length - 1)];
 
