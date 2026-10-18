@@ -38,7 +38,7 @@ type Step = (typeof STEPS)[number];
 const ONLY_IF_OPEN: Step[] = ['sheet', 'updating', 'toast'];
 const SPLASH_KEY = 'app_splash_shown';
 /** The release this rehearsal is for (lib/whats-new/evening.ts EVENING_ENTRIES). */
-const REHEARSED_VERSION = '2.41.223';
+const REHEARSED_VERSION = '2.41.224';
 
 /** The version the evening would announce: one patch above what runs now. */
 function nextVersion(v: string): string {
