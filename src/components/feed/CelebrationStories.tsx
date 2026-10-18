@@ -32,12 +32,18 @@ interface Entry {
 }
 
 const SEEN_KEY = 'mc:celebrations-seen';
+/**
+ * Set on the first tap on any circle (Ofer, 10-18: "people have to understand you tap
+ * the circles, it is new"). Until then an unopened circle breathes and the first one
+ * has a small hand on it (mockup celebration-hint, option B); after it, never again.
+ */
+const TAPPED_KEY = 'mc:celebrations-tapped';
 const readSeen = (): string[] => {
   try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '[]'); } catch { return []; }
 };
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
-function Circle({ entry, seen, onOpen }: { entry: Entry; seen: boolean; onOpen: () => void }) {
+function Circle({ entry, seen, hint, hand, onOpen }: { entry: Entry; seen: boolean; hint: boolean; hand: boolean; onOpen: () => void }) {
   const kind = CELEBRATION_TYPES[entry.celebration.type];
   const people = entry.honorees;
   const lead = people[0];
@@ -45,7 +51,8 @@ function Circle({ entry, seen, onOpen }: { entry: Entry; seen: boolean; onOpen: 
   const more = people.length > 1 ? people.length - 1 : 0;
   return (
     <button type="button" onClick={onOpen} className="flex w-[72px] shrink-0 flex-col items-center text-center active:opacity-80" aria-label={`${kind.label}: ${people.map(p => p.name).join(', ')}`}>
-      <span className={cn('cring relative rounded-full p-[3px]', seen && 'seen')}>
+      <span className={cn('cring relative rounded-full p-[3px]', seen && 'seen', hint && 'breathe')}>
+        {hand && <span aria-hidden className="chand">👆</span>}
         <span className="block rounded-full border-[3px] border-card">
           {lead
             ? <FeedAvatar name={lead.name} url={lead.avatarUrl} className="h-[54px] w-[54px] text-[15px]" />
@@ -166,6 +173,13 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
   const [yearStory, setYearStory] = useState<BirthdayStory | null>(null);
   const entries = useMemo(() => data?.entries ?? [], [data]);
   const [seen, setSeen] = useState<string[]>([]);
+  // True until read, so a returning member never sees the hint flash on load.
+  const [tapped, setTapped] = useState(true);
+  useEffect(() => { try { setTapped(localStorage.getItem(TAPPED_KEY) === '1'); } catch { /* private mode: no hint */ } }, []);
+  const markTapped = useCallback(() => {
+    setTapped(true);
+    try { localStorage.setItem(TAPPED_KEY, '1'); } catch { /* private mode */ }
+  }, []);
   const [open, setOpen] = useState<number | null>(null);
   const [at, setAt] = useState(0);
   const slidesRef = useRef<HTMLDivElement>(null);
@@ -213,6 +227,7 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
   };
 
   if (entries.length === 0) return null;
+  const hinting = !tapped;
   // Unseen first, like stories: what is new is what you see without scrolling.
   const order = entries.map((e, i) => ({ e, i })).sort((a, b) => Number(seen.includes(a.e.item.id)) - Number(seen.includes(b.e.item.id)));
 
@@ -220,9 +235,16 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
     <section className="mcel mb-4 rounded-[26px] bg-card px-1.5 pb-3 pt-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]" dir="rtl">
       <p className="mb-2 px-2.5 text-[12px] font-extrabold text-ink-400">🎉 חוגגים היום</p>
       {/* A sideways scroller clips vertically too: pt/pb keep the ring's top and the ▶ badge inside it. */}
-      <div className="strip flex gap-2 overflow-x-auto px-1.5 pb-0.5 pt-1">
-        {order.map(({ e, i }) => (
-          <Circle key={e.item.id} entry={e} seen={seen.includes(e.item.id)} onOpen={() => setOpen(i)} />
+      <div className="strip flex gap-2 overflow-x-auto px-1.5 pb-0.5 pt-2">
+        {order.map(({ e, i }, k) => (
+          <Circle
+            key={e.item.id}
+            entry={e}
+            seen={seen.includes(e.item.id)}
+            hint={hinting && !seen.includes(e.item.id)}
+            hand={hinting && k === 0}
+            onOpen={() => { setOpen(i); markTapped(); }}
+          />
         ))}
       </div>
 

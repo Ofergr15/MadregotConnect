@@ -68,6 +68,11 @@ function screenState(): 'empty' | 'loading' | false {
   const hasText = (main.textContent || '').trim().length > 1;
   const hasPicture = !!main.querySelector('img, svg, canvas, video');
   if (hasText || hasPicture) return false;
+  // A full-screen flow draws in a modal on <body>, outside <main> (the one-day session
+  // editor's FlowOverlay): the page is that modal, so it is what gets measured. Read
+  // as empty, it filed every open of /dashboard/day-session as a blank page (10-17..18).
+  const modal = document.querySelector('body > [role="dialog"][aria-modal="true"]');
+  if (modal && ((modal.textContent || '').trim().length > 1 || modal.querySelector('img, svg, canvas, video'))) return false;
   return main.querySelector('[role="status"], [aria-busy="true"]') ? 'loading' : 'empty';
 }
 

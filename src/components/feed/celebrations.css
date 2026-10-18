@@ -3,6 +3,12 @@
 .mcel .cring{background:conic-gradient(from 210deg,#F7797D,#FFC75F,#8E7CFF,#5BC0EB,#F7797D)}
 .mcel .cring.seen{background:#D7D7DC}
 .mcel .strip{scrollbar-width:none}
+/* The "tap me" hint until the first tap (CelebrationStories TAPPED_KEY): a ring breathing
+   out of the circle, and a small hand on the first one. */
+.mcel .cring.breathe::after{content:"";position:absolute;inset:-1px;border-radius:9999px;box-shadow:0 0 0 3px rgba(21,37,255,.5);animation:mcel-breathe 1.6s ease-out infinite;pointer-events:none}
+@keyframes mcel-breathe{0%{transform:scale(1);opacity:1}100%{transform:scale(1.12);opacity:0}}
+.mcel .chand{position:absolute;left:-12px;top:22px;z-index:2;font-size:22px;line-height:1;animation:mcel-tap 1.4s ease-in-out infinite;pointer-events:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.25))}
+@keyframes mcel-tap{0%,100%{transform:translate(0,0)}50%{transform:translate(-3px,-5px)}}
 .mcel .strip::-webkit-scrollbar{display:none}
 .mcel-sheet .slides{scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
 .mcel-sheet .slides::-webkit-scrollbar{display:none}
@@ -12,4 +18,4 @@
 @keyframes mcel-fall{0%{opacity:0;transform:translateY(0) rotate(0)}10%{opacity:1}100%{opacity:0;transform:translateY(170px) rotate(320deg)}}
 .mcel-sheet .pop{animation:mcel-pop .35s ease-out}
 @keyframes mcel-pop{0%{transform:scale(1)}40%{transform:scale(1.35)}100%{transform:scale(1)}}
-@media (prefers-reduced-motion:reduce){.mcel-sheet .confetti{display:none}.mcel-sheet .pop{animation:none}}
+@media (prefers-reduced-motion:reduce){.mcel-sheet .confetti{display:none}.mcel-sheet .pop{animation:none}.mcel .cring.breathe::after,.mcel .chand{animation:none}}
