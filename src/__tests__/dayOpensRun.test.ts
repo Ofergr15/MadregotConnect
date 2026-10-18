@@ -19,10 +19,10 @@ describe('a day on the profile opens its run', () => {
   });
 
   it('is a link on the week strip and on the seven-day bars, for everyone', () => {
-    // The week card (2026-10-17): a day opens a sheet that lists the day's runs.
-    const week = readFileSync('src/components/profile/WeekPlanCard.tsx', 'utf8');
+    // "השבוע שלי" (2026-10-18): a day circle opens a sheet that lists the day's runs.
+    const week = readFileSync('src/components/profile/MyWeekCard.tsx', 'utf8');
     expect(week).toMatch(/athleteId \? `\/api\/athletes\/\$\{athleteId\}\/stats` : null/);
-    expect(week).toMatch(/href=\{`\/dashboard\/activities\/\$\{a\.id\}`\}/);
+    expect(week).toMatch(/href=\{`\/dashboard\/activities\/\$\{r\.id\}`\}/);
     const card = readFileSync('src/components/profile/Last7DaysCard.tsx', 'utf8');
     expect(card).toMatch(/const run = opensRuns \? d\.activities\?\.\[0\] : undefined;/);
     // Rolled out: no super-user gate left on either.

@@ -219,15 +219,16 @@ describe('the sheet', () => {
 });
 
 describe('the entry point', () => {
-  const card = read('components/profile/Last7DaysCard.tsx');
+  // On "השבוע שלי" since 2026-10-18 — the seven-day card it sat on was folded into it.
+  const card = read('components/profile/MyWeekCard.tsx');
 
   it('is a share button on the profile card', () => {
-    expect(card).toMatch(/<ShareSheet\n\s+subject=\{\{ kind: 'week', report, athleteName \}\}/);
+    expect(card).toMatch(/<ShareSheet\n\s+subject=\{\{ kind: 'week', report: stats\.last7, athleteName \}\}/);
     expect(card).toMatch(/setSharing\(true\)/);
   });
 
   it('is absent in a week with no runs', () => {
-    expect(card).toMatch(/report\.runs > 0 && \(/);
+    expect(card).toMatch(/stats\.last7\.runs > 0 && \(/);
   });
 
   it('carries the athlete name onto the card', () => {

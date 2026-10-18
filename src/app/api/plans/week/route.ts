@@ -20,6 +20,7 @@ import { daySessionWorkouts, mergeDaySessions } from '@/lib/day-session/week-mer
  * every week has AI-parsed structured data.
  *
  * `lane=mine` (the profile's week card, 2026-10-17): the caller's own pace lane —
+ * or `lane=<athleteId>` for a teammate's profile —
  * their pack on that week — instead of lane 1, so the kilometres and paces are the
  * ones they were asked to run. A trainee's own academy plan is already theirs and
  * is returned as is. Without the param nothing changes for the Program page.
@@ -38,6 +39,11 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createServerClient({ revalidateSeconds: 300, cacheTags: [WEEKLY_PLANS_TAG] });
+    // `lane=<athleteId>` (a teammate's profile, 2026-10-18): that athlete's pace lane of the
+    // CLUB week. Never their own academy plan — only the caller's own rows are ever read.
+    const laneParam = req.nextUrl.searchParams.get('lane');
+    const forOther = !!laneParam && laneParam !== 'mine' && /^[0-9a-f-]{36}$/i.test(laneParam) && laneParam !== caller.athleteId;
+    const laneOf = forOther ? laneParam : laneParam === 'mine' ? caller.athleteId : null;
     // A week can have more than one row (e.g. a draft + a pushed version) —
     // prefer 'pushed', same precedence as /api/dashboard/weekly.
     const [{ data: rowsRaw }, ownCounts] = await Promise.all([
@@ -50,7 +56,7 @@ export async function GET(req: NextRequest) {
       // A trainee who left the academy reads the club's week again (scope-server.ts).
       ownPlanRowsCount(caller.athleteId),
     ]);
-    const rows = withoutOwnRows(rowsRaw, ownCounts);
+    const rows = forOther ? (rowsRaw || []).filter((r) => !r.athlete_id) : withoutOwnRows(rowsRaw, ownCounts);
 
     // The caller's own academy week first, never another trainee's (lib/plans/scope.ts).
     const plan = pickPlan(rows, caller.athleteId);
@@ -66,8 +72,8 @@ export async function GET(req: NextRequest) {
 
     let parsed = plan.parsed_workouts;
     let lane: Lane | null = null;
-    if (req.nextUrl.searchParams.get('lane') === 'mine' && !plan.athlete_id && caller.athleteId) {
-      lane = (await groupNumberForAthlete(supabase, caller.athleteId, weekStart)) as Lane;
+    if (laneOf && !plan.athlete_id) {
+      lane = (await groupNumberForAthlete(supabase, laneOf, weekStart)) as Lane;
       const workouts = laneWorkouts(plan.parsed_workouts, lane);
       // An empty lane would read as "no plan"; lane 1's week is better than none.
       if (workouts.length) parsed = { workouts };

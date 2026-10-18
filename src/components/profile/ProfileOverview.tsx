@@ -11,7 +11,7 @@ import { ProfileCounts } from '@/components/profile/ProfileCounts';
 import { SetupProgressCard } from '@/components/onboarding/SetupProgressCard';
 import { PhotoLightbox } from '@/components/PhotoLightbox';
 import { HeroChip, ProfileHero } from '@/components/profile/ProfileHero';
-import { WeekPlanCard } from '@/components/profile/WeekPlanCard';
+import { MyWeekCard } from '@/components/profile/MyWeekCard';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The owner's profile in two halves the page places apart: the header (hero,
@@ -54,7 +54,7 @@ export function ProfileOverview({
   /**
    * Which half to draw (2026-10-17): `header` is the top of the profile — the
    * hero and, for a new member, the setup card; `week` is the week itself — the
-   * goal race and the day-by-day plan (WeekPlanCard) — which opens the profile's
+   * goal race and "השבוע שלי" (MyWeekCard) — which opens the profile's
    * stats tab instead of the landing.
    */
   part: 'header' | 'week';
@@ -166,8 +166,8 @@ export function ProfileOverview({
         <>
           {/* ═══ GOAL RACE ═══ — the same slim banner the feed opens with. */}
           <GoalRaceBanner />
-          {/* ═══ THE WEEK, DAY BY DAY ═══ — target, seven days, done or not, RSVP. */}
-          <WeekPlanCard athleteId={athleteId} teamDays={teamDays} workoutHour={workoutHour} />
+          {/* ═══ השבוע שלי ═══ — the ring, where to be by tonight, the days, ten weeks, RSVP. */}
+          <MyWeekCard athleteId={athleteId} owner athleteName={athleteName} teamDays={teamDays} workoutHour={workoutHour} />
         </>
       )}
     </div>

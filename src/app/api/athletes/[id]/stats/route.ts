@@ -21,6 +21,7 @@ import {
 import { israelDateAnchor, israelToday, weekStartOn } from '@/lib/utils';
 import { readWeekStartDay } from '@/lib/athletes/week-pref';
 import { buildLast7Report, withWellness } from '@/lib/reports/last-7-days';
+import { buildPlanWeek, israelWallNow } from '@/lib/athletes/plan-week';
 import { readWellnessNights } from '@/lib/wellness/read';
 
 export const dynamic = 'force-dynamic';
@@ -159,6 +160,9 @@ export async function GET(
       // week's total, which reads as a collapse every Monday.
       weekTrendPct: computeLikeForLikeTrend(acts, anchor, startDay),
       weeks: weekTable,
+      // "השבוע שלי": the plan week (Sunday) by day, last week to this same minute, and
+      // ten such weeks — one window for the whole card (lib/athletes/plan-week.ts).
+      planWeek: buildPlanWeek(acts, israelWallNow()),
       // The rolling seven days behind the profile card and the Saturday 18:00
       // push. Folded from the SAME `acts` this payload is already built from, so
       // it needs no request of its own and cannot disagree with the week table

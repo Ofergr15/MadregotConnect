@@ -27,25 +27,11 @@ describe('a plan day against what was run', () => {
   });
 });
 
-describe('the card', () => {
-  const card = readFileSync('src/components/profile/WeekPlanCard.tsx', 'utf8');
-
-  it('stays on the week the athlete is in, and previews next week only when it is published', () => {
-    expect(card).toMatch(/const thisWeek = getPlanWeekStart\(israelDateAnchor\(\)\);/);
-    expect(card).toMatch(/hasPreview && next\?\.hasPlan && \(/);
-    expect(card).toMatch(/hasPreview && !next\?\.hasPlan && next && \(/);
-  });
-
-  it('reads the athlete\'s own lane', () => {
-    expect(card).toMatch(/&lane=mine/);
-    const route = readFileSync('src/app/api/plans/week/route.ts', 'utf8');
-    expect(route).toMatch(/searchParams\.get\('lane'\) === 'mine' && !plan\.athlete_id/);
+describe('the plan route', () => {
+  const route = readFileSync('src/app/api/plans/week/route.ts', 'utf8');
+  it('reads the caller\'s lane, or a teammate\'s — never a teammate\'s own plan', () => {
+    expect(route).toMatch(/laneParam === 'mine' \? caller\.athleteId/);
+    expect(route).toMatch(/forOther \? \(rowsRaw \|\| \[\]\)\.filter\(\(r\) => !r\.athlete_id\)/);
     expect(route).toMatch(/laneWorkouts\(plan\.parsed_workouts, lane\)/);
-  });
-
-  it('is what the profile\'s week part draws — no sideways strip left', () => {
-    const overview = readFileSync('src/components/profile/ProfileOverview.tsx', 'utf8');
-    expect(overview).toMatch(/<WeekPlanCard athleteId=\{athleteId\}/);
-    expect(overview).not.toMatch(/overflow-x-auto/);
   });
 });

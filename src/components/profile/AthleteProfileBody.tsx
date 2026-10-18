@@ -9,9 +9,7 @@ import { useApi } from '@/lib/api';
 import { cn, getPlanWeekStart, israelDateAnchor, israelToday } from '@/lib/utils';
 import { formatPace } from '@/components/activity/format';
 import { formatTime } from '@/lib/academy/benchmark';
-import { weekTargetRange, type WeekPlanTotals } from '@/lib/plans/week-target';
-import { WeekTargetBar } from '@/components/profile/WeekTargetBar';
-import { Last7DaysCard } from '@/components/profile/Last7DaysCard';
+import { MyWeekCard } from '@/components/profile/MyWeekCard';
 import type { Last7Report } from '@/lib/reports/last-7-days';
 import { PrEditSheet } from '@/components/profile/PrEditSheet';
 import { RunsBrowser } from '@/components/profile/RunsBrowser';
@@ -183,16 +181,6 @@ export function AthleteProfileBody({
   );
   const { data: profile } = useApi<PublicProfile>(athleteId ? `/api/athletes/${athleteId}/public` : null);
 
-  // The club trains to ONE weekly programme (weekly_plans is keyed on a single
-  // coach), so the goal is the same number for every athlete and this needs no
-  // per-athlete lookup — the peer view and the owner's own view agree by
-  // construction rather than by coincidence. Same band ProfileOverview draws,
-  // through the same helper, so the two surfaces cannot disagree about it.
-  const { data: weekPlan } = useApi<WeekPlanTotals>(
-    `/api/plans/week?weekStart=${getPlanWeekStart(israelDateAnchor())}`,
-  );
-  const weekTarget = weekTargetRange(weekPlan);
-
   const weeks = stats?.weeks || [];
   const superUser = useIsSuperUser();
   const achievedPrs = (stats?.prs || []).filter((p) => p.seconds != null);
@@ -203,28 +191,6 @@ export function AthleteProfileBody({
     owner && section === 'prs' ? '/api/club/records' : null,
   );
   const ranks = profileClubRanks(board?.buckets, athleteId, owner);
-
-  // "Ahead of last week?" — this week so far against the same slice of last
-  // week. Rendered next to whichever heading is actually on screen: the owner's
-  // page already carries a week-km headline of its own (ProfileOverview, right
-  // above this) so repeating it here would print the same two numbers twice on
-  // one screen; there the badge rides on the chart instead.
-  const trendBadge =
-    stats?.weekTrendPct != null && stats.weekTrendPct !== 0 ? (
-      // dir="ltr" because a signed number is not RTL text: inside the Hebrew
-      // page bidi moves the sign to the far end and "−56%" renders as "56%−",
-      // which reads as a typo.
-      <span
-        dir="ltr"
-        className={cn(
-          'rounded-md px-1.5 py-0.5 text-3xs font-bold tabular-nums',
-          stats.weekTrendPct > 0 ? 'bg-accent-600/10 text-accent-900' : 'bg-band-3/10 text-band-3-ink',
-        )}
-      >
-        {stats.weekTrendPct > 0 ? '+' : ''}
-        {stats.weekTrendPct}%
-      </span>
-    ) : null;
 
   return (
     <div className="space-y-5">
@@ -262,61 +228,10 @@ export function AthleteProfileBody({
 
       {section === 'stats' && (
         <>
-          {/* ═══ THIS WEEK against the plan's own target ═══
-              Peer view only. The owner's page renders this exact headline and
-              bar a few rows above (ProfileOverview), and two identical
-              "25.6/146.3" on one scroll is noise, not emphasis. */}
-          {owner && weekSlot}
-          {!owner &&
-            (weekTarget ? (
-              <WeekTargetBar
-                title={t('weekKm')}
-                doneKm={stats?.thisWeek.km ?? 0}
-                target={weekTarget}
-                badge={trendBadge}
-              />
-            ) : (
-              // No plan for this week, so there is no band to measure against —
-              // but the kilometres themselves are still the answer to "how is
-              // their week going", so they stay, just without a bar.
-              <div className="mb-2 flex items-end justify-between gap-2">
-                <h2 className="text-xl font-bold text-ink-700">{t('weekKm')}</h2>
-                <div className="flex shrink-0 items-baseline gap-2">
-                  {trendBadge}
-                  <p className="text-2xl font-bold text-brand-600 tabular-nums">{stats?.thisWeek.km ?? 0}</p>
-                </div>
-              </div>
-            ))}
-
-          {/* ═══ THE LAST SEVEN DAYS ═══
-              Above the ten-week chart on purpose: this is the card the Saturday
-              18:00 notification links to, so it has to be the first thing in view
-              when that push opens the page. */}
-          {stats?.last7 && <Last7DaysCard report={stats.last7} athleteName={profile?.name} />}
-
-          <TenWeekChart
-            weeks={weeks}
-            title={t('lastTenWeeks')}
-            emptyLabel={t('noKmHistory')}
-            unit={tc('km')}
-            currentTrendPct={stats?.weekTrendPct ?? null}
-            month={stats ? { km: stats.monthKm, day: stats.monthDay } : null}
-          />
-          {/* This month, this year, ever — three totals, one glance. */}
-          {stats && stats.totalRuns > 0 && (
-            <div className="grid grid-cols-3 gap-2">
-              {([
-                [stats.monthKm, t('kmThisMonth')],
-                [stats.yearKm, t('kmThisYear')],
-                [stats.totalKm, t('kmAllTime')],
-              ] as Array<[number, string]>).map(([km, label]) => (
-                <div key={label} className="rounded-card bg-card px-2 py-3 text-center">
-                  <p dir="ltr" className="text-xl font-extrabold tabular-nums text-ink-900">{Math.round(km).toLocaleString('en-US')}</p>
-                  <p className="text-2xs text-ink-400">{label}</p>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* ═══ השבוע שלי ═══ — the owner's comes in with the goal race (weekSlot); a
+              teammate's is the same card in that athlete's lane (MyWeekCard). It also
+              carries the ten weeks and this month / this year, which used to sit here. */}
+          {owner ? weekSlot : athleteId && <MyWeekCard athleteId={athleteId} owner={false} athleteName={profile?.name} />}
           {/* Pace at the same heart rate (#105) — the owner and staff only. */}
           <PaceAtHrCard athleteId={athleteId ?? null} owner={owner} />
 
