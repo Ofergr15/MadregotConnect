@@ -1,6 +1,6 @@
 {
   "name": "madregot-connect",
-  "version": "2.41.221",
+  "version": "2.41.223",
   "private": true,
   "scripts": {
     "predev": "node scripts/copy-pdf-worker.mjs",
@@ -43,6 +43,7 @@
     "clsx": "^2.1.0",
     "garmin-connect": "^1.6.0",
     "googleapis": "^173.0.0",
+    "html-to-image": "1.11.13",
     "lucide-react": "^1.31.0",
     "next": "^16.3.0",
     "next-intl": "^4.13.6",

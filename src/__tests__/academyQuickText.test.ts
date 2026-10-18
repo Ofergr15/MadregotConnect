@@ -90,9 +90,9 @@ describe('parseQuickText — lengths', () => {
     expect(steps('8 טמפו')[0]).toMatchObject({ length: { measure: 'distance', value: 8000 } });
   });
 
-  it('a range takes the middle, the club parser\'s rule', () => {
+  it('a range takes the middle, the club parser\'s rule — and keeps both ends', () => {
     expect(steps('60-40 דקות שחרור')).toEqual([
-      { kind: 'run', role: 'main', length: { measure: 'time', value: 3000 }, effort: { kind: 'zone', zone: 'easy' } },
+      { kind: 'run', role: 'main', length: { measure: 'time', value: 3000, range: { min: 2400, max: 3600 } }, effort: { kind: 'zone', zone: 'easy' } },
     ]);
   });
 

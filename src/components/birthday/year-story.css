@@ -30,7 +30,7 @@
 .ys .bg.plain.warm{background:radial-gradient(110% 60% at 15% 100%,rgba(255,83,21,.45) 0%,rgba(255,83,21,0) 60%),radial-gradient(120% 70% at 85% 0%,#2a3bff 0%,#1525FF 35%,#0a1080 78%,#060a52 100%)}
 .ys .bg.plain.deep{background:linear-gradient(180deg,#0a1080,#060a3c)}
 .ys .bg.plain::before{content:"";position:absolute;inset:0;background:url("/images/stairs-white.png") no-repeat -70px 108%/85%;opacity:.07}
-.ys .c{position:absolute;z-index:5;inset:0;padding:calc(env(safe-area-inset-top) + 90px) 26px calc(env(safe-area-inset-bottom) + 44px);display:flex;flex-direction:column;justify-content:center}
+.ys .c{position:absolute;z-index:5;inset:0;padding:calc(env(safe-area-inset-top) + 90px) 26px calc(env(safe-area-inset-bottom) + 72px);display:flex;flex-direction:column;justify-content:center}
 .ys .c.end{justify-content:flex-end}
 .ys .rise{opacity:0;transform:translateY(22px);filter:blur(4px)}
 .ys .show .rise{animation:rise .8s cubic-bezier(.2,.8,.2,1) forwards}
@@ -209,7 +209,7 @@
 .ys .legend i.st{background:var(--or)}
 .ys .poster-wrap{justify-content:center;gap:14px;padding-top:112px;padding-bottom:40px}
 .ys .poster{border-radius:30px;overflow:hidden;background:linear-gradient(180deg,#0d16a8,#070c5e);box-shadow:0 30px 70px -20px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.14)}
-.ys .pph{position:relative;height:262px}
+.ys .pph{position:relative;height:230px}
 .ys .pph img{width:100%;height:100%;object-fit:cover;object-position:50% 18%}
 .ys .pphg{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05) 35%,rgba(13,22,168,.85) 85%,#0d16a8)}
 .ys .ppt{position:absolute;right:18px;bottom:6px}
@@ -220,7 +220,7 @@
 .ys .pbig b{font-size:64px;font-weight:900;letter-spacing:-2.5px;line-height:1}
 .ys .pbig u{text-decoration:none;font-size:20px;font-weight:800;color:var(--peach)}
 .ys .pg{display:grid;grid-template-columns:repeat(3,1fr);margin:6px 12px 0;border-top:1px solid rgba(255,255,255,.14)}
-.ys .pg div{padding:11px 6px;border-bottom:1px solid rgba(255,255,255,.1)}
+.ys .pg div{padding:9px 6px;border-bottom:1px solid rgba(255,255,255,.1)}
 .ys .pg div:not(:nth-child(3n)){border-left:1px solid rgba(255,255,255,.1)}
 .ys .pg b{display:block;font-size:23px;font-weight:900;letter-spacing:-.4px}
 .ys .pg small{font-size:12.5px;opacity:.8}
@@ -244,3 +244,15 @@
 .ys .pph-empty{position:absolute;inset:0;background:radial-gradient(120% 90% at 80% 0%,#2a3bff,#0d16a8)}
 .ys .acts button:disabled{opacity:.6}
 .ys .c{zoom:var(--fit,1)}
+.ys .ys-share{position:absolute;z-index:35;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 14px);display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 18px;border-radius:99px;border:1px solid rgba(255,255,255,.3);background:rgba(6,10,82,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#fff;font-size:14px;font-weight:800;white-space:nowrap}
+.ys .ys-share svg{width:17px;height:17px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.ys .ys-share:disabled{opacity:.7}
+.ys .ys-notice{position:absolute;z-index:36;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 66px);margin:0;padding:8px 14px;border-radius:99px;background:rgba(0,0,0,.6);font-size:13px;font-weight:700;white-space:nowrap}
+/* The still copy that becomes the picture: off screen, 9:16, no motion, no controls. */
+.ys.ys-export{position:fixed;inset:auto;left:-10000px;top:0;z-index:-1;pointer-events:none}
+.ys.ys-export .c{padding-top:78px;padding-bottom:36px}
+.ys.ys-export .top{top:22px}
+.ys.ys-export .acts{display:none}
+.ys.still *{animation:none!important;transition:none!important}
+.ys.still .sl{opacity:1;visibility:visible}
+.ys.ys-export .hint{display:none}

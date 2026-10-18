@@ -26,11 +26,21 @@ describe('GET /api/birthday-year', () => {
     expect(loadStory).not.toHaveBeenCalled();
   });
 
-  it('gives the owner their own once it is on, never somebody else\'s', async () => {
+  it('gives the owner their own once it is on', async () => {
     caller.mockResolvedValue(runner);
     sending.mockResolvedValue(true);
-    const body = await (await get('?athleteId=other')).json();
-    expect(body.story).toMatchObject({ athleteId: 'me', preview: false });
+    expect((await (await get()).json()).story).toMatchObject({ athleteId: 'me', preview: false });
+  });
+
+  it('shows any member somebody else\'s during its week, never as a preview', async () => {
+    caller.mockResolvedValue(runner);
+    sending.mockResolvedValue(true);
+    expect((await (await get('?athleteId=shalev')).json()).story).toMatchObject({ athleteId: 'shalev', preview: false });
+  });
+
+  it('shows a member nobody\'s while sending is off', async () => {
+    caller.mockResolvedValue(runner);
+    expect((await (await get('?athleteId=shalev')).json()).story).toBeNull();
   });
 
   it('lets the admin preview anybody\'s, with sending off', async () => {

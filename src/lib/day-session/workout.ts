@@ -32,8 +32,14 @@ const REST_NOTE: Record<RestMode, string> = { walk: 'הליכה', jog: 'ג׳וג
 /** Extra packs' paces for one quick step, from `(❷)` and `((❸))`. */
 export interface PackExtra { g2?: GroupPace; g3?: GroupPace }
 
-function duration(length: Length | null): Pick<WorkoutStep, 'durationType' | 'durationValue'> {
-  return length ? { durationType: length.measure, durationValue: length.value } : { durationType: 'open' };
+function duration(length: Length | null): Pick<WorkoutStep, 'durationType' | 'durationValue' | 'durationMaxValue'> {
+  if (!length) return { durationType: 'open' };
+  // "50-70 דק׳" stays 50–70: the near end for the watch, the far end for the card — the
+  // planner's convention (WorkoutStep.durationMaxValue). The middle was all it kept before.
+  if (length.measure === 'time' && length.range) {
+    return { durationType: 'time', durationValue: length.range.min, durationMaxValue: length.range.max };
+  }
+  return { durationType: length.measure, durationValue: length.value };
 }
 
 function target(effort: QuickEffort | null, extra?: PackExtra | null): Partial<WorkoutStep> {

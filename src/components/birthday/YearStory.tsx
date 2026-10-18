@@ -6,7 +6,7 @@ import type { BirthdayStory, PhotoSlot } from '@/lib/birthday-year/server';
 import {
   AZRIELI_ROUND_M, EVEREST_M, PIZZA_KCAL, TLV_VALENCIA_KM, timesInWords,
 } from '@/lib/birthday-year/stats';
-import { sharePoster } from './poster';
+import { EXPORT_H, EXPORT_W, captureSlide, shareImages } from './capture';
 import './year-story.css';
 
 // "השנה שלך" — the birthday story (mockup ~/.cache/madregot/birthday-year/mockup-v4.html).
@@ -78,6 +78,17 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
   const photo = useCallback((slot: PhotoSlot) => config.photos?.[slot] || CLUB[slot] || null, [config.photos]);
   const own = (slot: PhotoSlot) => config.photos?.[slot] || null;
 
+  // Sharing: a still copy of a slide is rendered off screen and captured (capture.ts).
+  const [exporting, setExporting] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [busyAll, setBusyAll] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
+  const waitFor = useRef<((n: HTMLDivElement) => void) | null>(null);
+  const shareAllRef = useRef<() => Promise<void>>(async () => {});
+  const shareAll = () => shareAllRef.current();
+  const shareOneRef = useRef<() => Promise<void>>(async () => {});
+
   const slides = useMemo<Slide[]>(() => {
     const out: Slide[] = [];
     out.push({ key: 'intro', dur: 5500, node: () => (<>
@@ -105,7 +116,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
         <p className="k rise">השנה רצת</p>
         <div className="hero rise d1"><b><Count to={s.km} run={live} /></b><u>ק״מ</u></div>
         {s.km >= TLV_VALENCIA_KM / 2 && (<>
-          <div className="trip rise d2"><svg viewBox="0 0 320 90"><path className="arc" d="M300 70 Q160 -30 20 60" /><circle cx="300" cy="70" r="5" fill="#fff" /><circle cx="20" cy="60" r="5" fill="#FF5315" /></svg>
+          <div className="trip rise d2"><svg viewBox="0 0 320 90"><path className="arc" d="M300 70 Q160 -30 20 60" fill="none" stroke="#FF5315" strokeWidth={3.5} strokeLinecap="round" strokeDasharray="2 8" /><circle cx="300" cy="70" r="5" fill="#fff" /><circle cx="20" cy="60" r="5" fill="#FF5315" /></svg>
             <div className="tl"><span>תל אביב</span><span>ולנסיה</span></div></div>
           <p className="big2 rise d3">כמו לרוץ מתל אביב לוולנסיה<br />{timesInWords(s.km / TLV_VALENCIA_KM)}.</p>
         </>)}
@@ -122,7 +133,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
       out.push({ key: 'streak', dur: 5500, node: (live) => (<>
         <Bg src={own('streak')} kind={own('streak') ? 'photo' : 'plain'} pos="40% 40%" />
         <div className="c end">
-          <div className="ys-ring rise"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" className="tr" /><circle cx="60" cy="60" r="52" className="prog" style={{ strokeDashoffset: 326.7 * (1 - s.streak!.days / s.totalDays) }} /></svg><span>🔥</span></div>
+          <div className="ys-ring rise"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" className="tr" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth={9} /><circle cx="60" cy="60" r="52" className="prog" fill="none" stroke="#FF5315" strokeWidth={9} strokeLinecap="round" strokeDasharray="326.7" style={{ strokeDashoffset: 326.7 * (1 - s.streak!.days / s.totalDays) }} /></svg><span>🔥</span></div>
           <p className="k rise">הרצף הכי ארוך שלך</p>
           <div className="hero rise d1"><b><Count to={s.streak!.days} run={live} /></b><u>ימים ברצף</u></div>
           <p className="big2 rise d2">מ־<bdi>{dm(s.streak!.from)}</bdi> עד <bdi>{dm(s.streak!.to)}</bdi><br />לא פספסת אף יום.</p>
@@ -138,7 +149,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
           <h2 className="rise d1">{config.momentTitle || MOMENT_TITLE[m.key]}</h2>
           <div className="hero rise d1"><b dir="ltr">{clock(m.seconds)}</b></div>
           <div className="bline rise d2"><span><bdi>{dmy(m.date)}</bdi></span><span><bdi>{pace(m.seconds, m.km)}</bdi> לק״מ</span><span><bdi>{m.km}</bdi> ק״מ</span></div>
-          <svg className="broute rise d2" viewBox="0 0 300 220"><path className="rt" d={r.d} /><circle cx={r.end[0]} cy={r.end[1]} r="5" fill="#fff" /></svg>
+          <svg className="broute rise d2" viewBox="0 0 300 220"><path className="rt" d={r.d} fill="none" stroke="#FF5315" strokeWidth={3.5} strokeLinejoin="round" strokeLinecap="round" /><circle cx={r.end[0]} cy={r.end[1]} r="5" fill="#fff" /></svg>
         </div></>) });
     }
     if (s.bests.length) {
@@ -192,9 +203,9 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
         <Bg src={own('climb')} kind={own('climb') ? 'band' : 'plain'} pos="78% 30%" />
         <div className="c end"><p className="k rise">כמה טיפסת השנה</p>
           <div className="hero rise d1"><b><Count to={s.elevM} run={live} /></b><u>מטר עלייה</u></div>
-          {s.elevM >= EVEREST_M / 2 && <div className="cmp rise d2"><svg viewBox="0 0 80 56"><path d="M0 56 L16 36 L22 40 L34 18 L39 22 L48 4 L53 12 L58 9 L80 56 Z" /><path d="M48 4 L53 12 L58 9 L62 18 L44 14 Z" className="snow" /></svg>
+          {s.elevM >= EVEREST_M / 2 && <div className="cmp rise d2"><svg viewBox="0 0 80 56"><path d="M0 56 L16 36 L22 40 L34 18 L39 22 L48 4 L53 12 L58 9 L80 56 Z" fill="#FF5315" /><path d="M48 4 L53 12 L58 9 L62 18 L44 14 Z" className="snow" fill="#fff" /></svg>
             <div><p>האוורסט · <bdi>{n(EVEREST_M)}</bdi> מ׳</p><b>פי <bdi>{(s.elevM / EVEREST_M).toFixed(1)}</bdi></b></div></div>}
-          <div className="cmp rise d3"><svg viewBox="0 0 80 56"><path d="M34 56 V10 L40 3 L46 10 V56 Z" /><path d="M37 16h6M37 24h6M37 32h6M37 40h6M37 48h6" className="win" /></svg>
+          <div className="cmp rise d3"><svg viewBox="0 0 80 56"><path d="M34 56 V10 L40 3 L46 10 V56 Z" fill="#FF5315" /><path d="M37 16h6M37 24h6M37 32h6M37 40h6M37 48h6" className="win" fill="none" stroke="#060a52" strokeWidth={2} /></svg>
             <div><p>מגדל עזריאלי · <bdi>{AZRIELI_ROUND_M}</bdi> מ׳</p><b>פי <bdi>{Math.round(s.elevM / AZRIELI_ROUND_M)}</bdi></b></div></div>
         </div></>) });
     }
@@ -216,12 +227,55 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
         ))}
         {s.calories > 0 && <div className="tl2 wide rise d4"><span>🍕</span><div><b><bdi>{n(s.calories)}</bdi> קלוריות</b><small>בערך {n(Math.round(s.calories / PIZZA_KCAL))} פיצות משפחתיות</small></div></div>}
       </div></div></>) });
-    out.push({ key: 'summary', dur: 20000, node: () => <Poster story={story} photo={own('poster') || own('moment') || own('intro')} /> });
+    out.push({ key: 'summary', dur: 20000, node: () => <Poster story={story} photo={own('poster') || own('moment') || own('intro')} onShareThis={() => void shareOneRef.current()} onShareAll={() => void shareAll()} busy={busy} busyAll={busyAll} /> });
     return out;
-  }, [story, s, config, name, photo]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [story, s, config, name, photo, busy, busyAll]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [at, setAt] = useState(0);
   const [mounted, setMounted] = useState(false);
+
+  /** Render slide `i` still, off screen, and resolve with its node once it is painted. */
+  const renderStill = useCallback((i: number) => new Promise<HTMLDivElement>((resolve) => {
+    waitFor.current = resolve;
+    setExporting(i);
+  }), []);
+  useEffect(() => {
+    if (exporting == null || !exportRef.current || !waitFor.current) return;
+    const node = exportRef.current;
+    const done = waitFor.current;
+    waitFor.current = null;
+    requestAnimationFrame(() => requestAnimationFrame(() => done(node)));
+  }, [exporting]);
+
+  const told = (r: 'shared' | 'downloaded' | 'cancelled', many = false) => {
+    if (r === 'downloaded') setNotice(many ? 'התמונות נשמרו' : 'התמונה נשמרה');
+    if (r !== 'cancelled') setTimeout(() => setNotice(null), 2600);
+  };
+  const shareOne = async () => {
+    setBusy(true); setNotice(null);
+    try {
+      const node = await renderStill(at);
+      const blob = await captureSlide(node);
+      told(await shareImages([blob], `madregot-${story.birthday}-${slides[at].key}`));
+    } catch {
+      setNotice('לא הצלחנו להכין את התמונה');
+    } finally {
+      setExporting(null); setBusy(false);
+    }
+  };
+  shareOneRef.current = shareOne;
+  shareAllRef.current = async () => {
+    setBusyAll(true); setNotice(null);
+    try {
+      const blobs: Blob[] = [];
+      for (let i = 0; i < slides.length; i++) blobs.push(await captureSlide(await renderStill(i)));
+      told(await shareImages(blobs, `madregot-${story.birthday}`), true);
+    } catch {
+      setNotice('לא הצלחנו להכין את התמונות');
+    } finally {
+      setExporting(null); setBusyAll(false);
+    }
+  };
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const go = useCallback((d: number) => setAt((i) => Math.max(0, Math.min(slides.length - 1, i + d))), [slides.length]);
 
@@ -238,9 +292,9 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
     // The last screen stays: it is where the share buttons are.
-    if (at < slides.length - 1) timer.current = setTimeout(() => go(1), slides[at].dur);
+    if (at < slides.length - 1 && !busy && !busyAll) timer.current = setTimeout(() => go(1), slides[at].dur);
     return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [at, slides, go]);
+  }, [at, slides, go, busy, busyAll]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -272,6 +326,24 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
         <button type="button" className="tap r" aria-label="הקודם" onClick={() => go(-1)} />
       </>}
       {at === slides.length - 1 && <button type="button" className="tap r back" aria-label="הקודם" onClick={() => go(-1)} />}
+      {at < slides.length - 1 && (
+        <button type="button" className="ys-share" onClick={() => void shareOne()} disabled={busy}>
+          {busy ? 'מכין…' : <><svg viewBox="0 0 24 24" aria-hidden><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" /></svg>שיתוף לסטורי</>}
+        </button>
+      )}
+      {notice && <p className="ys-notice" role="status">{notice}</p>}
+      {exporting != null && (
+        <div ref={exportRef} className="ys ys-export still" dir="rtl" aria-hidden style={{ width: EXPORT_W, height: EXPORT_H, ['--fit' as string]: EXPORT_H / 820 }}>
+          {/* The poster carries its own mark. */}
+          {slides[exporting].key !== 'summary' && (
+            <div className="top">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/wordmark-white.png" alt="" />
+            </div>
+          )}
+          <section className={`sl show s-${slides[exporting].key}`}>{slides[exporting].node(false)}</section>
+        </div>
+      )}
     </div>,
     document.body,
   );
@@ -317,9 +389,10 @@ function MonthGrid({ story }: { story: BirthdayStory }) {
   );
 }
 
-function Poster({ story, photo }: { story: BirthdayStory; photo: string | null }) {
+function Poster({ story, photo, onShareThis, onShareAll, busy, busyAll }: {
+  story: BirthdayStory; photo: string | null; onShareThis: () => void; onShareAll: () => void; busy: boolean; busyAll: boolean;
+}) {
   const s = story.stats;
-  const [busy, setBusy] = useState(false);
   const fm = s.bests.find((b) => b.key === 'fm');
   const hm = s.bests.find((b) => b.key === 'hm');
   const sec = (b: typeof fm) => (b && s.moment && b.activityId === s.moment.activityId ? s.moment.seconds : b?.seconds ?? 0);
@@ -331,10 +404,6 @@ function Poster({ story, photo }: { story: BirthdayStory; photo: string | null }
     ...(s.longest ? [[String(s.longest.km), 'ק״מ הכי ארוכה'] as [string, string]] : []),
     [n(s.hours), 'שעות'],
   ].slice(0, 6) as Array<[string, string, boolean?]>;
-  const share = async () => {
-    setBusy(true);
-    try { await sharePoster(story, photo, grid); } finally { setBusy(false); }
-  };
   return (<>
     <div className="bg plain deep" />
     <div className="c poster-wrap"><div className="poster rise">
@@ -349,6 +418,9 @@ function Poster({ story, photo }: { story: BirthdayStory; photo: string | null }
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <div className="pft"><img src="/images/wordmark-white.png" alt="" /><span>🎂 מזל טוב מכל המדרגות</span></div>
     </div>
-    <div className="acts rise d2"><button type="button" className="p" onClick={() => void share()} disabled={busy}>{busy ? 'מכין…' : 'שיתוף לסטורי'}</button></div></div>
+    <div className="acts rise d2">
+      <button type="button" className="p" onClick={onShareThis} disabled={busy}>{busy ? 'מכין…' : 'שיתוף התמונה הזו לסטורי'}</button>
+      <button type="button" onClick={onShareAll} disabled={busyAll}>{busyAll ? 'מכין את כל התמונות…' : 'שמירת כל התמונות'}</button>
+    </div></div>
   </>);
 }
