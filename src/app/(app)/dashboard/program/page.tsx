@@ -463,24 +463,33 @@ export default function ProgramPage() {
           for the current week yet, both correctly read "missing". */}
       {activeView !== 'workout' && (() => {
         const cw = weeks.find(w => w.week_start_date === thisWeekStart);
+        const training = !!cw?.training_pdf_url || structuredWeekStarts.has(thisWeekStart);
+        const nutrition = !!cw?.nutrition_pdf_url;
+        // "Missing — upload" is the uploader's line: a runner can't act on it, so for
+        // them a missing plan simply isn't listed (screens audit 2026-10-19 #25).
+        if (!isAdmin && !training && !nutrition) return null;
         return (
           <InsetSection>
-            <PlanStatusRow
-              icon={Dumbbell}
-              label={t('trainingProgram')}
-              present={!!cw?.training_pdf_url || structuredWeekStarts.has(thisWeekStart)}
-              isAdmin={isAdmin}
-              onUpload={() => setShowUploadForm(true)}
-              t={t}
-            />
-            <PlanStatusRow
-              icon={Utensils}
-              label={t('nutritionPlan')}
-              present={!!cw?.nutrition_pdf_url}
-              isAdmin={isAdmin}
-              onUpload={() => setShowUploadForm(true)}
-              t={t}
-            />
+            {(isAdmin || training) && (
+              <PlanStatusRow
+                icon={Dumbbell}
+                label={t('trainingProgram')}
+                present={training}
+                isAdmin={isAdmin}
+                onUpload={() => setShowUploadForm(true)}
+                t={t}
+              />
+            )}
+            {(isAdmin || nutrition) && (
+              <PlanStatusRow
+                icon={Utensils}
+                label={t('nutritionPlan')}
+                present={nutrition}
+                isAdmin={isAdmin}
+                onUpload={() => setShowUploadForm(true)}
+                t={t}
+              />
+            )}
           </InsetSection>
         );
       })()}
