@@ -289,7 +289,7 @@ export function WatchTrack({ data, onResend, busy }: { data: TrackAnswer; onRese
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4">
         <div className={cn(CARD, 'px-4 py-3.5')}>
           <div className="flex items-baseline justify-between gap-2">
-            <b className="text-[19px] text-ink-900">בשעון אצל <bdi dir="ltr">{c.ok}</bdi> מתוך <bdi dir="ltr">{c.total}</bdi></b>
+            <b className="text-[19px] text-ink-900">נשלח ל־Garmin אצל <bdi dir="ltr">{c.ok}</bdi> מתוך <bdi dir="ltr">{c.total}</bdi></b>
             <span className="text-13 text-ink-400">{way ? 'שולח…' : data.sentAt ? `נשלח ${clock(data.sentAt)}` : ''}</span>
           </div>
           <div className="mt-2.5 flex h-2.5 overflow-hidden rounded-full bg-[#E7E7EE]" aria-hidden>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { israelClock, watchDayState, type WatchDay } from '@/lib/watch/day-status';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Link2, Moon, Sun, Watch } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Link2, Moon, Sun, Watch, RefreshCw } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { addDaysToDateStr, getPlanWeekStart, GROUP_HEX, israelNow, israelToday } from '@/lib/utils';
 import { SessionRsvp } from '@/components/feed/SessionRsvp';
@@ -288,7 +288,9 @@ export function NextSessionCard() {
               {watchKnown && (
                 <span title={watchLabel} aria-label={watchLabel} className={`flex h-7 items-center gap-0.5 rounded-pill px-2 ${
                   watchState === 'ran' ? 'bg-accent-600/10 text-accent-900' : watchState === 'updated' ? 'bg-[#FFF3D6] text-[#8A5A00]' : watchState === 'sent' ? 'bg-brand-600/10 text-brand-600' : 'bg-accent-red/10 text-accent-red'}`}>
-                  <Watch className="h-3.5 w-3.5" />{onWatch && <Check className="h-3 w-3" />}
+                  {/* A check only once a run proves the watch had it; until then the app knows the
+                      workout is on the Garmin ACCOUNT, and the watch still has to sync (2026-10-19). */}
+                  <Watch className="h-3.5 w-3.5" />{watchState === 'ran' ? <Check className="h-3 w-3" /> : onWatch && <RefreshCw className="h-3 w-3" />}
                 </span>
               )}
               {answered && (

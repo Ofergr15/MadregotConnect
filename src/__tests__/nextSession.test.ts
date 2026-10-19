@@ -166,8 +166,10 @@ describe('the feed box', () => {
     expect(card).toMatch(/watch\.garminConnected && watch\.hasPlan/);
   });
 
-  it('is a tick beside the watch, or a red watch — icon only, in the honest state colour', () => {
-    expect(card).toMatch(/onWatch && <Check/);
+  it('is a tick beside the watch once a run used it, a sync arrow while it is only on the Garmin account, or a red watch — icon only, in the honest state colour', () => {
+    // 2026-10-19: "sent" is the account, not the device — the tick waits for a run.
+    expect(card).toMatch(/watchState === 'ran' \? <Check/);
+    expect(card).toMatch(/onWatch && <RefreshCw/);
     expect(card).toMatch(/text-accent-red/);
     // sent (blue) / updated (amber) / ran (green): lib/watch/day-status.
     expect(card).toMatch(/watchDayState\(/);

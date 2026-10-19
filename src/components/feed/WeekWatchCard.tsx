@@ -53,8 +53,10 @@ export function WeekWatchCard() {
         <div className="flex items-center gap-2.5">
           <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#E3F6EA] text-xl">⌚</span>
           <span className="min-w-0 flex-1">
-            <b className="block text-[15px] text-ink-900">כל אימוני השבוע בשעון שלך</b>
-            <small className="block text-13 text-ink-500"><bdi dir="ltr">{m.expected.length}</bdi> אימונים</small>
+            {/* "Sent to Garmin", not "on your watch": the app sees the account, never the device
+                (2026-10-19 — the 19.10 session was on the account and not on a watch that hadn't synced). */}
+            <b className="block text-[15px] text-ink-900">כל אימוני השבוע נשלחו ל־Garmin</b>
+            <small className="block text-13 text-ink-500"><bdi dir="ltr">{m.expected.length}</bdi> אימונים · לסנכרן את השעון כדי שיופיעו בו</small>
           </span>
           <button type="button" aria-label="להסתיר" onClick={() => { setHidden(latest); try { localStorage.setItem(OK_KEY, latest); } catch { /* ignore */ } }} className="grid h-11 w-11 place-items-center text-ink-300">
             <X className="h-4 w-4" />

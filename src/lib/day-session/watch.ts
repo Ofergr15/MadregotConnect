@@ -9,7 +9,7 @@ import { GarminClient } from '@/lib/garmin/client';
 import { pushWeekToAthlete, type PushResult } from '@/lib/garmin/push-week';
 import { notifyAthlete } from '@/lib/push';
 import { appleCandidates, deliverWeek, resolveWatchProvider } from '@/lib/watch';
-import { addDaysToDateStr, getPlanWeekStart, israelToday } from '@/lib/utils';
+import { addDaysToDateStr, getPlanWeekStart, israelNow, israelToday } from '@/lib/utils';
 import { shouldTellAthlete } from '@/lib/garmin/delivery-failure';
 import { EVENING_KIND } from '@/lib/watch/evening-reminder';
 import type { DaySession } from './model';
@@ -32,6 +32,8 @@ import { countsOf, statusOf, type DeliveryLike, type RunnerStatus } from './watc
 type Db = ReturnType<typeof createServerClient>;
 
 const AT_ONCE = 3;
+/** From this hour a send for tomorrow comes after the 20:00 reminder, so it brings its own. */
+const SYNC_NUDGE_FROM_HOUR = 20;
 const PACK: Record<PaceGroupKey, 0 | 1 | 2> = { group1: 0, group2: 1, group3: 2 };
 
 export const dayKey = (date: string) => `day:${date}`;
@@ -146,14 +148,32 @@ export async function startDaySessionSend(s: DaySession, athleteIds: string[], s
     await Promise.all(Array.from({ length: Math.min(AT_ONCE, athletes.length) }, async () => {
       while (next < athletes.length) await deliver(athletes[next++]!);
     }));
+    // A session for TOMORROW sent after 20:00 missed the evening reminder, and Garmin only
+    // has it on the account: it reaches the watch at the next sync. One push to each runner
+    // it reached, so the watch has it by the morning (2026-10-19 — 19.10 was on Ofer's
+    // account and not on his watch at 07:05).
+    const nowParts = israelNow();
+    if (s.date === addDaysToDateStr(israelToday(), 1) && nowParts.hour >= SYNC_NUDGE_FROM_HOUR) {
+      for (const r of results.filter((x) => x.status === 'success')) {
+        try {
+          await notifyAthlete({
+            athleteId: r.athleteId, kind: 'watch_sync',
+            title: 'האימון של מחר נשלח ל־Garmin',
+            body: 'פתחו את Garmin Connect לרגע כדי שיסונכרן לשעון',
+            url: '/feed', tag: `watch-sync-${s.date}`, category: 'workouts',
+          });
+        } catch { /* best-effort */ }
+      }
+    }
     // One push to the coach with how it went.
     if (senderId) {
       const ok = results.filter((r) => r.status === 'success').length;
       try {
         await notifyAthlete({
           athleteId: senderId, kind: 'day_session_watch',
-          title: `בשעון אצל ${ok} מתוך ${results.length}`,
-          body: ok === results.length ? 'האימון הגיע לכל השעונים' : `${results.length - ok} לא קיבלו. נגיעה כדי לראות מי ולשלוח שוב`,
+          // Garmin accepted it — the account, not the device; it shows on a watch after a sync.
+          title: `נשלח ל־Garmin אצל ${ok} מתוך ${results.length}`,
+          body: ok === results.length ? 'האימון נשלח ל־Garmin של כולם. הוא יופיע בשעון אחרי סנכרון' : `${results.length - ok} לא קיבלו. נגיעה כדי לראות מי ולשלוח שוב`,
           url: `/dashboard/day-session?date=${s.date}&track=1`, tag: `day-session-watch-${s.date}`, category: 'management',
         });
       } catch { /* best-effort */ }
