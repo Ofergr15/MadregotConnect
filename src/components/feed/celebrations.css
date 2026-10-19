@@ -11,8 +11,8 @@
    out of the circle, and a small hand on the first one. */
 .mcel .cring.breathe::after{content:"";position:absolute;inset:-1px;border-radius:9999px;box-shadow:0 0 0 3px rgba(21,37,255,.5);animation:mcel-breathe 1.6s ease-out infinite;pointer-events:none}
 @keyframes mcel-breathe{0%{transform:scale(1);opacity:1}100%{transform:scale(1.12);opacity:0}}
-.mcel .chand{position:absolute;left:-12px;top:22px;z-index:2;font-size:22px;line-height:1;animation:mcel-tap 1.4s ease-in-out infinite;pointer-events:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.25))}
-@keyframes mcel-tap{0%,100%{transform:translate(0,0)}50%{transform:translate(-3px,-5px)}}
+.mcel .chand{position:absolute;left:50%;top:34px;z-index:2;font-size:22px;line-height:1;margin-left:-11px;animation:mcel-tap 1.4s ease-in-out infinite;pointer-events:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.3))}
+@keyframes mcel-tap{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 .mcel .strip::-webkit-scrollbar{display:none}
 .mcel-sheet .slides{scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
 .mcel-sheet .slides::-webkit-scrollbar{display:none}
