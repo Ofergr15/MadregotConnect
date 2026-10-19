@@ -56,25 +56,22 @@ export async function createAndSendSurvey(opts: {
       audience_id: opts.audienceType === 'all' || opts.audienceType === 'academy' ? null : opts.audienceId || null,
       schedule_type: 'now',
       next_run_at: new Date().toISOString(),
-      status: 'scheduled',
+      // A poll without its own push is born 'silent'. Inserting it 'scheduled' and
+      // marking it afterwards lost a race every time: /api/cron/notifications sends
+      // every due 'scheduled' row once a minute, so the "no push" poll went to the
+      // whole club anyway (sent 21, 2026-10-19 08:00) — a second notification beside
+      // the day-before push asking the same thing (feedback #130).
+      status: opts.push === false ? 'silent' : 'scheduled',
+      ...(opts.push === false ? { last_sent_at: new Date().toISOString(), sent_count: 0 } : {}),
       created_by: opts.createdBy || null,
     })
     .select()
     .single();
   if (notifError) throw notifError;
 
-  if (opts.push === false) {
-    // 'silent', not 'sent': the inbox lists every 'sent' row, so a poll created
-    // without its own push still landed in every member's notifications as a second
-    // "answer the survey" — beside the day-before push that already asks the same
-    // thing and opens the RSVP card (feedback #130, 2026-10-19: two notifications,
-    // two different ways to answer). The poll itself is untouched.
-    await supabase
-      .from('scheduled_notifications')
-      .update({ status: 'silent', last_sent_at: new Date().toISOString(), sent_count: 0 })
-      .eq('id', notifRow.id);
-    return { survey, sent: 0 };
-  }
+  // 'silent' (above), not 'sent': nothing sends it, and the inbox, which lists
+  // 'sent' rows, doesn't show it either. The poll itself is untouched.
+  if (opts.push === false) return { survey, sent: 0 };
 
   const subs = await resolveAudience(notifRow.audience_type, notifRow.audience_id);
   // The question is authored once but stored in both languages, so each

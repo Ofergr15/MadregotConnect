@@ -9,11 +9,9 @@ import { describe, expect, it } from 'vitest';
  */
 describe('a poll created without a push', () => {
   const src = readFileSync('src/lib/surveys.ts', 'utf8');
-  const silent = src.slice(src.indexOf('if (opts.push === false)'), src.indexOf('return { survey, sent: 0 };'));
-
-  it('is marked silent, not sent', () => {
-    expect(silent).toMatch(/status: 'silent'/);
-    expect(silent).not.toMatch(/status: 'sent'/);
+  it('is inserted silent, never scheduled — the every-minute sender sends any due scheduled row', () => {
+    expect(src).toMatch(/status: opts\.push === false \? 'silent' : 'scheduled'/);
+    expect(readFileSync('src/app/api/cron/notifications/route.ts', 'utf8')).toMatch(/\.eq\('status', 'scheduled'\)/);
   });
 
   it('is still a poll the inbox would skip: the inbox reads only sent rows', () => {
