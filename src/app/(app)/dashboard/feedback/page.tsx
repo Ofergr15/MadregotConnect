@@ -213,7 +213,8 @@ function FeedbackForm() {
         </div>
       )}
 
-      {/* Effort, 1-10: one row of steps from green to red, the chosen one says its word. */}
+      {/* Effort, 1-10: two rows of five, green to red, the chosen one says its word. One row
+          of ten was 26px a button — under a finger (audit, 10-19). */}
       <div className={card}>
         <div className="flex items-center justify-between">
           <p className="text-sm font-extrabold text-ink-500">{t('difficulty')}</p>
@@ -223,7 +224,7 @@ function FeedbackForm() {
             </p>
           )}
         </div>
-        <div className="mt-2.5 grid grid-cols-10 gap-1">
+        <div className="mt-2.5 grid grid-cols-5 gap-2">
           {scale.map(n => {
             const hue = 120 - (n - 1) * 13;
             const on = difficulty === n;
@@ -234,9 +235,10 @@ function FeedbackForm() {
                 onClick={() => setDifficulty(n)}
                 aria-pressed={on}
                 aria-label={`${n} · ${words[n - 1]}`}
-                className={cn('h-11 rounded-[10px] text-sm font-extrabold transition-transform', on && 'scale-110')}
+                className={cn('h-12 rounded-xl text-base font-extrabold transition-transform', on && 'scale-105')}
                 style={on
-                  ? { background: `hsl(${hue} 65% 42%)`, color: '#fff', boxShadow: `0 4px 10px hsl(${hue} 60% 40% / .35)` }
+                  // 28% lightness: white on the yellow middle (5–6) was 2.5:1 at 42%, 4.6:1 here.
+                  ? { background: `hsl(${hue} 70% 28%)`, color: '#fff', boxShadow: `0 4px 10px hsl(${hue} 60% 30% / .35)` }
                   : { background: `hsl(${hue} 70% 94%)`, color: `hsl(${hue} 60% 28%)` }}
               >
                 {n}

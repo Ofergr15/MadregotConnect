@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { feedbackAlertCopy } from '@/lib/notifications/copy';
 import { academyManagerIds, notifyStaff } from '@/lib/notifications/staff';
 import { notifyAthlete } from '@/lib/push';
+import { SUPER_USER_EMAIL } from '@/lib/constants';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
 import { inScope, staffAthleteScope } from '@/lib/academy/staff-scope';
 import { academyThreadUrl } from '@/lib/academy/deep-links';
@@ -127,6 +128,12 @@ async function markThreadsRead(
 // GET /api/workout-feedback?list=1[&days=N]
 //   -> admin view: recent workout feedback across ALL athletes, newest first,
 //      joined to athlete (name/avatar/squad) and the activity it's about.
+/** The super user's athlete row — the club's head coach (lib/constants SUPER_USER_EMAIL). */
+async function headCoachIds(supabase: SupabaseServer): Promise<string[]> {
+  const { data } = await supabase.from('athletes').select('id').eq('email', SUPER_USER_EMAIL).maybeSingle();
+  return data?.id ? [String(data.id)] : [];
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -441,18 +448,23 @@ export async function POST(request: Request) {
         actorAthleteId: athleteId,
         icon: athlete?.avatar_url?.trim() || undefined,
         copy: (locale) => feedbackAlertCopy(locale, { athleteName: name, reason }),
+        // The club's head coach is a `runner` by role, so the role routing never reached
+        // him: all 16 alerts of 09-07..10-19 went to the club account alone (Ofer, 10-19).
+        extraRecipientIds: await headCoachIds(supabase),
       });
-      // An academy trainee's own coaches hear about pain too (screen 6: "אם כן, Rina מקבלת
+      // An academy trainee's own coaches hear about pain — and a request for feedback (10-19) — too (screen 6: "אם כן, Rina מקבלת
       // התראה") — the staff routing above reaches the club's admins, not the 1:1 coach.
       // Best-effort: a trainee with no coach, or a lookup that fails, costs only this.
-      if (painNew) {
+      if (painNew || askNew) {
         try {
           let coaches = (await coachIdsOf(supabase, athleteId)).filter(id => id !== athleteId);
-          painTo = 'coach';
+          let to: 'coach' | 'managers' = 'coach';
           if (!coaches.length) {
             coaches = (await academyManagerIds()).filter(id => id !== athleteId);
-            painTo = 'managers';
+            to = 'managers';
           }
+          // Said back to the screen for pain only: that is what it promises the runner.
+          if (painNew) painTo = to;
           await Promise.all(coaches.map(coachId => notifyAthlete({
             athleteId: coachId,
             kind: 'feedback_alert',

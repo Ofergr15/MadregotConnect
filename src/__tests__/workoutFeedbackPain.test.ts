@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMemoryDb, uid } from './helpers/memory-db';
+import { SUPER_USER_EMAIL } from '@/lib/constants';
 
 /**
  * POST /api/workout-feedback — screen 6's pain switch says "אם כן, Rina מקבלת התראה", so a
@@ -10,6 +11,7 @@ import { createMemoryDb, uid } from './helpers/memory-db';
 const TRAINEE = uid();
 const RINA = uid();
 const OTHER = uid();
+const HEAD = uid();
 
 let db: ReturnType<typeof createMemoryDb>;
 vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => db.client }));
@@ -34,12 +36,13 @@ beforeEach(() => {
   db = createMemoryDb({
     schema: {
       workout_feedback: ['id', 'athlete_id', 'garmin_activity_id', 'difficulty', 'feel', 'pain', 'pain_detail', 'wants_feedback', 'comment'],
-      athletes: ['id', 'name', 'avatar_url'],
+      athletes: ['id', 'name', 'avatar_url', 'email'],
       athlete_activities: ['id', 'athlete_id', 'garmin_activity_id'],
     },
     defaults: { workout_feedback: () => ({ id: uid() }) },
   });
-  db.tables.athletes.push({ id: TRAINEE, name: 'Dana', avatar_url: null });
+  db.tables.athletes.push({ id: TRAINEE, name: 'Dana', avatar_url: null, email: 'dana@x.com' });
+  db.tables.athletes.push({ id: HEAD, name: 'Ofer', avatar_url: null, email: SUPER_USER_EMAIL });
   db.tables.athlete_activities.push({ id: uid(), athlete_id: TRAINEE, garmin_activity_id: 777 });
   db.tables.athlete_activities.push({ id: uid(), athlete_id: OTHER, garmin_activity_id: 888 });
   notifyStaff.mockClear();
@@ -77,6 +80,21 @@ describe('a pain report', () => {
     await post({ feel: 3, difficulty: 5, pain: false });
     expect(notifyStaff).not.toHaveBeenCalled();
     expect(notifyAthlete).not.toHaveBeenCalled();
+  });
+});
+
+describe('who hears about it (10-19: every alert had gone to the club account alone)', () => {
+  it('the head coach is added to the staff alert, though his role is runner', async () => {
+    await post({ feel: 2, pain: true });
+    expect(notifyStaff.mock.calls[0][0]).toMatchObject({ kind: 'feedback_alert', extraRecipientIds: [HEAD] });
+  });
+
+  it('a request for feedback reaches the trainee\'s own coach too — and promises nothing about pain', async () => {
+    const res = await post({ feel: 3, difficulty: 5, wantsFeedback: true });
+    expect(notifyStaff).toHaveBeenCalledTimes(1);
+    expect(notifyAthlete).toHaveBeenCalledTimes(1);
+    expect(notifyAthlete.mock.calls[0][0]).toMatchObject({ athleteId: RINA, kind: 'feedback_alert' });
+    expect(await res.json()).toEqual({ success: true });
   });
 });
 
