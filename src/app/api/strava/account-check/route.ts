@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidateTag, unstable_cache } from 'next/cache';
 import { createServerClient } from '@/lib/supabase/server';
 import { decrypt } from '@/lib/encryption';
 import { StravaClient, type StravaTokens } from '@/lib/strava/client';
@@ -82,16 +83,44 @@ export async function GET(request: Request) {
     });
   }
 
+  // A burst of opens (a release announcement sends the whole club in at once) used to
+  // spend two Strava reads per member on a question whose answer only changes when they
+  // reconnect: 2026-10-18 22:04 and 22:28, twice "read rate limit exceeded" right after
+  // the 21:55 announcement, on the club's one shared Strava quota — the same quota the
+  // syncs need. A healthy answer is kept a week per linked account; an empty-account
+  // or failed answer is not kept, so a warning never outlives the member's first run.
+  const result = await cachedCheck(athleteId, athlete.strava_athlete_id ?? null, auth);
+  if (!(result.checkable && result.hasActivities)) revalidateTag(checkTag(athleteId), { expire: 0 });
+  return NextResponse.json(result);
+}
+
+const checkTag = (athleteId: string) => `strava-account-check:${athleteId}`;
+
+interface CheckResult {
+  linked: true;
+  checkable: boolean;
+  stravaAthleteId: number | null;
+  stravaName?: string | null;
+  placeholderName?: boolean;
+  hasActivities?: boolean;
+  reason?: string;
+}
+
+/** Keyed by the athlete AND the linked account, so connecting another account asks again. */
+function cachedCheck(athleteId: string, stravaAthleteId: number | null, auth: StravaTokens): Promise<CheckResult> {
+  return unstable_cache(() => askStrava(athleteId, stravaAthleteId, auth), ['strava-account-check-v1', athleteId, String(stravaAthleteId)], {
+    revalidate: 7 * 24 * 3600,
+    tags: [checkTag(athleteId)],
+  })();
+}
+
+async function askStrava(athleteId: string, stravaAthleteId: number | null, auth: StravaTokens): Promise<CheckResult> {
+  const supabase = createServerClient();
   const accessToken = await getValidStravaToken(supabase, athleteId, auth);
   if (!accessToken) {
     // Refresh failed — a revoked authorisation, which the connection-health pill
     // already covers. Not an empty-account verdict, and must not read as one.
-    return NextResponse.json({
-      linked: true,
-      stravaAthleteId: athlete.strava_athlete_id ?? null,
-      checkable: false,
-      reason: 'token_refresh_failed',
-    });
+    return { linked: true, stravaAthleteId, checkable: false, reason: 'token_refresh_failed' };
   }
 
   const client = new StravaClient(accessToken);
@@ -105,7 +134,7 @@ export async function GET(request: Request) {
     ]);
 
     const stravaName = [profile.firstname, profile.lastname].filter(Boolean).join(' ').trim();
-    return NextResponse.json({
+    return {
       linked: true,
       checkable: true,
       stravaAthleteId: profile.id,
@@ -115,14 +144,9 @@ export async function GET(request: Request) {
       // signature of an account created to get past a connect button.
       placeholderName: stravaName === 'Strava Athlete',
       hasActivities: activities.length > 0,
-    });
+    };
   } catch (err: any) {
     console.error('Strava account-check failed:', err?.message || err);
-    return NextResponse.json({
-      linked: true,
-      stravaAthleteId: athlete.strava_athlete_id ?? null,
-      checkable: false,
-      reason: 'api_error',
-    });
+    return { linked: true, stravaAthleteId, checkable: false, reason: 'api_error' };
   }
 }
