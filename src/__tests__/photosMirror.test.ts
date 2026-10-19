@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * The club photos' own copy (lib/photos/mirror.ts): the listings ask it for links,
  * and anything it can't answer must fall back to Drive, never fail the screen.
  */
-const manifest = { v: 1, files: { AAAAAAAAAA1: { t: 1, f: 1, q: 'data:image/jpeg;base64,xx' }, AAAAAAAAAA2: { t: 1 } } };
+// The record as stored since the 10-19 rework: a small flags file, and the blurred
+// previews in shards (any shard path answers with both, which is all these tests need).
+const flags = { v: 2, t: ['AAAAAAAAAA1', 'AAAAAAAAAA2'], f: ['AAAAAAAAAA1'] };
+const shard = { AAAAAAAAAA1: 'data:image/jpeg;base64,xx' };
 let failSign = false;
 const createSignedUrls = vi.fn(async (paths: string[]) => {
   if (failSign) throw new Error('storage down');
@@ -15,7 +18,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createServerClient: () => ({
     storage: {
       from: () => ({
-        download: async () => ({ data: new Blob([JSON.stringify(manifest)]), error: null }),
+        download: async (path: string) => ({ data: new Blob([JSON.stringify(path === 'flags.json' ? flags : shard)]), error: null }),
         createSignedUrls,
       }),
     },

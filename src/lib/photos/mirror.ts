@@ -33,27 +33,73 @@ export interface Manifest { v: 1; files: Record<string, MirrorEntry> }
 
 const pathOf = (fileId: string, size: number) => `${size === FULL ? 'f' : 't'}/${fileId}.jpg`;
 
-async function readManifest(): Promise<Manifest> {
+// ── Where the record of what is copied lives (10-19 rework) ─────────────────────────
+// It was ONE file with every photo's blurred stand-in inside: 7 MB at 6,400 photos.
+// Next's data cache keeps nothing over 2 MB, so it was never cached, and every photos
+// page made the server download all 7 MB first (12 s measured). Now:
+//   FLAGS            which photos have which size: two id lists, ~150 KB, cached.
+//   lqip/<n>.json    the stand-ins, in 64 shards by a hash of the id: a page
+//                    reads only the shards of the photos it shows, each well under 2 MB.
+// The old MANIFEST is still read once, by the first copy run after this, and replaced.
+const FLAGS = 'flags.json';
+const LQIP_DIR = 'lqip';
+interface Flags { v: 2; t: string[]; f: string[] }
+// By a hash of the id, not its first character: Drive ids nearly all start with "1".
+const shardOf = (id: string) => {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return `${LQIP_DIR}/${h % 64}.json`;
+};
+
+async function downloadJson<T>(path: string): Promise<T | null> {
   const db = createServerClient();
-  const { data } = await db.storage.from(PHOTO_BUCKET).download(MANIFEST);
-  if (!data) return { v: 1, files: {} };
-  try {
-    const m = JSON.parse(await data.text()) as Manifest;
-    return m?.v === 1 && m.files && typeof m.files === 'object' ? m : { v: 1, files: {} };
-  } catch {
-    return { v: 1, files: {} };
+  const { data } = await db.storage.from(PHOTO_BUCKET).download(path);
+  if (!data) return null;
+  try { return JSON.parse(await data.text()) as T; } catch { return null; }
+}
+async function uploadJson(path: string, value: unknown): Promise<void> {
+  const db = createServerClient();
+  await db.storage.from(PHOTO_BUCKET).upload(path, JSON.stringify(value), { contentType: 'application/json', upsert: true, cacheControl: '0' });
+}
+
+async function readFlags(): Promise<Flags | null> {
+  const f = await downloadJson<Flags>(FLAGS);
+  return f?.v === 2 && Array.isArray(f.t) && Array.isArray(f.f) ? f : null;
+}
+
+/** The whole record, for the copy job only (it reads every shard). */
+async function readManifest(): Promise<Manifest & { legacy?: boolean }> {
+  const flags = await readFlags();
+  if (!flags) {
+    const old = await downloadJson<Manifest>(MANIFEST);
+    return old?.v === 1 && old.files && typeof old.files === 'object' ? { ...old, legacy: true } : { v: 1, files: {} };
   }
+  const files: Record<string, MirrorEntry> = {};
+  for (const id of flags.t) (files[id] ||= {}).t = 1;
+  for (const id of flags.f) (files[id] ||= {}).f = 1;
+  const shards = [...new Set(Object.keys(files).map(shardOf))];
+  const read = await Promise.all(shards.map((p) => downloadJson<Record<string, string>>(p)));
+  for (const shard of read) for (const [id, q] of Object.entries(shard || {})) (files[id] ||= {}).q = q;
+  return { v: 1, files };
 }
 
-async function writeManifest(m: Manifest): Promise<void> {
-  const db = createServerClient();
-  await db.storage.from(PHOTO_BUCKET).upload(MANIFEST, JSON.stringify(m), {
-    contentType: 'application/json', upsert: true, cacheControl: '0',
-  });
+/** Writes the flags, and the stand-in shards of `changed` (every shard when unset). */
+async function writeManifest(m: Manifest, changed?: Iterable<string>): Promise<void> {
+  const ids = Object.keys(m.files);
+  await uploadJson(FLAGS, { v: 2, t: ids.filter((id) => m.files[id].t), f: ids.filter((id) => m.files[id].f) } satisfies Flags);
+  const touched = changed ? new Set([...changed].map(shardOf)) : new Set(ids.map(shardOf));
+  const byShard = new Map<string, Record<string, string>>();
+  for (const id of ids) {
+    const sh = shardOf(id);
+    if (!touched.has(sh) || !m.files[id].q) continue;
+    (byShard.get(sh) ?? byShard.set(sh, {}).get(sh)!)[id] = m.files[id].q!;
+  }
+  await Promise.all([...byShard].map(([p, v]) => uploadJson(p, v)));
 }
 
-/** Shared across instances; the cron writes it, a few minutes of staleness only delays a new photo. */
-const cachedManifest = unstable_cache(readManifest, ['photos-mirror-manifest-v1'], { revalidate: 300, tags: ['photos-mirror'] });
+/** Shared across instances; the cron writes them, a few minutes of staleness only delays a new photo. */
+const cachedFlags = unstable_cache(readFlags, ['photos-mirror-flags-v2'], { revalidate: 300, tags: ['photos-mirror'] });
+const cachedShard = unstable_cache((path: string) => downloadJson<Record<string, string>>(path), ['photos-mirror-lqip-v2'], { revalidate: 3600, tags: ['photos-mirror'] });
 
 export interface MirroredUrls { thumb: Record<string, string>; full: Record<string, string>; lqip: Record<string, string> }
 
@@ -61,14 +107,18 @@ export interface MirroredUrls { thumb: Record<string, string>; full: Record<stri
 const signedFor = unstable_cache(async (ids: string[]): Promise<MirroredUrls> => {
   const out: MirroredUrls = { thumb: {}, full: {}, lqip: {} };
   if (!ids.length) return out;
-  const m = await cachedManifest();
+  const flags = await cachedFlags();
+  if (!flags) return out;
+  const t = new Set(flags.t), f = new Set(flags.f);
+  const wanted = ids.filter((id) => t.has(id));
+  const shards = await Promise.all([...new Set(wanted.map(shardOf))].map(async (p) => [p, await cachedShard(p)] as const));
+  const q = new Map(shards);
   const paths: string[] = [];
   for (const id of ids) {
-    const e = m.files[id];
-    if (!e) continue;
-    if (e.q) out.lqip[id] = e.q;
-    if (e.t) paths.push(pathOf(id, THUMB));
-    if (e.f) paths.push(pathOf(id, FULL));
+    const lq = q.get(shardOf(id))?.[id];
+    if (lq) out.lqip[id] = lq;
+    if (t.has(id)) paths.push(pathOf(id, THUMB));
+    if (f.has(id)) paths.push(pathOf(id, FULL));
   }
   if (!paths.length) return out;
   const db = createServerClient();
@@ -80,7 +130,7 @@ const signedFor = unstable_cache(async (ids: string[]): Promise<MirroredUrls> =>
     (kind === 'f' ? out.full : out.thumb)[id] = s.signedUrl;
   }
   return out;
-}, ['photos-mirror-signed-v1'], { revalidate: SIGN_CACHE_S, tags: ['photos-mirror'] });
+}, ['photos-mirror-signed-v2'], { revalidate: SIGN_CACHE_S, tags: ['photos-mirror'] });
 
 /**
  * The copied photos' links for these ids. Empty, never an error: a photo that isn't
@@ -148,15 +198,18 @@ export async function mirrorBatch(deadline: number): Promise<{ copied: number; f
   };
 
   let copied = 0, failed = 0, dirty = 0, i = 0;
+  const changed = new Set<string>();
+  // The first run after the rework: write the new record at once, even with nothing to copy.
+  if (m.legacy) { await writeManifest(m); revalidateTag('photos-mirror', { expire: 0 }); }
   while (i < todo.length && Date.now() < deadline) {
     const chunk = todo.slice(i, i + PARALLEL);
     i += chunk.length;
     const done = await Promise.allSettled(chunk.map(one));
-    for (const d of done) { if (d.status === 'fulfilled') { copied++; dirty++; } else failed++; }
+    done.forEach((d, k) => { if (d.status === 'fulfilled') { copied++; dirty++; changed.add(chunk[k]); } else failed++; });
     // Saved as it goes, so a run cut short by its deadline keeps what it did.
-    if (dirty >= 30) { await writeManifest(m); dirty = 0; }
+    if (dirty >= 30) { await writeManifest(m, changed); dirty = 0; changed.clear(); }
   }
-  if (dirty) await writeManifest(m);
+  if (dirty) await writeManifest(m, changed);
   // The listings pick the new copies up now, not after their cache runs out.
   if (copied) revalidateTag('photos-mirror', { expire: 0 });
   const left = ids.filter((id) => needsGrid(id) || needsFull(id)).length;
