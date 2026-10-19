@@ -12,7 +12,7 @@
  * which production has no AWS keys for. The old page with it is page.disabled.tsx.
  */
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useCallback, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { ArrowRight, ImageOff, Search, X } from 'lucide-react';
@@ -51,8 +51,18 @@ function subline(f: Folder, count: string): string {
  */
 function Cover({ src, blur, className }: { src?: string; blur?: string | null; className?: string }) {
   const bg = blur ? { backgroundImage: `url(${blur})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined;
-  // eslint-disable-next-line @next/next/no-img-element
-  return src ? <img src={src} alt="" loading="lazy" decoding="async" draggable={false} style={bg} className={cn('h-full w-full bg-page object-cover', className)} /> : <div style={bg} className={cn('h-full w-full bg-page', className)} />;
+  // Fades in over the preview instead of popping in. A photo already in the cache can
+  // finish before React attaches onLoad, so `complete` is read on mount as well.
+  const [loaded, setLoaded] = useState(false);
+  const ref = useCallback((el: HTMLImageElement | null) => { if (el?.complete && el.naturalWidth) setLoaded(true); }, []);
+  if (!src) return <div style={bg} className={cn('h-full w-full bg-page', className)} />;
+  return (
+    <div style={bg} className={cn('h-full w-full bg-page', className)}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img ref={ref} src={src} alt="" loading="lazy" decoding="async" draggable={false} onLoad={() => setLoaded(true)}
+        className={cn('h-full w-full object-cover transition-opacity duration-300', loaded ? 'opacity-100' : 'opacity-0')} />
+    </div>
+  );
 }
 
 /** Start a folder's listing before the tap lands (a finger down is ~100 ms ahead of the click). */
@@ -80,6 +90,8 @@ function FolderView({ id }: { id: string }) {
   const router = useRouter();
   const { data, error } = useApi<FolderPhotos>(`/api/photos/browse/folder?id=${encodeURIComponent(id)}`);
   const [open, setOpen] = useState<number | null>(null);
+  // The tapped tile, so the viewer can grow the photo out of it.
+  const [from, setFrom] = useState<DOMRect | null>(null);
   // A folder outside the club's photos folder (an old link from the feed) can't be
   // read here — offer it where it lives instead of a dead end.
   if (error) return (
@@ -101,7 +113,7 @@ function FolderView({ id }: { id: string }) {
         {(data?.photos ?? Array.from({ length: 12 }, (_, k) => ({ id: `s${k}`, thumb: null, full: null, blur: null }))).map((p, k) => (
           <button
             key={p.id}
-            onClick={() => data && setOpen(k)}
+            onClick={(e) => { if (!data) return; setFrom(e.currentTarget.getBoundingClientRect()); setOpen(k); }}
             className={cn('aspect-square overflow-hidden bg-page', k % 7 === 0 && 'col-span-2 row-span-2')}
             aria-label={t('photoN', { n: k + 1 })}
           >
@@ -110,7 +122,7 @@ function FolderView({ id }: { id: string }) {
         ))}
       </div>
       {open != null && data && (
-        <PhotoViewer photos={data.photos} index={open} title={folderTitle(data.folder)} onClose={() => setOpen(null)} />
+        <PhotoViewer photos={data.photos} index={open} from={from} title={folderTitle(data.folder)} onClose={() => setOpen(null)} />
       )}
     </div>
   );
@@ -125,6 +137,8 @@ function PhotosHome() {
   const latest = folders[0];
   const { data: latestPhotos } = useApi<FolderPhotos>(latest ? `/api/photos/browse/folder?id=${encodeURIComponent(latest.id)}` : null);
   const [open, setOpen] = useState<number | null>(null);
+  // The tapped tile, so the viewer can grow the photo out of it.
+  const [from, setFrom] = useState<DOMRect | null>(null);
   const thisYear = String(new Date().getFullYear());
   const openFolder = (id: string) => router.push(`/dashboard/photos?folder=${encodeURIComponent(id)}`);
 
@@ -188,7 +202,7 @@ function PhotosHome() {
           </button>
           <div className="flex gap-1.5 overflow-x-auto px-4 pt-2 [scrollbar-width:none]">
             {(latestPhotos?.photos ?? []).slice(0, 12).map((p, k) => (
-              <button key={p.id} onClick={() => setOpen(k)} className="h-[78px] w-[78px] shrink-0 overflow-hidden rounded-[14px] bg-page" aria-label={t('photoN', { n: k + 1 })}>
+              <button key={p.id} onClick={(e) => { setFrom(e.currentTarget.getBoundingClientRect()); setOpen(k); }} className="h-[78px] w-[78px] shrink-0 overflow-hidden rounded-[14px] bg-page" aria-label={t('photoN', { n: k + 1 })}>
                 <Cover src={p.thumb || undefined} />
               </button>
             ))}
@@ -202,7 +216,7 @@ function PhotosHome() {
             </section>
           ))}
           {open != null && latestPhotos && (
-            <PhotoViewer photos={latestPhotos.photos} index={open} title={folderTitle(latest)} onClose={() => setOpen(null)} />
+            <PhotoViewer photos={latestPhotos.photos} index={open} from={from} title={folderTitle(latest)} onClose={() => setOpen(null)} />
           )}
         </>
       ) : !data && !error ? (
