@@ -141,8 +141,9 @@ export async function mirrorBatch(deadline: number): Promise<{ copied: number; f
       const tiny = await fetchDriveThumbnail(id, LQIP_PX);
       if (tiny) e.q = `data:${tiny.type};base64,${await toBase64(tiny.body)}`;
     }
-    // The viewer size only once every photo has its grid copy (the second pass).
-    if (!e.f && newest.has(id) && !ids.some(needsGrid)) { await upload(id, FULL); e.f = 1; }
+    // The viewer size comes after the grid copies because `todo` lists those first; never
+    // "once every photo has one", which a single photo Drive will not serve would block forever.
+    if (!e.f && newest.has(id) && e.t) { await upload(id, FULL); e.f = 1; }
     m.files[id] = e;
   };
 
