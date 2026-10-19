@@ -43,11 +43,15 @@ describe('sign in with a code by email', () => {
 
 describe('phase 4: nobody stuck quietly', () => {
   it('approving an athlete closes the request they came in on', () => {
+    // Since 2026-10-19 through the one shared step (lib/onboarding/approval-sync,
+    // tested in approvalSync.test.ts), which also closes a form request by address.
     const r = read('app/api/admin/approve/route.ts');
-    expect(r).toMatch(/\.from\('signup_requests'\)\s+\.update\(\{ status: 'approved', approved_at: updates\.approved_at, approved_by: updates\.approved_by \}\)\s+\.eq\('athlete_id', athleteId\)\s+\.eq\('status', 'pending'\)/);
+    expect(r).toMatch(/const sync = await syncApprovedJoiner\(\{\s+athleteId,/);
+    const sync = read('lib/onboarding/approval-sync.ts');
+    expect(sync).toMatch(/\.eq\('athlete_id', athlete\.id\)\.eq\('status', 'pending'\)/);
   });
 
-  it('the 48h reminder: v2 approvals only, still invited, never seen, real address, once', async () => {
+  it('the 48h reminder: every approval, still invited, never seen, real address, once', async () => {
     const { runJoinReminders, isSynthetic } = await import('@/lib/onboarding/join-reminder');
     expect(isSynthetic('strava_1@strava.madregot.local')).toBe(true);
     expect(isSynthetic('noa@gmail.com')).toBe(false);

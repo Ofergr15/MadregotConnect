@@ -161,6 +161,30 @@ export async function notifyAdminUserApproved(
 // given an email address cannot use. They have no name and no watch connected, so
 // what they need is /join/{token} — the flow that asks for both.
 
+/**
+ * The escalated "still waiting" mail to every approver (pending-reminder, evening):
+ * only once somebody has waited past two days, and the push alone did not do it.
+ */
+export async function notifyAdminPendingDigest(p: { names: Array<string | null>; count: number; oldestDays: number }): Promise<SendResult> {
+  const named = p.names.map((n) => (n || '').trim()).filter(Boolean);
+  return sendEmail({
+    template: 'admin_pending_digest',
+    to: APPROVER_EMAILS,
+    subject: p.count > 1 ? `⏳ ${p.count} מחכים לאישור, הוותיק ${p.oldestDays} ימים` : `⏳ מישהו מחכה לאישור ${p.oldestDays} ימים`,
+    html: renderEmail({
+      signoff: false,
+      eyebrow: 'מחכים לאישור',
+      title: p.count > 1 ? `${p.count} אנשים מחכים להיכנס` : 'מישהו מחכה להיכנס',
+      preheader: `הוותיק מחכה ${p.oldestDays} ימים. מי שמחכה ימים לא חוזר.`,
+      paragraphs: [
+        `הוותיק מחכה ${p.oldestDays} ימים. מי שאושר תוך שעות נשאר במועדון, מי שחיכה ימים הלך.`,
+        ...named.slice(0, 8).map((n) => `• ${n}`),
+      ],
+      cta: { label: 'לאישור ←', href: openInAppHref(APP_URL, '/dashboard/onboarding-funnel?stage=approved') },
+    }),
+  });
+}
+
 export async function notifyAdminNewSignupRequest(req: {
   email: string;
   /**

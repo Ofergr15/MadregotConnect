@@ -4,11 +4,11 @@
 // (the tick's ledger), and never after 14 days — by then it is a conversation for
 // the approver, who sees them in the entry queue's "never entered" stage.
 //
-// Only for v2 approvals while it is tried: an approval by the super user is what
-// sent them the v2 link in the first place (lib/install/flag).
+// For EVERY approval since 2026-10-19 — it used to be only the super user's, while
+// v2 was tried. The mail's link opens the v2 install guide on that phone either way
+// (joinLinkV2), and whoever approved them, an approved person who never came in is
+// the same person lost (Chen Becher, approved 10-16, never opened it).
 
-import { ONBOARDING_V2_FOR_ALL } from '@/lib/install/flag';
-import { SUPER_USER_EMAIL } from '@/lib/constants';
 import { groupDisplayName } from '@/lib/utils';
 import { notifyJoinReminder } from '@/lib/email';
 import type { createServerClient } from '@/lib/supabase/server';
@@ -34,13 +34,11 @@ export async function runJoinReminders(
     .lte('approved_at', new Date(now.getTime() - REMIND_AFTER_MS).toISOString())
     .gte('approved_at', new Date(now.getTime() - REMIND_UNTIL_MS).toISOString());
   if (error || !requests?.length) return 0;
-  const v2 = requests.filter(r => ONBOARDING_V2_FOR_ALL || (r.approved_by || '').toLowerCase() === SUPER_USER_EMAIL.toLowerCase());
-  if (!v2.length) return 0;
 
   const { data: athletes } = await supabase
     .from('athletes')
     .select('id, email, status, last_seen_at, invite_token, group_id')
-    .in('id', v2.map(r => r.athlete_id as string));
+    .in('id', [...new Set(requests.map(r => r.athlete_id as string))]);
   let sent = 0;
   for (const a of athletes || []) {
     if (a.status !== 'invited' || a.last_seen_at || !a.invite_token || isSynthetic(a.email)) continue;

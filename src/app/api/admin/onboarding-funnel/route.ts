@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 // (lib/onboarding/funnel.ts). Super user / approvers only: names and journeys.
 const COHORT_SINCE = '2026-09-07T00:00:00Z';
 
-type Req = { id: string; email: string; full_name: string | null; status: string; source: string | null; created_at: string; approved_at: string | null; athlete_id: string | null; notify_email?: string | null };
+type Req = { id: string; email: string; full_name: string | null; status: string; source: string | null; created_at: string; approved_at: string | null; athlete_id: string | null; notify_email?: string | null; group_id?: string | null };
 
 /** The mails a person joining receives (not the staff's copies of them). */
 const MEMBER_TEMPLATES = ['registration_received', 'registration_approved', 'user_approved', 'join_reminder', 'entry_nudge', 'login_code', 'phone_link', 'academy_form_received', 'academy_invite', 'academy_approved', 'academy_accepted'];
@@ -64,7 +64,7 @@ async function academyLane(db: Db, sentFor: (ids: { athleteId?: string | null; c
   people.sort(byUrgency);
   return { stages: laneStages(ACADEMY_LANE_STAGES, people), people };
 }
-type Ath = { id: string; name: string | null; email: string | null; status: string; created_at: string; approved_at: string | null; first_seen_at: string | null; last_seen_at: string | null; garmin_authed_at: string | null; garmin_auth: string | null; strava_auth: string | null; onboarding_tour_seen_at: string | null; onboarding_completed_at: string | null; phone_app_opened_at?: string | null };
+type Ath = { id: string; name: string | null; email: string | null; status: string; group_id?: string | null; created_at: string; approved_at: string | null; first_seen_at: string | null; last_seen_at: string | null; garmin_authed_at: string | null; garmin_auth: string | null; strava_auth: string | null; onboarding_tour_seen_at: string | null; onboarding_completed_at: string | null; phone_app_opened_at?: string | null };
 
 export async function GET(request: Request) {
   const auth = await requireSession(request);
@@ -73,7 +73,7 @@ export async function GET(request: Request) {
   const db = createServerClient();
 
   const now = new Date();
-  const REQ_COLS = 'id, email, full_name, status, source, created_at, approved_at, athlete_id';
+  const REQ_COLS = 'id, email, full_name, status, source, created_at, approved_at, athlete_id, group_id';
   let reqRes = await db.from('signup_requests').select(`${REQ_COLS}, notify_email`).neq('source', 'club-backfill').order('created_at');
   if (reqRes.error) reqRes = await db.from('signup_requests').select(REQ_COLS).neq('source', 'club-backfill').order('created_at') as typeof reqRes;
   const reqs = (reqRes.data ?? []) as Req[];
@@ -82,7 +82,7 @@ export async function GET(request: Request) {
   );
   const events = ev.rows;
 
-  const COLS = 'id, name, email, status, created_at, approved_at, first_seen_at, last_seen_at, garmin_authed_at, garmin_auth, strava_auth, onboarding_tour_seen_at, onboarding_completed_at';
+  const COLS = 'id, name, email, status, group_id, created_at, approved_at, first_seen_at, last_seen_at, garmin_authed_at, garmin_auth, strava_auth, onboarding_tour_seen_at, onboarding_completed_at';
   let athRes = await db.from('athletes').select(`${COLS}, phone_app_opened_at`);
   if (athRes.error) athRes = await db.from('athletes').select(COLS) as typeof athRes;
   const athletes = (athRes.data ?? []) as Ath[];
@@ -164,6 +164,7 @@ export async function GET(request: Request) {
         requestStatus: req?.status ?? null,
         strava: isSyntheticAuthEmail(ath?.email) || req?.source === 'strava-login',
         notifyEmail: req?.notify_email ?? null,
+        groupId: ath?.group_id ?? req?.group_id ?? null,
         sent: sentFor({ athleteId: ath?.id, requestId: req?.id, emails: [ath?.email, req?.email, req?.notify_email].filter((x): x is string => !!x) }),
       }, now));
     }

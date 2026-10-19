@@ -3810,7 +3810,29 @@
     "editExisting": "Edit and resend",
     "existingSent": "Already in {name}'s plan",
     "resentNote": "Resent — the previous workout was replaced on the watch",
-    "stepMenu": {"title": "Edit step", "type": "Step", "types": {"warmup": "Warm-up", "steady": "Steady run", "interval": "Intervals", "recovery": "Recovery", "cooldown": "Cool-down"}, "measure": "By", "distance": "Distance", "time": "Time", "pace": "Pace", "exact": "Exact pace", "spread": "Range ±{s}s", "up": "Up", "down": "Down", "duplicate": "Duplicate", "delete": "Delete", "addAfter": "Add after it", "more": "More on this step"},
+    "stepMenu": {
+      "title": "Edit step",
+      "type": "Step",
+      "types": {
+        "warmup": "Warm-up",
+        "steady": "Steady run",
+        "interval": "Intervals",
+        "recovery": "Recovery",
+        "cooldown": "Cool-down"
+      },
+      "measure": "By",
+      "distance": "Distance",
+      "time": "Time",
+      "pace": "Pace",
+      "exact": "Exact pace",
+      "spread": "Range ±{s}s",
+      "up": "Up",
+      "down": "Down",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "addAfter": "Add after it",
+      "more": "More on this step"
+    },
     "flowLabel": "Plan a workout",
     "workoutLabel": "The workout",
     "loading": "Loading…",
@@ -4348,7 +4370,7 @@
       "reachNone": "⚠️ Strava sign-in, no email",
       "sentNone": "Nothing sent yet",
       "sentFailed": "not sent",
-      "actApprove": "Approve",
+      "actApprove": "Pick a group & approve",
       "actResend": "Resend link",
       "actNudge": "Send reminder",
       "actCard": "Academy card",
@@ -4395,7 +4417,9 @@
         "approval": "Push: approved",
         "academy_joined": "Push: joined academy",
         "academy_trainee_assigned": "Push: coach assigned"
-      }
+      },
+      "actApproveNow": "Approve",
+      "actApproved": "Approved — link sent"
     }
   },
   "pendingEmail": {

@@ -3810,7 +3810,29 @@
     "editExisting": "לערוך ולשלוח מחדש",
     "existingSent": "כבר בתוכנית של {name}",
     "resentNote": "נשלח מחדש — האימון הקודם הוחלף בשעון",
-    "stepMenu": {"title": "עריכת השלב", "type": "מה השלב", "types": {"warmup": "חימום", "steady": "ריצה רציפה", "interval": "אינטרוולים", "recovery": "מנוחה", "cooldown": "שחרור"}, "measure": "לפי", "distance": "מרחק", "time": "זמן", "pace": "קצב", "exact": "קצב מדויק", "spread": "טווח ±{s} שנ׳", "up": "למעלה", "down": "למטה", "duplicate": "שכפול", "delete": "מחיקה", "addAfter": "להוסיף אחריו", "more": "עוד על השלב"},
+    "stepMenu": {
+      "title": "עריכת השלב",
+      "type": "מה השלב",
+      "types": {
+        "warmup": "חימום",
+        "steady": "ריצה רציפה",
+        "interval": "אינטרוולים",
+        "recovery": "מנוחה",
+        "cooldown": "שחרור"
+      },
+      "measure": "לפי",
+      "distance": "מרחק",
+      "time": "זמן",
+      "pace": "קצב",
+      "exact": "קצב מדויק",
+      "spread": "טווח ±{s} שנ׳",
+      "up": "למעלה",
+      "down": "למטה",
+      "duplicate": "שכפול",
+      "delete": "מחיקה",
+      "addAfter": "להוסיף אחריו",
+      "more": "עוד על השלב"
+    },
     "flowLabel": "תכנון אימון",
     "workoutLabel": "האימון",
     "loading": "טוען…",
@@ -4348,7 +4370,7 @@
       "reachNone": "⚠️ נכנס עם Strava, אין מייל",
       "sentNone": "עוד לא נשלח לו כלום",
       "sentFailed": "לא נשלח",
-      "actApprove": "לאישור",
+      "actApprove": "לבחירת קבוצה ואישור",
       "actResend": "שלח שוב את הקישור",
       "actNudge": "שלח תזכורת",
       "actCard": "לכרטיס באקדמיה",
@@ -4395,7 +4417,9 @@
         "approval": "פוש: אושר",
         "academy_joined": "פוש: נכנס לאקדמיה",
         "academy_trainee_assigned": "פוש: שובץ מאמן"
-      }
+      },
+      "actApproveNow": "אשר כניסה",
+      "actApproved": "אושר — הקישור נשלח"
     }
   },
   "pendingEmail": {

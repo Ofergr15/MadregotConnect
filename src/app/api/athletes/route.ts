@@ -10,6 +10,7 @@ import { groupChangeDate } from '@/lib/groups/pending-change';
 import { afterPackMove, notifyPackScheduled } from '@/lib/groups/pack-move';
 import { applyAcademyMembership } from '@/lib/academy/membership-server';
 import { mayDeleteAthlete } from '@/lib/auth/delete-athlete-policy';
+import { syncApprovedJoiner } from '@/lib/onboarding/approval-sync';
 
 const DEMO_COACH_ID = COACH_ID;
 
@@ -104,7 +105,7 @@ export async function GET(request: Request) {
 // POST - Create a new athlete invitation
 export async function POST(request: Request) {
   try {
-    const { denied } = await requireStaff(request);
+    const { denied, user: caller } = await requireStaff(request);
     if (denied) return denied;
 
     const supabase = createServerClient();
@@ -167,9 +168,20 @@ export async function POST(request: Request) {
     // Generate invite link
     const inviteLink = `${APP_URL}/join/${inviteToken}`;
 
+    // Somebody who already asked to join (the public form) is being let in by this
+    // invite: close their request and mail them the link, as the entry queue would.
+    // Without it they stayed "pending" with nothing sent (Yoav Shachaf, 2026-10-13).
+    // A plain invite still hands the link to the coach to pass on, as before.
+    const { count: asked } = await supabase.from('signup_requests').select('id', { count: 'exact', head: true })
+      .eq('status', 'pending').is('athlete_id', null).ilike('email', email.toLowerCase().trim());
+    const sync = asked
+      ? await syncApprovedJoiner({ athleteId: athlete.id, approverEmail: caller?.athleteEmail || caller?.email || null, approverIsSuperUser: !!caller?.isSuperUser })
+      : null;
+
     return NextResponse.json({
       athlete,
       inviteLink,
+      ...(sync ? { emailed: sync.emailed } : {}),
     });
   } catch (error) {
     console.error('Failed to create athlete invitation:', error);

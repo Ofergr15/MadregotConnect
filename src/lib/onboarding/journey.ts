@@ -54,6 +54,8 @@ export interface JourneyPerson {
   /** Club, Strava sign-in: the address the approval will go to, or null when there is none. */
   notifyEmail?: string | null;
   strava?: boolean;
+  /** Club: their pace group (the athlete's, else the one the request asked for) — an approve needs one. */
+  groupId?: string | null;
 }
 
 export interface LaneStage { key: string; reached: number; at: number; stuck: number; medianHours: number | null }
@@ -71,6 +73,7 @@ export interface ClubInput {
   notifyEmail?: string | null;
   strava?: boolean;
   sent?: SentItem[];
+  groupId?: string | null;
 }
 
 export function placeClubMember(c: ClubInput, now: Date = new Date()): JourneyPerson {
@@ -117,6 +120,7 @@ export function placeClubMember(c: ClubInput, now: Date = new Date()): JourneyPe
     reached,
     sent: [...(c.sent ?? [])].sort((a, b) => b.at.localeCompare(a.at)),
     ...(c.strava ? { strava: true, notifyEmail: c.notifyEmail ?? null } : {}),
+    groupId: c.groupId ?? null,
   };
 }
 

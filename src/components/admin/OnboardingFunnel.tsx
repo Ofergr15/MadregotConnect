@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
@@ -53,7 +54,12 @@ export function OnboardingFunnel() {
   const { data, error } = useApi<Data>('/api/admin/onboarding-funnel');
   const [range, setRange] = useState<Range>('30');
   const [lane, setLane] = useState<LaneKey>('all');
-  const [picked, setPicked] = useState<{ lane: 'club' | 'academy'; stage: string } | null>(null);
+  // ?stage=approved (the approvers' reminder push lands here): open on that club step.
+  const searchParams = useSearchParams();
+  const [picked, setPicked] = useState<{ lane: 'club' | 'academy'; stage: string } | null>(() => {
+    const st = searchParams.get('stage');
+    return st ? { lane: searchParams.get('lane') === 'academy' ? 'academy' : 'club', stage: st } : null;
+  });
   const [showWaiting, setShowWaiting] = useState(false);
 
   // The range is a cohort: who STARTED joining in it. Steps and counts are recomputed
@@ -218,7 +224,21 @@ function PersonRow({ p, stageName, dur }: { p: JourneyPerson; stageName: (k: str
   const btn = 'inline-flex shrink-0 rounded-xl px-3 py-2 text-13 font-bold';
   if (p.lane === 'academy') {
     action = <Link href="/dashboard/academy?tab=funnel" className={cn(btn, 'bg-brand-600 text-white')}>{t('j.actCard')}</Link>;
+  } else if (p.at === 'approved' && p.groupId && (p.athleteId || p.requestId)) {
+    // One tap: they have a group, which is all an approve needs. The member's row
+    // when there is one (it also heals a half-done approval — lib/onboarding/approval-sync),
+    // else the request the form left.
+    action = (
+      <button type="button" disabled={result === 'busy' || result === 'ok'}
+        onClick={() => (p.athleteId
+          ? post('/api/admin/approve', { athleteId: p.athleteId })
+          : post('/api/admin/registrations/approve', { id: p.requestId!, groupId: p.groupId! }))}
+        className={cn(btn, 'bg-accent-900 text-white disabled:opacity-60')}>
+        {result === 'ok' ? `✓ ${t('j.actApproved')}` : t('j.actApproveNow')}
+      </button>
+    );
   } else if (p.at === 'approved') {
+    // No group yet: the entry queue, where the group is picked before the approve.
     action = <Link href={`/dashboard/entry-queue?at=mine&q=${encodeURIComponent(p.name)}`} className={cn(btn, 'bg-brand-600 text-white')}>{t('j.actApprove')}</Link>;
   } else if (p.at === 'link' && p.requestId && !p.strava) {
     action = <button type="button" disabled={result === 'busy' || result === 'ok'} onClick={() => post('/api/admin/registrations/resend', { id: p.requestId! })} className={cn(btn, 'bg-brand-600 text-white disabled:opacity-60')}>{t('j.actResend')}</button>;

@@ -8,6 +8,7 @@ import { notifyAthlete } from '@/lib/push';
 import { isSynthetic } from '@/lib/onboarding/join-reminder';
 import { approvalCopy } from '@/lib/notifications/copy';
 import { deviceFromUa, recordOnbEvent } from '@/lib/onboarding/events';
+import { syncApprovedJoiner } from '@/lib/onboarding/approval-sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
     let athlete: any = null;
     const primary = await supabase
       .from('athletes')
-      .select('id, name, email, approved, is_academy, garmin_auth, invite_token, group_id')
+      .select('id, name, email, approved, is_academy, garmin_auth, invite_token, group_id, first_seen_at, strava_auth')
       .eq('id', athleteId)
       .single();
     if (primary.error) {
@@ -93,8 +94,11 @@ export async function POST(req: NextRequest) {
 
     if (athlete.approved) {
       // Not an error, and now not a no-op either — this is the path a
-      // blocked-but-already-approved member takes out of the queue.
-      return NextResponse.json({ message: 'Already approved', approved: true, released, maintenance: maintenanceOn });
+      // blocked-but-already-approved member takes out of the queue, and the one
+      // that heals an approval another door left half done: a request still open,
+      // a link never sent (Yoav, 2026-10-13 — see lib/onboarding/approval-sync).
+      const sync = await syncApprovedJoiner({ athleteId: athlete.id, approverEmail: approverEmail || null, approverIsSuperUser: !!auth.user.isSuperUser });
+      return NextResponse.json({ message: 'Already approved', approved: true, released, maintenance: maintenanceOn, sync });
     }
 
     const updates: Record<string, any> = {
@@ -117,20 +121,16 @@ export async function POST(req: NextRequest) {
 
     if (updateError) throw updateError;
 
-    // Close the request this person came in on (a Strava sign-in or the club
-    // backfill). This route approves the athlete row and never touched it, so
-    // those rows stayed 'pending' forever and inflated every "N waiting" count
-    // the approvers saw (6 of the 7 pending on 2026-10-06 were people already in).
-    // Isolated: the approval is committed either way.
-    try {
-      await supabase
-        .from('signup_requests')
-        .update({ status: 'approved', approved_at: updates.approved_at, approved_by: updates.approved_by })
-        .eq('athlete_id', athleteId)
-        .eq('status', 'pending');
-    } catch (closeErr) {
-      console.error('Failed to close the approved athlete\'s signup request:', closeErr);
-    }
+    // Close every request that is this person — by athlete_id, or the form they
+    // filled in by address — and, for someone who has not signed in yet, mail the
+    // personal link (lib/onboarding/approval-sync). This route used to close only
+    // requests carrying the athlete_id, so a form applicant approved from here
+    // stayed "pending" and was never sent a way in.
+    const signedIn = !!athlete.first_seen_at || !!athlete.strava_auth;
+    const sync = await syncApprovedJoiner({
+      athleteId, approverEmail: approverEmail || null, approverIsSuperUser: !!auth.user.isSuperUser,
+      noEmail: isAcademyPending || signedIn,
+    });
     await recordOnbEvent({ step: 'approved', athleteId, meta: { by: updates.approved_by ?? null } });
 
     // Email and push are independent channels for the same event — send
@@ -141,7 +141,9 @@ export async function POST(req: NextRequest) {
         try {
           if (isAcademyPending) {
             await notifyAcademyApproved({ name: athlete.name, email: athlete.email, token });
-          } else {
+          } else if (signedIn) {
+            // Already signed in: the "you're in, open the app" mail. Somebody who
+            // has not signed in got the link mail from the sync above instead.
             await notifyUserApproved({ name: athlete.name, email: athlete.email });
             // A Strava member's address is synthetic, so the mail above is skipped;
             // the address they left on the waiting screen is the one that reaches
@@ -192,6 +194,7 @@ export async function POST(req: NextRequest) {
       released,
       maintenance: maintenanceOn,
       athlete: { id: athlete.id, email: athlete.email, approved: true },
+      sync,
     });
   } catch (error) {
     console.error('Failed to approve user:', error);

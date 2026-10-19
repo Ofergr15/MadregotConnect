@@ -790,6 +790,16 @@ async function run(request: Request) {
     }
   }
 
+  // …and at 19:00 again, escalated (email too), for anyone waiting past two days.
+  if (hour === 19) {
+    try {
+      const waiting = await runPendingReminders(supabase, now, { already, markFired }, 'evening');
+      if (waiting) fired.push(`pendingReminder:evening → ${waiting}`);
+    } catch (err) {
+      console.error('[tick] evening pending reminders failed:', err);
+    }
+  }
+
   if (hour === 10) {
     try {
       const reminded = await runJoinReminders(supabase, now, { already, markFired });

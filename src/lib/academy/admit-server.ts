@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto';
+import { syncApprovedJoiner } from '@/lib/onboarding/approval-sync';
 import { NextResponse } from 'next/server';
 import { hasRole } from '@/lib/auth/roles';
 import { createServerClient } from '@/lib/supabase/server';
@@ -232,6 +233,12 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
   // it a funnel trainee had no "since" on the members tab, and once removed was
   // findable in "עזבו" only through the coach history.
   await applyAcademyMembership(supabase, athlete.id, true);
+
+  // Any club request this person also left open is answered by this acceptance; the
+  // academy's own mail below is the one they get (lib/onboarding/approval-sync).
+  if (needsJoin) {
+    await syncApprovedJoiner({ athleteId: athlete.id, approverEmail: caller.email || null, approverIsSuperUser: false, noEmail: true });
+  }
 
   // The whole set, through the one write every "שיבוץ מאמנים" door uses.
   const before = await coachIdsOf(supabase, athlete.id, athlete.academy_coach_id ?? null);
