@@ -41,3 +41,16 @@ export function pickPlan<T extends Row>(rows: T[] | null | undefined, athleteId:
   }
   return best;
 }
+
+/**
+ * An academy-only trainee (in the academy, no club group) has no club week: their week is
+ * the one their coach writes, or none yet (2026-10-19, academy-dash.html). So the club's
+ * rows — and the club's one-day sessions — are not theirs on any card that reads "my week".
+ */
+export function isAcademyOnly(row: { is_academy?: boolean | null; group_id?: string | null } | null | undefined): boolean {
+  return !!row && !!row.is_academy && 'group_id' in row && row.group_id === null;
+}
+
+export function rowsForReader<T extends Row>(rows: T[] | null | undefined, athleteId: string | null | undefined, academyOnly: boolean): T[] {
+  return academyOnly ? (rows || []).filter((r) => !!athleteId && r.athlete_id === athleteId) : (rows || []);
+}

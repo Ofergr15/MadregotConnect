@@ -301,6 +301,18 @@ export async function pushWeekToAthlete({
       }
     }
 
+    // The copies this push replaced are gone from the watch (deleted above), so their rows
+    // go too: left at 'success' they were a second "on the watch" for the same plan and day
+    // — a coach's corrected resend counted twice (2026-10-19, edit-and-resend). A failed
+    // push keeps them, marked failed, below.
+    if (replacedRowIds.length > 0) {
+      try {
+        await supabase.from('workout_deliveries').delete().in('id', replacedRowIds);
+      } catch {
+        // best-effort: the newer row is the one every reader prefers
+      }
+    }
+
     // Let the athlete know their watch has new workouts — previously
     // the only way to find out was to happen to check the app or watch;
     // pushing a plan was otherwise completely silent to them.

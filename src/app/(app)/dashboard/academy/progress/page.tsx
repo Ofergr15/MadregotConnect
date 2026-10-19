@@ -17,6 +17,7 @@ import { ProgressScreen } from '@/components/trainee/ProgressScreen';
 import { ThresholdScreen } from '@/components/trainee/ThresholdScreen';
 import { BodyScreen } from '@/components/trainee/BodyScreen';
 import { TOP_BAR } from '@/components/trainee/ui';
+import { AthleteProgress } from '@/components/profile/AthleteProgress';
 
 // "התקדמות" — the trainee's progress tab (trainee-experience-v2 screens 7, 7ג, 8):
 //
@@ -76,7 +77,19 @@ function Progress() {
       ) : view === 'body' ? (
         <BodyScreen athleteId={athleteId} coachName={coach} />
       ) : (
-        <ProgressScreen athleteId={athleteId} gender={gender} testsHref={hrefFor('tests')} bodyHref={hrefFor('body')} journey={home?.journey ?? null} />
+        <>
+          <ProgressScreen athleteId={athleteId} gender={gender} testsHref={hrefFor('tests')} bodyHref={hrefFor('body')} journey={home?.journey ?? null} />
+          {/* The club runner's own progress under the academy's: "השבוע שלי", the records,
+              the improvement, the last runs (Ofer, 2026-10-19: "don't reinvent the wheel").
+              An academy-only trainee has no club profile flow, so this is where they get it. */}
+          <AthleteProgress
+            athleteId={athleteId}
+            viewer={linked ? 'staff' : 'owner'}
+            athleteName={home?.athlete?.name?.split(' ')[0]}
+            accent="academy"
+            academyLane={!!linked}
+          />
+        </>
       )}
     </div>
   );

@@ -91,6 +91,13 @@ export function withBandDescription<W extends { description?: string }>(workout:
 }
 
 /** A band-priced session's notes: the band line first, then whatever the coach wrote. */
+/** The coach's own note, without the band line a send added (for editing it again). */
+export function withoutBandNote(notes: string | null | undefined): string | null {
+  const rest = (notes || '').trim();
+  const stripped = rest.startsWith(BAND_PACE_NOTE) ? rest.slice(BAND_PACE_NOTE.length).trim() : rest;
+  return stripped || null;
+}
+
 export function withBandNote(notes: string | null | undefined): string {
   const rest = (notes || '').trim();
   if (rest.startsWith(BAND_PACE_NOTE)) return rest;

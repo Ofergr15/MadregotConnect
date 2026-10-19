@@ -96,7 +96,7 @@ export async function GET(request: Request) {
         .lte('workout_date', weekEnd),
       supabase.from('athletes').select('id, name, academy_coach_id, academy_joined_on, group_id').eq('id', athleteId).maybeSingle()
         .then(res => (res.error && isMissingColumn(res.error)
-          ? supabase.from('athletes').select('id, name, academy_coach_id').eq('id', athleteId).maybeSingle()
+          ? supabase.from('athletes').select('id, name, academy_coach_id, group_id').eq('id', athleteId).maybeSingle()
           : res)),
       loadThresholds(supabase, [athleteId]),
       loadsP,
@@ -129,7 +129,9 @@ export async function GET(request: Request) {
     const graded = report.athletes[0]?.week.workouts ?? [];
     // An academy-only trainee (no club group) never gets the CLUB week as theirs: until
     // their coach writes their own, the week is empty and says so (academy-dash.html).
-    const academyOnly = !!me.data && (me.data as { group_id?: string | null }).group_id == null;
+    // Only a READ group_id of null says so: the fallback read (no migration columns) has no
+    // group_id at all, and an unknown group must not take a club member's week away.
+    const academyOnly = !!me.data && 'group_id' in (me.data as object) && (me.data as { group_id?: string | null }).group_id === null;
     const ownWeek = academyOnly ? await hasOwnWeek(supabase, athleteId, weekStart) : true;
     const rows = ownWeek ? graded : [];
     // The same rule as the trainee's home (day-cards.ts watchDates): a delivery counts only

@@ -923,3 +923,130 @@ export function guessKind(steps: BookStep[], hint = ''): LibraryKind {
   if (/ארוכ|long/i.test(hint) || bookTotals(steps, null).distanceM >= 14000) return 'long';
   return 'easy';
 }
+
+// ── The editor's structural edits (2026-10-19, Ofer: "a coach needs EDITING too, not only
+// auto-detection — to fix and to add") ─────────────────────────────────────────────────
+//
+// The parse is a first draft, never a lock: every step can change type, measure, value,
+// pace (or pace range) and count, and steps can be added anywhere, removed, moved and
+// duplicated. All pure and immutable, like the field edits above.
+
+/** What a step IS, in the coach's words — the type chips on a step's sheet. */
+export type StepType = 'warmup' | 'steady' | 'interval' | 'recovery' | 'cooldown';
+
+export function stepType(step: BookStep | undefined): StepType | null {
+  if (!step) return null;
+  if (step.kind === 'reps') return 'interval';
+  if (step.kind === 'rest') return 'recovery';
+  if (step.kind === 'run') return step.role === 'warmup' ? 'warmup' : step.role === 'cooldown' ? 'cooldown' : 'steady';
+  return null;
+}
+
+/** The step's main length, whatever it is: a run's, a rep's work, a recovery's. */
+function stepLength(step: BookStep): Length | null {
+  if (step.kind === 'reps') return step.work;
+  if (step.kind === 'run') return step.length;
+  if (step.kind === 'rest') return step.length;
+  return null;
+}
+
+/** Turn a step into another type, keeping its length and its effort where they still mean something. */
+export function convertStep(steps: BookStep[], index: number, type: StepType): BookStep[] {
+  const step = steps[index];
+  if (!step || step.kind === 'hr' || stepType(step) === type) return steps;
+  const next = cloneSteps(steps);
+  const length = stepLength(step) ?? { measure: 'time', value: 600 };
+  const effort = step.kind === 'run' || step.kind === 'reps' ? step.effort : null;
+  const note = step.note;
+  let fresh: BookStep;
+  if (type === 'interval') {
+    fresh = { kind: 'reps', count: 4, work: { ...length }, effort: effort && !isPureZone(effort) ? effort : effortFromZone('interval'), rest: { length: { measure: 'time', value: 90 }, mode: 'jog' }, note };
+  } else if (type === 'recovery') {
+    fresh = { kind: 'rest', length: { measure: length.measure, value: length.measure === 'time' ? Math.min(length.value, 600) : Math.min(length.value, 1000) }, mode: 'jog', note };
+  } else {
+    const role = type === 'warmup' ? 'warmup' : type === 'cooldown' ? 'cooldown' : 'main';
+    // A reps block becomes one run of its whole volume, not of one rep.
+    const total = step.kind === 'reps' ? { ...length, value: length.value * step.count } : { ...length };
+    const easy = role !== 'main' || !effort ? effortFromZone('easy') : effort;
+    fresh = { kind: 'run', role, length: total, effort: easy, note };
+  }
+  next[index] = fresh;
+  return next;
+}
+
+/** Distance ↔ time for a step's length, converted at the step's own pace (an estimate without a test). */
+export function setMeasure(steps: BookStep[], index: number, measure: Measure, thresholdSec: number | null): BookStep[] {
+  const step = steps[index];
+  const len = step ? stepLength(step) : null;
+  if (!step || !len || len.measure === measure) return steps;
+  const next = cloneSteps(steps);
+  const target = stepLength(next[index])!;
+  const effort = step.kind === 'run' || step.kind === 'reps' ? step.effort : null;
+  const pace = effort ? effortPace(effort, thresholdSec ?? ESTIMATE_THRESHOLD_SEC) : paceFromPct(thresholdSec ?? ESTIMATE_THRESHOLD_SEC, centrePct(ZONE_INTENSITY.easy!));
+  const value = measure === 'time'
+    ? Math.max(30, Math.round((len.value / 1000) * pace / 30) * 30)
+    : Math.max(100, Math.round((len.value / pace) * 1000 / 100) * 100);
+  target.measure = measure;
+  target.value = Math.round(clamp(value, LIMITS[measure]));
+  delete target.range;
+  return next;
+}
+
+/**
+ * A pace RANGE: the step's pace stays the centre and the watch gets `±spreadSec` around it
+ * (`4:00–4:10` is `4:05 ±5`). 0 = the typed band an exact pace is stored with.
+ */
+export function setPaceSpread(steps: BookStep[], index: number, spreadSec: number, thresholdSec: number | null, adjust?: PaceAdjust | null): BookStep[] {
+  const step = steps[index];
+  if (!step || (step.kind !== 'run' && step.kind !== 'reps') || !step.effort || !thresholdSec) return steps;
+  const next = cloneSteps(steps);
+  const s = next[index] as Extract<BookStep, { kind: 'run' | 'reps' }>;
+  const centre = effortPace(step.effort, thresholdSec, adjust);
+  if (spreadSec <= 0) {
+    s.effort = effortFromPace(centre, thresholdSec, adjust);
+    return next;
+  }
+  const fast = unshiftPace(Math.max(MIN_PACE_SEC_PER_KM, centre - spreadSec), thresholdSec, adjust);
+  const slow = unshiftPace(Math.min(MAX_PACE_SEC_PER_KM, centre + spreadSec), thresholdSec, adjust);
+  const fastPct = round1((thresholdSec / fast) * 100);
+  const slowPct = round1((thresholdSec / slow) * 100);
+  s.effort = { zone: nearestZone((fastPct + slowPct) / 2), intensity: { fastPct, slowPct } };
+  return next;
+}
+
+/** The step's pace range as ±seconds around its centre (0 for an exact pace or a named zone). */
+export function paceSpread(step: BookStep | undefined, thresholdSec: number | null): number {
+  if (!step || (step.kind !== 'run' && step.kind !== 'reps') || !step.effort || !thresholdSec || isPureZone(step.effort)) return 0;
+  const fast = paceFromPct(thresholdSec, step.effort.intensity.fastPct);
+  const slow = paceFromPct(thresholdSec, step.effort.intensity.slowPct);
+  const half = (slow - fast) / 2;
+  // The typed band itself (±1.5% of speed at this pace) reads as an exact pace.
+  const c = centrePct(step.effort.intensity);
+  const typed = (paceFromPct(thresholdSec, c - TYPED_HALF_WIDTH_PCT) - paceFromPct(thresholdSec, c + TYPED_HALF_WIDTH_PCT)) / 2;
+  return half <= typed + 0.75 ? 0 : Math.round(half);
+}
+
+/** A new step right AFTER `index` (−1 = at the top). */
+export function insertStep(steps: BookStep[], index: number, kind: 'run' | 'reps' | 'rest'): BookStep[] {
+  const fresh = addStep([], kind)[0];
+  const next = cloneSteps(steps);
+  next.splice(Math.max(0, Math.min(next.length, index + 1)), 0, fresh);
+  return next;
+}
+
+/** One place up (`-1`) or down (`1`). */
+export function moveStep(steps: BookStep[], index: number, dir: -1 | 1): BookStep[] {
+  const to = index + dir;
+  if (index < 0 || index >= steps.length || to < 0 || to >= steps.length) return steps;
+  const next = cloneSteps(steps);
+  [next[index], next[to]] = [next[to], next[index]];
+  return next;
+}
+
+/** The same block again, right after it (a second set of reps). */
+export function duplicateStep(steps: BookStep[], index: number): BookStep[] {
+  if (!steps[index]) return steps;
+  const next = cloneSteps(steps);
+  next.splice(index + 1, 0, cloneSteps([steps[index]])[0]);
+  return next;
+}

@@ -2,7 +2,7 @@
 
 import type { PaceAdjust } from '@/lib/academy/pace-kinds';
 import { useTranslations } from 'next-intl';
-import { Minus, Plus } from 'lucide-react';
+import { Minus, MoreHorizontal, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   centrePct, effortPace, fieldValue, isPureZone, toneOf, traineeRepsTone,
@@ -159,7 +159,7 @@ export function useStepLines() {
  * read-only list of "הבנתי כך" and of the trainee's own workout, with the pace at the end.
  */
 export function StepLines({
-  steps, thresholdSec, paceAdjust, selected, onTap, onNudge, rangeFor, trainee = false, zoneWords = false, className,
+  steps, thresholdSec, paceAdjust, selected, onTap, onNudge, onStepMenu, rangeFor, trainee = false, zoneWords = false, className,
 }: {
   /** A named zone with no pace given says its word (tappable when editable), not a pace. */
   zoneWords?: boolean;
@@ -183,6 +183,8 @@ export function StepLines({
   selected?: FieldRef | null;
   onTap?: (ref: FieldRef) => void;
   onNudge?: (ref: FieldRef, sign: 1 | -1) => void;
+  /** The step's ⋯ — its sheet (type, measure, range, move, duplicate, delete, add after). */
+  onStepMenu?: (step: number) => void;
   className?: string;
 }) {
   const t = useTranslations('workoutBook');
@@ -292,6 +294,16 @@ export function StepLines({
                   </button>
                 ))}
               </div>
+            )}
+            {editable && onStepMenu && !(isSelected && onNudge) && !line.key.endsWith('r') && (
+              <button
+                type="button"
+                onClick={() => onStepMenu(line.step)}
+                aria-label={t('stepMenu.more')}
+                className="relative grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] text-ink-400 after:absolute after:-inset-[5px] after:content-['']"
+              >
+                <MoreHorizontal className="h-5 w-5" aria-hidden />
+              </button>
             )}
             {!editable && line.pace !== null && (
               <N className={cn('shrink-0 whitespace-nowrap font-black', line.paceMuted ? 'font-bold text-ink-400' : 'text-ink-900')}>

@@ -4,22 +4,24 @@ import { NumberRuns, StructureText, clock, km, signedText } from '@/components/t
 
 /**
  * The trainee screens' number atoms: every structure isolated LTR inside a Hebrew name
- * (so "5 × 1 ק״מ" keeps its count on the left), and the signed figures with a real minus.
+ * (so "5 × 1 ק״מ" reads five times one: the repeat in the line's own order, each number LTR), and the signed figures with a real minus.
  */
 
 describe('StructureText', () => {
   it('isolates the count × size, and only that', () => {
-    expect(renderToStaticMarkup(<StructureText text="5 × 1 ק״מ" />)).toBe('<bdi><bdi dir="ltr">5 × 1</bdi> ק״מ</bdi>');
-    expect(renderToStaticMarkup(<StructureText text="3 × 2 ק״מ טמפו" />)).toBe('<bdi><bdi dir="ltr">3 × 2</bdi> ק״מ טמפו</bdi>');
+    expect(renderToStaticMarkup(<StructureText text="5 × 1 ק״מ" />)).toBe('<bdi><bdi dir="ltr">5</bdi> × <bdi dir="ltr">1</bdi> ק״מ</bdi>');
+    expect(renderToStaticMarkup(<StructureText text="3 × 2 ק״מ טמפו" />)).toBe('<bdi><bdi dir="ltr">3</bdi> × <bdi dir="ltr">2</bdi> ק״מ טמפו</bdi>');
     expect(renderToStaticMarkup(<StructureText text="6 ק״מ קל" />)).toBe('<bdi>קל <bdi dir="ltr">6</bdi> ק״מ</bdi>');
     expect(renderToStaticMarkup(<StructureText text="סדרות 400–1200" />)).toBe('<bdi>סדרות <bdi dir="ltr">400–1200</bdi></bdi>');
     expect(renderToStaticMarkup(<StructureText text="ארוכה" />)).toBe('<bdi>ארוכה</bdi>');
+    // A repeat with a pace range keeps each side whole and LTR.
+    expect(renderToStaticMarkup(<StructureText text="6 × 800 ב־3:50–3:55" />)).toBe('<bdi><bdi dir="ltr">6</bdi> × <bdi dir="ltr">800</bdi> ב־<bdi dir="ltr">3:50–3:55</bdi></bdi>');
   });
 });
 
 describe('NumberRuns (a run\'s own name on its page)', () => {
   it('isolates the number runs and keeps the words where they were', () => {
-    expect(renderToStaticMarkup(<NumberRuns text="5 × 1 ק״מ" />)).toBe('<bdi><bdi dir="ltr">5 × 1</bdi> ק״מ</bdi>');
+    expect(renderToStaticMarkup(<NumberRuns text="5 × 1 ק״מ" />)).toBe('<bdi><bdi dir="ltr">5</bdi> × <bdi dir="ltr">1</bdi> ק״מ</bdi>');
     // No word-first reordering here, unlike the session titles.
     expect(renderToStaticMarkup(<NumberRuns text="6 ק״מ קל" />)).toBe('<bdi><bdi dir="ltr">6</bdi> ק״מ קל</bdi>');
     expect(renderToStaticMarkup(<NumberRuns text="Morning Run" />)).toBe('<bdi>Morning Run</bdi>');

@@ -12,6 +12,7 @@ import {
 import { BarButton, CARD, FlowScreen, N, PrimaryButton, ProfileBar, RICH, SectionLabel, kmText } from './ui';
 import { StepLines, fieldDisplay, formatField } from './StepLines';
 import { Wheel } from './Wheel';
+import { StepMenu } from './StepMenu';
 import { useFavourites } from './BookPicker';
 import type { Draft } from './types';
 import { renamedForStructure } from '@/lib/academy/draft-name';
@@ -47,6 +48,7 @@ export function AdjustScreen({
   const [selected, setSelected] = useState<FieldRef | null>(null);
   const [wheel, setWheel] = useState<FieldRef | null>(null);
   const [adding, setAdding] = useState(false);
+  const [menu, setMenu] = useState<number | null>(null);
   const model = draft.model;
   const T = thresholdSec;
   const A = paceAdjust ?? null;
@@ -97,7 +99,14 @@ export function AdjustScreen({
         }
       >
         <div className="flex items-start justify-between gap-2">
-          <h2 className="text-[24px] font-black leading-tight text-ink-900"><bdi>{draft.name}</bdi></h2>
+          {/* The name is the coach's to write: the parse names it from the structure, never for good. */}
+          <input
+            value={draft.name}
+            onChange={e => onChange({ ...draft, name: e.target.value })}
+            aria-label={t('workoutName')}
+            dir="auto"
+            className="min-w-0 flex-1 rounded-lg bg-transparent text-[24px] font-black leading-tight text-ink-900 outline-none focus:bg-[#F4F4F8] focus:px-2"
+          />
           {draft.entryId && (
             <button
               type="button"
@@ -132,7 +141,7 @@ export function AdjustScreen({
 
         <SectionLabel>{model ? t('stepsHint') : t('stepsReadOnly')}</SectionLabel>
         {model ? (
-          <StepLines steps={model} thresholdSec={T} paceAdjust={A} selected={selected} onTap={tap} onNudge={nudge} />
+          <StepLines steps={model} thresholdSec={T} paceAdjust={A} selected={selected} onTap={tap} onNudge={nudge} onStepMenu={i => { setSelected(null); setMenu(i); }} />
         ) : (
           <p className={cn(CARD, 'px-4 py-3 text-sm text-ink-500')}>{t('notEditable')}</p>
         )}
@@ -169,7 +178,31 @@ export function AdjustScreen({
             )}
           </div>
         )}
+
+        {/* What the trainee reads on the day and on the watch — the coach's words, editable. */}
+        <label className="block">
+          <span className="mb-1.5 block px-1 text-13 font-bold text-ink-400">{t('notesLabel')}</span>
+          <textarea
+            value={draft.notes ?? ''}
+            onChange={e => onChange({ ...draft, notes: e.target.value || null })}
+            placeholder={t('notesPlaceholder')}
+            rows={3}
+            dir="auto"
+            className={cn(CARD, 'block w-full resize-none px-4 py-3 text-[16px] text-ink-900 outline-none placeholder:text-ink-300')}
+          />
+        </label>
       </FlowScreen>
+
+      {menu !== null && model && (
+        <StepMenu
+          steps={model}
+          index={menu}
+          thresholdSec={T}
+          paceAdjust={A}
+          onChange={(next, focus) => { setModel(next); setMenu(focus ?? null); }}
+          onClose={() => setMenu(null)}
+        />
+      )}
 
       {wheel && model && (
         <Wheel

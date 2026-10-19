@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Check, ChevronLeft, Share2 } from 'lucide-react';
 import { useApi } from '@/lib/api';
+import { fullPlanHref } from '@/lib/athletes/progress-parts';
 import { cn, israelToday } from '@/lib/utils';
 import { Sheet } from '@/components/ui';
 import { AttendanceRSVP } from '@/components/AttendanceRSVP';
@@ -78,7 +79,7 @@ const pace = (seconds: number, km: number) => {
 };
 const hours = (seconds: number) => `${Math.floor(seconds / 3600)}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}`;
 
-export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], workoutHour = 18, accent = 'club', academyLane = false, compact = false }: {
+export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], workoutHour = 18, accent = 'club', academyLane = false, compact = false, tenWeeks = true }: {
   athleteId: string;
   /** On the shared week card (it moved here with the seven-day card it used to sit on). */
   athleteName?: string;
@@ -92,8 +93,14 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
   academyLane?: boolean;
   /** Inside a sheet: no month/year tiles, no link to the program. */
   compact?: boolean;
+  /** False where the profile's own TenWeekChart (y-axis, table) stands under the card instead. */
+  tenWeeks?: boolean;
 }) {
   const col = WEEK_ACCENT[accent];
+  // The owner's own "/api/auth/me" (the nav's read, so SWR answers it from cache): an
+  // academy-only trainee's full week is their academy board, not the club program.
+  const { data: me } = useApi<{ academyOnly?: boolean }>(owner ? '/api/auth/me' : null);
+  const planHref = fullPlanHref({ owner, academyOnly: !!me?.academyOnly });
   const t = useTranslations('profile');
   const tc = useTranslations('common');
   const locale = useLocale();
@@ -273,6 +280,7 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
         )}
       </div>
 
+      {tenWeeks && (
       <div className="rounded-card bg-card p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-extrabold text-ink-900">{t('myWeekTenWeeks')}</h2>
@@ -287,6 +295,7 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
           ? <WeeksLine weeks={pw.weeks} locale={locale} col={col.main} id={accent} />
           : <p className="mt-3 text-sm font-light text-ink-400">{t('noKmHistory')}</p>}
       </div>
+      )}
 
       {stats && !compact && (
         <div className="grid grid-cols-2 gap-2.5">
@@ -296,7 +305,7 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
       )}
 
       {!compact && (
-        <Link href="/dashboard/program" className="inline-flex items-center gap-1 px-1 py-2 text-sm font-bold text-brand-600">
+        <Link href={planHref} className="inline-flex items-center gap-1 px-1 py-2 text-sm font-bold text-brand-600">
           {t('fullProgram')}
           <ChevronLeft className="h-4 w-4 ltr:rotate-180" />
         </Link>
@@ -351,7 +360,7 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
               </>
             )}
             {!compact && (
-              <Link href="/dashboard/program" className="mt-4 flex min-h-[50px] w-full items-center justify-center rounded-2xl bg-brand-600 text-base font-extrabold text-white">
+              <Link href={planHref} className="mt-4 flex min-h-[50px] w-full items-center justify-center rounded-2xl bg-brand-600 text-base font-extrabold text-white">
                 {t('weekFullWorkout')}
               </Link>
             )}

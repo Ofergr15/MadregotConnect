@@ -122,6 +122,10 @@ export function SendScreen({ data, draft, day, primary, onBack, onClose }: {
         </div>
         <p className="mt-2.5 text-[24px] font-black leading-tight text-ink-900"><bdi>{draft.name}</bdi> · {day}</p>
         <p className="mt-1 text-[16px] text-ink-500">{primaryLine}</p>
+        {/* A day that was already sent: this one took its place, on the watch and in the thread. */}
+        {primary.status === 'sent' && data.existing.length > 0 && (
+          <p className="mt-1 text-13 font-bold text-[#0E7A3C]">{t('resentNote')}</p>
+        )}
       </div>
 
       {data.others.length > 0 && (

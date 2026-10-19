@@ -497,6 +497,24 @@ export function parseQuickText(input: string): QuickParse {
     (steps[last] as Extract<QuickStep, { kind: 'run' }>).role = 'cooldown';
     assumptions.push({ code: 'cooldown', step: last, text: '' });
   }
+  // A bare bookend in a session whose other bookend has a unit takes that unit: `חימום 15
+  // דק׳, …, שחרור 10` is ten minutes of cooling down, not ten kilometres — the same coach
+  // wrote both ends in the same breath (2026-10-19, a 17 km session out of a 10-minute
+  // cooldown). Shown in the preview like every other guess.
+  const bookends = steps
+    .map((s, i) => ({ s, i }))
+    .filter((x): x is { s: Extract<QuickStep, { kind: 'run' }>; i: number } => x.s.kind === 'run' && x.s.role !== 'main' && !!x.s.length);
+  const bareKm = (i: number) => assumptions.findIndex(a => a.step === i && a.code === 'bare-km');
+  const typedTime = bookends.find(b => b.s.length!.measure === 'time' && !assumptions.some(a => a.step === b.i && a.code.startsWith('bare-')));
+  if (typedTime) {
+    for (const b of bookends) {
+      const at = bareKm(b.i);
+      if (b === typedTime || at < 0 || b.s.length!.measure !== 'distance') continue;
+      const n = b.s.length!.value / 1000;
+      b.s.length = { measure: 'time', value: Math.round(n * 60) };
+      assumptions[at] = { ...assumptions[at], code: 'bare-minutes' };
+    }
+  }
   // An explicit `שחרור` on the ONLY step is an easy recovery run, not a cooldown.
   if (steps.length === 1 && steps[0].kind === 'run' && steps[0].role !== 'main') {
     steps[0].role = 'main';

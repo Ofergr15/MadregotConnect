@@ -19,7 +19,7 @@ import { FeedAvatar } from '@/components/FeedAvatar';
 import { formatPace } from '@/components/activity/format';
 import { academyThreadUrl } from '@/lib/academy/deep-links';
 import { TraineeSetupBanner } from './TraineeSetup';
-import type { HomeKmWeek, TraineeHome } from '@/lib/academy/trainee-home';
+import type { TraineeHome } from '@/lib/academy/trainee-home';
 
 /** Digits only, Israeli local numbers to 972 — wa.me wants an international number. */
 function waNumber(phone: string): string {
@@ -29,46 +29,6 @@ function waNumber(phone: string): string {
 
 function Num({ children }: { children: React.ReactNode }) {
   return <bdi dir="ltr" className="whitespace-nowrap tabular-nums">{children}</bdi>;
-}
-
-function KmChart({ weeks, avgKm }: { weeks: HomeKmWeek[]; avgKm: number | null }) {
-  const t = useTranslations('traineeHeader');
-  if (weeks.length < 2) return null;
-  const max = Math.max(...weeks.map((w) => Math.max(w.km, w.plannedKm ?? 0)), 1);
-  const last = weeks.length - 1;
-  return (
-    <section className="rounded-card border border-page bg-card p-3">
-      <div className="flex items-baseline justify-between">
-        <h3 className="text-sm font-extrabold text-ink-700">{t('kmTitle')}</h3>
-        <span className="text-2xs text-ink-400">
-          {t('kmSub', { n: weeks.length })}{avgKm != null && <> · {t('kmAvg', { km: Math.round(avgKm) })}</>}
-        </span>
-      </div>
-      <div dir="ltr" className="mt-2 flex h-24 items-end gap-1" aria-hidden>
-        {weeks.map((w, i) => {
-          const planned = w.plannedKm ?? 0;
-          // A finished week under 70% of what was planned is the one a coach must see.
-          const low = i < last && planned > 0 && w.km < planned * 0.7;
-          return (
-            <div key={w.weekStart} className="relative h-full flex-1">
-              {planned > 0 && (
-                <div className="absolute inset-x-0 bottom-0 rounded-t border-[1.5px] border-b-0 border-dashed border-primary-300" style={{ height: `${(planned / max) * 100}%` }} />
-              )}
-              <div
-                className={cn('absolute inset-x-[2px] bottom-0 rounded-t-[3px]', i === last ? 'bg-primary-400' : low ? 'bg-accent-red' : 'bg-brand-600')}
-                style={{ height: `${(w.km / max) * 100}%` }}
-              />
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-3 text-2xs text-ink-500">
-        <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-sm bg-brand-600" />{t('kmDone')}</span>
-        <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-sm border border-dashed border-primary-300" />{t('kmPlanned')}</span>
-        <span className="flex items-center gap-1"><i className="inline-block h-2 w-2 rounded-sm bg-accent-red" />{t('kmLow')}</span>
-      </div>
-    </section>
-  );
 }
 
 export function TraineeHeader({ athleteId }: { athleteId: string }) {
@@ -169,7 +129,6 @@ export function TraineeHeader({ athleteId }: { athleteId: string }) {
         </div>
       </div>
 
-      {km && <KmChart weeks={km.weeks} avgKm={km.avgKm} />}
     </div>
   );
 }

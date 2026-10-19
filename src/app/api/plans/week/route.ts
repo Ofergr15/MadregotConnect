@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { WEEKLY_PLANS_TAG } from '@/lib/plans/cache';
 import { COACH_ID } from '@/lib/constants';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
-import { pickPlan, planRowsFilter } from '@/lib/plans/scope';
+import { pickPlan, planRowsFilter, isAcademyOnly, rowsForReader } from '@/lib/plans/scope';
 import { buildWeekBreakdown } from '@/lib/plans/workout-parsing';
 import { ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
@@ -66,13 +66,18 @@ export async function GET(req: NextRequest) {
       // A trainee who left the academy reads the club's week again (scope-server.ts).
       ownPlanRowsCount(whose),
     ]);
-    const rows = forOther && !asTrainee ? (rowsRaw || []).filter((r) => !r.athlete_id) : withoutOwnRows(rowsRaw, ownCounts);
+    // An academy-only trainee's "my week" (their own card, or their coach's `&academy=1` read)
+    // is only the week their coach writes — never the club's rows or day sessions.
+    const academyOnly = !!laneParam && (!forOther || !!asTrainee) && isAcademyOnly(
+      (await supabase.from('athletes').select('is_academy, group_id').eq('id', whose).maybeSingle()).data,
+    );
+    const rows = forOther && !asTrainee ? (rowsRaw || []).filter((r) => !r.athlete_id) : rowsForReader(withoutOwnRows(rowsRaw, ownCounts), whose, academyOnly);
 
     // The caller's own academy week first, never another trainee's (lib/plans/scope.ts).
     const plan = pickPlan(rows, whose);
 
     // One-day sessions on days the plan leaves empty are the week's too (lib/day-session/week-merge.ts).
-    const dayWorkouts = await daySessionWorkouts(weekStart);
+    const dayWorkouts = academyOnly ? [] : await daySessionWorkouts(weekStart);
     if (!plan) {
       if (dayWorkouts.length) {
         return NextResponse.json({ hasPlan: true, hasClubPlan: false, weekStart, publishedAt: null, lane: null, ownPlan: false, ...buildWeekBreakdown({ workouts: dayWorkouts }) });

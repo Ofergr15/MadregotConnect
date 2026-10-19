@@ -109,7 +109,9 @@ const run = (id: string, date: string, km: number, pace: number, garmin: number 
 
 function seed() {
   db = createMemoryDb({ schema: SCHEMA });
-  db.tables.athletes.push({ id: TRAINEE, group_id: null, name: 'Shahar', academy_coach_id: COACH }, { id: COACH, group_id: null, name: 'Sahar Ben Ami', academy_coach_id: null });
+  // A club member who is also a trainee (as Shahar is): the club week is theirs until
+  // the coach writes their own. The academy-only case is its own test below.
+  db.tables.athletes.push({ id: TRAINEE, group_id: 'club-c', name: 'Shahar', academy_coach_id: COACH }, { id: COACH, group_id: null, name: 'Sahar Ben Ami', academy_coach_id: null });
   db.tables.academy_tests.push({ id: uid(), athlete_id: TRAINEE, test_date: israelDay(-200), protocol: '30min', duration_sec: 1800, distance_m: 7143, excluded_reason: null, status: 'approved' });
   // 60 days of history (so the load status is ok), every other day, never on the board's days.
   for (let i = 60; i >= 1; i -= 2) {
@@ -248,6 +250,13 @@ describe('the v2 week', () => {
   it('the days with nothing planned come back as rest rows', async () => {
     const body = await (await get()).json();
     expect(body.restDays).toEqual([addDays(SUN, 3), addDays(SUN, 5), addDays(SUN, 6)].map(date => ({ date, rest: true })));
+  });
+
+  it('an academy-only trainee (no club group) never gets the club week as theirs', async () => {
+    db.tables.athletes.find(a => a.id === TRAINEE)!.group_id = null;
+    const body = await (await get()).json();
+    expect(body.workouts).toEqual([]);
+    expect(body.totals).toMatchObject({ plannedCount: 0, plannedKm: 0 });
   });
 
   it('under view-as stores nothing', async () => {

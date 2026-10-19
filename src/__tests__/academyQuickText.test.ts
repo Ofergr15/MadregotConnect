@@ -253,3 +253,21 @@ describe('parseQuickText — the club\'s own sentence (lib/ai/prompt.ts)', () =>
     ]);
   });
 });
+
+describe('a bare bookend takes the other bookend\'s unit', () => {
+  it('reads `שחרור 10` as minutes when the warmup was typed in minutes', () => {
+    const p = parseQuickText('חימום 15 דק׳, 5×1 ק״מ ב־3:55 מנוחה 2 דק׳, שחרור 10');
+    const cool = p.steps[p.steps.length - 1];
+    expect(cool).toMatchObject({ kind: 'run', role: 'cooldown', length: { measure: 'time', value: 600 } });
+    expect(p.assumptions.find(a => a.step === p.steps.length - 1 && a.code.startsWith('bare-'))?.code).toBe('bare-minutes');
+  });
+  it('keeps kilometres when neither end names a unit (`2 קל, …, 2 קל`)', () => {
+    const p = parseQuickText('2 קל, 5x1000 ב-4:05 מנוחה 2:00, 2 קל');
+    expect(p.steps[0]).toMatchObject({ length: { measure: 'distance', value: 2000 } });
+    expect(p.steps[p.steps.length - 1]).toMatchObject({ length: { measure: 'distance', value: 2000 } });
+  });
+  it('keeps kilometres when the typed end is a distance (`חימום 3 ק״מ … שחרור 2`)', () => {
+    const p = parseQuickText('חימום 3 ק״מ, 6x800 ב-3:50, שחרור 2');
+    expect(p.steps[p.steps.length - 1]).toMatchObject({ length: { measure: 'distance', value: 2000 } });
+  });
+});

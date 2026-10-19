@@ -159,7 +159,7 @@ export function AcademyHome({
             )}
           </div>
         </div>
-        <GrowthChart weeks={home?.weeks ?? []} />
+        <GrowthChart weeks={home ? home.weeks ?? [] : undefined} />
         <div className="mt-0.5 flex gap-3 text-3xs font-bold text-ink-400">
           <span><i className="me-1 inline-block h-[9px] w-[9px] rounded-[3px] bg-brand-600 align-[-1px]" />היו כבר</span>
           <span><i className="me-1 inline-block h-[9px] w-[9px] rounded-[3px] bg-[#9FA8FF] align-[-1px]" />הצטרפו באותו שבוע</span>
@@ -196,7 +196,7 @@ export function AcademyHome({
           )}
         </div>
         <div className="grid grid-cols-3 gap-[7px]">
-          <Square tone="good" n={squares.onPlan.length} label="בתוכנית" names={squares.onPlan.map((m) => m.name)} onClick={() => onSquare('onPlan')} />
+          <Square tone="good" n={squares.onPlan.length} label="עומדים בקצב" names={squares.onPlan.map((m) => m.name)} onClick={() => onSquare('onPlan')} />
           <Square tone="slow" n={squares.behind.length} label="מאחור" names={squares.behind.map((m) => m.name)} onClick={() => onSquare('behind')} />
           <Square tone="bad" n={squares.notRun.length} label="לא רצו" names={squares.notRun.map((m) => m.name)} onClick={() => onSquare('notRun')} />
         </div>
@@ -489,11 +489,14 @@ const fmtDay = (iso: string) => { const [, m, d] = iso.split('-').map(Number); r
  * Twelve weeks as stacked bars, time running left to right like every chart in
  * the app (so the SVG is LTR even in an RTL page). A tap on a bar names that week.
  */
-export function GrowthChart({ weeks }: { weeks: GrowthWeek[] }) {
+export function GrowthChart({ weeks }: { weeks?: GrowthWeek[] }) {
   const [picked, setPicked] = useState<number | null>(null);
   const W = 334, H = 96, TOP = 14, BASE = 78;
+  // Loading → a placeholder; loaded with no weeks (a read failed, or a brand-new academy)
+  // → nothing, rather than a grey box that never fills.
+  if (!weeks) return <div className="mt-2 h-[96px] animate-pulse rounded-xl bg-page/50" />;
   const n = weeks.length;
-  if (!n) return <div className="mt-2 h-[96px] animate-pulse rounded-xl bg-page/50" />;
+  if (!n) return null;
   const max = Math.max(1, ...weeks.map((w) => w.trainees));
   const slot = W / n;
   const bw = Math.min(20, slot - 8);

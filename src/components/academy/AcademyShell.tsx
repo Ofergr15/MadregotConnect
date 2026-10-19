@@ -396,7 +396,7 @@ export function AcademyShell({
     : area === 'people' ? (manager
       ? <><bdi dir="ltr">{approvedCount}</bdi> מתאמנים · <bdi dir="ltr">{funnelLive}</bdi> מועמדים · <bdi dir="ltr">{coachCount}</bdi> מאמנים</>
       : <><bdi dir="ltr">{approvedCount}</bdi> מתאמנים</>)
-    : area === 'threads' ? (awaiting.length ? <><bdi dir="ltr">{awaiting.length}</bdi> מחכות לתשובה</> : 'כל השיחות')
+    : area === 'threads' ? (awaiting.length === 1 ? 'שיחה אחת מחכה לתשובה' : awaiting.length ? <><bdi dir="ltr">{awaiting.length}</bdi> מחכות לתשובה</> : 'כל השיחות')
     : area ? week
     : 'ניהול האקדמיה';
   const title = area ? AREA_TITLE[area] : section === 'payments' ? 'תשלומים' : 'הגדרות';

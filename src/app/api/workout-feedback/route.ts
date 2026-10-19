@@ -5,7 +5,6 @@ import { notifyStaff } from '@/lib/notifications/staff';
 import { feedbackRecipients } from '@/lib/notifications/feedback-recipients';
 import { notifyAthlete } from '@/lib/push';
 import { SUPER_USER_EMAIL } from '@/lib/constants';
-import { coachIdsOf } from '@/lib/academy/trainee-coaches';
 import { inScope, staffAthleteScope } from '@/lib/academy/staff-scope';
 import { academyThreadUrl } from '@/lib/academy/deep-links';
 import { requireCallerForAthlete, requireStaffCaller } from '@/lib/auth/self-or-staff';

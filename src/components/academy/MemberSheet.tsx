@@ -13,7 +13,7 @@ import { Sheet, InsetSection, InsetRow, ConfirmSheet, Spinner } from '@/componen
 import { teammateHref } from '@/lib/athletes/profile-link';
 import { startViewingAs } from '@/lib/view-as-person';
 import { CoachPairing } from './CoachPairing';
-import { MyWeekCard } from '@/components/profile/MyWeekCard';
+import { AthleteProgress } from '@/components/profile/AthleteProgress';
 import { memberCoachNames } from '@/lib/academy/members';
 import { bidiNames } from '@/lib/academy/coach-picker';
 
@@ -223,26 +223,33 @@ export function MemberSheet({
             </div>
           )}
 
-          {/* The week, exactly as the runner sees their own — in the academy's purple. */}
+          {/* The runner's own progress, in the academy's purple: the week and ten weeks, then
+              "מה צפוי", the records, the improvement and the last runs — each the club runner's
+              card over the same API (components/profile/AthleteProgress.tsx). */}
           <div className="pb-4">
-            <MyWeekCard athleteId={member.athleteId} owner={false} athleteName={member.name.split(' ')[0] || member.name} accent="academy" academyLane compact />
+            <AthleteProgress
+              athleteId={member.athleteId}
+              viewer="staff"
+              athleteName={member.name.split(' ')[0] || member.name}
+              accent="academy"
+              academyLane
+              compact
+              afterWeek={(member.hasPersonalPlan === false || member.hasTest === false) && (
+                <InsetSection header="מה צפוי">
+                  {member.hasPersonalPlan === false && (
+                    <InsetRow icon={CalendarPlus} iconBg="bg-[#7C3AED]" label="אין תוכנית אישית לשבוע"
+                      sublabel={member.groupId ? 'עד שתיכתב — רץ את תוכנית המועדון' : 'עד שתיכתב — עוד אין אימונים'}
+                      onClick={onWriteWorkout ? () => onWriteWorkout(member.athleteId) : undefined} />
+                  )}
+                  {member.hasTest === false && (
+                    <InsetRow icon={Timer} iconBg="bg-band-3" label="אין טסט"
+                      sublabel="טסט של 30 דק׳ ייתן קצבים אישיים"
+                      onClick={onOpenTests ? () => onOpenTests(member.athleteId) : undefined} />
+                  )}
+                </InsetSection>
+              )}
+            />
           </div>
-
-          {/* What's coming: the gaps that stop this trainee's next week. */}
-          {(member.hasPersonalPlan === false || member.hasTest === false) && (
-            <InsetSection header="מה צפוי">
-              {member.hasPersonalPlan === false && (
-                <InsetRow icon={CalendarPlus} iconBg="bg-[#7C3AED]" label="אין תוכנית אישית לשבוע"
-                  sublabel="עד שתיכתב — רץ את תוכנית המועדון"
-                  onClick={onWriteWorkout ? () => onWriteWorkout(member.athleteId) : undefined} />
-              )}
-              {member.hasTest === false && (
-                <InsetRow icon={Timer} iconBg="bg-band-3" label="אין מבחן"
-                  sublabel="הקצבים לפי הדבוקה, עד מבחן 30 דק׳"
-                  onClick={onOpenTests ? () => onOpenTests(member.athleteId) : undefined} />
-              )}
-            </InsetSection>
-          )}
 
           {/* Attention badges — the same codes the lists show, repeated here so the
               sheet explains why the member was surfaced in the first place. */}

@@ -133,14 +133,22 @@ export function StructureText({ text: raw }: { text: string }) {
   return <NumberRuns text={wordFirstTitle(raw)} />;
 }
 
-/** The isolation alone, the words left in their order: any run's name ("5 × 1 ק״מ"). */
+/** The isolation alone, the words left in their order: any run's name ("5 × 1 ק״מ" reads five times one in a Hebrew line). */
 export function NumberRuns({ text }: { text: string }) {
   const out: ReactNode[] = [];
   let last = 0;
   for (const m of text.matchAll(STRUCTURE)) {
     const at = m.index ?? 0;
     if (at > last) out.push(text.slice(last, at));
-    out.push(<bdi key={at} dir="ltr">{m[0]}</bdi>);
+    // A repeat ("5 × 1") is two numbers in the sentence's own order, not one LTR run: isolated
+    // as LTR inside a Hebrew line it reads "1 × 5" (WebKit, 2026-10-19 — the coach's screen,
+    // plain text, read "5 × 1"). Each side stays LTR for its own digits, colons and ranges.
+    const sides = m[0].split(/(\s*[×x]\s*)/);
+    if (sides.length > 1) {
+      sides.forEach((part, i) => out.push(i % 2 ? part : <bdi key={`${at}-${i}`} dir="ltr">{part}</bdi>));
+    } else {
+      out.push(<bdi key={at} dir="ltr">{m[0]}</bdi>);
+    }
     last = at + m[0].length;
   }
   if (last < text.length) out.push(text.slice(last));

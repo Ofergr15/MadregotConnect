@@ -1,6 +1,7 @@
 'use client';
 
 import type { PaceAdjust } from '@/lib/academy/pace-kinds';
+import { StructureText } from '@/components/trainee/ui';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -257,6 +258,16 @@ function ChooseScreen({
         <div className="rounded-[14px] bg-[#FDF0E2] px-3 py-2.5 text-sm font-bold leading-snug text-[#8A4308]">
           {t('noTest', { name })}{' '}
           <Link href={academyTestUrl({ recipientIsStaff: true })} className="underline">{t('setTest')}</Link>
+        </div>
+      )}
+
+      {/* A day already sent: open it in the editor as it is, fix it, send again. The send
+          replaces it on the watch and edits its line in the thread (day-plan POST). */}
+      {data.existingEdit && (
+        <div className={cn(CARD, 'px-[18px] py-4')}>
+          <span className="text-13 font-extrabold text-ink-400">{t('existingSent', { name: first })}</span>
+          <b className="mt-1 block text-[22px] font-black leading-tight text-ink-900"><StructureText text={data.existingEdit.name} /></b>
+          <PrimaryButton onClick={() => onAdjust(data.existingEdit!)} className="mt-3">✎ {t('editExisting')}</PrimaryButton>
         </div>
       )}
 

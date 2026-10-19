@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { HomeToday } from '@/components/home/HomeToday';
 import { useTranslations } from 'next-intl';
 import { useApi } from '@/lib/api';
 import { cn, israelNow, israelToday, planWeekStartOf } from '@/lib/utils';
@@ -228,6 +229,10 @@ export function TraineeToday({ athleteId, firstName, academyOnly = false }: {
           </section>
         );
       })()}
+
+      {/* "השבוע שלי" — the club runner's own card (home/HomeToday), opening the progress tab
+          with the records and the improvement (AthleteProgress). */}
+      <HomeToday athleteId={athleteId} href="/dashboard/academy/progress" />
 
       <FormCard form={data.form} when={data.dayState === 'rest' ? 'tomorrow' : when} gender={data.athlete.gender} showBands={data.dayState === 'workout'} testKind={data.test?.kind ?? null} />
 

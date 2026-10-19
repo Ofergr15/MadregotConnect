@@ -108,8 +108,10 @@ describe('who hears about it (10-19: every alert had gone to the club account al
   it('a request for feedback reaches the trainee\'s own coach too — and promises nothing about pain', async () => {
     const res = await post({ feel: 3, difficulty: 5, wantsFeedback: true });
     expect(notifyStaff).toHaveBeenCalledTimes(1);
-    expect(notifyAthlete).toHaveBeenCalledTimes(1);
-    expect(notifyAthlete.mock.calls[0][0]).toMatchObject({ athleteId: RINA, kind: 'feedback_alert' });
+    // Their coach, and the academy managers (feedback-recipients.ts) — each once.
+    const told = notifyAthlete.mock.calls.map((c) => (c[0] as { athleteId: string; kind: string }));
+    expect(told.map((x) => x.athleteId).sort()).toEqual([MANAGER, RINA].sort());
+    expect(told.every((x) => x.kind === 'feedback_alert')).toBe(true);
     expect(await res.json()).toEqual({ success: true });
   });
 });

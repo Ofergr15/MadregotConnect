@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
+
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useFormatter, useTranslations } from 'next-intl';
-import { Loader2 } from 'lucide-react';
+import { ChevronLeft, Loader2 } from 'lucide-react';
 import { cn, dayKeyRelation, dayKeyToDate, feedDayKey } from '@/lib/utils';
 import { deletePost, fetchFeed } from '@/lib/feed-client';
 import type { FeedItem } from '@/lib/feed/project';
@@ -47,10 +49,14 @@ function DayHeading({ dayKey }: { dayKey: string }) {
   );
 }
 
-export function ProfileActivityFeed({ athleteId, runsOnly = false }: {
+export function ProfileActivityFeed({ athleteId, runsOnly = false, max, moreHref }: {
   athleteId: string;
   /** "הריצות שלי" (2026-10-19): the feed with the runs alone, and no filter row. */
   runsOnly?: boolean;
+  /** Only the first `max` items, no endless paging — "ריצות אחרונות" on a trainee's page. */
+  max?: number;
+  /** With `max`: where "לכל הריצות" goes (the athlete's profile, its Activity tab). */
+  moreHref?: string | null;
 }) {
   const t = useTranslations('feed');
   const tp = useTranslations('profile');
@@ -92,7 +98,7 @@ export function ProfileActivityFeed({ athleteId, runsOnly = false }: {
   useEffect(() => { loadFirst(); }, [loadFirst]);
 
   const loadMore = useCallback(async () => {
-    if (loadingMore || loading || !cursor) return;
+    if (max || loadingMore || loading || !cursor) return;
     const mine = seq.current;
     setLoadingMore(true);
     try {
@@ -103,7 +109,7 @@ export function ProfileActivityFeed({ athleteId, runsOnly = false }: {
     } catch { /* silent — scrolling again retries */ }
     finally { setLoadingMore(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cursor, loadingMore, loading, athleteId, filter]);
+  }, [cursor, loadingMore, loading, athleteId, filter, max]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -159,7 +165,7 @@ export function ProfileActivityFeed({ athleteId, runsOnly = false }: {
       ) : items.length === 0 ? (
         <p className="rounded-card bg-card p-5 text-center text-sm font-light text-ink-400">{tp('activityEmpty')}</p>
       ) : (
-        items.map((item) => {
+        (max ? items.slice(0, max) : items).map((item) => {
           const day = feedDayKey(item.occurredAt, item.activity?.startTime);
           const opensDay = day !== lastDay;
           lastDay = day;
@@ -179,6 +185,12 @@ export function ProfileActivityFeed({ athleteId, runsOnly = false }: {
         })
       )}
 
+      {max && moreHref && items.length > 0 && (
+        <Link href={moreHref} className="flex min-h-[44px] items-center justify-center gap-1 text-sm font-bold text-brand-600">
+          {tp('allRuns')}
+          <ChevronLeft className="h-4 w-4" aria-hidden />
+        </Link>
+      )}
       <div ref={sentinelRef} aria-hidden="true" />
       {loadingMore && (
         <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin text-ink-400" /></div>

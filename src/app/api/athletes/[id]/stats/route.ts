@@ -107,7 +107,11 @@ export async function GET(
     ]);
     // A runner the club hasn't approved yet: their PRs and runs are theirs and
     // staff's to see, nobody else's (#77).
-    const [pending, acts, startDay, prLaps, prOverrides, prExclusions, wellness] = await reads;
+    const [pending, acts, ownStartDay, prLaps, prOverrides, prExclusions, wellness] = await reads;
+    // `?week=plan` (the academy's screens, 2026-10-19): the plan's Sunday→Saturday week, so
+    // the ten weeks agree with the week card above them (buildPlanWeek). The runner's own
+    // profile leaves it off and keeps their own week setting.
+    const startDay: typeof ownStartDay = new URL(request.url).searchParams.get('week') === 'plan' ? (0 as typeof ownStartDay) : ownStartDay;
     if (pending) return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
 
     // Israel's calendar day, not the server's UTC one: between midnight and

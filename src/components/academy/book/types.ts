@@ -27,6 +27,8 @@ export interface DayPlanData {
   hasClubWeek: boolean;
   senior: SeniorPick;
   existing: ParsedWorkout[];
+  /** That day, already in their plan, as an editable draft — re-open, fix, resend. */
+  existingEdit?: SeniorPick['today'] | null;
   others: Array<{ id: string; name: string; thresholdSec: number | null; paceBasis?: 'test' | 'band' | null; paceAdjust?: PaceAdjust; hasGarmin: boolean; lane: Lane | null; busy: boolean }>;
 }
 

@@ -47,7 +47,7 @@ function Avatar({ name, url, size = 28 }: { name: string; url: string | null; si
   );
 }
 
-export function HomeToday({ athleteId }: { athleteId: string }) {
+export function HomeToday({ athleteId, href = '/dashboard/profile?tab=stats' }: { athleteId: string; /** Where the card opens: the profile's numbers, or an academy trainee's progress tab. */ href?: string }) {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
   const dayShort = tc.raw('dayNamesShort') as string[];
@@ -69,7 +69,7 @@ export function HomeToday({ athleteId }: { athleteId: string }) {
   const pack = club?.pack;
 
   return (
-    <Link href="/dashboard/profile?tab=stats" className="block rounded-card bg-card p-3.5 shadow-sm">
+    <Link href={href} className="block rounded-card bg-card p-3.5 shadow-sm">
       <div className="flex items-center gap-3">
         <MiniRing km={pw.km} scale={scale} should={shouldBy} />
         <span className="min-w-0 flex-1">

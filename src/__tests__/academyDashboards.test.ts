@@ -17,10 +17,10 @@ describe('academy home — the trainee checks in "מחכה לך"', () => {
       ],
     });
     expect(w.map((x) => x.kind)).toEqual(['no_plan', 'quiet', 'no_test']);
-    expect(w[0].title).toBe('2 מתאמנים בלי תוכנית לשבוע');
+    expect(w[0].title).toBe('2 בלי תוכנית אישית לשבוע');
     expect(w[0].target).toEqual({ section: 'members' });
     // One trainee opens their own page.
-    expect(w[1]).toMatchObject({ title: 'Shahar לא פתח את האפליקציה', target: { section: 'members', athleteId: 'a' } });
+    expect(w[1]).toMatchObject({ title: 'Shahar · לא נכנס/ה', target: { section: 'members', athleteId: 'a' } });
     expect(w[2].target.athleteId).toBe('a');
   });
 

@@ -9,7 +9,7 @@ import { useApi } from '@/lib/api';
 import { cn, getPlanWeekStart, israelDateAnchor, israelToday } from '@/lib/utils';
 import { formatPace } from '@/components/activity/format';
 import { formatTime } from '@/lib/academy/benchmark';
-import { MyWeekCard } from '@/components/profile/MyWeekCard';
+import { MyWeekCard, WEEK_ACCENT, type WeekAccent } from '@/components/profile/MyWeekCard';
 import type { Last7Report } from '@/lib/reports/last-7-days';
 import { PrEditSheet } from '@/components/profile/PrEditSheet';
 import { RunsBrowser } from '@/components/profile/RunsBrowser';
@@ -74,7 +74,7 @@ interface RecentRun {
   paceSecPerKm: number | null;
 }
 
-interface Pr {
+export interface Pr {
   key: string;
   label: string;
   meters?: number;
@@ -93,7 +93,7 @@ interface Pr {
   note?: string | null;
 }
 
-interface StatsData {
+export interface StatsData {
   totalKm: number;
   totalRuns: number;
   totalHours: number;
@@ -155,9 +155,6 @@ export function AthleteProfileBody({
 }) {
   const t = useTranslations('profile');
   const tc = useTranslations('common');
-  // The club records board owns its own copy, and the link into it should read the
-  // same here as it does there.
-  const tRecords = useTranslations('records');
   const locale = useLocale();
   const owner = variant === 'owner';
 
@@ -183,7 +180,6 @@ export function AthleteProfileBody({
 
   const weeks = stats?.weeks || [];
   const superUser = useIsSuperUser();
-  const achievedPrs = (stats?.prs || []).filter((p) => p.seconds != null);
   // The club rank beside each record — fetched only on your own profile and only
   // once the PRs tab is open; on a teammate's it is never shown (profileClubRanks).
   // The board is a snapshot served from one row, so this is a cheap read.
@@ -246,66 +242,16 @@ export function AthleteProfileBody({
 
       {section === 'prs' && (
         <>
-          {/* ═══ PERSONAL RECORDS ═══ */}
-          {/* The owner sees this section even with nothing in it: the records are
-              all derived, so an athlete whose races predate the club had no PRs
-              AND no way to say so — which is the report (affd459d, a798197f). */}
-          {(achievedPrs.length > 0 || (owner && (stats?.prs || []).length > 0)) && (
-            <section className="rounded-card bg-card p-4">
-              <div className="flex items-end justify-between gap-3">
-                <h2 className="text-xl font-bold text-ink-700">{t('personalRecords')}</h2>
-                {/* 36×20px measured — under WCAG 2.5.8's 24px floor. The padding
-                    buys 52×47 out of the card's own p-4 and the space over the
-                    tiles below; the negative margins put the word back exactly
-                    where it was. The only other thing in this row is the heading,
-                    so the halo has no control to steal from. */}
-                {owner && (
-                  <button
-                    type="button"
-                    onClick={() => setEditingPrs(true)}
-                    className="-mx-2 -my-3.5 px-2 py-3.5 text-sm font-bold text-brand-600"
-                  >
-                    {tc('edit')}
-                  </button>
-                )}
-              </div>
-              {achievedPrs.length === 0 && (
-                <p className="mt-2 text-sm font-light text-ink-400">{t('noPrsYet')}</p>
-              )}
-              {achievedPrs.length > 0 && (
-                <PrRecordList
-                  athleteId={athleteId}
-                  prs={stats?.prs || []}
-                  history={stats?.prHistory}
-                  year={stats?.prYear}
-                  yearBests={stats?.prYearBests}
-                  ranks={ranks}
-                  today={israelToday()}
-                />
-              )}
-              {/* Into the club board. The records page has a nav entry, but that
-                  entry needs a role_tab_permissions row for every non-admin role,
-                  and this is the screen someone is already looking at records on —
-                  so the door that matters is here and works for every member on
-                  day one (the API is requireMember, same gate as this page's own
-                  stats). Reports a798197f and f6c7b8dc both asked for the table. */}
-              {/* 187×20px measured. The 44 comes out of space that already
-                  existed: the old `mt-3` is now 14px of top padding minus 2px of
-                  margin, so the text sits exactly where it did, and `-mb-3.5`
-                  pulls the bottom half back into the card's p-4. Not `-my-3.5`,
-                  which loses to `mt-*` in Tailwind's own property order and would
-                  shift the row down.
-                  The record tiles above are plain divs — no tap to steal. */}
-              <Link
-                href="/dashboard/records"
-                className="inline-flex items-center gap-1 py-3.5 -mt-0.5 -mb-3.5 text-sm font-bold text-brand-600"
-              >
-                {tRecords('clubBoard')}
-                <ChevronLeft className="h-4 w-4" />
-              </Link>
-              <p className="mt-2.5 text-2xs leading-relaxed text-ink-400">{t('prOutdoorOnly')}</p>
-            </section>
-          )}
+          {/* ═══ PERSONAL RECORDS ═══ — the same section a trainee's page shows (PrSection). */}
+          <PrSection
+            athleteId={athleteId}
+            prs={stats?.prs || []}
+            history={stats?.prHistory}
+            year={stats?.prYear}
+            yearBests={stats?.prYearBests}
+            ranks={ranks}
+            onEdit={owner ? () => setEditingPrs(true) : undefined}
+          />
           {/* The badges under the records: both are "what I've done" (Ofer, 2026-10-17). */}
           <h2 className="px-1 pt-1 text-xl font-bold text-ink-700">{t('achievements')}</h2>
           <BadgesGrid athleteId={athleteId} peer={!owner} />
@@ -346,6 +292,7 @@ export function TenWeekChart({
   unit,
   currentTrendPct,
   month,
+  accent = 'club',
 }: {
   weeks: KmWeek[];
   title: string;
@@ -355,10 +302,15 @@ export function TenWeekChart({
   currentTrendPct: number | null;
   /** This calendar month so far, for the second tile (#103). Null while loading. */
   month: { km: number; day: number } | null;
+  /** 'academy' on a trainee's screens: the same chart in the academy's purple. */
+  accent?: WeekAccent;
 }) {
   const t = useTranslations('profile');
   const locale = useLocale();
   const [picked, setPicked] = useState<number | null>(null);
+  // The club look is the classes it always had; the academy's is the same marks in purple.
+  const ink = accent === 'academy' ? WEEK_ACCENT.academy.main : null;
+  const stroke = ink ? { stroke: ink } : { className: 'stroke-brand-600' };
   const [showTable, setShowTable] = useState(false);
 
   // The window is generated, so there are always ten rows — an athlete with no
@@ -418,7 +370,7 @@ export function TenWeekChart({
         </p>
       </div>
 
-      <span className="mt-2.5 inline-block rounded-pill bg-band-1/15 px-2.5 py-0.5 text-xs font-bold text-brand-600">
+      <span className={cn('mt-2.5 inline-block rounded-pill px-2.5 py-0.5 text-xs font-bold', !ink && 'bg-band-1/15 text-brand-600')} style={ink ? { color: ink, background: `${ink}1A` } : undefined}>
         {w.isCurrent ? t('chartThisWeek') : t('chartWeekOf', { date: dateLabel(w.weekStart) })}
       </span>
       <div className="mt-2 grid grid-cols-3">
@@ -465,17 +417,17 @@ export function TenWeekChart({
         {done.length > 1 && (
           <path
             d={`${line(done)}L${done[done.length - 1][0]},${B}L${done[0][0]},${B}Z`}
-            className="fill-brand-600/[0.08]"
+            {...(ink ? { fill: ink, fillOpacity: 0.08 } : { className: 'fill-brand-600/[0.08]' })}
           />
         )}
         {done.length > 1 && (
-          <path d={line(done)} fill="none" className="stroke-brand-600" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+          <path d={line(done)} fill="none" {...stroke} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         )}
         {/* The week in progress: dashed, because its number will still grow. */}
         {weeks[last].isCurrent && last > 0 && (
-          <path d={line([pts[last - 1], pts[last]])} fill="none" className="stroke-brand-600" strokeWidth={2} strokeDasharray="3 4" strokeLinecap="round" />
+          <path d={line([pts[last - 1], pts[last]])} fill="none" {...stroke} strokeWidth={2} strokeDasharray="3 4" strokeLinecap="round" />
         )}
-        <line x1={pts[i][0]} x2={pts[i][0]} y1={T - 4} y2={B} className="stroke-brand-600" strokeWidth={1} opacity={0.35} />
+        <line x1={pts[i][0]} x2={pts[i][0]} y1={T - 4} y2={B} {...stroke} strokeWidth={1} opacity={0.35} />
         {weeks.map((wk, k) =>
           k % 3 === 0 || k === last ? (
             <text key={wk.weekStart} x={x(k)} y={B + 18} textAnchor="middle" fontSize={10} fill="#7C7D87">{dm(wk.weekStart)}</text>
@@ -487,7 +439,7 @@ export function TenWeekChart({
             cx={cx}
             cy={cy}
             r={k === i ? 6 : 4}
-            className={k === i ? 'fill-brand-600 stroke-white' : 'fill-white stroke-brand-600'}
+            {...(ink ? { fill: k === i ? ink : '#fff', stroke: k === i ? '#fff' : ink } : { className: k === i ? 'fill-brand-600 stroke-white' : 'fill-white stroke-brand-600' })}
             strokeWidth={k === i ? 2.5 : 2}
           />
         ))}
@@ -569,7 +521,7 @@ export function TenWeekChart({
                       the day and month around the separator. */}
                   <bdi dir="ltr">{dateLabel(row.weekStart)}</bdi>
                   {row.isCurrent && (
-                    <span className="ms-1.5 rounded-pill bg-band-1/15 px-1.5 py-0.5 text-3xs font-bold text-brand-600">
+                    <span className={cn('ms-1.5 rounded-pill px-1.5 py-0.5 text-3xs font-bold', !ink && 'bg-band-1/15 text-brand-600')} style={ink ? { color: ink, background: `${ink}1A` } : undefined}>
                       {t('currentWeek')}
                     </span>
                   )}
@@ -594,5 +546,89 @@ export function TenWeekChart({
         </table>
       )}
     </section>
+  );
+}
+
+/**
+ * The personal-records card — the runner's own (the profile's PRs tab), a teammate's, and
+ * an academy trainee's page for their coach and manager (AthleteProgress). One section so
+ * the three cannot drift. `onEdit` only on the owner's profile, where the edit sheet lives.
+ */
+export function PrSection({ athleteId, prs, history, year, yearBests, ranks, onEdit }: {
+  athleteId: string;
+  prs: Pr[];
+  history?: Record<string, PrBreak[]>;
+  year?: string;
+  yearBests?: Record<string, number | null>;
+  ranks?: ReturnType<typeof profileClubRanks>;
+  onEdit?: () => void;
+}) {
+  const t = useTranslations('profile');
+  const tc = useTranslations('common');
+  const tRecords = useTranslations('records');
+  const achievedPrs = prs.filter((p) => p.seconds != null);
+  return (
+    <>
+              {/* The owner sees this section even with nothing in it: the records are
+        all derived, so an athlete whose races predate the club had no PRs
+        AND no way to say so — which is the report (affd459d, a798197f). */}
+    {/* Empty, it shows only where the times can be added (the owner's profile, onEdit). */}
+    {(achievedPrs.length > 0 || (!!onEdit && prs.length > 0)) && (
+      <section className="rounded-card bg-card p-4">
+        <div className="flex items-end justify-between gap-3">
+          <h2 className="text-xl font-bold text-ink-700">{t('personalRecords')}</h2>
+          {/* 36×20px measured — under WCAG 2.5.8's 24px floor. The padding
+              buys 52×47 out of the card's own p-4 and the space over the
+              tiles below; the negative margins put the word back exactly
+              where it was. The only other thing in this row is the heading,
+              so the halo has no control to steal from. */}
+          {onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="-mx-2 -my-3.5 px-2 py-3.5 text-sm font-bold text-brand-600"
+            >
+              {tc('edit')}
+            </button>
+          )}
+        </div>
+        {achievedPrs.length === 0 && (
+          <p className="mt-2 text-sm font-light text-ink-400">{t('noPrsYet')}</p>
+        )}
+        {achievedPrs.length > 0 && (
+          <PrRecordList
+            athleteId={athleteId}
+            prs={prs}
+            history={history}
+            year={year}
+            yearBests={yearBests}
+            ranks={ranks ?? {}}
+            today={israelToday()}
+          />
+        )}
+        {/* Into the club board. The records page has a nav entry, but that
+            entry needs a role_tab_permissions row for every non-admin role,
+            and this is the screen someone is already looking at records on —
+            so the door that matters is here and works for every member on
+            day one (the API is requireMember, same gate as this page's own
+            stats). Reports a798197f and f6c7b8dc both asked for the table. */}
+        {/* 187×20px measured. The 44 comes out of space that already
+            existed: the old `mt-3` is now 14px of top padding minus 2px of
+            margin, so the text sits exactly where it did, and `-mb-3.5`
+            pulls the bottom half back into the card's p-4. Not `-my-3.5`,
+            which loses to `mt-*` in Tailwind's own property order and would
+            shift the row down.
+            The record tiles above are plain divs — no tap to steal. */}
+        <Link
+          href="/dashboard/records"
+          className="inline-flex items-center gap-1 py-3.5 -mt-0.5 -mb-3.5 text-sm font-bold text-brand-600"
+        >
+          {tRecords('clubBoard')}
+          <ChevronLeft className="h-4 w-4" />
+        </Link>
+        <p className="mt-2.5 text-2xs leading-relaxed text-ink-400">{t('prOutdoorOnly')}</p>
+      </section>
+    )}
+    </>
   );
 }

@@ -1,17 +1,19 @@
 import { NextResponse } from 'next/server';
+import { getStreamServerClient } from '@/lib/stream/server';
+import { postAcademyDayWorkout } from '@/lib/academy/thread-server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { addDaysToDateStr, planWeekStartOf } from '@/lib/utils';
 import { requireTraineeAccess, visibleTraineeIds } from '@/lib/academy/pairing-server';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { laneForBand, lanesDiffer, type Lane } from '@/lib/academy/group-lane';
-import { pickSeniorDay } from '@/lib/academy/senior-pick';
+import { pickSeniorDay, seniorFromWorkout } from '@/lib/academy/senior-pick';
 import {
   allAcademyTraineeIds, loadClubWeek, loadLaneReferences, loadThresholds, loadTrainees, loadTraineeWeeks,
   loadSeniorSeed,
 } from '@/lib/academy/book-server';
 import {
-  decideRecipients, hasWorkoutOn, mergeDay, resolveThreshold, withBandNote, type PaceBasis, type SkipReason,
+  decideRecipients, hasWorkoutOn, mergeDay, resolveThreshold, withBandNote, withoutBandNote, type PaceBasis, type SkipReason,
 } from '@/lib/academy/day-send';
 import {
   hasAbsolutePaces, resolveLibraryWorkout, type LibraryStep,
@@ -59,6 +61,8 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 function dayOfWeekOf(date: string): number {
   return new Date(`${date}T12:00:00Z`).getUTCDay();
 }
+
+const DAY_WORD = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 
 export async function GET(request: Request) {
   try {
@@ -135,6 +139,17 @@ export async function GET(request: Request) {
       hasClubWeek: !!club,
       senior,
       existing: myWeek.workouts.filter(w => w.dayOfWeek === dayOfWeek),
+      // The day already in their plan, as an editable draft (Ofer, 2026-10-19: "editing too,
+      // not only auto-detection"): the coach re-opens a SENT day, fixes it and sends again —
+      // the send replaces it on the watch (push-week replaces by plan and date) and edits the
+      // thread's day card in place. Its paces are the trainee's own, so it is restated against
+      // their own threshold; the coach's name and note are kept, not re-derived.
+      existingEdit: (() => {
+        const w = myWeek.workouts.find(x => x.dayOfWeek === dayOfWeek);
+        if (!w || !mine.sec) return null;
+        const draft = seniorFromWorkout(w as ParsedWorkout, mine.sec);
+        return { ...draft, name: w.name || draft.name, notes: withoutBandNote(w.description ?? null) };
+      })(),
       others,
     });
   } catch (error) {
@@ -216,6 +231,7 @@ export async function POST(request: Request) {
     const athleteRow = new Map(((tokens || []) as any[]).map(a => [String(a.id), a]));
 
     let assigned = 0;
+    const told: Array<{ athleteId: string; onWatch: boolean }> = [];
     for (const decision of decisions) {
       const who = byId.get(decision.id);
       const label = who?.name ?? '';
@@ -270,6 +286,7 @@ export async function POST(request: Request) {
         // Saved anyway: their app and their adherence read the plan row, and a trainee on
         // Strava has a session to follow even with no watch to put it on.
         results.push({ athleteId: decision.id, name: label, status: 'saved', ...(decision.basis === 'band' ? { paceBasis: 'band' as const } : {}) });
+        told.push({ athleteId: decision.id, onWatch: false });
         // No watch told them, so the app does (launch BL8).
         await notifyPlanSaved({ athleteId: decision.id, actorId: caller.athleteId, date, days: 1, failedWatch: false });
         continue;
@@ -292,6 +309,7 @@ export async function POST(request: Request) {
       if (push.status === 'success') {
         await supabase.from('weekly_plans').update({ status: others ? 'partial' : 'pushed' }).eq('id', planId);
         results.push({ athleteId: decision.id, name: label, status: 'sent', ...(decision.basis === 'band' ? { paceBasis: 'band' as const } : {}) });
+        told.push({ athleteId: decision.id, onWatch: true });
       } else {
         await supabase.from('weekly_plans').update({ status: sentPlanStatus({ otherDays: others > 0, delivered: false }) }).eq('id', planId);
         results.push({ athleteId: decision.id, name: label, status: 'failed', reason: 'push-failed', detail: push.error ?? null });
@@ -299,6 +317,22 @@ export async function POST(request: Request) {
       }
     }
     if (assigned) revalidateWeeklyPlans();
+
+    // The day in each trainee's thread — one line per day, edited in place on a resend
+    // (academyDayWorkoutMessageId). Best-effort: no Stream, no line; the day is still sent.
+    if (told.length) {
+      let stream: ReturnType<typeof getStreamServerClient> | null = null;
+      try { stream = getStreamServerClient(); } catch { stream = null; }
+      if (stream && caller.athleteId) {
+        const [, mm, dd] = date.split('-');
+        await Promise.all(told.map(({ athleteId: id, onWatch }) => postAcademyDayWorkout(stream!, supabase, {
+          athleteId: id,
+          authorStreamId: caller.athleteId!,
+          date,
+          text: `📅 ${DAY_WORD[dayOfWeek]} ${Number(dd)}.${Number(mm)} · ${name}${onWatch ? ' — נשלח לשעון' : ' — בתוכנית שלך'}`,
+        })));
+      }
+    }
 
     // The book: the entry this came from is used once per trainee who got it.
     const entryId = typeof body?.entryId === 'string' ? body.entryId : null;

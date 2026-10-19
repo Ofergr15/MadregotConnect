@@ -390,13 +390,15 @@ export function buildWaiting(input: WaitingInput): WaitingItem[] {
     });
   };
   group('no_plan', tr.filter((t) => t.hasPersonalPlan === false),
-    (n) => `${n} · אין תוכנית לשבוע`, (c) => `${c} מתאמנים בלי תוכנית לשבוע`, 'המאמן עוד לא כתב את השבוע', 'לפתוח');
+    // "Personal": the club week some of them run is a plan too, and "השבוע באקדמיה" counts it.
+    (n) => `${n} · אין תוכנית אישית`, (c) => `${c} בלי תוכנית אישית לשבוע`, 'המאמן עוד לא כתב את השבוע', 'לפתוח');
   const quiet = tr.filter((t) => { const h = hoursSince(t.lastSeenAt, now); return h !== null && h >= QUIET_DAYS * 24; });
   group('quiet', quiet,
-    (n) => `${n} לא פתח את האפליקציה`, (c) => `${c} לא פתחו את האפליקציה`, `יותר מ־${QUIET_DAYS} ימים`, 'לפתוח',
+    // Short enough for 390px next to the age chip, which already says how long.
+    (n) => `${n} · לא נכנס/ה`, (c) => `${c} לא נכנסו לאפליקציה`, `לאפליקציה, יותר מ־${QUIET_DAYS} ימים`, 'לפתוח',
     (t) => hoursSince(t.lastSeenAt, now));
   group('no_test', tr.filter((t) => t.hasTest === false),
-    (n) => `${n} · אין מבחן`, (c) => `${c} מתאמנים בלי מבחן`, 'הקצבים לפי הדבוקה עד המבחן', 'לפתוח');
+    (n) => `${n} · אין טסט`, (c) => `${c} מתאמנים בלי טסט`, 'אחרי טסט הקצבים יהיו אישיים', 'לפתוח');
 
   const score = (w: WaitingItem) => BAND[w.kind] * 1e6 + Math.min(999_999, w.ageHours ?? 0);
   return out.sort((a, b) => score(b) - score(a) || a.key.localeCompare(b.key));

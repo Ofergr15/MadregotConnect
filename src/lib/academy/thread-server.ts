@@ -311,6 +311,44 @@ export async function postAcademyTestSummary(
   }
 }
 
+/**
+ * The id of the message announcing one day's workout to the trainee. Derived from the
+ * trainee and the date, like the review's: a coach who fixes the day and sends again EDITS
+ * the line already in the thread instead of adding a second one for the same day.
+ */
+export function academyDayWorkoutMessageId(athleteId: string, date: string): string {
+  return `acadday-${athleteId}-${date}`.replace(/[^a-zA-Z0-9_-]/g, '');
+}
+
+/**
+ * "📅 ג׳ 20.10 · 5 × 1 ק״מ — נשלח לשעון" in the trainee's thread, tied to that day
+ * (`workout_date`, so the workout's own conversation shows it). Plain text, like the test
+ * summary: a line the trainee reads and can answer, not a structure two screens render.
+ *
+ * NEVER throws: the plan row and the watch are the delivery; the thread is the courtesy.
+ */
+export async function postAcademyDayWorkout(
+  stream: StreamChat,
+  supabase: SupabaseClient,
+  { athleteId, authorStreamId, date, text }: { athleteId: string; authorStreamId: string; date: string; text: string },
+): Promise<{ posted: boolean; updated: boolean; error?: string }> {
+  try {
+    const { channel } = await ensureAcademyThread(stream, supabase, athleteId, authorStreamId);
+    const payload = { id: academyDayWorkoutMessageId(athleteId, date), text, user_id: authorStreamId, workout_date: date } as Record<string, unknown>;
+    try {
+      await channel.sendMessage(payload);
+      return { posted: true, updated: false };
+    } catch {
+      // Duplicate id — the coach resent the day. Edit the line that is already there.
+      await stream.updateMessage(payload as unknown as Parameters<typeof stream.updateMessage>[0], authorStreamId);
+      return { posted: true, updated: true };
+    }
+  } catch (err: unknown) {
+    console.error('postAcademyDayWorkout failed (the day is saved; the thread line is not):', err);
+    return { posted: false, updated: false, error: String(err) };
+  }
+}
+
 /** How long the home waits on Stream for the red dot before drawing without it. */
 const UNREAD_TIMEOUT_MS = 1500;
 

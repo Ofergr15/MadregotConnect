@@ -81,8 +81,14 @@ export function InboxList({
       <div className="rounded-card bg-card px-3.5 py-3">
         {inbox.needsAttention > 0 ? (
           <p className="text-sm text-ink-700">
+            {/* The same two numbers the rows show: waiting for a reply, and nobody wrote yet. */}
             <span className="font-bold text-ink-900">{inbox.needsAttention}</span>{' '}
             {inbox.needsAttention === 1 ? 'שיחה מחכה לך' : 'שיחות מחכות לך'}
+            {inbox.counts && inbox.counts.awaiting_reply > 0 && inbox.counts.silent > 0 && (
+              <span className="text-ink-500">
+                {' · '}<bdi dir="ltr">{inbox.counts.awaiting_reply}</bdi> לתשובה · <bdi dir="ltr">{inbox.counts.silent}</bdi> עוד בלי הודעה
+              </span>
+            )}
           </p>
         ) : (
           <p className="text-sm font-semibold text-accent-900">אף אחד לא מחכה לתשובה.</p>
