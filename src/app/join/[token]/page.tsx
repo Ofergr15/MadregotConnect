@@ -91,6 +91,8 @@ export default function JoinPage() {
   const [garminConnected, setGarminConnected] = useState(false);
   // An existing academy trainee moving into the app (migration path): greeted as already here.
   const [existing, setExisting] = useState<{ coach: string | null } | null>(null);
+  // Any academy trainee (new or moving in): the academy's greeting and its home at the end.
+  const [academy, setAcademy] = useState(false);
   // …unless they say otherwise. Someone who changed their Garmin account needs
   // the credential form back, which this reveals.
   const [reconnect, setReconnect] = useState(false);
@@ -166,6 +168,7 @@ export default function JoinPage() {
           if (me.groupId) setSelectedGroup(me.groupId);
           setGarminConnected(!!me.garminConnected);
           if (me.existingTrainee) setExisting({ coach: me.coachName || null });
+          if (me.isAcademy) setAcademy(true);
         }
         if (fetchedGroups.length === 1 && !me?.groupId) {
           setSelectedGroup(fetchedGroups[0].id);
@@ -413,7 +416,7 @@ export default function JoinPage() {
   const first = (name || '').split(/\s+/)[0] || '';
   const welcomeTitle = first ? t('welcomeName', { name: first }) : t('welcome');
   // "ההרשמה אושרה" is wrong for somebody who has trained with us for months.
-  const eyebrowText = existing ? t('existingEyebrow') : t('approvedEyebrow');
+  const eyebrowText = existing || academy ? t('existingEyebrow') : t('approvedEyebrow');
   const existingSub = existing ? (existing.coach ? t('existingSubCoach', { coach: existing.coach }) : t('existingSub')) : null;
   const tracker = <JourneyTracker done={2} computer={computer} />;
   const selected = groups.find(g => g.id === selectedGroup);
@@ -461,7 +464,7 @@ export default function JoinPage() {
               subtitle={skippedGarmin ? to('canConnectLater') : t('garminLinkedCoach')}
             />
           }
-          actions={<PrimaryButton href={existing ? '/dashboard/academy' : '/dashboard/program'}>{existing ? t('toAcademy') : skippedGarmin ? t('goToDashboard') : t('viewProgram')}</PrimaryButton>}
+          actions={<PrimaryButton href={existing || academy ? '/dashboard/academy' : '/dashboard/program'}>{existing || academy ? t('toAcademy') : skippedGarmin ? t('goToDashboard') : t('viewProgram')}</PrimaryButton>}
         >
           {tracker}
           {/* What's Next Section */}

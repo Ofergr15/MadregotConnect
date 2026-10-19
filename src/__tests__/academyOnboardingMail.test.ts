@@ -33,7 +33,7 @@ describe('the coach, at both moments', () => {
   });
   it('when the trainee comes in: build the first plan', () => {
     const c = academyTraineeJoinedCopy('he', { name: 'דנה כהן' });
-    expect(c.title).toBe('✅ דנה כהן נכנס/ה לאפליקציה');
+    expect(c.title).toBe('✅ דנה כהן נרשם/ה לאפליקציה');
     expect(c.body).toContain('התוכנית הראשונה');
   });
 });
