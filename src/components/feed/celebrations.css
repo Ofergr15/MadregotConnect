@@ -4,6 +4,8 @@
 .mcel .cring.seen{background:#D7D7DC}
 .mcel .cring.brand,.mcel-sheet .cring.brand{background:conic-gradient(from 200deg,#1525FF,#5BC0EB,#1525FF)}
 .mcel .cring.brand.seen{background:#D7D7DC}
+.mcel .cring.week{background:conic-gradient(from 210deg,#1525FF,#159AFF,#8E7CFF,#1525FF)}
+.mcel .cring.week.seen{background:#D7D7DC}
 .mcel .strip{scrollbar-width:none}
 /* The "tap me" hint until the first tap (CelebrationStories TAPPED_KEY): a ring breathing
    out of the circle, and a small hand on the first one. */

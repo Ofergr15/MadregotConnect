@@ -38,6 +38,11 @@ import { dispatchMorningReminders } from '@/lib/academy/morning-reminder-server'
 import { afterPackMove } from '@/lib/groups/pack-move';
 import { syncClubFollows } from '@/lib/follows/club-sync';
 import { qualityPush } from '@/lib/quality-session/server';
+import { fetchAllRows } from '@/lib/supabase/paginate';
+import { clubWeek } from '@/lib/week-story/server';
+import { CLUB_WEEK_KIND, clubWeekBody, storyPushCopy, type WeekNumbers } from '@/lib/week-story/model';
+import { publishClubPost } from '@/lib/publish/server';
+import { BUCKET_LABEL, parseRecordUrl } from '@/lib/publish/model';
 import { PUSH_AT } from '@/lib/quality-session/model';
 import { storyEditorIds } from '@/lib/quality-session/access';
 import { cronPaused } from '@/lib/cron-pause';
@@ -564,51 +569,63 @@ async function run(request: Request) {
   // One consequence, on purpose: this window and the leaderboard's "this week" are
   // no longer the same seven days. A run on Sunday evening lands in next Saturday's
   // report rather than falling out of both.
-  if (weekday === 6 && hour === 18) {
-    // Anchored to Israel's calendar day so the boundaries don't depend on the
-    // gate above happening to fire at an hour where UTC and Israel agree.
-    const reportTo = israelToday(now);              // today, the last day of the window
-    const reportFrom = addDaysToDateStr(reportTo, -6);
-    // One day past the end, so a run started late today is still inside the read.
+  //
+  // Since 2026-10-19 it is "השבוע שלך" (lib/week-story): Saturday from 12:00, after the
+  // long run, opening the week story in the feed instead of the profile card (Ofer:
+  // "שבת מ12:00 עד ראשון ב20:00"). On Saturday the trailing seven days ARE Sunday to
+  // Saturday, so the push and the story count the same days. Who did not run gets
+  // nothing. The club's week goes on the feed as one post at the same time.
+  if (weekday === 6 && hour >= 12 && hour < 20) {
+    const reportTo = israelToday(now);              // today, the last day of the week
+    const weekStart = addDaysToDateStr(reportTo, -6);
+    // Two weeks back, for "more than last week"; one day past the end for late runs.
+    const readFrom = addDaysToDateStr(reportTo, -13);
     const readUntil = addDaysToDateStr(reportTo, 1);
     const tag = `report7:${reportTo}`;
     if (!(await already(tag))) {
-      // Active athletes (id → push targets resolved later).
-      const { data: athletes } = await supabase
-        .from('athletes')
-        .select('id')
-        .eq('status', 'active');
+      const { data: athletes } = await supabase.from('athletes').select('id').eq('status', 'active');
       const ids = (athletes || []).map((a: { id: string }) => a.id);
       let totalSent = 0;
       if (ids.length > 0) {
-        const { data: acts } = await supabase
+        const acts = await fetchAllRows<ReportActivity & { athlete_id: string; id: string }>((a, b) => supabase
           .from('athlete_activities')
-          .select('athlete_id, activity_type, start_time, distance, duration')
+          .select('id, athlete_id, activity_type, start_time, distance, duration')
           .in('athlete_id', ids)
-          .gte('start_time', reportFrom)
-          .lt('start_time', readUntil);
-        // Split by athlete and hand each list to the SAME builder the profile card
-        // renders from, rather than folding km/pace inline here. The run-type list,
-        // the Israel-day bucketing and the distance-weighted pace then exist in one
-        // place, so the push and the card it links to cannot drift apart.
+          .gte('start_time', readFrom)
+          .lt('start_time', readUntil)
+          .order('start_time').order('id').range(a, b));
         const byAthlete = new Map<string, ReportActivity[]>();
-        for (const r of (acts || []) as (ReportActivity & { athlete_id: string })[]) {
+        for (const r of acts) {
           const arr = byAthlete.get(r.athlete_id) || [];
           arr.push(r);
           byAthlete.set(r.athlete_id, arr);
         }
-        const per = new Map<string, Last7Report>();
+        // This week's records, by runner (the record alerts, as the story reads them).
+        const { data: recRows } = await supabase.from('scheduled_notifications').select('audience_id, url')
+          .eq('kind', 'record').gte('last_sent_at', `${weekStart}T00:00:00`);
+        const records = new Map<string, string[]>();
+        for (const r of (recRows || []) as Array<{ audience_id: string | null; url: string | null }>) {
+          const rec = parseRecordUrl(r.url);
+          if (!r.audience_id || !rec) continue;
+          records.set(r.audience_id, [...(records.get(r.audience_id) || []), BUCKET_LABEL[rec.bucket] ?? rec.bucket]);
+        }
+        const per = new Map<string, { report: Last7Report; numbers: WeekNumbers }>();
         for (const [athleteId, list] of byAthlete) {
           const report = buildLast7Report(list, reportTo);
-          if (!reportIsEmpty(report)) per.set(athleteId, report);
+          if (reportIsEmpty(report)) continue;
+          const before = buildLast7Report(list, addDaysToDateStr(reportTo, -7));
+          per.set(athleteId, {
+            report,
+            numbers: {
+              km: Math.round(report.km * 10) / 10, runs: report.runs, seconds: report.seconds,
+              dayKm: [], lastWeekKm: reportIsEmpty(before) ? null : before.km,
+              // The plan share needs each runner's plan: the story shows it, the push does not.
+              planShare: null, sessionsDone: null, sessionsPlanned: null,
+              records: (records.get(athleteId) || []).map((label) => ({ label, seconds: 0, previous: null })),
+              packRank: null,
+            },
+          });
         }
-        // Push each runner who ran this week their own report — was a
-        // sequential for-loop (one subs query + one full send, awaited one
-        // athlete at a time), invisible at a handful of test runners but a
-        // real risk of blowing the 60s function timeout at 100+ real ones
-        // (and a timed-out run never reaches markFired below, so it'd keep
-        // re-attempting a partial send on the next few ticks). One batched
-        // subscription query, then every athlete's send runs concurrently.
         const runnerIds = Array.from(per.keys());
         const allSubs = await subscriptionsForAthletes(runnerIds);
         const subsByAthlete = new Map<string, typeof allSubs>();
@@ -619,16 +636,13 @@ async function run(request: Request) {
         }
         const sentCounts = await Promise.all(
           runnerIds.map(async (athleteId) => {
-            const report = per.get(athleteId)!;
+            const { report, numbers } = per.get(athleteId)!;
             const subs = subsByAthlete.get(athleteId) || [];
             if (subs.length === 0) return 0;
-            const km = Math.round(report.km * 10) / 10;
             const paceStr = report.paceSeconds ? formatReportPace(report.paceSeconds) : null;
             const { sent } = await sendPushLocalized(subs, (locale) => ({
-              ...weeklyRecapCopy(locale, { km, runs: report.runs, pace: paceStr }),
-              // The card is on the profile, which is where the same seven days are
-              // drawn day by day — the push is the headline, the profile the detail.
-              url: '/dashboard/profile',
+              ...(locale === 'he' ? storyPushCopy(numbers) : weeklyRecapCopy(locale, { km: numbers.km, runs: report.runs, pace: paceStr })),
+              url: '/feed?weekStory=1',
               tag,
               category: 'achievements',
             }));
@@ -639,6 +653,22 @@ async function run(request: Request) {
       }
       await markFired(tag, totalSent);
       fired.push(`${tag} → ${totalSent}`);
+    }
+    const postTag = `clubweek:${reportTo}`;
+    if (!(await already(postTag))) {
+      try {
+        const w = { weekStart, weekEnd: reportTo };
+        const c = await clubWeek(supabase, w);
+        const { data: dup } = await supabase.from('feed_items').select('id')
+          .eq('payload->>kind', CLUB_WEEK_KIND).eq('payload->>weekEnd', reportTo).limit(1);
+        if (c.runners > 1 && !(dup && dup.length)) {
+          await publishClubPost(supabase, { body: clubWeekBody(c), payload: { kind: CLUB_WEEK_KIND, ...w, ...c } });
+        }
+        await markFired(postTag, 0);
+        fired.push(`${postTag} → ${c.runners > 1 ? 'posted' : 'quiet'}`);
+      } catch (err) {
+        console.error('club week post failed:', err);
+      }
     }
   }
 

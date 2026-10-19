@@ -17,6 +17,8 @@ import { FeedBodyText } from '@/components/FeedBodyText';
 import { ExecutionBadge } from '@/components/activity/ExecutionBadge';
 import { toAchievementPayload } from '@/lib/feed/project';
 import { toSessionPhotos, sessionSubline, type SessionPhotosPayload } from '@/lib/quality-session/photos';
+import { toClubWeek } from '@/lib/week-story/model';
+import { ClubWeekStats } from '@/components/week-story/ClubWeekStats';
 import { parseAlbumLink } from '@/lib/quality-session/album-import';
 import { CELEBRATION_TYPES, celebrationText, toCelebration, type Celebration } from '@/lib/feed/celebration';
 import type { FeedItem, FeedLiker, AchievementPayload } from '@/lib/feed/project';
@@ -1059,6 +1061,14 @@ export function FeedCard({
             onComment={handleComment}
             onDelete={handleDelete}
           />
+        );
+      }
+      const clubWeek = toClubWeek(item.payload);
+      if (clubWeek) {
+        return (
+          <PostCard item={item} commentCount={commentCount} onComment={handleComment} onDelete={handleDelete}>
+            <ClubWeekStats week={clubWeek} />
+          </PostCard>
         );
       }
       const photos = toSessionPhotos(item.payload);

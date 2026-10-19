@@ -1,0 +1,50 @@
+/* "השבוע שלך" — the week's own pieces, on the birthday story's player (year-story.css). */
+.ys.wk .wk-pill{display:inline-flex;align-self:flex-start;align-items:center;gap:6px;margin-top:14px;padding:7px 15px;border-radius:99px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);font-size:15px;font-weight:800}
+.ys.wk .wk-days{display:flex;gap:8px;align-items:flex-end;height:150px;margin-top:26px}
+.ys.wk .wk-days>div{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;font-size:13px;font-weight:700;opacity:.92}
+.ys.wk .wk-days span{font-size:12px;font-weight:800;min-height:15px;font-variant-numeric:tabular-nums}
+.ys.wk .wk-days i{display:block;width:100%;min-height:6px;border-radius:8px;background:#fff}
+.ys.wk .wk-days i.z{background:rgba(255,255,255,.15);height:6px!important}
+.ys.wk .wk-days i.pl{background:transparent;border:2px dashed rgba(255,255,255,.45)}
+.ys.wk .wk-days i.ms{background:rgba(255,83,21,.55)}
+.ys.wk .s-km .lead{margin-top:18px}
+.ys.wk .wk-ring{width:200px;height:200px;border-radius:50%;margin:28px auto 0;background:conic-gradient(#fff 0 var(--p),rgba(255,255,255,.16) var(--p) 360deg);display:flex;align-items:center;justify-content:center}
+.ys.wk .wk-ring>div{width:162px;height:162px;border-radius:50%;background:var(--c3);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ys.wk .wk-ring b{font-size:52px;font-weight:900;line-height:1}
+.ys.wk .wk-ring small{font-size:13px;opacity:.85;margin-top:4px}
+.ys.wk .wk-list{display:flex;flex-direction:column;gap:8px;margin-top:24px}
+.ys.wk .wk-list .li{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:15px;background:rgba(255,255,255,.1);font-size:15px}
+.ys.wk .wk-list .r{margin-inline-start:auto;font-weight:900}
+.ys.wk .wk-list .no{color:var(--peach)}
+.ys.wk .wk-reps{display:flex;gap:6px;margin-top:24px}
+.ys.wk .wk-reps>div{flex:1;text-align:center;min-width:0}
+.ys.wk .wk-reps i{display:block;position:relative;height:90px;border-radius:10px;background:rgba(255,255,255,.14);overflow:hidden}
+.ys.wk .wk-reps i b{position:absolute;inset:auto 0 0 0;border-radius:10px;background:linear-gradient(180deg,#FFB08F,#FF5315)}
+.ys.wk .wk-reps span{display:block;direction:ltr;margin-top:6px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+.ys.wk .wk-rank{display:flex;flex-direction:column;gap:8px;margin-top:22px}
+.ys.wk .rk{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:15px;background:rgba(255,255,255,.08);font-size:16px;font-weight:700}
+.ys.wk .rk.me{background:#fff;color:var(--c3)}
+.ys.wk .rk .av{width:30px;height:30px;border-radius:50%;flex-shrink:0;object-fit:cover;background:linear-gradient(135deg,#8E7CFF,#5B3FD1)}
+.ys.wk .rk .km{margin-inline-start:auto;font-weight:900}
+/* Above the tap zones (z 30), outside the content layer, so a tap here is not "next". */
+.ys.wk .wk-hide,.ys.wk .wk-go{position:absolute;z-index:34;bottom:calc(env(safe-area-inset-bottom) + 66px);right:26px;border:0;min-height:44px;font-size:14px}
+.ys.wk .wk-hide{background:none;color:#fff;opacity:.75;text-decoration:underline;padding:0}
+.ys.wk .wk-go{background:#fff;color:var(--blue);border-radius:99px;padding:0 22px;font-weight:900;font-size:15px}
+.ys.wk .sl:not(.show) .wk-hide,.ys.wk .sl:not(.show) .wk-go{display:none}
+.ys.wk .wk-club{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px}
+.ys.wk .wk-club>div{padding:16px;border-radius:18px;background:rgba(255,255,255,.1)}
+.ys.wk .wk-club b{display:block;font-size:34px;font-weight:900;line-height:1}
+.ys.wk .wk-club small{font-size:14px;opacity:.85}
+.ys.wk .wk-poster-wrap{justify-content:center;gap:16px;padding-top:112px;padding-bottom:40px}
+.ys.wk .wk-poster{border-radius:24px;overflow:hidden;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16)}
+.ys.wk .wk-poster .pt{padding:20px 18px 0}
+.ys.wk .wk-poster .pt small{font-size:13px;opacity:.85}
+.ys.wk .wk-poster .pt b{display:block;font-size:30px;font-weight:900;line-height:1.1}
+.ys.wk .wk-poster .pt span{font-size:13px;opacity:.75}
+.ys.wk .wk-poster .pk{padding:14px 18px 0;font-size:64px;font-weight:900;line-height:1;letter-spacing:-2px}
+.ys.wk .wk-poster .pk u{text-decoration:none;font-size:20px;letter-spacing:0;margin-inline-start:6px;color:var(--peach)}
+.ys.wk .wk-poster .pg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px 18px 0}
+.ys.wk .wk-poster .pg b{display:block;font-size:22px;font-weight:900}
+.ys.wk .wk-poster .pg small{font-size:12px;opacity:.75}
+.ys.wk .wk-poster .hl{margin:12px 18px 0;font-size:14px;line-height:1.6;opacity:.92}
+.ys.ys-export .wk-hide,.ys.ys-export .wk-go{display:none}

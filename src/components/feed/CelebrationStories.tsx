@@ -14,6 +14,9 @@ import { cn } from '@/lib/utils';
 import { CELEBRATION_TYPES, celebrationText, type Celebration } from '@/lib/feed/celebration';
 import type { BirthdayStory } from '@/lib/birthday-year/server';
 import { YearStory } from '@/components/birthday/YearStory';
+import type { WeekStory as WeekStoryData } from '@/lib/week-story/server';
+import { WeekStory } from '@/components/week-story/WeekStory';
+import { useSearchParams } from 'next/navigation';
 import { useAthleteId } from '@/lib/use-athlete-id';
 import './celebrations.css';
 
@@ -89,6 +92,24 @@ function ClubCircle({ unseen, hint, hand, onOpen }: { unseen: boolean; hint: boo
       </span>
       <span className="mt-1.5 w-full truncate text-[12px] font-bold leading-tight text-ink-900">מדרגות</span>
       <span className="w-full truncate text-[10.5px] leading-tight text-ink-400">הודעה</span>
+    </button>
+  );
+}
+
+/**
+ * "השבוע שלך" — the member's own blue circle, first on the row from Saturday 12:00 to
+ * Sunday 20:00 (lib/week-story). Greyed once opened, like the others.
+ */
+function WeekCircle({ km, seen, onOpen }: { km: number; seen: boolean; onOpen: () => void }) {
+  return (
+    <button type="button" onClick={onOpen} className="flex w-[72px] shrink-0 flex-col items-center text-center active:opacity-80" aria-label="השבוע שלך">
+      <span className={cn('cring week relative rounded-full p-[3px]', seen && 'seen', !seen && 'breathe')}>
+        <span className="block rounded-full border-[3px] border-card">
+          <span className="flex h-[54px] w-[54px] items-center justify-center rounded-full bg-gradient-to-b from-[#1525FF] to-[#0a1080] text-2xl">🏃</span>
+        </span>
+      </span>
+      <span className="mt-1.5 w-full truncate text-[12px] font-bold leading-tight text-ink-900">השבוע שלך</span>
+      <span className="w-full truncate text-[10.5px] leading-tight text-ink-400"><bdi>{km.toFixed(1)}</bdi> ק״מ</span>
     </button>
   );
 }
@@ -215,6 +236,14 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
     }
   }, [data]);
   const [yearStory, setYearStory] = useState<BirthdayStory | null>(null);
+  // The week story: asked for only while its window may be open (the server decides).
+  const { data: wk } = useApi<{ story: WeekStoryData | null }>('/api/week-story');
+  const week = wk?.story ?? null;
+  const weekKey = week ? `week:${week.window.weekEnd}` : null;
+  const [weekOpen, setWeekOpen] = useState(false);
+  const params = useSearchParams();
+  const fromPush = params?.get('weekStory') === '1';
+  useEffect(() => { if (fromPush && week) setWeekOpen(true); }, [fromPush, week]);
   const entries = useMemo(() => data?.entries ?? [], [data]);
   const [seen, setSeen] = useState<string[]>([]);
   // True until read, so a returning member never sees the hint flash on load.
@@ -270,7 +299,7 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
     if (i !== at && entries[i]) { setAt(i); markSeen(entries[i].item.id); }
   };
 
-  if (entries.length === 0 && club.length === 0) return null;
+  if (entries.length === 0 && club.length === 0 && !week) return null;
   const hinting = !tapped;
   const clubUnseen = club.some((m) => !seen.includes(`club:${m.id}`));
   // Unseen first, like stories: what is new is what you see without scrolling.
@@ -278,9 +307,13 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
 
   return (
     <section className="mcel mb-4 rounded-[26px] bg-card px-1.5 pb-3 pt-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]" dir="rtl">
-      <p className="mb-2 px-2.5 text-[12px] font-extrabold text-ink-400">🎉 חוגגים היום</p>
+      <p className="mb-2 px-2.5 text-[12px] font-extrabold text-ink-400">{entries.length || club.length ? '🎉 חוגגים היום' : '🏃 השבוע שלך מוכן'}</p>
       {/* A sideways scroller clips vertically too: pt/pb keep the ring's top and the ▶ badge inside it. */}
       <div className="strip flex gap-2 overflow-x-auto px-1.5 pb-0.5 pt-2">
+        {week && weekKey && (
+          <WeekCircle km={week.numbers.km} seen={seen.includes(weekKey)}
+            onOpen={() => { setWeekOpen(true); markTapped(); markSeen(weekKey); }} />
+        )}
         {club.length > 0 && (
           <ClubCircle unseen={clubUnseen} hint={hinting && clubUnseen} hand={hinting}
             onOpen={() => { setClubOpen(true); markTapped(); club.forEach((m) => markSeen(`club:${m.id}`)); }} />
@@ -341,6 +374,7 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
         </div>
       </Sheet>
       {yearStory && <YearStory story={yearStory} onClose={() => setYearStory(null)} />}
+      {weekOpen && week && <WeekStory story={week} onClose={() => { setWeekOpen(false); if (weekKey) markSeen(weekKey); }} />}
     </section>
   );
 }

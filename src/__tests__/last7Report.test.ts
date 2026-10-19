@@ -144,11 +144,12 @@ describe('the two formatters', () => {
   });
 });
 
-describe('the Saturday 18:00 send', () => {
+describe('the Saturday noon send (the week story, 2026-10-19)', () => {
   const tick = read('app/api/cron/tick/route.ts');
 
-  it('fires on Saturday at 18:00 Israel, not the old Sunday 19:00', () => {
-    expect(tick).toMatch(/if \(weekday === 6 && hour === 18\) \{/);
+  it('fires on Saturday from 12:00 Israel, not the old 18:00 or Sunday 19:00', () => {
+    expect(tick).toMatch(/if \(weekday === 6 && hour >= 12 && hour < 20\) \{/);
+    expect(tick).not.toMatch(/weekday === 6 && hour === 18/);
     expect(tick).not.toMatch(/weekday === 0 && hour === 19/);
   });
 
@@ -161,7 +162,9 @@ describe('the Saturday 18:00 send', () => {
 
   it('reads one day past the window, so a run started late today is inside it', () => {
     expect(tick).toMatch(/const readUntil = addDaysToDateStr\(reportTo, 1\);/);
-    expect(tick).toMatch(/\.gte\('start_time', reportFrom\)/);
+    expect(tick).toMatch(/\.gte\('start_time', readFrom\)/);
+    // Every row, past PostgREST's 1000-row page.
+    expect(tick).toMatch(/const acts = await fetchAllRows/);
     expect(tick).toMatch(/\.lt\('start_time', readUntil\)/);
   });
 
@@ -174,19 +177,20 @@ describe('the Saturday 18:00 send', () => {
   });
 
   it('sends nothing to an athlete who did not run', () => {
-    expect(tick).toMatch(/if \(!reportIsEmpty\(report\)\) per\.set\(athleteId, report\);/);
+    expect(tick).toMatch(/if \(reportIsEmpty\(report\)\) continue;/);
   });
 
-  it('points at the profile, where the same seven days are drawn', () => {
+  it('opens the week story in the feed, in the story\'s words', () => {
     const at = tick.indexOf('`report7:${reportTo}`');
-    const block = tick.slice(at, at + 3500);
-    expect(block).toMatch(/url: '\/dashboard\/profile'/);
+    const block = tick.slice(at, at + 5000);
+    expect(block).toMatch(/url: '\/feed\?weekStory=1'/);
+    expect(block).toMatch(/storyPushCopy\(numbers\)/);
   });
 
   it('still batches the subscription read and sends concurrently', () => {
     // Regression guard on the 60s-timeout fix that this rewrite passed through.
     const at = tick.indexOf('`report7:${reportTo}`');
-    const block = tick.slice(at, at + 3500);
+    const block = tick.slice(at, at + 5000);
     expect(block).toMatch(/await subscriptionsForAthletes\(runnerIds\)/);
     expect(block).toMatch(/await Promise\.all\(/);
   });
