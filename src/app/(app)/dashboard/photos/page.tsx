@@ -15,7 +15,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { PhotosLoading } from '@/components/photos/PhotosLoading';
+import { NAMES_KEY, PhotosLoading } from '@/components/photos/PhotosLoading';
 import { ArrowRight, ImageOff, Search, X } from 'lucide-react';
 import { preload } from 'swr';
 import { apiFetcher, useApi } from '@/lib/api';
@@ -101,7 +101,7 @@ function FolderView({ id }: { id: string }) {
       <a href={`https://drive.google.com/drive/folders/${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex h-11 items-center rounded-pill bg-brand-600 px-5 text-sm font-extrabold text-white">{t('openInDrive')}</a>
     </div>
   );
-  if (!data) return <PhotosLoading what="folder" onRetry={() => { void mutate(); }} />;
+  if (!data) return <PhotosLoading what="folder" folderId={id} onRetry={() => { void mutate(); }} />;
   return (
     <div className="pb-6">
       <div className="flex items-center px-4 pt-2">
@@ -161,6 +161,17 @@ function PhotosHome() {
   const [q, setQ] = useState('');
   const folders = useMemo(() => data?.folders ?? [], [data]);
   const latest = folders[0];
+  // The loader's caption next time (components/photos/PhotosLoading): the newest folder,
+  // and every folder's name, so opening one says which.
+  useEffect(() => {
+    if (!freshBrowse?.folders?.length) return;
+    try {
+      const byId: Record<string, { title: string; count: number }> = {};
+      for (const f of freshBrowse.folders) byId[f.id] = { title: folderTitle(f), count: f.count };
+      const l = freshBrowse.folders[0];
+      localStorage.setItem(NAMES_KEY, JSON.stringify({ at: Date.now(), latest: { id: l.id, ...byId[l.id] }, byId }));
+    } catch { /* quota */ }
+  }, [freshBrowse]);
   const latestKey = latest ? `/api/photos/browse/folder?id=${encodeURIComponent(latest.id)}` : null;
   const { data: freshLatest } = useApi<FolderPhotos>(latestKey);
   const latestPhotos = useKept(latestKey, freshLatest);
