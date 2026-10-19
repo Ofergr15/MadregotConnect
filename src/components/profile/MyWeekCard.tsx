@@ -1,6 +1,7 @@
 'use client';
 
-import { useStoryAccess } from '@/lib/stories/client';
+import { showTesterBar, useStoryAccess } from '@/lib/stories/client';
+import { StoryTesterBar } from '@/components/stories/StoryTesterBar';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
@@ -140,7 +141,10 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
     <div className="space-y-3">
       <div data-tour="weekStrip" className="rounded-card bg-card p-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-extrabold text-ink-900">{t('myWeek')}</h2>
+          <div className="min-w-0">
+            <h2 className="text-base font-extrabold text-ink-900">{t('myWeek')}</h2>
+            {showTesterBar(weekStory) && <StoryTesterBar feature="weekly" tone="light" className="mt-1" />}
+          </div>
           <div className="flex items-center gap-1">
             <span className="text-xs font-semibold text-ink-400">{range} · {t('myWeekDay', { n: pw.today + 1 })}</span>
             {/* The week's share card — nothing to share in a week with no runs. */}

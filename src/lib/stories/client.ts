@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 import { apiHeaders } from '@/lib/api';
 import type { StoryFeature } from '@/lib/stories/gate';
 
-export interface StoryAccess { allowed: boolean; tester: boolean; preview: boolean }
+export interface StoryAccess { allowed: boolean; tester: boolean; preview: boolean; viewingAs?: boolean }
+
+/** The בבדיקה badge + משוב: testers only, and never while an admin views as them
+ *  (their feedback would be filed under the tester's name). */
+export function showTesterBar(a: StoryAccess | null | undefined): boolean {
+  return !!a?.allowed && a.tester && !a.viewingAs;
+}
 
 const CLOSED: StoryAccess = { allowed: false, tester: false, preview: false };
 
@@ -12,7 +18,7 @@ export async function fetchStoryAccess(feature: StoryFeature): Promise<StoryAcce
     const res = await fetch(`/api/stories/${feature}`, { headers: await apiHeaders() });
     if (!res.ok) return CLOSED;
     const d = await res.json();
-    return d?.allowed === true ? { allowed: true, tester: !!d.tester, preview: !!d.preview } : CLOSED;
+    return d?.allowed === true ? { allowed: true, tester: !!d.tester, preview: !!d.preview, viewingAs: !!d.viewingAs } : CLOSED;
   } catch {
     return CLOSED;
   }

@@ -100,6 +100,8 @@ export interface WhatsNewEntry {
   href: string;
   /** A headline only staff are shown (they run too, so they get the members' pages first). */
   audience?: 'staff';
+  /** Shown only to readers the stories gate opens this feature to (lib/stories/gate.ts). */
+  story?: 'weekly';
   he: WhatsNewCopy;
   en: WhatsNewCopy;
 }
@@ -111,6 +113,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
     publishedAt: '2026-09-18',
     art: 'weekShare',
     href: '/dashboard/profile',
+    story: 'weekly',
     he: {
       title: 'הסיכום השבועי — עכשיו לשיתוף',
       body: 'הכרטיס של השבוע שלך, מוכן לסטורי. בוחרים אילו נתונים ייכנסו, מוסיפים תמונה, ושולחים.',
@@ -141,4 +144,9 @@ export type WhatsNewLang = (typeof WHATS_NEW_LANGS)[number];
 
 export function entryCopy(entry: WhatsNewEntry, lang: WhatsNewLang): WhatsNewCopy {
   return entry[lang];
+}
+
+/** Drops story-gated entries the reader may not see. Unknown access (`null`) = closed. */
+export function filterByStoryAccess<T extends { story?: 'weekly' }>(entries: T[], weeklyAllowed: boolean | null | undefined): T[] {
+  return entries.filter((e) => !e.story || weeklyAllowed === true);
 }

@@ -12,7 +12,7 @@ describe('fetchStoryAccess', () => {
   });
   it('a tester is open, with the badge', async () => {
     respond(200, { allowed: true, tester: true });
-    expect(await fetchStoryAccess('weekly')).toEqual({ allowed: true, tester: true, preview: false });
+    expect(await fetchStoryAccess('weekly')).toEqual({ allowed: true, tester: true, preview: false, viewingAs: false });
   });
   it('a network error is closed', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
@@ -21,5 +21,15 @@ describe('fetchStoryAccess', () => {
   it('a 200 without allowed:true is closed', async () => {
     respond(200, {});
     expect((await fetchStoryAccess('weekly')).allowed).toBe(false);
+  });
+});
+
+describe('showTesterBar', async () => {
+  const { showTesterBar } = await import('@/lib/stories/client');
+  it('only for a tester who is not being viewed-as', () => {
+    expect(showTesterBar({ allowed: true, tester: true, preview: false })).toBe(true);
+    expect(showTesterBar({ allowed: true, tester: true, preview: false, viewingAs: true })).toBe(false);
+    expect(showTesterBar({ allowed: true, tester: false, preview: false })).toBe(false);
+    expect(showTesterBar(null)).toBe(false);
   });
 });

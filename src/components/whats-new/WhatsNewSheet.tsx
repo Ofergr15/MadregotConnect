@@ -1,5 +1,6 @@
 'use client';
 
+import { useStoryAccess } from '@/lib/stories/client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
@@ -13,7 +14,7 @@ import { APP_VERSION } from '@/lib/version';
 import type { ShownNote, WhatsNewRelease } from '@/lib/release-notes';
 import { useEveningRelease } from '@/lib/use-evening-release';
 import {
-  WHATS_NEW, type WhatsNewEntry, type WhatsNewLang,
+  WHATS_NEW, filterByStoryAccess, type WhatsNewEntry, type WhatsNewLang,
 } from '@/lib/whats-new/entries';
 import { useNavIdentity } from '@/lib/nav-items';
 import { EVENING_OPEN, TOUR_PARAM, TOUR_VALUES, composeWhatsNew, type WhatsNewContent } from '@/lib/whats-new/evening';
@@ -313,11 +314,15 @@ function useContent(evening: boolean): WhatsNewContent | null {
   // that sets state, so a fresh object every render was an endless render loop on
   // the settings landing (~14,000 commits/s), which also stopped every navigation
   // away from that page from ever finishing (lab 2026-10-17).
+  // The weekly share headline is behind the stories gate (lib/stories/gate.ts).
+  const weekly = useStoryAccess('weekly');
+  const weeklyOk = weekly?.allowed ?? null;
   return useMemo(() => {
-    if (error) return { entries: evening ? composeWhatsNew([], APP_VERSION, true, staff, superUser).entries : WHATS_NEW, more: [] };
+    const gate = (c: { entries: WhatsNewEntry[]; more: ShownNote[] }) => ({ ...c, entries: filterByStoryAccess(c.entries, weeklyOk) });
+    if (error) return gate({ entries: evening ? composeWhatsNew([], APP_VERSION, true, staff, superUser).entries : WHATS_NEW, more: [] });
     if (!data || !ready) return null;
-    return composeWhatsNew(data.releases ?? [], APP_VERSION, evening, staff, superUser);
-  }, [data, error, evening, staff, ready, superUser]);
+    return gate(composeWhatsNew(data.releases ?? [], APP_VERSION, evening, staff, superUser));
+  }, [data, error, evening, staff, ready, superUser, weeklyOk]);
 }
 
 /** The list belongs under the headlines, so a sheet without one leaves it out. */

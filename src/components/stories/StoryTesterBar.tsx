@@ -10,7 +10,7 @@ import type { StoryFeature } from '@/lib/stories/gate';
  * and "💬 משוב", which files into the existing feedback queue (/api/feedback → the bug
  * panel) with `context.feature`, so Ofer can tell story feedback apart.
  */
-export function StoryTesterBar({ feature, className }: { feature: StoryFeature; className?: string }) {
+export function StoryTesterBar({ feature, className, tone = 'dark' }: { feature: StoryFeature; className?: string; tone?: 'dark' | 'light' }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -42,7 +42,7 @@ export function StoryTesterBar({ feature, className }: { feature: StoryFeature; 
         <button
           type="button"
           onClick={() => { setOpen(true); setState('idle'); }}
-          className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-bold text-white hover:bg-white/25"
+          className={tone === 'dark' ? 'rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-bold text-white hover:bg-white/25' : 'rounded-full bg-page px-2.5 py-0.5 text-xs font-bold text-ink-700 hover:bg-brand-600/10'}
         >
           💬 משוב
         </button>

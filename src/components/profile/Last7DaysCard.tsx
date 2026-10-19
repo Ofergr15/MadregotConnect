@@ -1,6 +1,7 @@
 'use client';
 
-import { useStoryAccess } from '@/lib/stories/client';
+import { showTesterBar, useStoryAccess } from '@/lib/stories/client';
+import { StoryTesterBar } from '@/components/stories/StoryTesterBar';
 import { useState } from 'react';
 import Link from 'next/link';
 import { Share2 } from 'lucide-react';
@@ -43,7 +44,10 @@ export function Last7DaysCard({ report, athleteName }: { report: Last7Report; at
   return (
     <section className="rounded-card bg-card p-4">
       <div className="flex items-end justify-between gap-2">
-        <h2 className="text-xl font-bold text-ink-700">{t('last7Title')}</h2>
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold text-ink-700">{t('last7Title')}</h2>
+          {showTesterBar(weekStory) && <StoryTesterBar feature="weekly" tone="light" className="mt-1" />}
+        </div>
         <div className="flex items-center gap-2">
           <p className="text-xs font-light text-ink-400 tabular-nums">
             <bdi dir="ltr">{fd(report.from)} – {fd(report.to)}</bdi>

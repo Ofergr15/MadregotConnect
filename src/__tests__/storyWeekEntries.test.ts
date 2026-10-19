@@ -39,3 +39,25 @@ describe('week story entry points are gated', () => {
     expect(hits).toEqual(['src/components/ShareSheet.tsx']);
   });
 });
+
+describe("What's new: the weekly share headline is gated", async () => {
+  const { WHATS_NEW, filterByStoryAccess } = await import('@/lib/whats-new/entries');
+  it('is marked as a weekly story entry', () => {
+    expect(WHATS_NEW.find((e) => e.slug === 'week-share-2026-09')?.story).toBe('weekly');
+  });
+  it('is dropped unless the gate says yes', () => {
+    const has = (ok: boolean | null) => filterByStoryAccess(WHATS_NEW, ok).some((e) => e.slug === 'week-share-2026-09');
+    expect(has(null)).toBe(false);
+    expect(has(false)).toBe(false);
+    expect(has(true)).toBe(true);
+  });
+  it('both What-s-new readers filter it', () => {
+    expect(read('src/components/whats-new/WhatsNewSheet.tsx')).toMatch(/filterByStoryAccess\(/);
+    expect(read('src/components/whats-new/WhatsNewOnboarding.tsx')).toMatch(/filterByStoryAccess\(/);
+  });
+  it('the profile cards show the tester bar to testers, never when viewed-as', () => {
+    for (const f of ['src/components/profile/Last7DaysCard.tsx', 'src/components/profile/MyWeekCard.tsx', 'src/components/feed/WeekSummaryCard.tsx']) {
+      expect(read(f)).toMatch(/showTesterBar\(\w+\) && <StoryTesterBar/);
+    }
+  });
+});

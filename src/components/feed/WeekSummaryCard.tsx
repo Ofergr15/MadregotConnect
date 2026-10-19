@@ -16,7 +16,7 @@ import {
 } from '@/lib/reports/week-summary-window';
 import { ShareSheet } from '@/components/ShareSheet';
 import { StoryTesterBar } from '@/components/stories/StoryTesterBar';
-import { fetchStoryAccess, type StoryAccess } from '@/lib/stories/client';
+import { fetchStoryAccess, showTesterBar, type StoryAccess } from '@/lib/stories/client';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // LAST WEEK, AT THE TOP OF THE FEED — SATURDAY 18:00 → SUNDAY 10:00
@@ -136,7 +136,7 @@ export function WeekSummaryCard() {
       <div className="relative flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-base font-bold">{t('last7Title')}</h2>
-          {access.tester && <StoryTesterBar feature="weekly" className="mt-1" />}
+          {showTesterBar(access) && <StoryTesterBar feature="weekly" className="mt-1" />}
           <p className="mt-0.5 text-xs font-light text-white/60 tabular-nums">
             <bdi dir="ltr">{fd(report.from)} – {fd(report.to)}</bdi>
           </p>

@@ -98,18 +98,18 @@ describe('storyGate (reads)', () => {
 describe('storyGateMany (the Saturday push)', () => {
   const rows = {
     app_settings: [],
-    story_feature_settings: [{ feature: 'weekly', state: 'testers' }],
+    story_feature_settings: [{ feature: 'weekly', state: 'testers', send_push: true }],
     story_testers: [{ athlete_id: 'sahar' }],
   };
   it('pushes only to testers', async () => {
     expect([...await storyGateMany('weekly', ['sahar', 'dana', 'ofer'], { db: fakeDb(rows) })]).toEqual(['sahar']);
   });
   it('self → pushes to nobody (preview never pushes)', async () => {
-    const db = fakeDb({ ...rows, story_feature_settings: [{ feature: 'weekly', state: 'self' }] });
+    const db = fakeDb({ ...rows, story_feature_settings: [{ feature: 'weekly', state: 'self', send_push: true }] });
     expect((await storyGateMany('weekly', ['sahar', 'ofer'], { db })).size).toBe(0);
   });
   it('all → everyone passed in', async () => {
-    const db = fakeDb({ ...rows, story_feature_settings: [{ feature: 'weekly', state: 'all' }] });
+    const db = fakeDb({ ...rows, story_feature_settings: [{ feature: 'weekly', state: 'all', send_push: true }] });
     expect((await storyGateMany('weekly', ['sahar', 'dana'], { db })).size).toBe(2);
   });
   it('any read error → nobody', async () => {
@@ -117,5 +117,14 @@ describe('storyGateMany (the Saturday push)', () => {
     expect((await storyGateMany('weekly', ['sahar'], { db })).size).toBe(0);
     const db2 = fakeDb({ ...rows, app_settings: 'error' });
     expect((await storyGateMany('weekly', ['sahar'], { db: db2 })).size).toBe(0);
+  });
+  it('send_push=false → no push, while the screen stays open to the tester', async () => {
+    const off = { ...rows, story_feature_settings: [{ feature: 'weekly', state: 'testers', send_push: false }], athletes: [{ id: 'sahar', status: 'active' }] };
+    expect((await storyGateMany('weekly', ['sahar'], { db: fakeDb(off) })).size).toBe(0);
+    expect((await storyGate('weekly', 'sahar', { db: fakeDb(off) })).allowed).toBe(true);
+  });
+  it('send_push missing → no push (fails closed)', async () => {
+    const db = fakeDb({ ...rows, story_feature_settings: [{ feature: 'weekly', state: 'all' }] });
+    expect((await storyGateMany('weekly', ['sahar'], { db })).size).toBe(0);
   });
 });
