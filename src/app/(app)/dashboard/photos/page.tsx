@@ -45,7 +45,7 @@ function subline(f: Folder, count: string): string {
 
 function Cover({ src, className }: { src?: string; className?: string }) {
   // eslint-disable-next-line @next/next/no-img-element
-  return src ? <img src={src} alt="" loading="lazy" className={cn('h-full w-full object-cover', className)} /> : <div className={cn('h-full w-full bg-page', className)} />;
+  return src ? <img src={src} alt="" loading="lazy" decoding="async" draggable={false} className={cn('h-full w-full object-cover', className)} /> : <div className={cn('h-full w-full bg-page', className)} />;
 }
 
 function FolderCard({ f, onOpen }: { f: Folder; onOpen: () => void }) {

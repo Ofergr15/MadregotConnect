@@ -23,6 +23,16 @@ describe('signed photo URLs', () => {
     const q = parse(signedImageUrl(ID, 480, Date.now() - 1000 * 60 * 60 * 24)!);
     expect(verifyImageUrl(ID, 480, Number(q.e), q.sig)).toBe(false);
   });
+  // The CDN and the browser cache by URL: a photo's link must stay the same for a
+  // while, or every view is a cold trip to Drive (it used to change every hour).
+  it('keeps one URL per photo for a six-hour window, and still expires 6–12 h out', () => {
+    const t0 = Date.UTC(2026, 9, 19, 6, 0, 1);
+    const a = signedImageUrl(ID, 480, t0)!, b = signedImageUrl(ID, 480, t0 + 5.9 * 3600_000)!;
+    expect(a).toBe(b);
+    const e = Number(parse(a).e) * 1000;
+    expect(e - t0).toBeGreaterThanOrEqual(6 * 3600_000);
+    expect(e - t0).toBeLessThanOrEqual(12 * 3600_000);
+  });
   it('fails closed without a key', () => {
     delete process.env.ENCRYPTION_KEY;
     expect(signedImageUrl(ID, 480)).toBeNull();

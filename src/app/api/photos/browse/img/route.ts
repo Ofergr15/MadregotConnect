@@ -21,7 +21,17 @@ export async function GET(request: Request) {
   }
   const img = await fetchPhotoImage(id, size).catch(() => null);
   if (!img) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  // Cached by the CDN as well as the browser, until the link itself expires. The URL is
+  // the credential (signed, expiring) and the cache is keyed by the whole URL, so the
+  // CDN holds nothing a link holder couldn't fetch anyway — and a photo already seen by
+  // anyone is served from the edge in tens of ms, without a function, Drive or Google.
+  // It used to be `private`: every view of every photo went to Drive twice in a row.
+  const ttl = Math.max(0, Math.min(exp - Math.floor(Date.now() / 1000), 12 * 3600));
   return new NextResponse(img.body, {
-    headers: { 'Content-Type': img.type, 'Cache-Control': 'private, max-age=21600, immutable' },
+    headers: {
+      'Content-Type': img.type,
+      'Cache-Control': `public, max-age=${ttl}, immutable`,
+      'CDN-Cache-Control': `public, max-age=${ttl}`,
+    },
   });
 }

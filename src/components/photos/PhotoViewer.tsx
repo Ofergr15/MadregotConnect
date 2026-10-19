@@ -44,6 +44,24 @@ export function PhotoViewer({ photos, index, title, onClose }: {
     filmRef.current?.querySelector<HTMLElement>(`[data-i="${i}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
   }, [i]);
 
+  // The neighbours' full-size images load while this one is looked at, so a swipe
+  // lands on a photo that is already there instead of starting its download then.
+  // Held in a ref: an Image nobody references can be collected mid-download.
+  const preloaded = useRef(new Map<string, HTMLImageElement>());
+  useEffect(() => {
+    for (const d of [1, -1, 2]) {
+      const p = photos[i + d];
+      if (!p?.full || preloaded.current.has(p.full)) continue;
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = p.full;
+      preloaded.current.set(p.full, img);
+    }
+  }, [i, photos]);
+  // Which full-size images are on screen: until one is, its thumbnail (already in the
+  // cache from the grid) stands in, so the viewer is never blank between photos.
+  const [shown, setShown] = useState<Set<string>>(() => new Set());
+
   const photo = photos[i];
   const share = async () => {
     if (!photo?.full) return;
@@ -75,15 +93,24 @@ export function PhotoViewer({ photos, index, title, onClose }: {
         }}
         onPointerCancel={() => { start.current = null; setDx(0); }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          key={photo.id}
-          src={photo.full || photo.thumb || ''}
-          alt=""
-          draggable={false}
-          className="max-h-full max-w-full object-contain transition-transform duration-75"
-          style={{ transform: `translateX(${dx}px)` }}
-        />
+        <div className="absolute inset-0 transition-transform duration-75" style={{ transform: `translateX(${dx}px)` }}>
+          {photo.thumb && !(photo.full && shown.has(photo.full)) && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={`t-${photo.id}`} src={photo.thumb} alt="" draggable={false} decoding="async" className="absolute inset-0 h-full w-full object-contain" />
+          )}
+          {photo.full && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={photo.id}
+              src={photo.full}
+              alt=""
+              draggable={false}
+              decoding="async"
+              onLoad={() => setShown((prev) => (prev.has(photo.full!) ? prev : new Set(prev).add(photo.full!)))}
+              className={cn('absolute inset-0 h-full w-full object-contain', shown.has(photo.full) ? 'opacity-100' : 'opacity-0')}
+            />
+          )}
+        </div>
         {i < photos.length - 1 && (
           <button onClick={() => go(1)} aria-label={t('next')} className="absolute left-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/15 sm:grid"><ChevronLeft className="h-6 w-6" /></button>
         )}

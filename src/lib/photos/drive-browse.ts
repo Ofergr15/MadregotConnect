@@ -139,7 +139,7 @@ export async function listFolderPhotos(folderId: string): Promise<{ folder: Phot
  * own folders — that is the containment check. (Drive does not return `parents` to
  * the service account for these files, so the file can't be re-checked here.)
  */
-export async function fetchPhotoImage(fileId: string, size: number): Promise<{ body: ArrayBuffer; type: string } | null> {
+export async function fetchPhotoImage(fileId: string, size: number): Promise<{ body: ReadableStream<Uint8Array>; type: string } | null> {
   const drive = driveReader();
   if (!drive || !SIZES.has(size) || !/^[A-Za-z0-9_-]{10,}$/.test(fileId)) return null;
   const meta = await drive.files.get({ fileId, fields: 'thumbnailLink,mimeType', supportsAllDrives: true }).then((r) => r.data).catch(() => null);
@@ -147,8 +147,9 @@ export async function fetchPhotoImage(fileId: string, size: number): Promise<{ b
   const token = (await auth!.getAccessToken()).token;
   const url = meta.thumbnailLink.replace(/=s\d+(-[a-z]+)?$/, `=s${size}`);
   const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-  if (!res.ok) return null;
-  return { body: await res.arrayBuffer(), type: res.headers.get('content-type') || 'image/jpeg' };
+  if (!res.ok || !res.body) return null;
+  // Streamed, not buffered: the phone starts receiving while Drive is still sending.
+  return { body: res.body, type: res.headers.get('content-type') || 'image/jpeg' };
 }
 
 // ── Signed image URLs ──────────────────────────────────────────────────────────
@@ -163,8 +164,11 @@ function sign(payload: string): string | null {
 /** `/api/photos/browse/img?…` for one file at one size, valid for IMAGE_URL_TTL. */
 export function signedImageUrl(fileId: string, size: number, now = Date.now()): string | null {
   const exp = Math.floor(now / 1000) + IMAGE_URL_TTL;
-  // Rounded to the hour so a re-render inside the hour reuses the browser's cache.
-  const e = Math.ceil(exp / 3600) * 3600;
+  // Rounded up to a 6-hour boundary, so the URL of a photo stays the same for six
+  // hours: the browser's cache and the CDN's (img route) can then actually be hit.
+  // An hour's rounding minted a new URL — a cache miss and two Drive round trips —
+  // for every photo every hour. A link still expires, between 6 and 12 hours out.
+  const e = Math.ceil(exp / IMAGE_URL_TTL) * IMAGE_URL_TTL;
   const sig = sign(`${fileId}.${size}.${e}`);
   return sig ? `/api/photos/browse/img?id=${encodeURIComponent(fileId)}&s=${size}&e=${e}&sig=${sig}` : null;
 }
