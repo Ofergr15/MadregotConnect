@@ -166,9 +166,13 @@ export default function PublishPage() {
   const router = useRouter();
   const club = useClub();
   const [kind, setKind] = useState<Kind>('message');
+  const [place, setPlace] = useState<'feed' | 'circle' | 'both'>('feed');
   useEffect(() => {
-    const k = new URLSearchParams(window.location.search).get('type');
+    const q = new URLSearchParams(window.location.search);
+    const k = q.get('type');
     if (k === 'cheer' || k === 'survey' || k === 'message') setKind(k);
+    // The hub's "עיגול מדרגות" tile lands on a message already set to the circle.
+    if (q.get('place') === 'circle') setPlace('circle');
   }, []);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -182,7 +186,6 @@ export default function PublishPage() {
   const [at, setAt] = useState('');
   const [push, setPush] = useState(true);
   // Where a message shows: a feed post, the Madregot circle (lib/feed/club-stories.ts), or both.
-  const [place, setPlace] = useState<'feed' | 'circle' | 'both'>('feed');
   const [days, setDays] = useState<1 | 2 | 7>(1);
   const [cheerDays, setCheerDays] = useState<1 | 3 | 7>(1);
   const [circlePush, setCirclePush] = useState(false);

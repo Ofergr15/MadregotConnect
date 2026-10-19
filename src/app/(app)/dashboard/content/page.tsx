@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { Award, BarChart3, Bell, Cake, CalendarDays, ChevronLeft, Medal, Megaphone, Radio, Sparkles, PartyPopper } from 'lucide-react';
+import { Award, BarChart3, Bell, Cake, CalendarDays, ChevronLeft, Medal, Megaphone, Radio, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { EmptyState, InsetRow, InsetSection, Skeleton } from '@/components/ui';
@@ -33,7 +33,29 @@ interface ContentResponse {
   events: Array<{ id: string; name: string; date: string }>;
   lastNotification: { title: string | null; sentAt: string; reached: number } | null;
   latestNote: { title: string; date: string } | null;
-  recent?: Array<{ id: string; kind: 'message' | 'cheer' | 'survey'; text: string; at: string; likes: number; comments: number; answers: number | null }>;
+  recent?: Array<{ id: string; kind: 'message' | 'cheer' | 'survey'; text: string; at: string; likes: number; comments: number; answers: number | null; emoji?: string }>;
+}
+
+/** What runners see right now on the circles (api/admin/celebrations). */
+interface LiveRow { id: string; source: 'feed' | 'club'; emoji: string; label: string; title: string; until: string; active: boolean; likes: number; auto: boolean }
+const WEEKDAY = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+function untilChip(until: string, today: string): string {
+  if (until === today) return 'עד היום';
+  const d = new Date(`${until}T12:00:00`);
+  const tomorrow = new Date(`${today}T12:00:00`); tomorrow.setDate(tomorrow.getDate() + 1);
+  if (d.toDateString() === tomorrow.toDateString()) return 'עד מחר';
+  return `עד ${WEEKDAY[d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}`;
+}
+
+/** The four things staff put out (mockup content-hub): the circle has its own tile now. */
+function PublishTile({ href, icon, bg, title, sub }: { href: string; icon: React.ReactNode; bg: string; title: string; sub: string }) {
+  return (
+    <Link href={href} className="min-h-[96px] rounded-[20px] bg-card px-3 py-3 active:opacity-80">
+      <span className={cn('mb-2 grid h-9 w-9 place-items-center rounded-[11px] text-lg', bg)}>{icon}</span>
+      <b className="block text-[15px] text-ink-900">{title}</b>
+      <small className="block text-[11.5px] leading-snug text-ink-400">{sub}</small>
+    </Link>
+  );
 }
 
 const RECENT_ICON = { message: '📣', cheer: '🏅', survey: '📊' } as const;
@@ -53,6 +75,8 @@ export default function ContentPage() {
   const t = useTranslations('contentHub');
   const tp = useTranslations('publish');
   const { data, isLoading } = useApi<ContentResponse>('/api/admin/content');
+  const { data: live } = useApi<{ today: string; items: LiveRow[] }>('/api/admin/celebrations');
+  const onAir = (live?.items ?? []).filter((r) => r.active);
   const [phase, setPhase] = useState<ChallengePhase>('active');
 
   const today = data?.today ?? '';
@@ -74,18 +98,42 @@ export default function ContentPage() {
     <div className="space-y-3 pb-6">
       <h1 className="text-[28px] font-black text-ink-700">{t('title')}</h1>
 
-      {/* לפרסם (mockup publish, C0): the three things staff put on the feed. */}
-      <InsetSection header={tp('publishHeader')}>
-        <InsetRow icon={Megaphone} iconBg="bg-brand-600" label={tp('typeMessage')} sublabel={tp('typeMessageSub')} href="/dashboard/content/publish?type=message" />
-        <InsetRow icon={Medal} iconBg="bg-[#E8436E]" label={tp('typeCheer')} sublabel={tp('typeCheerSub')} href="/dashboard/content/publish?type=cheer" />
-        <InsetRow icon={BarChart3} iconBg="bg-accent-900" label={tp('typeSurvey')} sublabel={tp('typeSurveySub')} href="/dashboard/content/publish?type=survey" />
-        <InsetRow icon={PartyPopper} iconBg="bg-[#C7921A]" label="חגיגות" sublabel="מה בעיגולים בראש הפיד, ועד מתי" href="/dashboard/content/celebrations" />
-      </InsetSection>
+      {/* עכשיו באוויר (mockup content-hub, 1): what runners see right now, and until when. */}
+      <div className="flex items-center justify-between px-1">
+        <p className="text-13 font-bold text-ink-400">עכשיו באוויר{onAir.length ? ` · ${onAir.length}` : ''}</p>
+        <Link href="/dashboard/content/celebrations" className="inline-flex min-h-[40px] items-center text-13 font-bold text-brand-600">לנהל ‹</Link>
+      </div>
+      <div className="overflow-hidden rounded-[22px] bg-card">
+        {!live && <p className="px-4 py-3 text-sm text-ink-400">…</p>}
+        {live && onAir.length === 0 && <p className="px-4 py-3 text-sm text-ink-400">כרגע אין כלום בעיגולים בראש הפיד</p>}
+        {onAir.slice(0, 5).map((r) => (
+          <Link key={`${r.source}:${r.id}`} href="/dashboard/content/celebrations" className="flex min-h-[58px] items-center gap-3 border-b border-page px-3.5 py-2 last:border-0">
+            {r.source === 'club'
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src="/images/logo.png" alt="" className="h-10 w-10 shrink-0 rounded-full bg-white object-contain p-0.5 ring-[2.5px] ring-brand-600" />
+              : <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-page text-lg">{r.emoji}</span>}
+            <span className="min-w-0 flex-1">
+              <b dir="auto" className="block truncate text-[14px] text-ink-900">{r.title}</b>
+              <small className="block text-12 text-ink-400">{r.label}{r.auto ? ' · אוטומטי' : ''}{r.likes ? ` · ${r.likes} ❤` : ''}</small>
+            </span>
+            <span className="shrink-0 rounded-full bg-[#E3F6EA] px-2 py-1 text-[11.5px] font-extrabold text-[#12A150]">{untilChip(r.until, live!.today)}</span>
+          </Link>
+        ))}
+      </div>
+
+      <p className="px-1 pt-1 text-13 font-bold text-ink-400">{tp('publishHeader')}</p>
+      <div className="grid grid-cols-2 gap-2.5">
+        <PublishTile href="/dashboard/content/publish?type=message" bg="bg-brand-600 text-white" icon={<Megaphone className="h-5 w-5" />} title={tp('typeMessage')} sub="לפיד, עם או בלי התראה" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <PublishTile href="/dashboard/content/publish?type=message&place=circle" bg="bg-white ring-[2.5px] ring-brand-600" icon={<img src="/images/logo.png" alt="" className="h-7 w-7 rounded-full object-contain" />} title="עיגול מדרגות" sub="בראש הפיד, בשקט" />
+        <PublishTile href="/dashboard/content/publish?type=cheer" bg="bg-[#E8436E] text-white" icon={<Medal className="h-5 w-5" />} title={tp('typeCheer')} sub={tp('typeCheerSub')} />
+        <PublishTile href="/dashboard/content/publish?type=survey" bg="bg-accent-900 text-white" icon={<BarChart3 className="h-5 w-5" />} title={tp('typeSurvey')} sub={tp('typeSurveySub')} />
+      </div>
       {(data?.recent?.length ?? 0) > 0 && (
         <InsetSection header={tp('recentHeader')}>
           {data!.recent!.slice(0, 5).map((r) => (
             <Link key={r.id} href={`/feed?item=${r.id}`} className="flex min-h-[56px] items-center gap-3 border-b border-page px-4 py-2 last:border-0">
-              <span aria-hidden className="w-7 shrink-0 text-center text-lg">{RECENT_ICON[r.kind]}</span>
+              <span aria-hidden className="w-7 shrink-0 text-center text-lg">{r.emoji ?? RECENT_ICON[r.kind]}</span>
               <span className="min-w-0 flex-1">
                 <span dir="auto" className="block truncate text-[15px] font-semibold text-ink-700">{r.text}</span>
                 <span className="block text-xs text-ink-400">
@@ -99,6 +147,14 @@ export default function ContentPage() {
         </InsetSection>
       )}
 
+      {data && counts.active + counts.scheduled === 0 ? (
+        // Nothing running or coming: one quiet row, not half a screen of "אין כאן כלום".
+        <Link href="/dashboard/settings?tab=challenges" className="flex min-h-[52px] items-center gap-3 rounded-[18px] bg-card px-4">
+          <span aria-hidden className="text-lg">🏆</span>
+          <b className="flex-1 text-[14.5px] text-ink-900">{t('challenges')} · אין פעילים</b>
+          <span className="text-13 font-bold text-brand-600">ליצור ‹</span>
+        </Link>
+      ) : (<>
       <div className="flex items-center justify-between px-1">
         <p className="text-2xs font-bold uppercase tracking-wider text-ink-400">{t('challenges')}</p>
         <Link href="/dashboard/settings?tab=challenges" className="inline-flex min-h-[44px] items-center text-xs font-bold text-brand-600">
@@ -154,6 +210,8 @@ export default function ContentPage() {
           ))}
         </div>
       )}
+
+      </>)}
 
       <InsetSection header={t('more')} className="pt-2">
         <InsetRow

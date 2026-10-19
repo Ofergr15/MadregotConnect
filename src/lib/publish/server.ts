@@ -83,7 +83,7 @@ export async function cheerSuggestions(db: Db, now: Date = new Date()): Promise<
     .slice(0, 8);
 }
 
-export interface RecentItem { id: string; kind: 'message' | 'cheer' | 'survey'; text: string; at: string; likes: number; comments: number; answers: number | null }
+export interface RecentItem { id: string; kind: 'message' | 'cheer' | 'survey'; text: string; at: string; likes: number; comments: number; answers: number | null; emoji: string }
 
 /** The club's last few posts, for the hub's "פורסם לאחרונה". */
 export async function recentPublished(db: Db): Promise<RecentItem[]> {
@@ -100,9 +100,12 @@ export async function recentPublished(db: Db): Promise<RecentItem[]> {
   return rows.map((r) => {
     const sid = typeof r.payload?.surveyId === 'string' ? r.payload.surveyId : null;
     const kind: RecentItem['kind'] = sid ? 'survey' : r.payload?.cheerFor || r.payload?.birthdayOf ? 'cheer' : 'message';
+    // By what it is, not one 🏅 for all: a birthday and a marathon read alike (10-19).
+    const REASON: Record<string, string> = { race: '🏁', record: '🏅', milestone: '🏅', birthday: '🎂', comeback: '💪' };
+    const emoji = sid ? '📊' : r.payload?.birthdayOf ? '🎂' : r.payload?.cheerFor ? REASON[String(r.payload.reason)] ?? '🎉' : '📣';
     return {
       id: r.id, kind, text: (r.body || '').replace(/@\[([^\]]+)\]\([0-9a-f-]{36}\)/gi, '$1').split('\n')[0].slice(0, 70),
-      at: r.occurred_at, likes: r.like_count ?? 0, comments: r.comment_count ?? 0, answers: sid ? answers.get(sid) ?? 0 : null,
+      at: r.occurred_at, likes: r.like_count ?? 0, comments: r.comment_count ?? 0, answers: sid ? answers.get(sid) ?? 0 : null, emoji,
     };
   });
 }

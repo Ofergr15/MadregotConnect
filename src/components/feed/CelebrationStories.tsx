@@ -5,6 +5,8 @@ import { Heart, MessageCircle, Play } from 'lucide-react';
 import { apiFetcher, useApi } from '@/lib/api';
 import { preload } from 'swr';
 import { toggleLike, type FeedItem } from '@/lib/feed-client';
+import type { FeedLiker } from '@/lib/feed/project';
+import { FeedLikesSheet } from '@/components/FeedLikesSheet';
 import { Sheet } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { FeedBodyText } from '@/components/FeedBodyText';
@@ -104,10 +106,14 @@ function Slide({ entry, active, onComment, myId, onYear }: {
   const kind = CELEBRATION_TYPES[entry.celebration.type];
   const [liked, setLiked] = useState(entry.item.likedByMe);
   const [likes, setLikes] = useState(entry.item.likeCount);
+  // Who liked, like Instagram (mockup celebration-likers): three faces and a name or two,
+  // and a tap opens everyone (the feed's own FeedLikesSheet).
+  const [likers, setLikers] = useState<FeedLiker[]>(entry.item.likePreview ?? []);
+  const [showLikers, setShowLikers] = useState(false);
   const [pop, setPop] = useState(0);
   const like = async () => {
     setLiked(v => !v); setLikes(n => n + (liked ? -1 : 1)); setPop(p => p + 1);
-    try { const r = await toggleLike(entry.item.id); setLiked(r.liked); setLikes(r.likeCount); }
+    try { const r = await toggleLike(entry.item.id); setLiked(r.liked); setLikes(r.likeCount); if (r.likePreview) setLikers(r.likePreview); }
     catch { setLiked(entry.item.likedByMe); setLikes(entry.item.likeCount); }
   };
   const people = entry.honorees;
@@ -163,7 +169,23 @@ function Slide({ entry, active, onComment, myId, onYear }: {
           🎬 {story.athleteId === myId ? 'השנה שלך בריצה' : `השנה של ${story.name} בריצה`}
         </button>
       )}
-      <div className="mt-4 flex items-center justify-center gap-3">
+      {likes > 0 && likers.length > 0 && (
+        <button type="button" onClick={() => setShowLikers(true)} className="mx-auto mt-4 flex min-h-[40px] items-center justify-center gap-2 text-[14px] text-ink-700">
+          <span className="flex" dir="ltr">
+            {likers.slice(0, 3).map((l, i) => (
+              <span key={l.athleteId} className={cn('rounded-full border-2 border-card', i > 0 && '-ms-2.5')}>
+                <FeedAvatar name={l.name} url={l.avatarUrl} className="h-7 w-7 text-[10px]" />
+              </span>
+            ))}
+          </span>
+          <span>
+            {likers.slice(0, 2).map((l, i) => <span key={l.athleteId}>{i > 0 && ', '}<b className="font-extrabold">{first(l.name)}</b></span>)}
+            {likes > Math.min(2, likers.length) ? <> ועוד <b className="font-extrabold tabular-nums">{likes - Math.min(2, likers.length)}</b> אהבו</> : ' אהבו'}
+          </span>
+        </button>
+      )}
+      {showLikers && <FeedLikesSheet itemId={entry.item.id} likeCount={likes} seed={likers} onClose={() => setShowLikers(false)} />}
+      <div className="mt-3 flex items-center justify-center gap-3">
         <button type="button" onClick={like} aria-pressed={liked}
           className={cn('flex min-h-[44px] items-center gap-2 rounded-pill px-4 text-sm font-bold', liked ? 'bg-accent-red/10 text-accent-red' : 'bg-page text-ink-700')}>
           <Heart key={pop} className={cn('h-[18px] w-[18px]', liked && 'fill-current', pop > 0 && 'pop')} />
