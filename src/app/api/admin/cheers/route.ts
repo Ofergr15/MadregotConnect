@@ -1,3 +1,5 @@
+import { untilAfter } from '@/lib/feed/celebration-days';
+import { israelToday } from '@/lib/utils';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireApprover } from '@/lib/auth/require-approver';
@@ -25,7 +27,10 @@ export async function POST(request: Request) {
   try {
     const { data: who } = await db.from('athletes').select('id, name').eq('id', athleteId).eq('coach_id', COACH_ID).maybeSingle();
     if (!who) return NextResponse.json({ error: 'not a member' }, { status: 404 });
-    const id = await publishClubPost(db, { body: text, payload: { cheerFor: athleteId, honoreeId: athleteId, reason } });
+    // How long on the circles (the editor's "כמה זמן בעיגולים"); the post itself stays.
+    const days = Number(b?.days) || 1;
+    const until = untilAfter(israelToday(), days);
+    const id = await publishClubPost(db, { body: text, payload: { cheerFor: athleteId, honoreeId: athleteId, reason, until } });
     let sent = 0;
     if (b?.push === true && id) {
       const subs = await resolveAudience('all', null);

@@ -1,3 +1,4 @@
+import { BIRTHDAY_DAYS_KEY, readBirthdayDays, untilAfter } from '@/lib/feed/celebration-days';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { COACH_ID } from '@/lib/constants';
 import { nextBirthday } from '@/lib/events/upcoming';
@@ -17,6 +18,8 @@ export function birthdayBody(name: string, athleteId: string): string {
 /** Today's posts, once each. Never throws — a missed card must not fail the tick. Returns how many were posted. */
 export async function publishBirthdayPosts(supabase: SupabaseClient, today: string, now: Date = new Date()): Promise<number> {
   try {
+    const { data: daysRow } = await supabase.from('app_settings').select('value').eq('key', BIRTHDAY_DAYS_KEY).maybeSingle();
+    const birthdayDays = readBirthdayDays((daysRow as { value?: string } | null)?.value);
     const { data } = await supabase.from('athletes').select('id, name, birth_date')
       .eq('coach_id', COACH_ID).eq('status', 'active').not('birth_date', 'is', null);
     const born = ((data || []) as Array<{ id: string; name: string | null; birth_date: string }>)
@@ -30,7 +33,7 @@ export async function publishBirthdayPosts(supabase: SupabaseClient, today: stri
         type: 'announcement',
         author_athlete_id: null,
         body: birthdayBody(a.name!, a.id),
-        payload: { birthdayOf: a.id, honoreeId: a.id, date: today },
+        payload: { birthdayOf: a.id, honoreeId: a.id, date: today, until: untilAfter(today, birthdayDays) },
         occurred_at: now.toISOString(),
       });
       if (error) console.warn(`publishBirthdayPosts ${a.id} failed:`, error.message);

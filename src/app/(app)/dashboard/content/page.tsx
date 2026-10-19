@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { Award, BarChart3, Bell, Cake, CalendarDays, ChevronLeft, Medal, Megaphone, Radio, Sparkles } from 'lucide-react';
+import { Award, BarChart3, Bell, Cake, CalendarDays, ChevronLeft, Medal, Megaphone, Radio, Sparkles, PartyPopper } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { EmptyState, InsetRow, InsetSection, Skeleton } from '@/components/ui';
@@ -79,6 +79,7 @@ export default function ContentPage() {
         <InsetRow icon={Megaphone} iconBg="bg-brand-600" label={tp('typeMessage')} sublabel={tp('typeMessageSub')} href="/dashboard/content/publish?type=message" />
         <InsetRow icon={Medal} iconBg="bg-[#E8436E]" label={tp('typeCheer')} sublabel={tp('typeCheerSub')} href="/dashboard/content/publish?type=cheer" />
         <InsetRow icon={BarChart3} iconBg="bg-accent-900" label={tp('typeSurvey')} sublabel={tp('typeSurveySub')} href="/dashboard/content/publish?type=survey" />
+        <InsetRow icon={PartyPopper} iconBg="bg-[#C7921A]" label="חגיגות" sublabel="מה בעיגולים בראש הפיד, ועד מתי" href="/dashboard/content/celebrations" />
       </InsetSection>
       {(data?.recent?.length ?? 0) > 0 && (
         <InsetSection header={tp('recentHeader')}>

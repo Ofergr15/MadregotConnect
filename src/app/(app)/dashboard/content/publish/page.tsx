@@ -147,6 +147,7 @@ export default function PublishPage() {
   // Where a message shows: a feed post, the Madregot circle (lib/feed/club-stories.ts), or both.
   const [place, setPlace] = useState<'feed' | 'circle' | 'both'>('feed');
   const [days, setDays] = useState<1 | 2 | 7>(1);
+  const [cheerDays, setCheerDays] = useState<1 | 3 | 7>(1);
   const [circlePush, setCirclePush] = useState(false);
   // cheer
   const { data: sug } = useApi<{ suggestions: Suggestion[] }>(kind === 'cheer' ? '/api/admin/cheers/suggestions' : null);
@@ -204,7 +205,7 @@ export default function PublishPage() {
       }
       void send('/api/admin/publish/message', { text, imageUrl, audience, push, scheduleAt: push && when === 'later' && at ? new Date(at).toISOString() : null });
     } else if (kind === 'cheer') {
-      void send('/api/admin/cheers', { athleteId: who!.id, reason, text: cheer ?? autoCheer, push });
+      void send('/api/admin/cheers', { athleteId: who!.id, reason, text: cheer ?? autoCheer, push, days: cheerDays });
     } else {
       void send('/api/admin/surveys', {
         question_he: question, options_he: cleanOptions, closes,
@@ -328,6 +329,9 @@ export default function PublishPage() {
               {cheer !== null && <button type="button" onClick={() => setCheer(null)} className="min-h-[44px] px-1 text-sm font-bold text-brand-600">{t('autoText')}</button>}
             </>
           )}
+          <p className={LABEL}>כמה זמן בעיגולים</p>
+          <Seg value={String(cheerDays) as '1' | '3' | '7'} options={[['1', 'היום'], ['3', '3 ימים'], ['7', 'שבוע']]} onChange={(v) => setCheerDays(Number(v) as 1 | 3 | 7)} />
+          <p className="px-1 text-12 text-ink-400">ב״חוגגים היום״ בראש הפיד. הפוסט בפיד נשאר תמיד.</p>
           <div className={cn(CARD, 'flex min-h-[56px] items-center justify-between gap-3 px-4 py-2')}>
             <span className="min-w-0"><b className="block text-[15px] text-ink-900">{t('pushClub')}</b><small className="block text-13 text-ink-400">{t('pushClubSub')}</small></span>
             <Switch checked={push} onChange={setPush} activeColor="bg-[#1FA55B]" ariaLabel={t('pushClub')} />

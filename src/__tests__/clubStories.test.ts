@@ -22,3 +22,14 @@ describe('the Madregot circle', () => {
     expect(pruneClubStories([s('old', '2026-09-01', '2026-09-02'), s('new', '2026-10-19', '2026-10-19')], '2026-10-19').map(x => x.id)).toEqual(['new']);
   });
 });
+
+describe('how long a celebration stays', () => {
+  it('reads the birthday default, one day when unset or odd, and counts days from the day itself', async () => {
+    const { readBirthdayDays, untilAfter } = await import('@/lib/feed/celebration-days');
+    expect(readBirthdayDays(null)).toBe(1);
+    expect(readBirthdayDays('5')).toBe(1);
+    expect(readBirthdayDays('3')).toBe(3);
+    expect(untilAfter('2026-10-19', 1)).toBe('2026-10-19');
+    expect(untilAfter('2026-10-19', 3)).toBe('2026-10-21');
+  });
+});
