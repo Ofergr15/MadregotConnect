@@ -247,7 +247,7 @@ export function YearStory({ story, onClose }: { story: BirthdayStory; onClose: (
     ];
     out.push({ key: 'more', dur: 10000, node: () => (<>
       <Bg kind="plain" />
-      <div className="c"><p className="k rise">{say('more', ['ועוד כמה מספרים', 'השנה שלך בעוד מספרים', 'עוד כמה דברים שעשית'])}</p><div className="tiles">
+      <div className="c"><p className="k rise">{say('more', ['ועוד כמה מספרים', `השנה ${yours} בעוד מספרים`, mine ? 'עוד כמה דברים שעשית' : `עוד כמה דברים ש${name} ${she ? 'עשתה' : 'עשה'}`])}</p><div className="tiles">
         {tiles.slice(0, 8).map(([icon, value, label], i) => (
           <div key={i} className={`tl2 rise d${Math.min(4, Math.floor(i / 2) + 1)}`}><span>{icon}</span><b>{value}</b><small>{label}</small></div>
         ))}
