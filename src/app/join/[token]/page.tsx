@@ -170,10 +170,11 @@ export default function JoinPage() {
           if (me.existingTrainee) setExisting({ coach: me.coachName || null });
           if (me.isAcademy) setAcademy(true);
         }
-        if (fetchedGroups.length === 1 && !me?.groupId) {
+        if (fetchedGroups.length === 1 && !me?.groupId && !me?.isAcademy) {
           setSelectedGroup(fetchedGroups[0].id);
         }
-        const hasGroup = fetchedGroups.length === 0 || !!me?.groupId || fetchedGroups.length === 1;
+        // An academy trainee's pack is the coach's to set (TraineeSetup), never asked here.
+        const hasGroup = fetchedGroups.length === 0 || !!me?.groupId || fetchedGroups.length === 1 || !!me?.isAcademy;
         setEditing(!(me?.name && me?.email && hasGroup));
         setLinkState(me ? 'ok' : 'invalid');
       })
@@ -297,7 +298,7 @@ export default function JoinPage() {
   // Also the confirm step's "הכול נכון, ממשיכים" (no event there).
   const handleInfoSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (groups.length > 0 && !selectedGroup) {
+    if (groups.length > 0 && !selectedGroup && !academy) {
       setError(t('selectPaceGroupError'));
       setEditing(true);
       return;
@@ -591,7 +592,7 @@ export default function JoinPage() {
               className={cn(fieldCls, email ? 'text-left' : 'text-right')} style={fieldStyle}
             />
           </div>
-          {groups.length > 0 && (
+          {groups.length > 0 && !academy && (
             <fieldset>
               <legend className="mb-1 block text-[13px] font-bold" style={{ color: JOURNEY.soft }}>{to('yourPaceGroup')}</legend>
               <div className="flex flex-col gap-2">

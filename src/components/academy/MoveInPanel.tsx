@@ -239,19 +239,14 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
         <span className="truncate text-sm font-bold text-ink-500" dir="auto">{coachIds.length ? joinHebrewList(coachIds.map((c) => firstName(coachName(c)))) : mode === 'club' ? 'המאמן הקודם / בלי' : 'בלי'}</span>
         <span className="shrink-0 text-[13px] font-extrabold text-brand-600">שיבוץ</span>
       </button>
-      <button type="button" onClick={() => setPicker('band')} className="flex w-full min-h-[52px] items-center gap-3 px-4 text-start">
-        <span className="flex-1 text-[15px] font-semibold text-ink-700">דבוקה באקדמיה</span>
-        <span className="truncate text-sm font-bold text-ink-500">{band?.name || 'לפי הטסט'}</span>
-        <span className="shrink-0 text-[13px] font-extrabold text-brand-600">שינוי</span>
-      </button>
-      {mode === 'invite' && (
-        <label className="flex w-full min-h-[52px] items-center gap-3 px-4">
-          <span className="flex-1 text-[15px] font-semibold text-ink-700">קבוצת קצב</span>
-          <select value={groupId ?? ''} onChange={(e) => setGroupId(e.target.value || null)} className="h-10 max-w-[150px] rounded-lg bg-page px-2 text-sm font-bold text-ink-700 focus:outline-none">
-            <option value="">בלי</option>
-            {groups.map((g) => <option key={g.id} value={g.id}>{groupDisplayName(g.name)}</option>)}
-          </select>
-        </label>
+      {/* Not in the app yet: the pack is the coach's call, in their "טופס התאמה" once the
+          trainee has started (Ofer, 2026-10-19) — so step 1 asks only who, and which coach. */}
+      {mode === 'club' && (
+        <button type="button" onClick={() => setPicker('band')} className="flex w-full min-h-[52px] items-center gap-3 px-4 text-start">
+          <span className="flex-1 text-[15px] font-semibold text-ink-700">דבוקה באקדמיה</span>
+          <span className="truncate text-sm font-bold text-ink-500">{band?.name || 'לפי הטסט'}</span>
+          <span className="shrink-0 text-[13px] font-extrabold text-brand-600">שינוי</span>
+        </button>
       )}
       <label className="flex w-full min-h-[52px] items-center gap-3 px-4">
         <span className="flex-1 text-[15px] font-semibold text-ink-700">מתאמנים אצלנו מאז</span>
@@ -289,7 +284,7 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
         )}
         <p className="mb-1.5 mt-3 px-1 text-2xs font-bold text-ink-400">מה שכבר ידוע</p>
         {settings}
-        <p className="mt-1.5 px-1 text-xs leading-relaxed text-ink-400">קבוצת הקצב קובעת איזו תוכנית מועדון יקבל עד השבוע האישי הראשון.</p>
+        <p className="mt-1.5 px-1 text-xs leading-relaxed text-ink-400">הדבוקה וסוג הליווי — אצל המאמן, בטופס ההתאמה, אחרי שהמתאמן מילא את הפרטים.</p>
         {error && <p className="mt-2 px-1 text-[13px] font-bold text-accent-red-ink" role="alert">{error}</p>}
         <button type="button" onClick={() => void invite()} disabled={!inv.name.trim() || !emailOk || busy}
           className="mt-3 flex w-full min-h-[50px] items-center justify-center gap-2 rounded-2xl bg-brand-600 text-base font-extrabold text-white transition-all active:scale-[0.99] disabled:opacity-50">

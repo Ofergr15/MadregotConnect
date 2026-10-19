@@ -94,15 +94,23 @@ const FIELDS: Field[] = [
 // Instagram link. Four short pages, each checked before the next, same questions.
 // v3 (academy-form-v3.html): "מה מדבר אליך יותר" moved up to the first page, because
 // it is the answer the manager reads first. `name` is the step's word under the bar.
-const STEPS: { title: string; name: string; sub: string; keys: string[] }[] = [
+const FULL_STEPS: { title: string; name: string; sub: string; keys: string[] }[] = [
   { title: 'הפרטים שלך', name: 'פרטים', sub: 'ממלאים פעם אחת, ונחזור אליך בימים הקרובים', keys: ['firstName', 'lastName', 'email', 'phone', 'focus'] },
   { title: 'קצת עליך', name: 'עליך', sub: 'כמה פרטים כדי שנכיר אותך', keys: ['birthDate', 'weight', 'height', 'city'] },
   { title: 'הריצה שלך', name: 'הריצה', sub: 'כדי שנשבץ אותך בדבוקה הנכונה', keys: ['runningHistory', 'group', 'achievements', 'hearAbout', 'hearAboutOther'] },
   { title: 'בריאות ומידות', name: 'בריאות ומידות', sub: 'אחרון, ואנחנו בקשר', keys: ['medicalHistory', 'medicalDetails', 'shirtSize', 'pantsSize', 'tightsSize', 'shoeSize'] },
 ];
 const FIELD_BY_KEY = new Map(FIELDS.map(f => [f.key, f]));
-/** Not asked of somebody who already trains with us: we know their pack and how they came. */
-const EXISTING_SKIPS = new Set(['group', 'hearAbout', 'hearAboutOther']);
+/**
+ * Somebody who already trains with us fills one page (academy-onboarding/who-fills-what.html):
+ * confirm the details, the health question, how they heard of us. The coaching type, the
+ * pack and the running background are the coach's ("טופס התאמה"); birth date, height, weight
+ * and sizes they fill in the app.
+ */
+const EXISTING_STEPS: typeof FULL_STEPS = [
+  { title: 'כמה פרטים, ואתה באפליקציה', name: 'פרטים', sub: 'עמוד אחד · חצי דקה',
+    keys: ['firstName', 'lastName', 'email', 'phone', 'medicalHistory', 'medicalDetails', 'hearAbout', 'hearAboutOther'] },
+];
 
 // ── Birth date as three pickers ──────────────────────────────────────────────
 // Not <input type="date">: on iOS it draws its own box that ignores the width and
@@ -215,6 +223,7 @@ export default function AcademyRegisterPage() {
   // Somebody who already trains with us (their card is 'existing'): a details update for the
   // app, not an application — the pack and "how did you hear of us" are not asked.
   const [existing, setExisting] = useState(false);
+  const STEPS = existing ? EXISTING_STEPS : FULL_STEPS;
   const [honeypot, setHoneypot] = useState('');
   // The manager's open/closed switch (lib/academy/registration.ts), answered for
   // this visitor: a personal invitation (?i=) gets through a closed door. Null
@@ -259,7 +268,6 @@ export default function AcademyRegisterPage() {
     return next;
   });
   const isShown = (key: string) => {
-    if (existing && EXISTING_SKIPS.has(key)) return false;
     const rule = SHOWN_WHEN[key];
     return !rule || rule.when(values[rule.on]);
   };
@@ -400,17 +408,17 @@ export default function AcademyRegisterPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[15px] font-black text-ink-900" dir="ltr">Madregot Academy</p>
-              <p className="mt-px text-[12.5px] font-bold text-ink-400">
-                שלב <bdi dir="ltr">{step + 1}</bdi> מתוך <bdi dir="ltr">{STEPS.length}</bdi>
-              </p>
+              {STEPS.length > 1 && (
+                <p className="mt-px text-[12.5px] font-bold text-ink-400">
+                  שלב <bdi dir="ltr">{step + 1}</bdi> מתוך <bdi dir="ltr">{STEPS.length}</bdi>
+                </p>
+              )}
             </div>
             <img src="/images/logo.png" alt="Madregot" width={40} height={40} className="h-10 w-auto object-contain" />
           </div>
           <h1 className="mt-3 text-[22px] font-black leading-tight text-ink-900">{STEPS[step].title}</h1>
           <p className="mt-0.5 text-[13.5px] text-ink-400">
-            {existing && step === 0 ? 'כמה פרטים לקראת המעבר לאפליקציה. 3 דקות.'
-              : existing && STEPS[step].name === 'הריצה' ? 'כדי שהמאמן/ת יכיר/תכיר את הריצה שלך'
-              : existing && step === STEPS.length - 1 ? 'אחרון, ואז הקישור לאפליקציה'
+            {existing ? STEPS[step].sub
               : prefilled && step === 0 ? 'הפרטים שלך כבר מולאו. נשאר רק לספר לנו עליך.' : STEPS[step].sub}
           </p>
           {existing && step === 0 && (
@@ -418,6 +426,7 @@ export default function AcademyRegisterPage() {
               ✓ אתה כבר מתאמן אצלנו — זה לא טופס הצטרפות, רק עדכון פרטים לקראת האפליקציה.
             </p>
           )}
+          {STEPS.length > 1 && <>
           <div className="mt-3 flex gap-[5px]" aria-hidden="true">
             {STEPS.map((_, i) => (
               <div key={i} className={cn('h-1 flex-1 rounded-full', i <= step ? 'bg-brand-600' : 'bg-[#E6E6EC]')} />
@@ -431,6 +440,7 @@ export default function AcademyRegisterPage() {
               </li>
             ))}
           </ol>
+          </>}
         </div>
       </header>
 

@@ -890,6 +890,8 @@
     "gender": "Gender",
     "genderMale": "Male",
     "genderFemale": "Female",
+    "height": "Height",
+    "weight": "Weight",
     "shoeSize": "Shoe Size",
     "shirtSize": "Shirt Size",
     "pantsSize": "Pants Size",

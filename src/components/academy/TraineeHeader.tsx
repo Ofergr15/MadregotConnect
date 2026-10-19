@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { formatPace } from '@/components/activity/format';
 import { academyThreadUrl } from '@/lib/academy/deep-links';
+import { TraineeSetupBanner } from './TraineeSetup';
 import type { HomeKmWeek, TraineeHome } from '@/lib/academy/trainee-home';
 
 /** Digits only, Israeli local numbers to 972 — wa.me wants an international number. */
@@ -110,6 +111,9 @@ export function TraineeHeader({ athleteId }: { athleteId: string }) {
           )}
         </div>
       </section>
+
+      {/* The coach's half of the details (TraineeSetup): nothing for anyone but their coaches. */}
+      <TraineeSetupBanner athleteId={athleteId} />
 
       {goal && (
         <section className="rounded-card bg-brand-600 p-3.5 text-white">

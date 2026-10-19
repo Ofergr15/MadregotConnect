@@ -14,8 +14,8 @@ import { candidateTimeline } from '@/lib/academy/funnel';
 
 const root = join(__dirname, '..', '..');
 const form = readFileSync(join(root, 'src/app/academy-register/page.tsx'), 'utf8');
-const fields = form.slice(form.indexOf('const FIELDS'), form.indexOf('const STEPS'));
-const steps = form.slice(form.indexOf('const STEPS'), form.indexOf('const FIELD_BY_KEY'));
+const fields = form.slice(form.indexOf('const FIELDS'), form.indexOf('const FULL_STEPS'));
+const steps = form.slice(form.indexOf('const FULL_STEPS'), form.indexOf('const FIELD_BY_KEY'));
 
 const groupOptions = (() => {
   const block = fields.slice(fields.indexOf("key: 'group'"), fields.indexOf("key: 'runningHistory'"));

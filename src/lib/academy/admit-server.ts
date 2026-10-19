@@ -247,8 +247,9 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
       copy: (locale) => needsJoin
         ? academyTraineeComingCopy(locale, { name: card.name || athlete.name })
         : academyTraineesAssignedCopy(locale, { names: [card.name || athlete.name] }),
-      // Their card, where the plan is built — not the whole list.
-      url: academyThreadUrl({ recipientIsStaff: true, traineeId: athlete.id }),
+      // Their card, where the plan is built — not the whole list; for somebody not in the app
+      // yet, open on the coach's "טופס התאמה" (TraineeSetup).
+      url: `${academyThreadUrl({ recipientIsStaff: true, traineeId: athlete.id })}${needsJoin ? '&setup=1' : ''}`,
       tag: `academy-trainee-${athlete.id}`,
     }).catch((err: unknown) => console.error('Accept: coach push failed:', err))),
   ]);

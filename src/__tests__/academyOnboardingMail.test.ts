@@ -65,7 +65,7 @@ describe('what the manager reads when the form comes back', () => {
 describe('the coach', () => {
   it('4 · at the approval of somebody not in the app yet: a heads-up', () => {
     expect(academyTraineeComingCopy('he', { name: 'יוסי לוי' })).toEqual({
-      title: '🎓 יוסי לוי מצטרף/ת אליך', body: 'ייכנס/תיכנס לאפליקציה בקרוב. אפשר כבר לעבור על הפרטים מהטופס.',
+      title: '🎓 יוסי לוי מצטרף/ת אליך', body: 'ייכנס/תיכנס לאפליקציה בקרוב. אפשר כבר להשלים את טופס ההתאמה: סוג ליווי, דבוקה ומטרה.',
     });
   });
   it('6 · when they signed in from the app: build the first plan', () => {
@@ -91,5 +91,16 @@ describe('the funnel board', () => {
     expect(placeCandidate({ ...card, acceptedAt: '2026-10-20T07:00:00.000Z' }, [], now).status).toBe('joined');
     // An existing trainee moved in the old way (no form sent) reads as joined, as before.
     expect(placeCandidate({ ...card, invitedAt: null }, [], now).status).toBe('joined');
+  });
+});
+
+describe('the existing trainee fills one page', () => {
+  it('confirm the details, health, how they heard of us — nothing the coach or the app asks', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(__dirname, '..', 'app/academy-register/page.tsx'), 'utf8');
+    const block = src.slice(src.indexOf('const EXISTING_STEPS'), src.indexOf('];', src.indexOf('const EXISTING_STEPS')));
+    expect(block).toContain("keys: ['firstName', 'lastName', 'email', 'phone', 'medicalHistory', 'medicalDetails', 'hearAbout', 'hearAboutOther']");
+    for (const k of ['focus', 'group', 'height', 'weight', 'shoeSize', 'runningHistory']) expect(block).not.toContain(`'${k}'`);
   });
 });

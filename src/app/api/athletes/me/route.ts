@@ -34,6 +34,23 @@ const PRE_119_COLUMNS = `${PRE_101_COLUMNS}, ${PROVIDER_HEALTH_COLUMNS_101}`;
 // exists and one missing column must not blank the whole profile screen.
 const FULL_COLUMNS = `${PRE_119_COLUMNS}, week_start_day`;
 
+/**
+ * Height and weight (migration 155), read and written on their own so that a database
+ * without the columns degrades to "unset" and never touches the rest of the profile.
+ */
+async function readBody(supabase: ReturnType<typeof createServerClient>, id: string): Promise<{ heightCm: number | null; weightKg: number | null }> {
+  const { data, error } = await supabase.from('athletes').select('height_cm, weight_kg').eq('id', id).maybeSingle();
+  if (error || !data) return { heightCm: null, weightKg: null };
+  const row = data as { height_cm?: number | null; weight_kg?: number | string | null };
+  return { heightCm: row.height_cm ?? null, weightKg: row.weight_kg == null ? null : Number(row.weight_kg) };
+}
+const numberIn = (v: unknown, lo: number, hi: number, step: number): number | null | undefined => {
+  if (v === undefined) return undefined;
+  if (v === null || v === '') return null;
+  const n = Math.round(Number(v) / step) * step;
+  return Number.isFinite(n) && n >= lo && n <= hi ? Number(n.toFixed(1)) : undefined;
+};
+
 /** `{ shirtSize: 'L', pantsSize: null, … }` from whichever columns the row carries. */
 function kitSizesOf(row: Record<string, unknown>) {
   return Object.fromEntries(
@@ -161,6 +178,7 @@ export async function GET(req: NextRequest) {
       weekStartDay: weekStartDayOf((data as any).week_start_day),
       pendingGroup,
       hrTracePublic,
+      ...(await readBody(supabase, id)),
     },
   });
 }
@@ -284,6 +302,20 @@ export async function PUT(req: NextRequest) {
 
     if (error || !data) throw error || new Error('Update returned no row');
 
+    // Height and weight (155) on their own write: a database without the columns keeps
+    // everything above saved, and the answer says so (bodySaved false).
+    const heightCm = numberIn(body.heightCm, 100, 250, 1);
+    const weightKg = numberIn(body.weightKg, 25, 250, 0.1);
+    let bodySaved: boolean | undefined;
+    if (heightCm !== undefined || weightKg !== undefined) {
+      const bodyUpdate: Record<string, number | null> = {};
+      if (heightCm !== undefined) bodyUpdate.height_cm = heightCm;
+      if (weightKg !== undefined) bodyUpdate.weight_kg = weightKg;
+      const { error: bodyError } = await supabase.from('athletes').update(bodyUpdate).eq('id', id);
+      bodySaved = !bodyError;
+      if (bodyError && !missingColumn(bodyError)) console.error('height/weight save failed:', bodyError.message);
+    }
+
     return NextResponse.json({
       athlete: {
         id: data.id,
@@ -295,6 +327,8 @@ export async function PUT(req: NextRequest) {
         phone: (data as any).phone || null,
         discoverable: (data as any).discoverable ?? true,
         ...(hrTraceSaved !== undefined ? { hrTracePublic: !!hrTracePublic, hrTraceSaved } : {}),
+        ...(await readBody(supabase, id)),
+        ...(bodySaved !== undefined ? { bodySaved } : {}),
       },
     });
   } catch (error) {

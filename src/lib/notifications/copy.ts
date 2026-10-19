@@ -741,8 +741,8 @@ export function academyTraineeJoinedCopy(locale: NotificationLocale, p: { name: 
 export function academyTraineeComingCopy(locale: NotificationLocale, p: { name: string }): PushCopy {
   const who = (p.name || '').trim() || SOMEONE[locale];
   return locale === 'he'
-    ? { title: `🎓 ${who} מצטרף/ת אליך`, body: 'ייכנס/תיכנס לאפליקציה בקרוב. אפשר כבר לעבור על הפרטים מהטופס.' }
-    : { title: `🎓 ${who} is joining you`, body: "They'll be in the app soon. You can already read their form." };
+    ? { title: `🎓 ${who} מצטרף/ת אליך`, body: 'ייכנס/תיכנס לאפליקציה בקרוב. אפשר כבר להשלים את טופס ההתאמה: סוג ליווי, דבוקה ומטרה.' }
+    : { title: `🎓 ${who} is joining you`, body: "They'll be in the app soon. You can already fill in their coaching form: type, band and goal." };
 }
 
 /** The "אינסטגרם" switch turned on (roles screen): they now share the group's workouts. */

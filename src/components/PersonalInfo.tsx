@@ -27,12 +27,15 @@ interface PersonalInfoData {
   socksSize: SockSize | null;
   phone: string | null;
   discoverable: boolean;
+  /** Migration 155; optional so a row without the columns still round-trips. */
+  heightCm?: number | null;
+  weightKg?: number | null;
 }
 
 type EditField =
   | 'name' | 'birthDate' | 'gender' | 'shoeSize'
   | 'shirtSize' | 'pantsSize' | 'tightsSize' | 'socksSize'
-  | 'phone' | null;
+  | 'phone' | 'height' | 'weight' | null;
 
 // Athlete self-service personal info (name / birth date / gender / shoe size /
 // the four kit sizes / phone) — Settings detail screen. shirtSize/phone were already
@@ -55,6 +58,9 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
   const [socksSize, setSocksSize] = useState<SockSize | null>(null);
   const [phone, setPhone] = useState('');
   const [discoverable, setDiscoverable] = useState(true);
+  // Height and weight (migration 155): typed as text, saved as numbers.
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
   // Migration 147 — its own PUT, so it never rides the whole-form snapshot.
   const [hrTracePublic, setHrTracePublic] = useState(true);
   const [hrTraceAvailable, setHrTraceAvailable] = useState(false);
@@ -84,6 +90,8 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           socksSize: a?.socksSize || null,
           phone: a?.phone || null,
           discoverable: a?.discoverable ?? true,
+          heightCm: a?.heightCm ?? null,
+          weightKg: a?.weightKg ?? null,
         };
         setInitial(info);
         setName(info.name);
@@ -96,6 +104,8 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
         setSocksSize(info.socksSize);
         setPhone(info.phone || '');
         setDiscoverable(info.discoverable);
+        setHeight(info.heightCm != null ? String(info.heightCm) : '');
+        setWeight(info.weightKg != null ? String(info.weightKg) : '');
         setHrTracePublic(a?.hrTracePublic ?? true);
         setHrTraceAvailable(typeof a?.hrTracePublic === 'boolean');
       })
@@ -171,6 +181,8 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
     name, birthDate: birthDate || null, gender, shoeSize: shoeSize.trim() || null,
     shirtSize, pantsSize, tightsSize, socksSize,
     phone: phone.trim() || null, discoverable,
+    heightCm: height.trim() ? Number(height) : null,
+    weightKg: weight.trim() ? Number(weight.replace(',', '.')) : null,
     ...override,
   });
 
@@ -230,6 +242,20 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           valueMuted={!genderLabel}
           valueSuccess={!!genderLabel}
           onClick={() => setEditField('gender')}
+        />
+        <InsetRow
+          label={t('height')}
+          value={height ? `${height} ס״מ` : notSet}
+          valueMuted={!height}
+          valueSuccess={!!height}
+          onClick={() => setEditField('height')}
+        />
+        <InsetRow
+          label={t('weight')}
+          value={weight ? `${weight} ק״ג` : notSet}
+          valueMuted={!weight}
+          valueSuccess={!!weight}
+          onClick={() => setEditField('weight')}
         />
         <InsetRow
           label={t('shoeSize')}
@@ -348,6 +374,27 @@ export function PersonalInfo({ athleteId }: { athleteId: string }) {
           {t('saveChanges')}
         </Button>
       </Sheet>
+
+      {/* Height and weight (migration 155): a number each, saved with the rest. */}
+      {(['height', 'weight'] as const).map((field) => (
+        <Sheet key={field} open={editField === field} onOpenChange={o => !o && setEditField(null)} title={t(field)}>
+          <div className="mb-4 flex items-center gap-2">
+            <input
+              type="text"
+              inputMode={field === 'height' ? 'numeric' : 'decimal'}
+              value={field === 'height' ? height : weight}
+              onChange={e => (field === 'height' ? setHeight : setWeight)(e.target.value.replace(/[^\d.,]/g, ''))}
+              placeholder={field === 'height' ? '175' : '70'}
+              dir="ltr"
+              className="w-full px-3 py-2.5 rounded-xl bg-page/50 border border-page/50 text-[16px] text-ink-700 placeholder-ink-400 text-end focus:outline-none focus:border-brand-600/50"
+            />
+            <span className="shrink-0 text-sm font-bold text-ink-400">{field === 'height' ? 'ס״מ' : 'ק״ג'}</span>
+          </div>
+          <Button className="w-full" disabled={saving} onClick={() => { persist(snapshot({})); setEditField(null); }}>
+            {t('saveChanges')}
+          </Button>
+        </Sheet>
+      ))}
 
       {/* Gender edit sheet — a two-option exclusive choice, so selecting a
           segment saves and closes immediately (no extra "Save" tap needed). */}
