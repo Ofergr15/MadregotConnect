@@ -110,6 +110,12 @@ export interface EntryQueueMember {
    */
   unplaced?: boolean;
   /**
+   * For a Strava sign-in still waiting: the real address they left on the waiting
+   * screen (signup_requests.notify_email), or null when they left none — the card
+   * says plainly that approving them reaches nobody. Undefined for everyone else.
+   */
+  notifyEmail?: string | null;
+  /**
    * "Isn't this somebody we already have?" — the roster rows this sign-in resembles,
    * likeliest first, at most three. DISPLAY ONLY: ranked by `rankAthleteCandidates`
    * without the four-consonant floor the automatic matchers apply, so a short name

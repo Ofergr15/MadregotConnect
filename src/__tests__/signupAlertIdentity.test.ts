@@ -70,7 +70,7 @@ vi.mock('@/lib/email', () => ({
   },
 }));
 
-const { queuePendingStravaSignup } = await import('@/lib/signup-queue');
+const { queuePendingStravaSignup, announceSignupRequest } = await import('@/lib/signup-queue');
 
 const STRAVA_ID = 659081577;
 const SYNTHETIC = `strava_${STRAVA_ID}@strava.madregot.local`;
@@ -86,8 +86,11 @@ beforeEach(() => {
   athletes = { [ATHLETE_ID]: { name: `Strava ${STRAVA_ID}`, email: SYNTHETIC } };
 });
 
+// Since 2026-10-19 a Strava sign-in is announced when it leaves a real address on
+// the waiting screen, not at sign-in (POST /api/onboarding/notify-email); the naming
+// rules below are the announcement's, whichever moment calls it.
 const queue = (stravaName: string | null) =>
-  queuePendingStravaSignup({ athleteId: ATHLETE_ID, email: SYNTHETIC, stravaName });
+  announceSignupRequest({ athleteId: ATHLETE_ID, email: SYNTHETIC, stravaName });
 
 describe('the staff sign-up alert names the person trying to get in', () => {
   it('uses the name Strava gave, which is the common case', async () => {
@@ -151,11 +154,25 @@ describe('the staff sign-up alert names the person trying to get in', () => {
     expect(mailArgs!.email).toBe(SYNTHETIC);
   });
 
+  it('queues a Strava sign-in with no real address, but tells nobody yet', async () => {
+    // Approving somebody nothing can reach is the failure this holds back: the
+    // approvers hear about them once the waiting screen has their email.
+    const r = await queuePendingStravaSignup({ athleteId: ATHLETE_ID, email: SYNTHETIC, stravaName: 'Yosi Sabag' });
+    expect(r.queued).toBe(true);
+    expect(pushed).toBeNull();
+    expect(mailArgs).toBeNull();
+  });
+
+  it('shows the approvers the address they left, not the synthetic one', async () => {
+    await announceSignupRequest({ athleteId: ATHLETE_ID, email: SYNTHETIC, stravaName: 'Yosi Sabag', contactEmail: 'yosi@gmail.com' });
+    expect(mailArgs!.email).toBe('yosi@gmail.com');
+  });
+
   it('announces nothing when the person is already in the queue', async () => {
     // 23505 on the partial unique index over pending emails: pressing "sign in with
     // Strava" again while waiting is one fact, not two.
     insertError = { code: '23505' };
-    await queue('Yosi Sabag');
+    await queuePendingStravaSignup({ athleteId: ATHLETE_ID, email: 'yosi@gmail.com', stravaName: 'Yosi Sabag' });
     expect(pushed).toBeNull();
     expect(mailArgs).toBeNull();
   });

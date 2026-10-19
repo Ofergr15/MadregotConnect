@@ -3,6 +3,7 @@ import { notifyStaff } from '@/lib/notifications/staff';
 import { signupRequestCopy } from '@/lib/notifications/copy';
 import { notifyAdminNewSignupRequest } from '@/lib/email';
 import { signupAlertName } from '@/lib/signup';
+import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
 
 /**
  * Put a person in the approval queue, and tell the coaches they are standing there.
@@ -58,6 +59,37 @@ export async function queuePendingStravaSignup(input: {
       return { queued: false };
     }
 
+    // A Strava sign-in has no address we can write to, so it is not announced yet:
+    // the waiting screen asks for one first (required since 2026-10-19), and
+    // announceSignupRequest runs when it arrives (POST /api/onboarding/notify-email).
+    // Ringing the approvers now would have them approve somebody nothing can tell.
+    if (isSyntheticAuthEmail(input.email)) return { queued: true };
+
+    await announceSignupRequest({ athleteId: input.athleteId, email: input.email, stravaName: input.stravaName, groupName: input.groupName });
+    return { queued: true };
+  } catch (err) {
+    // Includes 42P01 if migration 083 was never applied in this environment.
+    console.error('Failed to queue a pending Strava signup:', err);
+    return { queued: false };
+  }
+}
+
+/**
+ * Tell the approvers somebody is waiting: a push, then the email. Best-effort, never
+ * throws. Called once per request — on arrival for a request with a real address,
+ * and when the address arrives for a Strava sign-in (see queuePendingStravaSignup).
+ */
+export async function announceSignupRequest(input: {
+  athleteId: string;
+  /** The row's identity address (synthetic for a Strava sign-in). */
+  email: string;
+  stravaName?: string | null;
+  groupName?: string | null;
+  /** The real address a Strava sign-in left on the waiting screen, shown to the approvers. */
+  contactEmail?: string | null;
+}): Promise<void> {
+  try {
+    const supabase = createServerClient();
     // The pending total rides along so a burst of sign-ups reads as one growing
     // queue rather than N interchangeable pings — same as the public form's.
     const { count } = await supabase
@@ -89,7 +121,7 @@ export async function queuePendingStravaSignup(input: {
 
     const who = signupAlertName({
       athleteName: athlete?.name,
-      providerName: input.stravaName,
+      providerName: input.stravaName ?? null,
       email: athlete?.email || input.email,
     });
 
@@ -113,7 +145,7 @@ export async function queuePendingStravaSignup(input: {
 
     try {
       await notifyAdminNewSignupRequest({
-        email: input.email,
+        email: input.contactEmail || input.email,
         name: who,
         groupName: input.groupName ?? null,
       });
@@ -121,10 +153,7 @@ export async function queuePendingStravaSignup(input: {
       console.error('Failed to email the approvers about a pending Strava signup:', mailErr);
     }
 
-    return { queued: true };
   } catch (err) {
-    // Includes 42P01 if migration 083 was never applied in this environment.
-    console.error('Failed to queue a pending Strava signup:', err);
-    return { queued: false };
+    console.error('Failed to announce a signup request:', err);
   }
 }

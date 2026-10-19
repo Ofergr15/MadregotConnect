@@ -14,10 +14,14 @@ export const dynamic = 'force-dynamic';
 const TOKEN = /^[A-Za-z0-9_-]{8,128}$/;
 
 export async function GET(request: Request) {
-  const t = new URL(request.url).searchParams.get('t') || '';
-  if (!TOKEN.test(t)) return new Response('bad token', { status: 400 });
+  const params = new URL(request.url).searchParams;
+  // `home=1`: the app itself, for the approval mail of somebody who already has an
+  // account (notifyUserApproved) and so has no personal link to carry.
+  const home = params.get('home') === '1';
+  const t = params.get('t') || '';
+  if (!home && !TOKEN.test(t)) return new Response('bad token', { status: 400 });
   const q = qrcode(0, 'M');
-  q.addData(joinLinkV2(APP_URL, t, true));
+  q.addData(home ? `${APP_URL}/` : joinLinkV2(APP_URL, t, true));
   q.make();
   const gif = Buffer.from(q.createDataURL(8, 4).split(',')[1], 'base64');
   return new Response(gif, {

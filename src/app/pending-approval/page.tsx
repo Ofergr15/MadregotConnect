@@ -12,7 +12,7 @@ import { useIsComputer } from '@/lib/install/use-computer';
 import {
   JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, JourneyTracker, NextCard, SecondaryButton,
 } from '@/components/onboarding/journey-ui';
-import { ApprovalEmailOptIn } from '@/components/onboarding/ApprovalEmailOptIn';
+import { ApprovalEmailSent, ApprovalEmailStep, useApprovalContact } from '@/components/onboarding/ApprovalEmailStep';
 
 // How often to ask whether they have been let in yet. The (app) layout uses 30s
 // for the same question on the same endpoint; this screen is faster because it is
@@ -51,6 +51,11 @@ function PendingApproval() {
   const [lettingIn, setLettingIn] = useState(false);
   // On a computer there is nothing to install: the tracker drops that step.
   const computer = useIsComputer();
+  // A Strava sign-in has no address of its own: the email step comes first, and the
+  // waiting screen then says where the news will go (ApprovalEmailStep, 2026-10-19).
+  const [contact, setContact] = useApprovalContact();
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
 
   const handleBackHome = async () => {
     await signOutEverywhere();
@@ -100,6 +105,46 @@ function PendingApproval() {
     };
   }, []);
 
+  // The claim card and the one way out, on the email step and the waiting screen alike.
+  const footer = (
+    <>
+      {/* Last, because for some of the people reading this screen it is simply
+          wrong: they are already members, and the only reason they are here is
+          that their Strava name could not be matched to their roster row. This
+          is their way back to their own account without anybody's help. */}
+      <JourneyCard className="py-3 [&>div]:mt-0 [&>div]:border-t-0 [&>div]:pt-0">
+        <ClaimExistingAccount />
+      </JourneyCard>
+      {/* Nothing to press while waiting. The one way out says what it does: it
+          signs out (it used to read "back to the home page"). */}
+      <SecondaryButton onClick={handleBackHome}>{t('pendingSignOut')}</SecondaryButton>
+    </>
+  );
+
+  // A beat while we ask whether an address is needed, so the waiting screen doesn't
+  // flash and then turn into the email step.
+  if (contact === null) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center" style={{ background: JOURNEY.page }}>
+        <Spinner size={20} tone="ink" />
+      </div>
+    );
+  }
+
+  const known = contact !== 'error' ? contact : null;
+  if (known?.needed && (!known.email || editingEmail)) {
+    return (
+      <ApprovalEmailStep
+        name={known.name}
+        initialEmail={known.email}
+        editing={editingEmail}
+        onSaved={(email) => { setContact({ ...known, email }); setEditingEmail(false); setJustSaved(true); window.scrollTo(0, 0); }}
+        onCancel={() => setEditingEmail(false)}
+        footer={editingEmail ? null : footer}
+      />
+    );
+  }
+
   // The same screen as "we got it" (register/RegisterReceived): one look, one
   // tracker, nothing to do but wait — and the install guide is NOT here: it is
   // shown once, after approval (journey spec 2026-10-10).
@@ -110,6 +155,11 @@ function PendingApproval() {
         hero={<JourneyHero eyebrow={t('pendingEyebrow')} title={t('pendingTitle')} subtitle={t('pendingSubtitle')} />}
       >
         <JourneyTracker done={1} computer={computer} />
+
+        {known?.needed && known.email && (
+          <ApprovalEmailSent email={known.email} justSaved={justSaved} onFix={() => setEditingEmail(true)} />
+        )}
+
         <NextCard label={t('pendingNextLabel')} title={t('pendingNextTitle')}>{t('pendingNextBody')}</NextCard>
 
         {/* The promise the screen can actually keep, in place of the email it
@@ -131,21 +181,7 @@ function PendingApproval() {
           <JourneyRow icon="⌚" title={t('pendingWatchTitle')} sub={t('pendingWatchSub')} />
         </JourneyCard>
 
-        {/* For the one member nothing else can reach: a Strava sign-in has no real
-            address, and an iPhone Safari tab gets no push (analysis 2026-10-10).
-            Renders only when the address on file is synthetic. */}
-        <ApprovalEmailOptIn />
-
-        {/* Last, because for some of the people reading this screen it is simply
-            wrong: they are already members, and the only reason they are here is
-            that their Strava name could not be matched to their roster row. This
-            is their way back to their own account without anybody's help. */}
-        <JourneyCard className="py-3 [&>div]:mt-0 [&>div]:border-t-0 [&>div]:pt-0">
-          <ClaimExistingAccount />
-        </JourneyCard>
-        {/* Nothing to press while waiting. The one way out says what it does: it
-            signs out (it used to read "back to the home page"). */}
-        <SecondaryButton onClick={handleBackHome}>{t('pendingSignOut')}</SecondaryButton>
+        {footer}
       </JourneyScreen>
       <ApprovalPushOptIn />
     </>

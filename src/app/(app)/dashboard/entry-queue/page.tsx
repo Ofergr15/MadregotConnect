@@ -878,6 +878,22 @@ export default function EntryQueuePage() {
                   </span>
                 </div>
 
+                {/* How the approval will reach a waiting Strava sign-in — the one
+                    member who has no address of their own on file (2026-10-19). */}
+                {m.notifyEmail !== undefined && (
+                  m.notifyEmail ? (
+                    <p className="mt-2 text-[13px] font-semibold text-accent-900 flex items-start gap-1.5" dir="rtl">
+                      <Mail className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span dir="auto">{t('notifyByEmail', { email: m.notifyEmail })}</span>
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-[13px] font-semibold text-accent-red flex items-start gap-1.5" dir="rtl">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span>{t('notifyNone')}</span>
+                    </p>
+                  )
+                )}
+
                 {/* The track: where they got to, and the step that stopped them. */}
                 <FlowTrack
                   reached={flow.reached}

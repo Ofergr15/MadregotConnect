@@ -28,10 +28,11 @@ describe('a pending member can leave an email', () => {
   });
   it('the approval mails that address when the member\'s own is synthetic, and never writes it onto the athlete row', () => {
     const approve = read('app/api/admin/approve/route.ts');
-    expect(approve).toMatch(/if \(isSynthetic\(athlete\.email\)\) \{[\s\S]{0,400}notify_email[\s\S]{0,300}notifyUserApproved\(\{ name: athlete\.name, email: to \}\)/);
+    expect(approve).toMatch(/if \(isSynthetic\(athlete\.email\)\) \{[\s\S]{0,400}notify_email[\s\S]{0,700}notifyUserApproved\(\{ name: athlete\.name, email: to, [\s\S]{0,200}via: 'strava' \}\)/);
     const route = read('app/api/onboarding/notify-email/route.ts');
     expect(route).toMatch(/from\('signup_requests'\)/);
-    expect(route).not.toMatch(/from\('athletes'\)/);
+    // Read for the name and group, but the address is never written there.
+    expect(route).not.toMatch(/from\('athletes'\)\.update\(\{[^}]*email/);
   });
   it('the daily reminder runs from the tick at 09:00', () => {
     expect(read('app/api/cron/tick/route.ts')).toMatch(/if \(hour === 9\) \{\s+try \{\s+const waiting = await runPendingReminders/);

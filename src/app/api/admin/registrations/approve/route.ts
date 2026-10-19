@@ -275,7 +275,7 @@ export async function POST(request: Request) {
       // /api/admin/approve sends them.
       const left = (reqRow as { notify_email?: string | null }).notify_email;
       if (left) {
-        const mail = await notifyUserApproved({ name: existing?.name || reqRow.full_name || '', email: left });
+        const mail = await notifyUserApproved({ name: existing?.name || reqRow.full_name || '', email: left, groupName, via: 'strava' });
         emailed = mail.ok;
         emailReason = mail.ok ? null : mail.code;
       } else {

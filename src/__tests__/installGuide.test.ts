@@ -146,9 +146,9 @@ describe('the approval message', () => {
     expect(read('app/(app)/dashboard/entry-queue/page.tsx')).toMatch(/approvalWhatsAppText\(a\.url, a\.groupName, a\.fullName\)/);
   });
 
-  it('the QR endpoint only draws our own join link', () => {
+  it('the QR endpoint only draws our own links: a join link, or the app itself', () => {
     const qr = read('app/api/public/qr/route.ts');
-    expect(qr).toMatch(/q\.addData\(joinLinkV2\(APP_URL, t, true\)\)/);
+    expect(qr).toMatch(/q\.addData\(home \? `\$\{APP_URL\}\/` : joinLinkV2\(APP_URL, t, true\)\)/);
     expect(qr).toMatch(/const TOKEN = \/\^\[A-Za-z0-9_-\]\{8,128\}\$\/;/);
   });
 });

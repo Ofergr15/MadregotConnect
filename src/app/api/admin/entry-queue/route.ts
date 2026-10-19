@@ -183,6 +183,15 @@ export async function GET(request: Request) {
     const { data: subs } = await supabase.from('push_subscriptions').select('athlete_id');
     const pushed = new Set((subs || []).map((s: { athlete_id: string }) => s.athlete_id));
 
+    // The address each waiting Strava sign-in left (migration 140): how the approval
+    // will reach them, shown on their card. Missing column = nobody has one.
+    const notifyEmails = new Map<string, string>();
+    {
+      const { data: left } = await supabase.from('signup_requests').select('athlete_id, notify_email')
+        .eq('status', 'pending').not('athlete_id', 'is', null).not('notify_email', 'is', null);
+      for (const r of (left || []) as Array<{ athlete_id: string; notify_email: string }>) notifyEmails.set(r.athlete_id, r.notify_email);
+    }
+
     // The login evidence. Null = we couldn't look; see readAuthFacts.
     const authFacts = await readAuthFacts(supabase);
 
@@ -258,6 +267,7 @@ export async function GET(request: Request) {
         // soft. A removal nobody can find again is a delete with extra steps.
         removed: isRemoved(a as { status?: string | null }),
         unplaced,
+        ...(!approved && isSyntheticAuthEmail(email) ? { notifyEmail: notifyEmails.get(id) ?? null } : {}),
         // Excludes the shell itself, or it suggests the person to themselves.
         matchCandidates: unplaced
           ? rankAthleteCandidates(roster.filter((r) => r.id !== id), (a.name as string) || null).map((c) => ({

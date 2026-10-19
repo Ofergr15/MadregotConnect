@@ -89,24 +89,43 @@ export async function notifyAdminNewUser(user: {
   });
 }
 
-export async function notifyUserApproved(user: { name: string; email: string }): Promise<SendResult> {
+export async function notifyUserApproved(user: {
+  name: string;
+  email: string;
+  groupName?: string | null;
+  /** How they get in once installed: a Strava sign-in logs in with Strava again, not a code. */
+  via?: 'strava' | 'code';
+}): Promise<SendResult> {
   // The approval mail for someone who is already signed in (a Strava member on the
-  // waiting screen, the address they left there): /api/admin/approve. A /register
-  // applicant gets notifyRegistrationApproved instead — that route marks the row
-  // approved, so this one returns "Already approved" and sends nothing: one approval
-  // mail per member. Same structure as that one: the tracker, the next step, one button.
+  // waiting screen, the address they left there): /api/admin/approve and
+  // /api/admin/registrations/approve. A /register applicant gets
+  // notifyRegistrationApproved instead — one approval mail per member. Since
+  // 2026-10-19 it is the same mail as that one (tracker, three install steps, QR,
+  // Safari tip) without the personal link: they have an account already, so the
+  // button opens the app and step 3 says how they log in.
   const first = firstName(user.name);
+  const group = user.groupName ? memberGroupName(user.groupName) : '';
+  const placed = group ? `שובצתם לקבוצה: ${group}. ` : '';
+  const strava = user.via === 'strava';
   return sendEmail({
     template: 'user_approved',
     to: user.email,
-    subject: '✅ ההרשמה שלכם אושרה · ברוכים הבאים למדרגות',
+    subject: first ? `✅ ההרשמה אושרה, ${first}! נכנסים למדרגות` : '✅ ההרשמה שלכם אושרה · ברוכים הבאים למדרגות',
     html: renderEmail({
       eyebrow: 'ההרשמה אושרה',
       title: first ? `${first}, ההרשמה שלכם אושרה 🎉` : 'ההרשמה שלכם אושרה 🎉',
-      preheader: 'נכנסים לאפליקציה ומתחילים לרוץ איתנו.',
-      paragraphs: ['המאמן אישר את ההצטרפות. נשאר רק להיכנס.'],
-      bodyHtml: renderJourney(2) + renderNextUp('הבא בתור', 'פותחים את מדרגות בטלפון', 'מוסיפים אותה למסך הבית ונכנסים כמו בפעם הקודמת (עם Strava, אם נכנסתם כך).'),
-      cta: { label: 'לפתיחת מדרגות ←', href: `${APP_URL}/feed` },
+      preheader: 'נשארה דקה אחת: להוסיף את האפליקציה למסך הבית ולהיכנס.',
+      paragraphs: [`${placed}ברוכים הבאים למדרגות!`],
+      bodyHtml: renderJourney(2)
+        + renderNextUp('הבא בתור', 'מתקינים את האפליקציה בטלפון', 'דקה אחת, והמסך יראה לכם בדיוק איך.')
+        + renderSteps([
+          { title: 'פותחים את הכפתור בטלפון', sub: 'לא במחשב' },
+          { title: 'מוסיפים למסך הבית', sub: 'המסך יראה לכם בדיוק איך' },
+          strava ? { title: 'נכנסים עם Strava', sub: 'כמו בפעם הקודמת' } : { title: 'פותחים מהאייקון ונכנסים', sub: 'קוד קצר במייל' },
+        ]),
+      cta: { label: 'לפתיחת מדרגות ←', href: `${APP_URL}/` },
+      afterCtaHtml: renderScanOnPhone(`${APP_URL}/api/public/qr?home=1`)
+        + renderTip('💡 באייפון ההתקנה עובדת רק דרך <b>Safari</b>. אם המייל נפתח בתוך Gmail, המסך הראשון יסביר איך לעבור.'),
       notes: ['משהו לא עובד? פשוט תשיבו למייל הזה, ונעזור.'],
     }),
     replyTo: ADMIN_EMAIL,

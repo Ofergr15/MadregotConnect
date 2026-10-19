@@ -151,7 +151,12 @@ export async function POST(req: NextRequest) {
                 .eq('athlete_id', athleteId).not('notify_email', 'is', null)
                 .order('created_at', { ascending: false }).limit(1).maybeSingle();
               const to = (reqRow as { notify_email?: string | null } | null)?.notify_email;
-              if (to) await notifyUserApproved({ name: athlete.name, email: to });
+              if (to) {
+                const { data: g } = athlete.group_id
+                  ? await supabase.from('groups').select('name').eq('id', athlete.group_id).maybeSingle()
+                  : { data: null };
+                await notifyUserApproved({ name: athlete.name, email: to, groupName: (g as { name?: string } | null)?.name ?? null, via: 'strava' });
+              }
             }
           }
           if (approverEmail) {
