@@ -610,7 +610,7 @@ export async function notifyAcademyInvite(p: {
   email: string; name?: string | null; url: string; note?: string | null; senderName?: string | null; candidateId: string;
 }): Promise<SendResult> {
   const built = academyInviteEmail(p);
-  return sendEmail({ template: 'academy_invite', to: p.email, candidateId: p.candidateId, ...built });
+  return sendEmail({ template: 'academy_invite', to: p.email, fromName: ACADEMY_SENDER, replyTo: ADMIN_EMAIL, candidateId: p.candidateId, ...built });
 }
 
 export function academyFormReceivedEmail(p: { name?: string | null }): BuiltEmail {
@@ -631,11 +631,51 @@ export async function notifyAcademyFormReceived(p: { email: string; name?: strin
 
 /** `token` null = somebody who already has an account (a club member joining the
  *  academy): there is nothing to set up, so the button opens the app instead. */
+/**
+ * The install section every academy "come in" mail carries (Ofer, 2026-10-19: the mail has
+ * to get the trainee into the app): the tracker, three steps, the button to /join with the
+ * install guide (?onb=v2), a QR for a computer and the Safari tip — the club approval
+ * mail's, which is the one that worked. Replies go to a person (see the senders below).
+ */
+function academyInstallBlocks(token: string) {
+  return {
+    bodyHtml: renderJourney(2)
+      + renderNextUp('הבא בתור', 'מתקינים את האפליקציה בטלפון', 'דקה אחת, והמסך יראה לך בדיוק איך.')
+      + renderSteps([
+        { title: 'פותחים את הכפתור בטלפון', sub: 'לא במחשב' },
+        { title: 'מוסיפים למסך הבית', sub: 'המסך יראה לך בדיוק איך' },
+        { title: 'פותחים מהאייקון ונכנסים', sub: 'עם Strava או קוד במייל' },
+      ]),
+    cta: { label: 'להתקנת האפליקציה ←', href: joinLinkV2(APP_URL, token, true) },
+    afterCtaHtml: renderScanOnPhone(`${APP_URL}/api/public/qr?t=${encodeURIComponent(token)}`)
+      + renderTip('💡 באייפון ההתקנה עובדת רק דרך <b>Safari</b>. אם המייל נפתח בתוך Gmail, המסך הראשון יסביר איך לעבור.'),
+    notes: ['הקישור אישי — אל תעבירו אותו לאף אחד.', 'נתקעת? פשוט להשיב למייל הזה.'],
+  };
+}
+
+const coachLineOf = (coachName?: string | null, coachCount?: number) => {
+  const coach = (coachName || '').trim();
+  if (!coach) return '';
+  // Several coaches (migration 135): `coachName` is already "Dana ו־Guy".
+  return (coachCount ?? 1) > 1 ? `המאמנים שלך: ${coach}.` : `המאמן/ת שלך: ${coach}.`;
+};
+
 export function academyAcceptedEmail(p: { name?: string | null; token: string | null; coachName?: string | null; coachCount?: number }): BuiltEmail {
   const who = firstName(p.name);
+  const coachLine = coachLineOf(p.coachName, p.coachCount);
+  if (p.token) {
+    return {
+      subject: '🎉 התקבלת לאקדמיה של מדרגות — ככה נכנסים לאפליקציה',
+      html: renderEmail({
+        eyebrow: 'האקדמיה של מדרגות',
+        title: who ? `${who}, התקבלת! 🎉` : 'התקבלת! 🎉',
+        preheader: 'נשארה דקה אחת: להתקין את האפליקציה ולהיכנס.',
+        paragraphs: [`ברוך/ה הבא/ה לאקדמיה. ${coachLine} התוכנית, האימונים והמשוב יגיעו אליך באפליקציה.`.replace(/\s+/g, ' ').trim()],
+        ...academyInstallBlocks(p.token),
+      }),
+    };
+  }
   const coach = (p.coachName || '').trim();
-  // Several coaches (migration 135): `coachName` is already "Dana ו־Guy".
-  const coachLine = (p.coachCount ?? 1) > 1 ? `המאמנים שלך: ${coach}` : `המאמן/ת שלך: ${coach}`;
   return {
     subject: '🎉 התקבלת לאקדמיה של מדרגות',
     html: renderEmail({
@@ -644,7 +684,7 @@ export function academyAcceptedEmail(p: { name?: string | null; token: string | 
       preheader: 'שלב אחרון: להתחבר עם Strava — דקה וזה נגמר.',
       paragraphs: [
         coach
-          ? `ברוך/ה הבא/ה לאקדמיה. ${coachLine}. מכאן התוכנית, האימונים והמשוב יגיעו אליך ישירות.`
+          ? `ברוך/ה הבא/ה לאקדמיה. ${coachLine} מכאן התוכנית, האימונים והמשוב יגיעו אליך ישירות.`
           : 'ברוך/ה הבא/ה לאקדמיה. מכאן התוכנית, האימונים והמשוב יגיעו אליך ישירות.',
         ...(p.token
           ? [
@@ -666,9 +706,39 @@ export async function notifyAcademyAccepted(p: {
 }): Promise<SendResult> {
   const built = academyAcceptedEmail(p);
   return sendEmail({
-    template: 'academy_accepted', to: p.email,
+    template: 'academy_accepted', to: p.email, fromName: ACADEMY_SENDER, replyTo: ADMIN_EMAIL,
     athleteId: p.athleteId ?? null, candidateId: p.candidateId ?? null, ...built,
   });
+}
+
+/**
+ * Somebody who already trains with the academy and is not in the app yet (MoveInPanel,
+ * "עוד לא באפליקציה"): no form and no approval — the academy is moving into the app, and
+ * this is their way in. Same install section as the acceptance.
+ */
+export function academyMoveInEmail(p: { name?: string | null; token: string; coachName?: string | null; coachCount?: number }): BuiltEmail {
+  const who = firstName(p.name);
+  const coach = (p.coachName || '').trim();
+  return {
+    subject: '🎓 האקדמיה של מדרגות עוברת לאפליקציה — ככה נכנסים',
+    html: renderEmail({
+      eyebrow: 'האקדמיה של מדרגות',
+      title: who ? `${who}, האקדמיה עוברת לאפליקציה` : 'האקדמיה עוברת לאפליקציה',
+      preheader: 'בלי טופס ובלי לחכות: מתקינים ונכנסים, דקה אחת.',
+      paragraphs: [
+        `מעכשיו התוכנית שלך, הקצבים לשעון והמשוב${coach ? ` מ־${coach}` : ''} נמצאים באפליקציה של מדרגות, במקום אחד.`,
+        'אין טופס ואין מה למלא — הפרטים שלך כבר אצלנו.',
+      ],
+      ...academyInstallBlocks(p.token),
+    }),
+  };
+}
+
+export async function notifyAcademyMoveIn(p: {
+  email: string; name?: string | null; token: string; coachName?: string | null; coachCount?: number; athleteId?: string | null;
+}): Promise<SendResult> {
+  const built = academyMoveInEmail(p);
+  return sendEmail({ template: 'academy_move_in', to: p.email, fromName: ACADEMY_SENDER, replyTo: ADMIN_EMAIL, athleteId: p.athleteId ?? null, ...built });
 }
 
 /**
@@ -684,7 +754,7 @@ export async function notifyAcademyApproved(user: {
   athleteId?: string | null;
 }): Promise<SendResult> {
   const built = academyAcceptedEmail({ name: user.name, token: user.token });
-  return sendEmail({ template: 'academy_approved', to: user.email, athleteId: user.athleteId ?? null, ...built });
+  return sendEmail({ template: 'academy_approved', to: user.email, fromName: ACADEMY_SENDER, replyTo: ADMIN_EMAIL, athleteId: user.athleteId ?? null, ...built });
 }
 
 // ── Academy weekly report ────────────────────────────────────────────────────────

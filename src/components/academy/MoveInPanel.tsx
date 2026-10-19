@@ -80,7 +80,7 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
   const [mode, setMode] = useState<'club' | 'invite'>('club');
   const [inv, setInv] = useState({ name: '', email: '', phone: '' });
   const [groupId, setGroupId] = useState<string | null>(null);
-  const [invited, setInvited] = useState<{ url: string; name: string; phone: string; email: string } | null>(null);
+  const [invited, setInvited] = useState<{ url: string; name: string; phone: string; email: string; emailed: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
   const { data: groupsData } = useApi<{ groups?: Array<{ id: string; name: string }> }>(mode === 'invite' ? '/api/groups' : null);
   const groups = groupsData?.groups ?? [];
@@ -115,7 +115,7 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
       const json = await res.json().catch(() => ({}));
       if (res.status === 409 && json.error === 'already_in_app') { setError(`${json.name || 'הוא'} כבר באפליקציה — מעבירים מהלשונית "מהמועדון".`); return; }
       if (!res.ok || !json.url) { setError(json.error || 'ההזמנה לא נוצרה'); return; }
-      setInvited({ url: json.url, name: inv.name.trim(), phone: inv.phone.trim(), email: inv.email.trim().toLowerCase() });
+      setInvited({ url: json.url, name: inv.name.trim(), phone: inv.phone.trim(), email: inv.email.trim().toLowerCase(), emailed: json.emailed === true });
       await onDone();
     } catch {
       setError('ההזמנה לא נוצרה');
@@ -184,6 +184,11 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
       <div>
         <div className="rounded-card bg-card p-4">
           <p className="text-[15px] font-bold text-ink-700">ההזמנה של {firstName(invited.name)} מוכנה</p>
+          <p className={invited.emailed ? 'mt-1 text-[13px] font-semibold text-accent-600' : 'mt-1 text-[13px] font-semibold text-[#8A5A00]'}>
+            {invited.emailed
+              ? <>📧 נשלח מייל ל־<bdi dir="ltr">{invited.email}</bdi> עם ההתקנה והכניסה. המאמן/ת קיבל/ה התראה.</>
+              : <>המייל לא נשלח — אפשר לשלוח את הקישור בוואטסאפ.</>}
+          </p>
           <p className="mt-0.5 text-xs leading-relaxed text-ink-400">קישור אישי שכבר מאושר: נכנסים ישר לאקדמיה{coach ? `, עם ${coach}` : ''}. בלי טופס ובלי ״ממתין לאישור״.</p>
           <p className="mt-2.5 select-all break-all rounded-xl bg-page px-3 py-2 text-xs text-ink-700"><bdi dir="ltr">{invited.url}</bdi></p>
         </div>

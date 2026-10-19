@@ -714,11 +714,23 @@ export function academyTraineesAssignedCopy(
   if (locale === 'he') {
     return names.length > 1
       ? { title: `🎓 ${names.length} מתאמנים חדשים אצלך`, body: `${names.slice(0, 3).join(', ')}${names.length > 3 ? ' ועוד' : ''}. לחיצה פותחת את המתאמנים שלך.` }
-      : { title: `🎓 מתאמן חדש אצלך: ${first}`, body: 'לחיצה פותחת את המתאמנים שלך באקדמיה.' };
+      : { title: `🎓 מתאמן חדש אצלך: ${first}`, body: 'אפשר כבר להתחיל לבנות לו/ה תוכנית. לחיצה פותחת את הכרטיס.' };
   }
   return names.length > 1
     ? { title: `🎓 ${names.length} new trainees for you`, body: `${names.slice(0, 3).join(', ')}${names.length > 3 ? ' and more' : ''}. Tap to open your trainees.` }
-    : { title: `🎓 New trainee: ${first}`, body: 'Tap to open your academy trainees.' };
+    : { title: `🎓 New trainee: ${first}`, body: 'You can start building their plan. Tap to open their card.' };
+}
+
+/**
+ * To the trainee's coaches, the moment the trainee first comes into the app (Ofer,
+ * 2026-10-19: "after the trainee enters their details the coach gets a message that the
+ * trainee registered and they need to continue").
+ */
+export function academyTraineeJoinedCopy(locale: NotificationLocale, p: { name: string }): PushCopy {
+  const who = (p.name || '').trim() || SOMEONE[locale];
+  return locale === 'he'
+    ? { title: `✅ ${who} נכנס/ה לאפליקציה`, body: 'זה הזמן לבנות את התוכנית הראשונה. לחיצה פותחת את הכרטיס.' }
+    : { title: `✅ ${who} is in the app`, body: 'Time to build their first plan. Tap to open their card.' };
 }
 
 /** The "אינסטגרם" switch turned on (roles screen): they now share the group's workouts. */

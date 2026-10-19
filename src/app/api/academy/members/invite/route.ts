@@ -6,6 +6,11 @@ import { requireAcademyManager, setPairCoaches } from '@/lib/academy/pairing-ser
 import { holdsAcademyCoachRole } from '@/lib/academy/coaches';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { israelToday } from '@/lib/utils';
+import { notifyAcademyMoveIn } from '@/lib/email';
+import { notifyAthlete } from '@/lib/push';
+import { academyTraineesAssignedCopy } from '@/lib/notifications/copy';
+import { academyThreadUrl } from '@/lib/academy/deep-links';
+import { joinHebrewList } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,7 +80,27 @@ export async function POST(request: Request) {
       if (!paired.ok) console.warn('academy invite: coaches not set for', athleteId);
     }
     await supabase.from('academy_candidates').insert({ name, source: 'existing', athlete_id: athleteId, accepted_at: new Date().toISOString(), ...(phone ? { phone } : {}), email });
-    return NextResponse.json({ athleteId, url: `${APP_URL}/join/${token}`, invitedBy: caller.athleteId });
+
+    // The way in, by email (Ofer, 2026-10-19), unless the manager asked for the link only —
+    // and the coaches hear now that the trainee is theirs, so the plan can start.
+    const { data: coachRows } = coachIds.length
+      ? await supabase.from('athletes').select('id, name').in('id', coachIds)
+      : { data: [] as Array<{ id: string; name: string | null }> };
+    const coachNames = ((coachRows || []) as Array<{ id: string; name: string | null }>).map((c) => (c.name || '').trim().split(/\s+/)[0]).filter(Boolean);
+    let emailed = false;
+    if (b.sendEmail !== false) {
+      const sent = await notifyAcademyMoveIn({ email, name, token, coachName: joinHebrewList(coachNames), coachCount: coachNames.length, athleteId })
+        .catch((err: unknown) => { console.error('academy invite: move-in email failed:', err); return null; });
+      emailed = !!sent && sent.ok;
+    }
+    await Promise.all(coachIds.filter((c) => c !== caller.athleteId).map((c) => notifyAthlete({
+      athleteId: c, kind: 'academy_trainee_assigned', actorAthleteId: caller.athleteId,
+      copy: (locale) => academyTraineesAssignedCopy(locale, { names: [name] }),
+      url: academyThreadUrl({ recipientIsStaff: true, traineeId: athleteId }),
+      tag: `academy-trainee-${athleteId}`,
+    }).catch((err: unknown) => console.error('academy invite: coach push failed:', err))));
+
+    return NextResponse.json({ athleteId, url: `${APP_URL}/join/${token}`, invitedBy: caller.athleteId, emailed });
   } catch (error) {
     console.error('POST /api/academy/members/invite error:', error);
     return NextResponse.json({ error: 'Failed to create the invitation' }, { status: 500 });

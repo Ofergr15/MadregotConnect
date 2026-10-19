@@ -36,6 +36,7 @@ export const LOOP_KINDS = {
   paceUpdate: 'academy_pace_update',
   missedWeek: 'academy_missed_week',
   removed: 'academy_removed',
+  traineeJoined: 'academy_trainee_joined',
 } as const;
 
 // ── Copy ────────────────────────────────────────────────────────────────────
@@ -133,6 +134,30 @@ async function nameOf(supabase: Db, id: string | null | undefined): Promise<stri
 
 function quiet(p: Promise<unknown>, what: string): Promise<void> {
   return p.then(() => undefined, (err) => { console.error(`academy loop push (${what}) failed:`, err); });
+}
+
+// ── Sends: to the coaches ───────────────────────────────────────────────────
+
+/**
+ * An academy trainee came into the app for the first time (their invited → active flip:
+ * Strava on /join, an email code, or Garmin through /api/athletes/connect). Tells their
+ * coaches — the managers when none is set — and opens the trainee's card. Never throws.
+ */
+export function notifyTraineeJoined(supabase: Db, athleteId: string): Promise<void> {
+  return quiet((async () => {
+    const { data } = await supabase.from('athletes').select('name, is_academy').eq('id', athleteId).maybeSingle();
+    const row = data as { name?: string | null; is_academy?: boolean | null } | null;
+    if (!row?.is_academy) return;
+    const { academyTraineeJoinedCopy } = await import('@/lib/notifications/copy');
+    const name = (row.name || '').trim();
+    const to = await coachesOrManagers(supabase, athleteId);
+    await Promise.all(to.map((coachId) => notifyAthlete({
+      athleteId: coachId, kind: LOOP_KINDS.traineeJoined, actorAthleteId: athleteId,
+      url: academyThreadUrl({ recipientIsStaff: true, traineeId: athleteId }),
+      tag: `academy-joined-${athleteId}`, category: 'coach',
+      copy: (locale) => academyTraineeJoinedCopy(locale, { name }),
+    })));
+  })(), 'trainee joined');
 }
 
 // ── Sends: to the trainee ───────────────────────────────────────────────────

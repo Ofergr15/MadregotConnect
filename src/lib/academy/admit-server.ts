@@ -14,6 +14,7 @@ import { academyTraineesAssignedCopy, approvalCopy } from '@/lib/notifications/c
 import { inviteUrl, isInviteFresh } from './intake';
 import { isAcademyManager, setPairCoaches } from './pairing-server';
 import { coachIdsOf, hasTraineeCoachesTable, joinHebrewList } from './trainee-coaches';
+import { academyThreadUrl } from './deep-links';
 import { applyAcademyMembership } from './membership-server';
 import { holdsAcademyCoachRole } from '@/lib/academy/coaches';
 
@@ -237,8 +238,9 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
       kind: 'academy_trainee_assigned',
       actorAthleteId: caller.athleteId,
       copy: (locale) => academyTraineesAssignedCopy(locale, { names: [card.name || athlete.name] }),
-      url: '/dashboard/academy?tab=members',
-      tag: 'academy-trainees',
+      // Their card, where the plan is built — not the whole list.
+      url: academyThreadUrl({ recipientIsStaff: true, traineeId: athlete.id }),
+      tag: `academy-trainee-${athlete.id}`,
     }).catch((err: unknown) => console.error('Accept: coach push failed:', err))),
   ]);
 

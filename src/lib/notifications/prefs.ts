@@ -141,6 +141,7 @@ export const KIND_CATEGORY: Record<string, Category> = {
   academy_band_set: 'coach',
   academy_pace_update: 'coach',
   academy_removed: 'coach',
+  academy_trainee_joined: 'coach',
   academy_plan_saved: 'program',
   academy_missed_week: 'program',
   // To the coach: the trainee confirmed a test slot / submitted a result.

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase/server';
 import { createSyntheticSession } from '@/lib/auth/synthetic-session';
@@ -115,7 +115,12 @@ export async function POST(request: Request) {
       await supabase.from('login_codes').delete().eq('email', email);
       // Approved but still 'invited' reads as "access removed" once inside; signing
       // in IS joining, the same flip /api/athletes/connect makes.
-      if (member.status === 'invited') await supabase.from('athletes').update({ status: 'active' }).eq('id', member.id);
+      if (member.status === 'invited') {
+        await supabase.from('athletes').update({ status: 'active' }).eq('id', member.id);
+        // An academy trainee's first time in: their coaches hear it (lib/academy/loop-notify).
+        const { notifyTraineeJoined } = await import('@/lib/academy/loop-notify');
+        after(() => notifyTraineeJoined(supabase, member.id));
+      }
 
       const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
         auth: { autoRefreshToken: false, persistSession: false },

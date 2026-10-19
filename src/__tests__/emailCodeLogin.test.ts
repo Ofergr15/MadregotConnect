@@ -29,7 +29,7 @@ describe('sign in with a code by email', () => {
     expect(r).toMatch(/\(count \?\? 0\) >= MAX_SENDS/);
     expect(r).toMatch(/row\.attempts >= MAX_ATTEMPTS/);
     expect(r).toMatch(/await supabase\.from\('login_codes'\)\.delete\(\)\.eq\('email', email\);/);
-    expect(r).toMatch(/if \(member\.status === 'invited'\) await supabase\.from\('athletes'\)\.update\(\{ status: 'active' \}\)/);
+    expect(r).toMatch(/if \(member\.status === 'invited'\) \{\s*await supabase\.from\('athletes'\)\.update\(\{ status: 'active' \}\)/);
     expect(r).toMatch(/createSyntheticSession\(admin, email,/);
   });
 
