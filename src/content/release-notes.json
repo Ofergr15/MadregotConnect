@@ -1,5 +1,15 @@
 [
   {
+    "id": "birthday-year-variants",
+    "date": "2026-10-19",
+    "kind": "feature",
+    "icon": "🎂",
+    "audience": "staff",
+    "title": "כל סטורי יום הולדת קצת אחר",
+    "body": "הסטורי של \"השנה שלך\" כבר לא זהה לכולם: רקעים של המועדון, ניסוחים שונים, והשקפים מסודרים לפי מה שהכי חזק אצל כל אחד. ריצה שנשמרה פעמיים נספרת פעם אחת.",
+    "href": "/dashboard/birthdays"
+  },
+  {
     "id": "session-done-today",
     "date": "2026-10-19",
     "kind": "feature",
