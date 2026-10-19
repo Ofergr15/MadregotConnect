@@ -2499,7 +2499,16 @@
     "runsFolded": "{n} ריצות של הקבוצה",
     "runsMore": "ועוד {n}",
     "runsOpen": "לפתיחה",
-    "runsClose": "לסגירה"
+    "runsClose": "לסגירה",
+    "waitingTitle": "מחכה לתשובה שלך",
+    "howWasIt": "איך היה?",
+    "feelN": "הרגשה {n} מתוך 5",
+    "repeated": "נשלח {n} פעמים — מוצג פעם אחת",
+    "likesFolded": "{name} {n, plural, one {ועוד אחד} other {ועוד #}} נתנו לך כיף 👍",
+    "reportsFolded": "{n} דיווחים שלך טופלו ✅",
+    "surveysClosed": "{n, plural, one {סקר קודם אחד} other {# סקרים קודמים}}",
+    "surveysClosedSub": "נסגרו · מ-{date}",
+    "closedTag": "נסגר"
   },
   "notificationPrefs": {
     "pushHeader": "פוש",

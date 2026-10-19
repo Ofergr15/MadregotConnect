@@ -21,7 +21,7 @@ describe('shapeInboxItem', () => {
     expect(item).toEqual({
       id: 'n1', kind: 'like', title: 'כותרת', body: 'תוכן',
       url: '/dashboard/feed', sentAt: '2026-01-02T00:00:00.000Z', unread: true,
-      actorName: 'Alice', actorAvatarUrl: 'https://x/a.png',
+      actorName: 'Alice', actorAvatarUrl: 'https://x/a.png', toAll: false,
     });
   });
 

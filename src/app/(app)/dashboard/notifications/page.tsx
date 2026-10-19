@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck, ThumbsUp, CheckCircle2, XCircle, SlidersHorizontal, Footprints } from 'lucide-react';
+import { Bell, MessageSquare, Trophy, Flame, Calendar, Activity, CheckCheck, ThumbsUp, CheckCircle2, XCircle, SlidersHorizontal, Footprints, Archive, Bug, Gauge } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApi, apiHeaders } from '@/lib/api';
 import { useAthleteId } from '@/lib/use-athlete-id';
@@ -18,10 +18,14 @@ import {
   styleKindFor,
   kudosActivityId,
   rsvpTarget,
-  foldRuns,
+  foldInbox,
   foldNames,
   isClubItem,
+  waitingFor,
+  closedSurveyIds,
+  broadcastCopyIds,
 } from '@/lib/notifications/history';
+import { TomorrowSession } from '@/components/home/TomorrowCard';
 
 // Locale-aware relative time — "now" / "N min/hours/days ago" — routed through
 // next-intl (`t`) instead of a hardcoded Hebrew table, so an English-locale
@@ -243,7 +247,17 @@ export default function NotificationsInboxPage() {
   const allItems = useMemo(() => data?.items || [], [data]);
   // Two tabs: what is about you, and what happened in the club (isClubItem).
   const [tab, setTab] = useState<'you' | 'club'>('you');
-  const items = useMemo(() => allItems.filter((it) => isClubItem(it) === (tab === 'club')), [allItems, tab]);
+  // What is asked of the athlete goes on top, and the polls past answering fold away at
+  // the bottom (lib/notifications/history waitingFor / closedSurveyIds, 2026-10-19).
+  const waiting = useMemo(() => waitingFor(allItems), [allItems]);
+  const closedSurveys = useMemo(() => closedSurveyIds(allItems), [allItems]);
+  const copies = useMemo(() => broadcastCopyIds(allItems), [allItems]);
+  const items = useMemo(
+    () => allItems.filter((it) => isClubItem(it) === (tab === 'club') && !waiting.hidden.has(it.id) && !closedSurveys.has(it.id) && !copies.has(it.id)),
+    [allItems, tab, waiting, closedSurveys, copies],
+  );
+  const oldSurveys = useMemo(() => allItems.filter((it) => closedSurveys.has(it.id)), [allItems, closedSurveys]);
+  const hasWaiting = tab === 'you' && (!!waiting.rsvp || !!waiting.prompt);
   const loading = !!athleteId && !data;
 
   // Locally-dismissed ids (group "X" target) — see readStoreKey() above. Read in
@@ -302,7 +316,13 @@ export default function NotificationsInboxPage() {
   // Which folded days of runs are open (foldRuns). Session-only.
   const [openFolds, setOpenFolds] = useState<Set<string>>(() => new Set());
 
-  const renderRow = (it: Item) => {
+  const toggleFold = (key: string) => setOpenFolds((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+
+  const renderRow = (it: Item, note?: string) => {
     const { Icon, tile } = styleFor(it);
     const unread = isUnread(it);
     const kudosId = kudosActivityId(it);
@@ -315,7 +335,7 @@ export default function NotificationsInboxPage() {
           iconBg={tile}
           avatarUrl={it.actorAvatarUrl || undefined}
           label={it.title}
-          sublabel={it.body}
+          sublabel={note ? [it.body, note].filter(Boolean).join(' · ') : it.body}
           // Here the sublabel IS the notification — the body of the
           // coach's reply, the workout the reminder is about — and
           // one truncated line showed a quarter of it: a reply
@@ -402,14 +422,69 @@ export default function NotificationsInboxPage() {
 
       {loading ? (
         <SkeletonList count={5} />
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && !hasWaiting && !(tab === 'you' && oldSurveys.length) ? (
         <EmptyState icon={Bell} title={tab === 'club' ? tn('emptyClub') : tn('emptyYou')} />
       ) : (
         <div className="space-y-5">
+          {hasWaiting && (
+            <section className="space-y-2.5">
+              <h2 className="px-1 text-xs font-extrabold text-ink-500">{tn('waitingTitle')}</h2>
+              {waiting.rsvp && <TomorrowSession weekStart={waiting.rsvp.weekStart} day={waiting.rsvp.day} />}
+              {waiting.prompt && (
+                <div className="rounded-[22px] bg-card px-4 py-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                  <button type="button" onClick={() => router.push(waiting.prompt!.url)} className="flex w-full items-center gap-3 text-start">
+                    <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-[#8A5A00]"><Gauge className="h-[18px] w-[18px] text-white" /></span>
+                    <span className="min-w-0 flex-1">
+                      <b className="block text-[14.5px] text-ink-900">{waiting.prompt.title}</b>
+                      <span className="block text-xs text-ink-500">{waiting.prompt.body}</span>
+                    </span>
+                  </button>
+                  <div className="mt-2.5 flex items-center gap-1.5">
+                    {['😣', '😕', '😐', '🙂', '😄'].map((f, i) => (
+                      <Link key={i} href={`${waiting.prompt!.url}&feel=${i}`} aria-label={tn('feelN', { n: i + 1 })}
+                        className="grid h-10 w-10 place-items-center rounded-xl bg-page/70 text-xl">{f}</Link>
+                    ))}
+                    <span className="ms-auto text-xs text-ink-400">{tn('howWasIt')}</span>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
           {sections.map(({ bucket, items: sectionItems }) => (
             <InsetSection key={bucket} header={tn(`dateSections.${bucket}`)}>
-              {foldRuns(sectionItems).map((entry) => {
+              {foldInbox(sectionItems).map((entry) => {
                 if (entry.type === 'item') return renderRow(entry.item);
+                if (entry.type === 'repeat') return renderRow(entry.item, tn('repeated', { n: entry.count }));
+                if (entry.type === 'group') {
+                  const open = openFolds.has(entry.key);
+                  const unread = entry.items.some(isUnread);
+                  const names = foldNames(entry.items);
+                  const label = entry.kind === 'likes'
+                    ? tn('likesFolded', { name: (entry.items[0].actorName || '').trim() || names[0] || '', n: entry.items.length - 1 })
+                    : tn('reportsFolded', { n: entry.items.length });
+                  const sub = entry.kind === 'likes'
+                    ? names.slice(1, 4).join(', ')
+                    : entry.items.map((x) => (x.title.match(/#\d+/) || [''])[0]).filter(Boolean).join(' · ');
+                  return (
+                    <div key={entry.key}>
+                      <div className="relative">
+                        {unread && <span className="absolute start-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-brand-600 z-10" aria-hidden="true" />}
+                        <InsetRow
+                          icon={entry.kind === 'likes' ? ThumbsUp : Bug}
+                          iconBg={entry.kind === 'likes' ? 'bg-accent-600' : 'bg-band-2'}
+                          avatarUrl={entry.kind === 'likes' ? entry.items[0].actorAvatarUrl || undefined : undefined}
+                          label={label}
+                          sublabel={[sub, open ? tn('runsClose') : tn('runsOpen')].filter(Boolean).join(' · ')}
+                          labelClamp
+                          sublabelClamp
+                          onClick={() => toggleFold(entry.key)}
+                          value={timeAgo(entry.items[0].sentAt, tn, dateLocale)}
+                        />
+                      </div>
+                      {open && <div className="border-s-2 border-page ms-4">{entry.items.map((x) => renderRow(x))}</div>}
+                    </div>
+                  );
+                }
                 // A day of "X finished a run", folded (lib/notifications/history foldRuns).
                 const open = openFolds.has(entry.key);
                 const names = foldNames(entry.items);
@@ -426,20 +501,28 @@ export default function NotificationsInboxPage() {
                         sublabel={[names.length ? `${names.slice(0, 3).join(', ')}${more > 0 ? ` ${tn('runsMore', { n: more })}` : ''}` : '', open ? tn('runsClose') : tn('runsOpen')].filter(Boolean).join(' · ')}
                         labelClamp
                         sublabelClamp
-                        onClick={() => setOpenFolds((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(entry.key)) next.delete(entry.key); else next.add(entry.key);
-                          return next;
-                        })}
+                        onClick={() => toggleFold(entry.key)}
                         value={timeAgo(entry.items[0].sentAt, tn, dateLocale)}
                       />
                     </div>
-                    {open && <div className="border-s-2 border-page ms-4">{entry.items.map(renderRow)}</div>}
+                    {open && <div className="border-s-2 border-page ms-4">{entry.items.map((x) => renderRow(x))}</div>}
                   </div>
                 );
               })}
             </InsetSection>
           ))}
+          {tab === 'you' && oldSurveys.length > 0 && (
+            <InsetSection>
+              <InsetRow
+                icon={Archive}
+                iconBg="bg-ink-300"
+                label={tn('surveysClosed', { n: oldSurveys.length })}
+                sublabel={[tn('surveysClosedSub', { date: new Date(oldSurveys[oldSurveys.length - 1].sentAt).toLocaleDateString(dateLocale, { day: 'numeric', month: 'numeric' }) }), openFolds.has('surveys') ? tn('runsClose') : tn('runsOpen')].join(' · ')}
+                onClick={() => toggleFold('surveys')}
+              />
+              {openFolds.has('surveys') && <div className="border-s-2 border-page ms-4 opacity-60">{oldSurveys.map((x) => renderRow(x, tn('closedTag')))}</div>}
+            </InsetSection>
+          )}
         </div>
       )}
     </div>

@@ -13,6 +13,8 @@ export interface HistoryItem {
    *  `undefined` = not prefetched, and the row loads it itself. */
   kudosGiven?: boolean;
   rsvpAttending?: boolean | null;
+  /** Sent to the whole club — a broadcast belongs on the club tab. */
+  toAll?: boolean;
 }
 
 /**
@@ -23,8 +25,10 @@ export interface HistoryItem {
  * is personal, so a new kind lands where it can't be missed.
  */
 const CLUB_KIND = /^(kudos_activity|quality_session|birthday|club_update|celebrat|run_together|pack_stor)/;
-export function isClubItem(it: Pick<HistoryItem, 'kind'>): boolean {
-  return CLUB_KIND.test(it.kind || '');
+export function isClubItem(it: Pick<HistoryItem, 'kind'> & { toAll?: boolean }): boolean {
+  // The club's own posts, and a message the club sent to everyone (the release note),
+  // are the club speaking — not something about this athlete (2026-10-19).
+  return CLUB_KIND.test(it.kind || '') || it.kind === 'club_post' || (it.kind === 'custom' && !!it.toAll);
 }
 
 // Real native notification-history UIs are a static chronological list —
@@ -115,7 +119,11 @@ export const FOLD_MIN = 3;
 
 export type InboxEntry =
   | { type: 'item'; item: HistoryItem }
-  | { type: 'runs'; key: string; items: HistoryItem[] };
+  | { type: 'runs'; key: string; items: HistoryItem[] }
+  /** Likes on my posts and runs, or my reports that were handled — one row each (foldInbox). */
+  | { type: 'group'; key: string; kind: 'likes' | 'reports'; items: HistoryItem[] }
+  /** The same notice sent again within a short while — shown once, with how many times. */
+  | { type: 'repeat'; key: string; item: HistoryItem; count: number };
 
 /** The calendar day in Israel, which is the day the club lives in. */
 function israelDay(iso: string): string {
@@ -156,3 +164,108 @@ export function foldNames(items: HistoryItem[]): string[] {
   }
   return names;
 }
+
+// ─── The inbox as one person reads it (Ofer 2026-10-19, notifications mockup) ──────────
+// His real week: "מחר אימון קבוצתי" twice in the same minute, "נשלח לשעון" five times in
+// 45 minutes while the coach edited, "תזכורת" three times at 05:00, the same 05:00 poll
+// fifteen times since 24.8 (none of them ever closes), four "נתנו לך כיף" and four
+// "דיווח טופל". What is asked of the athlete goes on top; repeats fold; old polls close.
+
+/** A poll is answerable for this long after it was sent: its question is about tomorrow. */
+export const SURVEY_OPEN_HOURS = 36;
+/** The same kind and title again within this window is the same notice. */
+export const REPEAT_WINDOW_MIN = 120;
+/** "איך היה?" stays a question this long after the run. */
+export const PROMPT_OPEN_HOURS = 48;
+
+const hoursSince = (iso: string, now: number) => (now - new Date(iso).getTime()) / 3_600_000;
+
+/** The polls that are past answering: every one but the newest of a question, and that one after SURVEY_OPEN_HOURS. */
+export function closedSurveyIds(items: HistoryItem[], now: number = Date.now()): Set<string> {
+  const closed = new Set<string>();
+  const newest = new Map<string, HistoryItem>();
+  for (const it of items) {
+    if (it.kind !== 'survey') continue;
+    const k = it.title.trim();
+    const n = newest.get(k);
+    if (!n || it.sentAt > n.sentAt) { if (n) closed.add(n.id); newest.set(k, it); } else closed.add(it.id);
+  }
+  for (const it of newest.values()) if (hoursSince(it.sentAt, now) > SURVEY_OPEN_HOURS) closed.add(it.id);
+  return closed;
+}
+
+export interface Waiting {
+  /** Tomorrow's team session to answer for (the newest day-before reminder still ahead). */
+  rsvp: { weekStart: string; day: number } | null;
+  /** The newest "how was it" prompt still open. */
+  prompt: HistoryItem | null;
+  /** Rows the "waiting" cards stand in for, left out of the list below. */
+  hidden: Set<string>;
+}
+
+const addDays = (iso: string, n: number) => {
+  const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10);
+};
+
+export function waitingFor(items: HistoryItem[], now: number = Date.now()): Waiting {
+  const today = israelDay(new Date(now).toISOString());
+  const hidden = new Set<string>();
+  let rsvp: Waiting['rsvp'] = null;
+  for (const it of items) {
+    const t = rsvpTarget(it);
+    if (!t || addDays(t.weekStart, t.day) < today || hoursSince(it.sentAt, now) > SURVEY_OPEN_HOURS) continue;
+    rsvp ??= t;
+    // Every reminder about the same session is the one question on top.
+    if (t.weekStart === rsvp.weekStart && t.day === rsvp.day) hidden.add(it.id);
+  }
+  const prompt = items.find((it) => it.kind === 'post_workout_prompt' && /[?&]activity=/.test(it.url)
+    && hoursSince(it.sentAt, now) <= PROMPT_OPEN_HOURS) ?? null;
+  if (prompt) hidden.add(prompt.id);
+  return { rsvp, prompt, hidden };
+}
+
+/**
+ * A message the club sent to everyone AND to this athlete (the 18.10 release note went
+ * out both ways) — the personal copy, so it shows once, on the club tab.
+ */
+export function broadcastCopyIds(items: HistoryItem[]): Set<string> {
+  const broadcast = new Set(items.filter((it) => it.toAll).map((it) => it.title.trim()));
+  return new Set(items.filter((it) => !it.toAll && it.kind === 'custom' && broadcast.has(it.title.trim())).map((it) => it.id));
+}
+
+const LIKE_KINDS = new Set(['like', 'kudos']);
+
+/**
+ * foldRuns, and then: likes on my posts and runs become one row, my handled reports one
+ * row, and the same notice repeated within REPEAT_WINDOW_MIN shows once with its count.
+ * `items` newest-first; each folded row sits where its newest member was.
+ */
+export function foldInbox(items: HistoryItem[]): InboxEntry[] {
+  const likes = items.filter((it) => LIKE_KINDS.has(it.kind));
+  const reports = items.filter((it) => it.kind === 'review_resolved');
+  const out: InboxEntry[] = [];
+  let placedLikes = false; let placedReports = false;
+  const lastOf = new Map<string, { entry: Extract<InboxEntry, { type: 'repeat' }>; at: number }>();
+  for (const entry of foldRuns(items)) {
+    if (entry.type !== 'item') { out.push(entry); continue; }
+    const it = entry.item;
+    if (LIKE_KINDS.has(it.kind) && likes.length >= 2) {
+      if (!placedLikes) { placedLikes = true; out.push({ type: 'group', key: `likes:${it.id}`, kind: 'likes', items: likes }); }
+      continue;
+    }
+    if (it.kind === 'review_resolved' && reports.length >= 2) {
+      if (!placedReports) { placedReports = true; out.push({ type: 'group', key: `reports:${it.id}`, kind: 'reports', items: reports }); }
+      continue;
+    }
+    const k = `${it.kind}|${it.title.trim()}`;
+    const at = new Date(it.sentAt).getTime();
+    const prev = lastOf.get(k);
+    if (prev && prev.at - at <= REPEAT_WINDOW_MIN * 60_000) { prev.entry.count++; prev.at = at; continue; }
+    const rep = { type: 'repeat' as const, key: `rep:${it.id}`, item: it, count: 1 };
+    lastOf.set(k, { entry: rep, at });
+    out.push(rep);
+  }
+  // A notice sent once is a plain row.
+  return out.map((e) => (e.type === 'repeat' && e.count === 1 ? { type: 'item', item: e.item } : e));
+}
+

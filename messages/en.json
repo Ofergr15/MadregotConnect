@@ -2499,7 +2499,16 @@
     "runsFolded": "{n} runs from the club",
     "runsMore": "and {n} more",
     "runsOpen": "tap to open",
-    "runsClose": "tap to close"
+    "runsClose": "tap to close",
+    "waitingTitle": "Waiting for your answer",
+    "howWasIt": "How was it?",
+    "feelN": "Feeling {n} of 5",
+    "repeated": "sent {n} times — shown once",
+    "likesFolded": "{name} and {n, plural, one {one more} other {# more}} gave you kudos 👍",
+    "reportsFolded": "{n} of your reports were handled ✅",
+    "surveysClosed": "{n, plural, one {one earlier poll} other {# earlier polls}}",
+    "surveysClosedSub": "closed · since {date}",
+    "closedTag": "closed"
   },
   "notificationPrefs": {
     "pushHeader": "Push",

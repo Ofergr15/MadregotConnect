@@ -12,7 +12,7 @@ describe('which tab a notification goes to', () => {
   });
   it('is a tab row on the inbox, each with its own unread count', () => {
     const page = readFileSync('src/app/(app)/dashboard/notifications/page.tsx', 'utf8');
-    expect(page).toMatch(/allItems\.filter\(\(it\) => isClubItem\(it\) === \(tab === 'club'\)\)/);
+    expect(page).toMatch(/allItems\.filter\(\(it\) => isClubItem\(it\) === \(tab === 'club'\)/);
     expect(page).toMatch(/const n = unreadOf\(k === 'club'\);/);
   });
 });

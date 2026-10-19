@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { CalendarDays, Check, ChevronDown, Hourglass } from 'lucide-react';
 import { useApi } from '@/lib/api';
-import { cn, GROUP_HEX } from '@/lib/utils';
+import { addDaysToDateStr, cn, GROUP_HEX } from '@/lib/utils';
 import { roundKm } from '@/lib/plans/week-summary';
 import type { WeekSession } from '@/lib/plans/workout-parsing';
+import { packPaces } from '@/lib/home/today';
 import { sessionFrame, sessionHeadline, type FrameLabels } from '@/lib/plans/session-summary';
 import type { StepUnits } from '@/lib/plans/step-display';
 import { paceRangeText, profileSegments, type SegmentKind } from '@/lib/plans/session-profile';
-import { packPaces } from '@/lib/home/today';
 import { formatDurationClock } from '@/lib/workout-duration';
 import { isEstimate } from '@/lib/plans/step-estimate';
 import type { Lineup } from '@/lib/attendance/lineup';
@@ -152,5 +152,31 @@ function Tile({ value, label }: { value: string; label: string }) {
       <b className="whitespace-nowrap text-[16px] font-extrabold text-ink-900"><bdi dir="ltr">{value}</bdi></b>
       <span className="truncate text-[11.5px] text-ink-400">{label}</span>
     </span>
+  );
+}
+
+/**
+ * The same card, reading its own session — for the inbox's "מחכה לתשובה שלך", where the
+ * day-before reminder names only the week and the day (`?rsvp=weekStart:day`).
+ */
+export function TomorrowSession({ weekStart, day }: { weekStart: string; day: number }) {
+  const { data: week } = useApi<{ hasPlan?: boolean; lane?: number | null; sessions?: WeekSession[] }>(`/api/plans/week?weekStart=${weekStart}&lane=mine`);
+  const { data: reminder } = useApi<{ config?: { workoutHour?: number } }>('/api/reminder-config');
+  if (!week || !reminder) return <div className="h-[220px] animate-pulse rounded-[22px] bg-card" />;
+  const sessions = (week.sessions ?? []).filter((s) => s.dayOfWeek === day && s.kmMax > 0);
+  const hour = reminder.config?.workoutHour;
+  const time = sessions[0]?.daySession?.startTime
+    ?? (typeof hour === 'number' ? `${String(Math.floor(hour)).padStart(2, '0')}:${String(Math.round((hour % 1) * 60)).padStart(2, '0')}` : null);
+  const lane = week.lane ?? null;
+  return (
+    <TomorrowCard
+      date={addDaysToDateStr(weekStart, day)}
+      weekStart={weekStart}
+      dayOfWeek={day}
+      sessions={sessions}
+      lane={lane}
+      packIndex={Math.min(2, Math.max(0, (lane ?? 2) - 1))}
+      time={time}
+    />
   );
 }

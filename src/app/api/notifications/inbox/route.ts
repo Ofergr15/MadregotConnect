@@ -4,6 +4,8 @@ import {
   UUID_RE,
   shapeInboxItem,
   clearMutedUnread,
+  clubPostItems,
+  isPlaceholderRow,
   aggregate,
   rowActionTargets,
   applyRowActions,
@@ -17,6 +19,7 @@ import { isStaffRole, mayActFor, resolveVerifiedCaller } from '@/lib/auth/self-o
 export const dynamic = 'force-dynamic';
 
 const INBOX_WINDOW = 150;
+const CLUB_POSTS_DAYS = 7;
 
 /**
  * Resolve the interactive rows' own state — kudos already given, RSVP already
@@ -58,6 +61,29 @@ async function withRowActions(
   }
 
   return applyRowActions(items, { kudosGiven, rsvpByKey });
+}
+
+/** The week's club posts (feed announcements) merged in by time — the club tab's other half. */
+async function withClubPosts(
+  supabase: ReturnType<typeof createServerClient>,
+  groupId: string | null,
+  since: string,
+  items: RawItem[],
+): Promise<RawItem[]> {
+  const weekAgo = new Date(Date.now() - CLUB_POSTS_DAYS * 86_400_000).toISOString();
+  const { data, error } = await supabase
+    .from('feed_items')
+    .select('id, body, occurred_at, group_id')
+    .eq('type', 'announcement')
+    .is('deleted_at', null)
+    .gte('occurred_at', weekAgo)
+    .order('occurred_at', { ascending: false })
+    .limit(20);
+  // Fail open: the inbox without the club's posts is still the inbox.
+  if (error || !data) return items;
+  const posts = data.filter((p: { group_id: string | null }) => !p.group_id || p.group_id === groupId);
+  const pushed = new Set(items.filter((i) => i.toAll).map((i) => i.title.trim()));
+  return [...items, ...clubPostItems(posts, since, pushed)].sort((x, y) => (y.sentAt || '').localeCompare(x.sentAt || ''));
 }
 
 // GET /api/notifications/inbox?athleteId=… → { items[], unread }
@@ -118,7 +144,7 @@ export async function GET(request: Request) {
     // window was under two days of history (Eyal, 2026-10-11).
     let { data, error } = await supabase
       .from('scheduled_notifications')
-      .select('id, kind, title_he, body_he, url, last_sent_at, actor_athlete_id, actor:actor_athlete_id ( name, avatar_url )')
+      .select('id, kind, title_he, body_he, url, last_sent_at, audience_type, actor_athlete_id, actor:actor_athlete_id ( name, avatar_url )')
       .eq('status', 'sent')
       .or(orClause)
       .not('url', 'like', '#ledger:%')
@@ -129,7 +155,7 @@ export async function GET(request: Request) {
       // actor_athlete_id not migrated yet — degrade to the pre-071 shape.
       ({ data, error } = await supabase
         .from('scheduled_notifications')
-        .select('id, kind, title_he, body_he, url, last_sent_at')
+        .select('id, kind, title_he, body_he, url, last_sent_at, audience_type')
         .eq('status', 'sent')
         .or(orClause)
         .not('url', 'like', '#ledger:%')
@@ -143,7 +169,7 @@ export async function GET(request: Request) {
     const rawItems = clearMutedUnread(
       (data || [])
         // Drop internal idempotency-ledger rows (not real member messages).
-        .filter((r: any) => !String(r.url || '').startsWith('#ledger:'))
+        .filter((r: any) => !String(r.url || '').startsWith('#ledger:') && !isPlaceholderRow(r))
         .map((r: any) => shapeInboxItem(r, since, { isStaff: isStaffRole(a.role) })),
       a.notification_prefs as Record<string, boolean> | null,
       isStaffRole(a.role),
@@ -154,7 +180,8 @@ export async function GET(request: Request) {
     const aggregated = aggregate(rawItems, localeFromPrefs(a.notification_prefs));
     // After aggregate(), so a merged burst is asked about once rather than per
     // row it swallowed.
-    const items = await withRowActions(supabase, athleteId, aggregated);
+    const withPosts = await withClubPosts(supabase, a.group_id, since, aggregated);
+    const items = await withRowActions(supabase, athleteId, withPosts);
 
     return NextResponse.json({ items, unread: items.filter((i) => i.unread).length });
   } catch (err: unknown) {

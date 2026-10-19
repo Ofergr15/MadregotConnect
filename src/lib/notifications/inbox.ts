@@ -14,6 +14,8 @@ export interface RawItem {
   /** Prefetched row state — see applyRowActions. `undefined` = not prefetched. */
   kudosGiven?: boolean;
   rsvpAttending?: boolean | null;
+  /** Sent to the whole club (audience "all") — a broadcast belongs on the club tab. */
+  toAll?: boolean;
 }
 
 interface InboxRow {
@@ -25,6 +27,7 @@ interface InboxRow {
   last_sent_at: string | null;
   actor_athlete_id?: string | null;
   actor?: { name?: string | null; avatar_url?: string | null } | null;
+  audience_type?: string | null;
 }
 
 // Shapes one raw DB row into the inbox's item shape: drops the `#`-prefixed
@@ -54,7 +57,47 @@ export function shapeInboxItem(
     unread: !!row.last_sent_at && row.last_sent_at > sinceIso,
     actorName: row.actor?.name || null,
     actorAvatarUrl: row.actor?.avatar_url || null,
+    toAll: row.audience_type === 'all',
   };
+}
+
+/**
+ * Rows that are bookkeeping, not messages: each "דיווח טופל" push wrote a twin row
+ * titled "review resolved" with the review's key as its body (Ofer's inbox, 2026-10-16:
+ * four of each). Dropped like the ledger rows.
+ */
+export function isPlaceholderRow(row: { title_he?: string | null; body_he?: string | null }): boolean {
+  return (row.title_he || '').trim() === 'review resolved' || /^review-resolved-/.test(row.body_he || '');
+}
+
+/** "@[Shay Noam](uuid)" → "Shay Noam": a feed mention, as plain text for a notification row. */
+export function plainMentions(text: string): string {
+  return text.replace(/@\[([^\]]+)\]\([^)]*\)/g, '$1');
+}
+
+/**
+ * The club's own posts on the feed (announcements — a release, a congratulation, a
+ * birthday) as rows of the inbox's club tab (Ofer 2026-10-19, notifications mockup):
+ * "what happened in the club" was empty while the club was saying things. A post the
+ * club ALSO pushed (same first line as a broadcast row) is left out — one thing, once.
+ */
+export function clubPostItems(
+  posts: Array<{ id: string; body: string | null; occurred_at: string }>,
+  sinceIso: string,
+  pushedTitles: Set<string>,
+): RawItem[] {
+  const out: RawItem[] = [];
+  for (const p of posts) {
+    const text = plainMentions((p.body || '').trim());
+    if (!text) continue;
+    const [first, ...rest] = text.split('\n').map((l) => l.trim()).filter(Boolean);
+    if (pushedTitles.has(first)) continue;
+    out.push({
+      id: `post:${p.id}`, kind: 'club_post', title: first, body: rest.join(' '), url: `/feed?item=${p.id}`,
+      sentAt: p.occurred_at, unread: p.occurred_at > sinceIso, actorName: null, actorAvatarUrl: null, toAll: true,
+    });
+  }
+  return out;
 }
 
 /**
