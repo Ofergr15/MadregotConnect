@@ -121,6 +121,12 @@ async function library(): Promise<Library | null> {
   return value;
 }
 
+/** Every photo's id, folder by folder in the order the screen shows them (pinned, then newest). */
+export async function listAllPhotoIds(): Promise<string[]> {
+  const lib = await library();
+  return lib ? lib.folders.flatMap((f) => (lib.photos[f.id] ?? []).map((p) => p.id)) : [];
+}
+
 /** Every photo folder under the root: pinned first, then newest first. */
 export async function listPhotoFolders(): Promise<PhotoFolder[] | null> {
   return (await library())?.folders ?? null;
@@ -140,8 +146,18 @@ export async function listFolderPhotos(folderId: string): Promise<{ folder: Phot
  * the service account for these files, so the file can't be re-checked here.)
  */
 export async function fetchPhotoImage(fileId: string, size: number): Promise<{ body: ReadableStream<Uint8Array>; type: string } | null> {
+  if (!SIZES.has(size)) return null;
+  return fetchDriveThumbnail(fileId, size);
+}
+
+/**
+ * Drive's own rendition of a photo at `size` px — the image route's (sizes limited
+ * there) and the background copy's (lib/photos/mirror.ts, which also takes a tiny one
+ * for the blurred preview). Server-side only, never reachable with a size from a URL.
+ */
+export async function fetchDriveThumbnail(fileId: string, size: number): Promise<{ body: ReadableStream<Uint8Array>; type: string } | null> {
   const drive = driveReader();
-  if (!drive || !SIZES.has(size) || !/^[A-Za-z0-9_-]{10,}$/.test(fileId)) return null;
+  if (!drive || !Number.isInteger(size) || size < 16 || size > 2048 || !/^[A-Za-z0-9_-]{10,}$/.test(fileId)) return null;
   const meta = await drive.files.get({ fileId, fields: 'thumbnailLink,mimeType', supportsAllDrives: true }).then((r) => r.data).catch(() => null);
   if (!meta?.thumbnailLink || !meta.mimeType?.startsWith('image/')) return null;
   const token = (await auth!.getAccessToken()).token;

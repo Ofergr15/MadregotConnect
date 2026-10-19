@@ -16,14 +16,15 @@ import { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { ArrowRight, ImageOff, Search, X } from 'lucide-react';
-import { useApi } from '@/lib/api';
+import { preload } from 'swr';
+import { apiFetcher, useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { sessionDayLabel } from '@/lib/quality-session/photos';
 import { PhotoViewer } from '@/components/photos/PhotoViewer';
 
-interface Folder { id: string; name: string; title: string | null; date: string; count: number; covers: string[]; pinned?: boolean; hero?: string | null }
+interface Folder { id: string; name: string; title: string | null; date: string; count: number; covers: string[]; coverBlur?: string | null; pinned?: boolean; hero?: string | null }
 interface Browse { configured: boolean; folders: Folder[] }
-interface FolderPhotos { folder: Folder; photos: Array<{ id: string; thumb: string | null; full: string | null }> }
+interface FolderPhotos { folder: Folder; photos: Array<{ id: string; thumb: string | null; full: string | null; blur?: string | null }> }
 
 const MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
 const monthKey = (date: string) => date.slice(0, 7);
@@ -43,17 +44,26 @@ function subline(f: Folder, count: string): string {
   return f.title ? `${sessionDayLabel(f.date)} · ${count}` : count;
 }
 
-function Cover({ src, className }: { src?: string; className?: string }) {
+/**
+ * One photo in a tile. `blur` is the copy's tiny inline preview (lib/photos/mirror.ts):
+ * painted under the image at once, so the grid is never a wall of grey while the
+ * photos arrive.
+ */
+function Cover({ src, blur, className }: { src?: string; blur?: string | null; className?: string }) {
+  const bg = blur ? { backgroundImage: `url(${blur})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined;
   // eslint-disable-next-line @next/next/no-img-element
-  return src ? <img src={src} alt="" loading="lazy" decoding="async" draggable={false} className={cn('h-full w-full object-cover', className)} /> : <div className={cn('h-full w-full bg-page', className)} />;
+  return src ? <img src={src} alt="" loading="lazy" decoding="async" draggable={false} style={bg} className={cn('h-full w-full bg-page object-cover', className)} /> : <div style={bg} className={cn('h-full w-full bg-page', className)} />;
 }
+
+/** Start a folder's listing before the tap lands (a finger down is ~100 ms ahead of the click). */
+const prefetchFolder = (id: string) => { preload(`/api/photos/browse/folder?id=${encodeURIComponent(id)}`, apiFetcher); };
 
 function FolderCard({ f, onOpen }: { f: Folder; onOpen: () => void }) {
   const t = useTranslations('photosPage');
   return (
-    <button onClick={onOpen} className="relative flex w-full items-center gap-3 rounded-[20px] bg-card p-2 text-start shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+    <button onClick={onOpen} onPointerDown={() => prefetchFolder(f.id)} className="relative flex w-full items-center gap-3 rounded-[20px] bg-card p-2 text-start shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
       <div className="grid h-[84px] w-[118px] shrink-0 grid-cols-[2fr_1fr] grid-rows-2 gap-[3px] overflow-hidden rounded-[14px]">
-        <Cover src={f.covers[0]} className="row-span-2" />
+        <Cover src={f.covers[0]} blur={f.coverBlur} className="row-span-2" />
         <Cover src={f.covers[1] || f.covers[0]} />
         <Cover src={f.covers[2] || f.covers[0]} />
       </div>
@@ -88,14 +98,14 @@ function FolderView({ id }: { id: string }) {
         {data && <p className="mt-0.5 text-[13.5px] text-ink-500">{subline(data.folder, t('count', { n: data.folder.count }))}</p>}
       </div>
       <div className="mt-3 grid grid-cols-3 gap-[3px]">
-        {(data?.photos ?? Array.from({ length: 12 }, (_, k) => ({ id: `s${k}`, thumb: null, full: null }))).map((p, k) => (
+        {(data?.photos ?? Array.from({ length: 12 }, (_, k) => ({ id: `s${k}`, thumb: null, full: null, blur: null }))).map((p, k) => (
           <button
             key={p.id}
             onClick={() => data && setOpen(k)}
             className={cn('aspect-square overflow-hidden bg-page', k % 7 === 0 && 'col-span-2 row-span-2')}
             aria-label={t('photoN', { n: k + 1 })}
           >
-            <Cover src={p.thumb || undefined} />
+            <Cover src={p.thumb || undefined} blur={p.blur} />
           </button>
         ))}
       </div>
