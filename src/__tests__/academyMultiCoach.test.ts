@@ -23,6 +23,7 @@ class Query {
   eq(col: string, v: unknown) { this.filters.push((r) => (col === 'coach_id' && this.table === 'athletes') || r[col] === v); return this; }
   in(col: string, vs: unknown[]) { this.filters.push((r) => vs.includes(r[col])); return this; }
   is(col: string, v: unknown) { this.filters.push((r) => (r[col] ?? null) === v); return this; }
+  contains(col: string, vs: unknown[]) { this.filters.push((r) => Array.isArray(r[col]) && vs.every((v) => (r[col] as unknown[]).includes(v))); return this; }
   limit() { return this; }
   order() { return this; }
   private run() {
@@ -66,6 +67,14 @@ const stream = {
     sendMessage: async (m: Row) => { stream.sent.push(m); return { message: { id: 'm1' } }; },
   }),
   upsertUsers: async () => {},
+  // The inbox's read: every requested channel, with Dana and Guy as its only members.
+  joined: [] as Array<{ id: string; ids: string[] }>,
+  queryChannels: async (filter: { id: { $in: string[] } }) => filter.id.$in.map((id) => ({
+    id,
+    state: { messages: [], members: { dana: {}, guy: {} } },
+    countUnread: () => 0,
+    addMembers: async (ids: string[]) => { stream.joined.push({ id, ids }); },
+  })),
 };
 vi.mock('@/lib/stream/server', async (orig) => ({
   ...(await orig<object>()),
@@ -86,6 +95,7 @@ const { seatFor, toThreadMessages } = await import('@/lib/academy/thread');
 const { isMine } = await import('@/components/academy/ThreadTranscript');
 const messagesRoute = await import('@/app/api/academy/threads/messages/route');
 const threadsRoute = await import('@/app/api/academy/threads/route');
+const inboxRoute = await import('@/app/api/academy/threads/inbox/route');
 const coachRoute = await import('@/app/api/academy/coach/route');
 const { buildCoachCards, unpairedTrainees } = await import('@/lib/academy/coach-board');
 const { buildSuggestions } = await import('@/lib/academy/suggestions');
@@ -101,7 +111,7 @@ beforeEach(() => {
   for (const k of Object.keys(failing)) delete failing[k];
   writes.length = 0;
   pushes.length = 0;
-  stream.sent.length = 0; stream.added.length = 0; stream.removed.length = 0;
+  stream.sent.length = 0; stream.added.length = 0; stream.removed.length = 0; stream.joined.length = 0;
   db.athletes = [
     a({ id: 'boss', name: 'Boss', role: 'admin' }),
     a({ id: 'dana', name: 'Dana Levi', role: 'academy_coach' }),
@@ -252,6 +262,61 @@ describe('the shared conversation', () => {
     caller.mockReturnValue(trainee('raz'));
     await send({ text: 'anyone?' });
     expect(pushes.map((p) => p.athleteId)).toEqual(['boss']);
+  });
+
+  it('an academy manager (extra role) sits in every thread and hears the trainee', async () => {
+    db.athletes.push(a({ id: 'eli', name: 'Eli Manager', role: 'academy_coach', extra_roles: ['academy_manager'] }));
+    expect((await academyThreadMembers(supabase as never, 'yoav')).sort()).toEqual(['boss', 'dana', 'eli', 'guy', 'yoav']);
+    expect((await academyThreadMembers(supabase as never, 'raz')).sort()).toEqual(['boss', 'eli', 'raz']);
+    caller.mockReturnValue(trainee('yoav'));
+    await send({ text: 'hi' });
+    expect(pushes.map((p) => p.athleteId).sort()).toEqual(['dana', 'eli', 'guy']);
+  });
+
+  it('an unpaired trainee reaches the academy manager, and only falls back to admins without one', async () => {
+    db.athletes.push(a({ id: 'eli', name: 'Eli Manager', role: 'academy_coach', extra_roles: ['academy_manager'] }));
+    caller.mockReturnValue(trainee('raz'));
+    await send({ text: 'anyone?' });
+    expect(pushes.map((p) => p.athleteId)).toEqual(['eli']);
+  });
+
+  it('the manager writing does not push himself; a club coach who is not theirs is refused', async () => {
+    db.athletes.push(a({ id: 'eli', name: 'Eli Manager', role: 'academy_coach', extra_roles: ['academy_manager'] }));
+    caller.mockReturnValue({ ...coachCaller('eli'), roles: ['academy_coach', 'academy_manager'] });
+    expect((await send({ athleteId: 'yoav', text: 'checking in' })).status).toBe(200);
+    expect(pushes.map((p) => p.athleteId)).toEqual(['yoav']);
+    pushes.length = 0;
+    caller.mockReturnValue({ athleteId: 'yair', role: 'coach', roles: ['coach'], isStaff: true, isSuperUser: false, email: 'y' });
+    expect((await send({ athleteId: 'yoav', text: 'x' })).status).toBe(403);
+    expect(pushes).toEqual([]);
+  });
+
+  it('a super user who is also a trainee: in every thread as manager, the trainee in his own, never pushed by himself', async () => {
+    db.athletes.push(a({ id: 'ofer', name: 'Ofer', is_super_user: true, is_academy: true, academy_coach_id: 'dana' }));
+    db.academy_trainee_coaches.push({ athlete_id: 'ofer', coach_id: 'dana', since: '2026-10-01' });
+    expect((await academyThreadMembers(supabase as never, 'yoav'))).toContain('ofer');
+    // Another trainee writes: Ofer hears it as a manager.
+    caller.mockReturnValue(trainee('yoav'));
+    await send({ text: 'hi' });
+    expect(pushes.map((p) => p.athleteId).sort()).toEqual(['dana', 'guy', 'ofer']);
+    // Ofer writes in his own thread: his coach hears it, he does not.
+    pushes.length = 0;
+    caller.mockReturnValue({ ...trainee('ofer'), isSuperUser: true });
+    await send({ text: 'me' });
+    expect(pushes.map((p) => p.athleteId)).toEqual(['dana']);
+    expect(seatFor('ofer', 'ofer', ['dana'])).toBe('trainee');
+  });
+
+  it('the manager\'s inbox lists every trainee and joins the threads he is not in yet', async () => {
+    caller.mockReturnValue(manager);
+    const body = await (await inboxRoute.GET(new Request('http://x/api/academy/threads/inbox'))).json();
+    expect(body.scope).toBe('academy');
+    expect(stream.joined.map((j) => j.ids)).toEqual([['boss'], ['boss'], ['boss']]);
+    // A coach is not joined to anything by reading their inbox.
+    stream.joined.length = 0;
+    caller.mockReturnValue(coachCaller('guy'));
+    await inboxRoute.GET(new Request('http://x/api/academy/threads/inbox'));
+    expect(stream.joined).toEqual([]);
   });
 
   it('opening the thread seats every coach as "coach" and returns them all', async () => {

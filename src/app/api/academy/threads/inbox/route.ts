@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { COACH_ID } from '@/lib/constants';
-import { getStreamServerClient, CHANNEL_TYPE } from '@/lib/stream/server';
+import { getStreamServerClient, CHANNEL_TYPE, upsertStreamUsersFromAthletes } from '@/lib/stream/server';
 import {
   academyChannelId,
   buildInbox,
@@ -93,6 +93,8 @@ export async function GET(request: Request) {
       // numbers, and a shared one would be wrong for both.
       const asUser = caller.athleteId ?? undefined;
 
+      const joining: Array<{ addMembers: (ids: string[]) => Promise<unknown> }> = [];
+
       for (let i = 0; i < ids.length; i += CHANNEL_PAGE) {
         const page = ids.slice(i, i + CHANNEL_PAGE);
         const channels = await stream.queryChannels(
@@ -107,6 +109,15 @@ export async function GET(request: Request) {
           const base = byId.get(athleteId);
           if (!base) continue;
 
+          // A manager who is not yet a member of this thread (created before the
+          // manager seat included academy managers, or before they got the role)
+          // joins it here, so from the next read on their unread count is theirs and
+          // new messages reach them. Idempotent and best-effort: a failure only means
+          // this read shows no unread for that row.
+          if (isManager && asUser && !(ch.state?.members && asUser in ch.state.members)) {
+            joining.push(ch);
+          }
+
           let unread = 0;
           try {
             unread = ch.countUnread();
@@ -117,6 +128,15 @@ export async function GET(request: Request) {
           }
 
           byId.set(athleteId, snapshotFromMessages(athleteId, base.name, ch.state.messages ?? [], unread));
+        }
+      }
+
+      if (joining.length && asUser) {
+        try {
+          await upsertStreamUsersFromAthletes(stream, supabase, [asUser]);
+          await Promise.all(joining.map((ch) => ch.addMembers([asUser]).catch(() => null)));
+        } catch (joinError) {
+          console.error('GET /api/academy/threads/inbox — manager join failed:', joinError);
         }
       }
     } catch (err: unknown) {

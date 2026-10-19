@@ -246,6 +246,13 @@ function ChooseScreen({
         {existing && <p className="mt-1 text-13 text-ink-400">{t.rich('alreadyHas', { ...RICH, name: existing.name })}</p>}
       </div>
 
+      {T && data.trainee.paceBasis === 'band' && (
+        <div className="rounded-[14px] bg-[#FDF0E2] px-3 py-2.5 text-sm font-bold leading-snug text-[#8A4308]">
+          {t('bandPaceBanner', { name })}{' '}
+          <Link href={academyTestUrl({ recipientIsStaff: true })} className="underline">{t('setTest')}</Link>
+        </div>
+      )}
+
       {!T && (
         <div className="rounded-[14px] bg-[#FDF0E2] px-3 py-2.5 text-sm font-bold leading-snug text-[#8A4308]">
           {t('noTest', { name })}{' '}

@@ -12,6 +12,7 @@ import { notifyStaff } from '@/lib/notifications/staff';
 import { authError, requireSession } from '@/lib/auth-session';
 import { pushWeekToAthlete, type PushResult } from '@/lib/garmin/push-week';
 import { appleCandidates, deliverWeek, resolveWatchProvider } from '@/lib/watch';
+import { academyTraineesNotYours } from '@/lib/academy/pairing-server';
 
 // One request carries a whole pace group — every athlete in it, up to 7 workouts
 // each — and each workout costs two serial Garmin calls plus a read-back per
@@ -107,13 +108,28 @@ export async function POST(req: NextRequest) {
     let storedPlan: unknown = null;
     // A club week (no athlete_id) never carries pace-zone alarms — see deliver().
     let clubWeek = false;
+    let personalFor: string | null = null;
     if (planId) {
       try {
         const { data: planRow } = await supabase.from('weekly_plans').select('parsed_workouts, athlete_id').eq('id', planId).maybeSingle();
         storedPlan = planRow?.parsed_workouts ?? null;
         clubWeek = !!planRow && !planRow.athlete_id;
+        personalFor = planRow?.athlete_id ? String(planRow.athlete_id) : null;
       } catch {
         storedPlan = null;
+      }
+    }
+    // A trainee's PERSONAL plan goes only to that trainee, and only from one of their
+    // coaches or the manager (pairing-server.ts academyTraineesNotYours) — the line
+    // day-plan draws. Club weeks keep their any-staff gate: they go to every runner,
+    // trainees included.
+    if (personalFor) {
+      const targets = jobs.flatMap((b) => b.athleteIds);
+      if (targets.some((id) => id !== personalFor)) {
+        return NextResponse.json({ error: 'A personal plan goes to its own trainee only' }, { status: 400 });
+      }
+      if ((await academyTraineesNotYours(auth.user, [personalFor])).length) {
+        return NextResponse.json({ error: 'Not your trainee', athleteIds: [personalFor] }, { status: 403 });
       }
     }
     // `byAthleteGroup`: the caller names the plan and the people, and each person

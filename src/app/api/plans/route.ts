@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { revalidateWeeklyPlans } from '@/lib/plans/cache';
 import { requireSession, authError } from '@/lib/auth-session';
 import { normalizeParsedWorkouts } from '@/lib/plans/normalize-plan';
+import { academyTraineesNotYours } from '@/lib/academy/pairing-server';
 
 /**
  * POST /api/plans - Create a new weekly plan
@@ -26,6 +27,12 @@ export async function POST(req: NextRequest) {
         { error: 'coach_id, week_start_date, and parsed_workouts are required' },
         { status: 400 }
       );
+    }
+
+    // A personal week for an academy trainee is their coaches' and the manager's
+    // to write, not any staff account's (pairing-server.ts academyTraineesNotYours).
+    if (athlete_id && (await academyTraineesNotYours(auth.user, [String(athlete_id)])).length) {
+      return NextResponse.json({ error: 'Not your trainee' }, { status: 403 });
     }
 
     const supabase = createServerClient();

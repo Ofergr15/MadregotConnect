@@ -50,7 +50,7 @@ const SCHEMA: Record<string, string[]> = {
   athletes: ['id', 'coach_id', 'name', 'gender', 'group_id', 'is_academy', 'academy_coach_id', 'academy_band_id', 'avatar_url'],
   groups: ['id', 'name', 'coach_id'],
   weekly_plans: ['id', 'coach_id', 'athlete_id', 'week_start_date', 'parsed_workouts', 'status', 'created_at'],
-  workout_deliveries: ['athlete_id', 'workout_date', 'status'],
+  workout_deliveries: ['athlete_id', 'workout_date', 'status', 'plan_id', 'workout_key'],
   athlete_wellness: ['athlete_id', 'date', 'sleep_seconds', 'resting_hr'],
   athlete_activities: ['id', 'athlete_id', 'start_time', 'activity_type', 'distance', 'duration', 'moving_duration', 'average_hr', 'max_hr', 'laps', 'splits', 'source'],
   academy_tests: ['id', 'athlete_id', 'test_date', 'protocol', 'duration_sec', 'distance_m', 'excluded_reason', 'status'],
@@ -72,11 +72,13 @@ const reps = (order: number, count: number, metres: number, sec: number) => ({
 const FIVE_BY_ONE = { dayOfWeek: 2, name: 'חזרות', description: 'האחרונה הכי חזקה.', steps: [run(1, 'warmup', 2000, 340), reps(2, 5, 1000, 245), run(3, 'cooldown', 2000, 340)] };
 const TEMPO = { dayOfWeek: 4, name: 'טמפו', steps: [run(1, 'warmup', 2000, 340), reps(2, 3, 2000, 270), run(3, 'cooldown', 1500, 340)] };
 
-function plan(athleteId: string | null, workouts: unknown[], weekStart = WEEK) {
+function plan(athleteId: string | null, workouts: unknown[], weekStart = WEEK): string {
+  const id = uid();
   db.tables.weekly_plans.push({
-    id: uid(), coach_id: COACH_ID, athlete_id: athleteId, week_start_date: weekStart,
+    id, coach_id: COACH_ID, athlete_id: athleteId, week_start_date: weekStart,
     parsed_workouts: { workouts }, status: 'pushed', created_at: '2026-10-10T10:00:00Z',
   });
+  return id;
 }
 
 /** `days` days of runs before today, with a 30-minute test when `tested`. */
@@ -140,8 +142,8 @@ describe('the request', () => {
 describe('the day', () => {
   it('a workout today (1): the card from the trainee\'s OWN row, with the coach, form, body and ⚡', async () => {
     history(100, true);
-    plan(TRAINEE, [FIVE_BY_ONE, TEMPO]);
-    db.tables.workout_deliveries.push({ athlete_id: TRAINEE, workout_date: TODAY, status: 'success' });
+    const own = plan(TRAINEE, [FIVE_BY_ONE, TEMPO]);
+    db.tables.workout_deliveries.push({ athlete_id: TRAINEE, workout_date: TODAY, status: 'success', plan_id: own });
     as(COACH);
     const res = await get(`athleteId=${TRAINEE}`);
     expect(res.status).toBe(200);
@@ -157,6 +159,28 @@ describe('the day', () => {
     });
     expect(body.card.expectedLoad).toBeGreaterThan(50);
     expect(body.body.rhr).toMatchObject({ date: TODAY, range: { lo: expect.any(Number), hi: expect.any(Number) } });
+  });
+
+  it('"on the watch" means THIS workout: a club or day-session delivery that day does not count under a personal card', async () => {
+    history(100, true);
+    const club = plan(null, [{ ...TEMPO, dayOfWeek: 2, name: 'club tempo' }]);
+    plan(TRAINEE, [FIVE_BY_ONE, TEMPO]);
+    db.tables.workout_deliveries.push(
+      { athlete_id: TRAINEE, workout_date: TODAY, status: 'success', plan_id: club },
+      { athlete_id: TRAINEE, workout_date: TODAY, status: 'success', plan_id: null, workout_key: `day:${TODAY}` },
+    );
+    as(COACH);
+    const body = await (await get(`athleteId=${TRAINEE}`)).json();
+    expect(body.card).toMatchObject({ title: '5 × 1 ק״מ', onWatch: false });
+  });
+
+  it('under the club week, the club delivery or the day session counts', async () => {
+    history(100, true);
+    plan(null, [{ ...TEMPO, dayOfWeek: 2, name: 'club tempo' }]);
+    db.tables.workout_deliveries.push({ athlete_id: TRAINEE, workout_date: TODAY, status: 'success', plan_id: null, workout_key: `day:${TODAY}` });
+    as(COACH);
+    const body = await (await get(`athleteId=${TRAINEE}`)).json();
+    expect(body.card.onWatch).toBe(true);
   });
 
   it('never picks another trainee\'s personal week, even a newer pushed one', async () => {

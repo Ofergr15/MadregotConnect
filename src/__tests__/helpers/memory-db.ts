@@ -127,9 +127,11 @@ export function createMemoryDb(opts: MemoryDbOptions) {
     neq(c: string, v: unknown) { return this.add(`${c}=neq.${v}`, (r) => r[c] !== v); }
     is(c: string, v: unknown) { return this.add(`${c}=is.${v}`, (r) => (v === null ? r[c] == null : r[c] === v)); }
     in(c: string, vs: unknown[]) { return this.add(`${c}=in.(${vs.join(',')})`, (r) => vs.includes(r[c])); }
+    contains(c: string, vs: unknown[]) { return this.add(`${c}=cs.{${vs.join(',')}}`, (r) => Array.isArray(r[c]) && vs.every((v) => (r[c] as unknown[]).includes(v))); }
     gte(c: string, v: any) { return this.add(`${c}=gte.${v}`, (r) => r[c] != null && r[c] >= v); }
     lte(c: string, v: any) { return this.add(`${c}=lte.${v}`, (r) => r[c] != null && r[c] <= v); }
     gt(c: string, v: any) { return this.add(`${c}=gt.${v}`, (r) => r[c] != null && r[c] > v); }
+    lt(c: string, v: any) { return this.add(`${c}=lt.${v}`, (r) => r[c] != null && r[c] < v); }
     not(c: string, op: string, v: unknown) {
       if (op !== 'is') throw new Error(`memory-db: not.${op} unsupported`);
       return this.add(`${c}=not.is.${v}`, (r) => (v === null ? r[c] != null : r[c] !== v));

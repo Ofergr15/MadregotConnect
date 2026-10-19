@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { feedbackAlertCopy } from '@/lib/notifications/copy';
-import { academyManagerIds, notifyStaff } from '@/lib/notifications/staff';
+import { notifyStaff } from '@/lib/notifications/staff';
+import { feedbackRecipients } from '@/lib/notifications/feedback-recipients';
 import { notifyAthlete } from '@/lib/push';
 import { SUPER_USER_EMAIL } from '@/lib/constants';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
@@ -452,31 +453,25 @@ export async function POST(request: Request) {
         // him: all 16 alerts of 09-07..10-19 went to the club account alone (Ofer, 10-19).
         extraRecipientIds: await headCoachIds(supabase),
       });
-      // An academy trainee's own coaches hear about pain — and a request for feedback (10-19) — too (screen 6: "אם כן, Rina מקבלת
-      // התראה") — the staff routing above reaches the club's admins, not the 1:1 coach.
-      // Best-effort: a trainee with no coach, or a lookup that fails, costs only this.
-      if (painNew || askNew) {
-        try {
-          let coaches = (await coachIdsOf(supabase, athleteId)).filter(id => id !== athleteId);
-          let to: 'coach' | 'managers' = 'coach';
-          if (!coaches.length) {
-            coaches = (await academyManagerIds()).filter(id => id !== athleteId);
-            to = 'managers';
-          }
-          // Said back to the screen for pain only: that is what it promises the runner.
-          if (painNew) painTo = to;
-          await Promise.all(coaches.map(coachId => notifyAthlete({
-            athleteId: coachId,
-            kind: 'feedback_alert',
-            url: academyThreadUrl({ recipientIsStaff: true, traineeId: athleteId }),
-            tag: `feedback-alert-${athleteId}`,
-            category: 'coach',
-            actorAthleteId: athleteId,
-            icon: athlete?.avatar_url?.trim() || undefined,
-            copy: (locale) => feedbackAlertCopy(locale, { athleteName: name, reason }),
-          }).catch(() => {})));
-        } catch { /* best-effort */ }
-      }
+      // The runner's own coach hears it too — every flag, not only pain (2026-10-19):
+      // the routed list above reached the operator account alone, so the club's coach
+      // never saw a single alert or reply request. An academy trainee's coaches and the
+      // managers; a club runner's club coaches (lib/notifications/feedback-recipients.ts).
+      // Best-effort: a lookup that fails costs only this.
+      try {
+        const to = await feedbackRecipients(supabase, athleteId);
+        if (painNew) painTo = to.to;
+        await Promise.all(to.ids.map(coachId => notifyAthlete({
+          athleteId: coachId,
+          kind: 'feedback_alert',
+          url: to.academy ? academyThreadUrl({ recipientIsStaff: true, traineeId: athleteId }) : '/dashboard/workout-feedback',
+          tag: `feedback-alert-${athleteId}`,
+          category: 'coach',
+          actorAthleteId: athleteId,
+          icon: athlete?.avatar_url?.trim() || undefined,
+          copy: (locale) => feedbackAlertCopy(locale, { athleteName: name, reason }),
+        }).catch(() => {})));
+      } catch { /* best-effort */ }
     }
 
     return NextResponse.json({ success: true, ...(painTo ? { painTo, noCoach: painTo === 'managers' } : {}) });

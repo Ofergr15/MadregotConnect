@@ -243,3 +243,25 @@ export async function mayCoach(
   const lookup = await loadPair(athleteId);
   return lookup.ok && lookup.pair.academyCoachIds.includes(caller.athleteId);
 }
+
+/**
+ * The academy trainees among `athleteIds` this caller may NOT plan for — a trainee's
+ * personal week is their coaches' and the manager's to write (Ofer, 2026-10-19), so
+ * the older composer's doors (POST /api/plans with an athlete_id, push-workouts for a
+ * personal plan) are held to the same line `requireTraineeAccess` draws on day-plan.
+ * Anyone who is not an academy trainee is not this function's business: club weeks
+ * keep their any-staff gate. `[]` = all allowed.
+ */
+export async function academyTraineesNotYours(
+  caller: RoleCaller & { athleteId: string | null },
+  athleteIds: string[],
+): Promise<string[]> {
+  if (isAcademyManager(caller)) return [];
+  const denied: string[] = [];
+  for (const id of [...new Set(athleteIds.filter(Boolean))]) {
+    const lookup = await loadPair(id);
+    if (!lookup.ok || !lookup.pair.isAcademy) continue;
+    if (!caller.athleteId || !lookup.pair.academyCoachIds.includes(caller.athleteId)) denied.push(id);
+  }
+  return denied;
+}

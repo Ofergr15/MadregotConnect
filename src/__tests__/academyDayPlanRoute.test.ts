@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ParsedWorkout } from '@/lib/ai/types';
-import { decideRecipients, hasWorkoutOn, mergeDay } from '@/lib/academy/day-send';
+import { BAND_PACE_NOTE, bandReferenceSec, decideRecipients, hasWorkoutOn, mergeDay, withBandNote } from '@/lib/academy/day-send';
 import { effortFromPace, effortFromZone, toLibrarySteps, type BookStep } from '@/lib/academy/book-steps';
 import { resolveLibraryWorkout } from '@/lib/academy/library';
 import { applyPaceAdjust } from '@/lib/academy/coach-tools';
@@ -13,11 +13,24 @@ describe('decideRecipients', () => {
   const base = { isPrimary: false, thresholdSec: 270, hasWorkoutThatDay: false, isAcademy: true, active: true };
 
   it('sends to a tested trainee with a free day', () => {
-    expect(decideRecipients([{ ...base, id: 'a' }])).toEqual([{ id: 'a', action: 'send', thresholdSec: 270 }]);
+    expect(decideRecipients([{ ...base, id: 'a' }])).toEqual([{ id: 'a', action: 'send', thresholdSec: 270, basis: 'test' }]);
   });
 
-  it('never sends without a test', () => {
+  it('without a test, prices from the band — and only skips with no band either', () => {
+    expect(decideRecipients([{ ...base, id: 'a', thresholdSec: null, fallbackThresholdSec: 209 }]))
+      .toEqual([{ id: 'a', action: 'send', thresholdSec: 209, basis: 'band' }]);
+    // A test always wins over the band.
+    expect(decideRecipients([{ ...base, id: 'a', fallbackThresholdSec: 209 }])[0]).toMatchObject({ thresholdSec: 270, basis: 'test' });
     expect(decideRecipients([{ ...base, id: 'a', thresholdSec: null }])).toEqual([{ id: 'a', action: 'skip', reason: 'no-test' }]);
+    expect(decideRecipients([{ ...base, id: 'a', thresholdSec: null, fallbackThresholdSec: null }])).toEqual([{ id: 'a', action: 'skip', reason: 'no-test' }]);
+  });
+
+  it("a band's reference is its lane's, and the session says it is band-priced once", () => {
+    const refs = { 1: 203, 2: 209, 3: 223 } as const;
+    expect([bandReferenceSec(4, refs), bandReferenceSec(6, refs), bandReferenceSec(9, refs), bandReferenceSec(null, refs)]).toEqual([203, 209, 223, null]);
+    expect(withBandNote(null)).toBe(BAND_PACE_NOTE);
+    expect(withBandNote('קל')).toBe(`${BAND_PACE_NOTE}\nקל`);
+    expect(withBandNote(withBandNote('קל'))).toBe(`${BAND_PACE_NOTE}\nקל`);
   });
 
   it('skips someone who already has a workout that day — unless they are the one being planned', () => {
@@ -140,8 +153,9 @@ describe('POST /api/academy/day-plan', () => {
       { id: 'yoav', name: 'Yoav', isAcademy: true, active: true, bandNumber: 5, hasGarmin: false },
       { id: 'alon', name: 'Alon', isAcademy: true, active: true, bandNumber: 5, hasGarmin: true },
       { id: 'noa', name: 'Noa', isAcademy: true, active: true, bandNumber: 6, hasGarmin: true },
+      { id: 'gil', name: 'Gil', isAcademy: true, active: true, bandNumber: null, hasGarmin: true },
     ];
-    state.thresholds = { shahar: 270, yoav: 300, alon: 280, noa: null };
+    state.thresholds = { shahar: 270, yoav: 300, alon: 280, noa: null, gil: null };
     state.weeks = {
       shahar: { planId: 'plan-s', workouts: [{ dayOfWeek: 0, name: 'sun', steps: [{ order: 1, type: 'active', durationType: 'distance', durationValue: 8000, targetType: 'no_target' }] }] },
       alon: { planId: 'plan-a', workouts: [{ dayOfWeek: 2, name: 'his', steps: [{ order: 1, type: 'active', durationType: 'distance', durationValue: 8000, targetType: 'no_target' }] }] },
@@ -161,7 +175,7 @@ describe('POST /api/academy/day-plan', () => {
 
   it('each recipient gets their own pace, skipped people are skipped, and only that day goes to the watch', async () => {
     const res = await post({
-      date: '2026-10-13', recipients: ['shahar', 'yoav', 'alon', 'noa'], entryId: 'entry-1',
+      date: '2026-10-13', recipients: ['shahar', 'yoav', 'alon', 'noa', 'gil'], entryId: 'entry-1',
       workout: { name: '5 × 1 ק״מ', notes: null, steps: toLibrarySteps(model) },
     });
     const body = await res.json();
@@ -169,19 +183,26 @@ describe('POST /api/academy/day-plan', () => {
       ['shahar', 'sent', null],
       ['yoav', 'saved', null],
       ['alon', 'skipped', 'has-workout'],
-      ['noa', 'skipped', 'no-test'],
+      // No test, band 6: priced from the band's lane and told so (no token → saved).
+      ['noa', 'saved', null],
+      // No test and no band: nothing to price with, an explicit skip.
+      ['gil', 'skipped', 'no-test'],
     ]);
+    expect(body.results.find((r: any) => r.athleteId === 'noa').paceBasis).toBe('band');
+    const noaWrite = writes.find(w => w.table === 'weekly_plans' && w.op === 'insert' && w.row.athlete_id === 'noa')!;
+    const noaDay = (noaWrite.row.parsed_workouts.workouts as ParsedWorkout[]).find(w => w.dayOfWeek === 2)!;
+    expect(String((noaDay as { notes?: string }).notes ?? (noaDay as { description?: string }).description ?? '')).toContain(BAND_PACE_NOTE);
 
     // Shahar's week row is UPDATED with Sunday kept and Tuesday added.
     const shaharWrite = writes.find(w => w.table === 'weekly_plans' && w.op === 'update' && w.id === 'plan-s')!;
     expect(shaharWrite.row.parsed_workouts.workouts.map((w: ParsedWorkout) => w.dayOfWeek)).toEqual([0, 2]);
     // Yoav had no row: one is inserted for him.
-    const yoavWrite = writes.find(w => w.table === 'weekly_plans' && w.op === 'insert')!;
+    const yoavWrite = writes.find(w => w.table === 'weekly_plans' && w.op === 'insert' && w.row.athlete_id === 'yoav')!;
     // Published by the send although no watch got it (launch BL6): a draft is invisible to
     // run detail and the matcher. Only Tuesday in it → the whole week, 'pushed'.
     expect(yoavWrite.row).toMatchObject({ athlete_id: 'yoav', week_start_date: '2026-10-11', status: 'pushed' });
     // …and, with no watch to announce it, the app does (BL8): Yoav only.
-    expect(planSaved).toHaveBeenCalledTimes(1);
+    expect(planSaved).toHaveBeenCalledTimes(2);
     expect((planSaved.mock.calls[0] as unknown[])[0]).toMatchObject({ athleteId: 'yoav', date: '2026-10-13', failedWatch: false });
 
     // The pace each got is from THEIR threshold: Shahar 4:05, Yoav 4:32.
@@ -200,7 +221,7 @@ describe('POST /api/academy/day-plan', () => {
     // Alon's week is untouched.
     expect(writes.some(w => w.id === 'plan-a')).toBe(false);
     // The entry is counted once per trainee who got it.
-    expect(writes.find(w => w.table === 'academy_workout_library')?.row.use_count).toBe(5);
+    expect(writes.find(w => w.table === 'academy_workout_library')?.row.use_count).toBe(6);
   });
 
   it('a trainee on the senior week keeps the rest of that week when one day is planned (launch BL7)', async () => {

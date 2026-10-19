@@ -85,3 +85,33 @@ export function dayCards(input: DayCardsInput): { cards: Record<string, TodayCar
   }
   return { cards, planWeeks };
 }
+
+/**
+ * The dates whose SHOWN workout is on the watch (2026-10-19). A delivery counts only
+ * when it is of the plan row the day card is drawn from — the trainee's own week when
+ * they have one, else the club's — so a club session or a day session that reached the
+ * watch no longer reads as "on the watch" above a personal workout that did not.
+ * A day session (no plan_id, `workout_key` `day:<date>`) counts only under the club
+ * week, where it is the club's session of that day.
+ */
+export function watchDates(input: {
+  dates: string[];
+  athleteId: string;
+  planRows: Array<{ id?: string | null; week_start_date: string; athlete_id?: string | null; status?: string | null }>;
+  deliveries: Array<{ workout_date: string; status: string; plan_id?: string | null; workout_key?: string | null }>;
+  weekStartOf: (date: string) => string;
+}): Set<string> {
+  const out = new Set<string>();
+  for (const date of input.dates) {
+    const weekStart = input.weekStartOf(date);
+    const plan = pickPlan(input.planRows.filter(p => String(p.week_start_date).slice(0, 10) === weekStart), input.athleteId);
+    const personal = !!plan?.athlete_id;
+    const hit = input.deliveries.some((d) => {
+      if (d.status !== 'success' || String(d.workout_date).slice(0, 10) !== date) return false;
+      if (d.plan_id) return !!plan?.id && String(d.plan_id) === String(plan.id);
+      return !personal && !!d.workout_key?.startsWith('day:');
+    });
+    if (hit) out.add(date);
+  }
+  return out;
+}

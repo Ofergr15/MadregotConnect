@@ -16,14 +16,50 @@ import type { TraineeFeedback } from '@/components/academy/FeedbackCard';
 // bearing, not tidiness.
 
 /**
+ * The academy's managers, by the same definition `isAcademyManager` gates on
+ * (pairing-server.ts): everyone holding `academy_manager` (in `extra_roles`, migration
+ * 127 — never an account's primary role, see lib/auth/roles.ts) and every super user
+ * (Ofer, 2026-10-19: he sees the whole academy the way Eldar does). Admins are added
+ * by `academyManagerSeatIds`. Best-effort per source: a database without 127 or 084,
+ * or any error, is simply nobody from that source.
+ */
+export async function academyManagerAthleteIds(supabase: SupabaseClient): Promise<string[]> {
+  const ids = new Set<string>();
+  const read = async (q: () => PromiseLike<{ data: unknown; error: unknown }>) => {
+    try {
+      const { data, error } = await q();
+      if (!error) for (const r of (data || []) as Array<{ id: string }>) if (r.id) ids.add(r.id);
+    } catch {
+      // That source is unavailable; the other still counts.
+    }
+  };
+  await Promise.all([
+    read(() => supabase.from('athletes').select('id').contains('extra_roles', ['academy_manager'])),
+    read(() => supabase.from('athletes').select('id').eq('is_super_user', true)),
+  ]);
+  return [...ids];
+}
+
+/** The manager seat: every admin and every academy manager. */
+export async function academyManagerSeatIds(supabase: SupabaseClient): Promise<string[]> {
+  const { data: admins } = await supabase
+    .from('athletes')
+    .select('id')
+    .eq('role', 'admin');
+  const ids = new Set<string>((admins || []).map((a: { id: string }) => a.id).filter(Boolean));
+  for (const id of await academyManagerAthleteIds(supabase)) ids.add(id);
+  return [...ids];
+}
+
+/**
  * Who sits in a trainee's thread.
  *
- * Three seats, and the third one needs stating plainly: there is no academy-manager
- * role in this app. `STAFF_ROLES` is admin/coach/academy_coach and the mentor link is
- * `athletes.academy_coach_id`, so "manager" is a seat in the UI, not a permission
- * tier — which means the manager seat is filled by EVERY admin. That is a real
- * consequence of the club's role model and not a decision this function can make;
- * it is written down here because the alternative is discovering it from a trainee.
+ * Three seats: the trainee, every coach of theirs, and the manager seat — every
+ * admin, every academy manager and every super user (Ofer, 2026-10-19: the managers
+ * have authority over the whole academy and must see every conversation as it
+ * happens, not only the ones they happened to open). A manager who is also a trainee
+ * is simply the trainee in their own thread — one membership, and `seatFor` names
+ * the trainee first.
  *
  * The AI coach is deliberately NOT a member. The run chats include it because a run
  * is a thing to analyse; this thread is the human relationship the club currently
@@ -47,11 +83,7 @@ export async function academyThreadMembers(
   // `academy_coach_id` points at athletes.id, unlike run-chat's `coach_id` which
   // points at coaches.id and needs resolving across two identity spaces by email.
   // One less place for those to disagree.
-  const { data: admins } = await supabase
-    .from('athletes')
-    .select('id, role')
-    .eq('role', 'admin');
-  for (const a of admins || []) if (a.id) members.add(a.id);
+  for (const id of await academyManagerSeatIds(supabase)) members.add(id);
 
   return [...members].filter(Boolean);
 }
@@ -101,7 +133,7 @@ export async function ensureAcademyThread(
  * After the manager changes a trainee's coaches: the coaches added join the shared
  * thread (with its history — `ensureAcademyThread` adds everyone who belongs), and
  * the coaches removed leave it, unless they still belong in another seat (an admin
- * stays as the manager). Throws on a Stream failure; the caller treats it as
+ * or academy manager stays as the manager). Throws on a Stream failure; the caller treats it as
  * best-effort, because the next open re-adds whoever belongs.
  */
 export async function syncAcademyThreadCoaches(

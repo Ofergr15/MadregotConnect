@@ -37,7 +37,9 @@ export function isPreviewing(): boolean {
 
 // Roles that see the "staff" flavour of the app (full nav, no profile tab). Used
 // to decide whether a previewed role should also get the athlete profile tab.
-export const STAFF_ROLES = ['admin', 'coach', 'academy_coach'];
+// `academy_manager` too (migration 127): it is never an account's primary role, but a
+// view-as preview of the manager is one, and the manager is staff.
+export const STAFF_ROLES = ['admin', 'coach', 'academy_coach', 'academy_manager'];
 
 // Both directions drop the open-sync cooldown stamp, so the first screen after a
 // view-as switch pulls in whatever arrived while the super user was looking at

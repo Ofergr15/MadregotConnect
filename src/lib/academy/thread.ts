@@ -107,11 +107,10 @@ export interface ThreadMessageRef {
 /**
  * Turn a channel's recent messages into a snapshot.
  *
- * Everyone who is not the trainee is staff. That is not a shortcut — there is no
- * academy-manager role in this app (`STAFF_ROLES` is admin/coach/academy_coach and
- * the mentor link is `athletes.academy_coach_id`), so "manager" is a seat in the UI
- * and not a permission tier. For the one question this inbox asks — is somebody
- * waiting on a human reply — the coach and the manager are the same side.
+ * Everyone who is not the trainee is staff: the coaches and the manager seat (every
+ * admin and every `academy_manager`, see thread-server.ts). For the one question this
+ * inbox asks — is somebody waiting on a human reply — the coach and the manager are
+ * the same side.
  *
  * SAFE ON A TRUNCATED WINDOW, which matters because the caller passes the last N
  * messages and not the whole thread. If staff last spoke before the window,

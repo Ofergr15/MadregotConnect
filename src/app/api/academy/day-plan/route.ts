@@ -10,7 +10,9 @@ import {
   allAcademyTraineeIds, loadClubWeek, loadLaneReferences, loadThresholds, loadTrainees, loadTraineeWeeks,
   loadSeniorSeed,
 } from '@/lib/academy/book-server';
-import { decideRecipients, hasWorkoutOn, mergeDay, type SkipReason } from '@/lib/academy/day-send';
+import {
+  bandReferenceSec, decideRecipients, hasWorkoutOn, mergeDay, resolveThreshold, withBandNote, type PaceBasis, type SkipReason,
+} from '@/lib/academy/day-send';
 import {
   hasAbsolutePaces, resolveLibraryWorkout, type LibraryStep,
 } from '@/lib/academy/library';
@@ -94,13 +96,18 @@ export async function GET(request: Request) {
     const lane: Lane = asked === 1 || asked === 2 || asked === 3 ? asked : bandLane ?? 2;
     const senior = pickSeniorDay(club, lane, dayOfWeek, refs[lane]);
     const myWeek = weeks[athleteId] ?? { planId: null, workouts: [] };
+    const mine = resolveThreshold(thresholds[athleteId], bandReferenceSec(me?.bandNumber, refs));
 
     const others = trainees
       .filter(t => t.id !== athleteId && t.isAcademy && t.active)
       .map(t => ({
         id: t.id,
         name: t.name,
-        thresholdSec: thresholds[t.id] ?? null,
+        // No test: their band's reference, so the coach can still send (day-send.ts).
+        ...(() => {
+          const r = resolveThreshold(thresholds[t.id], bandReferenceSec(t.bandNumber, refs));
+          return { thresholdSec: r.sec, paceBasis: r.basis };
+        })(),
         paceAdjust: adjusts[t.id] ?? {},
         hasGarmin: t.hasGarmin,
         lane: laneForBand(t.bandNumber),
@@ -118,7 +125,9 @@ export async function GET(request: Request) {
         bandNumber: me?.bandNumber ?? null,
         lane,
         bandLane,
-        thresholdSec: thresholds[athleteId] ?? null,
+        thresholdSec: mine.sec,
+        // 'band' = no test yet, priced from the band; the screens say so.
+        paceBasis: mine.basis,
         paceAdjust: adjusts[athleteId] ?? {},
         hasGarmin: !!me?.hasGarmin,
       },
@@ -140,6 +149,8 @@ interface SendResult {
   status: 'sent' | 'saved' | 'skipped' | 'failed';
   reason?: SkipReason | 'push-failed' | 'save-failed' | 'not-yours';
   detail?: string | null;
+  /** 'band' when this trainee has no test yet and was priced from their band. */
+  paceBasis?: PaceBasis;
 }
 
 export async function POST(request: Request) {
@@ -174,12 +185,13 @@ export async function POST(request: Request) {
     const dayOfWeek = dayOfWeekOf(date);
     const allowed = recipients.filter((_, i) => !access[i]!.denied);
 
-    const [trainees, thresholds, weeks, settings, adjusts] = await Promise.all([
+    const [trainees, thresholds, weeks, settings, adjusts, refs] = await Promise.all([
       loadTrainees(supabase, allowed),
       loadThresholds(supabase, allowed),
       loadTraineeWeeks(supabase, allowed, weekStart),
       loadAcademySettings(),
       loadPaceAdjusts(supabase, allowed, weekStart),
+      loadLaneReferences(supabase),
     ]);
     const byId = new Map(trainees.map(t => [t.id, t]));
 
@@ -187,6 +199,7 @@ export async function POST(request: Request) {
       id,
       isPrimary: id === recipients[0],
       thresholdSec: thresholds[id] ?? null,
+      fallbackThresholdSec: bandReferenceSec(byId.get(id)?.bandNumber, refs),
       hasWorkoutThatDay: hasWorkoutOn(weeks[id]?.workouts ?? [], dayOfWeek),
       isAcademy: !!byId.get(id)?.isAcademy,
       active: !!byId.get(id)?.active,
@@ -215,7 +228,9 @@ export async function POST(request: Request) {
       // Their own threshold, then their pace update — the same function and marker as the
       // stored weeks (coach-tools.ts), so a later update moves this session by the difference.
       // No update: `applyPaceAdjust` hands the workout back untouched.
-      const plain = resolveLibraryWorkout({ name, notes, steps }, { thresholdPaceSec: decision.thresholdSec, dayOfWeek });
+      // Band-priced (no test yet): the session says so, on the watch and in the app.
+      const sessionNotes = decision.basis === 'band' ? withBandNote(notes) : notes;
+      const plain = resolveLibraryWorkout({ name, notes: sessionNotes, steps }, { thresholdPaceSec: decision.thresholdSec, dayOfWeek });
       const resolved = plain ? applyPaceAdjust(plain, decision.thresholdSec, adjusts[decision.id] ?? {}) : null;
       if (!resolved) {
         results.push({ athleteId: decision.id, name: label, status: 'skipped', reason: 'no-test' });
@@ -255,7 +270,7 @@ export async function POST(request: Request) {
       if (!athlete?.garmin_auth) {
         // Saved anyway: their app and their adherence read the plan row, and a trainee on
         // Strava has a session to follow even with no watch to put it on.
-        results.push({ athleteId: decision.id, name: label, status: 'saved' });
+        results.push({ athleteId: decision.id, name: label, status: 'saved', ...(decision.basis === 'band' ? { paceBasis: 'band' as const } : {}) });
         // No watch told them, so the app does (launch BL8).
         await notifyPlanSaved({ athleteId: decision.id, actorId: caller.athleteId, date, days: 1, failedWatch: false });
         continue;
@@ -277,7 +292,7 @@ export async function POST(request: Request) {
       });
       if (push.status === 'success') {
         await supabase.from('weekly_plans').update({ status: others ? 'partial' : 'pushed' }).eq('id', planId);
-        results.push({ athleteId: decision.id, name: label, status: 'sent' });
+        results.push({ athleteId: decision.id, name: label, status: 'sent', ...(decision.basis === 'band' ? { paceBasis: 'band' as const } : {}) });
       } else {
         await supabase.from('weekly_plans').update({ status: sentPlanStatus({ otherDays: others > 0, delivered: false }) }).eq('id', planId);
         results.push({ athleteId: decision.id, name: label, status: 'failed', reason: 'push-failed', detail: push.error ?? null });

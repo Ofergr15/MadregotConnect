@@ -21,7 +21,7 @@ vi.mock('@/lib/auth/self-or-staff', () => ({
 }));
 const notifyStaff = vi.fn(async (_o: unknown) => {});
 const MANAGER = uid();
-vi.mock('@/lib/notifications/staff', () => ({ notifyStaff: (o: unknown) => notifyStaff(o), academyManagerIds: async () => [MANAGER] }));
+vi.mock('@/lib/notifications/staff', () => ({ notifyStaff: (o: unknown) => notifyStaff(o) }));
 const notifyAthlete = vi.fn(async (_o: any) => {});
 vi.mock('@/lib/push', () => ({ notifyAthlete: (o: unknown) => notifyAthlete(o) }));
 let coachesOf: string[] = [RINA];
@@ -36,13 +36,14 @@ beforeEach(() => {
   db = createMemoryDb({
     schema: {
       workout_feedback: ['id', 'athlete_id', 'garmin_activity_id', 'difficulty', 'feel', 'pain', 'pain_detail', 'wants_feedback', 'comment'],
-      athletes: ['id', 'name', 'avatar_url', 'email'],
+      athletes: ['id', 'name', 'avatar_url', 'is_academy', 'role', 'extra_roles', 'email', 'status', 'is_super_user'],
       athlete_activities: ['id', 'athlete_id', 'garmin_activity_id'],
     },
     defaults: { workout_feedback: () => ({ id: uid() }) },
   });
-  db.tables.athletes.push({ id: TRAINEE, name: 'Dana', avatar_url: null, email: 'dana@x.com' });
+  db.tables.athletes.push({ id: TRAINEE, name: 'Dana', avatar_url: null, email: 'dana@x.com', is_academy: true, role: 'runner' });
   db.tables.athletes.push({ id: HEAD, name: 'Ofer', avatar_url: null, email: SUPER_USER_EMAIL });
+  db.tables.athletes.push({ id: MANAGER, name: 'Eldar', role: 'academy_coach', extra_roles: ['academy_manager'] });
   db.tables.athlete_activities.push({ id: uid(), athlete_id: TRAINEE, garmin_activity_id: 777 });
   db.tables.athlete_activities.push({ id: uid(), athlete_id: OTHER, garmin_activity_id: 888 });
   notifyStaff.mockClear();
@@ -51,11 +52,11 @@ beforeEach(() => {
 });
 
 describe('a pain report', () => {
-  it('reaches the trainee\'s own coach as well as staff', async () => {
+  it('reaches the trainee\'s own coach and the academy manager as well as staff', async () => {
     expect((await post({ feel: 2, difficulty: 6, pain: true })).status).toBe(200);
     expect(notifyStaff).toHaveBeenCalledTimes(1);
-    expect(notifyAthlete).toHaveBeenCalledTimes(1);
-    expect(notifyAthlete.mock.calls[0][0]).toMatchObject({ athleteId: RINA, kind: 'feedback_alert', category: 'coach' });
+    expect(notifyAthlete.mock.calls.map((c) => c[0].athleteId).sort()).toEqual([RINA, MANAGER].sort());
+    expect(notifyAthlete.mock.calls[0][0]).toMatchObject({ kind: 'feedback_alert', category: 'coach' });
     expect(db.tables.workout_feedback).toHaveLength(1);
   });
 
@@ -71,9 +72,24 @@ describe('a pain report', () => {
     await post({ feel: 2, pain: true });
     await post({ feel: 3, pain: true });
     expect(notifyStaff).toHaveBeenCalledTimes(1);
-    expect(notifyAthlete).toHaveBeenCalledTimes(1);
+    expect(notifyAthlete).toHaveBeenCalledTimes(2);
     expect(db.tables.workout_feedback).toHaveLength(1);
     expect(db.tables.workout_feedback[0].feel).toBe(3);
+  });
+
+  it('a club runner asking for a reply reaches the club coach — not the QA fixture', async () => {
+    const YAIR = uid();
+    const club = db.tables.athletes.find((a) => a.id === TRAINEE)!;
+    club.is_academy = false;
+    db.tables.athletes.push(
+      { id: YAIR, name: 'Yair', role: 'coach', email: 'strava_1@strava.madregot.local', status: 'active' },
+      { id: uid(), name: 'Test Coach', role: 'coach', email: 'test-coach@madregot.local', status: 'active' },
+    );
+    expect((await post({ feel: 3, wantsFeedback: true })).status).toBe(200);
+    expect(notifyStaff).toHaveBeenCalledTimes(1);
+    expect(notifyAthlete.mock.calls.map((c) => c[0])).toEqual([
+      expect.objectContaining({ athleteId: YAIR, kind: 'feedback_alert', url: '/dashboard/workout-feedback' }),
+    ]);
   });
 
   it('no pain, nothing to tell', async () => {

@@ -6,7 +6,7 @@ import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { toBand } from './bands';
 import { loadPaceUpdateCard } from './coach-tools-server';
 import { loadLaneReferences } from './book-server';
-import { dayCards } from './day-cards';
+import { dayCards, watchDates } from './day-cards';
 import { goalCard } from './trainee-home';
 import { goalTimeText } from './goal';
 import { isRunType, shiftDate } from './load';
@@ -85,7 +85,7 @@ export async function loadTraineeToday(
     athleteLoads(supabase, athleteId, { since: shiftDate(today, -BACKFILL_DAYS), write: opts.write && !opts.inMemoryLoads, today, inMemory: opts.inMemoryLoads }),
     supabase
       .from('weekly_plans')
-      .select('week_start_date, parsed_workouts, status, athlete_id, created_at')
+      .select('id, week_start_date, parsed_workouts, status, athlete_id, created_at')
       .eq('coach_id', COACH_ID)
       .or(planRowsFilter(athleteId))
       .in('week_start_date', weekStarts)
@@ -94,7 +94,7 @@ export async function loadTraineeToday(
     loadLaneReferences(supabase),
     supabase
       .from('workout_deliveries')
-      .select('workout_date, status')
+      .select('workout_date, status, plan_id, workout_key')
       .eq('athlete_id', athleteId)
       .gte('workout_date', days[0])
       .lte('workout_date', days[days.length - 1]),
@@ -131,18 +131,22 @@ export async function loadTraineeToday(
   // ── The plan days ──
   const groupNames = new Map<string, string>(((groupsRes.data || []) as Array<{ id: string; name: string }>).map(g => [g.id, g.name]));
   const tests = loads.tests;
-  const onWatch = new Set(
-    ((deliveriesRes.data || []) as Array<{ workout_date: string; status: string }>)
-      .filter(d => d.status === 'success')
-      .map(d => String(d.workout_date).slice(0, 10)),
-  );
+  const planRows = ((plansRes.error ? [] : plansRes.data) || []) as any[];
+  // Only deliveries of the workout the card shows (day-cards.ts watchDates).
+  const onWatch = watchDates({
+    dates: days,
+    athleteId,
+    planRows,
+    deliveries: (deliveriesRes.data || []) as Array<{ workout_date: string; status: string; plan_id?: string | null; workout_key?: string | null }>,
+    weekStartOf: planWeekStartOf,
+  });
   const acts = ((actsRes.error ? [] : actsRes.data) || []) as Array<{ id: string; start_time: string; distance: number | null; activity_type: string | null; average_hr?: number | null }>;
   const ranOn = (date: string) => acts.some(a => isRunType(a.activity_type) && activityLocalDateStr(a.start_time) === date);
   const { cards, planWeeks } = dayCards({
     dates: days,
     athleteId,
     groupId: me.group_id ?? null,
-    planRows: ((plansRes.error ? [] : plansRes.data) || []) as any[],
+    planRows,
     groupNames,
     laneRefs,
     tests,

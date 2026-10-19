@@ -8,6 +8,7 @@ import { notifyAthlete } from '@/lib/push';
 import { academyThreadMessageCopy } from '@/lib/notifications/copy';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
 import { coachIdsOf } from '@/lib/academy/trainee-coaches';
+import { academyManagerAthleteIds } from '@/lib/academy/thread-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -153,23 +154,24 @@ export async function POST(request: Request) {
 
     // ── Who hears about it ────────────────────────────────────────────────────
     //
-    // NOT everyone in the channel. Every admin is a member (there is no
-    // academy-manager role), so notifying all members would push every academy chat
-    // message to every admin — and an admin who mutes the club's chat stops seeing
-    // the sign-ups too, because it is one toggle.
+    // NOT everyone in the channel. Every admin is a member, so notifying all members
+    // would push every academy chat message to every admin — and an admin who mutes
+    // the club's chat stops seeing the sign-ups too, because it is one toggle.
     //
     // So: staff writing reaches the trainee, and the trainee writing reaches ALL
-    // their coaches (a shared trainee has several, all equal) — nobody else. The
-    // other coaches see a coach's message in the thread itself, unpushed. The manager already has the ranked inbox, which exists precisely
-    // so the third seat can watch twenty threads without twenty pushes.
+    // their coaches (a shared trainee has several, all equal) AND the academy
+    // managers (Ofer, 2026-10-19: the manager has authority over the whole academy
+    // and must hear a trainee as it happens). The other coaches see a coach's
+    // message in the thread itself, unpushed.
     //
-    // The exception is an unpaired trainee: nobody is assigned, so a message from
-    // them would reach nobody at all. That falls back to the admins, because "this
-    // one is nobody's job" is exactly when it has to reach somebody.
+    // The exception is a trainee nobody hears: no coach and no manager, so a message
+    // from them would reach nobody at all. That falls back to the admins, because
+    // "this one is nobody's job" is exactly when it has to reach somebody.
     const recipients: Array<{ id: string; staff: boolean }> = [];
     if (isSelf) {
-      if (coachIds.length) {
-        for (const id of coachIds) recipients.push({ id, staff: true });
+      const hearing = new Set<string>([...coachIds, ...(await academyManagerAthleteIds(supabase))]);
+      if (hearing.size) {
+        for (const id of hearing) recipients.push({ id, staff: true });
       } else {
         const { data: admins } = await supabase
           .from('athletes')

@@ -3840,6 +3840,7 @@
     "whatRuns": "What runs on {day}?",
     "alreadyHas": "Already planned that day: <b>{name}</b>. What you send replaces it.",
     "noTest": "{name} has no test yet, so there is no threshold to set paces from. Nothing goes to the watch without one.",
+    "bandPaceBanner": "{name} has no test yet, so the paces follow their band — and the session says so. After a test they become their own.",
     "noTestBlock": "{name} has no test, so nothing goes to the watch.",
     "setTest": "Schedule a test ›",
     "seniorRan": "What the senior group ran on {day}",
@@ -3980,6 +3981,7 @@
     "sendAlso": "{n, plural, one {Also send to one} other {Also send to #}}",
     "result": {
       "sent": "Sent to the watch",
+      "bandPace": "band pace — no test yet",
       "saved": "Saved in the plan · no watch",
       "failed": "Sending failed",
       "skip": {
