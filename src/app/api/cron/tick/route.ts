@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sendEveningWatchReminders } from '@/lib/watch/evening-reminder';
+import { sendMeetupReminders } from '@/lib/runs/meetups-server';
 import { publishBirthdayPosts } from '@/lib/feed/birthday';
 import { sendBirthdayYearPushes } from '@/lib/birthday-year/server';
 import { createServerClient } from '@/lib/supabase/server';
@@ -900,6 +901,20 @@ async function run(request: Request) {
       }
     } catch (err) {
       console.error('[tick] evening watch reminder failed:', err);
+    }
+  }
+
+  // 20:00: tomorrow's "לרוץ ביחד" runs — everyone going hears when and where (2026-10-19).
+  if (hour === 20) {
+    const tag = `meetupEvening:${israelToday(now)}`;
+    try {
+      if (!(await already(tag))) {
+        const n = await sendMeetupReminders(supabase, addDaysToDateStr(israelToday(now), 1));
+        await markFired(tag, n);
+        fired.push(`${tag} → ${n}`);
+      }
+    } catch (err) {
+      console.error('[tick] meetup reminders failed:', err);
     }
   }
 

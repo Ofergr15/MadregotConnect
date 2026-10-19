@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireAthlete, authError } from '@/lib/auth-session';
 import { notifyAthlete } from '@/lib/push';
-import { meetupRequestCopy, meetupAcceptedCopy } from '@/lib/notifications/copy';
+import { meetupJoinedCopy, meetupAcceptedCopy } from '@/lib/notifications/copy';
 import { israelToday } from '@/lib/utils';
 import { isUpcomingMeetup } from '@/lib/runs/meetups';
 
@@ -51,9 +51,11 @@ export async function POST(request: Request) {
 
     const { data: inserted, error } = await supabase
       .from('run_meetup_requests')
+      // v2 (2026-10-19): joining is one tap — the request goes in accepted, no waiting
+      // on the host. A runner who had asked under v1 is moved to accepted too.
       .upsert(
-        { meetup_id: meetupId, athlete_id: auth.user.athleteId },
-        { onConflict: 'meetup_id,athlete_id', ignoreDuplicates: true },
+        { meetup_id: meetupId, athlete_id: auth.user.athleteId, status: 'accepted' },
+        { onConflict: 'meetup_id,athlete_id' },
       )
       .select('id');
     if (error) throw error;
@@ -63,25 +65,25 @@ export async function POST(request: Request) {
     // because somebody's phone retried.
     if ((inserted || []).length > 0) {
       try {
-        const { data: me } = await supabase
-          .from('athletes')
-          .select('name')
-          .eq('id', auth.user.athleteId)
-          .maybeSingle();
+        const [{ data: me }, { count }] = await Promise.all([
+          supabase.from('athletes').select('name, avatar_url').eq('id', auth.user.athleteId).maybeSingle(),
+          supabase.from('run_meetup_requests').select('id', { count: 'exact', head: true }).eq('meetup_id', meetupId).eq('status', 'accepted'),
+        ]);
         await notifyAthlete({
           athleteId: meetup.host_athlete_id,
-          kind: 'meetup_request',
+          kind: 'meetup_joined',
           actorAthleteId: auth.user.athleteId,
-          url: MEETUP_URL,
-          tag: `meetup-request-${meetupId}`,
+          url: `${MEETUP_URL}/${meetupId}`,
+          tag: `meetup-join-${meetupId}`,
           category: 'teammates',
+          icon: (me as { avatar_url?: string | null } | null)?.avatar_url || undefined,
           copy: locale =>
-            meetupRequestCopy(locale, { name: me?.name, date: meetup.date, startTime: meetup.start_time }),
+            meetupJoinedCopy(locale, { name: me?.name, date: meetup.date, startTime: meetup.start_time, place: meetup.location, going: (count ?? 0) + 1, today: israelToday() }),
         });
       } catch { /* push is best-effort and never blocks the request itself */ }
     }
 
-    return NextResponse.json({ status: 'pending' });
+    return NextResponse.json({ status: 'accepted' });
   } catch (err: unknown) {
     console.error('Meetup request error:', err);
     return NextResponse.json({ error: 'Failed to send request' }, { status: 500 });

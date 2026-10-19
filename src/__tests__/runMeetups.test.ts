@@ -42,6 +42,11 @@ describe('validateMeetupDraft', () => {
       plannedPace: '5:10',
       distanceKm: 14,
       notes: 'Easy long run, stopping for water at 7k',
+      // v2 (migration 157): absent means no kind, no pin, the whole club is told.
+      kind: null,
+      lat: null,
+      lng: null,
+      audience: 'club',
     });
   });
 

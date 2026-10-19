@@ -1,450 +1,147 @@
 'use client';
 
-import { useState } from 'react';
-import { useLocale, useTranslations } from 'next-intl';
-import { Check, Clock, MapPin, Plus, Users, X, Gauge, Route as RouteIcon } from 'lucide-react';
-import { apiHeaders, useApi } from '@/lib/api';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { List, Map as MapIcon, Plus } from 'lucide-react';
+import { useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { Button, EmptyState, Sheet, SkeletonList } from '@/components/ui';
-import { AthleteLink } from '@/components/AthleteLink';
-import { FeedAvatar } from '@/components/FeedAvatar';
-import { paceMatch, type RunMeetup } from '@/lib/runs/meetups';
+import { Spinner } from '@/components/ui';
+import { byDay, dayHeading, paceMatch, type MeetupPerson, type RunMeetup } from '@/lib/runs/meetups';
+import { RunCard, packHex } from '@/components/run-together/parts';
+import { MeetupsMap } from '@/components/run-together/MeetupsMap';
+import { NewRunSheet, type Spot } from '@/components/run-together/NewRunSheet';
 
-// "שידוכי ריצות" — the run-meetup board (398963c7: "say when and where you're
-// going out and what the planned pace is; anyone with a similar session can ask
-// to join").
-//
-// One screen and not a feed section, because the two halves of this need opposite
-// treatment: the offers are a short list that must be readable at a glance, and
-// answering a request is a small piece of admin nobody should meet while
-// scrolling past their teammates' runs. The feed is where you read; this is where
-// you arrange.
-//
-// The "matchmaking" is the pace on the card, compared against the pace the viewer
-// themselves last posted — see lib/runs/meetups.ts for why the app does not try
-// to read anybody's training plan to do it automatically.
+// "לרוץ ביחד" (mockup ~/.cache/madregot/run-together-v2.html, Ofer 2026-10-19: "a plus
+// to post, offers easy to see, where, which pack and who"). The board by day or on a
+// map, filtered by pack or by pace, and a floating + that is always there.
 
-interface MeetupsResponse {
+interface Board {
   meetups: RunMeetup[];
   today: string;
+  viewer: (MeetupPerson & { pace: string | null }) | null;
+  spots: Spot[];
 }
+type Filter = 'all' | 1 | 2 | 3 | 'pace';
 
 export default function RunTogetherPage() {
-  const t = useTranslations('runTogether');
-  const tc = useTranslations('common');
-  const locale = useLocale();
-  const dateLocale = locale === 'he' ? 'he-IL' : 'en-US';
-
-  const { data, isLoading, mutate } = useApi<MeetupsResponse>('/api/runs/meetups');
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [pending, setPending] = useState<string | null>(null);
-
-  const meetups = data?.meetups || [];
-  // The viewer's own most recent offer is the only pace the app can honestly say
-  // is theirs — it is the one they typed. No offer of their own means no match
-  // labels anywhere on the board, which is the correct amount to claim.
-  const myPace = meetups.find(m => m.isHost)?.plannedPace ?? null;
-
-  async function send(url: string, init: RequestInit) {
-    setPending(url);
-    try {
-      const res = await fetch(url, { ...init, headers: await apiHeaders(true) });
-      // Revalidate rather than patch locally: a request changes two things on the
-      // card (the viewer's own state and the host's pending list) and the server
-      // already computes both.
-      if (res.ok) await mutate();
-      return res.ok;
-    } catch {
-      return false;
-    } finally {
-      setPending(null);
-    }
-  }
-
-  const when = (m: RunMeetup) => {
-    const day = new Date(`${m.date}T12:00:00`).toLocaleDateString(dateLocale, {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-    });
-    return `${day} · ${m.startTime}`;
-  };
-
-  return (
-    <div className="max-w-2xl mx-auto pb-8">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-ink-700 flex items-center gap-2">
-            <Users className="h-6 w-6 text-brand-600" /> {t('title')}
-          </h1>
-          <p className="mt-1 text-xs text-ink-400">{t('subtitle')}</p>
-        </div>
-        <Button onClick={() => setComposerOpen(true)} className="shrink-0">
-          <Plus className="h-4 w-4" />
-          {t('post')}
-        </Button>
-      </div>
-
-      {isLoading && !data && <SkeletonList count={3} />}
-
-      {!isLoading && meetups.length === 0 && (
-        <EmptyState icon={Users} title={t('emptyTitle')} description={t('emptyBody')} />
-      )}
-
-      {meetups.length > 0 && (
-        <div className="space-y-3">
-          {meetups.map(m => {
-            const match = m.isHost ? null : paceMatch(m.plannedPace, myPace);
-            return (
-              <div key={m.id} className="rounded-2xl border border-page bg-card p-4">
-                <div className="flex items-start gap-3">
-                  <FeedAvatar name={m.hostName} url={null} className="h-10 w-10" textClassName="text-sm" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      {/* The name measured 20px tall, which is the height of 14px text
-                          and nothing else. It gets a real 24px box (WCAG 2.5.8) rather
-                          than a `tapHalo`: this link CLIPS — `truncate` puts
-                          `overflow:hidden` on it — and an `after:` halo inside a
-                          clipping box is clipped away, so it adds no reach at all while
-                          still counting towards `scrollWidth` and making the link look
-                          6px truncated to anything that measures it. So the clipping
-                          moves inward to the text and the link itself is the target.
-                          24 and not 44: 44 would need 12px above, which is the card's
-                          own top padding and the avatar. Same trade as the feed. */}
-                      <AthleteLink
-                        athleteId={m.hostAthleteId}
-                        name={m.hostName}
-                        className="inline-flex min-h-[24px] min-w-0 items-center text-sm font-bold text-ink-700"
-                      >
-                        <bdi className="truncate">{m.hostName}</bdi>
-                      </AthleteLink>
-                      {m.isHost && (
-                        <span className="shrink-0 rounded-full bg-page px-2 py-0.5 text-2xs font-semibold text-ink-400">
-                          {t('yours')}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-ink-700">
-                      <Clock className="h-3 w-3 text-ink-400" />
-                      {when(m)}
-                    </p>
-                    <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-400" dir="auto">
-                      <MapPin className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{m.location}</span>
-                    </p>
-                  </div>
-                </div>
-
-                {/* Pace and distance, the two numbers that decide whether this is
-                    your run. The pace is wrapped in <bdi> because a Hebrew label
-                    next to "5:10" otherwise reorders the two around the colon. */}
-                {(m.plannedPace || m.distanceKm !== null) && (
-                  <div className="mt-3 flex items-center gap-2">
-                    {m.plannedPace && (
-                      <span className="inline-flex items-center gap-1 rounded-lg bg-page px-2 py-1 text-2xs font-semibold text-ink-700">
-                        <Gauge className="h-3 w-3 text-ink-400" />
-                        <bdi dir="ltr">{m.plannedPace}</bdi> {t('perKm')}
-                      </span>
-                    )}
-                    {m.distanceKm !== null && (
-                      <span className="inline-flex items-center gap-1 rounded-lg bg-page px-2 py-1 text-2xs font-semibold text-ink-700">
-                        <RouteIcon className="h-3 w-3 text-ink-400" />
-                        <bdi dir="ltr">{m.distanceKm}</bdi> {t('km')}
-                      </span>
-                    )}
-                    {match && match !== 'far' && (
-                      <span
-                        className={cn(
-                          'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-2xs font-semibold',
-                          match === 'close' ? 'bg-brand-600/10 text-brand-600' : 'bg-page text-ink-400',
-                        )}
-                      >
-                        {match === 'close' ? t('matchClose') : t('matchNear')}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {m.notes && (
-                  <p className="mt-2 text-xs text-ink-400" dir="auto">
-                    {m.notes}
-                  </p>
-                )}
-
-                {m.accepted.length > 0 && (
-                  /* Every name here is its own link, and they sit side by side — so a
-                     halo is the wrong tool: two adjacent halos overlap and the second
-                     one paints over the first. The box itself grows instead, to a real
-                     24×24 minimum (WCAG 2.5.8) with 8px between neighbours, which is
-                     the most this line can give without becoming a list of rows. 10px
-                     text in a wrapped sentence cannot reach Apple's 44 in any layout
-                     that still reads as a sentence. */
-                  <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-ink-400">
-                    <Users className="h-3 w-3" />
-                    {t('going')}:{' '}
-                    {m.accepted.map(a => (
-                      <AthleteLink
-                        key={a.athleteId}
-                        athleteId={a.athleteId}
-                        name={a.name}
-                        className="inline-flex min-h-[24px] min-w-[24px] shrink-0 items-center justify-center font-semibold text-ink-700"
-                      >
-                        <bdi>{a.name}</bdi>
-                      </AthleteLink>
-                    ))}
-                  </p>
-                )}
-
-                {/* ── The host's side: answer, or call the run off ── */}
-                {m.isHost ? (
-                  <div className="mt-3 space-y-2">
-                    {m.pending.map(p => (
-                      <div key={p.requestId} className="flex items-center gap-2 rounded-xl bg-page/60 px-3 py-2">
-                        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink-700" dir="auto">
-                          {t('asksToJoin', { name: p.name })}
-                        </span>
-                        <button
-                          type="button"
-                          aria-label={t('accept')}
-                          disabled={!!pending}
-                          onClick={() =>
-                            send('/api/runs/meetups/requests', {
-                              method: 'PATCH',
-                              body: JSON.stringify({ requestId: p.requestId, status: 'accepted' }),
-                            })
-                          }
-                          /* 44 and not 32. These two are the only destructive/
-                             constructive pair in the app that sit 8px apart, and a
-                             mis-tap here either lets somebody into a run or turns them
-                             away. Grown visibly rather than haloed: two halos this
-                             close would overlap, and the row has the width. */
-                          className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-600 text-card disabled:opacity-50"
-                        >
-                          <Check className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={t('decline')}
-                          disabled={!!pending}
-                          onClick={() =>
-                            send('/api/runs/meetups/requests', {
-                              method: 'PATCH',
-                              body: JSON.stringify({ requestId: p.requestId, status: 'declined' }),
-                            })
-                          }
-                          className="flex h-11 w-11 items-center justify-center rounded-lg border border-page text-ink-400 disabled:opacity-50"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      disabled={!!pending}
-                      onClick={() => send(`/api/runs/meetups?id=${encodeURIComponent(m.id)}`, { method: 'DELETE' })}
-                      /* 16px tall measured — the height of 10px text. The box has no
-                         border and no fill, so growing it to 44 is invisible, and it is
-                         last in the stack so nothing moves under it. */
-                      className="inline-flex min-h-[44px] items-center px-1 text-2xs font-semibold text-accent-red-ink disabled:opacity-50"
-                    >
-                      {t('cancelRun')}
-                    </button>
-                  </div>
-                ) : (
-                  /* ── Everybody else's side: ask, or withdraw ── */
-                  <div className="mt-3">
-                    {m.myRequest === 'accepted' ? (
-                      <p className="flex items-center gap-1 text-xs font-semibold text-brand-600">
-                        <Check className="h-3.5 w-3.5" /> {t('youAreIn')}
-                      </p>
-                    ) : m.myRequest === 'declined' ? (
-                      <p className="text-xs text-ink-400">{t('wasDeclined')}</p>
-                    ) : m.myRequest === 'pending' ? (
-                      <div className="flex items-center gap-2">
-                        <p className="flex-1 text-xs text-ink-400">{t('requestSent')}</p>
-                        <button
-                          type="button"
-                          disabled={!!pending}
-                          onClick={() =>
-                            send(`/api/runs/meetups/requests?meetupId=${encodeURIComponent(m.id)}`, { method: 'DELETE' })
-                          }
-                          /* Same as the host's cancel button: invisible growth to 44
-                             on a text-only box, next to a line of plain text. */
-                          className="inline-flex min-h-[44px] items-center px-1 text-2xs font-semibold text-ink-400 disabled:opacity-50"
-                        >
-                          {t('withdraw')}
-                        </button>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="secondary"
-                        className="w-full"
-                        disabled={!!pending}
-                        onClick={() =>
-                          send('/api/runs/meetups/requests', {
-                            method: 'POST',
-                            body: JSON.stringify({ meetupId: m.id }),
-                          })
-                        }
-                      >
-                        {t('askToJoin')}
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <MeetupComposer
-        open={composerOpen}
-        onOpenChange={setComposerOpen}
-        onCreated={() => {
-          setComposerOpen(false);
-          mutate();
-        }}
-        today={data?.today}
-        labels={{ cancel: tc('cancel') }}
-      />
-    </div>
-  );
+  return <Suspense fallback={<div className="flex justify-center py-16"><Spinner /></div>}><Board /></Suspense>;
 }
 
-/**
- * The "I'm going out" sheet.
- *
- * The server validates all of this again (lib/runs/meetups.ts is the one
- * implementation of the rules), so the inputs here are about making the valid
- * thing easy to type — a date picker, a time picker — rather than about being the
- * gate. The one server error it renders is the FIELD the server named, which is
- * why the API returns it.
- */
-function MeetupComposer({
-  open,
-  onOpenChange,
-  onCreated,
-  today,
-  labels,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  onCreated: () => void;
-  today?: string;
-  labels: { cancel: string };
-}) {
-  const t = useTranslations('runTogether');
-  const [date, setDate] = useState('');
-  const [startTime, setStartTime] = useState('06:30');
-  const [location, setLocation] = useState('');
-  const [plannedPace, setPlannedPace] = useState('');
-  const [distanceKm, setDistanceKm] = useState('');
-  const [notes, setNotes] = useState('');
-  const [badField, setBadField] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+function Board() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const { data, mutate } = useApi<Board>('/api/runs/meetups');
+  const [view, setView] = useState<'list' | 'map'>('list');
+  const [filter, setFilter] = useState<Filter>('all');
+  const [composing, setComposing] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
+  useEffect(() => { if (params?.get('new') === '1') setComposing(true); }, [params]);
 
-  async function submit() {
-    setSaving(true);
-    setBadField(null);
-    try {
-      const res = await fetch('/api/runs/meetups', {
-        method: 'POST',
-        headers: await apiHeaders(true),
-        body: JSON.stringify({ date, startTime, location, plannedPace, distanceKm, notes }),
-      });
-      if (res.ok) {
-        setLocation('');
-        setNotes('');
-        setDistanceKm('');
-        onCreated();
-        return;
-      }
-      const body = await res.json().catch(() => ({}));
-      setBadField(typeof body.field === 'string' ? body.field : 'date');
-    } catch {
-      setBadField('date');
-    } finally {
-      setSaving(false);
-    }
-  }
+  const all = useMemo(() => data?.meetups ?? [], [data]);
+  const myPace = data?.viewer?.pace ?? null;
+  const shown = useMemo(() => all.filter((m) => filter === 'all' ? true
+    : filter === 'pace' ? ['close', 'near'].includes(paceMatch(m.plannedPace, myPace) ?? '')
+      : m.pack === filter), [all, filter, myPace]);
+  const counts = useMemo(() => ({
+    1: all.filter((m) => m.pack === 1).length, 2: all.filter((m) => m.pack === 2).length, 3: all.filter((m) => m.pack === 3).length,
+    pace: all.filter((m) => ['close', 'near'].includes(paceMatch(m.plannedPace, myPace) ?? '')).length,
+  }), [all, myPace]);
+  const runners = new Set(all.flatMap((m) => m.going.map((p) => p.id))).size;
+  const onMap = shown.filter((m) => m.lat != null && m.lng != null);
+  const sel = onMap.find((m) => m.id === selected) ?? onMap[0] ?? null;
 
-  const field = (name: string) =>
-    cn(
-      'w-full rounded-xl border bg-card px-3 py-2.5 text-sm text-ink-700',
-      badField === name ? 'border-accent-red' : 'border-page',
-    );
+  if (!data) return <div className="flex justify-center py-16"><Spinner /></div>;
+  const today = data.today;
+
+  const chip = (f: Filter, label: React.ReactNode, n?: number) => (
+    <button key={String(f)} type="button" onClick={() => setFilter(f)} aria-pressed={filter === f}
+      className={cn('flex h-11 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-extrabold shadow-[0_1px_2px_rgba(0,0,0,0.05)]', filter === f ? 'bg-ink-900 text-white' : 'bg-card text-ink-900')}>
+      {label}{n != null && n > 0 && <span className={cn('tabular-nums', filter === f ? 'text-white/70' : 'text-ink-400')}>{n}</span>}
+    </button>
+  );
+  const filters = (
+    <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1.5">
+      {chip('all', 'כל הדבוקות')}
+      {([1, 2, 3] as const).map((p) => chip(p, <><i className="h-2.5 w-2.5 rounded-full" style={{ background: packHex(p) }} />דבוקה {p}</>, counts[p]))}
+      {myPace && chip('pace', '⚡ בקצב שלי', counts.pace)}
+    </div>
+  );
+  const toggle = (
+    <div className="flex shrink-0 rounded-[13px] bg-ink-900/[0.07] p-[3px]" role="tablist">
+      {(['list', 'map'] as const).map((v) => (
+        <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)}
+          className={cn('flex h-11 items-center gap-1 rounded-[10px] px-3 text-[12.5px] font-extrabold', view === v ? 'bg-card text-ink-900 shadow-sm' : 'text-ink-500')}>
+          {v === 'list' ? <List className="h-4 w-4" /> : <MapIcon className="h-4 w-4" />}{v === 'list' ? 'רשימה' : 'מפה'}
+        </button>
+      ))}
+    </div>
+  );
+  const fab = (compact: boolean) => (
+    <button type="button" onClick={() => setComposing(true)} aria-label="ריצה חדשה"
+      className={cn('fixed z-[600] flex h-[58px] items-center justify-center gap-1.5 rounded-full bg-brand-600 text-white shadow-[0_12px_24px_-8px_rgba(21,37,255,0.65),0_2px_6px_rgba(0,0,0,0.2)] active:scale-95 start-auto end-4 md:end-8',
+        compact ? 'w-[58px] bottom-[calc(env(safe-area-inset-bottom)+238px)]' : 'ps-4 pe-5 bottom-[calc(env(safe-area-inset-bottom)+88px)]')}>
+      <Plus className="h-6 w-6" strokeWidth={2.6} />{!compact && <b className="text-[15.5px] font-black">ריצה חדשה</b>}
+    </button>
+  );
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title={t('post')}>
-      <div className="space-y-3">
-        <label className="block">
-          <span className="mb-1 block text-2xs font-bold uppercase tracking-wider text-ink-400">{t('fieldDate')}</span>
-          <input type="date" min={today} value={date} onChange={e => setDate(e.target.value)} className={field('date')} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-2xs font-bold uppercase tracking-wider text-ink-400">{t('fieldTime')}</span>
-          <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className={field('startTime')} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-2xs font-bold uppercase tracking-wider text-ink-400">{t('fieldLocation')}</span>
-          <input
-            value={location}
-            onChange={e => setLocation(e.target.value)}
-            placeholder={t('locationPlaceholder')}
-            dir="auto"
-            className={field('location')}
-          />
-        </label>
-        <div className="flex gap-3">
-          <label className="block flex-1">
-            <span className="mb-1 block text-2xs font-bold uppercase tracking-wider text-ink-400">{t('fieldPace')}</span>
-            {/* inputMode text, not numeric: the value is "5:10" and a numeric
-                keypad on iOS has no colon. */}
-            <input
-              value={plannedPace}
-              onChange={e => setPlannedPace(e.target.value)}
-              placeholder="5:10"
-              dir="ltr"
-              className={field('plannedPace')}
-            />
-          </label>
-          <label className="block flex-1">
-            <span className="mb-1 block text-2xs font-bold uppercase tracking-wider text-ink-400">{t('fieldDistance')}</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.1"
-              value={distanceKm}
-              onChange={e => setDistanceKm(e.target.value)}
-              placeholder="14"
-              dir="ltr"
-              className={field('distanceKm')}
-            />
-          </label>
+    <div dir="rtl" className="pb-24">
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-[30px] font-black leading-tight tracking-tight text-ink-900">לרוץ ביחד</h1>
+          <p className="text-[13px] font-semibold text-ink-400">{all.length ? `${all.length} ${all.length === 1 ? 'ריצה' : 'ריצות'} · ${runners} רצים` : 'מתי ואיפה רצים — ומי בא'}</p>
         </div>
-        <label className="block">
-          <span className="mb-1 block text-2xs font-bold uppercase tracking-wider text-ink-400">{t('fieldNotes')}</span>
-          <textarea
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-            rows={2}
-            dir="auto"
-            className={field('notes')}
-          />
-        </label>
-
-        {badField && <p className="text-xs text-accent-red-ink">{t('invalidField')}</p>}
-
-        <div className="flex gap-2 pt-1">
-          <Button variant="secondary" className="flex-1" onClick={() => onOpenChange(false)}>
-            {labels.cancel}
-          </Button>
-          <Button className="flex-1" disabled={saving || !date || !location.trim()} onClick={submit}>
-            {t('post')}
-          </Button>
-        </div>
+        {all.length > 0 && toggle}
       </div>
-    </Sheet>
+      {all.length > 0 && filters}
+
+      {all.length === 0 ? (
+        <div className="mt-6 rounded-[24px] bg-card px-6 py-10 text-center">
+          <p className="text-[40px] leading-none">🏃‍♀️🏃</p>
+          <p className="mt-3 text-lg font-black text-ink-900">עוד אף אחד לא פרסם ריצה</p>
+          <p className="mx-auto mt-1 max-w-[260px] text-sm text-ink-500">יוצאים לרוץ? ספרו מתי ואיפה — הדבוקה שלכם תקבל התראה, ואולי מישהו יצטרף.</p>
+          <button type="button" onClick={() => setComposing(true)} className="mt-5 h-12 rounded-2xl bg-brand-600 px-6 text-[15px] font-black text-white">לפרסם ריצה</button>
+        </div>
+      ) : view === 'list' ? (
+        shown.length === 0 ? (
+          <p className="mt-8 text-center text-sm font-bold text-ink-400">אין ריצות בסינון הזה</p>
+        ) : byDay(shown).map(({ date, items }) => {
+          const h = dayHeading(date, today);
+          return (
+            <section key={date} className="mt-3">
+              <p className="mb-2 flex items-baseline gap-2 px-1"><b className="text-xl font-black tracking-tight text-ink-900">{h.title}</b><span className="text-[13px] font-bold text-ink-400"><bdi>{h.sub}</bdi></span></p>
+              <div className="space-y-2.5">{items.map((m) => <RunCard key={m.id} m={m} myPace={myPace} dayLabel={h.title} />)}</div>
+            </section>
+          );
+        })
+      ) : (
+        <div className="relative -mx-4 mt-1 h-[calc(100dvh-245px)] min-h-[420px] overflow-hidden">
+          <MeetupsMap meetups={onMap} selected={sel?.id ?? null} onSelect={setSelected} className="absolute inset-0" />
+          {onMap.length < shown.length && (
+            <p className="absolute start-1/2 top-3 z-[500] -translate-x-1/2 whitespace-nowrap rounded-full bg-ink-900 px-3 py-1.5 text-xs font-extrabold text-white rtl:translate-x-1/2">
+              {shown.length - onMap.length} בלי נקודת מפגש — ברשימה
+            </p>
+          )}
+          {sel && (
+            <div className="absolute inset-x-3 bottom-3 z-[500]">
+              <RunCard m={sel} myPace={myPace} dayLabel={dayHeading(sel.date, today).title} className="shadow-[0_14px_30px_-10px_rgba(0,0,0,0.35)]" />
+              {onMap.length > 1 && (
+                <div className="mt-2 flex justify-center gap-1.5">
+                  {onMap.map((m) => (
+                    <button key={m.id} type="button" onClick={() => setSelected(m.id)} aria-label={`${m.location} ${m.startTime}`} className="flex h-6 items-center px-0.5">
+                      <i className={cn('block h-1.5 rounded-full', m.id === sel.id ? 'w-4 bg-ink-900' : 'w-1.5 bg-ink-900/25')} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {fab(view === 'map')}
+      <NewRunSheet open={composing} onClose={() => setComposing(false)} spots={data.spots} today={today} me={data.viewer} myPace={myPace}
+        onPosted={async (id) => { setComposing(false); await mutate(); router.push(`/dashboard/run-together/${id}`); }} />
+    </div>
   );
 }

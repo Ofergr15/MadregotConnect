@@ -44,6 +44,7 @@ import { OnboardingTestReset } from '@/components/onboarding/OnboardingTestReset
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import { GoalRaceBanner } from '@/components/GoalRaceBanner';
 import { CelebrationStories } from '@/components/feed/CelebrationStories';
+import { RunTogetherStrip } from '@/components/run-together/FeedStrip';
 import { StaffSessionPhotos } from '@/components/feed/StaffSessionPhotos';
 import { ClubUpdatesCard } from '@/components/club-updates/ClubUpdatesCard';
 import { toCelebration } from '@/lib/feed/celebration';
@@ -620,6 +621,8 @@ export default function FeedPage() {
           The day's birthdays and celebrations as a row of circles, always first
           (CelebrationStories). Nothing on a day with nothing to celebrate. */}
       <CelebrationStories onComment={i => setCommentItem(i)} />
+      {/* "לרוץ ביחד" — the open runs, only when there are some (2026-10-19). */}
+      <RunTogetherStrip />
 
       {/* ═══ CLUB UPDATES ═══ the staff's live updates as one card while fresh; nothing when
           nothing was posted in the last day (components/club-updates). */}

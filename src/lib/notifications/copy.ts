@@ -240,6 +240,61 @@ export function meetupAcceptedCopy(
     : { title: `${who} accepted you on their run 🎉`, body: `${when} · ${p.location}` };
 }
 
+// ── "לרוץ ביחד" v2 (2026-10-19) ──────────────────────────────────────────────
+
+const HE_DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+const EN_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+/** "מחר" / "בשבת" / "היום" — how a run's day is said in a push. */
+function runDay(locale: NotificationLocale, date: string, today: string): string {
+  const d = Math.round((Date.parse(`${date}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86_400_000);
+  const wd = new Date(`${date}T12:00:00Z`).getUTCDay();
+  if (locale === 'he') return d === 0 ? 'היום' : d === 1 ? 'מחר' : `ב${HE_DAYS[wd]}`;
+  return d === 0 ? 'today' : d === 1 ? 'tomorrow' : `on ${EN_DAYS[wd]}`;
+}
+
+/** Someone in the pack (or the club) is going out — "שי יוצא לארוכה בשבת". */
+export function meetupPostedCopy(
+  locale: NotificationLocale,
+  p: { name: string | null | undefined; date: string; startTime: string; place: string; kind: string | null; km: number | null; pace: string | null; today: string },
+): PushCopy {
+  const who = ((p.name || '').trim().split(/\s+/)[0]) || SOMEONE[locale];
+  const day = runDay(locale, p.date, p.today);
+  const bits = [p.startTime, p.place, p.km ? (locale === 'he' ? `${p.km} ק״מ` : `${p.km} km`) : null, p.pace ? (locale === 'he' ? `קצב ${p.pace}` : `${p.pace}/km`) : null].filter(Boolean).join(' · ');
+  return locale === 'he'
+    ? { title: `${who} יוצא/ת ${p.kind ? `ל${p.kind === 'איכות' ? 'אימון איכות' : `ריצה ${p.kind}`}` : 'לרוץ'} ${day} 🏃`, body: `${bits} — מצטרפים?` }
+    : { title: `${who} is going for a run ${day} 🏃`, body: `${bits} — join?` };
+}
+
+/** To the host: somebody is coming. */
+export function meetupJoinedCopy(
+  locale: NotificationLocale,
+  p: { name: string | null | undefined; date: string; startTime: string; place: string; going: number; today: string },
+): PushCopy {
+  const who = ((p.name || '').trim().split(/\s+/)[0]) || SOMEONE[locale];
+  const day = runDay(locale, p.date, p.today);
+  return locale === 'he'
+    ? { title: `${who} מצטרף/ת לריצה שלך 🙌`, body: `${day} ${p.startTime} · ${p.place} · עכשיו ${p.going} מגיעים` }
+    : { title: `${who} is joining your run 🙌`, body: `${day} ${p.startTime} · ${p.place} · ${p.going} going` };
+}
+
+/** The evening before, to everyone going. */
+export function meetupReminderCopy(
+  locale: NotificationLocale,
+  p: { hostName: string | null | undefined; startTime: string; place: string; going: number; isHost: boolean },
+): PushCopy {
+  const host = ((p.hostName || '').trim().split(/\s+/)[0]) || SOMEONE[locale];
+  return locale === 'he'
+    ? { title: p.isHost ? `מחר ${p.startTime} — הריצה שלך` : `מחר ${p.startTime} — ריצה עם ${host}`, body: `${p.place} · ${p.going} מגיעים` }
+    : { title: p.isHost ? `Tomorrow ${p.startTime} — your run` : `Tomorrow ${p.startTime} — running with ${host}`, body: `${p.place} · ${p.going} going` };
+}
+
+/** A message on a run, to the others going. */
+export function meetupMessageCopy(locale: NotificationLocale, p: { name: string | null | undefined; body: string }): PushCopy {
+  const who = ((p.name || '').trim().split(/\s+/)[0]) || SOMEONE[locale];
+  const body = p.body.length > 90 ? `${p.body.slice(0, 88)}…` : p.body;
+  return { title: locale === 'he' ? `${who} · לרוץ ביחד` : `${who} · run together`, body };
+}
+
 export function kudosCopy(locale: NotificationLocale, p: { name: string | null | undefined }): PushCopy {
   const who = (p.name || '').trim() || SOMEONE[locale];
   return locale === 'he'

@@ -13,27 +13,57 @@
  */
 
 export type MeetupStatus = 'open' | 'cancelled';
+/** What kind of run it is — the card's first words (v2, migration 157). */
+export type MeetupKind = 'easy' | 'long' | 'quality' | 'recovery';
+export const MEETUP_KINDS: MeetupKind[] = ['easy', 'long', 'quality', 'recovery'];
+export const KIND_LABEL: Record<MeetupKind, string> = { easy: 'קלה', long: 'ארוכה', quality: 'איכות', recovery: 'שחרור' };
+/** Who is told about a new run: the host's own pack, or the whole club. Everyone can see it. */
+export type MeetupAudience = 'pack' | 'club';
+
+/**
+ * Where the club starts from — the meeting points behind the post sheet's chips.
+ * Picked from where club runs actually begin (athlete_activities start points,
+ * Aug–Oct 2026: 15 runners at Gordon, 18 at Herzliya Park), checked on the map.
+ * A host can always drop a pin anywhere else.
+ */
+export const CLUB_SPOTS: Array<{ name: string; lat: number; lng: number }> = [
+  { name: 'טיילת גורדון', lat: 32.0852, lng: 34.7702 },
+  { name: 'נמל תל אביב', lat: 32.0995, lng: 34.7742 },
+  { name: 'פארק הירקון', lat: 32.0998, lng: 34.8115 },
+  { name: 'פארק הרצליה', lat: 32.1655, lng: 34.8205 },
+];
 export type MeetupRequestStatus = 'pending' | 'accepted' | 'declined';
 
-/** A meetup as the API returns it — the host is a name, never an email. */
+/** A member as a run shows them: a face, a first name, the pack colour. */
+export interface MeetupPerson {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  /** 1–3, the pack's colour (lib/utils GROUP_HEX); null when not in one. */
+  pack: number | null;
+}
+
+/** A meetup as the API returns it — names and faces, never an email. */
 export interface RunMeetup {
   id: string;
-  hostAthleteId: string;
-  hostName: string;
+  host: MeetupPerson;
   date: string;
   startTime: string;
   location: string;
+  lat: number | null;
+  lng: number | null;
+  kind: MeetupKind | null;
   plannedPace: string | null;
   distanceKm: number | null;
   notes: string | null;
-  status: MeetupStatus;
-  /** Everyone the host has said yes to, so a reader can see who is going. */
-  accepted: Array<{ athleteId: string; name: string }>;
-  /** Only ever populated for the host — nobody else needs to see who asked. */
-  pending: Array<{ athleteId: string; name: string; requestId: string }>;
-  /** The viewer's own state on this meetup: null when they never asked. */
-  myRequest: MeetupRequestStatus | null;
+  audience: MeetupAudience;
+  /** The host's pack — the run's colour. */
+  pack: number | null;
+  /** Who is going: the host first, then everyone who joined. */
+  going: MeetupPerson[];
   isHost: boolean;
+  joined: boolean;
+  messageCount: number;
 }
 
 /** `HH:MM`, 24-hour. The club writes "6:30" as often as "06:30", so both parse. */
@@ -54,6 +84,10 @@ export interface MeetupDraft {
   plannedPace?: unknown;
   distanceKm?: unknown;
   notes?: unknown;
+  kind?: unknown;
+  lat?: unknown;
+  lng?: unknown;
+  audience?: unknown;
 }
 
 export interface ValidMeetup {
@@ -63,6 +97,10 @@ export interface ValidMeetup {
   plannedPace: string | null;
   distanceKm: number | null;
   notes: string | null;
+  kind: MeetupKind | null;
+  lat: number | null;
+  lng: number | null;
+  audience: MeetupAudience;
 }
 
 export type MeetupValidation =
@@ -105,6 +143,18 @@ export function validateMeetupDraft(draft: MeetupDraft, today: string): MeetupVa
 
   const notes = str(draft.notes).slice(0, MAX_NOTES_LENGTH);
 
+  const kindRaw = str(draft.kind);
+  if (kindRaw && !MEETUP_KINDS.includes(kindRaw as MeetupKind)) return { ok: false, field: 'kind', reason: 'invalid' };
+  // A meeting point is both coordinates or neither, and somewhere in Israel's box —
+  // a pin dropped by a stray tap in the sea off Cyprus is a typo, not a plan.
+  const hasPoint = draft.lat !== undefined && draft.lat !== null && draft.lat !== '';
+  const lat = hasPoint ? Number(draft.lat) : null;
+  const lng = hasPoint ? Number(draft.lng) : null;
+  if (hasPoint && !(Number.isFinite(lat) && Number.isFinite(lng) && lat! > 29 && lat! < 34 && lng! > 34 && lng! < 36)) {
+    return { ok: false, field: 'location', reason: 'point' };
+  }
+  const audience: MeetupAudience = draft.audience === 'pack' ? 'pack' : 'club';
+
   return {
     ok: true,
     value: {
@@ -116,8 +166,56 @@ export function validateMeetupDraft(draft: MeetupDraft, today: string): MeetupVa
       plannedPace: paceRaw || null,
       distanceKm,
       notes: notes || null,
+      kind: (kindRaw as MeetupKind) || null,
+      lat: hasPoint ? Math.round(lat! * 1e5) / 1e5 : null,
+      lng: hasPoint ? Math.round(lng! * 1e5) / 1e5 : null,
+      audience,
     },
   };
+}
+
+const WEEKDAY = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
+/** The board's day headings: "היום", "מחר", else the weekday — with the date beside it. */
+export function dayHeading(date: string, today: string): { title: string; sub: string } {
+  const d = daysBetween(today, date);
+  const wd = WEEKDAY[new Date(`${date}T12:00:00Z`).getUTCDay()];
+  const dm = `${Number(date.slice(8, 10))}.${Number(date.slice(5, 7))}`;
+  if (d === 0) return { title: 'היום', sub: `${wd} ${dm}` };
+  if (d === 1) return { title: 'מחר', sub: `${wd} ${dm}` };
+  return { title: wd, sub: dm };
+}
+
+/** Group sorted meetups by date, in order. */
+export function byDay<T extends { date: string }>(meetups: T[]): Array<{ date: string; items: T[] }> {
+  const out: Array<{ date: string; items: T[] }> = [];
+  for (const m of meetups) {
+    const last = out[out.length - 1];
+    if (last && last.date === m.date) last.items.push(m);
+    else out.push({ date: m.date, items: [m] });
+  }
+  return out;
+}
+
+/** "5:10" from seconds per km. */
+export function secondsToPace(sec: number): string {
+  const s = Math.round(sec);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/**
+ * The viewer's usual pace: the median of their recent runs of 5–25 km — what "בקצב
+ * שלך" compares a host's pace with, and what a new post starts from. Null without
+ * enough runs to say.
+ */
+export function usualPace(runs: Array<{ distance: number; duration: number }>): string | null {
+  const paces = runs
+    .filter((r) => r.distance >= 5000 && r.distance <= 25000 && r.duration > 0)
+    .map((r) => r.duration / (r.distance / 1000))
+    .filter((p) => p >= 150 && p <= 600)
+    .sort((a, b) => a - b);
+  if (paces.length < 3) return null;
+  return secondsToPace(paces[Math.floor(paces.length / 2)]);
 }
 
 /**
@@ -167,6 +265,11 @@ export function paceMatch(hostPace: string | null | undefined, viewerPace: strin
   if (gap <= 15) return 'close';
   if (gap <= 30) return 'near';
   return 'far';
+}
+
+/** YYYY-MM-DD plus n days. */
+export function addDaysIso(iso: string, n: number): string {
+  return new Date(Date.parse(`${iso}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 }
 
 /** Whole days from `from` to `to`, both `YYYY-MM-DD`. Noon-anchored so DST can't shift it. */

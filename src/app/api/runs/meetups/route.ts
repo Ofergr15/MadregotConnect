@@ -3,198 +3,133 @@ import { createServerClient } from '@/lib/supabase/server';
 import { requireMember } from '@/lib/auth/self-or-staff';
 import { requireAthlete, authError } from '@/lib/auth-session';
 import { israelToday } from '@/lib/utils';
-import {
-  validateMeetupDraft,
-  isUpcomingMeetup,
-  sortMeetups,
-  type RunMeetup,
-  type MeetupRequestStatus,
-} from '@/lib/runs/meetups';
+import { notifyAthlete } from '@/lib/push';
+import { meetupPostedCopy } from '@/lib/notifications/copy';
+import { CLUB_SPOTS, KIND_LABEL, validateMeetupDraft, sortMeetups, usualPace, addDaysIso } from '@/lib/runs/meetups';
+import { roster, toMeetup, type AthleteRow, type MeetupRow } from '@/lib/runs/meetups-server';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * The run-meetup board — "שידוכי ריצות" (398963c7). See lib/runs/meetups.ts for
- * the rules and migration 107 for why this is not the club calendar.
- *
- * ── WHAT A MEMBER SEES ──────────────────────────────────────────────────────
- * `requireMember` on the read, the same gate as /api/groups/standings. An offer
- * is meant to be read by the club — that is the entire point of posting one — and
- * it carries nothing that isn't already on a feed card: a name, a place, a time.
- * The one thing that is NOT club-visible is who ASKED to join: a pending request
- * goes to the host only, so being turned down isn't a public event. Accepted
- * joiners are visible, because they are going on the run.
- *
- * Writes use `requireAthlete` (a real session JWT with an active athlete row).
- * The host is taken from that session and never from the body.
+ * "לרוץ ביחד" — the board (mockup ~/.cache/madregot/run-together-v2.html, Ofer
+ * 2026-10-19). Every member sees every open run; `audience` only decides who is told
+ * when it is posted. Faces, first names and pack colours, never an email. Writes
+ * take the host from the session, never the body.
  */
 
-interface MeetupRow {
-  id: string;
-  host_athlete_id: string;
-  date: string;
-  start_time: string;
-  location: string;
-  planned_pace: string | null;
-  distance_km: number | null;
-  notes: string | null;
-  status: string;
-}
-
-interface RequestRow {
-  id: string;
-  meetup_id: string;
-  athlete_id: string;
-  status: string;
-}
-
-// GET /api/runs/meetups → { meetups: RunMeetup[], today }
+// GET /api/runs/meetups → { meetups, today, viewer: { id, pack, pace }, spots }
 export async function GET(request: Request) {
   const denied = await requireMember(request);
   if (denied) return denied;
-
   try {
-    // The viewer's own athlete id decides two things: which meetups are theirs to
-    // manage, and which pending requests they may see. A caller that passes the
-    // member gate but has no athlete row (staff without one) simply sees the
-    // board as a reader.
     const auth = await requireAthlete(request);
     const viewerId = auth.ok ? auth.user.athleteId : null;
-
-    const supabase = createServerClient();
+    const db = createServerClient();
     const today = israelToday();
-
-    const { data: rows, error } = await supabase
-      .from('run_meetups')
-      .select('id, host_athlete_id, date, start_time, location, planned_pace, distance_km, notes, status')
-      .gte('date', today)
-      .eq('status', 'open')
-      .order('date', { ascending: true });
-    if (error) throw error;
-
-    const meetupRows = (rows || []) as MeetupRow[];
-    if (meetupRows.length === 0) return NextResponse.json({ meetups: [], today });
-
-    const [requestsRes, namesRes] = await Promise.all([
-      supabase
-        .from('run_meetup_requests')
-        .select('id, meetup_id, athlete_id, status')
-        .in('meetup_id', meetupRows.map(m => m.id)),
-      // Names for hosts and joiners in one read. `athletes.name` is the roster
-      // name every member already has through /api/groups — no emails here.
-      supabase.from('athletes').select('id, name'),
+    const [{ data: rows, error }, people, recent, { data: past }] = await Promise.all([
+      db.from('run_meetups').select('*').gte('date', today).eq('status', 'open').order('date'),
+      roster(db),
+      viewerId
+        ? db.from('athlete_activities').select('distance, duration').eq('athlete_id', viewerId)
+          .gte('start_time', `${addDaysIso(today, -45)}T00:00:00`).order('start_time', { ascending: false }).limit(40)
+        : Promise.resolve({ data: [] }),
+      db.from('run_meetups').select('*').gte('date', addDaysIso(today, -120)).limit(300),
     ]);
-    if (requestsRes.error) throw requestsRes.error;
+    if (error) throw error;
+    const meetupRows = (rows || []) as MeetupRow[];
+    const ids = meetupRows.map((m) => m.id);
+    const [{ data: reqs }, { data: msgs }] = await Promise.all([
+      ids.length ? db.from('run_meetup_requests').select('meetup_id, athlete_id, status').in('meetup_id', ids) : Promise.resolve({ data: [] }),
+      ids.length ? db.from('run_meetup_messages').select('meetup_id').in('meetup_id', ids) : Promise.resolve({ data: [] }),
+    ]);
+    const joined = new Map<string, string[]>();
+    for (const r of (reqs || []) as Array<{ meetup_id: string; athlete_id: string; status: string }>) {
+      if (r.status === 'accepted') joined.set(r.meetup_id, [...(joined.get(r.meetup_id) || []), r.athlete_id]);
+    }
+    const msgCount = new Map<string, number>();
+    for (const m of (msgs || []) as Array<{ meetup_id: string }>) msgCount.set(m.meetup_id, (msgCount.get(m.meetup_id) || 0) + 1);
 
-    const nameById = new Map<string, string>(
-      (namesRes.data || []).map((a: { id: string; name: string | null }) => [a.id, (a.name || '').trim()]),
-    );
-    const requestRows = (requestsRes.data || []) as RequestRow[];
+    // The post sheet's places: the club's spots, then any other named point a host used.
+    const spots = [...CLUB_SPOTS];
+    for (const m of (past || []) as MeetupRow[]) {
+      if (m.lat == null || m.lng == null || !m.location) continue;
+      if (spots.some((s) => s.name === m.location || (Math.abs(s.lat - m.lat!) < 0.002 && Math.abs(s.lng - m.lng!) < 0.002))) continue;
+      spots.push({ name: m.location, lat: m.lat, lng: m.lng });
+    }
 
-    const meetups: RunMeetup[] = sortMeetups(
-      meetupRows
-        .filter(m => isUpcomingMeetup({ date: m.date, status: m.status }, today))
-        .map(m => {
-          const mine = requestRows.filter(r => r.meetup_id === m.id);
-          const isHost = !!viewerId && viewerId === m.host_athlete_id;
-          return {
-            id: m.id,
-            hostAthleteId: m.host_athlete_id,
-            hostName: nameById.get(m.host_athlete_id) || '',
-            date: m.date,
-            startTime: m.start_time,
-            location: m.location,
-            plannedPace: m.planned_pace,
-            distanceKm: m.distance_km === null ? null : Number(m.distance_km),
-            notes: m.notes,
-            status: 'open' as const,
-            accepted: mine
-              .filter(r => r.status === 'accepted')
-              .map(r => ({ athleteId: r.athlete_id, name: nameById.get(r.athlete_id) || '' })),
-            // Host-only, deliberately: a request nobody answered yet is between
-            // the two of them.
-            pending: isHost
-              ? mine
-                  .filter(r => r.status === 'pending')
-                  .map(r => ({ athleteId: r.athlete_id, name: nameById.get(r.athlete_id) || '', requestId: r.id }))
-              : [],
-            myRequest:
-              (mine.find(r => viewerId && r.athlete_id === viewerId)?.status as MeetupRequestStatus | undefined) ?? null,
-            isHost,
-          };
-        }),
-    );
-
-    return NextResponse.json({ meetups, today });
+    return NextResponse.json({
+      meetups: sortMeetups(meetupRows.map((m) => ({ ...toMeetup(m, joined.get(m.id) || [], people, viewerId, msgCount.get(m.id) || 0), startTime: m.start_time }))),
+      today,
+      viewer: viewerId ? { ...(people.get(viewerId) ?? { id: viewerId, name: '', avatarUrl: null, pack: null }), pace: usualPace((recent.data || []) as Array<{ distance: number; duration: number }>) } : null,
+      spots: spots.slice(0, 8),
+    });
   } catch (err: unknown) {
     console.error('Meetups fetch error:', err);
     return NextResponse.json({ error: 'Failed to load meetups' }, { status: 500 });
   }
 }
 
-// POST /api/runs/meetups { date, startTime, location, plannedPace?, distanceKm?, notes? }
+// POST /api/runs/meetups { date, startTime, location, lat?, lng?, kind?, plannedPace?, distanceKm?, notes?, audience? }
 export async function POST(request: Request) {
   const auth = await requireAthlete(request);
   if (!auth.ok) return authError(auth);
-
   try {
     const body = await request.json().catch(() => ({}));
     const parsed = validateMeetupDraft(body, israelToday());
-    // The field travels with the error so the sheet can point at the input that
-    // is wrong instead of showing one generic failure over five of them.
-    if (!parsed.ok) {
-      return NextResponse.json({ error: 'invalid', field: parsed.field, reason: parsed.reason }, { status: 400 });
-    }
+    if (!parsed.ok) return NextResponse.json({ error: 'invalid', field: parsed.field, reason: parsed.reason }, { status: 400 });
+    const v = parsed.value;
+    const db = createServerClient();
+    const base = {
+      host_athlete_id: auth.user.athleteId, date: v.date, start_time: v.startTime, location: v.location,
+      planned_pace: v.plannedPace, distance_km: v.distanceKm, notes: v.notes,
+    };
+    let res = await db.from('run_meetups').insert({ ...base, kind: v.kind, lat: v.lat, lng: v.lng, audience: v.audience }).select('id').single();
+    // Before migration 157 the new columns are missing: the run still goes up, without them.
+    if (res.error && (res.error as { code?: string }).code === '42703') res = await db.from('run_meetups').insert(base).select('id').single();
+    if (res.error) throw res.error;
+    const id = (res.data as { id: string }).id;
 
-    const supabase = createServerClient();
-    const { data, error } = await supabase
-      .from('run_meetups')
-      .insert({
-        host_athlete_id: auth.user.athleteId,
-        date: parsed.value.date,
-        start_time: parsed.value.startTime,
-        location: parsed.value.location,
-        planned_pace: parsed.value.plannedPace,
-        distance_km: parsed.value.distanceKm,
-        notes: parsed.value.notes,
-      })
-      .select('id')
-      .single();
-    if (error) throw error;
-
-    return NextResponse.json({ id: data.id });
+    // Tell them: the host's pack, or the whole club. Best-effort, never blocks the post.
+    try {
+      const people = await roster(db);
+      const host = people.get(auth.user.athleteId);
+      const { data: active } = await db.from('athletes').select('id, group_id').eq('status', 'active');
+      const hostGroup = ((active || []) as AthleteRow[]).find((a) => a.id === auth.user.athleteId)?.group_id ?? null;
+      const to = ((active || []) as AthleteRow[])
+        .filter((a) => a.id !== auth.user.athleteId && (v.audience === 'club' || (hostGroup && a.group_id === hostGroup)))
+        .map((a) => a.id);
+      await Promise.all(to.map((athleteId) => notifyAthlete({
+        athleteId,
+        kind: 'meetup_posted',
+        actorAthleteId: auth.user.athleteId,
+        url: `/dashboard/run-together/${id}`,
+        tag: `meetup-${id}`,
+        category: 'teammates',
+        icon: host?.avatarUrl || undefined,
+        copy: (locale) => meetupPostedCopy(locale, {
+          name: host?.name, date: v.date, startTime: v.startTime, place: v.location,
+          kind: v.kind ? KIND_LABEL[v.kind] : null, km: v.distanceKm, pace: v.plannedPace, today: israelToday(),
+        }),
+      }).catch(() => {})));
+    } catch { /* best-effort */ }
+    return NextResponse.json({ id });
   } catch (err: unknown) {
     console.error('Meetup create error:', err);
     return NextResponse.json({ error: 'Failed to create meetup' }, { status: 500 });
   }
 }
 
-// DELETE /api/runs/meetups?id=<id>
-// Cancels rather than deletes: somebody may already have been accepted onto it,
-// and their notification saying so should not point at a row that is gone.
+// DELETE /api/runs/meetups?id=<id> — the host cancels. Kept, not deleted (see migration 107).
 export async function DELETE(request: Request) {
   const auth = await requireAthlete(request);
   if (!auth.ok) return authError(auth);
-
   try {
     const id = (new URL(request.url).searchParams.get('id') || '').trim();
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
-
-    const supabase = createServerClient();
-    // The host filter is part of the UPDATE, not a check before it: two
-    // statements leave a window, and one statement that matches no row is
-    // exactly the 404 this should return anyway.
-    const { data, error } = await supabase
-      .from('run_meetups')
-      .update({ status: 'cancelled' })
-      .eq('id', id)
-      .eq('host_athlete_id', auth.user.athleteId)
-      .select('id');
+    const { data, error } = await createServerClient().from('run_meetups').update({ status: 'cancelled' })
+      .eq('id', id).eq('host_athlete_id', auth.user.athleteId).select('id');
     if (error) throw error;
-    if ((data || []).length === 0) {
-      return NextResponse.json({ error: 'Not your meetup' }, { status: 403 });
-    }
-
+    if ((data || []).length === 0) return NextResponse.json({ error: 'Not your meetup' }, { status: 403 });
     return NextResponse.json({ cancelled: true });
   } catch (err: unknown) {
     console.error('Meetup cancel error:', err);
