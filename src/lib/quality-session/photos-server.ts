@@ -43,6 +43,8 @@ export interface FolderEntry {
   previews?: string[];
   /** How many photos the editors were last told about, so each new batch tells them once. */
   notifiedCount?: number;
+  /** "לא צריך תיקייה ליום הזה" (תחילת שבוע): the automation leaves this day alone. */
+  skipped?: boolean;
 }
 export type FolderLedger = Record<string, FolderEntry>;
 
@@ -184,14 +186,17 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
 
   if (hour >= FOLDER_AT_HOUR) {
     const tomorrow = addDaysToDateStr(today, 1);
-    if (!ledger[tomorrow] && (await loadQualityWorkout(supabase, tomorrow))) {
-      const folder = await ensureDayFolder(drive, tomorrow, folderName(tomorrow));
-      ledger[tomorrow] = { folderId: folder.id, link: folder.link, name: folderName(tomorrow), createdAt: now.toISOString() };
+    // An entry without a folder is "תחילת שבוע" naming it (or turning its feed card off) ahead of time.
+    const ahead = ledger[tomorrow];
+    if ((!ahead || (!ahead.folderId && !ahead.skipped)) && (await loadQualityWorkout(supabase, tomorrow))) {
+      const name = ahead?.name || folderName(tomorrow);
+      const folder = await ensureDayFolder(drive, tomorrow, name);
+      ledger[tomorrow] = { ...ahead, folderId: folder.id, link: folder.link, name, createdAt: now.toISOString() };
       dirty = true;
       fired.push(`sessionFolder:${tomorrow}`);
     }
     const entry = ledger[tomorrow];
-    if (entry && !entry.toldAt) {
+    if (entry && entry.folderId && !entry.skipped && !entry.toldAt) {
       for (const athleteId of await editorIds(supabase)) {
         try {
           await notifyAthlete({
@@ -212,7 +217,7 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
   // the folder's day until 15:00 the next day, every half hour.
   for (const date of [addDaysToDateStr(today, -1), today]) {
     const entry = ledger[date];
-    if (!entry || entry.autoFeed === false) continue;
+    if (!entry || !entry.folderId || entry.skipped || entry.autoFeed === false) continue;
     const inWindow = date === today ? hour >= WATCH_FROM_HOUR : hour < WATCH_UNTIL_HOUR;
     if (!inWindow || (entry.checkedAt && now.getTime() - Date.parse(entry.checkedAt) < WATCH_EVERY_MS)) continue;
     entry.checkedAt = now.toISOString();
@@ -312,12 +317,12 @@ export async function socialWeek(supabase: Db, now = new Date()) {
   const upcoming: Array<{ date: string; name: string; workout: string | null; createsAt: string }> = [];
   for (let i = 0; i <= 8; i++) {
     const date = addDaysToDateStr(today, i);
-    if (ledger[date]) continue;
+    if (ledger[date]?.folderId || ledger[date]?.skipped) continue;
     const w = await loadQualityWorkout(supabase, date).catch(() => null);
     // A folder for today that the evening before did not make is made on the next tick.
-    if (w) upcoming.push({ date, name: folderName(date), workout: w.name || null, createsAt: `${addDaysToDateStr(date, -1)}T20:00` });
+    if (w) upcoming.push({ date, name: ledger[date]?.name || folderName(date), workout: w.name || null, createsAt: `${addDaysToDateStr(date, -1)}T20:00` });
   }
-  const made = await Promise.all(Object.entries(ledger).sort(([a], [b]) => b.localeCompare(a)).map(async ([date, e]) => {
+  const made = await Promise.all(Object.entries(ledger).filter(([, e]) => e.folderId).sort(([a], [b]) => b.localeCompare(a)).map(async ([date, e]) => {
     const card = await cardFor(supabase, date);
     return {
       date, name: e.name || folderName(date), link: e.link, manual: !!e.manual, autoFeed: e.autoFeed !== false,
@@ -343,7 +348,7 @@ export async function approveSessionPhotos(
 ): Promise<{ id: string; photos: number; told: number }> {
   const ledger = await readFolderLedger(supabase);
   const entry = ledger[p.date];
-  if (!entry) throw new Error('no folder for that day');
+  if (!entry?.folderId) throw new Error('no folder for that day');
   const card = await cardFor(supabase, p.date);
   const have = card?.media?.length ?? 0;
   let media = card?.media ?? [];
@@ -402,7 +407,9 @@ export async function sessionPhotosStatus(supabase: Db, now = new Date()) {
   const { hour } = israelNow(now);
   const today = israelToday(now);
   const ledger = await readFolderLedger(supabase);
-  const date = ledger[today] && hour >= WATCH_FROM_HOUR ? today : ledger[addDaysToDateStr(today, -1)] && hour < WATCH_UNTIL_HOUR ? addDaysToDateStr(today, -1) : null;
+  // Only a folder that was made (one named ahead or skipped on "תחילת שבוע" is not one).
+  const made = (d: string) => !!ledger[d]?.folderId && !ledger[d]?.skipped;
+  const date = made(today) && hour >= WATCH_FROM_HOUR ? today : made(addDaysToDateStr(today, -1)) && hour < WATCH_UNTIL_HOUR ? addDaysToDateStr(today, -1) : null;
   if (!date) return null;
   const e = ledger[date];
   if (e.autoFeed === false) return null;
@@ -419,7 +426,34 @@ export async function sessionPhotosStatus(supabase: Db, now = new Date()) {
 /** The staff card's "לפרסם לבד" switch for one day. */
 export async function setSessionPhotosAuto(supabase: Db, date: string, on: boolean): Promise<void> {
   const ledger = await readFolderLedger(supabase);
-  if (!ledger[date]) return;
+  if (!ledger[date]?.folderId) return;
   ledger[date].autoPublish = on;
   await writeFolderLedger(supabase, ledger);
 }
+/**
+ * One day's folder, changed from "תחילת שבוע": a new name (renamed in Drive too), the
+ * feed card on or off, or no folder at all for the day (`skipped` — the evening-before
+ * automation then leaves it; a folder already made stays in Drive, only forgotten here).
+ * `skipped: false` undoes that. Returns the entry as it now stands.
+ */
+export async function updateDayFolder(
+  supabase: Db,
+  date: string,
+  patch: { name?: string; autoFeed?: boolean; skipped?: boolean },
+): Promise<FolderEntry | null> {
+  const ledger = await readFolderLedger(supabase);
+  const entry: FolderEntry = { ...(ledger[date] || { folderId: '', link: '' }) };
+  if (patch.name && patch.name.trim()) {
+    // Not made yet: the name waits in the ledger for the evening-before automation.
+    const drive = entry.folderId ? driveWriter() : null;
+    if (drive) await drive.files.update({ fileId: entry.folderId, requestBody: { name: patch.name.trim() }, supportsAllDrives: true });
+    entry.name = patch.name.trim();
+  }
+  if (typeof patch.autoFeed === 'boolean') entry.autoFeed = patch.autoFeed;
+  if (typeof patch.skipped === 'boolean') entry.skipped = patch.skipped || undefined;
+  if (!entry.folderId && !entry.skipped && !entry.name && entry.autoFeed !== false) delete ledger[date];
+  else ledger[date] = entry;
+  await writeFolderLedger(supabase, ledger);
+  return ledger[date] ?? null;
+}
+

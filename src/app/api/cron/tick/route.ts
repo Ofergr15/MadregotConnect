@@ -48,6 +48,8 @@ import { storyEditorIds } from '@/lib/quality-session/access';
 import { cronPaused } from '@/lib/cron-pause';
 import { gateState, shouldAsk, stageDue, addDays, type ApprovalStore, type GateState } from '@/lib/notifications/approval';
 import { loadApprovals, qualityOf } from '@/lib/notifications/approval-server';
+import { overrideFor, withOverrideCopy, type OverrideStore } from '@/lib/week-setup/model';
+import { loadOverrides } from '@/lib/week-setup/server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -186,6 +188,11 @@ async function run(request: Request) {
   const firstHour = Math.min(...[dayBefore.enabled ? dayBefore.hour : 99, eveningBefore.enabled ? eveningBefore.hour : 99]);
   const lastHour = Math.max(dayBefore.enabled ? dayBefore.hour : -1, eveningBefore.enabled ? eveningBefore.hour : -1);
 
+  // This week's changes to the automatic pushes (lib/week-setup), read once. A failed read
+  // changes nothing: every stage then sends its defaults, as it always did.
+  let weekOverrides: OverrideStore = {};
+  try { weekOverrides = await loadOverrides(supabase); } catch { weekOverrides = {}; }
+
   // For each team day, check if "the day before" is today at the configured hour.
   for (const teamDay of teamDays) {
     const dayBeforeWeekday = (teamDay + 6) % 7; // day before the team day
@@ -221,8 +228,6 @@ async function run(request: Request) {
     }
     // A stage's own hour, or (approved late) the rest of its window: the morning
     // stages until the evening hour, the evening ones until 21:00.
-    const morningDue = stageDue(gate, hour, dayBefore.hour, eveningBefore.enabled ? eveningBefore.hour : 21);
-    const eveningDue = stageDue(gate, hour, eveningBefore.hour, 21);
     // The team day's OWN plan-week, not "today"'s — matters whenever the team
     // day is a Sunday: the day-before (today, Saturday) is still in last
     // week's plan-week, but the team day itself starts the next one. Using a
@@ -232,6 +237,14 @@ async function run(request: Request) {
     const teamDayDate = new Date(now);
     teamDayDate.setDate(teamDayDate.getDate() + 1);
     const teamDayWeekStart = getPlanWeekStart(teamDayDate);
+    // This week's changes to these two pushes, made on "תחילת שבוע" (lib/week-setup):
+    // off, another text, another hour. Absent = the defaults, exactly as before.
+    const ovMorning = overrideFor(weekOverrides, teamDayWeekStart, 'dayBefore', teamDay);
+    const ovEvening = overrideFor(weekOverrides, teamDayWeekStart, 'eveningBefore', teamDay);
+    const morningHour = ovMorning?.hour ?? dayBefore.hour;
+    const eveningHour = ovEvening?.hour ?? eveningBefore.hour;
+    const morningDue = stageDue(gate, hour, morningHour, eveningBefore.enabled ? Math.max(eveningHour, morningHour + 1) : 21);
+    const eveningDue = stageDue(gate, hour, eveningHour, 21);
 
     // Recurring pace-group poll template for this team day — a real editable
     // row (recurring_survey_templates, migration 073), not hardcoded, so
@@ -250,11 +263,14 @@ async function run(request: Request) {
     // Stage 1 — day before, at dayBefore.hour, to ALL.
     if (dayBefore.enabled && weekday === dayBeforeWeekday && morningDue) {
       const tag = `dayBefore:${teamDayWeekStart}:${teamDay}`;
-      if (!(await already(tag))) {
+      if (ovMorning?.off && !(await already(tag))) {
+        await markFired(tag, 0);
+        fired.push(`${tag} → off this week`);
+      } else if (!(await already(tag))) {
         const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
         const subs = await resolveAudience('all', null);
         // One push, both questions: the poll no longer sends its own (Stage 3).
-        const build = (locale: NotificationLocale) => trainingDayBeforeCopy(locale, { day: teamDay, askPack: !!surveyTpl });
+        const build = (locale: NotificationLocale) => withOverrideCopy(trainingDayBeforeCopy(locale, { day: teamDay, askPack: !!surveyTpl }), ovMorning);
         const { sent, byAthlete } = await sendPushLocalized(subs, (locale) => ({
           ...build(locale), url, tag,
           category: 'workouts',
@@ -287,7 +303,10 @@ async function run(request: Request) {
     // Stage 2 — evening before, at eveningBefore.hour, to RSVP NON-responders.
     if (eveningBefore.enabled && weekday === dayBeforeWeekday && eveningDue) {
       const tag = `eveningBefore:${teamDayWeekStart}:${teamDay}`;
-      if (!(await already(tag))) {
+      if (ovEvening?.off && !(await already(tag))) {
+        await markFired(tag, 0);
+        fired.push(`${tag} → off this week`);
+      } else if (!(await already(tag))) {
         // Who already answered for that team day this week? (also grab `attending`
         // so the nudge can tell non-responders how many teammates already confirmed —
         // same query, one extra already-tracked column, no new plumbing.)
@@ -303,7 +322,7 @@ async function run(request: Request) {
         const nonResponders = all.filter(id => !answeredIds.has(id));
         const subs = await subscriptionsForAthletes(nonResponders);
         const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
-        const build = (locale: NotificationLocale) => trainingEveningBeforeCopy(locale, { day: teamDay, goingCount, askPack: !!surveyTpl });
+        const build = (locale: NotificationLocale) => withOverrideCopy(trainingEveningBeforeCopy(locale, { day: teamDay, goingCount, askPack: !!surveyTpl }), ovEvening);
         const { sent, byAthlete } = await sendPushLocalized(subs, (locale) => ({
           ...build(locale), url, tag,
           category: 'workouts',
@@ -460,7 +479,7 @@ async function run(request: Request) {
         const subs = await subscriptionsForAthletes(coachIds);
         const { sent } = await sendPushLocalized(subs, (locale) => ({
           ...newWeekProgramCopy(locale, { dateLabel: upcomingDateLabel, parts }),
-          url: '/dashboard/program',
+          url: `/dashboard/week?week=${upcomingWeek}`,
           tag,
           category: 'program',
         }));
@@ -582,7 +601,10 @@ async function run(request: Request) {
     const readFrom = addDaysToDateStr(reportTo, -13);
     const readUntil = addDaysToDateStr(reportTo, 1);
     const tag = `report7:${reportTo}`;
-    if (!(await already(tag))) {
+    if (overrideFor(weekOverrides, weekStart, 'weekStory')?.off && !(await already(tag))) {
+      await markFired(tag, 0);
+      fired.push(`${tag} → off this week`);
+    } else if (!(await already(tag))) {
       const { data: athletes } = await supabase.from('athletes').select('id').eq('status', 'active');
       const ids = (athletes || []).map((a: { id: string }) => a.id);
       let totalSent = 0;

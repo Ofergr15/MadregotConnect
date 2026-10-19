@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog, Zap, CalendarPlus, UserCheck } from 'lucide-react';
+import { Calendar, Clock, Layers, GraduationCap, BarChart3, CalendarDays, Settings, Users, FileClock, Layout, MessageSquare, Bell, Award, Trophy, ShoppingBag, Gift, DoorOpen, Wrench, Lock, BellOff, ChevronLeft, History, Gauge, ShieldCheck, Images, Sparkles, UserCog, Zap, CalendarPlus, UserCheck, CalendarCheck } from 'lucide-react';
 import { InsetSection, InsetRow, Skeleton } from '@/components/ui';
 import { flowGroup, type EntryQueueMember } from '@/lib/admin/entry-queue';
 import { getSupabase } from '@/lib/supabase/client';
@@ -251,6 +251,8 @@ export default function CoachToolsPage() {
       {isClubCoachLens && <>
 
       <InsetSection header={t('planning')}>
+        {/* "תחילת שבוע" (lib/week-setup): the whole week in one screen, every part with its owner. */}
+        <InsetRow icon={CalendarCheck} iconBg="bg-ink-900" label={t('weekSetup')} sublabel={t('weekSetupSub')} href="/dashboard/week" />
         <InsetRow icon={Calendar} iconBg="bg-brand-600" label={tn('planner')} href="/dashboard/plan/new" />
         {/* "אימון ליום אחד" (lib/day-session): the super user's alone while the flag is off,
             then every coach and admin. The API answers 403 to anyone else either way. */}

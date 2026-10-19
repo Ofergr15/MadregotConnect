@@ -19,6 +19,7 @@ export const STAFF_ONLY_PATHS = [
   '/dashboard/content',
   '/dashboard/control-room',
   '/dashboard/move',
+  '/dashboard/week',
 ] as const;
 
 /** Any staff role opens them all; approving members is enough for the entry queue. */

@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     card: row && p ? { id: row.id, link: p.link, media: row.media || [] } : null,
     // The folder made the evening before (photos-server.ts), when there is one.
-    folder: ledger[date]?.link ?? null,
+    folder: ledger[date]?.link || null,
   });
 }
 

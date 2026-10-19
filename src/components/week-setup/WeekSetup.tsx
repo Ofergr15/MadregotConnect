@@ -1,0 +1,610 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useLocale, useTranslations } from 'next-intl';
+import {
+  Apple, BarChart3, Bell, Check, ChevronLeft, ClipboardList, ExternalLink, Folder, Lock, MessageCircle, Pencil, Plus, Send, Star, Upload, Users,
+} from 'lucide-react';
+import { apiHeaders, useApi } from '@/lib/api';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { cn, getPlanWeekStart, israelToday } from '@/lib/utils';
+import { Sheet, Switch, SkeletonList, EmptyState } from '@/components/ui';
+import { SECTIONS, addDays, canEdit, israelHourToIso, type Owner, type Owners, type Section, type TimelineRow } from '@/lib/week-setup/model';
+import type { WeekSnapshot } from '@/lib/week-setup/server';
+import { Btn, Chips, DAY_LONG, DAY_SHORT, Field, OwnerChip, Pill, WeekCard, dm, dowOf, hh, inputCls, type Tone } from './parts';
+
+/**
+ * "תחילת שבוע" — the club's week set up in one screen (mockup ~/.cache/madregot/week-setup.html,
+ * Ofer 2026-10-19). One card per part of the week, each with its owner and its state, and the
+ * action inside the card. Everyone on the staff sees the whole week; what each may change is
+ * the owners' split (lib/week-setup/model canEdit). Everything here is changeable: the
+ * automatic notifications for this week only, the photo folders before and after they are
+ * made, the quality days, the polls.
+ */
+
+type Me = { id: string | null; admin: boolean; coach: boolean; approver: boolean };
+type Data = WeekSnapshot & { me: Me };
+
+const COLORS: Record<Section, string> = {
+  workouts: '#1525FF', nutrition: '#B45309', quality: '#C2185B', notifications: '#6D28D9', polls: '#475569', message: '#15803d',
+};
+
+const firstName = (n: string) => n.trim().split(/\s+/)[0] || n;
+const initials = (n: string) => n.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
+
+async function send(url: string, method: string, body: unknown): Promise<boolean> {
+  const res = await fetch(url, { method, headers: await apiHeaders(true), body: JSON.stringify(body) }).catch(() => null);
+  return !!res?.ok;
+}
+
+export function WeekSetup() {
+  const t = useTranslations('weekSetup');
+  const lang = useLocale().startsWith('en') ? 'en' : 'he';
+  const thisWeek = getPlanWeekStart(new Date());
+  const [week, setWeek] = useState(thisWeek);
+  useEffect(() => {
+    const w = new URLSearchParams(window.location.search).get('week');
+    if (w && /^\d{4}-\d{2}-\d{2}$/.test(w)) setWeek(getPlanWeekStart(new Date(`${w}T12:00:00`)));
+  }, []);
+  const { data, error, isLoading, mutate } = useApi<Data>(`/api/week-setup?week=${week}`);
+  const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
+  const [ownersOpen, setOwnersOpen] = useState(false);
+  const [notif, setNotif] = useState<TimelineRow | 'new' | null>(null);
+  const [folderDate, setFolderDate] = useState<string | null>(null);
+  useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(null), 2600); return () => clearTimeout(id); }, [toast]);
+
+  const run = async (p: Promise<boolean>) => {
+    const ok = await p;
+    setToast({ ok, text: ok ? t('saved') : t('failed') });
+    await mutate();
+    return ok;
+  };
+
+  if (error) return <EmptyState title={t('loadFailed')} />;
+  if (isLoading || !data) return <div className="p-4"><SkeletonList count={5} /></div>;
+
+  const me = data.me;
+  const may = (s: Section) => canEdit(s, data.owners, me);
+  const coach = data.staff.find((s) => s.role === 'coach');
+  const admin = data.staff.find((s) => s.id === me.id && me.admin) ?? data.staff.find((s) => s.role === 'admin' && !/admin/i.test(s.name)) ?? data.staff.find((s) => s.role === 'admin');
+  const coachName = firstName(coach?.name ?? 'Coach');
+  const adminName = firstName(admin?.name ?? 'Admin');
+  const ownerChip = (s: Section) => {
+    const o = data.owners[s];
+    if (o === 'both') return <OwnerChip name={t('own_both')} initials="2" color="#5F616C" />;
+    const p = o === 'coach' ? coach : admin;
+    const mine = !!p && p.id === me.id;
+    return <OwnerChip name={firstName(p?.name ?? '')} initials={initials(p?.name ?? '?')} color={o === 'coach' ? '#0B5285' : '#1525FF'} me={mine ? t('you') : undefined} />;
+  };
+  const offset = Math.round((Date.parse(week) - Date.parse(thisWeek)) / (7 * 86_400_000));
+  const planner = `/dashboard/plan/new${offset ? `?week=${offset}` : ''}`;
+  const coachOnly = !me.admin;
+  const mine = SECTIONS.filter(may);
+  const others = SECTIONS.filter((s) => !may(s));
+  const list = (ss: Section[]) => ss.map((s) => t(`sec_${s}`)).join(' · ');
+  const nextWeek = addDays(thisWeek, 7);
+  const range = (ws: string) => `${Number(ws.slice(8, 10))}–${dm(addDays(ws, 6))}`;
+
+  return (
+    <div className="pb-28">
+      <div className="px-[18px] pt-2">
+        <h1 className="text-[30px] font-extrabold tracking-tight text-ink-900">{t('title')}</h1>
+        <div className="mt-2.5 flex gap-1.5">
+          {[thisWeek, nextWeek].map((ws, i) => (
+            <button key={ws} type="button" onClick={() => setWeek(ws)}
+              className={cn('min-h-[34px] rounded-full px-3 text-[13px] font-bold', week === ws ? 'bg-ink-900 text-white' : 'bg-card text-ink-500')}>
+              {i === 0 ? t('thisWeek') : t('nextWeek')} · <bdi dir="ltr">{range(ws)}</bdi>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {coachOnly ? (
+        <div className="mx-4 mb-2.5 mt-3 rounded-2xl bg-[#EAF2F8] px-3.5 py-3">
+          <b className="block text-[15px] text-[#0B3C61]">{t('coachHello', { name: coachName, what: list(mine) })}</b>
+          <span className="text-13 text-[#4A6A82]">{t('coachHelloSub', { name: adminName })}</span>
+        </div>
+      ) : (
+        <Progress r={data.readiness} t={t} />
+      )}
+
+      {may('workouts') && <WorkoutsCard d={data} t={t} lang={lang} owner={ownerChip('workouts')} planner={planner} adminName={adminName}
+        onDone={coachOnly ? () => run(send('/api/week-setup/done', 'POST', { week, sections: mine })) : undefined} />}
+      {may('nutrition') && <NutritionCard d={data} t={t} lang={lang} owner={ownerChip('nutrition')} onUpload={(f) => run(uploadNutrition(data, f))} />}
+      {may('quality') && <QualityCard d={data} t={t} lang={lang} owner={ownerChip('quality')} onOpenFolder={setFolderDate}
+        onSave={(days) => run(send('/api/quality-session/plan-days', 'PUT', { week, days }))}
+        onCreate={(date, name) => run(send('/api/social/folders', 'POST', { date, name }))} />}
+      {may('notifications') && <NotificationsCard d={data} t={t} lang={lang} owner={ownerChip('notifications')} onOpen={setNotif}
+        onToggle={(r, on) => run(send('/api/week-setup/override', 'PUT', { week, key: r.key, value: on ? null : { ...overrideOf(r), off: true } }))}
+        onApproveAll={() => run(approveAll(data.timeline))} />}
+      {may('polls') && <PollsCard d={data} t={t} lang={lang} owner={ownerChip('polls')}
+        onToggle={(p, active) => run(send('/api/admin/recurring-surveys', 'PATCH', { dayOfWeek: p.dayOfWeek, questionHe: p.question, optionsHe: p.options, active }))} />}
+      {may('message') && (
+        <WeekCard icon={MessageCircle} color={COLORS.message} title={t('sec_message')} owner={ownerChip('message')}
+          actions={<Btn kind="sec" icon={Plus} href="/dashboard/content/publish?type=message">{t('writeMessage')}</Btn>}>
+          <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{t('messageLead')}</p>
+        </WeekCard>
+      )}
+
+      {others.length > 0 && (
+        <div className="mx-5 mt-1 flex items-center gap-[7px] text-[12.5px] text-ink-400">
+          <Lock className="h-3.5 w-3.5 shrink-0" />
+          <span>{t('lockedRest', { list: list(others), name: adminName })}</span>
+        </div>
+      )}
+
+      {me.admin && (
+        <button type="button" onClick={() => setOwnersOpen(true)} className="mx-4 mt-1 flex w-[calc(100%-2rem)] items-center gap-[11px] rounded-[18px] bg-card px-3.5 py-[13px] text-start">
+          <Users className="h-[18px] w-[18px] text-ink-500" />
+          <span className="flex flex-1 flex-col">
+            <b className="text-[14.5px] text-ink-900">{t('owners')}</b>
+            <span className="text-[12.5px] text-ink-400">{ownersLine(data.owners, coachName, adminName, t)}</span>
+          </span>
+          <ChevronLeft className="h-[17px] w-[17px] text-ink-300 ltr:rotate-180" />
+        </button>
+      )}
+
+      <OwnersSheet open={ownersOpen} onClose={() => setOwnersOpen(false)} owners={data.owners} coachName={coachName} adminName={adminName} t={t}
+        onSave={async (o) => { if (await run(send('/api/week-setup/owners', 'PUT', { owners: o }))) setOwnersOpen(false); }} />
+      <NotifSheet row={notif} d={data} t={t} lang={lang} week={week} onClose={() => setNotif(null)} run={run} />
+      <FolderSheet date={folderDate} d={data} t={t} lang={lang} onClose={() => setFolderDate(null)} run={run} />
+
+      {toast && (
+        <div role="status" className={cn('fixed inset-x-0 bottom-[96px] z-50 mx-auto w-fit rounded-full px-4 py-2 text-sm font-bold text-white shadow-lg', toast.ok ? 'bg-ink-900' : 'bg-[#AD3838]')}>
+          {toast.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type T = ReturnType<typeof useTranslations>;
+type Lang = 'he' | 'en';
+
+function ownersLine(o: Owners, coach: string, admin: string, t: T) {
+  const by = (who: Owner) => SECTIONS.filter((s) => o[s] === who).map((s) => t(`sec_${s}`));
+  const c = by('coach'); const b = by('both');
+  return [c.length ? `${coach} — ${c.join(', ')}` : null, b.length ? `${t('own_both')} — ${b.join(', ')}` : null, `${admin} — ${by('admin').join(', ') || '—'}`]
+    .filter(Boolean).join(' · ');
+}
+
+function overrideOf(r: TimelineRow) {
+  return {
+    title: r.title !== r.defaultTitle ? r.title : undefined,
+    body: r.body !== r.defaultBody ? r.body : undefined,
+  };
+}
+
+async function approveAll(rows: TimelineRow[]): Promise<boolean> {
+  const dates = [...new Set(rows.filter((r) => r.state === 'approve').map((r) => addDays(r.date, 1)))];
+  const res = await Promise.all(dates.map((date) => send('/api/notifications/approvals', 'POST', { date, action: 'approve' })));
+  return res.every(Boolean);
+}
+
+async function uploadNutrition(d: WeekSnapshot, file: File): Promise<boolean> {
+  const fd = new FormData();
+  fd.append('week_number', String(d.weekNumber));
+  fd.append('week_start_date', d.weekStart);
+  fd.append('nutrition_pdf', file);
+  const res = await fetch('/api/program-weeks', { method: 'POST', headers: await bearerHeaders(false), body: fd }).catch(() => null);
+  return !!res?.ok;
+}
+
+// ── progress ────────────────────────────────────────────────────────────────────────
+
+function Progress({ r, t }: { r: WeekSnapshot['readiness']; t: T }) {
+  const C = 2 * Math.PI * 26;
+  const ready = r.missing.length === 0;
+  return (
+    <div className="mx-4 mb-1 mt-3.5 flex items-center gap-3.5 rounded-[22px] bg-card px-4 py-3.5">
+      <div className="relative h-16 w-16 shrink-0">
+        <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden>
+          <circle cx="32" cy="32" r="26" fill="none" stroke="#EEF0F6" strokeWidth="7" />
+          <circle cx="32" cy="32" r="26" fill="none" stroke={ready ? '#15803d' : '#1525FF'} strokeWidth="7" strokeLinecap="round"
+            strokeDasharray={`${(C * r.done) / r.total} 999`} transform="rotate(-90 32 32)" />
+        </svg>
+        <b className="absolute inset-0 grid place-items-center text-base font-black text-ink-900"><bdi dir="ltr">{r.done}/{r.total}</bdi></b>
+      </div>
+      <div className="min-w-0">
+        <b className="block text-base font-extrabold text-ink-900">{ready ? t('ready') : t('notReady')}</b>
+        {!ready && <span className="text-13 leading-snug text-ink-400">{t('missing', { list: r.missing.map((s) => t(`miss_${s}`)).join(' · ') })}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ── workouts ────────────────────────────────────────────────────────────────────────
+
+const PLAN_TONE: Record<WeekSnapshot['plan']['status'], Tone> = { none: 'todo', draft: 'warn', partial: 'warn', pushed: 'ok' };
+
+function WorkoutsCard({ d, t, lang, owner, planner, adminName, onDone }: { d: WeekSnapshot; t: T; lang: Lang; owner: React.ReactNode; planner: string; adminName: string; onDone?: () => Promise<boolean> }) {
+  const [done, setDone] = useState(false);
+  const created = d.plan.createdAt ? new Date(d.plan.createdAt).toLocaleString(lang === 'he' ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit' }) : null;
+  return (
+    <>
+      <div className="h-2.5" />
+      <WeekCard icon={ClipboardList} color={COLORS.workouts} title={t('sec_workouts')} owner={owner} status={<Pill tone={PLAN_TONE[d.plan.status]}>{t(`plan_${d.plan.status}`)}</Pill>}
+        actions={<>
+          {d.plan.status !== 'pushed' && <Btn icon={Send} href={planner}>{t('sendWatches')}</Btn>}
+          <Btn kind="sec" href={planner}>{t('openPlanner')}</Btn>
+        </>}>
+        <div className="mt-3 flex gap-1">
+          {d.days.map((day) => {
+            const km = day.sessions.reduce((a, s) => a + s.km, 0);
+            const main = day.sessions.find((x) => !x.optional) ?? day.sessions[0];
+            const name = main ? t(`type_${main.type}`) : day.daySession?.title || '';
+            return (
+              <Link key={day.date} href={planner}
+                className={cn('relative flex min-w-0 flex-1 flex-col items-center gap-px rounded-xl px-0.5 pb-1.5 pt-[7px]',
+                  day.quality ? 'bg-[#FCE9F2] shadow-[inset_0_0_0_1.5px_#C2185B44]' : day.team ? 'bg-brand-600/[0.07] shadow-[inset_0_0_0_1.5px_#1525FF33]' : 'bg-[#F4F5F8]')}>
+                <span className="text-[11px] font-bold text-ink-400">{DAY_SHORT[lang][day.dayOfWeek]}</span>
+                <b className="text-sm font-extrabold text-ink-900"><bdi dir="ltr">{km ? Math.round(km * 10) / 10 : '–'}</bdi></b>
+                <span className="w-full truncate text-center text-[9.5px] text-ink-400">{name}</span>
+                {day.team && <i className="mt-px text-[8.5px] font-extrabold not-italic text-brand-600">{t('team')}</i>}
+              </Link>
+            );
+          })}
+        </div>
+        <p className="mt-2.5 text-[12.5px] leading-normal text-ink-400">
+          {[t('tapDay'), created ? t('uploadedAt', { when: created }) : null, d.pdf.training ? null : t('noTrainingPdf')].filter(Boolean).join(' · ')}
+        </p>
+        {onDone && (
+          <button type="button" disabled={done} onClick={async () => { if (await onDone()) setDone(true); }}
+            className="mt-2.5 flex w-full items-center gap-2 rounded-[14px] bg-[#E8F6EE] px-3 py-[11px] text-start text-[13.5px] font-bold text-[#15803d]">
+            <Check className="h-4 w-4" strokeWidth={3} />
+            <span>{done ? t('doneSent', { name: adminName }) : t('doneBtn', { name: adminName })}</span>
+          </button>
+        )}
+      </WeekCard>
+    </>
+  );
+}
+
+// ── nutrition ───────────────────────────────────────────────────────────────────────
+
+function NutritionCard({ d, t, lang, owner, onUpload }: { d: WeekSnapshot; t: T; lang: Lang; owner: React.ReactNode; onUpload: (f: File) => Promise<boolean> }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  // The days that have something to eat around: a team day, a one-day session, or guidance already written.
+  const days = d.days.filter((x) => x.team || x.daySession || x.sessions.some((s) => s.km >= 20));
+  return (
+    <WeekCard icon={Apple} color={COLORS.nutrition} title={t('sec_nutrition')} owner={owner}
+      status={<Pill tone={d.pdf.nutrition ? 'ok' : 'todo'}>{d.pdf.nutrition ? t('pdfThere') : t('pdfMissing')}</Pill>}>
+      <input ref={input} type="file" accept="application/pdf" className="hidden"
+        onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; setBusy(true); await onUpload(f); setBusy(false); }} />
+      <button type="button" disabled={busy} onClick={() => input.current?.click()}
+        className="mt-2.5 flex w-full items-center gap-2 rounded-[14px] border-[1.5px] border-dashed border-[#B4530966] px-3 py-[11px] text-start text-[13.5px] font-bold text-[#B45309] disabled:opacity-60">
+        <Upload className="h-[18px] w-[18px]" />
+        <span className="flex-1">{d.pdf.nutrition ? `${t('nutritionPdf')} · ${t('uploadPdf')}` : t('uploadPdf')}</span>
+        {d.pdf.nutrition && <a href={d.pdf.nutrition} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink className="h-4 w-4" /></a>}
+      </button>
+      <div className="mt-2">
+        {days.map((day) => {
+          const n = day.daySession?.nutrition ?? [];
+          const main = day.sessions.find((x) => !x.optional) ?? day.sessions[0];
+          const what = main ? `${t(`type_${main.type}`)} · ${t('km', { km: main.km })}` : day.daySession?.title || '';
+          const title = n.length ? n.map((x) => `${t(`nutritionWhen_${x.when}` as 'nutritionWhen_before')}: ${x.text}`).join(' · ') : what;
+          return (
+            <Link key={day.date} href={`/dashboard/day-session?date=${day.date}`} className="flex items-center gap-2 border-b border-[#F3F4F6] py-[9px] last:border-0">
+              <span className="w-[62px] shrink-0 text-xs font-extrabold text-ink-500">{DAY_SHORT[lang][day.dayOfWeek]} <bdi dir="ltr">{dm(day.date)}</bdi></span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <b className="truncate text-[13.5px] font-bold text-ink-900">{title || DAY_LONG[lang][day.dayOfWeek]}</b>
+                {!n.length && <span className="flex items-center gap-1 text-[11.5px] text-ink-400">{t('nutritionNone')}</span>}
+              </span>
+              <span className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full bg-[#F2F3F6] text-ink-500">
+                {n.length ? <Pencil className="h-[15px] w-[15px]" /> : <Plus className="h-[15px] w-[15px]" />}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </WeekCard>
+  );
+}
+
+// ── quality days and folders ────────────────────────────────────────────────────────
+
+function QualityCard({ d, t, lang, owner, onSave, onOpenFolder, onCreate }: {
+  d: WeekSnapshot; t: T; lang: Lang; owner: React.ReactNode;
+  onSave: (days: number[]) => Promise<boolean>; onOpenFolder: (date: string) => void; onCreate: (date: string, name: string) => Promise<boolean>;
+}) {
+  const [days, setDays] = useState<number[]>(d.qualityDays);
+  useEffect(() => { setDays(d.qualityDays); }, [d.weekStart, d.qualityDays.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  const dirty = days.join(',') !== d.qualityDays.join(',') || !d.qualityPicked;
+  const toggle = (k: number) => setDays((v) => (v.includes(k) ? v.filter((x) => x !== k) : [...v, k].sort()));
+  const status = d.qualityPicked ? <Pill tone="ok">{d.qualityDays.map((k) => DAY_SHORT[lang][k]).join(' · ') || '—'}</Pill>
+    : <Pill tone={d.qualityDays.length ? 'warn' : 'todo'}>{d.qualityDays.length ? t('qualityGuessed') : t('qualityNone')}</Pill>;
+  return (
+    <WeekCard icon={Star} color={COLORS.quality} title={t('sec_quality')} owner={owner} status={status}
+      actions={dirty ? <Btn icon={Check} onClick={() => onSave(days)}>{t('saveQuality')}</Btn> : undefined}>
+      <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{t('qualityLead')}</p>
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        {d.days.map((day) => (
+          <button key={day.date} type="button" onClick={() => toggle(day.dayOfWeek)} aria-pressed={days.includes(day.dayOfWeek)}
+            className={cn('min-h-[36px] rounded-xl px-2.5 text-[13px] font-bold',
+              days.includes(day.dayOfWeek) ? 'bg-[#FCE9F2] text-[#C2185B] shadow-[inset_0_0_0_1.5px_#C2185B55]' : 'bg-[#F2F3F6] text-ink-500')}>
+            {DAY_SHORT[lang][day.dayOfWeek]} · <bdi dir="ltr">{dm(day.date)}</bdi>
+          </button>
+        ))}
+      </div>
+      {d.qualityDays.length > 0 && (
+        <div className="mt-2.5 border-t border-[#F0F1F4]">
+          {d.qualityDays.map((k) => {
+            const day = d.days[k];
+            const f = d.folders[day.date];
+            const made = !!f?.folderId;
+            return (
+              <div key={day.date} className="flex items-center gap-2.5 border-b border-[#F5F6F8] py-[9px]">
+                <Folder className={cn('h-[17px] w-[17px] shrink-0', f?.skipped ? 'text-ink-300' : 'text-[#B45309]')} />
+                <button type="button" onClick={() => onOpenFolder(day.date)} className="flex min-w-0 flex-1 flex-col text-start">
+                  <span className={cn('truncate text-[13.5px] font-bold', f?.skipped ? 'text-ink-400 line-through' : 'text-ink-900')}>{f?.name || day.folderName}</span>
+                  <em className="text-[11.5px] not-italic text-ink-400">
+                    {DAY_SHORT[lang][k]} <bdi dir="ltr">{dm(day.date)}</bdi> · {f?.skipped ? t('folderSkipped') : made ? t('folderMade') : t('folderOpensAt')}
+                  </em>
+                </button>
+                <button type="button" onClick={() => onOpenFolder(day.date)} aria-label={t('folderSheet')} className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full bg-[#F2F3F6] text-ink-500">
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                {made ? (
+                  <a href={f.link} target="_blank" rel="noreferrer" className="text-xs font-bold text-brand-600">{t('openDrive')}</a>
+                ) : !f?.skipped && (
+                  <button type="button" onClick={() => onCreate(day.date, f?.name || day.folderName)} className="min-h-[36px] text-xs font-bold text-brand-600">{t('folderOpenNow')}</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </WeekCard>
+  );
+}
+
+function FolderSheet({ date, d, t, lang, onClose, run }: { date: string | null; d: WeekSnapshot; t: T; lang: Lang; onClose: () => void; run: (p: Promise<boolean>) => Promise<boolean> }) {
+  const day = date ? d.days.find((x) => x.date === date) : null;
+  const f = date ? d.folders[date] : undefined;
+  const [name, setName] = useState('');
+  const [autoFeed, setAutoFeed] = useState(true);
+  const [tell, setTell] = useState(true);
+  useEffect(() => { if (day) { setName(f?.name || day.folderName); setAutoFeed(f?.autoFeed !== false); setTell(!f?.toldAt); } }, [date]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!day) return <Sheet open={false} onOpenChange={() => {}} title="">{null}</Sheet>;
+  const made = !!f?.folderId;
+  const close = (ok: boolean) => { if (ok) onClose(); };
+  return (
+    <Sheet open={!!date} onOpenChange={(o) => { if (!o) onClose(); }} title={t('folderSheet')}>
+      <div className="pb-2">
+        <div className="flex justify-end"><Pill tone={f?.skipped ? 'pause' : made ? 'ok' : 'auto'}>{f?.skipped ? t('folderSkipped') : made ? t('folderMade') : t('folderOpensAt')}</Pill></div>
+        <Field label={t('folderName')} hint={t('folderNameHint')}><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} maxLength={120} /></Field>
+        <Field label={t('fDay')}><div className={inputCls}>{DAY_LONG[lang][day.dayOfWeek]} <bdi dir="ltr">{dm(day.date)}</bdi></div></Field>
+        {!made && (
+          <div className="mt-3 flex items-center justify-between text-sm font-semibold text-ink-900"><span>{t('tellEditors')}</span><Switch checked={tell} onChange={setTell} activeColor="bg-[#15803d]" /></div>
+        )}
+        <div className="mt-3 flex items-center justify-between text-sm font-semibold text-ink-900"><span>{t('autoFeed')}</span><Switch checked={autoFeed} onChange={setAutoFeed} activeColor="bg-[#15803d]" /></div>
+        <div className="mt-4 flex gap-2">
+          <Btn icon={Check} onClick={async () => close(await run(send('/api/social/folders', 'PATCH', { date: day.date, name: name.trim(), autoFeed })))}>{t('save')}</Btn>
+          {made ? <Btn kind="sec" icon={ExternalLink} href={f!.link}>{t('openDrive')}</Btn>
+            : !f?.skipped && <Btn kind="sec" icon={Folder} onClick={async () => close(await run(send('/api/social/folders', 'POST', { date: day.date, name: name.trim() || day.folderName, autoFeed, notifyEditors: tell })))}>{t('folderOpenNow')}</Btn>}
+        </div>
+        <div className="mt-3.5 flex justify-center">
+          {f?.skipped
+            ? <button type="button" className="min-h-[40px] text-[13.5px] font-bold text-brand-600" onClick={async () => close(await run(send('/api/social/folders', 'PATCH', { date: day.date, skipped: false })))}>{t('bringBack')}</button>
+            : <button type="button" className="min-h-[40px] text-[13.5px] font-bold text-[#AD3838]" onClick={async () => close(await run(send('/api/social/folders', 'PATCH', { date: day.date, skipped: true })))}>{t('noFolder')}</button>}
+        </div>
+      </div>
+    </Sheet>
+  );
+}
+
+// ── notifications ───────────────────────────────────────────────────────────────────
+
+const STATE_TONE: Record<TimelineRow['state'], Tone> = { sent: 'ok', off: 'pause', approve: 'warn', skipped: 'pause', scheduled: 'auto' };
+
+function NotificationsCard({ d, t, lang, owner, onOpen, onToggle, onApproveAll }: {
+  d: WeekSnapshot; t: T; lang: Lang; owner: React.ReactNode; onOpen: (r: TimelineRow | 'new') => void; onToggle: (r: TimelineRow, on: boolean) => void; onApproveAll: () => void;
+}) {
+  const pending = d.timeline.filter((r) => r.state === 'approve').length;
+  return (
+    <WeekCard icon={Bell} color={COLORS.notifications} title={t('sec_notifications')} owner={owner}
+      status={pending ? <Pill tone="warn">{t('toApprove', { n: pending })}</Pill> : undefined}
+      actions={<>
+        {pending > 0 && <Btn icon={Check} onClick={onApproveAll}>{t('approveAll')}</Btn>}
+        <Btn kind="sec" icon={Plus} onClick={() => onOpen('new')}>{t('addNotif')}</Btn>
+      </>}>
+      <div className="mt-2">
+        {d.timeline.map((r) => {
+          const off = r.state === 'off';
+          const sent = r.state === 'sent';
+          return (
+            <div key={r.key} className="flex items-center gap-2 border-b border-[#F3F4F6] py-[9px] last:border-0">
+              <span className="w-[62px] shrink-0 text-xs font-extrabold text-ink-500">{DAY_SHORT[lang][dowOf(r.date)]} <bdi dir="ltr">{hh(r.hour)}</bdi></span>
+              <button type="button" onClick={() => onOpen(r)} className="flex min-w-0 flex-1 flex-col text-start">
+                <b className={cn('truncate text-[13.5px] font-bold', off ? 'text-ink-300 line-through' : 'text-ink-900')}>{r.title}</b>
+                <span className="flex flex-wrap items-center gap-1 text-[11.5px] text-ink-400">
+                  {t(`aud_${audKey(r.audience)}`)} · <Pill tone={STATE_TONE[r.state]}>{t(`st_${r.state}`)}</Pill>
+                  {r.changed && !off && <span className="text-brand-600">{t('changedTag')}</span>}
+                </span>
+              </button>
+              {!sent && (
+                <button type="button" onClick={() => onOpen(r)} aria-label={t('fTitle')} className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full bg-[#F2F3F6] text-ink-500">
+                  <Pencil className="h-[15px] w-[15px]" />
+                </button>
+              )}
+              {!sent && r.stage !== 'custom' && <Switch size="sm" checked={!off} onChange={(on) => onToggle(r, on)} activeColor="bg-[#15803d]" ariaLabel={t('offThisWeek')} />}
+            </div>
+          );
+        })}
+      </div>
+    </WeekCard>
+  );
+}
+
+const audKey = (a: string) => (a === 'all' || a === 'noAnswer' || a === 'ranThisWeek' ? a : a === 'group' ? 'group' : 'all');
+
+function NotifSheet({ row, d, t, lang, week, onClose, run }: {
+  row: TimelineRow | 'new' | null; d: WeekSnapshot; t: T; lang: Lang; week: string; onClose: () => void; run: (p: Promise<boolean>) => Promise<boolean>;
+}) {
+  const isNew = row === 'new';
+  const r = row && row !== 'new' ? row : null;
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [hour, setHour] = useState(8);
+  const [date, setDate] = useState(week);
+  const [as, setAs] = useState<'club' | 'me'>('club');
+  useEffect(() => {
+    if (r) { setTitle(r.title); setBody(r.body); setHour(r.hour); setDate(r.date); }
+    else if (isNew) { setTitle(''); setBody(''); setHour(8); setDate(d.days.find((x) => x.date >= israelToday())?.date ?? week); }
+    setAs('club');
+  }, [row]); // eslint-disable-line react-hooks/exhaustive-deps
+  const open = !!row;
+  const story = r?.stage === 'weekStory';
+  const auto = !!r && r.stage !== 'custom';
+  const past = Date.parse(israelHourToIso(date, hour)) <= Date.now();
+  const done = (ok: boolean) => { if (ok) onClose(); };
+  const slot = (value: unknown) => send('/api/week-setup/override', 'PUT', { week, key: r!.key, value });
+  const value = () => ({
+    title: r && title.trim() !== r.defaultTitle ? title : undefined,
+    body: r && body.trim() !== r.defaultBody ? body : undefined,
+    hour: r && (hour !== r.hour || r.changed) ? hour : undefined,
+  });
+  const sendNow = () => send('/api/notifications', 'POST', {
+    title_he: title.trim(), body_he: body.trim(), schedule_type: 'now', audience_type: 'all', url: '/dashboard', ...(as === 'me' ? { as: 'me' } : {}),
+  });
+
+  return (
+    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}
+      title={isNew ? t('newNotif') : r ? t('notifSheet', { when: `${DAY_SHORT[lang][dowOf(r.date)]} ${hh(r.hour)}` }) : ''}>
+      {open && (
+        <div className="pb-2">
+          {r && <div className="flex items-center justify-between"><Pill tone={STATE_TONE[r.state]}>{t(`st_${r.state}`)}</Pill></div>}
+          {auto && <p className="mt-1.5 text-13 leading-normal text-ink-400">{t('autoNote')}</p>}
+          {!story && <>
+            <Field label={t('fTitle')}><input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} /></Field>
+            <Field label={t('fBody')}><textarea className={cn(inputCls, 'min-h-[72px] resize-none')} value={body} onChange={(e) => setBody(e.target.value)} maxLength={400} /></Field>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Field label={t('fDay')}>
+                  {isNew || r?.stage === 'custom' ? (
+                    <select className={inputCls} value={date} onChange={(e) => setDate(e.target.value)}>
+                      {d.days.map((x) => <option key={x.date} value={x.date}>{DAY_LONG[lang][x.dayOfWeek]} {dm(x.date)}</option>)}
+                    </select>
+                  ) : <div className={inputCls}>{DAY_LONG[lang][dowOf(date)]} <bdi dir="ltr">{dm(date)}</bdi></div>}
+                </Field>
+              </div>
+              <div className="flex-1">
+                <Field label={t('fHour')}>
+                  <select className={inputCls} value={hour} onChange={(e) => setHour(Number(e.target.value))} dir="ltr">
+                    {Array.from({ length: 18 }, (_, i) => i + 5).map((h) => <option key={h} value={h}>{hh(h)}</option>)}
+                  </select>
+                </Field>
+              </div>
+            </div>
+          </>}
+          {(isNew || auto) && !story && (
+            <Field label={t('fSender')} hint={t('senderHint')}>
+              <Chips value={as} onChange={setAs} options={[{ value: 'club', label: t('senderClub') }, { value: 'me', label: t('senderMe') }]} />
+            </Field>
+          )}
+          {r && <Field label={t('fAudience')}><div className={inputCls}>{t(`aud_${audKey(r.audience)}`)}</div></Field>}
+          {past && (isNew || r?.stage === 'custom') && <p className="mt-2 text-[12.5px] font-bold text-[#AD3838]">{t('pastTime')}</p>}
+
+          <div className="mt-4 flex gap-2">
+            {isNew && <>
+              <Btn icon={Check} disabled={!title.trim() || !body.trim() || past} onClick={async () => done(await run(send('/api/notifications', 'POST', {
+                title_he: title.trim(), body_he: body.trim(), schedule_type: 'once_at', scheduled_at: israelHourToIso(date, hour), audience_type: 'all', url: '/dashboard', ...(as === 'me' ? { as: 'me' } : {}),
+              })))}>{t('schedule')}</Btn>
+              <Btn kind="sec" icon={Send} disabled={!title.trim() || !body.trim()} onClick={async () => done(await run(sendNow()))}>{t('sendNow')}</Btn>
+            </>}
+            {auto && !story && r.state !== 'sent' && <>
+              <Btn icon={Check} onClick={async () => {
+                const ok = await slot({ ...value(), off: r.state === 'off' ? true : undefined });
+                const approved = r.state === 'approve' ? await send('/api/notifications/approvals', 'POST', { date: addDays(r.date, 1), action: 'approve' }) : true;
+                done(await run(Promise.resolve(ok && approved)));
+              }}>{r.state === 'approve' ? t('approveSave') : t('save')}</Btn>
+              {r.stage === 'dayBefore' && <Btn kind="sec" icon={Send} disabled={!title.trim() || !body.trim()} onClick={async () => {
+                // Sent now in its place, so the automatic one stays quiet this week.
+                const ok = await sendNow();
+                done(await run(Promise.resolve(ok && await slot({ ...value(), off: true }))));
+              }}>{t('sendNow')}</Btn>}
+            </>}
+            {r?.stage === 'custom' && r.state !== 'sent' && (
+              <Btn icon={Check} disabled={past || !title.trim()} onClick={async () => done(await run(send('/api/notifications', 'PUT', {
+                id: r.id, title_he: title.trim(), body_he: body.trim(), schedule_type: 'once_at', scheduled_at: israelHourToIso(date, hour),
+              })))}>{t('save')}</Btn>
+            )}
+          </div>
+          {r && r.state !== 'sent' && (
+            <div className="mt-3.5 flex justify-center gap-[18px] text-[13.5px] font-bold">
+              {r.stage === 'custom'
+                ? <button type="button" className="min-h-[40px] text-[#AD3838]" onClick={async () => done(await run(send('/api/notifications', 'PUT', { id: r.id, status: 'cancelled' })))}>{t('offThisWeek')}</button>
+                : r.state === 'off'
+                  ? <button type="button" className="min-h-[40px] text-brand-600" onClick={async () => done(await run(slot(value())))}>{t('turnOn')}</button>
+                  : <button type="button" className="min-h-[40px] text-ink-500" onClick={async () => done(await run(slot({ ...value(), off: true })))}>{t('offThisWeek')}</button>}
+              {r.changed && r.stage !== 'custom' && (
+                <button type="button" className="min-h-[40px] text-ink-500" onClick={async () => done(await run(slot(null)))}>{t('resetDefault')}</button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+// ── polls ───────────────────────────────────────────────────────────────────────────
+
+function PollsCard({ d, t, lang, owner, onToggle }: { d: WeekSnapshot; t: T; lang: Lang; owner: React.ReactNode; onToggle: (p: WeekSnapshot['polls'][number], active: boolean) => void }) {
+  const anyOn = d.polls.some((p) => p.active);
+  return (
+    <WeekCard icon={BarChart3} color={COLORS.polls} title={t('sec_polls')} owner={owner} status={<Pill tone={anyOn ? 'ok' : 'pause'}>{anyOn ? t('pollOn') : t('pollOffShort')}</Pill>}
+      actions={<Btn kind="sec" icon={Plus} href="/dashboard/content/publish?type=survey">{t('newPoll')}</Btn>}>
+      {!anyOn && <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{t('pollsOff')}</p>}
+      <div className="mt-2">
+        {d.polls.map((p) => (
+          <div key={p.dayOfWeek} className="flex items-center gap-2 border-b border-[#F3F4F6] py-[9px] last:border-0">
+            <span className="flex min-w-0 flex-1 flex-col">
+              <b className={cn('truncate text-[13.5px] font-bold', p.active ? 'text-ink-900' : 'text-ink-400')}>{p.question}</b>
+              <span className="truncate text-[11.5px] text-ink-400">{t('pollFixed', { day: DAY_LONG[lang][p.dayOfWeek] })} · {p.options.join(' / ')}</span>
+            </span>
+            <Switch size="sm" checked={p.active} onChange={(on) => onToggle(p, on)} activeColor="bg-[#15803d]" ariaLabel={p.question} />
+          </div>
+        ))}
+      </div>
+    </WeekCard>
+  );
+}
+
+// ── owners ──────────────────────────────────────────────────────────────────────────
+
+const ICONS: Record<Section, typeof Bell> = { workouts: ClipboardList, nutrition: Apple, quality: Star, notifications: Bell, polls: BarChart3, message: MessageCircle };
+
+function OwnersSheet({ open, onClose, owners, coachName, adminName, t, onSave }: {
+  open: boolean; onClose: () => void; owners: Owners; coachName: string; adminName: string; t: T; onSave: (o: Owners) => void;
+}) {
+  const [o, setO] = useState(owners);
+  useEffect(() => { if (open) setO(owners); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }} title={t('owners')}>
+      <div className="pb-2">
+        <p className="mb-2 text-13 leading-normal text-ink-400">{t('ownersLead')}</p>
+        {SECTIONS.map((s) => {
+          const Icon = ICONS[s];
+          return (
+            <div key={s} className="flex items-center gap-2.5 border-b border-[#F0F1F4] py-2.5">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px]" style={{ background: `color-mix(in srgb, ${COLORS[s]} 12%, #fff)`, color: COLORS[s] }}><Icon className="h-4 w-4" /></span>
+              <b className="flex-1 text-[14.5px] text-ink-900">{t(`sec_${s}`)}</b>
+              <div className="flex rounded-[10px] bg-[#EEEFF2] p-0.5">
+                {(['coach', 'admin', 'both'] as const).map((k) => (
+                  <button key={k} type="button" onClick={() => setO({ ...o, [s]: k })}
+                    className={cn('min-h-[34px] rounded-lg px-2.5 text-xs font-bold', o[s] === k ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500')}>
+                    {k === 'coach' ? coachName : k === 'admin' ? adminName : t('own_both')}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+        <button type="button" onClick={() => onSave(o)} className="mt-4 flex h-[50px] w-full items-center justify-center rounded-[14px] bg-ink-900 text-[15px] font-bold text-white">{t('save')}</button>
+      </div>
+    </Sheet>
+  );
+}

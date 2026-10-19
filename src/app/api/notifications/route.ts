@@ -1,3 +1,4 @@
+import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { sendPushLocalized, resolveAudience } from '@/lib/push';
@@ -38,6 +39,11 @@ export async function GET(request: Request) {
 }
 
 // POST /api/notifications — create (and, for schedule_type 'now', send immediately).
+async function callerAthleteId(request: Request): Promise<string | null> {
+  const { caller } = await resolveVerifiedCaller(request);
+  return caller?.athleteId ?? null;
+}
+
 export async function POST(request: Request) {
   try {
     const { denied, email: actorEmail } = await requireApprover(request);
@@ -81,6 +87,8 @@ export async function POST(request: Request) {
       next_run_at: computeNextRun(body),
       status: 'scheduled',
       created_by: actorEmail,
+      // "נשלח בשם" (תחילת שבוע): no actor = the club; `as: 'me'` = the sender, by their own row.
+      ...(body.as === 'me' ? { actor_athlete_id: await callerAthleteId(request) } : {}),
     };
 
     let { data: created, error } = await supabase
