@@ -78,22 +78,24 @@ export function decideStoryGate(f: GateFacts): GateResult {
 
 type Db = ReturnType<typeof createServerClient>;
 
-interface Shared { paused: boolean; dbError: boolean; state: StoryState | null }
+interface Shared { paused: boolean; dbError: boolean; state: StoryState | null; sendPush: boolean }
 
 async function readShared(db: Db, feature: StoryFeature): Promise<Shared> {
   try {
     const [p, s] = await Promise.all([
       db.from('app_settings').select('value').eq('key', 'stories_paused').maybeSingle(),
-      db.from('story_feature_settings').select('state').eq('feature', feature).maybeSingle(),
+      db.from('story_feature_settings').select('state, send_push').eq('feature', feature).maybeSingle(),
     ]);
-    if (p.error || s.error) return { paused: false, dbError: true, state: null };
+    if (p.error || s.error) return { paused: false, dbError: true, state: null, sendPush: false };
     return {
       paused: (p.data as { value?: string } | null)?.value === 'on',
       dbError: false,
       state: ((s.data as { state?: StoryState } | null)?.state) ?? null,
+      // Only an explicit true sends; the screens stay open either way.
+      sendPush: (s.data as { send_push?: boolean } | null)?.send_push === true,
     };
   } catch {
-    return { paused: false, dbError: true, state: null };
+    return { paused: false, dbError: true, state: null, sendPush: false };
   }
 }
 
@@ -121,19 +123,23 @@ export async function storyGate(
       dbError = true;
     }
   }
-  return decideStoryGate({ ...shared, dbError, athleteId, athleteActive, isTester, isAdmin: !!opts.isAdmin });
+  const { sendPush: _sendPush, ...facts } = shared;
+  void _sendPush;
+  return decideStoryGate({ ...facts, dbError, athleteId, athleteActive, isTester, isAdmin: !!opts.isAdmin });
 }
 
 /**
  * Many athletes at once, for the cron. No admin preview here: a push is never a
  * preview, so 'self' lets nobody through. Callers pass only ACTIVE athletes.
- * Returns the ids that may receive the story; any error = empty set.
+ * Returns the ids that may receive the PUSH; any error, or send_push=false, = empty set.
  */
 export async function storyGateMany(feature: StoryFeature, activeAthleteIds: string[], opts: { db?: Db } = {}): Promise<Set<string>> {
   const out = new Set<string>();
   if (activeAthleteIds.length === 0) return out;
   const db = opts.db ?? createServerClient();
   const shared = await readShared(db, feature);
+  // send_push=false: the story stays on screen for whoever the gate opens it to, but no push goes out.
+  if (!shared.sendPush) return out;
   let testers = new Set<string>();
   let dbError = shared.dbError;
   if (!dbError && shared.state === 'testers') {
@@ -146,7 +152,7 @@ export async function storyGateMany(feature: StoryFeature, activeAthleteIds: str
     }
   }
   for (const id of activeAthleteIds) {
-    const r = decideStoryGate({ ...shared, dbError, athleteId: id, athleteActive: true, isTester: testers.has(id), isAdmin: false });
+    const r = decideStoryGate({ paused: shared.paused, state: shared.state, dbError, athleteId: id, athleteActive: true, isTester: testers.has(id), isAdmin: false });
     if (r.allowed && !r.preview) out.add(id);
   }
   return out;

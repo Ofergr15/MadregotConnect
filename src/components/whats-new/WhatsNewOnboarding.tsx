@@ -2,7 +2,8 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import { Sparkles } from 'lucide-react';
-import { WHATS_NEW, type WhatsNewLang } from '@/lib/whats-new/entries';
+import { WHATS_NEW, filterByStoryAccess, type WhatsNewLang } from '@/lib/whats-new/entries';
+import { useStoryAccess } from '@/lib/stories/client';
 import { recentEntries } from '@/lib/whats-new/ledger';
 import { WhatsNewArt } from './WhatsNewArt';
 
@@ -37,7 +38,8 @@ function onboardLang(locale: string): WhatsNewLang {
 export function WhatsNewOnboardingCard() {
   const t = useTranslations('whatsNew');
   const lang = onboardLang(useLocale());
-  const entries = recentEntries(WHATS_NEW);
+  const weekly = useStoryAccess('weekly');
+  const entries = filterByStoryAccess(recentEntries(WHATS_NEW), weekly?.allowed ?? null);
 
   if (entries.length === 0) return null;
 
