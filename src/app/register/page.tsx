@@ -446,7 +446,10 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [groupId, setGroupId] = useState<string>('');
+  // null = not answered yet. Nothing is preselected (2026-10-19): "not sure" used to
+  // be, so anyone who never touched the question arrived with no group, and the
+  // approver had to pick one before letting them in. '' is the explicit "not sure".
+  const [groupId, setGroupId] = useState<string | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -477,6 +480,7 @@ export default function RegisterPage() {
     setError(null);
     if (v2 && !fullName.trim()) { setError('איך קוראים לך?'); return; }
     if (!email.trim()) { setError('צריך אימייל'); return; }
+    if (v2 && groupId === null && groups.length > 0) { setError('בחרו קבוצת קצב (או "לא בטוחים")'); return; }
     // Normalised the same way the API does it, or "Ofer@Gmail.com" and
     // "ofer@gmail.com" would look like two different addresses to this check while
     // the server treats them as one.

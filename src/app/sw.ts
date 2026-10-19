@@ -371,6 +371,13 @@ self.addEventListener('push', (event: PushEvent) => {
           // it (browsers ignore unknown notification options harmlessly).
           ...(data.image ? { image: data.image } : {}),
         } as NotificationOptions & { image?: string });
+        // Tell the open app it arrived (2026-10-19): the first run's test push
+        // confirms itself on screen ("it arrived, everything works") instead of
+        // asking the member whether they saw something.
+        try {
+          const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+          for (const w of wins) w.postMessage({ type: 'mc:push-shown', tag: data.tag ?? null });
+        } catch { /* nothing open, or the engine has no clients API */ }
         // Delivery receipt. This is the ONLY evidence anywhere in the system
         // that a push actually reached a phone: Apple returns 201 for an
         // endpoint that is still registered but no longer bound to a live

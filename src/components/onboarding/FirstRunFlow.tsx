@@ -16,7 +16,7 @@
 //     then the feed's setup checklist, which leads with it, and the "connect your
 //     data" popup waits while that checklist is up (ConnectDataSourcePopup).
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { mutate } from 'swr';
 import { isIosDevice, isStandalone, subscribeToPush } from '@/lib/pwa';
 import { apiHeaders } from '@/lib/api';
@@ -31,6 +31,7 @@ import { useIsComputer } from '@/lib/install/use-computer';
 import { JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, PrimaryButton, SecondaryButton } from './journey-ui';
 import './first-run.css';
 import { trackOnb } from '@/lib/onboarding/track';
+import { Spinner } from '@/components/ui';
 
 export type Stage = 'welcome' | 'push' | 'pushDone' | 'pushBlocked';
 
@@ -88,6 +89,36 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
   // The watch row only while nothing is connected (the setup task "watch").
   const needsWatch = !!data && data.applicable && !!data.tasks?.some((task) => task.key === 'watch' && !task.done);
 
+  // THE COVER (2026-10-19, Ofer's own install: "it shows the app, then goes into
+  // the welcome"). The welcome waits for /api/onboarding, and until it answers the
+  // feed was painted underneath and then covered. On the app's first open from the
+  // home-screen icon — the moment that is the welcome's — a plain cover goes up
+  // BEFORE the first paint (a layout effect) and comes down when the welcome takes
+  // over, when the answer says this is not a first run, or after 4 s whatever happens.
+  const [cover, setCover] = useState(false);
+  useLayoutEffect(() => {
+    if (previewStage) return;
+    try {
+      const id = localStorage.getItem('athlete_id');
+      if (id && isStandalone() && !readFirstRunStage(id)) setCover(true);
+    } catch { /* private mode: no cover */ }
+  }, [previewStage]);
+  useEffect(() => {
+    if (!cover) return;
+    const t = setTimeout(() => setCover(false), 4000);
+    return () => clearTimeout(t);
+  }, [cover]);
+  useEffect(() => {
+    if (!cover || stage) { if (stage) setCover(false); return; }
+    if (!data) return;
+    if (!data.applicable || (data.migrated && data.tourSeen)) {
+      // Not a first run, on this device for good: no cover on the next open either.
+      const id = localStorage.getItem('athlete_id');
+      if (id && data.applicable) setFirstRunStage(id, 'done');
+      setCover(false);
+    } else if (!v2) setCover(false);
+  }, [cover, stage, data, v2]);
+
   useEffect(() => {
     if (previewStage) { setName('נועה'); return; }
     if (!v2 || stage || !data || !data.applicable || !installAnswered) return;
@@ -100,10 +131,35 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
     trackOnb('first_run_start', { once: true });
   }, [v2, data, installAnswered, stage, previewStage]);
 
+  // The test push, caught as it lands (the service worker posts mc:push-shown):
+  // 'waiting' → 'arrived' (then on to the tour by itself) or, after 20 s, 'late'.
+  const [testPush, setTestPush] = useState<'waiting' | 'arrived' | 'late'>('waiting');
+  useEffect(() => {
+    if (stage !== 'pushDone' || previewStage) return;
+    setTestPush('waiting');
+    const onMsg = (e: MessageEvent) => {
+      const d = e.data as { type?: string; tag?: string | null } | null;
+      if (d?.type === 'mc:push-shown' && String(d.tag || '').startsWith('push-test')) {
+        setTestPush('arrived');
+        trackOnb('push_granted', { meta: { testArrived: true } });
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', onMsg);
+    const late = setTimeout(() => setTestPush((s) => (s === 'waiting' ? 'late' : s)), 20_000);
+    return () => { navigator.serviceWorker?.removeEventListener('message', onMsg); clearTimeout(late); };
+  }, [stage, previewStage]);
+
   const toTour = useCallback(() => {
     if (athleteId) setFirstRunStage(athleteId, 'tour');
     setStage(null);
   }, [athleteId]);
+
+  // Arrived: a beat to read "it works", then the tour, with no tap needed.
+  useEffect(() => {
+    if (stage !== 'pushDone' || testPush !== 'arrived') return;
+    const t = setTimeout(() => toTour(), 2200);
+    return () => clearTimeout(t);
+  }, [stage, testPush, toTour]);
 
   const fromWelcome = useCallback(() => {
     if (computer) { toTour(); return; }
@@ -140,7 +196,13 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
     }
   };
 
-  if (!stage) return null;
+  if (!stage) {
+    return cover ? (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center" style={{ background: JOURNEY.page }} aria-hidden data-testid="first-run-cover">
+        <Spinner size={22} tone="ink" />
+      </div>
+    ) : null;
+  }
 
   const pushSteps = canAskPush ? 3 : 2;
   const stepsLeft: Array<[string, string, string, string]> = [
@@ -231,11 +293,17 @@ export function FirstRunFlow({ previewStage }: { previewStage?: Stage } = {}) {
   }
 
   if (stage === 'pushDone') {
+    const subtitle = testPush === 'arrived'
+      ? 'התראת הניסיון הגיעה לטלפון — הכל עובד. ממשיכים לסיור…'
+      : testPush === 'late'
+        ? 'התראת הניסיון עוד לא הגיעה. אם הטלפון במצב "ריכוז" או "אל תפריע", היא תחכה שם — ממשיכים בינתיים.'
+        : 'שולחים עכשיו התראת ניסיון לטלפון, ובודקים שהיא מגיעה…';
     screen = (
       <JourneyScreen
-        hero={<JourneyHero compact eyebrow={dots(1)} title="מעולה, ההתראות פעילות" subtitle="שלחנו עכשיו התראת ניסיון, כדי שתראו איך זה נראה. היא תקפוץ בעוד שנייה." />}
+        hero={<JourneyHero compact eyebrow={dots(1)} title={testPush === 'arrived' ? 'ההתראות עובדות ✓' : 'מעולה, ההתראות פעילות'} subtitle={subtitle} />}
         actions={<PrimaryButton onClick={toTour}>לסיור קצר באפליקציה</PrimaryButton>}
       >
+        {testPush === 'waiting' && <p className="flex items-center justify-center gap-2 text-13" style={{ color: JOURNEY.soft }}><Spinner size={12} tone="ink" />מחכים להתראה…</p>}
         <div className="frf-pop mx-auto mt-4 flex h-20 w-20 items-center justify-center rounded-full text-4xl font-black text-white" style={{ background: JOURNEY.sun, boxShadow: '0 12px 30px rgba(240,100,60,0.35)' }}>✓</div>
         <div className="frf-push mx-auto mt-4 flex w-full max-w-[340px] items-center gap-3 rounded-[22px] bg-white p-3 shadow-[0_12px_30px_rgba(20,24,60,0.14)] ring-1 ring-black/5" aria-hidden>
           {/* eslint-disable-next-line @next/next/no-img-element */}
