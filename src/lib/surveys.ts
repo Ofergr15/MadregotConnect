@@ -64,9 +64,14 @@ export async function createAndSendSurvey(opts: {
   if (notifError) throw notifError;
 
   if (opts.push === false) {
+    // 'silent', not 'sent': the inbox lists every 'sent' row, so a poll created
+    // without its own push still landed in every member's notifications as a second
+    // "answer the survey" — beside the day-before push that already asks the same
+    // thing and opens the RSVP card (feedback #130, 2026-10-19: two notifications,
+    // two different ways to answer). The poll itself is untouched.
     await supabase
       .from('scheduled_notifications')
-      .update({ status: 'sent', last_sent_at: new Date().toISOString(), sent_count: 0 })
+      .update({ status: 'silent', last_sent_at: new Date().toISOString(), sent_count: 0 })
       .eq('id', notifRow.id);
     return { survey, sent: 0 };
   }
