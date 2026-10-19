@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Menu, Camera, Search, ShoppingBag, Gift, LogOut, Bug, Users, UserSearch } from 'lucide-react';
+import { Menu, Camera, Search, ShoppingBag, Gift, LogOut, Bug, Users, UserSearch, Compass } from 'lucide-react';
+import { useIsSuperUser } from '@/lib/impersonation';
+import { startLiveTour } from '@/components/onboarding/LiveTour';
 import { openViewAsChooser } from '@/lib/view-as-person';
 import { cn } from '@/lib/utils';
 import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem, STORE_OPEN } from '@/lib/nav-items';
@@ -51,6 +53,7 @@ export function BottomTabBar() {
   const pathname = usePathname();
   const t = useTranslations('nav');
   const [moreOpen, setMoreOpen] = useState(false);
+  const superUser = useIsSuperUser();
   // Tabs a new role just added (RoleWelcome), marked "חדש" until each is opened once.
   const [newTabs, setNewTabsState] = useState<string[]>([]);
   useEffect(() => {
@@ -249,6 +252,8 @@ export function BottomTabBar() {
               <MoreCard icon={Users} label={t('runTogether' as any)} href="/dashboard/run-together" active={isActive('/dashboard/run-together')} onClick={() => setMoreOpen(false)} />
               {/* Photos (2026-10-18): the club's Drive folders — see /dashboard/photos. */}
               <MoreCard icon={Camera} label={t('photos' as any)} href="/dashboard/photos" active={isActive('/dashboard/photos')} onClick={() => setMoreOpen(false)} />
+              {/* The live tour, being tried (2026-10-19): the super user starts it here. */}
+              {superUser && <MoreCard icon={Compass} label="סיור באפליקציה" active={false} onClick={() => { setMoreOpen(false); setTimeout(startLiveTour, 350); }} />}
             </div>
           </div>
 

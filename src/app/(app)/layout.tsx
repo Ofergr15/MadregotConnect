@@ -18,6 +18,7 @@ import { InstallStepProvider } from '@/components/onboarding/InstallStepProvider
 import { ExecutionScoreProvider } from '@/components/activity/execution-context';
 import { NotificationsStep } from '@/components/onboarding/NotificationsStep';
 import { FirstRunFlow } from '@/components/onboarding/FirstRunFlow';
+import { LiveTour } from '@/components/onboarding/LiveTour';
 import { Spinner } from '@/components/ui';
 import { AccessBlocked } from '@/components/AccessBlocked';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -442,6 +443,8 @@ export default function AppLayout({
             after onboarding. */}
         {/* Onboarding v2: the welcome → notifications → tour sequence (FirstRunFlow). */}
         {popupsAllowed && <FirstRunFlow />}
+        {/* The live tour (being tried: started from "עוד", super user only). */}
+        <LiveTour />
         {popupsAllowed && <NotificationsStep />}
         {popupsAllowed && <PushOptIn />}
         {/* Ordered before the connect nudge, and it silences that nudge for the
