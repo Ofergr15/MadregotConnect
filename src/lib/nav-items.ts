@@ -104,6 +104,13 @@ export const COACH_TOOLS_ITEM: NavItem = { href: '/dashboard/coach-tools', tab: 
 // Store and Benefits are static "More" sheet rows, not gated by
 // role_tab_permissions (roadmap #9, #5) — every role can reach them.
 export const STORE_ITEM: NavItem = { href: '/dashboard/store', tab: 'store', labelKey: 'store', icon: ShoppingBag };
+/**
+ * The store is offered to members (the "More" sheet, search) only while this is on.
+ * Off since 2026-10-19 (Ofer: "hide it for now"): no products and no order ever, and
+ * an empty store with a cart read as an unfinished app. Staff still manage it from
+ * Coach Tools → store manager; the page itself stays at its address.
+ */
+export const STORE_OPEN = false;
 export const BENEFITS_ITEM: NavItem = { href: '/dashboard/benefits', tab: 'benefits', labelKey: 'benefits', icon: Gift };
 // Run together (398963c7) — a static row like the two above. Member-to-member,
 // nothing on it staff-gated, so a permission row in front of the door would only

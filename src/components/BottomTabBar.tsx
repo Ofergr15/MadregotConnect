@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { Menu, Camera, Search, ShoppingBag, Gift, LogOut, Bug, Users, UserSearch } from 'lucide-react';
 import { openViewAsChooser } from '@/lib/view-as-person';
 import { cn } from '@/lib/utils';
-import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem } from '@/lib/nav-items';
+import { athletePrimaryOrder, resolveNavItems, useNavIdentity, type NavItem, STORE_OPEN } from '@/lib/nav-items';
 import { startViewAs, stopViewAs, MAINTENANCE_MODE, VIEW_AS_SCENARIOS } from '@/lib/impersonation';
 import { Sheet } from '@/components/ui';
 import { useApi } from '@/lib/api';
@@ -229,7 +229,7 @@ export function BottomTabBar() {
             <p className={cn('px-1 mb-2 text-2xs font-bold uppercase tracking-wider', 'text-ink-400')}>{t('quickActions' as any)}</p>
             <div className="grid grid-cols-3 gap-3">
               <MoreCard icon={Search} label={t('search' as any)} href="/dashboard/search" active={isActive('/dashboard/search')} onClick={() => setMoreOpen(false)} />
-              <MoreCard icon={ShoppingBag} label={t('store' as any)} href="/dashboard/store" active={isActive('/dashboard/store')} onClick={() => setMoreOpen(false)} />
+              {STORE_OPEN && <MoreCard icon={ShoppingBag} label={t('store' as any)} href="/dashboard/store" active={isActive('/dashboard/store')} onClick={() => setMoreOpen(false)} />}
               <MoreCard icon={Gift} label={t('benefits' as any)} href="/dashboard/benefits" active={isActive('/dashboard/benefits')} onClick={() => setMoreOpen(false)} />
               {/* Review — static, like the three above, and for a stronger
                   reason: it's the "something is broken" channel, so it cannot be
