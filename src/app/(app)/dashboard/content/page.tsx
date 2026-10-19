@@ -132,6 +132,12 @@ export default function ContentPage() {
         ))}
       </div>
 
+      <Link href="/dashboard/social" className="flex min-h-[56px] items-center gap-3 rounded-[18px] bg-card px-4 py-2">
+        <span aria-hidden className="grid h-9 w-9 place-items-center rounded-[11px] bg-[#FFF0E0] text-lg">📸</span>
+        <span className="min-w-0 flex-1"><b className="block text-[15px] text-ink-900">תמונות מהאימונים</b><small className="block text-12 text-ink-400">תיקיות בדרייב: מה מתוזמן השבוע, ותיקייה חדשה</small></span>
+        <ChevronLeft className="h-4 w-4 text-ink-400" />
+      </Link>
+
       <p className="px-1 pt-1 text-13 font-bold text-ink-400">{tp('publishHeader')}</p>
       <div className="grid grid-cols-2 gap-2.5">
         <PublishTile href="/dashboard/content/publish?type=message" bg="bg-brand-600 text-white" icon={<Megaphone className="h-5 w-5" />} title={tp('typeMessage')} sub="לפיד, עם או בלי התראה" />

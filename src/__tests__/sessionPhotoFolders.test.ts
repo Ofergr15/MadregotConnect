@@ -99,10 +99,16 @@ describe('the evening before a quality day', () => {
 });
 
 describe('the morning of the quality day', () => {
-  const morning = async () => {
+  const morning = async (auto = true) => {
     const s = db();
     await runSessionPhotoFolders(s, at('2026-10-19T17:00:00Z'));
     h.notify.mockClear();
+    // These look at "לפרסם לבד" (publish by itself); approval, the default, has its own tests.
+    if (auto) {
+      const ledger = JSON.parse(h.settings[FOLDER_LEDGER_KEY]);
+      ledger['2026-10-20'].autoPublish = true;
+      h.settings[FOLDER_LEDGER_KEY] = JSON.stringify(ledger);
+    }
     return s;
   };
 
@@ -133,12 +139,30 @@ describe('the morning of the quality day', () => {
     expect(h.notify).not.toHaveBeenCalled();
   });
 
-  it('looks at most every half hour', async () => {
+  it('looks at most every quarter of an hour', async () => {
     const s = await morning();
     await runSessionPhotoFolders(s, at('2026-10-20T05:00:00Z'));
     h.photos = 3;
     expect(await runSessionPhotoFolders(s, at('2026-10-20T05:10:00Z'))).toEqual([]); // 10 min later: not yet
-    expect(await runSessionPhotoFolders(s, at('2026-10-20T05:31:00Z'))).toEqual(['sessionPhotos:2026-10-20']);
+    expect(await runSessionPhotoFolders(s, at('2026-10-20T05:16:00Z'))).toEqual(['sessionPhotos:2026-10-20']);
+  });
+
+  it('by default publishes nothing: the editors hear once per new batch, the club nothing', async () => {
+    const s = await morning(false);
+    h.photos = 4;
+    expect(await runSessionPhotoFolders(s, at('2026-10-20T05:00:00Z'))).toEqual(['sessionPhotosFound:2026-10-20:4']);
+    expect(h.cards).toHaveLength(0);
+    const told = h.notify.mock.calls.length;
+    expect(told).toBeGreaterThan(0);
+    expect((h.notify.mock.calls as unknown as Array<[{ kind: string }]>).every(([n]) => n.kind === 'session_folder')).toBe(true);
+    // The same four, a quarter of an hour later: nobody is told again.
+    expect(await runSessionPhotoFolders(s, at('2026-10-20T05:16:00Z'))).toEqual([]);
+    // Two more: told about the two.
+    h.photos = 6;
+    expect(await runSessionPhotoFolders(s, at('2026-10-20T05:32:00Z'))).toEqual(['sessionPhotosFound:2026-10-20:2']);
+    const ledger = JSON.parse(h.settings[FOLDER_LEDGER_KEY])['2026-10-20'];
+    expect(ledger.found).toBe(6);
+    expect(ledger.notifiedCount).toBe(6);
   });
 
   it('keeps looking until 15:00 the next day, then stops', async () => {

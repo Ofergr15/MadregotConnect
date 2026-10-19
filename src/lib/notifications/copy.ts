@@ -1496,3 +1496,10 @@ export function birthdayYearCopy(locale: NotificationLocale, p: { name: string; 
     ? { title: `🎂 מזל טוב ${p.name}!`, body: `הכנו לך את השנה שלך בריצה — ${km} ק״מ. לחיצה ותראה.` }
     : { title: `🎂 Happy birthday ${p.name}!`, body: `Your year of running is ready — ${km} km. Tap to see it.` };
 }
+
+/** The morning check found photos in the quality session's folder (10-19). To the editors only. */
+export function sessionPhotosFoundCopy(locale: NotificationLocale, p: { count: number; first: boolean }): PushCopy {
+  return locale === 'he'
+    ? { title: `📸 ${p.count} תמונות חדשות בתיקייה`, body: p.first ? 'מאימון האיכות של הבוקר. נגיעה כדי לבדוק ולפרסם.' : 'נוספו לתיקייה אחרי הפרסום. נגיעה כדי להוסיף אותן.' }
+    : { title: `📸 ${p.count} new photos in the folder`, body: p.first ? "From this morning's quality session. Tap to check and publish." : 'Added after publishing. Tap to add them.' };
+}

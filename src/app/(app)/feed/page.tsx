@@ -44,6 +44,7 @@ import { OnboardingTestReset } from '@/components/onboarding/OnboardingTestReset
 import { EmptyState, Button, SkeletonList, Spinner } from '@/components/ui';
 import { GoalRaceBanner } from '@/components/GoalRaceBanner';
 import { CelebrationStories } from '@/components/feed/CelebrationStories';
+import { StaffSessionPhotos } from '@/components/feed/StaffSessionPhotos';
 import { ClubUpdatesCard } from '@/components/club-updates/ClubUpdatesCard';
 import { toCelebration } from '@/lib/feed/celebration';
 import { BirthdayYearCard } from '@/components/birthday/BirthdayYearCard';
@@ -635,6 +636,10 @@ export default function FeedPage() {
           <QualitySessionRow />
         </QuietBoundary>
       </div>
+
+      {/* ═══ THE SESSION'S PHOTOS, FOR STAFF ═══ from 07:00 on a quality day: the folder,
+          what the quarter-hourly check found, and the editor's publish (StaffSessionPhotos). */}
+      <StaffSessionPhotos enabled={isStaff} />
 
       {/* ═══ THE SESSION'S PHOTOS ═══
           After a quality session, once someone has posted the album link (#106):

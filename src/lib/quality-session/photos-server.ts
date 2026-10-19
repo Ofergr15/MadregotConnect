@@ -1,5 +1,6 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
+import { sessionPhotosFoundCopy } from '@/lib/notifications/copy';
 import { addDaysToDateStr, israelNow, israelToday } from '@/lib/utils';
 import { COACH_ID, SUPER_USER_EMAIL } from '@/lib/constants';
 import { sessionFolderReadyCopy, sessionPhotosCopy } from '@/lib/notifications/copy';
@@ -32,6 +33,16 @@ export interface FolderEntry {
   toldAt?: string;
   checkedAt?: string;
   publishedId?: string;
+  /**
+   * Publish by itself, as before 10-19. Unset (the default since): the morning check only
+   * tells the editors, and an editor publishes from the staff card (approveSessionPhotos).
+   */
+  autoPublish?: boolean;
+  /** Photos in the folder at the last check, and the first few of them for the staff card. */
+  found?: number;
+  previews?: string[];
+  /** How many photos the editors were last told about, so each new batch tells them once. */
+  notifiedCount?: number;
 }
 export type FolderLedger = Record<string, FolderEntry>;
 
@@ -70,9 +81,17 @@ export async function cardFor(supabase: Db, date: string) {
  * 2026-10-18 — every quality session and every event, not only who marked
  * "coming"; an event has no RSVP at all, so that rule told nobody).
  */
-async function clubMembers(supabase: Db): Promise<string[]> {
+export async function clubMembers(supabase: Db): Promise<string[]> {
   const { data } = await supabase.from('athletes').select('id').eq('coach_id', COACH_ID).eq('status', 'active');
   return ((data || []) as Array<{ id: string }>).map((r) => r.id);
+}
+
+/** Who marked "coming" that morning. Attendance weeks start on Sunday. */
+export async function attendees(supabase: Db, date: string): Promise<string[]> {
+  const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const { data } = await supabase.from('workout_attendance').select('athlete_id')
+    .eq('week_start_date', addDaysToDateStr(date, -dow)).eq('day_of_week', dow).eq('attending', true);
+  return [...new Set(((data || []) as Array<{ athlete_id: string }>).map((r) => r.athlete_id))];
 }
 
 /**
@@ -134,7 +153,8 @@ export const FOLDER_AT_HOUR = 20;
 /** The morning after: looked at every half hour in this window, published once photos are in. */
 export const WATCH_FROM_HOUR = 7;
 export const WATCH_UNTIL_HOUR = 15;
-const WATCH_EVERY_MS = 25 * 60_000;
+/** Every quarter of an hour (Ofer, 10-19). The tick runs every five minutes. */
+const WATCH_EVERY_MS = 14 * 60_000;
 
 export async function editorIds(supabase: Db): Promise<string[]> {
   const [editors, superRow] = await Promise.all([
@@ -203,7 +223,32 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
     const ours = !card || toSessionPhotos(card.payload)?.link === entry.link;
     if (!ours || have >= MAX_SESSION_PHOTOS) continue;
     const list = await albumPhotoUrls(entry.link);
-    if (!list.ok || list.urls.length <= have) continue;
+    if (!list.ok) continue;
+    entry.found = list.urls.length;
+    entry.previews = list.urls.slice(0, 3);
+    if (!entry.autoPublish) {
+      // Approval (the default since 10-19): nothing reaches the club by itself. The
+      // editors hear once per new batch; the staff card at the top of their feed decides.
+      const told = entry.notifiedCount ?? 0;
+      const fresh = list.urls.length - Math.max(told, have);
+      if (fresh > 0) {
+        for (const athleteId of await editorIds(supabase)) {
+          try {
+            await notifyAthlete({
+              athleteId,
+              kind: 'session_folder',
+              copy: (locale) => sessionPhotosFoundCopy(locale, { count: fresh, first: !card && told === 0 }),
+              url: '/feed',
+              tag: `session-photos-found-${date}`,
+            });
+          } catch { /* best effort */ }
+        }
+        entry.notifiedCount = list.urls.length;
+        fired.push(`sessionPhotosFound:${date}:${fresh}`);
+      }
+      continue;
+    }
+    if (list.urls.length <= have) continue;
     const pulled = await pullAlbumPhotos(supabase, entry.link, {
       prefix: `club/session-photos/${date}`, max: MAX_SESSION_PHOTOS - have, skip: have,
     });
@@ -280,4 +325,101 @@ export async function socialWeek(supabase: Db, now = new Date()) {
     };
   }));
   return { configured: !!driveWriter(), upcoming, made };
+}
+
+
+export type PhotosNotify = 'push' | 'inapp' | 'quiet';
+
+/**
+ * The staff card's "לפרסם" (mockup session-photos-control, 3): pull what is in the folder
+ * into the day's card, then tell the club the way the editor chose: a push (which also
+ * lands in the in-app inbox), the in-app inbox only, or nothing. `circle` also puts
+ * "התמונות עלו" in the Madregot circle for the day. A card already published is topped
+ * up; who was told before is not told again.
+ */
+export async function approveSessionPhotos(
+  supabase: Db,
+  p: { date: string; notify: PhotosNotify; audience: 'all' | 'attendees'; circle: boolean; byAthleteId: string | null; byEmail?: string | null },
+): Promise<{ id: string; photos: number; told: number }> {
+  const ledger = await readFolderLedger(supabase);
+  const entry = ledger[p.date];
+  if (!entry) throw new Error('no folder for that day');
+  const card = await cardFor(supabase, p.date);
+  const have = card?.media?.length ?? 0;
+  let media = card?.media ?? [];
+  if (have < MAX_SESSION_PHOTOS) {
+    const pulled = await pullAlbumPhotos(supabase, entry.link, { prefix: `club/session-photos/${p.date}`, max: MAX_SESSION_PHOTOS - have, skip: have });
+    if (pulled.ok) media = [...media, ...pulled.media];
+    else if (!have) throw new Error(pulled.error);
+  }
+  const out = await publishSessionPhotos(supabase, { date: p.date, link: entry.link, media, byAthleteId: p.byAthleteId, notify: false, name: entry.name });
+  let told = 0;
+  if (!card && p.notify !== 'quiet') {
+    const workoutName = (await loadQualityWorkout(supabase, p.date).catch(() => null))?.name || null;
+    if (p.notify === 'push') {
+      const ids = p.audience === 'attendees' ? await attendees(supabase, p.date) : await clubMembers(supabase);
+      for (const athleteId of ids.filter((id) => id !== p.byAthleteId)) {
+        try {
+          await notifyAthlete({
+            athleteId, kind: 'session_photos', actorAthleteId: p.byAthleteId,
+            copy: (locale) => sessionPhotosCopy(locale, { workout: workoutName, event: entry.name }),
+            url: `/feed?item=${out.id}`, tag: `session-photos-${p.date}`,
+          });
+          told += 1;
+        } catch { /* one phone must not stop the rest */ }
+      }
+    } else {
+      // In the app only: one row in everyone's inbox (api/notifications/inbox), no push.
+      const copy = sessionPhotosCopy('he', { workout: workoutName, event: entry.name });
+      const ids = p.audience === 'attendees' ? await attendees(supabase, p.date) : null;
+      const rows = ids
+        ? ids.map((id) => ({ audience_type: 'athlete', audience_id: id }))
+        : [{ audience_type: 'all', audience_id: null }];
+      const now = new Date().toISOString();
+      const { error } = await supabase.from('scheduled_notifications').insert(rows.map((r) => ({
+        kind: 'session_photos', title_he: copy.title, body_he: copy.body, url: `/feed?item=${out.id}`,
+        ...r, schedule_type: 'now', next_run_at: now, status: 'sent', last_sent_at: now, sent_count: 0, created_by: p.byEmail ?? null,
+      })));
+      if (!error) told = ids ? ids.length : -1;
+    }
+  }
+  if (p.circle) {
+    const { CLUB_STORIES_KEY, pruneClubStories, readClubStories } = await import('@/lib/feed/club-stories');
+    const { data } = await supabase.from('app_settings').select('value').eq('key', CLUB_STORIES_KEY).maybeSingle();
+    const list = readClubStories((data as { value?: string } | null)?.value);
+    const today = israelToday();
+    list.unshift({ id: `photos-${p.date}`, title: '📸 התמונות מהאימון עלו', text: 'לחיצה על הכרטיס בפיד פותחת את כולן', from: today, until: today, createdAt: new Date().toISOString(), createdBy: p.byEmail ?? null });
+    await supabase.from('app_settings').upsert({ key: CLUB_STORIES_KEY, value: JSON.stringify(pruneClubStories(list.filter((s, i) => i === 0 || s.id !== `photos-${p.date}`), today)) }, { onConflict: 'key' });
+  }
+  entry.publishedId = out.id;
+  entry.notifiedCount = Math.max(entry.notifiedCount ?? 0, entry.found ?? 0);
+  await writeFolderLedger(supabase, ledger);
+  return { id: out.id, photos: media.length, told };
+}
+
+/** The staff card's read: today's folder (or yesterday's, until 15:00) as the morning check left it. */
+export async function sessionPhotosStatus(supabase: Db, now = new Date()) {
+  const { hour } = israelNow(now);
+  const today = israelToday(now);
+  const ledger = await readFolderLedger(supabase);
+  const date = ledger[today] && hour >= WATCH_FROM_HOUR ? today : ledger[addDaysToDateStr(today, -1)] && hour < WATCH_UNTIL_HOUR ? addDaysToDateStr(today, -1) : null;
+  if (!date) return null;
+  const e = ledger[date];
+  if (e.autoFeed === false) return null;
+  const card = await cardFor(supabase, date);
+  const workout = (await loadQualityWorkout(supabase, date).catch(() => null))?.name || null;
+  const checkedAt = e.checkedAt ?? null;
+  return {
+    date, name: e.name ?? folderName(date), workout, link: e.link, auto: !!e.autoPublish,
+    checkedAt, nextAt: checkedAt ? new Date(Date.parse(checkedAt) + 15 * 60_000).toISOString() : null,
+    found: e.found ?? 0, previews: e.previews ?? [], published: card?.media?.length ?? 0, publishedId: card?.id ?? null,
+  };
+}
+
+/** The staff card's "לפרסם לבד" switch for one day. */
+export async function setSessionPhotosAuto(supabase: Db, date: string, on: boolean): Promise<void> {
+  const ledger = await readFolderLedger(supabase);
+  if (!ledger[date]) return;
+  ledger[date].autoPublish = on;
+  await writeFolderLedger(supabase, ledger);
 }
