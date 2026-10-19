@@ -180,7 +180,7 @@ function Slide({ entry, active, onComment, myId, onYear }: {
           </span>
           <span>
             {likers.slice(0, 2).map((l, i) => <span key={l.athleteId}>{i > 0 && ', '}<b className="font-extrabold">{first(l.name)}</b></span>)}
-            {likes > Math.min(2, likers.length) ? <> ועוד <b className="font-extrabold tabular-nums">{likes - Math.min(2, likers.length)}</b> אהבו</> : ' אהבו'}
+            {likes > Math.min(2, likers.length) ? <> ועוד <b className="font-extrabold tabular-nums">{likes - Math.min(2, likers.length)}</b> אהבו</> : likes > 1 ? ' אהבו' : ' ❤️'}
           </span>
         </button>
       )}

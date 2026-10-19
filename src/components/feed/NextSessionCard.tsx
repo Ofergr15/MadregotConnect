@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { israelClock, watchDayState, type WatchDay } from '@/lib/watch/day-status';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Link2, Moon, Sun, Watch, RefreshCw } from 'lucide-react';
@@ -64,8 +65,51 @@ interface WatchState {
 }
 
 interface FeedActivity {
+  id?: string;
   start_time: string;
   distance: number | null;
+  duration?: number | null;
+  moving_duration?: number | null;
+}
+
+/** "56:40" / "1:12:05" for a run's time. */
+function clock(sec: number): string {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = Math.round(sec % 60);
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}` : `${m}:${String(x).padStart(2, '0')}`;
+}
+
+/** Today's session, done: a green ✓, its name, the distance, time and pace, then "האימון הבא". */
+function DoneToday({ done, title, divider = true }: {
+  done: { km: number; sec: number; pace: number; runId: string | null }; title: string; divider?: boolean;
+}) {
+  const body = (
+    <>
+      <span className="flex items-center gap-3">
+        <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#1FBF66] to-[#0E8A45] text-[19px] font-black text-white shadow-[0_4px_10px_-4px_rgba(18,161,80,0.6)]">✓</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-xs font-extrabold text-[#12A150]">היום · בוצע</span>
+          <span className="block truncate text-[16px] font-black leading-tight text-ink-900">{title}</span>
+        </span>
+      </span>
+      <span className="mt-2.5 grid grid-cols-3 gap-2 rounded-2xl bg-[#F1FBF5] px-3 py-2 text-center">
+        <span><b className="block font-[ui-rounded,system-ui] text-[17px] font-black tabular-nums text-ink-900" dir="ltr">{done.km.toFixed(1)}</b><small className="text-[11px] text-ink-500">ק״מ</small></span>
+        <span><b className="block font-[ui-rounded,system-ui] text-[17px] font-black tabular-nums text-ink-900" dir="ltr">{done.sec ? clock(done.sec) : '—'}</b><small className="text-[11px] text-ink-500">זמן</small></span>
+        <span><b className="block font-[ui-rounded,system-ui] text-[17px] font-black tabular-nums text-ink-900" dir="ltr">{done.pace ? clock(done.pace) : '—'}</b><small className="text-[11px] text-ink-500">לק״מ</small></span>
+      </span>
+    </>
+  );
+  return (
+    <>
+      {done.runId
+        ? <Link href={`/dashboard/activities/${done.runId}`} className="block active:opacity-80">{body}</Link>
+        : <div>{body}</div>}
+      {divider && (
+        <span className="my-3 flex items-center gap-2.5 text-[12px] font-extrabold text-ink-400">
+          <span className="h-px flex-1 bg-gradient-to-l from-transparent to-[#D9D9E3]" />האימון הבא<span className="h-px flex-1 bg-gradient-to-r from-transparent to-[#D9D9E3]" />
+        </span>
+      )}
+    </>
+  );
 }
 
 const SEG_HEIGHT: Record<SegmentKind, string> = { warm: '38%', cool: '38%', rest: '22%', easy: '58%', hard: '100%' };
@@ -135,6 +179,22 @@ export function NextSessionCard() {
     });
   }, [weekly, runsKmByDate, todayKey]);
 
+  // Today's session is done (the card has moved on to the next one): what was run today,
+  // drawn at the top of the card with a ✓ and a divider before the next session
+  // (mockup session-done, E + time/distance/pace; Ofer 10-19).
+  const doneToday = useMemo(() => {
+    if (!weekly?.hasPlan || !runsKmByDate || (next && next.date === todayKey)) return null;
+    const key = todayKey;
+    const todays = weekly.sessions.filter((x) => planDayKey(weekly.currentWeekStart, x.dayOfWeek) === key && x.kmMax > 0);
+    const runs = ((todayRuns?.activities || []) as FeedActivity[]).filter((a) => a.start_time.slice(0, 10) === key && (a.distance || 0) > 0);
+    if (!todays.length || !runs.length) return null;
+    const meters = runs.reduce((n, a) => n + (a.distance || 0), 0);
+    // With no next session the card cannot tell done from skipped-after-22:00, so most of it must be run.
+    if (!next && meters / 1000 < (todays[0].kmMin || todays[0].kmMax) * 0.75) return null;
+    const sec = runs.reduce((n, a) => n + (a.moving_duration || a.duration || 0), 0);
+    return { session: todays[0], km: meters / 1000, sec, pace: sec && meters ? sec / (meters / 1000) : 0, runId: runs[0].id ?? null };
+  }, [weekly, next, todayKey, todayRuns, runsKmByDate]);
+
   const nsKey = next ? `mc:nsc:${next.date}:${next.session.key}` : null;
   useEffect(() => {
     if (!nsKey) return;
@@ -152,7 +212,15 @@ export function NextSessionCard() {
     : null;
   const { data: lineup } = useApi<Lineup & { homeIndex: number }>(lineupKey);
 
-  if (!next) return null;
+  if (!next) {
+    // Nothing left this week to point at, but today's session is done: the ✓ alone.
+    if (!doneToday) return null;
+    return (
+      <div className="rounded-[26px] bg-card p-4 shadow-[0_0_0_0.5px_rgba(60,60,67,0.14),0_10px_28px_-14px_rgba(20,24,60,0.22)]">
+        <DoneToday done={doneToday} divider={false} title={doneToday.session.name || t('today')} />
+      </div>
+    );
+  }
   // Wait for the club-day settings (cached after the first open): drawing the card
   // without the RSVP and then growing it under the feed was a layout shift.
   if (!reminderCfg) return null;
@@ -242,6 +310,11 @@ export function NextSessionCard() {
 
   return (
     <>
+      {collapsed && doneToday && (
+        <div className="mb-2 rounded-[22px] bg-card px-4 pb-3 pt-3 shadow-[0_0_0_0.5px_rgba(60,60,67,0.14)]">
+          <DoneToday done={doneToday} divider={false} title={sessionTitleParts(sessionHeadline(doneToday.session.steps, units), doneToday.session.name, dayNames) || doneToday.session.name} />
+        </div>
+      )}
       {collapsed ? (
         // Answered: one line, so the feed gets its screen back. The chevron opens it.
         <button
@@ -261,6 +334,7 @@ export function NextSessionCard() {
         </button>
       ) : (
       <div className="rounded-[26px] bg-card p-4 shadow-[0_0_0_0.5px_rgba(60,60,67,0.14),0_10px_28px_-14px_rgba(20,24,60,0.22)]">
+        {doneToday && <DoneToday done={doneToday} title={sessionTitleParts(sessionHeadline(doneToday.session.steps, units), doneToday.session.name, dayNames) || doneToday.session.name} />}
         <button type="button" onClick={() => setDetail(detailFor(s))} className="block w-full text-start active:opacity-80">
           <span className="flex items-start justify-between gap-3">
             <span className="min-w-0">
