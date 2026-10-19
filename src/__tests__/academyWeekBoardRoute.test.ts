@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { COACH_ID } from '@/lib/constants';
 import { createMemoryDb, uid } from './helpers/memory-db';
 
 /**
@@ -93,7 +94,8 @@ const SCHEMA: Record<string, string[]> = {
   academy_tests: ['id', 'athlete_id', 'test_date', 'protocol', 'duration_sec', 'distance_m', 'excluded_reason', 'status'],
   athlete_wellness: ['athlete_id', 'date', 'resting_hr', 'sleep_seconds'],
   athletes: ['id', 'group_id', 'name', 'academy_coach_id', 'gender'],
-  workout_deliveries: ['athlete_id', 'workout_date', 'status'],
+  workout_deliveries: ['athlete_id', 'workout_date', 'status', 'plan_id', 'workout_key'],
+  weekly_plans: ['id', 'coach_id', 'athlete_id', 'week_start_date', 'status'],
   workout_feedback: ['athlete_id', 'garmin_activity_id', 'feel', 'comment'],
   academy_workout_feedback: ['athlete_id', 'workout_date'],
   activity_loads: ['activity_id', 'athlete_id', 'activity_date', 'load', 'source', 'threshold_sec', 'basis_test_date', 'formula_version', 'computed_at'],
@@ -163,6 +165,25 @@ describe('the v2 week', () => {
         plannedM: expect.any(Number), onWatch: false, steps: expect.any(Array),
       }));
     }
+  });
+
+  it('"on the watch" is the shown workout\'s delivery only — the same rule as the trainee\'s home', async () => {
+    const OWN = uid();
+    const CLUB = uid();
+    db.tables.weekly_plans.push(
+      { id: OWN, coach_id: COACH_ID, athlete_id: TRAINEE, week_start_date: SUN, status: 'pushed' },
+      { id: CLUB, coach_id: COACH_ID, athlete_id: null, week_start_date: SUN, status: 'pushed' },
+    );
+    db.tables.workout_deliveries.push(
+      // Sunday: his own plan's workout reached the watch.
+      { athlete_id: TRAINEE, workout_date: SUN, status: 'success', plan_id: OWN, workout_key: null },
+      // Monday: only the club's — it is not the workout this board shows him.
+      { athlete_id: TRAINEE, workout_date: MON, status: 'success', plan_id: CLUB, workout_key: null },
+      // Tuesday: a day session — also not his personal workout.
+      { athlete_id: TRAINEE, workout_date: TUE, status: 'success', plan_id: null, workout_key: `day:${TUE}` },
+    );
+    const body = await (await get()).json();
+    expect(body.workouts.map((w: { date: string; onWatch: boolean }) => [w.date, w.onWatch])).toEqual([[SUN, true], [MON, false], [TUE, false], [THU, false]]);
   });
 
   it('prices every run and every planned session; the totals are the week\'s', async () => {

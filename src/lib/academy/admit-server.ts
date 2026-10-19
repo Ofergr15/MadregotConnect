@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
 import { NextResponse } from 'next/server';
+import { hasRole } from '@/lib/auth/roles';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { isStaffRole, type VerifiedCaller } from '@/lib/auth/self-or-staff';
@@ -108,8 +109,17 @@ export async function inviteAction(id: string, caller: VerifiedCaller, body: any
  *   4. the "you're in" mail, and a push for whoever already has the app
  *
  * An academy coach accepts for themselves; the manager may name any academy coaches.
+ * The manager naming nobody: the coaches the card is already paired with (a move-in is
+ * paired at invite, members/invite), else the manager themselves only when they are an
+ * academy coach — never a caller who coaches nobody (Ofer, a super user whose role is
+ * runner, used to get a 400 "not an academy coach" for his own default).
  */
-export function acceptCoachIds(body: any, caller: VerifiedCaller, manager: boolean): string[] | { error: string; status: number } {
+export function acceptCoachIds(
+  body: any,
+  caller: VerifiedCaller,
+  manager: boolean,
+  opts: { pairedCoachIds?: string[]; callerIsCoach?: boolean } = {},
+): string[] | { error: string; status: number } {
   const clean = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
   const asked = Array.isArray(body?.coachIds)
     ? [...new Set((body.coachIds as unknown[]).map(clean).filter(Boolean))]
@@ -120,7 +130,10 @@ export function acceptCoachIds(body: any, caller: VerifiedCaller, manager: boole
     }
     return caller.athleteId ? [caller.athleteId] : [];
   }
-  return asked.length ? asked : caller.athleteId ? [caller.athleteId] : [];
+  if (asked.length) return asked;
+  const paired = (opts.pairedCoachIds ?? []).filter(Boolean);
+  if (paired.length) return [...new Set(paired)];
+  return opts.callerIsCoach && caller.athleteId ? [caller.athleteId] : [];
 }
 
 export async function acceptAction(id: string, caller: VerifiedCaller, body: any): Promise<Response> {
@@ -134,14 +147,23 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
   }
 
   const manager = isAcademyManager(caller);
-  const picked = acceptCoachIds(body, caller, manager);
+  const supabase = createServerClient();
+  // Who the card is already paired with (a move-in is paired at invite) — the default
+  // coaches when the manager names nobody, and the ones a move-in's accept must tell.
+  const { data: linked } = await supabase
+    .from('athletes').select('academy_coach_id').eq('id', card.athlete_id).maybeSingle();
+  const pairedBefore = await coachIdsOf(supabase, card.athlete_id, (linked as { academy_coach_id?: string | null } | null)?.academy_coach_id ?? null)
+    .catch(() => [] as string[]);
+  const picked = acceptCoachIds(body, caller, manager, {
+    pairedCoachIds: pairedBefore,
+    callerIsCoach: hasRole(caller, 'academy_coach'),
+  });
   if (!Array.isArray(picked)) return NextResponse.json({ error: picked.error }, { status: picked.status });
   if (!picked.length) return NextResponse.json({ error: 'Pick the coach' }, { status: 400 });
   if (picked.includes(card.athlete_id)) {
     return NextResponse.json({ error: 'A trainee cannot be their own coach' }, { status: 400 });
   }
 
-  const supabase = createServerClient();
   const coaches: Array<{ id: string; name: string }> = [];
   for (const cid of picked) {
     const { data: coach } = await supabase
@@ -218,6 +240,10 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
     ? true
     : (await setPairCoaches(athlete.id, coachIds, 'accepted from the funnel')).ok;
 
+  // Whether this card was accepted before — read before the stamp below overwrites it.
+  const prior = await supabase.from('academy_candidates').select('accepted_at').eq('id', id).maybeSingle();
+  const moveInFirstAccept = card.source === 'existing' && !(prior.error ? null : (prior.data as { accepted_at?: string | null } | null)?.accepted_at);
+
   const now = new Date().toISOString();
   const stamp = await supabase.from('academy_candidates').update({ accepted_at: now, updated_at: now }).eq('id', id);
   if (stamp.error && !isMissingColumn(stamp.error)) console.error('Accept: accepted_at failed:', stamp.error.message);
@@ -237,8 +263,11 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
       tag: 'approval',
     }).catch((err: unknown) => console.error('Accept: push failed:', err)),
     // The coach(es) picked here are told they have a new trainee (launch BL8), as the members
-    // tab's "שיבוץ מאמנים" tells them — the manager herself excepted.
-    ...coaches.filter((c) => c.id !== caller.athleteId && !before.includes(c.id)).map((c) => notifyAthlete({
+    // tab's "שיבוץ מאמנים" tells them — the manager herself excepted. A coach already paired
+    // was told at pairing — EXCEPT on a move-in (source 'existing'): it is paired at invite,
+    // silently, so accept is where its coaches get the "טופס התאמה" heads-up, once (a card
+    // accepted before is not told again).
+    ...coaches.filter((c) => c.id !== caller.athleteId && (!before.includes(c.id) || moveInFirstAccept)).map((c) => notifyAthlete({
       athleteId: c.id,
       kind: 'academy_trainee_assigned',
       actorAthleteId: caller.athleteId,

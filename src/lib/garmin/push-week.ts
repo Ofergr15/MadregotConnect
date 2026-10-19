@@ -138,6 +138,16 @@ export async function pushWeekToAthlete({
       }
     }
 
+    // ONE workout per day on a trainee's watch (2026-10-19). A club member who is also an
+    // academy trainee gets the club week (and the day sessions) like everyone, and then a
+    // personal workout for the same date from their coach: the personal one REPLACES the
+    // club's or the day session's on that date — deleted off Garmin, its row removed — and
+    // a later club re-send skips that date, because the personal delivery row is the record
+    // that the day is the coach's. Which kind this push is comes from the plan row itself.
+    const kind = await planKind(supabase, planId, athlete.id);
+    const personalDays = kind === 'personal' ? new Set<string>() : await personalDeliveryDays(supabase, athlete.id, weekStartDate);
+    const supersededDays = new Set<string>();
+
     for (const workout of plannedWorkouts) {
       const garminWorkout = convertToGarminWorkout(workout, paceProfile, { paceTarget });
 
@@ -145,6 +155,14 @@ export async function pushWeekToAthlete({
       const startDate = new Date(weekStartDate);
       startDate.setDate(startDate.getDate() + workout.dayOfWeek);
       const dateStr = startDate.toISOString().split('T')[0];
+
+      // A club week or a day session on a date the coach already made personal: not sent.
+      if (kind !== 'personal' && personalDays.has(dateStr)) continue;
+      // A personal workout: whatever the club or a day session put on this date goes.
+      if (kind === 'personal' && !supersededDays.has(dateStr)) {
+        supersededDays.add(dateStr);
+        await removeOtherDeliveries(supabase, garmin, athlete.id, dateStr, planId);
+      }
 
       // If this athlete already has a workout on Garmin for this exact
       // plan/day (coach edited it after the first push), delete the old
@@ -340,5 +358,56 @@ export async function pushWeekToAthlete({
       status: 'failed',
       error: error.message || 'Unknown error',
     };
+  }
+}
+
+type Supa = ReturnType<typeof createServerClient>;
+
+/** 'personal' = a trainee's own week (athlete_id is this athlete), 'club' = the group plan, null = unknown/none. */
+async function planKind(supabase: Supa, planId: string | null, athleteId: string): Promise<'personal' | 'club' | null> {
+  if (!planId) return null;
+  try {
+    const { data } = await supabase.from('weekly_plans').select('id, athlete_id').eq('id', planId);
+    const row = ((data || []) as Array<{ id?: string; athlete_id?: string | null }>).find((r) => r.id === planId);
+    if (!row) return null;
+    if (!row.athlete_id) return 'club';
+    return row.athlete_id === athleteId ? 'personal' : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Dates this week that already carry a delivery of the athlete's OWN plan (live: pending or success). */
+async function personalDeliveryDays(supabase: Supa, athleteId: string, weekStartDate: string): Promise<Set<string>> {
+  const out = new Set<string>();
+  try {
+    const { data: plans } = await supabase.from('weekly_plans').select('id, athlete_id, week_start_date').eq('athlete_id', athleteId).eq('week_start_date', weekStartDate);
+    const ids = ((plans || []) as Array<{ id: string; athlete_id?: string | null }>).filter((p) => p.athlete_id === athleteId).map((p) => p.id);
+    if (!ids.length) return out;
+    const { data: rows } = await supabase.from('workout_deliveries').select('plan_id, workout_date, status').eq('athlete_id', athleteId);
+    for (const r of (rows || []) as Array<{ plan_id?: string | null; workout_date: string; status?: string | null }>) {
+      if (r.plan_id && ids.includes(r.plan_id) && (r.status === 'success' || r.status === 'pending')) out.add(String(r.workout_date).slice(0, 10));
+    }
+  } catch {
+    // best-effort: without it a club re-send behaves as it always did
+  }
+  return out;
+}
+
+/** The club's or a day session's workout on this date, off the watch and out of the table. */
+async function removeOtherDeliveries(supabase: Supa, garmin: GarminClient, athleteId: string, dateStr: string, planId: string | null): Promise<void> {
+  try {
+    const { data } = await supabase.from('workout_deliveries').select('id, plan_id, garmin_workout_id, workout_date').eq('athlete_id', athleteId).eq('workout_date', dateStr);
+    for (const old of (data || []) as Array<{ id: string; plan_id?: string | null; garmin_workout_id?: string | null; workout_date: string }>) {
+      if (old.plan_id === planId || String(old.workout_date).slice(0, 10) !== dateStr) continue;
+      try {
+        if (old.garmin_workout_id) await garmin.deleteWorkout(old.garmin_workout_id);
+        await supabase.from('workout_deliveries').delete().eq('id', old.id);
+      } catch {
+        // best-effort: a club session that stays on the watch is the old behaviour
+      }
+    }
+  } catch {
+    // best-effort, as above
   }
 }

@@ -11,6 +11,7 @@ import {
 } from '@/lib/academy/coach-tools-server';
 import { notifyPlanSaved } from '@/lib/academy/loop-notify';
 import type { CopyWeekResponse } from '@/lib/academy/coach-tools-payload';
+import { markBandPriced, resolveThreshold, type PaceBasis } from '@/lib/academy/day-send';
 
 export const dynamic = 'force-dynamic';
 // Up to 4 weeks × a handful of trainees, each week a Garmin round trip.
@@ -29,8 +30,8 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
  *
  *   POST /api/academy/copy-week
  *        { sourceAthleteId, sourceWeek, weeks: 1-4, recipients: [ids], mode, send }
- *        → each recipient's own copy (their threshold, their pace update; no test = no
- *          paces), REPLACING the target weeks, saved, and sent to the watch when `send`.
+ *        → each recipient's own copy (their threshold — or their band's own pace, marked —
+ *          and their pace update; neither = no paces), REPLACING the target weeks, saved, and sent to the watch when `send`.
  *
  * WHO: the manager, or the coach of the source AND of every recipient — checked per
  * trainee before anything is written.
@@ -60,12 +61,16 @@ export async function GET(request: Request) {
       loadTraineeWeeks(supabase, [athleteId], sourceWeek),
     ]);
     const me = trainees.find(t => t.id === athleteId);
+    // The test, else the band's own pace (day-send.ts) — the same rule day-plan prices by.
+    const priced = (t: { id: string; bandThresholdSec: number | null } | undefined, id: string) =>
+      resolveThreshold(basis[id]?.thresholdSec, t?.bandThresholdSec);
     const candidates = trainees
       .filter(t => t.id === athleteId || (t.isAcademy && t.active))
       .map(t => ({
         id: t.id,
         name: t.name,
-        thresholdSec: basis[t.id]?.thresholdSec ?? null,
+        thresholdSec: priced(t, t.id).sec,
+        paceBasis: priced(t, t.id).basis,
         adjust: activeAdjust(decisions.rows.filter(d => d.athleteId === t.id), basis[t.id]?.testDate ?? null).adjust,
         existing: counts[t.id] ?? {},
         hasGarmin: t.hasGarmin,
@@ -78,7 +83,7 @@ export async function GET(request: Request) {
         id: athleteId,
         name: me?.name ?? '',
         weekStart: sourceWeek,
-        thresholdSec: basis[athleteId]?.thresholdSec ?? null,
+        thresholdSec: priced(me, athleteId).sec,
         workouts: source[athleteId]?.workouts ?? [],
       },
       candidates,
@@ -130,17 +135,19 @@ export async function POST(request: Request) {
     if (!workouts.length) return NextResponse.json({ error: 'empty-source' }, { status: 409 });
     const byId = new Map(trainees.map(t => [t.id, t]));
 
-    const results: Array<WeekWriteResult & { name: string; paced: boolean }> = [];
+    const priced = (id: string) => resolveThreshold(basis[id]?.thresholdSec, byId.get(id)?.bandThresholdSec);
+    const results: Array<WeekWriteResult & { name: string; paced: boolean; paceBasis?: PaceBasis }> = [];
     for (const id of recipients) {
       const t = byId.get(id);
       if (!t || (id !== sourceId && !(t.isAcademy && t.active))) continue;
+      const target = priced(id);
       const adjust = activeAdjust(decisions.rows.filter(d => d.athleteId === id), basis[id]?.testDate ?? null).adjust;
       for (let k = 0; k < weeks.length; k++) {
         const weekStart = weeks[k];
         const copied = copyWeek({
           workouts,
-          sourceThresholdSec: basis[sourceId]?.thresholdSec ?? null,
-          targetThresholdSec: basis[id]?.thresholdSec ?? null,
+          sourceThresholdSec: priced(sourceId).sec,
+          targetThresholdSec: target.sec,
           targetAdjust: adjust,
           sameTrainee: id === sourceId,
           mode,
@@ -150,10 +157,11 @@ export async function POST(request: Request) {
         const res = await writeWeek(supabase, {
           athleteId: id,
           weekStart,
-          workouts: copied.map(c => c.workout),
+          // Band-priced (no test yet): every paced session says so.
+          workouts: markBandPriced(copied, target.basis),
           pushDays: send ? copied.map(c => c.workout.dayOfWeek).filter(d => open.has(d)) : [],
         }, { cleanDayOnce: caller.isSuperUser });
-        results.push({ ...res, name: t.name, paced: copied.every(c => c.paced) });
+        results.push({ ...res, name: t.name, paced: copied.every(c => c.paced), ...(target.basis === 'band' ? { paceBasis: 'band' as const } : {}) });
       }
     }
     // A trainee whose new weeks no watch announced (no Garmin, or the push failed) is told

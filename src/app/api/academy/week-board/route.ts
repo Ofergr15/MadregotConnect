@@ -20,6 +20,9 @@ import { loadAthleteFeeds } from '@/lib/academy/data-feed-server';
 import { feedBroken } from '@/lib/academy/data-feed';
 import { loadTestState } from '@/lib/academy/test-state';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
+import { COACH_ID } from '@/lib/constants';
+import { planRowsFilter } from '@/lib/plans/scope';
+import { watchDates } from '@/lib/academy/day-cards';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,11 +86,11 @@ export async function GET(request: Request) {
         console.error('week-board loads failed (the week still answers):', err);
         return null;
       });
-    const [report, deliveries, me, thresholds, loads, feeds, test] = await Promise.all([
+    const [report, deliveries, me, thresholds, loads, feeds, test, planRows] = await Promise.all([
       computeAcademyWeekAdherence({ weekStart, onlyAthleteId: athleteId, keepDetail: true }),
       supabase
         .from('workout_deliveries')
-        .select('workout_date, status')
+        .select('workout_date, status, plan_id, workout_key')
         .eq('athlete_id', athleteId)
         .gte('workout_date', weekStart)
         .lte('workout_date', weekEnd),
@@ -99,6 +102,14 @@ export async function GET(request: Request) {
       loadsP,
       loadAthleteFeeds(supabase, athleteId),
       loadTestState(supabase, athleteId, today),
+      // Which plan row the week is drawn from — "on the watch" counts only ITS deliveries.
+      supabase
+        .from('weekly_plans')
+        .select('id, week_start_date, status, athlete_id')
+        .eq('coach_id', COACH_ID)
+        .or(planRowsFilter(athleteId))
+        .eq('week_start_date', weekStart)
+        .then(res => (res.error ? { data: [] } : res)),
     ]);
     // What excuses a session from "לא בוצע": a day before joining, an optional session,
     // a day after the watch stopped sending (data-feed.ts).
@@ -115,11 +126,15 @@ export async function GET(request: Request) {
       coachGender = (data as { gender?: string | null } | null)?.gender ?? null;
     }
 
-    const onWatch = new Set(
-      ((deliveries.data || []) as Array<{ workout_date: string; status: string }>)
-        .filter(d => d.status === 'success')
-        .map(d => d.workout_date),
-    );
+    // The same rule as the trainee's home (day-cards.ts watchDates): a delivery counts only
+    // when it is of the workout the day shows.
+    const onWatch = watchDates({
+      dates: Array.from({ length: 7 }, (_, i) => addDaysToDateStr(weekStart, i)),
+      athleteId,
+      planRows: (planRows.data || []) as Array<{ id: string; week_start_date: string; athlete_id: string | null; status: string | null }>,
+      deliveries: (deliveries.data || []) as Array<{ workout_date: string; status: string; plan_id?: string | null; workout_key?: string | null }>,
+      weekStartOf: planWeekStartOf,
+    });
     const rows = report.athletes[0]?.week.workouts ?? [];
     // The footer marks need only the matched runs, so they are read while the steps' lane
     // is resolved below rather than after it.

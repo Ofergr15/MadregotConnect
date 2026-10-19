@@ -26,6 +26,7 @@ import type { ParsedWorkout } from '@/lib/ai/types';
 
 import { resolveLibraryWorkout, type LibraryEntry } from './library';
 import { repaceWeek } from './repace';
+import { resolveThreshold, withBandNote } from './day-send';
 
 /** What a slot has to keep of a book entry: enough to resolve it, and its id to mark used. */
 export type SlotEntry = Pick<LibraryEntry, 'id' | 'name' | 'notes' | 'steps'>;
@@ -45,6 +46,11 @@ export interface Recipient {
   offsetSec: number | null;
   /** `thresholdPaceSec(latestUsable(tests))`. Feeds BOOK slots only. */
   thresholdPaceSec: number | null;
+  /**
+   * The band's own threshold (`bandThresholdSec`, day-send.ts): what a book slot is priced
+   * from when there is no test, labelled as such. Null/absent = the band has no pace.
+   */
+  bandThresholdPaceSec?: number | null;
 }
 
 /** A book slot that cannot be pushed to this recipient, and why. */
@@ -94,12 +100,14 @@ export function materialiseWeek(
   const skipped: SkippedSlot[] = [];
   let everyPaceIsTheirs = true;
 
+  // The test, else the band's own pace — the one rule every academy path prices by.
+  const priced = resolveThreshold(recipient.thresholdPaceSec, recipient.bandThresholdPaceSec);
   for (const [dayOfWeek, slot] of inDayOrder(slots)) {
     if (slot.source === 'book') {
-      const resolved = resolveLibraryWorkout(slot.entry, {
-        thresholdPaceSec: recipient.thresholdPaceSec,
-        dayOfWeek,
-      });
+      const resolved = resolveLibraryWorkout(
+        priced.basis === 'band' ? { ...slot.entry, notes: withBandNote(slot.entry.notes) } : slot.entry,
+        { thresholdPaceSec: priced.sec, dayOfWeek },
+      );
       if (!resolved) {
         // Dropped, not degraded. The structure could be pushed with no targets, but that is
         // a third state — a session the coach believes has paces and does not — and the
@@ -109,6 +117,8 @@ export function materialiseWeek(
         continue;
       }
       workouts.push(resolved);
+      // A band's pace is not this trainee's own: no pace alarm on it (the safe direction).
+      if (priced.basis === 'band') everyPaceIsTheirs = false;
       continue;
     }
 
@@ -156,7 +166,7 @@ export function weekGaps(
   const entries = inDayOrder(slots);
   const hasBook = entries.some(([, s]) => s.source === 'book');
   const hasWritten = entries.some(([, s]) => s.source === 'written');
-  const needsTest = hasBook && !(recipient.thresholdPaceSec !== null && recipient.thresholdPaceSec > 0);
+  const needsTest = hasBook && !resolveThreshold(recipient.thresholdPaceSec, recipient.bandThresholdPaceSec).sec;
   return {
     needsTest,
     // Not a blocker: a written week with no offset pushes the author's paces with the watch

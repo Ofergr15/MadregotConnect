@@ -11,7 +11,7 @@ import {
   loadSeniorSeed,
 } from '@/lib/academy/book-server';
 import {
-  bandReferenceSec, decideRecipients, hasWorkoutOn, mergeDay, resolveThreshold, withBandNote, type PaceBasis, type SkipReason,
+  decideRecipients, hasWorkoutOn, mergeDay, resolveThreshold, withBandNote, type PaceBasis, type SkipReason,
 } from '@/lib/academy/day-send';
 import {
   hasAbsolutePaces, resolveLibraryWorkout, type LibraryStep,
@@ -96,16 +96,16 @@ export async function GET(request: Request) {
     const lane: Lane = asked === 1 || asked === 2 || asked === 3 ? asked : bandLane ?? 2;
     const senior = pickSeniorDay(club, lane, dayOfWeek, refs[lane]);
     const myWeek = weeks[athleteId] ?? { planId: null, workouts: [] };
-    const mine = resolveThreshold(thresholds[athleteId], bandReferenceSec(me?.bandNumber, refs));
+    const mine = resolveThreshold(thresholds[athleteId], me?.bandThresholdSec);
 
     const others = trainees
       .filter(t => t.id !== athleteId && t.isAcademy && t.active)
       .map(t => ({
         id: t.id,
         name: t.name,
-        // No test: their band's reference, so the coach can still send (day-send.ts).
+        // No test: their band's own pace, when it has one (day-send.ts).
         ...(() => {
-          const r = resolveThreshold(thresholds[t.id], bandReferenceSec(t.bandNumber, refs));
+          const r = resolveThreshold(thresholds[t.id], t.bandThresholdSec);
           return { thresholdSec: r.sec, paceBasis: r.basis };
         })(),
         paceAdjust: adjusts[t.id] ?? {},
@@ -185,13 +185,12 @@ export async function POST(request: Request) {
     const dayOfWeek = dayOfWeekOf(date);
     const allowed = recipients.filter((_, i) => !access[i]!.denied);
 
-    const [trainees, thresholds, weeks, settings, adjusts, refs] = await Promise.all([
+    const [trainees, thresholds, weeks, settings, adjusts] = await Promise.all([
       loadTrainees(supabase, allowed),
       loadThresholds(supabase, allowed),
       loadTraineeWeeks(supabase, allowed, weekStart),
       loadAcademySettings(),
       loadPaceAdjusts(supabase, allowed, weekStart),
-      loadLaneReferences(supabase),
     ]);
     const byId = new Map(trainees.map(t => [t.id, t]));
 
@@ -199,7 +198,7 @@ export async function POST(request: Request) {
       id,
       isPrimary: id === recipients[0],
       thresholdSec: thresholds[id] ?? null,
-      fallbackThresholdSec: bandReferenceSec(byId.get(id)?.bandNumber, refs),
+      fallbackThresholdSec: byId.get(id)?.bandThresholdSec ?? null,
       hasWorkoutThatDay: hasWorkoutOn(weeks[id]?.workouts ?? [], dayOfWeek),
       isAcademy: !!byId.get(id)?.isAcademy,
       active: !!byId.get(id)?.active,

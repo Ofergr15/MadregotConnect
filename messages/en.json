@@ -3839,7 +3839,7 @@
     "band": "Band {n}",
     "whatRuns": "What runs on {day}?",
     "alreadyHas": "Already planned that day: <b>{name}</b>. What you send replaces it.",
-    "noTest": "{name} has no test yet, so there is no threshold to set paces from. Nothing goes to the watch without one.",
+    "noTest": "{name} has no test yet and their band has no paces — it needs a test or band paces. Nothing goes to the watch without one.",
     "bandPaceBanner": "{name} has no test yet, so the paces follow their band — and the session says so. After a test they become their own.",
     "noTestBlock": "{name} has no test, so nothing goes to the watch.",
     "setTest": "Schedule a test ›",
@@ -3986,7 +3986,7 @@
       "failed": "Sending failed",
       "skip": {
         "has-workout": "Skipped · already has a workout",
-        "no-test": "Skipped · no test",
+        "no-test": "Skipped · no band paces — needs a test or band paces",
         "other": "Skipped"
       }
     },

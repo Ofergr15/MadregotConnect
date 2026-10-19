@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { addDaysToDateStr, israelToday, planWeekStartOf } from '@/lib/utils';
 import { requireTraineeAccess } from '@/lib/academy/pairing-server';
-import { loadSeniorSeed, loadTraineeWeeks } from '@/lib/academy/book-server';
+import { loadSeniorSeed, loadTrainees, loadTraineeWeeks } from '@/lib/academy/book-server';
+import { markBandPriced, resolveThreshold } from '@/lib/academy/day-send';
 import { notifyMissedWeek } from '@/lib/academy/loop-notify';
 import { MISSED_OPTIONS, activeAdjust, copyWeek, type MissedOption } from '@/lib/academy/coach-tools';
 import {
@@ -44,14 +45,17 @@ export async function POST(request: Request) {
     const supabase = createServerClient();
     const today = israelToday();
     const targetWeek = addDaysToDateStr(weekStart, 7);
-    const [basis, decisions, target, missed] = await Promise.all([
+    const [basis, decisions, target, missed, trainees] = await Promise.all([
       loadTestBasis(supabase, [athleteId]),
       loadDecisions(supabase, [athleteId]),
       loadTraineeWeeks(supabase, [athleteId], targetWeek),
       loadTraineeWeeks(supabase, [athleteId], weekStart),
+      loadTrainees(supabase, [athleteId]),
     ]);
     const b = basis[athleteId];
-    const T = b?.thresholdSec ?? null;
+    // The test, else the band's own pace (day-send.ts) — the rule every academy path prices by.
+    const priced = resolveThreshold(b?.thresholdSec, trainees[0]?.bandThresholdSec);
+    const T = priced.sec;
     const adjust = activeAdjust(decisions.rows, b?.testDate ?? null).adjust;
 
     let changed: ParsedWorkout[] | null = null;
@@ -68,14 +72,14 @@ export async function POST(request: Request) {
       if (!base.length) {
         return NextResponse.json({ error: 'nothing-to-build', detail: 'Neither week has workouts' }, { status: 409 });
       }
-      const built = copyWeek({
+      const built = markBandPriced(copyWeek({
         workouts: base.filter(w => open.has(w.dayOfWeek)),
         sourceThresholdSec: T,
         targetThresholdSec: T,
         targetAdjust: adjust,
         sameTrainee: true,
         mode: option === 'light' ? 'light' : 'same',
-      }).map(c => c.workout);
+      }), priced.basis);
       // The days already past keep what they had; every open day is the new version.
       changed = [...targetWorkouts.filter(w => !open.has(w.dayOfWeek)), ...built].sort((a, b2) => a.dayOfWeek - b2.dayOfWeek);
     }
@@ -105,6 +109,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({
       ok: true, stored, option, targetWeek,
+      ...(priced.basis === 'band' ? { paceBasis: 'band' as const } : {}),
       status: result?.status ?? 'unchanged',
       workouts: changed?.length ?? null,
       openThread: option === 'talk',

@@ -51,9 +51,9 @@ const supabase = { from: (t: string) => new Query(t) };
 vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => supabase }));
 vi.mock('@/lib/constants', async (orig) => ({ ...(await orig<object>()), COACH_ID: 'club' }));
 
-const pushes: Array<{ athleteId: string; kind: string }> = [];
+const pushes: Array<{ athleteId: string; kind: string; url?: string }> = [];
 vi.mock('@/lib/push', () => ({
-  notifyAthlete: vi.fn(async (o: { athleteId: string; kind: string }) => { pushes.push({ athleteId: o.athleteId, kind: o.kind }); }),
+  notifyAthlete: vi.fn(async (o: { athleteId: string; kind: string; url?: string }) => { pushes.push({ athleteId: o.athleteId, kind: o.kind, url: o.url }); }),
 }));
 vi.mock('@/lib/maintenance-release', () => ({ releaseFromMaintenance: async () => ({ released: false }) }));
 const mails: Array<{ coachName: string | null }> = [];
@@ -222,7 +222,12 @@ describe('the funnel accept writes the whole set', () => {
   it('reads coachIds, falls back to coachId, and keeps a coach to themselves', () => {
     expect(acceptCoachIds({ coachIds: ['dana', 'guy', 'dana'] }, manager as never, true)).toEqual(['dana', 'guy']);
     expect(acceptCoachIds({ coachId: 'guy' }, manager as never, true)).toEqual(['guy']);
-    expect(acceptCoachIds({}, manager as never, true)).toEqual(['boss']);
+    // Nobody named: the card's paired coaches, else the manager only if they coach — never
+    // a caller who coaches nobody (a super user whose role is runner).
+    expect(acceptCoachIds({}, manager as never, true)).toEqual([]);
+    expect(acceptCoachIds({}, manager as never, true, { pairedCoachIds: ['dana', 'avi'] })).toEqual(['dana', 'avi']);
+    expect(acceptCoachIds({}, manager as never, true, { callerIsCoach: true })).toEqual(['boss']);
+    expect(acceptCoachIds({ coachId: 'guy' }, manager as never, true, { pairedCoachIds: ['dana'] })).toEqual(['guy']);
     expect(acceptCoachIds({ coachIds: ['guy'] }, coachCaller('dana') as never, false)).toMatchObject({ status: 403 });
     expect(acceptCoachIds({}, coachCaller('dana') as never, false)).toEqual(['dana']);
   });
@@ -243,6 +248,33 @@ describe('the funnel accept writes the whole set', () => {
     expect((db.academy_coach_history || []).filter((h) => h.athlete_id === 'tal')).toEqual([
       expect.objectContaining({ coach_id: 'guy', reason: 'accepted from the funnel' }),
     ]);
+  });
+
+  it('a move-in paired at invite: accept with no coach named takes the paired coach and tells them once, with the setup form', async () => {
+    // As members/invite leaves it: the card is 'existing', the coach already paired.
+    db.academy_candidates[0].source = 'existing';
+    athlete('tal').academy_coach_id = 'dana';
+    db.academy_trainee_coaches.push({ athlete_id: 'tal', coach_id: 'dana', since: '2026-10-19' });
+    // Ofer: a super user whose primary role is runner — the manager, coaching nobody.
+    const ofer = { athleteId: 'ofer', role: 'runner', roles: ['runner'], isStaff: false, isSuperUser: true, email: 'o' };
+    const res = await acceptAction('card1', ofer as never, {});
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, coachIds: ['dana'] });
+    const told = pushes.filter((p) => p.athleteId === 'dana');
+    expect(told).toHaveLength(1);
+    expect(told[0]).toMatchObject({ kind: 'academy_trainee_assigned' });
+    expect(String((told[0] as { url?: string }).url)).toContain('setup=1');
+    // Accepting the same card again does not tell them twice.
+    pushes.length = 0;
+    await acceptAction('card1', ofer as never, {});
+    expect(pushes.filter((p) => p.athleteId === 'dana')).toHaveLength(0);
+  });
+
+  it('a funnel card already paired is not re-announced at accept (unchanged)', async () => {
+    athlete('tal').academy_coach_id = 'dana';
+    db.academy_trainee_coaches.push({ athlete_id: 'tal', coach_id: 'dana', since: '2026-10-19' });
+    await acceptAction('card1', manager as never, { coachIds: ['dana'] });
+    expect(pushes.filter((p) => p.athleteId === 'dana')).toHaveLength(0);
   });
 
   it('refuses a non-coach in the set, before writing anything', async () => {

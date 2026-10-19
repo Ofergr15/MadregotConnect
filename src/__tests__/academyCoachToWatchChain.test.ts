@@ -36,7 +36,7 @@ vi.mock('@/lib/push', () => ({ notifyAthlete: vi.fn(async (o: { athleteId: strin
 vi.mock('@/lib/stream/server', () => ({ getStreamServerClient: () => { throw new Error('no Stream in tests'); } }));
 vi.mock('@/lib/plans/cache', () => ({ revalidateWeeklyPlans: () => {} }));
 vi.mock('@/lib/academy/settings-server', () => ({ loadAcademySettings: async () => ({ paceAlerts: true }) }));
-vi.mock('@/lib/academy/loop-notify', () => ({ notifyPlanSaved: async () => {} }));
+vi.mock('@/lib/academy/loop-notify', () => ({ notifyPlanSaved: async () => {}, notifyMissedWeek: async () => {} }));
 
 let db: ReturnType<typeof createMemoryDb>;
 vi.mock('@/lib/supabase/server', () => ({ createServerClient: () => db.client }));
@@ -52,6 +52,9 @@ vi.mock('@/lib/auth/self-or-staff', async (orig) => ({
 const dayPlan = await import('@/app/api/academy/day-plan/route');
 const today = await import('@/app/api/academy/today/route');
 const dispatch = await import('@/app/api/academy/dispatch/route');
+const copyWeekRoute = await import('@/app/api/academy/copy-week/route');
+const missedWeekRoute = await import('@/app/api/academy/missed-week/route');
+const { pushWeekToAthlete } = await import('@/lib/garmin/push-week');
 
 const TRAINEE = uid();
 const UNTESTED = uid();
@@ -93,7 +96,8 @@ function seed() {
       workout_deliveries: () => ({ id: uid(), created_at: new Date().toISOString() }),
     },
   });
-  db.tables.academy_bands.push({ id: BAND4, band_number: 4, name: 'דבוקה 4', goal: 'סאב 3', pace_profile: {} });
+  // As in prod: band 4 carries only its marathon goal, no pace.
+  db.tables.academy_bands.push({ id: BAND4, band_number: 4, name: 'דבוקה 4', goal: 'סאב 3', pace_profile: { marathonGoal: '2:59' } });
   const a = (o: Record<string, unknown>) => ({
     coach_id: COACH_ID, email: null, gender: 'male', group_id: null, role: 'runner', extra_roles: null, status: 'active', approved: true,
     is_academy: false, academy_coach_id: null, academy_band_id: null, academy_pace_offset_sec: null, avatar_url: null, garmin_auth: null, ...o,
@@ -177,7 +181,16 @@ describe('coach → trainee → watch → coach and manager', () => {
     expect((await (await report()).json()).roster ?? []).toEqual([]);
   });
 
-  it('a trainee with no test still gets it, priced from the band and saying so', async () => {
+  it('no test and a band with no pace: an explicit skip, nothing invented, nothing on the watch', async () => {
+    asCoach();
+    const body = await (await send([UNTESTED])).json();
+    expect(body.results).toEqual([expect.objectContaining({ athleteId: UNTESTED, status: 'skipped', reason: 'no-test' })]);
+    expect(db.tables.weekly_plans).toHaveLength(0);
+    expect(garmin.account.size).toBe(0);
+  });
+
+  it('no test, but the band has its own pace: priced from it, and the session says so', async () => {
+    db.tables.academy_bands[0].pace_profile = { marathonGoal: '2:59', thresholdPaceSec: 255 };
     asCoach();
     const body = await (await send([UNTESTED])).json();
     expect(body.results).toEqual([expect.objectContaining({ athleteId: UNTESTED, status: 'sent', paceBasis: 'band' })]);
@@ -196,5 +209,100 @@ describe('coach → trainee → watch → coach and manager', () => {
     asManager();
     const body = await (await send([TRAINEE])).json();
     expect(body.results[0]).toMatchObject({ athleteId: TRAINEE, status: 'sent' });
+  });
+});
+
+describe('copy-week and missed-week price by the same rule', () => {
+  // A week of Ofer's own, at his paces, to copy or repeat from.
+  const seedWeek = async (athleteId: string) => {
+    asManager();
+    const res = await dayPlan.POST(new Request('http://x/api/academy/day-plan', {
+      method: 'POST', body: JSON.stringify({ date: '2026-10-15', recipients: [athleteId], workout: { name: '5 × 1 ק״מ', notes: 'מתחילים לאט', steps: toLibrarySteps(model) } }),
+    }));
+    expect((await res.json()).results[0].status).toBe('sent');
+  };
+  const noteOf = (athleteId: string, weekStart: string) => JSON.stringify(
+    db.tables.weekly_plans.find(p => p.athlete_id === athleteId && p.week_start_date === weekStart)?.parsed_workouts ?? null,
+  );
+
+  it("copying Ofer's week to an untested trainee: their band's own pace, labelled — or nothing paced without one", async () => {
+    await seedWeek(TRAINEE);
+    db.tables.academy_bands[0].pace_profile = { marathonGoal: '2:59', thresholdPaceSec: 255 };
+    asCoach();
+    const res = await copyWeekRoute.POST(new Request('http://x/api/academy/copy-week', {
+      method: 'POST', body: JSON.stringify({ sourceAthleteId: TRAINEE, sourceWeek: WEEK, weeks: 1, recipients: [UNTESTED], mode: 'same', send: false }),
+    }));
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.results[0]).toMatchObject({ athleteId: UNTESTED, paced: true, paceBasis: 'band' });
+    expect(noteOf(UNTESTED, '2026-10-18')).toContain(BAND_PACE_NOTE);
+  });
+
+  it('a band with no pace: the copy carries no paces and no band label', async () => {
+    await seedWeek(TRAINEE);
+    asCoach();
+    const body = await (await copyWeekRoute.POST(new Request('http://x/api/academy/copy-week', {
+      method: 'POST', body: JSON.stringify({ sourceAthleteId: TRAINEE, sourceWeek: WEEK, weeks: 1, recipients: [UNTESTED], mode: 'same', send: false }),
+    }))).json();
+    expect(body.results[0]).toMatchObject({ athleteId: UNTESTED, paced: false });
+    expect(body.results[0].paceBasis).toBeUndefined();
+    expect(noteOf(UNTESTED, '2026-10-18')).not.toContain(BAND_PACE_NOTE);
+  });
+
+  it('missed-week "repeat" for an untested trainee is band-priced and labelled the same way', async () => {
+    db.tables.academy_bands[0].pace_profile = { marathonGoal: '2:59', thresholdPaceSec: 255 };
+    await seedWeek(UNTESTED);
+    asCoach();
+    const res = await missedWeekRoute.POST(new Request('http://x/api/academy/missed-week', {
+      method: 'POST', body: JSON.stringify({ athleteId: UNTESTED, weekStart: WEEK, option: 'repeat' }),
+    }));
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body).toMatchObject({ ok: true, paceBasis: 'band' });
+    expect(noteOf(UNTESTED, '2026-10-18')).toContain(BAND_PACE_NOTE);
+  });
+});
+
+describe('one workout per day on a club member who is also a trainee', () => {
+  const clubPlan = () => {
+    const id = uid();
+    db.tables.weekly_plans.push({ id, coach_id: COACH_ID, athlete_id: null, week_start_date: WEEK, original_input: null, status: 'pushed', created_at: '2026-10-10T10:00:00Z',
+      parsed_workouts: { workouts: [{ dayOfWeek: 2, name: 'club tempo', steps: [{ order: 1, type: 'active', durationType: 'distance', durationValue: 8000, targetType: 'no_target' }] }] } });
+    return id;
+  };
+  const sendClub = (planId: string) => pushWeekToAthlete({
+    supabase: db.client as never,
+    athlete: { id: TRAINEE, name: 'Ofer', garmin_auth: { token: 'x' } },
+    plannedWorkouts: db.tables.weekly_plans.find(p => p.id === planId)!.parsed_workouts.workouts,
+    weekStartDate: WEEK, planId, paceTarget: false, notify: false, cleanDayOnce: true,
+  });
+
+  it("the personal workout replaces the club's on that date, and a club re-send does not put it back", async () => {
+    const club = clubPlan();
+    expect((await sendClub(club)).status).toBe('success');
+    const clubGarminId = db.tables.workout_deliveries.find(d => d.plan_id === club)!.garmin_workout_id;
+    expect(garmin.account.has(clubGarminId)).toBe(true);
+
+    asCoach();
+    expect((await (await send([TRAINEE])).json()).results[0].status).toBe('sent');
+    // Off the watch and out of the table; only the personal one is on Tuesday.
+    expect(garmin.account.has(clubGarminId)).toBe(false);
+    expect(db.tables.workout_deliveries.filter(d => d.athlete_id === TRAINEE && d.workout_date === TODAY).map(d => d.plan_id))
+      .toEqual([db.tables.weekly_plans.find(p => p.athlete_id === TRAINEE)!.id]);
+
+    // The club week goes out again (a fix + re-send): Tuesday is the coach's now.
+    const before = garmin.account.size;
+    await sendClub(club);
+    expect(garmin.account.size).toBe(before);
+    expect(db.tables.workout_deliveries.some(d => d.plan_id === club && d.workout_date === TODAY)).toBe(false);
+  });
+
+  it("a day session on that date goes the same way", async () => {
+    db.tables.workout_deliveries.push({ id: uid(), athlete_id: TRAINEE, plan_id: null, workout_date: TODAY, status: 'success', garmin_workout_id: '999', workout_key: `day:${TODAY}`, workout_data: {} });
+    garmin.account.add('999');
+    asCoach();
+    await send([TRAINEE]);
+    expect(garmin.account.has('999')).toBe(false);
+    expect(db.tables.workout_deliveries.some(d => d.workout_key === `day:${TODAY}`)).toBe(false);
   });
 });

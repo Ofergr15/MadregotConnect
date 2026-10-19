@@ -18,6 +18,7 @@ import type { Lane } from './group-lane';
 import { planPaceBasis, type PlanBasis } from './plan-basis';
 import { extractWorkouts } from './report';
 import { restateSteps } from './load';
+import { bandThresholdSec } from './day-send';
 
 type Supabase = ReturnType<typeof createServerClient>;
 
@@ -180,6 +181,8 @@ export interface RosterTrainee {
   isAcademy: boolean;
   active: boolean;
   bandNumber: number | null;
+  /** The band's own threshold pace (sec/km) — the no-test fallback (day-send.ts); null = none. */
+  bandThresholdSec: number | null;
   hasGarmin: boolean;
 }
 
@@ -193,9 +196,13 @@ export async function loadTrainees(supabase: Supabase, athleteIds: string[]): Pr
   if (error || !data) return [];
   const bandIds = [...new Set((data as any[]).map(a => a.academy_band_id).filter(Boolean))];
   const bands: Record<string, number> = {};
+  const bandPace: Record<string, number | null> = {};
   if (bandIds.length) {
-    const { data: rows } = await supabase.from('academy_bands').select('id, band_number').in('id', bandIds);
-    for (const b of (rows || []) as any[]) bands[b.id] = b.band_number;
+    const { data: rows } = await supabase.from('academy_bands').select('id, band_number, pace_profile').in('id', bandIds);
+    for (const b of (rows || []) as any[]) {
+      bands[b.id] = b.band_number;
+      bandPace[b.id] = bandThresholdSec(b.pace_profile);
+    }
   }
   return (data as any[]).map(a => ({
     id: String(a.id),
@@ -203,6 +210,7 @@ export async function loadTrainees(supabase: Supabase, athleteIds: string[]): Pr
     isAcademy: !!a.is_academy,
     active: (a.status ?? 'active') === 'active',
     bandNumber: a.academy_band_id ? bands[a.academy_band_id] ?? null : null,
+    bandThresholdSec: a.academy_band_id ? bandPace[a.academy_band_id] ?? null : null,
     hasGarmin: !!a.garmin_auth,
   }));
 }

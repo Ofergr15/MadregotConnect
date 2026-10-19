@@ -4,11 +4,12 @@
  * The send screen offers the same session to the coach's other trainees, "each at their
  * own pace". Three rules decide who actually receives it, and they are the mockup's own:
  *
- *   - no usable test → priced from their BAND instead: the reference threshold of the
- *     lane their דבוקה trains in (`laneReferences`, the club's own squad paces), and the
- *     session says so ("קצב לפי הדבוקה — עוד אין טסט") on the watch and in the app
- *     (Ofer, 2026-10-19: a trainee without a test still gets their coach's workout).
- *     No band either → not sent (`no-test`); the row offers "קביעת טסט" instead.
+ *   - no usable test → priced from their BAND's own threshold
+ *     (`academy_bands.pace_profile.thresholdPaceSec`), and the session says so ("קצב לפי
+ *     הדבוקה — עוד אין טסט") on the watch and in the app. Only a pace the band actually
+ *     has: a band without one is not guessed from a club lane (2026-10-19 — the bands'
+ *     paces have never been set, and a lane is a different squad). No test and no band
+ *     pace → not sent (`no-test`, "אין קצבים לדבוקה — צריך טסט או קצבי דבוקה").
  *   - already has a workout that day → skipped. Sending would silently replace a session
  *     their coach wrote for them. The PRIMARY trainee is the exception: replacing their
  *     day is what the coach opened this screen to do.
@@ -18,7 +19,6 @@
  */
 
 import type { ParsedWorkout } from '@/lib/ai/types';
-import { laneForBand, type Lane } from './group-lane';
 
 export interface SendCandidate {
   id: string;
@@ -63,10 +63,31 @@ export function decideRecipients(candidates: SendCandidate[]): SendDecision[] {
   });
 }
 
-/** The band's reference threshold: the club lane its דבוקה trains in. Null without a band. */
-export function bandReferenceSec(bandNumber: number | null | undefined, refs: Record<Lane, number>): number | null {
-  const lane = laneForBand(bandNumber);
-  return lane ? refs[lane] ?? null : null;
+/**
+ * The band's own threshold pace (sec/km), or null when the band has none — the ONE place
+ * every academy pricing path (day-plan, copy-week, missed-week, the composer's book slots)
+ * reads the fallback from, so they cannot drift apart.
+ */
+export function bandThresholdSec(profile: { thresholdPaceSec?: number | null } | null | undefined): number | null {
+  const sec = profile?.thresholdPaceSec;
+  return typeof sec === 'number' && sec > 0 ? Math.round(sec) : null;
+}
+
+/**
+ * A week's workouts as priced for one trainee: band-priced ones (basis 'band') carry the
+ * band line, test-priced and unpriced ones are returned as they are. `paced` per workout
+ * says which ones actually got paces (a copy with no threshold has none to label).
+ */
+export function markBandPriced<W extends { description?: string }>(
+  workouts: Array<{ workout: W; paced: boolean }>,
+  basis: PaceBasis | null,
+): W[] {
+  return workouts.map(({ workout, paced }) => (basis === 'band' && paced ? withBandDescription(workout) : workout));
+}
+
+/** A workout priced from the band: the band line goes first in its description. */
+export function withBandDescription<W extends { description?: string }>(workout: W): W {
+  return { ...workout, description: withBandNote(workout.description) };
 }
 
 /** A band-priced session's notes: the band line first, then whatever the coach wrote. */

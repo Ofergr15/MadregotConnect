@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ParsedWorkout } from '@/lib/ai/types';
-import { BAND_PACE_NOTE, bandReferenceSec, decideRecipients, hasWorkoutOn, mergeDay, withBandNote } from '@/lib/academy/day-send';
+import { BAND_PACE_NOTE, bandThresholdSec, decideRecipients, hasWorkoutOn, mergeDay, withBandNote } from '@/lib/academy/day-send';
 import { effortFromPace, effortFromZone, toLibrarySteps, type BookStep } from '@/lib/academy/book-steps';
 import { resolveLibraryWorkout } from '@/lib/academy/library';
 import { applyPaceAdjust } from '@/lib/academy/coach-tools';
@@ -25,9 +25,8 @@ describe('decideRecipients', () => {
     expect(decideRecipients([{ ...base, id: 'a', thresholdSec: null, fallbackThresholdSec: null }])).toEqual([{ id: 'a', action: 'skip', reason: 'no-test' }]);
   });
 
-  it("a band's reference is its lane's, and the session says it is band-priced once", () => {
-    const refs = { 1: 203, 2: 209, 3: 223 } as const;
-    expect([bandReferenceSec(4, refs), bandReferenceSec(6, refs), bandReferenceSec(9, refs), bandReferenceSec(null, refs)]).toEqual([203, 209, 223, null]);
+  it("a band's pace is only the one it has — never guessed — and the session says it is band-priced once", () => {
+    expect([bandThresholdSec({ thresholdPaceSec: 270 }), bandThresholdSec({ marathonGoal: '2:59' } as never), bandThresholdSec({ thresholdPaceSec: 0 }), bandThresholdSec(null)]).toEqual([270, null, null, null]);
     expect(withBandNote(null)).toBe(BAND_PACE_NOTE);
     expect(withBandNote('קל')).toBe(`${BAND_PACE_NOTE}\nקל`);
     expect(withBandNote(withBandNote('קל'))).toBe(`${BAND_PACE_NOTE}\nקל`);
@@ -72,7 +71,7 @@ vi.mock('@/lib/academy/pairing-server', () => ({
 }));
 
 const state = {
-  trainees: [] as Array<{ id: string; name: string; isAcademy: boolean; active: boolean; bandNumber: number | null; hasGarmin: boolean }>,
+  trainees: [] as Array<{ id: string; name: string; isAcademy: boolean; active: boolean; bandNumber: number | null; bandThresholdSec?: number | null; hasGarmin: boolean }>,
   thresholds: {} as Record<string, number | null>,
   weeks: {} as Record<string, { planId: string | null; workouts: ParsedWorkout[] }>,
   /** The senior week a trainee with no row of their own is following (launch BL7). */
@@ -152,8 +151,9 @@ describe('POST /api/academy/day-plan', () => {
       { id: 'shahar', name: 'Shahar', isAcademy: true, active: true, bandNumber: 4, hasGarmin: true },
       { id: 'yoav', name: 'Yoav', isAcademy: true, active: true, bandNumber: 5, hasGarmin: false },
       { id: 'alon', name: 'Alon', isAcademy: true, active: true, bandNumber: 5, hasGarmin: true },
-      { id: 'noa', name: 'Noa', isAcademy: true, active: true, bandNumber: 6, hasGarmin: true },
-      { id: 'gil', name: 'Gil', isAcademy: true, active: true, bandNumber: null, hasGarmin: true },
+      // Band 6 has its own threshold set; band 4 (Gil) has only a marathon goal.
+      { id: 'noa', name: 'Noa', isAcademy: true, active: true, bandNumber: 6, bandThresholdSec: 290, hasGarmin: true },
+      { id: 'gil', name: 'Gil', isAcademy: true, active: true, bandNumber: 4, bandThresholdSec: null, hasGarmin: true },
     ];
     state.thresholds = { shahar: 270, yoav: 300, alon: 280, noa: null, gil: null };
     state.weeks = {
@@ -183,9 +183,9 @@ describe('POST /api/academy/day-plan', () => {
       ['shahar', 'sent', null],
       ['yoav', 'saved', null],
       ['alon', 'skipped', 'has-workout'],
-      // No test, band 6: priced from the band's lane and told so (no token → saved).
+      // No test, band 6 with a pace: priced from the band and told so (no token → saved).
       ['noa', 'saved', null],
-      // No test and no band: nothing to price with, an explicit skip.
+      // No test and a band with no pace: nothing to price with — an explicit skip, no guess.
       ['gil', 'skipped', 'no-test'],
     ]);
     expect(body.results.find((r: any) => r.athleteId === 'noa').paceBasis).toBe('band');

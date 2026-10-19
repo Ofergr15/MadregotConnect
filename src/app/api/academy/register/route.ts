@@ -4,7 +4,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { notifyAdminNewAcademyRegistration, notifyAcademyFormReceived } from '@/lib/email';
 import { formNameProblem, normalizeDisplayName } from '@/lib/names/latin';
-import { clientIp, createRateLimiter, isBotSubmit } from '@/lib/academy/intake';
+import { clientIp, createRateLimiter, isBotSubmit, looksLikeToken } from '@/lib/academy/intake';
 import { invitePrefill, recordFormCandidate } from '@/lib/academy/intake-server';
 import { academyManagerIds, notifyStaff } from '@/lib/notifications/staff';
 import { academyApplicantCopy } from '@/lib/notifications/copy';
@@ -81,13 +81,29 @@ export async function POST(request: Request) {
     const supabase = createServerClient();
     const normEmail = email.toLowerCase().trim();
 
-    // Reuse an existing row for this email if present (re-registration), else insert.
-    const { data: existing } = await supabase
-      .from('athletes')
-      .select('id, approved, invite_token, onboarding_status')
-      .eq('coach_id', COACH_ID)
-      .eq('email', normEmail)
-      .maybeSingle();
+    // The row this form is FOR: a personal link's card names it (2026-10-19 — a trainee who
+    // corrected the pre-filled email used to get a second pending account), else the row with
+    // this email (re-registration), else none and one is inserted.
+    const ATHLETE_COLS = 'id, approved, invite_token, onboarding_status';
+    type Existing = { id: string; approved?: boolean | null; invite_token?: string | null; onboarding_status?: string | null };
+    let existing: Existing | null = null;
+    if (looksLikeToken(inviteToken)) {
+      const { data: card } = await supabase.from('academy_candidates').select('athlete_id').eq('invite_token', inviteToken).maybeSingle();
+      const cardAthlete = (card as { athlete_id?: string | null } | null)?.athlete_id;
+      if (cardAthlete) {
+        const { data } = await supabase.from('athletes').select(ATHLETE_COLS).eq('coach_id', COACH_ID).eq('id', cardAthlete).maybeSingle();
+        if (data) existing = data as Existing;
+      }
+    }
+    if (!existing) {
+      const { data } = await supabase
+        .from('athletes')
+        .select(ATHLETE_COLS)
+        .eq('coach_id', COACH_ID)
+        .eq('email', normEmail)
+        .maybeSingle();
+      existing = (data as Existing | null) ?? null;
+    }
 
     // Only a row that is ITSELF a pending academy application may be rewritten from here.
     // This endpoint is public and unauthenticated, and the row below sets approved:false,
@@ -131,6 +147,17 @@ export async function POST(request: Request) {
 
     if (existing && existing.onboarding_status !== 'academy_pending') {
       await afterSave(null, true);
+      return NextResponse.json({ success: true });
+    }
+
+    // Accepted already (approved), not yet signed in: the form is sent again — from the
+    // email's link, a reminder, a second tab. Idempotent: the details refresh, nothing else.
+    // It used to reset the row to approved:false / invited, undoing the manager's accept.
+    if (existing?.approved) {
+      const details: Record<string, unknown> = { name: fullName, phone: phoneValue };
+      if (intakeObj) details.academy_intake = intakeObj;
+      const { error: detailsError } = await supabase.from('athletes').update(details).eq('id', existing.id);
+      if (detailsError) console.error('Academy register: details refresh failed:', detailsError.message);
       return NextResponse.json({ success: true });
     }
 

@@ -22,6 +22,7 @@ import { ZONE_LABEL } from '@/components/academy/libraryText';
 import {
   bookEntryIds, materialiseWeek, weekGaps, type PlanSlot, type Recipient,
 } from '@/lib/academy/plan-slot';
+import { bandThresholdSec } from '@/lib/academy/day-send';
 import { raceCountdown, weekFit, type PlannedDay } from '@/lib/academy/plan-fit';
 import type { PlanInputs } from '@/lib/academy/characterization';
 import { getWorkoutKm } from '@/lib/plans/workout-parsing';
@@ -241,6 +242,8 @@ export function AcademyPlanComposer({ athletes, initialAthleteId = null }: {
     name: a.name,
     offsetSec: effectiveOffsetSec(a.paceOffsetSec, a.band),
     thresholdPaceSec: thresholds[a.id] ?? null,
+    // No test: the band's own pace, labelled (day-send.ts) — never a guessed one.
+    bandThresholdPaceSec: bandThresholdSec(a.band?.paceProfile),
   }), [thresholds]);
 
   // The club's group plan for the displayed week (athlete_id IS NULL — that's what
