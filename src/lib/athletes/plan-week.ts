@@ -32,6 +32,10 @@ export interface PlanWeekStats {
   dayRuns: PlanWeekRun[][];
   /** Last week from its Sunday up to this same weekday and minute. */
   lastWeekSoFar: number;
+  /** Last week's kilometres per day, Sunday first — the home's "השבוע שעבר" (2026-10-19). */
+  lastDays: number[];
+  /** The runs behind each of last week's days. */
+  lastDayRuns: PlanWeekRun[][];
   /** Ten plan weeks, oldest first, this one last (so far). */
   weeks: Array<{ weekStart: string; km: number }>;
   /** Mean of the nine full weeks before this one. */
@@ -66,6 +70,8 @@ export function buildPlanWeek<T extends RunActivityRow>(acts: T[], nowWall: numb
   const weekKm = new Array<number>(WEEKS).fill(0);
   const days = new Array<number>(7).fill(0);
   const dayRuns: PlanWeekRun[][] = Array.from({ length: 7 }, () => []);
+  const lastDays = new Array<number>(7).fill(0);
+  const lastDayRuns: PlanWeekRun[][] = Array.from({ length: 7 }, () => []);
   let runs = 0;
   let seconds = 0;
   let lastWeekSoFar = 0;
@@ -82,11 +88,14 @@ export function buildPlanWeek<T extends RunActivityRow>(acts: T[], nowWall: numb
       dayRuns[d].push({ id: a.id ?? null, km: r1(km), seconds: a.duration, start: a.start_time });
       runs++;
       seconds += a.duration;
-    } else if (t >= lastSunday && t <= sameMomentLastWeek) {
-      lastWeekSoFar += km;
+    } else if (t >= lastSunday) {
+      const d = Math.floor((t - lastSunday) / DAY_MS);
+      lastDays[d] += km;
+      lastDayRuns[d].push({ id: a.id ?? null, km: r1(km), seconds: a.duration, start: a.start_time });
+      if (t <= sameMomentLastWeek) lastWeekSoFar += km;
     }
   }
-  for (const list of dayRuns) list.sort((x, y) => instant(x.start) - instant(y.start));
+  for (const list of [...dayRuns, ...lastDayRuns]) list.sort((x, y) => instant(x.start) - instant(y.start));
 
   const full = weekKm.slice(0, WEEKS - 1);
   return {
@@ -98,6 +107,8 @@ export function buildPlanWeek<T extends RunActivityRow>(acts: T[], nowWall: numb
     days: days.map(r1),
     dayRuns,
     lastWeekSoFar: r1(lastWeekSoFar),
+    lastDays: lastDays.map(r1),
+    lastDayRuns,
     weeks: weekKm.map((km, i) => ({ weekStart: dayKey(first + i * 7 * DAY_MS), km: r1(km) })),
     avgKm: Math.round(full.reduce((s, x) => s + x, 0) / full.length),
   };

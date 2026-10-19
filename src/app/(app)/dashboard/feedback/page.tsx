@@ -108,7 +108,14 @@ function FeedbackForm() {
         }
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => {
+        // The home's "איך הרגשת?" faces open this form on the face that was tapped
+        // (`&feel=0..4`, components/home/TodayHome.tsx) — the tap wins over the watch.
+        const tapped = Number(params.get('feel'));
+        if (params.get('feel') != null && Number.isInteger(tapped) && tapped >= 0 && tapped <= 4) setFeel(tapped);
+        setLoading(false);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read once with the run, as activityId is
   }, [activityId]);
 
   // Always the athlete's own run — the form is reached from their own push and

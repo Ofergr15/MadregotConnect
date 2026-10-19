@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Activity, Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
+  Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Bug, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
   BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift, ShieldCheck, Gauge, Trophy,
-  UsersRound, Megaphone, TrendingUp, Camera,
+  UsersRound, Megaphone, TrendingUp, Camera, Sun,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
@@ -44,7 +44,8 @@ export const ACADEMY_BOARD_ITEM: NavItem = { href: '/dashboard/academy', tab: 'a
 export const PROGRESS_ITEM: NavItem = { href: '/dashboard/academy/progress', tab: 'academy-progress', labelKey: 'progress', icon: TrendingUp };
 
 export const ALL_NAV_ITEMS: NavItem[] = [
-  { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Activity },
+  // "היום" (2026-10-19): the runner's day, not a control panel — the sun, not a pulse line.
+  { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Sun },
   { href: '/feed', tab: 'feed', labelKey: 'feed', icon: Newspaper },
   // The control room, at a URL of its own since 2026-09-07. It used to be
   // /dashboard's admin branch, which only worked while an admin account was

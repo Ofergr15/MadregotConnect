@@ -17,6 +17,8 @@ import { AttendanceRSVP, type AttendanceStatus } from '@/components/AttendanceRS
 import { NextWorkoutCard } from '@/components/NextWorkoutCard';
 import { WatchStatus } from '@/components/WatchStatus';
 import { HomeToday, ClubToday, CoachPinned, LastNight } from '@/components/home/HomeToday';
+import { TodayCards } from '@/components/home/TodayHome';
+import { LastWeek } from '@/components/home/LastWeekCard';
 import { WeeklyLeaderboardCard } from '@/components/WeeklyLeaderboardCard';
 import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_TEXT_COLORS as typeTextColors, planDayKey } from '@/lib/plans/workout-parsing';
 import { useWorkoutTypeLabel } from '@/lib/plans/use-workout-type-label';
@@ -601,6 +603,10 @@ export default function DashboardPage() {
   if (controlRoomView) return <ControlRoomScreen />;
 
   const showTraineeHome = !!athleteId && isAcademyMember && traineeV2;
+  // The club runner's workout cards (components/home/TodayHome.tsx — today in my own lane,
+  // the run against its target, tomorrow's team session with the vote) and last week, inside
+  // the morning briefing (Ofer 2026-10-19: the two designs merged). A coach keeps the hero.
+  const showTodayHome = !!athleteId && !showTraineeHome && !isCoach;
   // Whether this is an academy member is /api/auth/me's answer; with the switch on, the
   // hero waits for it rather than flashing the club card and then swapping it.
   const heroPending = !!athleteId && traineeV2 && !accountKnown;
@@ -748,6 +754,22 @@ export default function DashboardPage() {
         <div className="flex items-center justify-center py-16"><Spinner /></div>
       ) : showTraineeHome ? (
         <TraineeToday athleteId={athleteId!} firstName={firstName} />
+      ) : showTodayHome ? (
+        <TodayCards
+          athleteId={athleteId!}
+          rsvpForToday
+          rsvp={rsvpTarget && !rsvpTarget.dayBefore ? (
+            <AttendanceRSVP
+              workoutLabel={rsvpLabel || undefined}
+              weekStart={rsvpWeekStart}
+              day={rsvpTarget.dow}
+              dayBefore={false}
+              workoutHour={workoutHour}
+              hideIfAnswered
+              onStatusChange={handleRsvpStatus}
+            />
+          ) : undefined}
+        />
       ) : athleteId && heroWorkout ? (
         <NextWorkoutCard
           isToday={heroWorkout.showingToday}
@@ -807,6 +829,9 @@ export default function DashboardPage() {
 
       {/* ═══ THE CLUB TODAY — how many ran and how far, together ═══ */}
       {athleteId && !showTraineeHome && <ClubToday athleteId={athleteId} />}
+
+      {/* ═══ LAST WEEK — planned against run, day by day, and eight weeks behind it ═══ */}
+      {showTodayHome && <LastWeek athleteId={athleteId!} />}
 
       {/* ═══ CLUB STANDINGS — this week's top three by distance, with my own row
           appended when I'm outside it. Moved here off the feed: the feed is
