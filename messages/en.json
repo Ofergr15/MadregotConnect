@@ -3418,7 +3418,23 @@
     },
     "unstarredTitle": "{count, plural, one {One member update is waiting for a star} other {# member updates are waiting for a star}}",
     "unstarredSince": "Members only see starred notes. The last star was on {date}, and they have seen nothing new since. The stars are next to each note below.",
-    "unstarredNever": "Members only see starred notes, and nothing is starred yet. The stars are next to each note below."
+    "unstarredNever": "Members only see starred notes, and nothing is starred yet. The stars are next to each note below.",
+    "clipsSkip": "Skip",
+    "clipsNext": "Next",
+    "clipsDone": "Done",
+    "clipsKicker": "New this week",
+    "clipsMore": "{n, plural, one {and one more} other {and # more}}",
+    "clipsTry": "Try it",
+    "weekThis": "This week",
+    "weekLast": "Last week",
+    "weekOf": "Week of {date}",
+    "weekCount": "{n, plural, one {one change} other {# changes}}",
+    "heroKicker": "The big one this week",
+    "fixesRow": "{n, plural, one {one small fix} other {# small fixes}}",
+    "open": "Open",
+    "version": "Version {v}",
+    "allNotesStaff": "All notes — staff: star and edit",
+    "tipClose": "Close"
   },
   "shareSheet": {
     "titleWorkout": "Share your run",
@@ -5926,7 +5942,9 @@
     "tmrComing": "Coming tomorrow · pack {n}",
     "tmrNotComing": "Not coming tomorrow",
     "tmrPending": "Tomorrow's workout isn't posted yet",
-    "tmrPendingBody": "It shows up here, with your pack's pace, as soon as the coach posts it."
+    "tmrPendingBody": "It shows up here, with your pack's pace, as soon as the coach posts it.",
+    "tipTomorrow": "New: see the session before you answer",
+    "tipTomorrowBody": "What it is, your pace, and who is coming"
   },
   "staffOnly": {
     "title": "This screen is for the club's staff",

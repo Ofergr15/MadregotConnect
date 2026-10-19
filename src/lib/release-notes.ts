@@ -39,6 +39,13 @@ export interface ReleaseNote {
   audience?: 'staff';
   /** The page that shows it — a route under src/app/(app). Default: the release history. */
   href?: string;
+  /**
+   * A few-second demo of the change, recorded from the app (public/whats-new/<media>,
+   * an mp4, with `poster` as its still). A note with one is starred unless the owner
+   * says otherwise: it is the news worth showing (Ofer 2026-10-19, whats-new-v6 mockup).
+   */
+  media?: string;
+  poster?: string;
 }
 
 export interface NotePick {
@@ -107,7 +114,7 @@ export function applyPick(note: ReleaseNote, pick: NotePick | undefined): ShownN
     ...note,
     title: pick?.title?.trim() || note.title,
     body: pick?.body?.trim() || note.body,
-    featured: pick ? pick.featured : false,
+    featured: pick ? pick.featured : !!note.media,
     edited: !!(pick?.title?.trim() || pick?.body?.trim()),
   };
 }
@@ -153,6 +160,7 @@ export function releaseEntries(releases: WhatsNewRelease[], appVersion: string):
           publishedAt: israelToday(new Date(r.released_at)),
           icon: n.icon,
           href: n.href ?? HISTORY_HREF,
+          ...(n.media ? { media: { src: `/whats-new/${n.media}`, poster: n.poster ? `/whats-new/${n.poster}` : undefined } } : {}),
           he: copy,
           en: copy,
         };

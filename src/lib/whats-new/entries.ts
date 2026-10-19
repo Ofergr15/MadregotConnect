@@ -85,6 +85,8 @@ export interface WhatsNewEntry {
   demo?: WhatsNewDemo;
   /** An emoji tile, for the entries the daily release adds (lib/release-notes.ts). */
   icon?: string;
+  /** A recorded demo of the change: shown in a phone frame on its own page (WhatsNewClips). */
+  media?: { src: string; poster?: string };
   /**
    * Where the row goes — and it must be a REAL route, i.e. a directory under
    * `src/app/(app)/`. `/program` was written here first and there is no such

@@ -22,6 +22,7 @@ import {
   unseenEntries, visibleEntries,
 } from '@/lib/whats-new/ledger';
 import { WhatsNewArt } from './WhatsNewArt';
+import { WhatsNewClips } from './WhatsNewClips';
 import { WhatsNewStory } from './WhatsNewStory';
 import { useOnboardingV2 } from '@/lib/install/v2';
 import { useOnboarding } from '@/lib/onboarding/use-onboarding';
@@ -72,6 +73,9 @@ function EntryRow({
     >
       {entry.art ? (
         <WhatsNewArt art={entry.art} lang={lang} />
+      ) : entry.media?.poster ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={entry.media.poster} alt="" className="h-[53px] w-[84px] shrink-0 rounded-xl object-cover object-top" />
       ) : (
         <span className="flex h-[53px] w-[84px] shrink-0 items-center justify-center rounded-xl bg-brand-600/10 text-2xl">
           {entry.icon}
@@ -393,6 +397,13 @@ export function WhatsNewAutoSheet({ ready }: { ready: boolean }) {
   if (entries.some((e) => e.cards?.length)) {
     return open ? (
       <WhatsNewStory entries={entries} more={more} version={APP_VERSION} onClose={() => setOpen(false)} />
+    ) : null;
+  }
+  // News that came with recorded demos opens as their pages (2026-10-19); the rest of it
+  // is listed on the last one.
+  if (entries.some((e) => e.media)) {
+    return open ? (
+      <WhatsNewClips entries={entries.filter((e) => e.media)} rest={entries.filter((e) => !e.media)} onClose={() => setOpen(false)} />
     ) : null;
   }
   return (

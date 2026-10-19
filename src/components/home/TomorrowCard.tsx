@@ -15,6 +15,7 @@ import { formatDurationClock } from '@/lib/workout-duration';
 import { isEstimate } from '@/lib/plans/step-estimate';
 import type { Lineup } from '@/lib/attendance/lineup';
 import { SessionRsvp } from '@/components/feed/SessionRsvp';
+import { FeatureTip } from '@/components/whats-new/FeatureTip';
 
 /**
  * "מגיעים מחר?" on the home — the question WITH the session it is about (mockup
@@ -97,6 +98,8 @@ export function TomorrowCard({ date, weekStart, dayOfWeek, sessions, lane, packI
   }
 
   return (
+    <>
+    <FeatureTip id="tomorrow-with-session" title={t('tipTomorrow')} body={t('tipTomorrowBody')} until="2026-10-26" />
     <div className={CARD}>
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-600/10 py-0.5 pe-3 ps-2 text-[12.5px] font-extrabold text-brand-600">
@@ -143,6 +146,7 @@ export function TomorrowCard({ date, weekStart, dayOfWeek, sessions, lane, packI
 
       <SessionRsvp weekStart={weekStart} day={dayOfWeek} paces={paces} whenLabel={td('tomorrow')} onAnswered={() => setOpen(false)} />
     </div>
+    </>
   );
 }
 

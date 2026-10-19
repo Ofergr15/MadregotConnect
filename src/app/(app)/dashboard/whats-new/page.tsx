@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { apiHeaders, useApi } from '@/lib/api';
 import { useIsSuperUser } from '@/lib/impersonation';
 import { Sheet, Spinner } from '@/components/ui';
+import { WhatsNewWeeks } from '@/components/whats-new/WhatsNewWeeks';
 import { splitByApproval, unstarredForMembers, type ApprovalRow, type ShownNote, type WhatsNewRelease } from '@/lib/release-notes';
 
 interface Data {
@@ -183,11 +184,12 @@ export default function WhatsNewPage() {
         );
       })()}
 
-      {!data.releases.some(r => r.notes.length > 0) && !data.staff && (
-        <p className="px-4 py-8 text-center text-13 text-ink-400">{t('noReleases')}</p>
-      )}
+      {/* What a member reads: by week, the big change with its demo (components/whats-new/WhatsNewWeeks).
+          Staff get it too, then every note with its star and pencil under it. */}
+      <WhatsNewWeeks releases={data.releases} />
+      {data.staff && <p className="mb-1.5 mt-8 px-4 text-2xs font-bold text-ink-400">{t('allNotesStaff')}</p>}
       {/* A day whose only notes were staff tools is not a day a member saw change. */}
-      {data.releases.filter(r => r.notes.length > 0).map((r, i) => {
+      {data.staff && data.releases.filter(r => r.notes.length > 0).map((r, i) => {
         const featured = r.notes.filter(n => n.featured);
         const rest = r.notes.filter(n => !n.featured);
         return (
