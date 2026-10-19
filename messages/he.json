@@ -5782,6 +5782,17 @@
     "surveyClosesDays": "נסגר בעוד {n, plural, one {יום} other {# ימים}}",
     "surveyClosesHours": "נסגר בעוד {n, plural, one {שעה} other {# שעות}}",
     "surveyAnswered": "{n, plural, =0 {עוד אף אחד לא ענה} one {ענה אחד} other {# ענו}}",
-    "whoAnswered": "מי ענה"
+    "whoAnswered": "מי ענה",
+    "whereShown": "איפה זה מופיע",
+    "placeFeed": "פוסט בפיד",
+    "placeCircle": "עיגול מדרגות",
+    "placeBoth": "שניהם",
+    "circleDays": "כמה זמן בעיגול",
+    "days_1": "היום",
+    "days_2": "יומיים",
+    "days_7": "שבוע",
+    "circleSub": "העיגול הראשון ב״חוגגים היום״, לכל המועדון. נקודה אדומה עד שפותחים.",
+    "circlePush": "גם התראה לטלפון",
+    "circlePushSub": "בלי: רק העיגול, בשקט"
   }
 }

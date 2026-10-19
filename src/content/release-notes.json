@@ -1,5 +1,14 @@
 [
   {
+    "id": "madregot-circle",
+    "date": "2026-10-19",
+    "kind": "feature",
+    "icon": "🔵",
+    "title": "הודעה בעיגול של מדרגות",
+    "body": "בפרסום הודעה: \"עיגול מדרגות\" שם אותה כעיגול הראשון ב״חוגגים היום״, ליום, יומיים או שבוע. בשקט, או גם עם התראה.",
+    "audience": "staff"
+  },
+  {
     "id": "scheduled-notifications-minute",
     "date": "2026-10-18",
     "kind": "fix",

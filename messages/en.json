@@ -5782,6 +5782,17 @@
     "surveyClosesDays": "Closes in {n, plural, one {a day} other {# days}}",
     "surveyClosesHours": "Closes in {n, plural, one {an hour} other {# hours}}",
     "surveyAnswered": "{n, plural, =0 {No answers yet} one {1 answer} other {# answers}}",
-    "whoAnswered": "Who answered"
+    "whoAnswered": "Who answered",
+    "whereShown": "Where it shows",
+    "placeFeed": "Feed post",
+    "placeCircle": "Madregot circle",
+    "placeBoth": "Both",
+    "circleDays": "How long in the circle",
+    "days_1": "Today",
+    "days_2": "Two days",
+    "days_7": "A week",
+    "circleSub": "The first circle of \"Celebrating today\", for the whole club. A red dot until it is opened.",
+    "circlePush": "A phone notification too",
+    "circlePushSub": "Without it: just the circle, quietly"
   }
 }

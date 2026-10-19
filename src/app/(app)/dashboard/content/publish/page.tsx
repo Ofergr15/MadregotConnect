@@ -144,6 +144,10 @@ export default function PublishPage() {
   const [when, setWhen] = useState<'now' | 'later'>('now');
   const [at, setAt] = useState('');
   const [push, setPush] = useState(true);
+  // Where a message shows: a feed post, the Madregot circle (lib/feed/club-stories.ts), or both.
+  const [place, setPlace] = useState<'feed' | 'circle' | 'both'>('feed');
+  const [days, setDays] = useState<1 | 2 | 7>(1);
+  const [circlePush, setCirclePush] = useState(false);
   // cheer
   const { data: sug } = useApi<{ suggestions: Suggestion[] }>(kind === 'cheer' ? '/api/admin/cheers/suggestions' : null);
   const [who, setWho] = useState<{ id: string; name: string } | null>(null);
@@ -181,13 +185,23 @@ export default function PublishPage() {
 
   const preview = splitMessage(text);
   const cleanOptions = options.map((o) => o.trim()).filter(Boolean);
-  const canSend = kind === 'message' ? !!text.trim() && (audience.mode === 'all' || (audience.mode === 'groups' ? audience.groupIds.length > 0 : audience.athleteIds.length > 0)) && (when === 'now' || !!at)
+  const canSend = kind === 'message' ? !!text.trim() && (place === 'circle' || ((audience.mode === 'all' || (audience.mode === 'groups' ? audience.groupIds.length > 0 : audience.athleteIds.length > 0)) && (when === 'now' || !!at)))
     : kind === 'cheer' ? !!who && !!(cheer ?? autoCheer).trim()
       : !!question.trim() && cleanOptions.length >= 2 && (sAudience.mode === 'all' || sAudience.groupIds.length === 1);
 
   const submit = () => {
     if (!canSend || busy) return;
     if (kind === 'message') {
+      const toCircle = { title: preview.title, text: preview.body, days, push: circlePush };
+      if (place === 'circle') { void send('/api/admin/club-stories', toCircle); return; }
+      if (place === 'both') {
+        // The circle first, quietly; the feed post (and its push, if on) is the send below.
+        void (async () => {
+          await fetch('/api/admin/club-stories', { method: 'POST', headers: await bearerHeaders(), body: JSON.stringify({ ...toCircle, push: false }) }).catch(() => null);
+          void send('/api/admin/publish/message', { text, imageUrl, audience, push, scheduleAt: push && when === 'later' && at ? new Date(at).toISOString() : null });
+        })();
+        return;
+      }
       void send('/api/admin/publish/message', { text, imageUrl, audience, push, scheduleAt: push && when === 'later' && at ? new Date(at).toISOString() : null });
     } else if (kind === 'cheer') {
       void send('/api/admin/cheers', { athleteId: who!.id, reason, text: cheer ?? autoCheer, push });
@@ -226,6 +240,24 @@ export default function PublishPage() {
               <button type="button" onClick={() => setImageUrl(null)} aria-label={t('imageRemove')} className="absolute end-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-black/50 text-white"><X className="h-4 w-4" /></button>
             </div>
           )}
+          <p className={LABEL}>{t('whereShown')}</p>
+          <Seg value={place} options={[['feed', t('placeFeed')], ['circle', t('placeCircle')], ['both', t('placeBoth')]]} onChange={setPlace} />
+          {place !== 'feed' && (
+            <>
+              <p className="px-1 text-13 leading-snug text-ink-400">{t('circleSub')}</p>
+              <p className={LABEL}>{t('circleDays')}</p>
+              <Seg value={String(days) as '1' | '2' | '7'} options={[['1', t('days_1')], ['2', t('days_2')], ['7', t('days_7')]]} onChange={(v) => setDays(Number(v) as 1 | 2 | 7)} />
+            </>
+          )}
+          {place === 'circle' && (
+            <div className={cn(CARD, 'overflow-hidden')}>
+              <div className="flex min-h-[56px] items-center justify-between gap-3 px-4 py-2">
+                <span className="min-w-0"><b className="block text-[15px] text-ink-900">{t('circlePush')}</b><small className="block text-13 text-ink-400">{t('circlePushSub')}</small></span>
+                <Switch checked={circlePush} onChange={setCirclePush} activeColor="bg-[#1FA55B]" ariaLabel={t('circlePush')} />
+              </div>
+            </div>
+          )}
+          {place !== 'circle' && (<>
           <p className={LABEL}>{t('toWhom')}</p>
           <AudiencePicker value={audience} onChange={setAudience} groups={club.groups} people={club.people} />
           <div className={cn(CARD, 'overflow-hidden')}>
@@ -234,7 +266,8 @@ export default function PublishPage() {
               <Switch checked={push} onChange={setPush} activeColor="bg-[#1FA55B]" ariaLabel={t('pushLabel')} />
             </div>
           </div>
-          {push && (
+          </>)}
+          {place !== 'circle' && push && (
             <>
               <p className={LABEL}>{t('when')}</p>
               <Seg value={when} options={[['now', t('now')], ['later', t('later')]]} onChange={setWhen} />

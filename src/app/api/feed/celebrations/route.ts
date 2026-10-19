@@ -8,6 +8,8 @@ import { israelToday } from '@/lib/utils';
 import { israelDateOf } from '@/lib/reports/last-7-days';
 import { readConfig as readBirthdayConfig } from '@/lib/birthday-year/server';
 
+import { CLUB_STORIES_KEY, activeClubStories, readClubStories } from '@/lib/feed/club-stories';
+
 export const dynamic = 'force-dynamic';
 
 export interface CelebrationEntry {
@@ -16,7 +18,7 @@ export interface CelebrationEntry {
   honorees: Array<{ id: string; name: string; avatarUrl: string | null }>;
 }
 
-// GET /api/feed/celebrations -> { today, entries: CelebrationEntry[] }
+// GET /api/feed/celebrations -> { today, entries: CelebrationEntry[], club: { id, title, text }[] }
 //   The row of circles at the top of the feed (Ofer, 2026-10-18: "always at the top,
 //   valid for that day, or longer when we say so"). Every celebration active today,
 //   newest first, each with the same likes/comments context the feed builds and the
@@ -37,7 +39,11 @@ export async function GET(request: Request) {
       const row = r as { payload: Record<string, unknown> | null; occurred_at: string };
       return isCelebrationActive(row.payload, today, israelDateOf(row.occurred_at));
     });
-    if (rows.length === 0) return NextResponse.json({ today, entries: [] });
+    // The Madregot circle (lib/feed/club-stories.ts): read alongside, first on the row.
+    const { data: storiesRow } = await supabase.from('app_settings').select('value').eq('key', CLUB_STORIES_KEY).maybeSingle();
+    const club = activeClubStories(readClubStories((storiesRow as { value?: string } | null)?.value), today)
+      .map(({ id, title, text }) => ({ id, title, text }));
+    if (rows.length === 0) return NextResponse.json({ today, entries: [], club });
 
     const context = await loadFeedContext(supabase, rows, { athleteId: auth.user.athleteId, isStaff: auth.user.isStaff });
     const items = rows.map((r) => projectFeedItem(r, context));
@@ -66,7 +72,7 @@ export async function GET(request: Request) {
         .map((p) => (hebrew.has(p.id) ? { ...p, name: hebrew.get(p.id)! } : p));
       return { item: { ...item, body: renamed(item.body) ?? item.body }, celebration, honorees };
     });
-    return NextResponse.json({ today, entries });
+    return NextResponse.json({ today, entries, club });
   } catch (err) {
     console.error('[feed/celebrations] failed:', err);
     return NextResponse.json({ error: 'Failed to load' }, { status: 500 });
