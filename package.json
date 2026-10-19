@@ -1,6 +1,6 @@
 {
   "name": "madregot-connect",
-  "version": "2.41.269",
+  "version": "2.41.270",
   "private": true,
   "scripts": {
     "predev": "node scripts/copy-pdf-worker.mjs",

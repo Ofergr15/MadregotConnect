@@ -135,7 +135,8 @@ export default function EntryQueuePage() {
     if (at && ([...FLOW_GROUPS, 'all', 'removed'] as string[]).includes(at)) return at as Filter;
     return LEGACY_BUCKET[searchParams.get('bucket') || ''] || null;
   });
-  const [query, setQuery] = useState('');
+  // ?q= — opened from the joining funnel with this person's name already searched.
+  const [query, setQuery] = useState(() => searchParams.get('q') || '');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [turningOff, setTurningOff] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
