@@ -49,7 +49,7 @@ import { StaffSessionPhotos } from '@/components/feed/StaffSessionPhotos';
 import { useQualitySessionAccess } from '@/lib/quality-session/use-access';
 import { ClubUpdatesCard } from '@/components/club-updates/ClubUpdatesCard';
 import { toCelebration } from '@/lib/feed/celebration';
-import { BirthdayYearCard } from '@/components/birthday/BirthdayYearCard';
+import { BirthdayYearCard, AnnualStoryCard } from '@/components/birthday/BirthdayYearCard';
 import type { FeedItem } from '@/lib/feed/project';
 import type { FeedComment } from '@/lib/feed/comments';
 import { appScrollTop, scrollAppToTop } from '@/lib/app-scroll';
@@ -669,6 +669,9 @@ export default function FeedPage() {
       {/* ═══ BIRTHDAY ═══ the birthday person's year story, for the week after (lib/birthday-year). */}
       <div className="mb-4 empty:mb-0">
         <BirthdayYearCard />
+      </div>
+      <div className="mb-4 empty:mb-0">
+        <AnnualStoryCard />
       </div>
 
       <div className="mb-4 empty:mb-0">

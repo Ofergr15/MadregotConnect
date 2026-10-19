@@ -12,17 +12,19 @@ import type { BirthdayConfig, BirthdayStory, PhotoSlot } from '@/lib/birthday-ye
 
 // "ימי הולדת" — the admin prepares each birthday story before it goes out: the name in
 // Hebrew, a personal word (the thank-you slide shows only with one), the official time of
-// the run of the year, and the photos per slide. "תצוגה" plays the real story. The switch
-// at the top decides whether birthday people get theirs (push at 7:00 + the feed card).
+// the run of the year, and the photos per slide. "תצוגה" plays the real story. WHO gets it
+// is decided by the stories gate on /dashboard/stories (phase 2); while birthday is 'off'
+// this page shows no athlete data. The per-story switch here can only HIDE one story.
 
 interface Row { athleteId: string; name: string | null; avatarUrl: string | null; birthday: string; inDays: number; config: BirthdayConfig }
-interface List { today: string; sending: boolean; rows: Row[] }
+interface List { today: string; state: string; legacySending?: boolean; rows: Row[] }
 
 const SLOTS: Array<[PhotoSlot, string]> = [
   ['intro', 'פתיחה'], ['thanks', 'תודה'], ['km', 'קילומטרים'], ['streak', 'רצף'],
   ['moment', 'ריצת השנה'], ['long', 'הכי ארוכה'], ['climb', 'טיפוס'], ['poster', 'הסיכום'],
 ];
 
+const STATE_LABEL: Record<string, string> = { self: 'רק אני', testers: 'בדיקה', all: 'כולם' };
 const when = (d: number) => (d === 0 ? 'היום' : d === 1 ? 'מחר' : d === -1 ? 'אתמול' : d > 0 ? `בעוד ${d} ימים` : `לפני ${-d} ימים`);
 const dm = (iso: string) => `${Number(iso.slice(8, 10))}.${Number(iso.slice(5, 7))}`;
 const toClock = (s?: number | null) => (s ? `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : '');
@@ -36,17 +38,6 @@ export default function BirthdaysPage() {
   const router = useRouter();
   const { data, error, mutate } = useApi<List>('/api/admin/birthdays');
   const [open, setOpen] = useState<string | null>(null);
-  const [savingSwitch, setSavingSwitch] = useState(false);
-
-  const setSending = async (on: boolean) => {
-    setSavingSwitch(true);
-    try {
-      await fetch('/api/admin/birthdays', { method: 'PUT', headers: await apiHeaders(true), body: JSON.stringify({ sending: on }) });
-      await mutate();
-    } finally {
-      setSavingSwitch(false);
-    }
-  };
 
   return (
     <div className="mx-auto max-w-2xl px-4 pb-24 pt-2" dir="rtl">
@@ -54,28 +45,28 @@ export default function BirthdaysPage() {
       <h1 className="mt-2 text-[28px] font-black text-ink-900">ימי הולדת</h1>
       <p className="mt-1 text-sm leading-relaxed text-ink-400">״השנה שלך״ לכל חוגג: סטורי של השנה מיום ההולדת הקודם, עם התמונות והמילה האישית שמכינים כאן.</p>
 
-      <div className="mt-4 flex items-center gap-3 rounded-card bg-card px-4 py-3">
+      <button type="button" onClick={() => router.push('/dashboard/stories')} className="mt-4 flex min-h-[56px] w-full items-center gap-3 rounded-card bg-card px-4 py-3 text-start">
         <span className="min-w-0 flex-1">
-          <b className="block text-[15px] font-extrabold text-ink-900">אוטומטי לכל החוגגים</b>
-          <small className="block text-xs text-ink-400">{data?.sending ? 'פעיל: לחוגג התראה ב־7:00 וכרטיס בפיד, ולכל המועדון כפתור ״צפו בשנה של…״ בפוסט יום ההולדת — לשבוע' : 'כבוי: רק אתה רואה את הסטוריז, לתצוגה'}</small>
+          <b className="block text-[15px] font-extrabold text-ink-900">מי מקבל: במסך ״סיפורים״</b>
+          <small className="block text-xs text-ink-400">{data?.state === 'off' ? 'יום הולדת כבוי לכולם. אין כאן נתונים עד שמפעילים.' : `מצב: ${STATE_LABEL[data?.state || ''] || '—'}`}</small>
         </span>
-        <Switch checked={!!data?.sending} onChange={(v) => void setSending(v)} loading={savingSwitch} ariaLabel="שליחה לחוגגים" />
-      </div>
+        <span className="text-[13px] font-extrabold text-brand-600">לניהול</span>
+      </button>
 
       <div className="mt-4 space-y-2.5">
         {!data && !error && <SkeletonList count={4} />}
         {error && <p className="text-sm font-bold text-accent-red-ink">לא הצלחנו לטעון</p>}
-        {data && data.rows.length === 0 && <EmptyState icon={Cake} title="אין ימי הולדת בשלושת השבועות הקרובים" />}
+        {data && data.rows.length === 0 && data.state !== 'off' && <EmptyState icon={Cake} title="אין ימי הולדת בשלושת השבועות הקרובים" />}
         {data?.rows.map((r) => (
           <PersonCard key={`${r.athleteId}-${r.birthday}`} row={r} open={open === r.athleteId}
-            onToggle={() => setOpen(open === r.athleteId ? null : r.athleteId)} onSaved={() => void mutate()} sending={!!data.sending} />
+            onToggle={() => setOpen(open === r.athleteId ? null : r.athleteId)} onSaved={() => void mutate()} />
         ))}
       </div>
     </div>
   );
 }
 
-function PersonCard({ row, open, onToggle, onSaved, sending }: { row: Row; open: boolean; onToggle: () => void; onSaved: () => void; sending: boolean }) {
+function PersonCard({ row, open, onToggle, onSaved }: { row: Row; open: boolean; onToggle: () => void; onSaved: () => void }) {
   const [cfg, setCfg] = useState<BirthdayConfig>(row.config);
   const [time, setTime] = useState(toClock(row.config.momentSeconds));
   const [busy, setBusy] = useState(false);
@@ -87,7 +78,8 @@ function PersonCard({ row, open, onToggle, onSaved, sending }: { row: Row; open:
   const slotFor = useRef<PhotoSlot | null>(null);
   useEffect(() => { setCfg(row.config); setTime(toClock(row.config.momentSeconds)); }, [row.config]);
   const ready = Object.keys(cfg.photos || {}).length;
-  const shown = typeof cfg.published === 'boolean' ? cfg.published : sending;
+  // Narrow-only: this switch can hide one story; showing it is the gate's call.
+  const shown = cfg.published !== false;
 
   const save = async (next: BirthdayConfig = cfg) => {
     setBusy(true); setErr(null);
@@ -137,7 +129,7 @@ function PersonCard({ row, open, onToggle, onSaved, sending }: { row: Row; open:
   const play = async () => {
     setErr(null);
     await save();
-    const res = await fetch(`/api/birthday-year?athleteId=${encodeURIComponent(row.athleteId)}`, { headers: await apiHeaders() });
+    const res = await fetch(`/api/birthday-year?athleteId=${encodeURIComponent(row.athleteId)}&preview=1`, { headers: await apiHeaders() });
     const json = await res.json().catch(() => ({}));
     if (json.story) setPreview(json.story); else setErr('אין נתונים לשנה הזו');
   };
@@ -154,10 +146,10 @@ function PersonCard({ row, open, onToggle, onSaved, sending }: { row: Row; open:
       </button>
       <div className="flex items-center gap-3 border-t border-page px-4 py-2.5">
         <span className="min-w-0 flex-1">
-          <b className="block text-[14px] font-extrabold text-ink-900">מוצג לכולם</b>
-          <small className="block text-xs text-ink-400">{shown ? 'כל המועדון רואה את השנה שלו, בשבוע של יום ההולדת' : 'מוסתר — רק אתה רואה, בתצוגה'}</small>
+          <b className="block text-[14px] font-extrabold text-ink-900">הסיפור הזה פעיל</b>
+          <small className="block text-xs text-ink-400">{shown ? 'לפי מסך ״סיפורים״ (מי מקבל ומתי)' : 'מוסתר — רק אתה רואה, בתצוגה'}</small>
         </span>
-        <Switch checked={shown} onChange={(v) => { const next = { ...cfg, published: v }; setCfg(next); void save(next); }} loading={busy} ariaLabel="מוצג לכולם" />
+        <Switch checked={shown} onChange={(v) => { const next = { ...cfg, published: v ? null : false }; setCfg(next); void save(next); }} loading={busy} ariaLabel="הסיפור הזה פעיל" />
       </div>
       {open && (
         <div className="space-y-3 border-t border-page px-4 pb-4 pt-3">

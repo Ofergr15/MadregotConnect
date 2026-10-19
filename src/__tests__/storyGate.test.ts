@@ -12,15 +12,17 @@ function fakeDb(tables: Record<string, Record<string, unknown>[] | 'error'>) {
   return {
     from(table: string) {
       const filters: [string, unknown][] = [];
+      const ins: [string, unknown[]][] = [];
       const run = () => {
         const t = tables[table];
         if (t === 'error') return { data: null, error: { code: '42P01' } };
-        const rows = (t || []).filter((r) => filters.every(([k, v]) => r[k] === v));
+        const rows = (t || []).filter((r) => filters.every(([k, v]) => r[k] === v) && ins.every(([k, vs]) => vs.includes(r[k])));
         return { data: rows, error: null };
       };
       const b = {
         select: () => b,
         eq: (k: string, v: unknown) => { filters.push([k, v]); return b; },
+        in: (k: string, vs: unknown[]) => { ins.push([k, vs]); return b; },
         maybeSingle: async () => { const r = run(); return { data: r.data ? r.data[0] ?? null : null, error: r.error }; },
         then: (res: (v: unknown) => unknown) => Promise.resolve(run()).then(res),
       };

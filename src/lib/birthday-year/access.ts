@@ -11,3 +11,6 @@ export async function requireBirthdayAdmin(request: Request) {
   }
   return { denied: null, caller };
 }
+
+/** The same gate, under the name the stories admin uses (admin role or super-user, server-side). */
+export const requireStoryAdmin = requireBirthdayAdmin;

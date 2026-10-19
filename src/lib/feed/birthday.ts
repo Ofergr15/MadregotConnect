@@ -1,8 +1,23 @@
-import { BIRTHDAY_DAYS_KEY, readBirthdayDays, untilAfter } from '@/lib/feed/celebration-days';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { COACH_ID } from '@/lib/constants';
-import { nextBirthday } from '@/lib/events/upcoming';
 import { mentionToken } from '@/lib/feed/mentions';
+import type { StorySettingsRow } from '@/lib/stories/gate';
+import { optedOut, parseStoryPrefs } from '@/lib/stories/prefs';
+import type { StoryInstance } from '@/lib/stories/instances';
+
+/**
+ * THE STORIES GATE for the public post (phase 2). Pure: who of today's birthday people
+ * get a post. Needs the birthday feature open to them (not 'off'/'self', gate passed),
+ * its `feed_post` switch on, and nothing narrowing it for them: their own opt-out of the
+ * public post, or an override (feed_post=false, skipped, enabled=false).
+ */
+export function birthdayPostAllowed(
+  settings: StorySettingsRow | null, gated: boolean, prefs: unknown, inst: Partial<StoryInstance> | null,
+): boolean {
+  if (!settings || !settings.feed_post || settings.state === 'off' || settings.state === 'self') return false;
+  if (!gated) return false;
+  if (optedOut(parseStoryPrefs(prefs), 'birthday_feed_post')) return false;
+  if (inst?.feed_post === false || inst?.skipped || inst?.enabled === false) return false;
+  return true;
+}
 
 // A birthday is a club post on the feed (Ofer, 2026-10-18: "just write something, and let
 // people like or comment — nothing beyond that"). Every morning, one announcement per member
@@ -32,33 +47,3 @@ export function birthdayBodyAsOf(body: string | null, date: unknown, today: stri
   return `🎂 ${when} היה יום ההולדת של ${m[1]}! מזל טוב 🎉`;
 }
 
-/** Today's posts, once each. Never throws — a missed card must not fail the tick. Returns how many were posted. */
-export async function publishBirthdayPosts(supabase: SupabaseClient, today: string, now: Date = new Date()): Promise<number> {
-  try {
-    const { data: daysRow } = await supabase.from('app_settings').select('value').eq('key', BIRTHDAY_DAYS_KEY).maybeSingle();
-    const birthdayDays = readBirthdayDays((daysRow as { value?: string } | null)?.value);
-    const { data } = await supabase.from('athletes').select('id, name, birth_date')
-      .eq('coach_id', COACH_ID).eq('status', 'active').not('birth_date', 'is', null);
-    const born = ((data || []) as Array<{ id: string; name: string | null; birth_date: string }>)
-      .filter((a) => a.name && nextBirthday(a.birth_date, today) === today);
-    let n = 0;
-    for (const a of born) {
-      const { data: existing } = await supabase.from('feed_items').select('id')
-        .eq('type', 'announcement').eq('payload->>birthdayOf', a.id).eq('payload->>date', today).maybeSingle();
-      if (existing) continue;
-      const { error } = await supabase.from('feed_items').insert({
-        type: 'announcement',
-        author_athlete_id: null,
-        body: birthdayBody(a.name!, a.id),
-        payload: { birthdayOf: a.id, honoreeId: a.id, date: today, until: untilAfter(today, birthdayDays) },
-        occurred_at: now.toISOString(),
-      });
-      if (error) console.warn(`publishBirthdayPosts ${a.id} failed:`, error.message);
-      else n++;
-    }
-    return n;
-  } catch (err) {
-    console.warn('publishBirthdayPosts failed:', err);
-    return 0;
-  }
-}
