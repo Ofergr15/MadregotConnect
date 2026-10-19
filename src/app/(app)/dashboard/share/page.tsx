@@ -28,6 +28,7 @@ import {
 } from '@/lib/reports/last-7-days';
 import type { ShareSubject } from '@/lib/share/sheet-model';
 import { addDaysToDateStr, israelToday } from '@/lib/utils';
+import { fetchStoryAccess } from '@/lib/stories/client';
 
 async function lastRun(): Promise<ShareSubject | null> {
   const res = await fetchActivities({ selfOnly: true, limit: 1 });
@@ -39,6 +40,8 @@ async function lastRun(): Promise<ShareSubject | null> {
 }
 
 async function thisWeek(): Promise<ShareSubject | null> {
+  // The stories gate (migration 156): the weekly story deep link is empty unless it is open to you.
+  if (!(await fetchStoryAccess('weekly')).allowed) return null;
   // Fifteen days for the week before, and a day of slack either side, as on the feed card.
   const [res, nights] = await Promise.all([
     fetchActivities({ selfOnly: true, sinceDays: 15 }),

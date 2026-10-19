@@ -25,6 +25,7 @@ import { CLUB_ACCOUNT_ROLE } from '@/lib/notifications/prefs';
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
 import { createAndSendSurvey, notifySurveyNonResponders, rsvpSettlesPaceGroup } from '@/lib/surveys';
 import { israelNow, israelToday, getPlanWeekStart, addDaysToDateStr } from '@/lib/utils';
+import { storyGateMany } from '@/lib/stories/gate';
 import {
   buildLast7Report, formatReportPace, reportIsEmpty,
   type Last7Report, type ReportActivity,
@@ -648,7 +649,11 @@ async function run(request: Request) {
             },
           });
         }
-        const runnerIds = Array.from(per.keys());
+        // THE STORIES GATE (migration 156): only athletes the weekly feature is open
+        // to get the push — testers while it is in testing, nobody while it is off,
+        // paused, or the settings can't be read. Fails closed.
+        const gated = await storyGateMany('weekly', Array.from(per.keys()));
+        const runnerIds = Array.from(per.keys()).filter((id) => gated.has(id));
         const allSubs = await subscriptionsForAthletes(runnerIds);
         const subsByAthlete = new Map<string, typeof allSubs>();
         for (const s of allSubs) {
