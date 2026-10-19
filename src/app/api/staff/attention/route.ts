@@ -5,8 +5,13 @@
  * numbers on the Management page's "היום" tiles (Ofer, 2026-10-17: the bar keeps
  * one door for staff, and the door says when something is behind it).
  *
- *  - pain:      feedback reporting pain in the last 3 days
- *  - wantsReply: feedback that asked for the coach's answer and has none yet
+ *  - pain:       feedback reporting pain that no coach has answered yet
+ *  - wantsReply: the rest of what is waiting — a request for feedback, a comment
+ *  - people:     how many runners those are (one card each on the screen)
+ *
+ * "Waiting" is lib/feedback/waiting.ts — the same rule as the "מחכים לך" tab (2026-10-19).
+ * It used to count every pain of the last 3 days, answered or not, and a request as
+ * waiting until `coach_reply` was set — which the thread's messages never set.
  *
  * Scoped by `staffAthleteScope` (club staff: everyone; an academy manager: the
  * academy; an academy coach: their own trainees). Read straight from
@@ -18,11 +23,9 @@ import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { inScope, staffAthleteScope } from '@/lib/academy/staff-scope';
 import { addDaysToDateStr, israelToday } from '@/lib/utils';
+import { WAITING_DAYS, isWaiting } from '@/lib/feedback/waiting';
 
 export const dynamic = 'force-dynamic';
-
-const PAIN_DAYS = 3;
-const REPLY_DAYS = 7;
 
 export async function GET(request: Request) {
   try {
@@ -37,17 +40,30 @@ export async function GET(request: Request) {
       staffAthleteScope(supabase, caller),
       supabase
         .from('workout_feedback')
-        .select('athlete_id, created_at, pain, wants_feedback, coach_reply')
-        .gte('created_at', `${addDaysToDateStr(today, -REPLY_DAYS)}T00:00:00Z`)
-        .or('pain.eq.true,wants_feedback.eq.true'),
+        .select('id, athlete_id, created_at, pain, wants_feedback, comment, coach_reply_at')
+        .gte('created_at', `${addDaysToDateStr(today, -WAITING_DAYS)}T00:00:00Z`)
+        .or('pain.eq.true,wants_feedback.eq.true,comment.not.is.null'),
     ]);
-    if (error) return NextResponse.json({ pain: 0, wantsReply: 0, total: 0 });
-    const rows = inScope(data as Array<{ athlete_id: string; created_at: string; pain: boolean | null; wants_feedback: boolean | null; coach_reply: string | null }>, scope, (r) => r.athlete_id);
-    const painFrom = addDaysToDateStr(today, -PAIN_DAYS);
-    const pain = rows.filter((r) => r.pain && r.created_at.slice(0, 10) >= painFrom).length;
-    const wantsReply = rows.filter((r) => r.wants_feedback && !r.coach_reply).length;
+    if (error) return NextResponse.json({ pain: 0, wantsReply: 0, people: 0, total: 0 });
+    type Row = { id: string; athlete_id: string; created_at: string; pain: boolean | null; wants_feedback: boolean | null; comment: string | null; coach_reply_at: string | null };
+    const rows = inScope(data as Row[], scope, (r) => r.athlete_id);
+    const { data: msgs } = rows.length
+      ? await supabase.from('workout_feedback_messages').select('feedback_id, sender_athlete_id, created_at').in('feedback_id', rows.map((r) => r.id))
+      : { data: [] };
+    const owner = new Map(rows.map((r) => [r.id, r.athlete_id]));
+    const thread = new Map<string, Array<{ createdAt: string; fromStaff: boolean }>>();
+    for (const m of (msgs || []) as Array<{ feedback_id: string; sender_athlete_id: string; created_at: string }>) {
+      thread.set(m.feedback_id, [...(thread.get(m.feedback_id) || []), { createdAt: m.created_at, fromStaff: m.sender_athlete_id !== owner.get(m.feedback_id) }]);
+    }
+    const waiting = rows.filter((r) => isWaiting({
+      id: r.id, athleteId: r.athlete_id, createdAt: r.created_at, pain: r.pain, wantsFeedback: r.wants_feedback,
+      comment: r.comment, coachReplyAt: r.coach_reply_at, messages: thread.get(r.id) || [],
+    }));
+    const pain = waiting.filter((r) => r.pain).length;
+    const wantsReply = waiting.length - pain;
+    const people = new Set(waiting.map((r) => r.athlete_id)).size;
     return NextResponse.json(
-      { pain, wantsReply, total: pain + wantsReply },
+      { pain, wantsReply, people, total: pain + wantsReply },
       { headers: { 'Cache-Control': 'private, max-age=60' } },
     );
   } catch (error) {

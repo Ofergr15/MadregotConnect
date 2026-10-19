@@ -14,6 +14,8 @@ export interface ThreadMessage {
   isMine: boolean;
   senderName: string | null;
   senderAvatarUrl: string | null;
+  /** Sent by someone other than the runner whose feedback it is (lib/feedback/waiting.ts). */
+  fromStaff?: boolean;
 }
 
 /**

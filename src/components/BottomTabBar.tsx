@@ -76,8 +76,10 @@ export function BottomTabBar() {
   const navItems = ready ? resolveNavItems({ ...identity, fallback: true }) : [];
   // The dot on "ניהול": pain reports and unanswered requests waiting for a coach.
   // Called before the early return below (rules of hooks); a null key fetches nothing.
-  const { data: attention } = useApi<{ total: number }>(ready && isStaffView ? '/api/staff/attention' : null);
-  const attentionDot = (attention?.total ?? 0) > 0;
+  const { data: attention } = useApi<{ total: number; people?: number }>(ready && isStaffView ? '/api/staff/attention' : null);
+  // How many runners wait for an answer (lib/feedback/waiting.ts) — a number, not just a dot (2026-10-19).
+  const attentionCount = attention ? (attention.people ?? attention.total) : 0;
+  const attentionDot = attentionCount > 0;
 
   if (!ready || navItems.length === 0) return null;
 
@@ -149,7 +151,9 @@ export function BottomTabBar() {
           <span className="absolute top-0.5 left-1/2 -translate-x-1/2 rounded-[6px] bg-brand-600 px-1.5 text-[9px] font-bold leading-[14px] text-white">חדש</span>
         )}
         {!isNew && tab === 'coach-tools' && attentionDot && (
-          <span className="absolute top-1.5 left-1/2 ms-2.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-accent-red" aria-hidden />
+          <span className="absolute top-0.5 left-1/2 ms-2 flex h-[17px] min-w-[17px] items-center justify-center rounded-full border-2 border-card bg-accent-red px-1 text-[10px] font-extrabold leading-none text-white tabular-nums" aria-label={`${attentionCount} מחכים לתשובה`}>
+            {attentionCount > 9 ? '9+' : attentionCount}
+          </span>
         )}
         <Icon className="h-6 w-6" strokeWidth={1.75} />
         <span className="text-3xs leading-none font-medium truncate max-w-full px-0.5">{label}</span>

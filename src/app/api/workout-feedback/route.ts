@@ -21,6 +21,8 @@ interface ThreadMessage {
   isMine: boolean;
   senderName: string | null;
   senderAvatarUrl: string | null;
+  /** From someone other than the feedback's runner: a coach's answer (lib/feedback/waiting.ts). */
+  fromStaff?: boolean;
 }
 
 /**
@@ -40,6 +42,8 @@ async function threadsForFeedback(
   supabase: SupabaseServer,
   feedbackIds: string[],
   viewerAthleteId: string | null,
+  /** Whose feedback each row is — a message from anyone else is a coach's answer. */
+  ownerOf: Map<string, string> = new Map(),
 ): Promise<Map<string, ThreadMessage[]>> {
   const byFeedback = new Map<string, ThreadMessage[]>();
   if (feedbackIds.length === 0) return byFeedback;
@@ -81,6 +85,7 @@ async function threadsForFeedback(
       isMine: !!viewerAthleteId && r.sender_athlete_id === viewerAthleteId,
       senderName: sender?.name || null,
       senderAvatarUrl: sender?.avatar_url || null,
+      fromStaff: ownerOf.has(r.feedback_id) ? r.sender_athlete_id !== ownerOf.get(r.feedback_id) : undefined,
     };
     if (list) list.push(message);
     else byFeedback.set(r.feedback_id, [message]);
@@ -204,7 +209,7 @@ export async function GET(request: Request) {
           : Promise.resolve({ data: [] as any[] }),
         // Every card's reply thread, in two queries rather than one request per
         // card. `threadsForFeedback` explains what this replaces.
-        threadsForFeedback(supabase, feedbackRows.map((r) => r.id), caller.athleteId),
+        threadsForFeedback(supabase, feedbackRows.map((r) => r.id), caller.athleteId, new Map(feedbackRows.map((r) => [r.id, r.athlete_id]))),
         supabase
           .from('athlete_activities')
           .select('athlete_id, garmin_activity_id, activity_name, activity_type, distance, start_time')
