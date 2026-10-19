@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { google, type drive_v3 } from 'googleapis';
+import { unstable_cache } from 'next/cache';
+import { cleanTitle, folderDay, isPinned, isScratchFolder } from './folder-names';
 
 /**
  * The photos module (/dashboard/photos, mockup ~/.cache/madregot/photos-module.html,
@@ -20,9 +22,12 @@ export const THUMB = 480;
 export const FULL = 1600;
 const SIZES = new Set([THUMB, FULL]);
 const IMAGE_URL_TTL = 60 * 60 * 6;
-const CACHE_MS = 5 * 60 * 1000;
+/** A full listing is ~180 Drive calls (one per folder — Drive returns nothing for an OR across parents here). */
+const LIST_REVALIDATE_S = 10 * 60;
+const CONCURRENCY = 12;
+const MAX_DEPTH = 3;
 
-export interface PhotoFolder { id: string; name: string; date: string; count: number; covers: string[] }
+export interface PhotoFolder { id: string; name: string; title: string | null; date: string; count: number; covers: string[]; pinned: boolean }
 export interface FolderPhoto { id: string; w: number | null; h: number | null; at: string | null }
 
 export function photosRoot(): string | null {
@@ -38,76 +43,94 @@ function driveReader(): drive_v3.Drive | null {
   return google.drive({ version: 'v3', auth });
 }
 
-// ── A small per-instance cache: Drive listings are slow and the folders change rarely ──
-const cache = new Map<string, { at: number; value: unknown }>();
-async function cached<T>(key: string, load: () => Promise<T>): Promise<T> {
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.value as T;
-  const value = await load();
-  cache.set(key, { at: Date.now(), value });
-  return value;
+async function listAll(drive: drive_v3.Drive, q: string, fields: string): Promise<drive_v3.Schema$File[]> {
+  const out: drive_v3.Schema$File[] = [];
+  let pageToken: string | undefined;
+  do {
+    const res = await drive.files.list({ q, fields: `nextPageToken,files(${fields})`, pageSize: 1000, pageToken, supportsAllDrives: true, includeItemsFromAllDrives: true });
+    out.push(...(res.data.files ?? []));
+    pageToken = res.data.nextPageToken ?? undefined;
+  } while (pageToken);
+  return out;
 }
 
-/** A folder's date: the automation's appProperty when it made it, else when it was created. */
-export function folderDate(f: { createdTime?: string | null; appProperties?: Record<string, string> | null }): string {
-  const tagged = f.appProperties?.madregotSessionDate;
-  if (tagged && /^\d{4}-\d{2}-\d{2}$/.test(tagged)) return tagged;
-  return (f.createdTime || '').slice(0, 10);
+async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (next < items.length) { const i = next++; out[i] = await fn(items[i]); }
+  }));
+  return out;
 }
 
-/** Every non-empty photo folder under the root, newest first, with three cover images. */
-export async function listPhotoFolders(): Promise<PhotoFolder[] | null> {
+/**
+ * Every photo in a folder, its subfolders included — the videographer's
+ * "צילומים שני" subfolder is often where a session's only photos are. In capture order.
+ */
+async function folderPhotos(drive: drive_v3.Drive, folderId: string, depth = 0): Promise<FolderPhoto[]> {
+  const files = await listAll(drive, `'${folderId}' in parents and trashed = false and (mimeType contains 'image/' or mimeType = '${FOLDER_MIME}')`,
+    'id,mimeType,createdTime,imageMediaMetadata(width,height,time)').catch(() => []);
+  const photos: FolderPhoto[] = files.filter((f) => f.mimeType?.startsWith('image/')).map((f) => ({
+    id: f.id!,
+    w: f.imageMediaMetadata?.width ?? null,
+    h: f.imageMediaMetadata?.height ?? null,
+    at: f.imageMediaMetadata?.time || f.createdTime || null,
+  }));
+  if (depth < MAX_DEPTH) {
+    for (const sub of files.filter((f) => f.mimeType === FOLDER_MIME)) photos.push(...await folderPhotos(drive, sub.id!, depth + 1));
+  }
+  // EXIF time is "2026:10:16 07:12:03", createdTime ISO — both sort as text once the colons in the date agree.
+  const key = (p: FolderPhoto) => (p.at || '').replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
+  return photos.sort((a, b) => key(a).localeCompare(key(b)));
+}
+
+interface Library { folders: PhotoFolder[]; photos: Record<string, FolderPhoto[]> }
+
+async function loadLibrary(): Promise<Library | null> {
   const drive = driveReader();
   const root = photosRoot();
   if (!drive || !root) return null;
-  return cached('folders', async () => {
-    const res = await drive.files.list({
-      q: `'${root}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`,
-      fields: 'files(id,name,createdTime,appProperties)',
-      pageSize: 200,
-      orderBy: 'createdTime desc',
-      supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
-    });
-    const folders = res.data.files ?? [];
-    const filled = await Promise.all(folders.slice(0, 80).map(async (f) => {
-      const imgs = await drive.files.list({
-        q: `'${f.id}' in parents and mimeType contains 'image/' and trashed = false`,
-        fields: 'files(id)',
-        pageSize: 1000,
-        orderBy: 'createdTime',
-        supportsAllDrives: true,
-        includeItemsFromAllDrives: true,
-      }).then((r) => r.data.files ?? []).catch(() => []);
-      return { id: f.id!, name: (f.name || '').trim(), date: folderDate(f), count: imgs.length, covers: imgs.slice(0, 3).map((i) => i.id!) };
-    }));
-    return filled.filter((f) => f.count > 0).sort((a, b) => b.date.localeCompare(a.date));
+  const top = await listAll(drive, `'${root}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`, 'id,name,createdTime,appProperties');
+  const photos: Record<string, FolderPhoto[]> = {};
+  const folders = await pool(top.filter((f) => !isScratchFolder(f.name || '')), CONCURRENCY, async (f) => {
+    const list = await folderPhotos(drive, f.id!);
+    photos[f.id!] = list;
+    const name = (f.name || '').trim();
+    return {
+      id: f.id!,
+      name,
+      title: cleanTitle(name),
+      date: folderDay({ name, createdTime: f.createdTime, tag: f.appProperties?.madregotSessionDate, photoTimes: list.map((p) => p.at) }),
+      count: list.length,
+      covers: list.slice(0, 3).map((p) => p.id),
+      pinned: isPinned(name),
+    };
   });
+  const shown = folders.filter((f) => f.count > 0).sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date));
+  return { folders: shown, photos: Object.fromEntries(shown.map((f) => [f.id, photos[f.id]])) };
+}
+
+// Shared across server instances (a cold listing takes ~10s), refreshed every 10 minutes;
+// plus a per-instance copy so one request doesn't read it twice.
+const cachedLibrary = unstable_cache(loadLibrary, ['photos-library-v2'], { revalidate: LIST_REVALIDATE_S });
+let local: { at: number; value: Library | null } | null = null;
+async function library(): Promise<Library | null> {
+  if (local && Date.now() - local.at < 60_000) return local.value;
+  const value = await cachedLibrary();
+  local = { at: Date.now(), value };
+  return value;
+}
+
+/** Every photo folder under the root: pinned first, then newest first. */
+export async function listPhotoFolders(): Promise<PhotoFolder[] | null> {
+  return (await library())?.folders ?? null;
 }
 
 export async function listFolderPhotos(folderId: string): Promise<{ folder: PhotoFolder; photos: FolderPhoto[] } | null> {
-  const drive = driveReader();
-  if (!drive || !/^[A-Za-z0-9_-]{10,}$/.test(folderId)) return null;
-  const folders = await listPhotoFolders();
-  const folder = folders?.find((f) => f.id === folderId);
-  if (!folder) return null;
-  return cached(`folder:${folderId}`, async () => {
-    const res = await drive.files.list({
-      q: `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`,
-      fields: 'files(id,createdTime,imageMediaMetadata(width,height,time))',
-      pageSize: 1000,
-      orderBy: 'createdTime',
-      supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
-    });
-    const photos = (res.data.files ?? []).map((f) => ({
-      id: f.id!,
-      w: f.imageMediaMetadata?.width ?? null,
-      h: f.imageMediaMetadata?.height ?? null,
-      at: f.imageMediaMetadata?.time || f.createdTime || null,
-    }));
-    return { folder, photos };
-  });
+  if (!/^[A-Za-z0-9_-]{10,}$/.test(folderId)) return null;
+  const lib = await library();
+  const folder = lib?.folders.find((f) => f.id === folderId);
+  return folder && lib ? { folder, photos: lib.photos[folder.id] ?? [] } : null;
 }
 
 /**

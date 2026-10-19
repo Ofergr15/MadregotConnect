@@ -5800,6 +5800,7 @@
     "searchPlaceholder": "Search by session, event or date",
     "clear": "Clear",
     "latest": "Latest session",
+    "pinned": "Featured",
     "count": "{n, plural, one {one photo} other {# photos}}",
     "folders": "Folders",
     "noResults": "No folder like that",

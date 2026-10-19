@@ -1,6 +1,7 @@
 /**
  * GET /api/photos/browse — the club's photo folders (lib/photos/drive-browse.ts):
- * newest first, each with three signed cover URLs. Any verified member.
+ * pinned first (the event of the moment), then newest first, each with three
+ * signed cover URLs. Any verified member.
  * `{ configured: false }` when the Drive env isn't set (local dev, a preview).
  */
 import { NextResponse } from 'next/server';
@@ -8,7 +9,8 @@ import { requireMember } from '@/lib/auth/self-or-staff';
 import { FULL, THUMB, listPhotoFolders, signedImageUrl } from '@/lib/photos/drive-browse';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+// A cold listing walks ~180 Drive folders (~10–20s); after that it is cached.
+export const maxDuration = 60;
 
 export async function GET(request: Request) {
   const denied = await requireMember(request);
@@ -21,7 +23,7 @@ export async function GET(request: Request) {
       folders: folders.map((f, i) => ({
         ...f,
         covers: f.covers.map((id) => signedImageUrl(id, THUMB)).filter(Boolean),
-        // The newest folder is the home's big photo — sent at full size.
+        // The first folder (pinned, else the newest) is the home's big photo — sent at full size.
         ...(i === 0 && f.covers[0] ? { hero: signedImageUrl(f.covers[0], FULL) } : {}),
       })),
     });

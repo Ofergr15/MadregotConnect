@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 import { sessionDayLabel } from '@/lib/quality-session/photos';
 import { PhotoViewer } from '@/components/photos/PhotoViewer';
 
-interface Folder { id: string; name: string; date: string; count: number; covers: string[]; hero?: string | null }
+interface Folder { id: string; name: string; title: string | null; date: string; count: number; covers: string[]; pinned?: boolean; hero?: string | null }
 interface Browse { configured: boolean; folders: Folder[] }
 interface FolderPhotos { folder: Folder; photos: Array<{ id: string; thumb: string | null; full: string | null }> }
 
@@ -32,11 +32,15 @@ const monthLabel = (key: string, thisYear: string) => {
   return `${MONTHS[Number(m) - 1]}${y !== thisYear ? ` ${y}` : ''}`;
 };
 
-/** "שישי 16.10 · 19 תמונות" — the day only when the folder's own name doesn't already say it. */
+/**
+ * The folder's title — its name with the date taken out (lib/photos/folder-names.ts),
+ * or the day itself when the name was only a date.
+ */
+const folderTitle = (f: Folder) => f.title || sessionDayLabel(f.date);
+
+/** "שישי 16.10 · 19 תמונות" — the day, unless the title already is the day. */
 function subline(f: Folder, count: string): string {
-  const day = sessionDayLabel(f.date);
-  const dm = day.split(' ')[1];
-  return f.name && dm && f.name.includes(dm) ? count : `${day} · ${count}`;
+  return f.title ? `${sessionDayLabel(f.date)} · ${count}` : count;
 }
 
 function Cover({ src, className }: { src?: string; className?: string }) {
@@ -54,7 +58,7 @@ function FolderCard({ f, onOpen }: { f: Folder; onOpen: () => void }) {
         <Cover src={f.covers[2] || f.covers[0]} />
       </div>
       <div className="min-w-0">
-        <b className="block truncate text-[15.5px] font-extrabold text-ink-900" dir="auto">{f.name || sessionDayLabel(f.date)}</b>
+        <b className="block truncate text-[15.5px] font-extrabold text-ink-900" dir="auto">{folderTitle(f)}</b>
         <span className="text-[12.5px] text-ink-500">{subline(f, t('count', { n: f.count }))}</span>
       </div>
     </button>
@@ -80,7 +84,7 @@ function FolderView({ id }: { id: string }) {
         <button onClick={() => router.push('/dashboard/photos')} aria-label={t('back')} className="grid h-11 w-11 place-items-center rounded-full bg-card"><ArrowRight className="h-5 w-5" /></button>
       </div>
       <div className="px-[18px] pt-1">
-        <h1 className="truncate text-[28px] font-extrabold tracking-tight text-ink-900" dir="auto">{data ? (data.folder.name || sessionDayLabel(data.folder.date)) : ' '}</h1>
+        <h1 className="truncate text-[28px] font-extrabold tracking-tight text-ink-900" dir="auto">{data ? folderTitle(data.folder) : ' '}</h1>
         {data && <p className="mt-0.5 text-[13.5px] text-ink-500">{subline(data.folder, t('count', { n: data.folder.count }))}</p>}
       </div>
       <div className="mt-3 grid grid-cols-3 gap-[3px]">
@@ -96,7 +100,7 @@ function FolderView({ id }: { id: string }) {
         ))}
       </div>
       {open != null && data && (
-        <PhotoViewer photos={data.photos} index={open} title={data.folder.name} onClose={() => setOpen(null)} />
+        <PhotoViewer photos={data.photos} index={open} title={folderTitle(data.folder)} onClose={() => setOpen(null)} />
       )}
     </div>
   );
@@ -121,7 +125,7 @@ function PhotosHome() {
     return folders.filter((f) => {
       const day = sessionDayLabel(f.date);
       const month = MONTHS[Number(f.date.slice(5, 7)) - 1];
-      return f.name.toLowerCase().includes(n) || day.includes(query) || month.includes(query) || f.date.includes(query);
+      return f.name.toLowerCase().includes(n) || folderTitle(f).toLowerCase().includes(n) || day.includes(query) || month.includes(query) || f.date.includes(query);
     });
   }, [folders, query]);
   const byMonth = useMemo(() => {
@@ -167,8 +171,8 @@ function PhotosHome() {
             <Cover src={latest.hero || latest.covers[0]} />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent from-35% to-black/70" />
             <div className="absolute inset-x-4 bottom-3.5 text-white">
-              <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-[11.5px] font-extrabold backdrop-blur">{t('latest')}</span>
-              <h2 className="mt-1.5 truncate text-[22px] font-extrabold" dir="auto">{latest.name || sessionDayLabel(latest.date)}</h2>
+              <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-[11.5px] font-extrabold backdrop-blur">{latest.pinned ? t('pinned') : t('latest')}</span>
+              <h2 className="mt-1.5 truncate text-[22px] font-extrabold" dir="auto">{folderTitle(latest)}</h2>
               <p className="text-[13px] opacity-90">{subline(latest, t('count', { n: latest.count }))}</p>
             </div>
           </button>
@@ -188,7 +192,7 @@ function PhotosHome() {
             </section>
           ))}
           {open != null && latestPhotos && (
-            <PhotoViewer photos={latestPhotos.photos} index={open} title={latest.name} onClose={() => setOpen(null)} />
+            <PhotoViewer photos={latestPhotos.photos} index={open} title={folderTitle(latest)} onClose={() => setOpen(null)} />
           )}
         </>
       ) : !data && !error ? (

@@ -8,7 +8,7 @@ import { requireMember } from '@/lib/auth/self-or-staff';
 import { FULL, THUMB, listFolderPhotos, signedImageUrl } from '@/lib/photos/drive-browse';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export async function GET(request: Request) {
   const denied = await requireMember(request);

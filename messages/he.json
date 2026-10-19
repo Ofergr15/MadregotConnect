@@ -5800,6 +5800,7 @@
     "searchPlaceholder": "חיפוש לפי אימון, אירוע או תאריך",
     "clear": "ניקוי",
     "latest": "האימון האחרון",
+    "pinned": "מומלץ",
     "count": "{n, plural, one {תמונה אחת} other {# תמונות}}",
     "folders": "תיקיות",
     "noResults": "לא מצאנו תיקייה כזו",
