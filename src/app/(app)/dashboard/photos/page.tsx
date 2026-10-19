@@ -15,6 +15,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { PhotosLoading } from '@/components/photos/PhotosLoading';
 import { ArrowRight, ImageOff, Search, X } from 'lucide-react';
 import { preload } from 'swr';
 import { apiFetcher, useApi } from '@/lib/api';
@@ -88,7 +89,7 @@ function FolderCard({ f, onOpen }: { f: Folder; onOpen: () => void }) {
 function FolderView({ id }: { id: string }) {
   const t = useTranslations('photosPage');
   const router = useRouter();
-  const { data, error } = useApi<FolderPhotos>(`/api/photos/browse/folder?id=${encodeURIComponent(id)}`);
+  const { data, error, mutate } = useApi<FolderPhotos>(`/api/photos/browse/folder?id=${encodeURIComponent(id)}`);
   const [open, setOpen] = useState<number | null>(null);
   // The tapped tile, so the viewer can grow the photo out of it.
   const [from, setFrom] = useState<DOMRect | null>(null);
@@ -100,6 +101,7 @@ function FolderView({ id }: { id: string }) {
       <a href={`https://drive.google.com/drive/folders/${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex h-11 items-center rounded-pill bg-brand-600 px-5 text-sm font-extrabold text-white">{t('openInDrive')}</a>
     </div>
   );
+  if (!data) return <PhotosLoading what="folder" onRetry={() => { void mutate(); }} />;
   return (
     <div className="pb-6">
       <div className="flex items-center px-4 pt-2">
@@ -154,7 +156,7 @@ function useKept<T>(key: string | null, fresh: T | undefined): T | undefined {
 function PhotosHome() {
   const t = useTranslations('photosPage');
   const router = useRouter();
-  const { data: freshBrowse, error } = useApi<Browse>('/api/photos/browse');
+  const { data: freshBrowse, error, mutate: reloadBrowse } = useApi<Browse>('/api/photos/browse');
   const data = useKept('/api/photos/browse', freshBrowse);
   const [q, setQ] = useState('');
   const folders = useMemo(() => data?.folders ?? [], [data]);
@@ -188,6 +190,7 @@ function PhotosHome() {
     return out;
   }, [folders]);
 
+  if (!data && !error) return <PhotosLoading what="home" onRetry={() => { void reloadBrowse(); }} />;
   return (
     <div className="pb-6">
       <h1 className="px-[18px] pt-2 text-[30px] font-extrabold tracking-tight text-ink-900">{t('title')}</h1>

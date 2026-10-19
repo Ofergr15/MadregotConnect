@@ -646,3 +646,13 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
     line-height: 44px !important;
   }
 }
+
+/* The photos loader (components/photos/PhotosLoading.tsx): the club photo sharpens a step
+   a second over six, then stays sharp; the line fills with it. */
+.mcl-in{animation:mcl-in .35s ease-out}
+@keyframes mcl-in{from{opacity:0}to{opacity:1}}
+.mcl-sharpen{animation:mcl-sharpen 6s steps(6,end) forwards}
+@keyframes mcl-sharpen{0%{filter:blur(26px) brightness(1.55) saturate(.2)}100%{filter:blur(0) brightness(1) saturate(1)}}
+.mcl-progress{width:0;animation:mcl-progress 6s steps(6,end) forwards}
+@keyframes mcl-progress{to{width:92%}}
+@media (prefers-reduced-motion:reduce){.mcl-sharpen{animation:none;filter:none}.mcl-progress{animation:none;width:60%}}
