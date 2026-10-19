@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { apiHeaders } from '@/lib/api';
 import type { StoryFeature } from '@/lib/stories/gate';
 
@@ -15,4 +16,26 @@ export async function fetchStoryAccess(feature: StoryFeature): Promise<StoryAcce
   } catch {
     return CLOSED;
   }
+}
+
+/**
+ * The gate as a hook, for every entry into the week share sheet / week story. `null`
+ * while asking, then the server's answer; closed on any failure. One request per page.
+ */
+const cache = new Map<StoryFeature, Promise<StoryAccess>>();
+export function useStoryAccess(feature: StoryFeature): StoryAccess | null {
+  const [access, setAccess] = useState<StoryAccess | null>(null);
+  useEffect(() => {
+    let live = true;
+    let p = cache.get(feature);
+    if (!p) {
+      p = fetchStoryAccess(feature);
+      cache.set(feature, p);
+      // Re-ask on the next mount after a while, so a removed tester loses it on the next read.
+      p.finally(() => setTimeout(() => cache.delete(feature), 30_000));
+    }
+    p.then((a) => { if (live) setAccess(a); });
+    return () => { live = false; };
+  }, [feature]);
+  return access;
 }

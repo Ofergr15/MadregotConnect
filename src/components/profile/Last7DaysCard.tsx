@@ -1,5 +1,6 @@
 'use client';
 
+import { useStoryAccess } from '@/lib/stories/client';
 import { useState } from 'react';
 import Link from 'next/link';
 import { Share2 } from 'lucide-react';
@@ -32,6 +33,7 @@ export function Last7DaysCard({ report, athleteName }: { report: Last7Report; at
   const tc = useTranslations('common');
   const dayNames = tc.raw('dayNamesShort') as string[];
   const [sharing, setSharing] = useState(false);
+  const weekStory = useStoryAccess('weekly');
   // A day with a run opens it (#94) — for everyone since 2026-10-16.
   const opensRuns = true;
 
@@ -48,7 +50,8 @@ export function Last7DaysCard({ report, athleteName }: { report: Last7Report; at
           </p>
           {/* Nothing to share in a week with no runs, so the button follows the
               numbers rather than sitting there rendering an empty story. */}
-          {report.runs > 0 && (
+          {/* The week story/share is behind the stories gate (lib/stories/gate.ts). */}
+          {report.runs > 0 && weekStory?.allowed && (
             <button
               onClick={() => setSharing(true)}
               aria-label={t('weekShareAction')}
@@ -62,7 +65,7 @@ export function Last7DaysCard({ report, athleteName }: { report: Last7Report; at
         </div>
       </div>
 
-      {sharing && (
+      {sharing && weekStory?.allowed && (
         <ShareSheet
           subject={{ kind: 'week', report, athleteName }}
           onClose={() => setSharing(false)}
