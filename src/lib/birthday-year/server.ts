@@ -10,9 +10,13 @@ import { addDaysIso, computeYearStats, daysBetweenIso, momentOf, yearWindow, typ
  *
  * The preparation lives in `app_settings`, one JSON value per person per birthday
  * (`birthday_year:<athleteId>:<YYYY-MM-DD>`), and the photos in the public `feed-media`
- * bucket — so the feature needs no migration. The on/off switch for sending it to the
- * birthday people themselves is `birthday_year_send` = 'on'; until it is on, only the
- * admin sees stories (to prepare and preview them).
+ * bucket — so the feature needs no migration.
+ *
+ * WHO GETS IT is no longer decided here (stories phase 2): every path goes through
+ * storyGate('birthday') + the per-person overrides (lib/stories/access.ts, runners.ts).
+ * `birthday_year_send` is read only as a LEGACY value for the admin screen: it can no
+ * longer open anything. A per-story `published:false` still CLOSES that one story;
+ * `published:true` no longer bypasses the gate.
  */
 
 export const SEND_KEY = 'birthday_year_send';
@@ -40,9 +44,12 @@ export interface BirthdayConfig {
   published?: boolean | null;
 }
 
-/** Whether members (and the owner) may see this story now. */
-export function storyVisible(cfg: BirthdayConfig, sending: boolean): boolean {
-  return typeof cfg.published === 'boolean' ? cfg.published : sending;
+/**
+ * The legacy per-story switch, narrowed: `published:false` closes this one story;
+ * `true` / unset change nothing (the gate decides). It can only close, never open.
+ */
+export function legacyClosed(cfg: BirthdayConfig): boolean {
+  return cfg.published === false;
 }
 
 type Db = SupabaseClient;
@@ -52,12 +59,13 @@ const key = (athleteId: string, birthday: string) => `birthday_year:${athleteId}
  * The birthday a story celebrates on `today`: the one that just happened (up to OPEN_DAYS
  * ago) for its owner; for the admin's preview, else the next one.
  */
-export function storyBirthday(birthDate: string, today: string, opts: { preview?: boolean } = {}): string | null {
-  const recent = nextBirthday(birthDate, addDaysIso(today, -OPEN_DAYS));
+export function storyBirthday(birthDate: string, today: string, opts: { preview?: boolean; lookbackDays?: number } = {}): string | null {
+  const recent = nextBirthday(birthDate, addDaysIso(today, -(opts.lookbackDays ?? OPEN_DAYS)));
   if (recent && daysBetweenIso(recent, today) >= 0) return recent;
   return opts.preview ? nextBirthday(birthDate, today) : null;
 }
 
+/** LEGACY: the old club-wide switch, shown on the admin screen only. Opens nothing. */
 export async function sendingOn(supabase: Db): Promise<boolean> {
   const { data } = await supabase.from('app_settings').select('value').eq('key', SEND_KEY).maybeSingle();
   return (data as { value?: string } | null)?.value === 'on';
@@ -161,7 +169,7 @@ export interface BirthdayStory {
   config: BirthdayConfig;
 }
 
-export async function loadStory(supabase: Db, athleteId: string, today: string, opts: { preview?: boolean } = {}): Promise<BirthdayStory | null> {
+export async function loadStory(supabase: Db, athleteId: string, today: string, opts: { preview?: boolean; lookbackDays?: number } = {}): Promise<BirthdayStory | null> {
   const { data: a } = await supabase.from('athletes').select('id, name, avatar_url, birth_date, gender')
     .eq('id', athleteId).eq('coach_id', COACH_ID).maybeSingle();
   const athlete = a as { id: string; name: string | null; avatar_url: string | null; birth_date: string | null; gender?: string | null } | null;
@@ -188,32 +196,28 @@ export async function loadStory(supabase: Db, athleteId: string, today: string, 
 }
 
 /**
- * 7:00 on a birthday: "🎂 מזל טוב! הכנו לך את השנה שלך בריצה", opening the story. Only while
- * sending is on, only to members with runs in the year. Returns how many were sent.
+ * The annual story's content: the same generator over the calendar year (Jan 1 – Dec 31
+ * of `year`), stopping at yesterday while the year is not over. `birthday` carries the
+ * period date (Dec 31) so the client renders it like a birthday story for now; the
+ * annual's own slides are phase 3.
  */
-export async function sendBirthdayYearPushes(supabase: Db, today: string): Promise<number> {
-  const sending = await sendingOn(supabase);
-  const { notifyAthlete } = await import('@/lib/push');
-  const { birthdayYearCopy } = await import('@/lib/notifications/copy');
-  const { data } = await supabase.from('athletes').select('id, birth_date')
-    .eq('coach_id', COACH_ID).eq('status', 'active').not('birth_date', 'is', null);
-  let sent = 0;
-  for (const a of (data || []) as Array<{ id: string; birth_date: string }>) {
-    if (nextBirthday(a.birth_date, today) !== today) continue;
-    try {
-      const story = await loadStory(supabase, a.id, today);
-      if (!story || story.stats.runs === 0 || !storyVisible(story.config, sending)) continue;
-      await notifyAthlete({
-        athleteId: a.id,
-        kind: 'birthday_year',
-        copy: (locale) => birthdayYearCopy(locale, { name: story.name, km: story.stats.km }),
-        url: '/feed?birthdayYear=1',
-        tag: `birthday-year-${a.id}-${today}`,
-      });
-      sent++;
-    } catch (err) {
-      console.error(`birthday-year push ${a.id} failed:`, err);
-    }
-  }
-  return sent;
+export async function loadAnnualStory(supabase: Db, athleteId: string, year: number, today: string): Promise<BirthdayStory | null> {
+  const { data: a } = await supabase.from('athletes').select('id, name, avatar_url, gender')
+    .eq('id', athleteId).eq('coach_id', COACH_ID).maybeSingle();
+  const athlete = a as { id: string; name: string | null; avatar_url: string | null; gender?: string | null } | null;
+  if (!athlete) return null;
+  const period = `${year}-12-31`;
+  const from = `${year}-01-01`;
+  const to = period <= today ? period : addDaysIso(today, -1);
+  if (to < from) return null;
+  const stats = await yearStats(supabase, athleteId, { from, to });
+  return {
+    athleteId,
+    name: (athlete.name || '').trim().split(/\s+/)[0] || '',
+    avatarUrl: athlete.avatar_url,
+    birthday: period,
+    gender: athlete.gender ?? null,
+    stats,
+    config: {},
+  };
 }

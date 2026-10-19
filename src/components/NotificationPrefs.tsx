@@ -6,6 +6,7 @@ import { Calendar, MessageSquare, Flame, ClipboardList, Users, Megaphone, PartyP
 import { useApi, apiHeaders } from '@/lib/api';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { Switch } from '@/components/ui';
+import { StoryPrefsSection } from '@/components/stories/StoryPrefsSection';
 import { isInAppBrowser, isIosDevice, isStandalone, subscribeToPush } from '@/lib/pwa';
 import { pushEnvironment, type PushEnvironment } from '@/lib/push-environment';
 import { logClient } from '@/lib/client-log';
@@ -425,6 +426,7 @@ export function NotificationPrefs({ athleteId }: { athleteId: string }) {
           );
         })}
       </InsetSection>
+      <StoryPrefsSection />
       {/* A failed toggle was set into state and then never rendered, so the
           optimistic switch just flicked back with no explanation. */}
       {saveError && (
