@@ -99,7 +99,21 @@ async function toBase64(stream: ReadableStream<Uint8Array>): Promise<string> {
   return Buffer.from(await new Response(stream).arrayBuffer()).toString('base64');
 }
 
-/** The background copy: newest folders first, until `deadline`. Returns what it did. */
+/** Photos copied at the same time: each is a few Drive round trips, mostly waiting. */
+const PARALLEL = 6;
+/**
+ * The full (viewer) size is kept for the newest this many photos only (10-19): the grid
+ * and the blurred stand-in are what make the module feel fast, at ~40 KB a photo for
+ * every photo; the ~300 KB viewer copy for the whole archive would be gigabytes, and an
+ * old photo opened full screen can wait for Drive once.
+ */
+export const FULL_FOR_NEWEST = 1500;
+
+/**
+ * The background copy, until `deadline`. Two passes, both newest folders first: first the
+ * grid size and the blurred stand-in for every photo, then the viewer size for the newest
+ * FULL_FOR_NEWEST. Six at a time. Returns what it did.
+ */
 export async function mirrorBatch(deadline: number): Promise<{ copied: number; failed: number; remaining: number }> {
   const db = createServerClient();
   const { error: bucketError } = await db.storage.createBucket(PHOTO_BUCKET, { public: false });
@@ -107,36 +121,43 @@ export async function mirrorBatch(deadline: number): Promise<{ copied: number; f
 
   const m = await readManifest();
   const ids = await listAllPhotoIds();
-  const todo = ids.filter((id) => { const e = m.files[id]; return !e?.t || !e?.f || !e?.q; });
-  let copied = 0, failed = 0, dirty = 0;
-  for (const id of todo) {
-    if (Date.now() > deadline) break;
+  const newest = new Set(ids.slice(0, FULL_FOR_NEWEST));
+  const needsGrid = (id: string) => { const e = m.files[id]; return !e?.t || !e?.q; };
+  const needsFull = (id: string) => newest.has(id) && !m.files[id]?.f;
+  const todo = [...ids.filter(needsGrid), ...ids.filter((id) => !needsGrid(id) && needsFull(id))];
+
+  const upload = async (id: string, size: number) => {
+    const img = await fetchDriveThumbnail(id, size);
+    if (!img) throw new Error('no image');
+    const { error } = await db.storage.from(PHOTO_BUCKET).upload(pathOf(id, size), await new Response(img.body).arrayBuffer(), {
+      contentType: img.type, upsert: true, cacheControl: '31536000',
+    });
+    if (error) throw error;
+  };
+  const one = async (id: string) => {
     const e: MirrorEntry = { ...m.files[id] };
-    try {
-      for (const size of [THUMB, FULL] as const) {
-        if (size === THUMB ? e.t : e.f) continue;
-        const img = await fetchDriveThumbnail(id, size);
-        if (!img) throw new Error('no image');
-        const { error } = await db.storage.from(PHOTO_BUCKET).upload(pathOf(id, size), await new Response(img.body).arrayBuffer(), {
-          contentType: img.type, upsert: true, cacheControl: '31536000',
-        });
-        if (error) throw error;
-        if (size === THUMB) e.t = 1; else e.f = 1;
-      }
-      if (!e.q) {
-        const tiny = await fetchDriveThumbnail(id, LQIP_PX);
-        if (tiny) e.q = `data:${tiny.type};base64,${await toBase64(tiny.body)}`;
-      }
-      m.files[id] = e;
-      copied++;
-      // Saved as it goes, so a run cut short by its deadline keeps what it did.
-      if (++dirty >= 25) { await writeManifest(m); dirty = 0; }
-    } catch {
-      failed++;
+    if (!e.t) { await upload(id, THUMB); e.t = 1; }
+    if (!e.q) {
+      const tiny = await fetchDriveThumbnail(id, LQIP_PX);
+      if (tiny) e.q = `data:${tiny.type};base64,${await toBase64(tiny.body)}`;
     }
+    // The viewer size only once every photo has its grid copy (the second pass).
+    if (!e.f && newest.has(id) && !ids.some(needsGrid)) { await upload(id, FULL); e.f = 1; }
+    m.files[id] = e;
+  };
+
+  let copied = 0, failed = 0, dirty = 0, i = 0;
+  while (i < todo.length && Date.now() < deadline) {
+    const chunk = todo.slice(i, i + PARALLEL);
+    i += chunk.length;
+    const done = await Promise.allSettled(chunk.map(one));
+    for (const d of done) { if (d.status === 'fulfilled') { copied++; dirty++; } else failed++; }
+    // Saved as it goes, so a run cut short by its deadline keeps what it did.
+    if (dirty >= 30) { await writeManifest(m); dirty = 0; }
   }
   if (dirty) await writeManifest(m);
   // The listings pick the new copies up now, not after their cache runs out.
   if (copied) revalidateTag('photos-mirror', { expire: 0 });
-  return { copied, failed, remaining: Math.max(0, todo.length - copied) };
+  const left = ids.filter((id) => needsGrid(id) || needsFull(id)).length;
+  return { copied, failed, remaining: left };
 }

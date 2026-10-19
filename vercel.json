@@ -37,7 +37,7 @@
     },
     {
       "path": "/api/cron/photos-mirror",
-      "schedule": "7,37 * * * *"
+      "schedule": "*/10 * * * *"
     }
   ],
   "git": {
