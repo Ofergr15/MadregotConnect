@@ -571,6 +571,14 @@ should go through `useTranslations`.
 
 **Before committing:** `npm run check`.
 
+**Bumping the version: `npm run version:bump`, never by hand.** It writes the next
+patch after the highest version that ever existed (origin/main, the `releases` table,
+main's commit subjects) into `package.json` and `src/lib/version.ts`. Several sessions
+ship in parallel; bumping from your own branch's base made numbers run backwards and
+repeat (2.41.232–2.41.239 shipped twice, 2026-10-18/19), which breaks What's New, the
+releases table and the "stuck on an old version" detector. Run it last, right before
+the release commit, after rebasing on origin/main.
+
 **Adding a dashboard tab:** nav item in `src/components/Header.tsx` → `allTabs` in
 `src/app/dashboard/settings/page.tsx` → `nav.*` key in both message files → seed
 `role_tab_permissions` + `role_mobile_tab_permissions` in a new migration.

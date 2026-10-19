@@ -1,6 +1,6 @@
 {
   "name": "madregot-connect",
-  "version": "2.41.258",
+  "version": "2.41.259",
   "private": true,
   "scripts": {
     "predev": "node scripts/copy-pdf-worker.mjs",
@@ -14,7 +14,8 @@
     "test:ui": "playwright test",
     "test:ui:headed": "playwright test --headed",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm run test && npm run lint && npm run build"
+    "check": "npm run typecheck && npm run test && npm run lint && npm run build",
+    "version:bump": "node scripts/bump-version.mjs"
   },
   "browserslist": [
     "iOS >= 12",
