@@ -94,7 +94,7 @@ export async function GET(request: Request) {
         .eq('athlete_id', athleteId)
         .gte('workout_date', weekStart)
         .lte('workout_date', weekEnd),
-      supabase.from('athletes').select('id, name, academy_coach_id, academy_joined_on').eq('id', athleteId).maybeSingle()
+      supabase.from('athletes').select('id, name, academy_coach_id, academy_joined_on, group_id').eq('id', athleteId).maybeSingle()
         .then(res => (res.error && isMissingColumn(res.error)
           ? supabase.from('athletes').select('id, name, academy_coach_id').eq('id', athleteId).maybeSingle()
           : res)),
@@ -126,16 +126,23 @@ export async function GET(request: Request) {
       coachGender = (data as { gender?: string | null } | null)?.gender ?? null;
     }
 
+    const graded = report.athletes[0]?.week.workouts ?? [];
+    // An academy-only trainee (no club group) never gets the CLUB week as theirs: until
+    // their coach writes their own, the week is empty and says so (academy-dash.html).
+    const academyOnly = !!me.data && (me.data as { group_id?: string | null }).group_id == null;
+    const ownWeek = academyOnly ? await hasOwnWeek(supabase, athleteId, weekStart) : true;
+    const rows = ownWeek ? graded : [];
     // The same rule as the trainee's home (day-cards.ts watchDates): a delivery counts only
-    // when it is of the workout the day shows.
+    // when it is of the workout the day shows — for an academy-only trainee, their own row.
+    const weekPlanRows = ((planRows.data || []) as Array<{ id: string; week_start_date: string; athlete_id: string | null; status: string | null }>)
+      .filter(r => !academyOnly || r.athlete_id === athleteId);
     const onWatch = watchDates({
       dates: Array.from({ length: 7 }, (_, i) => addDaysToDateStr(weekStart, i)),
       athleteId,
-      planRows: (planRows.data || []) as Array<{ id: string; week_start_date: string; athlete_id: string | null; status: string | null }>,
+      planRows: weekPlanRows,
       deliveries: (deliveries.data || []) as Array<{ workout_date: string; status: string; plan_id?: string | null; workout_key?: string | null }>,
       weekStartOf: planWeekStartOf,
     });
-    const rows = report.athletes[0]?.week.workouts ?? [];
     // The footer marks need only the matched runs, so they are read while the steps' lane
     // is resolved below rather than after it.
     const marksP = loadBoardMarks(supabase, {
@@ -286,4 +293,10 @@ export async function GET(request: Request) {
     console.error('week-board error:', error);
     return NextResponse.json({ error: 'Failed to load the week' }, { status: 500 });
   }
+}
+
+/** Does this trainee have a weekly_plans row of their OWN for the week? A read error says yes. */
+async function hasOwnWeek(supabase: ReturnType<typeof createServerClient>, athleteId: string, weekStart: string): Promise<boolean> {
+  const { data, error } = await supabase.from('weekly_plans').select('id').eq('athlete_id', athleteId).eq('week_start_date', weekStart).limit(1);
+  return error ? true : (data || []).length > 0;
 }

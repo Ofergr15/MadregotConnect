@@ -66,7 +66,7 @@ export default function AcademyPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const { data: meData, isLoading: roleLoading } = useApi<{ role?: string; roles?: string[]; isAcademy?: boolean }>(
+  const { data: meData, isLoading: roleLoading } = useApi<{ role?: string; roles?: string[]; isAcademy?: boolean; academyOnly?: boolean }>(
     !previewRole && email ? '/api/auth/me' : null,
   );
   // The account's own view switch (role-views.ts). Not a preview: identity and
@@ -130,7 +130,8 @@ export default function AcademyPage() {
   // `?thread=` / `?tab=`. The scheme lives in lib/academy/deep-links.ts.
   const searchParams = useSearchParams();
   const deepLink = useMemo(() => readAcademyDeepLink(searchParams), [searchParams]);
-  const traineeV2 = useTraineeV2();
+  // An academy-only trainee (no club group) never gets the club week: always the v2 board.
+  const traineeV2 = useTraineeV2() || !!meData?.academyOnly;
   const router = useRouter();
   // A test reminder or a "לבקש מכולם" request tapped under v2: the tests are on the progress
   // tab (7ג) now, and the entry card is on the home, not the board.

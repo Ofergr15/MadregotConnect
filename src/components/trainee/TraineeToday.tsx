@@ -53,7 +53,12 @@ function slotParts(iso: string): { day: (typeof WEEKDAY_KEYS)[number]; date: str
   return { day: WEEKDAY_KEYS[new Date(`${date}T12:00:00Z`).getUTCDay()], date: dm(date), time: time.replace(/^0/, '') };
 }
 
-export function TraineeToday({ athleteId, firstName }: { athleteId: string; firstName: string }) {
+export function TraineeToday({ athleteId, firstName, academyOnly = false }: {
+  athleteId: string;
+  firstName: string;
+  /** In the academy and no club group: no club week to wait for — the coach writes theirs. */
+  academyOnly?: boolean;
+}) {
   const t = useTranslations('trainee.home');
   const tb = useTranslations('workoutBook');
   const ts = useTranslations('trainee.loadSheet');
@@ -71,6 +76,8 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
   const { data: board } = useApi<WeekBoard>(
     opening ? `/api/academy/week-board?athleteId=${encodeURIComponent(athleteId)}&weekStart=${planWeekStartOf(opening)}` : null,
   );
+  // The rest of this week, under today's card (academy-dash.html): the board the week screen reads.
+  const { data: week } = useApi<WeekBoard>(`/api/academy/week-board?athleteId=${encodeURIComponent(athleteId)}&weekStart=${planWeekStartOf(israelToday())}`);
   const [loadOf, setLoadOf] = useState<string | null>(null);
   const [viewingAs] = useState(isViewingPerson);
   useHideShellHeader(!viewingAs);
@@ -145,7 +152,7 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
       {/* "חסר לנו הטסט האחרון שלך" (academy-existing-trainees, phone 4), in place of the card's
           "🎯 צריך טסט" line that left nothing to do: find it in the watch or type it, sent to the
           coach for approval; "ממתין לאישור" until then. */}
-      {entryCard && <TestEntryCard athleteId={athleteId} onSent={() => void mutate()} onTyping={setEntryTyping} raise={raiseEntry} />}
+      {entryCard && !academyOnly && <TestEntryCard athleteId={athleteId} onSent={() => void mutate()} onTyping={setEntryTyping} raise={raiseEntry} />}
 
       {invite && (
         <Link href={academyTestUrl({ recipientIsStaff: false })} className={cn(CARD, 'flex min-h-[56px] items-center gap-[11px] px-3.5')}>
@@ -164,10 +171,63 @@ export function TraineeToday({ athleteId, firstName }: { athleteId: string; firs
         <RestCard date={data.date} when={when} next={data.next} prevKind={data.prevKind} test={data.test} needsTestLine={!entryCard} />
       ) : (
         <section className={cn('rounded-[22px] bg-white px-4 py-[15px]', SHADOW)}>
-          <h2 className="text-[20px] font-black text-ink-900">{t('noPlan', { week: data.weekStart !== planWeekStartOf(today) ? 'next' : 'this' })}</h2>
-          <p className="mt-1 text-[14px] text-ink-500">{t('noPlanSay', { when })}</p>
+          {academyOnly ? (
+            <>
+              <h2 className="text-[20px] font-black text-ink-900">{t('coachWrites')}</h2>
+              <p className="mt-1 text-[14px] text-ink-500">{t('coachWritesSay')}</p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-[20px] font-black text-ink-900">{t('noPlan', { week: data.weekStart !== planWeekStartOf(today) ? 'next' : 'this' })}</h2>
+              <p className="mt-1 text-[14px] text-ink-500">{t('noPlanSay', { when })}</p>
+            </>
+          )}
         </section>
       )}
+
+      {/* No Garmin yet: the coach's workouts cannot reach the watch — say so, with the one fix. */}
+      {!data.canWatch && (
+        <Link href="/dashboard/profile?connectGarmin=1" className={cn(CARD, 'flex min-h-[56px] items-center gap-[11px] border-[1.5px] border-[#0B6BCB]/25 px-3.5')}>
+          <span aria-hidden className="w-6 shrink-0 text-center text-[19px]">⌚</span>
+          <span className="min-w-0 flex-1 py-[9px]">
+            <b className="block text-[14.5px] font-extrabold text-ink-900">{t('connectGarmin')}</b>
+            <small className="mt-px block text-[12.5px] text-ink-400">{t('connectGarminSub')}</small>
+          </span>
+          <span className="shrink-0 rounded-xl bg-[#0B6BCB] px-3 py-2 text-[12.5px] font-extrabold text-white">{t('connectGarminAction')}</span>
+        </Link>
+      )}
+
+      {/* A new academy-only trainee: what the coach will do and the watch come first, the test after. */}
+      {entryCard && academyOnly && <TestEntryCard athleteId={athleteId} onSent={() => void mutate()} onTyping={setEntryTyping} raise={raiseEntry} />}
+
+      {/* The coach's conversation, on the home itself: questions, feelings, pain. */}
+      <Link href={academyThreadUrl({ recipientIsStaff: false, traineeId: athleteId })} className={cn(CARD, 'flex min-h-[56px] items-center gap-[11px] px-3.5')}>
+        <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[17px] shadow-[0_0_0_2.5px_#16A34A]">💬</span>
+        <span className="min-w-0 flex-1 py-[9px]">
+          <b className="block text-[14.5px] font-extrabold text-ink-900">{coachFirst ? t('chatWith', { name: coachFirst }) : t('threadLabel')}</b>
+          <small className="mt-px block text-[12.5px] text-ink-400">{t('chatSub')}</small>
+        </span>
+        {!!data.unread && <b className="rounded-[9px] bg-[#E5484D] px-1.5 text-[11px] leading-[18px] text-white"><bdi dir="ltr">{data.unread}</bdi></b>}
+        <span aria-hidden className="grid h-11 w-6 shrink-0 place-items-center text-ink-300"><Chevron className="h-[14px] w-[9px]" /></span>
+      </Link>
+
+      {/* What else this week: the days after today, and whether each is on the watch. */}
+      {(() => {
+        const ahead = (week?.workouts ?? []).filter((w) => w.date > today && !w.optional);
+        if (!ahead.length) return null;
+        return (
+          <section className={cn(CARD, 'px-3.5 py-2.5')} aria-label={t('restOfWeek')}>
+            <b className="block text-[13px] font-extrabold text-ink-500">{t('restOfWeek')}</b>
+            {ahead.slice(0, 4).map((w) => (
+              <div key={`${w.date}-${w.name}`} className="flex min-h-[40px] items-center gap-2.5 border-b border-page last:border-b-0">
+                <span className="w-9 shrink-0 text-[13px] font-extrabold text-[#7C3AED]">{tb(`day.${WEEKDAY_KEYS[w.dayOfWeek]}`)}</span>
+                <span className="min-w-0 flex-1 truncate text-[14px] font-bold text-ink-900"><StructureText text={w.name} /></span>
+                <span className="shrink-0 text-[12px] text-ink-400">{w.onWatch ? t('onWatch') : t('notOnWatchYet')}</span>
+              </div>
+            ))}
+          </section>
+        );
+      })()}
 
       <FormCard form={data.form} when={data.dayState === 'rest' ? 'tomorrow' : when} gender={data.athlete.gender} showBands={data.dayState === 'workout'} testKind={data.test?.kind ?? null} />
 

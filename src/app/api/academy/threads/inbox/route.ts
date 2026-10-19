@@ -10,7 +10,7 @@ import {
   type ThreadSnapshot,
 } from '@/lib/academy/thread';
 import { isAcademyManager } from '@/lib/academy/pairing-server';
-import { coachIdsByTrainee, coachesTrainee } from '@/lib/academy/trainee-coaches';
+import { coachIdsByTrainee, coachesOf, coachesTrainee } from '@/lib/academy/trainee-coaches';
 
 export const dynamic = 'force-dynamic';
 
@@ -148,8 +148,14 @@ export async function GET(request: Request) {
       console.error('GET /api/academy/threads/inbox — Stream unavailable:', err);
     }
 
+    // Each row names the trainee's coaches too, so the list can show the pair — the trainee
+    // in purple, the coach in green (academy-dash.html). Read-only, a display field.
+    const pairs = coachMap ?? await coachIdsByTrainee(supabase, undefined, academyRows);
+    const nameOf = new Map((rows || []).map(a => [a.id, a.name || '']));
+    const inbox = buildInbox([...byId.values()]);
     return NextResponse.json({
-      ...buildInbox([...byId.values()]),
+      ...inbox,
+      rows: inbox.rows.map(r => ({ ...r, coachNames: coachesOf(pairs, r.athleteId).map(id => nameOf.get(id) || '').filter(Boolean) })),
       scope: isManager ? 'academy' : 'coach',
       ...(streamError ? { degraded: true } : {}),
     });

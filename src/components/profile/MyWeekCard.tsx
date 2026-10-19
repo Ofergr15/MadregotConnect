@@ -56,6 +56,16 @@ interface Stats {
 }
 
 const R = 78;
+
+/**
+ * The card's accent: the club's blue, or the academy's purple when a coach or the academy
+ * manager opens a trainee (academy-dash.html). One table, so every blue mark follows it.
+ */
+export type WeekAccent = 'club' | 'academy';
+export const WEEK_ACCENT: Record<WeekAccent, { main: string; soft: string }> = {
+  club: { main: '#1525FF', soft: '#5B6BFF' },
+  academy: { main: '#7C3AED', soft: '#A78BFA' },
+};
 const kmText = (min: number, max: number) => {
   const a = roundKm(min); const b = roundKm(max);
   return a === b ? `${b}` : `${a}–${b}`;
@@ -68,7 +78,7 @@ const pace = (seconds: number, km: number) => {
 };
 const hours = (seconds: number) => `${Math.floor(seconds / 3600)}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}`;
 
-export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], workoutHour = 18 }: {
+export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], workoutHour = 18, accent = 'club', academyLane = false, compact = false }: {
   athleteId: string;
   /** On the shared week card (it moved here with the seven-day card it used to sit on). */
   athleteName?: string;
@@ -76,7 +86,14 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
   owner: boolean;
   teamDays?: number[];
   workoutHour?: number;
+  /** 'academy' on a trainee's full picture: purple instead of the club's blue. */
+  accent?: WeekAccent;
+  /** Staff reading an academy trainee: that trainee's OWN week (their coach's plan). */
+  academyLane?: boolean;
+  /** Inside a sheet: no month/year tiles, no link to the program. */
+  compact?: boolean;
 }) {
+  const col = WEEK_ACCENT[accent];
   const t = useTranslations('profile');
   const tc = useTranslations('common');
   const locale = useLocale();
@@ -88,7 +105,7 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
   // The profile body asks for the same key, so this costs no request.
   const { data: stats } = useApi<Stats>(athleteId ? `/api/athletes/${athleteId}/stats` : null);
   const pw = stats?.planWeek;
-  const { data: plan } = useApi<PlanWeek>(pw ? `/api/plans/week?weekStart=${pw.weekStart}&lane=${owner ? 'mine' : athleteId}` : null);
+  const { data: plan } = useApi<PlanWeek>(pw ? `/api/plans/week?weekStart=${pw.weekStart}&lane=${owner ? 'mine' : athleteId}${academyLane && !owner ? '&academy=1' : ''}` : null);
   const [openDay, setOpenDay] = useState<number | null>(null);
   const [sharing, setSharing] = useState(false);
   const weekStory = useStoryAccess('weekly');
@@ -142,7 +159,7 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
       <div data-tour="weekStrip" className="rounded-card bg-card p-4">
         <div className="flex items-center justify-between">
           <div className="min-w-0">
-            <h2 className="text-base font-extrabold text-ink-900">{t('myWeek')}</h2>
+            <h2 className="text-base font-extrabold text-ink-900">{!owner && athleteName ? t.rich('theirWeek', { name: athleteName.split(' ')[0] || athleteName, b: (c) => <bdi>{c}</bdi> }) : t('myWeek')}</h2>
             {showTesterBar(weekStory) && <StoryTesterBar feature="weekly" tone="light" className="mt-1" />}
           </div>
           <div className="flex items-center gap-1">
@@ -169,7 +186,7 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
         )}
 
         <div className="relative mx-auto mt-1 h-[200px] w-[200px]">
-          <Ring km={pw.km} scale={scale} target={target} should={shouldBy} />
+          <Ring km={pw.km} scale={scale} target={target} should={shouldBy} col={col} id={accent} />
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <bdi dir="ltr" className="text-[40px] font-black leading-none tracking-tight text-ink-900 tabular-nums">{roundKm(pw.km)}</bdi>
             <span className="text-sm font-bold text-ink-500">{tc('km')}</span>
@@ -237,11 +254,11 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
                 aria-label={t('weekDayOpen', { day: dayNames[x.d] })}
                 className="flex w-[42px] flex-col items-center gap-1 disabled:cursor-default"
               >
-                <DayDot status={future ? 'future' : x.status} ran={x.km > 0} today={x.d === pw.today} label={future ? '' : x.status === 'future' || x.status === 'rest' ? '' : t(`weekStatus_${x.status}`)} />
+                <DayDot col={col.main} status={future ? 'future' : x.status} ran={x.km > 0} today={x.d === pw.today} label={future ? '' : x.status === 'future' || x.status === 'rest' ? '' : t(`weekStatus_${x.status}`)} />
                 <bdi dir="ltr" className={cn('text-[13px] font-extrabold tabular-nums', future || !x.km ? 'text-ink-300' : 'text-ink-900')}>
                   {future ? '·' : x.km ? roundKm(x.km) : x.status === 'missed' ? '0' : '—'}
                 </bdi>
-                <span className={cn('text-xs font-bold', x.d === pw.today ? 'rounded-full bg-brand-600 px-1.5 text-white' : 'text-ink-400')}>{dayShort[x.d]}</span>
+                <span className={cn('text-xs font-bold', x.d === pw.today ? 'rounded-full px-1.5 text-white' : 'text-ink-400')} style={x.d === pw.today ? { background: col.main } : undefined}>{dayShort[x.d]}</span>
               </button>
             );
           })}
@@ -267,21 +284,23 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
           <span className="text-xs text-ink-400">{tc('km')}</span>
         </div>
         {pw.weeks.some((x) => x.km > 0)
-          ? <WeeksLine weeks={pw.weeks} locale={locale} />
+          ? <WeeksLine weeks={pw.weeks} locale={locale} col={col.main} id={accent} />
           : <p className="mt-3 text-sm font-light text-ink-400">{t('noKmHistory')}</p>}
       </div>
 
-      {stats && (
+      {stats && !compact && (
         <div className="grid grid-cols-2 gap-2.5">
           <Tile km={stats.monthKm ?? 0} label={t('myWeekMonth', { month: new Date().toLocaleDateString(locale, { month: 'long', timeZone: 'Asia/Jerusalem' }), runs: stats.monthRuns ?? 0 })} />
           <Tile km={stats.yearKm ?? 0} label={t('myWeekYear', { runs: stats.yearRuns ?? 0 })} />
         </div>
       )}
 
-      <Link href="/dashboard/program" className="inline-flex items-center gap-1 px-1 py-2 text-sm font-bold text-brand-600">
-        {t('fullProgram')}
-        <ChevronLeft className="h-4 w-4 ltr:rotate-180" />
-      </Link>
+      {!compact && (
+        <Link href="/dashboard/program" className="inline-flex items-center gap-1 px-1 py-2 text-sm font-bold text-brand-600">
+          {t('fullProgram')}
+          <ChevronLeft className="h-4 w-4 ltr:rotate-180" />
+        </Link>
+      )}
 
       <Sheet
         open={open != null}
@@ -331,9 +350,11 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
                 })}
               </>
             )}
-            <Link href="/dashboard/program" className="mt-4 flex min-h-[50px] w-full items-center justify-center rounded-2xl bg-brand-600 text-base font-extrabold text-white">
-              {t('weekFullWorkout')}
-            </Link>
+            {!compact && (
+              <Link href="/dashboard/program" className="mt-4 flex min-h-[50px] w-full items-center justify-center rounded-2xl bg-brand-600 text-base font-extrabold text-white">
+                {t('weekFullWorkout')}
+              </Link>
+            )}
           </div>
         )}
       </Sheet>
@@ -341,7 +362,7 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
   );
 }
 
-function Ring({ km, scale, target, should }: { km: number; scale: number; target: { min: number; max: number } | null; should: number }) {
+function Ring({ km, scale, target, should, col, id }: { km: number; scale: number; target: { min: number; max: number } | null; should: number; col: { main: string; soft: string }; id: string }) {
   const C = 2 * Math.PI * R;
   const R2 = R + 14; const C2 = 2 * Math.PI * R2;
   // On the grey track itself, under the fill: inside the ring, clear of the number.
@@ -354,9 +375,9 @@ function Ring({ km, scale, target, should }: { km: number; scale: number; target
   return (
     <svg viewBox="0 0 200 200" width="200" height="200" aria-hidden>
       <defs>
-        <linearGradient id="myweek-ring" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#5B6BFF" />
-          <stop offset="1" stopColor="#1525FF" />
+        <linearGradient id={`myweek-ring-${id}`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor={col.soft} />
+          <stop offset="1" stopColor={col.main} />
         </linearGradient>
       </defs>
       <circle cx="100" cy="100" r={R} fill="none" stroke="#EEF0F6" strokeWidth="16" />
@@ -372,7 +393,7 @@ function Ring({ km, scale, target, should }: { km: number; scale: number; target
           fill="none" stroke="#111827" strokeWidth="2.5" strokeDasharray="3 4" strokeLinecap="round" opacity=".55" />
       )}
       {km > 0 && (
-        <circle cx="100" cy="100" r={R} fill="none" stroke="url(#myweek-ring)" strokeWidth="16" strokeLinecap="round"
+        <circle cx="100" cy="100" r={R} fill="none" stroke={`url(#myweek-ring-${id})`} strokeWidth="16" strokeLinecap="round"
           strokeDasharray={`${frac * C} 9999`} transform="rotate(-90 100 100)" />
       )}
       {should > 0 && <circle cx={x1} cy={y1} r="5" fill="#111827" stroke="#fff" strokeWidth="2" />}
@@ -400,14 +421,14 @@ function Stat({ value, label }: { value: string; label: string }) {
   );
 }
 
-function DayDot({ status, ran, today, label }: { status: DayStatus; ran: boolean; today: boolean; label: string }) {
+function DayDot({ status, ran, today, label, col }: { status: DayStatus; ran: boolean; today: boolean; label: string; col: string }) {
   const tick = <Check className="h-[18px] w-[18px] text-white" strokeWidth={3} />;
   if (status === 'done') return <span role="img" aria-label={label} className="grid h-8 w-8 place-items-center rounded-full bg-accent-600">{tick}</span>;
   if (status === 'partial') return <span role="img" aria-label={label} className="h-8 w-8 rounded-full" style={{ background: 'conic-gradient(#F59E0B 0 50%, #FDE7C2 50% 100%)' }} />;
   if (status === 'missed') return <span role="img" aria-label={label} className="grid h-8 w-8 place-items-center rounded-full bg-accent-red/10 text-[13px] font-black text-accent-red">✕</span>;
-  if (status === 'rest' && ran) return <span className="grid h-8 w-8 place-items-center rounded-full bg-brand-600">{tick}</span>;
+  if (status === 'rest' && ran) return <span className="grid h-8 w-8 place-items-center rounded-full" style={{ background: col }}>{tick}</span>;
   if (status === 'rest') return <span className="h-8 w-8 rounded-full bg-page" />;
-  return <span role={label ? 'img' : undefined} aria-label={label || undefined} className={cn('h-8 w-8 rounded-full border-2 border-dashed', today ? 'border-solid border-brand-600' : 'border-ink-300/70')} />;
+  return <span role={label ? 'img' : undefined} aria-label={label || undefined} className={cn('h-8 w-8 rounded-full border-2 border-dashed', today ? 'border-solid' : 'border-ink-300/70')} style={today ? { borderColor: col } : undefined} />;
 }
 
 function Tile({ km, label }: { km: number; label: string }) {
@@ -420,7 +441,7 @@ function Tile({ km, label }: { km: number; label: string }) {
 }
 
 /** Ten plan weeks as one line, like Strava: grid with km on the side, months under it, this week marked. */
-function WeeksLine({ weeks, locale }: { weeks: Array<{ weekStart: string; km: number }>; locale: string }) {
+function WeeksLine({ weeks, locale, col, id }: { weeks: Array<{ weekStart: string; km: number }>; locale: string; col: string; id: string }) {
   const w = 300; const h = 130; const padL = 34;
   const max = Math.max(...weeks.map((x) => x.km), 10);
   const step = max > 120 ? 50 : max > 60 ? 25 : 10;
@@ -442,9 +463,9 @@ function WeeksLine({ weeks, locale }: { weeks: Array<{ weekStart: string; km: nu
   return (
     <svg viewBox={`0 -10 ${w} ${h + 28}`} className="mt-2 block h-auto w-full" role="img" aria-label="10 weeks">
       <defs>
-        <linearGradient id="myweek-area" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#1525FF" stopOpacity=".14" />
-          <stop offset="1" stopColor="#1525FF" stopOpacity="0" />
+        <linearGradient id={`myweek-area-${id}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={col} stopOpacity=".14" />
+          <stop offset="1" stopColor={col} stopOpacity="0" />
         </linearGradient>
       </defs>
       {grid.map((g) => {
@@ -456,11 +477,11 @@ function WeeksLine({ weeks, locale }: { weeks: Array<{ weekStart: string; km: nu
           </g>
         );
       })}
-      <polygon points={`${xs[0].toFixed(1)},${h} ${pts} ${xs[n - 1].toFixed(1)},${h}`} fill="url(#myweek-area)" />
-      <line x1={cx} x2={cx} y1={-6} y2={h} stroke="#1525FF" strokeWidth="1.2" strokeDasharray="2 3" opacity=".6" />
-      <polyline points={pts} fill="none" stroke="#1525FF" strokeWidth="2.2" strokeLinejoin="round" />
+      <polygon points={`${xs[0].toFixed(1)},${h} ${pts} ${xs[n - 1].toFixed(1)},${h}`} fill={`url(#myweek-area-${id})`} />
+      <line x1={cx} x2={cx} y1={-6} y2={h} stroke={col} strokeWidth="1.2" strokeDasharray="2 3" opacity=".6" />
+      <polyline points={pts} fill="none" stroke={col} strokeWidth="2.2" strokeLinejoin="round" />
       {xs.map((x, i) => (
-        <circle key={i} cx={x} cy={ys[i]} r={i === n - 1 ? 5.5 : 3.5} fill={i === n - 1 ? '#1525FF' : '#fff'} stroke="#1525FF" strokeWidth="2" />
+        <circle key={i} cx={x} cy={ys[i]} r={i === n - 1 ? 5.5 : 3.5} fill={i === n - 1 ? col : '#fff'} stroke={col} strokeWidth="2" />
       ))}
       {months.map((m) => <text key={m.label} x={m.x} y={h + 16} textAnchor="middle" fontSize="11" fill="#8B909A">{m.label}</text>)}
     </svg>

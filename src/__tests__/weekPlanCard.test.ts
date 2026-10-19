@@ -31,7 +31,9 @@ describe('the plan route', () => {
   const route = readFileSync('src/app/api/plans/week/route.ts', 'utf8');
   it('reads the caller\'s lane, or a teammate\'s — never a teammate\'s own plan', () => {
     expect(route).toMatch(/laneParam === 'mine' \? caller\.athleteId/);
-    expect(route).toMatch(/forOther \? \(rowsRaw \|\| \[\]\)\.filter\(\(r\) => !r\.athlete_id\)/);
+    expect(route).toMatch(/forOther && !asTrainee \? \(rowsRaw \|\| \[\]\)\.filter\(\(r\) => !r\.athlete_id\)/);
+    // Their own academy week only for their coach or the academy manager (academy-dash.html).
+    expect(route).toMatch(/academy'\) === '1'[\s\S]*requireTraineeAccess\(req, laneParam/);
     expect(route).toMatch(/laneWorkouts\(plan\.parsed_workouts, lane\)/);
   });
 });

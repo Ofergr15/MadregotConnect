@@ -282,6 +282,8 @@ export interface InboxRow extends ThreadSnapshot {
   /** Days since anyone spoke at all, for `silent`. Null otherwise. */
   quietDays: number | null;
   urgency: number;
+  /** The trainee's coaches by name (the inbox route adds it), for the avatar pair. */
+  coachNames?: string[];
 }
 
 /**

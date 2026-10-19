@@ -142,6 +142,12 @@ export interface AcademyMember {
   lastActivityAt: string | null;
   daysSinceActivity: number | null;
   plannedCount: number;
+  /** A personal weekly_plans row exists for this week. Undefined = could not read. */
+  hasPersonalPlan?: boolean;
+  /** An approved academy test exists. Undefined = could not read. */
+  hasTest?: boolean;
+  /** Last time the app was open (athletes.last_seen_at). */
+  lastSeenAt?: string | null;
   completedCount: number;
   /** null when nothing was planned — distinct from a real 0%. */
   completionRate: number | null;

@@ -232,7 +232,7 @@ describe('GET /api/auth/me', () => {
     requireSession.mockResolvedValue(session({ role: 'coach', isStaff: true }));
     selected = { is_academy: true };
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'coach', roles: ['coach'], membership: 'active', isAcademy: true, isSuper: false, canApprove: false, isCoreRunner: false, qualitySession: false });
+    expect(await res.json()).toEqual({ role: 'coach', roles: ['coach'], membership: 'active', isAcademy: true, academyOnly: true, isSuper: false, canApprove: false, isCoreRunner: false, qualitySession: false });
 
     const update = ops.find((o) => o.op === 'update');
     expect(update?.table).toBe('athletes');
@@ -273,7 +273,7 @@ describe('GET /api/auth/me', () => {
     const res = await me(new Request('https://example.test/api/auth/me'));
     expect(await res.json()).toMatchObject({ membership: 'active', isAcademy: true, qualitySession: false });
     const selects = ops.filter((o) => o.op === 'select').map((o) => o.filters[0]?.[1]?.[0]);
-    expect(selects).toEqual(['is_academy, approved, first_seen_at, is_story_editor', 'is_academy, approved']);
+    expect(selects).toEqual(['is_academy, approved, first_seen_at, is_story_editor, group_id', 'is_academy, approved, group_id']);
     // The fallback knows nothing about first_seen_at, so it must not stamp it.
     expect(ops.some((o) => o.op === 'update' && o.patch && 'first_seen_at' in o.patch)).toBe(false);
   });
@@ -291,7 +291,7 @@ describe('GET /api/auth/me', () => {
     requireSession.mockResolvedValue(session());
     selected = null;
     const res = await me(new Request('https://example.test/api/auth/me'));
-    expect(await res.json()).toEqual({ role: 'runner', roles: ['runner'], membership: 'active', isAcademy: false, isSuper: false, canApprove: false, isCoreRunner: false, qualitySession: false });
+    expect(await res.json()).toEqual({ role: 'runner', roles: ['runner'], membership: 'active', isAcademy: false, academyOnly: false, isSuper: false, canApprove: false, isCoreRunner: false, qualitySession: false });
   });
 
   // The view-as control was deciding "is this the super user" client-side, off

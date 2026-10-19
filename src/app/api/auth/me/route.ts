@@ -89,10 +89,10 @@ export async function GET(request: Request) {
     // `is_academy`/`approved` down with it. The same guarantee now costs a round
     // trip only when it's needed: if the full select errors, fall back to the
     // two columns that decide membership, and the other two read as "no".
-    type Row = { is_academy?: boolean; approved?: boolean; first_seen_at?: string | null; is_story_editor?: boolean };
+    type Row = { is_academy?: boolean; approved?: boolean; first_seen_at?: string | null; is_story_editor?: boolean; group_id?: string | null };
     const full = await supabase
       .from('athletes')
-      .select('is_academy, approved, first_seen_at, is_story_editor')
+      .select('is_academy, approved, first_seen_at, is_story_editor, group_id')
       .eq('id', athleteId)
       .maybeSingle();
     let row = full.data as Row | null;
@@ -100,7 +100,7 @@ export async function GET(request: Request) {
     if (!fullRead) {
       const { data } = await supabase
         .from('athletes')
-        .select('is_academy, approved')
+        .select('is_academy, approved, group_id')
         .eq('id', athleteId)
         .maybeSingle();
       row = data as Row | null;
@@ -149,7 +149,9 @@ export async function GET(request: Request) {
     // The quality session (lib/quality-session/access.ts): no 129 yet only reads as "no".
     const qualitySession = isSuper || row?.is_story_editor === true;
 
-    return NextResponse.json({ role: auth.user.role || 'runner', roles, membership, isAcademy: !!row?.is_academy, isSuper, canApprove: canApproveHere, isCoreRunner: isCore, qualitySession });
+    return NextResponse.json({ role: auth.user.role || 'runner', roles, membership, isAcademy: !!row?.is_academy,
+      // In the academy and in no club group: the academy home only, never the club's week.
+      academyOnly: !!row?.is_academy && row?.group_id == null, isSuper, canApprove: canApproveHere, isCoreRunner: isCore, qualitySession });
   } catch (error) {
     console.error('Failed to resolve user role:', error);
     return NextResponse.json({ error: 'Failed to resolve role' }, { status: 500 });

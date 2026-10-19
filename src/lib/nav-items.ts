@@ -316,7 +316,7 @@ export function useNavIdentity() {
   );
   const permissions = permsData?.permissions || [];
 
-  const { data: meData } = useApi<{ role?: string; roles?: string[]; isAcademy?: boolean; isSuper?: boolean; isCoreRunner?: boolean }>(
+  const { data: meData } = useApi<{ role?: string; roles?: string[]; isAcademy?: boolean; academyOnly?: boolean; isSuper?: boolean; isCoreRunner?: boolean }>(
     hasEmail ? '/api/auth/me' : null,
   );
   const isSuper = localSuper || !!meData?.isSuper;
@@ -363,9 +363,12 @@ export function useNavIdentity() {
     isSuper,
     isAthlete,
     isAcademyMember: !!meData?.isAcademy,
+    /** In the academy and no club group: always the academy trainee home (academy-dash.html). */
+    isAcademyOnly: !!meData?.academyOnly,
     isCoreRunner: !!meData?.isCoreRunner,
     isOperator,
-    traineeV2,
+    // An academy-only trainee has no club home to fall back to: v2 is theirs regardless of the flag.
+    traineeV2: traineeV2 || !!meData?.academyOnly,
     /** /api/auth/me has answered, so `isOperator` is final rather than "not yet". */
     accountKnown: !!meData,
     ready: !permsLoading && !!effectiveRole,

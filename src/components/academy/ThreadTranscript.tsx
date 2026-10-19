@@ -7,6 +7,7 @@ import type { AcademyFeedbackAttachment } from '@/lib/academy/thread';
 import type { SegmentVerdict } from '@/lib/academy/segments';
 import { BidiText } from '@/components/BidiText';
 import { FeedbackCard } from './FeedbackCard';
+import { SEAT_ORDER, SEAT_STYLE, seatInitials } from '@/lib/academy/seat-style';
 
 // ── The three-way thread, as everyone in it reads it ────────────────────────
 //
@@ -63,11 +64,6 @@ export interface ThreadMessage {
  */
 export const THREAD_PAGE = 30;
 
-const SEAT_INK: Record<ThreadSeat, string> = {
-  trainee: 'text-ink-500',
-  coach: 'text-brand-600',
-  manager: 'text-accent-900',
-};
 
 /** Is this message the viewer's own? By author when both ids are known, else by seat. */
 export function isMine(m: Pick<ThreadMessage, 'authorId' | 'seat'>, viewerSeat: ThreadSeat, viewerId?: string | null): boolean {
@@ -172,6 +168,7 @@ export function ThreadTranscript({
         </div>
       ) : (
         <div className="space-y-2.5 py-1">
+          <SeatLegend />
           {visible.map((m, i) => (
             <div key={m.id}>
               {needsDaySeparator(visible, i) && <DaySeparator at={m.at} />}
@@ -252,9 +249,10 @@ function Bubble({
   if (feedback) {
     return (
       <div className="space-y-1">
-        <div className={cn('flex items-center gap-1 px-1 text-[11px] font-semibold', SEAT_INK[seat])}>
+        <div className="flex items-center gap-1.5 px-1 text-[12px] font-extrabold" style={{ color: SEAT_STYLE[seat].ink }}>
+          <SeatAvatar seat={seat} name={authorName} size={24} />
           {seat === 'manager' && <ShieldCheck className="h-3 w-3" />}
-          <span dir="auto">{authorName}</span>
+          <span dir="auto">{authorName}</span> · {SEAT_STYLE[seat].word}
           <span className="font-normal text-ink-400">· {fmtTime(at)}</span>
         </div>
         <FeedbackCard
@@ -270,20 +268,21 @@ function Bubble({
     );
   }
 
+  // Every seat has its colour (lib/academy/seat-style.ts): the avatar's ring, the name and
+  // its role word, the bubble's tint and its edge. Mine sit on the far side, without a name.
+  const style = SEAT_STYLE[seat];
   return (
-    <div className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
+    <div className={cn('flex items-end gap-2', mine ? 'flex-row-reverse' : 'flex-row')}>
+      <SeatAvatar seat={seat} name={authorName} />
       <div
-        className={cn(
-          'max-w-[82%] rounded-2xl px-3 py-2',
-          mine ? 'bg-brand-600 text-white' : 'bg-page/60 text-ink-700',
-        )}
+        className="max-w-[78%] rounded-2xl border-s-[3px] px-3 py-2 text-ink-700"
+        style={{ background: style.bg, borderInlineStartColor: style.ink }}
       >
-        {/* Never on your own messages — you know who you are. Always on everyone
-            else's, including the manager's, with the shield that says which seat. */}
         {!mine && (
-          <div className={cn('mb-0.5 flex items-center gap-1 text-[11px] font-bold', SEAT_INK[seat])}>
+          <div className="mb-0.5 flex items-center gap-1 text-[12px] font-extrabold" style={{ color: style.ink }}>
             {seat === 'manager' && <ShieldCheck className="h-3 w-3" />}
             <span dir="auto">{authorName}</span>
+            <span>· {style.word}</span>
           </div>
         )}
         <p className="whitespace-pre-wrap break-words text-sm leading-relaxed" dir="auto">
@@ -291,9 +290,8 @@ function Bubble({
               a coach writing "8×1000" was being read as "1000×8". */}
           <BidiText text={text} />
         </p>
-        {/* 11px, not 10: the audit's floor. A timestamp is glanced at, not read, but
-            10px is below what this app is willing to print anywhere. */}
-        <div className={cn('mt-0.5 text-[11px]', mine ? 'text-white/70' : 'text-ink-400')}>
+        {/* 11px, not 10: the audit's floor. */}
+        <div className="mt-0.5 text-[11px] text-ink-400">
           {fmtTime(at)}
         </div>
       </div>
@@ -356,4 +354,32 @@ function fmtTime(iso: string): string {
   // A clock time is two numbers around a colon and must not be reordered by the
   // surrounding Hebrew — the same bidi trap the deviation line hit in the queue.
   return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
+}
+
+/** The seat's ring around initials: green coach, purple trainee, amber manager. */
+export function SeatAvatar({ seat, name, size = 30 }: { seat: ThreadSeat; name: string; size?: number }) {
+  const { ink } = SEAT_STYLE[seat];
+  return (
+    <span
+      aria-hidden
+      className="grid shrink-0 place-items-center rounded-full bg-white font-black"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.36), color: ink, boxShadow: `0 0 0 2.5px ${ink}` }}
+    >
+      {seatInitials(name)}
+    </span>
+  );
+}
+
+/** Which colour is who — once, at the top of the thread. */
+function SeatLegend() {
+  return (
+    <div className="flex justify-center gap-3.5 pb-1 text-[12px] font-extrabold">
+      {SEAT_ORDER.map((seat) => (
+        <span key={seat} className="flex items-center gap-1" style={{ color: SEAT_STYLE[seat].ink }}>
+          <i className="inline-block h-2 w-2 rounded-full" style={{ background: SEAT_STYLE[seat].ink }} />
+          {SEAT_STYLE[seat].word}
+        </span>
+      ))}
+    </div>
+  );
 }

@@ -178,11 +178,11 @@ export default function DashboardPage() {
   //
   // The same role resolution the nav uses, so a super-user "viewing as runner"
   // gets the runner home — `effectiveRole` already has the preview role applied.
-  const { effectiveRole, isAthlete, isOperator, accountKnown, isAcademyMember, ready: identityReady } = useNavIdentity();
+  const { effectiveRole, isAthlete, isOperator, accountKnown, isAcademyMember, isAcademyOnly, traineeV2: navTraineeV2, ready: identityReady } = useNavIdentity();
   // The academy trainee's v2 home replaces the hero for academy members once the switch is
   // on for this device (the flag, the super user, or `?tv=2`). Everything below the hero
   // stays.
-  const traineeV2 = useTraineeV2();
+  const traineeV2 = useTraineeV2() || navTraineeV2;
   // `isAthlete` comes out of localStorage in the hook's own mount effect, so it is
   // false on the very first render even when SWR answers the role from cache. The
   // spinner below waits for this rather than trusting it early — the difference
@@ -753,7 +753,7 @@ export default function DashboardPage() {
       {heroPending ? (
         <div className="flex items-center justify-center py-16"><Spinner /></div>
       ) : showTraineeHome ? (
-        <TraineeToday athleteId={athleteId!} firstName={firstName} />
+        <TraineeToday athleteId={athleteId!} firstName={firstName} academyOnly={isAcademyOnly} />
       ) : showTodayHome ? (
         <TodayCards
           athleteId={athleteId!}

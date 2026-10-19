@@ -47,7 +47,7 @@ const MAX_CARDS = 2;
 export function AcademyHome({
   data, isLoading, prev, home, waiting, suggestion, suggestionBusy, capacity, isManager,
   onSquare, onSuggestion, onSuggestionMore, onQuick, onWaiting, strips, onStrip, readinessAlert, readinessHeld, onReadiness,
-  approvalCards, onApprovalDecided, onApprovalCorrect,
+  approvalCards, onApprovalDecided, onApprovalCorrect, onTrainee, threadsUnread, threadsCount, onThreads,
 }: {
   data: AcademyMembersResponse | undefined;
   isLoading: boolean;
@@ -79,6 +79,12 @@ export function AcademyHome({
   approvalCards?: Approval[];
   onApprovalDecided?: () => void;
   onApprovalCorrect?: (a: Approval) => void;
+  /** Open one trainee's full picture (MemberSheet). */
+  onTrainee?: (athleteId: string) => void;
+  /** The academy threads this viewer sees, and how many messages are unread in them. */
+  threadsUnread?: number;
+  threadsCount?: number;
+  onThreads?: () => void;
 }) {
   const [allWaiting, setAllWaiting] = useState(false);
   const members = useMemo(() => data?.members ?? [], [data]);
@@ -107,6 +113,31 @@ export function AcademyHome({
   return (
     <div className="space-y-2.5" dir="rtl">
       {readinessAlert && onReadiness && <ReadinessStory alert={readinessAlert} held={!!readinessHeld} onOpen={onReadiness} />}
+
+      {/* Waiting for you — first (academy-dash.html): what needs a hand now. */}
+      {waitingCount > 0 && (
+        <>
+          <div className="mx-1 -mb-0.5 mt-0.5 flex items-baseline justify-between">
+            <b className="text-[15px] font-black text-ink-700">מחכה לך · <bdi dir="ltr">{waitingCount}</bdi></b>
+            {more && (
+              <button type="button" onClick={() => setAllWaiting((v) => !v)} className="-my-3 min-h-[44px] min-w-[44px] px-1 text-xs font-extrabold text-brand-600">
+                {allWaiting ? 'פחות' : 'הכל'}
+              </button>
+            )}
+          </div>
+          {shownCards.map((a) => (
+            <TestApprovalCard key={a.testId} approval={a} onDecided={() => onApprovalDecided?.()} onCorrect={(x) => onApprovalCorrect?.(x)} />
+          ))}
+          {/* What approving does, once under the cards (the mockup's green note). */}
+          {cards.length > 0 && <AfterApprovalNote name={cards.length === 1 ? cards[0].name.split(' ')[0] || null : null} />}
+          {shownWaiting.length > 0 && (
+            <div className="overflow-hidden rounded-card bg-card">
+              {shownWaiting.map((w) => <WaitingRow key={w.key} item={w} onClick={() => onWaiting(w)} />)}
+            </div>
+          )}
+        </>
+      )}
+
 
       {/* 1 · Growth */}
       <section className="rounded-card bg-card px-3 pb-2.5 pt-3" aria-label="מתאמנים באקדמיה">
@@ -212,37 +243,93 @@ export function AcademyHome({
         </div>
       )}
 
-      {/* 5 · Waiting for you */}
-      {waitingCount > 0 && (
-        <>
-          <div className="mx-1 -mb-0.5 mt-0.5 flex items-baseline justify-between">
-            <b className="text-[15px] font-black text-ink-700">מחכה לך · <bdi dir="ltr">{waitingCount}</bdi></b>
-            {more && (
-              <button type="button" onClick={() => setAllWaiting((v) => !v)} className="-my-3 min-h-[44px] min-w-[44px] px-1 text-xs font-extrabold text-brand-600">
-                {allWaiting ? 'פחות' : 'הכל'}
-              </button>
-            )}
-          </div>
-          {shownCards.map((a) => (
-            <TestApprovalCard key={a.testId} approval={a} onDecided={() => onApprovalDecided?.()} onCorrect={(x) => onApprovalCorrect?.(x)} />
-          ))}
-          {/* What approving does, once under the cards (the mockup's green note). */}
-          {cards.length > 0 && <AfterApprovalNote name={cards.length === 1 ? cards[0].name.split(' ')[0] || null : null} />}
-          {shownWaiting.length > 0 && (
-            <div className="overflow-hidden rounded-card bg-card">
-              {shownWaiting.map((w) => <WaitingRow key={w.key} item={w} onClick={() => onWaiting(w)} />)}
-            </div>
-          )}
-        </>
-      )}
-
       {/* 6 · Each trainee's week, as the week list draws it (coach tools, phone 1) */}
       {!!strips?.length && <TraineeStrips strips={strips} onOpen={onStrip} />}
+
+      {/* Every trainee on one line: coach · this week's personal plan · watch (academy-dash.html). */}
+      {approved.length > 0 && onTrainee && <TraineeRows members={approved} showCoach={isManager} onOpen={onTrainee} />}
+
+      {/* The chats: the manager is in every one of them. */}
+      {onThreads && (threadsCount ?? 0) > 0 && (
+        <button type="button" onClick={onThreads} className="flex min-h-[56px] w-full items-center gap-3 rounded-card bg-card px-3 text-start active:bg-page/60">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#F1EAFE] text-[#7C3AED]"><MessageSquare className="h-[18px] w-[18px]" /></span>
+          <span className="min-w-0 flex-1">
+            <b className="block text-sm font-extrabold text-ink-700">שיחות · <bdi dir="ltr">{threadsCount}</bdi></b>
+            <small className="block text-2xs text-ink-500">{isManager ? 'את/ה בכל שיחה של מאמן ומתאמן' : 'השיחות עם המתאמנים שלך'}</small>
+          </span>
+          {!!threadsUnread && <bdi dir="ltr" className="rounded-pill bg-accent-red px-2 text-2xs font-black leading-5 text-white">{threadsUnread}</bdi>}
+          <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />
+        </button>
+      )}
+
+      {/* The coaches: whose weeks are written. */}
+      {isManager && coachRows.length > 0 && <CoachPlansRow members={approved} coaches={coachRows} />}
     </div>
   );
 }
 
 const STRIPS_SHOWN = 4;
+
+/** One trainee per row: name, then coach · plan this week · watch. */
+function TraineeRows({ members, showCoach, onOpen }: {
+  members: AcademyMembersResponse['members']; showCoach: boolean; onOpen: (athleteId: string) => void;
+}) {
+  return (
+    <section aria-label="המתאמנים">
+      <b className="mx-1 mb-1.5 block text-[15px] font-black text-ink-700">המתאמנים · <bdi dir="ltr">{members.length}</bdi></b>
+      <div className="overflow-hidden rounded-card bg-card">
+        {members.map((m) => {
+          const coach = (m.academyCoachNames ?? []).filter(Boolean).map((n) => n.split(' ')[0]).join(' · ');
+          return (
+            <button key={m.athleteId} type="button" onClick={() => onOpen(m.athleteId)}
+              className="flex min-h-[58px] w-full items-center gap-3 border-b border-page px-3 py-2 text-start last:border-b-0 active:bg-page/60">
+              <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-[#F1EAFE] text-[11px] font-black text-[#7C3AED]">
+                {m.avatarUrl
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={m.avatarUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                  : m.name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('')}
+              </span>
+              <span className="min-w-0 flex-1">
+                <b className="block truncate text-sm font-extrabold text-ink-700"><bdi>{m.name}</bdi></b>
+                <small className="block truncate text-2xs text-ink-500">
+                  {showCoach && (coach ? <><bdi>{coach}</bdi> · </> : <span className="text-band-3-ink">בלי מאמן · </span>)}
+                  {m.hasPersonalPlan === false ? <span className="font-bold text-band-3-ink">אין תוכנית</span>
+                    : m.hasPersonalPlan ? <span className="font-bold text-accent-900">יש תוכנית</span> : null}
+                  {m.hasPersonalPlan !== undefined && ' · '}
+                  {m.hasGarmin ? '⌚ מחובר' : <span className="text-[#0B6BCB]">⌚ לא מחובר</span>}
+                </small>
+              </span>
+              <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** Per coach: how many of their trainees already have this week written. */
+function CoachPlansRow({ members, coaches }: {
+  members: AcademyMembersResponse['members']; coaches: AcademyMembersResponse['coaches'];
+}) {
+  const rows = coaches.map((c) => {
+    const mine = members.filter((m) => (m.academyCoachIds ?? []).includes(c.coachId as string));
+    return { id: c.coachId as string, name: (c.coachName ?? '').split(' ')[0], total: mine.length, written: mine.filter((m) => m.hasPersonalPlan).length };
+  }).filter((r) => r.total > 0);
+  if (!rows.length) return null;
+  return (
+    <section className="rounded-card bg-card px-3 py-2.5" aria-label="מאמנים">
+      <b className="block text-[13px] font-black text-ink-500">תוכנית השבוע לפי מאמן</b>
+      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+        {rows.map((r) => (
+          <span key={r.id} className="text-sm font-bold text-ink-700">
+            <bdi>{r.name}</bdi> <bdi dir="ltr" className={r.written < r.total ? 'text-band-3-ink' : 'text-accent-900'}>{r.written}/{r.total}</bdi>
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 function TraineeStrips({ strips, onOpen }: { strips: TraineeStrip[]; onOpen?: (athleteId: string) => void }) {
   const t = useTranslations('academyTools.strips');
@@ -363,6 +450,9 @@ const WAITING_ICON: Record<WaitingKind, { icon: React.ComponentType<{ className?
   missed: { icon: CalendarX, cls: 'bg-[#FDF0E2] text-[#8A4308]' },
   copy: { icon: Copy, cls: 'bg-[#ECEBFF] text-[#5B21D6]' },
   paused: { icon: PauseCircle, cls: 'bg-[#FDF0E2] text-[#8A4308]' },
+  no_plan: { icon: CalendarX, cls: 'bg-[#F1EAFE] text-[#7C3AED]' },
+  quiet: { icon: Timer, cls: 'bg-[#FDF0E2] text-[#8A4308]' },
+  no_test: { icon: Gauge, cls: 'bg-band-3/15 text-band-3-ink' },
 };
 
 const TOOL_KINDS = new Set<WaitingKind>(['pace', 'missed', 'copy', 'paused']);

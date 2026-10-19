@@ -13,6 +13,7 @@ import { Sheet, InsetSection, InsetRow, ConfirmSheet, Spinner } from '@/componen
 import { teammateHref } from '@/lib/athletes/profile-link';
 import { startViewingAs } from '@/lib/view-as-person';
 import { CoachPairing } from './CoachPairing';
+import { MyWeekCard } from '@/components/profile/MyWeekCard';
 import { memberCoachNames } from '@/lib/academy/members';
 import { bidiNames } from '@/lib/academy/coach-picker';
 
@@ -65,6 +66,7 @@ export function MemberSheet({
   onOpenThread,
   onOpenPlan,
   onOpenTests,
+  onWriteWorkout,
   canViewAs,
 }: {
   member: AcademyMember | null;
@@ -87,6 +89,8 @@ export function MemberSheet({
   onOpenThread?: (athleteId: string) => void;
   onOpenPlan?: (athleteId: string) => void;
   onOpenTests?: (athleteId: string) => void;
+  /** The trainee's week board, to write a day (WeekBoard → DayPlanner). */
+  onWriteWorkout?: (athleteId: string) => void;
   /** Admins only: "view as they see it" — the whole app, read-only (lib/view-as-person). */
   canViewAs?: boolean;
 }) {
@@ -195,6 +199,50 @@ export function MemberSheet({
               </div>
             </div>
           </div>
+
+          {/* The three things a coach or the manager does next (academy-dash.html). */}
+          {(onOpenThread || onWriteWorkout) && (
+            <div className="-mt-1 flex flex-wrap gap-2 pb-3">
+              {onOpenThread && (
+                <button type="button" onClick={() => onOpenThread(member.athleteId)}
+                  className="flex min-h-[44px] items-center gap-1.5 rounded-xl bg-[#7C3AED] px-3.5 text-sm font-extrabold text-white">
+                  <MessagesSquare className="h-4 w-4" /> שיחה
+                </button>
+              )}
+              {onWriteWorkout && (
+                <button type="button" onClick={() => onWriteWorkout(member.athleteId)}
+                  className="flex min-h-[44px] items-center gap-1.5 rounded-xl bg-[#F1EAFE] px-3.5 text-sm font-extrabold text-[#7C3AED]">
+                  <CalendarPlus className="h-4 w-4" /> כתיבת אימון
+                </button>
+              )}
+              {memberCoachNames(member).filter(Boolean).length > 0 && (
+                <span className="flex min-h-[44px] items-center rounded-xl bg-card px-3 text-[13px] font-bold text-ink-500">
+                  מאמן: <span className="ms-1 font-extrabold text-[#16A34A]" dir="auto">{memberCoachNames(member).filter(Boolean).map((n) => n.split(' ')[0]).join(' · ')}</span>
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* The week, exactly as the runner sees their own — in the academy's purple. */}
+          <div className="pb-4">
+            <MyWeekCard athleteId={member.athleteId} owner={false} athleteName={member.name.split(' ')[0] || member.name} accent="academy" academyLane compact />
+          </div>
+
+          {/* What's coming: the gaps that stop this trainee's next week. */}
+          {(member.hasPersonalPlan === false || member.hasTest === false) && (
+            <InsetSection header="מה צפוי">
+              {member.hasPersonalPlan === false && (
+                <InsetRow icon={CalendarPlus} iconBg="bg-[#7C3AED]" label="אין תוכנית אישית לשבוע"
+                  sublabel="עד שתיכתב — רץ את תוכנית המועדון"
+                  onClick={onWriteWorkout ? () => onWriteWorkout(member.athleteId) : undefined} />
+              )}
+              {member.hasTest === false && (
+                <InsetRow icon={Timer} iconBg="bg-band-3" label="אין מבחן"
+                  sublabel="הקצבים לפי הדבוקה, עד מבחן 30 דק׳"
+                  onClick={onOpenTests ? () => onOpenTests(member.athleteId) : undefined} />
+              )}
+            </InsetSection>
+          )}
 
           {/* Attention badges — the same codes the lists show, repeated here so the
               sheet explains why the member was surfaced in the first place. */}

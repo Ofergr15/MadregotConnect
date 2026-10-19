@@ -52,7 +52,7 @@ const toMin = (sec: number) => Math.round(sec / 60);
 //
 // The 077 columns are one tier, not several: they land in a single migration, so
 // splitting them would add a fallback that no real schema can ever be in.
-const COLS_PAIRED = 'id, name, email, avatar_url, status, role, approved, group_id, garmin_auth, strava_auth, is_academy, created_at, academy_coach_id, academy_joined_on, academy_band_id, academy_pace_offset_sec, groups!group_id(name)';
+const COLS_PAIRED = 'id, name, email, avatar_url, status, role, approved, group_id, garmin_auth, strava_auth, is_academy, created_at, academy_coach_id, academy_joined_on, academy_band_id, academy_pace_offset_sec, last_seen_at, groups!group_id(name)';
 const COLS_FULL = 'id, name, email, avatar_url, status, role, approved, group_id, garmin_auth, strava_auth, is_academy, created_at, groups!group_id(name)';
 const COLS_MIN = 'id, name, email, status, group_id, garmin_auth, is_academy, created_at, groups!group_id(name)';
 
@@ -253,6 +253,22 @@ export async function GET(request: Request) {
       .eq('status', 'pending');
     if (!pend.error) pendingResults = pend.count || 0;
 
+    // The manager's "מחכה לך" (academy-dash.html): whose PERSONAL week is still unwritten,
+    // and who has no approved test (their paces then fall back to the band). Both guarded:
+    // a read error reads as "unknown" (undefined), never as a false alarm.
+    const personal = new Set<string>();
+    let personalKnown = false;
+    const plansRes = await supabase.from('weekly_plans').select('athlete_id')
+      .in('athlete_id', memberIds).eq('week_start_date', weekStart);
+    if (!plansRes.error) { personalKnown = true; for (const r of plansRes.data || []) personal.add(r.athlete_id); }
+    const tested = new Set<string>();
+    let testsKnown = false;
+    const testsRes = await supabase.from('academy_tests').select('athlete_id, status').in('athlete_id', memberIds);
+    if (!testsRes.error) {
+      testsKnown = true;
+      for (const r of testsRes.data || []) if ((r.status ?? 'approved') === 'approved') tested.add(r.athlete_id);
+    }
+
     const nowMs = israelDateAnchor().getTime();
 
     const result: AcademyMember[] = members.map((a) => {
@@ -309,6 +325,9 @@ export async function GET(request: Request) {
         lastActivityAt: last,
         daysSinceActivity: daysSince,
         plannedCount: planned,
+        hasPersonalPlan: personalKnown ? personal.has(a.id) : undefined,
+        hasTest: testsKnown ? tested.has(a.id) : undefined,
+        lastSeenAt: a.last_seen_at || null,
         completedCount: completed,
         completionRate,
         attention: deriveAttention({

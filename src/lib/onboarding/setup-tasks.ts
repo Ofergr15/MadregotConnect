@@ -109,6 +109,11 @@ export interface SetupOptions {
    * four, not five with one quietly forgiven.
    */
   skipSizes?: boolean;
+  /**
+   * In the academy and in no club group: the pace group ("דבוקת קצב") is a club pack they
+   * will never be put in, so its row would wait forever. Left out.
+   */
+  academyOnly?: boolean;
 }
 
 export function computeSetupState(input: SetupInput, options: SetupOptions = {}): SetupState {
@@ -150,7 +155,7 @@ export function computeSetupState(input: SetupInput, options: SetupOptions = {})
       meta: input.groupName ? { groupName: input.groupName } : undefined,
     },
     { key: 'activeShoe', done: input.hasActiveShoe, waiting: false },
-  ];
+  ].filter((item) => !(options.academyOnly && item.key === 'paceGroup')) as SetupInfoItem[];
 
   const doneCount = tasks.filter((t) => t.done).length;
   const totalCount = tasks.length;

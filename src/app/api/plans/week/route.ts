@@ -9,6 +9,7 @@ import { ownPlanRowsCount, withoutOwnRows } from '@/lib/plans/scope-server';
 import { laneWorkouts, type Lane } from '@/lib/academy/group-lane';
 import { groupNumberForAthlete } from '@/lib/plans/match-athlete-activities';
 import { daySessionWorkouts, mergeDaySessions } from '@/lib/day-session/week-merge';
+import { requireTraineeAccess } from '@/lib/academy/pairing-server';
 
 /**
  * Structured breakdown for ONE arbitrary week — the Program page's native
@@ -44,6 +45,15 @@ export async function GET(req: NextRequest) {
     const laneParam = req.nextUrl.searchParams.get('lane');
     const forOther = !!laneParam && laneParam !== 'mine' && /^[0-9a-f-]{36}$/i.test(laneParam) && laneParam !== caller.athleteId;
     const laneOf = forOther ? laneParam : laneParam === 'mine' ? caller.athleteId : null;
+    // `&academy=1` (academy-dash.html, the trainee's full picture): their coach or the academy
+    // manager reads the trainee's OWN week — the personal plan they write. Anyone else, or a
+    // refused check, falls back to the club week below.
+    let asTrainee: string | null = null;
+    if (forOther && req.nextUrl.searchParams.get('academy') === '1') {
+      const access = await requireTraineeAccess(req, laneParam as string);
+      if (!access.denied) asTrainee = laneParam;
+    }
+    const whose = asTrainee ?? caller.athleteId;
     // A week can have more than one row (e.g. a draft + a pushed version) —
     // prefer 'pushed', same precedence as /api/dashboard/weekly.
     const [{ data: rowsRaw }, ownCounts] = await Promise.all([
@@ -51,15 +61,15 @@ export async function GET(req: NextRequest) {
         .from('weekly_plans')
         .select('parsed_workouts, status, created_at, athlete_id')
         .eq('coach_id', COACH_ID)
-        .or(planRowsFilter(caller.athleteId))
+        .or(planRowsFilter(whose))
         .eq('week_start_date', weekStart),
       // A trainee who left the academy reads the club's week again (scope-server.ts).
-      ownPlanRowsCount(caller.athleteId),
+      ownPlanRowsCount(whose),
     ]);
-    const rows = forOther ? (rowsRaw || []).filter((r) => !r.athlete_id) : withoutOwnRows(rowsRaw, ownCounts);
+    const rows = forOther && !asTrainee ? (rowsRaw || []).filter((r) => !r.athlete_id) : withoutOwnRows(rowsRaw, ownCounts);
 
     // The caller's own academy week first, never another trainee's (lib/plans/scope.ts).
-    const plan = pickPlan(rows, caller.athleteId);
+    const plan = pickPlan(rows, whose);
 
     // One-day sessions on days the plan leaves empty are the week's too (lib/day-session/week-merge.ts).
     const dayWorkouts = await daySessionWorkouts(weekStart);

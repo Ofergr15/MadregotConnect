@@ -202,12 +202,16 @@ export type WaitingKind =
   | 'threads' | 'dispatch' | 'form' | 'registrations' | 'stuck' | 'approvals' | 'results'
   // The coach tools (lib/academy/coach-tools.ts): a pace suggestion, a missed week, next week empty,
   // and a pace-up suggestion the readiness gate holds (lib/academy/readiness-board.ts).
-  | 'pace' | 'missed' | 'copy' | 'paused';
+  | 'pace' | 'missed' | 'copy' | 'paused'
+  // The trainee checks (academy-dash.html): no personal week yet, quiet in the app, no test.
+  | 'no_plan' | 'quiet' | 'no_test';
 
 export interface WaitingTarget {
   section: AcademySection;
   threadId?: string;
   candidateId?: string;
+  /** Open one trainee's full picture. */
+  athleteId?: string;
   /** Open the club registrations queue (folded into the candidates). */
   registrations?: boolean;
   /** A coach-tools row: which screen it opens and for whom. */
@@ -237,6 +241,8 @@ const BAND: Record<WaitingKind, number> = {
   // A held suggestion sits right under the live ones: there is nothing to approve, but the
   // trainee it is about needs a look.
   pace: 3.6, paused: 3.55, missed: 3.5,
+  // The trainee checks: an unwritten week outranks a quiet trainee, who outranks a missing test.
+  no_plan: 3.4, quiet: 3.2, no_test: 2.6,
   stuck: 3, approvals: 3, copy: 2.5, registrations: 2, results: 1,
 };
 
@@ -259,7 +265,15 @@ export interface WaitingInput {
    * with every number isolated), so only their place in the list is decided here.
    */
   tools?: Array<Omit<WaitingItem, 'target'> & { target: WaitingTarget }>;
+  /**
+   * The approved trainees, for the three trainee checks. A field left undefined is
+   * "could not read" and raises nothing.
+   */
+  trainees?: Array<{ athleteId: string; name: string; hasPersonalPlan?: boolean; hasTest?: boolean; lastSeenAt?: string | null }>;
 }
+
+/** A trainee is "quiet" after this many days without opening the app. */
+export const QUIET_DAYS = 7;
 
 const hoursSince = (iso: string | null | undefined, now: number): number | null => {
   if (!iso) return null;
@@ -360,6 +374,29 @@ export function buildWaiting(input: WaitingInput): WaitingItem[] {
   }
 
   for (const item of input.tools ?? []) out.push(item);
+
+  // The trainee checks, one row per kind: one trainee opens their page, several the list.
+  const tr = input.trainees ?? [];
+  const group = (kind: 'no_plan' | 'quiet' | 'no_test', who: typeof tr, title1: (n: string) => string, titleN: (c: number) => string, sub1: string, action: string, age?: (t: (typeof tr)[number]) => number | null) => {
+    if (!who.length) return;
+    const one = who.length === 1 ? who[0] : null;
+    out.push({
+      key: kind, kind,
+      title: one ? title1(one.name.trim().split(/\s+/)[0] || one.name) : titleN(who.length),
+      sub: one ? sub1 : firstNames(who.map((t) => t.name)),
+      ageHours: age ? oldest(who.map(age)) : null,
+      action,
+      target: one ? { section: 'members', athleteId: one.athleteId } : { section: 'members' },
+    });
+  };
+  group('no_plan', tr.filter((t) => t.hasPersonalPlan === false),
+    (n) => `${n} · אין תוכנית לשבוע`, (c) => `${c} מתאמנים בלי תוכנית לשבוע`, 'המאמן עוד לא כתב את השבוע', 'לפתוח');
+  const quiet = tr.filter((t) => { const h = hoursSince(t.lastSeenAt, now); return h !== null && h >= QUIET_DAYS * 24; });
+  group('quiet', quiet,
+    (n) => `${n} לא פתח את האפליקציה`, (c) => `${c} לא פתחו את האפליקציה`, `יותר מ־${QUIET_DAYS} ימים`, 'לפתוח',
+    (t) => hoursSince(t.lastSeenAt, now));
+  group('no_test', tr.filter((t) => t.hasTest === false),
+    (n) => `${n} · אין מבחן`, (c) => `${c} מתאמנים בלי מבחן`, 'הקצבים לפי הדבוקה עד המבחן', 'לפתוח');
 
   const score = (w: WaitingItem) => BAND[w.kind] * 1e6 + Math.min(999_999, w.ageHours ?? 0);
   return out.sort((a, b) => score(b) - score(a) || a.key.localeCompare(b.key));

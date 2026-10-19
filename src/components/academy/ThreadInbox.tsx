@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Clock, MessageCircle, MoonStar } from 'lucide-react';
 import { apiHeaders } from '@/lib/api';
+import { SeatAvatar } from './ThreadTranscript';
 import { cn } from '@/lib/utils';
 import { initialsOf } from './types';
 import type { Inbox, InboxReason, InboxRow } from '@/lib/academy/thread';
@@ -106,13 +107,18 @@ function Row({ row, onOpen }: { row: InboxRow; onOpen?: (athleteId: string) => v
       onClick={() => onOpen?.(row.athleteId)}
       className="flex w-full items-center gap-3 rounded-card bg-card px-3 py-3 text-right active:bg-page/60"
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-page text-xs font-bold text-ink-500">
-        {initialsOf(row.name)}
-      </div>
+      {/* The pair: the trainee in purple, their coach in green (lib/academy/seat-style.ts). */}
+      <span className="flex shrink-0 items-center">
+        <SeatAvatar seat="trainee" name={row.name} size={32} />
+        {row.coachNames?.[0] && <span className="-ms-2"><SeatAvatar seat="coach" name={row.coachNames[0]} size={32} /></span>}
+      </span>
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-bold text-ink-900" dir="auto">{row.name}</span>
+          <span className="truncate text-sm font-bold text-ink-900" dir="auto">
+            {row.name}
+            {row.coachNames?.length ? <span className="font-semibold text-[#16A34A]"> · {row.coachNames.map(n => n.split(' ')[0]).join(' · ')}</span> : null}
+          </span>
           <span className={cn('flex shrink-0 items-center gap-1 rounded-pill px-2 py-0.5 text-[11px] font-semibold', r.chip)}>
             {r.icon}
             {r.label}

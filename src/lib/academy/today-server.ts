@@ -131,7 +131,12 @@ export async function loadTraineeToday(
   // ── The plan days ──
   const groupNames = new Map<string, string>(((groupsRes.data || []) as Array<{ id: string; name: string }>).map(g => [g.id, g.name]));
   const tests = loads.tests;
-  const planRows = ((plansRes.error ? [] : plansRes.data) || []) as any[];
+  // An academy-only trainee (no club group) is never handed the CLUB week as theirs —
+  // only their own rows; with none, the day is "no plan" and the home says the coach will
+  // write it (academy-dash.html). The watch rule below reads the same rows, so a club
+  // delivery can't mark their day "on the watch" either.
+  const planRows = (((plansRes.error ? [] : plansRes.data) || []) as any[])
+    .filter(r => me.group_id != null || r.athlete_id === athleteId);
   // Only deliveries of the workout the card shows (day-cards.ts watchDates).
   const onWatch = watchDates({
     dates: days,

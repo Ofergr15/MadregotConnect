@@ -310,7 +310,10 @@ export function AcademyShell({
     registrations: manager ? members?.pending.registrations : 0,
     results: members?.pending.results,
     tools: toolRows,
-  }), [now, awaiting, resendRows, manager, home, members, toolRows]);
+    trainees: roster.filter((m) => m.approved).map((m) => ({
+      athleteId: m.athleteId, name: m.name, hasPersonalPlan: m.hasPersonalPlan, hasTest: m.hasTest, lastSeenAt: m.lastSeenAt,
+    })),
+  }), [now, awaiting, resendRows, manager, home, members, toolRows, roster]);
 
   const suggestions = useMemo(() => buildSuggestions({
     members: roster, coaches, capacity, isManager: manager,
@@ -363,6 +366,7 @@ export function AcademyShell({
     }
     if (w.target.candidateId) { openFunnelCard(w.target.candidateId); return; }
     if (w.target.threadId) { openThread(w.target.threadId); return; }
+    if (w.target.athleteId) { setSelectedId(w.target.athleteId); return; }
     go(w.target.section);
     if (w.target.registrations) setRegistrationsOpen(true);
   };
@@ -488,6 +492,10 @@ export function AcademyShell({
             approvalCards={approvalCards}
             onApprovalDecided={() => { void reload(); void refreshCompletion(); }}
             onApprovalCorrect={(a) => setCorrectFor(a.athleteId)}
+            onTrainee={setSelectedId}
+            threadsCount={inbox?.rows.length ?? 0}
+            threadsUnread={(inbox?.rows ?? []).reduce((n, r) => n + (r.unreadCount || 0), 0)}
+            onThreads={() => go('threads')}
           />
         ) : section === 'readiness' ? (
           <ReadinessBoard
@@ -742,6 +750,7 @@ export function AcademyShell({
         onOpenThread={openThread}
         onOpenPlan={openPlan}
         onOpenTests={() => { setSelectedId(null); go('tests'); }}
+        onWriteWorkout={(id) => router.push(`/dashboard/academy/week?athleteId=${encodeURIComponent(id)}`)}
         canViewAs={canViewAs}
       />
     </div>

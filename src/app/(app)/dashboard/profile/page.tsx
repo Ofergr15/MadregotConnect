@@ -132,6 +132,8 @@ function ProfileGate() {
 
 function ProfileContent() {
   const t = useTranslations('profile');
+  // An academy-only trainee has no club pack: no blank "דבוקת קצב" row (academy-dash.html).
+  const { isAcademyOnly } = useNavIdentity();
   const tp = useTranslations('packSwitch');
   const tCommon = useTranslations('common');
   const format = useFormatter();
@@ -870,7 +872,7 @@ function ProfileContent() {
                 sublabel={!planIsCurrent && planWeekStart ? t('latestPublishedWeek') : undefined}
                 href="/dashboard/program"
               />
-                  <InsetRow icon={Users} iconBg="bg-band-2" label={t('paceGroup')} value={currentGroup?.name} onClick={() => setActiveTab('group')} />
+                  {!isAcademyOnly && <InsetRow icon={Users} iconBg="bg-band-2" label={t('paceGroup')} value={currentGroup?.name} onClick={() => setActiveTab('group')} />}
                   {planWorkouts && workoutDays.length > 0 && (
                     <InsetRow icon={Share2} iconBg="bg-teal-500" label={t('shareWorkout')} onClick={() => setActiveTab('share')} />
                   )}
