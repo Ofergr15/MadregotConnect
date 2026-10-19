@@ -12,7 +12,7 @@
  * which production has no AWS keys for. The old page with it is page.disabled.tsx.
  */
 
-import { Suspense, useCallback, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { ArrowRight, ImageOff, Search, X } from 'lucide-react';
@@ -128,14 +128,40 @@ function FolderView({ id }: { id: string }) {
   );
 }
 
+/**
+ * The last answer this phone had, shown at once on the next visit while the fresh one
+ * loads (Ofer, 10-19: "opening photos still takes ages"). Not older than the image links
+ * in it are good for (lib/photos/drive-browse IMAGE_URL_TTL is 6 h; 5 h leaves a margin).
+ */
+const KEEP_MS = 5 * 3600_000;
+function useKept<T>(key: string | null, fresh: T | undefined): T | undefined {
+  const [kept, setKept] = useState<T | undefined>(undefined);
+  useEffect(() => {
+    if (!key) return;
+    try {
+      const raw = localStorage.getItem(`mc:kept:${key}`);
+      const v = raw ? (JSON.parse(raw) as { at: number; data: T }) : null;
+      if (v && Date.now() - v.at < KEEP_MS) setKept(v.data);
+    } catch { /* private mode, or a full quota */ }
+  }, [key]);
+  useEffect(() => {
+    if (!key || fresh === undefined) return;
+    try { localStorage.setItem(`mc:kept:${key}`, JSON.stringify({ at: Date.now(), data: fresh })); } catch { /* quota */ }
+  }, [key, fresh]);
+  return fresh ?? kept;
+}
+
 function PhotosHome() {
   const t = useTranslations('photosPage');
   const router = useRouter();
-  const { data, error } = useApi<Browse>('/api/photos/browse');
+  const { data: freshBrowse, error } = useApi<Browse>('/api/photos/browse');
+  const data = useKept('/api/photos/browse', freshBrowse);
   const [q, setQ] = useState('');
   const folders = useMemo(() => data?.folders ?? [], [data]);
   const latest = folders[0];
-  const { data: latestPhotos } = useApi<FolderPhotos>(latest ? `/api/photos/browse/folder?id=${encodeURIComponent(latest.id)}` : null);
+  const latestKey = latest ? `/api/photos/browse/folder?id=${encodeURIComponent(latest.id)}` : null;
+  const { data: freshLatest } = useApi<FolderPhotos>(latestKey);
+  const latestPhotos = useKept(latestKey, freshLatest);
   const [open, setOpen] = useState<number | null>(null);
   // The tapped tile, so the viewer can grow the photo out of it.
   const [from, setFrom] = useState<DOMRect | null>(null);

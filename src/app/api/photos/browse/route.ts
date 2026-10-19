@@ -17,10 +17,14 @@ export async function GET(request: Request) {
   const denied = await requireMember(request);
   if (denied) return denied;
   try {
+    const t0 = Date.now();
     const folders = await listPhotoFolders();
+    const tList = Date.now() - t0;
     if (!folders) return NextResponse.json({ configured: false, folders: [] });
     // Our own copy where there is one (lib/photos/mirror.ts), Drive's link where not.
     const m = await mirroredUrls(folders.flatMap((f) => f.covers));
+    // Where the time goes, per request (10-19: the page is slow to open).
+    console.log(`[photos/browse] list ${tList}ms · links ${Date.now() - t0 - tList}ms · ${folders.length} folders`);
     return NextResponse.json({
       configured: true,
       folders: folders.map((f, i) => ({

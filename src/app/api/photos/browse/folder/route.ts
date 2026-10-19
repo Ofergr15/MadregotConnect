@@ -16,10 +16,13 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const id = new URL(request.url).searchParams.get('id') || '';
   try {
+    const t0 = Date.now();
     const res = await listFolderPhotos(id);
+    const tList = Date.now() - t0;
     if (!res) return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
     // Our own copy where there is one (lib/photos/mirror.ts), Drive's link where not.
     const m = await mirroredUrls(res.photos.map((p) => p.id));
+    console.log(`[photos/folder] list ${tList}ms · links ${Date.now() - t0 - tList}ms · ${res.photos.length} photos`);
     return NextResponse.json({
       folder: res.folder,
       photos: res.photos.map((p) => ({
