@@ -37,6 +37,8 @@ import {
   restoreAppScroll,
 } from '@/lib/app-scroll';
 import { cn } from '@/lib/utils';
+import { isStaffOnlyPath, mayOpenStaffPage, type StaffGateMe } from '@/lib/auth/staff-pages';
+import { StaffOnlyNotice } from '@/components/StaffOnlyNotice';
 import { useShellHeaderHidden } from '@/lib/shell-chrome';
 
 // Shared shell for every signed-in surface — /dashboard/* and /feed — via the
@@ -260,7 +262,7 @@ export default function AppLayout({
   // again": nobody thinks to do that, and nothing on screen suggested it. Members
   // poll never (`0`) — there is nothing to wait for, and this route stamps
   // last_seen_at on every call.
-  const { data: me, isLoading: meLoading, error: meError } = useApi<{ membership?: string }>(
+  const { data: me, isLoading: meLoading, error: meError } = useApi<{ membership?: string } & StaffGateMe>(
     hasLocalIdentity || authorized ? '/api/auth/me' : null,
     { refreshInterval: (latest) => (latest?.membership && latest.membership !== 'active' ? 30_000 : 0) },
   );
@@ -475,7 +477,9 @@ export default function AppLayout({
           <PhoneOpenBeacon />
           {!isRunChat && <PhoneAppStrip />}
           <ExecutionScoreProvider>
-            {isRunChat ? children : <PageTransition>{children}</PageTransition>}
+            {isStaffOnlyPath(pathname) && !mayOpenStaffPage(me, pathname!)
+              ? <StaffOnlyNotice />
+              : isRunChat ? children : <PageTransition>{children}</PageTransition>}
           </ExecutionScoreProvider>
         </main>
         {!isRunChat && <BottomTabBar />}

@@ -2575,7 +2575,18 @@
     "newPlanBadge": "New"
   },
   "workoutFeedback": {
-    "rpeWords": ["Very easy", "Very easy", "Easy", "Easy", "Moderate", "Moderate", "Hard", "Hard", "Very hard", "Max"],
+    "rpeWords": [
+      "Very easy",
+      "Very easy",
+      "Easy",
+      "Easy",
+      "Moderate",
+      "Moderate",
+      "Hard",
+      "Hard",
+      "Very hard",
+      "Max"
+    ],
     "painLittle": "A little",
     "addNote": "Add a note",
     "watchPrefilled": "From your watch — tap to change",
@@ -5907,5 +5918,10 @@
     "tmrNotComing": "Not coming tomorrow",
     "tmrPending": "Tomorrow's workout isn't posted yet",
     "tmrPendingBody": "It shows up here, with your pack's pace, as soon as the coach posts it."
+  },
+  "staffOnly": {
+    "title": "This screen is for the club's staff",
+    "body": "If you need access, ask your coach.",
+    "back": "Back to the feed"
   }
 }
