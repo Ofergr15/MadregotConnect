@@ -180,7 +180,9 @@ describe('the evening turnover', () => {
   it('stops today from winning the card all evening just because it was skipped', () => {
     // The whole point of the gate: the old condition was `todayW && !todayDone`,
     // so anybody who ran short was shown today's session until midnight.
-    expect(page).toMatch(/!todayDone && !eveningAnchor/);
+    // 2026-10-19: today's card stays through the day even once done ("done · on plan",
+    // tomorrow under it) — and still turns over at 20:00.
+    expect(page).toMatch(/\(todayW && !eveningAnchor\) \? todayW : \(tomorrowW \|\| todayW\)/);
   });
 
   it('asks about the date the card is actually showing', () => {

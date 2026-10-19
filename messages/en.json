@@ -289,6 +289,16 @@
     "installedBrowser": "Browser"
   },
   "dashboard": {
+    "sameTimeLastWeek": "Same time last week:",
+    "packThisWeek": "{pack} · this week",
+    "packFrom": "from #{n}",
+    "packYou": "Me",
+    "packToFirst": "behind #1",
+    "clubRan": "ran",
+    "clubMore": "and {n} more ›",
+    "nightSleep": "sleep",
+    "nightRhr": "resting HR",
+    "nightFromWatch": "from your watch",
     "todayRan": "Today:",
     "perKm": "/km",
     "todayTarget": "target was",
@@ -2553,6 +2563,8 @@
     "saveFailed": "Failed to save, try again"
   },
   "nextWorkout": {
+    "done": "done",
+    "plannedWas": "Planned:",
     "eventTitle": "Running Workout",
     "addToCalendar": "Add to calendar",
     "doneSuffix": "done",

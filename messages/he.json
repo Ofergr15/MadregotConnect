@@ -289,6 +289,16 @@
     "installedBrowser": "דפדפן"
   },
   "dashboard": {
+    "sameTimeLastWeek": "באותה שעה בשבוע שעבר:",
+    "packThisWeek": "{pack} · השבוע",
+    "packFrom": "ממקום {n}",
+    "packYou": "אני",
+    "packToFirst": "מהראשון",
+    "clubRan": "רצו",
+    "clubMore": "ועוד {n} ›",
+    "nightSleep": "שינה",
+    "nightRhr": "דופק מנוחה",
+    "nightFromWatch": "מהשעון",
     "todayRan": "היום:",
     "perKm": "לק״מ",
     "todayTarget": "היעד היה",
@@ -2553,6 +2563,8 @@
     "saveFailed": "השמירה נכשלה, נסו שוב"
   },
   "nextWorkout": {
+    "done": "בוצע",
+    "plannedWas": "תוכנן:",
     "eventTitle": "אימון ריצה",
     "addToCalendar": "הוספה ליומן",
     "doneSuffix": "הושלמו",

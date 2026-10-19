@@ -163,6 +163,13 @@ export async function GET(
       // "השבוע שלי": the plan week (Sunday) by day, last week to this same minute, and
       // ten such weeks — one window for the whole card (lib/athletes/plan-week.ts).
       planWeek: buildPlanWeek(acts, israelWallNow()),
+      // Last night's sleep and resting HR, for the home's strip — the athlete's own only
+      // (health data, #69), and only a night the watch actually reported (today's date).
+      lastNight: (() => {
+        if (caller.athleteId !== id) return null;
+        const n = (wellness ?? []).find((w) => w.date === israelToday() && (w.sleep_seconds || w.resting_hr));
+        return n ? { sleepSeconds: n.sleep_seconds ?? null, restingHr: n.resting_hr ?? null } : null;
+      })(),
       // The rolling seven days behind the profile card and the Saturday 18:00
       // push. Folded from the SAME `acts` this payload is already built from, so
       // it needs no request of its own and cannot disagree with the week table

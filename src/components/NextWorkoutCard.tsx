@@ -1,9 +1,8 @@
 'use client';
 
-import { useRef } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { CalendarPlus, CheckCircle2, ArrowRight } from 'lucide-react';
+import { CalendarPlus, Check, ChevronLeft } from 'lucide-react';
 import { numberRuns } from '@/lib/day-session/model';
 import { googleCalendarUrl } from '@/lib/calendar-link';
 
@@ -42,25 +41,28 @@ interface NextWorkoutCardProps {
   watch?: React.ReactNode;
   /** The embedded <AttendanceRSVP /> for this workout, or null when there's no team day to RSVP for. */
   children?: React.ReactNode;
+  /** Today's run against the plan, once it is judged (execution.dir_*). The page asks; the card shows. */
+  verdict?: { onPlan: boolean; label: string } | null;
+  /** Tomorrow's session, on one line under a done today. */
+  tomorrow?: string | null;
 }
 
-// Consolidated "what's next for me" hero card — replaces a separate RSVP
-// section + a separate today/tomorrow-workout tile with ONE card: the next
-// relevant workout, inline actions (RSVP + add-to-calendar), and a
-// context-aware primary CTA directly below it. (Dashboard IA cleanup, per
-// Talos Barbershop / My Disney Experience research on consolidating
-// "what's next" into a single hero card with inline actions.)
+// "What's next for me" in ONE compact card (Ofer, 2026-10-19, mockups/morning-1019/home-v4):
+// it used to take half the screen — a date line, a huge km range, an "add to calendar"
+// button, the RSVP as its own block and a full-width CTA under it. Now: what the session
+// is, whether it's on the Garmin account (the watch row), and, once it's run, done and
+// whether it kept to the plan. Calendar becomes an icon, the plan a small link.
 export function NextWorkoutCard({
   isToday, workout, typeLabel, typeColor, typeTextColor, done, doneKm, date, workoutHour,
-  hasRsvpTarget, rsvpAnswered, isNewPlan, watch, children,
+  isNewPlan, watch, children, verdict, tomorrow,
 }: NextWorkoutCardProps) {
   const t = useTranslations('nextWorkout');
   const td = useTranslations('dashboard');
   const tc = useTranslations('common');
-  const rsvpRef = useRef<HTMLDivElement>(null);
 
   const sessionName = workout.sessions?.[0]?.name || '';
   const distanceLabel = workout.min === workout.max ? `${workout.max}` : `${workout.min}–${workout.max}`;
+  const runs = (text: string) => numberRuns(text).map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>));
 
   const calendarHref = googleCalendarUrl({
     title: `${t('eventTitle')} · ${sessionName || typeLabel}`,
@@ -69,84 +71,49 @@ export function NextWorkoutCard({
     hour: workoutHour,
   });
 
-  const scrollToRsvp = () => rsvpRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
   return (
-    <>
-      <div className="bg-card/50 rounded-card p-4 sm:p-5 border border-page/30 space-y-4">
-        {/* Next relevant workout — today's if not done yet, else tomorrow's */}
-        <div>
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-400">
-              {isToday ? td('today') : td('tomorrow')}
-            </p>
-            <div className="flex items-center gap-1.5">
-              {done && <CheckCircle2 className="h-3.5 w-3.5 text-accent-600" />}
-              <span
-                className="text-3xs font-bold px-2 py-0.5 rounded-full"
-                style={{ background: `${typeColor}20`, color: typeTextColor }}
-              >
-                {typeLabel}
-              </span>
-            </div>
-          </div>
-          <p className="text-2xl font-black text-ink-700 mt-1 tabular-nums">
-            {/* LTR: in the Hebrew line bidi printed 9.5–15 as "15–9.5". */}
-            <bdi dir="ltr">{distanceLabel}</bdi>
-            <span className="text-sm font-medium text-ink-400 ms-1">{tc('km')}</span>
-            {!!doneKm && doneKm > 0 && (
-              <span className="text-xs font-semibold text-accent-900 ms-2">
-                {Math.round(doneKm * 10) / 10} {t('doneSuffix')}
-              </span>
-            )}
-          </p>
-          {/* Each number run isolated: "50–70 דק׳" read "70–50" as one RTL line. */}
-          {sessionName && <p className="text-2xs text-ink-400 mt-0.5">{numberRuns(sessionName).map((r, i) => (r.ltr ? <bdi key={i} dir="ltr">{r.text}</bdi> : <span key={i}>{r.text}</span>))}</p>}
-        </div>
-
-        {/* Inline action: add to calendar */}
-        <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={calendarHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-h-[44px] items-center gap-1.5 px-3 rounded-xl text-xs font-bold text-ink-500 hover:text-ink-900 bg-page/50 hover:bg-ink-300/40 transition-colors"
-          >
-            <CalendarPlus className="h-3.5 w-3.5" /> {t('addToCalendar')}
+    <div className={`rounded-card p-4 shadow-sm ${done ? 'bg-gradient-to-b from-accent-600/10 to-card' : 'bg-card'}`}>
+      <div className="flex items-center gap-2">
+        {done
+          ? <span className="grid h-6 w-6 place-items-center rounded-full bg-accent-600"><Check className="h-3.5 w-3.5 text-white" strokeWidth={3} /></span>
+          : <span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: `${typeColor}20`, color: typeTextColor }}>{typeLabel}</span>}
+        <p className="text-13 font-extrabold text-ink-500">
+          {isToday ? td('today') : td('tomorrow')}{done && <> · {t('done')}</>}
+        </p>
+        {done && verdict && (
+          <span className={`ms-auto rounded-full px-2.5 py-0.5 text-xs font-black ${verdict.onPlan ? 'bg-accent-600/15 text-accent-900' : 'bg-band-3/15 text-band-3-ink'}`}>{verdict.label}</span>
+        )}
+        {!done && (
+          <a href={calendarHref} target="_blank" rel="noopener noreferrer" aria-label={t('addToCalendar')}
+            className="ms-auto -my-2 -me-2 grid h-11 w-11 place-items-center rounded-xl text-ink-400 hover:text-ink-900">
+            <CalendarPlus className="h-4 w-4" />
           </a>
-          {/* Inline action: is this session on the watch, and one tap if it isn't.
-              Passed in rather than fetched here so this card stays presentational,
-              and renders nothing at all until the answer is known — see
-              WatchStatus for why a wrong "no" is the expensive state. */}
-          {watch}
-        </div>
-
-        {/* Inline action: RSVP (embedded, existing component — untouched internals) */}
-        {children && <div ref={rsvpRef}>{children}</div>}
+        )}
       </div>
 
-      {/* Primary CTA bar, directly below the card — context-aware */}
-      {hasRsvpTarget && !rsvpAnswered ? (
-        <button
-          onClick={scrollToRsvp}
-          className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white bg-brand-600 hover:bg-brand-700 transition-colors"
-        >
-          {t('ctaConfirm')} <ArrowRight className="h-4 w-4" />
-        </button>
-      ) : (
-        <Link
-          href="/dashboard/program"
-          className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white bg-brand-600 hover:bg-brand-700 transition-colors"
-        >
-          {t('ctaViewPlan')}
-          {isNewPlan && (
-            <span className="bg-page text-ink-700 text-3xs font-bold px-2 py-0.5 rounded-full">
-              {t('newPlanBadge')}
-            </span>
-          )}
-          <ArrowRight className="h-4 w-4" />
-        </Link>
+      <p className="mt-1.5 text-[28px] font-black leading-tight text-ink-900 tabular-nums">
+        {done && doneKm
+          ? <><bdi dir="ltr">{Math.round(doneKm * 10) / 10}</bdi> <small className="text-sm font-bold text-ink-500">{tc('km')}</small></>
+          : sessionName ? runs(sessionName) : <><bdi dir="ltr">{distanceLabel}</bdi> <small className="text-sm font-bold text-ink-500">{tc('km')}</small></>}
+      </p>
+      <p className="text-xs text-ink-500">
+        {done
+          ? <>{t('plannedWas')} {sessionName ? runs(sessionName) : <bdi dir="ltr">{distanceLabel}</bdi>}</>
+          : sessionName && <><bdi dir="ltr">{distanceLabel}</bdi> {tc('km')}</>}
+      </p>
+
+      {tomorrow && (
+        <p className="mt-2.5 border-t border-page pt-2.5 text-13 text-ink-700">{td('tomorrow')} · {runs(tomorrow)}</p>
       )}
-    </>
+      {/* Is it on the Garmin account, and one tap if it isn't (WatchStatus). */}
+      {watch && <div className="mt-2.5">{watch}</div>}
+      {children && <div className="mt-3">{children}</div>}
+
+      <Link href="/dashboard/program" className="mt-2 -mb-2 inline-flex min-h-[44px] items-center gap-1 text-sm font-bold text-brand-600">
+        {t('ctaViewPlan')}
+        {isNewPlan && <span className="rounded-full bg-brand-600/10 px-2 py-0.5 text-3xs font-bold">{t('newPlanBadge')}</span>}
+        <ChevronLeft className="h-4 w-4 ltr:rotate-180" />
+      </Link>
+    </div>
   );
 }

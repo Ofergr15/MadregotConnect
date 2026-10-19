@@ -13,7 +13,7 @@ describe('the home', () => {
 
   it('shows today, my week, the race and the club — not the old strip', () => {
     expect(page).toMatch(/<HomeToday athleteId=\{athleteId\} \/>/);
-    expect(page).toMatch(/<ClubToday \/>/);
+    expect(page).toMatch(/<ClubToday athleteId=\{athleteId\} \/>/);
     expect(page).not.toMatch(/<StatTiles/);
   });
 

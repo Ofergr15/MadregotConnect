@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import { Calendar, ArrowRight, TrendingUp, TrendingDown, MapPin, Flame } from 'lucide-react';
+import { Calendar, ArrowRight, TrendingUp, TrendingDown, Flame } from 'lucide-react';
 import {
   cn, getActivityWeekStart, getPlanWeekStart, isRecentlyPublished, israelDateAnchor,
   activityWeekStart, activityLocalDateStr, activityDayRelation, israelToday, israelNow, toISODate,
@@ -16,7 +16,7 @@ import { getActiveViewRole } from '@/lib/role-views';
 import { AttendanceRSVP, type AttendanceStatus } from '@/components/AttendanceRSVP';
 import { NextWorkoutCard } from '@/components/NextWorkoutCard';
 import { WatchStatus } from '@/components/WatchStatus';
-import { HomeToday, ClubToday } from '@/components/home/HomeToday';
+import { HomeToday, ClubToday, CoachPinned, LastNight } from '@/components/home/HomeToday';
 import { WeeklyLeaderboardCard } from '@/components/WeeklyLeaderboardCard';
 import { WORKOUT_TYPE_COLORS as typeColors, WORKOUT_TYPE_TEXT_COLORS as typeTextColors, planDayKey } from '@/lib/plans/workout-parsing';
 import { useWorkoutTypeLabel } from '@/lib/plans/use-workout-type-label';
@@ -154,6 +154,7 @@ const EVENING_LOOKAHEAD_HOUR = 20;
 // booking-style apps, per an explicit product decision.
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
+  const tx = useTranslations('execution');
   const tc = useTranslations('common');
   const tm = useTranslations('momentum');
   const tt = useTranslations('trainee');
@@ -513,6 +514,14 @@ export default function DashboardPage() {
   // is: rendering the athlete hero for a beat and then swapping in the control room
   // is a worse first impression than one short spinner. The control room skips
   // /api/dashboard/weekly entirely, so weeklyLoading is never true for it.
+  // Today's run against the plan, for the hero's "done · on plan" (2026-10-19). Asked here,
+  // above the early return, so the hook order never changes; the card only shows it.
+  const todayRunId = recentActivities.find((a) => activityLocalDateStr(a.start_time) === israelToday())?.id;
+  const { data: execution } = useApi<{ summaries?: Array<{ activityId: string; direction: string }> }>(
+    todayRunId ? `/api/plan-execution?ids=${todayRunId}` : null,
+  );
+  const todayDirection = execution?.summaries?.find((x) => x.activityId === todayRunId)?.direction;
+
   if (!homeKnown || (!controlRoomView && weeklyLoading)) return (
     <div className="flex items-center justify-center h-[60vh]">
       <Spinner size={40} />
@@ -582,7 +591,6 @@ export default function DashboardPage() {
   const firstName = (athleteName || '').split(' ')[0];
   // Locale-aware race date (was a hardcoded "Dec 6, 2026" — reads as a Hebrew
   // month name once translated instead of forcing English into an RTL page).
-  const raceDateLabel = GOAL_RACE.date.toLocaleDateString(dateLocale, { day: 'numeric', month: 'long', year: 'numeric' });
 
   // An admin with no athlete row has a different home entirely — see
   // AdminControlRoom for why, and /dashboard/control-room for where it also lives
@@ -634,7 +642,9 @@ export default function DashboardPage() {
     // Next relevant workout: today's if it isn't done yet and the evening hasn't
     // turned over; otherwise tomorrow's; falling back to today's (as a completed
     // recap) if there's no workout scheduled tomorrow.
-    const nextWorkout = (todayW && !todayDone && !eveningAnchor) ? todayW : (tomorrowW || todayW)!;
+    // Today's stays until 20:00 even once it is done (2026-10-19): the card then says
+    // "done · on plan" with tomorrow on one line under it, instead of jumping ahead.
+    const nextWorkout = (todayW && !eveningAnchor) ? todayW : (tomorrowW || todayW)!;
     const showingToday = nextWorkout === todayW;
     // Noon anchor off the matched day key, so the date handed to the calendar
     // link is the workout's own date and can't drift across a midnight.
@@ -650,11 +660,19 @@ export default function DashboardPage() {
 
       {/* ═══ LARGE TITLE (native home header) — the trainee home brings its own greeting ═══ */}
       {/* The greeting is the title now (2026-10-19): the app's name told nobody anything. */}
+      {/* The race rides in the header's corner (2026-10-19) — a whole card for one number
+          was the page's emptiest row. */}
       {!showTraineeHome && (
-        <h1 className="text-[22px] font-black text-ink-900">
-          {greeting}{firstName ? `, ${firstName}` : ''}{' '}
-          <span className="text-sm font-semibold text-ink-400">· {new Date().toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'Asia/Jerusalem' })}</span>
-        </h1>
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-[22px] font-black leading-tight text-ink-900">{greeting}{firstName ? `, ${firstName}` : ''}</h1>
+            <p className="text-13 font-semibold text-ink-400">{new Date().toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'Asia/Jerusalem' })}</p>
+          </div>
+          <div className="flex-none rounded-2xl bg-card px-3 py-1.5 text-center leading-tight shadow-sm">
+            <p className="text-xs text-ink-700">🏆 <b className="text-[15px] text-brand-600 tabular-nums">{countdown.d}</b> {tc('days')}</p>
+            <p className="text-2xs text-ink-400">{t(GOAL_RACE.nameKey)}{week > 0 && <> · <bdi dir="ltr">{week}/{GOAL_RACE.totalWeeks}</bdi></>}</p>
+          </div>
+        </div>
       )}
 
       {/* ═══ DDORESH TIPUL (admin) — what is waiting for the person who runs the
@@ -722,6 +740,10 @@ export default function DashboardPage() {
         </section>
       )}
 
+      {/* The coach's pinned word and last night's sleep lead the briefing when there are any. */}
+      {athleteId && !showTraineeHome && <CoachPinned />}
+      {athleteId && !showTraineeHome && <LastNight athleteId={athleteId} />}
+
       {heroPending ? (
         <div className="flex items-center justify-center py-16"><Spinner /></div>
       ) : showTraineeHome ? (
@@ -741,6 +763,12 @@ export default function DashboardPage() {
           rsvpAnswered={rsvpAnswered}
           isNewPlan={isRecentlyPublished(weekly?.publishedAt)}
           watch={<WatchStatus date={toISODate(heroWorkout.nextDate)} />}
+          tomorrow={heroWorkout.showingToday && heroWorkout.todayDone && tomorrowW
+            ? (tomorrowW.sessions?.[0]?.name || `${tomorrowW.min === tomorrowW.max ? tomorrowW.max : `${tomorrowW.min}–${tomorrowW.max}`} ${tc('km')}`)
+            : null}
+          verdict={heroWorkout.showingToday && todayDirection && todayDirection !== 'unknown'
+            ? { onPlan: todayDirection === 'on_target', label: tx(`dir_${todayDirection}`) }
+            : null}
         >
           {rsvpTarget && (
             <AttendanceRSVP
@@ -777,26 +805,8 @@ export default function DashboardPage() {
           repeated the profile's numbers in a different week window. ═══ */}
       {athleteId && !showTraineeHome && <HomeToday athleteId={athleteId} />}
 
-      {/* ═══ RACE COUNTDOWN — compact native strip, kept minimal on purpose. The trainee
-          home counts down to the trainee's OWN race instead (RaceLine). ═══ */}
-      {!showTraineeHome && <section className="rounded-card bg-card/60 border border-page/60 p-4 flex items-center gap-4">
-        <div className="w-12 h-12 rounded-2xl bg-brand-600/15 flex items-center justify-center shrink-0">
-          <MapPin className="h-5 w-5 text-brand-600" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-ink-700 truncate">{t(GOAL_RACE.nameKey)}</p>
-          <p className="text-xs text-ink-400 mt-0.5">
-            {raceDateLabel} · {week > 0 ? t('weekOfTotal', { week, total: GOAL_RACE.totalWeeks }) : t('preSeason')}
-          </p>
-        </div>
-        <div className="text-end shrink-0">
-          <div className="text-2xl font-black text-ink-700 leading-none tabular-nums">{countdown.d}</div>
-          <div className="text-2xs text-ink-400 mt-1">{tc('days')}</div>
-        </div>
-      </section>}
-
       {/* ═══ THE CLUB TODAY — how many ran and how far, together ═══ */}
-      {athleteId && !showTraineeHome && <ClubToday />}
+      {athleteId && !showTraineeHome && <ClubToday athleteId={athleteId} />}
 
       {/* ═══ CLUB STANDINGS — this week's top three by distance, with my own row
           appended when I'm outside it. Moved here off the feed: the feed is
