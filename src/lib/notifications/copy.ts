@@ -722,15 +722,27 @@ export function academyTraineesAssignedCopy(
 }
 
 /**
- * To the trainee's coaches, the moment the trainee first comes into the app (Ofer,
- * 2026-10-19: "after the trainee enters their details the coach gets a message that the
- * trainee registered and they need to continue").
+ * To the trainee's coaches, the first time the app opens for the trainee — installed and
+ * signed in (Ofer, 2026-10-19: "the coach gets a notification that he installed and
+ * connected, and then we can work").
  */
 export function academyTraineeJoinedCopy(locale: NotificationLocale, p: { name: string }): PushCopy {
   const who = (p.name || '').trim() || SOMEONE[locale];
   return locale === 'he'
-    ? { title: `✅ ${who} נרשם/ה לאפליקציה`, body: 'זה הזמן לבנות את התוכנית הראשונה. לחיצה פותחת את הכרטיס.' }
-    : { title: `✅ ${who} signed up in the app`, body: 'Time to build their first plan. Tap to open their card.' };
+    ? { title: `✅ ${who} התקין/ה את האפליקציה והתחבר/ה`, body: 'זה הזמן לבנות את התוכנית הראשונה. לחיצה פותחת את הכרטיס.' }
+    : { title: `✅ ${who} installed the app and signed in`, body: 'Time to build their first plan. Tap to open their card.' };
+}
+
+/**
+ * To the coaches when the manager accepts a trainee who is not in the app yet: a heads-up,
+ * so they can read the form before the trainee arrives (the real "start" comes with
+ * academyTraineeJoinedCopy).
+ */
+export function academyTraineeComingCopy(locale: NotificationLocale, p: { name: string }): PushCopy {
+  const who = (p.name || '').trim() || SOMEONE[locale];
+  return locale === 'he'
+    ? { title: `🎓 ${who} מצטרף/ת אליך`, body: 'ייכנס/תיכנס לאפליקציה בקרוב. אפשר כבר לעבור על הפרטים מהטופס.' }
+    : { title: `🎓 ${who} is joining you`, body: "They'll be in the app soon. You can already read their form." };
 }
 
 /** The "אינסטגרם" switch turned on (roles screen): they now share the group's workouts. */
@@ -1084,8 +1096,14 @@ export function storeOrderCopy(
  */
 export function academyApplicantCopy(
   locale: NotificationLocale,
-  p: { name: string; intake?: Record<string, unknown> | null; likelyMember?: string | null },
+  p: { name: string; intake?: Record<string, unknown> | null; likelyMember?: string | null; existingTrainee?: boolean },
 ): PushCopy {
+  // Somebody who already trains with us filled the details form — not a new applicant.
+  if (p.existingTrainee) {
+    return locale === 'he'
+      ? { title: `📋 ${p.name} מילא/ה את הטופס`, body: 'מתאמן/ת קיים/ת — לא מועמד/ת חדש/ה. לחיצה לאישור.' }
+      : { title: `📋 ${p.name} filled in the form`, body: 'An existing trainee, not a new applicant. Tap to approve.' };
+  }
   const age = ageFrom(p.intake?.birthDate);
   const focus = focusShort(p.intake?.focus);
   // The club member the form probably is (a Strava signup the email could not find).

@@ -21,6 +21,8 @@ export interface NewApplicant {
   /** The form's academy_intake blob, read loosely: older forms lack fields. */
   intake?: Record<string, unknown> | null;
   existingMember?: boolean;
+  /** Somebody who already trains with us (their card's source is 'existing'): not a new applicant. */
+  existingTrainee?: boolean;
   /** The roster name of the club member this probably is: a guess by name, for a runner
    *  whose account carries a Strava placeholder address the email could never match. */
   likelyMember?: string | null;
@@ -57,7 +59,8 @@ export function whatsappNumber(phone: unknown): string | null {
   return digits.length >= 11 && digits.length <= 13 ? digits : null;
 }
 
-export function newApplicantSubject(p: Pick<NewApplicant, 'name' | 'intake'>): string {
+export function newApplicantSubject(p: Pick<NewApplicant, 'name' | 'intake' | 'existingTrainee'>): string {
+  if (p.existingTrainee) return `📋 ${p.name} מילא/ה את הטופס · מתאמן/ת קיים/ת`;
   const age = ageFrom(p.intake?.birthDate);
   const parts = [p.name, age ? String(age) : '', focusShort(p.intake?.focus)].filter(Boolean);
   return `🎓 מועמד חדש: ${parts.join(' · ')}`;
@@ -104,7 +107,9 @@ export function renderAcademyNewApplicant(p: NewApplicant): string {
       </tr></table>`
     : '';
 
-  const existing = p.existingMember
+  const existing = p.existingTrainee
+    ? `<div style="margin: 14px 0 0; background: #EEF0FF; border-radius: 12px; padding: 10px 13px; font-size: 13.5px; line-height: 1.55; font-weight: 700; color: #1A22A8;">🎓 מתאמן/ת קיים/ת באקדמיה — לא מועמד/ת חדש/ה. מילא/ה את הפרטים לקראת המעבר לאפליקציה; המאמן כבר נבחר, ונשאר רק לאשר.</div>`
+    : p.existingMember
     ? `<div style="margin: 14px 0 0; background: #FFF4E5; border-radius: 12px; padding: 10px 13px; font-size: 13.5px; line-height: 1.55; font-weight: 600; color: #8A4B00;">👤 המייל הזה כבר שייך לרץ במועדון, והחשבון שלו לא שונה. אפשר לקשר מהכרטיס.</div>`
     : str(p.likelyMember)
       ? `<div style="margin: 14px 0 0; background: #FFF4E5; border-radius: 12px; padding: 10px 13px; font-size: 13.5px; line-height: 1.55; font-weight: 600; color: #8A4B00;">👤 ייתכן שזה <b dir="ltr">${esc(str(p.likelyMember))}</b>, שכבר רץ במועדון (לפי השם). אפשר לאשר את ההתאמה מהכרטיס.</div>`
@@ -140,7 +145,7 @@ export function renderAcademyNewApplicant(p: NewApplicant): string {
 
   <tr><td bgcolor="${DUSK}" align="center" style="background-color: ${DUSK}; background-image: linear-gradient(160deg, ${DUSK} 0%, ${SUN} 100%); border-radius: 26px 26px 0 0; padding: 26px 20px 24px;">
     <img src="${LOGO}" width="88" height="88" alt="Madregot After 2KM Running Club" style="display: block; width: 88px; height: 88px; border: 0; margin: 0 auto;" />
-    <div style="font-family: ${FONT}; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; color: ${EYEBROW}; margin-top: 12px;">מועמד חדש לאקדמיה</div>
+    <div style="font-family: ${FONT}; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; color: ${EYEBROW}; margin-top: 12px;">${p.existingTrainee ? 'מתאמן קיים — מילא את הטופס' : 'מועמד חדש לאקדמיה'}</div>
     <div style="font-family: ${FONT}; font-size: 28px; font-weight: 800; color: #ffffff; line-height: 1.25; margin-top: 4px;">${esc(p.name)}</div>
     ${sub ? `<div style="font-family: ${FONT}; font-size: 14px; color: ${HEADER_SUB}; margin-top: 5px;">${sub}</div>` : ''}
   </td></tr>
@@ -155,7 +160,7 @@ export function renderAcademyNewApplicant(p: NewApplicant): string {
     ${background}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 20px 0 0;"><tr>
       <td align="center" bgcolor="${DUSK}" style="background-color: ${DUSK}; border-radius: 99px;">
-        <a href="${esc(p.href)}" style="display: block; padding: 14px 10px; font-family: ${FONT}; font-size: 15.5px; font-weight: 800; color: #ffffff; text-decoration: none;">לכרטיס של ${esc(firstName)} באקדמיה ←</a>
+        <a href="${esc(p.href)}" style="display: block; padding: 14px 10px; font-family: ${FONT}; font-size: 15.5px; font-weight: 800; color: #ffffff; text-decoration: none;">${p.existingTrainee ? `לאישור של ${esc(firstName)} ←` : `לכרטיס של ${esc(firstName)} באקדמיה ←`}</a>
       </td>
     </tr></table>
     <div style="text-align: center; font-size: 12px; color: ${MUTED}; margin-top: 8px;">נפתח באפליקציה, על הכרטיס שלו בלוח המועמדים</div>

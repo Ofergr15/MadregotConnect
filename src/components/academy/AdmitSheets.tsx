@@ -230,7 +230,7 @@ export function InviteSheet({
 }
 
 export function AcceptSheet({
-  open, onOpenChange, candidateId, candidateName, coaches, isManager, myId, linked, multiCoach, onDone,
+  open, onOpenChange, candidateId, candidateName, coaches, isManager, myId, linked, multiCoach, presetCoachIds, onDone,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -243,6 +243,8 @@ export function AcceptSheet({
   linked: boolean;
   /** `false` before migration 135: one coach. Unknown (the funnel) = the server says. */
   multiCoach?: boolean;
+  /** Coaches already chosen for this trainee (an existing trainee's card): the sheet starts there. */
+  presetCoachIds?: string[];
   onDone: () => void;
 }) {
   // "שיבוץ מאמנים" at the door: one coach or several, all equal (migration 135).
@@ -261,9 +263,10 @@ export function AcceptSheet({
     if (seeded.current === candidateId || !coaches.length) return;
     seeded.current = candidateId;
     setMessage(null);
+    const preset = (presetCoachIds ?? []).filter(id => coaches.some(c => c.id === id));
     const mine = coaches.find(c => c.id === myId);
-    setCoachIds(mine ? [mine.id] : [coaches[0].id]);
-  }, [open, candidateId, coaches, myId]);
+    setCoachIds(preset.length ? preset : mine ? [mine.id] : [coaches[0].id]);
+  }, [open, candidateId, coaches, myId, presetCoachIds]);
 
   useEffect(() => {
     if (!open || !linked || !previewKey) return;

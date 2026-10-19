@@ -1,39 +1,95 @@
 import { describe, expect, it } from 'vitest';
-import { academyAcceptedEmail, academyMoveInEmail } from '@/lib/email/index';
-import { academyTraineeJoinedCopy, academyTraineesAssignedCopy } from '@/lib/notifications/copy';
+import {
+  academyAcceptedEmail, academyExistingFormEmail, academyExistingFormReceivedEmail, academyMoveInEmail,
+} from '@/lib/email/index';
+import { newApplicantSubject, renderAcademyNewApplicant } from '@/lib/email/academy-new-applicant';
+import {
+  academyApplicantCopy, academyTraineeComingCopy, academyTraineeJoinedCopy, academyTraineesAssignedCopy,
+} from '@/lib/notifications/copy';
 
-/** The academy's way into the app (Ofer, 2026-10-19): the mails install it, the coaches hear both moments. */
-describe('academy mails that bring a trainee in', () => {
-  it('the acceptance carries the install guide, the QR and the Safari tip', () => {
+/**
+ * The way into the app (academy-onboarding/existing-trainee-flow.html): name + email → the
+ * details form → the manager approves → the install mail → the coach hears they signed in.
+ * No coach by name in anything the trainee reads (Ofer, 2026-10-19).
+ */
+describe('what the trainee reads', () => {
+  it('1 · an existing trainee gets the details form, not the app yet', () => {
+    const { subject, html } = academyExistingFormEmail({ name: 'יוסי לוי', url: 'https://www.madregot.app/academy-register?i=abc' });
+    expect(subject).toBe('🎓 יוסי, האקדמיה עוברת לאפליקציה — נשאר רק למלא פרטים');
+    expect(html).toContain('/academy-register?i=abc');
+    expect(html).toContain('מהמאמן/ת שלך');
+    expect(html).not.toContain('onb=v2');
+  });
+  it('2 · after the form: no intro call ahead of them, the app link comes next', () => {
+    const { html } = academyExistingFormReceivedEmail({ name: 'יוסי' });
+    expect(html).toContain('הקישור להתקנת האפליקציה');
+    expect(html).not.toContain('שיחת היכרות');
+  });
+  it('3 · approved: the install mail, for an existing trainee "הכל מוכן"', () => {
+    const { subject, html } = academyMoveInEmail({ name: 'יוסי לוי', token: 'tok2', coachName: 'דנה', coachCount: 1 });
+    expect(subject).toBe('✅ יוסי, הכל מוכן — ככה נכנסים לאפליקציה');
+    expect(html).toContain('/join/tok2?onb=v2');
+    expect(html).toContain('/api/public/qr?t=tok2');
+    expect(html).toContain('Safari');
+    expect(html).not.toContain('דנה');
+  });
+  it('3 · a new trainee: "התקבלת", the same install section, no coach by name', () => {
     const { subject, html } = academyAcceptedEmail({ name: 'דנה כהן', token: 'tok1', coachName: 'שליו', coachCount: 1 });
     expect(subject).toContain('ככה נכנסים לאפליקציה');
     expect(html).toContain('/join/tok1?onb=v2');
-    expect(html).toContain('/api/public/qr?t=tok1');
-    expect(html).toContain('Safari');
-    expect(html).toContain('המאמן/ת שלך: שליו.');
+    expect(html).not.toContain('שליו');
     expect(html).not.toContain('לא חובה');
   });
-  it('a member who already has an account still just opens the app', () => {
+  it('an account that already exists just opens the app', () => {
     const { html } = academyAcceptedEmail({ name: 'דנה', token: null });
     expect(html).toContain('/dashboard');
     expect(html).not.toContain('onb=v2');
   });
-  it('somebody who already trains with us gets the move-in mail, no form', () => {
-    const { subject, html } = academyMoveInEmail({ name: 'יוסי לוי', token: 'tok2', coachName: 'דנה', coachCount: 1 });
-    expect(subject).toContain('עוברת לאפליקציה');
-    expect(html).toContain('/join/tok2?onb=v2');
-    expect(html).toContain('מ־דנה');
-    expect(html).toContain('אין טופס');
+});
+
+describe('what the manager reads when the form comes back', () => {
+  it('says "existing trainee, not new" — push and mail', () => {
+    expect(academyApplicantCopy('he', { name: 'יוסי לוי', existingTrainee: true })).toEqual({
+      title: '📋 יוסי לוי מילא/ה את הטופס', body: 'מתאמן/ת קיים/ת — לא מועמד/ת חדש/ה. לחיצה לאישור.',
+    });
+    expect(newApplicantSubject({ name: 'יוסי לוי', existingTrainee: true })).toBe('📋 יוסי לוי מילא/ה את הטופס · מתאמן/ת קיים/ת');
+    const html = renderAcademyNewApplicant({ name: 'יוסי לוי', email: 'y@x.co', existingTrainee: true, href: 'https://x' });
+    expect(html).toContain('לא מועמד/ת חדש/ה');
+    expect(html).toContain('לאישור של');
+  });
+  it('a new applicant reads as before', () => {
+    expect(academyApplicantCopy('he', { name: 'דנה' }).title).toBe('🎓 מועמד חדש לאקדמיה');
   });
 });
 
-describe('the coach, at both moments', () => {
-  it('when the trainee is theirs: start the plan', () => {
+describe('the coach', () => {
+  it('4 · at the approval of somebody not in the app yet: a heads-up', () => {
+    expect(academyTraineeComingCopy('he', { name: 'יוסי לוי' })).toEqual({
+      title: '🎓 יוסי לוי מצטרף/ת אליך', body: 'ייכנס/תיכנס לאפליקציה בקרוב. אפשר כבר לעבור על הפרטים מהטופס.',
+    });
+  });
+  it('6 · when they signed in from the app: build the first plan', () => {
+    const c = academyTraineeJoinedCopy('he', { name: 'יוסי לוי' });
+    expect(c.title).toBe('✅ יוסי לוי התקין/ה את האפליקציה והתחבר/ה');
+    expect(c.body).toContain('התוכנית הראשונה');
+  });
+  it('a trainee who is already in the app (moved from the club): the plan can start now', () => {
     expect(academyTraineesAssignedCopy('he', { names: ['דנה'] }).body).toContain('לבנות לו/ה תוכנית');
   });
-  it('when the trainee comes in: build the first plan', () => {
-    const c = academyTraineeJoinedCopy('he', { name: 'דנה כהן' });
-    expect(c.title).toBe('✅ דנה כהן נרשם/ה לאפליקציה');
-    expect(c.body).toContain('התוכנית הראשונה');
+});
+
+describe('the funnel board', () => {
+  it('keeps an existing trainee on the board until approved, without the two calls', async () => {
+    const { placeCandidate } = await import('@/lib/academy/funnel');
+    const now = '2026-10-20T08:00:00.000Z';
+    const card = { id: 'c', name: 'Yossi', source: 'existing', createdAt: '2026-10-19T08:00:00.000Z', invitedAt: '2026-10-19T08:00:00.000Z', acceptedAt: null };
+    const waiting = placeCandidate(card, [], now);
+    expect(waiting).toMatchObject({ status: 'live', waitingFor: 'form' });
+    const filled = placeCandidate(card, [{ candidateId: 'c', stage: 'form', occurredAt: '2026-10-19T12:00:00.000Z' }], now);
+    expect(filled.status).toBe('live');
+    expect(filled.waitingFor).toBe('signup');
+    expect(placeCandidate({ ...card, acceptedAt: '2026-10-20T07:00:00.000Z' }, [], now).status).toBe('joined');
+    // An existing trainee moved in the old way (no form sent) reads as joined, as before.
+    expect(placeCandidate({ ...card, invitedAt: null }, [], now).status).toBe('joined');
   });
 });

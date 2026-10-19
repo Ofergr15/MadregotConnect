@@ -6,11 +6,11 @@ import { isStaffRole, type VerifiedCaller } from '@/lib/auth/self-or-staff';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { releaseFromMaintenance } from '@/lib/maintenance-release';
 import {
-  academyAcceptedEmail, academyInviteEmail, notifyAcademyAccepted, notifyAcademyInvite,
+  academyAcceptedEmail, academyInviteEmail, academyMoveInEmail, notifyAcademyAccepted, notifyAcademyInvite, notifyAcademyMoveIn,
   type BuiltEmail, type SendResult,
 } from '@/lib/email';
 import { notifyAthlete } from '@/lib/push';
-import { academyTraineesAssignedCopy, approvalCopy } from '@/lib/notifications/copy';
+import { academyTraineeComingCopy, academyTraineesAssignedCopy, approvalCopy } from '@/lib/notifications/copy';
 import { inviteUrl, isInviteFresh } from './intake';
 import { isAcademyManager, setPairCoaches } from './pairing-server';
 import { coachIdsOf, hasTraineeCoachesTable, joinHebrewList } from './trainee-coaches';
@@ -32,7 +32,7 @@ const NEEDS_126 = () =>
     { status: 409 },
   );
 
-type Card = { id: string; name: string; email: string | null; athlete_id: string | null; invite_token?: string | null; invited_at?: string | null };
+type Card = { id: string; name: string; email: string | null; source?: string | null; athlete_id: string | null; invite_token?: string | null; invited_at?: string | null };
 
 async function callerName(caller: VerifiedCaller): Promise<string | null> {
   if (!caller.athleteId) return null;
@@ -44,7 +44,7 @@ async function readCard(id: string): Promise<{ card: Card | null; hasInviteColum
   const supabase = createServerClient();
   const full = await supabase
     .from('academy_candidates')
-    .select('id, name, email, athlete_id, invite_token, invited_at')
+    .select('id, name, email, source, athlete_id, invite_token, invited_at')
     .eq('id', id)
     .maybeSingle();
   if (!full.error) return { card: (full.data as Card) ?? null, hasInviteColumns: true };
@@ -168,7 +168,9 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
   const to = card.email || athlete.email;
 
   if (body?.preview) {
-    const built = academyAcceptedEmail({ name: card.name || athlete.name, token: token || null, coachName, coachCount: coaches.length });
+    const built = card.source === 'existing' && token
+      ? academyMoveInEmail({ name: card.name || athlete.name, token })
+      : academyAcceptedEmail({ name: card.name || athlete.name, token: token || null, coachName, coachCount: coaches.length });
     return NextResponse.json({ to, ...built });
   }
 
@@ -222,7 +224,10 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
 
   const [email] = await Promise.all([
     to
-      ? notifyAcademyAccepted({ email: to, name: card.name || athlete.name, token, coachName, coachCount: coaches.length, athleteId: athlete.id, candidateId: id })
+      // Somebody who already trains with us is not "accepted" — the academy is moving them in.
+      ? (card.source === 'existing' && token
+        ? notifyAcademyMoveIn({ email: to, name: card.name || athlete.name, token, athleteId: athlete.id, candidateId: id })
+        : notifyAcademyAccepted({ email: to, name: card.name || athlete.name, token, coachName, coachCount: coaches.length, athleteId: athlete.id, candidateId: id }))
       : Promise.resolve(null),
     notifyAthlete({
       athleteId: athlete.id,
@@ -237,7 +242,11 @@ export async function acceptAction(id: string, caller: VerifiedCaller, body: any
       athleteId: c.id,
       kind: 'academy_trainee_assigned',
       actorAthleteId: caller.athleteId,
-      copy: (locale) => academyTraineesAssignedCopy(locale, { names: [card.name || athlete.name] }),
+      // Not in the app yet: a heads-up (the start comes when they first sign in, loop-notify
+      // notifyTraineeJoined). Already in it (a club member joining): the plan can start now.
+      copy: (locale) => needsJoin
+        ? academyTraineeComingCopy(locale, { name: card.name || athlete.name })
+        : academyTraineesAssignedCopy(locale, { names: [card.name || athlete.name] }),
       // Their card, where the plan is built — not the whole list.
       url: academyThreadUrl({ recipientIsStaff: true, traineeId: athlete.id }),
       tag: `academy-trainee-${athlete.id}`,

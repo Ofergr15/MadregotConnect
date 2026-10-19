@@ -139,9 +139,10 @@ function quiet(p: Promise<unknown>, what: string): Promise<void> {
 // ── Sends: to the coaches ───────────────────────────────────────────────────
 
 /**
- * An academy trainee came into the app for the first time (their invited → active flip:
- * Strava on /join, an email code, or Garmin through /api/athletes/connect). Tells their
- * coaches — the managers when none is set — and opens the trainee's card. Never throws.
+ * An academy trainee opened the app for the first time, signed in (/api/auth/me's
+ * first_seen_at stamp — the one signal that means the app really opened for them, which
+ * on the email's link is after installing). Tells their coaches — the managers when none
+ * is set — and opens the trainee's card. Never throws.
  */
 export function notifyTraineeJoined(supabase: Db, athleteId: string): Promise<void> {
   return quiet((async () => {

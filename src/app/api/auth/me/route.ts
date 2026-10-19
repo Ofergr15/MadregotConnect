@@ -129,11 +129,19 @@ export async function GET(request: Request) {
         try {
           // Guarded by `is null` as well as by the read, so two tabs opening at
           // once can't move the timestamp forward and restart somebody's 15 minutes.
-          await supabase
+          const { data: won } = await supabase
             .from('athletes')
             .update({ first_seen_at: seenAt })
             .eq('id', athleteId)
-            .is('first_seen_at', null);
+            .is('first_seen_at', null)
+            .select('id');
+          // The first time the app opened for an academy trainee — installed and signed in
+          // (on the email's link nobody signs in before installing): their coaches hear it,
+          // once, because only one request wins the stamp (lib/academy/loop-notify).
+          if (won && won.length > 0 && row?.is_academy) {
+            const { notifyTraineeJoined } = await import('@/lib/academy/loop-notify');
+            await notifyTraineeJoined(supabase as never, athleteId);
+          }
         } catch { /* not migrated yet — the snapshot stage stays a no-op */ }
       }
     });

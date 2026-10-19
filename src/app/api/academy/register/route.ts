@@ -104,11 +104,18 @@ export async function POST(request: Request) {
       const candidateId = await recordFormCandidate(supabase as any, {
         name: fullName, email: normEmail, phone: phoneValue, inviteToken, src, athleteId, intake: intakeObj,
       });
+      // An existing trainee's details form (their card was opened as 'existing'): the manager
+      // must read it as that, not as a new applicant (Ofer, 2026-10-19).
+      let existingTrainee = false;
+      if (candidateId) {
+        const { data: card } = await supabase.from('academy_candidates').select('source').eq('id', candidateId).maybeSingle();
+        existingTrainee = (card as { source?: string | null } | null)?.source === 'existing';
+      }
       await notifyAdminNewAcademyRegistration({
         name: fullName, email: normEmail, phone, existingMember, candidateId,
-        intake: intakeObj, likelyMember,
+        intake: intakeObj, likelyMember, existingTrainee,
       });
-      await notifyAcademyFormReceived({ email: normEmail, name: fullName, candidateId, athleteId });
+      await notifyAcademyFormReceived({ email: normEmail, name: fullName, candidateId, athleteId, existingTrainee });
       // The push is the way into the app: on an iPhone the email's button can only
       // open Safari, but a tapped notification opens the installed app on the card.
       await notifyStaff({
@@ -118,7 +125,7 @@ export async function POST(request: Request) {
         category: 'management',
         actorAthleteId: athleteId,
         extraRecipientIds: await academyManagerIds(),
-        copy: (locale) => academyApplicantCopy(locale, { name: fullName, intake: intakeObj, likelyMember }),
+        copy: (locale) => academyApplicantCopy(locale, { name: fullName, intake: intakeObj, likelyMember, existingTrainee }),
       });
     };
 

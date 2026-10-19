@@ -101,6 +101,8 @@ const STEPS: { title: string; name: string; sub: string; keys: string[] }[] = [
   { title: 'בריאות ומידות', name: 'בריאות ומידות', sub: 'אחרון, ואנחנו בקשר', keys: ['medicalHistory', 'medicalDetails', 'shirtSize', 'pantsSize', 'tightsSize', 'shoeSize'] },
 ];
 const FIELD_BY_KEY = new Map(FIELDS.map(f => [f.key, f]));
+/** Not asked of somebody who already trains with us: we know their pack and how they came. */
+const EXISTING_SKIPS = new Set(['group', 'hearAbout', 'hearAboutOther']);
 
 // ── Birth date as three pickers ──────────────────────────────────────────────
 // Not <input type="date">: on iOS it draws its own box that ignores the width and
@@ -210,6 +212,9 @@ export default function AcademyRegisterPage() {
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [src, setSrc] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState(false);
+  // Somebody who already trains with us (their card is 'existing'): a details update for the
+  // app, not an application — the pack and "how did you hear of us" are not asked.
+  const [existing, setExisting] = useState(false);
   const [honeypot, setHoneypot] = useState('');
   // The manager's open/closed switch (lib/academy/registration.ts), answered for
   // this visitor: a personal invitation (?i=) gets through a closed door. Null
@@ -240,6 +245,7 @@ export default function AcademyRegisterPage() {
           phone: prev.phone || prefill.phone,
         }));
         setPrefilled(true);
+        if (prefill.existing) setExisting(true);
       })
       .catch(() => {});
   }, []);
@@ -253,6 +259,7 @@ export default function AcademyRegisterPage() {
     return next;
   });
   const isShown = (key: string) => {
+    if (existing && EXISTING_SKIPS.has(key)) return false;
     const rule = SHOWN_WHEN[key];
     return !rule || rule.when(values[rule.on]);
   };
@@ -343,9 +350,11 @@ export default function AcademyRegisterPage() {
           {/* The club's own logo, not a generic check: this is the first thing of
               ours a stranger sees after sending, and often the only one for days. */}
           <img src="/images/logo.png" alt="Madregot" width={112} height={112} className="mx-auto mb-4 h-28 w-28 object-contain" />
-          <h2 className="text-lg font-bold text-ink-700">תודה שפנית לאקדמיית הריצה של מדרגות</h2>
+          <h2 className="text-lg font-bold text-ink-700">{existing ? 'תודה! קיבלנו את הפרטים' : 'תודה שפנית לאקדמיית הריצה של מדרגות'}</h2>
           <p className="text-ink-400 text-sm mt-2 leading-relaxed">
-            הטופס התקבל. נחזור אליך בימים הקרובים לשיחת היכרות קצרה.
+            {existing
+              ? 'אחרי שנעבור עליהם, יגיע אליך מייל עם הקישור להתקנת האפליקציה — בדרך כלל עוד היום.'
+              : 'הטופס התקבל. נחזור אליך בימים הקרובים לשיחת היכרות קצרה.'}
           </p>
         </div>
       </div>
@@ -399,8 +408,16 @@ export default function AcademyRegisterPage() {
           </div>
           <h1 className="mt-3 text-[22px] font-black leading-tight text-ink-900">{STEPS[step].title}</h1>
           <p className="mt-0.5 text-[13.5px] text-ink-400">
-            {prefilled && step === 0 ? 'הפרטים שלך כבר מולאו. נשאר רק לספר לנו עליך.' : STEPS[step].sub}
+            {existing && step === 0 ? 'כמה פרטים לקראת המעבר לאפליקציה. 3 דקות.'
+              : existing && STEPS[step].name === 'הריצה' ? 'כדי שהמאמן/ת יכיר/תכיר את הריצה שלך'
+              : existing && step === STEPS.length - 1 ? 'אחרון, ואז הקישור לאפליקציה'
+              : prefilled && step === 0 ? 'הפרטים שלך כבר מולאו. נשאר רק לספר לנו עליך.' : STEPS[step].sub}
           </p>
+          {existing && step === 0 && (
+            <p className="mt-2.5 rounded-xl border border-[#D9DDFF] bg-[#EEF0FF] px-3 py-2 text-[12.5px] font-bold leading-snug text-[#1A22A8]">
+              ✓ אתה כבר מתאמן אצלנו — זה לא טופס הצטרפות, רק עדכון פרטים לקראת האפליקציה.
+            </p>
+          )}
           <div className="mt-3 flex gap-[5px]" aria-hidden="true">
             {STEPS.map((_, i) => (
               <div key={i} className={cn('h-1 flex-1 rounded-full', i <= step ? 'bg-brand-600' : 'bg-[#E6E6EC]')} />

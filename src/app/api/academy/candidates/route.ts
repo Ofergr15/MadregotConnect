@@ -56,6 +56,8 @@ function toCandidate(row: any): CandidateRow {
     archivedAt: row.archived_at ?? null,
     archivedReason: row.archived_reason ?? null,
     createdAt: String(row.created_at || ''),
+    invitedAt: row.invited_at ?? null,
+    acceptedAt: row.accepted_at ?? null,
   };
 }
 
@@ -137,10 +139,10 @@ async function emailsByCandidate(supabase: any, rows: any[]) {
  * before 128 or 077 the card simply has no answers or no coach, never an error.
  */
 async function cardDetails(supabase: any, rows: any[]) {
-  const out: Record<string, { intake: Record<string, unknown> | null; coachName: string | null }> = {};
+  const out: Record<string, { intake: Record<string, unknown> | null; coachName: string | null; coachIds: string[] }> = {};
   const ids = rows.map(r => String(r.id));
   if (!ids.length) return out;
-  for (const id of ids) out[id] = { intake: null, coachName: null };
+  for (const id of ids) out[id] = { intake: null, coachName: null, coachIds: [] };
   try {
     const { data, error } = await supabase.from('academy_candidates').select('id, intake').in('id', ids);
     if (!error) for (const r of data || []) if (r.intake && typeof r.intake === 'object') out[String(r.id)].intake = r.intake;
@@ -163,6 +165,8 @@ async function cardDetails(supabase: any, rows: any[]) {
       if (!out[card].intake && fromAthlete && typeof fromAthlete === 'object') out[card].intake = fromAthlete;
       const coachNames = (coachSets.get(athlete) ?? []).map(id => names.get(id)).filter(Boolean);
       out[card].coachName = coachNames.length ? coachNames.join(', ') : null;
+      // Picked when the card was opened (an existing trainee): the accept sheet starts there.
+      out[card].coachIds = coachSets.get(athlete) ?? [];
     }
   } catch { /* the details are a nicety; the board stands without them */ }
   return out;
@@ -254,6 +258,7 @@ export async function GET(request: Request) {
         emails: (emails as any)[String((r as any).id)] || [],
         intake: details[String((r as any).id)]?.intake ?? null,
         coachName: details[String((r as any).id)]?.coachName ?? null,
+        coachIds: details[String((r as any).id)]?.coachIds ?? [],
         linkedFromForm: matches[String((r as any).id)]?.linkedFromForm ?? false,
         clubMatch: matches[String((r as any).id)]?.clubMatch ?? null,
       })),

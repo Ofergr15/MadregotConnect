@@ -78,6 +78,8 @@ type CardExtras = {
   intake?: Record<string, any> | null;
   /** The trainee's coach, by name, once one is assigned. */
   coachName?: string | null;
+  /** Their coaches' ids — chosen up front for an existing trainee, so accepting is one tap. */
+  coachIds?: string[];
 };
 
 /** `lib/academy/link-server.ts` ClubMatch, as the board reads it. */
@@ -610,13 +612,18 @@ export function NowCard({
   }
 
   const stuck = placed.stuck;
+  // An existing trainee on the way in (no calls): the form, then the manager's approval.
+  const existing = placed.source === 'existing';
+  const label = existing && spec.key === 'signup' ? 'מתאמן קיים — ממתין לאישור'
+    : existing && spec.key === 'form' ? 'מתאמן קיים — ממתין לטופס הפרטים'
+    : spec.waiting;
   const since = placed.daysWaiting <= 0 ? 'מהיום'
     : placed.daysWaiting === 1 ? 'מאתמול'
     : <><bdi dir="ltr">{placed.daysWaiting}</bdi> ימים</>;
   return (
     <div className={cn('mt-3 flex items-center gap-2.5 rounded-[13px] px-3 py-2', stuck ? 'bg-[#FBF3E2]' : 'bg-[#EEF0FF]')}>
       <div className="min-w-0 flex-1">
-        <b className={cn('block text-[14.5px] font-black', stuck ? 'text-[#8A5A00]' : 'text-brand-600')} dir="auto">{spec.waiting}</b>
+        <b className={cn('block text-[14.5px] font-black', stuck ? 'text-[#8A5A00]' : 'text-brand-600')} dir="auto">{label}</b>
         <span className="block text-[12.5px] text-[#4A4B57]" dir="auto">
           של <bdi>{ownerName}</bdi> · ממתין {since}{stuck && ' (מעל הרגיל)'}
         </span>
@@ -1449,6 +1456,7 @@ export function CandidateFunnel({
             isManager={data.me.isManager}
             myId={data.me.athleteId}
             linked={!!open.athleteId}
+            presetCoachIds={open.coachIds}
             multiCoach={data.multiCoach}
             onDone={() => void load()}
           />

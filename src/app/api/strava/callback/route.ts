@@ -1,4 +1,4 @@
-import { NextResponse, after } from 'next/server';
+import { NextResponse } from 'next/server';
 import { callbackQueryShape } from '@/lib/auth/login-error';
 import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
@@ -287,11 +287,6 @@ export async function GET(request: Request) {
       if (linkErr) {
         console.error(`[auth-debug:${debugId}] callback:invite_link_failed`, linkErr);
         return NextResponse.redirect(new URL(`/join/${joinToken}?strava=error`, origin));
-      }
-      // An academy trainee's first time in: their coaches hear it (lib/academy/loop-notify).
-      if (invited.status === 'invited' && invited.approved !== false) {
-        const { notifyTraineeJoined } = await import('@/lib/academy/loop-notify');
-        after(() => notifyTraineeJoined(admin as never, invited.id));
       }
 
       // Their REAL address, not the synthetic Strava one: resolve-role matches the

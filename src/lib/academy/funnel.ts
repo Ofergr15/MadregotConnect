@@ -114,6 +114,9 @@ export interface CandidateRow {
   archivedReason?: string | null;
   /** ISO. The clock starts here for the first stage. */
   createdAt: string;
+  /** The form link went out (migration 126). With no `acceptedAt`, an existing trainee is still on the way in. */
+  invitedAt?: string | null;
+  acceptedAt?: string | null;
 }
 
 /** A row of `academy_candidate_events`. */
@@ -213,6 +216,16 @@ export const EXISTING_SOURCE = 'existing';
 export const PARKED_STAGES: ReadonlySet<string> = new Set(['whatsapp', 'standing_order']);
 
 /**
+ * An existing trainee on the way into the app (academy-onboarding/existing-trainee-flow.html):
+ * their details form went out and the manager has not approved yet. On the board until then —
+ * without the intro and characterization calls, which they had long ago.
+ */
+export function isExistingOnTheWay(c: Pick<CandidateRow, 'source' | 'invitedAt' | 'acceptedAt'>): boolean {
+  return c.source === EXISTING_SOURCE && !!c.invitedAt && !c.acceptedAt;
+}
+const EXISTING_SKIPS: ReadonlySet<string> = new Set(['intro_call', 'characterization']);
+
+/**
  * One candidate's position in the funnel.
  *
  * `waitingFor` is the first stage with no event, which is what makes an out-of-order history
@@ -236,7 +249,8 @@ export function placeCandidate(
   }
 
   const done = STAGES.filter(s => completedAt.has(s.key)).map(s => s.key);
-  const next = STAGES.find(s => !completedAt.has(s.key) && !PARKED_STAGES.has(s.key)) ?? null;
+  const onTheWay = isExistingOnTheWay(candidate);
+  const next = STAGES.find(s => !completedAt.has(s.key) && !PARKED_STAGES.has(s.key) && !(onTheWay && EXISTING_SKIPS.has(s.key))) ?? null;
 
   const last = [...completedAt.values()].sort().pop();
   const waitingSince = last ?? candidate.createdAt;
@@ -244,7 +258,7 @@ export function placeCandidate(
 
   const status: CandidateStatus = candidate.archivedAt
     ? 'archived'
-    : next === null || candidate.source === EXISTING_SOURCE
+    : next === null || (candidate.source === EXISTING_SOURCE && !onTheWay)
       ? 'joined'
       : 'live';
 

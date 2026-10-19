@@ -178,18 +178,18 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
   }
 
   if (invited) {
-    const coach = coachIds.length ? joinHebrewList(coachIds.map((c) => firstName(coachName(c)))) : null;
-    const text = `היי ${firstName(invited.name)} 👋 האקדמיה של מדרגות עוברת לאפליקציה. מעכשיו התוכנית שלך, הקצבים לשעון והפידבק${coach ? ` מ־${coach}` : ''} יהיו שם, במקום אחד.\nכניסה בלחיצה, בלי טופס: ${invited.url}\n(ההתחברות עם ${invited.email})`;
+    // No coach by name in what the trainee reads (Ofer, 2026-10-19): several send these.
+    const text = `היי ${firstName(invited.name)} 👋 האקדמיה של מדרגות עוברת לאפליקציה. לפני זה — כמה פרטים עליך, 3 דקות:\n${invited.url}\nאחרי שנעבור עליהם יגיע אליך מייל עם הקישור לאפליקציה.`;
     return (
       <div>
         <div className="rounded-card bg-card p-4">
-          <p className="text-[15px] font-bold text-ink-700">ההזמנה של {firstName(invited.name)} מוכנה</p>
+          <p className="text-[15px] font-bold text-ink-700">טופס הפרטים של {firstName(invited.name)} נשלח</p>
           <p className={invited.emailed ? 'mt-1 text-[13px] font-semibold text-accent-600' : 'mt-1 text-[13px] font-semibold text-[#8A5A00]'}>
             {invited.emailed
-              ? <>📧 נשלח מייל ל־<bdi dir="ltr">{invited.email}</bdi> עם ההתקנה והכניסה. המאמן/ת קיבל/ה התראה.</>
+              ? <>📧 נשלח מייל ל־<bdi dir="ltr">{invited.email}</bdi> עם הקישור לטופס.</>
               : <>המייל לא נשלח — אפשר לשלוח את הקישור בוואטסאפ.</>}
           </p>
-          <p className="mt-0.5 text-xs leading-relaxed text-ink-400">קישור אישי שכבר מאושר: נכנסים ישר לאקדמיה{coach ? `, עם ${coach}` : ''}. בלי טופס ובלי ״ממתין לאישור״.</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-ink-400">כשימלא — תקבל התראה, והכרטיס יחכה לאישור במשפך (המאמן כבר נבחר). אחרי האישור יוצא אליו מייל ההתקנה.</p>
           <p className="mt-2.5 select-all break-all rounded-xl bg-page px-3 py-2 text-xs text-ink-700"><bdi dir="ltr">{invited.url}</bdi></p>
         </div>
         <div className="mt-2.5 grid grid-cols-2 gap-2">
@@ -202,7 +202,7 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
             {copied ? <Check className="h-5 w-5 text-accent-600" /> : <Copy className="h-5 w-5" />}{copied ? 'הועתק' : 'העתקת ההודעה'}
           </button>
         </div>
-        <p className="mt-2 px-1 text-xs leading-relaxed text-ink-400">מופיע כבר עכשיו ברשימת המתאמנים, עם ״בלי שעון מחובר״, עד שייכנס בקישור ויחבר שעון.</p>
+        <p className="mt-2 px-1 text-xs leading-relaxed text-ink-400">מופיע במשפך, בשלב ״טופס נשלח״, עד שימלא.</p>
       </div>
     );
   }
@@ -294,7 +294,7 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
         <button type="button" onClick={() => void invite()} disabled={!inv.name.trim() || !emailOk || busy}
           className="mt-3 flex w-full min-h-[50px] items-center justify-center gap-2 rounded-2xl bg-brand-600 text-base font-extrabold text-white transition-all active:scale-[0.99] disabled:opacity-50">
           {busy && <Spinner size={16} tone="ink" />}
-          {inv.name.trim() ? `ליצור הזמנה ל${firstName(inv.name)}` : 'ליצור הזמנה'}
+          {inv.name.trim() ? `לשלוח ל${firstName(inv.name)} טופס פרטים` : 'לשלוח טופס פרטים'}
         </button>
       </>
     );

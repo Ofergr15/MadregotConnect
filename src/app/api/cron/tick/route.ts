@@ -31,6 +31,7 @@ import {
 } from '@/lib/reports/last-7-days';
 import { APPROVER_EMAILS, SUPER_USER_EMAIL } from '@/lib/constants';
 import { runJoinReminders } from '@/lib/onboarding/join-reminder';
+import { runAcademyOnboardingReminders } from '@/lib/academy/onboarding-reminders';
 import { runPendingReminders } from '@/lib/onboarding/pending-reminder';
 import { dispatchDueTestReminders } from '@/lib/academy/testReminders-server';
 import { dispatchMorningReminders } from '@/lib/academy/morning-reminder-server';
@@ -738,6 +739,13 @@ async function run(request: Request) {
       if (reminded) fired.push(`joinReminder → ${reminded}`);
     } catch (err) {
       console.error('[tick] join reminders failed:', err);
+    }
+    // The academy's two on the way in: the details form, the install (lib/academy/onboarding-reminders).
+    try {
+      const academy = await runAcademyOnboardingReminders(supabase, now, { already, markFired });
+      if (academy.form || academy.install) fired.push(`academyReminders → form ${academy.form}, install ${academy.install}`);
+    } catch (err) {
+      console.error('[tick] academy reminders failed:', err);
     }
   }
 

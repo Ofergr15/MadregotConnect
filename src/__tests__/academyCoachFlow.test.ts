@@ -236,8 +236,9 @@ describe('the funnel accept writes the whole set', () => {
     expect(setOf('tal')).toEqual(['avi', 'guy']);
     expect(mails[0].coachName).toBe('Guy Ziv ו־Avi Peretz');
     const { academyAcceptedEmail } = await import('@/lib/email');
-    expect(academyAcceptedEmail({ name: 'Tal', token: null, coachName: 'Guy ו־Avi', coachCount: 2 }).html).toContain('המאמנים שלך: Guy ו־Avi');
-    expect(academyAcceptedEmail({ name: 'Tal', token: null, coachName: 'Guy' }).html).toContain('המאמן/ת שלך: Guy');
+    // No coach by name in the trainee's mail: several coaches send these (Ofer, 2026-10-19).
+    expect(academyAcceptedEmail({ name: 'Tal', token: null, coachName: 'Guy ו־Avi', coachCount: 2 }).html).not.toContain('Guy');
+    expect(academyAcceptedEmail({ name: 'Tal', token: null, coachName: 'Guy' }).html).toContain('מהמאמן/ת שלך');
     // History follows the first coach only (077's one open row).
     expect((db.academy_coach_history || []).filter((h) => h.athlete_id === 'tal')).toEqual([
       expect.objectContaining({ coach_id: 'guy', reason: 'accepted from the funnel' }),

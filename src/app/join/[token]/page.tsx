@@ -417,7 +417,8 @@ export default function JoinPage() {
   const welcomeTitle = first ? t('welcomeName', { name: first }) : t('welcome');
   // "ההרשמה אושרה" is wrong for somebody who has trained with us for months.
   const eyebrowText = existing || academy ? t('existingEyebrow') : t('approvedEyebrow');
-  const existingSub = existing ? (existing.coach ? t('existingSubCoach', { coach: existing.coach }) : t('existingSub')) : null;
+  // No coach by name on the trainee's screen: several coaches send these links (Ofer, 2026-10-19).
+  const existingSub = existing ? t('existingSub') : null;
   const tracker = <JourneyTracker done={2} computer={computer} />;
   const selected = groups.find(g => g.id === selectedGroup);
 

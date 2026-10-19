@@ -167,7 +167,8 @@ describe('recordFormCandidate', () => {
 describe('invitePrefill', () => {
   it('prefills from a fresh link only', async () => {
     const card = { id: 'c1', name: 'Dana Cohen', email: 'dana@gmail.com', phone: '050', invite_token: TOKEN, invited_at: new Date().toISOString() };
-    expect(await invitePrefill(fakeDb([card]).client, TOKEN)).toEqual({ name: 'Dana Cohen', email: 'dana@gmail.com', phone: '050' });
+    expect(await invitePrefill(fakeDb([card]).client, TOKEN)).toEqual({ name: 'Dana Cohen', email: 'dana@gmail.com', phone: '050', existing: false });
+    expect(await invitePrefill(fakeDb([{ ...card, source: 'existing' }]).client, TOKEN)).toMatchObject({ existing: true });
     expect(await invitePrefill(fakeDb([{ ...card, invited_at: '2020-01-01' }]).client, TOKEN)).toBeNull();
     expect(await invitePrefill(fakeDb([card]).client, 'nope')).toBeNull();
   });

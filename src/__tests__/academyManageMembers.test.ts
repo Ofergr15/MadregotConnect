@@ -555,15 +555,16 @@ describe('POST /api/academy/members/invite (an existing trainee not in the app y
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe('already_in_app');
   });
-  it('creates one pre-approved academy row with a join link and an "existing" card', async () => {
+  it('opens a row waiting for the form and the approval, and an "existing" card with the form link', async () => {
     caller.mockReturnValue(manager);
-    const res = await invite({ name: 'מיכל רז', email: 'Michal@X.co', phone: '054-3329911', bandId: null, trainingSince: '2026-01' });
+    const res = await invite({ name: 'מיכל רז', email: 'Michal@X.co', phone: '054-3329911', bandId: null, trainingSince: '2026-01', sendEmail: false });
     expect(res.status).toBe(200);
-    expect((await res.json()).url).toMatch(/\/join\/[0-9a-f]{32}$/);
+    expect((await res.json()).url).toMatch(/\/academy-register\?i=[0-9a-f]{32}$/);
     const row = writes.find((w) => w.table === 'athletes' && w.op === 'insert')!.row!;
-    expect(row).toMatchObject({ email: 'michal@x.co', status: 'invited', approved: true, is_academy: true, academy_training_since: '2026-01-01' });
+    expect(row).toMatchObject({ email: 'michal@x.co', status: 'invited', approved: false, is_academy: true, onboarding_status: 'academy_pending', academy_training_since: '2026-01-01' });
     const card = writes.find((w) => w.table === 'academy_candidates' && w.op === 'insert')!.row!;
-    expect(card).toMatchObject({ source: 'existing', name: 'מיכל רז' });
+    expect(card).toMatchObject({ source: 'existing', name: 'מיכל רז', invite_token: expect.stringMatching(/^[0-9a-f]{32}$/) });
+    expect(card).not.toHaveProperty('accepted_at');
   });
 });
 

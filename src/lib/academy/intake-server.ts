@@ -142,11 +142,11 @@ export async function recordFormCandidate(
 export async function invitePrefill(
   supabase: SupabaseClient,
   token: unknown,
-): Promise<{ name: string; email: string; phone: string } | null> {
+): Promise<{ name: string; email: string; phone: string; existing: boolean } | null> {
   if (!looksLikeToken(token)) return null;
   const { data, error } = await supabase
     .from('academy_candidates')
-    .select('name, email, phone, invited_at, archived_at')
+    .select('name, email, phone, source, invited_at, archived_at')
     .eq('invite_token', token)
     .maybeSingle();
   if (error) {
@@ -154,5 +154,6 @@ export async function invitePrefill(
     return null;
   }
   if (!data || !isInviteFresh(data.invited_at)) return null;
-  return { name: data.name || '', email: data.email || '', phone: data.phone || '' };
+  // 'existing': somebody who already trains with us, updating details for the app.
+  return { name: data.name || '', email: data.email || '', phone: data.phone || '', existing: data.source === 'existing' };
 }

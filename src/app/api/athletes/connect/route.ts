@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, after } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { sendWaitingAfterReconnect, withinMs } from '@/lib/watch/reconnect';
 import { createServerClient } from '@/lib/supabase/server';
 import { encrypt } from '@/lib/encryption';
@@ -120,11 +120,6 @@ export async function POST(req: NextRequest) {
       // "New user" means new: a member who is already in walking the join screen again (a
       // second invite link, a re-connect) is not news to the admin inbox.
       if (athlete.status !== 'active') {
-        // An academy trainee's first time in: their coaches hear it (lib/academy/loop-notify).
-        if (updateData.status === 'active') {
-          const { notifyTraineeJoined } = await import('@/lib/academy/loop-notify');
-          after(() => notifyTraineeJoined(supabase, athlete.id));
-        }
         try {
           const { notifyAdminNewUser } = await import('@/lib/email');
           await notifyAdminNewUser({ name: updated?.name || email, email: updated?.email || email, onboardingStatus: updateData.onboarding_status, hasGarmin: !!encryptedAuth });

@@ -260,7 +260,8 @@ describe('GET /api/auth/me', () => {
     // It's the second write inside after(), behind the first one's await.
     await new Promise((r) => setTimeout(r, 0));
     const first = ops.find((o) => o.op === 'update' && o.patch && 'first_seen_at' in o.patch);
-    expect(first?.filters).toEqual([['eq', ['id', ME]], ['is', ['first_seen_at', null]]]);
+    // `select('id')`: which request won the stamp — the one that tells an academy trainee's coaches.
+    expect(first?.filters).toEqual([['eq', ['id', ME]], ['is', ['first_seen_at', null]], ['select', ['id']]]);
   });
 
   // A column the full select names but this database doesn't have yet (no 129,

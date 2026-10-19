@@ -1,16 +1,12 @@
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
-import { APP_URL, COACH_ID } from '@/lib/constants';
+import { COACH_ID } from '@/lib/constants';
 import { requireAcademyManager, setPairCoaches } from '@/lib/academy/pairing-server';
 import { holdsAcademyCoachRole } from '@/lib/academy/coaches';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
-import { israelToday } from '@/lib/utils';
-import { notifyAcademyMoveIn } from '@/lib/email';
-import { notifyAthlete } from '@/lib/push';
-import { academyTraineesAssignedCopy } from '@/lib/notifications/copy';
-import { academyThreadUrl } from '@/lib/academy/deep-links';
-import { joinHebrewList } from '@/lib/academy/trainee-coaches';
+import { notifyAcademyExistingForm } from '@/lib/email';
+import { inviteUrl } from '@/lib/academy/intake';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,11 +18,12 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * the app yet (the migration path, mockup screens 3–4): `{ name, email, phone?, coachIds?,
  * bandId?, groupId?, trainingSince? }`.
  *
- * One pre-approved row, already in the academy: status 'invited', approved, is_academy, with
- * the coaches, the band and the pace group (so the club week reaches them until their first
- * personal week), and a funnel card that says 'existing'. The personal /join/{token} link is
- * the whole journey from here: no form, no "waiting for approval". The email is required: it
- * is how they sign in (and the athletes row cannot exist without one).
+ * The same road as a new trainee, without the "who are you" (Ofer, 2026-10-19,
+ * academy-onboarding/existing-trainee-flow.html): a row waiting for the form and the
+ * approval, with the coaches, the band and the pace group already on it, and a funnel card
+ * that says 'existing'. The trainee gets the details form by email; the manager is told the
+ * form came back from an existing trainee; accepting (one tap — the coaches are preset)
+ * sends the install mail. The email is required: it is how they sign in.
  *
  * Somebody already in the app is not invited — the answer names them, and the move-in tab is
  * the way. Manager only.
@@ -57,10 +54,15 @@ export async function POST(request: Request) {
       if (!coach || !holdsAcademyCoachRole(coach as never)) return NextResponse.json({ error: 'Not an academy coach', coachId: c }, { status: 400 });
     }
 
+    // Two tokens: the form's (the card's, /academy-register?i=) and the way into the app
+    // (/join, sent with the install mail once the manager approves).
     const token = randomBytes(16).toString('hex');
+    const formToken = randomBytes(16).toString('hex');
+    // Waiting for the form and the approval, like any applicant (the form updates this row,
+    // the accept lets it in) — with the coaches already on it, so accepting is one tap.
     const row: Record<string, unknown> = {
-      coach_id: COACH_ID, name, email, status: 'invited', approved: true, invite_token: token,
-      is_academy: true, academy_joined_on: israelToday(),
+      coach_id: COACH_ID, name, email, status: 'invited', approved: false, invite_token: token,
+      is_academy: true, role: 'academy_user', onboarding_status: 'academy_pending',
       ...(phone ? { phone } : {}), ...(bandId ? { academy_band_id: bandId } : {}), ...(groupId ? { group_id: groupId } : {}),
       ...(trainingSince ? { academy_training_since: trainingSince } : {}),
     };
@@ -71,7 +73,7 @@ export async function POST(request: Request) {
       ins = await supabase.from('athletes').insert(row).select('id').single();
     }
     if (ins.error || !ins.data) {
-      console.error('academy invite insert failed:', ins.error);
+      console.error('academy invite: insert failed:', ins.error);
       return NextResponse.json({ error: 'Failed to create the invitation' }, { status: 500 });
     }
     const athleteId = (ins.data as { id: string }).id;
@@ -79,28 +81,22 @@ export async function POST(request: Request) {
       const paired = await setPairCoaches(athleteId, coachIds, 'עבר לאפליקציה');
       if (!paired.ok) console.warn('academy invite: coaches not set for', athleteId);
     }
-    await supabase.from('academy_candidates').insert({ name, source: 'existing', athlete_id: athleteId, accepted_at: new Date().toISOString(), ...(phone ? { phone } : {}), email });
+    const { data: card } = await supabase.from('academy_candidates').insert({
+      name, source: 'existing', athlete_id: athleteId, email, invite_token: formToken, invited_at: new Date().toISOString(),
+      ...(phone ? { phone } : {}),
+    }).select('id').single();
+    const candidateId = (card as { id: string } | null)?.id ?? null;
 
-    // The way in, by email (Ofer, 2026-10-19), unless the manager asked for the link only —
-    // and the coaches hear now that the trainee is theirs, so the plan can start.
-    const { data: coachRows } = coachIds.length
-      ? await supabase.from('athletes').select('id, name').in('id', coachIds)
-      : { data: [] as Array<{ id: string; name: string | null }> };
-    const coachNames = ((coachRows || []) as Array<{ id: string; name: string | null }>).map((c) => (c.name || '').trim().split(/\s+/)[0]).filter(Boolean);
+    // The details form, by email (Ofer, 2026-10-19), unless the manager asked for the link
+    // only. The coaches hear nothing yet: at the approval, and when the trainee signs in.
+    const url = inviteUrl(formToken);
     let emailed = false;
-    if (b.sendEmail !== false) {
-      const sent = await notifyAcademyMoveIn({ email, name, token, coachName: joinHebrewList(coachNames), coachCount: coachNames.length, athleteId })
-        .catch((err: unknown) => { console.error('academy invite: move-in email failed:', err); return null; });
+    if (b.sendEmail !== false && candidateId) {
+      const sent = await notifyAcademyExistingForm({ email, name, url, candidateId, athleteId })
+        .catch((err: unknown) => { console.error('academy invite: form email failed:', err); return null; });
       emailed = !!sent && sent.ok;
     }
-    await Promise.all(coachIds.filter((c) => c !== caller.athleteId).map((c) => notifyAthlete({
-      athleteId: c, kind: 'academy_trainee_assigned', actorAthleteId: caller.athleteId,
-      copy: (locale) => academyTraineesAssignedCopy(locale, { names: [name] }),
-      url: academyThreadUrl({ recipientIsStaff: true, traineeId: athleteId }),
-      tag: `academy-trainee-${athleteId}`,
-    }).catch((err: unknown) => console.error('academy invite: coach push failed:', err))));
-
-    return NextResponse.json({ athleteId, url: `${APP_URL}/join/${token}`, invitedBy: caller.athleteId, emailed });
+    return NextResponse.json({ athleteId, candidateId, url, invitedBy: caller.athleteId, emailed });
   } catch (error) {
     console.error('POST /api/academy/members/invite error:', error);
     return NextResponse.json({ error: 'Failed to create the invitation' }, { status: 500 });
