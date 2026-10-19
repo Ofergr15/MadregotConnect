@@ -144,9 +144,11 @@ const LATIN_FOLD: Record<string, string> = {
  */
 function wordSkeleton(word: string, vowelV: boolean): string {
   let out = '';
-  // 'ts'/'tz' is one sound (צ) — folded before the letters are read one by one.
+  // 'ts'/'tz' is one sound (צ) — folded before the letters are read one by one, onto
+  // צ itself: folded onto 'c' it then went through LATIN_FOLD's c → k, so "Lifshitz"
+  // (lpsk) could never meet "ליפשיץ" (lpsc) (search, 2026-10-19).
   const source = word
-    .replace(/t[sz]/g, 'c')
+    .replace(/t[sz]/g, 'צ')
     .replace(/sh/g, 's')
     .replace(/ch|kh/g, '')
     // Matres lectionis: א ה ו י at the END of a word spell a vowel, not a
@@ -216,6 +218,14 @@ export function athleteNameKeys(name?: string | null): string[] {
     }
   }
   return [...new Set(keys)];
+}
+
+/**
+ * Each word's skeleton under both readings of ו/v/w — for search, where a few typed
+ * letters are matched as the START of a name word (lib/search/match.ts), not a whole name.
+ */
+export function nameWordSkeletons(name?: string | null): string[][] {
+  return [nameWords(name, false), nameWords(name, true)];
 }
 
 /** Each word of the name as a skeleton, in the order written. */

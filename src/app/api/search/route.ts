@@ -3,6 +3,11 @@ import { createServerClient } from '@/lib/supabase/server';
 import { isCoreRunner } from '@/lib/core-runner';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { containsPattern, quoteFilterValue } from '@/lib/db/like';
+import { nameMatches } from '@/lib/search/match';
+import { STORE_OPEN } from '@/lib/nav-items';
+import { listPhotoFolders, signedImageUrl, THUMB, type PhotoFolder } from '@/lib/photos/drive-browse';
+import { mirroredUrls } from '@/lib/photos/mirror';
+import { israelToday } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,11 +32,14 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const q = (searchParams.get('q') || '').trim();
+    const supabase = createServerClient();
+    // `?start=1`: what the screen shows before anything is typed (mockup search-mockup.html,
+    // Ofer 2026-10-19) — the caller's pack, the next races, the newest photo albums.
+    if (searchParams.get('start')) return NextResponse.json(await startOf(supabase, caller.athleteId));
     if (q.length < MIN_QUERY_LENGTH) {
-      return NextResponse.json({ members: [], events: [], products: [], perks: [] });
+      return NextResponse.json({ members: [], events: [], products: [], perks: [], albums: [] });
     }
 
-    const supabase = createServerClient();
     // `pattern` for the single-column helpers, `filterPattern` for the `.or()`
     // strings — see src/lib/db/like.ts for why they differ. Typing a comma used
     // to 400 the whole request; typing `_` used to match any character.
@@ -57,19 +65,22 @@ export async function GET(request: Request) {
     if (!seesCoreTier) perksQuery = perksQuery.eq('tier', 'all');
 
     const [membersRes, eventsRes, productsRes, perksRes] = await Promise.all([
+      // The whole active roster (a few dozen rows), matched here: names are stored in
+      // Latin letters, and a name typed in Hebrew has to meet them (lib/search/match.ts).
       supabase
         .from('athletes')
         .select('id, name, avatar_url')
         .eq('status', 'active')
-        .ilike('name', pattern)
-        .limit(RESULT_LIMIT),
+        .order('name')
+        .limit(1000),
       supabase
         .from('events')
         .select('id, name, kind, date, location')
         .or(`name.ilike.${filterPattern},location.ilike.${filterPattern}`)
         .order('date', { ascending: false })
         .limit(RESULT_LIMIT),
-      supabase
+      // Products only while the store is offered (STORE_OPEN): hidden since 2026-10-19.
+      !STORE_OPEN ? Promise.resolve({ data: [], error: null }) : supabase
         .from('store_products')
         .select('id, name_he, name_en, price, image_url')
         .eq('active', true)
@@ -78,7 +89,10 @@ export async function GET(request: Request) {
       perksQuery,
     ]);
 
-    const members = (membersRes.error ? [] : membersRes.data || []).map(
+    const members = (membersRes.error ? [] : membersRes.data || [])
+      .filter((a: { name: string | null }) => nameMatches(a.name, q))
+      .slice(0, RESULT_LIMIT)
+      .map(
       (a: { id: string; name: string; avatar_url: string | null }) => ({
         id: a.id,
         name: a.name,
@@ -120,9 +134,61 @@ export async function GET(request: Request) {
       }),
     );
 
-    return NextResponse.json({ members, events, products, perks });
+    const albums = (await foldersInTime())
+      .filter((f) => `${f.title ?? ''} ${f.name}`.toLowerCase().includes(q.toLowerCase()))
+      .slice(0, RESULT_LIMIT);
+    return NextResponse.json({ members, events, products, perks, albums: await albumRows(albums) });
   } catch (error) {
     console.error('Search failed:', error);
     return NextResponse.json({ error: 'Search failed' }, { status: 500 });
   }
 }
+
+type Db = ReturnType<typeof createServerClient>;
+
+/**
+ * The photo folders, or none if Drive is slow: the listing is cached for ten minutes
+ * (lib/photos/drive-browse.ts) but a cold one takes ~12s, and search must not wait on it.
+ */
+async function foldersInTime(ms = 2500): Promise<PhotoFolder[]> {
+  const list = listPhotoFolders().catch(() => null);
+  const late = new Promise<null>((r) => setTimeout(() => r(null), ms));
+  return (await Promise.race([list, late])) ?? [];
+}
+
+async function albumRows(folders: PhotoFolder[]) {
+  const m = await mirroredUrls(folders.map((f) => f.covers[0]).filter(Boolean)).catch(() => null);
+  return folders.map((f) => ({
+    id: f.id,
+    title: f.title || f.name,
+    date: f.date,
+    count: f.count,
+    cover: f.covers[0] ? m?.thumb[f.covers[0]] ?? signedImageUrl(f.covers[0], THUMB) : null,
+  }));
+}
+
+/** Before typing: the caller's pack, the next three races, the three newest albums. */
+async function startOf(supabase: Db, athleteId: string | null | undefined) {
+  const today = israelToday();
+  const { data: me } = athleteId
+    ? await supabase.from('athletes').select('group_id').eq('id', athleteId).maybeSingle()
+    : { data: null };
+  const groupId = (me as { group_id?: string | null } | null)?.group_id ?? null;
+  const [packRes, groupRes, racesRes, folders] = await Promise.all([
+    groupId
+      ? supabase.from('athletes').select('id, name, avatar_url').eq('group_id', groupId).eq('status', 'active').neq('id', athleteId as string).order('name').limit(30)
+      : Promise.resolve({ data: [], error: null }),
+    groupId ? supabase.from('groups').select('name').eq('id', groupId).maybeSingle() : Promise.resolve({ data: null }),
+    supabase.from('events').select('id, name, kind, date, location').eq('kind', 'race').gte('date', today).order('date').limit(3),
+    foldersInTime(),
+  ]);
+  return {
+    pack: ((packRes.error ? [] : packRes.data) || []).map((a: { id: string; name: string; avatar_url: string | null }) => ({ id: a.id, name: a.name, avatarUrl: a.avatar_url })),
+    packName: (groupRes.data as { name?: string } | null)?.name ?? null,
+    races: ((racesRes.error ? [] : racesRes.data) || []) as Array<{ id: string; name: string; kind: string; date: string; location: string }>,
+    // The pinned folder leads the photos home; here it is the newest that matter.
+    albums: await albumRows(folders.filter((f) => !f.pinned).slice(0, 3)),
+    today,
+  };
+}
+
