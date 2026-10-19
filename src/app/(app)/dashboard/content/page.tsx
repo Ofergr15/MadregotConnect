@@ -37,7 +37,18 @@ interface ContentResponse {
 }
 
 /** What runners see right now on the circles (api/admin/celebrations). */
-interface LiveRow { id: string; source: 'feed' | 'club'; emoji: string; label: string; title: string; until: string; active: boolean; likes: number; auto: boolean }
+interface LiveRow { id: string; source: 'feed' | 'club' | 'survey' | 'scheduled'; emoji: string; label: string; title: string; until: string; active: boolean; likes: number; auto: boolean; answers?: number; at?: string }
+/** The chip on a row: until when for the circles, when it closes or goes out for the rest. */
+function liveChip(r: LiveRow, today: string): { text: string; tone: string } {
+  if (r.source === 'scheduled' && r.at) {
+    const d = new Date(r.at);
+    const time = d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' });
+    return { text: `${r.until === today ? 'היום' : untilChip(r.until, today).replace('עד ', '')} ${time}`, tone: 'bg-brand-600/10 text-brand-600' };
+  }
+  if (r.source === 'survey') return { text: r.until ? `נסגר ${untilChip(r.until, today).replace('עד ', '')}` : 'פתוח', tone: 'bg-[#FFF1D6] text-[#8A5A00]' };
+  return { text: untilChip(r.until, today), tone: 'bg-[#E3F6EA] text-[#12A150]' };
+}
+const liveHref = (r: LiveRow) => (r.source === 'survey' ? '/dashboard/settings?tab=notifications' : r.source === 'scheduled' ? '/dashboard/settings?tab=notifications' : '/dashboard/content/celebrations');
 const WEEKDAY = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 function untilChip(until: string, today: string): string {
   if (until === today) return 'עד היום';
@@ -106,17 +117,17 @@ export default function ContentPage() {
       <div className="overflow-hidden rounded-[22px] bg-card">
         {!live && <p className="px-4 py-3 text-sm text-ink-400">…</p>}
         {live && onAir.length === 0 && <p className="px-4 py-3 text-sm text-ink-400">כרגע אין כלום בעיגולים בראש הפיד</p>}
-        {onAir.slice(0, 5).map((r) => (
-          <Link key={`${r.source}:${r.id}`} href="/dashboard/content/celebrations" className="flex min-h-[58px] items-center gap-3 border-b border-page px-3.5 py-2 last:border-0">
+        {onAir.slice(0, 6).map((r) => (
+          <Link key={`${r.source}:${r.id}`} href={liveHref(r)} className="flex min-h-[58px] items-center gap-3 border-b border-page px-3.5 py-2 last:border-0">
             {r.source === 'club'
               // eslint-disable-next-line @next/next/no-img-element
               ? <img src="/images/logo.png" alt="" className="h-10 w-10 shrink-0 rounded-full bg-white object-contain p-0.5 ring-[2.5px] ring-brand-600" />
               : <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-page text-lg">{r.emoji}</span>}
             <span className="min-w-0 flex-1">
               <b dir="auto" className="block truncate text-[14px] text-ink-900">{r.title}</b>
-              <small className="block text-12 text-ink-400">{r.label}{r.auto ? ' · אוטומטי' : ''}{r.likes ? ` · ${r.likes} ❤` : ''}</small>
+              <small className="block text-12 text-ink-400">{r.label}{r.auto ? ' · אוטומטי' : ''}{r.likes ? ` · ${r.likes} ❤` : ''}{r.answers != null ? ` · ${r.answers} הצביעו` : ''}</small>
             </span>
-            <span className="shrink-0 rounded-full bg-[#E3F6EA] px-2 py-1 text-[11.5px] font-extrabold text-[#12A150]">{untilChip(r.until, live!.today)}</span>
+            {(() => { const c = liveChip(r, live!.today); return <span className={cn('shrink-0 rounded-full px-2 py-1 text-[11.5px] font-extrabold', c.tone)}>{c.text}</span>; })()}
           </Link>
         ))}
       </div>

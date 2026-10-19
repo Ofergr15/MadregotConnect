@@ -35,7 +35,8 @@ export default function CelebrationsPage() {
   const [busy, setBusy] = useState(false);
   const [pick, setPick] = useState('');
   const today = data?.today ?? '';
-  const items = data?.items ?? [];
+  // Only what is on the circles; surveys and scheduled messages are shown on the hub.
+  const items = (data?.items ?? []).filter((r) => r.source === 'feed' || r.source === 'club');
   const active = items.filter((r) => r.active);
   const ended = items.filter((r) => !r.active && r.until < today).slice(0, 12);
 

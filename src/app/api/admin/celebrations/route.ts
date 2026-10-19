@@ -4,6 +4,7 @@ import { requireApprover } from '@/lib/auth/require-approver';
 import { addDaysToDateStr, israelToday } from '@/lib/utils';
 import { toCelebration, CELEBRATION_TYPES } from '@/lib/feed/celebration';
 import { CLUB_STORIES_KEY, readClubStories } from '@/lib/feed/club-stories';
+import { birthdayBodyAsOf } from '@/lib/feed/birthday';
 import { BIRTHDAY_DAYS_KEY, readBirthdayDays } from '@/lib/feed/celebration-days';
 
 export const dynamic = 'force-dynamic';
@@ -16,8 +17,10 @@ export const dynamic = 'force-dynamic';
 //   A feed celebration keeps its post either way: only payload.until moves.
 type Db = ReturnType<typeof createServerClient>;
 interface Row {
-  id: string; source: 'feed' | 'club'; emoji: string; label: string; title: string;
+  id: string; source: 'feed' | 'club' | 'survey' | 'scheduled'; emoji: string; label: string; title: string;
   day: string; until: string; active: boolean; likes: number; auto: boolean;
+  /** Survey answers so far, or the exact send time of a scheduled message. */
+  answers?: number; at?: string;
 }
 
 const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
@@ -45,7 +48,7 @@ export async function GET(request: Request) {
       const day = typeof row.payload!.date === 'string' ? row.payload!.date : dayOf(row.occurred_at);
       const until = typeof row.payload!.until === 'string' && row.payload!.until >= day ? row.payload!.until : day;
       const kind = CELEBRATION_TYPES[c.type];
-      const title = (row.body || '').replace(/@\[([^\]]+)\]\([0-9a-f-]{36}\)/gi, '$1').trim();
+      const title = (birthdayBodyAsOf(row.body, row.payload!.date, today) || '').replace(/@\[([^\]]+)\]\([0-9a-f-]{36}\)/gi, '$1').trim();
       return [{ id: row.id, source: 'feed' as const, emoji: kind.emoji, label: kind.label, title, day, until,
         active: day <= today && today <= until, likes: 0, auto: typeof row.payload!.birthdayOf === 'string' }];
     });
@@ -59,7 +62,30 @@ export async function GET(request: Request) {
       id: s.id, source: 'club', emoji: '🔵', label: 'הודעה ממדרגות', title: s.title + (s.text ? ` · ${s.text}` : ''),
       day: s.from, until: s.until, active: s.from <= today && today <= s.until, likes: 0, auto: false,
     }));
-    const items = [...club, ...feed].sort((a, b) => Number(b.active) - Number(a.active) || b.day.localeCompare(a.day));
+    // Also on air (mockup content-hub, 1): a survey still open, and messages waiting to go out.
+    // Read-only here: they are edited where they were made.
+    const nowIso = new Date().toISOString();
+    const [{ data: openSurveys }, { data: queued }] = await Promise.all([
+      db.from('surveys').select('id, question_he, created_at, closes_at').or(`closes_at.is.null,closes_at.gt.${nowIso}`)
+        .gte('created_at', new Date(Date.now() - 30 * 86_400_000).toISOString()).order('created_at', { ascending: false }).limit(5),
+      db.from('scheduled_notifications').select('id, title_he, body_he, next_run_at').eq('kind', 'custom').eq('status', 'scheduled')
+        .gt('next_run_at', nowIso).order('next_run_at').limit(5),
+    ]);
+    const surveyRows = (openSurveys || []) as Array<{ id: string; question_he: string; created_at: string; closes_at: string | null }>;
+    const answers = new Map<string, number>();
+    if (surveyRows.length) {
+      const { data: resp } = await db.from('survey_responses').select('survey_id').in('survey_id', surveyRows.map((x) => x.id));
+      for (const r of (resp || []) as Array<{ survey_id: string }>) answers.set(r.survey_id, (answers.get(r.survey_id) ?? 0) + 1);
+    }
+    const surveys: Row[] = surveyRows.map((x) => ({
+      id: x.id, source: 'survey', emoji: '📊', label: 'סקר', title: x.question_he, day: dayOf(x.created_at),
+      until: x.closes_at ? dayOf(x.closes_at) : '', active: true, likes: 0, auto: false, answers: answers.get(x.id) ?? 0,
+    }));
+    const scheduled: Row[] = ((queued || []) as Array<{ id: string; title_he: string | null; body_he: string | null; next_run_at: string }>).map((x) => ({
+      id: x.id, source: 'scheduled', emoji: '⏰', label: 'הודעה מתוזמנת', title: x.title_he || x.body_he || '',
+      day: dayOf(x.next_run_at), until: dayOf(x.next_run_at), active: true, likes: 0, auto: false, at: x.next_run_at,
+    }));
+    const items = [...club, ...feed, ...surveys, ...scheduled].sort((a, b) => Number(b.active) - Number(a.active) || b.day.localeCompare(a.day));
     return NextResponse.json({ today, items, birthdayDays: readBirthdayDays(await settings(db, BIRTHDAY_DAYS_KEY)) });
   } catch (err) {
     console.error('[admin/celebrations] GET failed:', err);
