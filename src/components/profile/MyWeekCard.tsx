@@ -1,5 +1,6 @@
 'use client';
 
+import { useStoryAccess } from '@/lib/stories/client';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
@@ -89,6 +90,7 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
   const { data: plan } = useApi<PlanWeek>(pw ? `/api/plans/week?weekStart=${pw.weekStart}&lane=${owner ? 'mine' : athleteId}` : null);
   const [openDay, setOpenDay] = useState<number | null>(null);
   const [sharing, setSharing] = useState(false);
+  const weekStory = useStoryAccess('weekly');
 
   if (!pw) return null;
 
@@ -142,7 +144,8 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
           <div className="flex items-center gap-1">
             <span className="text-xs font-semibold text-ink-400">{range} · {t('myWeekDay', { n: pw.today + 1 })}</span>
             {/* The week's share card — nothing to share in a week with no runs. */}
-            {stats?.last7 && stats.last7.runs > 0 && (
+            {/* Behind the stories gate (lib/stories/gate.ts). */}
+            {stats?.last7 && stats.last7.runs > 0 && weekStory?.allowed && (
               <button
                 type="button"
                 onClick={() => setSharing(true)}
@@ -154,7 +157,7 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
             )}
           </div>
         </div>
-        {sharing && stats?.last7 && (
+        {sharing && stats?.last7 && weekStory?.allowed && (
           <ShareSheet
             subject={{ kind: 'week', report: stats.last7, athleteName }}
             onClose={() => setSharing(false)}

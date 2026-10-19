@@ -1,5 +1,6 @@
 'use client';
 
+import { useStoryAccess } from '@/lib/stories/client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { X, Share2, ImagePlus, Loader2, Eye, EyeOff, RotateCcw, Check } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
@@ -99,12 +100,15 @@ export function ShareSheet({ subject: given, onClose, onShared }: {
   onShared?: () => void;
 }) {
   const editor = useEveningRelease();
+  // The week card/story opens only through the stories gate, whoever mounted the sheet.
+  const weekStory = useStoryAccess('weekly');
   // The run's whole track for the card, swapped in once it loads (lib/share/full-route).
   const fullItem = useFullRoute(given.kind === 'workout' ? given.item : null);
   const subject = useMemo<ShareSubject>(
     () => (given.kind === 'workout' && fullItem && fullItem !== given.item ? { ...given, item: fullItem } : given),
     [given, fullItem],
   );
+  if (subject.kind === 'week' && !weekStory?.allowed) return null;
   if (subject.kind === 'workout' && editor) return <WorkoutShareEditor item={subject.item} onClose={onClose} onShared={onShared} />;
   if (subject.kind === 'week' && editor) {
     return (

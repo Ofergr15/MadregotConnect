@@ -228,7 +228,7 @@ describe('the entry point', () => {
   });
 
   it('is absent in a week with no runs', () => {
-    expect(card).toMatch(/stats\.last7\.runs > 0 && \(/);
+    expect(card).toMatch(/stats\.last7\.runs > 0 && weekStory\?\.allowed && \(/);
   });
 
   it('carries the athlete name onto the card', () => {
