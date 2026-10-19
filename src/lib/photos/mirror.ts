@@ -215,3 +215,20 @@ export async function mirrorBatch(deadline: number): Promise<{ copied: number; f
   const left = ids.filter((id) => needsGrid(id) || needsFull(id)).length;
   return { copied, failed, remaining: left };
 }
+
+
+/**
+ * Every folder's links and blurred previews, made ahead of anyone asking (run by the copy
+ * job after each batch, 10-19). A folder's first open used to wait 1.7-3 s for them
+ * (measured); the caches above then hold them for hours, so this mostly re-reads hits.
+ */
+export async function warmMirrorCache(folders: string[][], deadline: number): Promise<number> {
+  await cachedFlags();
+  await Promise.all(Array.from({ length: 64 }, (_, i) => cachedShard(`${LQIP_DIR}/${i}.json`)));
+  let warmed = 0;
+  for (let i = 0; i < folders.length && Date.now() < deadline; i += 6) {
+    await Promise.all(folders.slice(i, i + 6).map((ids) => mirroredUrls(ids).catch(() => null)));
+    warmed += Math.min(6, folders.length - i);
+  }
+  return warmed;
+}

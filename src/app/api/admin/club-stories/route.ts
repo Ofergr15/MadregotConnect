@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { createServerClient } from '@/lib/supabase/server';
-import { requireApprover } from '@/lib/auth/require-approver';
+import { requireContentStaff } from '@/lib/auth/require-content-staff';
 import { resolveAudience, sendPushLocalized } from '@/lib/push';
 import { addDaysToDateStr, israelToday } from '@/lib/utils';
 import { CLUB_STORIES_KEY, pruneClubStories, readClubStories, untilFor, type ClubStory } from '@/lib/feed/club-stories';
@@ -22,7 +22,7 @@ async function save(db: ReturnType<typeof createServerClient>, list: ClubStory[]
 }
 
 export async function POST(request: Request) {
-  const { denied, email } = await requireApprover(request);
+  const { denied, email } = await requireContentStaff(request);
   if (denied) return denied;
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const text = typeof b?.text === 'string' ? b.text.trim().slice(0, 1200) : '';
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const { denied } = await requireApprover(request);
+  const { denied } = await requireContentStaff(request);
   if (denied) return denied;
   const id = new URL(request.url).searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });

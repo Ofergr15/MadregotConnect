@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { requireApprover } from '@/lib/auth/require-approver';
+import { requireContentStaff } from '@/lib/auth/require-content-staff';
 import { sessionPhotosStatus, setSessionPhotosAuto } from '@/lib/quality-session/photos-server';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 //   is no folder for today (or yesterday, until 15:00), or before 07:00.
 // PATCH { date, auto } -> { ok } The day's "לפרסם לבד".
 export async function GET(request: Request) {
-  const { denied } = await requireApprover(request);
+  const { denied } = await requireContentStaff(request);
   if (denied) return denied;
   try {
     return NextResponse.json({ status: await sessionPhotosStatus(createServerClient()) });
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const { denied } = await requireApprover(request);
+  const { denied } = await requireContentStaff(request);
   if (denied) return denied;
   const b = (await request.json().catch(() => null)) as { date?: string; auto?: boolean } | null;
   if (!b?.date || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) return NextResponse.json({ error: 'date required' }, { status: 400 });

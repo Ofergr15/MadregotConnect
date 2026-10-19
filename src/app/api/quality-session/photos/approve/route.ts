@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { requireApprover } from '@/lib/auth/require-approver';
+import { requireContentStaff } from '@/lib/auth/require-content-staff';
 import { requireSession } from '@/lib/auth-session';
 import { approveSessionPhotos, type PhotosNotify } from '@/lib/quality-session/photos-server';
 
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 // POST { date, notify: push|inapp|quiet, audience: all|attendees, circle } -> { id, photos, told }
 //   The staff card's "לפרסם" (lib/quality-session/photos-server.ts approveSessionPhotos).
 export async function POST(request: Request) {
-  const { denied, email } = await requireApprover(request);
+  const { denied, email } = await requireContentStaff(request);
   if (denied) return denied;
   const auth = await requireSession(request);
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;

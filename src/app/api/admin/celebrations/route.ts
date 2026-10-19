@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
-import { requireApprover } from '@/lib/auth/require-approver';
+import { requireContentStaff } from '@/lib/auth/require-content-staff';
 import { addDaysToDateStr, israelToday } from '@/lib/utils';
 import { toCelebration, CELEBRATION_TYPES } from '@/lib/feed/celebration';
 import { CLUB_STORIES_KEY, readClubStories } from '@/lib/feed/club-stories';
@@ -31,7 +31,7 @@ async function settings(db: Db, key: string) {
 }
 
 export async function GET(request: Request) {
-  const { denied } = await requireApprover(request);
+  const { denied } = await requireContentStaff(request);
   if (denied) return denied;
   const db = createServerClient();
   try {
@@ -94,7 +94,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const { denied } = await requireApprover(request);
+  const { denied } = await requireContentStaff(request);
   if (denied) return denied;
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const db = createServerClient();
