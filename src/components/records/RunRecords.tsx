@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { Info, Trophy } from 'lucide-react';
 import { useApi } from '@/lib/api';
+import { runRecordsKey } from '@/lib/activity/open-hint';
 import { formatTime } from '@/lib/academy/benchmark';
 import { recordHref } from '@/components/profile/pr-format';
 import { ALL, RemoveRecordSheet, UndoToast, useRecordExclusion, type RecordChange } from './RecordRemoval';
@@ -28,7 +29,7 @@ interface RunRecordsResponse {
 export function RunRecords({ athleteId, activityId, owner }: { athleteId: string; activityId: string; owner: boolean }) {
   const t = useTranslations('records');
   const locale = useLocale();
-  const { data } = useApi<RunRecordsResponse>(`/api/athletes/${athleteId}/records/run/${activityId}`);
+  const { data } = useApi<RunRecordsResponse>(runRecordsKey(athleteId, activityId));
   const ex = useRecordExclusion(owner ? athleteId : null);
   const [asking, setAsking] = useState<string | null>(null);
   const [undo, setUndo] = useState<string | null>(null);

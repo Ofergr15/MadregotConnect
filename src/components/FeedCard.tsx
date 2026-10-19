@@ -4,6 +4,7 @@ import { SurveyVote } from '@/components/feed/SurveyVote';
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { hintActivityAthlete } from '@/lib/activity/open-hint';
 import { Heart, MessageCircle, MessagesSquare, Trash2, MapPin, Mountain, Share2, Award, Flame, Gauge, ExternalLink, Play, Images } from 'lucide-react';
 import { activityDayRelation, cn, formatActivityDate, formatActivityTime, resolveGroup } from '@/lib/utils';
 import { useTranslations, useFormatter, useLocale, useNow } from 'next-intl';
@@ -598,7 +599,7 @@ function ActivityCard({
   // The card is a doorway to the full run: route map, per-km splits, pace/HR/
   // elevation charts. It used to be a dead end — the only tap target was the
   // run-chat button in the action row.
-  const openDetail = () => router.push(`/dashboard/activities/${act.id}`);
+  const openDetail = () => { hintActivityAthlete(act.id, act.athleteId); router.push(`/dashboard/activities/${act.id}`); };
 
   return (
     <div className="bg-card rounded-[20px] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">

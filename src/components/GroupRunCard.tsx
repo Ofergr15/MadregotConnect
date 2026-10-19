@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { hintActivityAthlete } from '@/lib/activity/open-hint';
 import { useTranslations } from 'next-intl';
 import { ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { formatActivityTime } from '@/lib/utils';
@@ -147,7 +148,7 @@ function ExpandedRunner({
   const t = useTranslations('feed');
   const router = useRouter();
   const act = item.activity!;
-  const openDetail = () => router.push(`/dashboard/activities/${act.id}`);
+  const openDetail = () => { hintActivityAthlete(act.id, act.athleteId); router.push(`/dashboard/activities/${act.id}`); };
 
   return (
     <div>
@@ -293,7 +294,7 @@ export function GroupRunCard({
                 <CompactRunner
                   key={item.id}
                   item={item}
-                  onOpen={() => router.push(`/dashboard/activities/${item.activity!.id}`)}
+                  onOpen={() => { hintActivityAthlete(item.activity!.id, item.activity!.athleteId); router.push(`/dashboard/activities/${item.activity!.id}`); }}
                 />
               ))}
             </div>

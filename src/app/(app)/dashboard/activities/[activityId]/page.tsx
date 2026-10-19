@@ -12,6 +12,9 @@
  */
 
 import { useEffect, useState } from 'react';
+import { preload } from 'swr';
+import { apiFetcher } from '@/lib/api';
+import { runRecordsKey, takeActivityAthlete } from '@/lib/activity/open-hint';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { AlertCircle, ArrowRight, MessageCircle, Share2 } from 'lucide-react';
@@ -50,6 +53,12 @@ export default function ActivityDetailPage() {
     setMyAthleteId(localStorage.getItem('athlete_id'));
     setIsStaff(!!localStorage.getItem('coach_email'));
   }, []);
+  // Opened from a feed card: whose run it is is already known (lib/activity/open-hint),
+  // so the records card's request goes out with the details instead of after them.
+  useEffect(() => {
+    const athlete = takeActivityAthlete(activityId);
+    if (athlete) preload(runRecordsKey(athlete, activityId), apiFetcher);
+  }, [activityId]);
 
   // No athleteId to pass — arriving here from a feed card, the activity uuid is
   // all we have. The route looks it up by id and returns the summary row with it.
