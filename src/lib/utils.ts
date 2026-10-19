@@ -574,6 +574,23 @@ export function isRecentlyPublished(publishedAt?: string | null): boolean {
   return Date.now() - new Date(publishedAt).getTime() < NEW_PLAN_WINDOW_MS;
 }
 
+/** The club group as the app names packs: "Group 2" / "SUB 2:35" → "דבוקה 2"; anything else as written. */
+export function memberPackName(name?: string | null): string {
+  const g = resolveGroup(name);
+  return g.index >= 0 ? `דבוקה ${g.index + 1}` : (name || '').trim();
+}
+
+/**
+ * The pack chip on a profile: "דבוקה 1"–"דבוקה 3" for the club's three groups, the same
+ * numbering the feed's standings use and the academy's bands continue ("דבוקה 4"–"דבוקה 9").
+ * It used to print the roster's "Group 2" in English. An academy trainee shows their
+ * band instead: "דבוקה 1 · דבוקה 6" side by side would contradict itself.
+ */
+export function profilePackChip(groupName: string | null | undefined, academyBandName: string | null | undefined): string | null {
+  if (academyBandName) return null;
+  return groupName ? memberPackName(groupName) : null;
+}
+
 /**
  * The member-facing Hebrew name of a pace group: "Group 2" / "SUB 2:35" → "קבוצה 2";
  * anything resolveGroup doesn't recognise is kept as written. One place, so the

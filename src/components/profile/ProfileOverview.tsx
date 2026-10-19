@@ -12,6 +12,7 @@ import { SetupProgressCard } from '@/components/onboarding/SetupProgressCard';
 import { PhotoLightbox } from '@/components/PhotoLightbox';
 import { HeroChip, ProfileHero } from '@/components/profile/ProfileHero';
 import { MyWeekCard } from '@/components/profile/MyWeekCard';
+import { profilePackChip } from '@/lib/utils';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // The owner's profile in two halves the page places apart: the header (hero,
@@ -130,7 +131,9 @@ export function ProfileOverview({
             nameAside={isCore ? <CoreRunnerBadge className="text-base" /> : undefined}
             chips={
               <>
-                {pub?.groupName && <HeroChip brand>{pub.groupName}</HeroChip>}
+                {profilePackChip(pub?.groupName, pub?.isAcademy ? pub.academyBand?.name : null) && (
+                  <HeroChip brand>{profilePackChip(pub?.groupName, pub?.isAcademy ? pub.academyBand?.name : null)}</HeroChip>
+                )}
                 {pub?.isAcademy && pub.academyBand?.name && (
                   // The academy band chip opens the academy, where its paces are.
                   <Link href="/dashboard/academy" className="contents"><HeroChip>{pub.academyBand.name}</HeroChip></Link>

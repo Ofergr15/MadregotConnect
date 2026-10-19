@@ -7,7 +7,7 @@ import { AlertCircle, Star, UserCheck, UserPlus } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { useAthleteId } from '@/lib/use-athlete-id';
 import { Button, EmptyState, LoadingBlock, Skeleton, BackNav } from '@/components/ui';
-import { cn } from '@/lib/utils';
+import { cn, profilePackChip } from '@/lib/utils';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import CoreRunnerBadge from '@/components/CoreRunnerBadge';
 import { ProfileHero, HeroChip } from '@/components/profile/ProfileHero';
@@ -204,7 +204,9 @@ export default function TeammateProfilePage() {
           nameAside={profile.isCoreRunner ? <CoreRunnerBadge className="text-base" /> : undefined}
           chips={
             <>
-              {profile.groupName && <HeroChip brand>{profile.groupName}</HeroChip>}
+              {profilePackChip(profile.groupName, profile.isAcademy ? profile.academyBand?.name : null) && (
+                <HeroChip brand>{profilePackChip(profile.groupName, profile.isAcademy ? profile.academyBand?.name : null)}</HeroChip>
+              )}
               {profile.isAcademy && profile.academyBand?.name && <HeroChip>{profile.academyBand.name}</HeroChip>}
               {profile.isAcademy && profile.coachName && <HeroChip>{tProfile('coachChip', { name: profile.coachName })}</HeroChip>}
               {profile.memberSince && (

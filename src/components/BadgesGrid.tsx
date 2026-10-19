@@ -3,7 +3,7 @@
 import { Award, Lock } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useApi } from '@/lib/api';
-import { Card, EmptyState, SkeletonCard } from '@/components/ui';
+import { Card, SkeletonCard } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
 interface BadgeRow {
@@ -57,8 +57,14 @@ export function BadgesGrid({ athleteId, peer = false }: { athleteId: string; /**
 
   return (
     <div className="space-y-4">
+      {/* One line, not a full empty state over the grid: the locked badges below ARE
+          the "what can be earned", and a big empty block on top of them was half a
+          screen of nothing (screens audit 2026-10-19). */}
       {earnedCount === 0 && (
-        <EmptyState icon={Award} title={peer ? t('noBadgesYetPeer') : t('noBadgesYet')} description={peer ? undefined : t('noBadgesYetBody')} className="py-8" />
+        <p className="flex items-center gap-2 px-1 text-sm text-ink-500">
+          <Award className="h-4 w-4 shrink-0 text-ink-400" aria-hidden />
+          <span><b className="font-bold text-ink-700">{peer ? t('noBadgesYetPeer') : t('noBadgesYet')}</b>{!peer && <> · {t('noBadgesYetBody')}</>}</span>
+        </p>
       )}
 
       <div className="grid grid-cols-3 gap-3">
