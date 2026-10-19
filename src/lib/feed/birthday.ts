@@ -15,6 +15,23 @@ export function birthdayBody(name: string, athleteId: string): string {
   return `🎂 היום יום ההולדת של ${mentionToken(name, athleteId)}! מזל טוב 🎉`;
 }
 
+const WEEKDAY = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
+/**
+ * The post's words as of `today`. It is written once, on the day ("היום יום ההולדת של…"),
+ * but it can stay on the circles for days (lib/feed/celebration-days.ts): the day after it
+ * says "אתמול", later "ביום שלישי" (Ofer, 10-19: Shalev's birthday still read "today" the
+ * day after). Anything not in the automatic wording is left as written.
+ */
+export function birthdayBodyAsOf(body: string | null, date: unknown, today: string): string | null {
+  if (!body || typeof date !== 'string' || date >= today) return body;
+  const m = body.match(/^🎂 היום יום ההולדת של (.+)! מזל טוב 🎉$/);
+  if (!m) return body;
+  const days = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${date}T12:00:00Z`)) / 86_400_000);
+  const when = days === 1 ? 'אתמול' : `ביום ${WEEKDAY[new Date(`${date}T12:00:00Z`).getUTCDay()]}`;
+  return `🎂 ${when} היה יום ההולדת של ${m[1]}! מזל טוב 🎉`;
+}
+
 /** Today's posts, once each. Never throws — a missed card must not fail the tick. Returns how many were posted. */
 export async function publishBirthdayPosts(supabase: SupabaseClient, today: string, now: Date = new Date()): Promise<number> {
   try {

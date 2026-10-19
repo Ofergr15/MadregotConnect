@@ -8,6 +8,7 @@ import { israelToday } from '@/lib/utils';
 import { israelDateOf } from '@/lib/reports/last-7-days';
 import { readConfig as readBirthdayConfig } from '@/lib/birthday-year/server';
 
+import { birthdayBodyAsOf } from '@/lib/feed/birthday';
 import { CLUB_STORIES_KEY, activeClubStories, readClubStories } from '@/lib/feed/club-stories';
 
 export const dynamic = 'force-dynamic';
@@ -70,7 +71,8 @@ export async function GET(request: Request) {
       const celebration = toCelebration(item.payload)!;
       const honorees = celebration.honorees.map((id) => byId.get(id)).filter((p): p is NonNullable<typeof p> => !!p)
         .map((p) => (hebrew.has(p.id) ? { ...p, name: hebrew.get(p.id)! } : p));
-      return { item: { ...item, body: renamed(item.body) ?? item.body }, celebration, honorees };
+      const body = birthdayBodyAsOf(renamed(item.body) ?? item.body, (item.payload as Record<string, unknown> | null)?.date, today);
+      return { item: { ...item, body }, celebration, honorees };
     });
     return NextResponse.json({ today, entries, club });
   } catch (err) {

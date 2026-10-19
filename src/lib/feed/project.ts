@@ -1,3 +1,5 @@
+import { birthdayBodyAsOf } from '@/lib/feed/birthday';
+import { israelToday } from '@/lib/utils';
 /**
  * The ONE place that decides which fields of a feed item leave the server.
  *
@@ -480,7 +482,8 @@ export function projectFeedItem(value: unknown, ctx: ProjectContext): FeedItem {
       avatarUrl: row.athletes?.avatar_url || null,
       groupName: row.athletes?.groups?.name || null,
     },
-    body: row.body,
+    // A birthday post kept up for days says "אתמול" the day after (lib/feed/birthday.ts).
+    body: birthdayBodyAsOf(row.body, (payload as Record<string, unknown> | null)?.date, israelToday()),
     media: toMedia(row.media),
     payload,
     occurredAt: row.occurred_at,

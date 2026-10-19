@@ -41,6 +41,43 @@ function useClub() {
   }, [a, g]);
 }
 
+/**
+ * What the Madregot circle will look like (lib/feed/club-stories.ts): the row at the top
+ * of the feed with the circle first, and the message it opens. Drawn with the same
+ * shapes as components/feed/CelebrationStories.tsx, as the text is typed.
+ */
+function CirclePreview({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="space-y-2">
+      <p className={LABEL}>ככה זה ייראה</p>
+      <div className="rounded-[22px] bg-card px-3 pb-3 pt-3">
+        <p className="mb-2 px-1 text-[12px] font-extrabold text-ink-400">🎉 חוגגים היום</p>
+        <div className="flex w-[72px] flex-col items-center text-center">
+          <span className="relative rounded-full p-[3px]" style={{ background: 'conic-gradient(from 200deg,#1525FF,#5BC0EB,#1525FF)' }}>
+            <span className="block rounded-full border-[3px] border-card bg-white">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/logo.png" alt="" className="h-[54px] w-[54px] rounded-full object-contain p-1" />
+            </span>
+            <span className="absolute end-0.5 top-0.5 h-3 w-3 rounded-full border-2 border-card bg-[#FF3B30]" />
+          </span>
+          <span className="mt-1.5 text-[12px] font-bold text-ink-900">מדרגות</span>
+          <span className="text-[10.5px] text-ink-400">הודעה</span>
+        </div>
+      </div>
+      <div className="overflow-hidden rounded-[22px] bg-card px-6 pb-5 pt-3 text-center shadow-[0_-1px_0_#E6E6EC]">
+        <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-[#D7D7DC]" />
+        <span className="mx-auto block h-[72px] w-[72px] rounded-full p-[3px]" style={{ background: 'conic-gradient(from 200deg,#1525FF,#5BC0EB,#1525FF)' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/logo.png" alt="" className="block h-full w-full rounded-full border-[3px] border-card bg-white object-contain p-1" />
+        </span>
+        <h3 className="mt-3 text-[19px] font-black leading-tight text-ink-900">{title || 'הכותרת (השורה הראשונה)'}</h3>
+        <p className="mt-1.5 whitespace-pre-line text-[14.5px] leading-relaxed text-ink-700">{text || 'הטקסט (מהשורה השנייה)'}</p>
+        <span className="mt-4 flex min-h-[44px] w-full items-center justify-center rounded-2xl bg-brand-600 text-[15px] font-extrabold text-white">סגירה</span>
+      </div>
+    </div>
+  );
+}
+
 function Seg<T extends string>({ value, options, onChange }: { value: T; options: Array<[T, string]>; onChange: (v: T) => void }) {
   return (
     <div className="flex rounded-[11px] bg-[#E3E3E9] p-[2px]" role="tablist">
@@ -216,7 +253,7 @@ export default function PublishPage() {
   };
 
   return (
-    <div className="space-y-3 pb-28" dir="rtl">
+    <div className="space-y-3 pb-4" dir="rtl">
       <div className="flex items-center gap-2">
         <Link href="/dashboard/content" className="inline-flex min-h-[44px] items-center gap-0.5 text-[15px] font-semibold text-brand-600"><ChevronRight className="h-4 w-4" />{t('back')}</Link>
       </div>
@@ -248,6 +285,7 @@ export default function PublishPage() {
               <p className="px-1 text-13 leading-snug text-ink-400">{t('circleSub')}</p>
               <p className={LABEL}>{t('circleDays')}</p>
               <Seg value={String(days) as '1' | '2' | '7'} options={[['1', t('days_1')], ['2', t('days_2')], ['7', t('days_7')]]} onChange={(v) => setDays(Number(v) as 1 | 2 | 7)} />
+              <CirclePreview title={preview.title} text={preview.body} />
             </>
           )}
           {place === 'circle' && (
@@ -368,7 +406,9 @@ export default function PublishPage() {
 
       {msg && <p role="status" className={cn('rounded-[14px] px-3 py-2.5 text-sm font-bold', msg.ok ? 'bg-accent-600/10 text-accent-900' : 'bg-accent-red/10 text-accent-red')}>{msg.text}</p>}
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-[#E6E6EC] bg-page/95 px-4 pb-[max(20px,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+      {/* Sticky in the page's own scroller, not `fixed`: the tab bar is part of the shell's
+          layout, so a fixed bar sat behind it and the button could not be reached (10-19). */}
+      <div className="sticky bottom-0 z-20 -mx-1 rounded-t-[20px] border-t border-[#E6E6EC] bg-page/95 px-1 pb-3 pt-3 backdrop-blur">
         <button type="button" disabled={!canSend || busy} onClick={submit}
           className="mx-auto flex h-14 w-full max-w-lg items-center justify-center gap-2 rounded-[17px] bg-brand-600 text-[17px] font-extrabold text-white disabled:opacity-40">
           {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : t(`cta_${kind}`)}
