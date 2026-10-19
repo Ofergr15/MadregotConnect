@@ -15,6 +15,8 @@ import {
   isWeekSummaryWindow, weekSummaryAnchor, weekSummaryDismissKey,
 } from '@/lib/reports/week-summary-window';
 import { ShareSheet } from '@/components/ShareSheet';
+import { StoryTesterBar } from '@/components/stories/StoryTesterBar';
+import { fetchStoryAccess, type StoryAccess } from '@/lib/stories/client';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // LAST WEEK, AT THE TOP OF THE FEED — SATURDAY 18:00 → SUNDAY 10:00
@@ -56,6 +58,8 @@ export function WeekSummaryCard() {
   const [athleteName, setAthleteName] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(true);
   const [sharing, setSharing] = useState(false);
+  // The stories gate (migration 156): nothing renders until the server says yes.
+  const [access, setAccess] = useState<StoryAccess | null>(null);
 
   useEffect(() => {
     const { weekday, hour } = israelNow();
@@ -70,6 +74,9 @@ export function WeekSummaryCard() {
     let cancelled = false;
     (async () => {
       try {
+        const gate = await fetchStoryAccess('weekly');
+        if (cancelled || !gate.allowed) return;
+        setAccess(gate);
         // Eight days, not seven: `since` is a date-only floor, so a day of slack
         // keeps the oldest day whole whichever side of midnight we are on.
         const [res, nights] = await Promise.all([
@@ -104,7 +111,7 @@ export function WeekSummaryCard() {
   };
 
   // A week with no runs is nothing to lead the feed with, let alone share.
-  if (dismissed || !report) return null;
+  if (dismissed || !report || !access?.allowed) return null;
 
   const fd = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
@@ -129,6 +136,7 @@ export function WeekSummaryCard() {
       <div className="relative flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-base font-bold">{t('last7Title')}</h2>
+          {access.tester && <StoryTesterBar feature="weekly" className="mt-1" />}
           <p className="mt-0.5 text-xs font-light text-white/60 tabular-nums">
             <bdi dir="ltr">{fd(report.from)} – {fd(report.to)}</bdi>
           </p>

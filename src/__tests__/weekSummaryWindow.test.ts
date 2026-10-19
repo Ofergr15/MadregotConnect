@@ -77,7 +77,7 @@ describe('the feed card', () => {
     expect(card).toMatch(/if \(!inWindow\) return;/);
     expect(card).not.toMatch(/!inWindow && !trial/);
     expect(card).toMatch(/const trial = useEveningRelease\(\);/);
-    expect(card).toMatch(/if \(dismissed \|\| !report\) return null;/);
+    expect(card).toMatch(/if \(dismissed \|\| !report \|\| !access\?\.allowed\) return null;/);
   });
 
   it('builds the report against the Saturday, not against today', () => {

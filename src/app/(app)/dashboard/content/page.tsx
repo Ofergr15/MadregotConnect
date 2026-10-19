@@ -265,6 +265,13 @@ export default function ContentPage() {
           href="/dashboard/birthdays"
         />
         <InsetRow
+          icon={CalendarDays}
+          iconBg="bg-[#2f45ff]"
+          label="סיפורים"
+          sublabel="סיכום שבועי: מצב ובודקים"
+          href="/dashboard/stories"
+        />
+        <InsetRow
           icon={Sparkles}
           iconBg="bg-brand-600"
           label={t('whatsNew')}
