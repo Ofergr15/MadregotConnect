@@ -28,7 +28,7 @@ export interface RunAnalysisData {
   prs: Record<string, { seconds: number; date: string } | null>;
   recovery: Array<{ rep: number; from: number; to: number }>;
   technique: Array<{ rep: number; cadence: number; stride: number }>;
-  conditions: { tempC: number; dewC: number; humidity: number; costSec: number } | null;
+  conditions: { tempC: number; dewC: number; humidity: number; feelsC: number | null; costSec: number } | null;
   trainingEffect: { aerobic?: number; anaerobic?: number; label?: string | null; load?: number | null; recoveryHours?: number | null } | null;
   hrVisible: boolean;
 }
@@ -127,7 +127,10 @@ export function WorkoutCard({ a }: { a: RunAnalysisData }) {
           ))}
         </div>
       )}
-      {te?.label && <p className="mt-2 text-[13px]">{t('mainBenefit')}: <b>{t.has(`te_${te.label}`) ? t(`te_${te.label}` as 'te_VO2MAX') : te.label}</b>{te.load ? <span className="text-ink-400"> · {t('load')} <B>{te.load}</B></span> : null}{te.recoveryHours ? <span className="text-ink-400"> · {t('recoveryHours', { h: te.recoveryHours })}</span> : null}</p>}
+      {te && (te.aerobic != null || te.anaerobic != null) && (
+        <p className="mt-2 text-[11.5px] leading-relaxed text-ink-400">{t('teScale')}{te.load ? ` ${t(te.load >= 300 ? 'loadVeryHigh' : te.load >= 150 ? 'loadHigh' : te.load >= 75 ? 'loadMid' : 'loadLow', { n: Math.round(te.load) })}` : ''}</p>
+      )}
+      {te?.label && <p className="mt-2 text-[13px]">{t('mainBenefit')}: <b>{t.has(`te_${te.label}`) ? t(`te_${te.label}` as 'te_VO2MAX') : te.label}</b>{te.load ? <span className="text-ink-400"> · {t('load')} <B>{Math.round(te.load)}</B></span> : null}{te.recoveryHours ? <span className="text-ink-400"> · {t('recoveryHours', { h: te.recoveryHours })}</span> : null}</p>}
 
       <div className="mt-4 text-xs font-extrabold text-ink-400">{t('repsVsTarget')}</div>
       <RepColumns reps={w.reps} />
@@ -253,6 +256,7 @@ export function RepsDetail({ w, maxHr }: { w: Workout; maxHr: number }) {
           <em className="absolute right-0 w-[10%] text-end text-[9.5px] not-italic text-ink-400">{label}</em>
         </div>
       ))}
+      {w.reps.some((r) => r.gap != null) && <p className="mt-2 text-[11px] leading-relaxed text-ink-400">{t('gapNote')}</p>}
     </Card>
   );
 }
@@ -361,17 +365,32 @@ export function BestEfforts({ a }: { a: RunAnalysisData }) {
   );
 }
 
+export function Times({ total, moving }: { total: number; moving: number | null }) {
+  const t = useTranslations('runAnalysis');
+  const net = moving && moving <= total ? moving : total;
+  const pause = Math.max(0, total - net);
+  return (
+    <section className="rounded-card bg-card p-3.5">
+      <div className="flex gap-2">
+        {([[clock(total), t('totalTime'), ''], [clock(net), t('netTime'), ''], [clock(pause), t('pauseTime'), 'p']] as const).map(([v, l, k]) => (
+          <div key={l} className={cn('flex flex-1 flex-col rounded-[14px] p-2.5', k ? 'bg-[#FFF4E5]' : 'bg-[#F4F5F8]')}><b className={cn('text-lg font-black', k && 'text-[#B45309]')}><B>{v}</B></b><span className="text-[11px] text-ink-400">{l}</span></div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function Conditions({ c }: { c: NonNullable<RunAnalysisData['conditions']> }) {
   const t = useTranslations('runAnalysis');
   return (
     <section className="rounded-card bg-card p-3.5">
       <div className="flex gap-2">
-        {([[`${Math.round(c.tempC)}°`, t('temp')], [`${Math.round(c.humidity)}%`, t('humidity')], [`${Math.round(c.dewC)}°`, t('dew')]] as const).map(([v, l]) => (
+        {([[`${Math.round(c.tempC)}°`, t('temp')], ...(c.feelsC != null ? [[`${Math.round(c.feelsC)}°`, t('feels')] as const] : []), [`${Math.round(c.humidity)}%`, t('humidity')]] as const).map(([v, l]) => (
           <div key={l} className="flex flex-1 flex-col rounded-[14px] bg-[#F4F5F8] p-2.5"><b className="text-lg font-black"><B>{v}</B></b><span className="text-[11px] text-ink-400">{l}</span></div>
         ))}
         <div className="flex flex-1 flex-col rounded-[14px] bg-[#FFF4E5] p-2.5"><b className="text-lg font-black text-[#B45309]"><B>{c.costSec > 0 ? `+${c.costSec}″` : '0″'}</B></b><span className="text-[11px] text-[#8A4A0B]">{t('heatCost')}</span></div>
       </div>
-      <p className="mt-2 text-[12px] leading-relaxed text-ink-500">{c.costSec >= 5 ? t('heatHigh', { s: c.costSec }) : c.costSec > 0 ? t('heatLow', { s: c.costSec }) : t('heatNone')}</p>
+      <p className="mt-2 text-[12px] leading-relaxed text-ink-500">{t('dewLine', { dew: Math.round(c.dewC) })} {c.costSec >= 5 ? t('heatHigh', { s: c.costSec }) : c.costSec > 0 ? t('heatLow', { s: c.costSec }) : t('heatNone')}</p>
     </section>
   );
 }

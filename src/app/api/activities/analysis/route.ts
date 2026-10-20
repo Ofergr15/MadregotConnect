@@ -27,19 +27,19 @@ export const dynamic = 'force-dynamic';
 const EFFORTS: Array<[string, number]> = [['400', 400], ['1k', 1000], ['mile', 1609], ['5k', 5000], ['10k', 10000]];
 const PR_RANGE: Record<string, [number, number]> = { '5k': [4950, 5300], '10k': [9900, 10500] };
 
-async function weather(lat: number, lng: number, localIso: string): Promise<{ tempC: number; dewC: number; humidity: number } | null> {
+async function weather(lat: number, lng: number, localIso: string): Promise<{ tempC: number; dewC: number; humidity: number; feelsC: number | null } | null> {
   const date = localIso.slice(0, 10); const hour = Number(localIso.slice(11, 13));
   const recent = Date.now() - Date.parse(`${date}T12:00:00Z`) < 6 * 86_400_000;
   const base = recent ? 'https://api.open-meteo.com/v1/forecast' : 'https://archive-api.open-meteo.com/v1/archive';
-  const q = `latitude=${lat.toFixed(3)}&longitude=${lng.toFixed(3)}&hourly=temperature_2m,relative_humidity_2m,dew_point_2m&timezone=Asia%2FJerusalem&${recent ? 'past_days=7&forecast_days=1' : `start_date=${date}&end_date=${date}`}`;
+  const q = `latitude=${lat.toFixed(3)}&longitude=${lng.toFixed(3)}&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature&timezone=Asia%2FJerusalem&${recent ? 'past_days=7&forecast_days=1' : `start_date=${date}&end_date=${date}`}`;
   try {
     const res = await fetch(`${base}?${q}`, { next: { revalidate: recent ? 3600 : 30 * 86_400 }, signal: AbortSignal.timeout(4000) });
     if (!res.ok) return null;
-    const j = await res.json() as { hourly?: { time: string[]; temperature_2m: number[]; relative_humidity_2m: number[]; dew_point_2m: number[] } };
+    const j = await res.json() as { hourly?: { time: string[]; temperature_2m: number[]; relative_humidity_2m: number[]; dew_point_2m: number[]; apparent_temperature?: number[] } };
     const h = j.hourly; if (!h) return null;
     const i = h.time.findIndex((t) => t === `${date}T${String(hour).padStart(2, '0')}:00`);
     if (i < 0 || h.temperature_2m[i] == null) return null;
-    return { tempC: h.temperature_2m[i], dewC: h.dew_point_2m[i], humidity: h.relative_humidity_2m[i] };
+    return { tempC: h.temperature_2m[i], dewC: h.dew_point_2m[i], humidity: h.relative_humidity_2m[i], feelsC: h.apparent_temperature?.[i] ?? null };
   } catch { return null; }
 }
 

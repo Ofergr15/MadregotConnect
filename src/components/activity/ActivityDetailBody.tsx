@@ -11,7 +11,7 @@ import { RunFeedback } from '@/components/academy/RunFeedback';
 import { ExecutionQuality } from './ExecutionQuality';
 import { DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone, strideMeters } from './format';
 import { RouteMap } from './RouteMap';
-import { BestEfforts, Conditions, KmSplitsList, PaceHrScatter, RecoveryChart, RepsDetail, TechniqueChart, WorkoutCard, ZoneBars, useRunAnalysis } from './RunAnalysis';
+import { BestEfforts, Conditions, Times, KmSplitsList, PaceHrScatter, RecoveryChart, RepsDetail, TechniqueChart, WorkoutCard, ZoneBars, useRunAnalysis } from './RunAnalysis';
 import { RunCharts, type RunPhase } from './RunCharts';
 import { HrZones, KmSplits, Laps, Section, StatGrid, lapsAreKm, type StatCell } from './RunSections';
 import { useActivityStream } from './useActivityStream';
@@ -201,6 +201,7 @@ export function ActivityDetailBody({
       {/* Was this the workout that was asked for — as ONE row. The full breakdown
           (axis, reps, measured table) is a tap away instead of ~900px above the
           charts. Renders nothing for a viewer who may not read this score. */}
+      {!mapOnly && <Times total={act.duration} moving={act.moving_duration ?? null} />}
       {!mapOnly && an?.conditions && <Conditions c={an.conditions} />}
 
       {/* The watch ran a workout with reps: that IS the plan against execution (RunAnalysis). */}
