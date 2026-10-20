@@ -101,6 +101,8 @@ export const PROFILE_ITEM: NavItem = { href: '/dashboard/profile', tab: 'profile
 // member as well as an administrator; see `resolveNavItems`.
 export const ADMIN_ACCOUNT_ITEM: NavItem = { href: '/dashboard/profile', tab: 'profile', labelKey: 'account', icon: ShieldCheck };
 export const COACH_TOOLS_ITEM: NavItem = { href: '/dashboard/coach-tools', tab: 'coach-tools', labelKey: 'coachTools', icon: Wrench };
+/** "ניהול" for a "מנהל מדרגות" who holds no staff role: the club's numbers (lib/club-numbers/access). */
+export const CLUB_NUMBERS_ITEM: NavItem = { href: '/dashboard/numbers', tab: 'club-numbers', labelKey: 'coachTools', icon: Gauge };
 // Store and Benefits are static "More" sheet rows, not gated by
 // role_tab_permissions (roadmap #9, #5) — every role can reach them.
 export const STORE_ITEM: NavItem = { href: '/dashboard/store', tab: 'store', labelKey: 'store', icon: ShoppingBag };
@@ -144,6 +146,8 @@ export interface NavResolutionInput {
    * granting the squad a new page is one toggle and no code.
    */
   isCoreRunner?: boolean;
+  /** /api/auth/me `isClubManager`: the admin made them a "מנהל מדרגות". */
+  isClubManager?: boolean;
   /**
    * When true, a role that resolves to nothing gets [dashboard, profile] rather
    * than an empty list. The two nav CHROMES want that (an empty bar or header
@@ -203,6 +207,7 @@ export function resolveNavItems({
   isAthlete = false,
   isAcademyMember = false,
   isCoreRunner = false,
+  isClubManager = false,
   fallback = false,
   isOperator = false,
   traineeV2 = false,
@@ -249,6 +254,8 @@ export function resolveNavItems({
   if (STAFF_ROLES.includes(effectiveRole) && !items.some(i => i.tab === 'coach-tools')) {
     items.push(COACH_TOOLS_ITEM);
   }
+  // A "מנהל מדרגות" with no staff role gets ניהול = the club's numbers. Not while previewing.
+  if (isClubManager && !previewRole && !STAFF_ROLES.includes(effectiveRole) && !items.some(i => i.tab === 'club-numbers')) items.push(CLUB_NUMBERS_ITEM);
   // Academy members reach the academy regardless of role_tab_permissions.
   // Membership is the `is_academy` flag, not a role — an athlete whose role is
   // plain `runner` can be in the academy — so no permission row can express it.
@@ -316,7 +323,7 @@ export function useNavIdentity() {
   );
   const permissions = permsData?.permissions || [];
 
-  const { data: meData } = useApi<{ role?: string; roles?: string[]; isAcademy?: boolean; academyOnly?: boolean; isSuper?: boolean; isCoreRunner?: boolean }>(
+  const { data: meData } = useApi<{ role?: string; roles?: string[]; isAcademy?: boolean; academyOnly?: boolean; isSuper?: boolean; isCoreRunner?: boolean; isClubManager?: boolean }>(
     hasEmail ? '/api/auth/me' : null,
   );
   const isSuper = localSuper || !!meData?.isSuper;
@@ -366,6 +373,7 @@ export function useNavIdentity() {
     /** In the academy and no club group: always the academy trainee home (academy-dash.html). */
     isAcademyOnly: !!meData?.academyOnly,
     isCoreRunner: !!meData?.isCoreRunner,
+    isClubManager: !!meData?.isClubManager,
     isOperator,
     // An academy-only trainee has no club home to fall back to: v2 is theirs regardless of the flag.
     traineeV2: traineeV2 || !!meData?.academyOnly,

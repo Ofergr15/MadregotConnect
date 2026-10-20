@@ -148,10 +148,13 @@ export async function GET(request: Request) {
 
     // The quality session (lib/quality-session/access.ts): no 129 yet only reads as "no".
     const qualitySession = isSuper || row?.is_story_editor === true;
+    // "מנהל מדרגות" (lib/club-numbers/access): a list, not a role — it adds the ניהול tab with the club's numbers.
+    let isClubManager = false;
+    try { const { clubManagers } = await import('@/lib/club-numbers/access'); isClubManager = (await clubManagers(supabase)).includes(athleteId); } catch { isClubManager = false; }
 
     return NextResponse.json({ role: auth.user.role || 'runner', roles, membership, isAcademy: !!row?.is_academy,
       // In the academy and in no club group: the academy home only, never the club's week.
-      academyOnly: !!row?.is_academy && row?.group_id == null, isSuper, canApprove: canApproveHere, isCoreRunner: isCore, qualitySession });
+      academyOnly: !!row?.is_academy && row?.group_id == null, isSuper, canApprove: canApproveHere, isCoreRunner: isCore, qualitySession, isClubManager });
   } catch (error) {
     console.error('Failed to resolve user role:', error);
     return NextResponse.json({ error: 'Failed to resolve role' }, { status: 500 });

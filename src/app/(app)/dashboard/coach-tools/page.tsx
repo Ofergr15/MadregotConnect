@@ -239,6 +239,8 @@ export default function CoachToolsPage() {
           A pure admin still lands on it at /dashboard, so for them this is a second
           door to the same screen — see ControlRoomScreen. */}
       {isAdminLens && <InsetSection>
+        {/* "מדרגות במספרים" (components/club-numbers): the club's people, growth and academy. */}
+        <InsetRow icon={BarChart3} iconBg="bg-ink-900" label={t('clubNumbers')} sublabel={t('clubNumbersSub')} href="/dashboard/numbers" />
         <InsetRow
           icon={Gauge}
           iconBg="bg-brand-600"

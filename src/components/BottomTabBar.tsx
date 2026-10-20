@@ -91,7 +91,9 @@ export function BottomTabBar() {
   // An academy member's bar trades Program for Academy — see athletePrimaryOrder.
   const primaryOrder = identity.isOperator
     ? OPERATOR_PRIMARY_ORDER
-    : isStaffView ? STAFF_PRIMARY_ORDER : athletePrimaryOrder(ATHLETE_PRIMARY_ORDER, identity.isAcademyMember, identity.traineeV2);
+    : isStaffView ? STAFF_PRIMARY_ORDER
+      // A "מנהל מדרגות" keeps ניהול among the four: profile moves into "More".
+      : athletePrimaryOrder(identity.isClubManager ? ATHLETE_PRIMARY_ORDER.map((t) => (t === 'profile' ? 'club-numbers' : t)) : ATHLETE_PRIMARY_ORDER, identity.isAcademyMember, identity.traineeV2);
   const byTab = new Map(navItems.map(i => [i.tab, i]));
   const primary: NavItem[] = [];
   for (const tab of primaryOrder) {
