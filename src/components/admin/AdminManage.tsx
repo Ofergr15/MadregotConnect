@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { useApi } from '@/lib/api';
 import { InsetRow, InsetSection } from '@/components/ui';
 import { MANAGE_GROUPS } from '@/lib/admin/manage-groups';
+import { findPlaces } from '@/lib/search/places';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ניהול — the admin's version (2026-10-20, mockups/admin-ia.html): seven rows
@@ -44,7 +45,11 @@ export function AdminManage() {
   const hits = useMemo(() => {
     const s = q.trim();
     if (!s) return [];
-    return INDEX.filter((x) => `${x.label} ${x.also ?? ''}`.includes(s)).slice(0, 8);
+    // This screen's own rows, then every screen and setting the shared index knows
+    // (lib/search/places — the main search reads the same list); the admin opens them all.
+    const own = INDEX.filter((x) => `${x.label} ${x.also ?? ''}`.includes(s));
+    const seen = new Set(own.map((x) => x.href));
+    return [...own, ...findPlaces({ isSuper: true }, s, 12).filter((p) => !seen.has(p.href))].slice(0, 10);
   }, [q]);
 
   return (

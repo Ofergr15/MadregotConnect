@@ -12,6 +12,7 @@ import { EmptyState, Sheet, Skeleton } from '@/components/ui';
 import { teammateHref } from '@/lib/athletes/profile-link';
 import { israelDateOf } from '@/lib/reports/last-7-days';
 import { PackMoveToast, PackSwitchSheet, laneOf, usePackMove, type PackGroup } from '@/components/packs/PackSwitch';
+import { personMatches } from '@/lib/search/match';
 import {
   faceSignals, isStaffPerson, isWaitingPerson, wallAreas, wallSections,
   type FaceSignals, type Person, type Signal,
@@ -78,7 +79,7 @@ function PeopleWall() {
   ), [groups, t]);
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? people.filter((p) => p.name.toLowerCase().includes(q)) : people;
+    return q ? people.filter((p) => personMatches(p.name, q)) : people;
   }, [people, query]);
   const sections = useMemo(() => wallSections(shown, areas, area), [shown, areas, area]);
   const packIndex = (id?: string | null) => groups.findIndex((g) => g.id === id);

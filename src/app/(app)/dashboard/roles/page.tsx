@@ -9,6 +9,7 @@ import { BackNav, Card, EmptyState, Sheet, SkeletonList, Switch } from '@/compon
 import { ViewChipFace } from '@/components/RoleSwitcher';
 import { rolesToColumns, type GrantableRole, type RolePerson } from '@/lib/auth/roles';
 import { defaultViewFor, newlyGranted, rolePreview } from '@/lib/role-views';
+import { personMatches } from '@/lib/search/match';
 
 /** Roles that may hold academy trainees — dropping all of them releases the trainees. */
 const COACHING: readonly GrantableRole[] = ['academy_coach', 'academy_manager', 'admin'];
@@ -139,8 +140,12 @@ export default function RolesPage() {
   );
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('any');
-  // ?filter=core / managers — the doors from "מדרגות במספרים".
-  useEffect(() => { const f = new URLSearchParams(window.location.search).get('filter'); if (f && FILTERS.some(x => x.key === f)) setFilter(f as Filter); }, []);
+  // ?filter=core / managers — the doors from "מדרגות במספרים"; ?q= — from search ("תפקידים · Alon").
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const f = sp.get('filter'); if (f && FILTERS.some(x => x.key === f)) setFilter(f as Filter);
+    const q = sp.get('q'); if (q) setQuery(q);
+  }, []);
   const [editing, setEditing] = useState<RolePerson | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -162,7 +167,7 @@ export default function RolesPage() {
     const q = query.trim().toLowerCase();
     // A search looks through everybody, not just the filter: finding a runner to
     // give a role to is the reason to search.
-    if (q) return people.filter(p => p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q));
+    if (q) return people.filter(p => personMatches(p.name, q, p.email));
     const f = FILTERS.find(x => x.key === filter)!;
     return people.filter(f.test);
   }, [people, query, filter]);

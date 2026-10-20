@@ -8,6 +8,7 @@ import { EmptyState, SkeletonList, Button } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import { cn } from '@/lib/utils';
 import { AthleteLink } from '@/components/AthleteLink';
+import { personMatches } from '@/lib/search/match';
 
 interface DiscoverAthlete {
   id: string;
@@ -43,7 +44,7 @@ export function MemberDiscovery({ viewerId }: { viewerId: string }) {
   const athletes = useMemo(() => {
     const list = data?.athletes || [];
     const q = query.trim().toLowerCase();
-    const filtered = q ? list.filter((a) => a.name.toLowerCase().includes(q)) : list;
+    const filtered = q ? list.filter((a) => personMatches(a.name, q)) : list;
     return filtered.map((a) => ({ ...a, isFollowing: overrides[a.id] ?? a.isFollowing }));
   }, [data, query, overrides]);
 

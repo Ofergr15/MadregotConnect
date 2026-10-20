@@ -10,6 +10,13 @@ import { FeedAvatar } from '@/components/FeedAvatar';
 import type { EventKind } from '@/lib/events';
 import { useNavItems, STORE_ITEM, STORE_OPEN, BENEFITS_ITEM, RUN_TOGETHER_ITEM, type NavItem } from '@/lib/nav-items';
 import { AthleteLink } from '@/components/AthleteLink';
+import { findPlaces, type PlaceViewer } from '@/lib/search/places';
+import type { RunResults } from '@/lib/search/runs';
+import type { WeekSession } from '@/lib/plans/workout-parsing';
+import { getPlanWeekStart } from '@/lib/utils';
+import {
+  matchSessions, PersonActions, PlacesSection, PlanSection, RecentSearches, recordBuckets, RecordsSection, rememberSearch, RunsSection, SearchTabs, type SearchTab,
+} from '@/components/search/SearchExtras';
 
 // English/Hebrew synonym aliases per section — a plain substring match against
 // the translated label or tab slug alone misses common everyday words (typing
@@ -53,6 +60,8 @@ interface SearchMember {
   id: string;
   name: string;
   avatarUrl: string | null;
+  pack?: string | null;
+  lastRunId?: string | null;
 }
 interface SearchEvent {
   id: string;
@@ -88,6 +97,7 @@ interface SearchData {
   products: SearchProduct[];
   perks: SearchPerk[];
   albums?: SearchAlbum[];
+  runs?: RunResults;
 }
 /** Before anything is typed (`/api/search?start=1`). */
 interface StartData {
@@ -119,6 +129,14 @@ export default function SearchPage() {
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
   const { navItems } = useNavItems();
+  // Which group of results (mockup search-proposal, 10-20): all, people, runs, plan, screens.
+  const [tab, setTab] = useState<SearchTab>('all');
+  const { data: me } = useApi<PlaceViewer & { role?: string }>('/api/auth/me');
+  const [myId, setMyId] = useState<string | null>(null);
+  useEffect(() => { setMyId(localStorage.getItem('athlete_id')); }, []);
+  const held = [me?.role, ...(me?.roles ?? [])].filter(Boolean) as string[];
+  const isStaff = !!me?.isSuper || held.some((r) => ['admin', 'coach', 'academy_coach', 'academy_manager'].includes(r));
+  const isAdmin = !!me?.isSuper || held.includes('admin');
 
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(query.trim()), 300);
@@ -132,6 +150,14 @@ export default function SearchPage() {
   );
   // The screen before typing: something to tap straight away (mockup search-mockup.html).
   const { data: start } = useApi<StartData>('/api/search?start=1');
+  // This week's plan in my pack, read the way the home reads it, matched here.
+  const typed = debounced.length >= 2;
+  const { data: week } = useApi<{ sessions?: WeekSession[] }>(typed ? `/api/plans/week?weekStart=${getPlanWeekStart(new Date())}&lane=mine` : null);
+  const planHits = useMemo(() => matchSessions(week?.sessions, debounced), [week, debounced]);
+  // My records, when the query asks for one ("שיא 10K").
+  const buckets = typed ? recordBuckets(debounced) : null;
+  const { data: prs } = useApi<{ distanceBests: Array<{ key: string; label: string; seconds: number | null; date: string | null; activityId: string | null }> }>(buckets && myId ? `/api/athletes/prs?athleteId=${myId}` : null);
+
 
   // "Smart search" — sections/pages are matched entirely client-side against
   // the same reachable-tabs list the tab bar computes (never gated by a
@@ -148,10 +174,23 @@ export default function SearchPage() {
     });
   }, [navItems, debounced, tNav]);
 
+  // Not twice: a place the menu's own tabs already listed above.
+  const places = useMemo(() => {
+    const listed = new Set(sections.map((x) => x.href));
+    return findPlaces(me, debounced).filter((p) => !listed.has(p.href));
+  }, [me, debounced, sections]);
+
   const fmtDate = (iso: string) =>
     new Date(`${iso}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 
-  const hasResults = sections.length > 0 || (data?.members.length || 0) > 0 || (data?.events.length || 0) > 0
+  const runCount = (data?.runs?.today.length || 0) + (data?.runs?.runs.length || 0);
+  const recordCount = buckets ? (prs?.distanceBests || []).filter((b) => buckets.includes(b.key) && b.seconds).length : 0;
+  const counts: Partial<Record<SearchTab, number>> = {
+    people: data?.members.length || 0, runs: runCount, plan: planHits.length + recordCount, places: sections.length + places.length,
+  };
+  const show = (k: SearchTab) => tab === 'all' || tab === k;
+  const hasResults = sections.length > 0 || places.length > 0 || runCount > 0 || planHits.length > 0 || recordCount > 0
+    || (data?.members.length || 0) > 0 || (data?.events.length || 0) > 0
     || (data?.products.length || 0) > 0 || (data?.perks.length || 0) > 0 || (data?.albums?.length || 0) > 0;
   const showEmpty = debounced.length >= 2 && !isLoading && !hasResults;
   const showPrompt = debounced.length < 2;
@@ -182,7 +221,13 @@ export default function SearchPage() {
         )}
       </div>
 
+      {!showPrompt && <SearchTabs tab={tab} onTab={setTab} counts={counts} />}
+
+      {showPrompt && <RecentSearches onPick={(r) => { setQuery(r); setDebounced(r); }} />}
       {showPrompt && (start ? <StartView start={start} /> : <div className="flex justify-center py-10"><Spinner size={22} /></div>)}
+
+      {/* What was searched AND opened is what "recent" keeps. */}
+      <div className="space-y-4" onClickCapture={(e) => { if ((e.target as HTMLElement).closest('a')) rememberSearch(debounced); }}>
 
       {isLoading && debounced.length >= 2 && (
         <div className="flex justify-center py-10"><Spinner size={22} /></div>
@@ -192,7 +237,7 @@ export default function SearchPage() {
         <EmptyState icon={SearchIcon} title={t('noResults')} className="py-10" />
       )}
 
-      {sections.length > 0 && (
+      {show('places') && sections.length > 0 && (
         <div>
           <p className="text-2xs font-bold uppercase tracking-wider text-ink-400 px-1 mb-1.5">{t('sections')}</p>
           <div className="space-y-2">
@@ -215,7 +260,9 @@ export default function SearchPage() {
         </div>
       )}
 
-      {!isLoading && data && data.members.length > 0 && (
+      {show('places') && <PlacesSection places={places} />}
+
+      {show('people') && !isLoading && data && data.members.length > 0 && (
         <div>
           <p className="text-2xs font-bold uppercase tracking-wider text-ink-400 px-1 mb-1.5">{t('members')}</p>
           <div className="space-y-2">
@@ -235,14 +282,26 @@ export default function SearchPage() {
                 className="flex min-h-[58px] items-center gap-3 rounded-card bg-card px-3.5 py-2 active:opacity-85"
               >
                 <FeedAvatar name={m.name} url={m.avatarUrl} className="w-9 h-9 shrink-0" />
-                <span className="text-[15px] font-extrabold text-ink-900 truncate"><bdi>{m.name}</bdi></span>
+                <span className="min-w-0">
+                  <span className="block text-[15px] font-extrabold text-ink-900 truncate"><bdi>{m.name}</bdi></span>
+                  {m.pack && <span className="block text-xs text-ink-400 truncate"><bdi>{m.pack}</bdi></span>}
+                </span>
               </AthleteLink>
             ))}
           </div>
         </div>
       )}
 
-      {!isLoading && data && (data.albums?.length || 0) > 0 && (
+      {show('people') && !isLoading && data && data.members.length > 0 && (tab === 'people' || data.members.length <= 2) && (
+        <PersonActions person={data.members[0]} staff={isStaff} admin={isAdmin} />
+      )}
+
+      {show('runs') && !isLoading && data?.runs && <RunsSection runs={data.runs} limit={tab === 'all' ? 3 : undefined} />}
+
+      {show('plan') && <PlanSection sessions={planHits} weekLabel={t('thisWeek')} />}
+      {show('plan') && buckets && prs && myId && <RecordsSection bests={prs.distanceBests} keys={buckets} athleteId={myId} />}
+
+      {tab === 'all' && !isLoading && data && (data.albums?.length || 0) > 0 && (
         <div>
           <p className="text-2xs font-bold uppercase tracking-wider text-ink-400 px-1 mb-1.5">{t('albums')}</p>
           <div className="space-y-2">
@@ -263,7 +322,7 @@ export default function SearchPage() {
         </div>
       )}
 
-      {!isLoading && data && data.events.length > 0 && (
+      {tab === 'all' && !isLoading && data && data.events.length > 0 && (
         <div>
           <p className="text-2xs font-bold uppercase tracking-wider text-ink-400 px-1 mb-1.5">{t('events')}</p>
           <div className="space-y-2">
@@ -289,7 +348,7 @@ export default function SearchPage() {
         </div>
       )}
 
-      {STORE_OPEN && !isLoading && data && data.products.length > 0 && (
+      {tab === 'all' && STORE_OPEN && !isLoading && data && data.products.length > 0 && (
         <div>
           <p className="text-2xs font-bold uppercase tracking-wider text-ink-400 px-1 mb-1.5">{t('products')}</p>
           <div className="space-y-2">
@@ -317,7 +376,7 @@ export default function SearchPage() {
         </div>
       )}
 
-      {!isLoading && data && data.perks.length > 0 && (
+      {tab === 'all' && !isLoading && data && data.perks.length > 0 && (
         <div>
           <p className="text-2xs font-bold uppercase tracking-wider text-ink-400 px-1 mb-1.5">{t('perks')}</p>
           <div className="space-y-2">
@@ -344,6 +403,7 @@ export default function SearchPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

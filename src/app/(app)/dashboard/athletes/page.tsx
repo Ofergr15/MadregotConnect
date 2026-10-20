@@ -17,6 +17,7 @@ import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { PackMoveToast, PackSwitchSheet, usePackMove } from '@/components/packs/PackSwitch';
 import { teammateHref } from '@/lib/athletes/profile-link';
 import { maintenanceBlocks, type MaintenanceState } from '@/lib/maintenance-rule';
+import { personMatches } from '@/lib/search/match';
 
 interface Athlete {
   id: string;
@@ -282,7 +283,8 @@ ${inviteLink}`;
   const filteredAthletes = athletes.filter((a) => {
     // 22 members and no way to find one — every "where is X" ended in a scroll.
     const needle = query.trim().toLowerCase();
-    if (needle && !`${a.name} ${a.email}`.toLowerCase().includes(needle)) return false;
+    // Hebrew finds the Latin name and back (lib/search/match) — "אלון", "Netanel".
+    if (needle && !personMatches(a.name, needle, a.email)) return false;
     if (filter === 'all') return true;
     if (filter === 'blocked') return blockedByMaintenance(a);
     return a.status === filter;

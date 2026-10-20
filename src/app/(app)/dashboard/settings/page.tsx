@@ -32,6 +32,7 @@ import { AthleteLink } from '@/components/AthleteLink';
 import { InsetSection, InsetRow } from '@/components/ui/InsetList';
 import { WhatsNewSettingsRow } from '@/components/whats-new/WhatsNewSheet';
 import { AcademyIntakeList } from '@/components/admin/AcademyIntakeList';
+import { personMatches } from '@/lib/search/match';
 
 type TFunc = ReturnType<typeof useTranslations>;
 
@@ -1038,7 +1039,7 @@ export default function SettingsPage() {
   const activeUsers = allActiveUsers.filter(u => {
     if (uSearch.trim()) {
       const q = uSearch.trim().toLowerCase();
-      if (!(`${u.name} ${u.email}`.toLowerCase().includes(q))) return false;
+      if (!personMatches(u.name, q, u.email)) return false;
     }
     if (uRole !== 'all' && u.role !== uRole) return false;
     if (uGroup !== 'all') {

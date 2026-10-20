@@ -17,6 +17,7 @@ import { approvalWhatsAppText } from '@/lib/install/flag';
 import { Button, Card, EmptyState, Skeleton } from '@/components/ui';
 import { AthleteLink } from '@/components/AthleteLink';
 import { teammateHref } from '@/lib/athletes/profile-link';
+import { personMatches } from '@/lib/search/match';
 import {
   FLOW_GROUPS,
   FLOW_STEPS,
@@ -210,18 +211,18 @@ export default function EntryQueuePage() {
 
   const needle = query.trim().toLowerCase();
   const visible = members.filter((m) => {
-    if (needle && !`${m.name} ${m.email || ''}`.toLowerCase().includes(needle)) return false;
+    if (needle && !personMatches(m.name, needle, m.email)) return false;
     return filter === 'all' || groupOf.get(m.id) === filter;
   });
 
   const visibleOrphans = orphans.filter(
-    (r) => (filter === 'mine' || filter === 'all') && (!needle || r.email.toLowerCase().includes(needle)),
+    (r) => (filter === 'mine' || filter === 'all') && (!needle || personMatches(r.fullName, needle, r.email)),
   );
 
   /** Only under their own filter — never mixed into a list of people getting in. */
   const visibleRemoved =
     filter === 'removed'
-      ? removedMembers.filter((m) => !needle || `${m.name} ${m.email || ''}`.toLowerCase().includes(needle))
+      ? removedMembers.filter((m) => !needle || personMatches(m.name, needle, m.email))
       : [];
 
   /** The bulk target: everybody in view the app can still be nudged about. */

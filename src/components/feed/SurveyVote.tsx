@@ -83,7 +83,7 @@ export function SurveyVote({ surveyId, myAthleteId, draft }: { surveyId: string 
         );
       })}
       {alike.length > 0 && (
-        <p className="px-1 text-xs font-semibold text-brand-600" dir="rtl">{t('choseLikeYou', { names: alike.slice(0, 3).join(', ') })}{alike.length > 3 ? ` +${alike.length - 3}` : ''}</p>
+        <p className="px-1 text-xs font-semibold text-brand-600" dir="rtl">{t('choseLikeYou', { names: alike.slice(0, 3).join(', ') })}{alike.length > 3 ? <> <bdi dir="ltr">+{alike.length - 3}</bdi></> : null}</p>
       )}
       <div className="flex items-center justify-between px-1 text-xs font-semibold text-ink-400">
         <span>{draft ? (multi ? 'אפשר לבחור כמה תשובות' : 'תשובה אחת') : t('surveyAnswered', { n: total })}{!draft && multi ? ' · אפשר לבחור כמה' : ''}{closesIn(data.survey.closes_at, t) ? <> · {closesIn(data.survey.closes_at, t)}</> : null}</span>

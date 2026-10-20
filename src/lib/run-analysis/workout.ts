@@ -192,3 +192,13 @@ export function heatCostPct(tempC: number, dewC: number): number {
   return 12;
 }
 export const heatCostSec = (tempC: number, dewC: number, pace: number) => Math.round((heatCostPct(tempC, dewC) / 100) * pace);
+
+/**
+ * What the run was, as a searchable line ("10 × 1600"), or null for a run that was not
+ * a workout with repeats. Stored at sync (athlete_activities.workout_title, migration 165)
+ * so search finds a run by its workout, not by the name the watch gave it ("שלישי").
+ * The pack only moves the targets, never the title, so any pack index reads the same.
+ */
+export function workoutTitleOf(laps: WLap[] | null | undefined, executed: { steps?: WStep[] } | null | undefined): string | null {
+  try { return readWorkout(laps, executed, 0)?.title ?? null; } catch { return null; }
+}

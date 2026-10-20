@@ -1,3 +1,4 @@
+import { workoutTitleOf } from '@/lib/run-analysis/workout';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { GarminClient } from '@/lib/garmin/client';
@@ -354,6 +355,7 @@ export async function runSyncRequest(request: Request) {
               executedWorkout = narrowExecutedWorkout(await client.getActivityWorkout(a.activityId));
             }
 
+            const workoutTitle = executedWorkout ? workoutTitleOf(laps as never, executedWorkout as never) : null;
             rows.push({
               athlete_id: athlete.id,
               garmin_activity_id: a.activityId,
@@ -373,6 +375,8 @@ export async function runSyncRequest(request: Request) {
               // What the run did, by Garmin's own reading (migration 160): shown on the run page's
               // plan against execution (components/activity/RunAnalysis).
               ...(trainingEffectOf(a) ? { training_effect: trainingEffectOf(a) } : {}),
+              // "10 × 1600" — what search finds the run by (migration 165).
+              ...(workoutTitle ? { workout_title: workoutTitle } : {}),
               ...enriched,
             });
           }
@@ -403,7 +407,7 @@ export async function runSyncRequest(request: Request) {
           // retry drops only the column the error actually NAMES, one at a time:
           // a database without garmin_workout_id (migration 092) must not also
           // lose shoe attribution, which is what stripping both at once costs.
-          const optionalColumns = ['training_effect', 'executed_workout', 'garmin_workout_id', 'laps', 'shoe_id'];
+          const optionalColumns = ['workout_title', 'training_effect', 'executed_workout', 'garmin_workout_id', 'laps', 'shoe_id'];
           const dropped: string[] = [];
           while (insertError && dropped.length < optionalColumns.length) {
             const failure = insertError;
