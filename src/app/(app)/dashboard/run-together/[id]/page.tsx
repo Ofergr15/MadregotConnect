@@ -91,6 +91,13 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
   };
   const shareText = `${firstName(m.host.name)} יוצא/ת ל${m.kind ? `ריצה ${KIND_LABEL[m.kind]}` : 'ריצה'} ${dateLine(m, today)} · ${m.location}${m.distanceKm ? ` · ${m.distanceKm} ק״מ` : ''}${m.plannedPace ? ` · קצב ${m.plannedPace}` : ''}. מצטרפים? https://www.madregot.app/dashboard/run-together/${m.id}`;
   const canWrite = m.isHost || m.joined;
+  // WhatsApp straight to one of the run's people: the server hands back the wa.me link,
+  // so a member's number is never in this page's data.
+  const waTo = async (toId: string) => {
+    const res = await fetch(`/api/runs/meetups/${m.id}/wa?to=${encodeURIComponent(toId)}`, { headers: await apiHeaders() }).catch(() => null);
+    const j = res?.ok ? ((await res.json().catch(() => null)) as { url?: string } | null) : null;
+    if (j?.url) window.location.href = j.url;
+  };
 
   return (
     <div dir="rtl" className="-mx-4 -mt-4 pb-32">
@@ -125,13 +132,25 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
             <small className="text-xs font-bold text-ink-400">מארח/ת{m.host.pack ? ` · דבוקה ${m.host.pack}` : ''}</small>
             {m.notes && <p className="mt-1.5 text-[14px] leading-relaxed text-ink-700" dir="auto">{m.notes}</p>}
           </div>
+          {m.host.hasWhatsApp && (
+            <button type="button" onClick={() => void waTo(m.host.id)} aria-label={`וואטסאפ ל${firstName(m.host.name)}`}
+              className="-m-1 ms-auto flex h-11 w-11 shrink-0 items-center justify-center self-start rounded-full text-[#128C4A] active:bg-[#128C4A]/10"><WhatsAppIcon className="h-[22px] w-[22px]" /></button>
+          )}
         </div>
 
         <p className="mb-2 mt-4 px-0.5 text-[13px] font-extrabold text-ink-400">מגיעים · {m.going.length}</p>
         <div className="flex flex-wrap gap-3">
           {m.going.map((p) => (
             <div key={p.id} className="w-[54px] text-center">
-              <span className="mx-auto block w-fit"><Face p={p} size={44} ring /></span>
+              <span className="relative mx-auto block w-fit">
+                <Face p={p} size={44} ring />
+                {p.hasWhatsApp && (
+                  <button type="button" onClick={() => void waTo(p.id)} aria-label={`וואטסאפ ל${firstName(p.name)}`}
+                    className="absolute -bottom-3 -end-3 flex h-11 w-11 items-center justify-center">
+                    <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#25D366] text-white ring-2 ring-page"><WhatsAppIcon className="h-[13px] w-[13px]" /></span>
+                  </button>
+                )}
+              </span>
               <small className="mt-1.5 block truncate text-[11.5px] font-extrabold text-ink-900"><bdi>{firstName(p.name)}</bdi></small>
             </div>
           ))}

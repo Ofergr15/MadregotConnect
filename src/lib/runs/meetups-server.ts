@@ -1,5 +1,6 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import { resolveGroup } from '@/lib/utils';
+import { waPhone } from '@/lib/academy/manage';
 import type { MeetupKind, MeetupPerson, RunMeetup } from './meetups';
 
 // The reads behind "לרוץ ביחד" shared by /api/runs/meetups and /api/runs/meetups/:id
@@ -11,23 +12,28 @@ export interface MeetupRow {
   planned_pace: string | null; distance_km: number | null; notes: string | null; status: string;
   kind?: string | null; lat?: number | null; lng?: number | null; audience?: string | null;
 }
-export interface AthleteRow { id: string; name: string | null; avatar_url: string | null; group_id: string | null; status?: string }
+export interface AthleteRow { id: string; name: string | null; avatar_url: string | null; group_id: string | null; status?: string; phone?: string | null }
 
 /** Everyone's face and pack, once: a run shows a few people and the roster is small. */
 export async function roster(db: Db): Promise<Map<string, MeetupPerson>> {
   const [{ data: people }, { data: groups }] = await Promise.all([
-    db.from('athletes').select('id, name, avatar_url, group_id'),
+    db.from('athletes').select('id, name, avatar_url, group_id, phone'),
     db.from('groups').select('id, name'),
   ]);
   const groupName = new Map(((groups || []) as Array<{ id: string; name: string }>).map((g) => [g.id, g.name]));
   return new Map(((people || []) as AthleteRow[]).map((a) => {
     const g = a.group_id ? resolveGroup(groupName.get(a.group_id) || '') : null;
-    return [a.id, { id: a.id, name: (a.name || '').trim(), avatarUrl: a.avatar_url, pack: g && g.index >= 0 ? g.index + 1 : null }];
+    // The phone is read only to say whether WhatsApp can open a chat — it is never put on the person.
+    return [a.id, { id: a.id, name: (a.name || '').trim(), avatarUrl: a.avatar_url, pack: g && g.index >= 0 ? g.index + 1 : null, hasWhatsApp: !!waPhone(a.phone) }];
   }));
 }
 
 export function toMeetup(m: MeetupRow, joinedIds: string[], people: Map<string, MeetupPerson>, viewerId: string | null, messageCount = 0): RunMeetup {
-  const person = (id: string): MeetupPerson => people.get(id) ?? { id, name: '', avatarUrl: null, pack: null };
+  const person = (id: string): MeetupPerson => {
+    const p = people.get(id) ?? { id, name: '', avatarUrl: null, pack: null };
+    // No WhatsApp to yourself.
+    return id === viewerId ? { ...p, hasWhatsApp: false } : p;
+  };
   const host = person(m.host_athlete_id);
   return {
     id: m.id,

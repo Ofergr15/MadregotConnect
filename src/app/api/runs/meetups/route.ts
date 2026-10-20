@@ -5,15 +5,16 @@ import { requireAthlete, authError } from '@/lib/auth-session';
 import { israelToday } from '@/lib/utils';
 import { notifyAthlete } from '@/lib/push';
 import { meetupPostedCopy } from '@/lib/notifications/copy';
-import { CLUB_SPOTS, KIND_LABEL, validateMeetupDraft, sortMeetups, usualPace, addDaysIso } from '@/lib/runs/meetups';
+import { CLUB_SPOTS, KIND_LABEL, validateMeetupDraft, sortMeetups, usualPace, addDaysIso, meetupVisibleTo, feedHiddenIds } from '@/lib/runs/meetups';
 import { roster, toMeetup, type AthleteRow, type MeetupRow } from '@/lib/runs/meetups-server';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * "לרוץ ביחד" — the board (mockup ~/.cache/madregot/run-together-v2.html, Ofer
- * 2026-10-19). Every member sees every open run; `audience` only decides who is told
- * when it is posted. Faces, first names and pack colours, never an email. Writes
+ * 2026-10-19). A run is seen by its host and the people going, and beyond them by the
+ * audience the host chose — the whole club or the host's pack (meetupVisibleTo, 2026-10-20);
+ * the same rule gates the run's own page. Faces, first names and pack colours, never an email. Writes
  * take the host from the session, never the body.
  */
 
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
     const viewerId = auth.ok ? auth.user.athleteId : null;
     const db = createServerClient();
     const today = israelToday();
-    const [{ data: rows, error }, people, recent, { data: past }] = await Promise.all([
+    const [{ data: rows, error }, people, recent, { data: past }, { data: me }] = await Promise.all([
       db.from('run_meetups').select('*').gte('date', today).eq('status', 'open').order('date'),
       roster(db),
       viewerId
@@ -34,18 +35,26 @@ export async function GET(request: Request) {
           .gte('start_time', `${addDaysIso(today, -45)}T00:00:00`).order('start_time', { ascending: false }).limit(40)
         : Promise.resolve({ data: [] }),
       db.from('run_meetups').select('*').gte('date', addDaysIso(today, -120)).limit(300),
+      viewerId ? db.from('athletes').select('notification_prefs').eq('id', viewerId).maybeSingle() : Promise.resolve({ data: null }),
     ]);
     if (error) throw error;
-    const meetupRows = (rows || []) as MeetupRow[];
-    const ids = meetupRows.map((m) => m.id);
+    const allRows = (rows || []) as MeetupRow[];
+    const allIds = allRows.map((m) => m.id);
     const [{ data: reqs }, { data: msgs }] = await Promise.all([
-      ids.length ? db.from('run_meetup_requests').select('meetup_id, athlete_id, status').in('meetup_id', ids) : Promise.resolve({ data: [] }),
-      ids.length ? db.from('run_meetup_messages').select('meetup_id').in('meetup_id', ids) : Promise.resolve({ data: [] }),
+      allIds.length ? db.from('run_meetup_requests').select('meetup_id, athlete_id, status').in('meetup_id', allIds) : Promise.resolve({ data: [] }),
+      allIds.length ? db.from('run_meetup_messages').select('meetup_id').in('meetup_id', allIds) : Promise.resolve({ data: [] }),
     ]);
     const joined = new Map<string, string[]>();
     for (const r of (reqs || []) as Array<{ meetup_id: string; athlete_id: string; status: string }>) {
       if (r.status === 'accepted') joined.set(r.meetup_id, [...(joined.get(r.meetup_id) || []), r.athlete_id]);
     }
+    const viewerPerson = viewerId ? people.get(viewerId) : undefined;
+    const viewer = viewerId ? { id: viewerId, pack: viewerPerson?.pack ?? null } : null;
+    const meetupRows = allRows.filter((m) => meetupVisibleTo({
+      hostId: m.host_athlete_id, audience: m.audience === 'pack' ? 'pack' : 'club',
+      hostPack: people.get(m.host_athlete_id)?.pack ?? null, goingIds: joined.get(m.id) || [],
+    }, viewer));
+    const hidden = new Set(feedHiddenIds((me as { notification_prefs?: unknown } | null)?.notification_prefs));
     const msgCount = new Map<string, number>();
     for (const m of (msgs || []) as Array<{ meetup_id: string }>) msgCount.set(m.meetup_id, (msgCount.get(m.meetup_id) || 0) + 1);
 
@@ -58,7 +67,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      meetups: sortMeetups(meetupRows.map((m) => ({ ...toMeetup(m, joined.get(m.id) || [], people, viewerId, msgCount.get(m.id) || 0), startTime: m.start_time }))),
+      meetups: sortMeetups(meetupRows.map((m) => ({ ...toMeetup(m, joined.get(m.id) || [], people, viewerId, msgCount.get(m.id) || 0), startTime: m.start_time, feedHidden: hidden.has(m.id) }))),
       today,
       viewer: viewerId ? { ...(people.get(viewerId) ?? { id: viewerId, name: '', avatarUrl: null, pack: null }), pace: usualPace((recent.data || []) as Array<{ distance: number; duration: number }>) } : null,
       spots: spots.slice(0, 8),

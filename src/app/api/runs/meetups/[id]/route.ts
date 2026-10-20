@@ -6,6 +6,7 @@ import { israelToday } from '@/lib/utils';
 import { notifyAthlete } from '@/lib/push';
 import { meetupMessageCopy } from '@/lib/notifications/copy';
 import { roster, toMeetup } from '@/lib/runs/meetups-server';
+import { meetupVisibleTo } from '@/lib/runs/meetups';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,14 @@ async function load(id: string, viewerId: string | null) {
   const messages = ((msgs || []) as Array<{ id: string; athlete_id: string; body: string; created_at: string }>).map((m) => ({
     id: m.id, body: m.body, createdAt: m.created_at, from: people.get(m.athlete_id) ?? { id: m.athlete_id, name: '', avatarUrl: null, pack: null }, mine: m.athlete_id === viewerId,
   }));
+  const visible = meetupVisibleTo({
+    hostId: (row as { host_athlete_id: string }).host_athlete_id,
+    audience: (row as { audience?: string | null }).audience === 'pack' ? 'pack' : 'club',
+    hostPack: people.get((row as { host_athlete_id: string }).host_athlete_id)?.pack ?? null,
+    goingIds: joined,
+  }, viewerId ? { id: viewerId, pack: people.get(viewerId)?.pack ?? null } : null);
   return {
+    visible,
     db, row: row as { host_athlete_id: string; status: string; date: string } & Record<string, unknown>,
     joined, people,
     meetup: { ...toMeetup(row as never, joined, people, viewerId, messages.length), status: (row as { status: string }).status, over: (row as { date: string }).date < israelToday() },
@@ -42,6 +50,8 @@ export async function GET(request: Request, { params }: Params) {
   const auth = await requireAthlete(request);
   const got = await load(id, auth.ok ? auth.user.athleteId : null);
   if (!got) return NextResponse.json({ error: 'No such run' }, { status: 404 });
+  // Outside the run's audience it doesn't exist for you — the same answer as a wrong id.
+  if (!got.visible) return NextResponse.json({ error: 'No such run' }, { status: 404 });
   return NextResponse.json({ meetup: got.meetup, messages: got.messages });
 }
 

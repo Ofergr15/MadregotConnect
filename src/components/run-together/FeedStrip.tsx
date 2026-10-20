@@ -1,39 +1,63 @@
 'use client';
 
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
-import { useApi } from '@/lib/api';
+import { Plus, X } from 'lucide-react';
+import { apiHeaders, useApi } from '@/lib/api';
 import { dayHeading, KIND_LABEL, type RunMeetup } from '@/lib/runs/meetups';
-import { FaceStack, PackChip, StaticMap, packHex } from './parts';
+import { FaceStack, packHex } from './parts';
 
 /**
- * "🏃 רצים יחד השבוע" at the top of the feed (mockup screen 5): the open runs, the door
- * to the board, and an invitation to post. Nothing at all when nobody has posted.
+ * What the feed row shows (Ofer, 2026-10-20): the runs the server let this member see,
+ * minus the ones they hid with ✕ — their own (hosting or going) first, pinned, never
+ * hideable; then the rest by date.
+ */
+export function feedRuns(runs: RunMeetup[]): RunMeetup[] {
+  const mine = (m: RunMeetup) => m.isHost || m.joined;
+  return [...runs.filter(mine), ...runs.filter((m) => !mine(m) && !m.feedHidden)];
+}
+
+/** "N ריצות השבוע" — one run reads as one. */
+export function runsCountLabel(n: number): string {
+  return n === 1 ? 'ריצה אחת השבוע' : `${n} ריצות השבוע`;
+}
+
+/**
+ * "🏃 רצים יחד" at the top of the feed, as ONE compact row (Ofer, 2026-10-20: the card
+ * strip with maps took half the screen). How many open runs, the next one in a line with
+ * its faces, a tap to it, "הכל" to the board and + to post. Nothing when nobody has posted.
  */
 export function RunTogetherStrip() {
-  const { data } = useApi<{ meetups: RunMeetup[]; today: string }>('/api/runs/meetups');
-  const runs = (data?.meetups ?? []).slice(0, 8);
+  const { data, mutate } = useApi<{ meetups: RunMeetup[]; today: string }>('/api/runs/meetups');
+  const runs = feedRuns(data?.meetups ?? []);
   if (!data || runs.length === 0) return null;
+  const next = runs[0];
+  const pinned = next.isHost || next.joined;
+  const hide = async () => {
+    void mutate((d) => d && { ...d, meetups: d.meetups.map((x) => (x.id === next.id ? { ...x, feedHidden: true } : x)) }, { revalidate: false });
+    await fetch('/api/runs/meetups/hide', { method: 'POST', headers: await apiHeaders(true), body: JSON.stringify({ meetupId: next.id }) }).catch(() => {});
+  };
+  const h = dayHeading(next.date, data.today);
+  const what = [next.kind ? KIND_LABEL[next.kind] : null, next.distanceKm ? `${next.distanceKm} ק״מ` : null].filter(Boolean).join(' · ');
   return (
-    <section className="mb-4 rounded-[24px] bg-card py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]" dir="rtl">
-      <div className="flex items-center justify-between px-4 pb-2.5">
-        <b className="text-[15.5px] font-black text-ink-900">🏃 רצים יחד השבוע</b>
-        <Link href="/dashboard/run-together" className="-me-2 flex min-h-[44px] items-center px-2 text-[13px] font-extrabold text-brand-600">הכל ‹</Link>
+    <section className="mb-4 rounded-[20px] bg-card px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)]" dir="rtl">
+      <div className="flex items-center justify-between">
+        <b className="text-[14.5px] font-black text-ink-900">🏃 רצים יחד · <span className="font-extrabold text-ink-500">{runsCountLabel(runs.length)}</span></b>
+        <span className="flex items-center">
+          <Link href="/dashboard/run-together?new=1" aria-label="פרסום ריצה" className="flex h-11 w-11 items-center justify-center text-brand-600"><Plus className="h-5 w-5" /></Link>
+          <Link href="/dashboard/run-together" className="-me-1 flex min-h-[44px] items-center px-1 text-[13px] font-extrabold text-brand-600">הכל ‹</Link>
+        </span>
       </div>
-      <div className="flex gap-2.5 overflow-x-auto px-3 pb-1">
-        {runs.map((m) => (
-          <Link key={m.id} href={`/dashboard/run-together/${m.id}`} className="w-[156px] shrink-0 rounded-[18px] bg-page p-1.5 pb-2.5 active:opacity-85" style={{ borderTop: `4px solid ${packHex(m.pack)}` }}>
-            {m.lat != null && m.lng != null
-              ? <StaticMap lat={m.lat} lng={m.lng} color={packHex(m.pack)} className="h-[76px] w-full rounded-[13px]" />
-              : <div className="h-[76px] rounded-[13px] bg-card" />}
-            <b className="mt-1.5 block px-1 text-[14.5px] font-black text-ink-900">{dayHeading(m.date, data.today).title} · <bdi>{m.startTime}</bdi></b>
-            <small className="block truncate px-1 text-[11.5px] font-bold text-ink-500">{[m.kind ? KIND_LABEL[m.kind] : null, m.distanceKm ? `${m.distanceKm}` : null].filter(Boolean).join(' ')} · <bdi>{m.location}</bdi></small>
-            <span className="mt-1.5 flex items-center justify-between px-1"><FaceStack people={m.going} size={22} /><PackChip pack={m.pack} small /></span>
-          </Link>
-        ))}
-      </div>
-      <Link href="/dashboard/run-together?new=1" className="mx-3 mt-2.5 flex h-12 items-center justify-center gap-1.5 rounded-2xl border-[1.5px] border-dashed border-brand-600/30 text-[13.5px] font-extrabold text-brand-600">
-        <Plus className="h-[18px] w-[18px]" />יוצא/ת לרוץ? פרסם/י, ואולי מישהו יצטרף
+      <Link href={`/dashboard/run-together/${next.id}`} className="flex min-h-[44px] items-center gap-2 rounded-xl bg-page px-2.5 py-1.5 active:opacity-85" style={{ borderInlineStart: `4px solid ${packHex(next.pack)}` }}>
+        <span className="min-w-0 flex-1 truncate text-[13.5px] text-ink-700">
+          <b className="font-black text-ink-900">{h.title} · <bdi>{next.startTime}</bdi></b>
+          {what && <> · {what}</>} · <bdi>{next.location}</bdi>
+        </span>
+        {pinned && <span className="shrink-0 rounded-full bg-accent-600/15 px-2 py-0.5 text-[11px] font-extrabold text-accent-900">{next.isHost ? 'שלך' : 'מגיע/ה'}</span>}
+        <FaceStack people={next.going} size={22} />
+        {!pinned && (
+          <button type="button" aria-label="להסתיר מהפיד" onClick={(e) => { e.preventDefault(); e.stopPropagation(); void hide(); }}
+            className="-me-2 flex h-11 w-9 shrink-0 items-center justify-center text-ink-300"><X className="h-4 w-4" /></button>
+        )}
       </Link>
     </section>
   );

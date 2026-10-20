@@ -4,7 +4,8 @@ import { requireAthlete, authError } from '@/lib/auth-session';
 import { notifyAthlete } from '@/lib/push';
 import { meetupJoinedCopy, meetupAcceptedCopy } from '@/lib/notifications/copy';
 import { israelToday } from '@/lib/utils';
-import { isUpcomingMeetup } from '@/lib/runs/meetups';
+import { isUpcomingMeetup, meetupVisibleTo } from '@/lib/runs/meetups';
+import { roster } from '@/lib/runs/meetups-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,11 +35,20 @@ export async function POST(request: Request) {
     const supabase = createServerClient();
     const { data: meetup, error: meetupError } = await supabase
       .from('run_meetups')
-      .select('id, host_athlete_id, date, start_time, location, status')
+      .select('*')
       .eq('id', meetupId)
       .maybeSingle();
     if (meetupError) throw meetupError;
     if (!meetup) return NextResponse.json({ error: 'No such meetup' }, { status: 404 });
+    // Outside the run's audience (the host's pack only) it can't be joined — nor seen.
+    {
+      const people = await roster(supabase);
+      const ok = meetupVisibleTo({
+        hostId: meetup.host_athlete_id, audience: meetup.audience === 'pack' ? 'pack' : 'club',
+        hostPack: people.get(meetup.host_athlete_id)?.pack ?? null, goingIds: [],
+      }, { id: auth.user.athleteId, pack: people.get(auth.user.athleteId)?.pack ?? null });
+      if (!ok) return NextResponse.json({ error: 'No such meetup' }, { status: 404 });
+    }
 
     // A run that already happened, or one the host called off. Refused here so
     // the answer is a reason and not a request that silently never gets answered.

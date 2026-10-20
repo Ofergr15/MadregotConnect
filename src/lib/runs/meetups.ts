@@ -41,6 +41,8 @@ export interface MeetupPerson {
   avatarUrl: string | null;
   /** 1–3, the pack's colour (lib/utils GROUP_HEX); null when not in one. */
   pack: number | null;
+  /** A number WhatsApp can open — the number itself never leaves the server (GET /api/runs/meetups/:id/wa). */
+  hasWhatsApp?: boolean;
 }
 
 /** A meetup as the API returns it — names and faces, never an email. */
@@ -64,6 +66,8 @@ export interface RunMeetup {
   isHost: boolean;
   joined: boolean;
   messageCount: number;
+  /** The viewer hid it from the feed with ✕ (list API only). */
+  feedHidden?: boolean;
 }
 
 /** `HH:MM`, 24-hour. The club writes "6:30" as often as "06:30", so both parse. */
@@ -281,4 +285,40 @@ export function daysBetween(from: string, to: string): number {
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : '';
+}
+
+const waFirst = (name: string | null | undefined) => (name || '').trim().split(/\s+/)[0] || '';
+
+/** The message the chat opens with: to that person by first name, about this run, with its link. */
+export function meetupWaText(
+  to: string | null | undefined,
+  m: { id: string; date: string; start_time: string; location: string; kind?: string | null },
+  today: string,
+): string {
+  const h = dayHeading(m.date, today);
+  const when = `${h.title}${h.title === 'היום' || h.title === 'מחר' ? '' : ` ${h.sub}`} ב־${m.start_time}`;
+  const what = m.kind && KIND_LABEL[m.kind as MeetupKind] ? `הריצה ה${KIND_LABEL[m.kind as MeetupKind]}` : 'הריצה';
+  const hi = waFirst(to) ? `היי ${waFirst(to)}, ` : 'היי, ';
+  return `${hi}לגבי ${what} ${when} · ${m.location} 👟 https://www.madregot.app/dashboard/run-together/${m.id}`;
+}
+
+/**
+ * Who may see a run (Ofer, 2026-10-20): its host and everyone going, always; then the
+ * audience the host opened it to — the whole club, or the host's own pack only. A host with
+ * no pack posting "pack" reaches nobody beyond the people going.
+ */
+export function meetupVisibleTo(
+  m: { hostId: string; audience: MeetupAudience; hostPack: number | null; goingIds: string[] },
+  viewer: { id: string; pack: number | null } | null,
+): boolean {
+  if (!viewer) return false;
+  if (viewer.id === m.hostId || m.goingIds.includes(viewer.id)) return true;
+  if (m.audience === 'club') return true;
+  return m.hostPack != null && viewer.pack === m.hostPack;
+}
+
+/** The runs a member hid from the feed (notification_prefs.feedHiddenMeetups) — the run page still has them. */
+export function feedHiddenIds(prefs: unknown): string[] {
+  const v = prefs && typeof prefs === 'object' ? (prefs as Record<string, unknown>).feedHiddenMeetups : null;
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(-200) : [];
 }
