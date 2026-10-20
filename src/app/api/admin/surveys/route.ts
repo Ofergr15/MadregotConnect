@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { requireApprover } from '@/lib/auth/require-approver';
-import { createAndSendSurvey } from '@/lib/surveys';
+import { cancelSurveyReminders, createAndSendSurvey, dayBeforePushSoon, hasMigration164, MIGRATION_164, scheduleSurveyReminders } from '@/lib/surveys';
+import { planReminders, readReminders } from '@/lib/survey-reminders';
 import { closesAt } from '@/lib/publish/model';
 import { MIGRATION_161, pinUntil, readPinChoice } from '@/lib/publish/pin';
 import { hasMigration161, pinPost, publishClubPost } from '@/lib/publish/server';
@@ -64,7 +65,12 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { question_he, question_en, options_he, options_en, audience_type, audience_id } = body;
     // From "לפרסם › סקר" (mockup publish, C3): when it closes, whether it pushes, and a card on the feed.
-    const closes = body.closes === 'tomorrow' || body.closes === 'week' ? closesAt(body.closes) : null;
+    // `closesAt` is the date and time picked (polls-proposal, 10-20); `closes` the older quick choice.
+    const picked = typeof body.closesAt === 'string' && Number.isFinite(Date.parse(body.closesAt)) ? new Date(body.closesAt).toISOString() : null;
+    if (picked && (Date.parse(picked) <= Date.now() + 5 * 60_000 || Date.parse(picked) > Date.now() + 120 * 86_400_000)) {
+      return NextResponse.json({ error: 'closesAt must be in the next 120 days' }, { status: 400 });
+    }
+    const closes = picked ?? (body.closes === 'tomorrow' || body.closes === 'week' ? closesAt(body.closes) : null);
     if (!question_he?.trim()) {
       return NextResponse.json({ error: 'question_he is required' }, { status: 400 });
     }
@@ -79,19 +85,42 @@ export async function POST(request: Request) {
     if ((multi || pin) && !(await hasMigration161(createServerClient()))) {
       return NextResponse.json({ error: MIGRATION_161 }, { status: 409 });
     }
+    // Names hidden (164). Shown is the default and needs nothing.
+    const anonymous = body.anonymous === true;
+    if (anonymous && !(await hasMigration164(createServerClient()))) {
+      return NextResponse.json({ error: MIGRATION_164 }, { status: 409 });
+    }
+    const audienceType = audience_type === 'group' || audience_type === 'academy' ? audience_type : 'all';
+    const push = body.push !== false;
+    // One push a day: a club poll published shortly before "מגיעים מחר?" rides inside it.
+    const joinAt = push && audienceType === 'all' ? await dayBeforePushSoon(createServerClient()).catch(() => null) : null;
 
     const { survey, sent } = await createAndSendSurvey({
       questionHe: question_he,
       questionEn: question_en,
       optionsHe: cleanOptionsHe,
       optionsEn: options_en,
-      audienceType: audience_type || 'all',
-      audienceId: audience_id,
+      audienceType,
+      audienceId: audienceType === 'group' ? audience_id : null,
       createdBy: actorEmail,
       closesAt: closes,
-      push: body.push !== false,
+      push,
       multi,
+      anonymous,
+      joinAt,
     });
+    // The reminders ticked on the publish screen, to whoever has not answered by then.
+    const { picked: keys, custom } = readReminders(body.reminders);
+    let reminders = 0;
+    try {
+      reminders = await scheduleSurveyReminders(createServerClient(), {
+        id: survey.id, question_he: question_he.trim(), audience_type: audienceType, audience_id: audienceType === 'group' ? audience_id : null,
+      }, planReminders(closes, keys, custom), actorEmail ?? null);
+    } catch (e) {
+      // The poll is out; a reminder that failed to be scheduled must not report it as failed.
+      console.error('[admin/surveys] reminders not scheduled:', e);
+      await cancelSurveyReminders(createServerClient(), survey.id).catch(() => {});
+    }
     // The survey on the feed, to answer in place (FeedCard's SurveyCard reads payload.surveyId).
     let feedItemId: string | null = null;
     if (body.feed === true) {
@@ -99,7 +128,7 @@ export async function POST(request: Request) {
       if (pin && feedItemId) await pinPost(createServerClient(), feedItemId, pin);
     }
 
-    return NextResponse.json({ survey, sent, feedItemId });
+    return NextResponse.json({ survey, sent, feedItemId, reminders, joinedAt: joinAt });
   } catch (err: unknown) {
     console.error('Failed to create survey:', err);
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });

@@ -7,7 +7,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { sendPushLocalized, resolveAudience, subscriptionsForAthletes, allAthleteIds, persistNotifications, localesForAthletes, notifyAthlete } from '@/lib/push';
 import {
   trainingDayBeforeCopy, trainingEveningBeforeCopy, RSVP_ACTION_LABELS, newWeekProgramCopy,
-  eventTomorrowCopy, eventClosingCopy, weeklyRecapCopy, surveyNudgeCopy, syncStalledCopy,
+  eventTomorrowCopy, eventClosingCopy, weeklyRecapCopy, syncStalledCopy,
   setupSnapshotCopy, snapshotRowCopy, approvalRequestCopy,
 } from '@/lib/notifications/copy';
 import { notifyStaff } from '@/lib/notifications/staff';
@@ -24,7 +24,8 @@ import { notifySetupSnapshot } from '@/lib/email';
 import { recipientsForKind } from '@/lib/notifications/routing';
 import { CLUB_ACCOUNT_ROLE } from '@/lib/notifications/prefs';
 import { DEFAULT_NOTIFICATION_LOCALE, type NotificationLocale } from '@/lib/notifications/locale';
-import { createAndSendSurvey, notifySurveyNonResponders, rsvpSettlesPaceGroup } from '@/lib/surveys';
+import type { PushCopy } from '@/lib/notifications/copy';
+import { claimJoinedPolls } from '@/lib/surveys';
 import { israelNow, israelToday, getPlanWeekStart, addDaysToDateStr } from '@/lib/utils';
 import { readStorySettings, storyGateMany } from '@/lib/stories/gate';
 import { effectiveFor, readInstances } from '@/lib/stories/instances';
@@ -77,9 +78,9 @@ const SYNC_STALE_HOURS = 24;
 // Reminder stages (config in app_settings.reminder_config, admin-editable):
 //  - dayBefore (default Mon/Thu 08:00): push ALL athletes about tomorrow's team workout.
 //  - eveningBefore (default Mon/Thu 18:00): push only RSVP NON-responders.
-//  - paceSurvey / paceSurveyNudge (same two hours): a real pace-group Survey,
-//    per-day content from recurring_survey_templates (migration 073,
-//    admin-editable) — only for team days that have an active row.
+//  The weekly pace-group poll that rode beside these is gone (Ofer, 2026-10-20): it asked
+//  what "מגיעים מחר?" already asks. A club poll published in the hours before the
+//  dayBefore push rides inside it (lib/surveys claimJoinedPolls).
 // Team days default Tue(2)/Fri(5); "day before" = teamDay-1. Idempotent per
 // (kind, day, week) via a scheduled_notifications ledger row.
 // Also: Saturday 20:00 plan-rollover push, and Sunday 19:00 personalized weekly
@@ -249,20 +250,6 @@ async function run(request: Request) {
     const morningDue = stageDue(gate, hour, morningHour, eveningBefore.enabled ? Math.max(eveningHour, morningHour + 1) : 21);
     const eveningDue = stageDue(gate, hour, eveningHour, 21);
 
-    // Recurring pace-group poll template for this team day — a real editable
-    // row (recurring_survey_templates, migration 073), not hardcoded, so
-    // Tuesday and Friday can each be changed independently from the admin UI
-    // without a code deploy. Absent/inactive row = no poll for that day.
-    const { data: surveyTplRow } = await supabase
-      .from('recurring_survey_templates')
-      .select('question_he, question_en, options_he, options_en')
-      .eq('day_of_week', teamDay)
-      .eq('active', true)
-      .maybeSingle();
-    const surveyTpl = surveyTplRow
-      ? { questionHe: surveyTplRow.question_he, questionEn: surveyTplRow.question_en, optionsHe: surveyTplRow.options_he, optionsEn: surveyTplRow.options_en }
-      : null;
-
     // Stage 1 — day before, at dayBefore.hour, to ALL.
     if (dayBefore.enabled && weekday === dayBeforeWeekday && morningDue) {
       const tag = `dayBefore:${teamDayWeekStart}:${teamDay}`;
@@ -272,8 +259,12 @@ async function run(request: Request) {
       } else if (!(await already(tag))) {
         const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
         const subs = await resolveAudience('all', null);
-        // One push, both questions: the poll no longer sends its own (Stage 3).
-        const build = (locale: NotificationLocale) => withOverrideCopy(trainingDayBeforeCopy(locale, { day: teamDay, askPack: !!surveyTpl }), ovMorning);
+        // A club poll published in the hours before this push rides inside it, so the
+        // club gets one push today, not two (lib/surveys dayBeforePushSoon, mockup
+        // polls-proposal). Claimed first, so its own fallback push never goes as well.
+        const joined = await claimJoinedPolls(supabase, now).catch(() => []);
+        const withPolls = (c: PushCopy): PushCopy => (joined.length ? { ...c, body: `${c.body}\n📊 ${joined.map((j) => j.question).join(' · ')}` } : c);
+        const build = (locale: NotificationLocale) => withPolls(withOverrideCopy(trainingDayBeforeCopy(locale, { day: teamDay }), ovMorning));
         const { sent, byAthlete } = await sendPushLocalized(subs, (locale) => ({
           ...build(locale), url, tag,
           category: 'workouts',
@@ -299,7 +290,8 @@ async function run(request: Request) {
           url,
         })), byAthlete);
         await markFired(tag, sent);
-        fired.push(`${tag} → ${sent}`);
+        if (joined.length) await supabase.from('scheduled_notifications').update({ sent_count: sent }).in('id', joined.map((j) => j.id));
+        fired.push(`${tag} → ${sent}${joined.length ? ` (+${joined.length} poll)` : ''}`);
       }
     }
 
@@ -325,7 +317,7 @@ async function run(request: Request) {
         const nonResponders = all.filter(id => !answeredIds.has(id));
         const subs = await subscriptionsForAthletes(nonResponders);
         const url = `/dashboard?rsvp=${teamDayWeekStart}:${teamDay}`;
-        const build = (locale: NotificationLocale) => withOverrideCopy(trainingEveningBeforeCopy(locale, { day: teamDay, goingCount, askPack: !!surveyTpl }), ovEvening);
+        const build = (locale: NotificationLocale) => withOverrideCopy(trainingEveningBeforeCopy(locale, { day: teamDay, goingCount }), ovEvening);
         const { sent, byAthlete } = await sendPushLocalized(subs, (locale) => ({
           ...build(locale), url, tag,
           category: 'workouts',
@@ -349,91 +341,6 @@ async function run(request: Request) {
       }
     }
 
-    // Stage 3 — pace-group poll, day before, at dayBefore.hour, to ALL. A
-    // genuinely fresh Survey each week (never the plain reminder text) so
-    // last week's answers can't carry over. The real survey id gets stashed
-    // in this ledger row's body_he (reusing the same #ledger:<tag> shape as
-    // markFired, just with real payload instead of the tag itself) so Stage
-    // 4 can find it later today.
-    if (surveyTpl && dayBefore.enabled && weekday === dayBeforeWeekday && morningDue) {
-      const tag = `paceSurvey:${weekStart}:${teamDay}`;
-      if (!(await already(tag))) {
-        const { survey, sent } = await createAndSendSurvey({
-          questionHe: surveyTpl.questionHe,
-          questionEn: surveyTpl.questionEn,
-          optionsHe: surveyTpl.optionsHe,
-          optionsEn: surveyTpl.optionsEn,
-          audienceType: 'all',
-          createdBy: 'cron',
-          // The day-before push (Stage 1) already asks "with which pack?" and opens
-          // the RSVP card that answers it. The poll still exists (results, the
-          // survey screen, the evening nudge), it just doesn't send a second push
-          // in the same minute.
-          push: false,
-        });
-        await supabase.from('scheduled_notifications').insert({
-          kind: 'training_before', title_he: 'reminder', body_he: survey.id,
-          audience_type: 'all', schedule_type: 'now',
-          status: 'sent', last_sent_at: new Date().toISOString(), sent_count: sent,
-          url: `#ledger:${tag}`,
-        });
-        fired.push(`${tag} → survey ${survey.id}, sent ${sent}`);
-      }
-    }
-
-    // Stage 4 — evening before, at eveningBefore.hour, nudge whoever hasn't
-    // answered the pace-group poll created in Stage 3 yet.
-    //
-    // "Hasn't answered" is not the same as "has no survey_responses row". The
-    // poll asks which pace group you're running with tomorrow, and the home
-    // page's RSVP asks the same thing with the same options — so an athlete who
-    // tapped a group there at 05:31 was still getting an evening push asking
-    // them to answer, which reads as the app not having heard them. Their
-    // `workout_attendance` row for this team day counts as the answer.
-    if (surveyTpl && eveningBefore.enabled && weekday === dayBeforeWeekday && eveningDue) {
-      const tag = `paceSurveyNudge:${weekStart}:${teamDay}`;
-      if (!(await already(tag))) {
-        const morningTag = `paceSurvey:${weekStart}:${teamDay}`;
-        const { data: ledgerRow } = await supabase
-          .from('scheduled_notifications')
-          .select('body_he')
-          .eq('url', `#ledger:${morningTag}`)
-          .maybeSingle();
-        const surveyId = ledgerRow?.body_he;
-        if (surveyId) {
-          // An RSVP answers the poll when it actually settled the question: a
-          // named group, or a "not coming" (there is no group to ask about).
-          // A bare yes from the notification's action button carries no group
-          // — `group_label` is null there — so that athlete is still asked.
-          const { data: rsvps } = await supabase
-            .from('workout_attendance')
-            .select('athlete_id, attending, group_label')
-            .eq('week_start_date', teamDayWeekStart)
-            .eq('day_of_week', teamDay);
-          const answeredByRsvp = (rsvps || [])
-            .filter(rsvpSettlesPaceGroup)
-            .map((r: { athlete_id: string }) => r.athlete_id);
-          // Whoever hasn't RSVP'd at all just got Stage 2's push, which now asks the
-          // pack too. One evening push each: this nudge is only for a bare "yes".
-          const rsvpd = new Set((rsvps || []).map((r: { athlete_id: string }) => r.athlete_id));
-          const askedByStage2 = (await allAthleteIds()).filter((id) => !rsvpd.has(id));
-
-          const sent = await notifySurveyNonResponders({
-            surveyId,
-            audienceType: 'all',
-            copy: (locale) => surveyNudgeCopy(locale, { day: teamDay }),
-            tag,
-            answeredElsewhere: [...answeredByRsvp, ...askedByStage2],
-          });
-          await markFired(tag, sent);
-          fired.push(`${tag} → ${sent}`);
-        } else {
-          // Morning poll never fired (e.g. dayBefore disabled that week) —
-          // mark done anyway so this doesn't keep re-checking every 5 min.
-          await markFired(tag, 0);
-        }
-      }
-    }
   }
 
   // Saturday 20:00 IL weekly rollover: archive past program weeks + push coaches

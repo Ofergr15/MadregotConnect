@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { israelDateTime } from '@/lib/survey-reminders';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   Apple, BarChart3, Bell, Check, ChevronLeft, ClipboardList, ExternalLink, Folder, Lock, MessageCircle, Pencil, Plus, Send, Star, Upload, Users,
@@ -118,8 +119,7 @@ export function WeekSetup() {
       {may('notifications') && <NotificationsCard d={data} t={t} lang={lang} owner={ownerChip('notifications')} onOpen={setNotif}
         onToggle={(r, on) => run(send('/api/week-setup/override', 'PUT', { week, key: r.key, value: on ? null : { ...overrideOf(r), off: true } }))}
         onApproveAll={() => run(approveAll(data.timeline))} />}
-      {may('polls') && <PollsCard d={data} t={t} lang={lang} owner={ownerChip('polls')}
-        onToggle={(p, active) => run(send('/api/admin/recurring-surveys', 'PATCH', { dayOfWeek: p.dayOfWeek, questionHe: p.question, optionsHe: p.options, active }))} />}
+      {may('polls') && <PollsCard d={data} t={t} lang={lang} owner={ownerChip('polls')} />}
       {may('message') && (
         <WeekCard icon={MessageCircle} color={COLORS.message} title={t('sec_message')} owner={ownerChip('message')}
           actions={<Btn kind="sec" icon={Plus} href="/dashboard/content/publish?type=message">{t('writeMessage')}</Btn>}>
@@ -552,21 +552,27 @@ function NotifSheet({ row, d, t, lang, week, onClose, run }: {
 
 // ── polls ───────────────────────────────────────────────────────────────────────────
 
-function PollsCard({ d, t, lang, owner, onToggle }: { d: WeekSnapshot; t: T; lang: Lang; owner: React.ReactNode; onToggle: (p: WeekSnapshot['polls'][number], active: boolean) => void }) {
-  const anyOn = d.polls.some((p) => p.active);
+function PollsCard({ d, t, lang, owner }: { d: WeekSnapshot; t: T; lang: Lang; owner: React.ReactNode }) {
+  // What is in the air this week and how many answered (mockup polls-proposal, 10-20). The
+  // fixed weekly pack poll is gone: "מגיעים מחר?" asks attendance; a poll is any other question.
+  const open = d.polls.filter((p) => p.open);
+  const day = (iso: string) => { const x = israelDateTime(iso); return `${DAY_LONG[lang][x.dow]} ${x.time}`; };
   return (
-    <WeekCard icon={BarChart3} color={COLORS.polls} title={t('sec_polls')} owner={owner} status={<Pill tone={anyOn ? 'ok' : 'pause'}>{anyOn ? t('pollOn') : t('pollOffShort')}</Pill>}
+    <WeekCard icon={BarChart3} color={COLORS.polls} title={t('sec_polls')} owner={owner}
+      status={<Pill tone={open.length ? 'ok' : 'pause'}>{open.length ? t('pollsOpenCount', { n: open.length }) : t('pollsNoneShort')}</Pill>}
       actions={<Btn kind="sec" icon={Plus} href="/dashboard/content/publish?type=survey">{t('newPoll')}</Btn>}>
-      {!anyOn && <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{t('pollsOff')}</p>}
+      {!d.polls.length && <p className="mt-[9px] text-[13.5px] leading-relaxed text-ink-500">{t('pollsNone')}</p>}
       <div className="mt-2">
         {d.polls.map((p) => (
-          <div key={p.dayOfWeek} className="flex items-center gap-2 border-b border-[#F3F4F6] py-[9px] last:border-0">
+          <Link key={p.id} href={`/dashboard/content/surveys/${p.id}`} className="flex min-h-[48px] items-center gap-2 border-b border-[#F3F4F6] py-[9px] last:border-0">
             <span className="flex min-w-0 flex-1 flex-col">
-              <b className={cn('truncate text-[13.5px] font-bold', p.active ? 'text-ink-900' : 'text-ink-400')}>{p.question}</b>
-              <span className="truncate text-[11.5px] text-ink-400">{t('pollFixed', { day: DAY_LONG[lang][p.dayOfWeek] })} · {p.options.join(' / ')}</span>
+              <b dir="auto" className="truncate text-[13.5px] font-bold text-ink-900">{p.question}</b>
+              <span className="truncate text-[11.5px] text-ink-400">
+                <bdi dir="ltr">{p.answered}/{p.asked}</bdi> {t('pollsAnswered')}{p.closesAt ? <> · {p.open ? t('pollCloses', { when: day(p.closesAt) }) : t('pollClosed')}</> : null}
+              </span>
             </span>
-            <Switch size="sm" checked={p.active} onChange={(on) => onToggle(p, on)} activeColor="bg-[#15803d]" ariaLabel={p.question} />
-          </div>
+            <ChevronLeft className="h-4 w-4 shrink-0 text-ink-300" />
+          </Link>
         ))}
       </div>
     </WeekCard>

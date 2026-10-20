@@ -18,10 +18,10 @@ export async function GET(request: Request) {
   const db = createServerClient();
   try {
     const since = new Date(Date.now() - 60 * 86_400_000).toISOString();
-    const { data, error } = await db.from('surveys').select('id, question_he, options_he, created_at, closes_at')
+    const { data, error } = await db.from('surveys').select('id, question_he, options_he, created_at, closes_at, created_by')
       .gte('created_at', since).order('created_at', { ascending: false }).limit(20);
     if (error) throw error;
-    const rows = (data || []) as Array<{ id: string; question_he: string; options_he: string[]; created_at: string; closes_at: string | null }>;
+    const rows = (data || []) as Array<{ id: string; question_he: string; options_he: string[]; created_at: string; closes_at: string | null; created_by: string | null }>;
     const ids = rows.map((r) => r.id);
     const votes = new Map<string, number[]>();
     const delivered = new Map<string, number>();
@@ -52,6 +52,8 @@ export async function GET(request: Request) {
           open: !r.closes_at || Date.parse(r.closes_at) > now,
           options: (r.options_he || []).map((o, i) => ({ option: o, count: v.filter((x) => x === i).length })),
           answers: voters.get(r.id)?.size ?? 0, delivered: delivered.get(r.id) ?? null, postId: posts.get(r.id) ?? null,
+          // The retired weekly pack poll (cron/tick made them): history, labelled as gone.
+          fixed: r.created_by === 'cron',
         };
       }),
     });

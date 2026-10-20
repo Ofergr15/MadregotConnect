@@ -16,7 +16,7 @@ interface Answer {
   myResponse: number | null;
   /** All of mine — several on a survey with more than one answer (migration 161). */
   myResponses?: number[];
-  results: Array<{ optionIndex: number; people: Array<{ id: string }> }> | null;
+  results: Array<{ optionIndex: number; people: Array<{ id: string; name?: string }> }> | null;
 }
 
 /** The publish screen's preview (mockup publish-preview-v2): the card as it will look, before it exists. */
@@ -49,6 +49,11 @@ export function SurveyVote({ surveyId, myAthleteId, draft }: { surveyId: string 
   const mineAll = data.myResponses ?? (data.myResponse !== null ? [data.myResponse] : []);
   const voted = mineAll.length > 0;
   const showResults = voted || closed;
+  // "בחרו כמוך" (mockup polls-proposal, 10-20): who else picked my answer — named only when
+  // the poll shows names (an anonymous poll's people come back without them).
+  const alike = voted && !multi
+    ? (data.results?.find((r) => r.optionIndex === mineAll[0])?.people ?? []).filter((p) => p.id !== me && p.name).map((p) => p.name!.split(' ')[0])
+    : [];
 
   const vote = async (i: number) => {
     if (draft || !surveyId || !me || busy || closed) return;
@@ -77,6 +82,9 @@ export function SurveyVote({ surveyId, myAthleteId, draft }: { surveyId: string 
           </button>
         );
       })}
+      {alike.length > 0 && (
+        <p className="px-1 text-xs font-semibold text-brand-600" dir="rtl">{t('choseLikeYou', { names: alike.slice(0, 3).join(', ') })}{alike.length > 3 ? ` +${alike.length - 3}` : ''}</p>
+      )}
       <div className="flex items-center justify-between px-1 text-xs font-semibold text-ink-400">
         <span>{draft ? (multi ? 'אפשר לבחור כמה תשובות' : 'תשובה אחת') : t('surveyAnswered', { n: total })}{!draft && multi ? ' · אפשר לבחור כמה' : ''}{closesIn(data.survey.closes_at, t) ? <> · {closesIn(data.survey.closes_at, t)}</> : null}</span>
         {!draft && surveyId && <Link href={`/dashboard/surveys/${surveyId}`} className="inline-flex min-h-[36px] items-center font-bold text-brand-600">{t('whoAnswered')} ‹</Link>}

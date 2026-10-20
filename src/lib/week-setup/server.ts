@@ -12,6 +12,7 @@ import {
   OVERRIDES_KEY, OWNERS_KEY, addDays, normalizeOwners, readiness, weekTimeline,
   type OverrideStore, type Owners, type Readiness, type TimelineRow,
 } from './model';
+import { pollsOfWeek, type WeekPoll } from '@/lib/surveys';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -67,7 +68,8 @@ export interface WeekSnapshot {
   folders: Record<string, FolderEntry>;
   timeline: TimelineRow[];
   approvalMode: string;
-  polls: Array<{ dayOfWeek: number; question: string; options: string[]; active: boolean }>;
+  /** This week's staff polls (the fixed weekly pack poll is gone, 2026-10-20). */
+  polls: WeekPoll[];
   owners: Owners;
   staff: Array<{ id: string; name: string; role: string }>;
   readiness: Readiness;
@@ -94,7 +96,7 @@ export async function loadWeek(supabase: Db, weekStart: string): Promise<WeekSna
     readFolderLedger(supabase).catch(() => ({} as Record<string, FolderEntry>)),
     loadOverrides(supabase),
     loadOwners(supabase),
-    supabase.from('recurring_survey_templates').select('day_of_week, question_he, options_he, active'),
+    pollsOfWeek(supabase, weekStart, weekEnd).catch(() => [] as WeekPoll[]),
     supabase.from('scheduled_notifications').select('id, title_he, body_he, scheduled_at, next_run_at, last_sent_at, status, audience_type')
       .eq('kind', 'custom').in('status', ['scheduled', 'sent'])
       .gte('next_run_at', `${addDays(weekStart, -1)}T21:00:00Z`).lte('next_run_at', `${weekEnd}T21:00:00Z`).limit(50),
@@ -173,7 +175,7 @@ export async function loadWeek(supabase: Db, weekStart: string): Promise<WeekSna
     folders: folderMap,
     timeline,
     approvalMode: approvals?.mode ?? 'off',
-    polls: (templates.data ?? []).map((t: { day_of_week: number; question_he: string; options_he: string[] | null; active: boolean }) => ({ dayOfWeek: t.day_of_week, question: t.question_he, options: t.options_he ?? [], active: !!t.active })),
+    polls: templates,
     owners,
     staff: staffRows.filter((s) => !/^test /i.test(s.name)).map((s) => ({ id: s.id, name: s.name, role: s.is_super_user ? 'admin' : s.role })),
     readiness: readiness({

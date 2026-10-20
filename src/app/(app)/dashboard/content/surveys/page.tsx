@@ -10,12 +10,14 @@ import { useHubContent } from '@/components/content/use-hub';
 // ═════════════════════════════════════════════════════════════════════════════
 // תוכן › סקרים (mockup content-v4, 4): what is open, with the votes so far, and
 // for each survey that closed — how many answered and what won. Every survey
-// opens its own results.
+// opens its own results: /dashboard/content/surveys/[id], with who hasn't answered
+// and the reminders.
 // ═════════════════════════════════════════════════════════════════════════════
 
 interface SurveyRow {
   id: string; question: string; createdAt: string; closesOn: string | null; open: boolean;
   options: Array<{ option: string; count: number }>; answers: number; delivered: number | null; postId: string | null;
+  fixed?: boolean;
 }
 
 export default function ContentSurveysPage() {
@@ -46,17 +48,16 @@ export default function ContentSurveysPage() {
                     <b dir="auto" className="block truncate text-[15.5px] font-semibold text-ink-900">{s.question}</b>
                     <span className="mt-1 flex flex-wrap items-center gap-1.5">
                       <Chips chips={[{ key: 'answers', text: `${s.answers} ענו` }]} />
+                      {s.fixed && <span className="text-[12px] font-semibold text-ink-400">סקר קבוע (הוסר)</span>}
                       {top && top.count > 0 && (
                         <span className="rounded-[8px] px-[7px] py-[3px] text-12 font-bold" style={{ background: 'var(--c2)', color: 'var(--ci)' }}>ניצח: {top.option} · {top.count}</span>
                       )}
                     </span>
                   </span>
-                  {s.postId && <ChevronLeft className="h-5 w-5 shrink-0 text-[#c4c4c9]" />}
+                  <ChevronLeft className="h-5 w-5 shrink-0 text-[#c4c4c9]" />
                 </>
               );
-              return s.postId
-                ? <Link key={s.id} href={`/dashboard/content/post/${s.postId}`} className="flex min-h-[64px] items-center gap-3 px-3.5 py-2.5 active:bg-page">{body}</Link>
-                : <div key={s.id} className="flex min-h-[64px] items-center gap-3 px-3.5 py-2.5">{body}</div>;
+              return <Link key={s.id} href={`/dashboard/content/surveys/${s.id}`} className="flex min-h-[64px] items-center gap-3 px-3.5 py-2.5 active:bg-page">{body}</Link>;
             })}
           </Group>
         </>
@@ -91,12 +92,10 @@ function OpenSurvey({ s, members, today }: { s: SurveyRow; members: number; toda
           </div>
         );
       })}
-      {(missing || s.postId) ? (
-        <div className="flex min-h-[52px] items-center gap-3 px-3.5 py-2">
-          <span className="flex-1 text-13 text-ink-700">{missing ? `${missing} עוד לא ענו` : ''}</span>
-          {s.postId && <Link href={`/dashboard/content/post/${s.postId}`} className="inline-flex min-h-[36px] items-center rounded-full px-[13px] text-[13px] font-bold text-white" style={{ background: 'var(--c)' }}>מי ענה</Link>}
-        </div>
-      ) : null}
+      <div className="flex min-h-[52px] items-center gap-3 px-3.5 py-2">
+        <span className="flex-1 text-13 text-ink-700">{missing ? `${missing} עוד לא ענו` : ''}</span>
+        <Link href={`/dashboard/content/surveys/${s.id}`} className="inline-flex min-h-[36px] items-center rounded-full px-[13px] text-[13px] font-bold text-white" style={{ background: 'var(--c)' }}>תוצאות ותזכורות</Link>
+      </div>
     </Group>
   );
 }

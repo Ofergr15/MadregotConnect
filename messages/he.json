@@ -362,7 +362,10 @@
     "top3": "שלושת המובילים",
     "groupLabel": "קבוצה {name}",
     "runsCount": "{count} ריצות",
-    "noLeaderboardYet": "אף אחד לא רץ עדיין השבוע"
+    "noLeaderboardYet": "אף אחד לא רץ עדיין השבוע",
+    "pollWaiting": "סקר פתוח מחכה לך",
+    "pollClosesHours": "נסגר בעוד {n} ש׳",
+    "pollClosesDays": "{n, plural, one {נסגר מחר} other {נסגר בעוד # ימים}}"
   },
   "athletes": {
     "title": "ספורטאים",
@@ -3089,7 +3092,8 @@
     "submitting": "שולח...",
     "submitError": "השליחה נכשלה, נסו שוב",
     "changeAnswerHint": "אפשר לשנות את התשובה בכל עת",
-    "whoPicked": "מי בחר ב{option}"
+    "whoPicked": "מי בחר ב{option}",
+    "multiHint": "אפשר לסמן יותר מתשובה אחת"
   },
   "execution": {
     "title": "תוכנית מול ביצוע",
@@ -6133,7 +6137,34 @@
     "days_7": "שבוע",
     "circleSub": "העיגול הראשון ב״חוגגים השבוע״, לכל המועדון. טבעת צבעונית עד שפותחים.",
     "circlePush": "גם התראה לטלפון",
-    "circlePushSub": "בלי: רק העיגול, בשקט"
+    "circlePushSub": "בלי: רק העיגול, בשקט",
+    "audAcademy": "אקדמיה",
+    "templatesTitle": "מתחילים מתבנית",
+    "tpl_date": "בחירת תאריך",
+    "tpl_yesno": "כן / לא",
+    "tpl_race": "מי רץ במרוץ",
+    "tpl_gear": "הזמנת ציוד",
+    "tpl_workout": "איזה אימון",
+    "tpl_blank": "ריק",
+    "closesToday": "היום",
+    "closesTomorrow20": "מחר 20:00",
+    "closesDate": "תאריך",
+    "closesTime": "שעה",
+    "closesPast": "הסגירה צריכה להיות בעתיד",
+    "remindersTitle": "תזכורות",
+    "remindersSub": "רק למי שעוד לא ענה",
+    "remindersNeedClose": "תזכורות נקבעות לפי הסגירה — בחרו מתי הסקר נסגר.",
+    "reminder_week": "שבוע לפני הסגירה",
+    "reminder_day": "24 שעות לפני",
+    "reminder_hour": "שעה לפני",
+    "reminderPast": "הזמן כבר עבר — לא תישלח",
+    "reminderMoved": "הוזזה ל-07:00 (לילה)",
+    "reminderCustom": "תזכורת בזמן אחר",
+    "namesShown": "שמות גלויים",
+    "namesShownSub": "כולם רואים מי בחר מה",
+    "namesHiddenSub": "הרצים רואים רק כמה בחרו; הצוות רואה שמות",
+    "publishedJoined": "פורסם — ההתראה תצא יחד עם \"מגיעים מחר?\" ב-{time}",
+    "choseLikeYou": "בחרו כמוך: {names}"
   },
   "photosPage": {
     "title": "תמונות",
@@ -6313,10 +6344,6 @@
     "newNotif": "התראה חדשה",
     "schedule": "לתזמן",
     "pastTime": "השעה הזו כבר עברה",
-    "pollsOff": "הסקר הקבוע כבוי. \"מגיעים מחר?\" עם בחירת דבוקה נשאל בהתראה של היום שלפני.",
-    "pollFixed": "סקר קבוע · {day}",
-    "pollOn": "פעיל",
-    "pollOffShort": "כבוי",
     "newPoll": "סקר חדש",
     "messageLead": "הודעה מהמועדון — מרוץ קרוב, שינוי מקום, ברכה. נשלחת בשם מדרגות.",
     "writeMessage": "לכתוב הודעה",
@@ -6335,7 +6362,13 @@
     "km": "{km} ק״מ",
     "loadFailed": "לא הצלחנו לטעון את השבוע",
     "saved": "נשמר",
-    "failed": "לא נשמר — נסו שוב"
+    "failed": "לא נשמר — נסו שוב",
+    "pollsOpenCount": "{n, plural, one {סקר אחד פתוח} other {# סקרים פתוחים}}",
+    "pollsNoneShort": "אין השבוע",
+    "pollsNone": "אין סקר השבוע. \"מגיעים מחר?\" שואל על ההגעה — סקר הוא לכל שאלה אחרת.",
+    "pollsAnswered": "ענו",
+    "pollCloses": "נסגר {when}",
+    "pollClosed": "נסגר"
   },
   "runAnalysis": {
     "gapNote": "\"בשטח שטוח\" — הקצב מתוקן לשיפוע: כמה מהר היית רץ את אותו מאמץ בלי עליות וירידות. בעלייה הוא מהיר מהקצב בפועל, בירידה איטי ממנו.",

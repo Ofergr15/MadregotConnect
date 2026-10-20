@@ -34,6 +34,13 @@ vi.mock('@/lib/supabase/server', () => ({
           }),
         };
       }
+      if (table === 'athletes') {
+        // surveyAudienceIds: the club's active members — a chain that ends awaited.
+        const chain: Record<string, unknown> = {};
+        for (const k of ['select', 'eq', 'or']) chain[k] = () => chain;
+        chain.then = (ok: (v: unknown) => unknown) => ok({ data: everyone.map((id) => ({ id })), error: null });
+        return chain;
+      }
       throw new Error(`unexpected table ${table}`);
     },
   }),

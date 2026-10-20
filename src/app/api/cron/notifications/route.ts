@@ -6,6 +6,8 @@ import { publishAnnouncement } from '@/lib/feed/announce';
 import { ACADEMY_REMINDER_KINDS } from '@/lib/academy/testReminders';
 import { cronPaused } from '@/lib/cron-pause';
 import { nextRecurrence } from '@/lib/notifications/scheduling';
+import { REMINDER_KIND } from '@/lib/survey-reminders';
+import { notifySurveyNonResponders } from '@/lib/surveys';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -56,9 +58,12 @@ async function run(request: Request) {
       // Claim first. The update only matches while the row still has the next_run_at we
       // read, so whichever run gets here second matches nothing and sends nothing.
       const recurring = n.schedule_type === 'recurring' && n.recur_interval && n.recur_unit;
+      // A poll's reminder ends 'silent', not 'sent': it went only to whoever had not answered,
+      // so it must not land in everybody's inbox (which lists 'sent' rows by audience).
+      const reminder = n.kind === REMINDER_KIND;
       const claim = recurring
         ? { next_run_at: nextRecurrence(n.next_run_at, n.recur_interval, n.recur_unit, Date.now()), last_sent_at: nowIso, updated_at: nowIso }
-        : { status: 'sent', last_sent_at: nowIso, updated_at: nowIso };
+        : { status: reminder ? 'silent' : 'sent', last_sent_at: nowIso, updated_at: nowIso };
       const { data: won } = await supabase
         .from('scheduled_notifications')
         .update(claim)
@@ -67,6 +72,15 @@ async function run(request: Request) {
         .eq('next_run_at', n.next_run_at)
         .select('id');
       if (!won || won.length === 0) continue;
+
+      // A poll's reminder (lib/survey-reminders): only to the people who still haven't
+      // answered, and nothing once the poll has closed.
+      if (reminder) {
+        const sent = n.survey_id ? await surveyReminder(supabase, n) : 0;
+        await supabase.from('scheduled_notifications').update({ sent_count: sent }).eq('id', n.id);
+        results.push({ id: n.id, sent });
+        continue;
+      }
 
       const subs = await resolveAudience(n.audience_type, n.audience_id);
       // Recurring notifications reuse the same `notif-${n.id}` tag on every
@@ -105,6 +119,19 @@ async function run(request: Request) {
   }
 
   return NextResponse.json({ ok: true, processed: results.length, results });
+}
+
+async function surveyReminder(supabase: ReturnType<typeof createServerClient>, n: { survey_id: string; audience_type: string; audience_id: string | null; title_he: string; body_he: string; id: string }): Promise<number> {
+  const { data: survey } = await supabase.from('surveys').select('closes_at').eq('id', n.survey_id).maybeSingle();
+  const closes = (survey as { closes_at?: string | null } | null)?.closes_at;
+  if (!survey || (closes && Date.parse(closes) <= Date.now())) return 0;
+  return notifySurveyNonResponders({
+    surveyId: n.survey_id,
+    audienceType: n.audience_type,
+    audienceId: n.audience_id,
+    copy: () => ({ title: n.title_he, body: n.body_he }),
+    tag: `survey-reminder-${n.id}`,
+  });
 }
 
 export async function GET(request: Request) {

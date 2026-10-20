@@ -4,7 +4,7 @@ import { authError, requireSession } from '@/lib/auth-session';
 import { allAthleteIds } from '@/lib/push';
 import { israelToday } from '@/lib/utils';
 import {
-  trainingDayBeforeCopy, trainingEveningBeforeCopy, surveyNudgeCopy,
+  trainingDayBeforeCopy, trainingEveningBeforeCopy,
 } from '@/lib/notifications/copy';
 import {
   APPROVAL_MODES, addDays, dowOf, gateState, withDecision,
@@ -103,26 +103,13 @@ async function view(supabase: ReturnType<typeof createServerClient>) {
     const decision = store.days[date];
     const pushes: ApprovalPush[] = [];
     const all = `כל הרצים (${athletes.length})`;
-    // The pack poll rides inside the day-before push now (cron/tick Stage 1), so
-    // it is one push here too, not two at the same minute.
-    const { data: tpl } = await supabase
-      .from('recurring_survey_templates')
-      .select('id')
-      .eq('day_of_week', day)
-      .eq('active', true)
-      .maybeSingle();
-    const askPack = !!tpl;
     if (cfg.dayBefore.enabled) {
-      const c = trainingDayBeforeCopy('he', { day, askPack });
+      const c = trainingDayBeforeCopy('he', { day });
       pushes.push({ key: 'dayBefore', when: `יום לפני · ${hh(cfg.dayBefore.hour)}`, audience: all, ...c });
     }
     if (cfg.eveningBefore.enabled) {
-      const c = trainingEveningBeforeCopy('he', { day, goingCount: 0, askPack });
+      const c = trainingEveningBeforeCopy('he', { day, goingCount: 0 });
       pushes.push({ key: 'eveningBefore', when: `יום לפני · ${hh(cfg.eveningBefore.hour)}`, audience: 'רק מי שלא אישר הגעה', ...c });
-      if (askPack) {
-        const n = surveyNudgeCopy('he', { day });
-        pushes.push({ key: 'paceSurveyNudge', when: `יום לפני · ${hh(cfg.eveningBefore.hour)}`, audience: 'רק מי שאישר הגעה בלי לבחור דבוקה', ...n });
-      }
     }
     days.push({
       date, dayOfWeek: day,

@@ -22,6 +22,7 @@ import { WatchStatus } from '@/components/WatchStatus';
 import { WorkoutDetailModal, type WorkoutDetailSession } from '@/components/WorkoutDetailModal';
 import { ShareSheet } from '@/components/ShareSheet';
 import { TomorrowCard } from './TomorrowCard';
+import { OpenPolls } from './OpenPolls';
 
 /**
  * "היום" — the runner's home (mockup ~/.cache/madregot/today-mockup.html, approved by Ofer
@@ -158,6 +159,7 @@ export function TodayCards({ athleteId, rsvp, rsvpForToday }: {
 
   return (
     <div className="space-y-3">
+      <OpenPolls />
       {lastRun && (
         <RunResult run={lastRun} session={ranSession} lane={week.lane ?? null} packIndex={packIndex} onShare={() => openShare(lastRun.id)} />
       )}

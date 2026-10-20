@@ -61,11 +61,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           .eq('survey_id', id)
           .eq('athletes.status', 'active')
           .order('created_at');
+        // An anonymous poll (164): the members get the counts, never who — the ids are
+        // replaced, not only the names, since an id opens a profile. Staff still see names.
+        const hide = survey.anonymous === true && !caller.isStaff && !caller.isSuperUser;
+        let n = 0;
         results = (survey.options_he as string[]).map((_, i) => ({
           optionIndex: i,
           people: (rows || [])
             .filter((r: any) => r.option_index === i)
-            .map((r: any) => ({ id: r.athletes.id as string, name: (r.athletes.name as string) || '' })),
+            .map((r: any) => (hide
+              ? { id: r.athletes.id === athleteId ? athleteId : `anon-${n++}`, name: '' }
+              : { id: r.athletes.id as string, name: (r.athletes.name as string) || '' })),
         }));
       }
     }

@@ -15,6 +15,7 @@ interface Survey {
   options_he: string[];
   options_en: string[] | null;
   closes_at: string | null;
+  multi_answer?: boolean;
 }
 
 /** Who picked each option — the super user's only until rollout (#91). */
@@ -32,7 +33,8 @@ export default function SurveyPage() {
   const [athleteId, setAthleteId] = useState('');
   const [loading, setLoading] = useState(true);
   const [survey, setSurvey] = useState<Survey | null>(null);
-  const [myResponse, setMyResponse] = useState<number | null>(null);
+  // Every answer of mine: one, or several on a poll with more than one answer (161).
+  const [mine, setMine] = useState<number[]>([]);
   const [results, setResults] = useState<SurveyResult[] | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,18 +46,20 @@ export default function SurveyPage() {
     apiHeaders()
       .then(h => fetch(`/api/surveys/${surveyId}${id ? `?athleteId=${id}` : ''}`, { headers: h }))
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => { setSurvey(d.survey); setMyResponse(d.myResponse); setResults(d.results ?? null); })
+      .then((d) => { setSurvey(d.survey); setMine(d.myResponses ?? (d.myResponse != null ? [d.myResponse] : [])); setResults(d.results ?? null); })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [surveyId]);
 
   // Refetched after an answer rather than patched in by hand, so the lists are
   // the server's and a changed answer moves the name instead of copying it.
-  const refreshResults = async () => {
-    if (!results) return;
+  const refresh = async () => {
     try {
       const r = await fetch(`/api/surveys/${surveyId}?athleteId=${athleteId}`, { headers: await apiHeaders() });
-      if (r.ok) setResults((await r.json()).results ?? null);
+      if (!r.ok) return;
+      const d = await r.json();
+      setMine(d.myResponses ?? (d.myResponse != null ? [d.myResponse] : []));
+      setResults(d.results ?? null);
     } catch {
       // The answer is saved either way; the lists catch up on the next open.
     }
@@ -73,8 +77,8 @@ export default function SurveyPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || data.error || t('submitError'));
-      setMyResponse(optionIndex);
-      void refreshResults();
+      setMine((m) => (survey?.multi_answer ? (m.includes(optionIndex) ? m.filter((x) => x !== optionIndex) : [...m, optionIndex]) : [optionIndex]));
+      void refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t('submitError'));
     } finally {
@@ -83,6 +87,9 @@ export default function SurveyPage() {
   };
 
   const closed = !!(survey?.closes_at && new Date(survey.closes_at) < new Date());
+  // Who chose what shows once you have answered, or once it closed — not before, so
+  // the first answers don't steer the rest (mockup polls-proposal, 10-20).
+  const showResults = mine.length > 0 || closed;
   const question = locale === 'en' && survey?.question_en ? survey.question_en : survey?.question_he;
   const options = locale === 'en' && survey?.options_en?.length ? survey.options_en : survey?.options_he;
 
@@ -113,8 +120,8 @@ export default function SurveyPage() {
         ) : (
           <div className="space-y-2">
             {(options || []).map((opt, i) => {
-              const mine = myResponse === i;
-              const people = results?.[i]?.people;
+              const picked = mine.includes(i);
+              const people = showResults ? results?.[i]?.people : undefined;
               return (
                 <div key={i}>
                 <button
@@ -123,7 +130,7 @@ export default function SurveyPage() {
                   dir="auto"
                   className={cn(
                     'w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-start min-h-[48px] transition-colors disabled:opacity-60',
-                    mine
+                    picked
                       // ink-900, not white: the fill is a 15% tint, so white text on
                       // it measured 1.32:1 and the answer you picked was the one
                       // you couldn't read.
@@ -134,12 +141,12 @@ export default function SurveyPage() {
                   <span>{opt}</span>
                   <span className="flex shrink-0 items-center gap-2">
                     {people && <span className="text-sm font-bold tabular-nums text-ink-500">{people.length}</span>}
-                    {mine && <CheckCircle2 className="h-5 w-5 text-brand-600" />}
+                    {picked && <CheckCircle2 className="h-5 w-5 text-brand-600" />}
                   </span>
                 </button>
-                {people && people.length > 0 && (
+                {people && people.some((p) => p.name) && (
                   <div className="flex flex-wrap gap-1.5 px-1 pt-2 pb-1" aria-label={t('whoPicked', { option: opt })}>
-                    {people.map(p => (
+                    {people.filter((p) => p.name).map(p => (
                       <span key={p.id} dir="auto" className="rounded-full bg-page px-2.5 py-1 text-xs font-semibold text-ink-600">
                         {p.name}
                       </span>
@@ -158,7 +165,8 @@ export default function SurveyPage() {
           </div>
         )}
         {error && <p className="text-sm text-accent-red mt-4 text-center">{error}</p>}
-        {myResponse !== null && !submitting && !closed && (
+        {survey.multi_answer && !closed && <p className="mt-3 text-center text-xs text-ink-400">{t('multiHint')}</p>}
+        {mine.length > 0 && !submitting && !closed && (
           <p className="text-xs text-ink-400 mt-4 text-center">{t('changeAnswerHint')}</p>
         )}
       </Card>

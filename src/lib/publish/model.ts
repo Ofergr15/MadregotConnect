@@ -3,7 +3,8 @@ import { mentionToken } from '@/lib/feed/mentions';
 // The staff's "לפרסם" (mockup publish, C0–C4): a message, a cheer, a survey. Pure rules here;
 // the writes are lib/publish/server.ts and the api/admin/publish routes.
 
-export type AudienceMode = 'all' | 'groups' | 'people';
+/** 'academy' is a survey's only (lib/surveys); messages go to all, packs or people. */
+export type AudienceMode = 'all' | 'groups' | 'people' | 'academy';
 export interface AudienceChoice { mode: AudienceMode; groupIds: string[]; athleteIds: string[] }
 export interface AudienceTarget { audience_type: 'all' | 'group' | 'athlete'; audience_id: string | null }
 

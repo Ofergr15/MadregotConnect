@@ -362,7 +362,10 @@
     "top3": "Top 3",
     "groupLabel": "Group {name}",
     "runsCount": "{count} runs",
-    "noLeaderboardYet": "Nobody has run yet this week"
+    "noLeaderboardYet": "Nobody has run yet this week",
+    "pollWaiting": "A poll is waiting for you",
+    "pollClosesHours": "closes in {n}h",
+    "pollClosesDays": "{n, plural, one {closes tomorrow} other {closes in # days}}"
   },
   "athletes": {
     "title": "Athletes",
@@ -3089,7 +3092,8 @@
     "submitting": "Submitting...",
     "submitError": "Submit failed, try again",
     "changeAnswerHint": "You can change your answer anytime",
-    "whoPicked": "Who picked {option}"
+    "whoPicked": "Who picked {option}",
+    "multiHint": "You can pick more than one"
   },
   "execution": {
     "title": "Plan vs. execution",
@@ -6133,7 +6137,34 @@
     "days_7": "A week",
     "circleSub": "The first circle of \"Celebrating this week\", for the whole club. A coloured ring until it is opened.",
     "circlePush": "A phone notification too",
-    "circlePushSub": "Without it: just the circle, quietly"
+    "circlePushSub": "Without it: just the circle, quietly",
+    "audAcademy": "Academy",
+    "templatesTitle": "Start from a template",
+    "tpl_date": "Pick a date",
+    "tpl_yesno": "Yes / no",
+    "tpl_race": "Who is racing",
+    "tpl_gear": "Gear order",
+    "tpl_workout": "Which workout",
+    "tpl_blank": "Blank",
+    "closesToday": "Today",
+    "closesTomorrow20": "Tomorrow 20:00",
+    "closesDate": "Date",
+    "closesTime": "Time",
+    "closesPast": "The close has to be in the future",
+    "remindersTitle": "Reminders",
+    "remindersSub": "only to whoever hasn't answered",
+    "remindersNeedClose": "Reminders are set from the close — pick when the poll closes.",
+    "reminder_week": "A week before the close",
+    "reminder_day": "24 hours before",
+    "reminder_hour": "An hour before",
+    "reminderPast": "Already past — not sent",
+    "reminderMoved": "moved to 07:00 (night)",
+    "reminderCustom": "A reminder at another time",
+    "namesShown": "Names shown",
+    "namesShownSub": "Everybody sees who chose what",
+    "namesHiddenSub": "Runners see only how many chose; staff see names",
+    "publishedJoined": "Published — the push goes out with \"Coming tomorrow?\" at {time}",
+    "choseLikeYou": "Chose like you: {names}"
   },
   "photosPage": {
     "title": "Photos",
@@ -6313,10 +6344,6 @@
     "newNotif": "New notification",
     "schedule": "Schedule",
     "pastTime": "That time has passed",
-    "pollsOff": "The fixed poll is off. \"Coming tomorrow?\" with a pack is asked in the day-before notification.",
-    "pollFixed": "Fixed poll · {day}",
-    "pollOn": "On",
-    "pollOffShort": "Off",
     "newPoll": "New poll",
     "messageLead": "A message from the club — an upcoming race, a new place, congratulations. Sent as Madregot.",
     "writeMessage": "Write a message",
@@ -6335,7 +6362,13 @@
     "km": "{km} km",
     "loadFailed": "Couldn't load the week",
     "saved": "Saved",
-    "failed": "Not saved — try again"
+    "failed": "Not saved — try again",
+    "pollsOpenCount": "{n, plural, one {One poll open} other {# polls open}}",
+    "pollsNoneShort": "None this week",
+    "pollsNone": "No poll this week. \"Coming tomorrow?\" asks about attendance — a poll is for any other question.",
+    "pollsAnswered": "answered",
+    "pollCloses": "closes {when}",
+    "pollClosed": "closed"
   },
   "runAnalysis": {
     "gapNote": "\"On flat ground\" — grade-adjusted pace: how fast the same effort would be with no climbs or descents. Faster than the actual pace uphill, slower downhill.",

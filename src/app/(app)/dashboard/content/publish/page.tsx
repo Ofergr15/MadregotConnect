@@ -12,10 +12,13 @@ import { cn, GROUP_HEX } from '@/lib/utils';
 import { sortByPaceGroup } from '@/lib/plans/pace-group';
 import { Switch } from '@/components/ui';
 import { Avatar } from '@/components/day-session/WatchSend';
-import { CHEER_REASONS, cheerText, closesAt, plainText, splitMessage, type AudienceChoice, type AudienceMode, type CheerReason, type CloseChoice } from '@/lib/publish/model';
+import { CHEER_REASONS, cheerText, plainText, splitMessage, type AudienceChoice, type AudienceMode, type CheerReason } from '@/lib/publish/model';
 import { MIGRATION_161, MIGRATION_TEXT, pinUntil, type PinChoice } from '@/lib/publish/pin';
 import { ClubCirclePreview, CheerCirclePreview, draftItem, FeedPreview, LockPreview, PinSetting, PreviewStage, type Place } from '@/components/publish/PublishPreview';
 import type { CelebrationType } from '@/lib/feed/celebration';
+import { CloseSetting, customInstants, DEFAULT_REMINDERS, ReminderSetting, SurveyTemplates, type CloseKind, type RemindersValue } from '@/components/publish/SurveySettings';
+import { closePreset, israelDateTime, israelLocalToIso } from '@/lib/survey-reminders';
+import { MIGRATION_164, MIGRATION_164_TEXT } from '@/lib/survey-messages';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // לפרסם (mockup publish, C1–C3): a message, a cheer, a survey — each a post on the feed with
@@ -91,12 +94,12 @@ function PeoplePicker({ people, picked, onToggle, single }: { people: Array<{ id
 function AudiencePicker({ value, onChange, groups, people, singleGroup }: {
   value: AudienceChoice; onChange: (v: AudienceChoice) => void;
   groups: Group[]; people: Array<{ id: string; name: string; pack: number }>;
-  /** Surveys go to everyone or one pack (one survey row has one audience). */
+  /** Surveys go to everyone, one pack or the academy (one survey row has one audience). */
   singleGroup?: boolean;
 }) {
   const t = useTranslations('publish');
   const modes: Array<[AudienceMode, string]> = singleGroup
-    ? [['all', t('audAll')], ['groups', t('audGroup')]]
+    ? [['all', t('audAll')], ['groups', t('audGroup')], ['academy', t('audAcademy')]]
     : [['all', t('audAll')], ['groups', t('audGroup')], ['people', t('audPeople')]];
   const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   return (
@@ -173,7 +176,11 @@ export default function PublishPage() {
   // survey
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState<string[]>(['', '']);
-  const [closes, setCloses] = useState<CloseChoice>('week');
+  // When it closes: any date and time; the quick buttons fill them (lib/survey-reminders).
+  const [close, setClose] = useState<{ kind: CloseKind; date: string; time: string }>(() => { const k: CloseKind = 'week'; return { kind: k, ...closePreset(k) }; });
+  const [reminders, setReminders] = useState<RemindersValue>(DEFAULT_REMINDERS);
+  // Names shown is the default; hidden needs migration 164.
+  const [namesShown, setNamesShown] = useState(true);
   const [sAudience, setSAudience] = useState<AudienceChoice>({ mode: 'all', groupIds: [], athleteIds: [] });
 
   const upload = async (file: File) => {
@@ -195,25 +202,29 @@ export default function PublishPage() {
         const out = await res.json().catch(() => ({}));
         // Pin / more than one answer before 160 is in the database: said plainly, nothing was posted.
         if ((out as { error?: string }).error === MIGRATION_161) { setMsg({ ok: false, text: MIGRATION_TEXT }); return; }
+        if ((out as { error?: string }).error === MIGRATION_164) { setMsg({ ok: false, text: MIGRATION_164_TEXT }); return; }
         throw new Error();
       }
-      setMsg({ ok: true, text: t('published') });
+      const done = (await res.json().catch(() => ({}))) as { joinedAt?: string | null };
+      // One push a day: said, so nobody wonders why their phone stayed quiet.
+      setMsg({ ok: true, text: done.joinedAt ? t('publishedJoined', { time: israelDateTime(done.joinedAt).time }) : t('published') });
       setTimeout(() => router.push('/dashboard/content'), 900);
     } catch { setMsg({ ok: false, text: t('failed') }); } finally { setBusy(false); }
   };
 
   const preview = splitMessage(text);
+  const surveyCloses = close.kind === 'none' ? null : israelLocalToIso(close.date, close.time);
+  const closeOk = close.kind === 'none' || (!!surveyCloses && Date.parse(surveyCloses) > Date.now() + 5 * 60_000);
   const cleanOptions = options.map((o) => o.trim()).filter(Boolean);
   const canSend = kind === 'message' ? !!text.trim() && (place === 'circle' || ((audience.mode === 'all' || (audience.mode === 'groups' ? audience.groupIds.length > 0 : audience.athleteIds.length > 0)) && (when === 'now' || !!at)))
     : kind === 'cheer' ? !!who && !!(cheer ?? autoCheer).trim()
-      : !!question.trim() && cleanOptions.length >= 2 && (sAudience.mode === 'all' || sAudience.groupIds.length === 1);
+      : !!question.trim() && cleanOptions.length >= 2 && (sAudience.mode !== 'groups' || sAudience.groupIds.length === 1) && closeOk;
 
   // A scheduled message is posted later, by the cron: its pin would start now, so it has none.
   const canPin = place !== 'circle' && !(push && when === 'later');
   const pinBody = pin && canPin ? { pin: pinChoice, pinDate: pinChoice === 'date' && pinDate ? new Date(pinDate).toISOString() : null } : {};
   const now = new Date();
   const msgPinned = pin && canPin ? pinUntil(pinChoice, now, { date: pinDate ? new Date(pinDate).toISOString() : null }) : null;
-  const surveyCloses = closesAt(closes, now);
   const surveyPinned = sPin ? pinUntil(sPinChoice, now, { date: pinDate ? new Date(pinDate).toISOString() : null, closesAt: surveyCloses }) : null;
   const msgPlaces: Place[] = [
     ...(place !== 'circle' ? ['feed' as const] : []),
@@ -241,9 +252,10 @@ export default function PublishPage() {
       void send('/api/admin/cheers', { athleteId: who!.id, reason, text: cheer ?? autoCheer, push, days: cheerDays });
     } else {
       void send('/api/admin/surveys', {
-        question_he: question, options_he: cleanOptions, closes,
-        audience_type: sAudience.mode === 'groups' ? 'group' : 'all', audience_id: sAudience.mode === 'groups' ? sAudience.groupIds[0] : null,
-        push, feed: true, multi,
+        question_he: question, options_he: cleanOptions, closesAt: surveyCloses,
+        audience_type: sAudience.mode === 'groups' ? 'group' : sAudience.mode === 'academy' ? 'academy' : 'all', audience_id: sAudience.mode === 'groups' ? sAudience.groupIds[0] : null,
+        push, feed: true, multi, anonymous: !namesShown,
+        reminders: { picked: reminders.picked, custom: customInstants(reminders.custom) },
         ...(sPin ? { pin: sPinChoice, pinDate: sPinChoice === 'date' && pinDate ? new Date(pinDate).toISOString() : null } : {}),
       });
     }
@@ -396,6 +408,7 @@ export default function PublishPage() {
 
       {kind === 'survey' && (
         <>
+          <SurveyTemplates onPick={(tpl) => { setQuestion(tpl.question); setOptions(tpl.options.length >= 2 ? tpl.options : ['', '']); setMulti(!!tpl.multi); }} />
           <p className={LABEL}>{t('question')}</p>
           <input value={question} onChange={(e) => setQuestion(e.target.value)} dir="auto" placeholder={t('questionPlaceholder')} maxLength={200}
             className={cn(CARD, 'min-h-[52px] w-full px-4 text-[16px] font-semibold outline-none placeholder:font-normal placeholder:text-ink-300')} />
@@ -414,10 +427,15 @@ export default function PublishPage() {
             <span className="min-w-0"><b className="block text-[15px] text-ink-900">אפשר לסמן יותר מתשובה אחת</b><small className="block text-13 text-ink-400">{multi ? 'ריבועים — כל אחד מסמן כמה שרוצה' : 'כל אחד בוחר תשובה אחת'}</small></span>
             <Switch checked={multi} onChange={setMulti} activeColor="bg-[#1FA55B]" ariaLabel="אפשר לסמן יותר מתשובה אחת" />
           </div>
-          <p className={LABEL}>{t('closes')}</p>
-          <Seg value={closes} options={[['tomorrow', t('closesTomorrow')], ['week', t('closesWeek')], ['none', t('closesNever')]]} onChange={setCloses} />
+          <CloseSetting kind={close.kind} date={close.date} time={close.time} onChange={setClose} />
+          {!closeOk && <p className="px-1.5 text-13 font-bold text-accent-red">{t('closesPast')}</p>}
           <p className={LABEL}>{t('toWhom')}</p>
           <AudiencePicker singleGroup value={sAudience} onChange={setSAudience} groups={club.groups} people={club.people} />
+          <ReminderSetting closesAt={closeOk ? surveyCloses : null} value={reminders} onChange={setReminders} />
+          <div className={cn(CARD, 'flex min-h-[56px] items-center justify-between gap-3 px-4 py-2')}>
+            <span className="min-w-0"><b className="block text-[15px] text-ink-900">{t('namesShown')}</b><small className="block text-13 text-ink-400">{namesShown ? t('namesShownSub') : t('namesHiddenSub')}</small></span>
+            <Switch checked={namesShown} onChange={setNamesShown} activeColor="bg-[#1FA55B]" ariaLabel={t('namesShown')} />
+          </div>
           <PinSetting on={sPin} setOn={setSPin} choice={sPinChoice} setChoice={setSPinChoice} date={pinDate} setDate={setPinDate} choices={['close', 'day', '3d', 'week', 'date']} />
           <div className={cn(CARD, 'flex min-h-[56px] items-center justify-between gap-3 px-4 py-2')}>
             <span className="min-w-0"><b className="block text-[15px] text-ink-900">{t('pushLabel')}</b><small className="block text-13 text-ink-400">{t('surveyFeedSub')}</small></span>

@@ -63,7 +63,9 @@ describe('the survey results', () => {
 
   it('is shown under each option on the page', () => {
     const page = readFileSync('src/app/(app)/dashboard/surveys/[id]/page.tsx', 'utf8');
-    expect(page).toMatch(/const people = results\?\.\[i\]\?\.people;/);
-    expect(page).toMatch(/setMyResponse\(optionIndex\);\s*void refreshResults\(\);/);
+    // Once answered (or closed), so the first answers don't steer the rest.
+    expect(page).toMatch(/const people = showResults \? results\?\.\[i\]\?\.people : undefined;/);
+    expect(page).toMatch(/const showResults = mine\.length > 0 \|\| closed;/);
+    expect(page).toMatch(/void refresh\(\);/);
   });
 });
