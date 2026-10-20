@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronRight, FileSpreadsheet } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -428,7 +428,7 @@ function BoardScreen({ board, onClose, onUpload, reload }: { board: Board; onClo
         const list = rows.filter((r) => r.stage === stage && !r.stuck);
         if (!list.length) return null;
         return (
-          <div key={stage} className="contents">
+          <Fragment key={stage}>
             <SectionLabel>{STAGE_TEXT[stage]} · <bdi dir="ltr">{list.length}</bdi></SectionLabel>
             <div className={cn(CARD, 'divide-y divide-[#EFEFF4] overflow-hidden')}>
               {list.map((r) => (
@@ -442,7 +442,7 @@ function BoardScreen({ board, onClose, onUpload, reload }: { board: Board; onClo
                 </Row>
               ))}
             </div>
-          </div>
+          </Fragment>
         );
       })}
 
