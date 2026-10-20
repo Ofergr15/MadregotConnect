@@ -37,7 +37,8 @@ export async function GET(request: Request) {
     applicable: true,
     preview,
     phoneOpened: phoneApp.opened,
-    connected: !!row.garmin_auth || !!row.strava_auth,
+    garmin: !!row.garmin_auth,
+    strava: !!row.strava_auth,
     noWatch: setup.noWatch === true,
     push: (count ?? 0) > 0,
     birthDate: (row.birth_date as string) || null,
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
 }
 
 /**
- * PATCH /api/setup  { noWatch: boolean } — "I have no watch" passes the watch step. Kept
+ * PATCH /api/setup  { noWatch: boolean } — "I have no Garmin" passes the watch step. Kept
  * in notification_prefs.setup, merged so every other key there stays as it was.
  */
 export async function PATCH(request: Request) {

@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { mutate } from 'swr';
-import { Bell, CalendarClock, Check, ChevronLeft, MapPin, Route, Trophy, Watch } from 'lucide-react';
+import { Bell, CalendarClock, Check, ChevronLeft, MapPin, Watch } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
 import { isIosDevice, isStandalone, subscribeToPush } from '@/lib/pwa';
 import { useIsComputer } from '@/lib/install/use-computer';
@@ -29,7 +29,8 @@ interface SetupFacts {
   applicable: boolean;
   preview?: boolean;
   phoneOpened?: boolean;
-  connected?: boolean;
+  garmin?: boolean;
+  strava?: boolean;
   noWatch?: boolean;
   push?: boolean;
   birthDate?: string | null;
@@ -158,45 +159,44 @@ function InstallStep({ onSkip }: { onSkip: () => void }) {
   );
 }
 
-// ── 2 · watch ───────────────────────────────────────────────────────────────
-function WatchStep({ onNoWatch, busy }: { onNoWatch: () => void; busy: boolean }) {
+// ── 2 · Garmin ──────────────────────────────────────────────────────────────
+// Members sign in with Strava, so by now it is connected; the step is Garmin, the one
+// that can push the coach's workouts to the watch. Strava is shown as done (or as a
+// connect row for the few who came in by email code).
+function WatchStep({ strava, onNoWatch, busy }: { strava: boolean; onNoWatch: () => void; busy: boolean }) {
   const router = useRouter();
-  const providers = [
-    {
-      key: 'garmin', href: '/dashboard/profile?connectGarmin=1', sub: 'מומלץ — כך נוכל לדחוף לכם אימונים לשעון', tag: null,
-      // eslint-disable-next-line @next/next/no-img-element -- the official Garmin logo (public/images/brands)
-      mark: <img src="/images/brands/garmin.svg" alt="Garmin" className="h-[22px] w-auto" />,
-    },
-    {
-      key: 'strava', href: '/dashboard/profile?tab=datasource', sub: null, tag: null,
-      mark: <span className="flex items-center gap-1.5 text-[19px] font-black tracking-[-0.3px]" style={{ color: '#FC4C02' }}><StravaMark className="h-[22px] w-[22px]" />STRAVA</span>,
-    },
-  ];
+  const connectGarmin = () => router.push('/dashboard/profile?connectGarmin=1');
   return (
-    <Shell step={2} title="מחברים את השעון" sub="כל ריצה נכנסת לבד — בלי להעלות כלום."
-      foot={<Quiet onClick={onNoWatch} disabled={busy}>אין לי שעון — ממשיכים בלי</Quiet>}>
+    <Shell step={2} title="מחברים את Garmin"
+      sub={strava ? 'Strava כבר מחובר מההרשמה. עכשיו Garmin — כדי שנוכל לדחוף לכם אימונים לשעון.' : 'כדי שנוכל לדחוף לכם אימונים לשעון.'}
+      foot={<>
+        <Primary onClick={connectGarmin}>חיבור Garmin</Primary>
+        <Quiet onClick={onNoWatch} disabled={busy}>אין לי Garmin — ממשיכים</Quiet>
+      </>}>
       {/* eslint-disable-next-line @next/next/no-img-element -- the club's own photo */}
       <img src="/images/runners-group.jpg" alt="" className="mb-3 h-[120px] w-full rounded-[22px] object-cover" style={{ objectPosition: '50% 84%' }} />
-      <div className="flex flex-col gap-2.5">
-        {providers.map((p) => (
-          <button key={p.key} type="button" onClick={() => router.push(p.href)} className={`${CARD} flex min-h-[78px] items-center gap-3 px-4 text-start`}>
-            <span className="flex-1">
-              <span className="flex h-7 items-center gap-2">{p.mark}{p.tag && <span className="rounded-[7px] bg-[#E3F4EA] px-[7px] py-0.5 text-[11.5px] font-black text-[#0E7A3C]">{p.tag}</span>}</span>
-              {p.sub && <span className="mt-1 block text-[13.5px] font-semibold" style={{ color: '#6B6C76' }}>{p.sub}</span>}
-            </span>
-            <ChevronLeft className="h-5 w-5 text-[#B5B6BF]" aria-hidden />
-          </button>
-        ))}
+      <div className={`${CARD} px-4 [&>*+*]:border-t [&>*+*]:border-[#EFEFF3]`}>
+        <div className="flex min-h-[64px] items-center gap-3">
+          <span className="flex-1"><span className="flex items-center gap-1.5 text-[19px] font-black tracking-[-0.3px]" style={{ color: '#FC4C02' }}><StravaMark className="h-[22px] w-[22px]" />STRAVA</span></span>
+          {strava ? (
+            <span className="flex items-center gap-1 rounded-full bg-[#E3F4EA] px-2.5 py-1 text-[13px] font-extrabold text-[#0E7A3C]"><Check className="h-[15px] w-[15px]" strokeWidth={3} aria-hidden />מחובר</span>
+          ) : (
+            <button type="button" onClick={() => router.push('/dashboard/profile?tab=datasource')} className="flex min-h-[44px] items-center gap-0.5 text-[14px] font-extrabold" style={{ color: BLUE }}>חיבור<ChevronLeft className="h-4 w-4" aria-hidden /></button>
+          )}
+        </div>
+        <button type="button" onClick={connectGarmin} className="flex min-h-[74px] w-full items-center gap-3 text-start">
+          <span className="flex-1">
+            {/* eslint-disable-next-line @next/next/no-img-element -- the official Garmin logo (public/images/brands) */}
+            <img src="/images/brands/garmin.svg" alt="Garmin" className="h-[22px] w-auto" />
+            <span className="mt-1.5 block text-[13.5px] font-semibold" style={{ color: '#6B6C76' }}>מומלץ — כך נוכל לדחוף לכם אימונים לשעון</span>
+          </span>
+          <span className="flex items-center gap-0.5 text-[14px] font-extrabold" style={{ color: BLUE }}>חיבור<ChevronLeft className="h-4 w-4" aria-hidden /></span>
+        </button>
       </div>
       <div className="mt-3 flex items-start gap-3 rounded-[18px] border border-[#D5DAFF] bg-[#EEF0FF] p-3.5">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white" style={{ color: BLUE }}><Watch className="h-[18px] w-[18px]" aria-hidden /></span>
-        <p className="text-[14.5px] leading-snug" style={{ color: INK }}><b className="block text-[15.5px] font-black" style={{ color: BLUE }}>הכי שווה: לחבר את שניהם</b>ככה אנחנו מושכים כמה שיותר נתונים — וגם האימונים נשלחים לשעון.</p>
+        <p className="text-[14.5px] leading-snug" style={{ color: INK }}><b className="block text-[15.5px] font-black" style={{ color: BLUE }}>הכי שווה: שניהם מחוברים</b>Strava ו-Garmin יחד — ככה אנחנו מושכים כמה שיותר נתונים, והאימונים נשלחים לשעון.</p>
       </div>
-      <p className="mb-[7px] ms-1.5 mt-4 text-[13px] font-extrabold" style={{ color: '#6B6C76' }}>מה זה נותן</p>
-      <Benefits rows={[
-        [<Route key="r" className="h-[18px] w-[18px]" />, 'הריצות נכנסות לתוכנית ולנוכחות'],
-        [<Trophy key="t" className="h-[18px] w-[18px]" />, 'שיאים וסטורי של השבוע — לבד'],
-      ]} />
     </Shell>
   );
 }
@@ -377,11 +377,11 @@ function ShoeChips({ value, onPick }: { value: string | null; onPick: (v: string
 }
 
 // ── done ────────────────────────────────────────────────────────────────────
-function DoneStep({ connected, onClose }: { connected: boolean; onClose: () => void }) {
+function DoneStep({ garmin, onClose }: { garmin: boolean; onClose: () => void }) {
   const name = firstName();
   const items: Array<[string, string?]> = [
     ['האפליקציה במסך הבית'],
-    connected ? ['השעון מחובר', 'הריצה הבאה תיכנס לבד'] : ['בלי שעון — אפשר לחבר בפרופיל'],
+    garmin ? ['Strava ו-Garmin מחוברים', 'הריצה הבאה תיכנס לבד'] : ['Strava מחובר', 'Garmin — אפשר לחבר בפרופיל'],
     ['התראות פועלות'],
     ['הפרטים מלאים'],
   ];
@@ -435,7 +435,7 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
     return remainingSteps({
       phone: !computer,
       installed: standalone || !!data.phoneOpened || installLater,
-      connected: !!data.connected, noWatch: !!data.noWatch, push: !!data.push,
+      garmin: !!data.garmin, strava: !!data.strava, noWatch: !!data.noWatch, push: !!data.push,
       birthDate: data.birthDate ?? null, heightCm: data.heightCm ?? null, sizes: Object.values(data.sizes || {}),
     });
   }, [data, computer, standalone, installLater]);
@@ -446,12 +446,12 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   useEffect(() => { onActive?.(active); }, [active, onActive]);
   if (!active) return null;
   const refresh = () => mutate(key);
-  if (done) return <DoneStep connected={!!data?.connected} onClose={() => setClosed(true)} />;
+  if (done) return <DoneStep garmin={!!data?.garmin} onClose={() => setClosed(true)} />;
 
   const at = steps[0];
   if (at === 'install') return <InstallStep onSkip={() => setInstallLater(true)} />;
   if (at === 'watch') {
-    return <WatchStep busy={busy} onNoWatch={async () => {
+    return <WatchStep strava={!!data?.strava} busy={busy} onNoWatch={async () => {
       setBusy(true);
       try {
         await fetch(KEY, { method: 'PATCH', headers: await apiHeaders(true), body: JSON.stringify({ noWatch: true }) });
