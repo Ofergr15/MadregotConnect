@@ -269,11 +269,27 @@ describe('a phone stuck on an old build', () => {
     const out = detectStuckVersion([
       boot('a1', '2.40.90', 2), boot('a1', '2.40.90', 20), boot('a1', '2.40.90', 40),
       boot('a2', '2.40.90', 3), boot('a2', '2.40.90', 22), boot('a2', '2.40.90', 44),
-      boot('fresh', '2.40.99', 1),
+      boot('fresh', '2.40.99', 60),
     ], '2.40.99', NOW);
     expect(out).toHaveLength(1);
     expect(out[0].affected).toBe(2);
     expect(out[0].evidence.athleteIds.sort()).toEqual(['a1', 'a2']);
+  });
+
+  it('does not count boots from before the new build was out (10-20: "18 of 20 stuck" that were not)', () => {
+    const out = detectStuckVersion([
+      boot('a1', '2.40.90', 40), boot('a1', '2.40.90', 20), boot('a1', '2.40.90', 2),
+      boot('fresh', '2.40.99', 1),
+    ], '2.40.99', NOW);
+    expect(out).toEqual([]);
+  });
+
+  it('nor in the first hour after it', () => {
+    const out = detectStuckVersion([
+      boot('fresh', '2.40.99', 10),
+      boot('a1', '2.40.90', 9.9), boot('a1', '2.40.90', 9.5), boot('a1', '2.40.90', 9.2),
+    ], '2.40.99', NOW);
+    expect(out).toEqual([]);
   });
 
   it('gives one old boot the benefit of the doubt — right after a deploy everyone is behind', () => {

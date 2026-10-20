@@ -662,6 +662,9 @@ export function detectDroppedForm(events: ClientEventRow[], now: number, days = 
  * the server's own version, so a pass that runs mid-deploy cannot report the
  * whole club as stale.
  */
+/** After a release, how long a phone may still open the old build before it counts. */
+const UPDATE_GRACE_MS = 60 * 60_000;
+
 export function detectStuckVersion(
   events: ClientEventRow[],
   serverVersion: string,
@@ -674,6 +677,17 @@ export function detectStuckVersion(
   let newest = serverVersion;
   for (const b of boots) if (compareVersions(b.app_version, newest) > 0) newest = b.app_version!;
 
+  // When the newest build was out: its first boot. A boot on an old build BEFORE
+  // that is not stuck — the update did not exist yet. With several releases a day,
+  // counting those flagged almost the whole club every pass (10-18..10-20: "18 of
+  // 20 stuck", while no boot that week was more than a day behind). Not seen at
+  // all yet (only the server has it) = too early to judge anyone.
+  const releasedAt = boots
+    .filter(b => compareVersions(b.app_version, newest) >= 0)
+    .reduce<number | null>((min, b) => Math.min(min ?? Infinity, Date.parse(b.created_at)), null);
+  if (releasedAt == null) return [];
+  const judgedFrom = releasedAt + UPDATE_GRACE_MS;
+
   const byAthlete = groupBy(boots, e => e.athlete_id!);
   const stale: Array<{ id: string; version: string; boots: number }> = [];
   for (const [id, rows] of byAthlete) {
@@ -681,7 +695,7 @@ export function detectStuckVersion(
     const latest = sorted[0];
     // Still on an old build at their most recent boot, and it wasn't a one-off.
     if (compareVersions(latest.app_version, newest) >= 0) continue;
-    const onOld = sorted.filter(r => compareVersions(r.app_version, newest) < 0).length;
+    const onOld = sorted.filter(r => compareVersions(r.app_version, newest) < 0 && Date.parse(r.created_at) >= judgedFrom).length;
     if (onOld < 3) continue;
     if (daysBetween(latest.created_at, now) > 2) continue;
     stale.push({ id, version: latest.app_version!, boots: onOld });
