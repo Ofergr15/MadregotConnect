@@ -335,14 +335,17 @@ function ConnectedAcademyThread({
       sending={sending}
       error={error}
       className={className}
-      layout={layout}
+      layout={onBack ? 'sheet' : layout}
       seenAt={seenAt}
       quickReplies={thread.seat === 'trainee' ? undefined : STAFF_QUICK}
     />
   );
   if (!onBack) return transcript;
+  // Staff, one conversation: the whole screen, like WhatsApp (mockup chat-v2, Ofer 10-20:
+  // "looks bad" — it sat in a card under the academy's title and tabs). Over the tab bar
+  // too; ‹ goes back to the list.
   return (
-    <div dir="rtl">
+    <div dir="rtl" className="fixed inset-0 z-[60] flex flex-col bg-[#efe7de] pt-[env(safe-area-inset-top)]">
       <ThreadHeader name={thread.name} athleteId={thread.athleteId} onBack={onBack} />
       {transcript}
     </div>
@@ -351,13 +354,16 @@ function ConnectedAcademyThread({
 
 function ThreadHeader({ name, athleteId, onBack }: { name: string; athleteId: string; onBack: () => void }) {
   return (
-    <div className="-mx-1 mb-2 flex items-center gap-2.5 border-b border-page pb-2">
+    <div className="flex shrink-0 items-center gap-2.5 border-b border-[#e2e2e2] bg-[#f7f7f7] px-1.5 py-1.5">
       <button type="button" onClick={onBack} aria-label="לכל השיחות"
         className="grid h-11 w-11 shrink-0 place-items-center text-brand-600">
         <ChevronRight className="h-6 w-6" />
       </button>
       <ChatAvatar row={{ athleteId, name }} size={38} />
-      <b className="min-w-0 flex-1 truncate text-[16px] text-ink-900" dir="auto">{name}</b>
+      <span className="min-w-0 flex-1">
+        <b className="block truncate text-[16.5px] text-ink-900" dir="auto">{name}</b>
+        <small className="block text-[12px] text-ink-400">מתאמן/ת · עם המאמן והמנהל</small>
+      </span>
     </div>
   );
 }

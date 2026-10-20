@@ -69,7 +69,7 @@ export function ChatList({ data, onOpen }: { data: ChatPayload; onOpen?: (athlet
       <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]" role="tablist">
         {FILTERS.filter(([f]) => f !== 'mine' || counts.mine > 0).map(([f, label]) => (
           <button key={f} type="button" role="tab" aria-selected={filter === f} onClick={() => setFilter(f)}
-            className={cn('min-h-[36px] shrink-0 rounded-full px-3.5 text-[13px] font-bold', filter === f ? 'bg-ink-900 text-white' : 'bg-card text-ink-500')}>
+            className={cn('min-h-[36px] shrink-0 rounded-full px-3.5 text-[13px] font-bold', filter === f ? 'bg-[#d9fdd3] text-[#0b6b2e]' : 'bg-card text-ink-500')}>
             {label}{countOf[f] ? <> · <bdi dir="ltr">{countOf[f]}</bdi></> : null}
           </button>
         ))}
@@ -100,20 +100,21 @@ function ConvRow({ row, data, onOpen }: { row: ChatRow; data: ChatPayload; onOpe
   const quietDays = row.reason === 'silent' && row.quietDays != null ? Math.round(row.quietDays) : null;
   return (
     <button type="button" onClick={() => onOpen?.(row.athleteId)}
-      className="flex w-full items-center gap-3 px-4 py-2.5 text-right active:bg-page/60">
+      className="flex w-full items-center gap-3 ps-4 text-right active:bg-page/60">
       <ChatAvatar row={row} />
-      <div className="min-w-0 flex-1">
+      {/* WhatsApp's row: the line under the text, not under the photo. */}
+      <div className="min-w-0 flex-1 border-b-[0.5px] border-black/[0.08] py-3 pe-4">
         <div className="flex items-baseline justify-between gap-2">
           <span className={cn('truncate text-[16px] text-ink-900', unread || owed ? 'font-extrabold' : 'font-semibold')} dir="auto">{row.name}</span>
-          <time className={cn('shrink-0 text-[13px]', unread ? 'font-bold text-brand-600' : 'text-ink-400')}>{chatTimeLabel(row.lastAt)}</time>
+          <time className={cn('shrink-0 text-[13px]', unread ? 'font-bold text-[#16a34a]' : 'text-ink-400')}>{chatTimeLabel(row.lastAt)}</time>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <span className={cn('truncate text-[14px]', unread ? 'font-semibold text-ink-900' : 'text-ink-400')} dir="auto">
-            {preview.mine && <b className={cn('me-1 font-bold', row.seenByTrainee ? 'text-brand-600' : 'text-ink-400')}>{row.seenByTrainee ? '✓✓' : '✓'}</b>}
+            {preview.mine && <b className={cn('me-1 font-bold', row.seenByTrainee ? 'text-[#2f8fdb]' : 'text-ink-400')}>{row.seenByTrainee ? '✓✓' : '✓'}</b>}
             {preview.text}
           </span>
           {unread ? (
-            <span className="flex h-[21px] min-w-[21px] shrink-0 items-center justify-center rounded-full bg-brand-600 px-1.5 text-[12px] font-extrabold text-white tabular-nums">{row.unreadCount}</span>
+            <span className="flex h-[21px] min-w-[21px] shrink-0 items-center justify-center rounded-full bg-[#16a34a] px-1.5 text-[12px] font-extrabold text-white tabular-nums">{row.unreadCount}</span>
           ) : owed ? (
             <span className="shrink-0 rounded-md bg-accent-red/10 px-1.5 py-0.5 text-[11px] font-extrabold text-accent-red-ink">ממתין</span>
           ) : quietDays != null ? (

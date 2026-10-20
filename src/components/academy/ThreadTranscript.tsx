@@ -7,7 +7,7 @@ import type { AcademyFeedbackAttachment } from '@/lib/academy/thread';
 import type { SegmentVerdict } from '@/lib/academy/segments';
 import { BidiText } from '@/components/BidiText';
 import { FeedbackCard } from './FeedbackCard';
-import { SEAT_ORDER, SEAT_STYLE, seatInitials } from '@/lib/academy/seat-style';
+import { SEAT_STYLE, seatInitials } from '@/lib/academy/seat-style';
 
 // ── The three-way thread, as everyone in it reads it ────────────────────────
 //
@@ -165,7 +165,7 @@ export function ThreadTranscript({
     // The WhatsApp look (mockup ~/.cache/madregot/open-and-chat, Ofer 10-20: "where you type
     // is unclear — it needs a box, like WhatsApp"): the warm wallpaper, white and green
     // bubbles with the time inside, and a white rounded box that stands out from it.
-    <div className={cn('flex flex-col bg-[#efe7de] px-2.5 pt-2', isSheet ? 'min-h-0' : 'rounded-[18px] pb-2', className)} dir="rtl">
+    <div className={cn('flex flex-col bg-[#efe7de] px-2.5 pt-2', isSheet ? 'min-h-0 pb-[env(safe-area-inset-bottom)]' : 'rounded-[18px] pb-2', className)} dir="rtl">
       <div ref={scrollRef} className={cn(isSheet && 'min-h-0 flex-1 overflow-y-auto overscroll-contain')}>
       {hidden > 0 && (
         <button
@@ -185,8 +185,7 @@ export function ThreadTranscript({
           עוד לא נכתב כאן כלום. אפשר לפתוח.
         </div>
       ) : (
-        <div className="space-y-1.5 py-1">
-          <SeatLegend />
+        <div className="space-y-1 py-1">
           {visible.map((m, i) => {
             const mine = isMine(m, viewerSeat, viewerId);
             const last = i === visible.length - 1;
@@ -315,13 +314,12 @@ function Bubble({
   const style = SEAT_STYLE[seat];
   return (
     <div className={cn('flex items-end gap-2', mine ? 'flex-row-reverse' : 'flex-row')}>
-      {mine ? <span className="w-[30px] shrink-0" /> : <SeatAvatar seat={seat} name={authorName} />}
       {/* Mine: the solid blue bubble of any chat app (mockup academy-chat). Others keep
           their seat's tint and name, because three seats share this thread. */}
       {/* WhatsApp's bubbles: mine green, the others white with the writer's seat colour on
           the name; the corner nearest the speaker is the "tail". */}
       <div
-        className={cn('max-w-[78%] rounded-[12px] px-2.5 pb-1 pt-1.5 text-ink-900 shadow-[0_1px_1px_rgba(0,0,0,0.1)]', mine ? 'rounded-se-[4px] bg-[#d9fdd3]' : 'rounded-ss-[4px] bg-white')}
+        className={cn('max-w-[82%] rounded-[12px] px-2.5 pb-1 pt-1.5 text-ink-900 shadow-[0_1px_1px_rgba(0,0,0,0.1)]', mine ? 'rounded-se-[4px] bg-[#d9fdd3]' : 'rounded-ss-[4px] bg-white')}
       >
         {!mine && (
           <div className="mb-0.5 flex items-center gap-1 text-[12px] font-extrabold" style={{ color: style.ink }}>
@@ -412,19 +410,5 @@ export function SeatAvatar({ seat, name, size = 30 }: { seat: ThreadSeat; name: 
     >
       {seatInitials(name)}
     </span>
-  );
-}
-
-/** Which colour is who — once, at the top of the thread. */
-function SeatLegend() {
-  return (
-    <div className="flex justify-center gap-3.5 pb-1 text-[12px] font-extrabold">
-      {SEAT_ORDER.map((seat) => (
-        <span key={seat} className="flex items-center gap-1" style={{ color: SEAT_STYLE[seat].ink }}>
-          <i className="inline-block h-2 w-2 rounded-full" style={{ background: SEAT_STYLE[seat].ink }} />
-          {SEAT_STYLE[seat].word}
-        </span>
-      ))}
-    </div>
   );
 }
