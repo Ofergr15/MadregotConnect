@@ -510,10 +510,38 @@ export async function notifyEntryNudge(user: {
    * where there is nothing to score yet) it falls back to the sentence.
    */
   setup?: { doneCount: number; total: number; rows: SetupProgressRow[] };
+  /** Their personal join link: somebody who never got in is sent the way in, step by step. */
+  token?: string | null;
 }): Promise<SendResult> {
   const who = (user.name || '').trim();
   const hey = who ? `${who}, ` : '';
   const neverGotIn = user.gaps.includes('login');
+  // Never got in and has a personal link (Chen Becher, 2026-10-20): the simple way in —
+  // their link and the steps — instead of the generic sign-in page.
+  if (neverGotIn && user.token) {
+    return sendEmail({
+      template: 'entry_nudge',
+      to: user.email,
+      replyTo: ADMIN_EMAIL,
+      athleteId: user.athleteId ?? null,
+      subject: '👋 ככה נכנסים לאפליקציה של מדרגות',
+      html: renderEmail({
+        eyebrow: 'החשבון שלכם מחכה',
+        title: `${hey}ככה נכנסים 👋`,
+        preheader: 'החשבון מאושר ומחכה. שלוש דקות מהטלפון, וזה מאחוריכם.',
+        paragraphs: ['החשבון שלכם במדרגות מאושר, ואתם משובצים לדבוקה. נשאר רק להיכנס.'],
+        ...(SETUP_GATE_FOR_ALL ? setupWayInBlocks(user.token, 'plural') : {
+          bodyHtml: renderSteps([
+            { title: 'פותחים את הקישור בטלפון', sub: 'באייפון — ב-Safari' },
+            { title: '"הכול נכון, ממשיכים" ואז Strava', sub: 'החשבון שכבר יש לכם' },
+            { title: 'מוסיפים למסך הבית ונכנסים מהאייקון', sub: 'שיתוף ← הוספה למסך הבית, ושוב Strava פעם אחת' },
+          ]),
+          cta: { label: 'להתחלה ←', href: `${APP_URL}/join/${user.token}` },
+          notes: ['הקישור אישי, אל תעבירו אותו לאף אחד.', 'נתקעתם? פשוט תשיבו למייל הזה.'],
+        }),
+      }),
+    });
+  }
   // Hebrew only, like every other member-facing mail here: the club reads Hebrew and
   // the notification-language setting is a push setting, not an inbox one.
   const missing = gapNames('he', user.gaps);
