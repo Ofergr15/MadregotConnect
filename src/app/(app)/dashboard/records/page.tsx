@@ -8,6 +8,7 @@ import { SkeletonList, SegmentedControl, EmptyState } from '@/components/ui';
 import { AthleteLink } from '@/components/AthleteLink';
 import { formatTime } from '@/lib/academy/benchmark';
 import { cn } from '@/lib/utils';
+import { Champions } from '@/components/records/Champions';
 
 /**
  * The club records board — one ranked table per distance.
@@ -59,6 +60,8 @@ export default function ClubRecordsPage() {
   const buckets = useMemo(() => data?.buckets || [], [data]);
   const loading = !data;
 
+  // אלופי המדרגות (official race times) first; the everyone's-PRs board beside it (Ofer 10-20).
+  const [view, setView] = useState<'champions' | 'records'>('champions');
   const [active, setActive] = useState('5k');
   const [me, setMe] = useState<string | null>(null);
   useEffect(() => setMe(localStorage.getItem('athlete_id')), []);
@@ -67,7 +70,7 @@ export default function ClubRecordsPage() {
   // boundary around the whole page for a value only the first render cares about.
   useEffect(() => {
     const d = new URLSearchParams(window.location.search).get('d');
-    if (d && ['5k', '10k', 'hm', 'fm'].includes(d)) setActive(d);
+    if (d && ['5k', '10k', 'hm', 'fm'].includes(d)) { setActive(d); setView('records'); }
   }, []);
 
   const bucket = useMemo(() => buckets.find((b) => b.key === active) || buckets[0], [buckets, active]);
@@ -81,7 +84,16 @@ export default function ClubRecordsPage() {
         <p className="mt-1 text-sm text-ink-400">{t('subtitle')}</p>
       </div>
 
-      {loading ? (
+      <SegmentedControl
+        value={view}
+        onChange={(v) => setView(v as 'champions' | 'records')}
+        options={[{ value: 'champions', label: '🏆 אלופי המדרגות' }, { value: 'records', label: 'השיאים של כולם' }]}
+        className="mb-4"
+      />
+
+      {view === 'champions' ? (
+        <Champions />
+      ) : loading ? (
         <SkeletonList count={6} />
       ) : buckets.length === 0 ? (
         <EmptyState icon={Trophy} title={t('empty')} />
