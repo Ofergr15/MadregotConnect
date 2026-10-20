@@ -23,6 +23,8 @@ import { CLOTHING_SIZES, SOCK_SIZES } from '@/lib/kit-sizes';
 import { EU_SHOE_SIZES } from '@/lib/shoe-catalog';
 import { remainingSteps, SETUP_ORDER, type SetupStep } from '@/lib/setup/gate';
 import { useInstallStep } from '@/components/onboarding/InstallStepProvider';
+import { pointManifestAt } from '@/lib/auth/install-key';
+import { isViewingPerson } from '@/lib/view-as-person';
 
 type SizeKey = 'shoeSize' | 'shirtSize' | 'pantsSize' | 'tightsSize' | 'socksSize';
 interface SetupFacts {
@@ -40,6 +42,7 @@ interface SetupFacts {
 }
 
 const PREVIEW_KEY = 'mc:setup-preview';
+const INSTALL_KEY_STORE = 'mc:install-key';
 const KEY = '/api/setup';
 const BLUE = '#1525FF';
 const INK = '#111218';
@@ -124,6 +127,21 @@ function InstallStep({ onSkip }: { onSkip: () => void }) {
   const [ios, setIos] = useState(true);
   const [added, setAdded] = useState(false);
   useEffect(() => setIos(isIosDevice()), []);
+  // The icon they are about to add carries this login (api/auth/install-key), so its
+  // first open is already signed in. One key per tab, kept across a reload.
+  useEffect(() => {
+    if (isViewingPerson()) return;
+    let cached: string | null = null;
+    try { cached = sessionStorage.getItem(INSTALL_KEY_STORE); } catch { /* private mode */ }
+    if (cached) { pointManifestAt(cached); return; }
+    (async () => {
+      const res = await fetch('/api/auth/install-key', { method: 'POST', headers: await apiHeaders() });
+      const v = res.ok ? ((await res.json()) as { verifier?: string }).verifier : null;
+      if (!v) return;
+      try { sessionStorage.setItem(INSTALL_KEY_STORE, v); } catch { /* private mode */ }
+      pointManifestAt(v);
+    })().catch(() => { /* the icon opens on the ordinary sign-in */ });
+  }, []);
   return (
     <Shell step={1} title={`ברוכים הבאים${name ? `, ${name}` : ''}`}
       sub="עוד 4 צעדים קצרים ונכנסים. מתחילים בהתקנה — הכל בסרטון."

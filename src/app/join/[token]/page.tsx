@@ -1,5 +1,6 @@
 'use client';
 
+import { SETUP_GATE_FOR_ALL } from '@/lib/setup/flag';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -522,9 +523,12 @@ export default function JoinPage() {
     <p role="alert" className="rounded-2xl px-4 py-2.5 text-center text-[14px] font-bold text-white" style={{ background: JOURNEY.red }}>{msg}</p>
   );
 
-  // Onboarding v2, the approval link: the details are on file, so CONFIRM them
-  // instead of asking for them a second time. "תיקון" opens the same form.
-  if (guideV2 && (step === 'info' || busy) && !editing) {
+  // The approval link: the details are on file, so CONFIRM them instead of asking for
+  // them a second time. "תיקון" opens the same form. Everyone whose sign-up left a
+  // name, an email and a pack (Ofer 2026-10-20) — not only onboarding v2; on the old
+  // path "הכול נכון" goes on to the Strava step as the form did.
+  const detailsOnFile = !!name.trim() && !!email.trim() && (!!selectedGroup || academy || groups.length === 0);
+  if ((guideV2 || detailsOnFile) && (step === 'info' || (guideV2 && busy)) && !editing) {
     return (
       <JourneyScreen
         testId="join-confirm"
@@ -702,7 +706,9 @@ export default function JoinPage() {
             )}
 
             <div className="pt-2 border-t border-page space-y-1">
-              <button
+              {/* With the required setup on, Garmin is its own step inside the app
+                  (components/setup/SetupGate) — not asked here as well. */}
+              {!SETUP_GATE_FOR_ALL && <button
                 type="button"
                 onClick={() => {
                   // Same form either way; `reconnect` is the one that means
@@ -717,7 +723,7 @@ export default function JoinPage() {
               >
                 <Watch className="h-4 w-4" />
                 {garminReady ? t('connectDifferentGarmin') : t('haveGarmin')}
-              </button>
+              </button>}
               <button
                 type="button"
                 // `false` when a watch is already on the row: the done screen
