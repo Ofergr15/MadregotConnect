@@ -1,3 +1,4 @@
+import { cleanIntake } from '@/lib/join/intake';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
@@ -79,7 +80,7 @@ async function recordMemberSubmission(
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json().catch(() => ({}))) as { email?: string; groupId?: string; fullName?: string; phone?: string; onb?: string };
+    const body = (await request.json().catch(() => ({}))) as { email?: string; groupId?: string; fullName?: string; phone?: string; onb?: string; intake?: unknown };
     const email = normaliseEmail(body.email || '');
     const groupId = body.groupId?.trim() || null;
     // Onboarding v2 (lib/install/flag): the form also asks a name and, optionally,
@@ -90,6 +91,9 @@ export async function POST(request: Request) {
       ...(typeof body.fullName === 'string' && body.fullName.trim() ? { full_name: body.fullName.trim().slice(0, 80) } : {}),
       ...(typeof body.phone === 'string' && body.phone.replace(/\D/g, '').length >= 9 ? { phone: body.phone.trim().slice(0, 24) } : {}),
     };
+    // The unified sign-up's answers (lib/join/intake.ts, migration 158) — best time,
+    // how they came, academy interest. Stored apart so a missing column drops only them.
+    const intake = cleanIntake(body.intake);
 
     if (!isLikelyEmail(email)) {
       return NextResponse.json({ error: 'invalid-email' }, { status: 400 });
@@ -153,6 +157,7 @@ export async function POST(request: Request) {
         // Best effort: before migration 131 the columns do not exist.
         await supabase.from('signup_requests').update(contact).eq('id', pending.id);
       }
+      if (intake) await supabase.from('signup_requests').update({ intake }).eq('id', pending.id);
       return NextResponse.json({ ok: true, state: 'pending' });
     }
 
@@ -189,7 +194,11 @@ export async function POST(request: Request) {
 
     // 3. New request.
     const row = { email, group_id: resolvedGroupId, status: 'pending', source: 'public-form' };
-    let { error: insertError } = await supabase.from('signup_requests').insert({ ...row, ...contact });
+    let { error: insertError } = await supabase.from('signup_requests').insert({ ...row, ...contact, ...(intake ? { intake } : {}) });
+    // Migration 158 (intake) not pasted yet: keep the request and the contact, drop the answers.
+    if (insertError && intake && (insertError.code === 'PGRST204' || insertError.code === '42703')) {
+      ({ error: insertError } = await supabase.from('signup_requests').insert({ ...row, ...contact }));
+    }
     // Migration 131 (full_name, phone) not pasted yet: keep the request, drop the extras.
     if (insertError && Object.keys(contact).length && (insertError.code === 'PGRST204' || insertError.code === '42703')) {
       ({ error: insertError } = await supabase.from('signup_requests').insert(row));

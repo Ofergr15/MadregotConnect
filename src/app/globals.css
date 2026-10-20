@@ -606,7 +606,9 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
    excluded: they render no text, so they never trigger the zoom, and sizing them
    here would move real layout. */
 @media (pointer: coarse) {
-  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='button']):not([type='submit']),
+  /* `data-large`: an input set ABOVE 16px on purpose (the sign-up's marathon time) can't
+     trigger the zoom either, and this rule would shrink it back to 16. */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='button']):not([type='submit']):not([data-large]),
   textarea,
   select {
     font-size: 16px !important;

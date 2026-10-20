@@ -1,5 +1,8 @@
 'use client';
 
+import { JoinFlow } from '@/components/join/JoinFlow';
+import { JOIN_UNIFIED_FOR_ALL } from '@/lib/join/flag';
+
 import { useEffect, useState } from 'react';
 import { usePreviewOnboardingV2 } from '@/lib/install/v2';
 import { RegisterReceived } from './RegisterReceived';
@@ -441,7 +444,24 @@ function rememberSent(email: string) {
   }
 }
 
+/**
+ * The unified sign-up (lib/join/flag.ts) for whoever sees it, today's form otherwise.
+ * A wrapper, not an early return in the form: the gate can change after the first
+ * render, and the form's hooks must run the same way every time.
+ */
 export default function RegisterPage() {
+  const v2 = usePreviewOnboardingV2();
+  const [asked, setAsked] = useState<{ join: boolean; path: 'club' | 'academy' | null }>({ join: false, path: null });
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const path = q.get('path');
+    setAsked({ join: q.get('join') === '1', path: path === 'club' || path === 'academy' ? path : null });
+  }, []);
+  if (JOIN_UNIFIED_FOR_ALL || v2 || asked.join) return <JoinFlow initialPath={asked.path} />;
+  return <LegacyRegister />;
+}
+
+function LegacyRegister() {
   const v2 = usePreviewOnboardingV2();
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');

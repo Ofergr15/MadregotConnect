@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { JOIN_HANDOFF_KEY } from '@/lib/join/flag';
 import { JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, JourneyTracker, NextCard } from '@/components/onboarding/journey-ui';
 import { ChevronLeft, GraduationCap } from 'lucide-react';
 import { Spinner } from '@/components/ui';
@@ -54,7 +55,8 @@ const FIELDS: Field[] = [
   // A birth date rather than an age: an age is stale a year after the form.
   { key: 'birthDate', label: 'תאריך לידה', type: 'date', required: true },
   { key: 'weight', label: 'משקל (בק״ג)', type: 'number', inputMode: 'decimal' },
-  { key: 'height', label: 'גובה (בס״מ)', type: 'number', required: true, inputMode: 'numeric' },
+  // Optional (Ofer, 2026-10-20): what is not given here is asked in the app's setup.
+  { key: 'height', label: 'גובה (בס״מ)', type: 'number', inputMode: 'numeric' },
   { key: 'city', label: 'מקום מגורים', type: 'text', required: true },
   { key: 'group', label: 'לאיזה דבוקה תרצה להשתייך', type: 'radio', required: true, options: [
     'דבוקה 4 מרתון חזק עם רצון לסאב 3',
@@ -246,7 +248,25 @@ export default function AcademyRegisterPage() {
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const i = q.get('i');
-    setSrc(q.get('src'));
+    setSrc(q.get('src') || (q.get('from') === 'join' ? 'join' : null));
+    // From the unified sign-up (components/join/JoinFlow): the details were typed there,
+    // so they arrive filled in — the academy's own questions follow, every one of them.
+    if (q.get('from') === 'join') {
+      try {
+        const d = JSON.parse(sessionStorage.getItem(JOIN_HANDOFF_KEY) || 'null') as { firstName?: string; lastName?: string; email?: string; phone?: string; heard?: string | null; who?: string } | null;
+        if (d) {
+          const hear = d.heard === 'instagram' ? 'אינסטגרם' : d.heard === 'facebook' ? 'פייסבוק' : d.heard === 'club-member' ? 'חברים' : d.heard ? 'אחר' : undefined;
+          setValues(prev => ({
+            ...prev,
+            firstName: prev.firstName || d.firstName, lastName: prev.lastName || d.lastName,
+            email: prev.email || d.email, phone: prev.phone || d.phone,
+            ...(hear ? { hearAbout: prev.hearAbout || hear } : {}),
+            ...(hear === 'אחר' || d.who ? { hearAboutOther: prev.hearAboutOther || [d.heard === 'saw-us' ? 'ראו אותנו רצים' : d.heard === 'race' ? 'מרוץ' : '', d.who].filter(Boolean).join(' · ') } : {}),
+          }));
+          setPrefilled(true);
+        }
+      } catch { /* nothing handed over: the form asks */ }
+    }
     fetch(`/api/academy/registration${looksLikeToken(i) ? `?invite=${i}` : ''}`, { cache: 'no-store' })
       .then(r => r.json())
       .then(({ canRegister: may }) => setCanRegister(may !== false))
