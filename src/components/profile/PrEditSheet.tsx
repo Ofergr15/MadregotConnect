@@ -6,6 +6,7 @@ import { Loader2, RotateCcw } from 'lucide-react';
 import { Sheet } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
 import { formatTime } from '@/lib/academy/benchmark';
+import { typeClock } from '@/lib/time-entry';
 
 /**
  * Correcting a personal record by hand.
@@ -178,7 +179,7 @@ export function PrEditSheet({
                       dir="ltr"
                       placeholder="41:58"
                       value={time}
-                      onChange={(e) => setTime(e.target.value)}
+                      onChange={(e) => setTime(typeClock(e.target.value))}
                       className="w-full rounded-lg border border-page/50 bg-card px-3 py-2.5 text-sm tabular-nums text-ink-700 placeholder-ink-400 focus:border-brand-600/50 focus:outline-none"
                     />
                   </div>

@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { formatPace } from '@/components/activity/format';
 import { PACE_MULTIPLE, type MetricSource, type TestAnalysis } from '@/lib/academy/testAnalysis';
 import type { AcademyBand } from '@/lib/academy/bands';
+import { typeClock } from '@/lib/time-entry';
 
 /**
  * `ניתוח טסט` — funnel step 8, the step the process map marks "here there is a lot to take".
@@ -347,7 +348,7 @@ export function TestAnalysisSheet({
                       id="threshold-edit"
                       dir="ltr"
                       value={thresholdText}
-                      onChange={e => setThreshold(e.target.value)}
+                      onChange={e => setThreshold(typeClock(e.target.value, 4))}
                       inputMode="numeric"
                       placeholder="4:45"
                       // `text-base`: under 16px iOS Safari zooms on focus inside a sheet and does

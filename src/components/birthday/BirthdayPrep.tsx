@@ -7,6 +7,7 @@ import { apiHeaders } from '@/lib/api';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { YearStory } from '@/components/birthday/YearStory';
 import type { BirthdayConfig, BirthdayStory, PhotoSlot } from '@/lib/birthday-year/server';
+import { typeClock } from '@/lib/time-entry';
 
 // What goes INSIDE one birthday story (moved from the old ימי הולדת page, 10-20): the name
 // in Hebrew, a personal word (the thank-you slide shows only with one), the official time of
@@ -113,7 +114,7 @@ export function BirthdayPrep({ row, onSaved }: { row: PrepRow; onSaved?: () => v
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-bold text-ink-400">זמן רשמי (אם שונה מהשעון)</span>
-              <input value={time} onChange={(e) => setTime(e.target.value)} placeholder="2:31:48" dir="ltr" inputMode="numeric"
+              <input value={time} onChange={(e) => setTime(typeClock(e.target.value))} placeholder="2:31:48" dir="ltr" inputMode="numeric"
                 className="h-11 w-full rounded-xl bg-[#F0F0F4] px-3 text-end text-[15px] text-ink-900 focus:outline-none" />
             </label>
           </div>

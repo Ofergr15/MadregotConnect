@@ -18,6 +18,7 @@ import { HEARD_FROM, HEARD_LABEL, type HeardFrom } from '@/lib/join/intake';
 interface Group { id: string; name: string; index: number; marathonGoal?: string | null }
 type Step = 'path' | 'details' | 'marathon' | 'fallback' | 'pack';
 import { JOIN_HANDOFF_KEY } from '@/lib/join/flag';
+import { typeClock } from '@/lib/time-entry';
 const PACK_HEX = ['#16a34a', '#159AFF', '#FF5315'];
 
 function Back({ onClick }: { onClick: () => void }) {
@@ -152,7 +153,7 @@ export function JoinFlow({ initialPath }: { initialPath?: 'club' | 'academy' | n
       <Back onClick={() => go('details')} />
       <label className="block rounded-[22px] border-2 border-brand-600 bg-white p-4 text-center">
         <span className="block text-[12.5px] font-extrabold" style={{ color: JOURNEY.soft }}>הזמן הכי טוב במרתון</span>
-        <input value={dist === 'marathon' ? time : ''} onChange={(e) => { setDist('marathon'); setTime(e.target.value); }} inputMode="numeric" placeholder="2:41:20" dir="ltr" data-large
+        <input value={dist === 'marathon' ? time : ''} onChange={(e) => { setDist('marathon'); setTime(typeClock(e.target.value)); }} inputMode="numeric" placeholder="2:41:20" dir="ltr" data-large
           style={{ fontSize: 40, lineHeight: 1.1 }}
           className="mt-1 w-full bg-transparent text-center font-black tracking-tight text-ink-900 placeholder:text-ink-300 focus:outline-none" />
         {dist === 'marathon' && secs && <span className="text-[14px] font-black text-brand-600">= <bdi dir="ltr">{paceOf(secs, DISTANCE_KM.marathon)}</bdi> לק״מ</span>}
@@ -177,7 +178,7 @@ export function JoinFlow({ initialPath }: { initialPath?: 'club' | 'academy' | n
             <span><b className="block text-[15px] font-black text-ink-900">{DISTANCE_LABEL[d]}</b>{i > 0 && <small className="text-[12px]" style={{ color: JOURNEY.soft }}>אם אין {DISTANCE_LABEL[(['half', '10k'] as const)[i - 1]]}</small>}</span>
           </button>
           {dist === d && !noRace && (
-            <input value={time} onChange={(e) => setTime(e.target.value)} inputMode="numeric" dir="ltr" data-large placeholder={d === 'half' ? '1:18:40' : d === '10k' ? '36:30' : '17:45'} aria-label={`זמן ב${DISTANCE_LABEL[d]}`}
+            <input value={time} onChange={(e) => setTime(typeClock(e.target.value))} inputMode="numeric" dir="ltr" data-large placeholder={d === 'half' ? '1:18:40' : d === '10k' ? '36:30' : '17:45'} aria-label={`זמן ב${DISTANCE_LABEL[d]}`}
               className="mt-2 h-12 w-full rounded-xl border-[1.5px] border-[#C9CCF5] bg-white px-3 text-center text-xl font-black text-ink-900 focus:outline-none" />
           )}
         </div>

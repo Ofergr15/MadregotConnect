@@ -9,6 +9,7 @@ import { EMPTY_GOAL, distanceLabel, goalTimeText, type Goal } from '@/lib/academ
 import { parseClockSec } from '@/lib/academy/test-entry';
 import type { HomeRaceResult } from '@/lib/academy/trainee-home';
 import { GoalSheet } from '@/components/academy/completion/GoalSheet';
+import { typeClock } from '@/lib/time-entry';
 
 // "איך היה?" — the race has been run (goal module G5, mockup goal-module.html phone 5).
 //
@@ -83,7 +84,7 @@ export function RaceResultCard({ athleteId, race, onDone }: { athleteId: string;
           {typing ? (
             <div className="mt-3 flex min-h-[52px] items-center gap-3 rounded-xl bg-[#F0F0F4] px-4">
               <label htmlFor="race-own" className="flex-1 text-[15px] font-bold text-ink-900">{t('official')}</label>
-              <input id="race-own" value={own} onChange={(e) => setOwn(e.target.value)} placeholder="3:15:00" dir="ltr"
+              <input id="race-own" value={own} onChange={(e) => setOwn(typeClock(e.target.value))} placeholder="3:15:00" dir="ltr" inputMode="numeric"
                 className="h-11 w-[120px] bg-transparent text-left text-[16px] font-extrabold text-brand-600 placeholder:font-semibold placeholder:text-ink-300 focus:outline-none" />
             </div>
           ) : null}

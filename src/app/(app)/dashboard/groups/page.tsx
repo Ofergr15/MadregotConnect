@@ -13,6 +13,7 @@ import {
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { AthleteLink } from '@/components/AthleteLink';
 import { teammateHref } from '@/lib/athletes/profile-link';
+import { typeClock } from '@/lib/time-entry';
 
 interface Athlete {
   id: string;
@@ -501,8 +502,10 @@ function EditGroupModal({ group, onSave, onClose }: {
           <label className="block text-sm font-medium text-ink-500 mb-2">{t('marathonGoal')}</label>
           <input
             type="text"
+            inputMode="numeric"
+            dir="ltr"
             value={marathonGoal}
-            onChange={(e) => setMarathonGoal(e.target.value)}
+            onChange={(e) => setMarathonGoal(typeClock(e.target.value))}
             className="w-full min-h-[44px] bg-page border border-ink-300 rounded-lg px-4 py-3 font-mono text-xl focus:outline-none focus:ring-2 focus:ring-brand-600"
             placeholder="2:30:00"
           />

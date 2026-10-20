@@ -11,6 +11,7 @@ import {
   protocolShape,
   thresholdPaceSec,
 } from '@/lib/academy/tests';
+import { typeClock } from '@/lib/time-entry';
 
 // ── Recording a test ─────────────────────────────────────────────────────────
 //
@@ -279,7 +280,7 @@ export function RecordTest({
           <Field label="זמן (דקות:שניות)">
             <input
               type="text" inputMode="numeric" value={durationText}
-              onChange={e => setDurationText(e.target.value)}
+              onChange={e => setDurationText(typeClock(e.target.value))}
               placeholder="7:20" className={INPUT}
             />
           </Field>
@@ -289,7 +290,7 @@ export function RecordTest({
         <>
           <Field label="זמן (דקות:שניות)">
             <input type="text" inputMode="numeric" value={durationText}
-              onChange={e => setDurationText(e.target.value)} placeholder="30:00" className={INPUT} />
+              onChange={e => setDurationText(typeClock(e.target.value))} placeholder="30:00" className={INPUT} />
           </Field>
           <Field label="מרחק (מטרים)">
             <input type="text" inputMode="decimal" value={distanceText}

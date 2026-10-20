@@ -14,6 +14,7 @@ import {
   BASELINE_DISTANCES, thresholdFromRace, validResult,
   type BaselineDistance, type BaselineSource, type SheetResults,
 } from '@/lib/academy/coach-baseline';
+import { typeClock } from '@/lib/time-entry';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // "טופס התאמה" — the coach's half of a trainee's details (academy-onboarding/
@@ -294,7 +295,7 @@ function BaselineSection({ athleteId, setup, onSaved }: { athleteId: string; set
               <span className="block text-[11.5px] font-bold text-ink-400">{m === 'time' ? 'זמן סיום' : 'קצב לק״מ'}</span>
               <input value={shown} dir="ltr" inputMode="numeric" aria-label={m === 'time' ? 'זמן סיום' : 'קצב לק״מ'}
                 onFocus={() => { if (mode !== m) { setMode(m); setText(shown); } }}
-                onChange={(e) => { setMode(m); setText(e.target.value); setDirty(true); if (origin === 'sheet') setOrigin('race'); }}
+                onChange={(e) => { setMode(m); setText(typeClock(e.target.value, m === 'time' ? 6 : 4)); setDirty(true); if (origin === 'sheet') setOrigin('race'); }}
                 className="w-full bg-transparent text-[20px] font-black tabular-nums text-ink-900 focus:outline-none" />
             </label>
           );

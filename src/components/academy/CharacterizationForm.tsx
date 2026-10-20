@@ -17,6 +17,7 @@ import {
   type Fit,
   type GoalType,
 } from '@/lib/academy/characterization';
+import { typeClock } from '@/lib/time-entry';
 
 /**
  * The characterization call, as a form that can be filled WHILE talking.
@@ -321,10 +322,10 @@ export function CharacterizationForm({
           <input
             value={prTime}
             onChange={e => {
-              setPrTime(e.target.value);
+              setPrTime(typeClock(e.target.value));
               // Parsed on the way out, so the field holds what was typed and the row holds
               // seconds. `parseTime` already accepts `48:30`, `48:30.4` and bare seconds.
-              change({ prTimeSec: parseTime(e.target.value) });
+              change({ prTimeSec: parseTime(typeClock(e.target.value)) });
             }}
             placeholder="48:30"
             className={INPUT}

@@ -12,6 +12,7 @@ import {
 import { parseClockSec } from '@/lib/academy/test-entry';
 import { Sheet } from '@/components/ui';
 import { CARD, PrimaryButton } from '../book/ui';
+import { typeClock } from '@/lib/time-entry';
 
 // The goal module (mockup academy-existing-add/goal-module.html, Ofer 2026-10-17: "another
 // marathon or another race, with a date too — so it needs a better module").
@@ -306,8 +307,8 @@ export function GoalSheet({ open, onOpenChange, goal, onDone, busy, error, athle
             )}
             <div className={cn(CARD, 'flex min-h-[52px] items-center gap-3 px-4')}>
               <label htmlFor="goal-own" className="flex-1 text-[15px] font-bold text-ink-900">{t('ownTime')}</label>
-              <input id="goal-own" value={own} onFocus={() => setChoice('own')} onChange={(e) => { setOwn(e.target.value); setChoice('own'); }}
-                placeholder="3:15:00" dir="ltr" inputMode="text"
+              <input id="goal-own" value={own} onFocus={() => setChoice('own')} onChange={(e) => { setOwn(typeClock(e.target.value)); setChoice('own'); }}
+                placeholder="3:15:00" dir="ltr" inputMode="numeric"
                 className="h-11 w-[120px] bg-transparent text-left text-[16px] font-extrabold text-brand-600 placeholder:font-semibold placeholder:text-ink-300 focus:outline-none" />
               {choice === 'own' && finish && <Check className="h-4 w-4 text-brand-600" />}
             </div>

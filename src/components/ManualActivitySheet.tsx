@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Loader2 } from 'lucide-react';
 import { Sheet } from '@/components/ui';
 import { apiHeaders } from '@/lib/api';
+import { typeClock } from '@/lib/time-entry';
 
 /**
  * Manual activity entry — the fallback for athletes with neither Strava nor
@@ -163,7 +164,7 @@ export function ManualActivitySheet({
               inputMode="numeric"
               placeholder="45:00"
               value={durationText}
-              onChange={e => setDurationText(e.target.value)}
+              onChange={e => setDurationText(typeClock(e.target.value))}
               className="w-full px-3 py-2.5 rounded-lg bg-page/50 border border-page/50 text-sm text-ink-700 placeholder-ink-400 focus:outline-none focus:border-brand-600/50"
             />
           </div>
