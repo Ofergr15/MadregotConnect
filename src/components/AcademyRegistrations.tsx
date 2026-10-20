@@ -48,6 +48,9 @@ const LABELS: Record<string, string> = {
   tightsSize: 'מידת טייץ',
   socksSize: 'מידת גרביים',
   shoeSize: 'מידת נעליים',
+  // The imported form (a card the academy's file opened): what the file never had.
+  gender: 'מגדר',
+  stillHealthy: 'עדיין כמו בקובץ (בריאות)',
 };
 
 // Questions the form no longer asks. Older registrations still carry the answer

@@ -204,6 +204,9 @@ export async function GET(request: Request) {
       if (isMissingTable(error)) return NextResponse.json(NOT_SET_UP);
       return NextResponse.json({ error: 'Failed to read the funnel' }, { status: 500 });
     }
+    // A card the academy's file opened and nobody has invited yet lives on the import's own
+    // board ("מעבר לאפליקציה"), not the funnel: 57 not-yet-invited trainees are not applicants.
+    rows = (rows || []).filter((r: { source?: string | null }) => r.source !== 'import');
 
     const { data: eventRows, error: eventError } = await supabase
       .from('academy_candidate_events')

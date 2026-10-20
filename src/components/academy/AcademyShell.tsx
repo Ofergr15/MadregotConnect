@@ -64,6 +64,7 @@ import { hasDetail } from './completion/TestApprovalCard';
 import { CompletionEntry } from './completion/CompletionEntry';
 import { MigrationBoard } from './MigrationBoard';
 import { MigrationEntry } from './MigrationEntry';
+import { AcademyImportFlow, ImportEntry } from './AcademyImportFlow';
 import { memberCoachIds, memberCoachNames } from '@/lib/academy/members';
 import { scoped, setAcademyCoachScope } from '@/lib/academy/client-scope';
 import {
@@ -150,6 +151,7 @@ export function AcademyShell({
   // one-trainee form opened by "לתקן" on a home approval card.
   const [completionOpen, setCompletionOpen] = useState(false);
   const [migrationOpen, setMigrationOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [correctFor, setCorrectFor] = useState<string | null>(null);
   const tt = useTranslations('academyTools');
   const tr = useTranslations('readiness');
@@ -512,6 +514,7 @@ export function AcademyShell({
             <FilteredTrainees members={roster} filter={traineeFilter} onClear={() => setTraineeFilter(null)} onSelect={(m) => setSelectedId(m.athleteId)} />
           ) : (
             <>
+            {manager && <ImportEntry onOpen={() => setImportOpen(true)} />}
             {manager && <MigrationEntry onOpen={() => setMigrationOpen(true)} />}
             {completion && completion.summary.total > 0 && (
               <CompletionEntry
@@ -577,6 +580,9 @@ export function AcademyShell({
           <AcademySettingsPanel />
         ) : null}
       </div>
+
+      {/* ── The academy's file into the app (מעבר לאפליקציה) ── */}
+      {importOpen && <AcademyImportFlow onClose={() => { setImportOpen(false); void reload(); }} />}
 
       {/* ── The move-in board (migration path) ── */}
       {migrationOpen && (

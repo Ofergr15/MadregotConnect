@@ -12,6 +12,7 @@ import { EU_SHOE_SIZES } from '@/lib/shoe-catalog';
 import { formNameProblem, normalizeDisplayName } from '@/lib/names/latin';
 import { HONEYPOT_FIELD, looksLikeToken, numberOnly, splitName } from '@/lib/academy/intake';
 import { GROUP_DISPLAY, GROUP_TINT } from '@/lib/academy/intake-display';
+import { GENDER_OPTIONS, STILL_HEALTHY_CHANGED, STILL_HEALTHY_YES, maskPhone } from '@/lib/academy/import-form';
 
 // Mirrors the current Google Form "שאלון אישי להצטרפות אל Madregot Academy".
 // Structured name/email/phone are lifted into columns; everything else is stored
@@ -93,6 +94,11 @@ const FIELDS: Field[] = [
   // Shoe size rather than socks: socks follow from it, and it is the number people
   // know. Twenty-nine half sizes are too many pills, so it is the native picker.
   { key: 'shoeSize', label: 'מה מידת הנעליים שלך', type: 'select', required: true, options: EU_SHOE_SIZES },
+  // ── The imported form only (a card the academy's file opened): what the file never had ──
+  { key: 'gender', label: 'מגדר', type: 'radio', required: true, options: [...GENDER_OPTIONS] },
+  // Asked about the answer the file already has ("עדיין 'בריא לחלוטין'?"); "השתנה" opens the
+  // medical questions again. The label is the answer's, see labelOf.
+  { key: 'stillHealthy', label: 'עדיין בריא/ה לחלוטין?', type: 'radio', required: true, options: [STILL_HEALTHY_YES, STILL_HEALTHY_CHANGED] },
 ];
 
 
@@ -122,6 +128,20 @@ const MEDICAL_PROMPT: Record<string, string> = {
  * pack and the running background are the coach's ("טופס התאמה"); birth date, height, weight
  * and sizes they fill in the app.
  */
+/**
+ * A card the academy's file opened (mockups/roles-1019/academy-import.html, screen 3): ONE page
+ * with what the file said filled in and editable, and only what the file never had asked —
+ * birth date and gender — plus whether the health answer still stands. Sizes are shown only
+ * when the file had one the app's picker knows.
+ */
+function importSteps(fields: Record<string, string>): typeof FULL_STEPS {
+  const keys = ['firstName', 'lastName', 'email', 'phone', 'city', 'height', 'weight', 'birthDate', 'gender'];
+  if (fields.shirtSize) keys.push('shirtSize');
+  if (fields.shoeSize && EU_SHOE_SIZES.includes(fields.shoeSize)) keys.push('shoeSize');
+  keys.push('stillHealthy', 'medicalHistory', 'medicalDetails');
+  return [{ title: 'הפרטים שלך', name: 'פרטים', sub: 'מהטופס שמילאת. אפשר לתקן כל שורה.', keys }];
+}
+
 const EXISTING_STEPS: typeof FULL_STEPS = [
   { title: 'כמה פרטים, ואתה באפליקציה', name: 'פרטים', sub: 'עמוד אחד · חצי דקה',
     keys: ['firstName', 'lastName', 'email', 'phone', 'medicalHistory', 'medicalDetails', 'hearAbout', 'hearAboutOther'] },
@@ -238,7 +258,10 @@ export default function AcademyRegisterPage() {
   // Somebody who already trains with us (their card is 'existing'): a details update for the
   // app, not an application — the pack and "how did you hear of us" are not asked.
   const [existing, setExisting] = useState(false);
-  const STEPS = existing ? EXISTING_STEPS : FULL_STEPS;
+  // A card the academy's file opened: the details it had, to confirm (importSteps).
+  const [imported, setImported] = useState<Record<string, string> | null>(null);
+  const [phoneEdit, setPhoneEdit] = useState(false);
+  const STEPS = imported ? importSteps(imported) : existing ? EXISTING_STEPS : FULL_STEPS;
   const [honeypot, setHoneypot] = useState('');
   // The manager's open/closed switch (lib/academy/registration.ts), answered for
   // this visitor: a personal invitation (?i=) gets through a closed door. Null
@@ -288,6 +311,17 @@ export default function AcademyRegisterPage() {
         }));
         setPrefilled(true);
         if (prefill.existing) setExisting(true);
+        if (prefill.imported) {
+          const f: Record<string, string> = prefill.fields || {};
+          setImported(f);
+          setValues(prev => {
+            const next = { ...prev };
+            for (const k of ['city', 'height', 'weight', 'shirtSize', 'shoeSize', 'hearAbout'] as const) {
+              if (f[k] && !next[k]) next[k] = f[k];
+            }
+            return next;
+          });
+        }
       })
       .catch(() => {});
   }, []);
@@ -301,6 +335,9 @@ export default function AcademyRegisterPage() {
     return next;
   });
   const isShown = (key: string) => {
+    // The imported page: the medical questions only once "השתנה" is picked.
+    if (imported && key === 'medicalHistory') return values.stillHealthy === STILL_HEALTHY_CHANGED;
+    if (imported && key === 'medicalDetails' && values.stillHealthy !== STILL_HEALTHY_CHANGED) return false;
     const rule = SHOWN_WHEN[key];
     return !rule || rule.when(values[rule.on]);
   };
@@ -311,6 +348,7 @@ export default function AcademyRegisterPage() {
 
   /** The first problem on one page, and the field it is about, or null. */
   const labelOf = (f: Field): string =>
+    (f.key === 'stillHealthy' && imported ? `עדיין "${imported.medicalHistory || HEALTHY}"?` : '') ||
     (f.key === 'medicalDetails' && MEDICAL_PROMPT[String(values.medicalHistory || '')]) || f.label;
   const problemOn = (index: number): { key: string; message: string } | null => {
     for (const key of STEPS[index].keys) {
@@ -351,6 +389,11 @@ export default function AcademyRegisterPage() {
     setError(null);
     try {
       const { firstName, lastName, email, phone, ...rest } = values;
+      // "כן" — the file's health answer stands, and is what the form sends.
+      if (imported && rest.stillHealthy === STILL_HEALTHY_YES) {
+        rest.medicalHistory = imported.medicalHistory || HEALTHY;
+        if (imported.medicalDetails) rest.medicalDetails = imported.medicalDetails; else delete rest.medicalDetails;
+      }
       // The DB `name` column (used across roster/leaderboard/emails) expects a full
       // name; keep first/last separately in the intake too.
       const name = normalizeDisplayName(`${firstName || ''} ${lastName || ''}`);
@@ -390,7 +433,7 @@ export default function AcademyRegisterPage() {
     // The club's "we got it" screen, in the academy's words (2026-10-19, Ofer: bring
     // the academy screens up to the club's): the same journey look, the four steps the
     // form-received mail draws, and the one thing that happens next.
-    return <AcademyReceived existing={existing} first={String(values.firstName || '').trim()} email={String(values.email || '').trim()} phone={String(values.phone || '').trim()} />;
+    return <AcademyReceived existing={existing} imported={!!imported} first={String(values.firstName || '').trim()} email={String(values.email || '').trim()} phone={String(values.phone || '').trim()} />;
   }
 
   const last = step === STEPS.length - 1;
@@ -402,6 +445,18 @@ export default function AcademyRegisterPage() {
    *  input, and a screen reader reads the question and not the placeholder. */
   const typed = (f: Field) => {
     const ltr = f.type === 'email' || f.type === 'tel';
+    // The imported page shows the phone the file had without showing it; "שינוי" opens it.
+    if (imported && f.key === 'phone' && !phoneEdit && values.phone) {
+      return (
+        <div key={f.key} className={cn(FIELD_BOX, 'flex items-center justify-between')}>
+          <div className="min-w-0">
+            <span className={FIELD_LABEL}>{labelOf(f)}</span>
+            <span className="mt-[3px] block text-[16.5px] font-bold text-ink-900"><bdi dir="ltr">{maskPhone(values.phone)}</bdi></span>
+          </div>
+          <button type="button" onClick={() => setPhoneEdit(true)} className="min-h-[44px] shrink-0 px-2 text-[14px] font-extrabold text-brand-600">שינוי</button>
+        </div>
+      );
+    }
     return (
       <label key={f.key} htmlFor={`ar-${f.key}`} className={cn(FIELD_BOX, problem?.key === f.key && FIELD_BAD)}>
         <span className={FIELD_LABEL}>{labelOf(f)}{f.required && <Required />}</span>
@@ -442,10 +497,10 @@ export default function AcademyRegisterPage() {
           </div>
           <h1 className="mt-3 text-[22px] font-black leading-tight text-ink-900">{STEPS[step].title}</h1>
           <p className="mt-0.5 text-[13.5px] text-ink-400">
-            {existing ? STEPS[step].sub
+            {imported || existing ? STEPS[step].sub
               : prefilled && step === 0 ? 'הפרטים שלך כבר מולאו. נשאר רק לספר לנו עליך.' : STEPS[step].sub}
           </p>
-          {existing && step === 0 && (
+          {existing && !imported && step === 0 && (
             <p className="mt-2.5 rounded-xl border border-[#D9DDFF] bg-[#EEF0FF] px-3 py-2 text-[12.5px] font-bold leading-snug text-[#1A22A8]">
               ✓ אתה כבר מתאמן אצלנו — זה לא טופס הצטרפות, רק עדכון פרטים לקראת האפליקציה.
             </p>
@@ -638,7 +693,22 @@ export default function AcademyRegisterPage() {
 /** The academy's journey, as the form-received mail draws it. */
 const ACADEMY_JOURNEY = ['הטופס', 'שיחת היכרות', 'שיחה עם מאמן', 'מתחילים באפליקציה'] as const;
 
-function AcademyReceived({ existing, first, email, phone }: { existing: boolean; first: string; email: string; phone: string }) {
+function AcademyReceived({ existing, imported, first, email, phone }: { existing: boolean; imported?: boolean; first: string; email: string; phone: string }) {
+  if (imported) {
+    // Chosen by staff, so confirming IS the way in: the install mail is already on its way.
+    return (
+      <JourneyScreen
+        testId="academy-received"
+        hero={<JourneyHero eyebrow="האקדמיה של מדרגות" title={`תודה${first ? `, ${first}` : ''}! 🙌`} subtitle="הפרטים אושרו" />}
+        actions={<p className="text-center text-[13px] leading-relaxed" style={{ color: JOURNEY.soft }}>לא הגיע מייל תוך כמה דקות? כדאי לבדוק בספאם.</p>}
+      >
+        <NextCard label="הבא בתור" title="מייל עם הקישור לאפליקציה">
+          שלחנו עכשיו מייל עם הקישור להתקנה.
+          {email && <><br /><bdi dir="ltr" className="font-bold" style={{ color: JOURNEY.ink }}>{email}</bdi></>}
+        </NextCard>
+      </JourneyScreen>
+    );
+  }
   if (existing) {
     return (
       <JourneyScreen

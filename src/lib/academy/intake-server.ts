@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingColumn, isMissingTable } from '@/lib/supabase/schema-drift';
 import { isInviteFresh, looksLikeToken, sourceFromParam } from './intake';
+import { importPrefill, isImportedIntake, mergeIntake } from './sheet-import';
 
 /**
  * The public form's side of the funnel: whoever submits it gets a card, and that
@@ -113,8 +114,12 @@ export async function recordFormCandidate(
     }
 
     // Its own write, so a database without migration 128 loses only this.
+    // Merged, so a card the academy's file opened keeps what the file said and the staff block
+    // (sheet-import mergeIntake); any other card's intake is simply the form's.
     if (p.intake) {
-      const { error: intakeError } = await supabase.from('academy_candidates').update({ intake: p.intake }).eq('id', card.id);
+      const prev = await supabase.from('academy_candidates').select('intake').eq('id', card.id).maybeSingle();
+      const intake = mergeIntake(prev.error ? null : (prev.data as { intake?: unknown } | null)?.intake, p.intake);
+      const { error: intakeError } = await supabase.from('academy_candidates').update({ intake }).eq('id', card.id);
       if (intakeError && !isMissingColumn(intakeError)) console.error('academy form: card intake failed:', intakeError.message);
     }
 
@@ -142,18 +147,27 @@ export async function recordFormCandidate(
 export async function invitePrefill(
   supabase: SupabaseClient,
   token: unknown,
-): Promise<{ name: string; email: string; phone: string; existing: boolean } | null> {
+): Promise<{ name: string; email: string; phone: string; existing: boolean; imported?: boolean; fields?: Record<string, string> } | null> {
   if (!looksLikeToken(token)) return null;
-  const { data, error } = await supabase
+  let { data, error }: { data: any; error: any } = await supabase
     .from('academy_candidates')
-    .select('name, email, phone, source, invited_at, archived_at')
+    .select('name, email, phone, source, invited_at, archived_at, intake')
     .eq('invite_token', token)
     .maybeSingle();
+  if (error && isMissingColumn(error)) {
+    ({ data, error } = await supabase.from('academy_candidates').select('name, email, phone, source, invited_at, archived_at').eq('invite_token', token).maybeSingle());
+  }
   if (error) {
     if (!isMissingTable(error) && !isMissingColumn(error)) console.error('invite prefill failed:', error.message);
     return null;
   }
   if (!data || !isInviteFresh(data.invited_at)) return null;
+  const base = { name: data.name || '', email: data.email || '', phone: data.phone || '', existing: data.source === 'existing' };
+  // A card the academy's file opened: the trainee confirms what the file said (sheet-import
+  // importPrefill — the trainee's own answers only, nothing staff-only, no coach name).
+  if (base.existing && isImportedIntake(data.intake)) {
+    return { ...base, imported: true, fields: importPrefill(data.intake) ?? {} };
+  }
   // 'existing': somebody who already trains with us, updating details for the app.
-  return { name: data.name || '', email: data.email || '', phone: data.phone || '', existing: data.source === 'existing' };
+  return base;
 }
