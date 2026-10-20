@@ -112,7 +112,7 @@ export function MetricCards({ m }: { m: MetricValues }) {
       )}
       {m.calories != null && (
         <Card wide icon="🔥" tint="#FFEDE3" title="קלוריות" sub="הערכה של גרמין" value={Number(m.calories).toLocaleString('en')}
-          note={<>כ־<bdi dir="ltr">{Math.round(m.calories / Math.max(m.distanceKm, 0.1))}</bdi> לק״מ</>} />
+          note={<>כ־<bdi dir="ltr">{Math.round(m.calories / Math.max(m.distanceKm, 0.1))}</bdi> קלוריות לכל ק״מ</>} />
       )}
     </div>
   );

@@ -279,6 +279,8 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
           </div>
         </div>
       )}
+      {/* The readout up here; each chart also shows its own value at the finger (header badge),
+          so a chart far down the stack reads without looking back up. */}
       <div className="mb-2 flex min-h-[28px] flex-wrap items-center gap-1.5 text-xs" aria-live="polite">
         {at == null ? (
           <span className="rounded-lg bg-page/60 px-2 py-1 text-ink-500">{t('dragHint')}</span>
@@ -317,7 +319,15 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
         {lanes.map((l) => (
           <div key={l.metric} className="mt-3 first:mt-0">
             <div dir="rtl" className="mb-1 flex items-baseline justify-between text-xs">
-              <span className="font-bold text-ink-700">{label(l.metric)}</span>
+              <span className="font-bold text-ink-700">
+                {label(l.metric)}
+                {/* The value under the finger, on the chart itself — no looking up to the readout. */}
+                {at != null && l.values[at] != null && (
+                  <bdi dir="ltr" className="ms-1.5 rounded-md px-1.5 py-px text-[11px] font-black tabular-nums text-white" style={{ background: l.stroke }}>
+                    {l.metric === 'pw' ? `${l.format(l.values[at] as number)}W` : l.format(l.values[at] as number)}
+                  </bdi>
+                )}
+              </span>
               <span className="text-ink-400">{sub(l)}</span>
             </div>
             <div className="relative" style={{ height: l.height }}>
