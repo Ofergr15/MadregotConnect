@@ -18,7 +18,7 @@ export interface DayPlanData {
     bandLane: Lane | null;
     thresholdSec: number | null;
     /** 'band' = no test yet, `thresholdSec` is the band's reference (day-send.ts). */
-    paceBasis?: 'test' | 'band' | null;
+    paceBasis?: 'test' | 'band' | 'coach' | null;
     /** The coach's pace update in force that week (`{}` = none). Every pace drawn goes through it. */
     paceAdjust?: PaceAdjust;
     hasGarmin: boolean;
@@ -29,7 +29,7 @@ export interface DayPlanData {
   existing: ParsedWorkout[];
   /** That day, already in their plan, as an editable draft — re-open, fix, resend. */
   existingEdit?: SeniorPick['today'] | null;
-  others: Array<{ id: string; name: string; thresholdSec: number | null; paceBasis?: 'test' | 'band' | null; paceAdjust?: PaceAdjust; hasGarmin: boolean; lane: Lane | null; busy: boolean }>;
+  others: Array<{ id: string; name: string; thresholdSec: number | null; paceBasis?: 'test' | 'band' | 'coach' | null; paceAdjust?: PaceAdjust; hasGarmin: boolean; lane: Lane | null; busy: boolean }>;
 }
 
 /** The workout on its way from a source to the watch. */
@@ -55,5 +55,5 @@ export interface SendResult {
   reason?: string;
   detail?: string | null;
   /** 'band' when the trainee has no test yet and was priced from their band. */
-  paceBasis?: 'test' | 'band';
+  paceBasis?: 'test' | 'band' | 'coach';
 }

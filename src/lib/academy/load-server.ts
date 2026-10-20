@@ -35,6 +35,7 @@ import {
   shiftDate, thresholdOn,
   type ActivityBreakdown, type LoadActivity, type LoadSource, type TestPoint,
 } from './load';
+import { PRICING_PROTOCOLS, pricingRows } from './coach-baseline';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any, any, any>;
@@ -158,16 +159,16 @@ export async function loadTestsFor(supabase: Db, athleteIds: string[]): Promise<
     .from('academy_tests')
     .select(columns)
     .in('athlete_id', athleteIds)
-    .eq('protocol', '30min')
+    .in('protocol', [...PRICING_PROTOCOLS])
     .order('test_date', { ascending: true });
-  let { data, error }: { data: any[] | null; error: unknown } = await read('athlete_id, test_date, duration_sec, distance_m, excluded_reason, status');
+  let { data, error }: { data: any[] | null; error: unknown } = await read('athlete_id, test_date, protocol, duration_sec, distance_m, excluded_reason, status');
   if (error && isMissingColumn(error)) {
-    ({ data, error } = await read('athlete_id, test_date, duration_sec, distance_m, excluded_reason'));
+    ({ data, error } = await read('athlete_id, test_date, protocol, duration_sec, distance_m, excluded_reason'));
   }
   if (error || !data) return out;
-  for (const row of data as any[]) {
-    if (row.excluded_reason) continue;
-    if ((row.status ?? 'approved') !== 'approved') continue;
+  // Oldest first again: pricingRows hands each athlete's rows back newest first.
+  const rows = pricingRows(data as any[]).sort((a, b) => String(a.test_date).localeCompare(String(b.test_date)));
+  for (const row of rows) {
     const pace = thresholdPaceSec({ durationSec: row.duration_sec, distanceM: row.distance_m });
     if (!pace || !(pace > 0) || !out[row.athlete_id]) continue;
     out[row.athlete_id].push({ date: String(row.test_date).slice(0, 10), thresholdSec: Math.round(pace) });

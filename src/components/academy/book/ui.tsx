@@ -56,14 +56,14 @@ export function ProfileBar({ segments, size = 'md', height: forced, className, p
   return (
     <div
       aria-hidden
-      className={cn('flex items-end', size === 'sm' ? 'w-24 shrink-0 gap-0.5' : 'gap-[3px]', className)}
+      className={cn('flex items-end overflow-hidden', size === 'sm' ? 'w-24 shrink-0 gap-px' : 'gap-[3px]', className)}
       style={{ height }}
     >
       {segments.map((s, i) => (
         <i
           key={i}
           className={cn('block', size === 'sm' ? 'rounded-[3px]' : 'rounded-t-[6px] rounded-b-[3px]')}
-          style={{ flex: s.weight, height: `${TONE_HEIGHT[s.tone] * 100}%`, background: colors[s.tone], minWidth: 2 }}
+          style={{ flex: s.weight, height: `${TONE_HEIGHT[s.tone] * 100}%`, background: colors[s.tone], minWidth: size === 'sm' ? 1 : 2 }}
         />
       ))}
     </div>

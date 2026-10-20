@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { bandMeaning } from '@/lib/academy/bands';
 import {
   ArrowLeftRight, CalendarX, ChevronLeft, ClipboardList, Copy, Gauge, MessageSquare, PauseCircle, Plus, Sparkles, Timer, Trophy, TrendingUp, UserPlus, Users, Watch,
 } from 'lucide-react';
@@ -291,6 +292,9 @@ function TraineeRows({ members, showCoach, onOpen }: {
               </span>
               <span className="min-w-0 flex-1">
                 <b className="block truncate text-sm font-extrabold text-ink-700"><bdi>{m.name}</bdi></b>
+                {m.band && (
+                  <small className="block truncate text-2xs text-ink-400">{m.band.name}{bandMeaning(m.band) ? ` · ${bandMeaning(m.band)}` : ''}</small>
+                )}
                 <small className="block truncate text-2xs text-ink-500">
                   {showCoach && (coach ? <><bdi>{coach}</bdi> · </> : <span className="text-band-3-ink">בלי מאמן · </span>)}
                   {m.hasPersonalPlan === false ? <span className="font-bold text-band-3-ink">אין תוכנית</span>

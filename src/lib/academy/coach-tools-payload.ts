@@ -109,7 +109,7 @@ export interface CopyWeekCandidate {
   name: string;
   /** Their test's threshold, else their band's own pace (`paceBasis: 'band'`, day-send.ts). */
   thresholdSec: number | null;
-  paceBasis?: 'test' | 'band' | null;
+  paceBasis?: 'test' | 'band' | 'coach' | null;
   adjust: PaceAdjust;
   existing: Record<string, number>;
   hasGarmin: boolean;

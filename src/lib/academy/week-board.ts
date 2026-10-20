@@ -59,6 +59,11 @@ export interface WeekBoardRestDay {
 }
 
 export interface WeekBoard {
+  /**
+   * The coach's view only: the GROUP's session of each day of this week (the club week in the
+   * trainee's lane), one quiet line under the day — "לקחת את של הקבוצה ולהתאים".
+   */
+  groupDays?: Array<{ date: string; name: string }>;
   weekStart: string;
   weekEnd: string;
   today: string;

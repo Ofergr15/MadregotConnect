@@ -80,6 +80,26 @@ export const ZONE_INTENSITY: Record<string, RelativeIntensity> = {
   sprint: { fastPct: 125, slowPct: 115 },
 };
 
+/** The centre of a named zone, sec/km, for a threshold — the pace a tile and a ✎ row show. */
+export function zoneCentrePace(thresholdPaceSec: number, zone: string): number | null {
+  const z = ZONE_INTENSITY[zone];
+  if (!z || !(thresholdPaceSec > 0)) return null;
+  const { min, max } = resolveIntensity(thresholdPaceSec, z);
+  return Math.round((min + max) / 2);
+}
+
+/** The named zone a pace (sec/km) sits nearest to, by % of threshold speed. */
+export function zoneOfPace(paceSec: number, thresholdPaceSec: number): string | null {
+  if (!(paceSec > 0) || !(thresholdPaceSec > 0)) return null;
+  const pct = (thresholdPaceSec / paceSec) * 100;
+  let best: string | null = null; let gap = Infinity;
+  for (const [name, z] of Object.entries(ZONE_INTENSITY)) {
+    const d = Math.abs((z.fastPct + z.slowPct) / 2 - pct);
+    if (d < gap) { gap = d; best = name; }
+  }
+  return best;
+}
+
 export function intensityForZone(zone: string | undefined | null): RelativeIntensity | null {
   if (!zone) return null;
   return ZONE_INTENSITY[zone] ?? null;

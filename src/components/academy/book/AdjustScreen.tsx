@@ -5,9 +5,13 @@ import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiHeaders } from '@/lib/api';
+import { Sheet } from '@/components/ui';
+import type { LibraryKind } from '@/lib/academy/library';
+import { KIND_REQUIRED_TEXT, kindChosen, kindHint, type KindChoice } from '@/lib/academy/kind-choice';
 import {
   addStep, bookTotals, fieldValue, nudgeField, profileBar, quickFields, setField, wheelOptions,
-  type BookStep, type FieldRef,
+  type BookStep, type FieldRef, sessionGlance, toLibrarySteps, EASY_WARMUP_SEC,
 } from '@/lib/academy/book-steps';
 import { BarButton, CARD, FlowScreen, N, PrimaryButton, ProfileBar, RICH, SectionLabel, kmText } from './ui';
 import { StepLines, fieldDisplay, formatField } from './StepLines';
@@ -120,6 +124,7 @@ export function AdjustScreen({
           )}
         </div>
         {bar.length > 0 && <ProfileBar segments={bar} />}
+        {draft.source === 'book' && model && <Glance steps={model} thresholdSec={T} paceAdjust={A} />}
 
         {model && quick.length > 0 && (
           <div className={cn('grid gap-2', quick.length === 3 ? 'grid-cols-3' : 'grid-cols-2')}>
@@ -173,11 +178,13 @@ export function AdjustScreen({
                 disabled={!changed}
                 className="min-h-[44px] text-[16px] font-bold text-ink-400 disabled:opacity-50"
               >
-                ↺ {t('reset')}
+                ↺ {draft.source === 'book' ? t('resetBook') : t('reset')}
               </button>
             )}
           </div>
         )}
+
+        {draft.source === 'book' && model && <SaveAsNew draft={draft} model={model} thresholdSec={T} paceAdjust={A} />}
 
         {/* What the trainee reads on the day and on the watch — the coach's words, editable. */}
         <label className="block">
@@ -230,5 +237,144 @@ export function StepperButton({ sign, onClick }: { sign: 1 | -1; onClick: () => 
     >
       {sign < 0 ? <Minus className="h-4 w-4" strokeWidth={3} /> : <Plus className="h-4 w-4" strokeWidth={3} />}
     </button>
+  );
+}
+
+const clockText = (sec: number) => {
+  const m = Math.floor(sec / 60), x = Math.round(sec % 60);
+  return x ? `${m}:${String(x).padStart(2, '0')}` : `${m}`;
+};
+const paceText = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+/** A length as the coach says it, numbers isolated LTR and the unit in the line's own order. */
+function LengthWords({ l }: { l: { measure: 'distance' | 'time'; value: number } | null }) {
+  if (!l) return null;
+  if (l.measure === 'distance') {
+    return l.value >= 1000 ? <><N>{Math.round(l.value / 100) / 10}</N> ק״מ</> : <><N>{Math.round(l.value)}</N> מ׳</>;
+  }
+  return l.value >= 60 ? <><N>{clockText(l.value)}</N> דק׳</> : <><N>{Math.round(l.value)}</N> שנ׳</>;
+}
+function PartWords({ p }: { p: { distanceM: number; durationSec: number } }) {
+  return <><N>{Math.round(p.distanceM / 100) / 10}</N> ק״מ · <N>{Math.round(p.durationSec / 60)}</N> דק׳</>;
+}
+
+/**
+ * The book entry at a glance, at this trainee's paces (Ofer, 2026-10-20): totals, warm-up,
+ * the main set, recoveries, cool-down. The same sizing and pricing the send uses.
+ */
+function Glance({ steps, thresholdSec, paceAdjust }: { steps: BookStep[]; thresholdSec: number | null; paceAdjust: PaceAdjust | null }) {
+  const g = useMemo(() => sessionGlance(steps, thresholdSec, paceAdjust), [steps, thresholdSec, paceAdjust]);
+  const rows: Array<[string, React.ReactNode]> = [];
+  // A "warm-up" this long is the easy run the set sits on (50 דק׳ before 15 × 200 מ׳).
+  if (g.warmup) rows.push([g.warmup.durationSec > EASY_WARMUP_SEC ? 'קל' : 'חימום', <PartWords key="w" p={g.warmup} />]);
+  if (g.main) {
+    const main = g.main;
+    rows.push(['עיקר', (
+      <span key="m">
+        {main.count ? <><N>{main.count}</N> × <LengthWords l={main.work} /></> : main.work ? <LengthWords l={main.work} /> : <PartWords p={main.size} />}
+        {main.paceSec ? <> ב־<N>{paceText(main.paceSec)}</N></> : null}
+      </span>
+    )]);
+  }
+  if (g.recovery) rows.push(['התאוששות', <span key="r"><LengthWords l={g.recovery.length} />{g.recovery.mode === 'walk' ? ' הליכה' : g.recovery.mode === 'jog' ? ' ריצה קלה' : g.recovery.mode === 'stand' ? ' עמידה' : ''}</span>]);
+  if (g.cooldown) rows.push(['שחרור', <PartWords key="c" p={g.cooldown} />]);
+  return (
+    <div className={cn(CARD, 'rounded-[18px] px-4 py-3')}>
+      <div className="flex items-baseline gap-3">
+        <b className="text-[22px] font-black text-ink-900"><N>{g.total.estimated ? 'כ־' : ''}{Math.round(g.total.distanceM / 100) / 10}</N> <small className="text-[13px] font-bold text-ink-400">ק״מ</small></b>
+        <b className="text-[22px] font-black text-ink-900"><N>{Math.round(g.total.durationSec / 60)}</N> <small className="text-[13px] font-bold text-ink-400">דק׳</small></b>
+      </div>
+      <div className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[14px]">
+        {rows.map(([k, v]) => (
+          <div key={k} className="contents"><span className="font-bold text-ink-400">{k}</span><span className="font-bold text-ink-900">{v}</span></div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** "16 × 200 מ׳ ב־3:29": the glance's main set as words — the name a saved version is offered. */
+function suggestedName(g: ReturnType<typeof sessionGlance>, fallback: string): string {
+  const len = (l: { measure: 'distance' | 'time'; value: number } | null) => !l ? ''
+    : l.measure === 'distance' ? (l.value >= 1000 ? `${Math.round(l.value / 100) / 10} ק״מ` : `${Math.round(l.value)} מ׳`)
+      : (l.value >= 60 ? `${clockText(l.value)} דק׳` : `${Math.round(l.value)} שנ׳`);
+  if (!g.main) return fallback;
+  const set = g.main.count ? `${g.main.count} × ${len(g.main.work)}` : len(g.main.work);
+  return set ? `${set}${g.main.paceSec ? ` ב־${paceText(g.main.paceSec)}` : ''}` : fallback;
+}
+
+const KINDS: LibraryKind[] = ['intervals', 'tempo', 'long', 'easy', 'hills', 'test'];
+
+/**
+ * "לשמור כגרסה חדשה בספר": a NEW entry from the edited steps, under a name the coach gives it
+ * (offered: the main set at these paces) and a kind — the original is never changed. A name
+ * the book already has is said before saving.
+ */
+function SaveAsNew({ draft, model, thresholdSec, paceAdjust }: { draft: Draft; model: BookStep[]; thresholdSec: number | null; paceAdjust: PaceAdjust | null }) {
+  const t = useTranslations('workoutBook');
+  const { data } = useFavourites();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  // No type until the coach picks one (kind-choice.ts): the inferred one is a hint.
+  const [kind, setKind] = useState<KindChoice>(null);
+  const [state, setState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle');
+  const changed = !!draft.original && JSON.stringify(model) !== JSON.stringify(draft.original);
+  if (!changed) return null;
+  const trimmed = name.trim();
+  const taken = !!trimmed && (data?.entries ?? []).some(e => e.name.trim() === trimmed);
+  const start = () => {
+    setName(suggestedName(sessionGlance(model, thresholdSec, paceAdjust), draft.name));
+    setKind(null); setState('idle'); setOpen(true);
+  };
+  const hint = kindHint(draft.kind, kind);
+  const save = async () => {
+    if (!trimmed || !kindChosen(kind)) return;
+    setState('busy');
+    const body = (scope: 'academy' | 'mine') => JSON.stringify({ name: trimmed, kind: kind as LibraryKind, notes: draft.notes, steps: toLibrarySteps(model), scope });
+    try {
+      let res = await fetch('/api/academy/library', { method: 'POST', headers: await apiHeaders(true), body: body('academy') });
+      if (res.status === 403) res = await fetch('/api/academy/library', { method: 'POST', headers: await apiHeaders(true), body: body('mine') });
+      setState(res.ok ? 'done' : 'error');
+      if (res.ok) setOpen(false);
+    } catch {
+      setState('error');
+    }
+  };
+  return (
+    <>
+      <button type="button" onClick={start} disabled={state === 'done'}
+        className="min-h-[44px] px-1 text-start text-[14.5px] font-bold text-brand-600 disabled:text-ink-400">
+        {state === 'done' ? `✓ נשמר בספר: ${trimmed}` : '＋ לשמור כגרסה חדשה בספר'}
+      </button>
+      <Sheet open={open} onOpenChange={setOpen} title="גרסה חדשה בספר">
+        <div className="space-y-3 px-4 pb-6" dir="rtl">
+          <label className="block">
+            <span className="mb-1.5 block px-1 text-13 font-bold text-ink-400">שם האימון</span>
+            <input value={name} onChange={e => setName(e.target.value)} dir="auto" aria-label="שם האימון" maxLength={60}
+              className={cn(CARD, 'block min-h-[52px] w-full px-4 text-[17px] font-bold text-ink-900 outline-none')} />
+          </label>
+          {!trimmed && <p className="px-1 text-[13px] font-bold text-accent-red-ink">צריך שם</p>}
+          {taken && <p className="px-1 text-[13px] font-bold text-[#8A4308]">כבר יש בספר אימון בשם הזה — כדאי שם אחר</p>}
+          <div>
+            <span className="mb-1.5 block px-1 text-13 font-bold text-ink-400">סוג</span>
+            {hint && (
+              <button type="button" onClick={() => setKind(hint)} className="mb-1.5 min-h-[36px] px-1 text-[13px] font-bold text-brand-600">
+                נראה כמו: {t(`chip.${hint}`)} — לבחור
+              </button>
+            )}
+            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+              {KINDS.map(k => (
+                <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}
+                  className={cn('h-11 shrink-0 whitespace-nowrap rounded-full px-4 text-[15px] font-bold', kind === k ? 'bg-ink-900 text-white' : 'bg-white text-ink-500')}>
+                  {t(`chip.${k}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+          {!kindChosen(kind) && <p className="px-1 text-[13px] font-bold text-[#8A4308]">{KIND_REQUIRED_TEXT}</p>}
+          {state === 'error' && <p className="px-1 text-[13px] font-bold text-accent-red-ink">לא נשמר — נסו שוב</p>}
+          <PrimaryButton onClick={() => void save()} disabled={!trimmed || !kindChosen(kind) || state === 'busy'} busy={state === 'busy'} className="w-full">שמירה בספר</PrimaryButton>
+        </div>
+      </Sheet>
+    </>
   );
 }

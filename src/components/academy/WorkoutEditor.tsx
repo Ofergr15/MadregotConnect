@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { KIND_REQUIRED_TEXT, kindChosen } from '@/lib/academy/kind-choice';
 import { AlertTriangle, ChevronDown, Plus, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -94,7 +95,8 @@ export function WorkoutEditor({
   onCancel: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
-  const [kind, setKind] = useState<LibraryKind>(initial?.kind ?? 'intervals');
+  // A new entry starts with no type: the coach names it truthfully (kind-choice.ts). An edit keeps its own.
+  const [kind, setKind] = useState<LibraryKind | null>(initial?.kind ?? null);
   const [scope, setScope] = useState<LibraryScope>(initial?.scope ?? 'mine');
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [showExample, setShowExample] = useState(false);
@@ -291,13 +293,14 @@ export function WorkoutEditor({
 
       {error && <Note>{error}</Note>}
       {!error && problem && <Note>{HELP[problem]}</Note>}
+      {!error && !problem && !kindChosen(kind) && <Note>{KIND_REQUIRED_TEXT}</Note>}
 
       <button
         type="button"
-        disabled={!!problem || !!saving}
-        onClick={() => onSave({
+        disabled={!!problem || !!saving || !kindChosen(kind)}
+        onClick={() => kindChosen(kind) && onSave({
           name: name.trim(),
-          kind: isLibraryKind(kind) ? kind : 'easy',
+          kind,
           scope,
           notes: notes.trim() || null,
           steps,

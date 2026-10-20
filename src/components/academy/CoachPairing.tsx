@@ -8,7 +8,7 @@ import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { InsetRow, InsetSection, Spinner } from '@/components/ui';
 import {
   MAX_PACE_OFFSET_SEC, MIN_PACE_OFFSET_SEC, effectiveOffsetSec, fmtOffsetSec, offsetSource,
-  sortBands, type AcademyBand,
+  sortBands, bandMeaning, type AcademyBand,
 } from '@/lib/academy/bands';
 import type { AcademyCoachSummary, AcademyMember } from './types';
 import { memberCoachIds, memberCoachNames } from '@/lib/academy/members';
@@ -159,7 +159,7 @@ export function CoachPairing({
                 // The goal in the academy's own words — the same sentence the
                 // trainee picked at registration, which is what makes a band
                 // number mean anything.
-                sublabel={b.goal || undefined}
+                sublabel={bandMeaning(b) || undefined}
                 value={typeof offset === 'number'
                   ? t('secPerKmValue', { value: ltr(fmtOffsetSec(offset)) })
                   : t('bandPacesUnsetShort')}
@@ -337,7 +337,7 @@ export function CoachPairing({
           icon={Target}
           iconBg={member.band ? 'bg-accent-600' : 'bg-ink-300'}
           label={t('goalBand')}
-          sublabel={member.band?.goal || undefined}
+          sublabel={bandMeaning(member.band) || undefined}
           value={member.band?.name || t('noBand')}
           valueMuted={!member.band}
           onClick={canAssign ? () => { setError(null); setMode('band'); } : undefined}

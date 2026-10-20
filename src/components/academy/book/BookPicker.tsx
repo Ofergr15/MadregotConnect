@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { NumberRuns } from '@/components/trainee/ui';
 import { useTranslations } from 'next-intl';
 import { ChevronRight, Search } from 'lucide-react';
 import { useApi, apiHeaders } from '@/lib/api';
@@ -60,6 +61,7 @@ export function useFavourites() {
 }
 
 type Chip = LibraryKind | 'all' | 'fav';
+const RECENT_COUNT = 3;
 const CHIPS: Chip[] = ['all', 'intervals', 'tempo', 'long', 'easy', 'hills', 'fav'];
 
 export function BookPicker({ thresholdSec, onBack, onPick }: {
@@ -89,6 +91,14 @@ export function BookPicker({ thresholdSec, onBack, onPick }: {
         || (entry.notes ?? '').toLowerCase().includes(needle));
   }, [data, chip, query, favourites, t]);
 
+  // "אחרונים" (Ofer, 2026-10-20): the last few pushed, newest first — only on the open list,
+  // since a search or a kind already says what the coach is after.
+  const recent = useMemo(() => (chip === 'all' && !query.trim()
+    ? rows.filter(r => r.entry.lastUsedAt).sort((a, b) => String(b.entry.lastUsedAt).localeCompare(String(a.entry.lastUsedAt))).slice(0, RECENT_COUNT)
+    : []), [rows, chip, query]);
+  // Each workout once: what is in "אחרונים" is not listed again under it.
+  const recentIds = useMemo(() => new Set(recent.map(r => r.entry.id)), [recent]);
+
   return (
     <FlowScreen
       title={t('bookTitle')}
@@ -106,7 +116,8 @@ export function BookPicker({ thresholdSec, onBack, onPick }: {
         />
       </label>
 
-      <div className="flex flex-wrap gap-2" role="toolbar" aria-label={t('kindsLabel')}>
+      {/* One row, scrolled sideways: a wrapped second row read as a different set of filters. */}
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="toolbar" aria-label={t('kindsLabel')}>
         {CHIPS.map(c => (
           <button
             key={c}
@@ -114,11 +125,11 @@ export function BookPicker({ thresholdSec, onBack, onPick }: {
             aria-pressed={chip === c}
             onClick={() => setChip(chip === c && c !== 'all' ? 'all' : c)}
             className={cn(
-              'h-11 rounded-full px-[15px] text-[15px] font-bold shadow-[0_1px_2px_rgba(20,22,40,.04),0_8px_22px_rgba(20,22,40,.06)]',
+              'h-11 shrink-0 whitespace-nowrap rounded-full px-[15px] text-[15px] font-bold shadow-[0_1px_2px_rgba(20,22,40,.04),0_8px_22px_rgba(20,22,40,.06)]',
               chip === c ? 'bg-ink-900 text-white' : 'bg-white text-ink-500',
             )}
           >
-            {c === 'fav' ? <span aria-label={t('favourites')}>❤</span> : c === 'all' ? t('kind.all') : t(`chip.${c}`)}
+            {c === 'fav' ? t('chip.fav') : c === 'all' ? t('kind.all') : t(`chip.${c}`)}
           </button>
         ))}
       </div>
@@ -131,34 +142,53 @@ export function BookPicker({ thresholdSec, onBack, onPick }: {
         <p className="py-6 text-center text-sm text-ink-400">{(data.entries ?? []).length ? t('noMatch') : t('bookEmpty')}</p>
       ) : (
         <>
-          <SectionLabel>{t('mostUsed')}</SectionLabel>
+          {recent.length > 0 && (
+            <>
+              <SectionLabel>{t('recent')}</SectionLabel>
+              <div className={CARD}>
+                {recent.map(({ entry, model }) => <BookRow key={`r-${entry.id}`} entry={entry} model={model} thresholdSec={thresholdSec} fav={favourites.has(entry.id)} onPick={onPick} />)}
+              </div>
+            </>
+          )}
+          <SectionLabel>{recent.length ? t('allWorkouts') : t('mostUsed')}</SectionLabel>
           <div className={CARD}>
-            {rows.map(({ entry, model }) => {
-              const totals = model ? bookTotals(model, thresholdSec) : null;
-              return (
-                <button
-                  key={entry.id}
-                  type="button"
-                  onClick={() => onPick(entry)}
-                  className="flex min-h-[64px] w-full items-center gap-3 border-b border-[#EFEFF4] px-[18px] py-[13px] text-start last:border-0"
-                >
-                  <span className="min-w-0 flex-1">
-                    <b className="block truncate text-[17px] font-extrabold text-ink-900">
-                      {favourites.has(entry.id) && <span aria-hidden className="me-1 text-[13px]">❤</span>}
-                      <bdi>{entry.name}</bdi>
-                    </b>
-                    <small className="mt-0.5 block truncate text-[13.5px] text-ink-400">
-                      {totals && <>{t.rich('kmOnly', { ...RICH, km: kmText(totals.distanceM) })} · {t.rich('minShort', { ...RICH, min: Math.round(totals.durationSec / 60) })}</>}
-                      {entry.useCount > 0 && <> · {t.rich('uses', { ...RICH, count: entry.useCount })}</>}
-                    </small>
-                  </span>
-                  {model && <ProfileBar segments={profileBar(model, thresholdSec)} size="sm" />}
-                </button>
-              );
-            })}
+            {rows.filter(r => !recentIds.has(r.entry.id)).map(({ entry, model }) => (
+              <BookRow key={entry.id} entry={entry} model={model} thresholdSec={thresholdSec} fav={favourites.has(entry.id)} onPick={onPick} />
+            ))}
           </div>
         </>
       )}
     </FlowScreen>
+  );
+}
+
+/**
+ * One row of the book: the name with each number isolated LTR (the count left of the size on a
+ * Hebrew line), the size at this trainee's paces, then usage only when it says something
+ * ("שימשו 4 פעמים") — else the kind or when it was last used. ❤ at the row's end; the session
+ * drawn small, inside the row's padding.
+ */
+function BookRow({ entry, model, thresholdSec, fav, onPick }: {
+  entry: LibraryEntry; model: ReturnType<typeof fromLibrarySteps>; thresholdSec: number | null; fav: boolean; onPick: (e: LibraryEntry) => void;
+}) {
+  const t = useTranslations('workoutBook');
+  const totals = model ? bookTotals(model, thresholdSec) : null;
+  const last = entry.lastUsedAt ? `${entry.lastUsedAt.slice(8, 10)}.${entry.lastUsedAt.slice(5, 7)}` : null;
+  const extra = entry.useCount >= 2
+    ? t.rich('usedTimes', { ...RICH, count: entry.useCount })
+    : last ? <>{t('lastUsed')} <bdi dir="ltr">{last}</bdi></> : t(`kind.${entry.kind}`);
+  return (
+    <button type="button" onClick={() => onPick(entry)}
+      className="flex min-h-[64px] w-full items-center gap-3 border-b border-[#EFEFF4] px-4 py-3 text-start last:border-0">
+      <span className="min-w-0 flex-1">
+        <b className="block truncate text-[17px] font-extrabold text-ink-900"><NumberRuns text={entry.name} /></b>
+        <small className="mt-0.5 block truncate text-[13.5px] text-ink-400">
+          {totals && <>{t.rich('kmOnly', { ...RICH, km: kmText(totals.distanceM) })} · {t.rich('minShort', { ...RICH, min: Math.round(totals.durationSec / 60) })} · </>}
+          {extra}
+        </small>
+      </span>
+      {model && <ProfileBar segments={profileBar(model, thresholdSec)} size="sm" />}
+      {fav && <span aria-label={t('favourite')} className="shrink-0 text-[14px] text-[#E0245E]">❤</span>}
+    </button>
   );
 }

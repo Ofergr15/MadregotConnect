@@ -168,6 +168,9 @@ export async function PUT(request: Request) {
  * the reason it isn't a per-trainee edit. Migration 077 seeds the six bands with
  * no offset at all, so this endpoint is how they get their first real value.
  */
+/** A band's meaning is one line: "מרתון חזק עם רצון לסאב 3". */
+const BAND_DESCRIPTION_MAX = 120;
+
 export async function PATCH(request: Request) {
   try {
     const { denied } = await requireAcademyManager(request);
@@ -176,11 +179,18 @@ export async function PATCH(request: Request) {
     const body = await request.json().catch(() => ({}));
     const bandId = typeof body.bandId === 'string' ? body.bandId.trim() : '';
     if (!bandId) return NextResponse.json({ error: 'bandId is required' }, { status: 400 });
-    if (!Object.prototype.hasOwnProperty.call(body, 'offsetSeconds')) {
-      return NextResponse.json({ error: 'offsetSeconds is required; pass null to unset' }, { status: 400 });
+    const hasOffsetField = Object.prototype.hasOwnProperty.call(body, 'offsetSeconds');
+    const hasDescription = Object.prototype.hasOwnProperty.call(body, 'description');
+    if (!hasOffsetField && !hasDescription) {
+      return NextResponse.json({ error: 'offsetSeconds (null to unset) or description is required' }, { status: 400 });
     }
-    const offsetSeconds: number | null = body.offsetSeconds === null ? null : body.offsetSeconds;
-    if (offsetSeconds !== null && !isValidPaceOffset(offsetSeconds)) return badOffset();
+    const offsetSeconds: number | null = body.offsetSeconds === null || !hasOffsetField ? null : body.offsetSeconds;
+    if (hasOffsetField && offsetSeconds !== null && !isValidPaceOffset(offsetSeconds)) return badOffset();
+    // "מה זה אומר" — the band's meaning, shown as its second line everywhere (Ofer, 2026-10-20).
+    const description = typeof body.description === 'string' ? body.description.trim().slice(0, BAND_DESCRIPTION_MAX) : null;
+    if (hasDescription && body.description !== null && typeof body.description !== 'string') {
+      return NextResponse.json({ error: 'description must be a string or null' }, { status: 400 });
+    }
 
     const supabase = createServerClient();
     const { data: band, error } = await supabase
@@ -203,8 +213,14 @@ export async function PATCH(request: Request) {
     const profile: Record<string, unknown> = raw && typeof raw === 'object' && !Array.isArray(raw)
       ? { ...(raw as Record<string, unknown>) }
       : {};
-    if (offsetSeconds === null) delete profile.offsetSeconds;
-    else profile.offsetSeconds = offsetSeconds;
+    if (hasOffsetField) {
+      if (offsetSeconds === null) delete profile.offsetSeconds;
+      else profile.offsetSeconds = offsetSeconds;
+    }
+    if (hasDescription) {
+      if (description) profile.description = description;
+      else delete profile.description;
+    }
 
     const { error: writeErr } = await supabase
       .from('academy_bands')
@@ -215,7 +231,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
     }
 
-    return NextResponse.json({ bandId, name: band.name, offsetSeconds });
+    return NextResponse.json({ bandId, name: band.name, offsetSeconds: (profile.offsetSeconds as number | undefined) ?? null, description: (profile.description as string | undefined) ?? null });
   } catch (error: any) {
     console.error('Academy band pace update error:', error);
     return NextResponse.json({ error: error.message || 'Failed to save' }, { status: 500 });

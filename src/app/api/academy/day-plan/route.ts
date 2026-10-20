@@ -9,7 +9,7 @@ import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { laneForBand, lanesDiffer, type Lane } from '@/lib/academy/group-lane';
 import { pickSeniorDay, seniorFromWorkout } from '@/lib/academy/senior-pick';
 import {
-  allAcademyTraineeIds, loadClubWeek, loadLaneReferences, loadThresholds, loadTrainees, loadTraineeWeeks,
+  allAcademyTraineeIds, loadClubWeek, loadLaneReferences, loadThresholdSources, loadTrainees, loadTraineeWeeks,
   loadSeniorSeed,
 } from '@/lib/academy/book-server';
 import {
@@ -85,7 +85,7 @@ export async function GET(request: Request) {
 
     const [trainees, thresholds, weeks, club, refs, adjusts] = await Promise.all([
       loadTrainees(supabase, ids),
-      loadThresholds(supabase, ids),
+      loadThresholdSources(supabase, ids),
       loadTraineeWeeks(supabase, ids, weekStart),
       loadClubWeek(supabase, weekStart),
       loadLaneReferences(supabase),
@@ -100,7 +100,7 @@ export async function GET(request: Request) {
     const lane: Lane = asked === 1 || asked === 2 || asked === 3 ? asked : bandLane ?? 2;
     const senior = pickSeniorDay(club, lane, dayOfWeek, refs[lane]);
     const myWeek = weeks[athleteId] ?? { planId: null, workouts: [] };
-    const mine = resolveThreshold(thresholds[athleteId], me?.bandThresholdSec);
+    const mine = resolveThreshold(thresholds[athleteId]?.sec, me?.bandThresholdSec, thresholds[athleteId]?.source);
 
     const others = trainees
       .filter(t => t.id !== athleteId && t.isAcademy && t.active)
@@ -109,7 +109,7 @@ export async function GET(request: Request) {
         name: t.name,
         // No test: their band's own pace, when it has one (day-send.ts).
         ...(() => {
-          const r = resolveThreshold(thresholds[t.id], t.bandThresholdSec);
+          const r = resolveThreshold(thresholds[t.id]?.sec, t.bandThresholdSec, thresholds[t.id]?.source);
           return { thresholdSec: r.sec, paceBasis: r.basis };
         })(),
         paceAdjust: adjusts[t.id] ?? {},
@@ -130,7 +130,7 @@ export async function GET(request: Request) {
         lane,
         bandLane,
         thresholdSec: mine.sec,
-        // 'band' = no test yet, priced from the band; the screens say so.
+        // 'band' = no test yet, priced from the band; 'coach' = the coach's baseline. The screens say so.
         paceBasis: mine.basis,
         paceAdjust: adjusts[athleteId] ?? {},
         hasGarmin: !!me?.hasGarmin,
@@ -202,7 +202,7 @@ export async function POST(request: Request) {
 
     const [trainees, thresholds, weeks, settings, adjusts] = await Promise.all([
       loadTrainees(supabase, allowed),
-      loadThresholds(supabase, allowed),
+      loadThresholdSources(supabase, allowed),
       loadTraineeWeeks(supabase, allowed, weekStart),
       loadAcademySettings(),
       loadPaceAdjusts(supabase, allowed, weekStart),
@@ -212,7 +212,8 @@ export async function POST(request: Request) {
     const decisions = decideRecipients(allowed.map(id => ({
       id,
       isPrimary: id === recipients[0],
-      thresholdSec: thresholds[id] ?? null,
+      thresholdSec: thresholds[id]?.sec ?? null,
+      thresholdSource: thresholds[id]?.source ?? null,
       fallbackThresholdSec: byId.get(id)?.bandThresholdSec ?? null,
       hasWorkoutThatDay: hasWorkoutOn(weeks[id]?.workouts ?? [], dayOfWeek),
       isAcademy: !!byId.get(id)?.isAcademy,
@@ -285,7 +286,7 @@ export async function POST(request: Request) {
       if (!athlete?.garmin_auth) {
         // Saved anyway: their app and their adherence read the plan row, and a trainee on
         // Strava has a session to follow even with no watch to put it on.
-        results.push({ athleteId: decision.id, name: label, status: 'saved', ...(decision.basis === 'band' ? { paceBasis: 'band' as const } : {}) });
+        results.push({ athleteId: decision.id, name: label, status: 'saved', ...(decision.basis === 'band' || decision.basis === 'coach' ? { paceBasis: decision.basis } : {}) });
         told.push({ athleteId: decision.id, onWatch: false });
         // No watch told them, so the app does (launch BL8).
         await notifyPlanSaved({ athleteId: decision.id, actorId: caller.athleteId, date, days: 1, failedWatch: false });
@@ -308,7 +309,7 @@ export async function POST(request: Request) {
       });
       if (push.status === 'success') {
         await supabase.from('weekly_plans').update({ status: others ? 'partial' : 'pushed' }).eq('id', planId);
-        results.push({ athleteId: decision.id, name: label, status: 'sent', ...(decision.basis === 'band' ? { paceBasis: 'band' as const } : {}) });
+        results.push({ athleteId: decision.id, name: label, status: 'sent', ...(decision.basis === 'band' || decision.basis === 'coach' ? { paceBasis: decision.basis } : {}) });
         told.push({ athleteId: decision.id, onWatch: true });
       } else {
         await supabase.from('weekly_plans').update({ status: sentPlanStatus({ otherDays: others > 0, delivered: false }) }).eq('id', planId);

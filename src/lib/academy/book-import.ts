@@ -211,3 +211,18 @@ export function importSummary(candidates: ImportCandidate[]): Record<ImportStatu
   for (const c of candidates) out[c.status] += 1;
   return out;
 }
+
+/**
+ * Ticked to begin with in the manager's review: a new, saveable candidate — except the
+ * duplicate easy-run variants ("60 דקות קל (2)"): the same easy run under a second name is
+ * noise on the shelf (Ofer, 2026-10-20). They stay listed, one tap from ticked.
+ */
+export function importTickedByDefault(c: Pick<ImportCandidate, 'status' | 'saveable' | 'kind' | 'name'>): boolean {
+  if (c.status !== 'new' || !c.saveable) return false;
+  return !isDuplicateVariant(c);
+}
+
+/** "<name> (2)" — the importer's suffix for a second session under the same name. */
+export function isDuplicateVariant(c: Pick<ImportCandidate, 'kind' | 'name'>): boolean {
+  return c.kind === 'easy' && /\(\d+\)\s*$/.test(c.name.trim());
+}

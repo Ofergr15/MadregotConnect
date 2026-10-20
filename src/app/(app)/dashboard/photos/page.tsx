@@ -222,7 +222,7 @@ function FolderView({ id }: { id: string }) {
               {busy ? 'מכין…' : `⬇️ לשמור ${picked.length || ''} תמונות`}
             </button>
           </div>
-          <p className="mt-1.5 text-center text-12 text-ink-400">באייפון: "שמירת תמונות" בחלון השיתוף שומר אותן בתמונות</p>
+          <p className="mt-1.5 text-center text-12 text-ink-400">באייפון: ״שמירת תמונות״ בחלון השיתוף שומר אותן בתמונות</p>
         </div>
       )}
       {note && <p role="status" className="mt-3 text-center text-13 font-bold text-ink-700">{note}</p>}

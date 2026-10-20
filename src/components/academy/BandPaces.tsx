@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Spinner } from '@/components/ui';
 import {
-  MAX_PACE_OFFSET_SEC, MIN_PACE_OFFSET_SEC, fmtOffsetSec, sortBands, type AcademyBand,
+  MAX_PACE_OFFSET_SEC, MIN_PACE_OFFSET_SEC, bandMeaning, fmtOffsetSec, sortBands, type AcademyBand,
 } from '@/lib/academy/bands';
 
 // The academy's goal bands and the paces each one runs — the one setting that
@@ -130,7 +130,7 @@ export function BandPaces({
                 <div className="flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-ink-700 truncate">{b.name}</div>
-                    {b.goal && <div className="text-xs text-ink-400 truncate">{b.goal}</div>}
+                    <BandMeaning band={b} canEdit={canEdit} onChanged={onChanged} />
                   </div>
                   <div className="text-end shrink-0">
                     <div className={cn(
@@ -227,6 +227,55 @@ export function BandPaces({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The band's "מה זה אומר" line, and for the manager a ✎ that edits it in place (Ofer,
+ * 2026-10-20: the meaning goes next to every band, wherever one is picked or shown).
+ */
+function BandMeaning({ band, canEdit, onChanged }: { band: AcademyBand; canEdit: boolean; onChanged: () => void | Promise<void> }) {
+  const meaning = bandMeaning(band);
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(meaning ?? '');
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const save = async () => {
+    setBusy(true); setFailed(false);
+    try {
+      const res = await fetch('/api/academy/bands', {
+        method: 'PATCH', headers: await bearerHeaders(), body: JSON.stringify({ bandId: band.id, description: text.trim() || null }),
+      });
+      if (!res.ok) { setFailed(true); return; }
+      setEditing(false);
+      await onChanged();
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="min-w-0 truncate text-xs text-ink-400">{meaning || 'מה זה אומר — עוד לא נכתב'}</span>
+        {canEdit && (
+          <button type="button" aria-label="עריכת מה זה אומר" onClick={() => { setText(meaning ?? ''); setEditing(true); }}
+            className="-my-2 shrink-0 px-1.5 py-2 text-xs font-bold text-brand-600">✎</button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-1.5 space-y-1.5">
+      <input value={text} onChange={(e) => setText(e.target.value)} maxLength={120} dir="rtl" aria-label="מה זה אומר"
+        className="w-full rounded-xl border border-page bg-page px-3 min-h-[44px] text-sm text-ink-700 focus:border-brand-600 focus:outline-none" />
+      {failed && <p className="text-xs text-accent-red">לא נשמר — נסו שוב</p>}
+      <div className="flex gap-2">
+        <button type="button" onClick={() => void save()} disabled={busy} className="min-h-[40px] rounded-xl bg-brand-600 px-4 text-xs font-bold text-white disabled:opacity-60">{busy ? 'שומר…' : 'שמירה'}</button>
+        <button type="button" onClick={() => setEditing(false)} disabled={busy} className="min-h-[40px] rounded-xl bg-page px-3 text-xs font-bold text-ink-700">ביטול</button>
+      </div>
     </div>
   );
 }

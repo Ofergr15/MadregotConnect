@@ -3,7 +3,9 @@ import { createServerClient } from '@/lib/supabase/server';
 import { addDaysToDateStr, israelToday, planWeekStartOf } from '@/lib/utils';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { mayCoach } from '@/lib/academy/pairing-server';
-import { loadPlanBasis, loadThresholds } from '@/lib/academy/book-server';
+import { loadClubWeek, loadPlanBasis, loadThresholds, loadTrainees } from '@/lib/academy/book-server';
+import { extractWorkouts } from '@/lib/academy/report';
+import { laneForBand } from '@/lib/academy/group-lane';
 import { computeAcademyWeekAdherence } from '@/lib/academy/report';
 import { weekTotals } from '@/lib/academy/compliance';
 import { absoluteToLibrary, fromLibrarySteps, sessionSize, structureName } from '@/lib/academy/book-steps';
@@ -78,6 +80,7 @@ export async function GET(request: Request) {
 
     const supabase = createServerClient();
     const today = israelToday();
+    const canPlan = caller.athleteId !== athleteId && (caller.isStaff || caller.isSuperUser);
     // The loads of a run that has none stored yet are priced on the way (bounded, and
     // never written under view-as), as /api/academy/load does — one history, so the ⚡ tile
     // and the month's bars are the same numbers. A failure costs the ⚡, not the week.
@@ -288,7 +291,8 @@ export async function GET(request: Request) {
       feedGap: feedBroken(feeds.run) && (feedLostOn == null || weekEnd >= feedLostOn) ? feeds.run : null,
       joinedOn,
       // The coach plans from this screen; the trainee only reads it.
-      canPlan: caller.athleteId !== athleteId && (caller.isStaff || caller.isSuperUser),
+      canPlan,
+      ...(canPlan ? { groupDays: await groupDaysOf(supabase, athleteId, weekStart, referenceSec) } : {}),
     };
     return NextResponse.json(body);
   } catch (error) {
@@ -301,4 +305,29 @@ export async function GET(request: Request) {
 async function hasOwnWeek(supabase: ReturnType<typeof createServerClient>, athleteId: string, weekStart: string): Promise<boolean> {
   const { data, error } = await supabase.from('weekly_plans').select('id').eq('athlete_id', athleteId).eq('week_start_date', weekStart).limit(1);
   return error ? true : (data || []).length > 0;
+}
+
+/**
+ * The group's session of each day this week, in the trainee's lane (their band's, else lane 2),
+ * named the way the book names a structure; the club's own description when it has one.
+ * Never throws: a missing club week is an empty list.
+ */
+async function groupDaysOf(supabase: ReturnType<typeof createServerClient>, athleteId: string, weekStart: string, referenceSec: number): Promise<Array<{ date: string; name: string }>> {
+  try {
+    const [club, trainees] = await Promise.all([loadClubWeek(supabase, weekStart), loadTrainees(supabase, [athleteId])]);
+    if (!club) return [];
+    const lane = laneForBand(trainees[0]?.bandNumber) ?? 2;
+    const byDay = new Map<number, string[]>();
+    for (const w of extractWorkouts(club, lane)) {
+      if (typeof w?.dayOfWeek !== 'number' || !Array.isArray(w.steps) || !w.steps.length) continue;
+      const model = fromLibrarySteps(absoluteToLibrary(w.steps, referenceSec).steps);
+      const said = (w.description || '').trim();
+      const name = said && said.length <= 60 ? said : model ? structureName(model) : w.name;
+      byDay.set(w.dayOfWeek, [...(byDay.get(w.dayOfWeek) ?? []), name]);
+    }
+    return [...byDay.entries()].sort((a, b) => a[0] - b[0]).map(([d, names]) => ({ date: addDaysToDateStr(weekStart, d), name: names.join(' · ') }));
+  } catch (err) {
+    console.error('week-board group days failed:', err);
+    return [];
+  }
 }

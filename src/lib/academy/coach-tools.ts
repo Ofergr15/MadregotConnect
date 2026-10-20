@@ -31,9 +31,9 @@ import {
   ESTIMATE_THRESHOLD_SEC, absoluteToLibrary, bookTotals, effortFromZone, fromLibrarySteps, mainStepIndex,
   structureName, toLibrarySteps, toneOf, toneOfPct, type BookStep, type Length,
 } from './book-steps';
-import { resolveLibraryWorkout, type LibraryStep } from './library';
+import { ZONE_INTENSITY, resolveLibraryWorkout, type LibraryStep } from './library';
 import type { ComplianceColor } from './compliance';
-import { PACE_KINDS, kindShift, paceKindOf, type PaceAdjust, type PaceKind } from './pace-kinds';
+import { PACE_KINDS, kindShift, paceKindOf, type PaceAdjust, type PaceKind, type ZoneOverrides } from './pace-kinds';
 
 // ── Kinds ──────────────────────────────────────────────────────────────────────────────
 
@@ -264,7 +264,7 @@ export type DecisionKind = 'pace' | 'missed' | 'copy';
 export interface CoachDecision {
   athleteId: string;
   kind: DecisionKind;
-  /** pace: apply | half | snooze. missed: light | planned | repeat | talk. */
+  /** pace: apply | half | snooze | zones. missed: light | planned | repeat | talk. */
   action: string;
   basisTestDate: string | null;
   /** The plan week the decision takes effect from (pace) or is about (missed). */
@@ -294,7 +294,44 @@ export function activeAdjust(decisions: CoachDecision[], basisTestDate: string |
   let adjust: PaceAdjust = {};
   for (const d of live) adjust = addAdjust(adjust, cleanAdjust(d.changes ?? {}));
   const last = live[live.length - 1] ?? null;
-  return { adjust, fromWeek: last?.weekStart ?? null, last };
+  // The coach's manual zones (action 'zones'): the newest one against this basis is the whole
+  // set — "↺ חזרה למוצע" writes the set without that zone. A new test is a new basis, so its
+  // zones lapse with it (Ofer, 2026-10-20) — see `lapsedZones`.
+  const zoneRow = decisions
+    .filter(d => d.kind === 'pace' && d.action === ZONES_ACTION && !!basisTestDate && d.basisTestDate === basisTestDate)
+    .sort((x, y) => x.createdAt.localeCompare(y.createdAt))
+    .pop();
+  const zones = cleanZones(zoneRow?.changes?.zones);
+  if (Object.keys(zones).length) adjust = { ...adjust, zones };
+  const weeks = [last?.weekStart, zoneRow && Object.keys(zones).length ? zoneRow.weekStart : null].filter((w): w is string => !!w).sort();
+  return { adjust, fromWeek: weeks[0] ?? null, last };
+}
+
+/** The decision action that stores the coach's manual zone paces. */
+export const ZONES_ACTION = 'zones';
+
+/** Only real zones with a sane pace (2:30–10:00 /km), rounded. */
+export function cleanZones(zones: unknown): ZoneOverrides {
+  const out: ZoneOverrides = {};
+  if (!zones || typeof zones !== 'object') return out;
+  for (const [z, v] of Object.entries(zones as Record<string, unknown>)) {
+    if (z in ZONE_INTENSITY && typeof v === 'number' && v >= 150 && v <= 600) out[z] = Math.round(v);
+  }
+  return out;
+}
+
+/**
+ * Manual zones set against an OLDER basis than the current one: a new approved test replaced
+ * them. The coach's zone editor says so once ("הטסט החדש החליף את הקצבים שקבעת ביד").
+ */
+export function lapsedZones(decisions: CoachDecision[], basisTestDate: string | null): { since: string; zones: ZoneOverrides } | null {
+  const rows = decisions
+    .filter(d => d.kind === 'pace' && d.action === ZONES_ACTION && d.basisTestDate !== basisTestDate)
+    .sort((x, y) => x.createdAt.localeCompare(y.createdAt));
+  const last = rows.pop();
+  const zones = cleanZones(last?.changes?.zones);
+  if (!last || !Object.keys(zones).length || !basisTestDate) return null;
+  return { since: basisTestDate, zones };
 }
 
 /** "לא עכשיו" was said against this test, less than two weeks ago. */
@@ -341,13 +378,26 @@ function shiftStep(step: WorkoutStep, thresholdSec: number, target: PaceAdjust, 
  */
 export function applyPaceAdjust(workout: ParsedWorkout, thresholdSec: number | null, target: PaceAdjust): ParsedWorkout {
   if (!thresholdSec || !(thresholdSec > 0)) return workout;
-  const applied = cleanAdjust(workout.paceAdjust);
-  const goal = cleanAdjust(target);
-  if (PACE_KINDS.every(k => (applied[k] ?? 0) === (goal[k] ?? 0))) return workout;
+  // The coach's manual zones travel with the kinds (pace-kinds.ts): without them here, a zone
+  // set by hand was dropped by `cleanAdjust` and never reached the watch (release audit, 2026-10-20).
+  const withZones = (a: PaceAdjust | null | undefined): PaceAdjust => {
+    const kinds = cleanAdjust(a);
+    const zones = cleanZones(a?.zones);
+    return Object.keys(zones).length ? { ...kinds, zones } : kinds;
+  };
+  const applied = withZones(workout.paceAdjust);
+  const goal = withZones(target);
+  if (JSON.stringify(sortedAdjust(applied)) === JSON.stringify(sortedAdjust(goal))) return workout;
   const out: ParsedWorkout = { ...workout, steps: workout.steps.map(s => shiftStep(s, thresholdSec, goal, applied)) };
   if (Object.keys(goal).length) out.paceAdjust = goal;
   else delete out.paceAdjust;
   return out;
+}
+
+/** An adjust with its keys in one order, so two equal ones compare equal. */
+function sortedAdjust(a: PaceAdjust): unknown {
+  const zones = a.zones ? Object.fromEntries(Object.entries(a.zones).sort(([x], [y]) => x.localeCompare(y))) : undefined;
+  return { ...Object.fromEntries(PACE_KINDS.map(k => [k, a[k] ?? 0])), zones };
 }
 
 /** The main work's planned pace, sec/km — what a row's pace column shows. */

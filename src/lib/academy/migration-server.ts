@@ -36,7 +36,7 @@ export async function loadMigrationBoard(supabase: Db, today: string): Promise<M
   for (const a of ((ath.error ? [] : ath.data) || []) as Array<Record<string, any>>) {
     if (!a.is_academy) continue; // undone or removed since: not on the board
     const ts = testStateOf(testsBy.get(a.id) ?? [], today);
-    const test = ts.kind === 'ok' ? (ts.old ? 'none' : 'ok') : ts.kind === 'pending' ? 'pending' : ts.kind === 'otherProtocol' ? 'otherProtocol' : 'none';
+    const test = ts.kind === 'baseline' ? 'ok' : ts.kind === 'ok' ? (ts.old ? 'none' : 'ok') : ts.kind === 'pending' ? 'pending' : ts.kind === 'otherProtocol' ? 'otherProtocol' : 'none';
     const r = migrationRow({
       status: a.status ?? null,
       hasWatch: !!(a.garmin_auth || a.strava_auth),

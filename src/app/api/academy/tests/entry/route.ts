@@ -46,7 +46,7 @@ export async function GET(request: Request) {
     // next to it was the same request twice, in two different words.
     const show = test.kind === 'pending' ? 'pending'
       : invited ? 'none'
-        : test.kind === 'none' || test.kind === 'otherProtocol' || (test.kind === 'ok' && test.old) ? 'missing'
+        : test.kind === 'none' || test.kind === 'otherProtocol' || test.kind === 'baseline' || (test.kind === 'ok' && test.old) ? 'missing'
           : 'none';
     return NextResponse.json({
       isMember: true,

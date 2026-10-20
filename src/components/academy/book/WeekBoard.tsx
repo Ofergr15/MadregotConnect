@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useApi } from '@/lib/api';
+import { apiHeaders, useApi } from '@/lib/api';
 import { addDaysToDateStr, cn } from '@/lib/utils';
 import { COMPLIANCE_HEX, meterFraction } from '@/lib/academy/compliance';
 import { absoluteToLibrary, fromLibrarySteps, mainStepIndex, profileBar, type BookStep } from '@/lib/academy/book-steps';
@@ -78,6 +78,7 @@ export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed, 
   const [open, setOpen] = useState<WeekBoardWorkout | null>(null);
   const [planning, setPlanning] = useState<string | null>(null);
   const [copying, setCopying] = useState(false);
+  const [fromGroup, setFromGroup] = useState(false);
   const tt = useTranslations('academyTools.copy');
 
   const next = useMemo(() => data?.workouts.find(w => w.date >= data.today && w.compliance.color === 'grey' && !w.excuse) ?? null, [data]);
@@ -192,6 +193,19 @@ export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed, 
         </>
       )}
 
+      {data.canPlan && (data.groupDays?.length ?? 0) > 0 && (
+        <GroupWeek
+          athleteId={athleteId}
+          weekStart={weekStart}
+          days={data.groupDays!}
+          today={data.today}
+          name={data.athlete.name.split(' ')[0]}
+          replaces={!data.fromClub && data.workouts.length > 0}
+          onTake={(d) => { setFromGroup(true); setPlanning(d); }}
+          onDone={() => void mutate()}
+        />
+      )}
+
       {data.canPlan && emptyDays.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <span className="text-13 font-bold text-ink-400">{t('addOn')}</span>
@@ -227,8 +241,9 @@ export function WeekBoard({ athleteId, initialWeek, openDate, onView, onClosed, 
         <DayPlanner
           athleteId={athleteId}
           date={planning}
-          onClose={() => setPlanning(null)}
+          onClose={() => { setPlanning(null); setFromGroup(false); }}
           onDone={() => void mutate()}
+          fromGroup={fromGroup}
         />
       )}
     </div>
@@ -309,5 +324,75 @@ function WeekCard({ w, today, thresholdSec, referenceSec, isNext, onOpen }: {
         {isNext && model && <ProfileBar segments={profileBar(model, thresholdSec)} height={20} className="mt-2" />}
       </span>
     </button>
+  );
+}
+
+/**
+ * The group's week under the trainee's (Ofer, 2026-10-20): each day's group session as a quiet
+ * line with "לקחת את של הקבוצה ולהתאים" (the day planner opens on it, at the trainee's paces),
+ * and "שבוע שלם מהקבוצה" — the whole group week written as the trainee's own, re-paced, after
+ * which the coach edits single days (copy-week, fromClub).
+ */
+function GroupWeek({ athleteId, weekStart, days, today, name, replaces, onTake, onDone }: {
+  athleteId: string; weekStart: string; days: Array<{ date: string; name: string }>; today: string; name: string;
+  replaces: boolean; onTake: (date: string) => void; onDone: () => void;
+}) {
+  const t = useTranslations('workoutBook');
+  const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const copyAll = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch('/api/academy/copy-week', {
+        method: 'POST', headers: await apiHeaders(true),
+        body: JSON.stringify({ fromClub: true, athleteId, weekStart, send: true }),
+      });
+      const body = await res.json().catch(() => ({}));
+      const r = body?.results?.[0];
+      setMsg(res.ok && r && r.status !== 'failed' ? `השבוע של הקבוצה נכתב ל־${name} — אפשר לערוך כל יום` : 'לא הצליח — נסו שוב');
+      setConfirm(false);
+      if (res.ok) onDone();
+    } catch {
+      setMsg('לא הצליח — נסו שוב');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="rounded-[18px] bg-white px-4 py-3 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <b className="text-[15px] text-ink-900">השבוע של הקבוצה</b>
+        <button type="button" disabled={busy} onClick={() => (replaces ? setConfirm(true) : void copyAll())}
+          className="min-h-[40px] shrink-0 rounded-full bg-[#F3EEFF] px-3.5 text-[13px] font-extrabold text-[#7C3AED] disabled:opacity-60">
+          ⧉ שבוע שלם מהקבוצה
+        </button>
+      </div>
+      {confirm && (
+        <div className="mt-2 rounded-xl bg-[#FDF0E2] px-3 py-2.5 text-[13px] font-bold text-[#8A4308]">
+          זה מחליף את השבוע ש־{name} כבר קיבל/ה.
+          <div className="mt-2 flex gap-2">
+            <button type="button" disabled={busy} onClick={() => void copyAll()} className="min-h-[40px] rounded-xl bg-brand-600 px-4 text-[13px] font-extrabold text-white">{busy ? '…' : 'להחליף'}</button>
+            <button type="button" onClick={() => setConfirm(false)} className="min-h-[40px] rounded-xl bg-white px-3 text-[13px] font-extrabold text-ink-700">ביטול</button>
+          </div>
+        </div>
+      )}
+      {msg && <p className="mt-2 text-[12.5px] font-bold text-ink-500">{msg}</p>}
+      <div className="mt-1 divide-y divide-page">
+        {days.map((d) => (
+          <div key={d.date} className="flex min-h-[52px] items-center gap-3 py-1.5">
+            <span className="w-10 shrink-0 text-center text-[13px] font-extrabold text-ink-700">
+              {t(`dayShort.${WEEKDAY_KEYS[new Date(`${d.date}T12:00:00Z`).getUTCDay()]}`)}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[13px] text-ink-400" dir="auto">{d.name}</span>
+            {d.date >= today && (
+              <button type="button" onClick={() => onTake(d.date)} className="min-h-[44px] shrink-0 text-[12.5px] font-extrabold text-brand-600">
+                לקחת ולהתאים ›
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

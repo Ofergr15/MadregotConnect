@@ -43,6 +43,18 @@ export interface BandPaceProfile {
    * than inventing a mapping a coach could not tell apart from the club's own.
    */
   thresholdPaceSec?: number;
+  /** "מה זה אומר" — the band's meaning, editable by the manager (Ofer, 2026-10-20). */
+  description?: string;
+}
+
+/**
+ * The one line under a band's name: the manager's "מה זה אומר", else the goal the band was
+ * created with (the registration form's words). Null when neither is there.
+ */
+export function bandMeaning(band: { goal?: string | null; paceProfile?: BandPaceProfile | null } | null | undefined): string | null {
+  const d = band?.paceProfile?.description;
+  if (typeof d === 'string' && d.trim()) return d.trim();
+  return band?.goal?.trim() || null;
 }
 
 /** A goal band as the API returns it. */

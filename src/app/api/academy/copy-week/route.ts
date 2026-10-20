@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { israelToday, planWeekStartOf } from '@/lib/utils';
 import { requireTraineeAccess, visibleTraineeIds } from '@/lib/academy/pairing-server';
-import { allAcademyTraineeIds, loadTrainees, loadTraineeWeeks } from '@/lib/academy/book-server';
+import { allAcademyTraineeIds, loadSeniorSeed, loadTrainees, loadTraineeWeeks } from '@/lib/academy/book-server';
 import {
   PROGRESSIONS, activeAdjust, copyWeek, targetWeeks, type Progression,
 } from '@/lib/academy/coach-tools';
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
     const me = trainees.find(t => t.id === athleteId);
     // The test, else the band's own pace (day-send.ts) — the same rule day-plan prices by.
     const priced = (t: { id: string; bandThresholdSec: number | null } | undefined, id: string) =>
-      resolveThreshold(basis[id]?.thresholdSec, t?.bandThresholdSec);
+      resolveThreshold(basis[id]?.thresholdSec, t?.bandThresholdSec, basis[id]?.source);
     const candidates = trainees
       .filter(t => t.id === athleteId || (t.isAcademy && t.active))
       .map(t => ({
@@ -100,6 +100,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
+    if (body?.fromClub === true) return await copyClubWeek(request, body);
     const sourceId = typeof body?.sourceAthleteId === 'string' ? body.sourceAthleteId.trim() : '';
     const sourceWeek = typeof body?.sourceWeek === 'string' && DATE.test(body.sourceWeek) ? planWeekStartOf(body.sourceWeek) : '';
     const n = Math.max(1, Math.min(4, Number(body?.weeks) || 1));
@@ -135,7 +136,7 @@ export async function POST(request: Request) {
     if (!workouts.length) return NextResponse.json({ error: 'empty-source' }, { status: 409 });
     const byId = new Map(trainees.map(t => [t.id, t]));
 
-    const priced = (id: string) => resolveThreshold(basis[id]?.thresholdSec, byId.get(id)?.bandThresholdSec);
+    const priced = (id: string) => resolveThreshold(basis[id]?.thresholdSec, byId.get(id)?.bandThresholdSec, basis[id]?.source);
     const results: Array<WeekWriteResult & { name: string; paced: boolean; paceBasis?: PaceBasis }> = [];
     for (const id of recipients) {
       const t = byId.get(id);
@@ -186,4 +187,37 @@ export async function POST(request: Request) {
     console.error('copy-week POST error:', error);
     return NextResponse.json({ error: 'Failed to copy the week' }, { status: 500 });
   }
+}
+
+/**
+ * "שבוע שלם מהקבוצה" (Ofer, 2026-10-20): the club's week for this trainee's lane, restated to
+ * THEIR threshold (loadSeniorSeed — the same seed a single day uses), with their pace update and
+ * manual zones on top, written as their own week. The coach then edits single days.
+ *   POST { fromClub: true, athleteId, weekStart, send }
+ */
+async function copyClubWeek(request: Request, body: { athleteId?: unknown; weekStart?: unknown; send?: unknown }) {
+  const athleteId = typeof body.athleteId === 'string' ? body.athleteId.trim() : '';
+  const weekStart = typeof body.weekStart === 'string' && DATE.test(body.weekStart) ? planWeekStartOf(body.weekStart) : '';
+  if (!athleteId || !weekStart) return NextResponse.json({ error: 'athleteId and weekStart are required' }, { status: 400 });
+  const { denied, caller } = await requireTraineeAccess(request, athleteId);
+  if (denied) return denied;
+  const supabase = createServerClient();
+  const [trainees, basis, decisions] = await Promise.all([
+    loadTrainees(supabase, [athleteId]),
+    loadTestBasis(supabase, [athleteId]),
+    loadDecisions(supabase, [athleteId]),
+  ]);
+  const target = resolveThreshold(basis[athleteId]?.thresholdSec, trainees[0]?.bandThresholdSec, basis[athleteId]?.source);
+  const seed = await loadSeniorSeed(supabase, athleteId, weekStart, target.sec);
+  if (!seed.length) return NextResponse.json({ error: 'no-club-week' }, { status: 409 });
+  const adjust = activeAdjust(decisions.rows, basis[athleteId]?.testDate ?? null).adjust;
+  const copied = copyWeek({ workouts: seed, sourceThresholdSec: target.sec, targetThresholdSec: target.sec, targetAdjust: adjust, sameTrainee: false, mode: 'same' });
+  const open = new Set(daysFrom(weekStart, israelToday()));
+  const res = await writeWeek(supabase, {
+    athleteId,
+    weekStart,
+    workouts: markBandPriced(copied, target.basis),
+    pushDays: body.send !== false ? copied.map(c => c.workout.dayOfWeek).filter(d => open.has(d)) : [],
+  }, { cleanDayOnce: caller.isSuperUser });
+  return NextResponse.json({ results: [{ ...res, name: trainees[0]?.name ?? '', paced: copied.every(c => c.paced), ...(target.basis === 'band' || target.basis === 'coach' ? { paceBasis: target.basis } : {}) }] });
 }
