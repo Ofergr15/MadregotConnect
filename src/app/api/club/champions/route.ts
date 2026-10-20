@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { israelToday } from '@/lib/utils';
-import { readResults } from '@/lib/champions/server';
+import { readResults, readSuggestions } from '@/lib/champions/server';
 import { CHAMP_DISTANCES, board, type ChampScope, type ChampSex } from '@/lib/champions/table';
 
 export const dynamic = 'force-dynamic';
@@ -23,5 +23,12 @@ export async function GET(request: Request) {
     for (const sex of ['men', 'women', 'all'] as ChampSex[])
       for (const scope of ['year', 'all'] as ChampScope[])
         boards[`${distance}:${sex}:${scope}`] = board(rows, { distance, sex, scope, today, viewerId: caller.athleteId });
-  return NextResponse.json({ ready, today, boards, canManage: caller.isStaff || caller.isSuperUser });
+  const canManage = caller.isStaff || caller.isSuperUser;
+  // Staff see how many race-day runs wait for them — every result goes through approval.
+  let pending = 0;
+  if (canManage && ready) {
+    const { data: used } = await db.from('race_results').select('activity_id').not('activity_id', 'is', null);
+    pending = (await readSuggestions(db, new Set(((used || []) as { activity_id: string }[]).map((r) => r.activity_id))).catch(() => [])).length;
+  }
+  return NextResponse.json({ ready, today, boards, canManage, pending });
 }

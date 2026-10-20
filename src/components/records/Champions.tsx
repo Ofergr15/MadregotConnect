@@ -26,7 +26,7 @@ function Pack({ n }: { n: number | null }) {
 }
 
 export function Champions() {
-  const { data, mutate } = useApi<{ ready: boolean; boards: Record<string, Board>; canManage: boolean }>('/api/club/champions');
+  const { data, mutate } = useApi<{ ready: boolean; boards: Record<string, Board>; canManage: boolean; pending?: number }>('/api/club/champions');
   const [distance, setDistance] = useState<ChampDistance>('half');
   const [sex, setSex] = useState<ChampSex>('men');
   const [scope, setScope] = useState<ChampScope>('all');
@@ -46,7 +46,10 @@ export function Champions() {
             <p className="text-[12.5px] opacity-80">הזמנים הרשמיים הכי טובים במועדון, ממרוצים</p>
           </span>
           {data.canManage && (
-            <button type="button" onClick={() => setManaging(true)} className="min-h-[34px] shrink-0 rounded-full bg-white/15 px-3 text-[12.5px] font-bold">ניהול</button>
+            <button type="button" onClick={() => setManaging(true)} className="relative min-h-[34px] shrink-0 rounded-full bg-white/15 px-3 text-[12.5px] font-bold">
+              ניהול
+              {!!data.pending && <span className="absolute -end-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#FF3B30] px-1 text-[11px] font-extrabold" aria-label={`${data.pending} מחכים לאישור`}>{data.pending}</span>}
+            </button>
           )}
         </div>
         <div className="mt-3 flex gap-1 rounded-[12px] bg-white/15 p-[3px]" role="tablist">
@@ -188,20 +191,26 @@ function ManageSheet({ open, onOpenChange, onChanged }: { open: boolean; onOpenC
 
         {(data?.suggestions.length ?? 0) > 0 && (
           <div>
-            <b className="block px-1 text-13 text-ink-400">מהשעון, ביום מרוץ · לאשר עם הזמן הרשמי</b>
-            {data!.suggestions.slice(0, 30).map((s) => <SuggestionRow key={s.activityId} s={s} busy={busy} onAdd={(sec) => add({ ...s, seconds: sec })} />)}
+            <div className="flex items-center justify-between gap-2 px-1">
+              <b className="text-13 text-ink-400">מחכים לאישור · מהשעון, ביום מרוץ</b>
+              <button type="button" disabled={busy}
+                onClick={() => void call('POST', { bulk: data!.suggestions.map((s) => ({ ...s, seconds: s.watchSeconds })) }).then((ok) => ok && setMsg(`אושרו ${data!.suggestions.length}. אפשר לערוך כל אחד למטה`))}
+                className="min-h-[36px] rounded-full bg-[#1525FF] px-3 text-13 font-extrabold text-white">לאשר את כל {data!.suggestions.length}</button>
+            </div>
+            {data!.suggestions.slice(0, 40).map((s) => (
+              <SuggestionRow key={s.activityId} s={s} busy={busy} onAdd={(sec) => add({ ...s, seconds: sec })}
+                onReject={() => void call('POST', { bulk: [{ ...s, seconds: s.watchSeconds, rejected: true }] }).then((ok) => ok && setMsg('לא נכנס לטבלה'))} />
+            ))}
           </div>
         )}
 
         {(data?.results.length ?? 0) > 0 && (
           <div>
             <b className="block px-1 text-13 text-ink-400">בטבלה</b>
-            {data!.results.slice(0, 60).map((r) => (
-              <div key={r.id} className="flex min-h-[48px] items-center gap-2 border-b border-page px-1 text-[14px]">
-                <span className="min-w-0 flex-1 truncate" dir="auto">{r.name} · {DISTANCE_LABEL[r.distance]} · {r.raceName || ''} {dm(r.raceDate)}</span>
-                <span dir="ltr" className="font-bold tabular-nums">{fmtRaceTime(r.seconds)}</span>
-                <button type="button" disabled={busy} onClick={() => void call('DELETE', undefined, `?id=${r.id}`)} className="min-h-[40px] px-2 text-13 font-bold text-accent-red-ink">להסיר</button>
-              </div>
+            {data!.results.slice(0, 200).map((r) => (
+              <ResultEdit key={r.id} r={r} busy={busy}
+                onSave={(patch) => call('PATCH', { id: r.id, ...patch })}
+                onCancel={() => call('DELETE', undefined, `?id=${r.id}`)} />
             ))}
           </div>
         )}
@@ -210,7 +219,43 @@ function ManageSheet({ open, onOpenChange, onChanged }: { open: boolean; onOpenC
   );
 }
 
-function SuggestionRow({ s, busy, onAdd }: { s: Suggestion; busy: boolean; onAdd: (seconds: number | null) => Promise<boolean> }) {
+/** One result in the table: the line, and ✏️ opens the admin's edit — time, distance, race, date — or cancel. */
+function ResultEdit({ r, busy, onSave, onCancel }: { r: ResultRow; busy: boolean; onSave: (p: Record<string, unknown>) => Promise<boolean>; onCancel: () => Promise<boolean> }) {
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ time: fmtRaceTime(r.seconds), distance: r.distance, raceName: r.raceName || '', raceDate: r.raceDate });
+  return (
+    <div className="border-b border-page">
+      <div className="flex min-h-[48px] items-center gap-2 px-1 text-[14px]">
+        <span className="min-w-0 flex-1 truncate" dir="auto">{r.name} · {DISTANCE_LABEL[r.distance]} · {r.raceName || ''} {dm(r.raceDate)}</span>
+        <span dir="ltr" className="font-bold tabular-nums">{fmtRaceTime(r.seconds)}</span>
+        <button type="button" onClick={() => setOpen(!open)} aria-label="עריכה" className="min-h-[40px] px-2 text-13 font-bold text-[#1525FF]">{open ? 'סגירה' : '✏️ עריכה'}</button>
+      </div>
+      {open && (
+        <div className="space-y-2 rounded-[14px] bg-page p-2.5">
+          <div className="flex gap-1">
+            {CHAMP_DISTANCES.map((d) => (
+              <button key={d} type="button" aria-pressed={f.distance === d} onClick={() => setF({ ...f, distance: d })}
+                className={cn('min-h-[34px] flex-1 rounded-full text-13 font-bold', f.distance === d ? 'bg-ink-900 text-white' : 'bg-white text-ink-600')}>{DISTANCE_LABEL[d]}</button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <input value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} dir="ltr" inputMode="numeric" aria-label="זמן רשמי" className="min-h-[42px] rounded-xl bg-white px-3 text-base" />
+            <input type="date" value={f.raceDate} onChange={(e) => setF({ ...f, raceDate: e.target.value })} dir="ltr" aria-label="תאריך" className="min-h-[42px] rounded-xl bg-white px-3 text-base" />
+          </div>
+          <input value={f.raceName} onChange={(e) => setF({ ...f, raceName: e.target.value })} placeholder="מרוץ" aria-label="מרוץ" className="min-h-[42px] w-full rounded-xl bg-white px-3 text-base" />
+          <div className="flex gap-2">
+            <button type="button" disabled={busy || !parseRaceTime(f.time)}
+              onClick={async () => { if (await onSave({ seconds: parseRaceTime(f.time), distance: f.distance, raceName: f.raceName, raceDate: f.raceDate })) setOpen(false); }}
+              className="min-h-[42px] flex-1 rounded-xl bg-[#1525FF] text-[14px] font-extrabold text-white disabled:opacity-50">שמירה</button>
+            <button type="button" disabled={busy} onClick={() => void onCancel()} className="min-h-[42px] flex-1 rounded-xl bg-white text-[14px] font-extrabold text-accent-red-ink">לבטל את התוצאה</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SuggestionRow({ s, busy, onAdd, onReject }: { s: Suggestion; busy: boolean; onAdd: (seconds: number | null) => Promise<boolean>; onReject: () => void }) {
   const [time, setTime] = useState(fmtRaceTime(s.watchSeconds));
   return (
     <div className="mt-1.5 rounded-[14px] bg-page px-3 py-2">
@@ -221,6 +266,7 @@ function SuggestionRow({ s, busy, onAdd }: { s: Suggestion; busy: boolean; onAdd
       <div className="mt-1.5 flex gap-2">
         <input value={time} onChange={(e) => setTime(e.target.value)} dir="ltr" inputMode="numeric" aria-label="זמן רשמי" className="min-h-[40px] min-w-0 flex-1 rounded-xl bg-white px-3 text-base" />
         <button type="button" disabled={busy} onClick={() => void onAdd(parseRaceTime(time))} className="min-h-[40px] rounded-xl bg-ink-900 px-3 text-13 font-bold text-white">לאשר</button>
+        <button type="button" disabled={busy} onClick={onReject} className="min-h-[40px] rounded-xl bg-white px-3 text-13 font-bold text-ink-500">לא</button>
       </div>
       <small className="mt-1 block text-[11.5px] text-ink-400">בשעון: {fmtRaceTime(s.watchSeconds)} — לתקן לזמן הרשמי לפני האישור</small>
     </div>
