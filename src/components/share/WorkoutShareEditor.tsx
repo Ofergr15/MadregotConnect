@@ -22,7 +22,7 @@ import {
 import type { FeedItem } from '@/lib/feed/project';
 import { fetchActivityDetails } from '@/lib/activities-client';
 import type { HrTrace } from '@/lib/share/hr-trace';
-import type { PlanSegment } from '@/lib/share/plan-segments';
+import { workoutHeadline, type PlanSegment } from '@/lib/share/plan-segments';
 import { fitLook, lookRenderOptions, type WorkoutBackground, type WorkoutLook } from '@/lib/share/workout-look';
 
 /**
@@ -194,6 +194,12 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
   const [template, setTemplate] = useState<ShareTemplate>(() => seed?.template ?? defaultTemplate(subject));
   useEffect(() => { setShelf(isStickerTemplate(template) ? 'stickers' : 'cards'); }, [template]);
   const [keys, setKeys] = useState<string[]>(() => seed?.keys ?? defaultChipKeys(subject, defaultTemplate(subject)));
+  // The reps-on-target number needs the route's steps (the feed's cut has no targets), so
+  // the opening numbers are picked again when they come — unless the athlete already chose.
+  const keysChosen = useRef(!!seed?.keys);
+  useEffect(() => {
+    if (steps && !keysChosen.current) setKeys(defaultChipKeys(subject, template));
+  }, [steps]); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the steps arrive
   const [cardLang, setCardLang] = useState<ShareCardLang>(seed?.cardLang ?? (rtl ? 'he' : 'en'));
   const [showTitle, setShowTitle] = useState(seed?.showTitle ?? true);
   const [showStartTime, setShowStartTime] = useState(seed?.showStartTime ?? false);
@@ -234,7 +240,10 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
   const [mounted, setMounted] = useState(false);
 
   const i18n = WORKOUT_CARD_TEXT[cardLang];
-  const titleText = typedTitle ?? localizeDefaultName(originalTitle, cardLang);
+  // A workout the watch ran opens titled by what was run ("10 × 1600"), not by the plan's
+  // day the watch named it after; typing over it, or reset, works as before.
+  const headline = useMemo(() => workoutHeadline(item.activity?.stepBands), [item]);
+  const titleText = typedTitle ?? headline?.title ?? localizeDefaultName(originalTitle, cardLang);
   const drawn = drawnTemplate(template, { routeOnly, withPhoto: bg === 'photo' && !!photo });
   const chips = useMemo(() => shareChips(subject, i18n, cardLang), [subject, i18n, cardLang]);
   const capacity = frameCapacity(subject, drawn);
@@ -251,7 +260,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
   const accentOk = supportsAccent(subject, drawn);
   const photoOk = bg === 'photo' && supportsPhoto(drawn);
   // 'minimal' has never drawn a title, so it offers none to edit.
-  const titleOk = !!originalTitle && template !== 'minimal';
+  const titleOk = (!!originalTitle || !!headline) && template !== 'minimal';
   const dateOk = template === 'splits';
   const startOk = template === 'classic' || template === 'card';
   const shownBrand = brand ?? viewBrand(template);
@@ -605,6 +614,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
         : undefined;
       const target = over?.dataset.chip;
       if (target && target !== key) {
+        keysChosen.current = true;
         setKeys(prev => {
           const next = prev.filter(k => k !== key);
           next.splice(prev.indexOf(target), 0, key);
@@ -682,7 +692,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook
                       key={chip.key}
                       data-chip={on ? chip.key : undefined}
                       onPointerDown={on ? e => startChipDrag(chip.key, e) : undefined}
-                      onClick={() => { if (!chipDragged.current) setKeys(prev => toggleChip(prev, chip.key, capacity)); }}
+                      onClick={() => { if (!chipDragged.current) { keysChosen.current = true; setKeys(prev => toggleChip(prev, chip.key, capacity)); } }}
                       disabled={blocked}
                       aria-pressed={on}
                       className={cn(

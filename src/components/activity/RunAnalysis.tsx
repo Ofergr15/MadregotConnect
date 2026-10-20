@@ -25,7 +25,7 @@ export interface RunAnalysisData {
   linked: { id: string; start: string; km: number; after: boolean } | null;
   similar: Array<{ id: string; date: string; title: string; avgPace: number }>;
   efforts: Array<{ key: string; meters: number; seconds: number; start: number; rep: number | null }>;
-  prs: Record<string, { seconds: number; date: string } | null>;
+  prs: Record<string, { seconds: number; date: string | null } | null>;
   recovery: Array<{ rep: number; from: number; to: number }>;
   technique: Array<{ rep: number; cadence: number; stride: number }>;
   conditions: { tempC: number; dewC: number; humidity: number; feelsC: number | null; costSec: number } | null;

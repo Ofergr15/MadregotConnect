@@ -184,7 +184,7 @@ describe('the editor', () => {
   it('keeps the old sheet\'s rules: the drawn view, a fresh logo per view, the title', () => {
     expect(EDITOR).toMatch(/const drawn = drawnTemplate\(template, \{ routeOnly, withPhoto: bg === 'photo' && !!photo \}\)/);
     expect(EDITOR).toMatch(/setTemplate\(next\);\s*setBrand\(null\);/);
-    expect(EDITOR).toMatch(/const titleText = typedTitle \?\? localizeDefaultName\(originalTitle, cardLang\)/);
+    expect(EDITOR).toMatch(/const titleText = typedTitle \?\? headline\?\.title \?\? localizeDefaultName\(originalTitle, cardLang\)/);
     expect(EDITOR).toMatch(/onClick=\{\(\) => setTypedTitle\(null\)\}/);
     expect(EDITOR).toMatch(/const capacity = frameCapacity\(subject, drawn\)/);
   });

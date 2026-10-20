@@ -154,3 +154,36 @@ export function withTargets(segments: PlanSegment[], workout: ExecutedWorkout | 
 export function onTarget(seg: Pick<PlanSegment, 'pace' | 'target'>): boolean {
   return seg.target != null && seg.pace <= seg.target.max + 3;
 }
+
+/**
+ * THE WORKOUT'S NAME AND SCORE, FOR THE CARD (mockup ~/.cache/madregot/open-tasks.html, Ofer
+ * 2026-10-20). The watch names a planned run after the plan's day ("שלישי"), which says
+ * nothing on a story; the card opens on what was run — "10 × 1600" — and offers "9/10 on
+ * target" and the reps' average pace as numbers. The reps are the work blocks of the length
+ * that repeats most, so a 2 km tempo out and back does not turn "10 × 1600" into "12 × …".
+ */
+export interface WorkoutHeadline { title: string; reps: number; hit: number | null; repPace: number }
+
+export function workoutHeadline(segments: PlanSegment[] | null | undefined): WorkoutHeadline | null {
+  const active = (segments ?? []).filter(s => s.kind === 'active' && s.m >= 100);
+  const byLen = new Map<number, PlanSegment[]>();
+  for (const s of active) {
+    const k = s.m >= 1000 ? Math.round(s.m / 100) * 100 : Math.round(s.m / 50) * 50;
+    byLen.set(k, [...(byLen.get(k) ?? []), s]);
+  }
+  const [len, full] = [...byLen].sort((a, b) => b[1].length - a[1].length || b[0] - a[0])[0] ?? [0, []];
+  if (full.length < 2) return null;
+  // The watch stopped inside the last rep (Ofer's 10 × 1600 of 2026-10-20 ended at 1,143 m):
+  // it was still a rep of the session, so it is named and scored with the others.
+  const last = active[active.length - 1];
+  const reps = last && !full.includes(last) && last.m >= len * 0.6 && last.m < len && last === (segments ?? []).filter(s => s.kind !== 'free' || s.m >= 100).at(-1) ? [...full, last] : full;
+  const sec = reps.reduce((a, r) => a + r.pace * r.m / 1000, 0);
+  const m = reps.reduce((a, r) => a + r.m, 0);
+  const scored = reps.filter(r => r.target);
+  return {
+    title: `${reps.length} × ${len >= 3000 && len % 1000 === 0 ? `${len / 1000}K` : len}`,
+    reps: reps.length,
+    hit: scored.length === reps.length ? reps.filter(onTarget).length : null,
+    repPace: Math.round(sec / (m / 1000)),
+  };
+}

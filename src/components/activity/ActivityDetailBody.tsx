@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { MapPin, RefreshCw, Sparkles } from 'lucide-react';
 import { PlannedKmPoint } from '@/lib/academy/segments';
@@ -14,7 +14,7 @@ import { RouteMap } from './RouteMap';
 import { BestEfforts, Conditions, Times, KmSplitsList, PaceHrScatter, RecoveryChart, RepsDetail, TechniqueChart, WorkoutCard, ZoneBars, useRunAnalysis } from './RunAnalysis';
 import { RunCharts, type RunPhase } from './RunCharts';
 import { HrZones, KmSplits, Laps, Section, StatGrid, lapsAreKm, type StatCell } from './RunSections';
-import { useActivityStream } from './useActivityStream';
+import { minutesSinceEnd, STREAM_WAIT_MIN, useActivityStream } from './useActivityStream';
 import { MetricCards, RepsVsTarget } from './MetricCards';
 import type { ActivityDetailsData, ActivityEntry } from './types';
 
@@ -110,9 +110,13 @@ export function ActivityDetailBody({
 
   // The 1 Hz trace, when the run has one. Everything below draws from it first and
   // from the splits otherwise.
-  const { data: trace } = useActivityStream(act.id);
+  const ago = minutesSinceEnd(act.start_time, act.duration);
+  const { data: trace } = useActivityStream(act.id, ago != null && ago >= -5 && ago < STREAM_WAIT_MIN);
   // The workout the watch ran, the efforts, the weather — /api/activities/analysis (RunAnalysis.tsx).
-  const { data: an } = useRunAnalysis(mapOnly ? null : act.id);
+  const { data: an, mutate: reAnalyse } = useRunAnalysis(mapOnly ? null : act.id);
+  // Read again once a late trace lands: the efforts, recoveries and cadence come from it.
+  const traced = !!trace?.stream;
+  useEffect(() => { if (traced && an && !an.recovery?.length && !an.efforts?.length) void reAnalyse(); }, [traced]); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the trace lands
   const repBands = useMemo(() => {
     const v = trace?.stream; const w = an?.workout;
     if (!v || !w) return null;

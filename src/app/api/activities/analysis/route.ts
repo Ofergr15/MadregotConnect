@@ -20,12 +20,18 @@ import { normalizeStoredLaps } from '@/lib/garmin/laps';
 import { mayViewHrTrace, readHrTracePublic } from '@/lib/athletes/hr-trace-privacy';
 import { COACH_ID } from '@/lib/constants';
 import { paceGroupKeyFor } from '@/lib/plans/pace-group';
+import { fetchAllRows } from '@/lib/supabase/paginate';
+import { computeDistanceBests, filterQualifyingRuns, type RunActivityRow } from '@/lib/prs/pr-buckets';
+import { attachLapsForPrs } from '@/lib/prs/attach-laps';
+import { applyPrOverrides } from '@/lib/prs/overrides';
+import { readPrOverrides } from '@/lib/prs/overrides-store';
+import { readPrExclusions } from '@/lib/prs/exclusions-store';
 import { bestEffort, heatCostSec, readWorkout, recoveries, technique, type WStep } from '@/lib/run-analysis/workout';
 
 export const dynamic = 'force-dynamic';
 
 const EFFORTS: Array<[string, number]> = [['400', 400], ['1k', 1000], ['mile', 1609], ['5k', 5000], ['10k', 10000]];
-const PR_RANGE: Record<string, [number, number]> = { '5k': [4950, 5300], '10k': [9900, 10500] };
+const PR_RANGE = { '5k': 5000, '10k': 10000 };
 
 async function weather(lat: number, lng: number, localIso: string): Promise<{ tempC: number; dewC: number; humidity: number; feelsC: number | null } | null> {
   const date = localIso.slice(0, 10); const hour = Number(localIso.slice(11, 13));
@@ -82,12 +88,22 @@ export async function GET(request: Request) {
       const b = bestEffort(tr, m);
       return b ? { key: k, meters: m, seconds: b.seconds, start: b.start, rep: workout ? workout.reps.findIndex((r) => b.start >= r.start - 20 && b.start + b.seconds <= r.start + r.seconds + 20) + 1 || null : null } : null;
     }).filter(Boolean) : [];
-    const prs: Record<string, { seconds: number; date: string } | null> = {};
-    for (const [k, [lo, hi]] of Object.entries(PR_RANGE)) {
-      if (!efforts.some((e) => e!.key === k)) continue;
-      const { data } = await supabase.from('athlete_activities').select('duration, start_time').eq('athlete_id', row.athlete_id)
-        .gte('distance', lo).lte('distance', hi).neq('id', row.id).order('duration', { ascending: true }).limit(1);
-      prs[k] = data?.[0] ? { seconds: data[0].duration, date: String(data[0].start_time).slice(0, 10) } : null;
+    // The runner's 5K / 10K record BEFORE this run — the same records the profile shows
+    // (lib/prs: the fastest stretch inside any run, their own exclusions and stated
+    // times), not just whole runs of that length.
+    const prs: Record<string, { seconds: number; date: string | null } | null> = {};
+    const wanted = Object.keys(PR_RANGE).filter((k) => efforts.some((e) => e!.key === k));
+    if (wanted.length) {
+      const acts = await fetchAllRows<RunActivityRow & { id: string }>((from, to) => supabase.from('athlete_activities')
+        .select('id, activity_name, activity_type, start_time, distance, duration').eq('athlete_id', row.athlete_id)
+        .neq('id', row.id).order('start_time', { ascending: false }).order('id').range(from, to));
+      const runs = await attachLapsForPrs(supabase, row.athlete_id, filterQualifyingRuns(acts));
+      const [excluded, overrides] = await Promise.all([readPrExclusions(supabase, row.athlete_id), readPrOverrides(supabase, row.athlete_id)]);
+      const bests = applyPrOverrides(computeDistanceBests(runs, { excluded }), overrides);
+      for (const k of wanted) {
+        const b = bests.find((x) => x.key === k);
+        prs[k] = b?.seconds ? { seconds: b.seconds, date: b.date ? String(b.date).slice(0, 10) : null } : null;
+      }
     }
 
     // The cool-down (or warm-up) saved as a run of its own the same morning.
@@ -127,7 +143,8 @@ export async function GET(request: Request) {
       conditions: cond ? { ...cond, costSec: workout ? heatCostSec(cond.tempC, cond.dewC, workout.avgPace) : heatCostSec(cond.tempC, cond.dewC, pace) } : null,
       trainingEffect: teRow,
       hrVisible: hrOk,
-    }, { headers: { 'Cache-Control': 'private, max-age=300' } });
+    // Without the trace (it lands minutes after the run) the answer is partial: never kept.
+    }, { headers: { 'Cache-Control': tr ? 'private, max-age=300' : 'no-store' } });
   } catch (err) {
     console.error('[activities/analysis] failed:', err);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
