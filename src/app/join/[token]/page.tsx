@@ -4,7 +4,7 @@ import { SETUP_GATE_FOR_ALL } from '@/lib/setup/flag';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Check, Eye, EyeOff } from 'lucide-react';
+import { CheckCircle2, Loader2, Shield, Watch, Smartphone, Calendar, Check, Eye, EyeOff, Mail } from 'lucide-react';
 import { InsetSection, InsetRow, Button } from '@/components/ui';
 import { cn, resolveGroup } from '@/lib/utils';
 import { InstallGuide, INSTALL_GUIDE_SEEN_KEY } from '@/components/install/InstallGuide';
@@ -255,6 +255,25 @@ export default function JoinPage() {
    * later" (nothing is connected), while the already-connected athlete gets the
    * full "you're connected" screen.
    */
+  /**
+   * The way in without Strava (2026-10-20, Ofer testing with a member who has none): save
+   * the details, then the welcome screen's email code for THIS link (/welcome?t=…, which
+   * already knows the address and signs them in). Before this the connect step offered
+   * Strava or "later", and "later" ended on the public landing page, signed out.
+   */
+  const signInWithCode = async () => {
+    setStep('connecting');
+    setError(null);
+    try {
+      await persistProfile();
+      trackOnb('join_saved', { token });
+      window.location.assign(`/welcome?t=${encodeURIComponent(token)}`);
+    } catch (err: any) {
+      setError(err.message);
+      setStep('garmin');
+    }
+  };
+
   const finishWithoutCredentials = async (skipped: boolean) => {
     setStep('connecting');
     setError(null);
@@ -427,6 +446,11 @@ export default function JoinPage() {
   const tracker = <JourneyTracker done={2} computer={computer} />;
   const selected = groups.find(g => g.id === selectedGroup);
 
+  // "Later" saved the details but signed nobody in: the app behind it would bounce them to
+  // the public landing page. The welcome screen's code for this link is the way in.
+  const doneHref = skippedGarmin
+    ? `/welcome?t=${encodeURIComponent(token)}`
+    : existing || academy ? '/dashboard/academy' : '/dashboard/program';
   if (step === 'done') {
     return (
       <>
@@ -470,7 +494,7 @@ export default function JoinPage() {
               subtitle={skippedGarmin ? to('canConnectLater') : t('garminLinkedCoach')}
             />
           }
-          actions={<PrimaryButton href={existing || academy ? '/dashboard/academy' : '/dashboard/program'}>{existing || academy ? t('toAcademy') : skippedGarmin ? t('goToDashboard') : t('viewProgram')}</PrimaryButton>}
+          actions={<PrimaryButton href={doneHref}>{skippedGarmin ? t('signInToApp') : existing || academy ? t('toAcademy') : t('viewProgram')}</PrimaryButton>}
         >
           {tracker}
           {/* What's Next Section */}
@@ -701,6 +725,18 @@ export default function JoinPage() {
             <p className="text-13 text-ink-400 leading-relaxed text-center">
               {t('stravaUseExistingAccount')}
             </p>
+
+            <button
+              type="button"
+              onClick={signInWithCode}
+              disabled={stravaLoading || step === 'connecting'}
+              data-testid="join-email-code"
+              className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border-2 border-brand-600 bg-white px-6 text-base font-bold text-brand-600 transition active:scale-[0.99] disabled:opacity-50"
+            >
+              <Mail className="h-5 w-5" />
+              {t('signInWithCode')}
+            </button>
+            <p className="text-13 text-ink-400 leading-relaxed text-center">{t('signInWithCodeHint')}</p>
 
             {displayError && (
               <div className="bg-accent-red/10 border border-accent-red/30 rounded-lg p-3 text-accent-red-ink text-sm">

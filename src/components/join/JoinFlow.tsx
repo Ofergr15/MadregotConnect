@@ -19,6 +19,7 @@ interface Group { id: string; name: string; index: number; marathonGoal?: string
 type Step = 'path' | 'details' | 'marathon' | 'fallback' | 'pack';
 import { JOIN_HANDOFF_KEY } from '@/lib/join/flag';
 import { typeClock } from '@/lib/time-entry';
+import { suggestEmail } from '@/lib/join/email-typo';
 const PACK_HEX = ['#16a34a', '#159AFF', '#FF5315'];
 
 function Back({ onClick }: { onClick: () => void }) {
@@ -56,6 +57,8 @@ export function JoinFlow({ initialPath }: { initialPath?: 'club' | 'academy' | n
   const [dist, setDist] = useState<Distance>('marathon');
   const [time, setTime] = useState(''); const [race, setRace] = useState(''); const [year, setYear] = useState('');
   const [noRace, setNoRace] = useState(false);
+  // A near-miss domain (gmial.com) asked about once; "the address is right" is remembered.
+  const [typoOk, setTypoOk] = useState('');
   const [groupId, setGroupId] = useState<string | null>(null);
   const [interest, setInterest] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -86,6 +89,7 @@ export function JoinFlow({ initialPath }: { initialPath?: 'club' | 'academy' | n
   const details = () => {
     if (!first.trim() || !last.trim()) return setError('שם פרטי ושם משפחה');
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('האימייל לא נראה תקין');
+    if (suggestEmail(email) && typoOk !== email.trim()) return setError('typo');
     if (phone.replace(/\D/g, '').length < 9) return setError('מספר נייד');
     if (path === 'academy') return toAcademy();
     go('marathon');
@@ -112,7 +116,16 @@ export function JoinFlow({ initialPath }: { initialPath?: 'club' | 'academy' | n
   if (done) return <RegisterReceived state={done.state} email={done.email} name={first.trim()} />;
 
   const hero = (title: string, subtitle?: string) => <JourneyHero compact eyebrow="מצטרפים למדרגות" title={title} subtitle={subtitle} />;
-  const err = error && <p role="alert" className="text-center text-sm font-bold text-accent-red">{error}</p>;
+  const typoFix = error === 'typo' ? suggestEmail(email) : null;
+  const err = typoFix ? (
+    <div role="alert" className="rounded-2xl bg-[#FFF4E5] px-3.5 py-3 text-center">
+      <p className="text-[14px] font-bold text-ink-900">התכוונת ל־<bdi dir="ltr" className="font-black">{typoFix}</bdi>?</p>
+      <div className="mt-2 flex gap-2">
+        <button type="button" onClick={() => { setEmail(typoFix); setError(null); }} className="min-h-[44px] flex-1 rounded-xl bg-brand-600 text-[14px] font-black text-white">כן, לתקן</button>
+        <button type="button" onClick={() => { setTypoOk(email.trim()); setError(null); }} className="min-h-[44px] flex-1 rounded-xl bg-white text-[14px] font-black text-ink-900">הכתובת נכונה</button>
+      </div>
+    </div>
+  ) : error && <p role="alert" className="text-center text-sm font-bold text-accent-red">{error}</p>;
 
   if (step === 'path') return (
     <JourneyScreen testId="join-path" hero={hero('מצטרפים למדרגות 👋', 'מה מתאים לך? אפשר לשנות גם אחר כך')}
@@ -196,6 +209,11 @@ export function JoinFlow({ initialPath }: { initialPath?: 'club' | 'academy' | n
     <JourneyScreen testId="join-pack" hero={hero('באיזו דבוקה?', 'הדבוקות של המועדון רצות מהר: המטרה של כל אחת היא זמן במרתון')}
       actions={<>{err}<PrimaryButton disabled={busy} onClick={() => void submit()}>{busy ? 'שולח…' : 'שליחה'}</PrimaryButton></>}>
       <Back onClick={() => go(dist === 'marathon' && !noRace ? 'marathon' : 'fallback')} />
+      {/* The address every mail from here goes to, said back once before sending: a typo
+          in the name part (grosfeldofr@) is invisible to any checker (2026-10-20). */}
+      <p className="rounded-2xl bg-white px-3.5 py-2.5 text-[13.5px]" style={{ color: JOURNEY.body }} data-testid="join-email-echo">
+        המייל שלך: <bdi dir="ltr" className="font-black text-ink-900">{email.trim().toLowerCase()}</bdi> · <button type="button" onClick={() => go('details')} className="font-black text-brand-600">שינוי</button>
+      </p>
       {marathonEq != null && (
         <p className={cn('rounded-2xl px-3.5 py-2.5 text-[14px]', academyFirst ? 'bg-[#F1EBFF] text-[#3B1F8F]' : 'bg-[#FFF1E8] text-[#7A2E08]')}>
           לפי <b dir="ltr">{clock(secs!)}</b> ב{DISTANCE_LABEL[dist]}{dist !== 'marathon' && <> (מרתון משוער <bdi dir="ltr">{clock(marathonEq)}</bdi>)</>} — {rec ? <><b>{`דבוקה ${rec.index + 1}`}</b> מתאימה לך</> : <b>האקדמיה מתאימה לך יותר</b>}

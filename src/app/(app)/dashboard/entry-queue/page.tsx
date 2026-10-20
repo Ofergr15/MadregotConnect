@@ -748,7 +748,13 @@ export default function EntryQueuePage() {
                 {/* The דבוקה picker, because approval without one is refused by the
                     API — and a disabled approve button with no way to fix it was the
                     whole complaint about the screen this replaces. */}
-                <p className="mt-3 text-xs font-semibold text-ink-700" dir="rtl">{t('orphanPickGroup')}</p>
+                <p className="mt-3 text-xs font-semibold text-ink-700" dir="rtl">
+                  {r.groupId && groups.some((g) => g.id === r.groupId)
+                    // Chosen at sign-up and preselected below. Said out loud, so an approver
+                    // doesn't read "it never asked me for a pack" (Ofer, 2026-10-20).
+                    ? t('orphanRequestedGroup', { group: groupDisplayName(groups.find((g) => g.id === r.groupId)!.name) })
+                    : t('orphanPickGroup')}
+                </p>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {groups.map((g) => (
                     <button

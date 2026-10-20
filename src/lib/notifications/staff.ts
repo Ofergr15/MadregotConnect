@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabase/server';
+import { SUPER_USER_EMAIL } from '@/lib/constants';
 import {
   localesForAthletes,
   persistNotifications,
@@ -184,12 +185,14 @@ export async function notifyStaff(opts: {
  */
 export async function academyManagerIds(): Promise<string[]> {
   try {
-    const { data, error } = await createServerClient()
-      .from('athletes')
-      .select('id')
-      .contains('extra_roles', ['academy_manager']);
+    const db = createServerClient();
+    const { data, error } = await db.from('athletes').select('id').contains('extra_roles', ['academy_manager']);
     if (error) return [];
-    return [...new Set(((data || []) as Array<{ id: string }>).map((r) => r.id))];
+    // Ofer runs the academy too ("I should see everything, like Eldar" — 2026-10-19): his
+    // own account, by its address — not every super-user row, which would add the
+    // operator account a second time.
+    const { data: owner } = await db.from('athletes').select('id').eq('email', SUPER_USER_EMAIL);
+    return [...new Set([...(data || []), ...(owner || [])].map((r) => (r as { id: string }).id))];
   } catch {
     return [];
   }

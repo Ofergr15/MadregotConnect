@@ -1722,7 +1722,10 @@
     "existingEyebrow": "The Madregot academy",
     "existingSub": "You're already with us — just moving into the app. All that's left is to install it and sign in.",
     "existingSubCoach": "You already train with us — we are just moving into the app. {coach} is your coach. Connect your watch and you are done.",
-    "toAcademy": "To my academy"
+    "toAcademy": "To my academy",
+    "signInWithCode": "Sign in with an email code — no Strava",
+    "signInWithCodeHint": "We'll email a 6-digit code to the address you signed up with.",
+    "signInToApp": "Sign in to the app"
   },
   "joinAcademy": {
     "title": "Connect Your Garmin",
@@ -3354,7 +3357,8 @@
     "openLogHint": "Everybody who signed up, rejections included · re-send a join link · copy a link",
     "loading": "Loading the entry queue…",
     "loadFailed": "Couldn't load the entry queue",
-    "retry": "Try again"
+    "retry": "Try again",
+    "orphanRequestedGroup": "Asked for {group} — already selected. You can change it before approving."
   },
   "upcoming": {
     "title": "Coming up",

@@ -15,7 +15,8 @@
     "test:ui:headed": "playwright test --headed",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run test && npm run lint && npm run build",
-    "version:bump": "node scripts/bump-version.mjs"
+    "version:bump": "node scripts/bump-version.mjs",
+    "check:signup-ready": "node scripts/check-signup-ready.mjs"
   },
   "browserslist": [
     "iOS >= 12",

@@ -26,6 +26,7 @@ const INDEX: Array<{ label: string; href: string; also?: string }> = [
   { label: 'דיווחים', href: '/dashboard/review/all', also: 'באגים תקלות' },
   { label: 'גרסאות', href: '/dashboard/whats-new', also: 'מה חדש שחרור אישור' },
   { label: 'חדר בקרה', href: '/dashboard/control-room' },
+  { label: 'בדיקות הרשמה', href: '/dashboard/tests', also: 'בדיקה טסט הרשמה זרימה' },
   { label: 'מדרגות במספרים', href: '/dashboard/numbers', also: 'מספרים גרפים' },
   ...MANAGE_GROUPS.flatMap((g) => g.items.map((i) => ({ label: i.label, href: i.href, also: `${g.title} ${i.also ?? ''}` }))),
   { label: 'בניית התוכנית ופרסום', href: '/dashboard/plan/new', also: 'מתכנן תוכנית שבועית שעון גרמין' },
@@ -82,6 +83,7 @@ export function AdminManage() {
                 label={g.title} sublabel={g.items.map((i) => i.label).join(', ')} href={`/dashboard/manage/${g.key}`} />
             ))}
             <InsetRow icon={Gauge} iconBg="bg-ink-400" label="חדר בקרה" sublabel="התמונה המלאה של המערכת" href="/dashboard/control-room" />
+            <InsetRow icon={ShieldCheck} iconBg="bg-[#16A34A]" label="בדיקות הרשמה" sublabel="מה לעשות בכל שלב, וסטטוס חי" href="/dashboard/tests" />
           </InsetSection>
           {/* No "עוד" in the admin's bar: the member pages the admin uses too. */}
           <p className="px-4 pb-1.5 text-[13px] font-semibold text-ink-400">גם באפליקציה</p>

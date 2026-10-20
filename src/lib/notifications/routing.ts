@@ -137,9 +137,11 @@ function isRoutableRole(role: string): role is RoutableRole {
  * there — the admin screen renders "run the migration" rather than an empty grid
  * that looks like a club with no alerts configured.
  */
-export async function routingMatrix(): Promise<RoutingMatrix | null> {
+type Db = ReturnType<typeof createServerClient>;
+
+export async function routingMatrix(db?: Db): Promise<RoutingMatrix | null> {
   try {
-    const supabase = createServerClient();
+    const supabase = db ?? createServerClient();
     const { data, error } = await supabase.from('notification_routing').select('kind, role, enabled');
     if (error) {
       if (error.code === UNDEFINED_TABLE || error.code === UNDEFINED_COLUMN) return null;
@@ -160,8 +162,8 @@ export async function routingMatrix(): Promise<RoutingMatrix | null> {
  * The roles configured to receive `kind`, or `null` when the kind has no rows at
  * all. An empty array means "configured to nobody" — see the header.
  */
-export async function rolesForKind(kind: string): Promise<RoutableRole[] | null> {
-  const matrix = await routingMatrix();
+export async function rolesForKind(kind: string, db?: Db): Promise<RoutableRole[] | null> {
+  const matrix = await routingMatrix(db);
   const row = matrix?.[kind];
   if (!row || Object.keys(row).length === 0) return null;
   return ROUTABLE_ROLES.filter((r) => row[r] === true);
@@ -176,12 +178,12 @@ export async function rolesForKind(kind: string): Promise<RoutableRole[] | null>
  * recipient preview disagree with what actually gets sent — which is the exact
  * class of bug this module exists to end.
  */
-export async function recipientsForKind(kind: string): Promise<string[] | null> {
+export async function recipientsForKind(kind: string, db?: Db): Promise<string[] | null> {
   try {
-    const roles = await rolesForKind(kind);
+    const roles = await rolesForKind(kind, db);
     if (roles === null) return null;
     if (roles.length === 0) return [];
-    const supabase = createServerClient();
+    const supabase = db ?? createServerClient();
     const { data, error } = await supabase.from('athletes').select('id').in('role', roles);
     if (error) return null; // couldn't resolve → let the caller's fallback answer
     return [...new Set(((data || []) as Array<{ id: string }>).map((r) => r.id))];
