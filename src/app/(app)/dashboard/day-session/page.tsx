@@ -67,6 +67,9 @@ export default function DaySessionPage() {
 
   const { data: reminderCfg } = useApi<{ config?: { workoutHour?: number } }>('/api/reminder-config');
   const { data: loaded, error: loadError, mutate } = useApi<{ setup: boolean; session: DaySession | null }>(`/api/day-session?date=${date}`);
+  // ⌚ Edited since it went to the watches (mockup watch-update, 1): who holds the previous version.
+  const { data: watchChanges, mutate: recheckChanges } = useApi<{ staleAthletes: string[] }>(`/api/watch/changes?date=${date}`);
+  const staleOnWatch = watchChanges?.staleAthletes ?? [];
   // Where the send to the watches stands (api/day-session/watch); polls while it runs.
   const track = useWatchTrack(date);
   const trackCounts = track.data ? countsOf(track.data.runners) : null;
@@ -194,6 +197,7 @@ export default function DaySessionPage() {
       if (!res.ok) { setMessage({ tone: 'bad', text: t('failed') }); return; }
       const body = await res.json().catch(() => null) as { session?: DaySession } | null;
       await mutate();
+      void recheckChanges();
       if (description.trim() && !body?.session?.description) {
         setMessage({ tone: 'bad', text: t('descriptionNotSaved') });
         return;
@@ -325,6 +329,16 @@ export default function DaySessionPage() {
 
   const banner = (
     <>
+      {existing && staleOnWatch.length > 0 && !sending && (
+        <div className="rounded-[18px] border-[1.5px] border-[#F5C04A] bg-[#FFF7E6] px-3.5 py-3" role="alert">
+          <b className="block text-[15px] text-ink-900">⌚ השתנה מאז ששלחת לשעונים</b>
+          <p className="mt-0.5 text-13 leading-snug text-[#6B5A2E]"><bdi dir="ltr">{staleOnWatch.length}</bdi> רצים קיבלו את הגרסה הקודמת לשעון. העדכון מוחק אותה ושולח את החדשה.</p>
+          <button type="button" onClick={() => { void sendToWatches(staleOnWatch).then(() => recheckChanges()); }}
+            className="mt-2 flex min-h-[44px] w-full items-center justify-center rounded-[14px] bg-brand-600 text-[15px] font-extrabold text-white">
+            ⌚ לעדכן בשעונים · <bdi dir="ltr">{staleOnWatch.length}</bdi>
+          </button>
+        </div>
+      )}
       {notSetUp && <p className="rounded-[14px] bg-[#FDF0E2] px-3 py-2.5 text-sm font-bold text-[#8A4308]" role="alert">{t('notSetUp')}</p>}
       {existing && <p className="rounded-[14px] bg-brand-600/10 px-3 py-2.5 text-sm font-bold text-brand-600">{t('editing', { date: dateLabel(date) })}</p>}
       {message && (

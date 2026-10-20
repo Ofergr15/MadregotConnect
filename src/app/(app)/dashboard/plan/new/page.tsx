@@ -38,6 +38,7 @@ import {
 import { WeekView } from '@/components/WeekView';
 import { QualityDayChip, QualityDaysCard, useQualityDays } from './QualityDays';
 import { PlanVerifyCard } from './PlanVerifyCard';
+import { useApi } from '@/lib/api';
 import { slotKey, watchSentCopy, workoutLine } from '@/lib/notifications/watch-push-copy';
 import { WorkoutEditorPanel } from '@/components/WorkoutEditor';
 import { WatchPreview } from '@/components/WatchPreview';
@@ -336,6 +337,11 @@ export default function WeeklyPlannerPage() {
   const pickedIds = useMemo(() => recipientIds(roster, recipients), [roster, recipients]);
   const pushTargetCount = pickedIds.length;
   const watch = usePlanWatch(savedPlanId, weekStartDate, pushing);
+  // "לעדכן בשעונים" (mockup watch-update, 2): days edited since they went to the watches,
+  // and who holds the previous version (lib/watch/changes.ts).
+  const { data: watchChanges, mutate: recheckChanges } = useApi<{ days: Array<{ key: string; dayOfWeek: number; date: string; stale: string[] }>; staleAthletes: string[] }>(
+    savedPlanId && !pushing ? `/api/watch/changes?planId=${savedPlanId}` : null,
+  );
   const watchFull = (watch.data?.runners || []).filter((r) => r.state === 'ok' && r.total > 0 && r.ok === r.total).length;
   const watchFailed = (watch.data?.runners || []).some((r) => r.state === 'failed');
 
@@ -1138,8 +1144,10 @@ export default function WeeklyPlannerPage() {
    * `groupedPlans.group1` for every failed athlete regardless of their group — so
    * a group-3 athlete whose first delivery failed was retried with group-1 paces.
    */
-  const pushToAthletes = async (athletes: Athlete[]): Promise<PushResultItem[]> => {
+  const pushToAthletes = async (athletes: Athlete[], daysOverride?: number[] | null): Promise<PushResultItem[]> => {
     if (!groupedPlans || !savedPlanId) return [];
+    // "לעדכן בשעונים" sends only the changed days; every other send, the picker's.
+    const days = daysOverride !== undefined ? daysOverride : pushDays;
     const groupLevelMap = paceGroupMap(groups) as Record<string, keyof GroupedWeeklyPlans>;
     const planFor = (a: Athlete) =>
       groupedPlans[(a.group_id ? groupLevelMap[a.group_id] : undefined) || 'group2'];
@@ -1166,7 +1174,7 @@ export default function WeeklyPlannerPage() {
 
     // Their own week, their own request — one athlete each.
     for (const a of athletes.filter((x) => hasCustomWeek(x.id))) {
-      const sessions = selectedSessions(planFor(a).workouts, pushDays) as ParsedWorkout[];
+      const sessions = selectedSessions(planFor(a).workouts, days) as ParsedWorkout[];
       // Sessions skipped for them (mapped to null) go as removedKeys, so the copy an
       // earlier club-week push put on their watch is taken off it.
       const map = dayMaps[a.id] || {};
@@ -1185,7 +1193,7 @@ export default function WeeklyPlannerPage() {
     for (const [paceGroup, ids] of Object.entries(batches)) {
       if (ids.length === 0) continue;
       const plan = groupedPlans[paceGroup as keyof GroupedWeeklyPlans];
-      await send(selectedSessions(plan.workouts, pushDays) as ParsedWorkout[], ids);
+      await send(selectedSessions(plan.workouts, days) as ParsedWorkout[], ids);
     }
 
     // The whole week as ONE request, which the server finishes even if this phone
@@ -1193,7 +1201,7 @@ export default function WeeklyPlannerPage() {
     // #88). Every sender since 2026-10-16; the super user only before.
     if (jobs.length === 0) return results;
     try {
-      await post({ batches: jobs, wholeWeek: pushDays === null });
+      await post({ batches: jobs, wholeWeek: days === null });
     } catch (err) {
       // A dropped connection, not a refusal: the server carries on without us.
       if (err instanceof TypeError) throw new Error(t('errors.pushContinuesOnServer'));
@@ -1250,6 +1258,22 @@ export default function WeeklyPlannerPage() {
       setError(err instanceof Error ? err.message : t('errors.pushFailed'));
     } finally {
       setPushing(false);
+    }
+  };
+
+  const updateWatches = async () => {
+    if (!watchChanges?.days.length || !groupedPlans || !savedPlanId) return;
+    const stale = new Set(watchChanges.staleAthletes);
+    const people = activeAthletes.filter((a) => stale.has(a.id) && a.hasGarmin);
+    if (!people.length) return;
+    setPushing(true); setError(null); setPushResults(null); setTrackOpen(true); setShowPush(true);
+    try {
+      setPushResults(await pushToAthletes(people, [...new Set(watchChanges.days.map((d) => d.dayOfWeek))]));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t('errors.pushFailed'));
+    } finally {
+      setPushing(false);
+      void recheckChanges();
     }
   };
 
@@ -1827,6 +1851,23 @@ export default function WeeklyPlannerPage() {
               </div>
             </div>
           </div>
+
+          {/* ⌚ Edited since it went to the watches (lib/watch/changes.ts): only those days, only
+              to whoever holds the previous version; the old copy comes off the watch first. */}
+          {(watchChanges?.days.length ?? 0) > 0 && !pushing && (
+            <div className="mx-4 mt-3 rounded-[18px] border-[1.5px] border-[#F5C04A] bg-[#FFF7E6] px-4 py-3 sm:mx-6" dir="rtl">
+              <b className="block text-[15px] text-ink-900">
+                ⌚ {watchChanges!.days.length === 1 ? 'יום אחד השתנה מאז השליחה' : `${new Set(watchChanges!.days.map((d) => d.dayOfWeek)).size} ימים השתנו מאז השליחה`}
+              </b>
+              <p className="mt-1 text-13 leading-snug text-[#6B5A2E]">
+                {[...new Set(watchChanges!.days.map((d) => d.dayOfWeek))].map((d) => `${['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'][d]}׳`).join(', ')} שונו. רק הם יישלחו שוב, ורק ל־<bdi dir="ltr">{watchChanges!.staleAthletes.length}</bdi> מי שקיבלו את הגרסה הקודמת. השאר נשאר בשעון כמו שהוא.
+              </p>
+              <button type="button" onClick={() => { void updateWatches(); }}
+                className="mt-2.5 flex min-h-[44px] w-full items-center justify-center rounded-[14px] bg-brand-600 text-[15px] font-extrabold text-white">
+                ⌚ לעדכן בשעונים · <bdi dir="ltr">{watchChanges!.staleAthletes.length}</bdi>
+              </button>
+            </div>
+          )}
 
           {/* Week view — one unified plan; a step's own value is Group ❶ and
               (Group ❷)/((Group ❸)) show inline wherever they actually

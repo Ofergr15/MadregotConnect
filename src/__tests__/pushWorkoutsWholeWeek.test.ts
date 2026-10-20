@@ -107,7 +107,7 @@ describe('the whole week in one request', () => {
   it('is asked for by the planner whoever sends', async () => {
     const { readFileSync } = await import('fs');
     const page = readFileSync('src/app/(app)/dashboard/plan/new/page.tsx', 'utf8');
-    expect(page).toMatch(/try \{\s*await post\(\{ batches: jobs, wholeWeek: pushDays === null \}\);/);
+    expect(page).toMatch(/try \{\s*await post\(\{ batches: jobs, wholeWeek: days === null \}\);/);
     expect(page).not.toMatch(/if \(superUser\) \{\s*try \{\s*await post\(\{ batches/);
   });
 });
