@@ -18,7 +18,7 @@ export async function loadMigrationBoard(supabase: Db, today: string): Promise<M
   if (!ids.length) return [];
 
   const [ath, tests, chars, plans] = await Promise.all([
-    supabase.from('athletes').select('id, name, avatar_url, status, is_academy, garmin_auth, strava_auth, academy_joined_on, invite_token, phone, email').eq('coach_id', COACH_ID).in('id', ids),
+    supabase.from('athletes').select('id, name, avatar_url, status, is_academy, garmin_auth:has_garmin, strava_auth:has_strava, academy_joined_on, invite_token, phone, email').eq('coach_id', COACH_ID).in('id', ids),
     supabase.from('academy_tests').select('athlete_id, test_date, protocol, status, excluded_reason, duration_sec, distance_m').in('athlete_id', ids),
     supabase.from('academy_characterizations').select('candidate_id, available_days, weekly_km').in('candidate_id', [...cardOf.values()]),
     supabase.from('weekly_plans').select('athlete_id').in('athlete_id', ids).limit(1000),

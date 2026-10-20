@@ -103,32 +103,24 @@ export async function PUT(request: Request) {
     }
 
     const supabase = createServerClient();
-    const { data: athlete, error: findError } = await supabase
-      .from('athletes')
-      .select('id, role')
-      .eq('id', body.athleteId)
-      .maybeSingle();
-    if (findError) throw findError;
-    if (!athlete) return NextResponse.json({ error: 'not-found' }, { status: 404 });
-
-    const patch: Record<string, unknown> = { is_core_runner: body.isCoreRunner };
-
+    // One round trip, not three in a row (read the row, then write): the flag is written
+    // directly, and turning it OFF also clears the legacy role in the same wave.
+    //
     // ⚠️ TURNING IT OFF HAS TO CLEAR THE LEGACY ROLE TOO.
     //
     // isCoreRunner() is true on EITHER source, so on a row still carrying
     // role = 'core_runner' clearing only the flag leaves the person in the גרעין
     // — perks and badge unchanged — while the switch reads off. A control that
-    // silently does nothing is worse than no control.
-    //
-    // 'runner' is the right landing place: it is the default for a club member
-    // (see /api/admin/users) and it is what migration 008's core_runner
-    // permissions were an expansion OF. A staff role is never overwritten here,
-    // because a staff row cannot be carrying role='core_runner' in the first
-    // place — that was the exclusivity this feature exists to remove.
-    const clearingLegacy = !body.isCoreRunner && athlete.role === CORE_RUNNER_ROLE;
-    if (clearingLegacy) patch.role = 'runner';
-
-    const { error: updateError } = await supabase.from('athletes').update(patch).eq('id', athlete.id);
+    // silently does nothing is worse than no control. 'runner' is the right landing
+    // place: it is the default for a club member (see /api/admin/users), and only a
+    // row that holds role='core_runner' is touched, so a staff role is never overwritten.
+    const [flagRes, legacyRes] = await Promise.all([
+      supabase.from('athletes').update({ is_core_runner: body.isCoreRunner }).eq('id', body.athleteId).select('id'),
+      body.isCoreRunner
+        ? Promise.resolve({ data: [] as Array<{ id: string }>, error: null })
+        : supabase.from('athletes').update({ role: 'runner' }).eq('id', body.athleteId).eq('role', CORE_RUNNER_ROLE).select('id'),
+    ]);
+    const updateError = flagRes.error || legacyRes.error;
     if (updateError) {
       if (updateError.code === UNDEFINED_COLUMN) {
         return NextResponse.json(
@@ -138,6 +130,8 @@ export async function PUT(request: Request) {
       }
       throw updateError;
     }
+    if (!flagRes.data?.length) return NextResponse.json({ error: 'not-found' }, { status: 404 });
+    const clearingLegacy = (legacyRes.data?.length ?? 0) > 0;
 
     // NOT invalidating the session cache: this changes what the TARGET sees, not
     // the caller, and requireSession is memoised per token — so the athlete picks

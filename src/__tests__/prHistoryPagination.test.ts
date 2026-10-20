@@ -136,15 +136,12 @@ describe('fetchAllRows', () => {
       return fakePostgrest(rows).range(from, to);
     });
     expect(all).toHaveLength(3870);
-    // 3,870 rows is four requests: three full pages and a 870-row tail that ends
-    // the walk. A fifth request would mean the short page was not treated as the
-    // end of the result set.
-    expect(asked).toEqual([
-      [0, 999],
-      [1000, 1999],
-      [2000, 2999],
-      [3000, 3999],
-    ]);
+    // Page one alone, then the rest eight at a time (one batch here): consecutive,
+    // non-overlapping windows from 0, and no second batch after the short page.
+    expect(asked[0]).toEqual([0, 999]);
+    expect(asked.slice(0, 4)).toEqual([[0, 999], [1000, 1999], [2000, 2999], [3000, 3999]]);
+    expect(asked).toHaveLength(1 + 8);
+    asked.forEach(([from, to], i) => { expect(from).toBe(i * 1000); expect(to).toBe(from + 999); });
   });
 
   it('ends on an exact multiple of the page size without dropping or repeating a row', async () => {
@@ -159,7 +156,7 @@ describe('fetchAllRows', () => {
     });
     expect(all).toHaveLength(2 * PAGE_SIZE);
     expect(new Set(all.map((r) => r.id)).size).toBe(2 * PAGE_SIZE);
-    expect(asked).toEqual([0, PAGE_SIZE, 2 * PAGE_SIZE]);
+    expect(asked.slice(0, 3)).toEqual([0, PAGE_SIZE, 2 * PAGE_SIZE]);
   });
 
   it('stops at the safety ceiling and says so instead of returning a quietly short answer', async () => {

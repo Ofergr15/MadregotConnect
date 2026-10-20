@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { resolveGroup } from '@/lib/utils';
 import { requireStaff } from '@/lib/auth/self-or-staff';
-import { fetchAllRows } from '@/lib/supabase/paginate';
+import { fetchAllRowsParallel } from '@/lib/supabase/paginate';
 
 /** The columns the PR + standout-week comparison needs. */
 interface PulseActivityRow {
@@ -46,22 +46,25 @@ export async function GET(request: Request) {
     if (denied) return denied;
 
     // Active athletes (name/squad).
-    const { data: athletes } = await supabase
-      .from('athletes')
-      .select('id, name, avatar_url, group_id, groups!group_id(name)')
-      .eq('coach_id', COACH_ID)
-      .eq('status', 'active');
+    // The roster and the recent feedback together (they do not depend on each other).
+    const [{ data: athletes }, { data: fb }] = await Promise.all([
+      supabase
+        .from('athletes')
+        .select('id, name, avatar_url, group_id, groups!group_id(name)')
+        .eq('coach_id', COACH_ID)
+        .eq('status', 'active'),
+      supabase
+        .from('workout_feedback')
+        .select('athlete_id, difficulty, pain, pain_detail, wants_feedback, created_at')
+        .gte('created_at', sinceISO)
+        .order('created_at', { ascending: false }),
+    ]);
     const meta = new Map<string, { name: string; avatar: string | null; squad: string | null }>();
     (athletes || []).forEach((a: any) =>
       meta.set(a.id, { name: a.name || '', avatar: a.avatar_url || null, squad: a.groups?.name || null }));
     const athleteIds = [...meta.keys()];
 
     // ── ATTENTION: recent feedback ──────────────────────────────────────────
-    const { data: fb } = await supabase
-      .from('workout_feedback')
-      .select('athlete_id, difficulty, pain, pain_detail, wants_feedback, created_at')
-      .gte('created_at', sinceISO)
-      .order('created_at', { ascending: false });
 
     const painCount = new Map<string, number>();
     const attentionByAthlete = new Map<string, { reasons: Set<string>; detail: string | null; when: string; painTimes: number }>();
@@ -98,7 +101,8 @@ export async function GET(request: Request) {
       // was congratulated about efforts that were not bests, and real bests went
       // unmentioned. Exactly the failure lib/supabase/paginate.ts was written for
       // after the same defect made an athlete's own records page wrong.
-      const acts = await fetchAllRows<PulseActivityRow>((from, to) =>
+      // Eight pages at a time: 43 trips end to end was 29 s on the coach's home (2026-10-20).
+      const acts = await fetchAllRowsParallel<PulseActivityRow>((from, to) =>
         supabase
           .from('athlete_activities')
           .select('athlete_id, activity_type, distance, duration, start_time')

@@ -32,9 +32,14 @@ export async function GET(request: Request) {
     const today = israelToday();
     // A celebration can run for days, but never from further back than a month.
     const since = new Date(Date.now() - 31 * 86_400_000).toISOString();
-    const { data, error } = await supabase.from('feed_items').select(FEED_SELECT)
-      .eq('type', 'announcement').is('deleted_at', null).gte('occurred_at', since)
-      .order('occurred_at', { ascending: false }).limit(200);
+    // Two waves instead of five: the items with the Madregot circle, then everything
+    // that hangs off them together (on every feed open, 2026-10-20 measurement).
+    const [{ data, error }, { data: storiesRow }] = await Promise.all([
+      supabase.from('feed_items').select(FEED_SELECT)
+        .eq('type', 'announcement').is('deleted_at', null).gte('occurred_at', since)
+        .order('occurred_at', { ascending: false }).limit(200),
+      supabase.from('app_settings').select('value').eq('key', CLUB_STORIES_KEY).maybeSingle(),
+    ]);
     if (error) throw error;
     const rows = (data || []).filter((r) => {
       const row = r as { payload: Record<string, unknown> | null; occurred_at: string };
@@ -43,28 +48,29 @@ export async function GET(request: Request) {
       return isCelebrationActive(row.payload, today, israelDateOf(row.occurred_at));
     });
     // The Madregot circle (lib/feed/club-stories.ts): read alongside, first on the row.
-    const { data: storiesRow } = await supabase.from('app_settings').select('value').eq('key', CLUB_STORIES_KEY).maybeSingle();
     const club = activeClubStories(readClubStories((storiesRow as { value?: string } | null)?.value), today)
       .map(({ id, title, text }) => ({ id, title, text }));
     if (rows.length === 0) return NextResponse.json({ today, entries: [], club });
 
-    const context = await loadFeedContext(supabase, rows, { athleteId: auth.user.athleteId, isStaff: auth.user.isStaff });
-    const items = rows.map((r) => projectFeedItem(r, context));
-    const ids = [...new Set(items.flatMap((i) => toCelebration(i.payload)?.honorees ?? []))];
-    const { data: people } = ids.length
-      ? await supabase.from('athletes').select('id, name, avatar_url').in('id', ids)
-      : { data: [] as Array<{ id: string; name: string | null; avatar_url: string | null }> };
-    const byId = new Map((people || []).map((p) => [p.id, { id: p.id, name: p.name || '', avatarUrl: p.avatar_url ?? null }]));
-
+    const payloads = rows.map((r) => ((r as { payload: Record<string, unknown> | null }).payload || {}) as Record<string, unknown>);
+    const ids = [...new Set(payloads.flatMap((pl) => toCelebration(pl)?.honorees ?? []))];
     // A birthday whose story has a Hebrew name ("שליו") shows it on the circle and in the
     // greeting; the roster name stays Latin (Ofer, 2026-10-18: "שהכל יהיה שליו").
     const hebrew = new Map<string, string>();
-    await Promise.all(items.map(async (item) => {
-      const p = (item.payload || {}) as { birthdayOf?: unknown; date?: unknown };
-      if (typeof p.birthdayOf !== 'string' || typeof p.date !== 'string') return;
-      const name = (await readBirthdayConfig(supabase, p.birthdayOf, p.date).catch(() => ({ displayName: null }))).displayName?.trim();
-      if (name) hebrew.set(p.birthdayOf, name);
-    }));
+    const [context, { data: people }] = await Promise.all([
+      loadFeedContext(supabase, rows, { athleteId: auth.user.athleteId, isStaff: auth.user.isStaff }),
+      ids.length
+        ? supabase.from('athletes').select('id, name, avatar_url').in('id', ids)
+        : Promise.resolve({ data: [] as Array<{ id: string; name: string | null; avatar_url: string | null }> }),
+      Promise.all(payloads.map(async (p) => {
+        if (typeof p.birthdayOf !== 'string' || typeof p.date !== 'string') return;
+        const name = (await readBirthdayConfig(supabase, p.birthdayOf, p.date).catch(() => ({ displayName: null }))).displayName?.trim();
+        if (name) hebrew.set(p.birthdayOf, name);
+      })),
+    ]);
+    const items = rows.map((r) => projectFeedItem(r, context));
+    const byId = new Map((people || []).map((p) => [p.id, { id: p.id, name: p.name || '', avatarUrl: p.avatar_url ?? null }]));
+
     const renamed = (body: string | null) => body && hebrew.size
       ? body.replace(/@\[([^\]]+)\]\(([0-9a-f-]{36})\)/gi, (m, _n: string, id: string) => (hebrew.has(id) ? `@[${hebrew.get(id)}](${id})` : m))
       : body;

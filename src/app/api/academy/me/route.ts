@@ -192,11 +192,11 @@ export async function GET(request: Request) {
       // predates some deployments, so a 42703 falls back to Garmin alone.
       supabase
         .from('athletes')
-        .select('garmin_auth, strava_auth')
+        .select('garmin_auth:has_garmin, strava_auth:has_strava')
         .eq('id', athleteId)
         .maybeSingle<{ garmin_auth: unknown; strava_auth: unknown }>()
         .then((res) => (res.error
-          ? supabase.from('athletes').select('garmin_auth').eq('id', athleteId)
+          ? supabase.from('athletes').select('garmin_auth:has_garmin').eq('id', athleteId)
             .maybeSingle<{ garmin_auth: unknown }>()
           : res)),
       // All their coaches (a shared trainee has several), legacy first.

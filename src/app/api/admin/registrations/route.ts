@@ -113,7 +113,7 @@ export async function GET(request: Request) {
       if (emails.length) filters.push(`email.in.(${emails.map(e => `"${e}"`).join(',')})`);
       const { data: athletes } = await supabase
         .from('athletes')
-        .select('id, email, name, status, strava_athlete_id, strava_auth, garmin_auth, onboarding_status, last_seen_at')
+        .select('id, email, name, status, strava_athlete_id, strava_auth:has_strava, garmin_auth:has_garmin, onboarding_status, last_seen_at')
         .or(filters.join(','));
       for (const a of athletes || []) {
         const state: AthleteState = {

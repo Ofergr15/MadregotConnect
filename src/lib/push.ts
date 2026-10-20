@@ -417,12 +417,18 @@ async function computeUnreadCounts(athleteIds: string[]): Promise<Record<string,
  */
 export async function unreadCountForAthlete(athleteId: string): Promise<number> {
   const supabase = createServerClient();
-  const { data: a } = await supabase
-    .from('athletes')
-    // `role` for the mute rule — see countsTowardBadge.
-    .select('group_id, role, is_academy, last_seen_at')
-    .eq('id', athleteId)
-    .maybeSingle();
+  // The row, the prefs and the chat count do not depend on each other: one wave, then
+  // the notifications read that needs the row (this runs on every screen's header).
+  const [{ data: a }, prefsMap, chat] = await Promise.all([
+    supabase
+      .from('athletes')
+      // `role` for the mute rule — see countsTowardBadge.
+      .select('group_id, role, is_academy, last_seen_at')
+      .eq('id', athleteId)
+      .maybeSingle(),
+    prefsByAthlete([athleteId]),
+    streamUnreadForAthlete(athleteId).catch(() => 0),
+  ]);
   if (!a) return 0;
   const since = a.last_seen_at || '1970-01-01';
   const orClause = [
@@ -442,14 +448,14 @@ export async function unreadCountForAthlete(athleteId: string): Promise<number> 
     .eq('status', 'sent')
     .gt('last_sent_at', since)
     .or(orClause);
-  const prefs = (await prefsByAthlete([athleteId])).get(athleteId);
+  const prefs = prefsMap.get(athleteId);
   const rowCount = ((rows || []) as Array<{ kind: string; url: string | null; audience_type: string; audience_id: string | null; last_sent_at: string }>)
     .filter((n) => countsTowardBadge(n, a, athleteId, since, prefs))
     .length;
   // Plus the chat. This is the foreground self-heal path, so it is also the thing
   // that CLEARS the badge after the athlete reads a thread: Stream's count drops the
   // moment they open it, and the badge follows on the next heal.
-  return rowCount + await streamUnreadForAthlete(athleteId);
+  return rowCount + chat;
 }
 
 /**

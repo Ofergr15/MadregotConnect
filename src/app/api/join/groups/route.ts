@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
     const { data: athlete } = await supabase
       .from('athletes')
-      .select('id, coach_id, name, email, group_id, garmin_auth, onboarding_status, is_academy')
+      .select('id, coach_id, name, email, group_id, garmin_auth:has_garmin, onboarding_status, is_academy')
       .eq('invite_token', token)
       .single();
 

@@ -30,7 +30,6 @@ type SizeKey = 'shoeSize' | 'shirtSize' | 'pantsSize' | 'tightsSize' | 'socksSiz
 interface SetupFacts {
   applicable: boolean;
   preview?: boolean;
-  phoneOpened?: boolean;
   garmin?: boolean;
   strava?: boolean;
   noWatch?: boolean;

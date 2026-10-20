@@ -62,7 +62,7 @@ export async function GET(request: Request) {
       // reads them: the credentials never leave this function.
       supabase
         .from('athletes')
-        .select('id, name, role, group_id, pending_group_id, pending_group_from, status, approved, garmin_auth, strava_auth, last_seen_at, created_at, onboarding_completed_at, is_academy, is_core_runner, avatar_url, extra_roles')
+        .select('id, name, role, group_id, pending_group_id, pending_group_from, status, approved, garmin_auth:has_garmin, strava_auth:has_strava, last_seen_at, created_at, onboarding_completed_at, is_academy, is_core_runner, avatar_url, extra_roles')
         .eq('coach_id', COACH_ID)
         .or(NOT_ADMIN)
         .order('name'),

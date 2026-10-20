@@ -40,7 +40,7 @@ export async function sendEveningWatchReminders(
 ): Promise<number> {
   const tomorrow = addDaysToDateStr(israelToday(now), 1);
   const weekStart = getPlanWeekStart(new Date(`${tomorrow}T12:00:00`));
-  const { data } = await supabase.from('athletes').select('id, name, garmin_auth')
+  const { data } = await supabase.from('athletes').select('id, name, garmin_auth:has_garmin')
     .eq('coach_id', COACH_ID).eq('status', 'active')
     .or(`role.is.null,role.neq.${CLUB_ACCOUNT_ROLE}`);
   const athletes = (data || []) as Array<{ id: string; name: string; garmin_auth?: unknown }>;

@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     const result = await supabase
       .from('athletes')
       .select(`
-        id, name, email, status, created_at, garmin_auth, strava_auth, data_source, strava_enabled, onboarding_status, is_academy, group_id,
+        id, name, email, status, created_at, garmin_auth:has_garmin, strava_auth:has_strava, data_source, strava_enabled, onboarding_status, is_academy, group_id,
         groups!group_id(name)
       `)
       .eq('coach_id', coachId)
@@ -59,7 +59,7 @@ export async function GET(request: Request) {
     if (result.error) {
       const fallback = await supabase
         .from('athletes')
-        .select(`id, name, email, status, created_at, garmin_auth, group_id, groups!group_id(name)`)
+        .select(`id, name, email, status, created_at, garmin_auth:has_garmin, group_id, groups!group_id(name)`)
         .eq('coach_id', coachId)
         .order('created_at', { ascending: false });
       athletes = fallback.data;

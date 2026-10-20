@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     // "we can see everyone", which is what this app claimed before 101 existed
     // rather than a fresh deploy accusing the academy of broken watches. Reported
     // as `healthUnknown` so the UI can say which of the two it is showing.
-    const ROSTER = 'id, name, is_academy, academy_coach_id, garmin_auth';
+    const ROSTER = 'id, name, is_academy, academy_coach_id, garmin_auth:has_garmin';
     let healthUnknown = false;
     // Typed loosely, exactly as `push-workouts` does for the same reason: the
     // fallback select is a different shape, and narrowing it is not worth naming

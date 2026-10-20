@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { hasRole } from '@/lib/auth/roles';
-import { phoneAppState } from '@/lib/onboarding/phone-app';
 import { KIT_SIZE_FIELDS } from '@/lib/kit-sizes';
 import { SETUP_GATE_FOR_ALL, SETUP_GATE_SINCE } from '@/lib/setup/flag';
 
@@ -22,21 +21,24 @@ export async function GET(request: Request) {
   const preview = caller.isSuperUser && new URL(request.url).searchParams.get('preview') === '1';
   const db = createServerClient();
   const kit = KIT_SIZE_FIELDS.map((k) => k.column).join(', ');
-  const { data, error } = await db.from('athletes')
-    .select(`created_at, garmin_auth, strava_auth, birth_date, shoe_size, ${kit}, height_cm, weight_kg, notification_prefs`)
-    .eq('id', caller.athleteId).maybeSingle();
+  // One wave: the row and the push count together (this runs on every screen — the gate
+  // and lib/setup/use-cohort both ask). `garmin_auth:has_garmin` reads the presence
+  // column (migration 165), not the encrypted credential.
+  const [{ data, error }, { count }] = await Promise.all([
+    db.from('athletes')
+      .select(`created_at, garmin_auth:has_garmin, strava_auth:has_strava, birth_date, shoe_size, ${kit}, height_cm, weight_kg, notification_prefs`)
+      .eq('id', caller.athleteId).maybeSingle(),
+    db.from('push_subscriptions').select('id', { count: 'exact', head: true }).eq('athlete_id', caller.athleteId),
+  ]);
   if (error || !data) return NextResponse.json({ applicable: false });
   const row = data as unknown as Record<string, unknown>;
   const fresh = SETUP_GATE_FOR_ALL && String(row.created_at || '') >= SETUP_GATE_SINCE;
   if (!fresh && !preview) return NextResponse.json({ applicable: false });
 
-  const { count } = await db.from('push_subscriptions').select('id', { count: 'exact', head: true }).eq('athlete_id', caller.athleteId);
-  const phoneApp = await phoneAppState(caller.athleteId, count ?? 0, new URL(request.url).origin);
   const setup = ((row.notification_prefs as Record<string, unknown> | null)?.setup || {}) as { noWatch?: boolean };
   return NextResponse.json({
     applicable: true,
     preview,
-    phoneOpened: phoneApp.opened,
     garmin: !!row.garmin_auth,
     strava: !!row.strava_auth,
     noWatch: setup.noWatch === true,

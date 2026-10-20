@@ -137,12 +137,15 @@ export async function GET(request: Request) {
       loadOwnWeek(auth.user.athleteId, weekStartDate),
       readDeliveries(createServerClient(), auth.user.athleteId, weekStartDate),
     ]);
-    const provider = await providerFor(supabase, athlete);
     // What the club sent them this week that is not on the watch (lib/watch/missing.ts) —
     // the feed's "השבוע בשעון" card. Apple has its own queue, so only Garmin is judged.
-    const missing = athlete && provider !== 'apple'
-      ? (await missingForAthletes([athlete], weekStartDate, israelToday(), supabase)).get(athlete.id) ?? null
-      : null;
+    // Read alongside the provider rather than after it (on every feed open): an Apple
+    // answer just drops it.
+    const [provider, missingAll] = await Promise.all([
+      providerFor(supabase, athlete),
+      athlete ? missingForAthletes([athlete], weekStartDate, israelToday(), supabase) : Promise.resolve(null),
+    ]);
+    const missing = athlete && provider !== 'apple' ? missingAll?.get(athlete.id) ?? null : null;
 
     return NextResponse.json({
       ...watchState(

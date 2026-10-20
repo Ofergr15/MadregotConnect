@@ -91,9 +91,15 @@ export default function CoreRunnersManager() {
     return [...pool].sort((a, b) => Number(b.isCoreRunner) - Number(a.isCoreRunner));
   }, [athletes, query]);
 
+  // Optimistic (Ofer 2026-10-20: "really slow, and sometimes I tap and nothing happens"):
+  // the row moves at once, the save goes out behind it, and only a failure puts it back.
+  // It used to wait for the save AND a re-read of the whole list before anything moved.
   const toggle = async (a: CoreAthlete, next: boolean) => {
     setBusyId(a.id);
     setError(null);
+    const flip = (list: CoreAthlete[] | undefined, to: boolean) =>
+      (list || []).map((x) => (x.id === a.id ? { ...x, isCoreRunner: to, isLegacy: to ? x.isLegacy : false } : x));
+    await mutate((cur) => (cur ? { ...cur, athletes: flip(cur.athletes, next) } : cur), { revalidate: false });
     try {
       const res = await fetch('/api/admin/core-runners', {
         method: 'PUT',
@@ -108,8 +114,8 @@ export default function CoreRunnersManager() {
             : out.error || 'הפעולה נכשלה',
         );
       }
-      await mutate();
     } catch (err) {
+      await mutate((cur) => (cur ? { ...cur, athletes: flip(cur.athletes, !next) } : cur), { revalidate: false });
       setError(err instanceof Error ? err.message : 'הפעולה נכשלה');
     } finally {
       setBusyId(null);

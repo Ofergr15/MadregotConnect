@@ -13,7 +13,7 @@ export async function loadClubNumbers(supabase: Db, today = israelToday()) {
   const from = addDays(`${today.slice(0, 4)}-01-01`, -7);
   const safe = async <T,>(p: PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> => { try { const r = await p; return r.error ? [] : (r.data ?? []); } catch { return []; } };
   const [ath, groups, bands, cands, events, tests, chars, plans, settings] = await Promise.all([
-    safe(supabase.from('athletes').select('id, name, status, role, is_super_user, is_academy, academy_band_id, academy_joined_on, group_id, created_at, first_seen_at, last_seen_at, approved, garmin_auth, strava_auth, birth_date, gender, is_core_runner')),
+    safe(supabase.from('athletes').select('id, name, status, role, is_super_user, is_academy, academy_band_id, academy_joined_on, group_id, created_at, first_seen_at, last_seen_at, approved, garmin_auth:has_garmin, strava_auth:has_strava, birth_date, gender, is_core_runner')),
     safe(supabase.from('groups').select('id, name')),
     safe(supabase.from('academy_bands').select('id, band_number')),
     safe(supabase.from('academy_candidates').select('id, name, source, created_at, athlete_id')),

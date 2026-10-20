@@ -25,7 +25,7 @@ export const revalidate = 0;
 // in yet (migrations here are applied by hand) — same "not migrated yet"
 // tolerance as /api/athletes/me and /api/athletes/notification-prefs.
 const BASE_COLUMNS =
-  'id, garmin_auth, strava_auth, data_source, avatar_url, phone, birth_date, gender, shirt_size, shoe_size, group_id, active_shoe_id, is_academy';
+  'id, garmin_auth:has_garmin, strava_auth:has_strava, data_source, avatar_url, phone, birth_date, gender, shirt_size, shoe_size, group_id, active_shoe_id, is_academy';
 const PRE_100_COLUMNS = `${BASE_COLUMNS}, onboarding_tour_seen_at, onboarding_completed_at`;
 // 100's kit sizes sit outside PRE_100 so the retry below can drop THEM without also
 // dropping 078's tour flags — losing those makes the tour replay, and this route

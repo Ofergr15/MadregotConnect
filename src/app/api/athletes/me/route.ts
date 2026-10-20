@@ -21,7 +21,7 @@ type Gender = (typeof GENDERS)[number];
 // question. /dashboard/profile used to get that from GET /api/admin/athlete-source,
 // which returns EVERY athlete's row — a whole-roster download to read four fields
 // about yourself, on a screen an athlete opens constantly.
-const CORE_COLUMNS = 'id, name, email, garmin_auth, strava_auth, strava_enabled, data_source, onboarding_status, avatar_url, created_at, birth_date, gender, shoe_size';
+const CORE_COLUMNS = 'id, name, email, garmin_auth:has_garmin, strava_auth:has_strava, strava_enabled, data_source, onboarding_status, avatar_url, created_at, birth_date, gender, shoe_size';
 // The three non-shirt kit sizes (migration 100) ride the SAME degrade path: they
 // are the newest columns here, so until 100 is pasted in they trip the 42703 /
 // PGRST204 retry below and the route serves the pre-100 set instead of 404ing.
@@ -81,6 +81,10 @@ export async function GET(req: NextRequest) {
     .eq('id', id)
     .maybeSingle()
     .then((r) => r, () => ({ data: null }));
+  // The other side reads only need the id too: sent now with the row, awaited below —
+  // they used to go out one after another after it (4 waves → 1 on this every-screen call).
+  const hrTraceRead = readHrTraceSetting(supabase, id);
+  const bodyRead = readBody(supabase, id);
   let { data, error } = await supabase.from('athletes').select(FULL_COLUMNS).eq('id', id).single();
   // '42703' = raw Postgres undefined_column; 'PGRST204' = PostgREST's own
   // schema-cache check rejecting an unknown column before SQL is generated
@@ -133,7 +137,7 @@ export async function GET(req: NextRequest) {
 
   // Migration 147's switch, read on its own for the same reason as the line above.
   // null until 147 is pasted — Settings hides the row rather than offer a dead switch.
-  const hrTracePublic = await readHrTraceSetting(supabase, data.id as string);
+  const hrTracePublic = await hrTraceRead;
 
   return NextResponse.json({
     athlete: {
@@ -178,7 +182,7 @@ export async function GET(req: NextRequest) {
       weekStartDay: weekStartDayOf((data as any).week_start_day),
       pendingGroup,
       hrTracePublic,
-      ...(await readBody(supabase, id)),
+      ...(await bodyRead),
     },
   });
 }

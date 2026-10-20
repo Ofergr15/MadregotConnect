@@ -70,17 +70,56 @@ export const MAX_ROWS = 100_000;
 export async function fetchAllRows<T>(
   page: (from: number, to: number) => PromiseLike<PageResult<T>>,
 ): Promise<T[]> {
+  // The first page alone — most walks end there, in one trip. Only a FULL first page
+  // means more, and then the rest go out eight at a time instead of one by one: each
+  // page is a whole round trip to the database (~0.25 s from the functions today), so a
+  // 4,000-run history was four trips in a row (2026-10-20 speed pass).
+  const first = await page(0, PAGE_SIZE - 1);
+  if (first.error) throw first.error;
+  const rows = first.data || [];
+  if (rows.length < PAGE_SIZE) return rows;
+  const rest = await fetchFrom(page, PAGE_SIZE, 8);
+  return rest === null ? rows : rows.concat(rest);
+}
+
+/** Pages from `offset` on, `concurrency` at a time, until one comes back short. */
+async function fetchFrom<T>(
+  page: (from: number, to: number) => PromiseLike<PageResult<T>>,
+  start: number,
+  concurrency: number,
+): Promise<T[]> {
   const out: T[] = [];
-  for (let offset = 0; offset < MAX_ROWS; offset += PAGE_SIZE) {
-    const { data, error } = await page(offset, offset + PAGE_SIZE - 1);
-    if (error) throw error;
-    const rows = data || [];
-    for (const row of rows) out.push(row);
-    // A short page is the end of the result set. A full one is not proof there
-    // is more, but the next request costs one round trip to find out and
-    // guessing wrong is the bug this file exists to kill.
-    if (rows.length < PAGE_SIZE) return out;
+  for (let offset = start; offset < MAX_ROWS; offset += PAGE_SIZE * concurrency) {
+    const batch = await Promise.all(Array.from({ length: concurrency }, (_, i) => {
+      const from = offset + i * PAGE_SIZE;
+      return page(from, from + PAGE_SIZE - 1);
+    }));
+    for (const { data, error } of batch) {
+      if (error) throw error;
+      const got = data || [];
+      for (const row of got) {
+        if (out.length + start >= MAX_ROWS) break;
+        out.push(row);
+      }
+      if (out.length + start >= MAX_ROWS) break;
+      // A short page is the end of the result set. A full one is not proof there
+      // is more, but guessing wrong is the bug this file exists to kill.
+      if (got.length < PAGE_SIZE) return out;
+    }
+    if (out.length + start >= MAX_ROWS) break;
   }
   console.warn(`fetchAllRows hit the ${MAX_ROWS}-row safety ceiling; the result is truncated`);
   return out;
+}
+
+/**
+ * fetchAllRows with no first-page probe: for a walk known to be long (the club's whole
+ * run history — the leaderboard, the coach's pulse), every page goes out `concurrency`
+ * at a time from the start.
+ */
+export async function fetchAllRowsParallel<T>(
+  page: (from: number, to: number) => PromiseLike<PageResult<T>>,
+  concurrency = 8,
+): Promise<T[]> {
+  return fetchFrom(page, 0, concurrency);
 }

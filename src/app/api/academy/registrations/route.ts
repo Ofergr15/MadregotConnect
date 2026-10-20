@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     let rows: any[] = [];
     const primary = await supabase
       .from('athletes')
-      .select('id, name, email, phone, status, approved, onboarding_status, is_academy, academy_intake, garmin_auth, created_at')
+      .select('id, name, email, phone, status, approved, onboarding_status, is_academy, academy_intake, garmin_auth:has_garmin, created_at')
       .eq('coach_id', COACH_ID)
       .order('created_at', { ascending: false });
 

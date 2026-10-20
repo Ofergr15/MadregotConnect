@@ -50,6 +50,12 @@ export function createMemoryDb(opts: MemoryDbOptions) {
     return null;
   }
 
+  const GENERATED: Record<string, (row: Row) => unknown> = {
+    has_garmin: (row) => row.garmin_auth != null,
+    has_strava: (row) => row.strava_auth != null,
+  };
+  const GENERATED_FROM: Record<string, string> = { has_garmin: 'garmin_auth', has_strava: 'strava_auth' };
+
   function project(table: string, row: Row, columns: string): Row {
     if (!columns || columns.trim() === '*') return { ...row };
     const out: Row = {};
@@ -61,6 +67,15 @@ export function createMemoryDb(opts: MemoryDbOptions) {
         out[alias] = Array.isArray(row[col]) ? row[col][Number(n)] ?? null : null;
         continue;
       }
+      // `alias:col`: a renamed column. has_garmin / has_strava (migration 165) are the
+      // generated "is the credential set" columns, derived here from the credential.
+      const alias = /^(\w+):(\w+)$/.exec(raw);
+      if (alias) {
+        const [, as, col] = alias;
+        out[as] = GENERATED[col] ? GENERATED[col](row) : row[col] ?? null;
+        continue;
+      }
+      if (GENERATED[raw]) { out[raw] = GENERATED[raw](row); continue; }
       const embed = /^(\w+)(?:!inner)?\(([^)]*)\)$/.exec(raw);
       if (embed) {
         const [, parent, inner] = embed;
@@ -79,6 +94,8 @@ export function createMemoryDb(opts: MemoryDbOptions) {
       .split(',')
       .map((c) => c.trim())
       .map((c) => c.replace(/^\w+:(\w+)->\d+$/, '$1'))
+      .map((c) => c.replace(/^\w+:(\w+)$/, '$1'))
+      .map((c) => GENERATED_FROM[c] ?? c)
       .filter((c) => c && c !== '*' && !/\(/.test(c));
   }
 

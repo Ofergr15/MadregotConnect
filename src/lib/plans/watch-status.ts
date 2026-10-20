@@ -67,7 +67,7 @@ export async function planWatchStatus(planId: string, weekStart: string): Promis
     db.from('workout_deliveries')
       .select('athlete_id, workout_date, status, garmin_workout_id, provider, device_confirmed_at, superseded_at, error_message, created_at')
       .eq('plan_id', planId),
-    db.from('athletes').select('id, name, garmin_auth, group_id').eq('coach_id', COACH_ID).eq('status', 'active'),
+    db.from('athletes').select('id, name, garmin_auth:has_garmin, group_id').eq('coach_id', COACH_ID).eq('status', 'active'),
     db.from('groups').select('id, pace_profile').eq('coach_id', COACH_ID),
   ]);
   const planDays = [...new Set(extractWorkouts(plan?.parsed_workouts).map((w) => w.dayOfWeek))];
