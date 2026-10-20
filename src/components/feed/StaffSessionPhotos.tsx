@@ -79,7 +79,10 @@ export function StaffSessionPhotos({ enabled }: { enabled: boolean }) {
   };
 
   return (
-    <div className="mb-4 rounded-[22px] border-[1.5px] border-dashed border-[#9AA0FF] bg-card p-3.5" dir="rtl">
+    <section className="mb-4" dir="rtl">
+    {/* Its own title: the second, separate staff card under "שיתוף הדבוקות" (mockups/post-session/v2). */}
+    <h2 className="mb-1.5 px-1 text-[13px] font-extrabold text-ink-500">תמונות מהאימון</h2>
+    <div className="rounded-[22px] border-[1.5px] border-dashed border-[#9AA0FF] bg-card p-3.5">
       <span className="inline-block rounded-full bg-brand-600/10 px-2 py-0.5 text-[11px] font-extrabold text-brand-600">רק לצוות</span>
       <div className="mt-2 flex items-center gap-2.5">
         <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#FFF0E0] text-xl">📸</span>
@@ -93,7 +96,7 @@ export function StaffSessionPhotos({ enabled }: { enabled: boolean }) {
       {waiting ? (
         <div className="mt-3 rounded-2xl bg-page px-3 py-2.5 text-13 leading-relaxed text-ink-500">
           <span className="me-1.5 inline-block h-2 w-2 rounded-full bg-[#F5B83D]" />
-          מחכים לתמונות בתיקייה.{s.checkedAt && <> נבדק {ago(s.checkedAt)}, הבדיקה הבאה ב־{clock(s.nextAt)}.</>}
+          התמונות עוד לא עלו — התיקייה מוכנה.{s.checkedAt && <> נבדק {ago(s.checkedAt)}, הבדיקה הבאה ב־{clock(s.nextAt)}.</>}
           <a href={s.link} target="_blank" rel="noopener noreferrer" className="mt-1 block font-extrabold text-brand-600">לפתוח את התיקייה בדרייב ‹</a>
         </div>
       ) : (
@@ -154,5 +157,6 @@ export function StaffSessionPhotos({ enabled }: { enabled: boolean }) {
       </div>
       {msg && <p role="status" className="mt-2 text-center text-13 font-bold text-ink-700">{msg}</p>}
     </div>
+    </section>
   );
 }

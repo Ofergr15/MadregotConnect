@@ -42,7 +42,7 @@ const STEPS: Array<{ mark: string; label: string; state: StepState }> = [
   { mark: '✓', label: 'הטופס', state: 'done' },
   { mark: '2', label: 'שיחת היכרות', state: 'next' },
   { mark: '3', label: 'שיחה עם מאמן', state: 'later' },
-  { mark: '4', label: 'מתחילים', state: 'later' },
+  { mark: '4', label: 'מתחילים באפליקציה', state: 'later' },
 ];
 
 /** Half of the line between two circles; `null` past the row's ends. */

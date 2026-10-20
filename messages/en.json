@@ -3553,7 +3553,9 @@
     "viewStickerRouteBadge": "Route alone",
     "looksCards": "Cards",
     "looksStickers": "Clear stickers",
-    "stickerAlways": "A clear sticker: place it on any photo in your story, then move and resize it."
+    "stickerAlways": "A clear sticker: place it on any photo in your story, then move and resize it.",
+    "applyAllHint": "Editing pack 1 · the look goes to all {n} packs",
+    "applyAll": "Apply to all {n} packs"
   },
   "watchAlerts": {
     "title": "Alerts & voice on your watch",

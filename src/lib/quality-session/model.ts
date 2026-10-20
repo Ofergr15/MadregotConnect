@@ -13,6 +13,12 @@ import type { Pack } from '@/lib/pack-stories/model';
 import type { PlanTargets } from './parts';
 
 export const QUALITY_TYPES: WorkoutType[] = ['intervals', 'tempo', 'fartlek'];
+/**
+ * The mornings the share screen, the feed module and the photo folder open for: a
+ * quality session, and a long run (Ofer, 2026-10-20 — "באימוני איכות ואורכה"). Only the
+ * quality types are "quality" on the plan screen's pick; a long run is read off the plan.
+ */
+export const SHARE_TYPES: WorkoutType[] = [...QUALITY_TYPES, 'long_run'];
 
 /** Minutes after local midnight. The push goes at 7:30; the feed row shows 07:00–11:00. */
 export const PUSH_AT = 7 * 60 + 30;
@@ -24,6 +30,8 @@ export interface QualityWorkout {
   type: WorkoutType;
   /** Marked special by the super user, not a quality type in the plan: the feed row shows all day. */
   special?: true;
+  /** A long-run morning rather than a quality session (the same screen, its own wording). */
+  long?: true;
 }
 
 export type LapKind = 'rep' | 'easy' | 'rest';

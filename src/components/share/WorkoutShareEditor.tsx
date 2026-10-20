@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Share2, ImagePlus, Loader2, RotateCcw, Pencil, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Share2, ImagePlus, Loader2, RotateCcw, Pencil, Check, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import {
@@ -23,6 +23,7 @@ import type { FeedItem } from '@/lib/feed/project';
 import { fetchActivityDetails } from '@/lib/activities-client';
 import type { HrTrace } from '@/lib/share/hr-trace';
 import type { PlanSegment } from '@/lib/share/plan-segments';
+import { fitLook, lookRenderOptions, type WorkoutBackground, type WorkoutLook } from '@/lib/share/workout-look';
 
 /**
  * THE WORKOUT SHARE EDITOR: THE CARD IS THE CONTROL PANEL.
@@ -49,7 +50,6 @@ import type { PlanSegment } from '@/lib/share/plan-segments';
  * `lib/share/sheet-model.ts`, unchanged. The week card keeps the old sheet: its
  * renderer has no parts to tap.
  */
-type WorkoutBackground = 'photo' | 'club' | 'sticker';
 type Mode = 'looks' | SharePart | 'background';
 
 const BRAND_SRC: Record<ShareBrand, string> = {
@@ -133,11 +133,19 @@ function Segmented<T extends string>({ items, value, onChange }: {
   );
 }
 
-export function WorkoutShareEditor({ item: given, onClose, onShared }: {
+export function WorkoutShareEditor({ item: given, onClose, onShared, initialLook, applyAll }: {
   item: FeedItem;
   onClose: () => void;
   /** The card really went out (shared or saved); a dismissed share sheet is not this. */
   onShared?: () => void;
+  /** Open on this look (fitted to the run) instead of the run's own opening view. */
+  initialLook?: WorkoutLook | null;
+  /**
+   * The quality morning's packs (mockups/post-session/v2): the editor shows a bar
+   * under the card — "להחיל על N הדבוקות" — that hands the look being made, and the
+   * photo picked for it, to the caller, which draws the same look on every pack's run.
+   */
+  applyAll?: { count: number; onApply: (look: WorkoutLook, photo: File | null) => void };
 }) {
   // The watch's heart rate, for the lap chart, fetched for the run's own athlete
   // (the route answers nobody else). Until it comes, or when there is none, the
@@ -182,28 +190,29 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
   const views = useMemo(() => [...cardViews, ...stickerViews], [cardViews, stickerViews]);
   // Which row of looks the strip shows; follows the card when a swipe crosses over.
   const [shelf, setShelf] = useState<'cards' | 'stickers'>('cards');
-  const [template, setTemplate] = useState<ShareTemplate>(() => defaultTemplate(subject));
+  const seed = useMemo(() => (initialLook ? fitLook(initialLook, { kind: 'workout', item: given }) : null), []); // eslint-disable-line react-hooks/exhaustive-deps -- the opening look only
+  const [template, setTemplate] = useState<ShareTemplate>(() => seed?.template ?? defaultTemplate(subject));
   useEffect(() => { setShelf(isStickerTemplate(template) ? 'stickers' : 'cards'); }, [template]);
-  const [keys, setKeys] = useState<string[]>(() => defaultChipKeys(subject, defaultTemplate(subject)));
-  const [cardLang, setCardLang] = useState<ShareCardLang>(rtl ? 'he' : 'en');
-  const [showTitle, setShowTitle] = useState(true);
-  const [showStartTime, setShowStartTime] = useState(false);
-  const [showDate, setShowDate] = useState(true);
-  const [showShoe, setShowShoe] = useState(true);
+  const [keys, setKeys] = useState<string[]>(() => seed?.keys ?? defaultChipKeys(subject, defaultTemplate(subject)));
+  const [cardLang, setCardLang] = useState<ShareCardLang>(seed?.cardLang ?? (rtl ? 'he' : 'en'));
+  const [showTitle, setShowTitle] = useState(seed?.showTitle ?? true);
+  const [showStartTime, setShowStartTime] = useState(seed?.showStartTime ?? false);
+  const [showDate, setShowDate] = useState(seed?.showDate ?? true);
+  const [showShoe, setShowShoe] = useState(seed?.showShoe ?? true);
   const originalTitle = item.activity?.activityName ?? '';
   const [typedTitle, setTypedTitle] = useState<string | null>(null);
-  const [routeOnly, setRouteOnly] = useState(false);
-  const [bg, setBg] = useState<WorkoutBackground>('club');
-  const [accent, setAccent] = useState<ShareAccent>('white');
-  const [brand, setBrand] = useState<ShareBrand | null>(null);
+  const [routeOnly, setRouteOnly] = useState(seed?.routeOnly ?? false);
+  const [bg, setBg] = useState<WorkoutBackground>(seed?.bg === 'photo' ? 'club' : seed?.bg ?? 'club');
+  const [accent, setAccent] = useState<ShareAccent>(seed?.accent ?? 'white');
+  const [brand, setBrand] = useState<ShareBrand | null>(seed?.brand ?? null);
   const modes = splitModes(subject);
-  const [splitMode, setSplitMode] = useState<SplitMode>(() => defaultSplitMode(subject));
-  const [paceLabels, setPaceLabels] = useState(true);
-  const [targets, setTargets] = useState(false);
+  const [splitMode, setSplitMode] = useState<SplitMode>(() => seed?.splitMode ?? defaultSplitMode(subject));
+  const [paceLabels, setPaceLabels] = useState(seed?.paceLabels ?? true);
+  const [targets, setTargets] = useState(seed?.targets ?? false);
   const targetsOk = hasTargets(subject);
-  const [avgLine, setAvgLine] = useState(true);
+  const [avgLine, setAvgLine] = useState(seed?.avgLine ?? true);
   const hrOk = canHrLine(subject);
-  const [hrLine, setHrLine] = useState(true);
+  const [hrLine, setHrLine] = useState(seed?.hrLine ?? true);
   const [photo, setPhoto] = useState<File | null>(null);
 
   const [mode, setMode] = useState<Mode>('looks');
@@ -324,29 +333,16 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
     return () => { cancelled = true; };
   }, [item, subject, views, rtl, swapUrl]);
 
-  const renderOpts = useCallback((view: ShareTemplate, own: boolean) => {
-    const d = drawnTemplate(view, { routeOnly, withPhoto: bg === 'photo' && !!photo });
-    return {
-      background: bg === 'photo' && supportsPhoto(d) ? photo : null,
-      transparent: isStickerTemplate(d) || (bg === 'sticker' && supportsTransparent(d)),
-      template: d,
-      accent,
-      showTitle: showTitle && titleText.trim().length > 0,
-      showStartTime: (view === 'classic' || view === 'card') && showStartTime,
-      showDate,
-      showShoe,
-      // A neighbour shows the logo it will have when swiped to: its own.
-      brand: own ? brand ?? undefined : undefined,
-      splitMode,
-      paceLabels,
-      targets: targets && targetsOk,
-      avgLine,
-      hrLine,
-      editorChart: true,
-      timeLtr: true,
-      metrics: asWorkoutMetrics(own ? keys : fitChipKeys(subject, view, keys)),
-    };
-  }, [routeOnly, bg, photo, accent, showTitle, titleText, showStartTime, showDate, showShoe, brand, splitMode, paceLabels, targets, targetsOk, avgLine, hrLine, keys, subject]);
+  // Everything chosen, as one value (lib/share/workout-look.ts): what the card is drawn
+  // from, and what "להחיל על כל הדבוקות" hands on.
+  const look = useMemo<WorkoutLook>(() => ({
+    template, keys, cardLang, showTitle, showStartTime, showDate, showShoe, routeOnly, bg, accent, brand,
+    splitMode, paceLabels, targets: targets && targetsOk, avgLine, hrLine,
+  }), [template, keys, cardLang, showTitle, showStartTime, showDate, showShoe, routeOnly, bg, accent, brand, splitMode, paceLabels, targets, targetsOk, avgLine, hrLine]);
+
+  const renderOpts = useCallback((view: ShareTemplate, own: boolean) =>
+    lookRenderOptions(look, subject, { photo, titleText, view, own }),
+  [look, subject, photo, titleText]);
 
   // The card being edited, with its tap areas.
   useEffect(() => {
@@ -1082,6 +1078,22 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
         {!editing && template === 'splits' && modeControl}
         {notice && <p className="mb-1.5 text-center text-2xs text-white/70">{notice}</p>}
         {error && <p className="mb-1.5 text-center text-2xs text-accent-red">{error}</p>}
+        {applyAll ? (
+          <>
+            {!editing && <p className="mt-1 text-center text-12 font-bold text-white/60">{t('applyAllHint', { n: applyAll.count })}</p>}
+            <button
+              onClick={() => applyAll.onApply(look, bg === 'photo' ? photo : null)}
+              disabled={rendering || !previewUrl}
+              className={cn(
+                'mt-2 flex min-h-[50px] w-full items-center [@media(max-height:699px)]:min-h-[44px] justify-center gap-2 rounded-2xl text-base font-extrabold transition-all active:scale-[0.98]',
+                rendering || !previewUrl ? 'bg-white/10 text-white/40' : 'bg-white text-ink-900',
+              )}
+            >
+              <Layers className="h-5 w-5" />
+              {t('applyAll', { n: applyAll.count })}
+            </button>
+          </>
+        ) : (
         <button
           onClick={handleShare}
           disabled={rendering || busy || !previewUrl}
@@ -1093,6 +1105,7 @@ export function WorkoutShareEditor({ item: given, onClose, onShared }: {
           {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
           {t('action')}
         </button>
+        )}
       </div>
 
       <input

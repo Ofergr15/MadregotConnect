@@ -34,11 +34,13 @@ function labelKeys(): string[] {
 }
 
 describe('academy registration kit sizes', () => {
-  it('asks for all four kit sizes', () => {
+  it('no longer ASKS for kit sizes: the app does, after joining (2026-10-20)', () => {
+    // Still defined, so an older application's sizes keep their Hebrew labels...
     const keys = formKeys();
-    for (const k of ['shirtSize', 'pantsSize', 'tightsSize', 'shoeSize']) {
-      expect(keys, `${k} is missing from the form`).toContain(k);
-    }
+    for (const k of ['shirtSize', 'pantsSize', 'tightsSize', 'shoeSize']) expect(keys).toContain(k);
+    // ...but on no page of the form.
+    const steps = form.slice(form.indexOf('const FULL_STEPS'), form.indexOf('const FIELD_BY_KEY'));
+    for (const k of ['shirtSize', 'pantsSize', 'tightsSize', 'shoeSize']) expect(steps).not.toContain(`'${k}'`);
   });
 
   it('renders the garment sizes as chips, not stacked radio lists', () => {

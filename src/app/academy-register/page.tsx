@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { JOURNEY, JourneyCard, JourneyHero, JourneyRow, JourneyScreen, JourneyTracker, NextCard } from '@/components/onboarding/journey-ui';
 import { ChevronLeft, GraduationCap } from 'lucide-react';
 import { Spinner } from '@/components/ui';
 import { CARD, NumberRuns } from '@/components/trainee/ui';
@@ -74,10 +75,13 @@ const FIELDS: Field[] = [
     'נוטל תרופות באופן קבוע',
     'היו בעיות עבר שאינן כרגע',
   ] },
-  { key: 'medicalDetails', label: 'אנא פרט/י', type: 'textarea' },
+  // Required once it shows, and asked in the words of the answer above it (2026-10-20):
+  // "אנא פרט/י" under any of three answers said nothing about what to write, and being
+  // optional, "chronic problem" arrived at the fit call with no word on what it was.
+  { key: 'medicalDetails', label: 'אנא פרט/י', type: 'textarea', required: true },
   { key: 'hearAbout', label: 'איך שמעת על קבוצת הריצה', type: 'radio', options: ['אינסטגרם', 'פייסבוק', 'חברים', 'אחר'] },
   { key: 'hearAboutOther', label: 'ספרו לנו איך', type: 'text', required: true },
-  // ── Kit sizes, together and last ────────────────────────────────────────────
+  // ── Kit sizes — NOT asked any more (see FULL_STEPS); kept for older intakes ──
   // Shirt size was the only one collected, so ordering anything else meant asking
   // twenty people one at a time in WhatsApp. Grouped and rendered as pills so the
   // four of them cost about as much of the form as the one did.
@@ -98,9 +102,18 @@ const FULL_STEPS: { title: string; name: string; sub: string; keys: string[] }[]
   { title: 'הפרטים שלך', name: 'פרטים', sub: 'ממלאים פעם אחת, ונחזור אליך בימים הקרובים', keys: ['firstName', 'lastName', 'email', 'phone', 'focus'] },
   { title: 'קצת עליך', name: 'עליך', sub: 'כמה פרטים כדי שנכיר אותך', keys: ['birthDate', 'weight', 'height', 'city'] },
   { title: 'הריצה שלך', name: 'הריצה', sub: 'כדי שנשבץ אותך בדבוקה הנכונה', keys: ['runningHistory', 'group', 'achievements', 'hearAbout', 'hearAboutOther'] },
-  { title: 'בריאות ומידות', name: 'בריאות ומידות', sub: 'אחרון, ואנחנו בקשר', keys: ['medicalHistory', 'medicalDetails', 'shirtSize', 'pantsSize', 'tightsSize', 'shoeSize'] },
+  // No kit sizes here (Ofer, 10-20: "sizes only in the app, not in the first form —
+  // no point in them before the fit call"). They are asked in the app's profile
+  // completion; the fields below stay defined so older applications still show them.
+  { title: 'בריאות', name: 'בריאות', sub: 'אחרון, ואנחנו בקשר', keys: ['medicalHistory', 'medicalDetails'] },
 ];
 const FIELD_BY_KEY = new Map(FIELDS.map(f => [f.key, f]));
+/** The medical follow-up, in the words of the answer it follows. */
+const MEDICAL_PROMPT: Record<string, string> = {
+  'יש בעיה רפואית כרונית': 'מה הבעיה, והאם היא משפיעה על ריצה?',
+  'נוטל תרופות באופן קבוע': 'אילו תרופות? (למשל לחץ דם, אסטמה)',
+  'היו בעיות עבר שאינן כרגע': 'מה היה, ומתי? (למשל פציעה, ניתוח)',
+};
 /**
  * Somebody who already trains with us fills one page (academy-onboarding/who-fills-what.html):
  * confirm the details, the health question, how they heard of us. The coaching type, the
@@ -277,14 +290,16 @@ export default function AcademyRegisterPage() {
   };
 
   /** The first problem on one page, and the field it is about, or null. */
+  const labelOf = (f: Field): string =>
+    (f.key === 'medicalDetails' && MEDICAL_PROMPT[String(values.medicalHistory || '')]) || f.label;
   const problemOn = (index: number): { key: string; message: string } | null => {
     for (const key of STEPS[index].keys) {
       const f = FIELD_BY_KEY.get(key);
       if (!f?.required || !isShown(key)) continue;
       const v = values[f.key];
       const empty = f.type === 'checkboxes' ? !(v && v.length) : !(v && String(v).trim());
-      if (empty) return { key, message: `אנא מלא/י: ${f.label}` };
-      if (f.type === 'date' && !isWholeDate(v)) return { key, message: `אנא בחר/י יום, חודש ושנה: ${f.label}` };
+      if (empty) return { key, message: `אנא מלא/י: ${labelOf(f)}` };
+      if (f.type === 'date' && !isWholeDate(v)) return { key, message: `אנא בחר/י יום, חודש ושנה: ${labelOf(f)}` };
     }
     // Same rule the server enforces, said on the FIRST page so it is a correction
     // and not a rejection: nobody should fill in twenty fields and then be told no.
@@ -352,21 +367,10 @@ export default function AcademyRegisterPage() {
   }
 
   if (done) {
-    return (
-      <div className="min-h-screen bg-[#F6F6F9] flex items-start justify-center p-4 pt-[18vh]" dir="rtl">
-        <div className={cn(CARD, 'w-full max-w-md p-6 sm:p-8 text-center')}>
-          {/* The club's own logo, not a generic check: this is the first thing of
-              ours a stranger sees after sending, and often the only one for days. */}
-          <img src="/images/logo.png" alt="Madregot" width={112} height={112} className="mx-auto mb-4 h-28 w-28 object-contain" />
-          <h2 className="text-lg font-bold text-ink-700">{existing ? 'תודה! קיבלנו את הפרטים' : 'תודה שפנית לאקדמיית הריצה של מדרגות'}</h2>
-          <p className="text-ink-400 text-sm mt-2 leading-relaxed">
-            {existing
-              ? 'אחרי שנעבור עליהם, יגיע אליך מייל עם הקישור להתקנת האפליקציה — בדרך כלל עוד היום.'
-              : 'הטופס התקבל. נחזור אליך בימים הקרובים לשיחת היכרות קצרה.'}
-          </p>
-        </div>
-      </div>
-    );
+    // The club's "we got it" screen, in the academy's words (2026-10-19, Ofer: bring
+    // the academy screens up to the club's): the same journey look, the four steps the
+    // form-received mail draws, and the one thing that happens next.
+    return <AcademyReceived existing={existing} first={String(values.firstName || '').trim()} email={String(values.email || '').trim()} phone={String(values.phone || '').trim()} />;
   }
 
   const last = step === STEPS.length - 1;
@@ -380,7 +384,7 @@ export default function AcademyRegisterPage() {
     const ltr = f.type === 'email' || f.type === 'tel';
     return (
       <label key={f.key} htmlFor={`ar-${f.key}`} className={cn(FIELD_BOX, problem?.key === f.key && FIELD_BAD)}>
-        <span className={FIELD_LABEL}>{f.label}{f.required && <Required />}</span>
+        <span className={FIELD_LABEL}>{labelOf(f)}{f.required && <Required />}</span>
         <input
           id={`ar-${f.key}`} type={f.type === 'number' ? 'text' : f.type} value={values[f.key] || ''} placeholder={(f as any).placeholder || 'התשובה שלך'}
           inputMode={(f as any).inputMode}
@@ -407,7 +411,7 @@ export default function AcademyRegisterPage() {
         <div className="mx-auto max-w-lg px-[18px] pb-3.5 pt-2" aria-live="polite">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[15px] font-black text-ink-900" dir="ltr">Madregot Academy</p>
+              <p className="text-[15px] font-black text-ink-900">האקדמיה של מדרגות</p>
               {STEPS.length > 1 && (
                 <p className="mt-px text-[12.5px] font-bold text-ink-400">
                   שלב <bdi dir="ltr">{step + 1}</bdi> מתוך <bdi dir="ltr">{STEPS.length}</bdi>
@@ -473,7 +477,7 @@ export default function AcademyRegisterPage() {
             if (f.type === 'textarea') {
               return (
                 <div key={f.key}>
-                  <label htmlFor={`ar-${f.key}`} className={cn(QUESTION, 'block')}>{f.label}{f.required && <Required />}</label>
+                  <label htmlFor={`ar-${f.key}`} className={cn(QUESTION, 'block')}>{labelOf(f)}{f.required && <Required />}</label>
                   <div className={cn(FIELD_BOX, 'pt-2', problem?.key === f.key && FIELD_BAD)}>
                     <textarea
                       id={`ar-${f.key}`} value={values[f.key] || ''} rows={3} placeholder="התשובה שלך"
@@ -489,7 +493,7 @@ export default function AcademyRegisterPage() {
             if (f.type === 'date') {
               return (
                 <div key={f.key}>
-                  <p id={`ar-${f.key}-q`} className={QUESTION}>{f.label}{f.required && <Required />}</p>
+                  <p id={`ar-${f.key}-q`} className={QUESTION}>{labelOf(f)}{f.required && <Required />}</p>
                   <DateParts id={`ar-${f.key}`} value={values[f.key] || ''} onChange={v => set(f.key, v)} />
                 </div>
               );
@@ -501,7 +505,7 @@ export default function AcademyRegisterPage() {
               return (
                 <div key={f.key} className={cn(FIELD_BOX, 'relative flex items-center justify-between', problem?.key === f.key && FIELD_BAD)}>
                   <div className="min-w-0">
-                    <span id={`ar-${f.key}-q`} className={FIELD_LABEL}>{f.label}{f.required && <Required />}</span>
+                    <span id={`ar-${f.key}-q`} className={FIELD_LABEL}>{labelOf(f)}{f.required && <Required />}</span>
                     <span className={cn('mt-[3px] block min-h-[24px] text-[16.5px]', values[f.key] ? 'font-bold text-ink-900' : 'font-medium text-[#BFC0C9]')}>
                       {values[f.key] ? <bdi dir="ltr">{values[f.key]}</bdi> : 'בחירה'}
                     </span>
@@ -522,7 +526,7 @@ export default function AcademyRegisterPage() {
             // A choice: the question above, after the blue bar; the answers as rows.
             return (
               <div key={f.key}>
-                <p id={`ar-${f.key}-q`} className={QUESTION}>{f.label}{f.required && <Required />}</p>
+                <p id={`ar-${f.key}-q`} className={QUESTION}>{labelOf(f)}{f.required && <Required />}</p>
 
                 {f.type === 'radio' && (
                   <div role="radiogroup" aria-labelledby={`ar-${f.key}-q`}
@@ -608,5 +612,49 @@ export default function AcademyRegisterPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+/** The academy's journey, as the form-received mail draws it. */
+const ACADEMY_JOURNEY = ['הטופס', 'שיחת היכרות', 'שיחה עם מאמן', 'מתחילים באפליקציה'] as const;
+
+function AcademyReceived({ existing, first, email, phone }: { existing: boolean; first: string; email: string; phone: string }) {
+  if (existing) {
+    return (
+      <JourneyScreen
+        testId="academy-received"
+        hero={<JourneyHero eyebrow="האקדמיה של מדרגות" title={`תודה${first ? `, ${first}` : ''}! 🙌`} subtitle="קיבלנו את הפרטים" />}
+        actions={<p className="text-center text-[13px] leading-relaxed" style={{ color: JOURNEY.soft }}>אין צורך לעשות שום דבר בינתיים.<br />לא הגיע מייל עד הערב? כדאי לבדוק בספאם.</p>}
+      >
+        <NextCard label="הבא בתור" title="הקישור לאפליקציה">
+          אחרי שנעבור על הפרטים, יגיע מייל עם הקישור להתקנה — בדרך כלל עוד היום.
+          {email && <><br /><bdi dir="ltr" className="font-bold" style={{ color: JOURNEY.ink }}>{email}</bdi></>}
+        </NextCard>
+      </JourneyScreen>
+    );
+  }
+  // Said once each (Ofer, 10-20: "a call, then another call, then an email —
+  // something doesn't add up"): the tracker is the whole path, the card is only
+  // what happens now, and the mail is a quiet line at the foot.
+  return (
+    <JourneyScreen
+      testId="academy-received"
+      hero={<JourneyHero eyebrow="האקדמיה של מדרגות" title={`קיבלנו${first ? `, ${first}` : ''} 🙌`} subtitle="תודה שסיפרת לנו על עצמך" />}
+      actions={
+        <p className="text-center text-[13px] leading-relaxed" style={{ color: JOURNEY.soft }}>
+          {email && <>שלחנו אישור גם למייל <bdi dir="ltr" className="font-bold">{email}</bdi><br /></>}
+          אין צורך לעשות שום דבר נוסף בינתיים.
+        </p>
+      }
+    >
+      <JourneyTracker done={1} labels={ACADEMY_JOURNEY} />
+      <NextCard label="הבא בתור" title="שיחת היכרות קצרה">
+        נתקשר אליך בימים הקרובים{phone ? <> למספר <bdi dir="ltr" className="font-bold" style={{ color: JOURNEY.ink }}>{phone}</bdi></> : ''}, להכיר ולשמוע מה המטרה שלך.
+      </NextCard>
+      {/* Where it all ends, so the calls read as the way IN (Ofer, 10-20). */}
+      <JourneyCard>
+        <JourneyRow icon="📱" title="ומשם — מתחילים באפליקציה" sub="התוכנית האישית, המאמן שלך והמשוב על כל אימון — הכל במקום אחד. הקישור יגיע במייל." />
+      </JourneyCard>
+    </JourneyScreen>
   );
 }

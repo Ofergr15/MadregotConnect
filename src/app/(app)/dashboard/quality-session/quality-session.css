@@ -103,4 +103,5 @@
 .qsx .done span.ok{background:#E6F4EC;color:var(--green)}
 .qsx .btn{width:100%;height:48px;border-radius:99px;background:var(--brand);color:#fff!important;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:15px;gap:6px}
 .qsx .btn:disabled{background:#C7C7CC}
+.qsx .btn.all{background:#fff;color:var(--brand)!important;border:1.5px solid var(--brand);margin-bottom:8px}
 .qsx .toast{position:fixed;top:56px;inset-inline:16px;background:#1C1C1E;color:#fff;border-radius:14px;padding:12px 14px;font-size:13.5px;font-weight:600;z-index:60}

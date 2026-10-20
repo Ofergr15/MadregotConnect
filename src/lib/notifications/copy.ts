@@ -1553,6 +1553,13 @@ export function birthdayYearCopy(locale: NotificationLocale, p: { name: string; 
 }
 
 /** The morning check found photos in the quality session's folder (10-19). To the editors only. */
+/** The morning's first photos in the folder: the one push the editors get for them (Ofer, 2026-10-20). */
+export function sessionPhotosStartedCopy(locale: NotificationLocale, p: { count: number }): PushCopy {
+  return locale === 'he'
+    ? { title: '📸 התמונות של הבוקר מתחילות לעלות', body: `${p.count} ראשונות בתיקייה · נגיעה כדי לבדוק ולפרסם` }
+    : { title: "📸 This morning's photos are coming in", body: `The first ${p.count} are in the folder · tap to check and publish` };
+}
+
 export function sessionPhotosFoundCopy(locale: NotificationLocale, p: { count: number; first: boolean }): PushCopy {
   return locale === 'he'
     ? { title: `📸 ${p.count} תמונות חדשות בתיקייה`, body: p.first ? 'מאימון האיכות של הבוקר. נגיעה כדי לבדוק ולפרסם.' : 'נוספו לתיקייה אחרי הפרסום. נגיעה כדי להוסיף אותן.' }

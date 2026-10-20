@@ -2319,6 +2319,19 @@ const LABELLED_BARS = 12;
 type SegmentBand = Omit<PlanSegment, 'kind'> & { kind?: PlanSegment['kind'] };
 
 /**
+ * A block's length the way a plan writes it: to the nearest 100 m, and onto the
+ * nearest half-kilometre only when it is within 3% of one — a 5 km block closed at
+ * 4.93 is still 5 km, but a 1000 + 600 block (1.6 km, 2026-10-20) is 1.6, not the
+ * "1.5" rounding to 500 m made of it.
+ */
+export function planLength(m: number): number {
+  const hundred = Math.round(m / 100) * 100;
+  if (m < 1000) return hundred;
+  const half = Math.round(m / 500) * 500;
+  return Math.abs(m - half) <= half * 0.03 ? half : hundred;
+}
+
+/**
  * The bars the segments chart draws, or null for the kilometre list. `blocks` and
  * `full` ask for the workout's steps and fall back to the laps when the run had no
  * workout on the watch, so a choice made once never leaves an empty chart.
@@ -2338,7 +2351,7 @@ function segmentBands(c: LayoutCtx): { laps: SegmentBand[]; title: { value: stri
     if (core.every(l => l.kind === 'active')) {
       // Named by the length most blocks were, rounded the way a plan is written: a
       // block cut short (a lap pressed early) doesn't stop the session being 7 × 5 km.
-      const rounded = core.map(l => (l.m >= 1000 ? Math.round(l.m / 500) * 500 : Math.round(l.m / 100) * 100));
+      const rounded = core.map(l => planLength(l.m));
       const counts = new Map<number, number>();
       for (const m of rounded) counts.set(m, (counts.get(m) ?? 0) + 1);
       const [m, n] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
