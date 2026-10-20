@@ -18,6 +18,7 @@ import { InstallStepProvider } from '@/components/onboarding/InstallStepProvider
 import { ExecutionScoreProvider } from '@/components/activity/execution-context';
 import { NotificationsStep } from '@/components/onboarding/NotificationsStep';
 import { FirstRunFlow } from '@/components/onboarding/FirstRunFlow';
+import { SetupGate } from '@/components/setup/SetupGate';
 import { Spinner } from '@/components/ui';
 import { AccessBlocked } from '@/components/AccessBlocked';
 import { apiHeaders, useApi } from '@/lib/api';
@@ -63,7 +64,9 @@ export default function AppLayout({
   // each one asks the person for something — a permission, a connection, a tour —
   // and the admin cannot answer for them.
   const [viewingPerson] = useState(isViewingPerson);
-  const popupsAllowed = !isRunChat && !tourActive && !viewingPerson;
+  // The required setup (components/setup/SetupGate) owns the screen the same way.
+  const [setupActive, setSetupActive] = useState(false);
+  const popupsAllowed = !isRunChat && !tourActive && !viewingPerson && !setupActive;
   // A screen with its own top row (the academy trainee's home) folds the phone header away.
   const headerFolded = useShellHeaderHidden();
 
@@ -452,7 +455,8 @@ export default function AppLayout({
         {popupsAllowed && <ConnectDataSourcePopup />}
         {/* A record broken since the last open: once, then the record's timeline. */}
         {popupsAllowed && <NewRecordSheet />}
-        {!isRunChat && !viewingPerson && <FirstRunTour onActiveChange={setTourActive} />}
+        {!isRunChat && !viewingPerson && !setupActive && <FirstRunTour onActiveChange={setTourActive} />}
+        {!isRunChat && !viewingPerson && <SetupGate onActive={setSetupActive} />}
         <main
           // THE scroll container for the whole app — see lib/app-scroll.ts.
           // `min-h-0` is load-bearing: without it a flex child refuses to shrink
