@@ -64,7 +64,7 @@ export function PhotosLoading({ what, folderId, onRetry }: { what: 'home' | 'fol
     <div className="mcl-in px-3 pb-6 pt-1" dir="rtl" role="status" aria-label={LINES[0]}>
       <div className="relative h-[300px] overflow-hidden rounded-[24px] shadow-[0_18px_34px_-18px_rgba(20,24,60,0.5)]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/images/photos-loading.jpg" alt="" className="mcl-sharpen h-full w-full object-cover" />
+        <img src="/images/photos-loading.jpg" alt="" fetchPriority="high" decoding="async" className="mcl-sharpen h-full w-full object-cover" />
         <span className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/45" />
         <span className="absolute bottom-3.5 left-16 right-3.5 text-white">
           {known ? (
