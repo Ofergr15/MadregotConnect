@@ -40,15 +40,18 @@ describe('the plan week', () => {
 
 describe('the card', () => {
   const card = readFileSync('src/components/profile/MyWeekCard.tsx', 'utf8');
+  const ring = readFileSync('src/lib/plans/week-tab.ts', 'utf8');
   it('marks where to be by the end of today, and not a day further', () => {
-    expect(card).toMatch(/Array\.from\(\{ length: pw\.today \+ 1 \}, \(_, d\) => plannedMin\(d\)\)/);
+    // The ring's numbers moved to lib/plans/week-tab (shared with the "השבוע" tab, 10-20).
+    expect(ring).toMatch(/Array\.from\(\{ length: pw\.today \+ 1 \}, \(_, d\) => plannedMin\(plan, d\)\)/);
+    expect(card).toMatch(/ringNumbers\(pw, plan\)/);
     // Days still ahead show no planned number and cannot be opened.
     expect(card).toMatch(/disabled=\{future\}/);
     expect(card).toMatch(/\{future \? '·' :/);
   });
   it('measures against the group\'s range only when a club week is published', () => {
-    expect(card).toMatch(/const clubPlan = plan\?\.hasPlan && plan\.hasClubPlan !== false;/);
-    expect(card).toMatch(/target\?\.max \|\| Math\.max\(pw\.avgKm/);
+    expect(ring).toMatch(/const clubPlan = !!plan\?\.hasPlan && plan\.hasClubPlan !== false;/);
+    expect(ring).toMatch(/target\?\.max \|\| Math\.max\(pw\.avgKm/);
   });
   it('is on the stats tab for the owner and for a teammate', () => {
     expect(readFileSync('src/components/profile/AthleteProfileBody.tsx', 'utf8')).toMatch(/\{owner \? weekSlot : athleteId && <MyWeekCard athleteId=\{athleteId\} owner=\{false\} athleteName=\{profile\?\.name\} \/>\}/);

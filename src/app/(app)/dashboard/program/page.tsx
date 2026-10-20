@@ -19,6 +19,8 @@ import { isEstimate } from '@/lib/plans/step-estimate';
 import { Card, Button, EmptyState, SegmentedControl, Sheet, InsetSection, InsetRow, BigStat } from '@/components/ui';
 import { WorkoutDetailModal, type WorkoutDetailSession } from '@/components/WorkoutDetailModal';
 import { AttendanceConfirmCard } from '@/components/AttendanceConfirmCard';
+import { WeekTab } from '@/components/week/WeekTab';
+import { useAthleteId } from '@/lib/use-athlete-id';
 import { scrollAppToTop } from '@/lib/app-scroll';
 
 // pdf.js is ~350 KB gzipped on top of a 1.2 MB worker. Loaded on demand so it is
@@ -109,6 +111,7 @@ const WORKOUT_VIDEOS: WorkoutVideo[] = [
 
 export default function ProgramPage() {
   const t = useTranslations('program');
+  const tw = useTranslations('weekTab');
   // The week on screen, held as its Sunday rather than an index into `weeks`:
   // the list arrives from the network and revalidates in the background, so an
   // index means "whatever is in slot 3 now". It also makes the current week
@@ -117,13 +120,21 @@ export default function ProgramPage() {
   const thisWeekStart = getDisplayWeekStart(new Date());
   const [selectedStart, setSelectedStart] = useState(thisWeekStart);
   const [activeView, setActiveView] = useState<'training' | 'nutrition' | 'workout'>('training');
+  // "השבוע" (my-week-proposal, Ofer 10-20): the tab opens on the week — plan and runs
+  // side by side — and אימון · תזונה · כוח are the other segments, as before. A link
+  // that names a week or a view (?week= / ?view=, the feed's session card) lands on it.
+  const [showWeek, setShowWeek] = useState(true);
+  const myId = useAthleteId();
+  const { data: reminderCfg } = useApi<{ config?: { teamDays?: number[]; workoutHour?: number } }>('/api/reminder-config');
   // `?week=YYYY-MM-DD&view=nutrition` — where the feed's one-day session card links
   // (lib/day-session planLinks). Read once on arrival.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const week = q.get('week');
-    if (week && /^\d{4}-\d{2}-\d{2}$/.test(week)) setSelectedStart(week);
-    if (q.get('view') === 'nutrition') setActiveView('nutrition');
+    if (week && /^\d{4}-\d{2}-\d{2}$/.test(week)) { setSelectedStart(week); setShowWeek(false); }
+    const view = q.get('view');
+    if (view === 'nutrition') setActiveView('nutrition');
+    if (view === 'nutrition' || view === 'training' || view === 'workout') { setShowWeek(false); if (view === 'workout') setActiveView('workout'); }
   }, []);
   // Controls the native week-picker Sheet (replaces an anchored web-style
   // dropdown menu — see the Sheet render below).
@@ -377,17 +388,19 @@ export default function ProgramPage() {
           Renders nothing outside the day-before/day-of window, and nothing for a
           coach; deliberately not shown in the nutrition or gym views, which have
           nothing to do with turning up on Tuesday. */}
-      {activeView === 'training' && <AttendanceConfirmCard />}
+      {!showWeek && activeView === 'training' && <AttendanceConfirmCard />}
 
       {/* View Toggle — full width, sticky on mobile */}
       <div className={cn('flex flex-col gap-3', activeView === 'workout' && 'sticky top-0 z-30 bg-page -mx-4 px-4 pt-2 pb-3 sm:static sm:mx-0 sm:px-0 sm:pt-0 sm:pb-0 sm:bg-transparent')}>
         <SegmentedControl
-          value={activeView}
-          onChange={setActiveView}
+          value={showWeek ? 'week' : activeView}
+          onChange={(v) => { if (v === 'week') setShowWeek(true); else { setShowWeek(false); setActiveView(v); } }}
           options={[
-            { value: 'training', label: t('training'), icon: Dumbbell },
-            { value: 'nutrition', label: t('nutrition'), icon: Utensils },
-            { value: 'workout', label: t('gym'), icon: Play },
+            // Four segments: words only — with icons "חדר כושר" was cut to "חדר כ…" at 390pt.
+            { value: 'week', label: tw('title') },
+            { value: 'training', label: t('training') },
+            { value: 'nutrition', label: t('nutrition') },
+            { value: 'workout', label: t('gym') },
           ]}
         />
 
@@ -396,7 +409,7 @@ export default function ProgramPage() {
             web-style dropdown menu — the same "pick one from a list"
             pattern already used app-wide (impersonation chooser, role
             picker, etc). */}
-        {activeView !== 'workout' && currentWeek && (
+        {!showWeek && activeView !== 'workout' && currentWeek && (
           <button
             onClick={() => setWeekPickerOpen(true)}
             className="flex items-center gap-3 bg-card/60 border border-page/60 rounded-card px-4 py-3.5 min-h-[44px] hover:border-ink-300 active:scale-[0.98] transition-all w-full sm:w-auto sm:min-w-[240px]"
@@ -470,7 +483,7 @@ export default function ProgramPage() {
           push (training ✅/❌ · nutrition ✅/❌). Driven by the week that actually
           contains today, NOT the selected/most-recent week — so if no plan exists
           for the current week yet, both correctly read "missing". */}
-      {activeView !== 'workout' && (() => {
+      {!showWeek && activeView !== 'workout' && (() => {
         const cw = weeks.find(w => w.week_start_date === thisWeekStart);
         const training = !!cw?.training_pdf_url || structuredWeekStarts.has(thisWeekStart);
         const nutrition = !!cw?.nutrition_pdf_url;
@@ -507,7 +520,14 @@ export default function ProgramPage() {
       })()}
 
       {/* PDF Viewer or Workout Videos */}
-      {activeView === 'workout' ? (
+      {showWeek ? (
+        <WeekTab
+          athleteId={myId}
+          teamDays={reminderCfg?.config?.teamDays}
+          workoutHour={reminderCfg?.config?.workoutHour}
+          onOpenPlan={() => { setShowWeek(false); setActiveView('training'); }}
+        />
+      ) : activeView === 'workout' ? (
         <div className="space-y-3 sm:space-y-5">
           {/* Video Player — only show after selecting an exercise */}
           {currentExercise && (

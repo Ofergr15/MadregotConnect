@@ -18,10 +18,11 @@ describe('week story entry points are gated', () => {
       'src/components/feed/WeekSummaryCard.tsx',
       'src/components/profile/Last7DaysCard.tsx',
       'src/components/profile/MyWeekCard.tsx',
+      'src/components/week/WeekTab.tsx',
     ]);
   });
   it('the profile cards hide the share button and the sheet unless the gate allows', () => {
-    for (const f of ['src/components/profile/Last7DaysCard.tsx', 'src/components/profile/MyWeekCard.tsx']) {
+    for (const f of ['src/components/profile/Last7DaysCard.tsx', 'src/components/profile/MyWeekCard.tsx', 'src/components/week/WeekTab.tsx']) {
       const s = read(f);
       expect(s).toMatch(/useStoryAccess\('weekly'\)/);
       expect((s.match(/weekStory\?\.allowed/g) || []).length).toBe(2);

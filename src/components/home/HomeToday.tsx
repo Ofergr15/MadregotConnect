@@ -47,7 +47,7 @@ function Avatar({ name, url, size = 28 }: { name: string; url: string | null; si
   );
 }
 
-export function HomeToday({ athleteId, href = '/dashboard/profile?tab=stats' }: { athleteId: string; /** Where the card opens: the profile's numbers, or an academy trainee's progress tab. */ href?: string }) {
+export function HomeToday({ athleteId, href = '/dashboard/program' }: { athleteId: string; /** Where the card opens: the "השבוע" tab (my-week-proposal, 10-20), or an academy trainee's progress tab. */ href?: string }) {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
   const dayShort = tc.raw('dayNamesShort') as string[];

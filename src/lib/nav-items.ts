@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
+  Calendar, Users, Layers, Clock, User, Settings,
   Route, MessageSquare, Bug, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
   BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift, ShieldCheck, Gauge, Trophy,
   UsersRound, Megaphone, TrendingUp, Sun,
@@ -75,7 +75,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   ACADEMY_ITEM,
   { href: '/dashboard/groups', tab: 'groups', labelKey: 'groups', icon: Layers },
   { href: '/dashboard/activities', tab: 'activities', labelKey: 'activities', icon: Route },
-  { href: '/dashboard/program', tab: 'program', labelKey: 'program', icon: ClipboardList },
+  { href: '/dashboard/program', tab: 'program', labelKey: 'program', icon: CalendarDays },
   { href: '/dashboard/practice', tab: 'practice', labelKey: 'practice', icon: Dumbbell },
   { href: '/dashboard/practice-attendance', tab: 'practice-attendance', labelKey: 'practiceAttendance', icon: UserCheck },
   { href: '/dashboard/workout-feedback', tab: 'workout-feedback', labelKey: 'workoutFeedback', icon: ClipboardCheck },

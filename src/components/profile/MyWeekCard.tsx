@@ -17,7 +17,8 @@ import { WORKOUT_TYPE_COLORS, planDayKey, type WeekSession } from '@/lib/plans/w
 import { sessionHeadline } from '@/lib/plans/session-summary';
 import type { StepUnits } from '@/lib/plans/step-display';
 import { roundKm } from '@/lib/plans/week-summary';
-import { weekTargetRange, type WeekPlanTotals } from '@/lib/plans/week-target';
+import { type WeekPlanTotals } from '@/lib/plans/week-target';
+import { plannedMin as plannedMinOf, ringNumbers } from '@/lib/plans/week-tab';
 import { useWorkoutTypeLabel } from '@/lib/plans/use-workout-type-label';
 import { dayStatus, type DayStatus } from '@/lib/plans/week-status';
 import { formatDurationClock } from '@/lib/workout-duration';
@@ -120,15 +121,9 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
   if (!pw) return null;
 
   const today = israelToday();
-  const clubPlan = plan?.hasPlan && plan.hasClubPlan !== false;
-  const target = clubPlan ? weekTargetRange(plan) : null;
-  const plannedMin = (d: number) => {
-    const dd = plan?.dailyDistances?.find((x) => x.dayOfWeek === d);
-    return dd ? dd.requiredMin ?? dd.min : 0;
-  };
-  const shouldBy = Array.from({ length: pw.today + 1 }, (_, d) => plannedMin(d)).reduce((s, x) => s + x, 0);
-  // Without a published week the ring is against the athlete's own average.
-  const scale = target?.max || Math.max(pw.avgKm, pw.km * 1.25, shouldBy * 1.25, 10);
+  // The same three numbers the "השבוע" tab draws its ring from (lib/plans/week-tab).
+  const { target, shouldBy, scale } = ringNumbers(pw, plan);
+  const plannedMin = (d: number) => plannedMinOf(plan, d);
 
   const days = Array.from({ length: 7 }, (_, d) => {
     const date = planDayKey(pw.weekStart, d);
@@ -371,7 +366,7 @@ export function MyWeekCard({ athleteId, owner, athleteName, teamDays = [], worko
   );
 }
 
-function Ring({ km, scale, target, should, col, id }: { km: number; scale: number; target: { min: number; max: number } | null; should: number; col: { main: string; soft: string }; id: string }) {
+export function Ring({ km, scale, target, should, col, id }: { km: number; scale: number; target: { min: number; max: number } | null; should: number; col: { main: string; soft: string }; id: string }) {
   const C = 2 * Math.PI * R;
   const R2 = R + 14; const C2 = 2 * Math.PI * R2;
   // On the grey track itself, under the fill: inside the ring, clear of the number.
@@ -410,7 +405,7 @@ function Ring({ km, scale, target, should, col, id }: { km: number; scale: numbe
   );
 }
 
-function Where({ label, value, delta, good, unit, dashed = false }: { label: string; value: number; delta: string; good: boolean; unit: string; dashed?: boolean }) {
+export function Where({ label, value, delta, good, unit, dashed = false }: { label: string; value: number; delta: string; good: boolean; unit: string; dashed?: boolean }) {
   return (
     <div className="flex items-center gap-2 rounded-xl bg-page/60 px-3 py-2 text-xs text-ink-500">
       {dashed && <span aria-hidden className="w-4 flex-none border-t-[2.2px] border-dashed border-ink-500" />}
@@ -450,7 +445,7 @@ function Tile({ km, label }: { km: number; label: string }) {
 }
 
 /** Ten plan weeks as one line, like Strava: grid with km on the side, months under it, this week marked. */
-function WeeksLine({ weeks, locale, col, id }: { weeks: Array<{ weekStart: string; km: number }>; locale: string; col: string; id: string }) {
+export function WeeksLine({ weeks, locale, col, id }: { weeks: Array<{ weekStart: string; km: number }>; locale: string; col: string; id: string }) {
   const w = 300; const h = 130; const padL = 34;
   const max = Math.max(...weeks.map((x) => x.km), 10);
   const step = max > 120 ? 50 : max > 60 ? 25 : 10;
