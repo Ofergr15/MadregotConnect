@@ -131,6 +131,8 @@ export interface TraineeHome {
   journey?: HomeJourney;
   /** "<coach> עדכן את הקצבים שלך" — the newest pace update, while fresh (migration 141). */
   paceUpdate?: PaceUpdateCard | null;
+  /** The band's "מה זה אומר" (bands.ts bandMeaning), the line under its name. */
+  bandMeaning?: string | null;
 }
 
 // ── A week row ──────────────────────────────────────────────────────────────
@@ -386,14 +388,17 @@ export function resolveTraineePaces(input: {
   const bandThreshold = band?.paceProfile?.thresholdPaceSec;
   let threshold: number | null = null;
   let source: HomePaces['source'] = 'band';
-  if (typeof bandThreshold === 'number' && bandThreshold > 0) {
+  // Ofer, 2026-10-20: the trainee's own number first — an approved 30-minute test, else the
+  // coach's baseline (both arrive as `testThresholdSec`, coach-baseline.ts) — and the band's
+  // paces only without one. The coach's manual zones sit on top (withPaceUpdate).
+  if (typeof input.testThresholdSec === 'number' && input.testThresholdSec > 0) {
+    threshold = Math.round(input.testThresholdSec);
+    source = 'test';
+  } else if (typeof bandThreshold === 'number' && bandThreshold > 0) {
     const bandOffset = band?.paceProfile?.offsetSeconds;
     const own = effectiveOffsetSec(input.athleteOffsetSec, band);
     const shift = typeof bandOffset === 'number' && typeof own === 'number' ? own - bandOffset : 0;
     threshold = bandThreshold + shift;
-  } else if (typeof input.testThresholdSec === 'number' && input.testThresholdSec > 0) {
-    threshold = Math.round(input.testThresholdSec);
-    source = 'test';
   }
   if (threshold == null || threshold <= 0) return null;
   return {
@@ -413,17 +418,24 @@ export function resolveTraineePaces(input: {
  */
 export function withPaceUpdate(
   paces: HomePaces | null,
-  adjust: Partial<Record<'reps' | 'tempo' | 'easy', number>> | null | undefined,
+  adjust: (Partial<Record<'reps' | 'tempo' | 'easy', number>> & { zones?: Partial<Record<string, number>> }) | null | undefined,
 ): HomePaces | null {
   if (!paces || !adjust) return paces;
   const by = (k: 'reps' | 'tempo' | 'easy') => adjust[k] ?? 0;
-  if (!by('reps') && !by('tempo') && !by('easy')) return paces;
+  const zones = adjust.zones ?? {};
+  const hasZones = Object.values(zones).some((v) => typeof v === 'number' && v > 0);
+  if (!by('reps') && !by('tempo') && !by('easy') && !hasZones) return paces;
   const move = (v: number | null | undefined, d: number) => (typeof v === 'number' ? v + d : v);
+  // A zone the coach set by hand is that number, whatever the kinds would have moved it to.
+  const tile = (zone: 'easy' | 'tempo' | 'threshold' | 'interval', v: number | null | undefined, d: number) => {
+    const set = zones[zone];
+    return (typeof set === 'number' && set > 0 ? set : move(v, d)) as number;
+  };
   return {
     ...paces,
-    easy: move(paces.easy, by('easy')) as number,
-    tempo: move(paces.tempo, by('tempo')) as number,
-    threshold: move(paces.threshold, by('tempo')) as number,
-    interval: move(paces.interval, by('reps')) as number,
+    easy: tile('easy', paces.easy, by('easy')),
+    tempo: tile('tempo', paces.tempo, by('tempo')),
+    threshold: tile('threshold', paces.threshold, by('tempo')),
+    interval: tile('interval', paces.interval, by('reps')),
   };
 }

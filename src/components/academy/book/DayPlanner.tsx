@@ -2,7 +2,7 @@
 
 import type { PaceAdjust } from '@/lib/academy/pace-kinds';
 import { StructureText } from '@/components/trainee/ui';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { ChevronRight } from 'lucide-react';
@@ -74,10 +74,12 @@ export function mainPace(model: BookStep[] | null, thresholdSec: number | null, 
   return { sec: effortPace(step.effort, thresholdSec, adjust), reps: step.kind === 'reps' };
 }
 
-export function DayPlanner({ athleteId, date, onClose, onDone }: {
+export function DayPlanner({ athleteId, date, onClose, onDone, fromGroup = false }: {
   athleteId: string;
   date: string;
   onClose: () => void;
+  /** "לקחת את של הקבוצה ולהתאים": open straight on the group's session, in the editor. */
+  fromGroup?: boolean;
   /** After a successful send, so the caller can refetch the week. */
   onDone?: () => void;
 }) {
@@ -94,6 +96,14 @@ export function DayPlanner({ athleteId, date, onClose, onDone }: {
   const [primary, setPrimary] = useState<SendResult | null>(null);
 
   const go = (next: Screen) => { setBack(screen); setScreen(next); };
+  // From the week board's group line: the group's session of that day, at this trainee's paces.
+  const [seeded, setSeeded] = useState(false);
+  useEffect(() => {
+    if (!fromGroup || seeded || !data) return;
+    setSeeded(true);
+    const today = data.senior?.today;
+    if (today) { setDraft(draftFromSenior(today)); go('adjust'); }
+  }, [fromGroup, seeded, data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = async (d: Draft) => {
     if (!data) return;
@@ -246,6 +256,12 @@ function ChooseScreen({
         <h2 className="text-28 font-black leading-tight text-ink-900">{t('whatRuns', { day })}</h2>
         {existing && <p className="mt-1 text-13 text-ink-400">{t.rich('alreadyHas', { ...RICH, name: existing.name })}</p>}
       </div>
+
+      {T && data.trainee.paceBasis === 'coach' && (
+        <div className="rounded-[14px] bg-[#E8F7EE] px-3 py-2.5 text-sm font-bold leading-snug text-[#137a3a]">
+          {t('coachPaceBanner', { name })}
+        </div>
+      )}
 
       {T && data.trainee.paceBasis === 'band' && (
         <div className="rounded-[14px] bg-[#FDF0E2] px-3 py-2.5 text-sm font-bold leading-snug text-[#8A4308]">

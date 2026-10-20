@@ -72,6 +72,8 @@ export function testGap(state: TestState): TestGap {
   // `old` exactly as the trainee's own screens decide it (test-state.ts, OLD_TEST_DAYS), so
   // this list and their "כדאי טסט חדש" never disagree about the same test.
   if (state.kind === 'ok') return state.old ? 'old' : 'ok';
+  // The coach's baseline prices like a test (coach-baseline.ts): the trainee is ready.
+  if (state.kind === 'baseline') return 'ok';
   return state.kind;
 }
 

@@ -5,7 +5,7 @@ import { Check, Copy, Mail, MessageCircle, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet, Spinner, Switch } from '@/components/ui';
-import { sortBands } from '@/lib/academy/bands';
+import { sortBands, bandMeaning } from '@/lib/academy/bands';
 import { waShareUrl, type AddableMember, type BulkAction } from '@/lib/academy/manage';
 import { memberCoachIds, memberCoachNames, joinHebrewList } from '@/lib/academy/members';
 import { addToCoachBody, traineesToAdd } from '@/lib/academy/coach-board';
@@ -401,7 +401,7 @@ export function BandSheet({
               <Radio on={pick === b.id} />
               <span className="min-w-0 flex-1">
                 <span className="block text-[15px] font-semibold text-ink-700">{b.name}</span>
-                {b.goal && <span className="block truncate text-xs text-ink-400">{b.goal}</span>}
+                {bandMeaning(b) && <span className="block truncate text-xs text-ink-400">{bandMeaning(b)}</span>}
               </span>
               <span className="text-xs tabular-nums text-ink-400">{traineesLabel(b.trainees ?? 0)}</span>
             </button>
@@ -626,7 +626,7 @@ export function AddMemberSheet({
               </div>
             ) : picker ? (
               <div className="max-h-[220px] overflow-y-auto rounded-card bg-card divide-y divide-page">
-                {picker === 'band' && [...sortBands(bands).map((b) => ({ id: b.id as string | null, label: b.name, sub: b.goal || '' })), { id: null, label: 'בלי דבוקה', sub: 'לקבוע אחרי הטסט' }]
+                {picker === 'band' && [...sortBands(bands).map((b) => ({ id: b.id as string | null, label: b.name, sub: bandMeaning(b) || '' })), { id: null, label: 'בלי דבוקה', sub: 'לקבוע אחרי הטסט' }]
                   .map((o) => (
                     <button key={o.id ?? 'none'} type="button" onClick={() => { setBandId(o.id); setPicker(null); }}
                       className="flex w-full min-h-[52px] items-center gap-3 px-4 text-start active:bg-page/60">

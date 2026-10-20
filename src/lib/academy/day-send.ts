@@ -24,6 +24,8 @@ export interface SendCandidate {
   id: string;
   isPrimary: boolean;
   thresholdSec: number | null;
+  /** Where `thresholdSec` came from: an approved test or the coach's baseline. */
+  thresholdSource?: 'test' | 'coach' | null;
   /** The band's reference threshold (sec/km) used when there is no test; null = no band. */
   fallbackThresholdSec?: number | null;
   hasWorkoutThatDay: boolean;
@@ -34,7 +36,8 @@ export interface SendCandidate {
 export type SkipReason = 'no-test' | 'has-workout' | 'not-academy';
 
 /** Where a trainee's paces come from: their own test, or their band while they have none. */
-export type PaceBasis = 'test' | 'band';
+/** 'coach' = the coach's pace baseline (coach-baseline.ts), priced like a test, said differently. */
+export type PaceBasis = 'test' | 'band' | 'coach';
 
 /** The line a band-priced session carries, on the watch and in the app. */
 export const BAND_PACE_NOTE = 'קצב לפי הדבוקה — עוד אין טסט';
@@ -47,8 +50,9 @@ export type SendDecision =
 export function resolveThreshold(
   testSec: number | null | undefined,
   fallbackSec: number | null | undefined,
+  testSource?: 'test' | 'coach' | null,
 ): { sec: number | null; basis: PaceBasis | null } {
-  if (testSec && testSec > 0) return { sec: testSec, basis: 'test' };
+  if (testSec && testSec > 0) return { sec: testSec, basis: testSource === 'coach' ? 'coach' : 'test' };
   if (fallbackSec && fallbackSec > 0) return { sec: fallbackSec, basis: 'band' };
   return { sec: null, basis: null };
 }
@@ -56,7 +60,7 @@ export function resolveThreshold(
 export function decideRecipients(candidates: SendCandidate[]): SendDecision[] {
   return candidates.map((c): SendDecision => {
     if (!c.isAcademy || !c.active) return { id: c.id, action: 'skip', reason: 'not-academy' };
-    const { sec, basis } = resolveThreshold(c.thresholdSec, c.fallbackThresholdSec);
+    const { sec, basis } = resolveThreshold(c.thresholdSec, c.fallbackThresholdSec, c.thresholdSource);
     if (!sec || !basis) return { id: c.id, action: 'skip', reason: 'no-test' };
     if (c.hasWorkoutThatDay && !c.isPrimary) return { id: c.id, action: 'skip', reason: 'has-workout' };
     return { id: c.id, action: 'send', thresholdSec: sec, basis };

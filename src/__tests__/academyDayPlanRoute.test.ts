@@ -82,6 +82,7 @@ vi.mock('@/lib/academy/loop-notify', () => ({ notifyPlanSaved: (...a: unknown[])
 vi.mock('@/lib/academy/book-server', () => ({
   loadTrainees: async (_s: unknown, ids: string[]) => state.trainees.filter(t => ids.includes(t.id)),
   loadThresholds: async (_s: unknown, ids: string[]) => Object.fromEntries(ids.map(id => [id, state.thresholds[id] ?? null])),
+  loadThresholdSources: async (_s: unknown, ids: string[]) => Object.fromEntries(ids.map(id => [id, state.thresholds[id] != null ? { sec: state.thresholds[id], source: 'test' } : null])),
   loadTraineeWeeks: async (_s: unknown, ids: string[]) => Object.fromEntries(ids.map(id => [id, state.weeks[id] ?? { planId: null, workouts: [] }])),
   loadClubWeek: async () => null,
   loadLaneReferences: async () => ({ 1: 203, 2: 209, 3: 223 }),

@@ -1050,3 +1050,54 @@ export function duplicateStep(steps: BookStep[], index: number): BookStep[] {
   next.splice(index + 1, 0, cloneSteps([steps[index]])[0]);
   return next;
 }
+
+// ── At a glance: what a book entry is, at THIS trainee's paces ──────────────────────────
+
+export interface GlancePart { distanceM: number; durationSec: number }
+export interface SessionGlance {
+  total: GlancePart & { estimated: boolean };
+  warmup: GlancePart | null;
+  /** The main set: reps (count × work at a pace), or the main run (its size at a pace). */
+  main: { count: number | null; work: Length | null; paceSec: number | null; size: GlancePart } | null;
+  /** The recoveries of the main set (or the standalone rests), each length and how. */
+  recovery: { length: Length; mode: RestMode | null; count: number } | null;
+  cooldown: GlancePart | null;
+}
+
+/**
+ * The summary line of the book's entry screen (Ofer, 2026-10-20): totals, warm-up, the main
+ * set ("5 × 1 ק״מ ב־4:07"), recoveries and cool-down — every number through the same sizing
+ * (`bookTotals`) and pricing (`effortPace`, with the coach's pace update and manual zones) the
+ * send uses, so the glance and the watch agree. Pure: never touches the library row.
+ */
+export function sessionGlance(steps: BookStep[], thresholdSec: number | null, adjust?: PaceAdjust | null): SessionGlance {
+  const size = (list: BookStep[]): GlancePart => {
+    const t = bookTotals(list, thresholdSec);
+    return { distanceM: t.distanceM, durationSec: t.durationSec };
+  };
+  const role = (r: 'warmup' | 'cooldown') => {
+    const list = steps.filter(s => s.kind === 'run' && s.role === r);
+    return list.length ? size(list) : null;
+  };
+  const reps = steps.find((s): s is Extract<BookStep, { kind: 'reps' }> => s.kind === 'reps');
+  const mainRun = steps.find((s): s is Extract<BookStep, { kind: 'run' }> => s.kind === 'run' && s.role === 'main');
+  const priced = (effort: Effort | null) => (effort && thresholdSec ? effortPace(effort, thresholdSec, adjust) : null);
+  let main: SessionGlance['main'] = null;
+  let recovery: SessionGlance['recovery'] = null;
+  if (reps) {
+    main = { count: reps.count, work: reps.work, paceSec: priced(reps.effort), size: size([{ ...reps, rest: null }]) };
+    if (reps.rest) recovery = { length: reps.rest.length, mode: reps.rest.mode, count: Math.max(reps.count - 1, 0) };
+  } else if (mainRun) {
+    main = { count: null, work: mainRun.length, paceSec: priced(mainRun.effort), size: size([mainRun]) };
+  }
+  const rests = steps.filter((s): s is Extract<BookStep, { kind: 'rest' }> => s.kind === 'rest');
+  if (!recovery && rests.length) recovery = { length: rests[0].length, mode: rests[0].mode, count: rests.length };
+  const t = bookTotals(steps, thresholdSec);
+  return {
+    total: { distanceM: t.distanceM, durationSec: t.durationSec, estimated: t.estimated },
+    warmup: role('warmup'),
+    main,
+    recovery,
+    cooldown: role('cooldown'),
+  };
+}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { importTickedByDefault } from '@/lib/academy/book-import';
 import { useTranslations } from 'next-intl';
 import { Check } from 'lucide-react';
 import { apiHeaders } from '@/lib/api';
@@ -44,7 +45,7 @@ export function BookImport({ onClose, onImported }: { onClose: () => void; onImp
         if (cancelled) return;
         if (!res.ok) { setError(true); return; }
         setData(body);
-        setPicked(new Set(body.candidates.filter(c => c.status === 'new' && c.saveable).map(c => c.key)));
+        setPicked(new Set(body.candidates.filter(c => importTickedByDefault(c)).map(c => c.key)));
       } catch {
         if (!cancelled) setError(true);
       }

@@ -141,9 +141,9 @@ export function TestEntryCard({ athleteId, onSent, onTyping, raise = false }: {
         <div className="flex items-start gap-3">
           <span aria-hidden className="text-[26px] leading-none">🎯</span>
           <span className="min-w-0 flex-1">
-            <h2 className="text-[19px] font-black leading-tight text-ink-900">{old ? t('titleOld') : data.test?.kind === 'none' ? t('titleNone') : t('title')}</h2>
+            <h2 className="text-[19px] font-black leading-tight text-ink-900">{old ? t('titleOld') : data.test?.kind === 'baseline' ? t('titleBaseline') : data.test?.kind === 'none' ? t('titleNone') : t('title')}</h2>
             <p className="mt-1 text-[14.5px] leading-snug text-ink-500">
-              {old ? t('subOld') : data.test?.kind === 'otherProtocol' ? t.rich('subOther', { m }) : data.test?.kind === 'none' ? t.rich('subNone', { m }) : t.rich('sub', { m })}
+              {old ? t('subOld') : data.test?.kind === 'baseline' ? t('subBaseline') : data.test?.kind === 'otherProtocol' ? t.rich('subOther', { m }) : data.test?.kind === 'none' ? t.rich('subNone', { m }) : t.rich('sub', { m })}
             </p>
           </span>
         </div>

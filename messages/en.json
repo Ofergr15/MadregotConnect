@@ -4023,7 +4023,8 @@
         "has-workout": "Skipped · already has a workout",
         "no-test": "Skipped · no band paces — needs a test or band paces",
         "other": "Skipped"
-      }
+      },
+      "coachPace": "Paced from the coach's baseline"
     },
     "error": {
       "load": "Couldn't load. Try again in a moment.",
@@ -4088,7 +4089,10 @@
       "failed": "Saving failed. Try again.",
       "nameTaken": "One of the names is already in the book. Try again."
     },
-    "fromClubNote": "No personal plan for this week yet: this is the senior group's week, at {name}'s pace."
+    "fromClubNote": "No personal plan for this week yet: this is the senior group's week, at {name}'s pace.",
+    "coachPaceBanner": "{name}'s paces come from the baseline you set — until the first test.",
+    "resetBook": "As in the book",
+    "recent": "Recent"
   },
   "viewAs": {
     "title": "View as",
@@ -5529,7 +5533,9 @@
       "subOther": "We have a <m>2000</m> m test, but it sets no threshold. With a <m>30</m>-minute test we'll work out personal paces for every workout.",
       "dateFirst": "Choose when the test was.",
       "foundRun": "⌚ Your watch has a run that looks like a test: <date></date> · pace <pace></pace>",
-      "checkRun": "Check the run"
+      "checkRun": "Check the run",
+      "titleBaseline": "Your paces were set by your coach",
+      "subBaseline": "Your first test will update them — 30 minutes all-out, and we will see how far you have come."
     }
   },
   "nextSession": {

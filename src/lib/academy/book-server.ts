@@ -19,17 +19,19 @@ import { planPaceBasis, type PlanBasis } from './plan-basis';
 import { extractWorkouts } from './report';
 import { restateSteps } from './load';
 import { bandThresholdSec } from './day-send';
+import { PRICING_PROTOCOLS, pricingRows, type PricingSource } from './coach-baseline';
 
 type Supabase = ReturnType<typeof createServerClient>;
 
 /**
- * Each trainee's threshold, sec/km, from their newest approved 30-minute test.
+ * Each trainee's threshold, sec/km, and where it came from: their newest approved 30-minute
+ * test, else the coach's baseline (coach-baseline.ts `pricingRows` — the shared precedence).
  *
- * The 30-minute protocol only, the composer's rule: a 2000 m effort is faster than
- * threshold, and a trainee's paces must not depend on which test they happened to run last.
+ * The 30-minute protocol only among tests, the composer's rule: a 2000 m effort is faster
+ * than threshold, and a trainee's paces must not depend on which test they happened to run last.
  */
-export async function loadThresholds(supabase: Supabase, athleteIds: string[]): Promise<Record<string, number | null>> {
-  const out: Record<string, number | null> = Object.fromEntries(athleteIds.map(id => [id, null]));
+export async function loadThresholdSources(supabase: Supabase, athleteIds: string[]): Promise<Record<string, { sec: number; source: PricingSource } | null>> {
+  const out: Record<string, { sec: number; source: PricingSource } | null> = Object.fromEntries(athleteIds.map(id => [id, null]));
   if (!athleteIds.length) return out;
   // Migration 108's `status` first, then the shape before it. Typed loosely because the two
   // selects differ by exactly that column.
@@ -37,24 +39,27 @@ export async function loadThresholds(supabase: Supabase, athleteIds: string[]): 
     .from('academy_tests')
     .select(columns)
     .in('athlete_id', athleteIds)
-    .eq('protocol', '30min')
+    .in('protocol', [...PRICING_PROTOCOLS])
     .order('test_date', { ascending: false });
-  let { data, error }: { data: any[] | null; error: unknown } = await read('athlete_id, test_date, duration_sec, distance_m, excluded_reason, status');
+  let { data, error }: { data: any[] | null; error: unknown } = await read('athlete_id, test_date, protocol, duration_sec, distance_m, excluded_reason, status');
   if (error && isMissingColumn(error)) {
-    ({ data, error } = await read('athlete_id, test_date, duration_sec, distance_m, excluded_reason'));
+    ({ data, error } = await read('athlete_id, test_date, protocol, duration_sec, distance_m, excluded_reason'));
   }
   if (error || !data) return out;
-  for (const row of data as any[]) {
+  for (const row of pricingRows(data as any[])) {
     if (out[row.athlete_id] != null) continue;
-    if (row.excluded_reason) continue;
-    if ((row.status ?? 'approved') !== 'approved') continue;
     const pace = thresholdPaceSec({ durationSec: row.duration_sec, distanceM: row.distance_m });
-    if (pace && pace > 0) out[row.athlete_id] = Math.round(pace);
+    if (pace && pace > 0) out[row.athlete_id] = { sec: Math.round(pace), source: row.source };
   }
   return out;
 }
 
-/** The three lanes' reference thresholds, from the club's squad names. */
+/** Each trainee's threshold, sec/km (the numbers of `loadThresholdSources`). */
+export async function loadThresholds(supabase: Supabase, athleteIds: string[]): Promise<Record<string, number | null>> {
+  const src = await loadThresholdSources(supabase, athleteIds);
+  return Object.fromEntries(Object.entries(src).map(([id, v]) => [id, v?.sec ?? null]));
+}
+
 export async function loadLaneReferences(supabase: Supabase): Promise<Record<Lane, number>> {
   const { data } = await supabase.from('groups').select('name').eq('coach_id', COACH_ID);
   const groups = (data || []).map((g: any) => {

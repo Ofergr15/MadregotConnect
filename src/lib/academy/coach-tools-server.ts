@@ -27,6 +27,7 @@ import {
   activeAdjust, applyPaceAdjust, isLongRun, paceKindOf, squareLabel,
   type CoachDecision, type DecisionKind, type PaceAdjust, type PaceSession, type TraineeNote, type WeekOfSessions,
 } from './coach-tools';
+import { PRICING_PROTOCOLS, pricingRows, type PricingSource } from './coach-baseline';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any, any, any>;
@@ -41,6 +42,8 @@ export const EVIDENCE_WEEKS = 6;
 export interface TestBasis {
   thresholdSec: number;
   testDate: string;
+  /** 'coach' when it is the coach's baseline (coach-baseline.ts), not a test. */
+  source?: PricingSource;
 }
 
 /**
@@ -55,19 +58,17 @@ export async function loadTestBasis(supabase: Db, athleteIds: string[]): Promise
     .from('academy_tests')
     .select(columns)
     .in('athlete_id', athleteIds)
-    .eq('protocol', '30min')
+    .in('protocol', [...PRICING_PROTOCOLS])
     .order('test_date', { ascending: false });
-  let { data, error }: { data: any[] | null; error: unknown } = await read('athlete_id, test_date, duration_sec, distance_m, excluded_reason, status');
+  let { data, error }: { data: any[] | null; error: unknown } = await read('athlete_id, test_date, protocol, duration_sec, distance_m, excluded_reason, status');
   if (error && isMissingColumn(error)) {
-    ({ data, error } = await read('athlete_id, test_date, duration_sec, distance_m, excluded_reason'));
+    ({ data, error } = await read('athlete_id, test_date, protocol, duration_sec, distance_m, excluded_reason'));
   }
   if (error || !data) return out;
-  for (const row of data as any[]) {
+  for (const row of pricingRows(data as any[])) {
     if (out[row.athlete_id]) continue;
-    if (row.excluded_reason) continue;
-    if ((row.status ?? 'approved') !== 'approved') continue;
     const pace = thresholdPaceSec({ durationSec: row.duration_sec, distanceM: row.distance_m });
-    if (pace && pace > 0) out[row.athlete_id] = { thresholdSec: Math.round(pace), testDate: String(row.test_date).slice(0, 10) };
+    if (pace && pace > 0) out[row.athlete_id] = { thresholdSec: Math.round(pace), testDate: String(row.test_date).slice(0, 10), source: row.source };
   }
   return out;
 }

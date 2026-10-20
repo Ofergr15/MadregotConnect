@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     ]);
     const b = basis[athleteId];
     // The test, else the band's own pace (day-send.ts) — the rule every academy path prices by.
-    const priced = resolveThreshold(b?.thresholdSec, trainees[0]?.bandThresholdSec);
+    const priced = resolveThreshold(b?.thresholdSec, trainees[0]?.bandThresholdSec, b?.source);
     const T = priced.sec;
     const adjust = activeAdjust(decisions.rows, b?.testDate ?? null).adjust;
 

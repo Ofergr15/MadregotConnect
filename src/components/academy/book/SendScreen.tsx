@@ -212,7 +212,7 @@ export function SendScreen({ data, draft, day, primary, onBack, onClose }: {
 
 function ResultLine({ result }: { result: SendResult }) {
   const t = useTranslations('workoutBook');
-  const band = result.paceBasis === 'band' ? <> · {t('result.bandPace')}</> : null;
+  const band = result.paceBasis === 'band' ? <> · {t('result.bandPace')}</> : result.paceBasis === 'coach' ? <> · {t('result.coachPace')}</> : null;
   if (result.status === 'sent') return <span className="font-bold text-[#0E7A3C]">✓ {t('result.sent')}{band}</span>;
   if (result.status === 'saved') return <span className="font-bold text-ink-500">{t('result.saved')}{band}</span>;
   if (result.status === 'skipped') return <span>{t(`result.skip.${result.reason === 'has-workout' || result.reason === 'no-test' ? result.reason : 'other'}`)}</span>;

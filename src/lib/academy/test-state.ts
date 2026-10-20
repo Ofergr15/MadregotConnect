@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingColumn } from '@/lib/supabase/schema-drift';
 import { thresholdPaceSec } from './tests';
 import { daysBetween } from './load';
+import { BASELINE_PROTOCOL } from './coach-baseline';
 
 /**
  * What the trainee's tests allow (missing-data rule: "צריך טסט כדי לחשב קצב").
@@ -23,11 +24,15 @@ import { daysBetween } from './load';
  *   so its pace as a threshold would make every zone too fast. The screen asks for a
  *   30-minute test;
  * - `ok`: there is one; `old` once it is `OLD_TEST_DAYS` old ("כדאי טסט חדש").
+ * - `baseline`: no approved 30-minute test, but the coach set a pace baseline instead. It
+ *   prices like a test, never ages ("old"), and the first approved test replaces it.
  */
 export type TestState =
   | { kind: 'ok'; date: string; ageDays: number; old: boolean; pendingOther?: { protocol: string; date: string } }
   | { kind: 'pending'; date: string; protocol?: string }
   | { kind: 'otherProtocol'; protocol: string; date: string }
+  /** No 30-minute test yet, but the coach set a baseline (coach-baseline.ts): paces stand on it. */
+  | { kind: 'baseline'; date: string }
   | { kind: 'none' };
 
 /** About four months: the plan's paces were set for a body that has moved on. */
@@ -58,7 +63,7 @@ export function testStateOf(rows: TestRow[], today: string): TestState {
   };
   // A newer 30-minute test waiting for approval is said even when an older one stands.
   const pendingThirty = thirty.find(r => (r.status ?? 'approved') !== 'approved');
-  const pendingOther = sorted.find(r => (r.protocol ?? '30min') !== '30min' && isPending(r));
+  const pendingOther = sorted.find(r => (r.protocol ?? '30min') !== '30min' && r.protocol !== BASELINE_PROTOCOL && isPending(r));
   if (pendingThirty && (!approved || String(pendingThirty.test_date) > String(approved.test_date))) {
     return { kind: 'pending', date: String(pendingThirty.test_date).slice(0, 10) };
   }
@@ -74,7 +79,9 @@ export function testStateOf(rows: TestRow[], today: string): TestState {
     return { kind: 'pending', date: String(pendingOther.test_date).slice(0, 10), protocol: String(pendingOther.protocol) };
   }
   if (current) return current;
-  const other = sorted.find(r => (r.protocol ?? '30min') !== '30min' && (r.status ?? 'approved') === 'approved');
+  const base = sorted.find(r => r.protocol === BASELINE_PROTOCOL && (r.status ?? 'approved') === 'approved' && usable(r));
+  if (base) return { kind: 'baseline', date: String(base.test_date).slice(0, 10) };
+  const other = sorted.find(r => (r.protocol ?? '30min') !== '30min' && r.protocol !== BASELINE_PROTOCOL && (r.status ?? 'approved') === 'approved');
   if (other) return { kind: 'otherProtocol', protocol: String(other.protocol), date: String(other.test_date).slice(0, 10) };
   return { kind: 'none' };
 }
@@ -95,7 +102,7 @@ export function hrEstimateKey(kind: TestState['kind'] | null | undefined): HrEst
 }
 
 /** A pending test in front of an approved one still has paces: only the lack of one blocks them. */
-export const hasPaces = (s: TestState) => s.kind === 'ok';
+export const hasPaces = (s: TestState) => s.kind === 'ok' || s.kind === 'baseline';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any, any, any>;

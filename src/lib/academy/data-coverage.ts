@@ -148,6 +148,8 @@ export function testVerdict(screen: string, item: string, test: TestState): Scre
       return v(screen, item, 'missing', 'testOther', 'יש רק טסט 2000 מ׳. צריך טסט 30 דק׳ כדי לחשב קצב');
     case 'none':
       return v(screen, item, 'missing', 'noTest', 'צריך טסט כדי לחשב קצב ועומס');
+    case 'baseline':
+      return v(screen, item, 'full', 'baseline', 'מלא. הקצבים לפי בסיס המאמן — עד הטסט הראשון');
     default:
       return test.old
         ? v(screen, item, 'full', 'oldTest', `מלא. הטסט מ־${test.date} ישן, כדאי טסט חדש`)

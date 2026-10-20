@@ -60,6 +60,7 @@ export function useFavourites() {
 }
 
 type Chip = LibraryKind | 'all' | 'fav';
+const RECENT_COUNT = 3;
 const CHIPS: Chip[] = ['all', 'intervals', 'tempo', 'long', 'easy', 'hills', 'fav'];
 
 export function BookPicker({ thresholdSec, onBack, onPick }: {
@@ -88,6 +89,12 @@ export function BookPicker({ thresholdSec, onBack, onPick }: {
         || t(`kind.${entry.kind}`).includes(needle)
         || (entry.notes ?? '').toLowerCase().includes(needle));
   }, [data, chip, query, favourites, t]);
+
+  // "אחרונים" (Ofer, 2026-10-20): the last few pushed, newest first — only on the open list,
+  // since a search or a kind already says what the coach is after.
+  const recent = useMemo(() => (chip === 'all' && !query.trim()
+    ? rows.filter(r => r.entry.lastUsedAt).sort((a, b) => String(b.entry.lastUsedAt).localeCompare(String(a.entry.lastUsedAt))).slice(0, RECENT_COUNT)
+    : []), [rows, chip, query]);
 
   return (
     <FlowScreen
@@ -131,6 +138,14 @@ export function BookPicker({ thresholdSec, onBack, onPick }: {
         <p className="py-6 text-center text-sm text-ink-400">{(data.entries ?? []).length ? t('noMatch') : t('bookEmpty')}</p>
       ) : (
         <>
+          {recent.length > 0 && (
+            <>
+              <SectionLabel>{t('recent')}</SectionLabel>
+              <div className={CARD}>
+                {recent.map(({ entry, model }) => <BookRow key={`r-${entry.id}`} entry={entry} model={model} thresholdSec={thresholdSec} fav={favourites.has(entry.id)} onPick={onPick} />)}
+              </div>
+            </>
+          )}
           <SectionLabel>{t('mostUsed')}</SectionLabel>
           <div className={CARD}>
             {rows.map(({ entry, model }) => {
@@ -160,5 +175,29 @@ export function BookPicker({ thresholdSec, onBack, onPick }: {
         </>
       )}
     </FlowScreen>
+  );
+}
+
+/** One row of the book: name, size at this trainee's paces, use count, the session drawn small. */
+function BookRow({ entry, model, thresholdSec, fav, onPick }: {
+  entry: LibraryEntry; model: ReturnType<typeof fromLibrarySteps>; thresholdSec: number | null; fav: boolean; onPick: (e: LibraryEntry) => void;
+}) {
+  const t = useTranslations('workoutBook');
+  const totals = model ? bookTotals(model, thresholdSec) : null;
+  return (
+    <button type="button" onClick={() => onPick(entry)}
+      className="flex min-h-[64px] w-full items-center gap-3 border-b border-[#EFEFF4] px-[18px] py-[13px] text-start last:border-0">
+      <span className="min-w-0 flex-1">
+        <b className="block truncate text-[17px] font-extrabold text-ink-900">
+          {fav && <span aria-hidden className="me-1 text-[13px]">❤</span>}
+          <bdi>{entry.name}</bdi>
+        </b>
+        <small className="mt-0.5 block truncate text-[13.5px] text-ink-400">
+          {totals && <>{t.rich('kmOnly', { ...RICH, km: kmText(totals.distanceM) })} · {t.rich('minShort', { ...RICH, min: Math.round(totals.durationSec / 60) })}</>}
+          {entry.useCount > 0 && <> · {t.rich('uses', { ...RICH, count: entry.useCount })}</>}
+        </small>
+      </span>
+      {model && <ProfileBar segments={profileBar(model, thresholdSec)} size="sm" />}
+    </button>
   );
 }

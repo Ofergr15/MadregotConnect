@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { pricingRows } from '@/lib/academy/coach-baseline';
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { addDaysToDateStr, israelToday, planWeekStartOf, shiftWeekStart } from '@/lib/utils';
@@ -10,7 +11,7 @@ import { DISPLAY_REFERENCE } from '@/lib/academy/plan-basis';
 import { testStateOf, type TestRow } from '@/lib/academy/test-state';
 import { loadAcademySettings } from '@/lib/academy/settings-server';
 import { requireCallerForAthlete } from '@/lib/auth/self-or-staff';
-import { toBand } from '@/lib/academy/bands';
+import { toBand, bandMeaning } from '@/lib/academy/bands';
 import { thresholdPaceSec } from '@/lib/academy/tests';
 import { loadPaceUpdateCard } from '@/lib/academy/coach-tools-server';
 import { traineePlanRow } from '@/lib/academy/me-plan-row';
@@ -244,8 +245,8 @@ export async function GET(request: Request) {
     // 30-minute tests only, as every other pace and ⚡ (load-server loadTestsFor,
     // book-server loadThresholds): a 2000 m test's pace is far above threshold, and
     // standing in for it would make this screen's paces faster than the board's.
-    const latestTest = (((tests as { data: any[] | null }).data) || [])
-      .filter((t) => !t.excluded_reason && (t.status ?? 'approved') === 'approved' && (t.protocol ?? '30min') === '30min')[0];
+    // …or, without one, the coach's baseline (coach-baseline.ts pricingRows: the shared precedence).
+    const latestTest = pricingRows((((tests as { data: any[] | null }).data) || []).map((t) => ({ ...t, athlete_id: athleteId })))[0];
     const testThreshold = latestTest
       ? thresholdPaceSec({ durationSec: Number(latestTest.duration_sec), distanceM: Number(latestTest.distance_m) })
       : null;
@@ -345,6 +346,7 @@ export async function GET(request: Request) {
         testThresholdSec: testThreshold,
       }), paceUpdate.adjust),
       paceUpdate: paceUpdate.card,
+      bandMeaning: bandMeaning(band),
       km: { weeks: chartWeeks, plannedKm, avgKm: kmAverage(chartWeeks) },
       week: {
         // The engine's counts, as the board's: an optional session is not planned.

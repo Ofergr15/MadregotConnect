@@ -19,6 +19,7 @@ import { FeedAvatar } from '@/components/FeedAvatar';
 import { formatPace } from '@/components/activity/format';
 import { academyThreadUrl } from '@/lib/academy/deep-links';
 import { TraineeSetupBanner } from './TraineeSetup';
+import { ZonesRow } from './ZoneRows';
 import type { TraineeHome } from '@/lib/academy/trainee-home';
 
 /** Digits only, Israeli local numbers to 972 — wa.me wants an international number. */
@@ -54,6 +55,7 @@ export function TraineeHeader({ athleteId }: { athleteId: string }) {
               {coachNames && <span className="rounded-full bg-page/60 px-2.5 py-0.5 text-ink-700">{t('coach', { names: coachNames })}</span>}
               {journey?.monthsWithUs != null && <span className="rounded-full bg-page/60 px-2.5 py-0.5 text-ink-700">{t('months', { n: journey.monthsWithUs })}</span>}
             </div>
+            {data.bandMeaning && <p className="mt-1 truncate text-xs text-ink-500">{data.bandMeaning}</p>}
             <p className={cn('mt-1.5 flex items-center gap-1 text-xs', athlete.hasWatch ? 'text-ink-500' : 'text-accent-red-ink font-semibold')}>
               <Watch className="h-3.5 w-3.5" />{athlete.hasWatch ? t('watchOn') : t('watchOff')}
             </p>
@@ -99,6 +101,8 @@ export function TraineeHeader({ athleteId }: { athleteId: string }) {
           ) : null}
         </section>
       )}
+
+      {paces && <ZonesRow athleteId={athleteId} />}
 
       {paces && (
         <div className="grid grid-cols-4 gap-1.5">
