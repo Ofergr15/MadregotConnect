@@ -74,9 +74,13 @@ const STEPS = ['הרשמה', 'אישור', 'התקנה', 'כניסה'] as const;
  * `installSkipped`: a phone signing in from a browser tab. The step stays (the
  * tracker keeps one shape on a phone) but is drawn neutral, never ticked.
  */
-export function JourneyTracker({ done, computer = false, installSkipped = false }: { done: number; computer?: boolean; installSkipped?: boolean }) {
-  const steps = computer ? STEPS.filter((s) => s !== 'התקנה') : [...STEPS];
-  const at = computer && done > 2 ? done - 1 : done;
+export function JourneyTracker({ done, computer = false, installSkipped = false, labels }: {
+  done: number; computer?: boolean; installSkipped?: boolean;
+  /** Another journey's steps (the academy's: form → intro call → coach call → start). */
+  labels?: readonly string[];
+}) {
+  const steps = labels ? [...labels] : computer ? STEPS.filter((s) => s !== 'התקנה') : [...STEPS];
+  const at = !labels && computer && done > 2 ? done - 1 : done;
   return (
     <ol className="flex items-start px-1" aria-label={`שלב ${Math.min(at + 1, steps.length)} מתוך ${steps.length}`}>
       {steps.map((label, i) => {

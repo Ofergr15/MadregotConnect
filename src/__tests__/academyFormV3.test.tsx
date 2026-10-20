@@ -36,11 +36,11 @@ describe('the v3 form', () => {
     expect(form).toContain('onPick={() => set(f.key, opt)}');
   });
 
-  it('asks "מה מדבר אליך יותר" on the first page, and keeps all twenty questions', () => {
+  it('asks "מה מדבר אליך יותר" on the first page, and sixteen questions — the four kit sizes moved to the app (2026-10-20)', () => {
     const first = steps.split('\n').find(l => l.includes("title: 'הפרטים שלך'"))!;
     expect(first).toContain("'focus'");
     const asked = [...steps.matchAll(/'([a-zA-Z]+)'/g)].map(m => m[1]).filter(k => fields.includes(`key: '${k}'`));
-    expect(new Set(asked).size).toBe(20);
+    expect(new Set(asked).size).toBe(16);
   });
 
   it('works the page\'s problem out live, so a fixed field stops being reported', () => {
@@ -52,7 +52,7 @@ describe('the v3 form', () => {
 
   it('has the logo, the step count and the pinned buttons', () => {
     expect(form).toContain('src="/images/logo.png"');
-    expect(form).toContain('Madregot Academy');
+    expect(form).toContain('האקדמיה של מדרגות');
     expect(form).toContain("'לשלוח'");
     expect(form).toContain('חזרה');
   });

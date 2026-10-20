@@ -343,10 +343,11 @@ describe('the academy pages and the service worker', () => {
 });
 
 describe('the form: thank-you screen', () => {
-  it('shows the club logo and thanks the applicant by the academy name', () => {
+  it('thanks the applicant in the club journey look: the academy steps, then only the next call (2026-10-20)', () => {
     const page = require('node:fs').readFileSync('src/app/academy-register/page.tsx', 'utf8') as string;
-    expect(page).toContain('src="/images/logo.png"');
-    expect(page).toContain('תודה שפנית לאקדמיית הריצה של מדרגות');
-    expect(page).toContain('נחזור אליך בימים הקרובים לשיחת היכרות קצרה');
+    expect(page).toContain('eyebrow="האקדמיה של מדרגות"');
+    expect(page).toContain("const ACADEMY_JOURNEY = ['הטופס', 'שיחת היכרות', 'שיחה עם מאמן', 'מתחילים באפליקציה']");
+    expect(page).toContain('title="שיחת היכרות קצרה"');
+    expect(page).toContain('ומשם — מתחילים באפליקציה');
   });
 });
