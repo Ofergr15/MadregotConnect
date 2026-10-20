@@ -198,16 +198,16 @@ function Overview({ d, go }: { d: Data; go: (t: Tab) => void }) {
       <Card>
         <div className="flex items-center justify-between"><b className="text-[14.5px] font-extrabold">בתהליך כניסה</b><span className="rounded-full bg-[#FCE9F2] px-2.5 py-[3px] text-[11.5px] font-extrabold text-[#8E1043]"><B>{a.entering}</B> מתוך <B>{a.trainees}</B></span></div>
         {a.traineeRows.map((t) => (
-          <Link key={t.id} href={`/dashboard/academy/week?athlete=${t.id}`} className="mt-2.5 block rounded-2xl bg-[#FBF5F8] px-3 py-2.5 active:opacity-80">
+          <Link key={t.id} href={`/dashboard/academy/week?athlete=${t.id}`} className="mt-2.5 block rounded-2xl bg-[#F7F7FA] px-3 py-2.5 active:opacity-80">
             <div className="flex items-baseline gap-1.5"><b className="text-sm">{t.name}</b><span className="text-[11.5px] text-ink-400">{t.pack} · הצטרף <B>{dm(t.joined)}</B></span></div>
             <div className="mt-2 flex gap-[5px]">
               {ENTRY_STEPS.map((s) => (
                 <i key={s} title={STEP_LABEL[s]} className={cn('grid h-[22px] flex-1 place-items-center rounded-[7px] text-xs font-black not-italic text-white',
-                  t.done[s] ? 'bg-[#C2185B]' : t.next === s ? 'bg-white shadow-[inset_0_0_0_2px_#C2185B]' : 'bg-white shadow-[inset_0_0_0_1.5px_#EAD3DE]')}>{t.done[s] ? '✓' : ''}</i>
+                  t.done[s] ? 'bg-[#15803d]' : t.next === s ? 'bg-white shadow-[inset_0_0_0_2px_#6D28D9]' : 'bg-white shadow-[inset_0_0_0_1.5px_#E1E3EA]')}>{t.done[s] ? '✓' : ''}</i>
               ))}
             </div>
             <div className="mt-[7px] flex justify-between text-[11px] text-ink-400">
-              <span className="font-extrabold text-[#8E1043]">{t.next ? WAITING[t.next] : 'מתאמן פעיל'}</span>
+              <span className={cn('font-extrabold', t.next ? 'text-[#6D28D9]' : 'text-[#15803d]')}>{t.next ? WAITING[t.next] : 'מתאמן פעיל ✓'}</span>
               {t.next && <span>אצל: {STEP_OWNER[t.next]} · <B>{t.waitingDays}</B> ימים</span>}
             </div>
           </Link>
