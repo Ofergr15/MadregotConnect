@@ -7,6 +7,7 @@ import { Dumbbell, Utensils, FileText, ExternalLink, ChevronDown, Play, ChevronL
 import { cn, isRecentlyPublished, toISODate } from '@/lib/utils';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { useApi } from '@/lib/api';
+import { useIsSuperUser } from '@/lib/impersonation';
 import { getDisplayWeekStart, formatPlanWeekRange, planDayKey } from '@/lib/plans/workout-parsing';
 import { WORKOUT_TYPE_COLORS, WORKOUT_TYPE_TEXT_COLORS, type WeekSession } from '@/lib/plans/workout-parsing';
 import { sessionFrame, sessionHeadline, type FrameLabels } from '@/lib/plans/session-summary';
@@ -130,7 +131,15 @@ export default function ProgramPage() {
   const [selectedVideoIndex, setSelectedVideoIndex] = useState<number | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<'all' | ExerciseCategory>('all');
   const [showUploadForm, setShowUploadForm] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  // Who uploads the week's plans. Was only the two local flags, which a normal sign-in
+  // never sets for the super user (role `runner`) — so for him a missing plan was
+  // silently not listed (Ofer, 2026-10-20). The server's role and the super-user flag
+  // count too.
+  const [legacyAdmin, setIsAdmin] = useState(false);
+  const isSuper = useIsSuperUser();
+  const { data: me } = useApi<{ role?: string; roles?: string[] }>('/api/auth/me');
+  const isAdmin = legacyAdmin || isSuper || ['admin', 'coach'].includes(me?.role ?? '')
+    || !!me?.roles?.some((r) => r === 'admin' || r === 'coach');
   const [selectedSession, setSelectedSession] = useState<WorkoutDetailSession | null>(null);
   /**
    * How the selected week is being read: the app's own rendering, or the sheet the
@@ -465,6 +474,8 @@ export default function ProgramPage() {
         const cw = weeks.find(w => w.week_start_date === thisWeekStart);
         const training = !!cw?.training_pdf_url || structuredWeekStarts.has(thisWeekStart);
         const nutrition = !!cw?.nutrition_pdf_url;
+        // An in-app plan with no PDF behind it: members see the plan, but no PDF to open.
+        const trainingNoPdf = training && !cw?.training_pdf_url;
         // "Missing — upload" is the uploader's line: a runner can't act on it, so for
         // them a missing plan simply isn't listed (screens audit 2026-10-19 #25).
         if (!isAdmin && !training && !nutrition) return null;
@@ -475,6 +486,7 @@ export default function ProgramPage() {
                 icon={Dumbbell}
                 label={t('trainingProgram')}
                 present={training}
+                noPdf={isAdmin && trainingNoPdf}
                 isAdmin={isAdmin}
                 onUpload={() => setShowUploadForm(true)}
                 t={t}
@@ -1122,11 +1134,13 @@ function WeekClimb({
 // Rendered inside an InsetSection so the two rows read as one grouped list
 // instead of two independently-styled cards.
 function PlanStatusRow({
-  icon, label, present, isAdmin, onUpload, t,
+  icon, label, present, noPdf, isAdmin, onUpload, t,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   present: boolean;
+  /** Shown to the uploader: the plan is in the app, its PDF is not. */
+  noPdf?: boolean;
   isAdmin: boolean;
   onUpload: () => void;
   t: (k: any) => string;
@@ -1134,10 +1148,10 @@ function PlanStatusRow({
   return (
     <InsetRow
       icon={icon}
-      iconBg={present ? 'bg-accent-600' : 'bg-accent-red'}
+      iconBg={present && !noPdf ? 'bg-accent-600' : present ? 'bg-band-3' : 'bg-accent-red'}
       label={label}
-      sublabel={present ? t('planUploaded') : t('planMissing')}
-      trailing={!present && isAdmin ? (
+      sublabel={noPdf ? t('planNoPdf') : present ? t('planUploaded') : t('planMissing')}
+      trailing={(!present || noPdf) && isAdmin ? (
         <button
           onClick={onUpload}
           className="min-h-[44px] px-2 text-xs font-bold text-brand-600 hover:text-brand-700 transition-colors shrink-0"

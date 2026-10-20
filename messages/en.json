@@ -2406,6 +2406,7 @@
     "next": "Next",
     "planUploaded": "Uploaded",
     "planMissing": "Missing — please upload",
+    "planNoPdf": "In the app — the PDF is missing",
     "uploadArrow": "Upload →",
     "noWeeks": "No program weeks yet",
     "addFirstWeek": "Add first week",
