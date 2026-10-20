@@ -99,14 +99,20 @@ export function AuthorRow({ item }: { item: FeedItem }) {
   // whose run it is before you read.
   const pack = item.author.groupName ? resolveGroup(item.author.groupName) : null;
   const packName = pack && pack.index >= 0 ? t('filterSquadN', { n: pack.index + 1 }) : item.author.groupName;
+  // A post with no athlete behind it is the club's (publishClubPost): the round logo and
+  // "מדרגות", like its circle — not the account's name and initials (Ofer 10-20, option B).
+  const club = !item.author.athleteId;
   const identity = (
     <>
       <span className="shrink-0 rounded-full" style={pack && pack.index >= 0 ? { boxShadow: `0 0 0 2px #fff, 0 0 0 4px ${pack.hex}` } : undefined}>
-        <FeedAvatar name={item.author.name} url={item.author.avatarUrl} className="h-[34px] w-[34px]" />
+        {club
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src="/images/logo.png" alt="" className="h-[34px] w-[34px] rounded-full bg-white object-contain p-0.5 ring-1 ring-black/10" />
+          : <FeedAvatar name={item.author.name} url={item.author.avatarUrl} className="h-[34px] w-[34px]" />}
       </span>
       {/* flex-1: a short second line ("עכשיו") left the block too narrow and cut the name. */}
       <div className="min-w-0 flex-1">
-        <p className="text-[15px] font-bold text-ink-900 leading-tight truncate">{item.author.name}</p>
+        <p className="text-[15px] font-bold text-ink-900 leading-tight truncate">{club ? 'מדרגות' : item.author.name}</p>
         <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-400 leading-tight">
           <WhenLabel item={item} />
           {packName && <>
