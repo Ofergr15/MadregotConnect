@@ -28,7 +28,8 @@ describe('what the trainee reads', () => {
   it('3 · approved: the install mail, for an existing trainee "הכל מוכן"', () => {
     const { subject, html } = academyMoveInEmail({ name: 'יוסי לוי', token: 'tok2', coachName: 'דנה', coachCount: 1 });
     expect(subject).toBe('✅ יוסי, הכל מוכן — ככה נכנסים לאפליקציה');
-    expect(html).toContain('/join/tok2?onb=v2');
+    expect(html).toContain('/join/tok2"');
+    expect(html).toContain('Strava');
     expect(html).toContain('/api/public/qr?t=tok2');
     expect(html).toContain('Safari');
     expect(html).not.toContain('דנה');
@@ -36,7 +37,8 @@ describe('what the trainee reads', () => {
   it('3 · a new trainee: "התקבלת", the same install section, no coach by name', () => {
     const { subject, html } = academyAcceptedEmail({ name: 'דנה כהן', token: 'tok1', coachName: 'שליו', coachCount: 1 });
     expect(subject).toContain('ככה נכנסים לאפליקציה');
-    expect(html).toContain('/join/tok1?onb=v2');
+    expect(html).toContain('/join/tok1"');
+    expect(html).toContain('Strava');
     expect(html).not.toContain('שליו');
     expect(html).not.toContain('לא חובה');
   });

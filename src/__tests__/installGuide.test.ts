@@ -122,9 +122,9 @@ describe('where it shows', () => {
 });
 
 describe('the approval message', () => {
-  it('the v2 link opens the guide, the old one does not', async () => {
+  it('with the required setup on, every join link is the one journey (no ?onb=v2)', async () => {
     const { joinLinkV2, approvalWhatsAppText } = await import('@/lib/install/flag');
-    expect(joinLinkV2('https://www.madregot.app', 'abc12345', true)).toBe('https://www.madregot.app/join/abc12345?onb=v2');
+    expect(joinLinkV2('https://www.madregot.app', 'abc12345', true)).toBe('https://www.madregot.app/join/abc12345');
     expect(joinLinkV2('https://www.madregot.app', 'abc12345', false)).toBe('https://www.madregot.app/join/abc12345');
     const text = approvalWhatsAppText('https://x/join/t?onb=v2', 'דבוקה 2');
     expect(text).toContain('https://x/join/t?onb=v2');
