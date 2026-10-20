@@ -33,7 +33,8 @@ import {
 
 interface PeopleResponse { today: string; people: Person[] }
 
-const SIGNAL_CLS: Record<Signal, string> = { ok: 'text-ink-400', bad: 'text-accent-red', off: 'text-ink-200' };
+// Green when fine, red when not (Ofer, 10-20: "connected and in the app — green, not grey").
+const SIGNAL_CLS: Record<Signal, string> = { ok: 'text-accent-600', bad: 'text-accent-red', off: 'text-ink-200' };
 /** A pack's colour for a face with no photo, the same ramp the packs use elsewhere. */
 const PACK_BG = ['bg-[#F0643C]', 'bg-brand-600', 'bg-accent-900', 'bg-[#8a3ffc]'];
 
@@ -195,12 +196,12 @@ function SignalBar({ s }: { s: FaceSignals }) {
   );
 }
 
-function Line({ icon, tint, label, value, bad }: { icon: React.ReactNode; tint: string; label: string; value: string; bad?: boolean }) {
+function Line({ icon, tint, label, value, bad, ok }: { icon: React.ReactNode; tint: string; label: string; value: string; bad?: boolean; ok?: boolean }) {
   return (
     <div className="flex min-h-[50px] items-center gap-3 px-3.5">
       <span className={cn('grid h-[30px] w-[30px] shrink-0 place-items-center rounded-lg text-white', tint)}>{icon}</span>
       <span className="flex-1 text-[15.5px] text-ink-700">{label}</span>
-      <span className={cn('text-end text-[15px]', bad ? 'font-semibold text-accent-red' : 'text-ink-400')}>{value}</span>
+      <span className={cn('text-end text-[15px]', bad ? 'font-semibold text-accent-red' : ok ? 'font-semibold text-accent-900' : 'text-ink-400')}>{value}</span>
     </div>
   );
 }
@@ -248,15 +249,15 @@ function FaceCard({ person: p, today, packLabel, onPack, onDone }: {
       <div className="mt-4 divide-y divide-page overflow-hidden rounded-2xl bg-card">
         <Line icon={<Smartphone className="h-4 w-4" />} tint="bg-brand-600" label={t('lineApp')}
           value={waiting ? t('area_waiting') : s.appDays === null ? t('neverOpened') : `${ago(s.appDays)}${p.openedAs === 'browser' ? ` · ${t('openedBrowser')}` : p.openedAs === 'app' ? ` · ${t('openedApp')}` : ''}`}
-          bad={s.app === 'bad'} />
+          bad={s.app === 'bad'} ok={s.app === 'ok'} />
         <Line icon={<Watch className="h-4 w-4" />} tint="bg-accent-900" label={t('lineWatch')}
-          value={p.source === 'garmin' ? 'Garmin' : p.source === 'strava' ? 'Strava' : t('notConnected')} bad={s.watch === 'bad'} />
-        <Line icon={<Footprints className="h-4 w-4" />} tint="bg-[#ff9500]" label={t('lineRun')} value={s.runDays === null ? t('noRuns') : ago(s.runDays)} bad={s.run === 'bad'} />
+          value={p.source === 'garmin' ? 'Garmin' : p.source === 'strava' ? 'Strava' : t('notConnected')} bad={s.watch === 'bad'} ok={s.watch === 'ok'} />
+        <Line icon={<Footprints className="h-4 w-4" />} tint="bg-[#ff9500]" label={t('lineRun')} value={s.runDays === null ? t('noRuns') : ago(s.runDays)} bad={s.run === 'bad'} ok={s.run === 'ok'} />
         <Line icon={<Bell className="h-4 w-4" />} tint="bg-accent-red" label={t('notifications')}
-          value={p.pushDevices === 0 ? t('pushOff') : p.pushDead ? t('pushDeadShort') : t('pushOn', { n: p.pushDevices })} bad={s.push === 'bad'} />
+          value={p.pushDevices === 0 ? t('pushOff') : p.pushDead ? t('pushDeadShort') : t('pushOn', { n: p.pushDevices })} bad={s.push === 'bad'} ok={s.push === 'ok'} />
       </div>
       <div className="mt-3 divide-y divide-page overflow-hidden rounded-2xl bg-card">
-        <Line icon={<CheckCircle2 className="h-4 w-4" />} tint="bg-ink-400" label={t('setup')} value={p.setupDone ? t('setupDone') : t('setupNotDone')} bad={!p.setupDone && !waiting} />
+        <Line icon={<CheckCircle2 className="h-4 w-4" />} tint="bg-ink-400" label={t('setup')} value={p.setupDone ? t('setupDone') : t('setupNotDone')} bad={!p.setupDone && !waiting} ok={p.setupDone} />
         <Line icon={<CalendarDays className="h-4 w-4" />} tint="bg-ink-400" label={t('lineSince')} value={p.joinedAt ? shortDate(p.joinedAt) : '—'} />
       </div>
 
