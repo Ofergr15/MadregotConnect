@@ -4095,7 +4095,7 @@
     "resetBook": "כמו בספר",
     "recent": "אחרונים",
     "allWorkouts": "כל האימונים",
-    "usedTimes": "שימשו <m>{count}</m> פעמים",
+    "usedTimes": "<m>{count}</m> שימושים",
     "lastUsed": "אחרון:"
   },
   "viewAs": {

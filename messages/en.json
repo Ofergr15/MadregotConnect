@@ -4095,7 +4095,7 @@
     "resetBook": "As in the book",
     "recent": "Recent",
     "allWorkouts": "All workouts",
-    "usedTimes": "Used <m>{count}</m> times",
+    "usedTimes": "<m>{count}</m> uses",
     "lastUsed": "Last:"
   },
   "viewAs": {

@@ -883,6 +883,132 @@ function stridesOf(steps: BookStep[], reps: Array<Extract<BookStep, { kind: 'rep
   return sameShape ? `${base} + ${n} × ${repLengthText(one.work)} האצות` : `${base} + ${n} האצות`;
 }
 
+// ── Naming a session by its sets (Ofer, 2026-10-20) ─────────────────────────────────────
+//
+// The set the session is FOR names it: picked by intensity, then by how long it works — not by
+// whichever comes last. A small set inside a big run is said after the run ("ארוכה 36.6 ק״מ +
+// 5 × 500 מ׳"); a ladder is said as one ("סדרות יורדות 90 → 15 שנ׳ (14)"); strides with no
+// effort of their own trail the set ("+ 5 × 30 שנ׳"). Null = no set to name it by.
+
+interface SetBlock { count: number; work: Length; effort: Effort | null; workSec: number; pseudo?: boolean }
+
+/** Below this share of the session (time or distance), a set is said after the session. */
+const SET_IN_SESSION_SHARE = 0.3;
+/** A set at least this share of all the sets' work is named beside the main one. */
+const SIDE_SET_SHARE = 0.3;
+/** A warm-up longer than this is an easy run the session sits on. */
+export const EASY_WARMUP_SEC = 25 * 60;
+
+const sameLength = (a: Length, b: Length) => a.measure === b.measure && a.value === b.value;
+const pctOf = (e: Effort | null) => (e ? centrePct(e.intensity) : 0);
+
+function setBlocks(steps: BookStep[]): SetBlock[] {
+  const out: SetBlock[] = [];
+  const workOf = (count: number, work: Length, effort: Effort | null) =>
+    bookTotals([{ kind: 'reps', count, work, effort, rest: null }], null).durationSec;
+  for (let i = 0; i < steps.length; i++) {
+    const st = steps[i];
+    if (st.kind === 'reps' && st.count >= 2) { out.push({ count: st.count, work: st.work, effort: st.effort, workSec: workOf(st.count, st.work, st.effort) }); continue; }
+    // Consecutive single fast pieces of one length (3 × 2 דק׳ written as three steps) are a set.
+    const single = (x: BookStep | undefined) => (x?.kind === 'reps' && x.count === 1 ? { work: x.work, effort: x.effort }
+      : x?.kind === 'run' && x.role === 'main' && x.length && x.effort && toneOf(x.effort) !== 'e' ? { work: x.length, effort: x.effort } : null);
+    const first = single(st);
+    if (!first) continue;
+    let j = i + 1;
+    while (j < steps.length) {
+      const nx = single(steps[j]);
+      if (!nx || !sameLength(nx.work, first.work)) break;
+      j++;
+    }
+    if (j - i >= 2) { out.push({ count: j - i, work: first.work, effort: first.effort, workSec: workOf(j - i, first.work, first.effort), pseudo: true }); i = j - 1; }
+  }
+  return out;
+}
+
+/** One set written twice in a row (2 × 2 ק״מ, then 2 × 2 ק״מ) is said once: 4 × 2 ק״מ. */
+function mergeSame(list: SetBlock[]): SetBlock[] {
+  const out: SetBlock[] = [];
+  for (const b of list) {
+    const prev = out[out.length - 1];
+    if (prev && sameLength(prev.work, b.work)) out[out.length - 1] = { ...prev, count: prev.count + b.count, workSec: prev.workSec + b.workSec };
+    else out.push(b);
+  }
+  return out;
+}
+
+/**
+ * How long a long run is, said the way it was written: kilometres when its runs are measured in
+ * distance, minutes when in time — a time-written run has no distance of its own until a
+ * trainee's pace gives it one, and a name must not change with whoever reads it.
+ */
+function sessionLength(steps: BookStep[], totals: BookTotals): string {
+  const runs = steps.filter((st): st is Extract<BookStep, { kind: 'run' }> => st.kind === 'run' && !!st.length);
+  const timed = runs.reduce((n, r) => n + (r.length!.measure === 'time' ? r.length!.value : 0), 0);
+  const metred = runs.reduce((n, r) => n + (r.length!.measure === 'distance' ? r.length!.value : 0), 0);
+  if (timed > 0 && timed >= totals.durationSec / 2) return `${Math.round(totals.durationSec / 300) * 5} דק׳`;
+  return `${kmText(metred >= totals.distanceM / 2 ? totals.distanceM : totals.distanceM)} ק״מ`;
+}
+
+const isStride = (b: SetBlock) => !b.effort && b.count <= MAX_STRIDES && isShortRep(b.work);
+
+function setText(b: SetBlock): string {
+  // `טמפו` as the club says it: a set at tempo, or tempo pieces written one by one (as the
+  // existing rule: `5 × 1 ק״מ` at threshold is not "סף").
+  const word = b.effort && (b.effort.zone === 'tempo' || (b.pseudo && toneOf(b.effort) === 't')) ? ` ${TONE_WORD.tempo}` : '';
+  return `${b.count} × ${repLengthText(b.work)}${word}`;
+}
+
+/** Three or more sets in a row stepping one way on one unit: one ladder. */
+function ladderOf(sets: SetBlock[]): { from: number; to: number; measure: Measure; count: number; down: boolean } | null {
+  for (let i = 0; i + 2 < sets.length; i++) {
+    let j = i + 1;
+    const down = sets[i + 1].work.value < sets[i].work.value;
+    while (j < sets.length && sets[j].work.measure === sets[i].work.measure
+      && (down ? sets[j].work.value < sets[j - 1].work.value : sets[j].work.value > sets[j - 1].work.value)) j++;
+    if (j - i >= 3) {
+      const run = sets.slice(i, j);
+      return { from: run[0].work.value, to: run[run.length - 1].work.value, measure: run[0].work.measure, count: run.reduce((n, r) => n + r.count, 0), down };
+    }
+  }
+  return null;
+}
+
+function setTitle(steps: BookStep[], totals: BookTotals): string | null {
+  const all0 = setBlocks(steps);
+  // Single pieces written one by one (the club's "4 × 45 שנ׳ עולים" before the work) are the set
+  // only when nothing else is: beside a real set, or on a long run, they are the warm-up's drill.
+  const real = all0.some(b => !b.pseudo && !isStride(b));
+  const blocks = all0.filter(b => !b.pseudo || (!real && totals.distanceM < LONG_RUN_M));
+  const sets = blocks.filter(b => !isStride(b));
+  if (!sets.length || !(totals.durationSec > 0)) return null;
+  const strides = blocks.filter(isStride);
+  const ladder = ladderOf(sets);
+  let core: string;
+  let coreSec: number;
+  if (ladder) {
+    const unit = ladder.measure === 'time' ? 'שנ׳' : 'מ׳';
+    core = `סדרות ${ladder.down ? 'יורדות' : 'עולות'} ${ladder.from} → ${ladder.to} ${unit} (${ladder.count})`;
+    coreSec = sets.reduce((n, b) => n + b.workSec, 0);
+  } else {
+    // By intensity, then by how long it works.
+    const main = [...sets].sort((a, b) => pctOf(b.effort) - pctOf(a.effort) || b.workSec - a.workSec)[0];
+    const all = sets.reduce((n, b) => n + b.workSec, 0);
+    const named = mergeSame(sets.filter(b => b === main || (b.effort && b.workSec >= all * SIDE_SET_SHARE))).slice(0, 2);
+    core = named.map(setText).join(' + ');
+    coreSec = named.reduce((n, b) => n + b.workSec, 0);
+  }
+  // A small set inside a bigger run is said after the run.
+  const workM = sets.reduce((n, b) => n + (b.work.measure === 'distance' ? b.work.value * b.count : 0), 0);
+  const small = coreSec < totals.durationSec * SET_IN_SESSION_SHARE && (workM === 0 || workM < totals.distanceM * SET_IN_SESSION_SHARE);
+  const warm = steps.filter(st => st.kind === 'run' && st.role === 'warmup');
+  const easyBase = steps.some(st => st.kind === 'run' && st.role === 'main' && (!st.effort || toneOf(st.effort) === 'e'))
+    || bookTotals(warm, null).durationSec > EASY_WARMUP_SEC;
+  const tail = strides.length ? ` + ${mergeSame(strides).map(setText).join(' + ')}` : '';
+  if (small && totals.distanceM >= LONG_RUN_M && easyBase) return `ארוכה ${sessionLength(steps, totals)} + ${core}${tail}`;
+  if (small && easyBase) return `קל + ${core}${tail}`;
+  return `${core}${tail}`;
+}
+
 function repLengthText(len: Length): string {
   if (len.measure === 'time') {
     return len.value % 60 === 0 ? `${len.value / 60} דק׳` : `${len.value} שנ׳`;
@@ -902,6 +1028,8 @@ const TONE_WORD: Partial<Record<DraftZone, string>> = {
 export function structureName(steps: BookStep[]): string {
   const reps = steps.filter((s): s is Extract<BookStep, { kind: 'reps' }> => s.kind === 'reps');
   const totals = bookTotals(steps, null);
+  const bySets = setTitle(steps, totals);
+  if (bySets) return bySets;
   if (reps.length > 1) {
     const sameShape = reps.every(r => r.work.measure === reps[0].work.measure && r.work.value === reps[0].work.value);
     if (!sameShape) {
@@ -930,7 +1058,16 @@ export function structureName(steps: BookStep[]): string {
   }
   const hr = steps.find(s => s.kind === 'hr');
   if (hr && hr.kind === 'hr') return `דופק ${Math.round(hr.seconds / 60)} דקות`;
-  const run = steps.find(s => s.kind === 'run' && s.role === 'main' && s.effort && toneOf(s.effort) !== 'e')
+  // The longest faster run, not the first one: a 16 km session with 1.8 km at marathon pace
+  // first and 10 km of it later is the 10 km.
+  const fastRuns = steps.filter((s): s is Extract<BookStep, { kind: 'run' }> => s.kind === 'run' && s.role === 'main' && !!s.effort && toneOf(s.effort) !== 'e');
+  const longest = fastRuns.sort((a, b) => bookTotals([b], null).durationSec - bookTotals([a], null).durationSec)[0];
+  // A long run with a short faster piece in it is the long run (16 km, 1.8 of it faster).
+  if (longest && totals.distanceM >= LONG_RUN_M
+    && bookTotals(fastRuns, null).durationSec < totals.durationSec * SET_IN_SESSION_SHARE) {
+    return `${kmText(Math.round(totals.distanceM / 500) * 500)} ק״מ ארוכה`;
+  }
+  const run = longest
     ?? steps.find(s => s.kind === 'run' && s.role === 'main')
     ?? steps.find(s => s.kind === 'run');
   if (run && run.kind === 'run') {

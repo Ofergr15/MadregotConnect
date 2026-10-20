@@ -10,7 +10,7 @@ import { Sheet } from '@/components/ui';
 import type { LibraryKind } from '@/lib/academy/library';
 import {
   addStep, bookTotals, fieldValue, nudgeField, profileBar, quickFields, setField, wheelOptions,
-  type BookStep, type FieldRef, sessionGlance, toLibrarySteps,
+  type BookStep, type FieldRef, sessionGlance, toLibrarySteps, EASY_WARMUP_SEC,
 } from '@/lib/academy/book-steps';
 import { BarButton, CARD, FlowScreen, N, PrimaryButton, ProfileBar, RICH, SectionLabel, kmText } from './ui';
 import { StepLines, fieldDisplay, formatField } from './StepLines';
@@ -263,7 +263,8 @@ function PartWords({ p }: { p: { distanceM: number; durationSec: number } }) {
 function Glance({ steps, thresholdSec, paceAdjust }: { steps: BookStep[]; thresholdSec: number | null; paceAdjust: PaceAdjust | null }) {
   const g = useMemo(() => sessionGlance(steps, thresholdSec, paceAdjust), [steps, thresholdSec, paceAdjust]);
   const rows: Array<[string, React.ReactNode]> = [];
-  if (g.warmup) rows.push(['חימום', <PartWords key="w" p={g.warmup} />]);
+  // A "warm-up" this long is the easy run the set sits on (50 דק׳ before 15 × 200 מ׳).
+  if (g.warmup) rows.push([g.warmup.durationSec > EASY_WARMUP_SEC ? 'קל' : 'חימום', <PartWords key="w" p={g.warmup} />]);
   if (g.main) {
     const main = g.main;
     rows.push(['עיקר', (
