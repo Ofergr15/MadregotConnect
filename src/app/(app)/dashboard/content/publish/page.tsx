@@ -197,6 +197,12 @@ export default function PublishPage() {
   const [cheer, setCheer] = useState<string | null>(null);
   const [anyone, setAnyone] = useState(false);
   const autoCheer = who ? cheerText(who.name, who.id, reason, detail) : '';
+  // The hub's "לאשר" on a suggested cheer (Content v4): ?athlete= lands on it, filled in.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('athlete');
+    const s = id ? sug?.suggestions.find((x) => x.athleteId === id) : null;
+    if (s && !who) { setWho({ id: s.athleteId, name: s.name }); setReason(s.reason); setDetail(s.detail); }
+  }, [sug, who]);
   // survey
   const [question, setQuestion] = useState('');
   const [options, setOptions] = useState<string[]>(['', '']);

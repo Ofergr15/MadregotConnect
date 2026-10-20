@@ -5,7 +5,7 @@ import {
   Calendar, Users, Layers, Clock, ClipboardList, User, Settings,
   Route, MessageSquare, Bug, Dumbbell, GraduationCap, UserCheck, ClipboardCheck,
   BarChart3, Newspaper, CalendarDays, Wrench, ShoppingBag, Gift, ShieldCheck, Gauge, Trophy,
-  UsersRound, Megaphone, TrendingUp, Camera, Sun,
+  UsersRound, Megaphone, TrendingUp, Sun,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { useApi } from '@/lib/api';
@@ -64,9 +64,6 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   // Both read staff-gated routes, so granting one to a coach later is safe.
   { href: '/dashboard/people', tab: 'people', labelKey: 'people', icon: UsersRound },
   { href: '/dashboard/content', tab: 'content', labelKey: 'contentHub', icon: Megaphone },
-  // Social (2026-10-18): the quality sessions' photo folders. Admin by rule 1; the
-  // route is super-user/admin gated too.
-  { href: '/dashboard/social', tab: 'social', labelKey: 'social', icon: Camera },
   // A beetle, not a speech bubble: this is the "something is broken" channel,
   // and a message icon read as one more place to talk to the coach.
   { href: '/dashboard/review', tab: 'review', labelKey: 'review', icon: Bug },

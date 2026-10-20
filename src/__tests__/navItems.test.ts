@@ -172,10 +172,9 @@ describe('staff', () => {
     // still reach the page from the records section of their profile, which is the
     // door that feature actually ships behind.
     //
-    // `social` (2026-10-18): the quality sessions' photo folders, admin-only like
-    // `people` — no matrix row, and /api/social/folders is super-user/admin gated.
+    // `social` (10-18) is gone from the menu since 10-20: it is "תוכן › תמונות" now.
     expect(staff('admin').filter((t) => !staff('coach').includes(t)))
-      .toEqual(['control-room', 'people', 'content', 'social', 'practice', 'records', 'profile']);
+      .toEqual(['control-room', 'people', 'content', 'practice', 'records', 'profile']);
     expect(staff('coach').filter((t) => !staff('admin').includes(t))).toEqual([]);
   });
 

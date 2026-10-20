@@ -5,6 +5,7 @@ import { israelDateAnchor, israelToday, weekStartOn } from '@/lib/utils';
 import { challengePhase } from '@/lib/admin/content';
 import notesJson from '@/content/release-notes.json';
 import { recentPublished } from '@/lib/publish/server';
+import { clubMembers } from '@/lib/quality-session/photos-server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
     const today = israelToday();
     const weekStart = weekStartOn(israelDateAnchor(), 0);
 
-    const [challenges, badgesActive, awardedThisWeek, events, sent, recent] = await Promise.all([
+    const [challenges, badgesActive, awardedThisWeek, events, sent, recent, members] = await Promise.all([
       supabase
         .from('challenges')
         .select('id, name_he, metric, target_value, start_date, end_date, active, badge_id')
@@ -74,7 +75,8 @@ export async function GET(request: Request) {
         .order('last_sent_at', { ascending: false })
         .limit(1),
       // The club's last posts, for "פורסם לאחרונה" (lib/publish/server.ts).
-      recentPublished(supabase).catch(() => []),
+      recentPublished(supabase, 40).catch(() => []),
+      clubMembers(supabase).catch(() => [] as string[]),
     ]);
 
     const rows = (challenges.data || []) as ChallengeRow[];
@@ -111,6 +113,8 @@ export async function GET(request: Request) {
         : null,
       latestNote: latestNote ? { title: latestNote.title, date: latestNote.date } : null,
       recent,
+      // The denominator of each post's "reached X/N" (Content v4).
+      members: members.length,
     });
   } catch (error) {
     console.error('Failed to build content summary:', error);

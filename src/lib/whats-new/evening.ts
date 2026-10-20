@@ -217,13 +217,13 @@ export const EVENING_ENTRIES: WhatsNewEntry[] = [
     slug: 'b18-social',
     publishedAt: EVENING_DATE,
     audience: 'staff',
-    href: '/dashboard/social',
+    href: '/dashboard/content/photos',
     cards: [
       { key: 'b18-social', he: 'מה מתוזמן ומה נוצר', en: 'What is scheduled, what was made' },
       { key: 'b18-social-new', he: 'תיקייה חדשה, מתי שרוצים', en: 'A new folder, any time' },
     ],
-    he: { title: 'תיקייה לתמונות, לבד', body: 'ערב לפני כל אימון איכות נוצרת תיקייה בדרייב ומגיעה אליך. מעלים אליה, והתמונות עולות לפיד עם התראה לכל המועדון. לאירוע: "תיקייה חדשה עכשיו".', cta: 'ל־Social', kicker: 'חדש · לצוות', where: 'תפריט ← Social' },
-    en: { title: 'A photo folder, made for you', body: 'The evening before each quality session a Drive folder is made and sent to you. Upload to it, and the photos reach the feed with a notification to the whole club. For an event: "New folder now".', cta: 'Open Social', kicker: 'New · Staff', where: 'Menu → Social' },
+    he: { title: 'תיקייה לתמונות, לבד', body: 'ערב לפני כל אימון איכות נוצרת תיקייה בדרייב ומגיעה אליך. מעלים אליה, והתמונות עולות לפיד עם התראה לכל המועדון. לאירוע: "תיקייה חדשה עכשיו".', cta: 'לתמונות', kicker: 'חדש · לצוות', where: 'ניהול ← תוכן ← תמונות' },
+    en: { title: 'A photo folder, made for you', body: 'The evening before each quality session a Drive folder is made and sent to you. Upload to it, and the photos reach the feed with a notification to the whole club. For an event: "New folder now".', cta: 'Open Photos', kicker: 'New · Staff', where: 'Management → Content → Photos' },
   },
   {
     slug: 'b18-watch-send',

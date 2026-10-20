@@ -1,6 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { COACH_ID } from '@/lib/constants';
 import { BUCKET_LABEL, clock, parseRecordUrl } from './model';
+import { sessionDayLabel, toSessionPhotos } from '@/lib/quality-session/photos';
 
 // The writes and reads behind "לפרסם" (lib/publish/model.ts for the rules).
 
@@ -83,29 +84,58 @@ export async function cheerSuggestions(db: Db, now: Date = new Date()): Promise<
     .slice(0, 8);
 }
 
-export interface RecentItem { id: string; kind: 'message' | 'cheer' | 'survey'; text: string; at: string; likes: number; comments: number; answers: number | null; emoji: string }
+export interface RecentItem {
+  id: string; kind: 'message' | 'cheer' | 'survey' | 'photos'; text: string; at: string; likes: number; comments: number;
+  answers: number | null; emoji: string;
+  /** Phones the post's push reached, when it was recorded (a message's or a survey's row); null = not known. */
+  delivered: number | null;
+  /** A session-photos post: its first photo and how many are on the card. */
+  thumb?: string | null; photos?: number;
+}
 
-/** The club's last few posts, for the hub's "פורסם לאחרונה". */
-export async function recentPublished(db: Db): Promise<RecentItem[]> {
-  const { data } = await db.from('feed_items').select('id, body, payload, occurred_at, like_count, comment_count')
+/**
+ * The club's last posts, for the hub (Content v4: each kind's "פורסם" list, each post
+ * with its own numbers). `limit` 6 is the old hub's "פורסם לאחרונה".
+ */
+export async function recentPublished(db: Db, limit = 6): Promise<RecentItem[]> {
+  const { data } = await db.from('feed_items').select('id, body, payload, media, occurred_at, like_count, comment_count')
     .eq('type', 'announcement').is('author_athlete_id', null).is('deleted_at', null)
-    .order('occurred_at', { ascending: false }).limit(6);
-  const rows = (data || []) as Array<{ id: string; body: string | null; payload: Record<string, unknown> | null; occurred_at: string; like_count: number | null; comment_count: number | null }>;
+    .order('occurred_at', { ascending: false }).limit(limit);
+  const rows = (data || []) as Array<{ id: string; body: string | null; payload: Record<string, unknown> | null; media: Array<{ url?: string }> | null; occurred_at: string; like_count: number | null; comment_count: number | null }>;
   const surveyIds = rows.map((r) => r.payload?.surveyId).filter((v): v is string => typeof v === 'string');
+  const notifIds = rows.map((r) => r.payload?.notificationId).filter((v): v is string => typeof v === 'string');
   const answers = new Map<string, number>();
-  if (surveyIds.length) {
-    const { data: resp } = await db.from('survey_responses').select('survey_id').in('survey_id', surveyIds);
-    for (const r of (resp || []) as Array<{ survey_id: string }>) answers.set(r.survey_id, (answers.get(r.survey_id) ?? 0) + 1);
-  }
+  const delivered = new Map<string, number>();
+  await Promise.all([
+    surveyIds.length ? db.from('survey_responses').select('survey_id').in('survey_id', surveyIds).then(({ data: resp }) => {
+      for (const r of (resp || []) as Array<{ survey_id: string }>) answers.set(r.survey_id, (answers.get(r.survey_id) ?? 0) + 1);
+    }) : null,
+    // A survey's push is its own scheduled_notifications row (api/admin/surveys); a message's
+    // post carries the id of the row that sent it (lib/feed/announce.ts).
+    surveyIds.length ? db.from('scheduled_notifications').select('survey_id, sent_count').in('survey_id', surveyIds).then(({ data: n }) => {
+      for (const r of (n || []) as Array<{ survey_id: string; sent_count: number | null }>) delivered.set(`s:${r.survey_id}`, (delivered.get(`s:${r.survey_id}`) ?? 0) + (r.sent_count ?? 0));
+    }) : null,
+    notifIds.length ? db.from('scheduled_notifications').select('id, sent_count').in('id', notifIds).then(({ data: n }) => {
+      for (const r of (n || []) as Array<{ id: string; sent_count: number | null }>) delivered.set(`n:${r.id}`, r.sent_count ?? 0);
+    }) : null,
+  ]);
   return rows.map((r) => {
     const sid = typeof r.payload?.surveyId === 'string' ? r.payload.surveyId : null;
-    const kind: RecentItem['kind'] = sid ? 'survey' : r.payload?.cheerFor || r.payload?.birthdayOf ? 'cheer' : 'message';
+    const nid = typeof r.payload?.notificationId === 'string' ? r.payload.notificationId : null;
+    const photos = r.payload?.kind === 'session_photos';
+    const kind: RecentItem['kind'] = photos ? 'photos' : sid ? 'survey' : r.payload?.cheerFor || r.payload?.birthdayOf ? 'cheer' : 'message';
     // By what it is, not one 🏅 for all: a birthday and a marathon read alike (10-19).
     const REASON: Record<string, string> = { race: '🏁', record: '🏅', milestone: '🏅', birthday: '🎂', comeback: '💪' };
-    const emoji = sid ? '📊' : r.payload?.birthdayOf ? '🎂' : r.payload?.cheerFor ? REASON[String(r.payload.reason)] ?? '🎉' : '📣';
+    const emoji = photos ? '📸' : sid ? '📊' : r.payload?.birthdayOf ? '🎂' : r.payload?.cheerFor ? REASON[String(r.payload.reason)] ?? '🎉' : '📣';
+    // A photos card names its session: "עליות · שלישי 20.10", or the day alone.
+    const sp = photos ? toSessionPhotos(r.payload) : null;
+    const name = sp ? [sp.workoutName, sessionDayLabel(sp.date)].filter(Boolean).join(' · ') : null;
+    const d = sid ? delivered.get(`s:${sid}`) : nid ? delivered.get(`n:${nid}`) : undefined;
     return {
-      id: r.id, kind, text: (r.body || '').replace(/@\[([^\]]+)\]\([0-9a-f-]{36}\)/gi, '$1').split('\n')[0].slice(0, 70),
+      id: r.id, kind, text: (name || (r.body || '').replace(/@\[([^\]]+)\]\([0-9a-f-]{36}\)/gi, '$1').split('\n')[0]).slice(0, 70),
       at: r.occurred_at, likes: r.like_count ?? 0, comments: r.comment_count ?? 0, answers: sid ? answers.get(sid) ?? 0 : null, emoji,
+      delivered: d ?? null,
+      ...(photos ? { thumb: r.media?.[0]?.url ?? null, photos: r.media?.length ?? 0 } : {}),
     };
   });
 }

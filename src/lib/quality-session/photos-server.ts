@@ -430,6 +430,8 @@ export async function socialWeek(supabase: Db, now = new Date()) {
     return {
       date, name: e.name || folderName(date), link: e.link, manual: !!e.manual, autoFeed: e.autoFeed !== false,
       photos: card?.media?.length ?? 0, inFeed: !!card,
+      // When it was opened, and what the last check found in it (Content v4's locked rows).
+      createdAt: e.createdAt ?? null, found: e.found ?? null,
     };
   }));
   return { configured: !!driveWriter(), upcoming, made };
