@@ -43,6 +43,9 @@ export const ACADEMY_BOARD_ITEM: NavItem = { href: '/dashboard/academy', tab: 'a
 // membership is a flag, not a role, so no permission row can grant it.
 export const PROGRESS_ITEM: NavItem = { href: '/dashboard/academy/progress', tab: 'academy-progress', labelKey: 'progress', icon: TrendingUp };
 
+/** /dashboard when it shows "מדרגות במספרים" (an admin's home): same door, its own name. */
+export const NUMBERS_HOME_ITEM: NavItem = { href: '/dashboard', tab: 'dashboard', labelKey: 'numbersHome', icon: BarChart3 };
+
 export const ALL_NAV_ITEMS: NavItem[] = [
   // "היום" (2026-10-19): the runner's day, not a control panel — the sun, not a pulse line.
   { href: '/dashboard', tab: 'dashboard', labelKey: 'dashboard', icon: Sun },
@@ -228,6 +231,10 @@ export function resolveNavItems({
   // anything.
   const items = isAdmin
     ? ALL_NAV_ITEMS.filter(i => !isOperator || !OPERATOR_HIDDEN_TABS.includes(i.tab))
+      // Where /dashboard is the club in numbers (an admin with no athlete row, or the
+      // operator account — the dashboard page's controlRoomView), its tab says so:
+      // "היום" is the runner's day (Ofer 2026-10-20: "מספרים").
+      .map(i => (i.tab === 'dashboard' && (!isAthlete || isOperator) ? NUMBERS_HOME_ITEM : i))
     // Filtered last, so this also sees the גרעין union above.
     : ALL_NAV_ITEMS.filter(i => enabled.includes(i.tab));
 
