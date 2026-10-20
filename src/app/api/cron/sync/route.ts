@@ -6,6 +6,7 @@ import { snapshotWeeklyKm } from '@/lib/weekly-snapshots';
 import { backfillStravaLaps } from '@/lib/strava/backfill-laps';
 import { backfillStravaRoutes } from '@/lib/strava/backfill-routes';
 import { runScheduledHistoryBackfill } from '@/lib/garmin/history-schedule';
+import { refreshStaleStravaAvatars } from '@/lib/strava/avatar-refresh';
 import { createServerClient } from '@/lib/supabase/server';
 import { israelNow } from '@/lib/utils';
 import { cronPaused } from '@/lib/cron-pause';
@@ -250,10 +251,20 @@ async function runSync(request: Request) {
     garminHistory = { error: String(e?.message || e) };
   }
 
-  const skipped = bonusSkipped.length ? bonusSkipped : undefined;
-  console.log('[cron/sync] done', { totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, snapshot, skipped });
+  // Once a day, members' Strava photos whose stored URL stopped loading (a photo
+  // changed on Strava). Isolated like the passes above. See lib/strava/avatar-refresh.
+  let stravaAvatars: any = null;
+  if (left() < BONUS_MIN_MS) bonusSkipped.push('stravaAvatars');
+  else try {
+    stravaAvatars = await refreshStaleStravaAvatars(createServerClient());
+  } catch (e: any) {
+    stravaAvatars = { error: String(e?.message || e) };
+  }
 
-  return NextResponse.json({ ok: true, totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, snapshot, skipped });
+  const skipped = bonusSkipped.length ? bonusSkipped : undefined;
+  console.log('[cron/sync] done', { totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, stravaAvatars, snapshot, skipped });
+
+  return NextResponse.json({ ok: true, totalSynced, garmin, stravaPoll, stravaRoutes, stravaLaps, garminHistory, stravaAvatars, snapshot, skipped });
 }
 
 export async function GET(request: Request) {
