@@ -51,13 +51,14 @@ describe('phase 4: nobody stuck quietly', () => {
     expect(sync).toMatch(/\.eq\('athlete_id', athlete\.id\)\.eq\('status', 'pending'\)/);
   });
 
-  it('the 48h reminder: every approval, still invited, never seen, real address, once', async () => {
+  it('the reminders: every approval, never seen (invited or details-saved), real address, day 2 and day 5', async () => {
     const { runJoinReminders, isSynthetic } = await import('@/lib/onboarding/join-reminder');
     expect(isSynthetic('strava_1@strava.madregot.local')).toBe(true);
     expect(isSynthetic('noa@gmail.com')).toBe(false);
     const src = read('lib/onboarding/join-reminder.ts');
-    expect(src).toMatch(/a\.status !== 'invited' \|\| a\.last_seen_at \|\| !a\.invite_token \|\| isSynthetic\(a\.email\)/);
+    expect(src).toMatch(/\(a\.status !== 'invited' && a\.status !== 'active'\) \|\| a\.last_seen_at \|\| !a\.invite_token \|\| isSynthetic\(a\.email\)/);
     expect(src).toMatch(/if \(await ledger\.already\(tag\)\) continue;/);
+    expect(src).toMatch(/joinReminder2:/);
     expect(typeof runJoinReminders).toBe('function');
     expect(read('app/api/cron/tick/route.ts')).toMatch(/if \(hour === 10\) \{\s+try \{\s+const reminded = await runJoinReminders/);
   });

@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { INSTALL_KEY } from '@/lib/auth/install-key';
+import { helpWhatsAppHref } from '@/lib/help-whatsapp';
 import { getSupabase } from '@/lib/supabase/client';
 import { ONBOARDING_V2_KEY } from '@/lib/install/v2';
 import { useIsComputer } from '@/lib/install/use-computer';
@@ -49,6 +50,7 @@ export default function WelcomePage() {
   const [wrong, setWrong] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const codeRef = useRef<HTMLInputElement>(null);
+  const help = helpWhatsAppHref('היי, אני בכניסה לאפליקציה של מדרגות והקוד במייל לא מגיע');
 
   useEffect(() => {
     setStandalone(isStandalone());
@@ -165,7 +167,10 @@ export default function WelcomePage() {
               <SecondaryButton outline onClick={() => send()} disabled={busy || cooldown > 0} className="mt-1">
                 {cooldown > 0 ? `שליחת קוד חדש (0:${String(cooldown).padStart(2, '0')})` : 'שליחת קוד חדש'}
               </SecondaryButton>
-              <p className="pt-1 text-center text-[13px]" style={{ color: JOURNEY.soft }}>לא הגיע? כדאי לבדוק בספאם</p>
+              <p className="pt-1 text-center text-[13px]" style={{ color: JOURNEY.soft }}>
+                לא הגיע? כדאי לבדוק בספאם
+                {help && <> · <a href={help} target="_blank" rel="noopener noreferrer" className="font-bold underline">כתבו לנו בווטסאפ</a></>}
+              </p>
             </>
           }
         >

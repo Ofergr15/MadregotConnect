@@ -5,12 +5,14 @@
 // digits. `autocomplete="one-time-code"` lets iOS offer the code from the mail
 // notification, so on an iPhone it is usually one tap.
 
+import { helpWhatsAppHref } from '@/lib/help-whatsapp';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase/client';
 import { Sheet } from '@/components/ui';
 
 export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const help = helpWhatsAppHref('היי, ניסיתי להיכנס לאפליקציה של מדרגות עם קוד במייל והוא לא מגיע');
   const router = useRouter();
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
@@ -89,6 +91,12 @@ export function EmailCodeSheet({ open, onOpenChange }: { open: boolean; onOpenCh
           <form onSubmit={verify} className="flex flex-col gap-3">
             <p className="text-sm leading-relaxed text-ink-500">
               אם הכתובת <bdi dir="ltr" className="font-semibold text-ink-700">{email.trim()}</bdi> רשומה אצלנו, קוד בדרך. כדאי לבדוק גם בספאם.
+            </p>
+            {/* Nothing comes for an address the club doesn't have — say what to do then,
+                rather than leave them waiting (Chen Becher, 2026-10-20). */}
+            <p className="text-[13px] leading-relaxed text-ink-500">
+              לא מגיע תוך דקה? אולי נרשמתם עם כתובת אחרת — אפשר לנסות אותה, או להיכנס עם Strava.
+              {help && <> <a href={help} target="_blank" rel="noopener noreferrer" className="font-bold text-brand-600 underline">כתבו לנו בווטסאפ</a></>}
             </p>
             <input
               inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]*" maxLength={7} dir="ltr" required autoFocus

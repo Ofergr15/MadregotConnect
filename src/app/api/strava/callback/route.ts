@@ -12,6 +12,7 @@ import {
   isSyntheticAuthEmail,
   matchAthleteByName,
   matchAthleteByNameKey,
+  matchRealRowByName,
   pickAthleteRow,
   stravaDisplayNameOf,
   type IdentityRow,
@@ -32,7 +33,7 @@ export const maxDuration = 60;
 // Everything pickAthleteRow ranks on. garmin_auth and strava_auth are read as
 // presence only — they are OAuth credentials and must not leave this route.
 const ATHLETE_MATCH_COLUMNS =
-  'id, name, email, role, status, created_at, strava_athlete_id, strava_auth, garmin_auth';
+  'id, name, email, role, status, approved, created_at, strava_athlete_id, strava_auth, garmin_auth';
 
 type TokenPayload = {
   access_token: string;
@@ -406,6 +407,22 @@ export async function GET(request: Request) {
       existing = matchAthleteByNameKey(roster, name);
       if (existing) matchedBy = 'name_key';
     }
+    // The names typed on sign-up, for the two checks below: a /register applicant's
+    // roster name starts as a placeholder made from their address.
+    const typedNames = new Map<string, string[]>();
+    {
+      const { data: typed } = await admin.from('signup_requests').select('athlete_id, full_name')
+        .not('athlete_id', 'is', null).not('full_name', 'is', null);
+      for (const t of (typed || []) as Array<{ athlete_id: string; full_name: string }>) {
+        typedNames.set(t.athlete_id, [...(typedNames.get(t.athlete_id) || []), t.full_name]);
+      }
+    }
+    if (!existing) {
+      // An approved member who has not come in yet (`invited`), or whose roster name is
+      // still the placeholder: exact name, any status, real rows only (matchRealRowByName).
+      existing = matchRealRowByName(roster, name, typedNames);
+      if (existing) matchedBy = 'name_real';
+    }
 
     // ── Reconcile, on EVERY login rather than only the first ──────────────────
     //
@@ -416,7 +433,9 @@ export async function GET(request: Request) {
     // and their history, is still sitting beside it. The name key finds it, and
     // then both halves are in hand at once. That only ever happens here.
     if (existing && isSyntheticAuthEmail(existing.email)) {
-      const real = matchAthleteByNameKey(roster, existing.name) || matchAthleteByNameKey(roster, name);
+      const real = matchAthleteByNameKey(roster, existing.name) || matchAthleteByNameKey(roster, name)
+        // A name too short for the skeleton (Chen Becher): the exact name, real rows only.
+        || matchRealRowByName(roster, existing.name, typedNames) || matchRealRowByName(roster, name, typedNames);
       if (real && real.id !== existing.id) {
         console.info(`[auth-debug:${debugId}] callback:reclaimed_roster_row`, {
           shell: existing.id,
@@ -477,6 +496,10 @@ export async function GET(request: Request) {
       const { error: updateErr } = await admin
         .from('athletes')
         .update({
+          // Approved but not in yet (`invited`): this sign-in IS them coming in, the
+          // same step the email code and /join take. Left invited, membershipFor read
+          // them 'inactive' and the shell turned them away at the door.
+          ...(existing?.status === 'invited' && existing.approved === true ? { status: 'active' } : {}),
           // The roster takes the name STRAVA holds, on every login. The roster
           // name is whatever a human typed at registration months ago —
           // sometimes misspelled, sometimes a first name alone — and it is the

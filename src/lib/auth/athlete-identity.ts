@@ -279,6 +279,7 @@ export type IdentityRow = {
   email?: string | null;
   role?: string | null;
   status?: string | null;
+  approved?: boolean | null;
   created_at?: string | null;
   strava_athlete_id?: number | null;
   strava_auth?: unknown;
@@ -376,6 +377,32 @@ export function matchAthleteByName<T extends IdentityRow>(rows: T[], name?: stri
  */
 function mergeTargets<T extends IdentityRow>(rows: T[]): T[] {
   return rows.filter(r => !isSyntheticAuthEmail(r.email));
+}
+
+/**
+ * The one REAL roster row (keyed on a real address, not removed) whose name is exactly
+ * this one — whatever its status — or null. Also takes the names people typed on their
+ * sign-up (signup_requests.full_name, by athlete id), because a /register applicant's
+ * roster name starts life as a placeholder made from their address.
+ *
+ * Why it exists (Chen Becher, 2026-10-20): approved on 10-16, still `invited`, signed in
+ * with Strava from the landing page. matchAthleteByName looks at `active` rows only and
+ * the skeleton match needs four consonants ("Chen Becher" has none to spare), so neither
+ * found him: the login minted an empty, unapproved shell and he sat on "waiting for
+ * approval" with his real account approved beside it. Unique or nothing, as everywhere here.
+ */
+export function matchRealRowByName<T extends IdentityRow>(
+  rows: T[],
+  name?: string | null,
+  typedNames: Map<string, string[]> = new Map(),
+): T | null {
+  const target = normalizeAthleteName(name);
+  if (!target) return null;
+  const matches = mergeTargets(rows).filter((r) => r.status !== 'removed' && (
+    normalizeAthleteName(r.name) === target
+    || (typedNames.get(r.id) || []).some((n) => normalizeAthleteName(n) === target)
+  ));
+  return matches.length === 1 ? matches[0] : null;
 }
 
 /**
