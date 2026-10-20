@@ -15,9 +15,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { mutate } from 'swr';
-import { Bell, CalendarClock, Check, ChevronLeft, MapPin, Route, Trophy } from 'lucide-react';
+import { Bell, CalendarClock, Check, ChevronLeft, MapPin, Route, Smartphone, Trophy, UserRound, Watch } from 'lucide-react';
 import { apiHeaders, useApi } from '@/lib/api';
-import { isStandalone, subscribeToPush } from '@/lib/pwa';
+import { isIosDevice, isStandalone, subscribeToPush } from '@/lib/pwa';
 import { useIsComputer } from '@/lib/install/use-computer';
 import { CLOTHING_SIZES, SOCK_SIZES } from '@/lib/kit-sizes';
 import { EU_SHOE_SIZES } from '@/lib/shoe-catalog';
@@ -111,6 +111,67 @@ function Benefits({ rows }: { rows: Array<[ReactNode, string]> }) {
   );
 }
 
+// ── 0 · welcome ─────────────────────────────────────────────────────────────
+// The first thing a new member sees: the real install video (recorded on an iPhone —
+// install, open the icon, sign in with the emailed code), playing in place on the
+// video's own blue, and the four steps ahead. "מתחילים" opens the step-by-step guide.
+const INTRO_STEPS: Array<[ReactNode, string]> = [
+  [<Smartphone key="i" className="h-[19px] w-[19px]" />, 'התקנה'],
+  [<Watch key="w" className="h-[19px] w-[19px]" />, 'שעון'],
+  [<Bell key="b" className="h-[19px] w-[19px]" />, 'התראות'],
+  [<UserRound key="d" className="h-[19px] w-[19px]" />, 'פרטים'],
+];
+
+function IntroStep({ onStart, onSkip }: { onStart: () => void; onSkip: () => void }) {
+  const name = firstName();
+  const [ios, setIos] = useState(true);
+  useEffect(() => setIos(isIosDevice()), []);
+  return (
+    <div className="fixed inset-0 z-[70] overflow-y-auto text-white" dir="rtl" role="dialog" aria-modal="true" aria-label="ברוכים הבאים" data-testid="setup-gate"
+      style={{ background: 'linear-gradient(180deg,#2730CD 0%,#1B23A8 38%,#0B0E3D 100%)' }}>
+      <div className="mx-auto flex min-h-[100dvh] max-w-[480px] flex-col items-center px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-[max(18px,env(safe-area-inset-top))]">
+        {/* eslint-disable-next-line @next/next/no-img-element -- the club's wordmark */}
+        <img src="/images/wordmark-white.png" alt="מדרגות" className="h-[30px] w-auto opacity-95" />
+        <h1 className="mt-4 text-center text-[28px] font-black leading-tight tracking-[-0.5px]">ברוכים הבאים{name ? `, ${name}` : ''}</h1>
+        <p className="mt-1.5 text-center text-[15.5px] font-semibold text-white/80">4 צעדים קצרים, כ-3 דקות — ואתם בפנים</p>
+
+        <div className="relative mt-4 flex min-h-0 w-full flex-1 justify-center">
+          {ios ? (
+            <div className="relative h-full max-h-[440px] overflow-hidden rounded-[26px] shadow-[0_0_0_1px_rgba(255,255,255,.14),0_24px_50px_-18px_rgba(0,0,0,.7)]" style={{ aspectRatio: '540 / 960' }}>
+              <video src="/videos/install-iphone.mp4" poster="/videos/install-iphone-poster.jpg" autoPlay muted loop playsInline className="block h-full w-full object-cover" />
+              <span className="absolute start-2.5 top-2.5 rounded-full bg-black/45 px-2.5 py-1 text-[12px] font-extrabold backdrop-blur">איך מתקינים · 30 שניות</span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element -- the app's own icon */}
+              <img src="/images/icon-192.png" alt="" className="h-28 w-28 rounded-[28px] shadow-[0_20px_40px_-12px_rgba(0,0,0,.6)]" />
+              <p className="mt-4 text-[15px] font-bold text-white/85">התקנה בלחיצה אחת, בלי חנות אפליקציות</p>
+            </div>
+          )}
+        </div>
+
+        <ol className="mt-5 grid w-full grid-cols-4 gap-2">
+          {INTRO_STEPS.map(([icon, label], i) => (
+            <li key={label} className="flex flex-col items-center gap-1.5">
+              <span className="relative flex h-11 w-11 items-center justify-center rounded-full"
+                style={i === 0 ? { background: '#FF5315', boxShadow: '0 0 0 4px rgba(255,83,21,.25)' } : { background: 'rgba(255,255,255,.12)' }}>
+                {icon}
+                <b className="absolute -end-1 -top-1 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-white text-[11px] font-black text-[#1B23A8]">{i + 1}</b>
+              </span>
+              <span className={`text-[13px] font-extrabold ${i === 0 ? 'text-white' : 'text-white/75'}`}>{label}</span>
+            </li>
+          ))}
+        </ol>
+
+        <button type="button" onClick={onStart} className="mt-5 flex h-14 w-full items-center justify-center rounded-[18px] bg-white text-[17px] font-black text-[#1525FF] shadow-[0_14px_30px_-12px_rgba(0,0,0,.6)]">
+          מתחילים בהתקנה
+        </button>
+        <button type="button" onClick={onSkip} className="mt-1 h-11 text-[14px] font-bold text-white/75 underline underline-offset-2">לא מצליחים להתקין? ממשיכים בדפדפן</button>
+      </div>
+    </div>
+  );
+}
+
 // ── 1 · install ─────────────────────────────────────────────────────────────
 // The app's own install guide — the recorded demo beside the step-by-step text — as the
 // landing page and the end of /join show it. Blocking: its one way out is "can't install?
@@ -131,12 +192,12 @@ function WatchStep({ onNoWatch, busy }: { onNoWatch: () => void; busy: boolean }
   const router = useRouter();
   const providers = [
     {
-      key: 'garmin', href: '/dashboard/profile?connectGarmin=1', sub: 'גם האימון של היום נשלח לשעון', tag: 'מומלץ',
+      key: 'garmin', href: '/dashboard/profile?connectGarmin=1', sub: 'מומלץ — כך נוכל לדחוף לכם אימונים לשעון', tag: null,
       // eslint-disable-next-line @next/next/no-img-element -- the official Garmin logo (public/images/brands)
       mark: <img src="/images/brands/garmin.svg" alt="Garmin" className="h-[22px] w-auto" />,
     },
     {
-      key: 'strava', href: '/dashboard/profile?tab=datasource', sub: 'Apple Watch, Coros, Polar, Suunto', tag: null,
+      key: 'strava', href: '/dashboard/profile?tab=datasource', sub: null, tag: null,
       mark: <span className="flex items-center gap-1.5 text-[19px] font-black tracking-[-0.3px]" style={{ color: '#FC4C02' }}><StravaMark className="h-[22px] w-[22px]" />STRAVA</span>,
     },
   ];
@@ -150,12 +211,13 @@ function WatchStep({ onNoWatch, busy }: { onNoWatch: () => void; busy: boolean }
           <button key={p.key} type="button" onClick={() => router.push(p.href)} className={`${CARD} flex min-h-[78px] items-center gap-3 px-4 text-start`}>
             <span className="flex-1">
               <span className="flex h-7 items-center gap-2">{p.mark}{p.tag && <span className="rounded-[7px] bg-[#E3F4EA] px-[7px] py-0.5 text-[11.5px] font-black text-[#0E7A3C]">{p.tag}</span>}</span>
-              <span className="mt-1 block text-[13.5px] font-semibold" style={{ color: '#6B6C76' }}>{p.sub}</span>
+              {p.sub && <span className="mt-1 block text-[13.5px] font-semibold" style={{ color: '#6B6C76' }}>{p.sub}</span>}
             </span>
             <ChevronLeft className="h-5 w-5 text-[#B5B6BF]" aria-hidden />
           </button>
         ))}
       </div>
+      <p className="mx-1.5 mt-3 text-[14px] font-bold leading-snug" style={{ color: SOFT }}>הכי טוב לחבר את שניהם — כך נמשוך כמה שיותר נתונים.</p>
       <p className="mb-[7px] ms-1.5 mt-4 text-[13px] font-extrabold" style={{ color: '#6B6C76' }}>מה זה נותן</p>
       <Benefits rows={[
         [<Route key="r" className="h-[18px] w-[18px]" />, 'הריצות נכנסות לתוכנית ולנוכחות'],
@@ -388,6 +450,7 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   // "Can't install" holds for this visit only: an install the app can't see (an Android
   // Chrome tab) must never lock somebody out.
   const [installLater, setInstallLater] = useState(false);
+  const [introDone, setIntroDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
   // Somebody who walked at least one step sees the closing screen once it is all done.
@@ -413,7 +476,11 @@ export function SetupGate({ onActive }: { onActive?: (on: boolean) => void }) {
   if (done) return <DoneStep connected={!!data?.connected} onClose={() => setClosed(true)} />;
 
   const at = steps[0];
-  if (at === 'install') return <InstallStep onSkip={() => setInstallLater(true)} />;
+  if (at === 'install') {
+    return introDone
+      ? <InstallStep onSkip={() => setInstallLater(true)} />
+      : <IntroStep onStart={() => setIntroDone(true)} onSkip={() => setInstallLater(true)} />;
+  }
   if (at === 'watch') {
     return <WatchStep busy={busy} onNoWatch={async () => {
       setBusy(true);
