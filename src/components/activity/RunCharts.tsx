@@ -26,7 +26,7 @@ import type { Split } from './types';
 
 const W = 360;
 
-type Metric = 'pace' | 'hr' | 'cad' | 'elev';
+type Metric = 'pace' | 'hr' | 'cad' | 'pw' | 'elev';
 
 /** The y-axis gutter, px — labels live there, never over the line. */
 const GUTTER = 34;
@@ -35,7 +35,7 @@ const GUTTER = 34;
 function niceTicks(lo: number, hi: number, metric: Metric): number[] {
   const step = metric === 'pace' ? ([15, 30, 60, 120].find((st) => (hi - lo) / st <= 4) ?? 300)
     : metric === 'hr' ? ([10, 20, 30].find((st) => (hi - lo) / st <= 4) ?? 40)
-      : metric === 'cad' ? 20 : ([5, 10, 20, 50].find((st) => (hi - lo) / st <= 3) ?? 100);
+      : metric === 'cad' ? 20 : metric === 'pw' ? ([50, 100].find((st) => (hi - lo) / st <= 4) ?? 200) : ([5, 10, 20, 50].find((st) => (hi - lo) / st <= 3) ?? 100);
   const out: number[] = [];
   for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) out.push(v);
   return out;
@@ -49,11 +49,14 @@ const PHASE_TONE: Record<RunPhase['kind'], string> = {
 
 interface Series {
   x: number[];
+  /** km along the run, whatever the x axis is — the map's cursor reads this. */
+  km: number[];
   t: Array<number | null>;
   pace: Array<number | null>;
   hr: Array<number | null> | null;
   elev: Array<number | null> | null;
   cad: Array<number | null> | null;
+  pw: Array<number | null> | null;
   /** True when built from per-km splits rather than the trace. */
   coarse: boolean;
 }
@@ -72,19 +75,21 @@ function rolling(values: Array<number | null>, w: number): Array<number | null> 
   });
 }
 
-function fromView(view: StreamView): Series {
+function fromView(view: StreamView, byTime = false): Series {
   // ~400 bins: on a 30 km run a bin is 75 m (already calm), on a 5 km run 12 m
   // (GPS-jittery), so the smoothing window scales with how short the bins are.
   const binM = (view.d[view.d.length - 1] * 1000) / view.d.length;
   const w = Math.max(1, Math.min(6, Math.round(60 / Math.max(binM, 1))));
   return {
-    x: view.d,
+    x: byTime ? view.t.map((sec) => sec / 60) : view.d,
+    km: view.d,
     t: view.t,
     pace: rolling(view.pace, w),
     hr: view.hr ? rolling(view.hr, 1) : null,
     elev: view.elev ? rolling(view.elev, w) : null,
     // A cadence under 120 is standing or walking — a gap, not a dive to the floor.
     cad: view.cad && view.cad.some((c) => c != null && c > 120) ? rolling(view.cad.map((c) => (c != null && c > 120 ? c : null)), w) : null,
+    pw: view.pw && view.pw.some((v) => v != null && v > 50) ? rolling(view.pw.map((v) => (v != null && v > 50 ? v : null)), w) : null,
     coarse: false,
   };
 }
@@ -102,11 +107,13 @@ function fromSplits(splits: Split[]): Series | null {
   const hasElev = splits.some((s) => s.elevationGain != null || s.elevationLoss != null);
   return {
     x,
+    km: x,
     t,
     pace: splits.map((s) => s.averagePace || null),
     hr: hasHr ? splits.map((s) => s.averageHR) : null,
     elev: hasElev ? elev : null,
     cad: null,
+    pw: null,
     coarse: true,
   };
 }
@@ -168,12 +175,17 @@ export interface RunChartsProps {
   planned?: Array<{ min: number; max: number } | null> | null;
   /** The workout's parts, drawn as a strip above the charts. */
   phases?: RunPhase[] | null;
+  /** The reps, shaded behind every chart (km and seconds from the start). */
+  bands?: Array<{ fromKm: number; toKm: number; fromSec: number; toSec: number }> | null;
   className?: string;
 }
 
-export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, onCursor, planned, phases, className }: RunChartsProps) {
+export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, onCursor, planned, phases, bands, className }: RunChartsProps) {
   const t = useTranslations('runPage');
-  const series = useMemo(() => (view ? fromView(view) : fromSplits(splits)), [view, splits]);
+  // Distance or time along the bottom (the coarse per-km fallback has no time axis).
+  const [axis, setAxis] = useState<'d' | 't'>('d');
+  const byTime = axis === 't' && !!view;
+  const series = useMemo(() => (view ? fromView(view, byTime) : fromSplits(splits)), [view, splits, byTime]);
   const [cursor, setCursor] = useState<number | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
 
@@ -201,7 +213,15 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
       out.push({
         metric: 'cad', values: series.cad, invert: false, height: 70,
         lo: Math.max(120, Math.floor((clo - 4) / 10) * 10), hi: Math.ceil((chi + 4) / 10) * 10,
-        stroke: '#7C3AED', fill: 'rgba(124,58,237,0.08)', avg: null, format: (v) => String(Math.round(v)),
+        stroke: '#0F766E', fill: 'rgba(15,118,110,0.08)', avg: null, format: (v) => String(Math.round(v)),
+      });
+    }
+    if (series.pw) {
+      const [wlo, whi] = extent(series.pw, 0.02, 0.98);
+      out.push({
+        metric: 'pw', values: series.pw, invert: false, height: 70,
+        lo: Math.max(0, Math.floor((wlo - 20) / 50) * 50), hi: Math.ceil((whi + 20) / 50) * 50,
+        stroke: '#6D28D9', fill: 'rgba(109,40,217,0.08)', avg: null, format: (v) => String(Math.round(v)),
       });
     }
     if (series.elev) {
@@ -227,17 +247,20 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
     let i = series.x.findIndex((v) => v >= xv);
     if (i < 0) i = series.x.length - 1;
     setCursor(i);
-    onCursor?.(series.x[i] / total);
+    onCursor?.(series.km[i] / (series.km[series.km.length - 1] || 1));
   };
 
-  const kmStep = total > 25 ? 5 : total > 10 ? 2 : 1;
-  const kmTicks: number[] = [];
-  for (let k = kmStep; k < total - kmStep * 0.3; k += kmStep) kmTicks.push(k);
+  // The x axis, under every chart: km, or minutes when reading by time.
+  const xStep = byTime ? (total > 90 ? 15 : total > 40 ? 10 : 5) : total > 25 ? 5 : total > 10 ? 2 : 1;
+  const xTicks: number[] = [];
+  for (let k = xStep; k < total - xStep * 0.3; k += xStep) xTicks.push(k);
+  const xUnit = byTime ? '′' : '';
+  const shade = (bands || []).map((b) => (byTime ? [b.fromSec / 60, b.toSec / 60] : [b.fromKm, b.toKm]) as [number, number]);
 
   const at = cursor;
   const cx = at != null ? (series.x[at] / total) * W : null;
 
-  const label = (m: Metric) => t(m === 'pace' ? 'pace' : m === 'hr' ? 'heartRate' : m === 'cad' ? 'cadence' : 'elevation');
+  const label = (m: Metric) => (m === 'pw' ? t('power') : t(m === 'pace' ? 'pace' : m === 'hr' ? 'heartRate' : m === 'cad' ? 'cadence' : 'elevation'));
   const sub = (l: Lane) => (l.metric === 'pace' && avgPace ? t('avgPace', { pace: formatPace(avgPace) })
     : l.metric === 'hr' && avgHr ? t('avgHr', { hr: Math.round(avgHr) })
       : l.metric === 'elev' && elevationGain ? t('climb', { m: Math.round(elevationGain) }) : '');
@@ -245,16 +268,28 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
   return (
     <div className={className}>
       {/* The readout: averages at rest, the values under the finger while dragging. */}
+      {view && (
+        <div className="mb-2 flex justify-end">
+          <div className="flex rounded-[10px] bg-page p-0.5 text-xs font-bold">
+            {(['d', 't'] as const).map((a) => (
+              <button key={a} type="button" onClick={() => { setAxis(a); setCursor(null); }} className={cn('min-h-[32px] rounded-lg px-3', axis === a ? 'bg-card text-ink-900 shadow-sm' : 'text-ink-500')}>
+                {a === 'd' ? t('byDistance') : t('byTime')}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="mb-2 flex min-h-[28px] flex-wrap items-center gap-1.5 text-xs" aria-live="polite">
         {at == null ? (
           <span className="rounded-lg bg-page/60 px-2 py-1 text-ink-500">{t('dragHint')}</span>
         ) : (
           <>
-            <Chip label={t('km')} value={series.x[at].toFixed(1)} />
+            <Chip label={t('km')} value={series.km[at].toFixed(1)} />
             {series.t[at] != null && <Chip label="⏱" value={formatDuration(series.t[at] as number)} />}
             {series.pace[at] != null && <Chip label={t('pace')} value={formatPace(series.pace[at] as number)} />}
             {series.hr?.[at] != null && <Chip label="♥" value={String(Math.round(series.hr[at] as number))} />}
             {series.cad?.[at] != null && <Chip label="👣" value={String(Math.round(series.cad[at] as number))} />}
+            {series.pw?.[at] != null && <Chip label="⚡" value={`${Math.round(series.pw[at] as number)}W`} />}
             {series.elev?.[at] != null && <Chip label="↑" value={`${Math.round(series.elev[at] as number)} ${t('m')}`} />}
           </>
         )}
@@ -294,13 +329,14 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
                   <rect key={`p${k}`} x={(k / total) * W} width={Math.max(0, (Math.min(k + 1, total) - k) / total * W)}
                     y={laneY(l, Math.min(b.min, b.max))} height={Math.max(1, laneY(l, Math.max(b.min, b.max)) - laneY(l, Math.min(b.min, b.max)))} fill="rgba(18,161,80,0.12)" />
                 ) : null))}
-                {l.metric === 'hr' && HR_ZONE_FLOORS.map((f, z) => {
-                  const top = laneY(l, maxHr * (HR_ZONE_FLOORS[z + 1] ?? 1.3));
-                  const bottom = laneY(l, maxHr * f);
-                  return bottom - top > 0.5 ? <rect key={z} x={0} y={top} width={W} height={bottom - top} fill={ZONE_WASH[z]} /> : null;
-                })}
-                <path d={areaOf(l, series.x, total)} fill={l.fill} />
-                <path d={pathOf(l, series.x, total)} fill="none" stroke={l.stroke} strokeWidth={series.coarse ? 2.2 : 1.6} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                {shade.map(([a, b], k) => (
+                  <rect key={`b${k}`} x={(a / total) * W} width={Math.max(0, ((b - a) / total) * W)} y={0} height={l.height} fill="rgba(21,37,255,0.05)" />
+                ))}
+                {l.metric !== 'hr' && <path d={areaOf(l, series.x, total)} fill={l.fill} />}
+                {/* Heart rate as Garmin draws it: one line, coloured by the zone it is in. */}
+                {l.metric === 'hr' ? zonePaths(l, series.x, total, maxHr).map((z, k) => (
+                  <path key={k} d={z.d} fill="none" stroke={z.color} strokeWidth={series.coarse ? 2.4 : 1.9} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                )) : <path d={pathOf(l, series.x, total)} fill="none" stroke={l.stroke} strokeWidth={series.coarse ? 2.2 : 1.6} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
                 {l.avg != null && (
                   <line x1={0} x2={W} y1={laneY(l, l.avg)} y2={laneY(l, l.avg)} stroke={l.stroke} strokeDasharray="3 3" strokeOpacity={0.6} vectorEffect="non-scaling-stroke" />
                 )}
@@ -311,13 +347,7 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
                 <span key={tv} className="pointer-events-none absolute -translate-y-1/2 text-3xs tabular-nums text-ink-400"
                   style={{ top: laneY(l, tv), right: '100%', marginRight: 5 }}>{l.format(tv)}</span>
               ))}
-              {l.metric === 'hr' && HR_ZONE_FLOORS.map((f, z) => {
-                const top = laneY(l, maxHr * (HR_ZONE_FLOORS[z + 1] ?? 1.3));
-                const bottom = laneY(l, maxHr * f);
-                return bottom - top > 11 ? (
-                  <span key={`z${z}`} className="pointer-events-none absolute right-1 -translate-y-1/2 text-[9px] font-bold text-ink-400" style={{ top: (top + bottom) / 2 }}>Z{z + 1}</span>
-                ) : null;
-              })}
+
               {cx != null && at != null && l.values[at] != null && (
                 <span
                   className="pointer-events-none absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white"
@@ -325,22 +355,43 @@ export function RunCharts({ view, splits, avgPace, avgHr, elevationGain, maxHr, 
                 />
               )}
             </div>
+            {/* Every chart carries its own axis — time or km — so none is read without one. */}
+            <div className="relative mt-0.5 h-3.5 border-t border-page text-3xs tabular-nums text-ink-400">
+              {xTicks.map((k) => (
+                <span key={k} className="absolute top-0.5 -translate-x-1/2" style={{ left: `${(k / total) * 100}%` }}>{k}{xUnit}</span>
+              ))}
+              <span className="absolute -left-[30px] top-0.5">{byTime ? t('minutesShort') : t('km')}</span>
+            </div>
           </div>
         ))}
-        <div className="relative mt-1 h-4 text-3xs tabular-nums text-ink-400">
-          {kmTicks.map((k) => (
-            <span key={k} className="absolute -translate-x-1/2" style={{ left: `${(k / total) * 100}%` }}>{k}</span>
-          ))}
-          <span className="absolute right-0">{t('km')}</span>
-        </div>
       </div>
       {series.coarse && <p className="mt-1 text-3xs text-ink-400">{t('perKmNote')}</p>}
     </div>
   );
 }
 
-/** Faint zone washes behind the HR line — fills only, never text. */
-const ZONE_WASH = ['rgba(150,150,150,0.08)', 'rgba(96,165,250,0.10)', 'rgba(22,163,74,0.10)', 'rgba(251,146,60,0.12)', 'rgba(215,78,78,0.12)'];
+/** Garmin's zone colours: grey, blue, green, orange, red. */
+const ZONE_COLOR = ['#9CA3AF', '#3B82F6', '#22C55E', '#F59E0B', '#EF4444'];
+
+/** The heart-rate line cut where it changes zone, each piece in its zone's colour. */
+function zonePaths(l: Lane, x: number[], total: number, maxHr: number): Array<{ d: string; color: string }> {
+  const zoneOf = (v: number) => { let z = 0; HR_ZONE_FLOORS.forEach((f, k) => { if (v >= maxHr * f) z = k; }); return z; };
+  const out: Array<{ d: string; color: string }> = [];
+  let cur: { d: string; z: number } | null = null;
+  let prev: [number, number] | null = null;
+  l.values.forEach((v, i) => {
+    if (v == null) { if (cur) out.push({ d: cur.d, color: ZONE_COLOR[cur.z] }); cur = null; prev = null; return; }
+    const p: [number, number] = [(x[i] / total) * W, laneY(l, v)];
+    const z = zoneOf(v);
+    if (!cur || cur.z !== z) {
+      if (cur) out.push({ d: cur.d, color: ZONE_COLOR[cur.z] });
+      cur = { d: prev ? `M${prev[0].toFixed(1)} ${prev[1].toFixed(1)}L${p[0].toFixed(1)} ${p[1].toFixed(1)}` : `M${p[0].toFixed(1)} ${p[1].toFixed(1)}`, z };
+    } else cur.d += `L${p[0].toFixed(1)} ${p[1].toFixed(1)}`;
+    prev = p;
+  });
+  if (cur) out.push({ d: (cur as { d: string }).d, color: ZONE_COLOR[(cur as { z: number }).z] });
+  return out;
+}
 
 function Chip({ label, value }: { label: string; value: string }) {
   return (

@@ -11,6 +11,7 @@ import { RunFeedback } from '@/components/academy/RunFeedback';
 import { ExecutionQuality } from './ExecutionQuality';
 import { DEFAULT_MAX_HR, formatDuration, formatPace, getHRZone, strideMeters } from './format';
 import { RouteMap } from './RouteMap';
+import { BestEfforts, Conditions, KmSplitsList, PaceHrScatter, RecoveryChart, RepsDetail, TechniqueChart, WorkoutCard, ZoneBars, useRunAnalysis } from './RunAnalysis';
 import { RunCharts, type RunPhase } from './RunCharts';
 import { HrZones, KmSplits, Laps, Section, StatGrid, lapsAreKm, type StatCell } from './RunSections';
 import { useActivityStream } from './useActivityStream';
@@ -110,6 +111,14 @@ export function ActivityDetailBody({
   // The 1 Hz trace, when the run has one. Everything below draws from it first and
   // from the splits otherwise.
   const { data: trace } = useActivityStream(act.id);
+  // The workout the watch ran, the efforts, the weather — /api/activities/analysis (RunAnalysis.tsx).
+  const { data: an } = useRunAnalysis(mapOnly ? null : act.id);
+  const repBands = useMemo(() => {
+    const v = trace?.stream; const w = an?.workout;
+    if (!v || !w) return null;
+    const kmAt = (sec: number) => { const i = v.t.findIndex((x) => x >= sec); return i < 0 ? v.d[v.d.length - 1] : v.d[i]; };
+    return w.reps.map((r) => ({ fromKm: kmAt(r.start), toKm: kmAt(r.start + r.seconds), fromSec: r.start, toSec: r.start + r.seconds }));
+  }, [trace?.stream, an?.workout]);
   const watchLaps = trace?.laps && trace.laps.length > 1 && !lapsAreKm(trace.laps) ? trace.laps : null;
   const [cursor, setCursor] = useState<number | null>(null);
 
@@ -192,7 +201,10 @@ export function ActivityDetailBody({
       {/* Was this the workout that was asked for — as ONE row. The full breakdown
           (axis, reps, measured table) is a tap away instead of ~900px above the
           charts. Renders nothing for a viewer who may not read this score. */}
-      {!mapOnly && (
+      {!mapOnly && an?.conditions && <Conditions c={an.conditions} />}
+
+      {/* The watch ran a workout with reps: that IS the plan against execution (RunAnalysis). */}
+      {!mapOnly && an?.workout ? <WorkoutCard a={an} /> : !mapOnly && (
         <ExecutionQuality
           verdict={verdict}
           splits={splits}
@@ -225,20 +237,27 @@ export function ActivityDetailBody({
             onCursor={setCursor}
             planned={planned ?? null}
             phases={phases}
+            bands={repBands}
           />
           {trace && !trace.hrVisible && <p className="mt-2 text-2xs text-ink-400">{tr('hrHidden')}</p>}
         </Section>
       )}
 
       {/* The reps against this runner's target pace, when the watch ran a workout with reps. */}
-      {!mapOnly && details?.repTarget && !!(trace?.laps || act.laps) && (
+      {!mapOnly && trace?.kmSplits && trace.kmSplits.length > 1 && <KmSplitsList splits={trace.kmSplits} maxHr={trace.maxHr ?? maxHR} />}
+      {!mapOnly && an && <BestEfforts a={an} />}
+      {!mapOnly && trace?.zones && <ZoneBars seconds={trace.zones} maxHr={trace.maxHr ?? maxHR} />}
+      {!mapOnly && an?.workout && <RepsDetail w={an.workout} maxHr={trace?.maxHr ?? maxHR} />}
+      {!mapOnly && an && <RecoveryChart items={an.recovery} />}
+      {!mapOnly && an && <TechniqueChart items={an.technique} />}
+      {!mapOnly && trace?.stream && an?.workout && <PaceHrScatter view={trace.stream} bands={an.workout.reps.map((r) => [r.start, r.start + r.seconds] as [number, number])} />}
+      {!mapOnly && !an?.workout && details?.repTarget && !!(trace?.laps || act.laps) && (
         <Section title={tr('repsVsTarget', { n: details.repTarget.reps })}>
           <RepsVsTarget laps={(trace?.laps ?? (act.laps as Array<{ distance: number; duration: number }>)) || []} target={details.repTarget} />
         </Section>
       )}
-      {!mapOnly && watchLaps && <Laps laps={watchLaps} />}
-      {!mapOnly && trace?.zones && <HrZones seconds={trace.zones} maxHr={trace.maxHr} />}
-      {!mapOnly && <KmSplits streamKm={trace?.kmSplits ?? null} splits={splits} maxHr={trace?.maxHr ?? maxHR} />}
+      {!mapOnly && !an?.workout && watchLaps && <Laps laps={watchLaps} />}
+      {!mapOnly && !(trace?.kmSplits && trace.kmSplits.length > 1) && <KmSplits streamKm={trace?.kmSplits ?? null} splits={splits} maxHr={trace?.maxHr ?? maxHR} />}
       {hero && !mapOnly && (
         <Section title={tr('moreMetrics')}>
           <MetricCards m={{

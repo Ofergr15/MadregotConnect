@@ -201,6 +201,10 @@ export class GarminClient {
       hasPolyline: a.hasPolyline || false,
       steps: a.steps || null,
       workoutId: readGarminId(a.workoutId),
+      aerobicTrainingEffect: typeof a.aerobicTrainingEffect === 'number' ? a.aerobicTrainingEffect : null,
+      anaerobicTrainingEffect: typeof a.anaerobicTrainingEffect === 'number' ? a.anaerobicTrainingEffect : null,
+      trainingEffectLabel: typeof a.trainingEffectLabel === 'string' ? a.trainingEffectLabel : null,
+      activityTrainingLoad: typeof a.activityTrainingLoad === 'number' ? a.activityTrainingLoad : null,
     }));
   }
 

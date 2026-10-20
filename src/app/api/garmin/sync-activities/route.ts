@@ -98,6 +98,13 @@ function withTimeout<T>(work: Promise<T>, ms: number, what: string): Promise<T> 
  * gate: they authenticate with CRON_SECRET at their own entry point, and an
  * in-process call has no session to present.
  */
+/** Training Effect off the activity list item, when Garmin computed one. */
+function trainingEffectOf(a: { aerobicTrainingEffect?: number | null; anaerobicTrainingEffect?: number | null; trainingEffectLabel?: string | null; activityTrainingLoad?: number | null }): { aerobic: number | null; anaerobic: number | null; label: string | null; load: number | null } | null {
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 10) / 10 : null);
+  const out = { aerobic: num(a.aerobicTrainingEffect), anaerobic: num(a.anaerobicTrainingEffect), label: typeof a.trainingEffectLabel === 'string' ? a.trainingEffectLabel : null, load: num(a.activityTrainingLoad) };
+  return out.aerobic == null && out.anaerobic == null ? null : out;
+}
+
 export async function POST(request: Request) {
   // clone() because the body is read again inside runSyncRequest, and a Request
   // body can only be consumed once.
@@ -363,6 +370,9 @@ export async function runSyncRequest(request: Request) {
               shoe_id: athlete.active_shoe_id || null,
               ...(laps.length ? { laps } : {}),
               ...(executedWorkout ? { executed_workout: executedWorkout } : {}),
+              // What the run did, by Garmin's own reading (migration 160): shown on the run page's
+              // plan against execution (components/activity/RunAnalysis).
+              ...(trainingEffectOf(a) ? { training_effect: trainingEffectOf(a) } : {}),
               ...enriched,
             });
           }
@@ -393,7 +403,7 @@ export async function runSyncRequest(request: Request) {
           // retry drops only the column the error actually NAMES, one at a time:
           // a database without garmin_workout_id (migration 092) must not also
           // lose shoe attribution, which is what stripping both at once costs.
-          const optionalColumns = ['executed_workout', 'garmin_workout_id', 'laps', 'shoe_id'];
+          const optionalColumns = ['training_effect', 'executed_workout', 'garmin_workout_id', 'laps', 'shoe_id'];
           const dropped: string[] = [];
           while (insertError && dropped.length < optionalColumns.length) {
             const failure = insertError;

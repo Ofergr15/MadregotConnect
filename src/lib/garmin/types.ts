@@ -119,4 +119,9 @@ export interface GarminActivity {
    * migration 092 and lib/plans/garmin-workout-matches.ts.
    */
   workoutId: string | null;
+  /** Garmin's Training Effect for the run (0–5), its label and load — migration 160. */
+  aerobicTrainingEffect?: number | null;
+  anaerobicTrainingEffect?: number | null;
+  trainingEffectLabel?: string | null;
+  activityTrainingLoad?: number | null;
 }
