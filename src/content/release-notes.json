@@ -1,5 +1,14 @@
 [
   {
+    "id": "planner-pdf-to-week",
+    "date": "2026-10-20",
+    "kind": "fix",
+    "audience": "staff",
+    "icon": "📄",
+    "title": "PDF מהמתכנן — גם לרצים",
+    "body": "כשמעלים את ה־PDF של השבוע במתכנן, הוא נשמר עכשיו גם כתוכנית האימון של השבוע, כך שהרצים יכולים לפתוח אותו. אם כבר הועלה PDF לשבוע — הוא נשאר."
+  },
+  {
     "id": "program-missing-for-uploader",
     "date": "2026-10-20",
     "kind": "fix",
