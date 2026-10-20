@@ -73,15 +73,6 @@ export const CROSS_RELEASE_KEYS = [
   '/api/reminder-config',
   '/api/feed/highlight',
 ];
-/** NextSessionCard's own runs-today read: its key carries the athlete and the day. */
-const NEXT_SESSION_RUNS = /^\/api\/activities\?(athleteId=[^&]+&)?scope=self&since=\d{4}-\d{2}-\d{2}$/;
-/** QualitySessionRow's read, the first block of the feed on a quality morning. */
-const QUALITY_SESSION = /^\/api\/quality-session\?date=\d{4}-\d{2}-\d{2}$/;
-/** PushDeadBanner's read (#108), above the feed for a member whose push has died. */
-const PUSH_HEALTH = /^\/api\/push\/health\?athleteId=[^&]+$/;
-const crossRelease = (key: string) =>
-  CROSS_RELEASE_KEYS.includes(key) || NEXT_SESSION_RUNS.test(key) || QUALITY_SESSION.test(key) || PUSH_HEALTH.test(key);
-
 interface Persisted {
   v: string;
   id: string;
@@ -108,6 +99,24 @@ function identityFingerprint(): string {
   } catch {
     return ''; // private mode — memory-only cache, which is the right answer there
   }
+}
+
+/** Whether this page restored answers saved by an older release (see load). */
+let restoredOlderRelease = false;
+
+/**
+ * Called by the app's error boundary: if what crashed may have been an older release's
+ * answer, drop the saved cache and say so (once per tab, so a real bug cannot loop).
+ */
+export function dropOlderReleaseCache(): boolean {
+  if (typeof window === 'undefined' || !restoredOlderRelease) return false;
+  try {
+    if (sessionStorage.getItem('mc_swr_dropped')) return false;
+    sessionStorage.setItem('mc_swr_dropped', '1');
+  } catch { return false; }
+  restoredOlderRelease = false;
+  clearPersistedSWRCache();
+  return true;
 }
 
 /** Remove the persisted cache. Called from clearIdentityKeys() on sign-out. */
@@ -151,9 +160,15 @@ function load(map: CacheMap, identity: string): void {
       return;
     }
     // Another deploy: only the cards above the feed are carried over.
+    // Every key across a release now, not only the feed's (Ofer 2026-10-20: "half a
+    // second a screen, tops"): there are several releases a day, and dropping the rest
+    // made almost every open start empty. A screen that cannot read an older answer
+    // throws, and the app's error boundary drops this cache once and redraws it fresh
+    // (dropOlderReleaseCache) — the cost of a shape change is one redraw, not a crash.
     const sameRelease = parsed.v === APP_VERSION;
+    restoredOlderRelease = !sameRelease;
     for (const [key, data] of parsed.e) {
-      if (typeof key === 'string' && (sameRelease || crossRelease(key))) map.set(key, { data });
+      if (typeof key === 'string') map.set(key, { data });
     }
   } catch {
     clearPersistedSWRCache();

@@ -93,7 +93,7 @@ describe('persistedCacheProvider — restoring', () => {
     expect(store.has(STORAGE_KEY)).toBe(false);
   });
 
-  it('drops a different deploy\'s answers, all but the cards above the feed', () => {
+  it('keeps a different deploy\'s answers too (2026-10-20: several releases a day left every open empty)', () => {
     signedInAs('a1');
     const runs = '/api/activities?athleteId=a1&scope=self&since=2026-10-17';
     store.set(STORAGE_KEY, blob([
@@ -111,10 +111,11 @@ describe('persistedCacheProvider — restoring', () => {
     ], { v: '0.0.1-old' }));
 
     const cache = persistedCacheProvider();
-    expect(cache.get('/api/feed')).toBeUndefined();
-    expect(cache.get('/api/groups')).toBeUndefined();
-    // Only the next-session card's runs-today read, not every activities list.
-    expect(cache.get('/api/activities?athleteId=a1&scope=self')).toBeUndefined();
+    // Every screen's answer paints at once; a shape a screen can no longer read is
+    // handled by the error boundary (dropOlderReleaseCache), once.
+    expect(cache.get('/api/feed')).toEqual({ data: { items: [] } });
+    expect(cache.get('/api/groups')).toEqual({ data: { groups: [] } });
+    expect(cache.get('/api/activities?athleteId=a1&scope=self')).toEqual({ data: { activities: ['history'] } });
     expect(cache.get('/api/dashboard/weekly')).toEqual({ data: { hasPlan: true } });
     expect(cache.get('/api/auth/me')).toEqual({ data: { role: 'runner', membership: 'active' } });
     expect(cache.get('/api/my-watch')).toEqual({ data: { onWatch: [] } });

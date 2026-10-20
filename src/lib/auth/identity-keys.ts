@@ -1,4 +1,5 @@
 import { clearPersistedSWRCache } from '@/lib/swr-persist';
+import { clearScreenKeys } from '@/lib/screen-keys';
 import { clearSavedFeedPage } from '@/lib/feed/feed-cache';
 import { LEGACY_DASHBOARD_SYNC_PREFIX, STRAVA_OPEN_SYNC_PREFIX } from '@/lib/providers/open-sync';
 import { clearViewedPerson, RECENT_KEY } from '@/lib/view-as-person';
@@ -71,6 +72,7 @@ export function clearIdentityKeys() {
   // First: while an admin views somebody, the overlay hides the real keys below
   // (lib/view-as-person.ts), so a sign-out would otherwise remove nothing.
   clearViewedPerson();
+  clearScreenKeys();
   for (const key of IDENTITY_KEYS) {
     localStorage.removeItem(key);
   }

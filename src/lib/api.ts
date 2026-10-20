@@ -1,5 +1,6 @@
 'use client';
 
+import { recordScreenKey } from '@/lib/screen-keys';
 import useSWR, { SWRConfiguration } from 'swr';
 import { bearerHeaders, invalidateBearerToken } from '@/lib/auth/bearer-headers';
 import { trySilentReauth } from '@/lib/auth/silent-reauth';
@@ -67,6 +68,13 @@ async function recoverFrom401(): Promise<string | null> {
 const inFlight = new Map<string, Promise<unknown>>();
 
 export function apiFetcher<T = unknown>(url: string): Promise<T> {
+  // Learn which screen asks for what, so it can be fetched before it opens (ScreenPrefetch).
+  recordScreenKey(url);
+  return prefetchApi<T>(url);
+}
+
+/** apiFetcher without the learning — for fetching ANOTHER screen's data ahead of time. */
+export function prefetchApi<T = unknown>(url: string): Promise<T> {
   const running = inFlight.get(url);
   if (running) return running as Promise<T>;
   const p = fetchJson<T>(url).finally(() => inFlight.delete(url));

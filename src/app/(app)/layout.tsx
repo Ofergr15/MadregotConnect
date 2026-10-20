@@ -19,6 +19,7 @@ import { ExecutionScoreProvider } from '@/components/activity/execution-context'
 import { NotificationsStep } from '@/components/onboarding/NotificationsStep';
 import { FirstRunFlow } from '@/components/onboarding/FirstRunFlow';
 import { SetupGate } from '@/components/setup/SetupGate';
+import { ScreenPrefetch } from '@/components/ScreenPrefetch';
 import { useSetupCohort } from '@/lib/setup/use-cohort';
 import { Spinner } from '@/components/ui';
 import { AccessBlocked } from '@/components/AccessBlocked';
@@ -462,6 +463,7 @@ export default function AppLayout({
         {popupsAllowed && <NewRecordSheet />}
         {!isRunChat && !viewingPerson && !setupActive && <FirstRunTour onActiveChange={setTourActive} />}
         {!isRunChat && !viewingPerson && <SetupGate onActive={setSetupActive} />}
+        <ScreenPrefetch />
         <main
           // THE scroll container for the whole app — see lib/app-scroll.ts.
           // `min-h-0` is load-bearing: without it a flex child refuses to shrink
