@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { isPdf, storeWeekTrainingPdf } from '@/lib/plans/week-pdf';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import {
@@ -681,6 +682,12 @@ export default function WeeklyPlannerPage() {
         // — and now that this list holds only the displayed week, a duplicate row
         // is one `currentPlan` could pick either way.
         setWeekPlans((prev) => [saveData.plan, ...prev.filter((p) => p.id !== saveData.plan.id)]);
+        // The uploaded PDF becomes the week's training PDF, so members can open it too
+        // — unless the week already has one (lib/plans/week-pdf.ts).
+        if (isPdf(imageFile) && !programPdfUrl) {
+          const url = await storeWeekTrainingPdf(imageFile, weekStartDate);
+          if (url) setProgramPdfUrl(url);
+        }
       }
 
       setShowCreate(false);
