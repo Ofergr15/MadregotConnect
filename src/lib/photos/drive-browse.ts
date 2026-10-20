@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { google, type drive_v3 } from 'googleapis';
 import { unstable_cache } from 'next/cache';
+import { readKind, readTags, type FolderKind } from './folder-kind';
 import { cleanTitle, folderDay, isPinned, isScratchFolder } from './folder-names';
 
 /**
@@ -27,7 +28,7 @@ const LIST_REVALIDATE_S = 10 * 60;
 const CONCURRENCY = 12;
 const MAX_DEPTH = 3;
 
-export interface PhotoFolder { id: string; name: string; title: string | null; date: string; count: number; covers: string[]; pinned: boolean }
+export interface PhotoFolder { id: string; name: string; title: string | null; date: string; count: number; covers: string[]; pinned: boolean; kind: FolderKind; tags: string[] }
 export interface FolderPhoto { id: string; w: number | null; h: number | null; at: string | null }
 
 export function photosRoot(): string | null {
@@ -96,14 +97,20 @@ async function loadLibrary(): Promise<Library | null> {
     const list = await folderPhotos(drive, f.id!);
     photos[f.id!] = list;
     const name = (f.name || '').trim();
+    const props = f.appProperties ?? {};
+    // A cover a staff member picked (lib/photos/folder-meta) leads, if it is still in the folder.
+    const cover = props.madregotCover && list.some((p) => p.id === props.madregotCover) ? props.madregotCover : null;
+    const ordered = cover ? [list.find((p) => p.id === cover)!, ...list.filter((p) => p.id !== cover)] : list;
     return {
       id: f.id!,
       name,
-      title: cleanTitle(name),
+      title: props.madregotTitle?.trim() || cleanTitle(name),
       date: folderDay({ name, createdTime: f.createdTime, tag: f.appProperties?.madregotSessionDate, photoTimes: list.map((p) => p.at) }),
       count: list.length,
-      covers: list.slice(0, 3).map((p) => p.id),
-      pinned: isPinned(name),
+      covers: ordered.slice(0, 3).map((p) => p.id),
+      pinned: props.madregotPinned ? props.madregotPinned === '1' : isPinned(name),
+      kind: readKind(props.madregotType, name),
+      tags: readTags(props.madregotTags),
     };
   });
   const shown = folders.filter((f) => f.count > 0).sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date));
@@ -112,13 +119,27 @@ async function loadLibrary(): Promise<Library | null> {
 
 // Shared across server instances (a cold listing takes ~10s), refreshed every 10 minutes;
 // plus a per-instance copy so one request doesn't read it twice.
-const cachedLibrary = unstable_cache(loadLibrary, ['photos-library-v2'], { revalidate: LIST_REVALIDATE_S });
+const cachedLibrary = unstable_cache(loadLibrary, ['photos-library-v3'], { revalidate: LIST_REVALIDATE_S, tags: ['photos-library'] });
 let local: { at: number; value: Library | null } | null = null;
+/** After a staff edit (lib/photos/folder-meta): this instance reads afresh too. */
+export function forgetLibrary(): void { local = null; }
 async function library(): Promise<Library | null> {
   if (local && Date.now() - local.at < 60_000) return local.value;
   const value = await cachedLibrary();
   local = { at: Date.now(), value };
   return value;
+}
+
+/**
+ * One folder's photos straight from Drive, subfolders included, not through the 10-minute
+ * listing cache: the quality session's quarter-hourly check (lib/quality-session) has to
+ * see a photo the minute it is uploaded, into a subfolder or not (Ofer, 10-20). Null
+ * without Drive configured.
+ */
+export async function folderPhotosNow(folderId: string): Promise<FolderPhoto[] | null> {
+  const drive = driveReader();
+  if (!drive || !/^[A-Za-z0-9_-]{10,}$/.test(folderId)) return null;
+  return folderPhotos(drive, folderId);
 }
 
 /** Every photo's id, folder by folder in the order the screen shows them (pinned, then newest). */

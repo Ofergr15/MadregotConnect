@@ -1,5 +1,8 @@
 import type { createServerClient } from '@/lib/supabase/server';
 import { notifyAthlete } from '@/lib/push';
+import { setFolderMeta } from '@/lib/photos/folder-meta';
+import type { FolderKind } from '@/lib/photos/folder-kind';
+import { folderPhotosNow, signedImageUrl, THUMB } from '@/lib/photos/drive-browse';
 import { sessionPhotosStartedCopy } from '@/lib/notifications/copy';
 import { addDaysToDateStr, israelNow, israelToday } from '@/lib/utils';
 import { COACH_ID, SUPER_USER_EMAIL } from '@/lib/constants';
@@ -7,7 +10,7 @@ import { sessionFolderReadyCopy, sessionPhotosCopy } from '@/lib/notifications/c
 import { driveWriter, ensureDayFolder } from '@/lib/google-drive/writer';
 import { loadQualityWorkout } from './server';
 import { qualitySessionRecipientIds } from './access';
-import { albumPhotoUrls, pullAlbumPhotos, type PulledMedia } from './album-fetch';
+import { pullAlbumPhotos, pullDrivePhotos, type PulledMedia } from './album-fetch';
 import { MAX_SESSION_PHOTOS, SESSION_PHOTOS_KIND, sessionDayLabel, toSessionPhotos, type SessionPhotosPayload } from './photos';
 
 // The quality session's photos, server side (#106). The card itself (publish,
@@ -45,6 +48,16 @@ export interface FolderEntry {
   notifiedCount?: number;
   /** "לא צריך תיקייה ליום הזה" (תחילת שבוע): the automation leaves this day alone. */
   skipped?: boolean;
+  /**
+   * When the automation makes the folder, Israel wall clock "YYYY-MM-DDTHH:MM"
+   * (folders-plan, Ofer 10-20). Unset: the evening before at 20:00.
+   */
+  createAt?: string;
+  /** What the photos screen files it under, set on the folder when it is made. */
+  kind?: FolderKind;
+  tags?: string[];
+  /** A scheduled folder made by hand: false keeps the editors from being told when it is made. */
+  notifyEditors?: boolean;
 }
 export type FolderLedger = Record<string, FolderEntry>;
 
@@ -150,6 +163,20 @@ export function folderName(date: string): string {
   return `אימון איכות · ${sessionDayLabel(date)}`;
 }
 
+/** When a day's folder is made: its own time, else the evening before at FOLDER_AT_HOUR. */
+export function createTimeOf(date: string, e?: Pick<FolderEntry, 'createAt'> | null): string {
+  return e?.createAt || `${addDaysToDateStr(date, -1)}T${String(FOLDER_AT_HOUR).padStart(2, '0')}:00`;
+}
+
+/** Tags a proposal starts with, from the workout's or race's name: "טסט" in it is #טסט. */
+export function suggestedTags(text: string): string[] {
+  const out: string[] = [];
+  if (/טסט/.test(text)) out.push('טסט');
+  if (/חצי\s*מרתון|half/i.test(text)) out.push('חצי מרתון');
+  else if (/מרתון|marathon/i.test(text)) out.push('מרתון');
+  return out;
+}
+
 /** The evening before, from this hour: the folder is made and its link sent. */
 export const FOLDER_AT_HOUR = 20;
 /** The morning after: looked at every half hour in this window, published once photos are in. */
@@ -193,32 +220,44 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
   const ledger = await readFolderLedger(supabase);
   let dirty = false;
 
-  if (hour >= FOLDER_AT_HOUR) {
-    const tomorrow = addDaysToDateStr(today, 1);
-    // An entry without a folder is "תחילת שבוע" naming it (or turning its feed card off) ahead of time.
-    const ahead = ledger[tomorrow];
-    if ((!ahead || (!ahead.folderId && !ahead.skipped)) && (await loadQualityWorkout(supabase, tomorrow))) {
-      const name = ahead?.name || folderName(tomorrow);
-      const folder = await ensureDayFolder(drive, tomorrow, name);
-      ledger[tomorrow] = { ...ahead, folderId: folder.id, link: folder.link, name, createdAt: now.toISOString() };
-      dirty = true;
-      fired.push(`sessionFolder:${tomorrow}`);
-    }
-    const entry = ledger[tomorrow];
-    if (entry && entry.folderId && !entry.skipped && !entry.toldAt) {
+  // Folders whose time has come: tomorrow's plan day from 20:00 (as always), and any
+  // day the Social screen scheduled or proposed with its own time (folders-plan).
+  const nowLocal = `${today}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  const due = new Set<string>();
+  if (hour >= FOLDER_AT_HOUR) due.add(addDaysToDateStr(today, 1));
+  for (const [date, e] of Object.entries(ledger)) {
+    if (!e.folderId && !e.skipped && date >= today && createTimeOf(date, e) <= nowLocal) due.add(date);
+  }
+  for (const date of [...due].sort()) {
+    const ahead = ledger[date];
+    if (ahead?.folderId || ahead?.skipped) continue;
+    if (ahead && createTimeOf(date, ahead) > nowLocal) continue;
+    // Wanted by hand (a manual folder, a race switched on) or a day on the plan.
+    const wanted = !!ahead && (ahead.manual || ahead.skipped === false);
+    const workout = wanted ? null : await loadQualityWorkout(supabase, date);
+    if (!wanted && !workout) continue;
+    const name = ahead?.name || folderName(date);
+    const kind: FolderKind = ahead?.kind || (workout?.type === 'long_run' ? 'long' : 'quality');
+    const tags = ahead?.tags ?? suggestedTags(workout?.name || name);
+    const folder = await ensureDayFolder(drive, date, name);
+    await setFolderMeta(folder.id, { kind, tags }).catch((e) => console.warn('folder kind not set', e));
+    ledger[date] = { ...ahead, folderId: folder.id, link: folder.link, name, createdAt: now.toISOString() };
+    dirty = true;
+    fired.push(`sessionFolder:${date}`);
+    const entry = ledger[date];
+    if (entry.notifyEditors !== false && !entry.toldAt) {
       for (const athleteId of await editorIds(supabase)) {
         try {
           await notifyAthlete({
             athleteId,
             kind: 'session_folder',
-            copy: (locale) => sessionFolderReadyCopy(locale, { day: sessionDayLabel(tomorrow) }),
+            copy: (locale) => sessionFolderReadyCopy(locale, { day: entry.manual ? name : sessionDayLabel(date) }),
             url: entry.link,
-            tag: `session-folder-${tomorrow}`,
+            tag: `session-folder-${date}`,
           });
         } catch { /* best effort */ }
       }
       entry.toldAt = now.toISOString();
-      dirty = true;
     }
   }
 
@@ -237,10 +276,13 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
     // A card published by hand with a different link is someone's choice: leave it.
     const ours = !card || toSessionPhotos(card.payload)?.link === entry.link;
     if (!ours || have >= MAX_SESSION_PHOTOS) continue;
-    const list = await albumPhotoUrls(entry.link);
-    if (!list.ok) continue;
-    entry.found = list.urls.length;
-    entry.previews = list.urls.slice(0, 3);
+    // Through the Drive API, subfolders included (a "צילומים שני" inside the day's folder);
+    // the public grid scrape it replaced saw only the top level.
+    const ids = await sessionPhotoIds(entry);
+    if (!ids) continue;
+    const list = { urls: ids };
+    entry.found = ids.length;
+    entry.previews = ids.slice(0, 3).map((id) => signedImageUrl(id, THUMB)).filter((u): u is string => !!u);
     if (!entry.autoPublish) {
       // Approval (the default since 10-19): nothing reaches the club by itself. The
       // editors hear ONCE, when the morning's first photos land ("מתחילות לעלות",
@@ -266,9 +308,7 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
       continue;
     }
     if (list.urls.length <= have) continue;
-    const pulled = await pullAlbumPhotos(supabase, entry.link, {
-      prefix: `club/session-photos/${date}`, max: MAX_SESSION_PHOTOS - have, skip: have,
-    });
+    const pulled = await pullDrivePhotos(supabase, ids.slice(have), { prefix: `club/session-photos/${date}`, max: MAX_SESSION_PHOTOS - have });
     if (!pulled.ok) continue;
     const out = await publishSessionPhotos(supabase, {
       date, link: entry.link, media: [...(card?.media ?? []), ...pulled.media], byAthleteId: null, notify: !card, name: entry.name,
@@ -288,12 +328,29 @@ export async function runSessionPhotoFolders(supabase: Db, now = new Date()): Pr
  */
 export async function createFolderNow(
   supabase: Db,
-  p: { date: string; name: string; notifyEditors: boolean; autoFeed: boolean; byAthleteId: string | null },
+  p: { date: string; name: string; notifyEditors: boolean; autoFeed: boolean; byAthleteId: string | null; kind?: FolderKind; tags?: string[]; createAt?: string },
+  now = new Date(),
 ): Promise<FolderEntry | null> {
   const drive = driveWriter();
   if (!drive) return null;
   const ledger = await readFolderLedger(supabase);
+  const { hour, minute } = israelNow(now);
+  const nowLocal = `${israelToday(now)}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  if (p.createAt && p.createAt > nowLocal && !ledger[p.date]?.folderId) {
+    // "מתי ליצור" later: the entry waits in the ledger; the tick makes it (runSessionPhotoFolders).
+    const entry: FolderEntry = {
+      ...(ledger[p.date] || { folderId: '', link: '' }),
+      name: p.name, manual: true, autoFeed: p.autoFeed, createAt: p.createAt,
+      notifyEditors: p.notifyEditors, skipped: undefined,
+      ...(p.kind ? { kind: p.kind } : {}), ...(p.tags ? { tags: p.tags } : {}),
+    };
+    ledger[p.date] = entry;
+    await writeFolderLedger(supabase, ledger);
+    return entry;
+  }
   const folder = await ensureDayFolder(drive, p.date, p.name);
+  // What the photos screen files it under (lib/photos/folder-kind): chosen when made.
+  if (p.kind || p.tags?.length) await setFolderMeta(folder.id, { kind: p.kind, tags: p.tags }).catch((e) => console.warn('folder kind not set', e));
   const entry: FolderEntry = {
     ...(ledger[p.date] || {}),
     folderId: folder.id,
@@ -322,17 +379,51 @@ export async function createFolderNow(
   return entry;
 }
 
-/** What the Social screen's "this week" shows: the quality days ahead, and the folders made. */
+export interface FolderProposal {
+  date: string;
+  name: string;
+  workout: string | null;
+  kind: FolderKind;
+  tags: string[];
+  /** Israel wall clock "YYYY-MM-DDTHH:MM". */
+  createsAt: string;
+  /** Off: no folder is made for the day (a race starts off; a plan day starts on). */
+  enabled: boolean;
+  source: 'plan' | 'race' | 'manual';
+}
+
+/**
+ * What the Social screen's "מוצע השבוע" shows (folders-plan, Ofer 10-20): every day
+ * ahead that wants a folder — the plan's quality and long runs, the calendar's races
+ * (off until switched on), and folders scheduled by hand — each with its name, kind,
+ * tags and time as edited; and the folders made.
+ */
 export async function socialWeek(supabase: Db, now = new Date()) {
   const today = israelToday(now);
   const ledger = await readFolderLedger(supabase);
-  const upcoming: Array<{ date: string; name: string; workout: string | null; createsAt: string }> = [];
+  const last = addDaysToDateStr(today, 8);
+  const { data: races } = await supabase.from('events').select('name, date').eq('kind', 'race').gte('date', today).lte('date', last);
+  const raceOn = new Map(((races || []) as Array<{ name: string; date: string }>).map((r) => [r.date, r.name]));
+  const upcoming: FolderProposal[] = [];
   for (let i = 0; i <= 8; i++) {
     const date = addDaysToDateStr(today, i);
-    if (ledger[date]?.folderId || ledger[date]?.skipped) continue;
+    const e = ledger[date];
+    if (e?.folderId) continue;
     const w = await loadQualityWorkout(supabase, date).catch(() => null);
-    // A folder for today that the evening before did not make is made on the next tick.
-    if (w) upcoming.push({ date, name: ledger[date]?.name || folderName(date), workout: w.name || null, createsAt: `${addDaysToDateStr(date, -1)}T20:00` });
+    const race = raceOn.get(date);
+    const source: FolderProposal['source'] | null = w ? 'plan' : race ? 'race' : e?.manual ? 'manual' : null;
+    if (!source) continue;
+    const workout = w?.name || race || null;
+    const name = e?.name || (source === 'race' ? race! : folderName(date));
+    const createsAt = createTimeOf(date, e);
+    // A time already past with no folder: the next tick makes it (only tomorrow's default waits for 20:00).
+    upcoming.push({
+      date, name, workout, createsAt,
+      kind: e?.kind || (source === 'race' ? 'race' : w?.type === 'long_run' ? 'long' : source === 'manual' ? 'event' : 'quality'),
+      tags: e?.tags ?? suggestedTags(workout || name),
+      enabled: source === 'race' ? e?.skipped === false : !e?.skipped,
+      source,
+    });
   }
   const made = await Promise.all(Object.entries(ledger).filter(([, e]) => e.folderId).sort(([a], [b]) => b.localeCompare(a)).map(async ([date, e]) => {
     const card = await cardFor(supabase, date);
@@ -344,8 +435,16 @@ export async function socialWeek(supabase: Db, now = new Date()) {
   return { configured: !!driveWriter(), upcoming, made };
 }
 
-
 export type PhotosNotify = 'push' | 'inapp' | 'quiet';
+
+/**
+ * The day's folder's photos, subfolders included, by Drive id (lib/photos/drive-browse).
+ * Null when Drive is not configured or the folder is not one the club's Drive reads.
+ */
+async function sessionPhotoIds(entry: FolderEntry): Promise<string[] | null> {
+  const photos = await folderPhotosNow(entry.folderId).catch(() => null);
+  return photos ? photos.map((p) => p.id) : null;
+}
 
 /**
  * The staff card's "לפרסם" (mockup session-photos-control, 3): pull what is in the folder
@@ -365,7 +464,10 @@ export async function approveSessionPhotos(
   const have = card?.media?.length ?? 0;
   let media = card?.media ?? [];
   if (have < MAX_SESSION_PHOTOS) {
-    const pulled = await pullAlbumPhotos(supabase, entry.link, { prefix: `club/session-photos/${p.date}`, max: MAX_SESSION_PHOTOS - have, skip: have });
+    const ids = await sessionPhotoIds(entry);
+    const pulled = ids
+      ? await pullDrivePhotos(supabase, ids.slice(have), { prefix: `club/session-photos/${p.date}`, max: MAX_SESSION_PHOTOS - have })
+      : await pullAlbumPhotos(supabase, entry.link, { prefix: `club/session-photos/${p.date}`, max: MAX_SESSION_PHOTOS - have, skip: have });
     if (pulled.ok) media = [...media, ...pulled.media];
     else if (!have) throw new Error(pulled.error);
   }
@@ -451,7 +553,7 @@ export async function setSessionPhotosAuto(supabase: Db, date: string, on: boole
 export async function updateDayFolder(
   supabase: Db,
   date: string,
-  patch: { name?: string; autoFeed?: boolean; skipped?: boolean },
+  patch: { name?: string; autoFeed?: boolean; skipped?: boolean; kind?: FolderKind; tags?: string[]; createAt?: string | null },
 ): Promise<FolderEntry | null> {
   const ledger = await readFolderLedger(supabase);
   const entry: FolderEntry = { ...(ledger[date] || { folderId: '', link: '' }) };
@@ -462,8 +564,16 @@ export async function updateDayFolder(
     entry.name = patch.name.trim();
   }
   if (typeof patch.autoFeed === 'boolean') entry.autoFeed = patch.autoFeed;
-  if (typeof patch.skipped === 'boolean') entry.skipped = patch.skipped || undefined;
-  if (!entry.folderId && !entry.skipped && !entry.name && entry.autoFeed !== false) delete ledger[date];
+  // false is kept: it is a race switched ON (a race is off until then).
+  if (typeof patch.skipped === 'boolean') entry.skipped = patch.skipped;
+  if (patch.kind || patch.tags) {
+    if (patch.kind) entry.kind = patch.kind;
+    if (patch.tags) entry.tags = patch.tags;
+    if (entry.folderId) await setFolderMeta(entry.folderId, { kind: entry.kind, tags: entry.tags }).catch((e) => console.warn('folder kind not set', e));
+  }
+  if (patch.createAt !== undefined && !entry.folderId) entry.createAt = patch.createAt || undefined;
+  const empty = !entry.folderId && entry.skipped === undefined && !entry.name && entry.autoFeed !== false && !entry.kind && !entry.tags && !entry.createAt && !entry.manual;
+  if (empty) delete ledger[date];
   else ledger[date] = entry;
   await writeFolderLedger(supabase, ledger);
   return ledger[date] ?? null;

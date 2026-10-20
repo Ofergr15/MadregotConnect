@@ -6,11 +6,14 @@ import { createFolderNow, socialWeek, updateDayFolder } from '@/lib/quality-sess
 export const dynamic = 'force-dynamic';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+const KINDS = ['quality', 'long', 'race', 'event'];
+const tagsOf = (v: unknown) => (Array.isArray(v) ? v.filter((t): t is string => typeof t === 'string' && !!t.trim()).map((t) => t.trim().slice(0, 30)).slice(0, 8) : undefined);
 
 // /api/social/folders — the Social screen (admin): the photo folders of the week.
 //   GET  -> { configured, upcoming: [...], made: [...] }
-//   POST { date, name, notifyEditors?, autoFeed? } -> { folder }
-//   PATCH { date, name?, autoFeed?, skipped? } -> { folder }   (תחילת שבוע: rename, feed card, no folder)
+//   POST { date, name, notifyEditors?, autoFeed?, kind?, tags?, createAt? } -> { folder }   (createAt later: scheduled)
+//   PATCH { date, name?, autoFeed?, skipped?, kind?, tags?, createAt? } -> { folder }   (מוצע השבוע: edit, on/off)
 // The super user and admins: the screen makes folders in the club's Drive.
 
 async function gate(request: Request) {
@@ -46,6 +49,9 @@ export async function POST(request: Request) {
       notifyEditors: body?.notifyEditors !== false,
       autoFeed: body?.autoFeed !== false,
       byAthleteId: g.auth.user.athleteId,
+      ...(KINDS.includes(body?.kind) ? { kind: body.kind } : {}),
+      ...(tagsOf(body?.tags) ? { tags: tagsOf(body?.tags) } : {}),
+      ...(typeof body?.createAt === 'string' && AT.test(body.createAt) ? { createAt: body.createAt } : {}),
     });
     if (!folder) return NextResponse.json({ error: 'drive-not-configured' }, { status: 503 });
     return NextResponse.json({ folder });
@@ -66,6 +72,9 @@ export async function PATCH(request: Request) {
       name: typeof body?.name === 'string' ? body.name.slice(0, 120) : undefined,
       autoFeed: typeof body?.autoFeed === 'boolean' ? body.autoFeed : undefined,
       skipped: typeof body?.skipped === 'boolean' ? body.skipped : undefined,
+      kind: KINDS.includes(body?.kind) ? body.kind : undefined,
+      tags: tagsOf(body?.tags),
+      createAt: body?.createAt === null ? null : typeof body?.createAt === 'string' && AT.test(body.createAt) ? body.createAt : undefined,
     });
     return NextResponse.json({ folder });
   } catch (err) {

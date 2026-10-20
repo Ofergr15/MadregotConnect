@@ -12,7 +12,7 @@
  * which production has no AWS keys for. The old page with it is page.disabled.tsx.
  */
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { NAMES_KEY, PhotosLoading } from '@/components/photos/PhotosLoading';
@@ -22,8 +22,12 @@ import { apiFetcher, useApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { sessionDayLabel } from '@/lib/quality-session/photos';
 import { PhotoViewer } from '@/components/photos/PhotoViewer';
+import { FolderMenu, driveLink, savePhotos } from '@/components/photos/FolderMenu';
+import { FOLDER_KINDS, KIND_LABEL, kindFromName, tagColor, type FolderKind } from '@/lib/photos/folder-kind';
+import { useNavIdentity } from '@/lib/nav-items';
+import { bearerHeaders } from '@/lib/auth/bearer-headers';
 
-interface Folder { id: string; name: string; title: string | null; date: string; count: number; covers: string[]; coverBlur?: string | null; pinned?: boolean; hero?: string | null }
+interface Folder { id: string; name: string; title: string | null; date: string; count: number; covers: string[]; coverBlur?: string | null; pinned?: boolean; hero?: string | null; kind?: FolderKind; tags?: string[] }
 interface Browse { configured: boolean; folders: Folder[] }
 interface FolderPhotos { folder: Folder; photos: Array<{ id: string; thumb: string | null; full: string | null; blur?: string | null }> }
 
@@ -69,18 +73,38 @@ function Cover({ src, blur, className }: { src?: string; blur?: string | null; c
 /** Start a folder's listing before the tap lands (a finger down is ~100 ms ahead of the click). */
 const prefetchFolder = (id: string) => { preload(`/api/photos/browse/folder?id=${encodeURIComponent(id)}`, apiFetcher); };
 
-function FolderCard({ f, onOpen }: { f: Folder; onOpen: () => void }) {
+/** Holding a finger down this long opens the folder's menu (FolderMenu) instead of the folder. */
+const LONG_PRESS_MS = 480;
+function useLongPress(onLong: () => void) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fired = useRef(false);
+  const start = () => { fired.current = false; timer.current = setTimeout(() => { fired.current = true; try { navigator.vibrate?.(12); } catch { /* no-op */ } onLong(); }, LONG_PRESS_MS); };
+  const cancel = () => { if (timer.current) clearTimeout(timer.current); timer.current = null; };
+  return { start, cancel, fired };
+}
+
+function FolderCard({ f, onOpen, onMenu }: { f: Folder; onOpen: () => void; onMenu: () => void }) {
   const t = useTranslations('photosPage');
+  const press = useLongPress(onMenu);
+  const [down, setDown] = useState(false);
   return (
-    <button onClick={onOpen} onPointerDown={() => prefetchFolder(f.id)} className="relative flex w-full items-center gap-3 rounded-[20px] bg-card p-2 text-start shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-      <div className="grid h-[84px] w-[118px] shrink-0 grid-cols-[2fr_1fr] grid-rows-2 gap-[3px] overflow-hidden rounded-[14px]">
-        <Cover src={f.covers[0]} blur={f.coverBlur} className="row-span-2" />
-        <Cover src={f.covers[1] || f.covers[0]} />
-        <Cover src={f.covers[2] || f.covers[0]} />
+    <button
+      onClick={() => { if (!press.fired.current) onOpen(); }}
+      onPointerDown={() => { prefetchFolder(f.id); setDown(true); press.start(); }}
+      onPointerUp={() => { setDown(false); press.cancel(); }}
+      onPointerLeave={() => { setDown(false); press.cancel(); }}
+      onPointerCancel={() => { setDown(false); press.cancel(); }}
+      onContextMenu={(e) => { e.preventDefault(); onMenu(); }}
+      className={cn('relative block w-full overflow-hidden rounded-[20px] bg-card text-start shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-transform duration-150 [-webkit-touch-callout:none] select-none', down && 'scale-[0.97]')}
+    >
+      <div className="relative h-[118px] w-full">
+        <Cover src={f.covers[0]} blur={f.coverBlur} />
+        <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-extrabold text-white"><bdi dir="ltr">{f.count}</bdi></span>
+        {f.pinned && <span className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-extrabold text-ink-900">📌</span>}
       </div>
-      <div className="min-w-0">
-        <b className="block truncate text-[15.5px] font-extrabold text-ink-900" dir="auto">{folderTitle(f)}</b>
-        <span className="text-[12.5px] text-ink-500">{subline(f, t('count', { n: f.count }))}</span>
+      <div className="px-2.5 pb-2.5 pt-2">
+        <b className="line-clamp-2 block text-[13.5px] font-extrabold leading-tight text-ink-900" dir="auto">{folderTitle(f)}</b>
+        <span className="text-[11.5px] text-ink-400">{subline(f, t('count', { n: f.count }))}</span>
       </div>
     </button>
   );
@@ -89,42 +113,113 @@ function FolderCard({ f, onOpen }: { f: Folder; onOpen: () => void }) {
 function FolderView({ id }: { id: string }) {
   const t = useTranslations('photosPage');
   const router = useRouter();
+  const params = useSearchParams();
   const { data, error, mutate } = useApi<FolderPhotos>(`/api/photos/browse/folder?id=${encodeURIComponent(id)}`);
   const [open, setOpen] = useState<number | null>(null);
   // The tapped tile, so the viewer can grow the photo out of it.
   const [from, setFrom] = useState<DOMRect | null>(null);
+  // Choosing several (mockup photos-redesign + Ofer 10-20): tap to pick, then save or share.
+  // "?select=1" lands here already choosing (the long press's "להוריד"); "?cover=1" picks the cover.
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const coverMode = params.get('cover') === '1';
+  // The long press's "להוריד": here already choosing, every photo picked.
+  const all = data?.photos.map((p) => p.id).join(',') ?? '';
+  useEffect(() => { if (params.get('select') === '1' && all) { setSelecting(true); setPicked(all.split(',')); } }, [params, all]);
   // A folder outside the club's photos folder (an old link from the feed) can't be
   // read here — offer it where it lives instead of a dead end.
   if (error) return (
     <div className="px-4 py-10 text-center">
       <p className="text-sm text-ink-400">{t('folderMissing')}</p>
-      <a href={`https://drive.google.com/drive/folders/${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex h-11 items-center rounded-pill bg-brand-600 px-5 text-sm font-extrabold text-white">{t('openInDrive')}</a>
+      <a href={driveLink(id)} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex h-11 items-center rounded-pill bg-brand-600 px-5 text-sm font-extrabold text-white">{t('openInDrive')}</a>
     </div>
   );
   if (!data) return <PhotosLoading what="folder" folderId={id} onRetry={() => { void mutate(); }} />;
+  const title = folderTitle(data.folder);
+  const toggle = (pid: string) => setPicked((x) => (x.includes(pid) ? x.filter((y) => y !== pid) : [...x, pid]));
+  const save = async (ids: string[]) => {
+    setBusy(true); setNote(null);
+    const urls = data.photos.filter((p) => ids.includes(p.id)).map((p) => p.full || p.thumb).filter((u): u is string => !!u);
+    const r = await savePhotos(urls, title.replace(/[^\p{L}\p{N}]+/gu, '-').slice(0, 40) || 'madregot');
+    setBusy(false);
+    setNote(r === 'failed' ? 'לא הצליח. אפשר לנסות שוב.' : r === 'downloaded' ? `ירדו ${urls.length} תמונות` : null);
+    if (r !== 'failed') { setSelecting(false); setPicked([]); }
+  };
+  const share = async () => {
+    try { if (navigator.share) await navigator.share({ title, text: `📸 ${title}`, url: driveLink(id) }); else window.open(`https://wa.me/?text=${encodeURIComponent(`📸 ${title} ${driveLink(id)}`)}`, '_blank'); } catch { /* closed */ }
+  };
+  const setCover = async (pid: string) => {
+    setBusy(true);
+    const res = await fetch('/api/photos/folder-meta', { method: 'PATCH', headers: await bearerHeaders(), body: JSON.stringify({ id, cover: pid }) }).catch(() => null);
+    setBusy(false);
+    if (res?.ok) router.push('/dashboard/photos'); else setNote('לא הצליח לשמור את השער');
+  };
   return (
-    <div className="pb-6">
-      <div className="flex items-center px-4 pt-2">
+    <div className={cn('pb-6', selecting && 'pb-28')}>
+      <div className="flex items-center justify-between px-4 pt-2">
         <button onClick={() => router.push('/dashboard/photos')} aria-label={t('back')} className="grid h-11 w-11 place-items-center rounded-full bg-card"><ArrowRight className="h-5 w-5" /></button>
+        {!coverMode && (
+          <button type="button" onClick={() => { setSelecting((v) => !v); setPicked([]); }} className="min-h-[40px] rounded-full bg-card px-4 text-[14px] font-bold text-brand-600">
+            {selecting ? 'ביטול' : 'לבחור'}
+          </button>
+        )}
       </div>
       <div className="px-[18px] pt-1">
-        <h1 className="truncate text-[28px] font-extrabold tracking-tight text-ink-900" dir="auto">{data ? folderTitle(data.folder) : ' '}</h1>
-        {data && <p className="mt-0.5 text-[13.5px] text-ink-500">{subline(data.folder, t('count', { n: data.folder.count }))}</p>}
+        <h1 className="truncate text-[28px] font-extrabold tracking-tight text-ink-900" dir="auto">{title}</h1>
+        <p className="mt-0.5 text-[13.5px] text-ink-500">{subline(data.folder, t('count', { n: data.folder.count }))}</p>
       </div>
+      {coverMode ? (
+        <p className="mx-4 mt-3 rounded-2xl bg-brand-600/10 px-3.5 py-2.5 text-13 font-bold text-brand-600">נגיעה בתמונה קובעת אותה כשער של התיקייה</p>
+      ) : !selecting && (
+        <div className="mt-3 flex gap-2 px-4">
+          <a href={driveLink(id)} target="_blank" rel="noopener noreferrer" className="flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-card text-[13px] font-extrabold text-brand-600">📂 בדרייב</a>
+          <button type="button" onClick={() => { void share(); }} className="flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-card text-[13px] font-extrabold text-brand-600">📤 לשתף</button>
+          <button type="button" onClick={() => { setSelecting(true); setPicked(data.photos.map((p) => p.id)); }} className="flex min-h-[42px] flex-1 items-center justify-center rounded-xl bg-card text-[13px] font-extrabold text-brand-600">⬇️ להוריד</button>
+        </div>
+      )}
       <div className="mt-3 grid grid-cols-3 gap-[3px]">
-        {(data?.photos ?? Array.from({ length: 12 }, (_, k) => ({ id: `s${k}`, thumb: null, full: null, blur: null }))).map((p, k) => (
-          <button
-            key={p.id}
-            onClick={(e) => { if (!data) return; setFrom(e.currentTarget.getBoundingClientRect()); setOpen(k); }}
-            className={cn('aspect-square overflow-hidden bg-page', k % 7 === 0 && 'col-span-2 row-span-2')}
-            aria-label={t('photoN', { n: k + 1 })}
-          >
-            <Cover src={p.thumb || undefined} blur={p.blur} />
-          </button>
-        ))}
+        {data.photos.map((p, k) => {
+          const on = picked.includes(p.id);
+          return (
+            <button
+              key={p.id}
+              disabled={busy}
+              onClick={(e) => {
+                if (coverMode) { void setCover(p.id); return; }
+                if (selecting) { toggle(p.id); return; }
+                setFrom(e.currentTarget.getBoundingClientRect()); setOpen(k);
+              }}
+              className={cn('relative aspect-square overflow-hidden bg-page', !selecting && !coverMode && k % 7 === 0 && 'col-span-2 row-span-2')}
+              aria-label={t('photoN', { n: k + 1 })}
+              aria-pressed={selecting ? on : undefined}
+            >
+              <Cover src={p.thumb || undefined} blur={p.blur} className={cn(selecting && on && 'scale-[0.92] rounded-lg transition-transform')} />
+              {selecting && (
+                <span className={cn('absolute left-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full border-2 border-white text-[13px] font-black', on ? 'bg-brand-600 text-white' : 'bg-black/25')}>{on ? '✓' : ''}</span>
+              )}
+            </button>
+          );
+        })}
       </div>
-      {open != null && data && (
-        <PhotoViewer photos={data.photos} index={open} from={from} title={folderTitle(data.folder)} onClose={() => setOpen(null)} />
+      {selecting && (
+        <div className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-30 border-t border-page bg-page/95 px-4 pb-3 pt-3 backdrop-blur">
+          <div className="mx-auto flex max-w-md items-center gap-2">
+            <button type="button" onClick={() => setPicked(picked.length === data.photos.length ? [] : data.photos.map((p) => p.id))} className="min-h-[46px] rounded-[14px] bg-card px-3 text-[13px] font-bold text-ink-700">
+              {picked.length === data.photos.length ? 'לנקות' : 'הכל'}
+            </button>
+            <button type="button" disabled={!picked.length || busy} onClick={() => { void save(picked); }}
+              className="min-h-[46px] flex-1 rounded-[14px] bg-brand-600 text-[15px] font-extrabold text-white disabled:opacity-40">
+              {busy ? 'מכין…' : `⬇️ לשמור ${picked.length || ''} תמונות`}
+            </button>
+          </div>
+          <p className="mt-1.5 text-center text-12 text-ink-400">באייפון: "שמירת תמונות" בחלון השיתוף שומר אותן בתמונות</p>
+        </div>
+      )}
+      {note && <p role="status" className="mt-3 text-center text-13 font-bold text-ink-700">{note}</p>}
+      {open != null && (
+        <PhotoViewer photos={data.photos} index={open} from={from} title={title} onClose={() => setOpen(null)} />
       )}
     </div>
   );
@@ -159,8 +254,19 @@ function PhotosHome() {
   const { data: freshBrowse, error, mutate: reloadBrowse } = useApi<Browse>('/api/photos/browse');
   const data = useKept('/api/photos/browse', freshBrowse);
   const [q, setQ] = useState('');
-  const folders = useMemo(() => data?.folders ?? [], [data]);
-  const latest = folders[0];
+  const { isStaffView: staff } = useNavIdentity();
+  const [menuFor, setMenuFor] = useState<Folder | null>(null);
+  // The filter by kind or tag (lib/photos/folder-kind): 'all', a kind, or '#tag'.
+  const [filter, setFilter] = useState<string>('all');
+  const allFolders = useMemo(() => (data?.folders ?? []).map((f) => ({ ...f, kind: f.kind ?? kindFromName(f.name), tags: f.tags ?? [] })), [data]);
+  const filters = useMemo(() => {
+    const kinds = FOLDER_KINDS.filter((k) => allFolders.some((f) => f.kind === k));
+    const tags = [...new Set(allFolders.flatMap((f) => f.tags))];
+    return [['all', 'הכל'] as const, ...kinds.map((k) => [k, KIND_LABEL[k]] as const), ...tags.map((tg) => [`#${tg}`, `#${tg}`] as const)];
+  }, [allFolders]);
+  const folders = useMemo(() => allFolders.filter((f) => filter === 'all' || (filter.startsWith('#') ? f.tags.includes(filter.slice(1)) : f.kind === filter)), [allFolders, filter]);
+  // The big photo is the newest folder whatever the filter; the filter acts on the list under it.
+  const latest = allFolders[0];
   // The loader's caption next time (components/photos/PhotosLoading): the newest folder,
   // and every folder's name, so opening one says which.
   useEffect(() => {
@@ -193,13 +299,13 @@ function PhotosHome() {
   }, [folders, query]);
   const byMonth = useMemo(() => {
     const out: Array<[string, Folder[]]> = [];
-    for (const f of folders.slice(1)) {
+    for (const f of folders.filter((x) => x.id !== latest?.id)) {
       const k = monthKey(f.date);
       const last = out[out.length - 1];
       if (last && last[0] === k) last[1].push(f); else out.push([k, [f]]);
     }
     return out;
-  }, [folders]);
+  }, [folders, latest]);
 
   if (!data && !error) return <PhotosLoading what="home" onRetry={() => { void reloadBrowse(); }} />;
   return (
@@ -224,8 +330,8 @@ function PhotosHome() {
       {results ? (
         <>
           <div className="flex items-baseline justify-between px-[18px] pb-2 pt-5"><b className="text-[17px] font-extrabold">{t('folders')}</b><span className="text-[13px] text-ink-400">{results.length}</span></div>
-          <div className="space-y-2.5 px-4">
-            {results.map((f) => <FolderCard key={f.id} f={f} onOpen={() => openFolder(f.id)} />)}
+          <div className="grid grid-cols-2 gap-2.5 px-4">
+            {results.map((f) => <FolderCard key={f.id} f={f} onOpen={() => openFolder(f.id)} onMenu={() => setMenuFor(f)} />)}
             {results.length === 0 && <p className="py-6 text-center text-sm text-ink-400">{t('noResults')}</p>}
           </div>
         </>
@@ -247,14 +353,24 @@ function PhotosHome() {
               </button>
             ))}
           </div>
+          {filters.length > 2 && (
+            <div className="flex gap-1.5 overflow-x-auto px-4 pt-4 [scrollbar-width:none]" role="tablist">
+              {filters.map(([v, label]) => (
+                <button key={v} type="button" role="tab" aria-selected={filter === v} onClick={() => setFilter(v)}
+                  style={v.startsWith('#') ? (filter === v ? { background: tagColor(v.slice(1)), color: '#fff' } : { color: tagColor(v.slice(1)) }) : undefined}
+                  className={cn('min-h-[36px] shrink-0 rounded-full px-3.5 text-[13px] font-bold', filter === v ? 'bg-ink-900 text-white' : 'bg-card text-ink-500')}>{label}</button>
+              ))}
+            </div>
+          )}
           {byMonth.map(([k, list]) => (
             <section key={k}>
-              <div className="px-[18px] pb-2 pt-5"><b className="text-[17px] font-extrabold">{monthLabel(k, thisYear)}</b></div>
-              <div className="space-y-2.5 px-4">
-                {list.map((f) => <FolderCard key={f.id} f={f} onOpen={() => openFolder(f.id)} />)}
+              <div className="flex items-baseline justify-between px-[18px] pb-2 pt-5"><b className="text-[17px] font-extrabold">{monthLabel(k, thisYear)}</b><span className="text-[12.5px] text-ink-400">{list.length} תיקיות</span></div>
+              <div className="grid grid-cols-2 gap-2.5 px-4">
+                {list.map((f) => <FolderCard key={f.id} f={f} onOpen={() => openFolder(f.id)} onMenu={() => setMenuFor(f)} />)}
               </div>
             </section>
           ))}
+          {filter !== 'all' && byMonth.length === 0 && <p className="py-8 text-center text-sm text-ink-400">אין תיקיות כאלה עדיין</p>}
           {open != null && latestPhotos && (
             <PhotoViewer photos={latestPhotos.photos} index={open} from={from} title={folderTitle(latest)} onClose={() => setOpen(null)} />
           )}
@@ -262,6 +378,16 @@ function PhotosHome() {
       ) : !data && !error ? (
         <div className="mx-4 mt-3.5 h-[250px] animate-pulse rounded-[24px] bg-card" />
       ) : null}
+      {menuFor && (
+        <FolderMenu
+          folder={{ id: menuFor.id, title: folderTitle(menuFor), count: menuFor.count, cover: menuFor.covers[0], pinned: menuFor.pinned, kind: menuFor.kind ?? kindFromName(menuFor.name), tags: menuFor.tags ?? [] }}
+          staff={staff}
+          onClose={() => setMenuFor(null)}
+          onChanged={() => { void reloadBrowse(); }}
+          onDownloadAll={() => router.push(`/dashboard/photos?folder=${encodeURIComponent(menuFor.id)}&select=1`)}
+          onPickCover={() => router.push(`/dashboard/photos?folder=${encodeURIComponent(menuFor.id)}&cover=1`)}
+        />
+      )}
     </div>
   );
 }

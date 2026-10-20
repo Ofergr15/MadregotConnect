@@ -21,7 +21,16 @@ vi.mock('@/lib/quality-session/server', () => ({
 }));
 vi.mock('@/lib/quality-session/access', () => ({ storyEditorIds: async () => ['editor-1'], qualitySessionRecipientIds: async () => ['editor-1', 'super-1'] }));
 vi.mock('@/lib/push', () => ({ notifyAthlete: h.notify }));
+// Since 10-20 the folder is read through the Drive API, subfolders included.
+vi.mock('@/lib/photos/drive-browse', () => ({
+  THUMB: 480,
+  folderPhotosNow: async () => Array.from({ length: h.photos }, (_, i) => ({ id: `photo${i}`, w: 1, h: 1, at: null })),
+  signedImageUrl: (id: string) => `/img/${id}`,
+}));
 vi.mock('@/lib/quality-session/album-fetch', () => ({
+  pullDrivePhotos: async (_s: unknown, ids: string[], o: { max: number }) => (ids.length
+    ? { ok: true, found: ids.length, media: ids.slice(0, o.max).map((id) => ({ path: id, url: 'x', w: 1, h: 1 })) }
+    : { ok: false, error: 'no-photos' }),
   albumPhotoUrls: async () => (h.photos ? { ok: true, urls: Array.from({ length: h.photos }, (_, i) => `u${i}`) } : { ok: false, error: 'no-photos' }),
   pullAlbumPhotos: async (_s: unknown, _l: string, o: { max: number; skip?: number }) => ({
     ok: true, found: h.photos,
@@ -95,6 +104,45 @@ describe('the evening before a quality day', () => {
 
   it('names the folder for the day and its date', () => {
     expect(folderName('2026-10-13')).toBe('אימון איכות · שלישי 13.10');
+  });
+});
+
+describe('folders on their own time (folders-plan, 10-20)', () => {
+  const ledger = (v: object) => { h.settings[FOLDER_LEDGER_KEY] = JSON.stringify(v); };
+
+  it('a folder scheduled by hand is made when its time comes, not before', async () => {
+    h.qualityDays = new Set();
+    ledger({ '2026-10-24': { folderId: '', link: '', manual: true, name: 'מירוץ הלילה', createAt: '2026-10-22T09:30' } });
+    expect(await runSessionPhotoFolders(db(), at('2026-10-22T06:00:00Z'))).toEqual([]); // 09:00
+    expect(await runSessionPhotoFolders(db(), at('2026-10-22T06:30:00Z'))).toEqual(['sessionFolder:2026-10-24']);
+    expect(h.ensureDayFolder).toHaveBeenCalledWith(expect.anything(), '2026-10-24', 'מירוץ הלילה');
+  });
+
+  it('a plan day moved to the morning of the session waits past 20:00 the evening before', async () => {
+    ledger({ '2026-10-20': { folderId: '', link: '', createAt: '2026-10-20T06:00' } });
+    expect(await runSessionPhotoFolders(db(), at('2026-10-19T17:00:00Z'))).toEqual([]);
+    expect(await runSessionPhotoFolders(db(), at('2026-10-20T03:00:00Z'))).toEqual(['sessionFolder:2026-10-20']);
+  });
+
+  it('a race is made only once switched on (skipped: false)', async () => {
+    h.qualityDays = new Set();
+    ledger({ '2026-10-20': { folderId: '', link: '', name: 'מרתון תל אביב', skipped: false } });
+    expect(await runSessionPhotoFolders(db(), at('2026-10-19T17:00:00Z'))).toEqual(['sessionFolder:2026-10-20']);
+  });
+
+  it('a scheduled folder with "tell the editors" off tells nobody', async () => {
+    h.qualityDays = new Set();
+    ledger({ '2026-10-20': { folderId: '', link: '', manual: true, name: 'x', notifyEditors: false, createAt: '2026-10-19T08:00' } });
+    await runSessionPhotoFolders(db(), at('2026-10-19T06:00:00Z'));
+    expect(h.ensureDayFolder).toHaveBeenCalledTimes(1);
+    expect(h.notify).not.toHaveBeenCalled();
+  });
+
+  it('suggests #טסט from the workout name', async () => {
+    const { suggestedTags } = await import('@/lib/quality-session/photos-server');
+    expect(suggestedTags('טסט 5 ק"מ')).toEqual(['טסט']);
+    expect(suggestedTags('חצי מרתון ירושלים')).toEqual(['חצי מרתון']);
+    expect(suggestedTags('עליות')).toEqual([]);
   });
 });
 

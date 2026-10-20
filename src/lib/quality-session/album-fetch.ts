@@ -80,3 +80,35 @@ export async function pullAlbumPhotos(
   if (media.length === 0) return { ok: false, error: 'no-photos' };
   return { ok: true, media, found: list.urls.length };
 }
+
+
+/**
+ * Drive photos by id into feed-media, the way pullAlbumPhotos files an album's: 1600 px
+ * JPEG, upright. For the session folder, whose photos (subfolders included) are listed
+ * through the Drive API (lib/photos/drive-browse folderPhotosNow), not scraped.
+ */
+export async function pullDrivePhotos(
+  supabase: Db,
+  ids: string[],
+  opts: { prefix: string; max: number },
+): Promise<AlbumResult> {
+  const { fetchPhotoImage, FULL } = await import('@/lib/photos/drive-browse');
+  const media: PulledMedia[] = [];
+  for (const id of ids) {
+    if (media.length >= opts.max) break;
+    try {
+      const img = await fetchPhotoImage(id, FULL);
+      if (!img) continue;
+      const buf = Buffer.from(await new Response(img.body).arrayBuffer());
+      if (buf.length > MAX_IMAGE_BYTES) continue;
+      const { data, info } = await sharp(buf).rotate().resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 82 }).toBuffer({ resolveWithObject: true });
+      const path = `${opts.prefix}/${crypto.randomUUID()}.jpg`;
+      const { error } = await supabase.storage.from('feed-media').upload(path, data, { contentType: 'image/jpeg', upsert: false });
+      if (error) continue;
+      media.push({ path, url: supabase.storage.from('feed-media').getPublicUrl(path).data.publicUrl, w: info.width, h: info.height });
+    } catch { /* one unreadable file must not stop the rest */ }
+  }
+  if (media.length === 0) return { ok: false, error: 'no-photos' };
+  return { ok: true, media, found: ids.length };
+}
