@@ -11,6 +11,7 @@ import { CoachAssignPanel } from './ManageMembersSheets';
 import { ASSIGN_COACHES_LABEL, bidiNames } from '@/lib/academy/coach-picker';
 import { initialsOf, type AcademyCoachSummary, type AcademyMember } from './types';
 import { joinHebrewList, memberCoachIds, memberCoachNames } from '@/lib/academy/members';
+import { personMatches } from '@/lib/search/match';
 
 // The academy's quick sheets (mockup academy-manager-v5.html, phones 5 and 6):
 //
@@ -111,7 +112,7 @@ export function QuickActionSheet({
   const approved = useMemo(() => members.filter((m) => m.approved), [members]);
   const q = query.trim().toLowerCase();
   const matches = useMemo(() => {
-    const list = approved.filter((m) => !q || m.name.toLowerCase().includes(q));
+    const list = approved.filter((m) => !q || personMatches(m.name, q));
     // The unpaired first: they are who "change coach" is most often for.
     return list.sort((a, b) => Number(memberCoachIds(a).length > 0) - Number(memberCoachIds(b).length > 0) || a.name.localeCompare(b.name));
   }, [approved, q]);
@@ -425,7 +426,7 @@ export function PeopleSearchSheet({ open, onOpenChange, members, coaches, isMana
   useEffect(() => { if (open) setQuery(''); }, [open]);
   const { data: funnel } = useApi<{ candidates: CandidateRow[] }>(open && isManager ? '/api/academy/candidates' : null);
   const q = query.trim().toLowerCase();
-  const has = (name: string | null | undefined) => !q || (name || '').toLowerCase().includes(q);
+  const has = (name: string | null | undefined) => !q || personMatches(name, q);
 
   const trainees = members.filter((m) => has(m.name)).sort((a, b) => a.name.localeCompare(b.name)).slice(0, q ? 12 : 6);
   const candidates = isManager

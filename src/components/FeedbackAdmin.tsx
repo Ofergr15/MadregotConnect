@@ -21,6 +21,7 @@ import {
 import { Sheet, ConfirmSheet, SegmentedControl, EmptyState, LoadingBlock, Spinner } from '@/components/ui';
 import { InsetSection } from '@/components/ui/InsetList';
 import { FeedbackQueue } from '@/components/FeedbackQueue';
+import { personMatches } from '@/lib/search/match';
 import {
   QUEUE_PRIORITIES, inQueue, moveInQueue, queuePriority, sortQueue, ticketLabel, ticketQuery,
   type QueuePriority, type QueueUpdate,
@@ -269,8 +270,7 @@ export function FeedbackAdmin() {
     // "84" or "#84" is the number someone sent over WhatsApp — the exact row,
     // not every report that happens to contain the digits.
     if (ticket !== null && items.some(i => i.ticket_no === ticket)) return item.ticket_no === ticket;
-    return [item.message, item.athlete_name, item.athlete_email, item.group_name, item.fix_branch, item.fixed_in_version]
-      .some(v => (v || '').toLowerCase().includes(needle));
+    return personMatches(item.athlete_name, needle, item.message, item.athlete_email, item.group_name, item.fix_branch, item.fixed_in_version);
   };
   // Grouped BEFORE filtering, so a primary keeps its faces even when the copies
   // themselves are archived out of the current view.

@@ -7,6 +7,7 @@ import { apiHeaders, useApi } from '@/lib/api';
 import { coachCapacityOf } from '@/lib/academy/coach-board';
 import { loadAfter, ONE_COACH_UNTIL_UPDATE, toggleCoach, type AssignMode } from '@/lib/academy/coach-picker';
 import { initialsOf } from './types';
+import { personMatches } from '@/lib/search/match';
 
 // "שיבוץ מאמנים" — THE coach picker. Every door that chooses a trainee's coaches
 // draws this list: the member card, the quick action, a suggestion's ⋯, adding a
@@ -89,7 +90,7 @@ export function CoachesPicker({
     const q = query.trim().toLowerCase();
     const taken = new Set(list.map((c) => c.coachId));
     return (pool?.candidates ?? [])
-      .filter((c) => !taken.has(c.id) && !exclude.includes(c.id) && (!q || c.name.toLowerCase().includes(q)))
+      .filter((c) => !taken.has(c.id) && !exclude.includes(c.id) && (!q || personMatches(c.name, q)))
       .slice(0, 6);
   }, [pool, query, list, exclude]);
 

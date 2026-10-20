@@ -35,3 +35,20 @@ export function personMatches(name: string | null | undefined, query: string, ..
   if (`${name || ''} ${rest.filter(Boolean).join(' ')}`.toLowerCase().includes(q)) return true;
   return nameMatches(name, q);
 }
+
+/** Lower case, and "10x400" / "10 X 400" / "10*400" / "10 × 400" all as "10×400". */
+function foldText(s: string): string {
+  // A repeat being typed ("6 ×", "6x") folds the same way as a whole one.
+  return s.toLowerCase().replace(/(\d)\s*[x×*]\s*(?=\d|$)/g, '$1×').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Does any of these texts contain what was typed — for workouts and other words, not
+ * names: case-free, and a repeat typed with x, X, * or × finds it written any of those
+ * ways (the workout book, 2026-10-20).
+ */
+export function textMatches(query: string, ...texts: Array<string | null | undefined>): boolean {
+  const q = foldText(query);
+  if (!q) return true;
+  return texts.some((t) => !!t && foldText(t).includes(q));
+}

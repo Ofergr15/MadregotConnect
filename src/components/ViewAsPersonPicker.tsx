@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { initialsOf } from '@/components/FeedAvatar';
 import type { ViewAsPerson, ViewAsTag } from '@/lib/auth/view-as';
 import { getViewedPerson, readRecentPeople, startViewingAs, type ViewedPerson } from '@/lib/view-as-person';
+import { personMatches } from '@/lib/search/match';
 
 // The "אדם" half of the eye button's chooser (ImpersonationBar): search the whole
 // club, each person with what they are, and the last few viewed. Picking one
@@ -37,7 +38,7 @@ export function ViewAsPersonPicker({ open }: { open: boolean }) {
   const current = getViewedPerson()?.id ?? null;
   const people = useMemo(() => data?.people ?? [], [data]);
   const q = query.trim().toLowerCase();
-  const matches = q ? people.filter((p) => p.name.toLowerCase().includes(q)) : people;
+  const matches = q ? people.filter((p) => personMatches(p.name, q)) : people;
   // Recents re-read from the full list, so a renamed or re-roled person shows as
   // they are now; somebody no longer in the club simply drops out.
   const byId = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);

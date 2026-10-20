@@ -10,6 +10,7 @@ import { bearerHeaders } from '@/lib/auth/bearer-headers';
 import { Sheet, Button, ConfirmSheet, SegmentedControl, SkeletonList, EmptyState } from '@/components/ui';
 import { InsetRow, InsetSection } from '@/components/ui/InsetList';
 import { dateOffsetStr, minutesToHHMM, roundToStep, describeNotificationRow, isPastSchedule, SCHEDULE_STEP_MIN, type StatusIconKind } from '@/lib/notifications/scheduling';
+import { personMatches } from '@/lib/search/match';
 
 interface Group { id: string; name: string; }
 interface Athlete { id: string; name: string; email: string; isAcademy?: boolean; }
@@ -376,7 +377,7 @@ export function NotificationCenter() {
   const selectedAthlete = athletes.find(a => a.id === audienceId);
   const academyCount = athletes.filter(a => a.isAcademy).length;
   const selectedAthleteName = selectedAthlete?.name;
-  const filteredAthletes = athletes.filter(a => !athleteSearch.trim() || a.name.toLowerCase().includes(athleteSearch.trim().toLowerCase()));
+  const filteredAthletes = athletes.filter(a => personMatches(a.name, athleteSearch, a.email));
 
   // Scheduled vs. past — same grouping regardless of who it went to (all /
   // group / one athlete all mix together within each section, same as before).

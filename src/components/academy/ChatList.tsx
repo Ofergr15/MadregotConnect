@@ -6,6 +6,7 @@ import { Sheet } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { chatCounts, chatPreview, chatSections, chatTimeLabel, hasThread, type ChatFilter, type ChatRow } from '@/lib/academy/chat-list';
 import { seatInitials } from '@/lib/academy/seat-style';
+import { personMatches } from '@/lib/search/match';
 
 // ── The academy chat, Messenger-shaped (mockup academy-chat/chat.html, Ofer 10-20) ──
 //
@@ -131,7 +132,7 @@ function NewChatSheet({ open, onOpenChange, rows, onPick }: {
   open: boolean; onOpenChange: (o: boolean) => void; rows: ChatRow[]; onPick: (id: string) => void;
 }) {
   const [q, setQ] = useState('');
-  const match = (r: ChatRow) => !q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase());
+  const match = (r: ChatRow) => !q.trim() || personMatches(r.name, q);
   const fresh = rows.filter((r) => !hasThread(r) && match(r)).sort((a, b) => a.name.localeCompare(b.name, 'he'));
   const all = rows.filter((r) => hasThread(r) && match(r)).sort((a, b) => Date.parse(b.lastAt!) - Date.parse(a.lastAt!));
   const item = (r: ChatRow, cta: string, sub: string) => (

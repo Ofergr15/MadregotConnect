@@ -10,6 +10,7 @@ import { cn, groupDisplayName, resolveGroup } from '@/lib/utils';
 import { isSyntheticAuthEmail } from '@/lib/auth/athlete-identity';
 import { teammateHref } from '@/lib/athletes/profile-link';
 import { israelDateOf } from '@/lib/reports/last-7-days';
+import { personMatches } from '@/lib/search/match';
 import {
   LOG_FILTERS, initialLogFilter, logCounts, logLoadErrorText, logState, matchesLogFilter, sortForLogFilter,
   type LogFilter, type LogState, type RegistrationStage,
@@ -297,7 +298,7 @@ export default function RegistrationsQueue() {
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     const hit = (r: Registration) =>
-      !q || r.email.toLowerCase().includes(q) || (r.athleteName || '').toLowerCase().includes(q) || (r.fullName || '').toLowerCase().includes(q);
+      !q || personMatches(r.athleteName, q, r.email) || personMatches(r.fullName, q);
     return sortForLogFilter(requests.filter(r => matchesLogFilter(r, active) && hit(r)), active);
   }, [requests, active, query]);
 

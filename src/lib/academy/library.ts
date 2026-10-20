@@ -37,6 +37,7 @@
 
 import type { ParsedWorkout, WorkoutStep } from '@/lib/ai/types';
 import { MAX_PACE_SEC_PER_KM, MIN_PACE_SEC_PER_KM } from './repace';
+import { textMatches } from '@/lib/search/match';
 
 /**
  * How a saved step states its effort: a band of percentages of threshold SPEED.
@@ -488,8 +489,7 @@ export function filterLibrary(entries: LibraryEntry[], filter: LibraryFilter = {
       // A guessed type is not a type: the chip shows only what a coach chose.
       if (filter.kind && (e.kind !== filter.kind || isUnclassified(e))) return false;
       if (!needle) return true;
-      return e.name.toLowerCase().includes(needle)
-        || (e.notes ?? '').toLowerCase().includes(needle);
+      return textMatches(needle, e.name, e.notes);
     })
     .sort((a, b) =>
       b.useCount - a.useCount

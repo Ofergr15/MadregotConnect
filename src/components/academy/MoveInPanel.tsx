@@ -12,6 +12,7 @@ import { useApi } from '@/lib/api';
 import { groupDisplayName } from '@/lib/utils';
 import type { AcademyBand, AcademyCoachSummary } from './types';
 import { CoachesPicker } from './CoachesPicker';
+import { personMatches } from '@/lib/search/match';
 
 // "כבר מתאמנים אצלנו" — the migration path (academy-existing-add/migration-plan.html, screens
 // 1–2): people who ALREADY train in the academy, moved into the app in one go. No form, no
@@ -89,7 +90,7 @@ export function MoveInPanel({ addable, coaches, bands, multiCoach, onDone }: {
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (addable ?? []).filter((a) => !q || a.name.toLowerCase().includes(q)).slice(0, 60);
+    return (addable ?? []).filter((a) => !q || personMatches(a.name, q)).slice(0, 60);
   }, [addable, query]);
   const nameOf = (id: string) => (addable ?? []).find((a) => a.athleteId === id)?.name ?? '';
   const coachName = (id: string) => assignable.find((c) => c.coachId === id)?.coachName ?? '';

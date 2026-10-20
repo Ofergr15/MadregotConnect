@@ -26,6 +26,7 @@ import { FolderMenu, driveLink, savePhotos } from '@/components/photos/FolderMen
 import { FOLDER_KINDS, KIND_LABEL, kindFromName, tagColor, type FolderKind } from '@/lib/photos/folder-kind';
 import { useNavIdentity } from '@/lib/nav-items';
 import { bearerHeaders } from '@/lib/auth/bearer-headers';
+import { textMatches } from '@/lib/search/match';
 
 interface Folder { id: string; name: string; title: string | null; date: string; count: number; covers: string[]; coverBlur?: string | null; pinned?: boolean; hero?: string | null; kind?: FolderKind; tags?: string[] }
 interface Browse { configured: boolean; folders: Folder[] }
@@ -302,7 +303,7 @@ function PhotosHome() {
     return folders.filter((f) => {
       const day = sessionDayLabel(f.date);
       const month = MONTHS[Number(f.date.slice(5, 7)) - 1];
-      return f.name.toLowerCase().includes(n) || folderTitle(f).toLowerCase().includes(n) || day.includes(query) || month.includes(query) || f.date.includes(query);
+      return textMatches(n, f.name, folderTitle(f)) || day.includes(query) || month.includes(query) || f.date.includes(query);
     });
   }, [folders, query]);
   const byMonth = useMemo(() => {

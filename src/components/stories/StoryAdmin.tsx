@@ -9,6 +9,7 @@ import { Sheet, Switch } from '@/components/ui';
 import { Group, SectionHead } from '@/components/content/hub-ui';
 import type { StoryFeature, StoryState } from '@/lib/stories/gate';
 import { cn } from '@/lib/utils';
+import { personMatches } from '@/lib/search/match';
 
 // The pieces every story's screen is made of — Content › stories v5 (mockup stories-area,
 // Ofer 10-20, "weekly and annual on the new screen too"): the state with one button, how
@@ -153,7 +154,7 @@ export function TestersCard({ home, onChanged }: { home: StoriesHome; onChanged:
   const [busy, setBusy] = useState(false);
   const taken = useMemo(() => new Set(home.testers.map((t) => t.athleteId)), [home.testers]);
   const term = q.trim().toLowerCase();
-  const matches = term ? (roster?.athletes || []).filter((a) => a.status === 'active' && !taken.has(a.id) && (a.name || '').toLowerCase().includes(term)).slice(0, 6) : [];
+  const matches = term ? (roster?.athletes || []).filter((a) => a.status === 'active' && !taken.has(a.id) && personMatches(a.name, term)).slice(0, 6) : [];
   const call = async (url: string, method: string, body?: unknown) => {
     setBusy(true);
     try {

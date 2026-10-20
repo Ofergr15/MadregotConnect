@@ -9,6 +9,7 @@ import type { Place } from '@/lib/search/places';
 import type { RunResults } from '@/lib/search/runs';
 import type { WeekSession } from '@/lib/plans/workout-parsing';
 import { teammateHref } from '@/lib/athletes/profile-link';
+import { textMatches } from '@/lib/search/match';
 
 // The search screen's new result sets — mockup ~/.cache/madregot/search-proposal.html, Ofer
 // 2026-10-20: the filter tabs, screens and settings by role, runs by what the workout was,
@@ -103,7 +104,7 @@ export function matchSessions(sessions: WeekSession[] | undefined, q: string): W
   const s = q.trim().toLowerCase();
   if (s.length < 2 || !sessions) return [];
   const digits = /\d/.test(s);
-  return sessions.filter((x) => (x.name || '').toLowerCase().includes(s) || (x.type || '').toLowerCase() === s
+  return sessions.filter((x) => textMatches(s, x.name) || (x.type || '').toLowerCase() === s
     || (digits && JSON.stringify(x.steps || []).includes(s.replace(/\D+/g, ''))));
 }
 

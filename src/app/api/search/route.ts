@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { isCoreRunner } from '@/lib/core-runner';
 import { resolveVerifiedCaller } from '@/lib/auth/self-or-staff';
 import { containsPattern, quoteFilterValue } from '@/lib/db/like';
-import { nameMatches } from '@/lib/search/match';
+import { nameMatches, textMatches } from '@/lib/search/match';
 import { STORE_OPEN } from '@/lib/nav-items';
 import { listPhotoFolders, signedImageUrl, THUMB, type PhotoFolder } from '@/lib/photos/drive-browse';
 import { mirroredUrls } from '@/lib/photos/mirror';
@@ -65,6 +65,13 @@ export async function GET(request: Request) {
       .limit(RESULT_LIMIT);
     if (!seesCoreTier) perksQuery = perksQuery.eq('tier', 'all');
 
+    // Everything at once: the photo folders (Drive, up to 2.5s cold), the runs and the
+    // packs don't wait for the roster, and the roster doesn't wait for them.
+    const albumsP = foldersInTime().then((list) => albumRows(list
+      .filter((f) => textMatches(q, f.title, f.name))
+      .slice(0, RESULT_LIMIT)));
+    const runsP = searchRuns(supabase, q, caller);
+    const groupsP = supabase.from('groups').select('id, name');
     const [membersRes, eventsRes, productsRes, perksRes] = await Promise.all([
       // The whole active roster (a few dozen rows), matched here: names are stored in
       // Latin letters, and a name typed in Hebrew has to meet them (lib/search/match.ts).
@@ -95,11 +102,10 @@ export async function GET(request: Request) {
       .slice(0, RESULT_LIMIT) as Array<{ id: string; name: string; avatar_url: string | null; group_id?: string | null }>;
     // What you can do with the person (mockup search-proposal, "אלון"): their pack and their
     // last run, for the top match's quick links.
-    const [lastRuns, groupNames, runs] = await Promise.all([
+    const [lastRuns, groupNames] = await Promise.all([
       matched.length ? supabase.from('athlete_activities').select('id, athlete_id, start_time').in('athlete_id', matched.slice(0, 3).map((m) => m.id))
         .order('start_time', { ascending: false }).limit(30) : Promise.resolve({ data: [] }),
-      matched.length ? supabase.from('groups').select('id, name') : Promise.resolve({ data: [] }),
-      searchRuns(supabase, q, caller),
+      groupsP,
     ]);
     const lastRunOf = new Map<string, string>();
     for (const r of (lastRuns.data || []) as Array<{ id: string; athlete_id: string }>) if (!lastRunOf.has(r.athlete_id)) lastRunOf.set(r.athlete_id, r.id);
@@ -146,10 +152,8 @@ export async function GET(request: Request) {
       }),
     );
 
-    const albums = (await foldersInTime())
-      .filter((f) => `${f.title ?? ''} ${f.name}`.toLowerCase().includes(q.toLowerCase()))
-      .slice(0, RESULT_LIMIT);
-    return NextResponse.json({ members, events, products, perks, albums: await albumRows(albums), runs });
+    const [albums, runs] = await Promise.all([albumsP, runsP]);
+    return NextResponse.json({ members, events, products, perks, albums, runs });
   } catch (error) {
     console.error('Search failed:', error);
     return NextResponse.json({ error: 'Search failed' }, { status: 500 });

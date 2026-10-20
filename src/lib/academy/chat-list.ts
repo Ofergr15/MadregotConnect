@@ -1,4 +1,5 @@
 import type { InboxRow } from './thread';
+import { personMatches } from '@/lib/search/match';
 
 // ── The academy chat list (mockup academy-chat/chat.html, Ofer 10-20) ────────
 //
@@ -32,7 +33,7 @@ export function chatSections(rows: ChatRow[], filter: ChatFilter = 'all', query 
     if (filter === 'waiting' && r.reason !== 'awaiting_reply') return false;
     if (filter === 'mine' && !r.mine) return false;
     if (!q) return true;
-    return r.name.toLowerCase().includes(q) || (r.lastText || '').toLowerCase().includes(q);
+    return personMatches(r.name, q, r.lastText);
   });
   const waiting = keep.filter((r) => r.reason === 'awaiting_reply');
   const recent = keep

@@ -10,6 +10,7 @@ import { Card, InsetRow, InsetSection, Sheet, Switch } from '@/components/ui';
 import type { AcademyCoachesResponse } from '@/app/api/academy/coaches/route';
 import { fmtRate, initialsOf, type AcademyMember } from './types';
 import { coachNameAmong, memberCoachIds, memberHasCoach } from '@/lib/academy/members';
+import { personMatches } from '@/lib/search/match';
 
 /**
  * The academy manager's controls, behind the ⚙ on the academy home so the home
@@ -158,7 +159,7 @@ export function CoachesSheet({
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q || !data) return [];
-    return data.candidates.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 6);
+    return data.candidates.filter((c) => personMatches(c.name, q)).slice(0, 6);
   }, [query, data]);
 
   const setCoach = async (athleteId: string, coach: boolean) => {

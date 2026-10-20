@@ -19,6 +19,7 @@ import type { CelebrationType } from '@/lib/feed/celebration';
 import { CloseSetting, customInstants, DEFAULT_REMINDERS, ReminderSetting, SurveyTemplates, type CloseKind, type RemindersValue } from '@/components/publish/SurveySettings';
 import { closePreset, israelDateTime, israelLocalToIso } from '@/lib/survey-reminders';
 import { MIGRATION_164, MIGRATION_164_TEXT } from '@/lib/survey-messages';
+import { personMatches } from '@/lib/search/match';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // לפרסם (mockup publish, C1–C3): a message, a cheer, a survey — each a post on the feed with
@@ -67,7 +68,7 @@ function Seg<T extends string>({ value, options, onChange }: { value: T; options
 function PeoplePicker({ people, picked, onToggle, single }: { people: Array<{ id: string; name: string; pack: number }>; picked: string[]; onToggle: (id: string) => void; single?: boolean }) {
   const t = useTranslations('publish');
   const [q, setQ] = useState('');
-  const shown = q.trim() ? people.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase())) : people;
+  const shown = q.trim() ? people.filter((p) => personMatches(p.name, q)) : people;
   return (
     <div className="space-y-2">
       <label className="flex h-11 items-center gap-2 rounded-xl bg-[#E3E3E9] px-3 text-ink-400">

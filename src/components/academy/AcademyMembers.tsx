@@ -21,6 +21,7 @@ import type { AcademyMember, AcademyMembersResponse } from './types';
 import { joinHebrewList, memberCoachIds, memberCoachNames } from '@/lib/academy/members';
 import { ASSIGN_COACHES_LABEL, bidiNames } from '@/lib/academy/coach-picker';
 import { CoachAvatarStack } from './CoachAvatarStack';
+import { personMatches } from '@/lib/search/match';
 
 // The members tab, as the approved mockup (academy-manage-members.html) draws it.
 //
@@ -113,7 +114,7 @@ export function AcademyMembers({
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = approved;
-    if (q) list = list.filter((m) => m.name.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q));
+    if (q) list = list.filter((m) => personMatches(m.name, q, m.email));
     if (bandId) list = bandId === '__none__' ? list.filter((m) => !m.band) : list.filter((m) => m.band?.id === bandId);
     if (filter === 'nocoach') list = list.filter((m) => memberCoachIds(m).length === 0);
     return list;

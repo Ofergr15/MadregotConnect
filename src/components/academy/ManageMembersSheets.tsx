@@ -15,6 +15,7 @@ import {
 import { initialsOf, type AcademyBand, type AcademyCoachSummary, type AcademyMember } from './types';
 import { CoachesPicker } from './CoachesPicker';
 import { MoveInPanel } from './MoveInPanel';
+import { personMatches } from '@/lib/search/match';
 
 // The manager's sheets on the members tab: move to a coach (one trainee or many),
 // set the band for many, and add somebody — a club member, or someone new. Every
@@ -311,7 +312,7 @@ export function AddTraineesToCoachSheet({
   const list = useMemo(() => {
     if (!coach) return [];
     const q = query.trim().toLowerCase();
-    return traineesToAdd(coach.id, members).filter((m) => !q || m.name.toLowerCase().includes(q));
+    return traineesToAdd(coach.id, members).filter((m) => !q || personMatches(m.name, q));
   }, [coach, members, query]);
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
@@ -484,7 +485,7 @@ export function AddMemberSheet({
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (addable ?? []).filter((a) => !q || a.name.toLowerCase().includes(q)).slice(0, 30);
+    return (addable ?? []).filter((a) => !q || personMatches(a.name, q)).slice(0, 30);
   }, [addable, query]);
   const person = (addable ?? []).find((a) => a.athleteId === chosen) ?? null;
   const coachNamesPicked = coachIds.map((id) => assignable.find((c) => c.coachId === id)?.coachName || '').filter(Boolean);

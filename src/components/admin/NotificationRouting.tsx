@@ -11,6 +11,7 @@ import { apiHeaders, useApi } from '@/lib/api';
 import { isStaffRole } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { AthleteLink } from '@/components/AthleteLink';
+import { personMatches } from '@/lib/search/match';
 
 /**
  * Settings → התראות ניהול. Who receives each management alert, and what every
@@ -207,8 +208,7 @@ export default function NotificationRouting() {
     const q = query.trim().toLowerCase();
     const pool = q
       ? people.filter(p =>
-          p.name.toLowerCase().includes(q) ||
-          (ROLE_LABEL[p.role] || p.role).toLowerCase().includes(q))
+          personMatches(p.name, q, ROLE_LABEL[p.role] || p.role))
       : people;
     // Staff first: they're who this screen is about, and they're 3 rows out of 26.
     return [...pool].sort((a, b) => Number(isStaffRole(b.role)) - Number(isStaffRole(a.role)));

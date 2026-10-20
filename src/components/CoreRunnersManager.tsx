@@ -9,6 +9,7 @@ import { AthleteLink } from '@/components/AthleteLink';
 import { apiHeaders, useApi } from '@/lib/api';
 import { cn, resolveGroup } from '@/lib/utils';
 import { CORE_RUNNER_LABEL_PLURAL, CORE_RUNNER_MARK } from '@/lib/core-runner';
+import { personMatches } from '@/lib/search/match';
 
 /**
  * Settings → הגרעין. The one place that answers "who is in the core squad?" and
@@ -84,7 +85,7 @@ export default function CoreRunnersManager() {
   const candidates = useMemo(() => {
     const q = query.trim().toLowerCase();
     const pool = q
-      ? athletes.filter(a => a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q))
+      ? athletes.filter(a => personMatches(a.name, q, a.email))
       : athletes.filter(a => !a.isCoreRunner);
     // Members first when searching, so a hit that is already in reads as "already in".
     return [...pool].sort((a, b) => Number(b.isCoreRunner) - Number(a.isCoreRunner));

@@ -4,6 +4,7 @@ import { useRef, useState, type CSSProperties } from 'react';
 import { useApi } from '@/lib/api';
 import { mentionToken } from '@/lib/feed/mentions';
 import { FeedAvatar } from '@/components/FeedAvatar';
+import { personMatches } from '@/lib/search/match';
 
 interface DiscoverAthlete {
   id: string;
@@ -55,7 +56,7 @@ export function MentionTextarea({
     query !== null && viewerId ? '/api/athletes/discover' : null,
   );
   const suggestions = (data?.athletes || [])
-    .filter((a) => a.name.toLowerCase().includes((query || '').toLowerCase()))
+    .filter((a) => personMatches(a.name, query || ''))
     .slice(0, 5);
 
   // "@" immediately before the cursor, with no whitespace between them, is

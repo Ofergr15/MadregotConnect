@@ -26,6 +26,7 @@ import { bandThresholdSec } from '@/lib/academy/day-send';
 import { raceCountdown, weekFit, type PlannedDay } from '@/lib/academy/plan-fit';
 import type { PlanInputs } from '@/lib/academy/characterization';
 import { getWorkoutKm } from '@/lib/plans/workout-parsing';
+import { personMatches } from '@/lib/search/match';
 
 interface AcademyAthlete {
   id: string;
@@ -988,7 +989,7 @@ function TraineePicker({
 }) {
   const [q, setQ] = useState('');
   const query = q.trim().toLowerCase();
-  const shown = query ? athletes.filter(a => a.name.toLowerCase().includes(query)) : athletes;
+  const shown = query ? athletes.filter(a => personMatches(a.name, query)) : athletes;
   const allSelected = athletes.length > 0 && selectedIds.length === athletes.length;
 
   return (

@@ -8,6 +8,7 @@ import { cn, GROUP_HEX } from '@/lib/utils';
 import { sortByPaceGroup } from '@/lib/plans/pace-group';
 import { CARD } from '@/components/academy/book/ui';
 import { countsOf, reasonText, type WatchState } from '@/lib/day-session/watch-status';
+import { personMatches } from '@/lib/search/match';
 
 // "לשלוח לשעונים" (mockup watch-send-v3): who it goes to — everyone, a pack, or by name —
 // and then where it stands, runner by runner. Hebrew only, like the rest of the form.
@@ -102,7 +103,7 @@ export function RecipientPicker({ roster, paces, value: v, onChange }: {
   const withWatch = roster.filter((p) => p.hasWatch);
   const noWatch = roster.filter((p) => !p.hasWatch);
   const toggle = <T,>(list: T[], x: T) => (list.includes(x) ? list.filter((y) => y !== x) : [...list, x]);
-  const shown = q.trim() ? roster.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase())) : roster;
+  const shown = q.trim() ? roster.filter((p) => personMatches(p.name, q)) : roster;
   return (
     <div className="space-y-3">
         <div className="flex rounded-[13px] bg-[#E3E3E9] p-[3px]" role="tablist">

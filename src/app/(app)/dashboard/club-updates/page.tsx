@@ -8,6 +8,7 @@ import { apiHeaders, useApi } from '@/lib/api';
 import { BackNav, InsetSection, Skeleton, Switch } from '@/components/ui';
 import { FeedAvatar } from '@/components/FeedAvatar';
 import type { ClubUpdatesConfig } from '@/lib/club-updates/model';
+import { personMatches } from '@/lib/search/match';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // תוכן › עדכונים מהמועדון — the admin's two switches, and nothing else for now (Ofer,
@@ -49,7 +50,7 @@ export default function ClubUpdatesAdminPage() {
     const writers = new Set(data?.config.writerIds ?? []);
     const needle = q.trim().toLowerCase();
     return list
-      .filter((p) => !needle || p.name.toLowerCase().includes(needle))
+      .filter((p) => !needle || personMatches(p.name, needle))
       // Writers first, then the staff, then everyone else.
       .sort((a, b) => Number(writers.has(b.id)) - Number(writers.has(a.id)) || Number(b.role !== 'צוות') - Number(a.role !== 'צוות') || a.name.localeCompare(b.name));
   }, [data, q]);

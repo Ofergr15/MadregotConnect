@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { bookTotals, fromLibrarySteps, profileBar, structureName } from '@/lib/academy/book-steps';
 import { filterLibrary, isUnclassified, type LibraryEntry, type LibraryKind } from '@/lib/academy/library';
 import { BarButton, CARD, FlowScreen, ProfileBar, RICH, SectionLabel, kmText } from './ui';
+import { textMatches } from '@/lib/search/match';
 
 // ── 📖 מהספר (mockup phone 1ב) ────────────────────────────────────────────────────────────
 //
@@ -85,11 +86,10 @@ export function BookPicker({ thresholdSec, onBack, onPick }: {
         return { entry: e, model, shape: model ? structureName(model) : '' };
       })
       .filter(({ entry, shape }) => !needle
-        || entry.name.toLowerCase().includes(needle)
-        || shape.toLowerCase().includes(needle)
+        // "10x400" finds "10 × 400" and back (lib/search/match textMatches).
+        || textMatches(needle, entry.name, shape, entry.notes)
         // A guessed type is not searchable as a type — the name and the shape still are.
-        || (!isUnclassified(entry) && t(`kind.${entry.kind}`).includes(needle))
-        || (entry.notes ?? '').toLowerCase().includes(needle));
+        || (!isUnclassified(entry) && t(`kind.${entry.kind}`).includes(needle)));
   }, [data, chip, query, favourites, t]);
 
   // "אחרונים" (Ofer, 2026-10-20): the last few pushed, newest first — only on the open list,

@@ -42,6 +42,7 @@
  */
 
 import { nameMatchConfidence } from '@/lib/auth/athlete-identity';
+import { personMatches } from '@/lib/search/match';
 
 /** A Strava login with no real email gets a fabricated one. It is not an identity. */
 export const SYNTHETIC_EMAIL_DOMAIN = 'strava.madregot.local';
@@ -319,7 +320,7 @@ export function filterAthletes(athletes: readonly LinkableAthlete[], query: stri
   if (!q) return [...athletes];
   return athletes.filter(a => {
     const email = normalizeEmail(a.email);
-    return a.name.toLowerCase().includes(q) || (email !== null && !isSyntheticEmail(email) && email.includes(q));
+    return personMatches(a.name, q) || (email !== null && !isSyntheticEmail(email) && email.includes(q));
   });
 }
 

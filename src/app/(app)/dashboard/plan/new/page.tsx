@@ -67,6 +67,7 @@ import { resendWarning, type SentDay } from '@/lib/plans/resend-warning';
 import { israelClock } from '@/lib/watch/day-status';
 import { useIsSuperUser } from '@/lib/impersonation';
 import { Sheet, ConfirmSheet, SegmentedControl, Button, InsetSection, InsetRow, Switch } from '@/components/ui';
+import { personMatches } from '@/lib/search/match';
 
 const HARDCODED_COACH_ID = '30f056a7-c651-490e-8356-615ea9eff097';
 
@@ -322,11 +323,7 @@ export default function WeeklyPlannerPage() {
   const filteredAthletes = useMemo(() => {
     if (!athleteSearch.trim()) return activeAthletes;
     const q = athleteSearch.toLowerCase();
-    return activeAthletes.filter(
-      (a) =>
-        a.name.toLowerCase().includes(q) ||
-        a.email?.toLowerCase().includes(q)
-    );
+    return activeAthletes.filter((a) => personMatches(a.name, q, a.email));
   }, [activeAthletes, athleteSearch]);
 
   // The club as the picker draws it: pack 1..3 fastest first, the same order as the labels.

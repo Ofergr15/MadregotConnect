@@ -10,6 +10,7 @@ import {
   type Board, type ChampDistance, type ChampScope, type ChampSex, type Ranked, type ResultRow,
 } from '@/lib/champions/table';
 import { cn } from '@/lib/utils';
+import { personMatches } from '@/lib/search/match';
 
 // אלופי המדרגות (mockup ~/.cache/madregot/champions, Ofer 10-20): official race times
 // per distance, a podium with the faces, the pack (1, 2, 3 — not א ב ג), top 10, and the
@@ -158,7 +159,7 @@ function ManageSheet({ open, onOpenChange, onChanged }: { open: boolean; onOpenC
     if (!s.seconds) { setMsg('זמן לא תקין (למשל 1:15:22)'); return Promise.resolve(false); }
     return call('POST', s);
   };
-  const matches = form.q.trim() ? (roster?.athletes || []).filter((a) => a.status !== 'removed' && (a.name || '').toLowerCase().includes(form.q.trim().toLowerCase())).slice(0, 5) : [];
+  const matches = form.q.trim() ? (roster?.athletes || []).filter((a) => a.status !== 'removed' && personMatches(a.name, form.q)).slice(0, 5) : [];
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="אלופי המדרגות · ניהול">
