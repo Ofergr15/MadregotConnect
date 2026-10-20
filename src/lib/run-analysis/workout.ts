@@ -50,6 +50,8 @@ export interface Workout {
 }
 
 export const TOLERANCE = 3;
+/** How far short of its planned length or time an iteration may close and still count as one. */
+const ITERATION_SLACK = 0.03;
 
 const weighted = (parts: Array<[number | null | undefined, number]>) => {
   const ok = parts.filter(([v, w]) => v != null && v > 0 && w > 0) as Array<[number, number]>;
@@ -94,9 +96,17 @@ export function readWorkout(laps: WLap[] | null | undefined, executed: { steps?:
   for (const l of ls) {
     const step = l.wktStepIndex ?? null;
     const st = step != null ? steps.get(step) : undefined;
-    // Only a DISTANCE step is cut by Auto Lap; a time step or an open one is one lap per pass.
-    const mergeable = !!st?.distanceM && open && open.step === step && (l.intensityType || '') === (open.laps[0].intensityType || '');
-    if (!mergeable) { close(); open = { step, laps: [], start: at }; }
+    // Auto Lap cuts a step with a length OR a time into 1 km laps ("45 דק׳ קל" came out as
+    // "8 × 1000", 2026-10-20): its laps are one pass until that length or time is covered,
+    // and the next lap with the same index is the next iteration of a repeat. An open step
+    // has no length to close it, and its iterations are always parted by another step — so
+    // its laps back to back are one run cut by Auto Lap ("יום רביעי", 13 × 1000), too.
+    const sameStep = !!open && open.step === step && (l.intensityType || '') === (open.laps[0].intensityType || '');
+    const doneM = open ? open.laps.reduce((x, y) => x + y.distance, 0) : 0;
+    const doneSec = open ? open.laps.reduce((x, y) => x + y.duration, 0) : 0;
+    const unfinished = st?.distanceM ? doneM < st.distanceM * (1 - ITERATION_SLACK)
+      : st?.durationSec ? doneSec < st.durationSec * (1 - ITERATION_SLACK) : true;
+    if (!(sameStep && unfinished)) { close(); open = { step, laps: [], start: at }; }
     open!.laps.push(l);
     at += l.duration;
   }
@@ -117,7 +127,8 @@ export function readWorkout(laps: WLap[] | null | undefined, executed: { steps?:
   const recLen = recs.length >= 2 ? Math.round(recs.map((r) => r.meters).sort((a, b) => a - b)[recs.length >> 1] / 50) * 50 : null;
   const targets = reps.map((r) => r.target).filter((v): v is number => v != null);
   return {
-    title: `${reps.length} × ${len}`,
+    // The share card's spelling (lib/share/plan-segments workoutHeadline): 7 × 5K, 10 × 1600.
+    title: `${reps.length} × ${len >= 3000 && len % 1000 === 0 ? `${len / 1000}K` : len}`,
     recoveryMeters: recLen && recLen >= 100 ? recLen : null,
     segments: segs, reps, strides: segs.filter((s) => s.kind === 'stride'),
     hit: reps.filter((r) => r.onTarget).length,

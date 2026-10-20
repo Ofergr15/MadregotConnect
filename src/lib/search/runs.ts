@@ -16,9 +16,11 @@ export interface RunResults {
 }
 export const EMPTY_RUNS: RunResults = { today: [], runs: [] };
 
-/** "10x1600" / "10*1600" / "10 X 1600" → "10 × 1600", the way the title is stored. */
+/** "10x1600" / "10*1600" / "10 X 1600" → "10 × 1600", "5000" → "5K": the way the title is stored. */
 export function workoutQuery(q: string): string {
-  return q.replace(/(\d)\s*[xX×*]\s*(\d)/g, '$1 × $2');
+  return q.replace(/(\d)\s*[xX×*]\s*(\d)/g, '$1 × $2')
+    // Whole kilometres from 3 km up are stored as K ("7 × 5K"), the share card's spelling.
+    .replace(/\b(\d+)000\b/g, (m, k) => (Number(k) >= 3 ? `${k}K` : m));
 }
 
 /**

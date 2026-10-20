@@ -56,3 +56,20 @@ describe('heat cost', () => {
     expect(heatCostSec(30, 24, 280)).toBeGreaterThan(heatCostSec(22, 16, 280));
   });
 });
+
+describe('Auto Lap inside a step that is not a distance (2026-10-20)', () => {
+  it('a timed easy run is one step, not "8 × 1000"', () => {
+    const easy = [...Array(8)].map(() => lap(0, 'ACTIVE', 1000, 330)).concat(lap(0, 'ACTIVE', 700, 240), lap(1, 'COOLDOWN', 500, 200));
+    expect(readWorkout(easy, { steps: [{ stepIndex: 0, intensity: 'ACTIVE', durationSec: 2700 }, { stepIndex: 1, intensity: 'COOLDOWN' }] }, 0)).toBeNull();
+  });
+  it('an open step cut into kilometres is one run too', () => {
+    const open = [...Array(12)].map(() => lap(0, 'ACTIVE', 1000, 320));
+    expect(readWorkout(open, { steps: [{ stepIndex: 0, intensity: 'ACTIVE' }] }, 0)).toBeNull();
+  });
+  it('timed reps still count, each closed by its time', () => {
+    const reps = [0, 1, 2].flatMap(() => [lap(3, 'ACTIVE', 1000, 200), lap(3, 'ACTIVE', 400, 80), lap(4, 'RECOVERY', 300, 120)]);
+    const w = readWorkout([lap(0, 'WARMUP', 2000, 640), ...reps], { steps: [{ stepIndex: 3, intensity: 'ACTIVE', durationSec: 280 }, { stepIndex: 4, intensity: 'RECOVERY', durationSec: 120 }] }, 0)!;
+    expect(w.reps.length).toBe(3);
+    expect(w.reps[0].meters).toBe(1400);
+  });
+});
