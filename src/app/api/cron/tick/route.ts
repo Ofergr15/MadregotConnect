@@ -781,6 +781,33 @@ async function run(request: Request) {
     }
   }
 
+  // אלופי המדרגות: every result goes through an admin (Ofer 10-20). Once a day at 20:00,
+  // when a race-day run from the last two days waits for approval, staff get one push.
+  if (hour === 20) {
+    const tag = `championsPending:${israelToday(now)}`;
+    try {
+      if (!(await already(tag))) {
+        const { readSuggestions } = await import('@/lib/champions/server');
+        const { data: used, error: usedErr } = await supabase.from('race_results').select('activity_id').not('activity_id', 'is', null);
+        let sent = 0;
+        if (!usedErr) {
+          const waiting = await readSuggestions(supabase, new Set(((used || []) as { activity_id: string }[]).map((r) => r.activity_id)));
+          const fresh = waiting.filter((w) => w.raceDate >= addDays(israelToday(now), -2));
+          if (fresh.length) {
+            ({ sent } = await notifyStaff({
+              kind: 'champions_pending', url: '/dashboard/records', tag: 'champions-pending', category: 'management',
+              copy: () => ({ title: '🏆 אלופי המדרגות', body: `${waiting.length === 1 ? 'תוצאה אחת מחכה' : `${waiting.length} תוצאות מחכות`} לאישור שלך` }),
+            }));
+          }
+        }
+        await markFired(tag, sent);
+        if (sent) fired.push(`${tag} → ${sent}`);
+      }
+    } catch (err) {
+      console.error('[tick] champions pending push failed:', err);
+    }
+  }
+
   // From 06:00, on every tick: a club post on the feed for each member whose birthday it is
   // (lib/feed/birthday.ts) — likes and comments reach them like on their own post. Every
   // tick, not once a day: a person's time can be moved later by hand (story_instances), and
