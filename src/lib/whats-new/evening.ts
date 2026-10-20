@@ -120,7 +120,7 @@ export const EVENING_ENTRIES: WhatsNewEntry[] = [
       { key: 'b18-feed-top', he: 'המרוץ, האימון וימי ההולדת', en: 'The race, the session and the birthdays' },
       { key: 'b18-feed-runs', he: 'כרטיסי הריצה', en: 'The run cards' },
     ],
-    he: { title: 'הפיד, מחדש', body: 'בראש הפיד: מי חוגג היום, כמה שבועות נשארו למרוץ שלך, והאימון הבא. ומתחת: כרטיסי ריצה נקיים, עם המספרים החשובים בגדול.', cta: 'לפיד', kicker: 'חדש · פיד', where: 'הלשונית "פיד" למטה' },
+    he: { title: 'הפיד, מחדש', body: 'בראש הפיד: מי חוגג השבוע, כמה שבועות נשארו למרוץ שלך, והאימון הבא. ומתחת: כרטיסי ריצה נקיים, עם המספרים החשובים בגדול.', cta: 'לפיד', kicker: 'חדש · פיד', where: 'הלשונית "פיד" למטה' },
     en: { title: 'Your feed, redone', body: 'At the top: who is celebrating today, how many weeks to your race, and the next session. Below: clean run cards, the numbers that matter up front.', cta: 'To the feed', kicker: 'New · Feed', where: 'The "Feed" tab at the bottom' },
   },
   {
@@ -131,7 +131,7 @@ export const EVENING_ENTRIES: WhatsNewEntry[] = [
       { key: 'b18-celebrations', he: 'יום הולדת', en: 'A birthday' },
       { key: 'b18-celebrations-cheer', he: 'מרתון', en: 'A marathon' },
     ],
-    he: { title: 'ימי הולדת וחגיגות, בפיד', body: '"חוגגים היום" בראש הפיד: יום הולדת עולה לבד, ושיא אישי או מרתון מהיר מקבלים ברכה מהמאמנים. נגיעה בעיגול פותחת את החגיגה, עם לייק ותגובה.', cta: 'לפיד', kicker: 'חדש · חגיגות', where: 'בפיד' },
+    he: { title: 'ימי הולדת וחגיגות, בפיד', body: '"חוגגים השבוע" בראש הפיד: יום הולדת עולה לבד, ושיא אישי או מרתון מהיר מקבלים ברכה מהמאמנים. נגיעה בעיגול פותחת את החגיגה, עם לייק ותגובה.', cta: 'לפיד', kicker: 'חדש · חגיגות', where: 'בפיד' },
     en: { title: 'Birthdays and celebrations, on the feed', body: '"Celebrating today" at the top of the feed: birthdays go up by themselves, and a personal best or a fast marathon gets a cheer from the coaches. Tap a circle to open it, like and comment.', cta: 'To the feed', kicker: 'New · Celebrations', where: 'On the feed' },
   },
   {

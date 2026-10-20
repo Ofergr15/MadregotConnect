@@ -51,7 +51,7 @@ function CirclePreview({ title, text }: { title: string; text: string }) {
     <div className="space-y-2">
       <p className={LABEL}>ככה זה ייראה</p>
       <div className="rounded-[22px] bg-card px-3 pb-3 pt-3">
-        <p className="mb-2 px-1 text-[12px] font-extrabold text-ink-400">🎉 חוגגים היום</p>
+        <p className="mb-2 px-1 text-[12px] font-extrabold text-ink-400">🎉 חוגגים השבוע</p>
         <div className="flex w-[72px] flex-col items-center text-center">
           <span className="relative rounded-full p-[3px]" style={{ background: 'conic-gradient(from 200deg,#1525FF,#5BC0EB,#1525FF)' }}>
             <span className="block rounded-full border-[3px] border-card bg-white">
@@ -372,7 +372,7 @@ export default function PublishPage() {
           )}
           <p className={LABEL}>כמה זמן בעיגולים</p>
           <Seg value={String(cheerDays) as '1' | '3' | '7'} options={[['1', 'היום'], ['3', '3 ימים'], ['7', 'שבוע']]} onChange={(v) => setCheerDays(Number(v) as 1 | 3 | 7)} />
-          <p className="px-1 text-12 text-ink-400">ב״חוגגים היום״ בראש הפיד. הפוסט בפיד נשאר תמיד.</p>
+          <p className="px-1 text-12 text-ink-400">ב״חוגגים השבוע״ בראש הפיד. הפוסט בפיד נשאר תמיד.</p>
           <div className={cn(CARD, 'flex min-h-[56px] items-center justify-between gap-3 px-4 py-2')}>
             <span className="min-w-0"><b className="block text-[15px] text-ink-900">{t('pushClub')}</b><small className="block text-13 text-ink-400">{t('pushClubSub')}</small></span>
             <Switch checked={push} onChange={setPush} activeColor="bg-[#1FA55B]" ariaLabel={t('pushClub')} />

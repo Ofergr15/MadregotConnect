@@ -21,7 +21,7 @@ import { useAthleteId } from '@/lib/use-athlete-id';
 import './celebrations.css';
 
 // ═════════════════════════════════════════════════════════════════════════════
-// "חוגגים היום" — the row of circles at the top of the feed (Ofer, 2026-10-18:
+// "חוגגים השבוע" — the row of circles at the top of the feed (Ofer, 2026-10-18:
 // direction B of ~/.cache/madregot/celebrations/top-options.html, "a better-made
 // version"). Each circle is the person's real photo in a coloured ring with the
 // occasion's emoji on it; ▶ on the ring means there is a video. A circle once
@@ -307,7 +307,7 @@ export function CelebrationStories({ onComment }: { onComment: (item: FeedItem) 
 
   return (
     <section className="mcel mb-4 rounded-[26px] bg-card px-1.5 pb-3 pt-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]" dir="rtl">
-      <p className="mb-2 px-2.5 text-[12px] font-extrabold text-ink-400">{entries.length || club.length ? '🎉 חוגגים היום' : '🏃 השבוע שלך מוכן'}</p>
+      <p className="mb-2 px-2.5 text-[12px] font-extrabold text-ink-400">{entries.length || club.length ? '🎉 חוגגים השבוע' : '🏃 השבוע שלך מוכן'}</p>
       {/* A sideways scroller clips vertically too: pt/pb keep the ring's top and the ▶ badge inside it. */}
       <div className="strip flex gap-2 overflow-x-auto px-1.5 pb-0.5 pt-2">
         {week && weekKey && (

@@ -3,7 +3,7 @@ import { addDaysToDateStr } from '@/lib/utils';
 // ═════════════════════════════════════════════════════════════════════════════
 // THE MADREGOT CIRCLE (Ofer, 2026-10-18; mockup celebrations-control, 1-2 and 6)
 //
-// A message from the club drawn as the FIRST circle of "חוגגים היום": the logo in a
+// A message from the club drawn as the FIRST circle of "חוגגים השבוע": the logo in a
 // blue ring, a red dot until it is opened, and a tap pops the message up. Not a feed
 // post (a circle-only message is kept out of feed_items altogether, so it can never
 // show up as one) and quiet by default: the circle is the gentle channel, the push
