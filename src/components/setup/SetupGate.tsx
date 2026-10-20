@@ -143,7 +143,7 @@ function InstallStep({ onSkip }: { onSkip: () => void }) {
       )}>
       <div className="flex min-h-0 flex-1 justify-center">
         {ios ? (
-          <div className="relative h-full max-h-[460px] overflow-hidden rounded-[24px] bg-[#1B23A8] shadow-[0_1px_2px_rgba(0,0,0,.06),0_18px_36px_-18px_rgba(0,0,0,.35)]" style={{ aspectRatio: '540 / 960' }} data-testid="install-video">
+          <div className="relative h-[min(460px,calc(100dvh-360px))] min-h-[260px] overflow-hidden rounded-[24px] bg-[#1B23A8] shadow-[0_1px_2px_rgba(0,0,0,.06),0_18px_36px_-18px_rgba(0,0,0,.35)]" style={{ aspectRatio: '540 / 960' }} data-testid="install-video">
             <video src="/videos/install-iphone.mp4" poster="/videos/install-iphone-poster.jpg" autoPlay muted loop playsInline className="block h-full w-full object-cover" />
           </div>
         ) : (
