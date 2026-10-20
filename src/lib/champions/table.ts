@@ -89,3 +89,37 @@ export function parseRaceTime(t: string): number | null {
 }
 
 export const enteredVerb = (gender: string | null) => (isWoman(gender) ? 'נכנסה' : 'נכנס');
+
+/**
+ * Which race-day runs are worth the admin's approval (Ofer 10-20: "only the results
+ * that enter a top 10, and at most one per distance per runner"): a runner's fastest
+ * run at a distance, and only when it would stand in the top 10 of a table it belongs
+ * to — its sex or everyone, this year or all time. A run slower than the runner's own
+ * official result at that distance changes no table, so it is never one of them.
+ * Keeps the given (newest-first) order.
+ */
+export interface SuggestionLike {
+  activityId: string; athleteId: string; name: string; avatarUrl: string | null;
+  distance: ChampDistance; watchSeconds: number; raceName: string | null; raceDate: string; gender?: string | null;
+}
+export function relevantSuggestions<S extends SuggestionLike>(results: ResultRow[], suggestions: S[], today: string): S[] {
+  const fastest = new Map<string, S>();
+  for (const s of suggestions) {
+    const k = `${s.athleteId}:${s.distance}`;
+    const b = fastest.get(k);
+    if (!b || s.watchSeconds < b.watchSeconds) fastest.set(k, s);
+  }
+  const keep = new Set<string>();
+  for (const s of fastest.values()) {
+    const row: ResultRow = {
+      id: `suggestion:${s.activityId}`, athleteId: s.athleteId, name: s.name, avatarUrl: s.avatarUrl, gender: s.gender ?? null,
+      pack: null, distance: s.distance, seconds: s.watchSeconds, raceName: s.raceName, raceDate: s.raceDate,
+    };
+    const sexes: ChampSex[] = isWoman(row.gender) ? ['women', 'all'] : isMan(row.gender) ? ['men', 'all'] : ['all'];
+    const scopes: ChampScope[] = ['year', 'all'];
+    const enters = sexes.some((sex) => scopes.some((scope) =>
+      board([...results, row], { distance: s.distance, sex, scope, today }).top.some((r) => r.id === row.id)));
+    if (enters) keep.add(s.activityId);
+  }
+  return suggestions.filter((s) => keep.has(s.activityId));
+}

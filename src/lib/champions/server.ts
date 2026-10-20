@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { COACH_ID } from '@/lib/constants';
-import { distanceOf, packNumber, type ChampDistance, type ResultRow } from './table';
+import { distanceOf, packNumber, relevantSuggestions, type ChampDistance, type ResultRow } from './table';
+import { israelToday } from '@/lib/utils';
 
 // The DB half of אלופי המדרגות: approved official results (race_results, 163), and the
 // watch's race-day runs that could become one (race_matches) for staff to confirm.
@@ -43,7 +44,7 @@ export async function readResults(db: Db): Promise<{ ready: boolean; rows: Resul
   };
 }
 
-export interface Suggestion { activityId: string; athleteId: string; name: string; avatarUrl: string | null; distance: ChampDistance; watchSeconds: number; raceName: string | null; raceDate: string }
+export interface Suggestion { activityId: string; athleteId: string; name: string; avatarUrl: string | null; distance: ChampDistance; watchSeconds: number; raceName: string | null; raceDate: string; gender?: string | null }
 
 /** Race-day runs at a race distance, not yet a result — newest first. */
 export async function readSuggestions(db: Db, taken: Set<string>): Promise<Suggestion[]> {
@@ -60,9 +61,15 @@ export async function readSuggestions(db: Db, taken: Set<string>): Promise<Sugge
   const who = await people(db, [...new Set(fit.map((x) => x.r.athlete_id))]);
   const { data: active } = await db.from('athletes').select('id').eq('coach_id', COACH_ID).neq('status', 'removed').in('id', [...who.keys()]);
   const ok = new Set(((active || []) as { id: string }[]).map((x) => x.id));
-  return fit.filter((x) => ok.has(x.r.athlete_id)).map(({ r, a, d }) => ({
+  const all = fit.filter((x) => ok.has(x.r.athlete_id)).map(({ r, a, d }) => ({
     activityId: r.activity_id, athleteId: r.athlete_id, name: who.get(r.athlete_id)?.name || '', avatarUrl: who.get(r.athlete_id)?.avatar_url ?? null,
     distance: d, watchSeconds: Math.round(a.duration!), raceName: r.events?.name ?? r.evidence?.eventName ?? null,
     raceDate: new Date(a.start_time).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }),
+    gender: who.get(r.athlete_id)?.gender ?? null,
   }));
+  // Only what is worth an approval (Ofer 10-20): a runner's fastest per distance, and
+  // only when it enters a top 10 (table.ts relevantSuggestions). Here, so the admin's
+  // list, the pending count and the 20:00 push all count the same thing.
+  const { rows: results } = await readResults(db);
+  return relevantSuggestions(results, all, israelToday());
 }
